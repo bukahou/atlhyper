@@ -20,22 +20,16 @@
 // 📅 创建时间：2025-06
 // =======================================================================================
 
-package controller
+package neurocontroller
 
 import (
+	"NeuroController/internal/bootstrap"
 	"NeuroController/internal/utils"
-	"fmt"
-
-	"go.uber.org/zap"
 )
 
 func main() {
 	utils.InitLogger()
 	utils.InitK8sClient()
 
-	client := utils.GetClient()
-	utils.Info(nil,
-		"✅ 获取 Kubernetes client 成功",
-		zap.String("clientType", fmt.Sprintf("%T", client)),
-	)
+	bootstrap.StartManager()
 }
