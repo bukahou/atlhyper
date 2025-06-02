@@ -28,8 +28,10 @@ package pod
 
 import (
 	"context"
+	"time"
 
 	"NeuroController/internal/utils"
+	"NeuroController/internal/utils/abnormal"
 
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -86,21 +88,35 @@ func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// ✅ 检查是否为异常状态（包含 Phase、Waiting、Terminated）
 	if isPodAbnormal(pod) {
+		reason := abnormal.GetPodAbnormalReason(pod) // 返回 *PodAbnormalReason
+
+		if reason == nil {
+			// 未识别异常，跳过处理（可选策略）
+			return ctrl.Result{}, nil
+		}
+
+		// 构造异常 ID（使用 reason.Code）
+		exceptionID := utils.GenerateExceptionID("Pod", pod.Name, pod.Namespace, reason.Code)
+
+		if !utils.ShouldProcessException(exceptionID, time.Now(), 2*time.Minute) {
+			// 🧊 在冷却窗口内，不处理
+			return ctrl.Result{}, nil
+		}
+
 		utils.Warn(ctx, "🚨 发现异常 Pod",
 			utils.WithTraceID(ctx),
+			zap.String("time", time.Now().Format(time.RFC3339)),
 			zap.String("name", pod.Name),
 			zap.String("namespace", pod.Namespace),
 			zap.String("phase", string(pod.Status.Phase)),
+			zap.String("reason", reason.Code),
+			zap.String("category", reason.Category),
+			zap.String("severity", reason.Severity),
+			zap.String("message", reason.Message),
 		)
 
-		// ⚠️ 暂时跳过策略模块，默认启用所有操作（后续用策略替换）
-
-		// ⚙️ 缩容
 		//actuator.ScaleDeploymentToZero(ctx, w.client, pod)
-
-		// 📧 发送报警通知
 		//reporter.SendCrashAlert(ctx, pod, "触发默认异常响应：未使用策略模块")
-
 	}
 
 	return ctrl.Result{}, nil
@@ -117,51 +133,16 @@ func isPodAbnormal(pod corev1.Pod) bool {
 	for _, cs := range pod.Status.ContainerStatuses {
 		// 检查 Waiting 状态
 		if cs.State.Waiting != nil {
-			if isAbnormalWaitingReason(cs.State.Waiting.Reason) {
+			if abnormal.IsAbnormalWaitingReason(cs.State.Waiting.Reason) {
 				return true
 			}
 		}
 		// 检查 Terminated 状态
 		if cs.State.Terminated != nil {
-			if isAbnormalTerminatedReason(cs.State.Terminated.Reason) {
+			if abnormal.IsAbnormalTerminatedReason(cs.State.Terminated.Reason) {
 				return true
 			}
 		}
 	}
 	return false
-}
-
-// =======================================================================================
-// ✅ 异常原因映射表（Waiting 状态）
-//
-// 定义所有被视为异常的 Pod Container 等待状态原因，
-// 例如镜像拉取失败、容器创建失败等。
-var abnormalWaitingReasons = map[string]bool{
-	"CrashLoopBackOff":     true, // 容器反复崩溃重启
-	"ImagePullBackOff":     true, // 镜像拉取失败并进入退避状态
-	"ErrImagePull":         true, // 镜像拉取错误
-	"CreateContainerError": true, // 容器创建失败
-}
-
-// ✅ 异常原因映射表（Terminated 状态）
-//
-// 定义所有被视为异常的已终止状态的原因，例如 OOMKilled 等。
-var abnormalTerminatedReasons = map[string]bool{
-	"OOMKilled": true, // 容器因超出内存限制被杀死
-	"Error":     true, // 通用错误退出状态
-}
-
-// =======================================================================================
-// ✅ 方法：判断是否为异常的 Waiting 状态原因
-//
-// 用于检查 ContainerStatus.State.Waiting.Reason 是否属于预定义的异常列表。
-func isAbnormalWaitingReason(reason string) bool {
-	return abnormalWaitingReasons[reason]
-}
-
-// ✅ 方法：判断是否为异常的 Terminated 状态原因
-//
-// 用于检查 ContainerStatus.State.Terminated.Reason 是否属于预定义的异常列表。
-func isAbnormalTerminatedReason(reason string) bool {
-	return abnormalTerminatedReasons[reason]
 }

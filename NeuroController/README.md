@@ -7,6 +7,7 @@ NeuroController 是一个神经网络式的 Kubernetes 控制器插件，专为�
 ## 🧠 核心能力
 
 - 🔁 Webhook：接收 DockerHub 镜像更新推送，触发自动策略
+- 🧾 结构化日志系统：统一输出 JSON 格式日志，支持 trace.id、时间戳、异常类型等字段，便于接入 Filebeat / Elasticsearch / Loki / Kibana 等可观测平台，实现异常上下文追踪与日志分析。
 - 👀 Pod 监听器：自动检测 CrashLoopBackOff 等异常状态
 - 🧾 日志诊断器：自动获取 `kubectl describe/logs`
 - 📧 告警系统：HTML 格式邮件告警
