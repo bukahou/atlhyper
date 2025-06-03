@@ -10,8 +10,8 @@ type PodAbnormalReason struct {
 	Message  string // 可选的用户友好描述
 }
 
-// waiting 状态的异常
-var PodAbnormalWaitingReasons = map[string]PodAbnormalReason{
+var PodAbnormalReasons = map[string]PodAbnormalReason{
+	// === Waiting 状态 ===
 	"CrashLoopBackOff": {
 		Code:     "CrashLoopBackOff",
 		Category: "Waiting",
@@ -36,10 +36,8 @@ var PodAbnormalWaitingReasons = map[string]PodAbnormalReason{
 		Severity: "critical",
 		Message:  "容器创建失败",
 	},
-}
 
-// terminated 状态的异常
-var PodAbnormalTerminatedReasons = map[string]PodAbnormalReason{
+	// === Terminated 状态 ===
 	"OOMKilled": {
 		Code:     "OOMKilled",
 		Category: "Terminated",
@@ -52,16 +50,4 @@ var PodAbnormalTerminatedReasons = map[string]PodAbnormalReason{
 		Severity: "warning",
 		Message:  "容器异常终止退出",
 	},
-}
-
-// ✅ 是否为异常的 Waiting 状态
-func IsAbnormalWaitingReason(reason string) bool {
-	_, ok := PodAbnormalWaitingReasons[reason]
-	return ok
-}
-
-// ✅ 是否为异常的 Terminated 状态
-func IsAbnormalTerminatedReason(reason string) bool {
-	_, ok := PodAbnormalTerminatedReasons[reason]
-	return ok
 }

@@ -63,10 +63,7 @@ func (w *NodeWatcher) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ 方法：核心监听逻辑
-//
-// 当 Node 状态变更时由 controller-runtime 调用，判断是否为 NotReady / Unknown，
-// 若异常则记录日志，后续可扩展为通知或策略响应。
+// ✅ 方法：核心监听逻辑（Node 异常识别入口）
 func (w *NodeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var node corev1.Node
 	if err := w.client.Get(ctx, req.NamespacedName, &node); err != nil {
@@ -78,13 +75,22 @@ func (w *NodeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ✨ 提取主异常原因（内部已做冷却窗口判断）
+	// ✨ 提取异常原因（内部已判断冷却期）
 	reason := abnormal.GetNodeAbnormalReason(node)
 	if reason == nil {
-		return ctrl.Result{}, nil // 🧊 无异常或冷却中
+		return ctrl.Result{}, nil
 	}
 
-	// ✅ 打印结构化异常日志
+	// ✅ 输出日志（封装）
+	logNodeAbnormal(ctx, node, reason)
+
+	// TODO: 后续执行动作（告警 / 缩容）
+	return ctrl.Result{}, nil
+}
+
+// =======================================================================================
+// ✅ 函数：输出结构化 Node 异常日志
+func logNodeAbnormal(ctx context.Context, node corev1.Node, reason *abnormal.NodeAbnormalReason) {
 	utils.Warn(ctx, "🚨 发现异常 Node",
 		utils.WithTraceID(ctx),
 		zap.String("time", time.Now().Format(time.RFC3339)),
@@ -94,7 +100,4 @@ func (w *NodeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		zap.String("severity", reason.Severity),
 		zap.String("category", reason.Category),
 	)
-
-	// TODO: 执行缩容 / 报警等后续处理逻辑
-	return ctrl.Result{}, nil
 }

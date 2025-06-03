@@ -73,7 +73,6 @@ func (w *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 // 若发现异常状态（如 CrashLoopBackOff、ImagePullBackOff、OOMKilled 等），
 // 则交由策略模块判断并触发 actuator/reporter。
 func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	var pod corev1.Pod
 	if err := w.client.Get(ctx, req.NamespacedName, &pod); err != nil {
 		utils.Warn(ctx, "❌ 获取 Pod 失败",
@@ -82,67 +81,31 @@ func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			zap.String("pod", req.Name),
 			zap.String("error", err.Error()),
 		)
-
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ✅ 检查是否为异常状态（包含 Phase、Waiting、Terminated）
-	if isPodAbnormal(pod) {
-		reason := abnormal.GetPodAbnormalReason(pod) // 返回 *PodAbnormalReason
-
-		if reason == nil {
-			// 未识别异常，跳过处理（可选策略）
-			return ctrl.Result{}, nil
-		}
-
-		// 构造异常 ID（使用 reason.Code）
-		exceptionID := utils.GenerateExceptionID("Pod", pod.Name, pod.Namespace, reason.Code)
-
-		if !utils.ShouldProcessException(exceptionID, time.Now(), 2*time.Minute) {
-			// 🧊 在冷却窗口内，不处理
-			return ctrl.Result{}, nil
-		}
-
-		utils.Warn(ctx, "🚨 发现异常 Pod",
-			utils.WithTraceID(ctx),
-			zap.String("time", time.Now().Format(time.RFC3339)),
-			zap.String("name", pod.Name),
-			zap.String("namespace", pod.Namespace),
-			zap.String("phase", string(pod.Status.Phase)),
-			zap.String("reason", reason.Code),
-			zap.String("category", reason.Category),
-			zap.String("severity", reason.Severity),
-			zap.String("message", reason.Message),
-		)
-
-		//actuator.ScaleDeploymentToZero(ctx, w.client, pod)
-		//reporter.SendCrashAlert(ctx, pod, "触发默认异常响应：未使用策略模块")
+	// ✅ 获取异常主因（内部已判断冷却时间窗口）
+	reason := abnormal.GetPodAbnormalReason(pod)
+	if reason == nil {
+		return ctrl.Result{}, nil // ✅ 无需处理
 	}
+
+	// ✅ 输出结构化异常日志
+	utils.Warn(ctx, "🚨 发现异常 Pod",
+		utils.WithTraceID(ctx),
+		zap.String("time", time.Now().Format(time.RFC3339)),
+		zap.String("name", pod.Name),
+		zap.String("namespace", pod.Namespace),
+		zap.String("phase", string(pod.Status.Phase)),
+		zap.String("reason", reason.Code),
+		zap.String("category", reason.Category),
+		zap.String("severity", reason.Severity),
+		zap.String("message", reason.Message),
+	)
+
+	// 🔧 后续可调用响应策略模块
+	// actuator.ScaleDeploymentToZero(ctx, w.client, pod)
+	// reporter.SendCrashAlert(ctx, pod, "触发默认异常响应：未使用策略模块")
 
 	return ctrl.Result{}, nil
-}
-
-// =======================================================================================
-// ✅ 辅助函数：判断 Pod 是否为异常状态
-//
-// 包含 Phase 为 Failed/Unknown 或 Container 状态为 CrashLoopBackOff。
-func isPodAbnormal(pod corev1.Pod) bool {
-	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodUnknown {
-		return true
-	}
-	for _, cs := range pod.Status.ContainerStatuses {
-		// 检查 Waiting 状态
-		if cs.State.Waiting != nil {
-			if abnormal.IsAbnormalWaitingReason(cs.State.Waiting.Reason) {
-				return true
-			}
-		}
-		// 检查 Terminated 状态
-		if cs.State.Terminated != nil {
-			if abnormal.IsAbnormalTerminatedReason(cs.State.Terminated.Reason) {
-				return true
-			}
-		}
-	}
-	return false
 }

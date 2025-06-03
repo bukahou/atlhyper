@@ -17,15 +17,27 @@ import (
 // ✅ 提取 Pod 中首个识别的主要异常原因（返回结构体）
 func GetPodAbnormalReason(pod corev1.Pod) *PodAbnormalReason {
 	for _, cs := range pod.Status.ContainerStatuses {
-		// 检查 Waiting 状态
+		// === 检查 Waiting 状态 ===
 		if cs.State.Waiting != nil {
-			if reason, ok := PodAbnormalWaitingReasons[cs.State.Waiting.Reason]; ok {
+			reason, ok := PodAbnormalReasons[cs.State.Waiting.Reason]
+			if ok {
+				// 冷却时间判断
+				exceptionID := utils.GenerateExceptionID("Pod", pod.Name, pod.Namespace, reason.Code)
+				if !utils.ShouldProcessException(exceptionID, time.Now(), 2*time.Minute) {
+					return nil
+				}
 				return &reason
 			}
 		}
-		// 检查 Terminated 状态
+
+		// === 检查 Terminated 状态 ===
 		if cs.State.Terminated != nil {
-			if reason, ok := PodAbnormalTerminatedReasons[cs.State.Terminated.Reason]; ok {
+			reason, ok := PodAbnormalReasons[cs.State.Terminated.Reason]
+			if ok {
+				exceptionID := utils.GenerateExceptionID("Pod", pod.Name, pod.Namespace, reason.Code)
+				if !utils.ShouldProcessException(exceptionID, time.Now(), 2*time.Minute) {
+					return nil
+				}
 				return &reason
 			}
 		}
@@ -62,4 +74,24 @@ func GetNodeAbnormalReason(node corev1.Node) *NodeAbnormalReason {
 		}
 	}
 	return nil
+}
+
+// =======================================================================================
+// ✅ 提取 Event 中已知的异常原因（返回结构体）
+// 提取 Kubernetes Event 中的主要异常原因（用于识别 Warning 等）
+func GetEventAbnormalReason(event corev1.Event) *EventAbnormalReason {
+	reason, ok := EventAbnormalReasons[event.Reason]
+	if !ok {
+		return nil
+	}
+
+	// ✅ 生成异常唯一指纹
+	exceptionID := utils.GenerateExceptionID("Event", event.InvolvedObject.Name, event.InvolvedObject.Namespace, reason.Code)
+
+	// ✅ 冷却窗口判断（默认 2 分钟）
+	if !utils.ShouldProcessException(exceptionID, time.Now(), 2*time.Minute) {
+		return nil
+	}
+
+	return &reason
 }
