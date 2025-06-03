@@ -35,7 +35,10 @@ func StartManager() {
 		utils.Fatal(nil, "❌ 获取 Kubernetes 配置失败", zap.Error(err))
 	}
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		//后续添加需要监控的NS，暂定全集群监控
+		//Namespace: "default",
+	})
 	if err != nil {
 		utils.Fatal(nil, "❌ 初始化 Controller Manager 失败", zap.Error(err))
 	}
