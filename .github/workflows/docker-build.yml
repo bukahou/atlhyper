@@ -31,5 +31,4 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             -t bukahou/zgmf-x10a:neurocontroller \
-            --no-cache \
             --push ./NeuroController

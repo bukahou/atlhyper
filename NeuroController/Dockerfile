@@ -38,5 +38,7 @@ COPY --from=builder /app/neurocontroller .
 # 暴露端口（Gin 默认 8080）
 # EXPOSE 8080
 
+RUN chmod +x ./neurocontroller
+
 # 启动命令
 ENTRYPOINT ["./neurocontroller"]
