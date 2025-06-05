@@ -11,6 +11,7 @@ import (
 	"NeuroController/internal/utils"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -94,4 +95,57 @@ func GetEventAbnormalReason(event corev1.Event) *EventAbnormalReason {
 	}
 
 	return &reason
+}
+
+// ✅ 提取 Deployment 中首个识别的主要异常原因（返回结构体）
+func GetDeploymentAbnormalReason(deploy appsv1.Deployment) *DeploymentAbnormalReason {
+	now := time.Now()
+	name := deploy.Name
+	namespace := deploy.Namespace
+
+	// === 异常 1：存在不可用副本 ===
+	if deploy.Status.UnavailableReplicas > 0 {
+		reason := DeploymentAbnormalReasons["UnavailableReplica"]
+		exceptionID := utils.GenerateExceptionID("Deployment", name, namespace, reason.Code)
+		if !utils.ShouldProcessException(exceptionID, now, 2*time.Minute) {
+			return nil
+		}
+		return &reason
+	}
+
+	// === 异常 2：Ready 副本不足（实际 Ready < 期望） ===
+	if deploy.Status.ReadyReplicas < *deploy.Spec.Replicas {
+		reason := DeploymentAbnormalReasons["ReadyReplicaMismatch"]
+		exceptionID := utils.GenerateExceptionID("Deployment", name, namespace, reason.Code)
+		if !utils.ShouldProcessException(exceptionID, now, 2*time.Minute) {
+			return nil
+		}
+		return &reason
+	}
+
+	// === 异常 3：更新超时（ProgressDeadlineExceeded）===
+	for _, cond := range deploy.Status.Conditions {
+		if cond.Type == appsv1.DeploymentProgressing && cond.Reason == "ProgressDeadlineExceeded" {
+			reason := DeploymentAbnormalReasons["ProgressDeadlineExceeded"]
+			exceptionID := utils.GenerateExceptionID("Deployment", name, namespace, reason.Code)
+			if !utils.ShouldProcessException(exceptionID, now, 2*time.Minute) {
+				return nil
+			}
+			return &reason
+		}
+	}
+
+	// === 异常 4：副本数异常上溢（Replicas > 期望值的 1.5 倍）===
+	expected := *deploy.Spec.Replicas
+	actual := deploy.Status.Replicas
+	if actual > int32(float32(expected)*1.5) {
+		reason := DeploymentAbnormalReasons["ReplicaOverflow"]
+		exceptionID := utils.GenerateExceptionID("Deployment", name, namespace, reason.Code)
+		if !utils.ShouldProcessException(exceptionID, now, 2*time.Minute) {
+			return nil
+		}
+		return &reason
+	}
+
+	return nil
 }

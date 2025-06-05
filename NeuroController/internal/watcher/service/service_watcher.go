@@ -77,25 +77,54 @@ func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 // =======================================================================================
 // ✅ 辅助函数：处理变更字段，按严重性打印分类日志
 func processServiceChange(ctx context.Context, svc *corev1.Service) {
-	if len(svc.Spec.Selector) == 0 {
-		utils.Warn(ctx, "🚨 Service 未关联任何 Pod（Selector 为空）",
-			utils.WithTraceID(ctx),
-			zap.String("service", svc.Name),
-			zap.String("namespace", svc.Namespace),
-		)
+	// 忽略系统默认服务
+	if svc.Name == "kubernetes" && svc.Namespace == "default" {
+		return
 	}
 
-	if svc.Spec.Type == corev1.ServiceTypeExternalName {
-		utils.Warn(ctx, "⚠️ 检测到 ExternalName 类型 Service",
-			utils.WithTraceID(ctx),
-			zap.String("service", svc.Name),
-		)
+	for _, check := range serviceChecks {
+		if check.Check(svc) {
+			utils.Warn(ctx, check.Message,
+				utils.WithTraceID(ctx),
+				zap.String("service", svc.Name),
+				zap.String("namespace", svc.Namespace),
+				zap.String("check", check.Name),
+			)
+		}
 	}
+}
 
-	if svc.Spec.ClusterIP == "None" || svc.Spec.ClusterIP == "" {
-		utils.Warn(ctx, "⚠️ Service ClusterIP 异常（为空或 None）",
-			utils.WithTraceID(ctx),
-			zap.String("service", svc.Name),
-		)
-	}
+// ---------------------------------------------------------------------------------------------------
+type ServiceAbnormalCheck struct {
+	Name     string
+	Check    func(svc *corev1.Service) bool
+	Severity string
+	Message  string
+}
+
+var serviceChecks = []ServiceAbnormalCheck{
+	{
+		Name: "EmptySelector",
+		Check: func(svc *corev1.Service) bool {
+			return len(svc.Spec.Selector) == 0
+		},
+		Severity: "warning",
+		Message:  "🚨 Service 未关联任何 Pod（Selector 为空）",
+	},
+	{
+		Name: "ExternalNameService",
+		Check: func(svc *corev1.Service) bool {
+			return svc.Spec.Type == corev1.ServiceTypeExternalName
+		},
+		Severity: "warning",
+		Message:  "⚠️ 检测到 ExternalName 类型 Service",
+	},
+	{
+		Name: "ClusterIPNone",
+		Check: func(svc *corev1.Service) bool {
+			return svc.Spec.ClusterIP == "None" || svc.Spec.ClusterIP == ""
+		},
+		Severity: "warning",
+		Message:  "⚠️ Service ClusterIP 异常（为空或 None）",
+	},
 }

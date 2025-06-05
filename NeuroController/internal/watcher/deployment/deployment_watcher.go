@@ -2,19 +2,21 @@
 // 📄 watcher/deployment/deployment_watcher.go
 //
 // ✨ 功能说明：
-//     实现 DeploymentWatcher 控制器的核心监听逻辑，负责监听 Deployment 对象的状态变更，
-//     根据 Replica 数量差异、指定未 Ready 对象、残待等待列等做记录和告警。
+//     实现 DeploymentWatcher 控制器的核心监听逻辑，负责监听 Deployment 状态变更事件，
+//     判断是否存在副本异常（如 UnavailableReplica / ReadyReplicaMismatch / 超时）并记录日志。
 //
 // 🛠️ 提供功能：
 //     - Reconcile(): controller-runtime 的回调函数，执行监听响应逻辑
+//     - logDeploymentAbnormal(): 输出 Deployment 异常日志（已结构化）
 //
 // 📦 依赖：
-//     - controller-runtime
+//     - controller-runtime（控制器绑定与监听事件驱动）
 //     - apps/v1.Deployment
-//     - utils
+//     - utils（日志系统 / trace 注入）
+//     - abnormal（Deployment 异常识别与分类）
 //
-// 📌 使用场景：
-//     - 在 watcher/deployment/register.go 中注册
+// 📍 使用场景：
+//     - 在 watcher/deployment/register.go 中注册，通过 controller/main.go 启动时加载
 //
 // ✍️ 作者：武夏锋（@ZGMF-X10A）
 // 🗓 创建时间：2025-06
@@ -24,8 +26,10 @@ package deployment
 
 import (
 	"context"
+	"time"
 
 	"NeuroController/internal/utils"
+	"NeuroController/internal/utils/abnormal"
 
 	appsv1 "k8s.io/api/apps/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,20 +40,22 @@ import (
 	"go.uber.org/zap"
 )
 
+// =======================================================================================
 // ✅ 结构体：DeploymentWatcher
-// 📌 控制器结构体定义，作为 controller-runtime 的 Reconciler 实现体
+//
+// 封装 Kubernetes client，并作为 controller-runtime 的 Reconciler 使用。
 type DeploymentWatcher struct {
-	client client.Client // controller-runtime 提供的通用 Client 接口（用于访问 K8s API 资源）
+	client client.Client
 }
 
+// =======================================================================================
 // ✅ 方法：绑定 controller-runtime 控制器
-// 📌 将 DeploymentWatcher 注册为 Deployment 类型的控制器
-//   - 使用 WithEventFilter 过滤掉无变更事件，减少不必要的 Reconcile 调用
+//
+// 注册用于监听 Deployment 状态变更的 controller，并绑定过滤器（仅状态变更时触发）。
 func (w *DeploymentWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&appsv1.Deployment{}). // 👀 监听对象为 apps/v1.Deployment 资源
+		For(&appsv1.Deployment{}).
 		WithEventFilter(predicate.Funcs{
-			// ⚙️ 只在资源版本变更时触发（资源内容有更新）
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
 			},
@@ -57,46 +63,43 @@ func (w *DeploymentWatcher) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(w)
 }
 
-// ✅ 方法：核心监听逻辑
-// 📌 controller-runtime 的核心入口函数，每当 Deployment 状态变更时调用
+// =======================================================================================
+// ✅ 方法：核心监听逻辑（Deployment 异常识别入口）
 func (w *DeploymentWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var deploy appsv1.Deployment
-
-	// 🔍 根据 NamespacedName 查询当前变更的 Deployment 对象
 	if err := w.client.Get(ctx, req.NamespacedName, &deploy); err != nil {
-		// ❌ 获取失败（可能被删除或网络故障）
-		utils.Warn(ctx, "❌ 获取 Deployment 失败",
-			utils.WithTraceID(ctx),             // 🔗 注入 traceID（用于链路追踪）
-			zap.String("deployment", req.Name), // 📎 打印变更对象名称
-			zap.Error(err),
+		utils.Warn(ctx, "获取 Deployment 失败",
+			utils.WithTraceID(ctx),
+			zap.String("deployment", req.Name),
+			zap.String("error", err.Error()),
 		)
-		return ctrl.Result{}, client.IgnoreNotFound(err) // ✅ 忽略 404 错误（资源不存在）
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// 🧠 调用处理函数判断副本状态
-	processDeploymentStatus(ctx, &deploy)
+	// ✨ 提取异常原因（内部已判断冷却期）
+	reason := abnormal.GetDeploymentAbnormalReason(deploy)
+	if reason == nil {
+		return ctrl.Result{}, nil
+	}
+
+	// ✅ 输出日志（封装）
+	logDeploymentAbnormal(ctx, deploy, reason)
+
+	// TODO: 可扩展自动缩容 / 邮件通知 / APM 上报
 	return ctrl.Result{}, nil
 }
 
-// ✅ 辅助函数：处理 Deployment 应用状态
-// 📌 对比 Deployment 的期望副本数（Spec.Replicas）与当前副本状态（Status）
-func processDeploymentStatus(ctx context.Context, deploy *appsv1.Deployment) {
-	// 🚨 检查 Ready 副本是否小于期望值（正常副本不足）
-	if deploy.Status.ReadyReplicas < *deploy.Spec.Replicas {
-		utils.Warn(ctx, "🚨 Deployment Ready Replica 不足",
-			utils.WithTraceID(ctx),
-			zap.String("deployment", deploy.Name),
-			zap.Int32("desired", *deploy.Spec.Replicas),     // 期望副本数
-			zap.Int32("ready", deploy.Status.ReadyReplicas), // 实际就绪副本数
-		)
-	}
-
-	// ⚠️ 检查是否有不可用副本（例如崩溃重启）
-	if deploy.Status.UnavailableReplicas > 0 {
-		utils.Warn(ctx, "⚠️ Deployment 包含 Unavailable Replica",
-			utils.WithTraceID(ctx),
-			zap.String("deployment", deploy.Name),
-			zap.Int32("unavailable", deploy.Status.UnavailableReplicas), // 当前不可用副本数
-		)
-	}
+// =======================================================================================
+// ✅ 函数：输出结构化 Deployment 异常日志
+func logDeploymentAbnormal(ctx context.Context, deploy appsv1.Deployment, reason *abnormal.DeploymentAbnormalReason) {
+	utils.Warn(ctx, "⚠️ 发现 Deployment 异常",
+		utils.WithTraceID(ctx),
+		zap.String("time", time.Now().Format(time.RFC3339)),
+		zap.String("deployment", deploy.Name),
+		zap.String("namespace", deploy.Namespace),
+		zap.String("reason", reason.Code),
+		zap.String("message", reason.Message),
+		zap.String("severity", reason.Severity),
+		zap.String("category", reason.Category),
+	)
 }

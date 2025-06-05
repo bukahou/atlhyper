@@ -20,14 +20,20 @@
 // 📅 创建时间：2025-06
 // =======================================================================================
 
-package neurocontroller
+package main
 
 import (
 	"NeuroController/internal/bootstrap"
 	"NeuroController/internal/utils"
+
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 func main() {
+	// ✅ 设置 controller-runtime 日志系统（推荐放在最前）
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) //  (true)用于开发模式/(false)用于生产模式
+
 	utils.InitLogger()
 	utils.InitK8sClient()
 

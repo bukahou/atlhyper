@@ -35,6 +35,7 @@ import (
 
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -74,23 +75,32 @@ func (w *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 // 则交由策略模块判断并触发 actuator/reporter。
 func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var pod corev1.Pod
-	if err := w.client.Get(ctx, req.NamespacedName, &pod); err != nil {
-		utils.Warn(ctx, "❌ 获取 Pod 失败",
-			utils.WithTraceID(ctx),
-			zap.String("namespace", req.Namespace),
-			zap.String("pod", req.Name),
-			zap.String("error", err.Error()),
-		)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	err := w.client.Get(ctx, req.NamespacedName, &pod)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logPodDeleted(ctx, req.Namespace, req.Name)
+			return ctrl.Result{}, nil
+		}
+		logPodGetError(ctx, req.Namespace, req.Name, err)
+		return ctrl.Result{}, err
 	}
 
-	// ✅ 获取异常主因（内部已判断冷却时间窗口）
+	// ✨ 提取异常主因（已内置冷却判断）
 	reason := abnormal.GetPodAbnormalReason(pod)
 	if reason == nil {
-		return ctrl.Result{}, nil // ✅ 无需处理
+		return ctrl.Result{}, nil
 	}
 
-	// ✅ 输出结构化异常日志
+	// ✅ 输出日志
+	logPodAbnormal(ctx, pod, reason)
+
+	// TODO: 后续触发策略响应 / 上报等操作
+	return ctrl.Result{}, nil
+}
+
+// =======================================================================================
+// ✅ 函数：输出结构化 Pod 异常日志
+func logPodAbnormal(ctx context.Context, pod corev1.Pod, reason *abnormal.PodAbnormalReason) {
 	utils.Warn(ctx, "🚨 发现异常 Pod",
 		utils.WithTraceID(ctx),
 		zap.String("time", time.Now().Format(time.RFC3339)),
@@ -102,10 +112,27 @@ func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		zap.String("severity", reason.Severity),
 		zap.String("message", reason.Message),
 	)
+}
 
-	// 🔧 后续可调用响应策略模块
-	// actuator.ScaleDeploymentToZero(ctx, w.client, pod)
-	// reporter.SendCrashAlert(ctx, pod, "触发默认异常响应：未使用策略模块")
+// =======================================================================================
+// ✅ 函数：输出 Pod 被删除的 Info 日志（用于 CI/CD 场景识别）
+// =======================================================================================
+func logPodDeleted(ctx context.Context, namespace, name string) {
+	utils.Info(ctx, "ℹ️ Pod 已被删除（可能为正常滚动更新）",
+		utils.WithTraceID(ctx),
+		zap.String("namespace", namespace),
+		zap.String("pod", name),
+	)
+}
 
-	return ctrl.Result{}, nil
+// =======================================================================================
+// ✅ 函数：输出 Pod 获取失败日志（非 NotFound 情况）
+// =======================================================================================
+func logPodGetError(ctx context.Context, namespace, name string, err error) {
+	utils.Warn(ctx, "❌ 获取 Pod 失败",
+		utils.WithTraceID(ctx),
+		zap.String("namespace", namespace),
+		zap.String("pod", name),
+		zap.String("error", err.Error()),
+	)
 }

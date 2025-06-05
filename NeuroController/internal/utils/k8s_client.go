@@ -26,11 +26,13 @@ package utils
 
 import (
 	"context"
+	"os"
 	"sync"
 
 	"go.uber.org/zap"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 var (
@@ -41,10 +43,26 @@ var (
 // InitK8sClient 初始化 controller-runtime 的 Client
 func InitK8sClient() {
 	once.Do(func() {
-		cfg, err := config.GetConfig()
-		if err != nil {
-			Error(context.TODO(), "❌ 无法加载 Kubernetes 配置", zap.Error(err))
-			panic(err)
+		var cfg *rest.Config
+		var err error
+
+		kubeconfig := os.Getenv("KUBECONFIG")
+		if kubeconfig != "" {
+			cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+			if err == nil {
+				Info(context.TODO(), "✅ 使用本地 kubeconfig 初始化")
+			} else {
+				Warn(context.TODO(), "⚠️ 解析本地 kubeconfig 失败，尝试 InCluster", zap.Error(err))
+			}
+		}
+
+		if cfg == nil {
+			cfg, err = rest.InClusterConfig()
+			if err != nil {
+				Error(context.TODO(), "❌ 无法加载 Kubernetes 配置", zap.Error(err))
+				panic(err)
+			}
+			Info(context.TODO(), "✅ 使用集群内配置初始化")
 		}
 
 		k8sClient, err = client.New(cfg, client.Options{})
@@ -65,3 +83,27 @@ func GetClient() client.Client {
 	}
 	return k8sClient
 }
+
+// ✅ 自动判断使用 InClusterConfig 或本地 kubeconfig
+// func GetKubeConfig() *rest.Config {
+// 	// 优先使用集群内配置
+// 	cfg, err := rest.InClusterConfig()
+// 	if err == nil {
+// 		Info(context.TODO(), "✅ 使用集群内配置 (InClusterConfig)")
+// 		return cfg
+// 	}
+
+// 	// 回退使用本地 kubeconfig
+// 	kubeconfigPath := os.Getenv("KUBECONFIG")
+// 	if kubeconfigPath == "" {
+// 		kubeconfigPath = os.ExpandEnv("$HOME/.kube/config")
+// 	}
+
+// 	cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+// 	if err != nil {
+// 		Fatal(nil, "❌ 无法加载 Kubernetes 配置", zap.Error(err))
+// 	}
+
+// 	Info(context.TODO(), "✅ 使用本地 kubeconfig 加载成功")
+// 	return cfg
+// }

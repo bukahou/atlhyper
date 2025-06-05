@@ -17,7 +17,9 @@ RUN go mod download
 COPY . .
 
 # 构建目标控制器程序
+# 自动适配 GOARCH 和 GOOS（由 buildx 注入）
 RUN go build -o neurocontroller ./cmd/neurocontroller/main.go
+
 
 # =========================
 # 第二阶段：运行阶段
@@ -30,15 +32,17 @@ WORKDIR /root/
 # 拷贝编译后的二进制文件
 COPY --from=builder /app/neurocontroller .
 
-# 可选：复制配置文件（例如 config.yaml）
-# COPY internal/config/config.yaml ./config.yaml
-# COPY internal/config/webhook_map.yaml ./webhook_map.yaml
-# COPY internal/config/mail_template.tmpl ./mail_template.tmpl
-
-# 暴露端口（Gin 默认 8080）
-# EXPOSE 8080
-
 RUN chmod +x ./neurocontroller
 
 # 启动命令
 ENTRYPOINT ["./neurocontroller"]
+
+
+# 暴露端口（Gin 默认 8080）
+# EXPOSE 8080
+
+
+# 可选：复制配置文件（例如 config.yaml）
+# COPY internal/config/config.yaml ./config.yaml
+# COPY internal/config/webhook_map.yaml ./webhook_map.yaml
+# COPY internal/config/mail_template.tmpl ./mail_template.tmpl
