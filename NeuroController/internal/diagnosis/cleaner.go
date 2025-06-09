@@ -1,13 +1,9 @@
 package diagnosis
 
 import (
-	"NeuroController/internal/utils"
 	"fmt"
-	"os"
 	"sync"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // =======================================================================================
@@ -21,7 +17,6 @@ import (
 var (
 	mu               sync.Mutex
 	cleanedEventPool []LogEvent // 去重后的清理池
-	lastDumpTime     time.Time  // 上次写入时间
 )
 
 const (
@@ -29,14 +24,9 @@ const (
 	retentionCleanedDuration = 5 * time.Minute
 )
 
-// ✅ 清理并更新清理池（不负责写入）
-func CleanAndStoreEvents() {
-	mu.Lock()
-	defer mu.Unlock()
-
+// ✅ 清理原始池：保留最近 10 分钟
+func CleanEventPool() {
 	now := time.Now()
-
-	// === 🧼 清理原始池：保留最近 10 分钟 ===
 	newRaw := make([]LogEvent, 0)
 	for _, ev := range eventPool {
 		if now.Sub(ev.Timestamp) <= retentionRawDuration {
@@ -44,11 +34,15 @@ func CleanAndStoreEvents() {
 		}
 	}
 	eventPool = newRaw
+}
 
-	// === 🧼 构建新清理池（去重）===
+// ✅ 重建清理池：从 eventPool 和旧 cleanedEventPool 合并去重生成新清理池
+func RebuildCleanedEventPool() {
+	now := time.Now()
 	uniqueMap := make(map[string]LogEvent)
 	newCleaned := make([]LogEvent, 0)
 
+	// 筛选并添加来自原始池的近5分钟事件
 	for _, ev := range eventPool {
 		if now.Sub(ev.Timestamp) > retentionCleanedDuration {
 			continue
@@ -60,6 +54,7 @@ func CleanAndStoreEvents() {
 		}
 	}
 
+	// 清理，清理池中过期和重复的事件
 	for _, ev := range cleanedEventPool {
 		if now.Sub(ev.Timestamp) <= retentionCleanedDuration {
 			key := ev.Kind + "|" + ev.Namespace + "|" + ev.Name + "|" + ev.ReasonCode
@@ -73,12 +68,21 @@ func CleanAndStoreEvents() {
 	cleanedEventPool = newCleaned
 }
 
+// ✅ 周期清理入口
+func CleanAndStoreEvents() {
+	mu.Lock()
+	defer mu.Unlock()
+	//清理原始池旧数据
+	CleanEventPool()
+	//清理，清理池池旧数据
+	RebuildCleanedEventPool()
+}
+
 // ✅ 外部接口：获取当前清理池中的所有日志事件
 func GetCleanedEvents() []LogEvent {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// 返回拷贝，避免外部修改原始数据
 	copy := make([]LogEvent, len(cleanedEventPool))
 	copy = append(copy[:0], cleanedEventPool...)
 	return copy
@@ -89,16 +93,17 @@ func StartCleanerLoop(interval time.Duration) {
 	go func() {
 		for {
 			CleanAndStoreEvents()
-			// 🧪 清理后打印一次内容。测试后删除
+			// 🧪 测试用打印，可删除
 			printCleanedEvents()
 			time.Sleep(interval)
 		}
 	}()
 }
 
-// 🧪 测试用：打印当前清理池中的日志事件
+// ✅ 测试用：打印清理池内容
 func printCleanedEvents() {
 	events := GetCleanedEvents()
+	fmt.Println("──────────────────────────────")
 	fmt.Println("🧼 当前清理池状态：")
 	for _, ev := range events {
 		fmt.Printf(" - [%s] %s/%s → %s (%s)\n",
@@ -106,55 +111,4 @@ func printCleanedEvents() {
 	}
 	fmt.Printf("🧮 清理后日志总数：%d 条\n", len(events))
 	fmt.Println("──────────────────────────────")
-}
-
-func DumpEventsToFile(events []LogEvent) {
-	logDir := "./logs"
-	logPath := logDir + "/cleaned_events.log"
-
-	// 确保日志目录存在
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		utils.Warn(nil, "⚠️ 无法创建日志目录", zap.Error(err))
-		return
-	}
-
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		utils.Warn(nil, "⚠️ 无法写入清理日志文件", zap.Error(err))
-		return
-	}
-	defer f.Close()
-
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	f.WriteString("🕒 Dump at " + timestamp + "\n")
-	for _, ev := range events {
-		line := fmt.Sprintf(" - [%s] %s/%s → %s (%s)\n",
-			ev.Kind, ev.Namespace, ev.Name, ev.ReasonCode, ev.Timestamp.Format("15:04:05"))
-		f.WriteString(line)
-	}
-	f.WriteString("──────────────────────────────\n")
-}
-
-// ✅ 仅写入上次 dump 之后新增的日志
-func WriteNewCleanedEventsToFile() {
-	mu.Lock()
-	defer mu.Unlock()
-
-	if len(cleanedEventPool) == 0 {
-		return
-	}
-
-	newLogs := make([]LogEvent, 0)
-	for _, ev := range cleanedEventPool {
-		if ev.Timestamp.After(lastDumpTime) {
-			newLogs = append(newLogs, ev)
-		}
-	}
-
-	if len(newLogs) == 0 {
-		return
-	}
-
-	DumpEventsToFile(newLogs)
-	lastDumpTime = time.Now()
 }

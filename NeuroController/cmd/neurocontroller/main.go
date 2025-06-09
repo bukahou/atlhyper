@@ -26,7 +26,6 @@ import (
 	"NeuroController/internal/bootstrap"
 	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
-	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -43,7 +42,7 @@ func main() {
 	utils.StartK8sHealthChecker(cfg)
 
 	// ✅ 启动定时清理器（每 30 秒清理一次日志池）
-	diagnosis.StartCleanerLoop(30 * time.Second)
+	diagnosis.StartDiagnosisSystem()
 
 	bootstrap.StartManager()
 }

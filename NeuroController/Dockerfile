@@ -32,6 +32,9 @@ WORKDIR /root/
 # 拷贝编译后的二进制文件
 COPY --from=builder /app/neurocontroller .
 
+# ✅ 创建部署环境下的日志目录（如未挂载不会崩）
+RUN mkdir -p /var/log/neurocontroller && chmod -R 755 /var/log/neurocontroller
+
 RUN chmod +x ./neurocontroller
 
 # 启动命令

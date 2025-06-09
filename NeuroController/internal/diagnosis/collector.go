@@ -1,7 +1,6 @@
 package diagnosis
 
 import (
-	"fmt"
 	"time"
 
 	"NeuroController/internal/utils/abnormal"
@@ -47,8 +46,8 @@ func CollectPodAbnormalEvent(pod corev1.Pod, reason *abnormal.PodAbnormalReason)
 	}
 	appendToEventPool(event)
 
-	fmt.Printf("📥 收到 Pod 异常事件：%s/%s → %s（%s）\n",
-		pod.Namespace, pod.Name, reason.Code, reason.Message)
+	// fmt.Printf("📥 收到 Pod 异常事件：%s/%s → %s（%s）\n",
+	// 	pod.Namespace, pod.Name, reason.Code, reason.Message)
 }
 
 // ✅ 收集器：Node 异常事件
@@ -65,8 +64,8 @@ func CollectNodeAbnormalEvent(node corev1.Node, reason *abnormal.NodeAbnormalRea
 	}
 	appendToEventPool(event)
 
-	fmt.Printf("📥 收到 Node 异常事件：%s → %s（%s）\n",
-		node.Name, reason.Code, reason.Message)
+	// fmt.Printf("📥 收到 Node 异常事件：%s → %s（%s）\n",
+	// 	node.Name, reason.Code, reason.Message)
 }
 
 // ✅ 收集器：Event 异常事件
@@ -83,8 +82,8 @@ func CollectEventAbnormalEvent(ev corev1.Event, reason *abnormal.EventAbnormalRe
 	}
 	appendToEventPool(event)
 
-	fmt.Printf("📥 收到 Event 异常事件：%s/%s（%s）→ %s\n",
-		ev.InvolvedObject.Namespace, ev.InvolvedObject.Name, ev.InvolvedObject.Kind, reason.Message)
+	// fmt.Printf("📥 收到 Event 异常事件：%s/%s（%s）→ %s\n",
+	// 	ev.InvolvedObject.Namespace, ev.InvolvedObject.Name, ev.InvolvedObject.Kind, reason.Message)
 
 }
 
@@ -102,8 +101,8 @@ func CollectEndpointAbnormalEvent(ep corev1.Endpoints, reason *abnormal.Endpoint
 	}
 	appendToEventPool(event)
 
-	fmt.Printf("📥 收到 Endpoint 异常事件：%s/%s → %s（%s）\n",
-		ep.Namespace, ep.Name, reason.Code, reason.Message)
+	// fmt.Printf("📥 收到 Endpoint 异常事件：%s/%s → %s（%s）\n",
+	// 	ep.Namespace, ep.Name, reason.Code, reason.Message)
 }
 
 // ✅ 收集器：Deployment 异常事件
@@ -120,8 +119,8 @@ func CollectDeploymentAbnormalEvent(deploy appsv1.Deployment, reason *abnormal.D
 	}
 	appendToEventPool(event)
 
-	fmt.Printf("📥 收到 Deployment 异常事件：%s/%s → %s（%s）\n",
-		deploy.Namespace, deploy.Name, reason.Code, reason.Message)
+	// fmt.Printf("📥 收到 Deployment 异常事件：%s/%s → %s（%s）\n",
+	// 	deploy.Namespace, deploy.Name, reason.Code, reason.Message)
 }
 
 // ✅ 收集器：Service 异常事件
@@ -138,6 +137,6 @@ func CollectServiceAbnormalEvent(svc corev1.Service, reason *abnormal.ServiceAbn
 	}
 	appendToEventPool(event)
 
-	fmt.Printf("📥 收到 Service 异常事件：%s/%s → %s（%s）\n",
-		svc.Namespace, svc.Name, reason.Code, reason.Message)
+	// fmt.Printf("📥 收到 Service 异常事件：%s/%s → %s（%s）\n",
+	// 	svc.Namespace, svc.Name, reason.Code, reason.Message)
 }
