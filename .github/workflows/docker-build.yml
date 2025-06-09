@@ -3,7 +3,7 @@ name: Build and Push NeuroController Image
 on:
   push:
     branches:
-      - disabled  # 当 main 分支推送时触发
+      - main  # 当 main 分支推送时触发/其余，如disabled不触发工作流
 
 jobs:
   build:
@@ -29,6 +29,6 @@ jobs:
       - name: Build and Push NeuroController Image
         run: |
           docker buildx build \
-            --platform linux/arm64 \
+            --platform linux/amd64,linux/arm64 \
             -t bukahou/zgmf-x10a:neurocontroller \
             --push ./NeuroController
