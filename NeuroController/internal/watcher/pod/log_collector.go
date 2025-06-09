@@ -1,24 +1,25 @@
 // =======================================================================================
 // 📄 watcher/pod/log_collector.go
 //
-// ✨ 功能说明：
-//     收集 Pod 最近的容器日志，作为诊断分析与报警通知内容的一部分。
-//     支持限制日志数量（行数）、时间范围或只收集最后一段错误内容。
+// ✨ Description:
+//     Collects recent container logs from a Pod for use in diagnostics and alerting.
+//     Supports limiting log length by line count, time window, or collecting only
+//     the last error segment.
 //
-// 🛠️ 提供功能：
+// 🛠️ Features:
 //     - CollectRecentLogs(pod *corev1.Pod, tail int) → string
-//     - 支持指定容器名称（多容器 Pod）
+//     - Supports specifying container name for multi-container Pods
 //
-// 📦 依赖：
-//     - client-go/corev1.PodLogs 接口
-//     - context, io, bytes, bufio 等标准库
+// 📦 Dependencies:
+//     - client-go/corev1.PodLogs interface
+//     - Standard libraries: context, io, bytes, bufio, etc.
 //
-// 📍 使用场景：
-//     - watcher/pod/pod_watcher.go 发现异常时调用日志收集器
-//     - reporter 模块生成报警信息时附加日志内容
+// 📍 Usage:
+//     - Called by watcher/pod/pod_watcher.go when an abnormal Pod is detected
+//     - Used in reporter module to append log content in alert messages
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: 2025-06
 // =======================================================================================
 
 package pod

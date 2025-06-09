@@ -11,6 +11,19 @@ import (
 	"go.uber.org/zap"
 )
 
+// =======================================================================================
+// 📄 diagnosis/dumper.go
+//
+// ✨ Description:
+//     Handles deduplicated event log persistence. Only events with meaningful changes
+//     are written to disk to avoid redundancy.
+//
+// 📦 Responsibilities:
+//     - Track event content changes using writeRecord cache
+//     - Write only updated/unique events from cleaned pool to log file
+//     - Support both local and in-cluster paths for writing
+// =======================================================================================
+
 type writeRecord struct {
 	Message  string
 	Severity string
@@ -22,17 +35,17 @@ var (
 	lastWriteMap = make(map[string]writeRecord)
 )
 
-// ✅ 只在内容变化时写入
+// ✅ Write deduplicated cleaned events to file (only when content changes)
 func WriteNewCleanedEventsToFile() {
 	writeMu.Lock()
 	defer writeMu.Unlock()
 
 	cleaned := GetCleanedEvents()
 
-	// ✅ 若清理池为空，表示系统状态恢复，重置写入状态缓存
+	// ✅ If the cleaned pool is empty, system is healthy; reset write cache
 	if len(cleaned) == 0 {
 		lastWriteMap = make(map[string]writeRecord)
-		utils.Info(nil, "✅ 所有告警清除，写入状态已重置")
+		utils.Info(nil, "✅ All alerts cleared, write cache reset")
 		return
 	}
 
@@ -42,7 +55,10 @@ func WriteNewCleanedEventsToFile() {
 		key := ev.Kind + "|" + ev.Namespace + "|" + ev.Name + "|" + ev.ReasonCode + "|" + ev.Message
 		last, exists := lastWriteMap[key]
 
-		changed := !exists || ev.Message != last.Message || ev.Severity != last.Severity || ev.Category != last.Category
+		changed := !exists ||
+			ev.Message != last.Message ||
+			ev.Severity != last.Severity ||
+			ev.Category != last.Category
 
 		if changed {
 			newLogs = append(newLogs, ev)
@@ -59,9 +75,11 @@ func WriteNewCleanedEventsToFile() {
 	}
 }
 
+// ✅ Dump given events to JSON file (append mode)
 func DumpEventsToJSONFile(events []LogEvent) {
-	// ✅ 判断是否运行在 Kubernetes
 	var logDir string
+
+	// ✅ Check if running inside Kubernetes
 	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount"); err == nil {
 		logDir = "/var/log/neurocontroller"
 	} else {
@@ -69,16 +87,16 @@ func DumpEventsToJSONFile(events []LogEvent) {
 	}
 	logPath := filepath.Join(logDir, "cleaned_events.log")
 
-	// 创建目录
+	// Ensure log directory exists
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		utils.Warn(nil, "⚠️ 无法创建日志目录", zap.Error(err))
+		utils.Warn(nil, "⚠️ Failed to create log directory", zap.Error(err))
 		return
 	}
 
-	// 打开文件
+	// Open file in append mode
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		utils.Warn(nil, "⚠️ 无法写入清理日志文件", zap.Error(err))
+		utils.Warn(nil, "⚠️ Failed to open log file for writing", zap.Error(err))
 		return
 	}
 	defer f.Close()
@@ -98,7 +116,7 @@ func DumpEventsToJSONFile(events []LogEvent) {
 
 		data, err := json.Marshal(entry)
 		if err != nil {
-			utils.Warn(nil, "⚠️ 事件序列化失败", zap.Error(err))
+			utils.Warn(nil, "⚠️ Failed to serialize event", zap.Error(err))
 			continue
 		}
 
@@ -106,32 +124,3 @@ func DumpEventsToJSONFile(events []LogEvent) {
 		f.Write([]byte("\n"))
 	}
 }
-
-// ✅ 写入日志文件
-// func DumpEventsToFile(events []LogEvent) {
-// 	logDir := "./logs"
-// 	logPath := logDir + "/cleaned_events.log"
-
-// 	if err := os.MkdirAll(logDir, 0755); err != nil {
-// 		utils.Warn(nil, "⚠️ 无法创建日志目录", zap.Error(err))
-// 		return
-// 	}
-
-// 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-// 	if err != nil {
-// 		utils.Warn(nil, "⚠️ 无法写入清理日志文件", zap.Error(err))
-// 		return
-// 	}
-// 	defer f.Close()
-
-// 	timestamp := time.Now().Format("2006-01-02 15:04:05")
-// 	f.WriteString("🕒 Dump at " + timestamp + "\n")
-
-// 	for _, ev := range events {
-// 		line := fmt.Sprintf(" - [%s] %s/%s → %s：%s (%s)\n",
-// 			ev.Kind, ev.Namespace, ev.Name, ev.ReasonCode, ev.Message, ev.Timestamp.Format("15:04:05"))
-// 		f.WriteString(line)
-// 	}
-
-// 	f.WriteString("──────────────────────────────\n")
-// }

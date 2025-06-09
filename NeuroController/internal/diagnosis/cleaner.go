@@ -9,14 +9,20 @@ import (
 // =======================================================================================
 // 📄 diagnosis/cleaner.go
 //
-// ✨ 功能说明：
-//     实现日志事件清理逻辑，包括：去重、时间过期移除。
-//     支持定时清洗并维护一个独立的 cleanedEventPool，供 matcher 使用。
+// ✨ Description:
+//     Implements log event cleanup logic, including deduplication and time-based expiration.
+//     Maintains a periodically refreshed `cleanedEventPool` that can be used by the matcher module.
+//
+// 🧼 Responsibilities:
+//     - Remove outdated events from the raw event pool
+//     - Merge and deduplicate events into the cleaned pool (within retention window)
+//     - Provide access to the cleaned pool
+//     - Run as a scheduled background cleaner
 // =======================================================================================
 
 var (
 	mu               sync.Mutex
-	cleanedEventPool []LogEvent // 去重后的清理池
+	cleanedEventPool []LogEvent // Cleaned event pool after deduplication
 )
 
 const (
@@ -24,7 +30,7 @@ const (
 	retentionCleanedDuration = 5 * time.Minute
 )
 
-// ✅ 清理原始池：保留最近 10 分钟
+// ✅ Clean the raw event pool: retain only events from the last 10 minutes
 func CleanEventPool() {
 	now := time.Now()
 	newRaw := make([]LogEvent, 0)
@@ -36,13 +42,13 @@ func CleanEventPool() {
 	eventPool = newRaw
 }
 
-// ✅ 重建清理池：从 eventPool 和旧 cleanedEventPool 合并去重生成新清理池
+// ✅ Rebuild the cleaned event pool by merging new and existing entries, with deduplication
 func RebuildCleanedEventPool() {
 	now := time.Now()
 	uniqueMap := make(map[string]LogEvent)
 	newCleaned := make([]LogEvent, 0)
 
-	// 筛选并添加来自原始池的近5分钟事件
+	// Add recent events from raw event pool (within cleaned retention)
 	for _, ev := range eventPool {
 		if now.Sub(ev.Timestamp) > retentionCleanedDuration {
 			continue
@@ -54,7 +60,7 @@ func RebuildCleanedEventPool() {
 		}
 	}
 
-	// 清理，清理池中过期和重复的事件
+	// Add remaining non-duplicated events from the previous cleaned pool
 	for _, ev := range cleanedEventPool {
 		if now.Sub(ev.Timestamp) <= retentionCleanedDuration {
 			key := ev.Kind + "|" + ev.Namespace + "|" + ev.Name + "|" + ev.ReasonCode
@@ -68,17 +74,15 @@ func RebuildCleanedEventPool() {
 	cleanedEventPool = newCleaned
 }
 
-// ✅ 周期清理入口
+// ✅ Public function: clean both raw and cleaned event pools (thread-safe)
 func CleanAndStoreEvents() {
 	mu.Lock()
 	defer mu.Unlock()
-	//清理原始池旧数据
 	CleanEventPool()
-	//清理，清理池池旧数据
 	RebuildCleanedEventPool()
 }
 
-// ✅ 外部接口：获取当前清理池中的所有日志事件
+// ✅ Get the current list of cleaned events (thread-safe)
 func GetCleanedEvents() []LogEvent {
 	mu.Lock()
 	defer mu.Unlock()
@@ -88,27 +92,29 @@ func GetCleanedEvents() []LogEvent {
 	return copy
 }
 
-// ✅ 启动定时清理（建议在 main.go 或 controller 启动入口调用）
+// ✅ Start the background loop that periodically cleans the event pools
+//
+//	(should be called from main.go or the controller entrypoint)
 func StartCleanerLoop(interval time.Duration) {
 	go func() {
 		for {
 			CleanAndStoreEvents()
-			// 🧪 测试用打印，可删除
+			// 🧪 For debugging only — you can remove this later
 			printCleanedEvents()
 			time.Sleep(interval)
 		}
 	}()
 }
 
-// ✅ 测试用：打印清理池内容
+// ✅ Debug: print the current status of the cleaned event pool
 func printCleanedEvents() {
 	events := GetCleanedEvents()
 	fmt.Println("──────────────────────────────")
-	fmt.Println("🧼 当前清理池状态：")
+	fmt.Println("🧼 Current Cleaned Event Pool:")
 	for _, ev := range events {
 		fmt.Printf(" - [%s] %s/%s → %s (%s)\n",
 			ev.Kind, ev.Namespace, ev.Name, ev.ReasonCode, ev.Timestamp.Format("15:04:05"))
 	}
-	fmt.Printf("🧮 清理后日志总数：%d 条\n", len(events))
+	fmt.Printf("🧮 Total cleaned logs: %d entries\n", len(events))
 	fmt.Println("──────────────────────────────")
 }

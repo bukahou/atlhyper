@@ -1,51 +1,40 @@
 # =========================
-# 第一阶段：构建阶段
+# Stage 1: Build Phase
 # =========================
 FROM golang:1.24.2-alpine AS builder
 
-# 安装 Git（go mod 可能会拉取）
-# RUN apk add --no-cache git
-
-# 设置工作目录
+# Set the working directory
 WORKDIR /app
 
-# 复制模块定义并拉取依赖
+# Copy module files and download dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# 复制全部源码
+# Copy all source code
 COPY . .
 
-# 构建目标控制器程序
-# 自动适配 GOARCH 和 GOOS（由 buildx 注入）
+# Build the target controller binary
+# GOARCH and GOOS will be injected by buildx during multi-platform builds
 RUN go build -o neurocontroller ./cmd/neurocontroller/main.go
 
 
 # =========================
-# 第二阶段：运行阶段
+# Stage 2: Runtime Phase
 # =========================
 FROM alpine:latest
 
-# 设置工作目录
+# Set the working directory
 WORKDIR /root/
 
-# 拷贝编译后的二进制文件
+# Copy the compiled binary from the build stage
 COPY --from=builder /app/neurocontroller .
 
-# ✅ 创建部署环境下的日志目录（如未挂载不会崩）
+# ✅ Create log directory for deployment (prevent crash if volume is not mounted)
 RUN mkdir -p /var/log/neurocontroller && chmod -R 755 /var/log/neurocontroller
 
+# Make the binary executable
 RUN chmod +x ./neurocontroller
 
-# 启动命令
+# Default startup command
 ENTRYPOINT ["./neurocontroller"]
 
-
-# 暴露端口（Gin 默认 8080）
-# EXPOSE 8080
-
-
-# 可选：复制配置文件（例如 config.yaml）
-# COPY internal/config/config.yaml ./config.yaml
-# COPY internal/config/webhook_map.yaml ./webhook_map.yaml
-# COPY internal/config/mail_template.tmpl ./mail_template.tmpl

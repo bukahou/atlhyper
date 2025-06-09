@@ -1,23 +1,25 @@
 // =======================================================================================
 // 📄 watcher/service/service_watcher.go
 //
-// ✨ 功能说明：
-//     实现 ServiceWatcher 控制器的核心监听逻辑，负责监听 Service 对象的变更，
-//     可用于未来感知 Service 的配置漂移、端口变动、选择器变化等。
+// ✨ Description:
+//     Implements the core logic for the ServiceWatcher controller, responsible for
+//     monitoring Service object changes. This may include detecting drift in service
+//     configuration, port changes, or selector modifications in future extensions.
 //
-// 🛠️ 提供功能：
-//     - Reconcile(): controller-runtime 的回调函数，执行监听响应逻辑
+// 🛠️ Features:
+//     - Reconcile(): Reconciliation function invoked by controller-runtime
 //
-// 📦 依赖：
-//     - controller-runtime（控制器绑定与监听事件驱动）
-//     - corev1.Service
-//     - utils（日志打印、client 工具等）
+// 📦 Dependencies:
+//     - controller-runtime (controller binding and event triggers)
+//     - corev1.Service (Kubernetes API object)
+//     - utils (logging and client tools)
 //
-// 📍 使用场景：
-//     - 在 watcher/service/register.go 中注册，通过 controller/main.go 启动时加载
+// 📍 Usage:
+//     - Registered via watcher/service/register.go
+//     - Loaded and started in controller/main.go
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: 2025-06
 // =======================================================================================
 
 package service
@@ -36,14 +38,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// ✅ 结构体：ServiceWatcher
+// ✅ Struct: ServiceWatcher
 //
-// 封装 Kubernetes client，并作为 controller-runtime 的 Reconciler 使用。
+// Encapsulates the Kubernetes client and serves as a Reconciler for controller-runtime.
 type ServiceWatcher struct {
 	client client.Client
 }
 
-// ✅ 方法：绑定 controller-runtime 控制器
+// ✅ Method: Bind ServiceWatcher to controller-runtime manager
 func (w *ServiceWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Service{}).
@@ -51,11 +53,14 @@ func (w *ServiceWatcher) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ 方法：核心监听逻辑（Service 异常识别入口）
+// ✅ Method: Core reconciliation logic for Service object changes
+//
+// When a Service is created or updated, this method will be triggered by the controller-runtime.
+// If an abnormal status is detected, it will be collected and passed to the diagnosis module.
 func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var svc corev1.Service
 	if err := w.client.Get(ctx, req.NamespacedName, &svc); err != nil {
-		utils.Warn(ctx, "❌ 获取 Service 失败",
+		utils.Warn(ctx, "❌ Failed to fetch Service object",
 			utils.WithTraceID(ctx),
 			zap.String("service", req.Name),
 			zap.Error(err),
@@ -63,7 +68,7 @@ func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ✨ 提取异常原因（内部已判断冷却期）
+	// ✨ Analyze service for known abnormal patterns (with cooldown check)
 	reason := abnormal.GetServiceAbnormalReason(svc)
 	if reason == nil {
 		return ctrl.Result{}, nil
@@ -72,20 +77,6 @@ func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	diagnosis.CollectServiceAbnormalEvent(svc, reason)
 	// logServiceAbnormal(ctx, svc, reason)
 
-	// TODO: 后续动作（如通知、自动修复）
+	// TODO: Future enhancements (e.g. notifications, auto-healing)
 	return ctrl.Result{}, nil
 }
-
-// =======================================================================================
-// ✅ 函数：输出结构化 Service 异常日志
-// func logServiceAbnormal(ctx context.Context, svc corev1.Service, reason *abnormal.ServiceAbnormalReason) {
-// 	utils.Warn(ctx, "🚨 发现异常 Service",
-// 		utils.WithTraceID(ctx),
-// 		zap.String("time", time.Now().Format(time.RFC3339)),
-// 		zap.String("service", svc.Name),
-// 		zap.String("namespace", svc.Namespace),
-// 		zap.String("reason", reason.Code),
-// 		zap.String("message", reason.Message),
-// 		zap.String("severity", reason.Severity),
-// 	)
-// }

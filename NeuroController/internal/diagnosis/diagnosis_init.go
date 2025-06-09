@@ -5,23 +5,36 @@ import (
 	"time"
 )
 
-// 🕒 可配置参数（你也可以放到 config 包）
+// =======================================================================================
+// 📄 diagnosis/diagnosis_init.go
+//
+// ✨ Description:
+//     Entry point for starting the diagnosis system.
+//     Initializes and launches both the log cleaner and log writer.
+//
+// 📦 Responsibilities:
+//     - Configure intervals for cleaning and writing logs
+//     - Start the cleaner loop (deduplication + retention)
+//     - Start the file writer loop (deduplicated persistent logs)
+// =======================================================================================
+
+// 🕒 Configurable intervals (can be moved to a config package)
 var (
-	CleanInterval = 30 * time.Second // 清理间隔
-	WriteInterval = 30 * time.Second // 写入间隔
+	CleanInterval = 30 * time.Second // Interval for cleaning events
+	WriteInterval = 30 * time.Second // Interval for writing events to file
 )
 
-// ✅ 启动诊断模块：日志清理 + 日志写入
+// ✅ Start the diagnosis system: cleaner + file writer
 func StartDiagnosisSystem() {
-	// ✅ 启动日志打印
-	fmt.Printf("🧠 正在启动诊断系统...\n")
-	fmt.Printf("🧼 日志清理间隔：%v\n", CleanInterval)
-	fmt.Printf("📝 日志写入间隔：%v\n", WriteInterval)
+	// ✅ Startup messages
+	fmt.Println("🧠 Starting Diagnosis System ...")
+	fmt.Printf("🧼 Clean interval: %v\n", CleanInterval)
+	fmt.Printf("📝 Write interval: %v\n", WriteInterval)
 
-	// 启动清理器（保鲜 + 去重）
+	// Start the cleaner (handles deduplication + retention)
 	StartCleanerLoop(CleanInterval)
 
-	// 启动日志写入器（去重写入日志）
+	// Start the log writer (writes deduplicated logs to file)
 	go func() {
 		for {
 			WriteNewCleanedEventsToFile()
@@ -29,5 +42,5 @@ func StartDiagnosisSystem() {
 		}
 	}()
 
-	fmt.Println("✅ 诊断系统已启动完成。")
+	fmt.Println("✅ Diagnosis System started successfully.")
 }

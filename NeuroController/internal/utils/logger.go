@@ -1,25 +1,25 @@
 // =======================================================================================
 // 📄 logger.go
 //
-// ✨ 功能说明：
-//     封装统一的结构化日志系统，基于 zap 实现。提供 Info、Error 等接口，
-//     支持输出 JSON 格式日志，方便与 Elastic APM、Filebeat、Loki 等日志系统集成。
-//     所有模块均应通过此日志系统进行输出，便于链路追踪与模块分析。
+// ✨ Description:
+//     Provides a unified structured logging system based on zap. Exposes Info, Warn,
+//     and Error interfaces with support for structured JSON output. Compatible with
+//     log collectors like Elastic APM, Filebeat, Loki, etc.
 //
-// 🛠️ 提供功能：
-//     - InitLogger(): 初始化 zap 日志（支持生产/开发模式）
-//     - Info(), Warn(), Error(): 日志输出接口，支持可选 zap.Field 扩展
-//     - WithTraceID(): 从 context 中提取 trace.id 字段（预留链路追踪扩展）
+// 🛠️ Features:
+//     - InitLogger(): Initializes zap logger (production/development modes supported)
+//     - Info(), Warn(), Error(): Unified logging methods with zap.Field support
+//     - WithTraceID(): Extracts trace.id from context (for distributed tracing)
 //
-// 📦 依赖：
-//     - go.uber.org/zap（结构化日志库）
+// 📦 Dependency:
+//     - go.uber.org/zap (structured logging library)
 //
-// 📍 使用场景：
-//     - 所有模块调用统一日志接口进行输出，支持 traceID / module 字段注入
-//     - 与 APM 工具联动，进行调用链日志分析
+// 📍 Usage:
+//     - All modules should use this logger to ensure traceability and structured output
+//     - Supports integration with APM and log pipeline tools
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou（@ZGMF-X10A）
+// 📅 Created: June 2025
 // =======================================================================================
 
 package utils
@@ -33,53 +33,55 @@ import (
 var logger *zap.Logger
 
 // =======================================================================================
-// ✅ 方法：InitLogger
+// ✅ InitLogger
 //
-// 初始化日志系统，默认启用 zap 的生产模式（JSON 输出），
-// 若需切换为开发模式（控制台日志），可替换为 zap.NewDevelopment()。
+// Initializes the global zap logger.
+// Defaults to zap's production mode with JSON output.
+// For local development, replace with zap.NewDevelopment().
 //
-// 初始化失败将 panic 终止程序（通常不会发生）。
+// Panics if logger creation fails (should not normally occur).
 func InitLogger() {
 	var err error
-	logger, err = zap.NewProduction() // 或 zap.NewDevelopment()
+	logger, err = zap.NewProduction() // or zap.NewDevelopment()
 	if err != nil {
 		panic(err)
 	}
 }
 
 // =======================================================================================
-// ✅ 方法：Info
+// ✅ Info
 //
-// 输出 info 级别日志，支持注入 context 中的 traceID 等结构化字段。
-// 建议所有信息级别日志统一调用该函数。
+// Logs an informational message.
+// Accepts context and optional structured fields.
+// Use this for general application logs.
 func Info(ctx context.Context, msg string, fields ...zap.Field) {
 	logger.Info(msg, fields...)
 }
 
 // =======================================================================================
-// ✅ 方法：Warn
+// ✅ Warn
 //
-// 输出 warn 级别日志，支持结构化字段，
-// 通常用于潜在问题或告警信息（不致命错误）。
+// Logs a warning-level message.
+// Use this for non-critical issues or alerting conditions.
 func Warn(ctx context.Context, msg string, fields ...zap.Field) {
 	logger.Warn(msg, fields...)
 }
 
 // =======================================================================================
-// ✅ 方法：Error
+// ✅ Error
 //
-// 输出 error 级别日志，适用于明确错误场景，
-// 支持附带 traceID、error string、对象字段等结构化日志。
+// Logs an error-level message.
+// Intended for operational errors, with support for trace.id and error objects.
 func Error(ctx context.Context, msg string, fields ...zap.Field) {
 	logger.Error(msg, fields...)
 }
 
 // =======================================================================================
-// ✅ 方法：WithTraceID
+// ✅ WithTraceID
 //
-// 从 context.Context 中提取 trace.id 字段（需事先注入），
-// 若未找到则返回默认 "unknown" 字段，避免 panic。
-// 常用于日志追踪链路统一标识。
+// Extracts the trace.id from context.
+// Returns "unknown" if trace ID is not found.
+// Used for log correlation across distributed systems.
 func WithTraceID(ctx context.Context) zap.Field {
 	if traceID, ok := ctx.Value("trace.id").(string); ok && traceID != "" {
 		return zap.String("trace.id", traceID)
@@ -88,10 +90,10 @@ func WithTraceID(ctx context.Context) zap.Field {
 }
 
 // =======================================================================================
-// ✅ 方法：Fatal
+// ✅ Fatal
 //
-// 输出 fatal 级别日志（致命错误），记录日志后立即 os.Exit(1) 终止程序。
-// 通常用于初始化失败、无法恢复的错误。
+// Logs a fatal-level message and exits the program.
+// Use this only for unrecoverable errors (e.g., failed initialization).
 func Fatal(ctx context.Context, msg string, fields ...zap.Field) {
 	logger.Fatal(msg, fields...)
 }

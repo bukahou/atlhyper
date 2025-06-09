@@ -1,17 +1,18 @@
 // =======================================================================================
 // 📄 exception_window.go
 //
-// ✨ 功能说明：
-//     异常识别窗口控制器，用于识别“是否为重复异常”，防止 Reconcile 死循环和日志泛滥。
-//     支持基于资源类型 + 名称 + 原因的异常指纹（ExceptionID）去重识别。
+// ✨ Description:
+//     Exception window controller to suppress repeated exceptions, preventing
+//     Reconcile loops and log spamming.
+//     Implements exception fingerprinting using kind + name + namespace + reason.
 //
-// 📦 提供功能：
-//     - GenerateExceptionID(kind, name, namespace, reason): 生成异常指纹
-//     - ShouldProcessException(id, now, cooldown): 判断是否允许处理异常
-//     - ResetException(id): 手动重置某异常的状态（如异常恢复时）
+// 📦 Provided Functions:
+//     - GenerateExceptionID(kind, name, namespace, reason): Generate unique exception ID
+//     - ShouldProcessException(id, now, cooldown): Determine whether the exception should be processed
+//     - ResetException(id): Manually reset the state of an exception (e.g. after recovery)
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 📅 Created: June 2025
 // =======================================================================================
 
 package utils
@@ -24,34 +25,35 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// 异常状态缓存（ID → 异常状态）
+// In-memory exception tracking cache (key: ExceptionID)
 var exceptionWindow sync.Map
 
-// 异常记录结构
+// Structure representing an exception entry
 type ExceptionEntry struct {
-	FirstTime time.Time // 第一次触发时间
-	LastSeen  time.Time // 最近一次触发时间
-	Count     int       // 触发次数
-	IsActive  bool      // 是否仍处于异常中
+	FirstTime time.Time // First occurrence time
+	LastSeen  time.Time // Most recent occurrence
+	Count     int       // Number of times triggered
+	IsActive  bool      // Whether the exception is still considered active
 }
 
 // =======================================================================================
-// ✅ 构造异常指纹 ID（推荐用于 Pod/Node/Deployment/Event 等）
+// ✅ Generate a unique Exception ID (fingerprint)
 //
-// key = kind:namespace/name#reason
+// Format: kind:namespace/name#reason
 func GenerateExceptionID(kind, name, namespace, reason string) string {
 	return fmt.Sprintf("%s:%s/%s#%s", kind, namespace, name, reason)
 }
 
+// Alternative ID format for individual Pod instances (using UID)
 func GeneratePodInstanceExceptionID(namespace string, uid types.UID, reason string) string {
 	return fmt.Sprintf("pod:%s/%s#%s", namespace, uid, reason)
 }
 
 // =======================================================================================
-// ✅ 判断异常是否应被处理（用于节流）
+// ✅ Determine whether an exception should be processed (rate-limiting)
 //
-// 如果处于冷却窗口内，或重复异常 → 返回 false
-// 否则记录为活跃异常，更新状态 → 返回 true
+// Returns false if the exception is within the cooldown window or is a duplicate.
+// Otherwise, updates the tracking status and returns true.
 func ShouldProcessException(id string, now time.Time, cooldown time.Duration) bool {
 	actual, loaded := exceptionWindow.LoadOrStore(id, &ExceptionEntry{
 		FirstTime: now,
@@ -62,13 +64,13 @@ func ShouldProcessException(id string, now time.Time, cooldown time.Duration) bo
 
 	entry := actual.(*ExceptionEntry)
 
-	// ✅ 打印调试信息
-	// fmt.Printf("🧪 [异常节流判断] ID=%s | 已加载=%v | 上次=%s | 当前=%s | 距离=%.fs | 次数=%d\n",
+	// ✅ Debug info
+	// fmt.Printf("🧪 [Throttle Check] ID=%s | Loaded=%v | LastSeen=%s | Now=%s | Δ=%.fs | Count=%d\n",
 	// 	id, loaded, entry.LastSeen.Format(time.RFC3339), now.Format(time.RFC3339),
 	// 	now.Sub(entry.LastSeen).Seconds(), entry.Count)
 
 	if loaded && entry.IsActive && now.Sub(entry.LastSeen) < cooldown {
-		// fmt.Printf("⏸️ [异常节流判断] 冷却中，跳过异常：%s（冷却剩余 %.1fs）\n",
+		// fmt.Printf("⏸️ [Throttle] Skipping exception (cooldown active): %s (%.1fs left)\n",
 		// 	id, cooldown.Seconds()-now.Sub(entry.LastSeen).Seconds())
 		return false
 	}
@@ -77,12 +79,14 @@ func ShouldProcessException(id string, now time.Time, cooldown time.Duration) bo
 	entry.Count++
 	entry.IsActive = true
 
-	// fmt.Printf("🚨 [异常节流判断] 允许处理异常：%s\n", id)
+	// fmt.Printf("🚨 [Throttle] Processing exception: %s\n", id)
 	return true
 }
 
 // =======================================================================================
-// ✅ 手动标记异常已恢复（可在状态正常时调用）
+// ✅ Manually mark an exception as resolved
+//
+// Can be called when the resource has recovered or is no longer abnormal.
 func ResetException(id string) {
 	if v, ok := exceptionWindow.Load(id); ok {
 		entry := v.(ExceptionEntry)

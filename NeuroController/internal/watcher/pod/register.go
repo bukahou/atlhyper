@@ -1,25 +1,27 @@
 // =======================================================================================
 // 📄 watcher/pod/register.go
 //
-// ✨ 功能说明：
-//     注册 PodWatcher 到 controller-runtime 管理器中，实现自动监听所有 Pod 的状态变更。
-//     封装监听器实例构造（NewPodWatcher）与 controller 绑定（SetupWithManager）逻辑，
-//     解耦 controller/main.go 与 watcher 具体实现细节。
+// ✨ Description:
+//     Registers the PodWatcher into the controller-runtime Manager to automatically
+//     monitor all changes in Pod status across the cluster.
+//     Encapsulates both the creation of the PodWatcher instance (NewPodWatcher)
+//     and its registration with the Manager (SetupWithManager).
+//     Decouples controller/main.go from the watcher internals.
 //
-// 🛠️ 提供功能：
-//     - NewPodWatcher(client.Client): 创建监听器实例（注入共享 client）
-//     - RegisterWatcher(mgr ctrl.Manager): 注册监听器到 controller-runtime 管理器
+// 🛠️ Features:
+//     - NewPodWatcher(client.Client): Factory function to instantiate a PodWatcher
+//     - RegisterWatcher(mgr ctrl.Manager): Register the watcher into controller-runtime
 //
-// 📦 依赖：
-//     - controller-runtime（Manager、控制器构造）
-//     - pod_watcher.go（监听逻辑定义）
-//     - utils/k8s_client.go（获取全局共享 client 实例）
+// 📦 Dependencies:
+//     - controller-runtime (Manager, controller binding)
+//     - pod_watcher.go (core watcher logic)
+//     - utils/k8s_client.go (global shared client instance)
 //
-// 📍 使用场景：
-//     - 在 controller/main.go 中统一加载 watcher/pod 的注册器
+// 📍 Usage:
+//     - Called from controller/main.go to initialize the pod watcher component
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: 2025-06
 // =======================================================================================
 
 package pod
@@ -33,22 +35,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ✅ 注册器：注册 PodWatcher 到 controller-runtime
+// ✅ Registrar: Registers PodWatcher into controller-runtime
 //
-// 获取共享 K8s client → 构造监听器实例 → 注册到 controller-runtime 管理器。
-// 若注册失败，将记录日志并返回错误。
+// Retrieves the global Kubernetes client → builds the watcher instance →
+// registers it into the controller-runtime Manager.
+// Logs error if registration fails.
 func RegisterWatcher(mgr ctrl.Manager) error {
-	// 获取共享 K8s client（从 utils 封装中注入）
+	// Retrieve shared Kubernetes client (from utils wrapper)
 	client := utils.GetClient()
 
-	// 创建监听器实例（封装监听逻辑）
+	// Instantiate watcher with client injection
 	podWatcher := NewPodWatcher(client)
 
-	// 注册到 controller-runtime 管理器
+	// Register watcher to the manager
 	if err := podWatcher.SetupWithManager(mgr); err != nil {
 		utils.Error(
 			context.TODO(),
-			"❌ 注册 PodWatcher 失败",
+			"❌ Failed to register PodWatcher",
 			utils.WithTraceID(context.TODO()),
 			zap.String("module", "watcher/pod"),
 			zap.Error(err),
@@ -58,7 +61,7 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 
 	utils.Info(
 		context.TODO(),
-		"✅ 成功注册 PodWatcher",
+		"✅ Successfully registered PodWatcher",
 		utils.WithTraceID(context.TODO()),
 		zap.String("module", "watcher/pod"),
 	)
@@ -66,7 +69,7 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 	return nil
 }
 
-// ✅ 工厂方法：构造 PodWatcher 实例（注入 client）
+// ✅ Factory: Create a new PodWatcher instance with injected client
 func NewPodWatcher(c client.Client) *PodWatcher {
 	return &PodWatcher{client: c}
 }

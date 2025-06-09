@@ -1,18 +1,20 @@
 // =======================================================================================
 // 📄 internal/bootstrap/manager.go
 //
-// ✨ 功能说明：
-//     封装 controller-runtime 的管理器启动逻辑，统一加载所有 Watcher 并启动控制器循环。
-//     用作 cmd/neurocontroller/main.go 的核心引导模块，解耦主程序入口与业务注册逻辑。
+// ✨ Description:
+//     Encapsulates the startup logic of controller-runtime's manager,
+//     responsible for loading all Watchers and starting the control loop.
+//     Acts as the core bootstrap module for cmd/neurocontroller/main.go,
+//     decoupling the main function from registration logic.
 //
-// 📦 提供功能：
-//     - StartManager(): 启动 controller-runtime 管理器
+// 📦 Provided Features:
+//     - StartManager(): Starts the controller-runtime manager.
 //
-// 📍 使用场景：
-//     - 被 main.go 调用，作为统一启动控制器的入口
+// 📍 Usage Scenario:
+//     - Called by main.go as the unified entry point to launch controllers.
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 📅 Created: June 2025
 // =======================================================================================
 
 package bootstrap
@@ -29,52 +31,52 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-// ✅ 启动控制器管理器（加载所有 Watcher 并运行）
+// ✅ Starts the controller manager (loads and runs all Watchers)
 func StartManager() {
-	// ✅ 创建 controller-runtime 管理器
+	// ✅ Create the controller-runtime manager
 	cfg, err := resolveRestConfig()
 	if err != nil {
-		utils.Fatal(nil, "❌ 获取 Kubernetes 配置失败", zap.Error(err))
+		utils.Fatal(nil, "❌ Failed to load Kubernetes config", zap.Error(err))
 	}
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		//后续添加需要监控的NS，暂定全集群监控
+		// To support namespace filtering in the future. Currently watches the entire cluster.
 		//Namespace: "default",
 	})
 	if err != nil {
-		utils.Fatal(nil, "❌ 初始化 Controller Manager 失败", zap.Error(err))
+		utils.Fatal(nil, "❌ Failed to initialize Controller Manager", zap.Error(err))
 	}
 
-	// ✅ 注册所有 Watcher
+	// ✅ Register all Watchers
 	if err := watcher.RegisterAllWatchers(mgr); err != nil {
-		utils.Fatal(nil, "❌ 注册 Watcher 模块失败", zap.Error(err))
+		utils.Fatal(nil, "❌ Failed to register Watcher modules", zap.Error(err))
 	}
 
-	// ✅ 启动控制循环（阻塞）
-	utils.Info(nil, "🚀 启动 controller-runtime 管理器中 ...")
+	// ✅ Start the controller loop (blocking call)
+	utils.Info(nil, "🚀 Starting controller-runtime manager ...")
 	if err := mgr.Start(context.Background()); err != nil {
-		utils.Fatal(nil, "❌ 控制器主循环运行失败", zap.Error(err))
+		utils.Fatal(nil, "❌ Controller main loop exited with error", zap.Error(err))
 	}
 }
 
-// ✅ 私有函数：自动判断 kubeconfig / InClusterConfig
+// ✅ Private helper: Automatically detects kubeconfig or in-cluster configuration
 func resolveRestConfig() (*rest.Config, error) {
 	kubeconfig := os.Getenv("KUBECONFIG")
 	if kubeconfig != "" {
 		cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err == nil {
-			utils.Info(context.TODO(), "✅ 使用本地 kubeconfig 启动")
+			utils.Info(context.TODO(), "✅ Using local kubeconfig")
 			return cfg, nil
 		}
-		utils.Warn(context.TODO(), "⚠️ 加载本地 kubeconfig 失败，尝试 InCluster", zap.Error(err))
+		utils.Warn(context.TODO(), "⚠️ Failed to load local kubeconfig, trying in-cluster mode", zap.Error(err))
 	}
 
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
-		utils.Error(context.TODO(), "❌ 无法加载 InCluster 配置", zap.Error(err))
+		utils.Error(context.TODO(), "❌ Failed to load in-cluster configuration", zap.Error(err))
 		return nil, err
 	}
 
-	utils.Info(context.TODO(), "✅ 使用集群内配置启动")
+	utils.Info(context.TODO(), "✅ Using in-cluster configuration")
 	return cfg, nil
 }

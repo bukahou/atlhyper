@@ -1,24 +1,26 @@
 // =======================================================================================
 // 📄 watcher/event/event_watcher.go
 //
-// ✨ 功能说明：
-//     实现 EventWatcher 控制器，用于监听 Kubernetes 中的核心事件（Event），
-//     如拉取失败、挂载失败、调度失败等，并筛选出 Warning 级别进行处理。
+// ✨ Description:
+//     Implements the EventWatcher controller to monitor core Kubernetes events (Event),
+//     such as image pull failure, volume mount failure, scheduling issues, etc.
+//     Only processes events with Type = "Warning".
 //
-// 🛠️ 提供功能：
-//     - 监听 Event 类型资源
-//     - 仅处理 Type="Warning" 的事件
+// 🛠️ Features:
+//     - Watches corev1.Event resources
+//     - Filters and handles only "Warning" type events
 //
-// 📦 依赖：
-//     - controller-runtime
-//     - corev1.Event
-//     - utils 日志模块
+// 📦 Dependencies:
+//     - controller-runtime (Kubernetes controller framework)
+//     - corev1.Event (Kubernetes Event type)
+//     - utils (logging utilities)
 //
-// 📍 使用场景：
-//     - watcher/event/register.go 注册后，controller/main.go 加载启动
+// 📍 Usage:
+//     - Register in watcher/event/register.go
+//     - Called and started by controller/main.go
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: 2025-06
 // =======================================================================================
 
 package event
@@ -39,13 +41,17 @@ import (
 )
 
 // =======================================================================================
-// ✅ 控制器结构体
+// ✅ Struct: EventWatcher
+//
+// Encapsulates Kubernetes client for use with controller-runtime
 type EventWatcher struct {
 	client client.Client
 }
 
 // =======================================================================================
-// ✅ 绑定 Controller 到 Manager
+// ✅ Setup the controller with the manager
+//
+// Registers the EventWatcher with controller-runtime to watch Event resources
 func (w *EventWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Event{}).
@@ -53,31 +59,32 @@ func (w *EventWatcher) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ 控制器回调：监听 Event 变更 → 筛选异常 → 执行处理
+// ✅ Reconcile logic for EventWatcher
+//
+// Triggered on changes to Event resources.
+// Filters "Warning" type events and processes them.
 func (w *EventWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	var ev corev1.Event
 	if err := w.client.Get(ctx, req.NamespacedName, &ev); err != nil {
 		if !errors.IsNotFound(err) {
-			utils.Warn(ctx, "❌ 获取 Event 失败",
+			utils.Warn(ctx, "❌ Failed to retrieve Event",
 				utils.WithTraceID(ctx),
 				zap.String("event", req.Name),
 				zap.Error(err),
 			)
 		}
-
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ✨ 提取异常原因（内部已判断冷却期）
+	// ✨ Check for abnormal conditions (cooldown already handled internally)
 	reason := abnormal.GetEventAbnormalReason(ev)
 	if reason == nil {
 		return ctrl.Result{}, nil
 	}
 
+	// ⛑️ Collect and persist the abnormal event
 	diagnosis.CollectEventAbnormalEvent(ev, reason)
-	// logAbnormalEvent(ctx, ev, reason)
 
-	// TODO: 后续执行动作（告警 / 缩容）
+	// TODO: Trigger follow-up actions (alerts, autoscaling, etc.)
 	return ctrl.Result{}, nil
 }

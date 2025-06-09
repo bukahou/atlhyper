@@ -1,25 +1,25 @@
 // =======================================================================================
 // 📄 k8s_client.go
 //
-// ✨ 功能说明：
-//     本模块封装了 controller-runtime 的 Kubernetes 客户端初始化逻辑，
-//     统一提供 client.Client 实例供 Watcher、Scaler、Webhook 等模块共享访问。
-//     支持自动判断 InCluster 与本地 kubeconfig，适配开发与集群环境。
+// ✨ Description:
+//     Encapsulates controller-runtime's Kubernetes client initialization logic,
+//     providing a globally shared client.Client instance for modules such as Watcher,
+//     Scaler, Webhook, etc.
 //
-// 🛠️ 提供功能：
-//     - InitK8sClient(): 初始化 client.Client（线程安全，仅执行一次）
-//     - GetClient(): 获取已初始化的 client.Client 实例
+// 🛠️ Provided Functions:
+//     - InitK8sClient(): Initializes the client.Client (thread-safe, runs once)
+//     - GetClient(): Returns the initialized global client.Client instance
 //
-// 📦 依赖：
-//     - controller-runtime (sigs.k8s.io/controller-runtime/pkg/client)
-//     - controller-runtime 配置管理 (sigs.k8s.io/controller-runtime/pkg/client/config)
+// 📦 Dependencies:
+//     - sigs.k8s.io/controller-runtime/pkg/client
+//     - sigs.k8s.io/controller-runtime/pkg/client/config
 //
-// 📍 使用方式：
-//     - 在 controller 启动时先调用 InitK8sClient()
-//     - 后续模块通过 utils.GetClient() 获取共享 client 实例
+// 📍 Usage:
+//     - Call InitK8sClient() once at controller startup
+//     - Other modules retrieve the shared client via utils.GetClient()
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 📅 Created: June 2025
 // =======================================================================================
 
 package utils
@@ -38,49 +38,48 @@ import (
 var (
 	k8sClient client.Client
 	once      sync.Once
-	cfg       *rest.Config //  保存 config
+	cfg       *rest.Config // Stores the resolved config
 )
 
-// InitK8sClient 初始化 controller-runtime 的 Client
+// InitK8sClient initializes the global controller-runtime client.Client instance
 func InitK8sClient() *rest.Config {
 	once.Do(func() {
-		// var cfg *rest.Config
 		var err error
 
 		kubeconfig := os.Getenv("KUBECONFIG")
 		if kubeconfig != "" {
 			cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 			if err == nil {
-				Info(context.TODO(), "✅ 使用本地 kubeconfig 初始化")
+				Info(context.TODO(), "✅ Initialized using local kubeconfig")
 			} else {
-				Warn(context.TODO(), "⚠️ 解析本地 kubeconfig 失败，尝试 InCluster", zap.Error(err))
+				Warn(context.TODO(), "⚠️ Failed to parse local kubeconfig, falling back to in-cluster", zap.Error(err))
 			}
 		}
 
 		if cfg == nil {
 			cfg, err = rest.InClusterConfig()
 			if err != nil {
-				Error(context.TODO(), "❌ 无法加载 Kubernetes 配置", zap.Error(err))
+				Error(context.TODO(), "❌ Failed to load in-cluster Kubernetes configuration", zap.Error(err))
 				panic(err)
 			}
-			Info(context.TODO(), "✅ 使用集群内配置初始化")
+			Info(context.TODO(), "✅ Initialized using in-cluster configuration")
 		}
 
 		k8sClient, err = client.New(cfg, client.Options{})
 		if err != nil {
-			Error(context.TODO(), "❌ 无法初始化 Kubernetes 客户端", zap.Error(err))
+			Error(context.TODO(), "❌ Failed to initialize Kubernetes client", zap.Error(err))
 			panic(err)
 		}
 
-		Info(context.TODO(), "✅ Kubernetes 客户端初始化完成")
+		Info(context.TODO(), "✅ Kubernetes client successfully initialized")
 	})
 	return cfg
 }
 
-// GetClient 返回全局共享的 controller-runtime Client
+// GetClient returns the globally shared controller-runtime client
 func GetClient() client.Client {
 	if k8sClient == nil {
-		Error(context.TODO(), "⛔ GetClient() 调用前未初始化 k8s client")
+		Error(context.TODO(), "⛔ GetClient() called before InitK8sClient()")
 		panic("k8sClient is nil")
 	}
 	return k8sClient

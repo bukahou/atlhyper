@@ -1,16 +1,21 @@
 // =======================================================================================
 // 📄 watcher/endpoint/endpoint_watcher.go
 //
-// ✨ 功能说明：
-//     实现 EndpointWatcher 控制器的核心监听逻辑，负责监听 Endpoints 对象状态变化，
-//     检查是否出现无可用后端 / Subsets 为空等异常情况，并进行结构化日志输出。
+// ✨ Description:
+//     Implements the core logic of the EndpointWatcher controller, responsible for
+//     monitoring the state changes of Endpoints objects in the cluster.
+//     Detects abnormal conditions such as missing backend pods or empty Subsets,
+//     and logs structured diagnostic information.
 //
-// 🛠️ 提供功能：
-//     - Reconcile(): controller-runtime 的回调函数，执行监听响应逻辑
-//     - logEndpointAbnormal(): 异常日志输出封装
+// 🛠️ Features:
+//     - Reconcile(): The main controller-runtime callback that triggers on changes
+//     - logEndpointAbnormal(): Wrapper for structured abnormal event logging
 //
-// 📍 使用场景：
-//     - 在 watcher/endpoint/register.go 中注册，通过 controller/main.go 启动时加载
+// 📍 Usage:
+//     - Registered via watcher/endpoint/register.go and loaded from controller/main.go
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: 2025-06
 // =======================================================================================
 
 package endpoint
@@ -29,21 +34,23 @@ import (
 	"go.uber.org/zap"
 )
 
+// ✅ Controller structure
 type EndpointWatcher struct {
 	client client.Client
 }
 
+// ✅ Bind EndpointWatcher to controller-runtime manager
 func (w *EndpointWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Endpoints{}).
 		Complete(w)
 }
 
+// ✅ Core logic: triggered on Endpoint change events
 func (w *EndpointWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	var ep corev1.Endpoints
 	if err := w.client.Get(ctx, req.NamespacedName, &ep); err != nil {
-		utils.Warn(ctx, "❌ 获取 Endpoints 失败",
+		utils.Warn(ctx, "❌ Failed to fetch Endpoints",
 			utils.WithTraceID(ctx),
 			zap.String("endpoint", req.Name),
 			zap.String("error", err.Error()),
@@ -51,30 +58,18 @@ func (w *EndpointWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// 检查是否异常
+	// 🚨 Analyze for abnormal condition
 	reason := abnormal.GetEndpointAbnormalReason(&ep)
 	if reason == nil {
 		return ctrl.Result{}, nil
 	}
 
+	// 🧠 Collect abnormal event for diagnosis/reporting
 	diagnosis.CollectEndpointAbnormalEvent(ep, reason)
-	// 输出结构化日志
+
+	// 📝 Optional: log structured details
 	// logEndpointAbnormal(ctx, ep, reason)
 
-	// TODO: 后续响应操作
+	// 🔧 TODO: Add response actions (e.g., alerts, scaling)
 	return ctrl.Result{}, nil
 }
-
-// =======================================================================================
-// ✅ 函数：输出结构化 Endpoints 异常日志
-// func logEndpointAbnormal(ctx context.Context, ep corev1.Endpoints, reason *abnormal.EndpointAbnormalReason) {
-// 	utils.Warn(ctx, "🚨 发现异常 Endpoints",
-// 		utils.WithTraceID(ctx),
-// 		zap.String("time", time.Now().Format(time.RFC3339)),
-// 		zap.String("endpoint", ep.Name),
-// 		zap.String("namespace", ep.Namespace),
-// 		zap.String("reason", reason.Code),
-// 		zap.String("message", reason.Message),
-// 		zap.String("severity", reason.Severity),
-// 	)
-// }

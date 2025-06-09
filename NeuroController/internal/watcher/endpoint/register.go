@@ -1,10 +1,22 @@
 // =======================================================================================
 // 📄 watcher/endpoint/register.go
 //
-// ✨ 功能说明：
-//     注册 EndpointWatcher 到 controller-runtime 管理器中，实现自动监听所有 Endpoints 状态变化。
-//     封装监听器实例构造（NewEndpointWatcher）与 controller 绑定（SetupWithManager）逻辑，
-//     解耦 controller/main.go 与 watcher 具体实现细节。
+// ✨ Description:
+//     Registers the EndpointWatcher to the controller-runtime manager,
+//     enabling automatic monitoring of all Endpoints status changes in the cluster.
+//     Encapsulates the construction of the watcher instance (NewEndpointWatcher)
+//     and the binding logic (SetupWithManager) to decouple implementation
+//     from controller/main.go.
+//
+// 🛠️ Features:
+//     - NewEndpointWatcher(client.Client): Creates a new watcher instance
+//     - RegisterWatcher(mgr ctrl.Manager): Registers the watcher with the controller manager
+//
+// 📍 Usage:
+//     - Called from controller/main.go to activate the Endpoints monitoring logic
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: 2025-06
 // =======================================================================================
 
 package endpoint
@@ -18,12 +30,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// ✅ Registers the EndpointWatcher to the controller-runtime manager
 func RegisterWatcher(mgr ctrl.Manager) error {
 	client := utils.GetClient()
 	watcher := NewEndpointWatcher(client)
 
 	if err := watcher.SetupWithManager(mgr); err != nil {
-		utils.Error(context.TODO(), "❌ 注册 EndpointWatcher 失败",
+		utils.Error(context.TODO(), "❌ Failed to register EndpointWatcher",
 			utils.WithTraceID(context.TODO()),
 			zap.String("module", "watcher/endpoint"),
 			zap.Error(err),
@@ -31,13 +44,14 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 		return err
 	}
 
-	utils.Info(context.TODO(), "✅ 成功注册 EndpointWatcher",
+	utils.Info(context.TODO(), "✅ Successfully registered EndpointWatcher",
 		utils.WithTraceID(context.TODO()),
 		zap.String("module", "watcher/endpoint"),
 	)
 	return nil
 }
 
+// ✅ Constructs a new EndpointWatcher instance
 func NewEndpointWatcher(c client.Client) *EndpointWatcher {
 	return &EndpointWatcher{client: c}
 }

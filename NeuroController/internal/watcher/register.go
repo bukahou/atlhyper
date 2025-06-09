@@ -1,26 +1,26 @@
 // =======================================================================================
 // 📄 watcher/register.go
 //
-// ✨ 功能说明：
-//     集中注册所有资源监听器（Pod、Node、Service、Deployment、Event）到 controller-runtime。
-//     封装统一入口函数 RegisterAllWatchers，供 controller/main.go 调用使用。
-//     实现结构化模块加载，避免 main 函数中直接引用各子模块，提升可维护性与扩展性。
+// ✨ Description:
+//     Centralized registration of all resource watchers (Pod, Node, Service, Deployment, Event).
+//     Provides a unified entry point RegisterAllWatchers for controller/main.go.
+//     Enhances modularity, maintainability, and scalability by decoupling watcher imports.
 //
-// 🛠️ 提供功能：
-//     - RegisterAllWatchers(ctrl.Manager): 统一注册所有 Watcher 控制器
+// 🛠️ Features:
+//     - RegisterAllWatchers(ctrl.Manager): Register all watcher controllers in a single call
 //
-// 📦 依赖：
+// 📦 Dependencies:
 //     - watcher/pod
 //     - watcher/node
 //     - watcher/service
 //     - watcher/deployment
 //     - watcher/event
 //
-// 📍 使用场景：
-//     - 在 controller/main.go 启动时仅调用本文件的 RegisterAllWatchers 即可加载所有插件监听器
+// 📍 Usage:
+//     - Simply call RegisterAllWatchers() from controller/main.go to register all watchers
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 📅 创建时间：2025-06
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: 2025-06
 // =======================================================================================
 
 package watcher
@@ -40,13 +40,16 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-// ✅ 批量注册所有 Watcher
+// ✅ Register all watchers to controller-runtime manager
+//
+// Iterates over the WatcherRegistry and invokes each module’s registration logic.
+// If any watcher fails to register, the process will be aborted and an error returned.
 func RegisterAllWatchers(mgr ctrl.Manager) error {
 	ctx := context.TODO()
 
 	for _, w := range WatcherRegistry {
 		if err := w.Action(mgr); err != nil {
-			utils.Error(ctx, "❌ 注册 Watcher 失败",
+			utils.Error(ctx, "❌ Failed to register watcher",
 				utils.WithTraceID(ctx),
 				zap.String("watcher", w.Name),
 				zap.Error(err),
@@ -54,7 +57,7 @@ func RegisterAllWatchers(mgr ctrl.Manager) error {
 			return err
 		}
 
-		utils.Info(ctx, "✅ 成功注册 Watcher",
+		utils.Info(ctx, "✅ Successfully registered watcher",
 			utils.WithTraceID(ctx),
 			zap.String("watcher", w.Name),
 		)
@@ -63,7 +66,9 @@ func RegisterAllWatchers(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ 所有 Watcher 注册表（集中管理、便于扩展）
+// ✅ Watcher registry list (centralized and extendable)
+//
+// Simply add new watchers to this list for auto-registration.
 // =======================================================================================
 var WatcherRegistry = []struct {
 	Name   string
@@ -75,6 +80,6 @@ var WatcherRegistry = []struct {
 	{"DeploymentWatcher", deployment.RegisterWatcher},
 	{"EventWatcher", event.RegisterWatcher},
 	{"EndpointWatcher", endpoint.RegisterWatcher},
-	// 未来添加新的 Watcher，只需添加一行：
+	// Future watchers can be added here:
 	// {"PVCWatcher", pvc.RegisterWatcher},
 }

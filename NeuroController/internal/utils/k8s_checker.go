@@ -13,6 +13,19 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+// =======================================================================================
+// 📄 k8s_checker.go
+//
+// ✨ Description:
+//     Periodically checks the health status of the Kubernetes API server via /healthz.
+//     Terminates the program if API is unreachable, to prevent operating in a degraded state.
+//
+// 📦 Behavior:
+//     - Runs on a fixed interval (default 15s)
+//     - Logs success or failure with throttling
+//     - Sets global `K8sAvailable` status flag
+// =======================================================================================
+
 var (
 	apiCheckMu         sync.Mutex
 	lastK8sStatus      = true
@@ -21,12 +34,14 @@ var (
 	logThrottleSeconds = 30 * time.Second
 )
 
+// Insecure client for internal use (e.g., bypassing TLS validation)
 var insecureHttpClient = &http.Client{
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	},
 }
 
+// ✅ Starts a background goroutine to monitor Kubernetes API health
 func StartK8sHealthChecker(cfg *rest.Config) {
 	go func() {
 		ticker := time.NewTicker(checkInterval)
@@ -34,8 +49,8 @@ func StartK8sHealthChecker(cfg *rest.Config) {
 
 		rt, err := rest.TransportFor(cfg)
 		if err != nil {
-			Error(context.TODO(), "❌ 无法构造认证 HTTP 客户端", zap.Error(err))
-			os.Exit(1) // ❗初始化失败立即退出
+			Error(context.TODO(), "❌ Failed to build authenticated HTTP client", zap.Error(err))
+			os.Exit(1) // ❗ Exit immediately if initialization fails
 		}
 
 		client := &http.Client{Transport: rt}
@@ -48,12 +63,13 @@ func StartK8sHealthChecker(cfg *rest.Config) {
 			K8sAvailable = healthy
 
 			if !healthy {
-				Error(context.TODO(), "🚨 无法连接 Kubernetes API Server", zap.Error(err))
-				fmt.Println("❌ 无法访问 Kubernetes API Server，程序即将退出")
-				os.Exit(1) // ❗一旦失联，立即退出程序
+				Error(context.TODO(), "Unable to connect to Kubernetes API Server", zap.Error(err))
+				fmt.Println("❌ Kubernetes API Server is unreachable, terminating...")
+				os.Exit(1) // ❗ Exit immediately on disconnection
 			} else if !lastK8sStatus {
-				Info(context.TODO(), "✅ 成功重新连接 Kubernetes API Server")
+				Info(context.TODO(), "✅ Successfully reconnected to Kubernetes API Server")
 			}
+
 			lastK8sStatus = healthy
 			apiCheckMu.Unlock()
 		}
