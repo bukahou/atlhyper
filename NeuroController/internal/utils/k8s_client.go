@@ -38,12 +38,13 @@ import (
 var (
 	k8sClient client.Client
 	once      sync.Once
+	cfg       *rest.Config //  保存 config
 )
 
 // InitK8sClient 初始化 controller-runtime 的 Client
-func InitK8sClient() {
+func InitK8sClient() *rest.Config {
 	once.Do(func() {
-		var cfg *rest.Config
+		// var cfg *rest.Config
 		var err error
 
 		kubeconfig := os.Getenv("KUBECONFIG")
@@ -73,6 +74,7 @@ func InitK8sClient() {
 
 		Info(context.TODO(), "✅ Kubernetes 客户端初始化完成")
 	})
+	return cfg
 }
 
 // GetClient 返回全局共享的 controller-runtime Client
@@ -83,27 +85,3 @@ func GetClient() client.Client {
 	}
 	return k8sClient
 }
-
-// ✅ 自动判断使用 InClusterConfig 或本地 kubeconfig
-// func GetKubeConfig() *rest.Config {
-// 	// 优先使用集群内配置
-// 	cfg, err := rest.InClusterConfig()
-// 	if err == nil {
-// 		Info(context.TODO(), "✅ 使用集群内配置 (InClusterConfig)")
-// 		return cfg
-// 	}
-
-// 	// 回退使用本地 kubeconfig
-// 	kubeconfigPath := os.Getenv("KUBECONFIG")
-// 	if kubeconfigPath == "" {
-// 		kubeconfigPath = os.ExpandEnv("$HOME/.kube/config")
-// 	}
-
-// 	cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-// 	if err != nil {
-// 		Fatal(nil, "❌ 无法加载 Kubernetes 配置", zap.Error(err))
-// 	}
-
-// 	Info(context.TODO(), "✅ 使用本地 kubeconfig 加载成功")
-// 	return cfg
-// }

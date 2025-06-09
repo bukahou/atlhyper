@@ -1,0 +1,24 @@
+🕒 Dump at 2025-06-08 23:04:39
+ - [Pod] default/media-service-68f64fc9cf-mdjkx → Unhealthy (23:04:31)
+ - [Deployment] default/media-service → UnavailableReplica (23:04:31)
+ - [Pod] default/media-service-68f64fc9cf-mdjkx → NotReady (23:04:31)
+ - [Pod] default/media-service-68f64fc9cf-kccjl → Unhealthy (23:04:31)
+ - [Endpoints] default/media-service → NoReadyAddress (23:04:32)
+ - [Pod] default/media-service-68f64fc9cf-kccjl → NotReady (23:04:32)
+──────────────────────────────
+🕒 Dump at 2025-06-08 23:05:09
+ - [Pod] default/media-service-68f64fc9cf-mdjkx → Unhealthy (23:04:31)
+ - [Deployment] default/media-service → UnavailableReplica (23:04:31)
+ - [Pod] default/media-service-68f64fc9cf-mdjkx → NotReady (23:04:31)
+ - [Pod] default/media-service-68f64fc9cf-kccjl → Unhealthy (23:04:31)
+ - [Endpoints] default/media-service → NoReadyAddress (23:04:32)
+ - [Pod] default/media-service-68f64fc9cf-kccjl → NotReady (23:04:32)
+──────────────────────────────
+🕒 Dump at 2025-06-08 23:05:39
+ - [Pod] default/media-service-68f64fc9cf-mdjkx → Unhealthy (23:04:31)
+ - [Deployment] default/media-service → UnavailableReplica (23:04:31)
+ - [Pod] default/media-service-68f64fc9cf-mdjkx → NotReady (23:04:31)
+ - [Pod] default/media-service-68f64fc9cf-kccjl → Unhealthy (23:04:31)
+ - [Endpoints] default/media-service → NoReadyAddress (23:04:32)
+ - [Pod] default/media-service-68f64fc9cf-kccjl → NotReady (23:04:32)
+──────────────────────────────

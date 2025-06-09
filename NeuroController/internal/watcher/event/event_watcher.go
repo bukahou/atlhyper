@@ -25,16 +25,15 @@ package event
 
 import (
 	"context"
-	"time"
 
+	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
 	"NeuroController/internal/utils/abnormal"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"go.uber.org/zap"
 )
@@ -50,51 +49,35 @@ type EventWatcher struct {
 func (w *EventWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Event{}).
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
-			},
-		}).
 		Complete(w)
 }
 
 // =======================================================================================
 // ✅ 控制器回调：监听 Event 变更 → 筛选异常 → 执行处理
 func (w *EventWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var ev corev1.Event
 
+	var ev corev1.Event
 	if err := w.client.Get(ctx, req.NamespacedName, &ev); err != nil {
-		utils.Warn(ctx, "❌ 获取 Event 失败",
-			utils.WithTraceID(ctx),
-			zap.String("event", req.Name),
-			zap.Error(err),
-		)
+		if !errors.IsNotFound(err) {
+			utils.Warn(ctx, "❌ 获取 Event 失败",
+				utils.WithTraceID(ctx),
+				zap.String("event", req.Name),
+				zap.Error(err),
+			)
+		}
+
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// ✨ 提取异常原因（内部已判断冷却期）
 	reason := abnormal.GetEventAbnormalReason(ev)
 	if reason == nil {
-		return ctrl.Result{}, nil // 🧊 无异常或冷却中
+		return ctrl.Result{}, nil
 	}
 
-	logAbnormalEvent(ctx, ev, reason)
+	diagnosis.CollectEventAbnormalEvent(ev, reason)
+	// logAbnormalEvent(ctx, ev, reason)
 
 	// TODO: 后续执行动作（告警 / 缩容）
 	return ctrl.Result{}, nil
-}
-
-// =======================================================================================
-// ✅ 异常事件日志输出（封装为独立函数）
-func logAbnormalEvent(ctx context.Context, ev corev1.Event, reason *abnormal.EventAbnormalReason) {
-	utils.Warn(ctx, "⚠️ 捕捉到异常 Event",
-		utils.WithTraceID(ctx),
-		zap.String("time", time.Now().Format(time.RFC3339)),
-		zap.String("reason", reason.Code),
-		zap.String("severity", reason.Severity),
-		zap.String("message", reason.Message),
-		zap.String("kind", ev.InvolvedObject.Kind),
-		zap.String("name", ev.InvolvedObject.Name),
-		zap.String("namespace", ev.InvolvedObject.Namespace),
-	)
 }

@@ -25,13 +25,13 @@ package service
 import (
 	"context"
 
+	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
+	"NeuroController/internal/utils/abnormal"
 
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"go.uber.org/zap"
 )
@@ -47,18 +47,11 @@ type ServiceWatcher struct {
 func (w *ServiceWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Service{}).
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
-			},
-		}).
 		Complete(w)
 }
 
 // =======================================================================================
-// ✅ 方法：核心监听逻辑
-//
-// 在字段变更被筛选器触发后执行，记录异常和可疑的 Service 变更日志。
+// ✅ 方法：核心监听逻辑（Service 异常识别入口）
 func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var svc corev1.Service
 	if err := w.client.Get(ctx, req.NamespacedName, &svc); err != nil {
@@ -70,61 +63,29 @@ func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	processServiceChange(ctx, &svc)
+	// ✨ 提取异常原因（内部已判断冷却期）
+	reason := abnormal.GetServiceAbnormalReason(svc)
+	if reason == nil {
+		return ctrl.Result{}, nil
+	}
+
+	diagnosis.CollectServiceAbnormalEvent(svc, reason)
+	// logServiceAbnormal(ctx, svc, reason)
+
+	// TODO: 后续动作（如通知、自动修复）
 	return ctrl.Result{}, nil
 }
 
 // =======================================================================================
-// ✅ 辅助函数：处理变更字段，按严重性打印分类日志
-func processServiceChange(ctx context.Context, svc *corev1.Service) {
-	// 忽略系统默认服务
-	if svc.Name == "kubernetes" && svc.Namespace == "default" {
-		return
-	}
-
-	for _, check := range serviceChecks {
-		if check.Check(svc) {
-			utils.Warn(ctx, check.Message,
-				utils.WithTraceID(ctx),
-				zap.String("service", svc.Name),
-				zap.String("namespace", svc.Namespace),
-				zap.String("check", check.Name),
-			)
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------------------------------
-type ServiceAbnormalCheck struct {
-	Name     string
-	Check    func(svc *corev1.Service) bool
-	Severity string
-	Message  string
-}
-
-var serviceChecks = []ServiceAbnormalCheck{
-	{
-		Name: "EmptySelector",
-		Check: func(svc *corev1.Service) bool {
-			return len(svc.Spec.Selector) == 0
-		},
-		Severity: "warning",
-		Message:  "🚨 Service 未关联任何 Pod（Selector 为空）",
-	},
-	{
-		Name: "ExternalNameService",
-		Check: func(svc *corev1.Service) bool {
-			return svc.Spec.Type == corev1.ServiceTypeExternalName
-		},
-		Severity: "warning",
-		Message:  "⚠️ 检测到 ExternalName 类型 Service",
-	},
-	{
-		Name: "ClusterIPNone",
-		Check: func(svc *corev1.Service) bool {
-			return svc.Spec.ClusterIP == "None" || svc.Spec.ClusterIP == ""
-		},
-		Severity: "warning",
-		Message:  "⚠️ Service ClusterIP 异常（为空或 None）",
-	},
-}
+// ✅ 函数：输出结构化 Service 异常日志
+// func logServiceAbnormal(ctx context.Context, svc corev1.Service, reason *abnormal.ServiceAbnormalReason) {
+// 	utils.Warn(ctx, "🚨 发现异常 Service",
+// 		utils.WithTraceID(ctx),
+// 		zap.String("time", time.Now().Format(time.RFC3339)),
+// 		zap.String("service", svc.Name),
+// 		zap.String("namespace", svc.Namespace),
+// 		zap.String("reason", reason.Code),
+// 		zap.String("message", reason.Message),
+// 		zap.String("severity", reason.Severity),
+// 	)
+// }

@@ -3,7 +3,7 @@ name: Build and Push NeuroController Image
 on:
   push:
     branches:
-      - main  # 当 main 分支推送时触发
+      - disabled  # 当 main 分支推送时触发
 
 jobs:
   build:

@@ -25,16 +25,14 @@ package node
 
 import (
 	"context"
-	"time"
 
+	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
 	"NeuroController/internal/utils/abnormal"
 
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"go.uber.org/zap"
 )
@@ -54,11 +52,6 @@ type NodeWatcher struct {
 func (w *NodeWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Node{}).
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
-			},
-		}).
 		Complete(w)
 }
 
@@ -81,8 +74,9 @@ func (w *NodeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		return ctrl.Result{}, nil
 	}
 
+	diagnosis.CollectNodeAbnormalEvent(node, reason)
 	// ✅ 输出日志（封装）
-	logNodeAbnormal(ctx, node, reason)
+	// logNodeAbnormal(ctx, node, reason)
 
 	// TODO: 后续执行动作（告警 / 缩容）
 	return ctrl.Result{}, nil
@@ -90,14 +84,14 @@ func (w *NodeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 
 // =======================================================================================
 // ✅ 函数：输出结构化 Node 异常日志
-func logNodeAbnormal(ctx context.Context, node corev1.Node, reason *abnormal.NodeAbnormalReason) {
-	utils.Warn(ctx, "🚨 发现异常 Node",
-		utils.WithTraceID(ctx),
-		zap.String("time", time.Now().Format(time.RFC3339)),
-		zap.String("node", node.Name),
-		zap.String("reason", reason.Code),
-		zap.String("message", reason.Message),
-		zap.String("severity", reason.Severity),
-		zap.String("category", reason.Category),
-	)
-}
+// func logNodeAbnormal(ctx context.Context, node corev1.Node, reason *abnormal.NodeAbnormalReason) {
+// 	utils.Warn(ctx, "🚨 发现异常 Node",
+// 		utils.WithTraceID(ctx),
+// 		zap.String("time", time.Now().Format(time.RFC3339)),
+// 		zap.String("node", node.Name),
+// 		zap.String("reason", reason.Code),
+// 		zap.String("message", reason.Message),
+// 		zap.String("severity", reason.Severity),
+// 		zap.String("category", reason.Category),
+// 	)
+// }

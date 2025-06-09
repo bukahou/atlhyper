@@ -96,4 +96,16 @@ var PodAbnormalReasons = map[string]PodAbnormalReason{
 		Severity: "info",
 		Message:  "容器状态尚未建立，可能仍在调度或镜像尚未拉取",
 	},
+	"ReadinessProbeFailed": {
+		Code:     "ReadinessProbeFailed",
+		Category: "Condition",
+		Severity: "warning",
+		Message:  "Readiness 探针检测失败，服务未就绪",
+	},
+	"NotReady": {
+		Code:     "NotReady",
+		Category: "Condition",
+		Severity: "warning",
+		Message:  "Pod 未就绪，可能原因未知或未上报",
+	},
 }

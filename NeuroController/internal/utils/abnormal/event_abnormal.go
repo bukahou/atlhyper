@@ -7,6 +7,11 @@
 
 package abnormal
 
+import (
+	"sync"
+	"time"
+)
+
 // EventAbnormalReason 表示 Kubernetes Warning 事件的详细结构
 type EventAbnormalReason struct {
 	Code     string // 原始 Reason（如 "FailedScheduling"）
@@ -72,3 +77,45 @@ var EventAbnormalReasons = map[string]EventAbnormalReason{
 		Message:  "操作失败（通用原因）",
 	},
 }
+
+// ShouldTriggerUnhealthyWithinWindow：在 timeWindow 内连续触发 threshold 次才允许告警
+func ShouldTriggerUnhealthyWithinWindow(id string, threshold int, timeWindow time.Duration) bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	now := time.Now()
+
+	// 冷却期间不重复告警
+	if last, ok := lastUnhealthyFired[id]; ok && now.Sub(last) < cooldown {
+		return false
+	}
+
+	// 获取时间列表并追加本次
+	times := unhealthyTimestamps[id]
+	times = append(times, now)
+
+	// 保留 timeWindow 内的时间戳
+	filtered := make([]time.Time, 0, len(times))
+	for _, t := range times {
+		if now.Sub(t) <= timeWindow {
+			filtered = append(filtered, t)
+		}
+	}
+	unhealthyTimestamps[id] = filtered
+
+	// 判断是否达到阈值
+	if len(filtered) >= threshold {
+		unhealthyTimestamps[id] = []time.Time{} // 触发后清空计数
+		lastUnhealthyFired[id] = now
+		return true
+	}
+
+	return false
+}
+
+var (
+	unhealthyTimestamps = make(map[string][]time.Time)
+	lastUnhealthyFired  = make(map[string]time.Time)
+	mu                  sync.Mutex
+	cooldown            = 5 * time.Minute
+)

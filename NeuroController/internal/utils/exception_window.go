@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // 异常状态缓存（ID → 异常状态）
@@ -41,30 +43,41 @@ func GenerateExceptionID(kind, name, namespace, reason string) string {
 	return fmt.Sprintf("%s:%s/%s#%s", kind, namespace, name, reason)
 }
 
+func GeneratePodInstanceExceptionID(namespace string, uid types.UID, reason string) string {
+	return fmt.Sprintf("pod:%s/%s#%s", namespace, uid, reason)
+}
+
 // =======================================================================================
 // ✅ 判断异常是否应被处理（用于节流）
 //
 // 如果处于冷却窗口内，或重复异常 → 返回 false
 // 否则记录为活跃异常，更新状态 → 返回 true
 func ShouldProcessException(id string, now time.Time, cooldown time.Duration) bool {
-	v, _ := exceptionWindow.LoadOrStore(id, ExceptionEntry{
+	actual, loaded := exceptionWindow.LoadOrStore(id, &ExceptionEntry{
 		FirstTime: now,
 		LastSeen:  now,
 		Count:     1,
 		IsActive:  true,
 	})
 
-	entry := v.(ExceptionEntry)
+	entry := actual.(*ExceptionEntry)
 
-	if entry.IsActive && now.Sub(entry.LastSeen) < cooldown {
+	// ✅ 打印调试信息
+	// fmt.Printf("🧪 [异常节流判断] ID=%s | 已加载=%v | 上次=%s | 当前=%s | 距离=%.fs | 次数=%d\n",
+	// 	id, loaded, entry.LastSeen.Format(time.RFC3339), now.Format(time.RFC3339),
+	// 	now.Sub(entry.LastSeen).Seconds(), entry.Count)
+
+	if loaded && entry.IsActive && now.Sub(entry.LastSeen) < cooldown {
+		// fmt.Printf("⏸️ [异常节流判断] 冷却中，跳过异常：%s（冷却剩余 %.1fs）\n",
+		// 	id, cooldown.Seconds()-now.Sub(entry.LastSeen).Seconds())
 		return false
 	}
 
 	entry.LastSeen = now
 	entry.Count++
 	entry.IsActive = true
-	exceptionWindow.Store(id, entry)
 
+	// fmt.Printf("🚨 [异常节流判断] 允许处理异常：%s\n", id)
 	return true
 }
 

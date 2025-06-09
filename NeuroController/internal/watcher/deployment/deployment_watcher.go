@@ -26,16 +26,14 @@ package deployment
 
 import (
 	"context"
-	"time"
 
+	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
 	"NeuroController/internal/utils/abnormal"
 
 	appsv1 "k8s.io/api/apps/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"go.uber.org/zap"
 )
@@ -55,11 +53,6 @@ type DeploymentWatcher struct {
 func (w *DeploymentWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&appsv1.Deployment{}).
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
-			},
-		}).
 		Complete(w)
 }
 
@@ -76,14 +69,15 @@ func (w *DeploymentWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ✨ 提取异常原因（内部已判断冷却期）
+	//  提取异常原因（内部已判断冷却期）
 	reason := abnormal.GetDeploymentAbnormalReason(deploy)
 	if reason == nil {
 		return ctrl.Result{}, nil
 	}
 
+	diagnosis.CollectDeploymentAbnormalEvent(deploy, reason)
 	// ✅ 输出日志（封装）
-	logDeploymentAbnormal(ctx, deploy, reason)
+	// logDeploymentAbnormal(ctx, deploy, reason)
 
 	// TODO: 可扩展自动缩容 / 邮件通知 / APM 上报
 	return ctrl.Result{}, nil
@@ -91,15 +85,15 @@ func (w *DeploymentWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // =======================================================================================
 // ✅ 函数：输出结构化 Deployment 异常日志
-func logDeploymentAbnormal(ctx context.Context, deploy appsv1.Deployment, reason *abnormal.DeploymentAbnormalReason) {
-	utils.Warn(ctx, "⚠️ 发现 Deployment 异常",
-		utils.WithTraceID(ctx),
-		zap.String("time", time.Now().Format(time.RFC3339)),
-		zap.String("deployment", deploy.Name),
-		zap.String("namespace", deploy.Namespace),
-		zap.String("reason", reason.Code),
-		zap.String("message", reason.Message),
-		zap.String("severity", reason.Severity),
-		zap.String("category", reason.Category),
-	)
-}
+// func logDeploymentAbnormal(ctx context.Context, deploy appsv1.Deployment, reason *abnormal.DeploymentAbnormalReason) {
+// 	utils.Warn(ctx, "🚨 发现 Deployment 异常",
+// 		utils.WithTraceID(ctx),
+// 		zap.String("time", time.Now().Format(time.RFC3339)),
+// 		zap.String("deployment", deploy.Name),
+// 		zap.String("namespace", deploy.Namespace),
+// 		zap.String("reason", reason.Code),
+// 		zap.String("message", reason.Message),
+// 		zap.String("severity", reason.Severity),
+// 		zap.String("category", reason.Category),
+// 	)
+// }

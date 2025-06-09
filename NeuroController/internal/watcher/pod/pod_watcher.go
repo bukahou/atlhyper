@@ -28,8 +28,8 @@ package pod
 
 import (
 	"context"
-	"time"
 
+	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
 	"NeuroController/internal/utils/abnormal"
 
@@ -38,8 +38,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 // =======================================================================================
@@ -57,14 +55,7 @@ type PodWatcher struct {
 func (w *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}).
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				// 仅在 Pod 实际状态变化时触发（避免重复 Reconcile）
-				return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
-			},
-		}).
 		Complete(w)
-
 }
 
 // =======================================================================================
@@ -74,6 +65,7 @@ func (w *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 // 若发现异常状态（如 CrashLoopBackOff、ImagePullBackOff、OOMKilled 等），
 // 则交由策略模块判断并触发 actuator/reporter。
 func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
 	var pod corev1.Pod
 	err := w.client.Get(ctx, req.NamespacedName, &pod)
 	if err != nil {
@@ -85,34 +77,34 @@ func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// ✨ 提取异常主因（已内置冷却判断）
+	// ✨ 异常识别（包含冷却判断）
 	reason := abnormal.GetPodAbnormalReason(pod)
 	if reason == nil {
+		// 可选加：fmt.Printf("✅ Pod 正常，无需处理：%s/%s\n", req.Namespace, req.Name)
 		return ctrl.Result{}, nil
 	}
 
-	// ✅ 输出日志
-	logPodAbnormal(ctx, pod, reason)
+	diagnosis.CollectPodAbnormalEvent(pod, reason)
+	// logPodAbnormal(ctx, pod, reason)
 
-	// TODO: 后续触发策略响应 / 上报等操作
 	return ctrl.Result{}, nil
 }
 
 // =======================================================================================
 // ✅ 函数：输出结构化 Pod 异常日志
-func logPodAbnormal(ctx context.Context, pod corev1.Pod, reason *abnormal.PodAbnormalReason) {
-	utils.Warn(ctx, "🚨 发现异常 Pod",
-		utils.WithTraceID(ctx),
-		zap.String("time", time.Now().Format(time.RFC3339)),
-		zap.String("name", pod.Name),
-		zap.String("namespace", pod.Namespace),
-		zap.String("phase", string(pod.Status.Phase)),
-		zap.String("reason", reason.Code),
-		zap.String("category", reason.Category),
-		zap.String("severity", reason.Severity),
-		zap.String("message", reason.Message),
-	)
-}
+// func logPodAbnormal(ctx context.Context, pod corev1.Pod, reason *abnormal.PodAbnormalReason) {
+// 	utils.Warn(ctx, "🚨 发现异常 Pod",
+// 		utils.WithTraceID(ctx),
+// 		zap.String("time", time.Now().Format(time.RFC3339)),
+// 		zap.String("name", pod.Name),
+// 		zap.String("namespace", pod.Namespace),
+// 		zap.String("phase", string(pod.Status.Phase)),
+// 		zap.String("reason", reason.Code),
+// 		zap.String("category", reason.Category),
+// 		zap.String("severity", reason.Severity),
+// 		zap.String("message", reason.Message),
+// 	)
+// }
 
 // =======================================================================================
 // ✅ 函数：输出 Pod 被删除的 Info 日志（用于 CI/CD 场景识别）

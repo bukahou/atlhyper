@@ -24,7 +24,9 @@ package main
 
 import (
 	"NeuroController/internal/bootstrap"
+	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
+	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -32,10 +34,16 @@ import (
 
 func main() {
 	// ✅ 设置 controller-runtime 日志系统（推荐放在最前）
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) //  (true)用于开发模式/(false)用于生产模式
-
+	ctrl.SetLogger(zap.New(zap.UseDevMode(false))) //  (true)用于开发模式/(false)用于生产模式
 	utils.InitLogger()
-	utils.InitK8sClient()
+
+	cfg := utils.InitK8sClient()
+	// ✅ 自动选择可用 API 地址（支持集群内外切换）
+	// api := utils.ChooseBestK8sAPI(cfg.Host)
+	utils.StartK8sHealthChecker(cfg)
+
+	// ✅ 启动定时清理器（每 30 秒清理一次日志池）
+	diagnosis.StartCleanerLoop(30 * time.Second)
 
 	bootstrap.StartManager()
 }

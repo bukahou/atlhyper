@@ -28,6 +28,7 @@ package watcher
 import (
 	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher/deployment"
+	"NeuroController/internal/watcher/endpoint"
 	"NeuroController/internal/watcher/event"
 	"NeuroController/internal/watcher/node"
 	"NeuroController/internal/watcher/pod"
@@ -73,6 +74,7 @@ var WatcherRegistry = []struct {
 	{"ServiceWatcher", service.RegisterWatcher},
 	{"DeploymentWatcher", deployment.RegisterWatcher},
 	{"EventWatcher", event.RegisterWatcher},
+	{"EndpointWatcher", endpoint.RegisterWatcher},
 	// 未来添加新的 Watcher，只需添加一行：
 	// {"PVCWatcher", pvc.RegisterWatcher},
 }
