@@ -32,7 +32,7 @@ func GetPodAbnormalReason(pod corev1.Pod) *PodAbnormalReason {
 					return nil
 				}
 
-				// fmt.Printf("🚨 [异常识别] Waiting 状态：%s/%s → Reason=%s，Message=%s（已确认）\n", pod.Namespace, pod.Name, reasonCode, reason.Message)
+				// fmt.Printf(" [异常识别] Waiting 状态：%s/%s → Reason=%s，Message=%s（已确认）\n", pod.Namespace, pod.Name, reasonCode, reason.Message)
 				return &reason
 			}
 		}
@@ -48,7 +48,7 @@ func GetPodAbnormalReason(pod corev1.Pod) *PodAbnormalReason {
 					return nil
 				}
 
-				// fmt.Printf("🚨 [异常识别] Terminated 状态：%s/%s → Reason=%s，Message=%s（已确认）\n", pod.Namespace, pod.Name, reasonCode, reason.Message)
+				// fmt.Printf(" [异常识别] Terminated 状态：%s/%s → Reason=%s，Message=%s（已确认）\n", pod.Namespace, pod.Name, reasonCode, reason.Message)
 				return &reason
 			}
 		}
@@ -71,7 +71,7 @@ func GetPodAbnormalReason(pod corev1.Pod) *PodAbnormalReason {
 				return nil
 			}
 
-			// fmt.Printf("🚨 [异常识别] Condition 状态：%s/%s → Reason=%s，Message=%s（已确认）\n", pod.Namespace, pod.Name, code, reason.Message)
+			// fmt.Printf(" [异常识别] Condition 状态：%s/%s → Reason=%s，Message=%s（已确认）\n", pod.Namespace, pod.Name, code, reason.Message)
 			return &reason
 		}
 	}
@@ -98,7 +98,7 @@ func GetNodeAbnormalReason(node corev1.Node) *NodeAbnormalReason {
 				return nil
 			}
 
-			// fmt.Printf("🚨 [异常识别] Node Fatal 状态：%s → Condition=%s，Message=%s（已确认）\n", node.Name, cond.Type, reason.Message)
+			// fmt.Printf(" [异常识别] Node Fatal 状态：%s → Condition=%s，Message=%s（已确认）\n", node.Name, cond.Type, reason.Message)
 			return &reason
 		}
 
@@ -111,7 +111,7 @@ func GetNodeAbnormalReason(node corev1.Node) *NodeAbnormalReason {
 				return nil
 			}
 
-			// fmt.Printf("🚨 [异常识别] Node Warning 状态：%s → Condition=%s，Message=%s（已确认）\n", node.Name, cond.Type, reason.Message)
+			// fmt.Printf(" [异常识别] Node Warning 状态：%s → Condition=%s，Message=%s（已确认）\n", node.Name, cond.Type, reason.Message)
 			return &reason
 		}
 	}
@@ -153,7 +153,7 @@ func GetEventAbnormalReason(event corev1.Event) *EventAbnormalReason {
 		return nil
 	}
 
-	// fmt.Printf("🚨 [异常识别] Event 状态：%s/%s → Reason=%s，Message=%s（已确认）\n", event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.Reason, reason.Message)
+	// fmt.Printf(" [异常识别] Event 状态：%s/%s → Reason=%s，Message=%s（已确认）\n", event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.Reason, reason.Message)
 
 	return &reason
 }
@@ -174,7 +174,7 @@ func GetDeploymentAbnormalReason(deploy appsv1.Deployment) *DeploymentAbnormalRe
 			return nil
 		}
 
-		// fmt.Printf("🚨 [异常识别] Deployment 不可用副本：%s/%s → Reason=%s，Message=%s（已确认）\n", namespace, name, reason.Code, reason.Message)
+		// fmt.Printf(" [异常识别] Deployment 不可用副本：%s/%s → Reason=%s，Message=%s（已确认）\n", namespace, name, reason.Code, reason.Message)
 		return &reason
 	}
 
@@ -188,7 +188,7 @@ func GetDeploymentAbnormalReason(deploy appsv1.Deployment) *DeploymentAbnormalRe
 			return nil
 		}
 
-		// fmt.Printf("🚨 [异常识别] Deployment Ready 副本不足：%s/%s → Reason=%s，Message=%s（已确认）\n", namespace, name, reason.Code, reason.Message)
+		// fmt.Printf(" [异常识别] Deployment Ready 副本不足：%s/%s → Reason=%s，Message=%s（已确认）\n", namespace, name, reason.Code, reason.Message)
 		return &reason
 	}
 
@@ -203,7 +203,7 @@ func GetDeploymentAbnormalReason(deploy appsv1.Deployment) *DeploymentAbnormalRe
 				return nil
 			}
 
-			// fmt.Printf("🚨 [异常识别] Deployment 更新超时：%s/%s → Reason=%s，Message=%s（已确认）\n", namespace, name, reason.Code, reason.Message)
+			// fmt.Printf("[异常识别] Deployment 更新超时：%s/%s → Reason=%s，Message=%s（已确认）\n", namespace, name, reason.Code, reason.Message)
 			return &reason
 		}
 	}
@@ -220,7 +220,7 @@ func GetDeploymentAbnormalReason(deploy appsv1.Deployment) *DeploymentAbnormalRe
 			return nil
 		}
 
-		// fmt.Printf("🚨 [异常识别] Deployment 副本数上溢：%s/%s → Reason=%s，Message=%s（已确认）\n", namespace, name, reason.Code, reason.Message)
+		// fmt.Printf(" [异常识别] Deployment 副本数上溢：%s/%s → Reason=%s，Message=%s（已确认）\n", namespace, name, reason.Code, reason.Message)
 		return &reason
 	}
 
@@ -239,7 +239,7 @@ func GetEndpointAbnormalReason(ep *corev1.Endpoints) *EndpointAbnormalReason {
 				return nil
 			}
 
-			// fmt.Printf("🚨 [异常识别] Endpoints 状态异常：%s/%s → Code=%s，Message=%s（已确认）\n", ep.Namespace, ep.Name, rule.Code, rule.Message)
+			// fmt.Printf(" [异常识别] Endpoints 状态异常：%s/%s → Code=%s，Message=%s（已确认）\n", ep.Namespace, ep.Name, rule.Code, rule.Message)
 
 			return &EndpointAbnormalReason{
 				Code:     rule.Code,

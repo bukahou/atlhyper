@@ -37,7 +37,7 @@ var EndpointAbnormalRules = []struct {
 			}
 			return total > 0 && ready == 0
 		},
-		Message:  "🚨 所有 Pod 已从 Endpoints 剔除（无可用后端）",
+		Message:  " 所有 Pod 已从 Endpoints 剔除（无可用后端）",
 		Severity: "critical",
 	},
 	{
@@ -45,7 +45,7 @@ var EndpointAbnormalRules = []struct {
 		Check: func(ep *corev1.Endpoints) bool {
 			return len(ep.Subsets) == 0
 		},
-		Message:  "⚠️ Endpoints 无任何子集（Subsets 为空）",
+		Message:  " Endpoints 无任何子集（Subsets 为空）",
 		Severity: "warning",
 	},
 }

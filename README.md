@@ -109,6 +109,60 @@ NeuroController/
 │           └── register.go  
 
 
+## 📊 示例：结构化日志输出
+
+以下是 NeuroController 在运行时记录的部分结构化告警日志（脱敏后的示例）：
+
+```json
+{
+  "category": "Event",
+  "eventTime": "2025-06-09T08:42:05Z",
+  "kind": "Pod",
+  "message": "健康检查未通过，容器状态异常",
+  "name": "<pod-name>",
+  "namespace": "default",
+  "reason": "Unhealthy",
+  "severity": "critical",
+  "time": "2025-06-09T08:42:20Z"
+}
+{
+  "category": "Condition",
+  "eventTime": "2025-06-09T08:42:05Z",
+  "kind": "Pod",
+  "message": "Pod 未就绪，可能原因未知或未上报",
+  "name": "<pod-name>",
+  "namespace": "default",
+  "reason": "NotReady",
+  "severity": "warning",
+  "time": "2025-06-09T08:42:20Z"
+}
+{
+  "category": "Warning",
+  "eventTime": "2025-06-09T08:42:05Z",
+  "kind": "Deployment",
+  "message": "Deployment 存在不可用副本，可能为镜像拉取失败、Pod 崩溃等",
+  "name": "<deployment-name>",
+  "namespace": "default",
+  "reason": "UnavailableReplica",
+  "severity": "info",
+  "time": "2025-06-09T08:42:20Z"
+}
+{
+  "category": "Endpoint",
+  "eventTime": "2025-06-09T08:42:06Z",
+  "kind": "Endpoints",
+  "message": " 所有 Pod 已从 Endpoints 剔除（无可用后端）",
+  "name": "<service-name>",
+  "namespace": "default",
+  "reason": "NoReadyAddress",
+  "severity": "critical",
+  "time": "2025-06-09T08:42:20Z"
+}
+```
+
+这些日志记录展示了从 Pod 到 Deployment、Endpoint 的告警链路，便于后续根因分析和自动响应策略触发。
+
+
 
 # 🕸️ NeuroController 使用说明 · Usage Guide
 

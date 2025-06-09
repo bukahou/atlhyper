@@ -1,21 +1,25 @@
 // =======================================================================================
 // 📄 deployment_abnormal.go
 //
-// ✨ 功能说明：
-//     定义 Deployment 异常类型结构体与识别表，用于统一提取 Deployment 异常的描述、分类与告警等级。
-//     可与 abnormal_utils.go 中的提取函数（如 GetDeploymentAbnormalReason）配合使用，实现结构化日志与告警。
+// ✨ Description:
+//     Defines the structure and recognition table for Deployment-level abnormalities.
+//     Used for consistent extraction of diagnostic information, alert levels, and categories.
+//     Can be used together with functions in abnormal_utils.go
+//     (e.g. GetDeploymentAbnormalReason) to generate structured logs and alerts.
 //
-// 📦 提供内容：
-//     - DeploymentAbnormalReason: 异常结构体（包含 Code、Message、分类与等级）
-//     - DeploymentAbnormalReasons: 异常识别表（基于字段状态差异）
+// 📦 Provides:
+//     - DeploymentAbnormalReason: Abnormality structure (includes Code, Message, Category, Severity)
+//     - DeploymentAbnormalReasons: Recognition table based on Deployment status fields
 //
-// 🧠 判断依据示例：
-//     - UnavailableReplicas > 0           → 表示副本不可用（可能是 Pod 崩溃、镜像拉取失败）
-//     - ReadyReplicas < Spec.Replicas     → 表示实际就绪副本不足
-//     - ProgressDeadlineExceeded=True     → Deployment 超时未成功滚动更新
+// 🧠 Example Recognition Logic:
+//     - UnavailableReplicas > 0           → Indicates unavailable replicas (e.g. crash, image pull error)
+//     - ReadyReplicas < Spec.Replicas     → Indicates insufficient ready replicas
+//     - ProgressDeadlineExceeded=True     → Rolling update did not complete within timeout
 //
-// ✍️ 作者：武夏锋（@ZGMF-X10A）
-// 🗓 创建时间：2025-06
+// 💡 Note: You can customize the Message field based on your use case or environment.
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: 2025-06
 // =======================================================================================
 
 package abnormal
