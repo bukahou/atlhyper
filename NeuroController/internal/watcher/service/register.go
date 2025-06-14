@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ✅ Registrar: Registers ServiceWatcher into controller-runtime
+// ✅ 注册器：将 ServiceWatcher 注册到 controller-runtime
 func RegisterWatcher(mgr ctrl.Manager) error {
 	client := utils.GetClient()
 	serviceWatcher := NewServiceWatcher(client)
@@ -42,7 +42,7 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 	if err := serviceWatcher.SetupWithManager(mgr); err != nil {
 		utils.Error(
 			context.TODO(),
-			"❌ Failed to register ServiceWatcher",
+			"❌ 注册 ServiceWatcher 失败",
 			utils.WithTraceID(context.TODO()),
 			zap.String("module", "watcher/service"),
 			zap.Error(err),
@@ -52,14 +52,14 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 
 	utils.Info(
 		context.TODO(),
-		"✅ Successfully registered ServiceWatcher",
+		"✅ ServiceWatcher 注册成功",
 		utils.WithTraceID(context.TODO()),
 		zap.String("module", "watcher/service"),
 	)
 	return nil
 }
 
-// ✅ Factory: Creates a new ServiceWatcher instance with injected client
+// ✅ 工厂函数：使用注入的 client 创建 ServiceWatcher 实例
 func NewServiceWatcher(c client.Client) *ServiceWatcher {
 	return &ServiceWatcher{client: c}
 }

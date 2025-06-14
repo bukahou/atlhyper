@@ -34,23 +34,23 @@ import (
 	"go.uber.org/zap"
 )
 
-// ✅ Controller structure
+// ✅ 控制器结构体
 type EndpointWatcher struct {
 	client client.Client
 }
 
-// ✅ Bind EndpointWatcher to controller-runtime manager
+// ✅ 将 EndpointWatcher 注册到 controller-runtime 的管理器中
 func (w *EndpointWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Endpoints{}).
 		Complete(w)
 }
 
-// ✅ Core logic: triggered on Endpoint change events
+// ✅ 核心逻辑：在 Endpoint 发生变更时触发
 func (w *EndpointWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var ep corev1.Endpoints
 	if err := w.client.Get(ctx, req.NamespacedName, &ep); err != nil {
-		utils.Warn(ctx, "❌ Failed to fetch Endpoints",
+		utils.Warn(ctx, "❌ 获取 Endpoints 资源失败",
 			utils.WithTraceID(ctx),
 			zap.String("endpoint", req.Name),
 			zap.String("error", err.Error()),
@@ -58,18 +58,18 @@ func (w *EndpointWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// 🚨 Analyze for abnormal condition
+	// 🚨 分析是否存在异常状态
 	reason := abnormal.GetEndpointAbnormalReason(&ep)
 	if reason == nil {
 		return ctrl.Result{}, nil
 	}
 
-	// 🧠 Collect abnormal event for diagnosis/reporting
+	// 🧠 收集异常事件，供诊断或上报使用
 	diagnosis.CollectEndpointAbnormalEvent(ep, reason)
 
-	// 📝 Optional: log structured details
+	// 📝 可选：输出结构化日志
 	// logEndpointAbnormal(ctx, ep, reason)
 
-	// 🔧 TODO: Add response actions (e.g., alerts, scaling)
+	// 🔧 TODO：后续可添加响应措施（如告警、自动伸缩等）
 	return ctrl.Result{}, nil
 }

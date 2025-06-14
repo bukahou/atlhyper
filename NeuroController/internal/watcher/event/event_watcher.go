@@ -41,17 +41,17 @@ import (
 )
 
 // =======================================================================================
-// ✅ Struct: EventWatcher
+// ✅ 结构体：EventWatcher
 //
-// Encapsulates Kubernetes client for use with controller-runtime
+// 封装了 Kubernetes 客户端，用于 controller-runtime 中的事件监听器
 type EventWatcher struct {
 	client client.Client
 }
 
 // =======================================================================================
-// ✅ Setup the controller with the manager
+// ✅ 控制器注册方法
 //
-// Registers the EventWatcher with controller-runtime to watch Event resources
+// 将 EventWatcher 注册到 controller-runtime 中，监听 Kubernetes 的 Event 资源
 func (w *EventWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Event{}).
@@ -59,15 +59,15 @@ func (w *EventWatcher) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ Reconcile logic for EventWatcher
+// ✅ EventWatcher 的 Reconcile 逻辑
 //
-// Triggered on changes to Event resources.
-// Filters "Warning" type events and processes them.
+// 在 Event 资源发生变更时触发。
+// 仅处理类型为 "Warning" 的事件，并进行异常检测。
 func (w *EventWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var ev corev1.Event
 	if err := w.client.Get(ctx, req.NamespacedName, &ev); err != nil {
 		if !errors.IsNotFound(err) {
-			utils.Warn(ctx, "❌ Failed to retrieve Event",
+			utils.Warn(ctx, "❌ 获取 Event 失败",
 				utils.WithTraceID(ctx),
 				zap.String("event", req.Name),
 				zap.Error(err),
@@ -76,15 +76,15 @@ func (w *EventWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ✨ Check for abnormal conditions (cooldown already handled internally)
+	// ✨ 检测是否为异常事件（内部已处理节流逻辑）
 	reason := abnormal.GetEventAbnormalReason(ev)
 	if reason == nil {
 		return ctrl.Result{}, nil
 	}
 
-	// ⛑️ Collect and persist the abnormal event
+	// 收集并持久化该异常事件
 	diagnosis.CollectEventAbnormalEvent(ev, reason)
 
-	// TODO: Trigger follow-up actions (alerts, autoscaling, etc.)
+	// TODO：触发后续处理逻辑（如告警、自动扩缩容等）
 	return ctrl.Result{}, nil
 }

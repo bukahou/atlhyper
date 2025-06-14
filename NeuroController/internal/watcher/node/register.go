@@ -34,25 +34,25 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ✅ Registrar: Register NodeWatcher with controller-runtime
+// ✅ 注册器：将 NodeWatcher 注册到 controller-runtime
 //
-// Step-by-step:
-// 1. Retrieve shared Kubernetes client from utils
-// 2. Create the watcher instance
-// 3. Register it to the controller-runtime manager
-// Logs error if registration fails.
+// 执行步骤：
+// 1. 从 utils 中获取共享的 Kubernetes 客户端
+// 2. 构建 NodeWatcher 实例
+// 3. 将其注册到 controller-runtime 的管理器中
+// 若注册失败则记录错误日志
 func RegisterWatcher(mgr ctrl.Manager) error {
-	// Retrieve shared Kubernetes client
+	// 获取全局共享 Kubernetes 客户端
 	client := utils.GetClient()
 
-	// Construct watcher instance
+	// 构造 NodeWatcher 实例
 	nodeWatcher := NewNodeWatcher(client)
 
-	// Register to controller-runtime manager
+	// 注册到 controller-runtime 管理器
 	if err := nodeWatcher.SetupWithManager(mgr); err != nil {
 		utils.Error(
 			context.TODO(),
-			"❌ Failed to register NodeWatcher",
+			"❌ 注册 NodeWatcher 失败",
 			utils.WithTraceID(context.TODO()),
 			zap.String("module", "watcher/node"),
 			zap.Error(err),
@@ -62,7 +62,7 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 
 	utils.Info(
 		context.TODO(),
-		"✅ NodeWatcher registered successfully",
+		"✅ NodeWatcher 注册成功",
 		utils.WithTraceID(context.TODO()),
 		zap.String("module", "watcher/node"),
 	)
@@ -70,7 +70,7 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 	return nil
 }
 
-// ✅ Factory method: Construct a NodeWatcher with the injected client
+// ✅ 工厂方法：使用注入的 client 构造 NodeWatcher 实例
 func NewNodeWatcher(c client.Client) *NodeWatcher {
 	return &NodeWatcher{client: c}
 }

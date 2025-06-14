@@ -1,8 +1,11 @@
 #!/bin/bash
+
+# ⚠️ 注意：使用本脚本需本地已登录 Docker Hub（docker login）
+
 set -e
 
-IMAGE_NAME="bukahou/zgmf-x10a"
-TAG="neurocontroller"
+IMAGE_NAME="bukahou/neurocontroller"
+TAG="v1.0.0"
 
 echo "🔧 [Step 1] Checking Buildx builder"
 docker buildx create --name mybuilder --use || true

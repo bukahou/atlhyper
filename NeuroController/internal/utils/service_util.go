@@ -18,23 +18,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GetServiceNameFromPod attempts to find the Service associated with the given Pod
-// by matching its labels with Service selectors.
+// 尝试根据 Pod 的标签匹配所属的 Service 名称
 //
-// 🔹 Label selectors are critical for Service-to-Pod association.
+// 🔹 Service 的 selector 标签是关联 Pod 的关键
 func GetServiceNameFromPod(ctx context.Context, pod *corev1.Pod) (string, error) {
 	cli := GetClient()
 
 	var serviceList corev1.ServiceList
 	if err := cli.List(ctx, &serviceList, client.InNamespace(pod.Namespace)); err != nil {
-		Error(ctx, "❌ Failed to list Services",
+		Error(ctx, "❌ 获取 Service 列表失败",
 			zap.String("namespace", pod.Namespace),
 			zap.Error(err),
 		)
 		return "", err
 	}
 
-	// 🔀 Match Pod labels against each Service's selector
+	// 🔀 遍历所有 Service，尝试与 Pod 标签进行匹配
 	for _, svc := range serviceList.Items {
 		match := true
 		for key, val := range svc.Spec.Selector {
@@ -44,7 +43,7 @@ func GetServiceNameFromPod(ctx context.Context, pod *corev1.Pod) (string, error)
 			}
 		}
 		if match {
-			Info(ctx, "✅ Matched Service found",
+			Info(ctx, "✅ 找到匹配的 Service",
 				zap.String("service", svc.Name),
 				zap.String("pod", pod.Name),
 			)
@@ -54,16 +53,16 @@ func GetServiceNameFromPod(ctx context.Context, pod *corev1.Pod) (string, error)
 		}
 	}
 
-	return "", nil // No matching Service found
+	return "", nil // 未找到匹配的 Service
 }
 
-// CheckServiceEndpointStatus verifies whether the specified Service has any ready Endpoints.
+// 检查指定 Service 是否存在就绪的 Endpoints
 func CheckServiceEndpointStatus(ctx context.Context, namespace, name string) {
 	cli := GetClient()
 
 	var endpoints corev1.Endpoints
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &endpoints); err != nil {
-		Warn(ctx, "⚠️ Failed to retrieve Endpoints",
+		Warn(ctx, "⚠️ 获取 Endpoints 失败",
 			zap.String("service", name),
 			zap.Error(err),
 		)
@@ -76,12 +75,12 @@ func CheckServiceEndpointStatus(ctx context.Context, namespace, name string) {
 	}
 
 	if readyCount == 0 {
-		Warn(ctx, " No ready Pods found in Endpoints",
+		Warn(ctx, "⚠️ Endpoints 中无就绪 Pod",
 			zap.String("service", name),
 			zap.String("namespace", namespace),
 		)
 	} else {
-		Info(ctx, "✅ Endpoints are healthy",
+		Info(ctx, "✅ Endpoints 状态正常",
 			zap.String("service", name),
 			zap.Int("ready", readyCount),
 		)

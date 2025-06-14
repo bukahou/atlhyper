@@ -34,13 +34,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ✅ Registers EventWatcher with the controller-runtime manager
+// ✅ 将 EventWatcher 注册到 controller-runtime 的管理器中
 func RegisterWatcher(mgr ctrl.Manager) error {
 	client := utils.GetClient()
 	eventWatcher := NewEventWatcher(client)
 
 	if err := eventWatcher.SetupWithManager(mgr); err != nil {
-		utils.Error(context.TODO(), "❌ Failed to register EventWatcher",
+		utils.Error(context.TODO(), "❌ 注册 EventWatcher 失败",
 			utils.WithTraceID(context.TODO()),
 			zap.String("module", "watcher/event"),
 			zap.Error(err),
@@ -48,14 +48,14 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 		return err
 	}
 
-	utils.Info(context.TODO(), "✅ Successfully registered EventWatcher",
+	utils.Info(context.TODO(), "✅ EventWatcher 注册成功",
 		utils.WithTraceID(context.TODO()),
 		zap.String("module", "watcher/event"),
 	)
 	return nil
 }
 
-// ✅ Factory function to create a new EventWatcher with the injected client
+// ✅ 工厂方法：使用注入的 client 创建新的 EventWatcher 实例
 func NewEventWatcher(c client.Client) *EventWatcher {
 	return &EventWatcher{client: c}
 }

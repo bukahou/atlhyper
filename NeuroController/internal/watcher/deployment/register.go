@@ -35,27 +35,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ✅ Factory method: create a DeploymentWatcher instance with the shared client
+// ✅ 工厂方法：使用共享客户端创建 DeploymentWatcher 实例
 func NewDeploymentWatcher(c client.Client) *DeploymentWatcher {
 	return &DeploymentWatcher{client: c}
 }
 
-// ✅ Registrar: bind DeploymentWatcher to controller-runtime manager
+// ✅ 注册器：将 DeploymentWatcher 绑定到 controller-runtime 的管理器中
 //
-// Retrieves the shared client → builds the watcher instance → registers to the manager.
-// Logs error and returns if registration fails.
+// 获取全局共享 client → 构建 watcher 实例 → 注册到 manager 中。
+// 如果注册失败则记录错误日志并返回错误。
 func RegisterWatcher(mgr ctrl.Manager) error {
-	// Get global shared client from utils
+	// 从 utils 获取全局共享 client
 	client := utils.GetClient()
 
-	// Create watcher instance
+	// 创建 watcher 实例
 	deploymentWatcher := NewDeploymentWatcher(client)
 
-	// Register controller
+	// 注册控制器
 	if err := deploymentWatcher.SetupWithManager(mgr); err != nil {
 		utils.Error(
 			context.TODO(),
-			"❌ Failed to register DeploymentWatcher",
+			"❌ 注册 DeploymentWatcher 失败",
 			utils.WithTraceID(context.TODO()),
 			zap.String("module", "watcher/deployment"),
 			zap.Error(err),
@@ -65,7 +65,7 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 
 	utils.Info(
 		context.TODO(),
-		"✅ DeploymentWatcher registered successfully",
+		"✅ DeploymentWatcher 注册成功",
 		utils.WithTraceID(context.TODO()),
 		zap.String("module", "watcher/deployment"),
 	)

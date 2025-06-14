@@ -31,52 +31,52 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-// ✅ Starts the controller manager (loads and runs all Watchers)
+// ✅ 启动控制器管理器（加载并运行所有 Watcher 模块）
 func StartManager() {
-	// ✅ Create the controller-runtime manager
+	// ✅ 创建 controller-runtime 的管理器
 	cfg, err := resolveRestConfig()
 	if err != nil {
-		utils.Fatal(nil, "❌ Failed to load Kubernetes config", zap.Error(err))
+		utils.Fatal(nil, "❌ 加载 Kubernetes 配置失败", zap.Error(err))
 	}
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		// To support namespace filtering in the future. Currently watches the entire cluster.
+		// 为未来支持命名空间过滤预留。目前监控整个集群。
 		//Namespace: "default",
 	})
 	if err != nil {
-		utils.Fatal(nil, "❌ Failed to initialize Controller Manager", zap.Error(err))
+		utils.Fatal(nil, "❌ 初始化控制器管理器失败", zap.Error(err))
 	}
 
-	// ✅ Register all Watchers
+	// ✅ 注册所有 Watcher 模块
 	if err := watcher.RegisterAllWatchers(mgr); err != nil {
-		utils.Fatal(nil, "❌ Failed to register Watcher modules", zap.Error(err))
+		utils.Fatal(nil, "❌ 注册 Watcher 模块失败", zap.Error(err))
 	}
 
-	// ✅ Start the controller loop (blocking call)
-	utils.Info(nil, "🚀 Starting controller-runtime manager ...")
+	// ✅ 启动控制器主循环（阻塞调用）
+	utils.Info(nil, "🚀 正在启动 controller-runtime 管理器 ...")
 	if err := mgr.Start(context.Background()); err != nil {
-		utils.Fatal(nil, "❌ Controller main loop exited with error", zap.Error(err))
+		utils.Fatal(nil, "❌ 控制器主循环异常退出", zap.Error(err))
 	}
 }
 
-// ✅ Private helper: Automatically detects kubeconfig or in-cluster configuration
+// ✅ 私有辅助函数：自动检测 kubeconfig 或集群内配置
 func resolveRestConfig() (*rest.Config, error) {
 	kubeconfig := os.Getenv("KUBECONFIG")
 	if kubeconfig != "" {
 		cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err == nil {
-			utils.Info(context.TODO(), "✅ Using local kubeconfig")
+			utils.Info(context.TODO(), "✅ 使用本地 kubeconfig 配置")
 			return cfg, nil
 		}
-		utils.Warn(context.TODO(), "⚠️ Failed to load local kubeconfig, trying in-cluster mode", zap.Error(err))
+		utils.Warn(context.TODO(), "⚠️ 读取本地 kubeconfig 失败，尝试使用集群内配置", zap.Error(err))
 	}
 
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
-		utils.Error(context.TODO(), "❌ Failed to load in-cluster configuration", zap.Error(err))
+		utils.Error(context.TODO(), "❌ 加载集群内配置失败", zap.Error(err))
 		return nil, err
 	}
 
-	utils.Info(context.TODO(), "✅ Using in-cluster configuration")
+	utils.Info(context.TODO(), "✅ 使用集群内配置")
 	return cfg, nil
 }

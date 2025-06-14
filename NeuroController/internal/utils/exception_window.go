@@ -25,35 +25,34 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// In-memory exception tracking cache (key: ExceptionID)
+// 内存中的异常追踪缓存（键：异常 ID）
 var exceptionWindow sync.Map
 
-// Structure representing an exception entry
+// 表示单个异常记录的结构体
 type ExceptionEntry struct {
-	FirstTime time.Time // First occurrence time
-	LastSeen  time.Time // Most recent occurrence
-	Count     int       // Number of times triggered
-	IsActive  bool      // Whether the exception is still considered active
+	FirstTime time.Time // 首次发生时间
+	LastSeen  time.Time // 最近一次发生时间
+	Count     int       // 触发次数
+	IsActive  bool      // 当前是否仍视为活跃异常
 }
 
 // =======================================================================================
-// ✅ Generate a unique Exception ID (fingerprint)
+// ✅ 生成唯一的异常 ID（用于去重）
 //
-// Format: kind:namespace/name#reason
+// 格式：kind:namespace/name#reason
 func GenerateExceptionID(kind, name, namespace, reason string) string {
 	return fmt.Sprintf("%s:%s/%s#%s", kind, namespace, name, reason)
 }
 
-// Alternative ID format for individual Pod instances (using UID)
+// 替代格式：用于标识特定 Pod 实例（使用 UID）
 func GeneratePodInstanceExceptionID(namespace string, uid types.UID, reason string) string {
 	return fmt.Sprintf("pod:%s/%s#%s", namespace, uid, reason)
 }
 
 // =======================================================================================
-// ✅ Determine whether an exception should be processed (rate-limiting)
+// ✅ 判断是否应该处理该异常（节流控制）
 //
-// Returns false if the exception is within the cooldown window or is a duplicate.
-// Otherwise, updates the tracking status and returns true.
+// 如果处于冷却时间内或是重复异常，则返回 false；否则更新状态并返回 true。
 func ShouldProcessException(id string, now time.Time, cooldown time.Duration) bool {
 	actual, loaded := exceptionWindow.LoadOrStore(id, &ExceptionEntry{
 		FirstTime: now,
@@ -64,13 +63,13 @@ func ShouldProcessException(id string, now time.Time, cooldown time.Duration) bo
 
 	entry := actual.(*ExceptionEntry)
 
-	// ✅ Debug info
-	// fmt.Printf("🧪 [Throttle Check] ID=%s | Loaded=%v | LastSeen=%s | Now=%s | Δ=%.fs | Count=%d\n",
+	// ✅ 调试信息
+	// fmt.Printf("🧪 [节流检查] ID=%s | 是否已存在=%v | 上次出现=%s | 当前时间=%s | 时间差=%.fs | 次数=%d\n",
 	// 	id, loaded, entry.LastSeen.Format(time.RFC3339), now.Format(time.RFC3339),
 	// 	now.Sub(entry.LastSeen).Seconds(), entry.Count)
 
 	if loaded && entry.IsActive && now.Sub(entry.LastSeen) < cooldown {
-		// fmt.Printf("⏸️ [Throttle] Skipping exception (cooldown active): %s (%.1fs left)\n",
+		// fmt.Printf("⏸️ [节流中] 跳过处理（冷却未结束）: %s（剩余 %.1fs）\n",
 		// 	id, cooldown.Seconds()-now.Sub(entry.LastSeen).Seconds())
 		return false
 	}
@@ -79,14 +78,14 @@ func ShouldProcessException(id string, now time.Time, cooldown time.Duration) bo
 	entry.Count++
 	entry.IsActive = true
 
-	// fmt.Printf("🚨 [Throttle] Processing exception: %s\n", id)
+	// fmt.Printf("🚨 [处理异常] 正在处理异常: %s\n", id)
 	return true
 }
 
 // =======================================================================================
-// ✅ Manually mark an exception as resolved
+// ✅ 手动标记异常为已恢复
 //
-// Can be called when the resource has recovered or is no longer abnormal.
+// 可在资源恢复或不再异常时调用。
 func ResetException(id string) {
 	if v, ok := exceptionWindow.Load(id); ok {
 		entry := v.(ExceptionEntry)

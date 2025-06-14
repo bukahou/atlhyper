@@ -1,14 +1,3 @@
-package diagnosis
-
-import (
-	"time"
-
-	"NeuroController/internal/utils/abnormal"
-
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-)
-
 // =======================================================================================
 // 📄 diagnosis/collector.go
 //
@@ -22,36 +11,47 @@ import (
 //     - Append events to the internal event pool for further processing
 // =======================================================================================
 
-// ✅ Unified structure for log events
-type LogEvent struct {
-	Timestamp  time.Time
-	Kind       string // Pod / Node / ...
-	Namespace  string
-	Name       string
-	ReasonCode string
-	Category   string
-	Severity   string
-	Message    string
-}
+package diagnosis
 
-// ✅ Global in-memory event pool (raw collected events)
-var eventPool = make([]LogEvent, 0)
+import (
+	"context"
+	"time"
 
-// Internal utility to append a log event (thread-safe, internal only)
-func appendToEventPool(event LogEvent) {
+	"NeuroController/internal/types"
+	"NeuroController/internal/utils"
+	"NeuroController/internal/utils/abnormal"
+
+	"go.uber.org/zap"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+)
+
+// ✅ 全局内存中的事件池（原始收集的事件）
+var eventPool = make([]types.LogEvent, 0)
+
+// 内部工具函数：将事件追加到事件池中（线程安全，仅限内部使用）
+func appendToEventPool(event types.LogEvent) {
+	if event.Kind == "Pod" && event.Name == "default" {
+		utils.Warn(context.TODO(), "🐛 检测到 Pod 名为 default 的事件被写入事件池",
+			zap.String("category", event.Category),
+			zap.String("namespace", event.Namespace),
+			zap.String("message", event.Message),
+		)
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	eventPool = append(eventPool, event)
 }
 
-// ✅ Collector for abnormal Pod events
-// Called by PodWatcher; encapsulates all internal logic
+// ✅ 收集 Pod 异常事件
+// 由 PodWatcher 调用；封装所有内部逻辑
 func CollectPodAbnormalEvent(pod corev1.Pod, reason *abnormal.PodAbnormalReason) {
-	event := LogEvent{
+	event := types.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Pod",
 		Namespace:  pod.Namespace,
 		Name:       pod.Name,
+		Node:       pod.Spec.NodeName,
 		ReasonCode: reason.Code,
 		Category:   reason.Category,
 		Severity:   reason.Severity,
@@ -59,17 +59,18 @@ func CollectPodAbnormalEvent(pod corev1.Pod, reason *abnormal.PodAbnormalReason)
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 Received Pod abnormal event: %s/%s → %s (%s)\n",
+	// fmt.Printf("📥 收到 Pod 异常事件: %s/%s → %s (%s)\n",
 	// 	pod.Namespace, pod.Name, reason.Code, reason.Message)
 }
 
-// ✅ Collector for abnormal Node events
+// ✅ 收集 Node 异常事件
 func CollectNodeAbnormalEvent(node corev1.Node, reason *abnormal.NodeAbnormalReason) {
-	event := LogEvent{
+	event := types.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Node",
-		Namespace:  "", // Nodes have no namespace
+		Namespace:  "", // Node 没有命名空间
 		Name:       node.Name,
+		Node:       node.Name,
 		ReasonCode: reason.Code,
 		Category:   reason.Category,
 		Severity:   reason.Severity,
@@ -77,53 +78,56 @@ func CollectNodeAbnormalEvent(node corev1.Node, reason *abnormal.NodeAbnormalRea
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 Received Node abnormal event: %s → %s (%s)\n",
+	// fmt.Printf("📥 收到 Node 异常事件: %s → %s (%s)\n",
 	// 	node.Name, reason.Code, reason.Message)
 }
 
-// ✅ Collector for abnormal corev1.Event objects
+// ✅ 收集核心 Event 资源的异常事件
 func CollectEventAbnormalEvent(ev corev1.Event, reason *abnormal.EventAbnormalReason) {
-	event := LogEvent{
+	event := types.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       ev.InvolvedObject.Kind,
 		Namespace:  ev.InvolvedObject.Namespace,
 		Name:       ev.InvolvedObject.Name,
+		Node:       ev.Source.Host,
 		ReasonCode: reason.Code,
-		Category:   "Event", // Categorization for analysis
+		Category:   "Event", // 分类用于分析
 		Severity:   reason.Severity,
 		Message:    reason.Message,
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 Received Event abnormal event: %s/%s (%s) → %s\n",
+	// fmt.Printf("📥 收到 Event 异常事件: %s/%s (%s) → %s\n",
 	// 	ev.InvolvedObject.Namespace, ev.InvolvedObject.Name, ev.InvolvedObject.Kind, reason.Message)
 }
 
-// ✅ Collector for abnormal Endpoint events
+// ✅ 收集 Endpoints 异常事件
 func CollectEndpointAbnormalEvent(ep corev1.Endpoints, reason *abnormal.EndpointAbnormalReason) {
-	event := LogEvent{
+	event := types.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Endpoints",
 		Namespace:  ep.Namespace,
 		Name:       ep.Name,
+		Node:       "",
 		ReasonCode: reason.Code,
-		Category:   "Endpoint", // Used for grouping and filtering
+		Category:   "Endpoint", // 用于分组和过滤
 		Severity:   reason.Severity,
 		Message:    reason.Message,
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 Received Endpoint abnormal event: %s/%s → %s (%s)\n",
+	// fmt.Printf("📥 收到 Endpoint 异常事件: %s/%s → %s (%s)\n",
 	// 	ep.Namespace, ep.Name, reason.Code, reason.Message)
 }
 
-// ✅ Collector for abnormal Deployment events
+// ✅ 收集 Deployment 异常事件
 func CollectDeploymentAbnormalEvent(deploy appsv1.Deployment, reason *abnormal.DeploymentAbnormalReason) {
-	event := LogEvent{
+	event := types.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Deployment",
 		Namespace:  deploy.Namespace,
 		Name:       deploy.Name,
+		Node:       "",
 		ReasonCode: reason.Code,
 		Category:   reason.Category,
 		Severity:   reason.Severity,
@@ -131,24 +135,25 @@ func CollectDeploymentAbnormalEvent(deploy appsv1.Deployment, reason *abnormal.D
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 Received Deployment abnormal event: %s/%s → %s (%s)\n",
+	// fmt.Printf("📥 收到 Deployment 异常事件: %s/%s → %s (%s)\n",
 	// 	deploy.Namespace, deploy.Name, reason.Code, reason.Message)
 }
 
-// ✅ Collector for abnormal Service events
+// ✅ 收集 Service 异常事件
 func CollectServiceAbnormalEvent(svc corev1.Service, reason *abnormal.ServiceAbnormalReason) {
-	event := LogEvent{
+	event := types.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Service",
 		Namespace:  svc.Namespace,
 		Name:       svc.Name,
+		Node:       "",
 		ReasonCode: reason.Code,
-		Category:   "Warning", // Optional: can extend to include this in the reason struct
+		Category:   "Warning", // 可选：可扩展为从 reason 中提取
 		Severity:   reason.Severity,
 		Message:    reason.Message,
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 Received Service abnormal event: %s/%s → %s (%s)\n",
+	// fmt.Printf("📥 收到 Service 异常事件: %s/%s → %s (%s)\n",
 	// 	svc.Namespace, svc.Name, reason.Code, reason.Message)
 }

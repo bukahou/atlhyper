@@ -38,10 +38,10 @@ import (
 var (
 	k8sClient client.Client
 	once      sync.Once
-	cfg       *rest.Config // Stores the resolved config
+	cfg       *rest.Config // 存储解析得到的 Kubernetes 配置
 )
 
-// InitK8sClient initializes the global controller-runtime client.Client instance
+// 初始化全局的 controller-runtime client.Client 实例
 func InitK8sClient() *rest.Config {
 	once.Do(func() {
 		var err error
@@ -50,37 +50,37 @@ func InitK8sClient() *rest.Config {
 		if kubeconfig != "" {
 			cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 			if err == nil {
-				Info(context.TODO(), "✅ Initialized using local kubeconfig")
+				Info(context.TODO(), "✅ 使用本地 kubeconfig 初始化成功")
 			} else {
-				Warn(context.TODO(), "⚠️ Failed to parse local kubeconfig, falling back to in-cluster", zap.Error(err))
+				Warn(context.TODO(), "⚠️ 解析本地 kubeconfig 失败，回退为集群内配置", zap.Error(err))
 			}
 		}
 
 		if cfg == nil {
 			cfg, err = rest.InClusterConfig()
 			if err != nil {
-				Error(context.TODO(), "❌ Failed to load in-cluster Kubernetes configuration", zap.Error(err))
+				Error(context.TODO(), "❌ 加载集群内 Kubernetes 配置失败", zap.Error(err))
 				panic(err)
 			}
-			Info(context.TODO(), "✅ Initialized using in-cluster configuration")
+			Info(context.TODO(), "✅ 使用集群内配置初始化成功")
 		}
 
 		k8sClient, err = client.New(cfg, client.Options{})
 		if err != nil {
-			Error(context.TODO(), "❌ Failed to initialize Kubernetes client", zap.Error(err))
+			Error(context.TODO(), "❌ 初始化 Kubernetes 客户端失败", zap.Error(err))
 			panic(err)
 		}
 
-		Info(context.TODO(), "✅ Kubernetes client successfully initialized")
+		Info(context.TODO(), "✅ Kubernetes 客户端初始化完成")
 	})
 	return cfg
 }
 
-// GetClient returns the globally shared controller-runtime client
+// 获取全局共享的 controller-runtime client 实例
 func GetClient() client.Client {
 	if k8sClient == nil {
-		Error(context.TODO(), "⛔ GetClient() called before InitK8sClient()")
-		panic("k8sClient is nil")
+		Error(context.TODO(), "⛔ 在调用 InitK8sClient() 之前调用了 GetClient()")
+		panic("k8sClient 为 nil")
 	}
 	return k8sClient
 }

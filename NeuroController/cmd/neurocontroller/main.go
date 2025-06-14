@@ -24,6 +24,7 @@
 package main
 
 import (
+	"NeuroController/config"
 	"NeuroController/internal/bootstrap"
 	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
@@ -33,18 +34,20 @@ import (
 )
 
 func main() {
-	// ✅ Set controller-runtime logging system (should be called first)
-	ctrl.SetLogger(zap.New(zap.UseDevMode(false))) // (true): Development mode / (false): Production mode
-	utils.InitLogger()
 
-	cfg := utils.InitK8sClient()
-	// ✅ Automatically select the best available API server endpoint (inside or outside the cluster)
+	config.LoadConfig()
+	// ✅ 设置 controller-runtime 的日志系统（应最先调用）
+	ctrl.SetLogger(zap.New(zap.UseDevMode(false))) // (true): 开发模式 / (false): 生产模式
+	utils.InitLogger()                             // 初始化 zap 日志记录器
+
+	cfg := utils.InitK8sClient() // 初始化 Kubernetes 客户端配置
+	// ✅ 自动选择最佳的 API Server 端点（集群内或集群外）
 	// api := utils.ChooseBestK8sAPI(cfg.Host)
-	utils.StartK8sHealthChecker(cfg)
+	utils.StartK8sHealthChecker(cfg) // 启动 K8s API 健康检查机制
 
-	// ✅ Start the periodic cleaner for the log event pool (runs every 30 seconds)
+	// ✅ 启动日志事件池的定时清理器（每 30 秒运行一次）
 	diagnosis.StartDiagnosisSystem()
 
-	// ✅ Register modules and start the controller manager
+	// ✅ 注册模块并启动控制器管理器
 	bootstrap.StartManager()
 }

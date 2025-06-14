@@ -40,16 +40,16 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-// ✅ Register all watchers to controller-runtime manager
+// ✅ 注册所有 Watcher 到 controller-runtime 的管理器中
 //
-// Iterates over the WatcherRegistry and invokes each module’s registration logic.
-// If any watcher fails to register, the process will be aborted and an error returned.
+// 遍历 WatcherRegistry 并调用每个模块的注册方法。
+// 如果任意模块注册失败，则终止流程并返回错误。
 func RegisterAllWatchers(mgr ctrl.Manager) error {
 	ctx := context.TODO()
 
 	for _, w := range WatcherRegistry {
 		if err := w.Action(mgr); err != nil {
-			utils.Error(ctx, "❌ Failed to register watcher",
+			utils.Error(ctx, "❌ 注册 Watcher 失败",
 				utils.WithTraceID(ctx),
 				zap.String("watcher", w.Name),
 				zap.Error(err),
@@ -57,7 +57,7 @@ func RegisterAllWatchers(mgr ctrl.Manager) error {
 			return err
 		}
 
-		utils.Info(ctx, "✅ Successfully registered watcher",
+		utils.Info(ctx, "✅ Watcher 注册成功",
 			utils.WithTraceID(ctx),
 			zap.String("watcher", w.Name),
 		)
@@ -66,9 +66,9 @@ func RegisterAllWatchers(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ Watcher registry list (centralized and extendable)
+// ✅ Watcher 注册表（集中管理、支持扩展）
 //
-// Simply add new watchers to this list for auto-registration.
+// 只需将新的 Watcher 模块添加到该列表中，即可实现自动注册。
 // =======================================================================================
 var WatcherRegistry = []struct {
 	Name   string
@@ -80,6 +80,6 @@ var WatcherRegistry = []struct {
 	{"DeploymentWatcher", deployment.RegisterWatcher},
 	{"EventWatcher", event.RegisterWatcher},
 	{"EndpointWatcher", endpoint.RegisterWatcher},
-	// Future watchers can be added here:
+	// 未来可扩展更多模块，例如：
 	// {"PVCWatcher", pvc.RegisterWatcher},
 }

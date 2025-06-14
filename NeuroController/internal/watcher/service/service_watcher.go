@@ -38,14 +38,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// ✅ Struct: ServiceWatcher
+// ✅ 结构体：ServiceWatcher
 //
-// Encapsulates the Kubernetes client and serves as a Reconciler for controller-runtime.
+// 封装 Kubernetes 客户端，作为 controller-runtime 的 Reconciler 使用。
 type ServiceWatcher struct {
 	client client.Client
 }
 
-// ✅ Method: Bind ServiceWatcher to controller-runtime manager
+// ✅ 方法：将 ServiceWatcher 绑定到 controller-runtime 的管理器中
 func (w *ServiceWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Service{}).
@@ -53,14 +53,14 @@ func (w *ServiceWatcher) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ Method: Core reconciliation logic for Service object changes
+// ✅ 方法：Service 对象的核心调和逻辑
 //
-// When a Service is created or updated, this method will be triggered by the controller-runtime.
-// If an abnormal status is detected, it will be collected and passed to the diagnosis module.
+// 当 Service 被创建或更新时，该方法将由 controller-runtime 触发。
+// 若检测到异常状态，将被收集并传递给 diagnosis 模块处理。
 func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var svc corev1.Service
 	if err := w.client.Get(ctx, req.NamespacedName, &svc); err != nil {
-		utils.Warn(ctx, "❌ Failed to fetch Service object",
+		utils.Warn(ctx, "❌ 获取 Service 资源失败",
 			utils.WithTraceID(ctx),
 			zap.String("service", req.Name),
 			zap.Error(err),
@@ -68,15 +68,16 @@ func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ✨ Analyze service for known abnormal patterns (with cooldown check)
+	// ✨ 分析是否存在已知异常模式（内部已处理冷却时间）
 	reason := abnormal.GetServiceAbnormalReason(svc)
 	if reason == nil {
 		return ctrl.Result{}, nil
 	}
 
+	// 上报异常事件到诊断模块
 	diagnosis.CollectServiceAbnormalEvent(svc, reason)
-	// logServiceAbnormal(ctx, svc, reason)
+	// logServiceAbnormal(ctx, svc, reason) // 可选结构化日志
 
-	// TODO: Future enhancements (e.g. notifications, auto-healing)
+	// TODO：后续可添加通知、自动修复等增强功能
 	return ctrl.Result{}, nil
 }

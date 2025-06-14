@@ -41,18 +41,18 @@ import (
 )
 
 // =======================================================================================
-// ✅ Struct: DeploymentWatcher
+// ✅ 结构体：DeploymentWatcher
 //
-// Wraps a Kubernetes client and implements controller-runtime's Reconciler interface.
+// 封装了 Kubernetes 客户端，并实现了 controller-runtime 的 Reconciler 接口。
 type DeploymentWatcher struct {
 	client client.Client
 }
 
 // =======================================================================================
-// ✅ Method: SetupWithManager
+// ✅ 方法：SetupWithManager
 //
-// Registers the controller with the manager to watch Deployment resources.
-// Automatically filters and only triggers on status changes.
+// 将该控制器注册到 manager，用于监听 Deployment 资源。
+// 默认只在状态变更时触发。
 func (w *DeploymentWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&appsv1.Deployment{}).
@@ -60,14 +60,14 @@ func (w *DeploymentWatcher) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ Method: Reconcile
+// ✅ 方法：Reconcile
 //
-// Core event handler for Deployment changes.
-// Detects abnormalities using the abnormal module and triggers diagnostics if needed.
+// Deployment 状态变更时的核心处理逻辑。
+// 利用 abnormal 模块检测异常情况，必要时触发诊断流程。
 func (w *DeploymentWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var deploy appsv1.Deployment
 	if err := w.client.Get(ctx, req.NamespacedName, &deploy); err != nil {
-		utils.Warn(ctx, "Failed to fetch Deployment",
+		utils.Warn(ctx, "获取 Deployment 失败",
 			utils.WithTraceID(ctx),
 			zap.String("deployment", req.Name),
 			zap.String("error", err.Error()),
@@ -75,16 +75,18 @@ func (w *DeploymentWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// 🔍 Analyze for abnormalities (cooldown logic handled internally)
+	// 🔍 分析是否存在异常（内部自动处理冷却时间逻辑）
 	reason := abnormal.GetDeploymentAbnormalReason(deploy)
 	if reason == nil {
 		return ctrl.Result{}, nil
 	}
 
+	// 收集并上报 Deployment 异常事件
 	diagnosis.CollectDeploymentAbnormalEvent(deploy, reason)
-	// ✅ Structured log output can be added if needed:
+
+	// ✅ 如有需要可补充结构化日志输出：
 	// logDeploymentAbnormal(ctx, deploy, reason)
 
-	// TODO: Extend with autoscaling, email alerts, or APM reporting
+	// TODO：后续可拓展为自动伸缩、邮件告警、APM 上报等
 	return ctrl.Result{}, nil
 }

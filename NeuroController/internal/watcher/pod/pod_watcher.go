@@ -43,18 +43,18 @@ import (
 )
 
 // =======================================================================================
-// ✅ Struct: PodWatcher
+// ✅ 结构体：PodWatcher
 //
-// Wraps the Kubernetes client and acts as a controller-runtime Reconciler.
+// 封装 Kubernetes 客户端，实现 controller-runtime 的 Reconciler 接口。
 type PodWatcher struct {
 	client client.Client
 }
 
 // =======================================================================================
-// ✅ Method: SetupWithManager
+// ✅ 方法：SetupWithManager
 //
-// Registers the PodWatcher with the controller-runtime manager,
-// configured to watch only Pod status changes.
+// 将 PodWatcher 注册到 controller-runtime 的管理器中，
+// 并配置为仅在 Pod 状态变化时触发。
 func (w *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}).
@@ -62,11 +62,11 @@ func (w *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ Method: Reconcile
+// ✅ 方法：Reconcile
 //
-// Core reconciliation logic triggered on Pod status changes.
-// If an abnormal state is detected, it's recorded via the diagnosis module.
-// Future extensions may include invoking actuator or reporter modules.
+// Pod 状态变更时触发的核心处理逻辑。
+// 若检测到异常状态，则通过 diagnosis 模块记录该异常。
+// 后续可扩展为调用执行器或上报模块。
 func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var pod corev1.Pod
 	err := w.client.Get(ctx, req.NamespacedName, &pod)
@@ -79,25 +79,25 @@ func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// ✨ Detect abnormal states (includes cooldown check)
+	// ✨ 检测是否为异常状态（已内置冷却判断）
 	reason := abnormal.GetPodAbnormalReason(pod)
 	if reason == nil {
-		// Optionally: fmt.Printf("✅ Pod is healthy: %s/%s\n", req.Namespace, req.Name)
+		// 可选：fmt.Printf("✅ Pod 状态正常: %s/%s\n", req.Namespace, req.Name)
 		return ctrl.Result{}, nil
 	}
 
-	// Record abnormal event for further processing
+	// 记录异常事件，供后续处理
 	diagnosis.CollectPodAbnormalEvent(pod, reason)
 
 	return ctrl.Result{}, nil
 }
 
 // =======================================================================================
-// ✅ Helper: logPodDeleted
+// ✅ 辅助函数：logPodDeleted
 //
-// Logs when a Pod has been deleted (often during rolling updates).
+// 当 Pod 被删除时记录日志（常见于滚动更新期间）。
 func logPodDeleted(ctx context.Context, namespace, name string) {
-	utils.Info(ctx, "ℹ️ Pod has been deleted (possibly due to a rolling update)",
+	utils.Info(ctx, "ℹ️ Pod 已被删除（可能是滚动更新所致）",
 		utils.WithTraceID(ctx),
 		zap.String("namespace", namespace),
 		zap.String("pod", name),
@@ -105,11 +105,11 @@ func logPodDeleted(ctx context.Context, namespace, name string) {
 }
 
 // =======================================================================================
-// ✅ Helper: logPodGetError
+// ✅ 辅助函数：logPodGetError
 //
-// Logs when a Pod retrieval fails due to reasons other than NotFound.
+// 当 Pod 获取失败（且不是 NotFound）时记录日志。
 func logPodGetError(ctx context.Context, namespace, name string, err error) {
-	utils.Warn(ctx, "❌ Failed to retrieve Pod",
+	utils.Warn(ctx, "❌ 获取 Pod 失败",
 		utils.WithTraceID(ctx),
 		zap.String("namespace", namespace),
 		zap.String("pod", name),

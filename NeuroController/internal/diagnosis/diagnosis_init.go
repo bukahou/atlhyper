@@ -1,10 +1,3 @@
-package diagnosis
-
-import (
-	"fmt"
-	"time"
-)
-
 // =======================================================================================
 // 📄 diagnosis/diagnosis_init.go
 //
@@ -18,29 +11,42 @@ import (
 //     - Start the file writer loop (deduplicated persistent logs)
 // =======================================================================================
 
-// 🕒 Configurable intervals (can be moved to a config package)
-var (
-	CleanInterval = 30 * time.Second // Interval for cleaning events
-	WriteInterval = 30 * time.Second // Interval for writing events to file
+package diagnosis
+
+import (
+	"NeuroController/config"
+	"fmt"
+	"time"
 )
 
-// ✅ Start the diagnosis system: cleaner + file writer
+// 已经转移到配置文件中集中管理
+// var (
+// 	CleanInterval = 30 * time.Second // 清理事件的时间间隔
+// 	WriteInterval = 30 * time.Second // 写入日志到文件的时间间隔
+// )
+
+// ✅ 启动诊断系统：包括清理器和日志写入器
 func StartDiagnosisSystem() {
-	// ✅ Startup messages
-	fmt.Println("🧠 Starting Diagnosis System ...")
-	fmt.Printf("🧼 Clean interval: %v\n", CleanInterval)
-	fmt.Printf("📝 Write interval: %v\n", WriteInterval)
 
-	// Start the cleaner (handles deduplication + retention)
-	StartCleanerLoop(CleanInterval)
+	// ✅ 从配置中获取
+	cleanInterval := config.GlobalConfig.Diagnosis.CleanInterval
+	writeInterval := config.GlobalConfig.Diagnosis.WriteInterval
 
-	// Start the log writer (writes deduplicated logs to file)
+	// ✅ 启动提示
+	fmt.Println("🧠 正在启动诊断系统 ...")
+	fmt.Printf("🧼 清理间隔：%v\n", cleanInterval)
+	fmt.Printf("📝 写入间隔：%v\n", writeInterval)
+
+	// 启动清理器（执行去重和过期清理）
+	StartCleanerLoop(cleanInterval)
+
+	// 启动日志写入器（定期将去重后的日志写入文件）
 	go func() {
 		for {
 			WriteNewCleanedEventsToFile()
-			time.Sleep(WriteInterval)
+			time.Sleep(writeInterval)
 		}
 	}()
 
-	fmt.Println("✅ Diagnosis System started successfully.")
+	fmt.Println("✅ 诊断系统启动成功。")
 }

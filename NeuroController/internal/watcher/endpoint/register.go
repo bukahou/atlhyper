@@ -30,13 +30,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ✅ Registers the EndpointWatcher to the controller-runtime manager
+// ✅ 将 EndpointWatcher 注册到 controller-runtime 管理器中
 func RegisterWatcher(mgr ctrl.Manager) error {
 	client := utils.GetClient()
 	watcher := NewEndpointWatcher(client)
 
 	if err := watcher.SetupWithManager(mgr); err != nil {
-		utils.Error(context.TODO(), "❌ Failed to register EndpointWatcher",
+		utils.Error(context.TODO(), "❌ 注册 EndpointWatcher 失败",
 			utils.WithTraceID(context.TODO()),
 			zap.String("module", "watcher/endpoint"),
 			zap.Error(err),
@@ -44,14 +44,14 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 		return err
 	}
 
-	utils.Info(context.TODO(), "✅ Successfully registered EndpointWatcher",
+	utils.Info(context.TODO(), "✅ EndpointWatcher 注册成功",
 		utils.WithTraceID(context.TODO()),
 		zap.String("module", "watcher/endpoint"),
 	)
 	return nil
 }
 
-// ✅ Constructs a new EndpointWatcher instance
+// ✅ 构造一个新的 EndpointWatcher 实例
 func NewEndpointWatcher(c client.Client) *EndpointWatcher {
 	return &EndpointWatcher{client: c}
 }

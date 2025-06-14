@@ -39,18 +39,18 @@ import (
 )
 
 // =======================================================================================
-// ✅ Struct: NodeWatcher
+// ✅ 结构体：NodeWatcher
 //
-// Wraps a Kubernetes client and acts as a controller-runtime Reconciler.
+// 封装 Kubernetes 客户端，实现 controller-runtime 的 Reconciler 接口。
 type NodeWatcher struct {
 	client client.Client
 }
 
 // =======================================================================================
-// ✅ Method: SetupWithManager
+// ✅ 方法：SetupWithManager
 //
-// Registers a controller with controller-runtime to monitor Node changes,
-// triggering only on state transitions.
+// 将 NodeWatcher 注册到 controller-runtime，用于监听 Node 状态变化。
+// 默认只在状态变更时触发。
 func (w *NodeWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Node{}).
@@ -58,13 +58,13 @@ func (w *NodeWatcher) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // =======================================================================================
-// ✅ Method: Reconcile
+// ✅ 方法：Reconcile
 //
-// Core logic entry point for Node abnormality detection.
+// 节点异常检测的核心逻辑入口。
 func (w *NodeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var node corev1.Node
 	if err := w.client.Get(ctx, req.NamespacedName, &node); err != nil {
-		utils.Warn(ctx, "❌ Failed to retrieve Node",
+		utils.Warn(ctx, "❌ 获取 Node 资源失败",
 			utils.WithTraceID(ctx),
 			zap.String("node", req.Name),
 			zap.String("error", err.Error()),
@@ -72,16 +72,16 @@ func (w *NodeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ✨ Identify abnormal state (internal cooldown handled)
+	// ✨ 判断是否处于异常状态（内部已处理节流逻辑）
 	reason := abnormal.GetNodeAbnormalReason(node)
 	if reason == nil {
 		return ctrl.Result{}, nil
 	}
 
-	// ➕ Collect abnormal event for diagnosis module
+	// ➕ 将异常事件收集并传递给诊断模块
 	diagnosis.CollectNodeAbnormalEvent(node, reason)
-	// logNodeAbnormal(ctx, node, reason) // optional logging
+	// logNodeAbnormal(ctx, node, reason) // 可选结构化日志输出
 
-	// TODO: Implement alerting, auto-scaling, or APM reporting
+	// TODO：后续可实现告警、自动扩缩容或 APM 上报等功能
 	return ctrl.Result{}, nil
 }
