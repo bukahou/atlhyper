@@ -16,7 +16,6 @@ package diagnosis
 
 import (
 	"NeuroController/config"
-	"NeuroController/internal/alerter"
 	"NeuroController/internal/types"
 	"fmt"
 	"sync"
@@ -79,7 +78,7 @@ func RebuildCleanedEventPool() {
 	}
 
 	cleanedEventPool = newCleaned
-	alerter.EvaluateAlertsFromCleanedEvents(cleanedEventPool)
+	// alerter.EvaluateAlertsFromCleanedEvents(cleanedEventPool)
 }
 
 // ✅ 公共函数：清理原始池和清理池（线程安全）

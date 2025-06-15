@@ -1,4 +1,4 @@
-package alerter
+package types
 
 import "time"
 
@@ -6,12 +6,20 @@ import "time"
 // ========= Pod 相关告警状态 =========
 //
 
+// type PodStatus struct {
+// 	PodName    string    // Pod 名称
+// 	reasonCode string    // 具体 reason 字段（可选扩展："ReadinessProbeFailed"、"NodeLost"）
+// 	Message    string    // 原始异常信息（用于日志或邮件）
+// 	Timestamp  time.Time // 首次出现异常时间
+// 	LastSeen   time.Time // 最后一次收到该异常时间（用于判断是否恢复）
+// }
+
 type PodStatus struct {
 	PodName    string    // Pod 名称
-	reasonCode string    // 具体 reason 字段（可选扩展："ReadinessProbeFailed"、"NodeLost"）
+	ReasonCode string    // 🚨 修改为导出字段
 	Message    string    // 原始异常信息（用于日志或邮件）
 	Timestamp  time.Time // 首次出现异常时间
-	LastSeen   time.Time // 最后一次收到该异常时间（用于判断是否恢复）
+	LastSeen   time.Time // 最后一次收到该异常时间
 }
 
 type DeploymentHealthState struct {

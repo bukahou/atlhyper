@@ -31,7 +31,7 @@ import (
 
 	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
-	"NeuroController/internal/utils/abnormal"
+	"NeuroController/internal/watcher/abnormal"
 
 	appsv1 "k8s.io/api/apps/v1"
 	ctrl "sigs.k8s.io/controller-runtime"

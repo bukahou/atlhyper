@@ -20,6 +20,7 @@ type DiagnosisConfig struct {
 	RetentionRawDuration     time.Duration // 原始事件保留时间
 	RetentionCleanedDuration time.Duration // 清理池保留时间
 	UnreadyThresholdDuration time.Duration //告警与邮件发送时间间隔
+	AlertDispatchInterval    time.Duration // 邮件轮询检测发送间隔（独立于异常阈值）
 }
 
 // KubernetesConfig 表示 Kubernetes API 健康检查相关配置项
@@ -61,6 +62,7 @@ var defaultDurations = map[string]string{
 	"DIAGNOSIS_RETENTION_CLEANED_DURATION": "5m",
 	"KUBERNETES_API_HEALTH_CHECK_INTERVAL": "15s",
 	"DIAGNOSIS_UNREADY_THRESHOLD_DURATION": "30s",
+	"DIAGNOSIS_ALERT_DISPATCH_INTERVAL":    "30s",
 }
 
 // 默认字符串配置（支持覆盖）
@@ -85,6 +87,7 @@ func LoadConfig() {
 		RetentionRawDuration:     getDuration("DIAGNOSIS_RETENTION_RAW_DURATION"),
 		RetentionCleanedDuration: getDuration("DIAGNOSIS_RETENTION_CLEANED_DURATION"),
 		UnreadyThresholdDuration: getDuration("DIAGNOSIS_UNREADY_THRESHOLD_DURATION"),
+		AlertDispatchInterval:    getDuration("DIAGNOSIS_ALERT_DISPATCH_INTERVAL"),
 	}
 
 	GlobalConfig.Kubernetes = KubernetesConfig{

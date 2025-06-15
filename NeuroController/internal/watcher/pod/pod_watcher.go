@@ -33,7 +33,7 @@ import (
 
 	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
-	"NeuroController/internal/utils/abnormal"
+	"NeuroController/internal/watcher/abnormal"
 
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"

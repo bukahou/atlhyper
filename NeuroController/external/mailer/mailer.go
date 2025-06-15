@@ -2,12 +2,13 @@ package mailer
 
 import (
 	"NeuroController/config"
+	"NeuroController/internal/types"
 	"fmt"
 	"net/smtp"
 )
 
 // SendAlertEmail 发送告警邮件
-func SendAlertEmail(to []string, subject string, data AlertGroupData) error {
+func SendAlertEmail(to []string, subject string, data types.AlertGroupData) error {
 	// ✅ 从全局配置读取邮件参数
 	mailCfg := config.GlobalConfig.Mailer
 

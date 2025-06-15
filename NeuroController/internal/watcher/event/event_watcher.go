@@ -30,7 +30,7 @@ import (
 
 	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/utils"
-	"NeuroController/internal/utils/abnormal"
+	"NeuroController/internal/watcher/abnormal"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
