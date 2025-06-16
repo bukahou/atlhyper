@@ -26,16 +26,14 @@ package service
 
 import (
 	"context"
+	"log"
 
 	"NeuroController/internal/diagnosis"
-	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher/abnormal"
 
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"go.uber.org/zap"
 )
 
 // ✅ 结构体：ServiceWatcher
@@ -60,11 +58,7 @@ func (w *ServiceWatcher) SetupWithManager(mgr ctrl.Manager) error {
 func (w *ServiceWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var svc corev1.Service
 	if err := w.client.Get(ctx, req.NamespacedName, &svc); err != nil {
-		utils.Warn(ctx, "❌ 获取 Service 资源失败",
-			utils.WithTraceID(ctx),
-			zap.String("service", req.Name),
-			zap.Error(err),
-		)
+		log.Printf("❌ 获取 Service 失败: %s/%s → %v", req.Namespace, req.Name, err)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 

@@ -15,14 +15,12 @@ package diagnosis
 
 import (
 	"NeuroController/internal/types"
-	"NeuroController/internal/utils"
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type writeRecord struct {
@@ -46,7 +44,6 @@ func WriteNewCleanedEventsToFile() {
 	// ✅ 如果清理池为空，说明系统健康，重置写入缓存
 	if len(cleaned) == 0 {
 		lastWriteMap = make(map[string]writeRecord)
-		utils.Info(nil, "✅ 所有告警已清除，写入缓存已重置")
 		return
 	}
 
@@ -73,6 +70,11 @@ func WriteNewCleanedEventsToFile() {
 	}
 
 	if len(newLogs) > 0 {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("❌ 写入 JSON 文件过程中发生 panic: %v", r)
+			}
+		}()
 		DumpEventsToJSONFile(newLogs)
 	}
 }
@@ -81,7 +83,6 @@ func WriteNewCleanedEventsToFile() {
 func DumpEventsToJSONFile(events []types.LogEvent) {
 	var logDir string
 
-	// ✅ 判断是否运行在 Kubernetes 集群中
 	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount"); err == nil {
 		logDir = "/var/log/neurocontroller"
 	} else {
@@ -89,16 +90,14 @@ func DumpEventsToJSONFile(events []types.LogEvent) {
 	}
 	logPath := filepath.Join(logDir, "cleaned_events.log")
 
-	// 确保日志目录存在
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		utils.Warn(nil, "⚠️ 创建日志目录失败", zap.Error(err))
+		log.Printf("❌ 创建日志目录失败: %v", err)
 		return
 	}
 
-	// 以追加模式打开文件
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		utils.Warn(nil, "⚠️ 打开日志文件失败", zap.Error(err))
+		log.Printf("❌ 打开日志文件失败: %v", err)
 		return
 	}
 	defer f.Close()
@@ -119,11 +118,62 @@ func DumpEventsToJSONFile(events []types.LogEvent) {
 
 		data, err := json.Marshal(entry)
 		if err != nil {
-			utils.Warn(nil, "⚠️ 事件序列化失败", zap.Error(err))
+			log.Printf("❌ 序列化事件失败: %v", err)
 			continue
 		}
 
-		f.Write(data)
-		f.Write([]byte("\n"))
+		if _, err := f.Write(data); err != nil {
+			log.Printf("❌ 写入日志文件失败: %v", err)
+			continue
+		}
+		if _, err := f.Write([]byte("\n")); err != nil {
+			log.Printf("❌ 写入换行失败: %v", err)
+		}
 	}
 }
+
+// func DumpEventsToJSONFile(events []types.LogEvent) {
+// 	var logDir string
+
+// 	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount"); err == nil {
+// 		logDir = "/var/log/neurocontroller"
+// 	} else {
+// 		logDir = "./logs"
+// 	}
+// 	logPath := filepath.Join(logDir, "cleaned_events.log")
+
+// 	if err := os.MkdirAll(logDir, 0755); err != nil {
+// 		log.Printf("❌ 创建日志目录失败: %v", err)
+// 		return
+// 	}
+
+// 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+// 	if err != nil {
+// 		log.Printf("❌ 打开日志文件失败: %v", err)
+// 		return
+// 	}
+// 	defer f.Close()
+
+// 	for _, ev := range events {
+// 		entry := map[string]interface{}{
+// 			"time":      time.Now().Format(time.RFC3339),
+// 			"kind":      ev.Kind,
+// 			"namespace": ev.Namespace,
+// 			"name":      ev.Name,
+// 			"node":      ev.Node,
+// 			"reason":    ev.ReasonCode,
+// 			"message":   ev.Message,
+// 			"severity":  ev.Severity,
+// 			"category":  ev.Category,
+// 			"eventTime": ev.Timestamp.Format(time.RFC3339),
+// 		}
+
+// 		data, err := json.Marshal(entry)
+// 		if err != nil {
+// 			continue
+// 		}
+
+// 		f.Write(data)
+// 		f.Write([]byte("\n"))
+// 	}
+// }

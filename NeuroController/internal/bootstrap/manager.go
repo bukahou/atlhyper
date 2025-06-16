@@ -20,42 +20,42 @@
 package bootstrap
 
 import (
-	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher"
 	"context"
+	"log"
 	"os"
 
-	"go.uber.org/zap"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // ✅ 启动控制器管理器（加载并运行所有 Watcher 模块）
+// ✅ 启动控制器管理器（加载并运行所有 Watcher 模块）
 func StartManager() {
 	// ✅ 创建 controller-runtime 的管理器
 	cfg, err := resolveRestConfig()
 	if err != nil {
-		utils.Fatal(nil, "❌ 加载 Kubernetes 配置失败", zap.Error(err))
+		log.Printf("❌ 无法解析 Kubernetes 配置: %v", err)
+		return
 	}
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		// 为未来支持命名空间过滤预留。目前监控整个集群。
-		//Namespace: "default",
-	})
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
 	if err != nil {
-		utils.Fatal(nil, "❌ 初始化控制器管理器失败", zap.Error(err))
+		log.Printf("❌ 无法创建 controller manager: %v", err)
+		return
 	}
 
 	// ✅ 注册所有 Watcher 模块
 	if err := watcher.RegisterAllWatchers(mgr); err != nil {
-		utils.Fatal(nil, "❌ 注册 Watcher 模块失败", zap.Error(err))
+		log.Printf("❌ Watcher 模块注册失败: %v", err)
+		return
 	}
 
 	// ✅ 启动控制器主循环（阻塞调用）
-	utils.Info(nil, "🚀 正在启动 controller-runtime 管理器 ...")
 	if err := mgr.Start(context.Background()); err != nil {
-		utils.Fatal(nil, "❌ 控制器主循环异常退出", zap.Error(err))
+		log.Printf("❌ 控制器主循环启动失败: %v", err)
+		return
 	}
 }
 
@@ -65,18 +65,15 @@ func resolveRestConfig() (*rest.Config, error) {
 	if kubeconfig != "" {
 		cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err == nil {
-			utils.Info(context.TODO(), "✅ 使用本地 kubeconfig 配置")
 			return cfg, nil
 		}
-		utils.Warn(context.TODO(), "⚠️ 读取本地 kubeconfig 失败，尝试使用集群内配置", zap.Error(err))
+		log.Printf("⚠️ 使用 kubeconfig 加载失败，将尝试使用 InClusterConfig: %v", err)
 	}
 
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
-		utils.Error(context.TODO(), "❌ 加载集群内配置失败", zap.Error(err))
 		return nil, err
 	}
 
-	utils.Info(context.TODO(), "✅ 使用集群内配置")
 	return cfg, nil
 }

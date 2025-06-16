@@ -27,9 +27,8 @@ package service
 
 import (
 	"NeuroController/internal/utils"
-	"context"
+	"log"
 
-	"go.uber.org/zap"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -40,22 +39,10 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 	serviceWatcher := NewServiceWatcher(client)
 
 	if err := serviceWatcher.SetupWithManager(mgr); err != nil {
-		utils.Error(
-			context.TODO(),
-			"❌ 注册 ServiceWatcher 失败",
-			utils.WithTraceID(context.TODO()),
-			zap.String("module", "watcher/service"),
-			zap.Error(err),
-		)
+		log.Printf("❌ 注册 ServiceWatcher 失败: %v", err)
 		return err
 	}
 
-	utils.Info(
-		context.TODO(),
-		"✅ ServiceWatcher 注册成功",
-		utils.WithTraceID(context.TODO()),
-		zap.String("module", "watcher/service"),
-	)
 	return nil
 }
 

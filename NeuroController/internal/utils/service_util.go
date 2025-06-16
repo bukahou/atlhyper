@@ -13,7 +13,6 @@ package utils
 import (
 	"context"
 
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -26,10 +25,7 @@ func GetServiceNameFromPod(ctx context.Context, pod *corev1.Pod) (string, error)
 
 	var serviceList corev1.ServiceList
 	if err := cli.List(ctx, &serviceList, client.InNamespace(pod.Namespace)); err != nil {
-		Error(ctx, "❌ 获取 Service 列表失败",
-			zap.String("namespace", pod.Namespace),
-			zap.Error(err),
-		)
+
 		return "", err
 	}
 
@@ -43,10 +39,6 @@ func GetServiceNameFromPod(ctx context.Context, pod *corev1.Pod) (string, error)
 			}
 		}
 		if match {
-			Info(ctx, "✅ 找到匹配的 Service",
-				zap.String("service", svc.Name),
-				zap.String("pod", pod.Name),
-			)
 
 			CheckServiceEndpointStatus(ctx, pod.Namespace, svc.Name)
 			return svc.Name, nil
@@ -62,10 +54,6 @@ func CheckServiceEndpointStatus(ctx context.Context, namespace, name string) {
 
 	var endpoints corev1.Endpoints
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &endpoints); err != nil {
-		Warn(ctx, "⚠️ 获取 Endpoints 失败",
-			zap.String("service", name),
-			zap.Error(err),
-		)
 		return
 	}
 
@@ -75,14 +63,6 @@ func CheckServiceEndpointStatus(ctx context.Context, namespace, name string) {
 	}
 
 	if readyCount == 0 {
-		Warn(ctx, "⚠️ Endpoints 中无就绪 Pod",
-			zap.String("service", name),
-			zap.String("namespace", namespace),
-		)
 	} else {
-		Info(ctx, "✅ Endpoints 状态正常",
-			zap.String("service", name),
-			zap.Int("ready", readyCount),
-		)
 	}
 }

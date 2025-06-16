@@ -17,8 +17,18 @@ package interfaces
 import (
 	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/types"
+	"fmt"
 )
 
 func GetCleanedEventLogs() []types.LogEvent {
-	return diagnosis.GetCleanedEvents()
+	events := diagnosis.GetCleanedEvents()
+
+	fmt.Printf("🧼 当前清理池共有 %d 条事件:\n", len(events))
+	for _, ev := range events {
+		fmt.Printf("🔹 [%s] %s/%s (%s) @ %s → %s | %s\n",
+			ev.Kind, ev.Namespace, ev.Name, ev.Node, ev.Timestamp.Format("15:04:05"),
+			ev.ReasonCode, ev.Message)
+	}
+
+	return events
 }

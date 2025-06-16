@@ -52,7 +52,17 @@ func EvaluateAlertsFromCleanedEvents(events []types.LogEvent) (bool, string, typ
 			for _, e := range events {
 				nodeSet[e.Node] = struct{}{}
 				nsSet[e.Namespace] = struct{}{}
-				alertItems = append(alertItems, types.AlertItem{ /* ... */ })
+
+				alertItems = append(alertItems, types.AlertItem{
+					Kind:      e.Kind,
+					Name:      e.Name,
+					Namespace: e.Namespace,
+					Node:      e.Node,
+					Severity:  e.Severity,
+					Reason:    e.ReasonCode,
+					Message:   e.Message,
+					Time:      e.Timestamp.Format("2006-01-02 15:04:05"),
+				})
 			}
 
 			nodeList := make([]string, 0, len(nodeSet))

@@ -17,6 +17,7 @@ import (
 
 // ✅ 提取 Pod 中首个识别的主要异常原因（返回结构体）
 func GetPodAbnormalReason(pod corev1.Pod) *PodAbnormalReason {
+
 	now := time.Now()
 
 	// === 检查 Container 状态 ===

@@ -41,72 +41,89 @@
 
 ```bash
 NeuroController/
-├── build_and_push.sh         # 一键构建与推送 Docker 镜像的脚本  
-                             # Script for building and pushing the Docker image
-├── Dockerfile                # 多阶段容器构建配置  
-                             # Multi-stage Docker build configuration
-├── go.mod / go.sum           # Go 依赖管理文件  
-                             # Go dependency management files
-├── logs/
-│   └── cleaned_events.log    # 清洗后的告警日志（可选日志持久化目录）  
-                             # Cleaned alert log (optional persistent log output)
-├── cmd/
-│   └── neurocontroller/
-│       └── main.go           # 控制器主入口（初始化管理器）  
-                             # Controller main entry (manager initializer)
-├── docs/
-│   └── CHANGELOG_v0.2.md     # 项目更新日志  
-                             # Project changelog
-├── internal/
-│   ├── bootstrap/
-│   │   └── manager.go        # controller-runtime 管理器初始化  
-                             # controller-runtime manager initializer
-│   ├── diagnosis/            # 诊断模块  
-│   │   ├── collector.go          # 告警信息收集器  
-│   │   ├── cleaner.go            # 日志清洗与去重  
-│   │   ├── dumper.go             # 持久化日志写入器  
-│   │   ├── diagnosis_init.go     # 初始化入口  
-│   │   └── rootcause/            # 主因识别模块（初步实现）  
-│   │       ├── external_db.go    # 外部主因规则支持  
-│   │       ├── internal_db.go    # 内置主因规则库  
-│   │       ├── matcher.go        # 根因匹配逻辑  
-│   │       └── types.go          # 主因定义结构  
-│   ├── utils/                # 工具模块  
-│   │   ├── k8s_client.go         # Kubernetes 客户端工具  
-│   │   ├── k8s_checker.go        # 资源状态校验工具  
-│   │   ├── logger.go             # 日志封装工具  
-│   │   ├── exception_window.go   # 冷却窗口判断逻辑  
-│   │   ├── deployment_util.go    # Deployment 专用工具  
-│   │   ├── service_util.go       # Service 专用工具  
-│   │   └── abnormal/             # 各资源异常识别器  
-│   │       ├── pod_abnormal.go  
-│   │       ├── node_abnormal.go  
-│   │       ├── deployment_abnormal.go  
-│   │       ├── endpoint_abnormal.go  
-│   │       ├── event_abnormal.go  
-│   │       ├── service_abnormal.go  
-│   │       └── abnormal_utils.go  
-│   └── watcher/             # 资源监听器插件模块  
-│       ├── register.go          # 集中注册所有 Watcher  
-│       ├── pod/
-│       │   ├── pod_watcher.go  
-│       │   ├── log_collector.go     # 采集 Pod 日志  
-│       │   └── register.go  
-│       ├── node/
-│       │   ├── node_watcher.go  
-│       │   └── register.go  
-│       ├── service/
-│       │   ├── service_watcher.go  
-│       │   └── register.go  
-│       ├── deployment/
-│       │   ├── deployment_watcher.go  
-│       │   └── register.go  
-│       ├── endpoint/
-│       │   ├── endpoint_watcher.go  
-│       │   └── register.go  
-│       └── event/
-│           ├── event_watcher.go  
-│           └── register.go  
+├── NeuroController
+│   ├── build_and_push.sh
+│   ├── cmd
+│   │   └── neurocontroller
+│   │       └── main.go
+│   ├── config
+│   │   └── config.go
+│   ├── Dockerfile
+│   ├── docs
+│   │   └── CHANGELOG.md
+│   ├── external
+│   │   ├── bootstrap
+│   │   │   ├── email_dispatcher.go
+│   │   │   └── slack_dispatcher.go
+│   │   ├── bootstrap_external.go
+│   │   ├── DockerHub
+│   │   ├── mailer
+│   │   │   ├── mailer.go
+│   │   │   ├── template.go
+│   │   │   └── throttle.go
+│   │   └── slack
+│   │       ├── blockkit.go
+│   │       ├── sender.go
+│   │       └── throttle.go
+│   ├── go.mod
+│   ├── go.sum
+│   ├── interfaces
+│   │   ├── alert_group_builder_api.go
+│   │   ├── alert_group_evaluation_api.go
+│   │   └── cleaned_event_api.go
+│   ├── internal
+│   │   ├── alerter
+│   │   │   ├── alerter.go
+│   │   │   └── pod_tracker.go
+│   │   ├── bootstrap
+│   │   │   ├── Diagnosis.go
+│   │   │   └── manager.go
+│   │   ├── bootstrap_internal.go
+│   │   ├── diagnosis
+│   │   │   ├── cleaner.go
+│   │   │   ├── collector.go
+│   │   │   └── dumper.go
+│   │   ├── types
+│   │   │   ├── alert_notification.go
+│   │   │   ├── logevent.go
+│   │   │   └── monitoring_state.go
+│   │   ├── utils
+│   │   │   ├── deployment_util.go
+│   │   │   ├── exception_window.go
+│   │   │   ├── k8s_checker.go
+│   │   │   ├── k8s_client.go
+│   │   │   ├── logger.go
+│   │   │   └── service_util.go
+│   │   └── watcher
+│   │       ├── abnormal
+│   │       │   ├── abnormal_utils.go
+│   │       │   ├── deployment_abnormal.go
+│   │       │   ├── endpoint_abnormal.go
+│   │       │   ├── event_abnormal.go
+│   │       │   ├── node_abnormal.go
+│   │       │   ├── pod_abnormal.go
+│   │       │   └── service_abnormal.go
+│   │       ├── deployment
+│   │       │   ├── deployment_watcher.go
+│   │       │   └── register.go
+│   │       ├── endpoint
+│   │       │   ├── endpoint_watcher.go
+│   │       │   └── register.go
+│   │       ├── event
+│   │       │   ├── event_watcher.go
+│   │       │   └── register.go
+│   │       ├── node
+│   │       │   ├── node_watcher.go
+│   │       │   └── register.go
+│   │       ├── pod
+│   │       │   ├── pod_watcher.go
+│   │       │   └── register.go
+│   │       ├── register.go
+│   │       └── service
+│   │           ├── register.go
+│   │           └── service_watcher.go
+│   └── logs
+│       └── cleaned_events.log
 
 
 ## 📊 示例：结构化日志输出

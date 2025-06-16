@@ -22,6 +22,8 @@ func StartExternalSystems() {
 	// ✅ 启动邮件调度器
 	bootstrap.StartEmailDispatcher()
 
+	// ✅ 启动 Slack 调度器
+	bootstrap.StartSlackDispatcher()
 	// ✅ 其他模块预留位
 	// StartSlackDispatcher()
 	// StartWebhookDispatcher()

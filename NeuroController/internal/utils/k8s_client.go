@@ -25,11 +25,9 @@
 package utils
 
 import (
-	"context"
 	"os"
 	"sync"
 
-	"go.uber.org/zap"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,28 +48,22 @@ func InitK8sClient() *rest.Config {
 		if kubeconfig != "" {
 			cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 			if err == nil {
-				Info(context.TODO(), "✅ 使用本地 kubeconfig 初始化成功")
 			} else {
-				Warn(context.TODO(), "⚠️ 解析本地 kubeconfig 失败，回退为集群内配置", zap.Error(err))
 			}
 		}
 
 		if cfg == nil {
 			cfg, err = rest.InClusterConfig()
 			if err != nil {
-				Error(context.TODO(), "❌ 加载集群内 Kubernetes 配置失败", zap.Error(err))
 				panic(err)
 			}
-			Info(context.TODO(), "✅ 使用集群内配置初始化成功")
 		}
 
 		k8sClient, err = client.New(cfg, client.Options{})
 		if err != nil {
-			Error(context.TODO(), "❌ 初始化 Kubernetes 客户端失败", zap.Error(err))
 			panic(err)
 		}
 
-		Info(context.TODO(), "✅ Kubernetes 客户端初始化完成")
 	})
 	return cfg
 }
@@ -79,7 +71,6 @@ func InitK8sClient() *rest.Config {
 // 获取全局共享的 controller-runtime client 实例
 func GetClient() client.Client {
 	if k8sClient == nil {
-		Error(context.TODO(), "⛔ 在调用 InitK8sClient() 之前调用了 GetClient()")
 		panic("k8sClient 为 nil")
 	}
 	return k8sClient

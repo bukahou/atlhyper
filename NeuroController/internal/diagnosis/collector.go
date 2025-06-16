@@ -15,28 +15,13 @@ package diagnosis
 
 import (
 	"NeuroController/internal/types"
-	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher/abnormal"
-	"context"
+	"log"
 	"time"
 
-	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
-
-// import (
-// 	"context"
-// 	"time"
-
-// 	"NeuroController/internal/types"
-// 	"NeuroController/internal/utils"
-// 	"NeuroController/internal/utils/abnormal"
-
-// 	"go.uber.org/zap"
-// 	appsv1 "k8s.io/api/apps/v1"
-// 	corev1 "k8s.io/api/core/v1"
-// )
 
 // ✅ 全局内存中的事件池（原始收集的事件）
 var eventPool = make([]types.LogEvent, 0)
@@ -44,11 +29,16 @@ var eventPool = make([]types.LogEvent, 0)
 // 内部工具函数：将事件追加到事件池中（线程安全，仅限内部使用）
 func appendToEventPool(event types.LogEvent) {
 	if event.Kind == "Pod" && event.Name == "default" {
-		utils.Warn(context.TODO(), "🐛 检测到 Pod 名为 default 的事件被写入事件池",
-			zap.String("category", event.Category),
-			zap.String("namespace", event.Namespace),
-			zap.String("message", event.Message),
-		)
+		log.Printf("⚠️ 异常事件字段异常: Pod 名称为 'default'，可能未正确识别 → Namespace=%s, Message=%s",
+			event.Namespace, event.Message)
+		// utils.Warn(context.TODO(), "🐛 检测到 Pod 名为 default 的事件被写入事件池",
+		// 	zap.String("category", event.Category),
+		// 	zap.String("namespace", event.Namespace),
+		// 	zap.String("message", event.Message),
+		// )
+	}
+	if event.ReasonCode == "" {
+		log.Printf("❌ 缺少 ReasonCode: %s/%s → %s", event.Namespace, event.Name, event.Message)
 	}
 	mu.Lock()
 	defer mu.Unlock()

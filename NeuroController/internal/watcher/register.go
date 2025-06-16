@@ -26,17 +26,14 @@
 package watcher
 
 import (
-	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher/deployment"
 	"NeuroController/internal/watcher/endpoint"
 	"NeuroController/internal/watcher/event"
 	"NeuroController/internal/watcher/node"
 	"NeuroController/internal/watcher/pod"
 	"NeuroController/internal/watcher/service"
+	"log"
 
-	"context"
-
-	"go.uber.org/zap"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -45,22 +42,13 @@ import (
 // 遍历 WatcherRegistry 并调用每个模块的注册方法。
 // 如果任意模块注册失败，则终止流程并返回错误。
 func RegisterAllWatchers(mgr ctrl.Manager) error {
-	ctx := context.TODO()
 
 	for _, w := range WatcherRegistry {
 		if err := w.Action(mgr); err != nil {
-			utils.Error(ctx, "❌ 注册 Watcher 失败",
-				utils.WithTraceID(ctx),
-				zap.String("watcher", w.Name),
-				zap.Error(err),
-			)
+			log.Printf("❌ 注册 %s 失败: %v", w.Name, err)
 			return err
 		}
-
-		utils.Info(ctx, "✅ Watcher 注册成功",
-			utils.WithTraceID(ctx),
-			zap.String("watcher", w.Name),
-		)
+		log.Printf("✅ 注册 %s 成功", w.Name)
 	}
 	return nil
 }

@@ -16,13 +16,12 @@
 package mailer
 
 import (
+	"NeuroController/config"
+	"NeuroController/interfaces"
 	"NeuroController/internal/types"
-	"NeuroController/internal/utils"
-	"context"
+	"fmt"
 	"sync"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // 🧠 记录上次发送邮件时间的全局状态和互斥锁，确保并发安全
@@ -53,17 +52,38 @@ func SendAlertEmailWithThrottle(to []string, subject string, data types.AlertGro
 
 	// ⛔ 若处于节流时间范围内，跳过邮件发送
 	if !lastEmailSentTime.IsZero() && time.Since(lastEmailSentTime) < throttleInterval {
-		utils.Info(context.TODO(), "⏳ 邮件告警触发，但处于节流期内，跳过发送",
-			zap.Duration("剩余等待", throttleInterval-time.Since(lastEmailSentTime)),
-		)
+
 		return nil
 	}
 
 	// ✅ 满足发送条件：更新发送时间并实际发送邮件
 	lastEmailSentTime = time.Now()
-	utils.Info(context.TODO(), "📨 满足条件，正在发送邮件",
-		zap.String("subject", subject),
-		zap.Time("sendTime", lastEmailSentTime),
-	)
+
 	return SendAlertEmail(to, subject, data)
+}
+
+func DispatchEmailAlertFromCleanedEvents() {
+	fmt.Println("📨 [EmailDispatch] 开始邮件告警调度流程...")
+
+	// ✅ 聚合评估是否触发告警
+	shouldAlert, subject, data := interfaces.GetAlertGroupIfNecessary()
+	if !shouldAlert {
+		fmt.Println("ℹ️ [EmailDispatch] 当前无需发送邮件告警，调度流程结束。")
+		return
+	}
+
+	// ✅ 准备收件人列表
+	recipients := config.GlobalConfig.Mailer.To
+	if len(recipients) == 0 {
+		fmt.Println("⚠️ [EmailDispatch] 收件人列表为空，已跳过发送。")
+		return
+	}
+
+	// ✅ 发送邮件（带节流控制）
+	err := SendAlertEmailWithThrottle(recipients, subject, data, time.Now())
+	if err != nil {
+		fmt.Printf("❌ [EmailDispatch] 邮件发送失败: %v\n", err)
+	} else {
+		fmt.Printf("📬 [EmailDispatch] 邮件已发送，标题: \"%s\"，收件人: %v\n", subject, recipients)
+	}
 }

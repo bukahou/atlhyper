@@ -39,11 +39,15 @@ func CleanEventPool() {
 
 	now := time.Now()
 	newRaw := make([]types.LogEvent, 0)
+
 	for _, ev := range eventPool {
 		if now.Sub(ev.Timestamp) <= rawDuration {
 			newRaw = append(newRaw, ev)
 		}
 	}
+
+	// expiredCount := 0
+	// log.Printf("🧹 CleanEventPool(): 清理过期事件 %d 条，保留 %d 条（阈值：%s）", expiredCount, len(newRaw), rawDuration)
 	eventPool = newRaw
 }
 
@@ -77,8 +81,11 @@ func RebuildCleanedEventPool() {
 		}
 	}
 
+	// rawAdded := 0
+	// oldRetained := 0
+	// log.Printf("🔁 RebuildCleanedEventPool(): 新增事件 %d 条，继承事件 %d 条，总计 %d 条（窗口：%s）",
+	// 	rawAdded, oldRetained, len(newCleaned), cleanedDuration)
 	cleanedEventPool = newCleaned
-	// alerter.EvaluateAlertsFromCleanedEvents(cleanedEventPool)
 }
 
 // ✅ 公共函数：清理原始池和清理池（线程安全）
@@ -107,7 +114,7 @@ func StartCleanerLoop(interval time.Duration) {
 		for {
 			CleanAndStoreEvents()
 			// 🧪 调试用输出，可在正式部署时移除
-			printCleanedEvents()
+			// printCleanedEvents()
 			time.Sleep(interval)
 		}
 	}()

@@ -20,8 +20,23 @@ package interfaces
 import (
 	"NeuroController/internal/alerter"
 	"NeuroController/internal/types"
+	"fmt"
 )
 
 func ComposeAlertGroupIfNecessary(events []types.LogEvent) (bool, string, types.AlertGroupData) {
-	return alerter.EvaluateAlertsFromCleanedEvents(events)
+	shouldAlert, subject, data := alerter.EvaluateAlertsFromCleanedEvents(events)
+
+	if shouldAlert {
+		fmt.Println("📬 ComposeAlertGroupIfNecessary(): 触发邮件告警")
+		fmt.Printf("🧾 邮件标题: %s\n", subject)
+		fmt.Printf("📦 AlertGroupData: NodeList=%v, NamespaceList=%v, AlertCount=%d\n", data.NodeList, data.NamespaceList, data.AlertCount)
+		for _, item := range data.Alerts {
+			fmt.Printf("🔹 AlertItem: Kind=%s, Name=%s, Namespace=%s, Node=%s, Reason=%s, Message=%s, Time=%s\n",
+				item.Kind, item.Name, item.Namespace, item.Node, item.Reason, item.Message, item.Time)
+		}
+	} else {
+		fmt.Println("ℹ️ ComposeAlertGroupIfNecessary(): 暂不触发告警")
+	}
+
+	return shouldAlert, subject, data
 }

@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // 🧠 全局 Deployment 状态缓存 + 并发锁
@@ -46,21 +44,14 @@ var (
 // 返回：
 //   - shouldAlert: 是否触发告警
 //   - reasonText: 告警原因描述（用于邮件等展示）
-func UpdatePodEvent(
-	namespace string,
-	podName string,
-	deploymentName string,
-	reasonCode string,
-	message string,
-	eventTime time.Time,
-) (shouldAlert bool, reasonText string) {
+func UpdatePodEvent(namespace string, podName string, deploymentName string, reasonCode string, message string, eventTime time.Time) (bool, string) {
+	ctx := context.TODO()
 	threshold := config.GlobalConfig.Diagnosis.UnreadyThresholdDuration
 	deployKey := fmt.Sprintf("%s/%s", namespace, deploymentName)
 
 	deployMu.Lock()
 	defer deployMu.Unlock()
 
-	// 👀 初始化 Deployment 状态缓存（首次观测）
 	state, exists := deploymentStates[deployKey]
 	if !exists {
 		state = &types.DeploymentHealthState{
@@ -72,57 +63,27 @@ func UpdatePodEvent(
 		deploymentStates[deployKey] = state
 	}
 
-	// ⚠️ 记录或清除 Pod 异常状态
 	if isSevereStatus(reasonCode) {
-		// 记录异常 Pod 状态
-		state.UnreadyPods[podName] = types.PodStatus{
-			PodName:    podName,
-			ReasonCode: reasonCode,
-			Message:    message,
-			Timestamp:  eventTime,
-			LastSeen:   time.Now(),
-		}
+		state.UnreadyPods[podName] = types.PodStatus{PodName: podName, ReasonCode: reasonCode, Message: message, Timestamp: eventTime, LastSeen: time.Now()}
 	} else {
-		// 检查 Deployment 是否恢复，若恢复则移除该 Pod
-		if ok, err := utils.IsDeploymentRecovered(context.TODO(), namespace, deploymentName); err == nil && ok {
+		if ok, err := utils.IsDeploymentRecovered(ctx, namespace, deploymentName); err == nil && ok {
+
 			delete(state.UnreadyPods, podName)
 		}
 	}
 
-	// 🚨 告警判断逻辑：异常 Pod 数是否达到副本数
 	if len(state.UnreadyPods) >= state.ExpectedCount {
-		fmt.Printf("🚨 [DEBUG] 异常 Pod 数已达期望副本数：%d/%d\n", len(state.UnreadyPods), state.ExpectedCount)
-
 		if state.FirstObserved.IsZero() {
 			state.FirstObserved = time.Now()
-			fmt.Printf("🕒 [DEBUG] 首次观测异常，记录时间：%v\n", state.FirstObserved)
-		} else {
-			elapsed := time.Since(state.FirstObserved)
-			fmt.Printf("⏳ [DEBUG] 异常已持续：%v（阈值：%v）\n", elapsed, threshold)
 		}
-
-		// ✅ 异常持续时间超过阈值，且未触发过告警
 		if time.Since(state.FirstObserved) >= threshold && !state.Confirmed {
 			state.Confirmed = true
-			fmt.Printf("✅ [DEBUG] 满足告警条件，准备发送告警：%s\n", deploymentName)
 			return true, fmt.Sprintf("🚨 服务 %s 所有副本异常，已持续 %.0f 秒，请查看完整告警日志", deploymentName, threshold.Seconds())
-		} else {
-			fmt.Println("🕒 [DEBUG] 尚未满足告警持续时间或已确认过告警，跳过发送")
 		}
 	} else {
-		// 🧹 异常数量回落，清除状态
-		fmt.Printf("✅ [DEBUG] 异常 Pod 数未达阈值（%d/%d），清除首次观测时间\n", len(state.UnreadyPods), state.ExpectedCount)
 		state.FirstObserved = time.Time{}
 		state.Confirmed = false
 	}
-
-	// ℹ️ 日志记录：未触发告警
-	utils.Info(context.TODO(), "ℹ️ 跳过邮件发送，本次未达到告警条件",
-		zap.String("deployment", deploymentName),
-		zap.String("namespace", namespace),
-		zap.Int("异常Pod数", len(state.UnreadyPods)),
-		zap.Int("期望副本数", state.ExpectedCount),
-	)
 
 	return false, ""
 }

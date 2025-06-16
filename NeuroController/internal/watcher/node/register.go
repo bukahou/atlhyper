@@ -27,9 +27,8 @@ package node
 
 import (
 	"NeuroController/internal/utils"
-	"context"
+	"log"
 
-	"go.uber.org/zap"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -50,22 +49,9 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 
 	// 注册到 controller-runtime 管理器
 	if err := nodeWatcher.SetupWithManager(mgr); err != nil {
-		utils.Error(
-			context.TODO(),
-			"❌ 注册 NodeWatcher 失败",
-			utils.WithTraceID(context.TODO()),
-			zap.String("module", "watcher/node"),
-			zap.Error(err),
-		)
+		log.Printf("❌ 注册 NodeWatcher 失败: %v", err)
 		return err
 	}
-
-	utils.Info(
-		context.TODO(),
-		"✅ NodeWatcher 注册成功",
-		utils.WithTraceID(context.TODO()),
-		zap.String("module", "watcher/node"),
-	)
 
 	return nil
 }

@@ -26,16 +26,14 @@ package node
 
 import (
 	"context"
+	"log"
 
 	"NeuroController/internal/diagnosis"
-	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher/abnormal"
 
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"go.uber.org/zap"
 )
 
 // =======================================================================================
@@ -64,11 +62,7 @@ func (w *NodeWatcher) SetupWithManager(mgr ctrl.Manager) error {
 func (w *NodeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var node corev1.Node
 	if err := w.client.Get(ctx, req.NamespacedName, &node); err != nil {
-		utils.Warn(ctx, "❌ 获取 Node 资源失败",
-			utils.WithTraceID(ctx),
-			zap.String("node", req.Name),
-			zap.String("error", err.Error()),
-		)
+		log.Printf("❌ 获取 Node 失败: %s → %v", req.NamespacedName.String(), err)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 

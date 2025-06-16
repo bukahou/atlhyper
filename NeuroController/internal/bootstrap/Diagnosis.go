@@ -16,32 +16,39 @@ package bootstrap
 import (
 	"NeuroController/config"
 	"NeuroController/internal/diagnosis"
+	"NeuroController/internal/utils"
 	"fmt"
 	"time"
 )
 
 // ✅ 启动诊断系统：包括清理器和日志写入器
-func StartDiagnosisSystem() {
+func StartCleanSystem() {
+	interval := config.GlobalConfig.Diagnosis.CleanInterval
+	fmt.Printf("✅ [Startup] 清理器启动（周期: %s）\n", interval)
 
-	// ✅ 从配置中获取
-	cleanInterval := config.GlobalConfig.Diagnosis.CleanInterval
-	writeInterval := config.GlobalConfig.Diagnosis.WriteInterval
+	go func() {
+		for {
+			diagnosis.CleanAndStoreEvents()
+			time.Sleep(interval)
+		}
+	}()
+}
 
-	// ✅ 启动提示
-	fmt.Println("🧠 正在启动诊断系统 ...")
-	fmt.Printf("🧼 清理间隔：%v\n", cleanInterval)
-	fmt.Printf("📝 写入间隔：%v\n", writeInterval)
+func StartLogWriter() {
+	interval := config.GlobalConfig.Diagnosis.WriteInterval
+	fmt.Printf("✅ [Startup] 日志写入器启动（周期: %s）\n", interval)
 
-	// 启动清理器（执行去重和过期清理）
-	diagnosis.StartCleanerLoop(cleanInterval)
-
-	// 启动日志写入器（定期将去重后的日志写入文件）
 	go func() {
 		for {
 			diagnosis.WriteNewCleanedEventsToFile()
-			time.Sleep(writeInterval)
+			time.Sleep(interval)
 		}
 	}()
+}
 
-	fmt.Println("✅ 诊断系统启动成功。")
+func Startclientchecker() {
+	fmt.Println("✅ [Startup] 启动集群健康检查器")
+
+	cfg := utils.InitK8sClient()
+	utils.StartK8sHealthChecker(cfg)
 }

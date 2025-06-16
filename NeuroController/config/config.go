@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -38,11 +39,17 @@ type MailerConfig struct {
 	To       []string // 收件人列表（支持多个）
 }
 
+type SlackConfig struct {
+	WebhookURL       string // Slack Webhook 地址
+	DispatchInterval time.Duration
+}
+
 // AppConfig 是整个系统的顶层配置结构体
 type AppConfig struct {
 	Diagnosis  DiagnosisConfig
 	Kubernetes KubernetesConfig
 	Mailer     MailerConfig
+	Slack      SlackConfig
 }
 
 // GlobalConfig 是对外暴露的全局配置实例
@@ -56,19 +63,21 @@ var GlobalConfig AppConfig
 
 // 默认时间配置（支持覆盖）
 var defaultDurations = map[string]string{
-	"DIAGNOSIS_CLEAN_INTERVAL":             "30s",
-	"DIAGNOSIS_WRITE_INTERVAL":             "30s",
+	"DIAGNOSIS_CLEAN_INTERVAL":             "5s",
+	"DIAGNOSIS_WRITE_INTERVAL":             "6s",
 	"DIAGNOSIS_RETENTION_RAW_DURATION":     "10m",
 	"DIAGNOSIS_RETENTION_CLEANED_DURATION": "5m",
 	"KUBERNETES_API_HEALTH_CHECK_INTERVAL": "15s",
-	"DIAGNOSIS_UNREADY_THRESHOLD_DURATION": "30s",
-	"DIAGNOSIS_ALERT_DISPATCH_INTERVAL":    "30s",
+	"DIAGNOSIS_UNREADY_THRESHOLD_DURATION": "7s",
+	"DIAGNOSIS_ALERT_DISPATCH_INTERVAL":    "100s",
+	"SLACK_ALERT_DISPATCH_INTERVAL":        "10s",
 }
 
 // 默认字符串配置（支持覆盖）
 var defaultStrings = map[string]string{
-	"MAIL_SMTP_HOST": "smtp.gmail.com",
-	"MAIL_SMTP_PORT": "587",
+	"MAIL_SMTP_HOST":    "smtp.gmail.com",
+	"MAIL_SMTP_PORT":    "587",
+	"SLACK_WEBHOOK_URL": "",
 }
 
 //
@@ -79,7 +88,7 @@ var defaultStrings = map[string]string{
 
 // LoadConfig 加载所有配置项（支持 ENV 覆盖）
 func LoadConfig() {
-	log.Println("🔧 加载配置中 ...")
+	// log.Println("🔧 加载配置中 ...")
 
 	GlobalConfig.Diagnosis = DiagnosisConfig{
 		CleanInterval:            getDuration("DIAGNOSIS_CLEAN_INTERVAL"),
@@ -103,7 +112,13 @@ func LoadConfig() {
 		To:       getStringList("MAIL_TO"),
 	}
 
-	log.Printf("✅ 配置加载完成: %+v\n", GlobalConfig)
+	GlobalConfig.Slack = SlackConfig{
+		WebhookURL:       getString("SLACK_WEBHOOK_URL"),
+		DispatchInterval: getDuration("SLACK_ALERT_DISPATCH_INTERVAL"),
+	}
+
+	fmt.Printf("✅ 配置加载完成: %+v\n", GlobalConfig)
+
 }
 
 //

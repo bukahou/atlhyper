@@ -27,17 +27,15 @@ package event
 
 import (
 	"context"
+	"log"
 
 	"NeuroController/internal/diagnosis"
-	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher/abnormal"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"go.uber.org/zap"
 )
 
 // =======================================================================================
@@ -67,11 +65,7 @@ func (w *EventWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	var ev corev1.Event
 	if err := w.client.Get(ctx, req.NamespacedName, &ev); err != nil {
 		if !errors.IsNotFound(err) {
-			utils.Warn(ctx, "❌ 获取 Event 失败",
-				utils.WithTraceID(ctx),
-				zap.String("event", req.Name),
-				zap.Error(err),
-			)
+			log.Printf("❌ 获取 Event 失败: %s/%s → %v", req.Namespace, req.Name, err)
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}

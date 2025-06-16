@@ -28,9 +28,8 @@ package pod
 
 import (
 	"NeuroController/internal/utils"
-	"context"
+	"log"
 
-	"go.uber.org/zap"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -49,22 +48,9 @@ func RegisterWatcher(mgr ctrl.Manager) error {
 
 	// 注册到管理器
 	if err := podWatcher.SetupWithManager(mgr); err != nil {
-		utils.Error(
-			context.TODO(),
-			"❌ 注册 PodWatcher 失败",
-			utils.WithTraceID(context.TODO()),
-			zap.String("module", "watcher/pod"),
-			zap.Error(err),
-		)
+		log.Printf("❌ 注册 PodWatcher 失败: %v", err)
 		return err
 	}
-
-	utils.Info(
-		context.TODO(),
-		"✅ PodWatcher 注册成功",
-		utils.WithTraceID(context.TODO()),
-		zap.String("module", "watcher/pod"),
-	)
 
 	return nil
 }

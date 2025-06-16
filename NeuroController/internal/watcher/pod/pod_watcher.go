@@ -30,12 +30,11 @@ package pod
 
 import (
 	"context"
+	"log"
 
 	"NeuroController/internal/diagnosis"
-	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher/abnormal"
 
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -72,20 +71,18 @@ func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := w.client.Get(ctx, req.NamespacedName, &pod)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logPodDeleted(ctx, req.Namespace, req.Name)
+			logPodDeleted(req.Namespace, req.Name)
 			return ctrl.Result{}, nil
 		}
-		logPodGetError(ctx, req.Namespace, req.Name, err)
+		logPodGetError(req.Namespace, req.Name, err)
 		return ctrl.Result{}, err
 	}
 
 	// ✨ 检测是否为异常状态（已内置冷却判断）
 	reason := abnormal.GetPodAbnormalReason(pod)
 	if reason == nil {
-		// 可选：fmt.Printf("✅ Pod 状态正常: %s/%s\n", req.Namespace, req.Name)
 		return ctrl.Result{}, nil
 	}
-
 	// 记录异常事件，供后续处理
 	diagnosis.CollectPodAbnormalEvent(pod, reason)
 
@@ -94,25 +91,12 @@ func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 // =======================================================================================
 // ✅ 辅助函数：logPodDeleted
-//
-// 当 Pod 被删除时记录日志（常见于滚动更新期间）。
-func logPodDeleted(ctx context.Context, namespace, name string) {
-	utils.Info(ctx, "ℹ️ Pod 已被删除（可能是滚动更新所致）",
-		utils.WithTraceID(ctx),
-		zap.String("namespace", namespace),
-		zap.String("pod", name),
-	)
+func logPodDeleted(namespace, name string) {
+	log.Printf("🧹 Pod 已被删除: %s/%s", namespace, name)
 }
 
 // =======================================================================================
 // ✅ 辅助函数：logPodGetError
-//
-// 当 Pod 获取失败（且不是 NotFound）时记录日志。
-func logPodGetError(ctx context.Context, namespace, name string, err error) {
-	utils.Warn(ctx, "❌ 获取 Pod 失败",
-		utils.WithTraceID(ctx),
-		zap.String("namespace", namespace),
-		zap.String("pod", name),
-		zap.String("error", err.Error()),
-	)
+func logPodGetError(namespace, name string, err error) {
+	log.Printf("❌ 获取 Pod 失败: %s/%s → %v", namespace, name, err)
 }

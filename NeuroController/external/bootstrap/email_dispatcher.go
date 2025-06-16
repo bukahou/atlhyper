@@ -20,7 +20,6 @@ package bootstrap
 import (
 	"NeuroController/config"
 	"NeuroController/external/mailer"
-	"NeuroController/interfaces"
 	"fmt"
 	"time"
 )
@@ -38,23 +37,10 @@ func StartEmailDispatcher() {
 	// ✅ 启动异步循环
 	go func() {
 		for {
-			DispatchEmailAlertFromCleanedEvents()
+			mailer.DispatchEmailAlertFromCleanedEvents()
 			time.Sleep(emailInterval)
 		}
 	}()
 
 	fmt.Println("✅ 邮件调度器启动成功。")
-}
-
-func DispatchEmailAlertFromCleanedEvents() {
-	events := interfaces.GetCleanedEventLogs()
-	shouldAlert, subject, data := interfaces.ComposeAlertGroupIfNecessary(events)
-
-	if shouldAlert {
-		recipients := config.GlobalConfig.Mailer.To
-		err := mailer.SendAlertEmailWithThrottle(recipients, subject, data, time.Now())
-		if err != nil {
-			fmt.Printf("❌ 邮件发送失败: %v\n", err)
-		}
-	}
 }

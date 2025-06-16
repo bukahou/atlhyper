@@ -28,16 +28,14 @@ package deployment
 
 import (
 	"context"
+	"log"
 
 	"NeuroController/internal/diagnosis"
-	"NeuroController/internal/utils"
 	"NeuroController/internal/watcher/abnormal"
 
 	appsv1 "k8s.io/api/apps/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"go.uber.org/zap"
 )
 
 // =======================================================================================
@@ -67,11 +65,7 @@ func (w *DeploymentWatcher) SetupWithManager(mgr ctrl.Manager) error {
 func (w *DeploymentWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var deploy appsv1.Deployment
 	if err := w.client.Get(ctx, req.NamespacedName, &deploy); err != nil {
-		utils.Warn(ctx, "获取 Deployment 失败",
-			utils.WithTraceID(ctx),
-			zap.String("deployment", req.Name),
-			zap.String("error", err.Error()),
-		)
+		log.Printf("❌ 获取 Deployment 失败: %s/%s → %v", req.Namespace, req.Name, err)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -84,9 +78,5 @@ func (w *DeploymentWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// 收集并上报 Deployment 异常事件
 	diagnosis.CollectDeploymentAbnormalEvent(deploy, reason)
 
-	// ✅ 如有需要可补充结构化日志输出：
-	// logDeploymentAbnormal(ctx, deploy, reason)
-
-	// TODO：后续可拓展为自动伸缩、邮件告警、APM 上报等
 	return ctrl.Result{}, nil
 }

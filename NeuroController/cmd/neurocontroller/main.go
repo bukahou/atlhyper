@@ -26,30 +26,28 @@ package main
 import (
 	"NeuroController/config"
 	"NeuroController/external"
+	"NeuroController/internal"
 	"NeuroController/internal/bootstrap"
 	"NeuroController/internal/utils"
-
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 func main() {
 
 	config.LoadConfig()
 	// ✅ 设置 controller-runtime 的日志系统（应最先调用）
-	ctrl.SetLogger(zap.New(zap.UseDevMode(false))) // (true): 开发模式 / (false): 生产模式
-	utils.InitLogger()                             // 初始化 zap 日志记录器
+	// ctrl.SetLogger(zap.New(zap.UseDevMode(false))) // (true): 开发模式 / (false): 生产模式
+	// utils.InitLogger() // 初始化 zap 日志记录器
 
-	// ✅ 初始化 K8s API 客户端与健康检查
-	cfg := utils.InitK8sClient()
-	utils.StartK8sHealthChecker(cfg)
+	// ✅ 初始化 K8s API
+	utils.InitK8sClient()
 
-	// ✅ 启动日志事件池的定时清理器（每 30 秒运行一次）
-	bootstrap.StartDiagnosisSystem()
-
-	// ✅ 注册模块并启动控制器管理器
-	bootstrap.StartManager()
+	// ✅ 启动内部系统（清理器/日志持久化/Webhook）
+	internal.StartInternalSystems()
 
 	// ✅ 启动外部系统（邮件/Slack/Webhook）
 	external.StartExternalSystems()
+
+	// ✅ 注册模块并启动控制器管理器（必须放在最后，因为他内置了阻塞机制）
+	bootstrap.StartManager()
+
 }
