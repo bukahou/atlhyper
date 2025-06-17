@@ -31,11 +31,7 @@ func appendToEventPool(event types.LogEvent) {
 	if event.Kind == "Pod" && event.Name == "default" {
 		log.Printf("⚠️ 异常事件字段异常: Pod 名称为 'default'，可能未正确识别 → Namespace=%s, Message=%s",
 			event.Namespace, event.Message)
-		// utils.Warn(context.TODO(), "🐛 检测到 Pod 名为 default 的事件被写入事件池",
-		// 	zap.String("category", event.Category),
-		// 	zap.String("namespace", event.Namespace),
-		// 	zap.String("message", event.Message),
-		// )
+
 	}
 	if event.ReasonCode == "" {
 		log.Printf("❌ 缺少 ReasonCode: %s/%s → %s", event.Namespace, event.Name, event.Message)

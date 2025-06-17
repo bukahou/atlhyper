@@ -25,6 +25,7 @@
 package utils
 
 import (
+	"log"
 	"os"
 	"sync"
 
@@ -40,31 +41,43 @@ var (
 )
 
 // 初始化全局的 controller-runtime client.Client 实例
+// InitK8sClient 初始化 Kubernetes 客户端配置（rest.Config）
+// 支持从 KUBECONFIG 环境变量加载配置，也支持 InCluster 模式
 func InitK8sClient() *rest.Config {
+	// once.Do 确保只执行一次初始化（线程安全）
 	once.Do(func() {
 		var err error
 
+		// 尝试从环境变量 KUBECONFIG 读取 kubeconfig 路径
 		kubeconfig := os.Getenv("KUBECONFIG")
 		if kubeconfig != "" {
+			// 若环境变量存在，尝试使用该路径构建配置
 			cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-			if err == nil {
+			if err != nil {
+				log.Printf("⚠️ 使用 KUBECONFIG 构建失败: %v", err)
 			} else {
+				log.Printf("✅ 成功加载 kubeconfig: %s", kubeconfig)
 			}
 		}
 
+		// 如果 cfg 仍然为 nil，说明 kubeconfig 加载失败，尝试 InCluster 模式（用于 Pod 内运行）
 		if cfg == nil {
 			cfg, err = rest.InClusterConfig()
 			if err != nil {
-				panic(err)
+				log.Printf("获取 in-cluster 配置失败: %v", err)
+				panic(err) // 无法继续运行，直接终止程序
 			}
 		}
 
+		// 使用构建好的配置初始化 controller-runtime 的 k8s client
 		k8sClient, err = client.New(cfg, client.Options{})
 		if err != nil {
-			panic(err)
+			log.Printf("初始化 k8sClient 失败: %v", err)
+			panic(err) // 客户端初始化失败也不能继续运行
 		}
-
 	})
+
+	// 返回初始化好的配置
 	return cfg
 }
 

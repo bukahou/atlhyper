@@ -12,12 +12,12 @@ package external
 
 import (
 	"NeuroController/external/bootstrap"
-	"fmt"
+	"log"
 )
 
 // ✅ 启动所有 External 功能模块
 func StartExternalSystems() {
-	fmt.Println("🚀 启动外部系统组件 ...")
+	log.Println("🚀 启动外部系统组件 ...")
 
 	// ✅ 启动邮件调度器
 	bootstrap.StartEmailDispatcher()
@@ -29,5 +29,5 @@ func StartExternalSystems() {
 	// StartWebhookDispatcher()
 	// ...
 
-	fmt.Println("✅ 所有外部组件启动完成。")
+	log.Println("✅ 所有外部组件启动完成。")
 }

@@ -19,6 +19,7 @@ import (
 	"NeuroController/interfaces"
 	"NeuroController/internal/types"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -37,7 +38,7 @@ func SendSlackAlertWithThrottle(subject string, data types.AlertGroupData) error
 	lastSlackSentTimeMu.Lock()
 	defer lastSlackSentTimeMu.Unlock()
 
-	// 🛑 节流检查
+	// 节流检查
 	if !lastSlackSentTime.IsZero() && time.Since(lastSlackSentTime) < slackThrottleInterval {
 		fmt.Println("⏳ [SlackThrottle] 距离上次发送过短，跳过本轮 Slack 发送。")
 		return nil
@@ -51,20 +52,25 @@ func SendSlackAlertWithThrottle(subject string, data types.AlertGroupData) error
 }
 
 func DispatchSlackAlertFromCleanedEvents() {
-	fmt.Println("📨 [SlackDispatch] 开始 Slack 告警调度流程...")
 
-	// ✅ 聚合评估是否触发告警
-	shouldAlert, subject, data := interfaces.GetAlertGroupIfNecessary()
-	if !shouldAlert {
-		fmt.Println("ℹ️ [SlackDispatch] 当前无需发送 Slack 告警，调度流程结束。")
+	// ✅ 获取清洗后的事件池
+	events := interfaces.GetCleanedEventLogs()
+	if len(events) == 0 {
 		return
 	}
 
-	// ✅ 发送 Slack 消息（带节流控制）
+	// ✅ 格式化为轻量级告警数据
+	shouldAlert, subject, data := interfaces.GetLightweightAlertGroup(events)
+	if !shouldAlert {
+		log.Println("✅ [SlackDispatch] 当前无异常事件，未触发 Slack 告警。")
+		return
+	}
+
+	// ✅ 构建 BlockKit 并节流发送
 	err := SendSlackAlertWithThrottle(subject, data)
 	if err != nil {
-		fmt.Printf("❌ [SlackDispatch] Slack 发送失败: %v\n", err)
+		log.Printf("❌ [SlackDispatch] Slack 发送失败: %v\n", err)
 	} else {
-		fmt.Printf("📬 [SlackDispatch] Slack 告警已发送，标题: \"%s\"\n", subject)
+		log.Printf("📬 [SlackDispatch] Slack 告警已发送，标题: \"%s\"\n", subject)
 	}
 }

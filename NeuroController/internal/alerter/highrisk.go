@@ -26,69 +26,14 @@ import (
 )
 
 // 🧠 全局 Deployment 状态缓存 + 并发锁
+// 用于记录每个 Deployment 的异常 Pod 状态，避免重复告警
 var (
-	deploymentStates = make(map[string]*types.DeploymentHealthState) // key 格式为 ns/name
-	deployMu         sync.Mutex                                      // 保证线程安全
+	deploymentStates = make(map[string]*types.DeploymentHealthState) // key: namespace/deploymentName
+	deployMu         sync.Mutex                                      // 保证并发安全
 )
 
-// ✅ 更新 Pod 异常状态，并判断是否满足触发告警的条件
-//
-// 参数：
-//   - namespace: Pod 所属命名空间
-//   - podName: Pod 名称
-//   - deploymentName: Pod 所属 Deployment
-//   - reasonCode: 事件原因（如 NotReady, CrashLoopBackOff）
-//   - message: 事件详情信息
-//   - eventTime: 异常发生时间（K8s 事件时间）
-//
-// 返回：
-//   - shouldAlert: 是否触发告警
-//   - reasonText: 告警原因描述（用于邮件等展示）
-func UpdatePodEvent(namespace string, podName string, deploymentName string, reasonCode string, message string, eventTime time.Time) (bool, string) {
-	ctx := context.TODO()
-	threshold := config.GlobalConfig.Diagnosis.UnreadyThresholdDuration
-	deployKey := fmt.Sprintf("%s/%s", namespace, deploymentName)
-
-	deployMu.Lock()
-	defer deployMu.Unlock()
-
-	state, exists := deploymentStates[deployKey]
-	if !exists {
-		state = &types.DeploymentHealthState{
-			Namespace:     namespace,
-			Name:          deploymentName,
-			UnreadyPods:   make(map[string]types.PodStatus),
-			ExpectedCount: utils.GetExpectedReplicaCount(namespace, deploymentName),
-		}
-		deploymentStates[deployKey] = state
-	}
-
-	if isSevereStatus(reasonCode) {
-		state.UnreadyPods[podName] = types.PodStatus{PodName: podName, ReasonCode: reasonCode, Message: message, Timestamp: eventTime, LastSeen: time.Now()}
-	} else {
-		if ok, err := utils.IsDeploymentRecovered(ctx, namespace, deploymentName); err == nil && ok {
-
-			delete(state.UnreadyPods, podName)
-		}
-	}
-
-	if len(state.UnreadyPods) >= state.ExpectedCount {
-		if state.FirstObserved.IsZero() {
-			state.FirstObserved = time.Now()
-		}
-		if time.Since(state.FirstObserved) >= threshold && !state.Confirmed {
-			state.Confirmed = true
-			return true, fmt.Sprintf("🚨 服务 %s 所有副本异常，已持续 %.0f 秒，请查看完整告警日志", deploymentName, threshold.Seconds())
-		}
-	} else {
-		state.FirstObserved = time.Time{}
-		state.Confirmed = false
-	}
-
-	return false, ""
-}
-
 // ✅ 判断是否为严重异常状态（可扩展支持更多 Reason）
+// 当前仅处理以下类型的事件作为严重异常
 func isSevereStatus(reasonCode string) bool {
 	switch reasonCode {
 	case "NotReady", "CrashLoopBackOff", "ImagePullBackOff", "Failed":
@@ -96,6 +41,88 @@ func isSevereStatus(reasonCode string) bool {
 	default:
 		return false
 	}
+}
+
+// ✅ 更新 Pod 异常状态，并判断是否满足触发告警的条件
+//
+// 功能：
+//   - 维护当前 Deployment 的异常 Pod 列表（UnreadyPods）
+//   - 判断是否“所有副本都异常” 且 “持续时间超过阈值”
+//   - 避免短暂波动或局部异常误触发告警
+//
+// 参数：
+//   - namespace: Pod 所属命名空间
+//   - podName: 当前异常 Pod 的名称
+//   - deploymentName: Pod 所属的 Deployment 名称
+//   - reasonCode: K8s 事件的 reason，如 CrashLoopBackOff、NotReady
+//   - message: 事件附带的详细信息（可用于告警文案）
+//   - eventTime: 事件在 K8s 中发生的时间（用于记录异常起始）
+//
+// 返回值：
+//   - shouldAlert: 是否触发告警
+//   - reasonText: 告警原因简要描述（用于组装告警文案）
+func UpdatePodEvent(namespace string, podName string, deploymentName string, reasonCode string, message string, eventTime time.Time) (bool, string) {
+	ctx := context.TODO()
+	threshold := config.GlobalConfig.Diagnosis.UnreadyThresholdDuration // 告警触发的持续时间阈值
+	ratioThreshold := config.GlobalConfig.Diagnosis.UnreadyReplicaPercent
+	deployKey := fmt.Sprintf("%s/%s", namespace, deploymentName) // 构建唯一 Deployment 键
+
+	deployMu.Lock()
+	defer deployMu.Unlock()
+
+	// 🧠 初始化 Deployment 状态缓存
+	state, exists := deploymentStates[deployKey]
+	if !exists {
+		state = &types.DeploymentHealthState{
+			Namespace:     namespace,
+			Name:          deploymentName,
+			UnreadyPods:   make(map[string]types.PodStatus),
+			ExpectedCount: utils.GetExpectedReplicaCount(namespace, deploymentName), // 从 K8s API 获取副本数
+		}
+		deploymentStates[deployKey] = state
+	}
+
+	// ⚠️ 如果是严重异常（如 NotReady、CrashLoopBackOff 等），记录异常 Pod 状态
+	if isSevereStatus(reasonCode) {
+		state.UnreadyPods[podName] = types.PodStatus{
+			PodName:    podName,
+			ReasonCode: reasonCode,
+			Message:    message,
+			Timestamp:  eventTime,  // K8s 原始时间
+			LastSeen:   time.Now(), // 记录当前观测到的时间
+		}
+	} else {
+		// ✅ 如果当前 Pod 状态不再异常，检查是否整个 Deployment 已恢复
+		if ok, err := utils.IsDeploymentRecovered(ctx, namespace, deploymentName); err == nil && ok {
+			// 🌱 恢复后从缓存中移除该异常 Pod
+			delete(state.UnreadyPods, podName)
+		}
+	}
+
+	// ✅ 异常副本数达到配置的告警比例阈值时，进入告警判断逻辑
+	unready := len(state.UnreadyPods)
+	expected := state.ExpectedCount
+
+	if expected > 0 && float64(unready)/float64(expected) >= ratioThreshold {
+		// 初次观测异常时记录时间
+		if state.FirstObserved.IsZero() {
+			state.FirstObserved = time.Now()
+		}
+
+		// 若异常持续时间超过阈值且未发送过告警，则触发告警
+		if time.Since(state.FirstObserved) >= threshold && !state.Confirmed {
+			state.Confirmed = true // 标记已告警，避免重复发送
+			return true, fmt.Sprintf("🚨 服务 %s 异常副本占比 %.0f%%，已持续 %.0f 秒，请查看完整告警日志",
+				deploymentName, ratioThreshold*100, threshold.Seconds())
+		}
+	} else {
+		// 异常未达到比例阈值或已恢复，重置异常起始时间与告警标志
+		state.FirstObserved = time.Time{}
+		state.Confirmed = false
+	}
+
+	// 默认不触发告警
+	return false, ""
 }
 
 // =======================================================================================
@@ -145,3 +172,13 @@ func GetDeploymentStatesSnapshot() map[string]types.DeploymentHealthState {
 
 	return snapshot
 }
+
+// ✅ 判断是否为严重异常状态（可扩展支持更多 Reason）
+// func isSevereStatus(reasonCode string) bool {
+// 	switch reasonCode {
+// 	case "NotReady", "CrashLoopBackOff", "ImagePullBackOff", "Failed":
+// 		return true
+// 	default:
+// 		return false
+// 	}
+// }

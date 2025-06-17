@@ -20,7 +20,7 @@ package bootstrap
 import (
 	"NeuroController/config"
 	"NeuroController/external/mailer"
-	"fmt"
+	"log"
 	"time"
 )
 
@@ -28,11 +28,12 @@ import (
 //
 // 行为：每隔 EmailInterval 周期性调用 DispatchEmailAlertFromCleanedEvents
 func StartEmailDispatcher() {
-	emailInterval := config.GlobalConfig.Diagnosis.AlertDispatchInterval
 
-	// 启动提示日志
-	fmt.Println("📬 启动邮件告警调度器 ...")
-	fmt.Printf("⏱️ 告警检测周期：%v\n", emailInterval)
+	if !config.GlobalConfig.Mailer.EnableEmailAlert {
+		log.Println("⚠️ 邮件告警功能已关闭，未启动调度器。")
+		return
+	}
+	emailInterval := config.GlobalConfig.Diagnosis.AlertDispatchInterval
 
 	// ✅ 启动异步循环
 	go func() {
@@ -41,6 +42,5 @@ func StartEmailDispatcher() {
 			time.Sleep(emailInterval)
 		}
 	}()
-
-	fmt.Println("✅ 邮件调度器启动成功。")
+	log.Println("✅ 邮件调度器启动成功。")
 }

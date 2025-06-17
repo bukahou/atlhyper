@@ -19,7 +19,7 @@ import (
 	"NeuroController/config"
 	"NeuroController/interfaces"
 	"NeuroController/internal/types"
-	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -50,7 +50,7 @@ func SendAlertEmailWithThrottle(to []string, subject string, data types.AlertGro
 	lastEmailSentTimeMu.Lock()
 	defer lastEmailSentTimeMu.Unlock()
 
-	// ⛔ 若处于节流时间范围内，跳过邮件发送
+	//  若处于节流时间范围内，跳过邮件发送
 	if !lastEmailSentTime.IsZero() && time.Since(lastEmailSentTime) < throttleInterval {
 
 		return nil
@@ -63,27 +63,31 @@ func SendAlertEmailWithThrottle(to []string, subject string, data types.AlertGro
 }
 
 func DispatchEmailAlertFromCleanedEvents() {
-	fmt.Println("📨 [EmailDispatch] 开始邮件告警调度流程...")
 
-	// ✅ 聚合评估是否触发告警
-	shouldAlert, subject, data := interfaces.GetAlertGroupIfNecessary()
-	if !shouldAlert {
-		fmt.Println("ℹ️ [EmailDispatch] 当前无需发送邮件告警，调度流程结束。")
+	// ✅ 获取清洗后的事件池
+	events := interfaces.GetCleanedEventLogs()
+	if len(events) == 0 {
 		return
 	}
 
-	// ✅ 准备收件人列表
+	// ✅ 判断是否触发告警并格式化数据
+	shouldAlert, subject, data := interfaces.ComposeAlertGroupIfNecessary(events)
+	if !shouldAlert {
+		return
+	}
+
+	// ✅ 获取收件人
 	recipients := config.GlobalConfig.Mailer.To
 	if len(recipients) == 0 {
-		fmt.Println("⚠️ [EmailDispatch] 收件人列表为空，已跳过发送。")
+		log.Println("⚠️ [EmailDispatch] 收件人列表为空，跳过邮件发送。")
 		return
 	}
 
-	// ✅ 发送邮件（带节流控制）
+	// ✅ 执行节流判断并发送
 	err := SendAlertEmailWithThrottle(recipients, subject, data, time.Now())
 	if err != nil {
-		fmt.Printf("❌ [EmailDispatch] 邮件发送失败: %v\n", err)
+		log.Printf("❌ [EmailDispatch] 邮件发送失败: %v", err)
 	} else {
-		fmt.Printf("📬 [EmailDispatch] 邮件已发送，标题: \"%s\"，收件人: %v\n", subject, recipients)
+		log.Printf("📬 [EmailDispatch] 邮件已发送，标题: \"%s\"，收件人: %v", subject, recipients)
 	}
 }

@@ -13,7 +13,7 @@ package bootstrap
 import (
 	"NeuroController/config"
 	"NeuroController/external/slack"
-	"fmt"
+	"log"
 	"time"
 )
 
@@ -21,9 +21,12 @@ import (
 //
 // 行为：每隔 AlertDispatchInterval 周期性调用 DispatchSlackAlertFromCleanedEvents
 func StartSlackDispatcher() {
+	if !config.GlobalConfig.Slack.EnableSlackAlert {
+		log.Println("⚠️ Slack 告警功能已关闭，未启动调度器。")
+		return
+	}
+
 	interval := config.GlobalConfig.Slack.DispatchInterval
-	fmt.Println("💬 启动 Slack 告警调度器 ...")
-	fmt.Printf("⏱️ 告警检测周期：%v\n", interval)
 
 	go func() {
 		for {
@@ -31,6 +34,5 @@ func StartSlackDispatcher() {
 			time.Sleep(interval)
 		}
 	}()
-
-	fmt.Println("✅ Slack 告警调度器启动成功。")
+	log.Println("✅ Slack 告警调度器启动成功。")
 }

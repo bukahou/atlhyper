@@ -1,9 +1,9 @@
 package config
 
 import (
-	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,6 +22,7 @@ type DiagnosisConfig struct {
 	RetentionCleanedDuration time.Duration // 清理池保留时间
 	UnreadyThresholdDuration time.Duration //告警与邮件发送时间间隔
 	AlertDispatchInterval    time.Duration // 邮件轮询检测发送间隔（独立于异常阈值）
+	UnreadyReplicaPercent    float64
 }
 
 // KubernetesConfig 表示 Kubernetes API 健康检查相关配置项
@@ -31,17 +32,19 @@ type KubernetesConfig struct {
 
 // MailerConfig 表示邮件发送相关配置项
 type MailerConfig struct {
-	SMTPHost string   // 邮件服务器地址
-	SMTPPort string   // 邮件服务器端口
-	Username string   // 登录账号
-	Password string   // 登录密码或授权码
-	From     string   // 发件人邮箱
-	To       []string // 收件人列表（支持多个）
+	SMTPHost         string   // 邮件服务器地址
+	SMTPPort         string   // 邮件服务器端口
+	Username         string   // 登录账号
+	Password         string   // 登录密码或授权码
+	From             string   // 发件人邮箱
+	To               []string // 收件人列表（支持多个）
+	EnableEmailAlert bool     // 新增功能开关
 }
 
 type SlackConfig struct {
 	WebhookURL       string // Slack Webhook 地址
 	DispatchInterval time.Duration
+	EnableSlackAlert bool // 新增：是否启用 Slack 告警
 }
 
 // AppConfig 是整个系统的顶层配置结构体
@@ -69,8 +72,8 @@ var defaultDurations = map[string]string{
 	"DIAGNOSIS_RETENTION_CLEANED_DURATION": "5m",
 	"KUBERNETES_API_HEALTH_CHECK_INTERVAL": "15s",
 	"DIAGNOSIS_UNREADY_THRESHOLD_DURATION": "7s",
-	"DIAGNOSIS_ALERT_DISPATCH_INTERVAL":    "100s",
-	"SLACK_ALERT_DISPATCH_INTERVAL":        "10s",
+	"DIAGNOSIS_ALERT_DISPATCH_INTERVAL":    "5s",
+	"SLACK_ALERT_DISPATCH_INTERVAL":        "5s",
 }
 
 // 默认字符串配置（支持覆盖）
@@ -78,6 +81,17 @@ var defaultStrings = map[string]string{
 	"MAIL_SMTP_HOST":    "smtp.gmail.com",
 	"MAIL_SMTP_PORT":    "587",
 	"SLACK_WEBHOOK_URL": "",
+}
+
+// 默认布尔配置（支持覆盖）
+var defaultBools = map[string]bool{
+	"ENABLE_EMAIL_ALERT": true, // 默认关闭 Email 告警-false-true
+	"ENABLE_SLACK_ALERT": true, // 默认关闭 Slack 告警-false-true
+}
+
+// 默认浮点数配置（支持覆盖）
+var defaultFloats = map[string]float64{
+	"DIAGNOSIS_UNREADY_REPLICA_PERCENT": 0.6, // 默认必须 100% 副本异常才触发告警
 }
 
 //
@@ -97,6 +111,7 @@ func LoadConfig() {
 		RetentionCleanedDuration: getDuration("DIAGNOSIS_RETENTION_CLEANED_DURATION"),
 		UnreadyThresholdDuration: getDuration("DIAGNOSIS_UNREADY_THRESHOLD_DURATION"),
 		AlertDispatchInterval:    getDuration("DIAGNOSIS_ALERT_DISPATCH_INTERVAL"),
+		UnreadyReplicaPercent:    getFloat("DIAGNOSIS_UNREADY_REPLICA_PERCENT"),
 	}
 
 	GlobalConfig.Kubernetes = KubernetesConfig{
@@ -104,20 +119,22 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.Mailer = MailerConfig{
-		SMTPHost: getString("MAIL_SMTP_HOST"),
-		SMTPPort: getString("MAIL_SMTP_PORT"),
-		Username: getString("MAIL_USERNAME"),
-		Password: getString("MAIL_PASSWORD"),
-		From:     getString("MAIL_FROM"),
-		To:       getStringList("MAIL_TO"),
+		SMTPHost:         getString("MAIL_SMTP_HOST"),
+		SMTPPort:         getString("MAIL_SMTP_PORT"),
+		Username:         getString("MAIL_USERNAME"),
+		Password:         getString("MAIL_PASSWORD"),
+		From:             getString("MAIL_FROM"),
+		To:               getStringList("MAIL_TO"),
+		EnableEmailAlert: getBool("ENABLE_EMAIL_ALERT"),
 	}
 
 	GlobalConfig.Slack = SlackConfig{
 		WebhookURL:       getString("SLACK_WEBHOOK_URL"),
 		DispatchInterval: getDuration("SLACK_ALERT_DISPATCH_INTERVAL"),
+		EnableSlackAlert: getBool("ENABLE_SLACK_ALERT"),
 	}
 
-	fmt.Printf("✅ 配置加载完成: %+v\n", GlobalConfig)
+	log.Printf("✅ 配置加载完成: %+v", GlobalConfig)
 
 }
 
@@ -174,4 +191,33 @@ func getStringList(envKey string) []string {
 	}
 	log.Printf("⚠️ 环境变量 %s 未设置，使用默认收件人列表", envKey)
 	return strings.Split(def, ",")
+}
+
+func getBool(envKey string) bool {
+	val := os.Getenv(envKey)
+	if val != "" {
+		val = strings.ToLower(val)
+		return val == "true" || val == "1" || val == "yes"
+	}
+	def, ok := defaultBools[envKey]
+	if !ok {
+		log.Fatalf("❌ 未定义默认布尔配置项: %s", envKey)
+	}
+	log.Printf("⚠️ 环境变量 %s 未设置，使用默认值 %v", envKey, def)
+	return def
+}
+
+func getFloat(envKey string) float64 {
+	if val := os.Getenv(envKey); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+		log.Printf("⚠️ 环境变量 %s 格式错误（应为浮点数），将使用默认值", envKey)
+	}
+	def, ok := defaultFloats[envKey]
+	if !ok {
+		log.Fatalf("❌ 未定义默认浮点数配置项: %s", envKey)
+	}
+	log.Printf("⚠️ 环境变量 %s 未设置，使用默认值 %.2f", envKey, def)
+	return def
 }
