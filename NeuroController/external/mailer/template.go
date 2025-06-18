@@ -64,7 +64,9 @@ func RenderAlertTemplate(data types.AlertGroupData) (string, error) {
 <body>
     <div class="container">
         <h2>⚠️ 系统异常告警（共 {{.AlertCount}} 条）</h2>
-        <p><strong>涉及节点：</strong> {{range .NodeList}}{{.}} {{end}}</p>
+       <p><strong>涉及节点：</strong><br>
+        {{range .NodeList}}{{.}}<br>{{end}}
+        </p>
         <p><strong>涉及命名空间：</strong> {{range .NamespaceList}}{{.}} {{end}}</p>
 
         <table>

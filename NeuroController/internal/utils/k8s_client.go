@@ -29,15 +29,18 @@ import (
 	"os"
 	"sync"
 
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
-	k8sClient client.Client
-	once      sync.Once
-	cfg       *rest.Config // 存储解析得到的 Kubernetes 配置
+	k8sClient     client.Client         // controller-runtime
+	coreClientset *kubernetes.Clientset // client-go
+	// k8sClient     client.Client
+	once sync.Once
+	cfg  *rest.Config // 存储解析得到的 Kubernetes 配置
 )
 
 // 初始化全局的 controller-runtime client.Client 实例
@@ -75,6 +78,13 @@ func InitK8sClient() *rest.Config {
 			log.Printf("初始化 k8sClient 失败: %v", err)
 			panic(err) // 客户端初始化失败也不能继续运行
 		}
+
+		coreClientset, err = kubernetes.NewForConfig(cfg)
+		if err != nil {
+			log.Fatalf("初始化 client-go client 失败: %v", err)
+		}
+
+		log.Println("✅ 成功初始化 controller-runtime 与 client-go 客户端")
 	})
 
 	// 返回初始化好的配置
@@ -87,4 +97,20 @@ func GetClient() client.Client {
 		panic("k8sClient 为 nil")
 	}
 	return k8sClient
+}
+
+// 返回共享的 rest.Config，若未初始化则 panic
+func GetRestConfig() *rest.Config {
+	if cfg == nil {
+		panic("rest.Config 未初始化，请先调用 InitK8sClient()")
+	}
+	return cfg
+}
+
+// 获取全局共享的 client-go client 实例（CoreV1、AppsV1 等）
+func GetCoreClient() *kubernetes.Clientset {
+	if coreClientset == nil {
+		panic("client-go CoreClient 未初始化，请先调用 InitK8sClient()")
+	}
+	return coreClientset
 }

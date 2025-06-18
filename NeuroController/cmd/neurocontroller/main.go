@@ -35,25 +35,23 @@ import (
 )
 
 func main() {
-
 	config.LoadConfig()
-	// ✅ 设置 controller-runtime 的日志系统（应最先调用）
-	// ctrl.SetLogger(zap.New(zap.UseDevMode(false))) // (true): 开发模式 / (false): 生产模式
-	// utils.InitLogger() // 初始化 zap 日志记录器
 
-	// ✅ 设置默认的结构化日志后端，防止 controller-runtime 报错
+	// ✅ 设置结构化日志
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	// ✅ 初始化 K8s API
+	// ✅ 初始化 controller-runtime client（含 rest.Config）
 	utils.InitK8sClient()
 
-	// ✅ 启动内部系统（清理器/日志持久化/Webhook）
+	// ✅ 初始化 metrics.k8s.io 客户端（需要在 InitK8sClient 之后）
+	utils.InitMetricsClient()
+
+	// ✅ 启动内部子系统（诊断器、清理器等）
 	internal.StartInternalSystems()
 
-	// ✅ 启动外部系统（邮件/Slack/Webhook）
+	// ✅ 启动外部系统（邮件、Slack、Webhook 等）
 	external.StartExternalSystems()
 
-	// ✅ 注册模块并启动控制器管理器（必须放在最后，因为他内置了阻塞机制）
+	// ✅ 启动 controller-runtime 控制器管理器
 	bootstrap.StartManager()
-
 }

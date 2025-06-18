@@ -70,7 +70,7 @@ func StartLogWriter() {
 func Startclientchecker() {
 	log.Println("✅ [Startup] 启动集群健康检查器")
 
-	cfg := utils.InitK8sClient()
+	cfg := utils.GetRestConfig() // 💡 现在只获取配置，不再做初始化
 	interval := config.GlobalConfig.Kubernetes.APIHealthCheckInterval
 
 	go func() {

@@ -31,7 +31,6 @@ import (
 )
 
 // ✅ 启动控制器管理器（加载并运行所有 Watcher 模块）
-// ✅ 启动控制器管理器（加载并运行所有 Watcher 模块）
 func StartManager() {
 	// ✅ 创建 controller-runtime 的管理器
 	cfg, err := resolveRestConfig()

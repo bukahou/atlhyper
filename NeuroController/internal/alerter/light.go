@@ -17,7 +17,9 @@
 package alerter
 
 import (
+	"NeuroController/internal/monitor"
 	"NeuroController/internal/types"
+	"fmt"
 )
 
 // ✅ 轻量格式化告警信息（不含触发逻辑）
@@ -46,13 +48,32 @@ func FormatAllEventsLight(events []types.LogEvent) (bool, string, types.AlertGro
 		})
 	}
 
+	// nodeList := make([]string, 0, len(nodeSet))
+	// for k := range nodeSet {
+	// 	nodeList = append(nodeList, k)
+	// }
+	// nsList := make([]string, 0, len(nsSet))
+	// for k := range nsSet {
+	// 	nsList = append(nsList, k)
+	// }
+
+	// 🎯 获取节点资源使用情况
+	nodeMetrics := monitor.GetNodeResourceUsage()
+
 	nodeList := make([]string, 0, len(nodeSet))
-	for k := range nodeSet {
-		nodeList = append(nodeList, k)
+	for nodeName := range nodeSet {
+		if usage, ok := nodeMetrics[nodeName]; ok {
+			nodeList = append(nodeList,
+				fmt.Sprintf("%s (CPU: %s, Mem: %s)", nodeName, usage.CPUUsage, usage.MemoryUsage),
+			)
+		} else {
+			nodeList = append(nodeList, nodeName)
+		}
 	}
+
 	nsList := make([]string, 0, len(nsSet))
-	for k := range nsSet {
-		nsList = append(nsList, k)
+	for ns := range nsSet {
+		nsList = append(nsList, ns)
 	}
 
 	title := "📋 当前全告警事件"
