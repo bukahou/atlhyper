@@ -29,6 +29,9 @@ import (
 	"NeuroController/internal"
 	"NeuroController/internal/bootstrap"
 	"NeuroController/internal/utils"
+
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 func main() {
@@ -37,6 +40,9 @@ func main() {
 	// ✅ 设置 controller-runtime 的日志系统（应最先调用）
 	// ctrl.SetLogger(zap.New(zap.UseDevMode(false))) // (true): 开发模式 / (false): 生产模式
 	// utils.InitLogger() // 初始化 zap 日志记录器
+
+	// ✅ 设置默认的结构化日志后端，防止 controller-runtime 报错
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	// ✅ 初始化 K8s API
 	utils.InitK8sClient()

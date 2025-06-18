@@ -16,46 +16,37 @@
 package slack
 
 import (
-	"NeuroController/config"
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"net/http"
+	"NeuroController/interfaces"
+	"log"
 )
 
-// SendSlackAlert 发送 BlockKit 消息到 Slack Webhook
-func SendSlackAlert(payload map[string]interface{}) error {
+func DispatchSlackAlertFromCleanedEvents() {
 
-	webhookURL := config.GlobalConfig.Slack.WebhookURL
-
-	if webhookURL == "" {
-		return fmt.Errorf("Slack Webhook 未配置（SLACK_WEBHOOK_URL）")
+	// ✅ 获取清洗后的事件池
+	events := interfaces.GetCleanedEventLogs()
+	if len(events) == 0 {
+		return
 	}
 
-	// ✅ JSON 编码
-	body, err := json.Marshal(payload)
+	// ✅ 过滤出新增事件（未发送过的）
+	newEvents := filterNewEvents(events)
+	if len(newEvents) == 0 {
+		// log.Println("🔁 [SlackDispatch] 当前无新增事件，跳过 Slack 发送")
+		return
+	}
+
+	// ✅ 格式化为轻量级告警数据
+	shouldAlert, subject, data := interfaces.GetLightweightAlertGroup(newEvents)
+	if !shouldAlert {
+		log.Println("✅ [SlackDispatch] 当前无异常事件，未触发 Slack 告警。")
+		return
+	}
+
+	// ✅ 构建 BlockKit 并节流发送
+	err := SendSlackAlertWithThrottle(subject, data)
 	if err != nil {
-		return fmt.Errorf("JSON 编码失败: %v", err)
+		log.Printf("❌ [SlackDispatch] Slack 发送失败: %v\n", err)
+	} else {
+		log.Printf("📬 [SlackDispatch] Slack 告警已发送，标题: \"%s\"\n", subject)
 	}
-
-	// ✅ 构造 POST 请求
-	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(body))
-	if err != nil {
-		return fmt.Errorf("构造请求失败: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	// ✅ 执行请求
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("Slack 请求失败: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// ✅ 返回状态检查
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("Slack 返回异常状态码: %d", resp.StatusCode)
-	}
-
-	return nil
 }

@@ -16,10 +16,8 @@
 package slack
 
 import (
-	"NeuroController/interfaces"
 	"NeuroController/internal/types"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -51,26 +49,58 @@ func SendSlackAlertWithThrottle(subject string, data types.AlertGroupData) error
 	return SendSlackAlert(payload)
 }
 
-func DispatchSlackAlertFromCleanedEvents() {
+// =======================================================================================
+// 🧠 内部状态：已发送事件缓存（防止重复发送）
+// =======================================================================================
 
-	// ✅ 获取清洗后的事件池
-	events := interfaces.GetCleanedEventLogs()
-	if len(events) == 0 {
-		return
-	}
+var (
+	sentEventsMu sync.Mutex
+	sentEvents   = make(map[string]time.Time) // key: eventKey(LogEvent), value: 首次发送时间
+)
 
-	// ✅ 格式化为轻量级告警数据
-	shouldAlert, subject, data := interfaces.GetLightweightAlertGroup(events)
-	if !shouldAlert {
-		log.Println("✅ [SlackDispatch] 当前无异常事件，未触发 Slack 告警。")
-		return
-	}
+const sentEventTTL = 10 * time.Minute // ✅ 缓存保留时长（10分钟内不重复发）
 
-	// ✅ 构建 BlockKit 并节流发送
-	err := SendSlackAlertWithThrottle(subject, data)
-	if err != nil {
-		log.Printf("❌ [SlackDispatch] Slack 发送失败: %v\n", err)
-	} else {
-		log.Printf("📬 [SlackDispatch] Slack 告警已发送，标题: \"%s\"\n", subject)
+// ✅ 构造事件唯一标识
+func eventKey(ev types.LogEvent) string {
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+		ev.Kind,
+		ev.Namespace,
+		ev.Name,
+		ev.ReasonCode,
+		ev.Severity,
+		ev.Message,
+		ev.Category,
+		ev.Timestamp.Format(time.RFC3339),
+	)
+}
+
+// ✅ 清除过期缓存
+func cleanExpiredSentEvents() {
+	now := time.Now()
+	for key, t := range sentEvents {
+		if now.Sub(t) > sentEventTTL {
+			delete(sentEvents, key)
+		}
 	}
+}
+
+// ✅ 过滤“尚未发送”或“已过期”的事件
+func filterNewEvents(events []types.LogEvent) []types.LogEvent {
+	sentEventsMu.Lock()
+	defer sentEventsMu.Unlock()
+
+	// 🧹 清理过期记录
+	cleanExpiredSentEvents()
+
+	newEvents := make([]types.LogEvent, 0)
+	now := time.Now()
+
+	for _, ev := range events {
+		key := eventKey(ev)
+		if _, sent := sentEvents[key]; !sent {
+			newEvents = append(newEvents, ev)
+			sentEvents[key] = now // ✅ 标记发送时间
+		}
+	}
+	return newEvents
 }

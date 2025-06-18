@@ -20,23 +20,22 @@ package interfaces
 import (
 	"NeuroController/internal/alerter"
 	"NeuroController/internal/types"
-	"log"
 )
 
 func ComposeAlertGroupIfNecessary(events []types.LogEvent) (bool, string, types.AlertGroupData) {
 	shouldAlert, subject, data := alerter.EvaluateAlertsFromCleanedEvents(events)
 
-	if shouldAlert {
-		log.Println("📬 ComposeAlertGroupIfNecessary(): 触发邮件告警")
-		log.Printf("🧾 邮件标题: %s\n", subject)
-		log.Printf("📦 AlertGroupData: NodeList=%v, NamespaceList=%v, AlertCount=%d\n", data.NodeList, data.NamespaceList, data.AlertCount)
-		for _, item := range data.Alerts {
-			log.Printf("🔹 AlertItem: Kind=%s, Name=%s, Namespace=%s, Node=%s, Reason=%s, Message=%s, Time=%s\n",
-				item.Kind, item.Name, item.Namespace, item.Node, item.Reason, item.Message, item.Time)
-		}
-	} else {
-		log.Println("ℹ️ ComposeAlertGroupIfNecessary(): 暂不触发告警")
-	}
+	// if shouldAlert {
+	// 	log.Println("📬 ComposeAlertGroupIfNecessary(): 触发邮件告警")
+	// 	log.Printf("🧾 邮件标题: %s\n", subject)
+	// 	log.Printf("📦 AlertGroupData: NodeList=%v, NamespaceList=%v, AlertCount=%d\n", data.NodeList, data.NamespaceList, data.AlertCount)
+	// 	for _, item := range data.Alerts {
+	// 		log.Printf("🔹 AlertItem: Kind=%s, Name=%s, Namespace=%s, Node=%s, Reason=%s, Message=%s, Time=%s\n",
+	// 			item.Kind, item.Name, item.Namespace, item.Node, item.Reason, item.Message, item.Time)
+	// 	}
+	// } else {
+	// 	log.Println("ℹ️ ComposeAlertGroupIfNecessary(): 暂不触发告警")
+	// }
 
 	return shouldAlert, subject, data
 }

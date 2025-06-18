@@ -17,17 +17,16 @@ package interfaces
 import (
 	"NeuroController/internal/diagnosis"
 	"NeuroController/internal/types"
-	"log"
 )
 
 func GetCleanedEventLogs() []types.LogEvent {
 	events := diagnosis.GetCleanedEvents()
 
-	for _, ev := range events {
-		log.Printf("🔹 [%s] %s/%s (%s) @ %s → %s | %s\n",
-			ev.Kind, ev.Namespace, ev.Name, ev.Node, ev.Timestamp.Format("15:04:05"),
-			ev.ReasonCode, ev.Message)
-	}
+	// for _, ev := range events {
+	// 	log.Printf("🔹 [%s] %s/%s (%s) @ %s → %s | %s\n",
+	// 		ev.Kind, ev.Namespace, ev.Name, ev.Node, ev.Timestamp.Format("15:04:05"),
+	// 		ev.ReasonCode, ev.Message)
+	// }
 
 	return events
 }
