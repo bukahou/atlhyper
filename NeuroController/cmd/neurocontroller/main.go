@@ -1,21 +1,26 @@
 // =======================================================================================
-// 📄 cmd/controller/main.go
+// 📄 cmd/neurocontroller/main.go
 //
-// ✨ Description:
-//     Entry point of NeuroController. This is a Kubernetes controller plugin designed
-//     to run persistently inside the cluster. It dynamically enables modules such as
-//     Watcher, Webhook, Scaler, Reporter, and NeuroAI based on the config.yaml file.
+// 🧠 Entry Point of NeuroController
 //
-// 🧠 Startup Logic:
-//     1. Initialize the logging system (zap)
-//     2. Load configuration from config.yaml
-//     3. Initialize Kubernetes client (controller-runtime)
-//     4. Start modules in parallel as defined in the configuration
-//     5. Enter the main event loop to monitor and respond to cluster events
+// 🔍 Overview:
+//     NeuroController is a plugin-based Kubernetes controller that runs persistently
+//     within the cluster. It initializes core components such as logging, configuration,
+//     Kubernetes clients, diagnostics, and alerting systems.
 //
-// 📍 Deployment Recommendation:
-//     - Deploy as a Kubernetes Deployment or DaemonSet
-//     - Supports per-module enable/disable to fit different environments
+// ⚙️ Startup Flow:
+//     1. Initialize structured logging (Zap)
+//     2. Load configuration (from environment or config map)
+//     3. Initialize Kubernetes client (controller-runtime + rest.Config)
+//     4. Initialize metrics.k8s.io client (optional)
+//     5. Launch internal systems (e.g., diagnostics, cleaner)
+//     6. Launch external systems (e.g., Email, Slack, Webhook)
+//     7. Start controller manager (controller-runtime)
+//
+// 🚀 Deployment:
+//     - Recommended to deploy as a Kubernetes Deployment (DaemonSet also supported)
+//     - Modules can be enabled/disabled independently for flexibility
+//     - Lightweight resource usage; ideal for Raspberry Pi or edge environments
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // 📅 Created: June 2025

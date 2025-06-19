@@ -1,6 +1,11 @@
 #!/bin/bash
 
-# ⚠️ 注意：使用本脚本需本地已登录 Docker Hub（docker login）
+# ⚠️ 注意：このスクリプトを使用する前に、ローカルで Docker Hub にログインしてください（docker login）
+# ⚠️ Note: Please make sure you are logged in to Docker Hub locally (docker login) before running this script.
+#
+# 🔧 このスクリプトは個人用です。使用する場合は、IMAGE_NAME を自分のリポジトリに変更してください。
+# 🔧 This script is for personal use. If you want to use it, please change IMAGE_NAME to your own repository.
+
 
 set -e
 

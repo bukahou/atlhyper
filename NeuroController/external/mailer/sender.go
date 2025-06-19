@@ -1,3 +1,22 @@
+// =======================================================================================
+// 📄 external/mailer/dispatch.go
+//
+// 📬 Description:
+//     Main dispatcher for email alerts. This function is periodically invoked by the
+//     email scheduler to evaluate cleaned events and decide whether an email alert
+//     should be sent, with built-in recipient validation and throttling logic.
+//
+// ⚙️ Responsibilities:
+//     - Retrieve cleaned events from the diagnosis interface
+//     - Evaluate whether conditions for sending alerts are met
+//     - Format alert content and determine recipients
+//     - Trigger throttled email delivery via SendAlertEmailWithThrottle
+//
+// 📣 Recommended to be called on a regular interval by the scheduler.
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// =======================================================================================
+
 package mailer
 
 import (

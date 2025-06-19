@@ -2,8 +2,8 @@
 // 📄 external/bootstrap/bootstrap_external.go
 //
 // 🧠 Description:
-//     外部模块（如邮件、Slack、Webhook）的统一启动入口。
-//     推荐在 controller/main.go 中调用 StartExternalSystems 来初始化外部系统功能。
+//     Unified startup entry point for external modules such as Email, Slack, and Webhook.
+//     Recommended to be called from controller/main.go via StartExternalSystems.
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================
@@ -25,8 +25,6 @@ func StartExternalSystems() {
 	// ✅ 启动 Slack 调度器
 	bootstrap.StartSlackDispatcher()
 	// ✅ 其他模块预留位
-	// StartSlackDispatcher()
-	// StartWebhookDispatcher()
 	// ...
 
 	log.Println("✅ 所有外部组件启动完成。")

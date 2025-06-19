@@ -2,14 +2,15 @@
 // 📄 interface/alert_group_builder_api.go
 //
 // 📦 Description:
-//     Alerter 模块的接口桥接层，暴露格式化告警构建函数。
-//     封装 EvaluateAlertsFromCleanedEvents，提供统一调用点给调度器或 external 模块。
+//     Interface bridge for the Alerter module, exposing formatted alert construction logic.
+//     Wraps EvaluateAlertsFromCleanedEvents and provides a unified entry point for
+//     dispatchers and external modules.
 //
 // 🔌 Responsibilities:
-//     - 从事件集合中评估是否触发告警
-//     - 构造用于邮件/告警展示的 AlertGroupData 数据结构
+//     - Evaluate whether an alert should be triggered from a set of events
+//     - Construct AlertGroupData for use in email or alert display
 //
-// 🧩 内部依赖：
+// 🧩 Internal Dependency:
 //     - alerter.EvaluateAlertsFromCleanedEvents
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)

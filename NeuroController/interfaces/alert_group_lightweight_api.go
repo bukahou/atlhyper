@@ -2,14 +2,15 @@
 // 📄 interface/alert_group_lightweight_api.go
 //
 // 📦 Description:
-//     提供轻量级告警展示接口，无需严格触发判断，适用于 Slack 可视化场景。
-//     封装 FormatAllEventsLight，统一对外展示事件概览格式。
+//     Provides a lightweight alert display interface without strict triggering logic,
+//     suitable for visual summaries (e.g., Slack alert views).
+//     Wraps FormatAllEventsLight to generate unified event overviews.
 //
 // 🔌 Responsibilities:
-//     - 获取清洗池数据（GetCleanedEventLogs）
-//     - 使用轻量格式 FormatAllEventsLight 构造 AlertGroupData
+//     - Fetch cleaned event pool (GetCleanedEventLogs)
+//     - Build AlertGroupData using FormatAllEventsLight
 //
-// 🧩 内部依赖：
+// 🧩 Internal Dependency:
 //     - alerter.FormatAllEventsLight
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)

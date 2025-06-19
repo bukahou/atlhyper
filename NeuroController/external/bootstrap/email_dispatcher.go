@@ -2,15 +2,16 @@
 // 📄 external/bootstrap/email_dispatcher.go
 //
 // 📬 Description:
-//     核心邮件告警调度器。该模块由诊断系统周期性调用，统一处理清洗后的告警事件。
-//     若事件满足触发条件，则构造邮件并通过节流控制器发送邮件告警。
+//     Core email alert dispatcher module. Periodically invoked by the diagnosis system,
+//     it processes cleaned events, evaluates alert conditions, and sends email notifications
+//     through a throttled mailer mechanism.
 //
 // ⚙️ Responsibilities:
-//     - 从 diagnosis 获取已清洗事件
-//     - 调用 alerter 模块判断是否触发告警
-//     - 构造 AlertGroupData 并通过 mailer 发送（支持节流）
+//     - Fetch cleaned events from the diagnosis system
+//     - Evaluate alert triggers via the `alerter` module
+//     - Format and send `AlertGroupData` using the `mailer`, with throttling support
 //
-// 📣 推荐由清理器模块周期性调度调用
+// 🕒 Recommended to be scheduled periodically by the cleaner or on controller startup.
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================

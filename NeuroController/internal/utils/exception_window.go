@@ -2,14 +2,19 @@
 // 📄 exception_window.go
 //
 // ✨ Description:
-//     Exception window controller to suppress repeated exceptions, preventing
-//     Reconcile loops and log spamming.
-//     Implements exception fingerprinting using kind + name + namespace + reason.
+//     Exception suppression controller to prevent redundant alerting and logging,
+//     particularly within reconcile loops. Implements a fingerprint-based mechanism
+//     using kind + name + namespace + reason to uniquely track exception states.
 //
 // 📦 Provided Functions:
-//     - GenerateExceptionID(kind, name, namespace, reason): Generate unique exception ID
-//     - ShouldProcessException(id, now, cooldown): Determine whether the exception should be processed
-//     - ResetException(id): Manually reset the state of an exception (e.g. after recovery)
+//     - GenerateExceptionID(kind, name, namespace, reason): Generate a unique identifier
+//     - ShouldProcessException(id, now, cooldown): Determine whether the exception should
+//         be processed based on cooldown and activity status
+//     - ResetException(id): Mark an exception as resolved, allowing future triggers
+//
+// 🧠 Use Cases:
+//     - Avoid repetitive exception logging
+//     - Stabilize controllers by suppressing noisy reprocessing
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // 📅 Created: June 2025

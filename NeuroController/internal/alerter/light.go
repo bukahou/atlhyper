@@ -2,14 +2,14 @@
 // 📄 internal/alerter/light.go
 //
 // 🧊 Description:
-//     提供轻量级告警格式化逻辑，用于展示当前清洗池中的所有事件，
-//     不依赖 Deployment 异常副本比例或持续时间，仅作为事件总览用。
-//     适用于 Slack 或其他需要快速提示的渠道。
+//     Provides lightweight alert formatting logic to present all current events in the
+//     cleaned event pool. This does not rely on Deployment-level thresholds or duration.
+//     Primarily intended for quick overviews in channels like Slack.
 //
-// 🔎 特点：
-//     - 不包含任何触发判断（无 shouldAlert 判断）
-//     - 仅负责格式化清洗池中已有的 LogEvent 为 AlertGroupData
-//     - 所有资源种类均可纳入格式化（不限于 Pod）
+// 🔎 Features:
+//     - No alert triggering logic (no shouldAlert evaluation)
+//     - Only responsible for formatting existing LogEvent data into AlertGroupData
+//     - Supports all resource kinds (not limited to Pods)
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================

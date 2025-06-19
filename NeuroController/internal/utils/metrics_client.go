@@ -1,3 +1,28 @@
+// =======================================================================================
+// 📄 metrics_client.go
+//
+// ✨ Description:
+//     Provides initialization and access to the Kubernetes metrics.k8s.io API client,
+//     used to query node/pod-level resource usage (CPU, memory) for observability.
+//
+// 🛠️ Provided Functions:
+//     - InitMetricsClient(): Initializes the metrics.k8s.io client (thread-safe, optional)
+//     - GetMetricsClient(): Returns the initialized metrics client instance
+//     - HasMetricsServer(): Checks whether metrics-server is available
+//
+// 📦 Features:
+//     - Uses shared rest.Config from utils.GetRestConfig()
+//     - Handles absence of metrics-server gracefully without panicking
+//     - Designed for integration with monitoring modules
+//
+// 📍 Usage:
+//     - Call InitMetricsClient() once during startup
+//     - Use HasMetricsServer() before relying on metrics data
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// 📅 Created: June 2025
+// =======================================================================================
+
 package utils
 
 import (

@@ -2,10 +2,30 @@
 // 📄 deployment_util.go
 //
 // ✨ Description:
-//     1️⃣ GetDeploymentNameFromPod(): Trace the Deployment name a Pod belongs to via ReplicaSet ownerRef.
-//     2️⃣ CheckDeploymentReplicaStatusByName(): Fetch and verify replica state for a specific Deployment.
+//     Utility functions for inferring and checking the Deployment associated with a given Pod.
+//
+//     1️⃣ GetDeploymentNameFromPod():
+//         Traces the Deployment a Pod belongs to via its ReplicaSet owner reference.
+//
+//     2️⃣ CheckDeploymentReplicaStatusByName():
+//         Retrieves replica status for a specific Deployment (desired vs ready vs unavailable).
+//
+//     3️⃣ ExtractDeploymentName():
+//         Infers Deployment name from Pod name using controller references or fallback pattern.
+//
+//     4️⃣ IsDeploymentRecovered():
+//         Determines whether a Deployment has recovered based on its ReadyReplicas.
+//
+//     5️⃣ GetExpectedReplicaCount():
+//         Returns the desired replica count for a given Deployment, or a fallback value.
+//
+// 🧠 Use Cases:
+//     - Tracing Deployment ownership of abnormal Pods
+//     - Aggregating events for alert grouping
+//     - Evaluating Deployment health status
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
+// 📅 Created: June 2025
 // =======================================================================================
 
 package utils

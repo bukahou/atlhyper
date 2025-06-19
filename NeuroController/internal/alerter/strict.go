@@ -1,26 +1,29 @@
 // =======================================================================================
 // 📄 alerter/alerter.go
 //
-// ✨ 文件说明：
-//     实现清理事件评估函数 EvaluateAlertsFromCleanedEvents，用于从清理后的事件集中判断是否需要触发告警。
-//     告警逻辑基于 Deployment 可用性判断，当前默认以邮件方式发送聚合告警信息。
-//     本模块核心职责是从清洗池构建具有人类可读性和分组展示的告警载体。
+// ✨ Description:
+//     Implements the EvaluateAlertsFromCleanedEvents function, which evaluates whether
+//     an alert should be triggered based on cleaned events.
+//     The logic centers around Deployment availability and aggregates alerts for
+//     email delivery.
 //
-// 📦 核心功能：
-//     - 解析 Pod 异常事件并追踪其所属 Deployment 状态
-//     - 判断是否满足触发告警条件（使用内部状态机）
-//     - 构造 AlertGroupData（聚合格式）用于邮件展示
-//     - 使用邮件发送器进行发送（含节流控制）
+// 📦 Responsibilities:
+//     - Parse abnormal Pod events and track their parent Deployment state
+//     - Determine if alert conditions are met using internal state machines
+//     - Build human-readable and grouped AlertGroupData for email notification
+//     - Send alert email using throttled mailer logic
 //
-// 🧩 模块依赖：
-//     - diagnosis/types.LogEvent：来源于诊断模块的标准事件结构
-//     - utils.ExtractDeploymentName：解析 Pod 所属的 Deployment 名称
-//     - alerter.UpdatePodEvent：更新并判断 Deployment 是否需告警
-//     - mailer.SendAlertEmailWithThrottle：封装邮件发送及节流
+// 🧩 Dependencies:
+//     - diagnosis/types.LogEvent: normalized event structure from diagnosis module
+//     - utils.ExtractDeploymentName: extracts Deployment name from Pod name
+//     - alerter.UpdatePodEvent: updates internal state and evaluates alert conditions
+//     - mailer.SendAlertEmailWithThrottle: email dispatch function with throttling
 //
-// 📝 使用建议：
-//     - 推荐由定时任务或清理器回调调用此模块
-//     - 后续若支持多通道（如 Slack/Webhook）可在此基础上扩展输出端
+// 📝 Usage Recommendation:
+//     - Recommended to be invoked periodically or via diagnosis module callbacks
+//     - Future support for multi-channel alerts (e.g. Slack/Webhook) can be added here
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================
 
 package alerter

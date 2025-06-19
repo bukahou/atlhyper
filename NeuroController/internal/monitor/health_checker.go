@@ -1,3 +1,26 @@
+// =======================================================================================
+// 📄 monitor/k8s_health.go
+//
+// ✨ Description:
+//     Implements periodic health checking of the Kubernetes API Server,
+//     updating the shared status variable `K8sAvailable` accordingly.
+//
+// 📦 Responsibilities:
+//     - Perform on-demand /healthz checks via controller-runtime rest.Config
+//     - Maintain status cache (`lastK8sStatus`) and expose current state
+//     - Exit the process if Kubernetes API is deemed unreachable
+//
+// 🔐 Internal:
+//     - Uses mutex `apiCheckMu` to ensure thread-safe updates to status
+//     - Designed for use by background schedulers in bootstrap phase
+//
+// 🚨 Notes:
+//     - Will terminate the process (os.Exit) upon consecutive failures
+//     - TLS verification is bypassed only in internal client for controlled use
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// =======================================================================================
+
 package monitor
 
 import (

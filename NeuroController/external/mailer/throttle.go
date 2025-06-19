@@ -2,13 +2,16 @@
 // 📄 alerter/email_throttle.go
 //
 // ✉️ Description:
-//     提供带有节流机制的邮件告警功能，防止在短时间内重复发送相似的邮件。
-//     对外只暴露 SendAlertEmailWithThrottle 接口，确保统一管理告警邮件的发送频率。
+//     Provides a throttled email alerting mechanism to prevent duplicate notifications
+//     within short time intervals. Only exposes the unified interface
+//     SendAlertEmailWithThrottle for controlled email delivery.
 //
 // ⚙️ Features:
-//     - 节流间隔配置为 1 小时（throttleInterval）
-//     - 线程安全地记录和检查上一次发送邮件的时间
-//     - 日志记录每次尝试是否成功触发告警
+//     - Throttle interval set to 1 hour (throttleInterval)
+//     - Thread-safe tracking of last email send time
+//     - Logs each invocation to indicate whether alert was triggered or skipped
+//
+// 📣 Use this as the only entry point for sending email alerts from external modules.
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================

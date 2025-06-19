@@ -2,13 +2,13 @@
 // 📄 external/slack/sender.go
 //
 // 📦 Description:
-//     负责将构造好的 Slack BlockKit 消息 POST 到 Slack Webhook URL。
-//     使用标准 HTTP POST + JSON 编码完成发送。
+//     Responsible for posting formatted Slack BlockKit messages to the configured
+//     Slack Webhook URL using standard HTTP POST with JSON encoding.
 //
 // 🔌 Responsibilities:
-//     - JSON 编码 payload
-//     - 读取 Webhook URL（建议从 config 或环境变量）
-//     - 发送 POST 请求
+//     - Encode alert payload into JSON
+//     - Read Webhook URL (recommended from config or environment variables)
+//     - Send HTTP POST request to Slack
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================

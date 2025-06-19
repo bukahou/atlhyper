@@ -2,11 +2,15 @@
 // 📄 internal/monitor/metrics_collector.go
 //
 // ✨ Description:
-//     收集集群中各个 Node 的资源使用情况（CPU 和内存），
-//     用于轻量级告警格式中补充实时节点状态信息，提升诊断上下文。
+//     Collects real-time CPU and memory usage of each Node in the Kubernetes cluster.
+//     Designed for use in lightweight alerts to enhance diagnostic context.
 //
-// 📊 提供函数：
-//     - GetNodeResourceUsage(): 返回 map[nodeName] => CPU 占用率 + 内存使用情况
+// 📊 Provided Function:
+//     - GetNodeResourceUsage(): Returns map[nodeName] => CPU & memory usage summary
+//
+// 📦 Usage:
+//     - Enhances alert formatting with live resource utilization
+//     - Skips collection if metrics-server is unavailable
 //
 // 🧑‍💻 Author: bukahou (@ZGMF-X10A)
 // =======================================================================================

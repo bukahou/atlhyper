@@ -2,8 +2,16 @@
 // 📄 external/bootstrap/slack_dispatcher.go
 //
 // 💬 Description:
-//     启动 Slack 告警调度器。周期性检查是否需要告警并通过 Slack Webhook 发送。
-//     行为与 Email 告警完全对称，支持节流机制，避免告警风暴。
+//     Slack alert dispatcher module. Periodically evaluates cleaned events and sends
+//     lightweight alerts to Slack via webhook. Symmetrical in behavior to the email
+//     dispatcher and includes throttling to prevent alert storms.
+//
+// ⚙️ Responsibilities:
+//     - Periodically check cleaned alert events
+//     - Determine whether Slack alerts should be triggered
+//     - Send formatted `AlertGroupData` via Slack Webhook with rate limiting
+//
+// 🕒 Recommended to be initialized on controller startup.
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================

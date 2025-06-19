@@ -2,16 +2,23 @@
 // 📄 internal/bootstrap/manager.go
 //
 // ✨ Description:
-//     Encapsulates the startup logic of controller-runtime's manager,
-//     responsible for loading all Watchers and starting the control loop.
-//     Acts as the core bootstrap module for cmd/neurocontroller/main.go,
-//     decoupling the main function from registration logic.
+//     Encapsulates the startup logic for controller-runtime's Manager,
+//     responsible for initializing and starting all registered Watchers.
+//     Serves as the primary bootstrap module invoked from cmd/neurocontroller/main.go,
+//     decoupling main function from core registration and lifecycle logic.
 //
-// 📦 Provided Features:
-//     - StartManager(): Starts the controller-runtime manager.
+// 📦 Features:
+//     - StartManager(): Initializes and starts the controller-runtime manager.
+//     - Handles kubeconfig resolution (external or in-cluster)
+//     - Registers and runs all Watcher modules via watcher.RegisterAllWatchers
 //
-// 📍 Usage Scenario:
-//     - Called by main.go as the unified entry point to launch controllers.
+// 📍 Usage:
+//     - Call StartManager() from main.go to launch controller lifecycle.
+//
+// 🧩 Dependencies:
+//     - sigs.k8s.io/controller-runtime
+//     - watcher.RegisterAllWatchers
+//     - client-go rest/config resolution
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // 📅 Created: June 2025

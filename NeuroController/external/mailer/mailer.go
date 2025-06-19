@@ -1,3 +1,22 @@
+// =======================================================================================
+// 📄 external/mailer/sender.go
+//
+// 📧 Description:
+//     Responsible for formatting and sending email alerts using SMTP. This module is
+//     invoked by the alert dispatchers once an alert is determined necessary.
+//
+// ⚙️ Responsibilities:
+//     - Load SMTP configuration from global config
+//     - Render the HTML email template using AlertGroupData
+//     - Construct and send an email with proper headers and HTML content
+//
+// ✅ Supports:
+//     - UTF-8 and HTML formatted messages
+//     - External SMTP authentication and multi-recipient delivery
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// =======================================================================================
+
 package mailer
 
 import (

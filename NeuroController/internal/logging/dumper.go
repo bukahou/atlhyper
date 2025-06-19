@@ -1,13 +1,26 @@
-// DumpEventsToJSONFile ✅ 将传入的结构化事件列表追加写入 JSON 格式日志文件（换行分隔）
+// =======================================================================================
+// 📄 logging/dump.go
 //
-// 📦 功能：
-//   - 支持在 Kubernetes 容器内或本地开发环境下写入日志文件
-//   - 每条事件独立以 JSON 格式序列化并换行写入（方便 Filebeat/Fluentd 解析）
-//   - 写入位置根据运行环境自动切换（/var/log/neurocontroller 或 ./logs）
+// ✨ Description:
+//     Implements a file-based logger that writes structured Kubernetes diagnostic events
+//     into a newline-delimited JSON log file for long-term storage or log shipping.
 //
-// 🚨 错误处理：
-//   - 若目录或文件创建失败，会记录日志并跳过写入
-//   - 每条事件单独序列化与写入，不影响其他事件持久化
+// 📦 Responsibilities:
+//     - Serialize each LogEvent into one-line JSON
+//     - Determine output directory based on runtime environment (Kubernetes vs local)
+//     - Append to a persistent log file (`cleaned_events.log`)
+//
+// 🧩 Features:
+//     - Compatible with log collectors like Filebeat or Fluentd
+//     - Supports both containerized and local development environments
+//     - Fault-tolerant: one failed entry doesn't block others
+//
+// 🚨 Error Handling:
+//     - Logs failures to create directories or open files
+//     - Skips problematic events without interrupting others
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// =======================================================================================
 
 package logging
 

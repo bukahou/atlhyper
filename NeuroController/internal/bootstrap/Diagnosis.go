@@ -2,13 +2,26 @@
 // 📄 diagnosis/diagnosis_init.go
 //
 // ✨ Description:
-//     Entry point for starting the diagnosis system.
-//     Initializes and launches both the log cleaner and log writer.
+//     Entry point for initializing and launching the diagnosis subsystem.
+//     This includes launching the log cleaner, the log file writer, and the Kubernetes
+//     API server health checker.
 //
 // 📦 Responsibilities:
-//     - Configure intervals for cleaning and writing logs
-//     - Start the cleaner loop (deduplication + retention)
-//     - Start the file writer loop (deduplicated persistent logs)
+//     - Periodically clean and store deduplicated events (CleanAndStoreEvents)
+//     - Periodically persist cleaned events to disk (WriteNewCleanedEventsToFile)
+//     - Monitor cluster health by probing the API server (/healthz)
+//
+// 🧩 Modules Involved:
+//     - diagnosis.CleanAndStoreEvents: deduplication + retention
+//     - logging.WriteNewCleanedEventsToFile: log persistence
+//     - monitor.StartK8sHealthChecker: API server availability check
+//
+// 🕘 Interval Control:
+//     - Cleaning interval is set via DiagnosisConfig.CleanInterval
+//     - Log writing interval is set via DiagnosisConfig.WriteInterval
+//     - Health check interval is set via KubernetesConfig.APIHealthCheckInterval
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================
 
 package bootstrap

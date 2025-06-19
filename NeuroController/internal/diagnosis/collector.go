@@ -2,13 +2,20 @@
 // 📄 diagnosis/collector.go
 //
 // ✨ Description:
-//     Provides a unified interface for collecting abnormal events from various
-//     Kubernetes resources (Pod, Node, Event, Endpoint, etc.).
+//     Provides a unified entry point for collecting abnormal events from various
+//     Kubernetes resources such as Pod, Node, Event, Endpoint, Deployment, and Service.
 //
 // 📦 Responsibilities:
-//     - Define the LogEvent structure for consistent event representation
-//     - Provide entry points for each resource type to report abnormal states
-//     - Append events to the internal event pool for further processing
+//     - Define the global event pool (`eventPool`) for temporarily storing raw events
+//     - Normalize all collected events into a consistent `LogEvent` structure
+//     - Provide collection functions per resource type (e.g., CollectPodAbnormalEvent)
+//     - Feed events into the diagnosis pipeline for deduplication, alerting, and logging
+//
+// 🔐 Notes:
+//     - All appends to the event pool are thread-safe using global `mu` lock
+//     - Events are tagged with metadata like Kind, ReasonCode, Severity, and Timestamp
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================
 
 package diagnosis

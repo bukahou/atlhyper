@@ -1,3 +1,19 @@
+// =======================================================================================
+// 📄 external/slack/webhook.go
+//
+// 🌐 Description:
+//     Sends a Slack BlockKit message via HTTP POST to the configured Slack Webhook URL.
+//     Encodes the payload as JSON and performs the request with appropriate headers.
+//
+// 🔧 Responsibilities:
+//     - Marshal payload into JSON format
+//     - Read Slack Webhook URL from configuration
+//     - Construct and send HTTP POST request
+//     - Handle response status and errors gracefully
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// =======================================================================================
+
 package slack
 
 import (

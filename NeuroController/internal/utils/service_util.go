@@ -2,10 +2,16 @@
 // 📄 service_util.go
 //
 // ✨ Description:
-//     1️⃣ GetServiceNameFromPod(): Match a Service based on a Pod's label selector.
-//     2️⃣ CheckServiceEndpointStatus(): Check whether a Service has ready Endpoints.
+//     1️⃣ GetServiceNameFromPod(): Match a Service by inspecting a Pod’s label selectors.
+//     2️⃣ CheckServiceEndpointStatus(): Check whether the matched Service has ready Endpoints.
+//
+// 📦 Features:
+//     - Resolves Service association dynamically via label selectors
+//     - Supports diagnostic workflows involving Service-Pod mapping
+//     - Can be extended to verify endpoint availability
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
+// 📅 Created: June 2025
 // =======================================================================================
 
 package utils

@@ -2,13 +2,13 @@
 // 📄 external/slack/throttle.go
 //
 // 💬 Description:
-//     提供带节流机制的 Slack 告警发送逻辑，防止重复发送相同类型告警。
-//     默认节流间隔为 5 分钟，可调整以适应消息量。
+//     Provides a throttled Slack alert mechanism to avoid sending duplicate alerts
+//     within a short time window. Helps prevent alert storms.
 //
 // 🔐 Features:
-//     - 内置互斥锁，保证并发安全
-//     - 外部统一调用 SendSlackAlertWithThrottle
-//     - 自动过滤频繁触发但状态未变化的告警
+//     - Built-in mutex for thread-safe operation
+//     - Exposes a single entry point: SendSlackAlertWithThrottle
+//     - Automatically filters repeated alerts with unchanged state
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================

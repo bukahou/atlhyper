@@ -2,13 +2,15 @@
 // 📄 alerter/deployment_tracker.go
 //
 // 🩺 Description:
-//     监控 Deployment 下的 Pod 异常状态，并基于持续时间判断是否触发告警。
-//     核心逻辑包括：异常记录缓存、告警阈值判断、状态快照导出、异常类型判定等。
+//     Monitors abnormal Pod statuses under a Deployment and determines whether to trigger
+//     an alert based on the duration of the issue. Core logic includes caching abnormal
+//     states, threshold evaluation, state snapshots, and severity classification.
 //
 // ⚙️ Features:
-//     - 支持 Deployment 粒度的健康状态追踪
-//     - 判断异常 Pod 数是否达到副本数，且异常持续时间超过阈值才触发告警
-//     - 提供调试日志和状态快照方法
+//     - Tracks health status at the Deployment level
+//     - Triggers alerts only when abnormal Pod count meets replica threshold *and*
+//       the issue persists beyond a configured duration
+//     - Provides debug logs and snapshot export functions
 //
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================

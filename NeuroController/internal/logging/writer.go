@@ -1,14 +1,22 @@
-// WriteNewCleanedEventsToFile ✅ 将清理池中“新增或变更”的事件写入 JSON 文件（带写入缓存去重）
+// =======================================================================================
+// 📄 logging/write.go
 //
-// ✨ 功能：
-//   - 避免重复写入：仅写入与上一次相比内容发生变化的事件
-//   - 记录写入缓存（lastWriteMap），用于判断事件是否“真正更新”
-//   - 使用互斥锁 writeMu 保证并发安全
-//   - 写入时调用 DumpEventsToJSONFile，并用 recover 防止崩溃
+// ✨ Description:
+//     Writes only "new or updated" events from the cleaned event pool into a JSON log file.
+//     Implements caching and diffing logic to avoid duplicate entries.
 //
-// 📦 使用场景：
-//   - 由定时器周期性触发，将更新过的清理事件持久化
-//   - 提供结构化日志供后续分析与查询
+// 📦 Responsibilities:
+//     - Deduplicate writes using an in-memory cache (`lastWriteMap`)
+//     - Serialize updated events into newline-delimited JSON
+//     - Use mutex `writeMu` for thread safety during write operations
+//     - Wrap write logic in `recover()` to protect from runtime panics
+//
+// 🔄 When to Use:
+//     - Called periodically by a timer to persist updated diagnostic events
+//     - Suitable for structured logging to support analytics, audit, or debugging pipelines
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
+// =======================================================================================
 
 package logging
 

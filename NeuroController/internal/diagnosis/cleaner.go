@@ -2,27 +2,28 @@
 // 📄 diagnosis/cleaner.go
 //
 // ✨ Description:
-//     Implements log event cleanup logic for Kubernetes event-based diagnostics.
-//     Responsible for maintaining a deduplicated and time-filtered event pool,
-//     which serves as the core data source for alert evaluation, reporting,
-//     and persistent logging.
+//     Implements the event cleanup and deduplication logic for the diagnostic subsystem.
+//     Maintains two pools:
+//       - `eventPool`: raw incoming Kubernetes events (volatile)
+//       - `cleanedEventPool`: deduplicated, retention-aware pool used for alerting & logging
 //
 // 🧼 Responsibilities:
-//     - ⏳ Time-based expiration of raw event pool (`eventPool`)
-//     - 🔁 Deduplication and merging of similar events into `cleanedEventPool`
-//     - 🧵 Thread-safe access and mutation using global mutex `mu`
-//     - 🧪 Provides a clean and consistent event snapshot to alerting and output modules
-//     - 🕓 Executed periodically by the background cleaner scheduler
+//     - ⏳ Remove expired events from `eventPool` based on configurable duration
+//     - 🔁 Deduplicate events into `cleanedEventPool` using Kind|Namespace|Name|ReasonCode
+//     - 🔐 Provide thread-safe access via global mutex `mu`
+//     - 📦 Expose cleaned pool to other modules (e.g., alert evaluators, file writers)
 //
-// 🔐 Thread-Safety:
-//     - All public mutation and access functions are protected with `mu` (sync.Mutex)
-//     - `CleanAndStoreEvents()` locks the entire lifecycle in one atomic operation
+// 🧵 Thread-Safety:
+//     - All mutation and access logic is guarded by `mu`
+//     - `CleanAndStoreEvents()` performs a full atomic cleanup pass
 //
-// 📦 Used by:
-//     - diagnosis/cleaner.go (internal logic)
-//     - alerter/alerter.go (for alert evaluation)
-//     - writer/logwriter.go (for file-based logging)
-//     - any external modules calling `GetCleanedEvents()`
+// 📎 Used By:
+//     - diagnosis/diagnosis_init.go (periodic scheduler)
+//     - alerter/alerter.go (alert trigger logic)
+//     - logging/logwriter.go (persistent logs)
+//     - external modules via `GetCleanedEvents()`
+//
+// ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================
 
 package diagnosis

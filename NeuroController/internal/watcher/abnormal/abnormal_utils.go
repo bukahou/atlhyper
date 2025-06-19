@@ -1,8 +1,21 @@
 // =======================================================================================
 // 📄 abnormal_utils.go
 //
-// ✨ 功能说明：
-//     通用异常辅助函数（目前支持 Pod 异常主因提取）
+// ✨ Description:
+//     Common helper utilities for identifying abnormal conditions in Kubernetes resources.
+//     Currently supports extraction of root causes for Pod, Node, Deployment, Event,
+//     Service, and Endpoint objects.
+//
+// 📊 Provided Functions:
+//     - GetPodAbnormalReason(): Detects primary failure reason in Pod
+//     - GetNodeAbnormalReason(): Detects unhealthy Node conditions
+//     - GetDeploymentAbnormalReason(): Detects replica or rollout-related issues
+//     - GetEventAbnormalReason(): Extracts warnings from recent Events
+//     - GetServiceAbnormalReason(): Identifies issues with Service definitions
+//     - GetEndpointAbnormalReason(): Flags missing or unhealthy Endpoints
+//
+// 📝 Author: bukahou (@ZGMF-X10A)
+// 🗓 Created: June 2025
 // =======================================================================================
 
 package abnormal
