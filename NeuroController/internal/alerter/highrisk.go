@@ -114,7 +114,7 @@ func UpdatePodEvent(namespace string, podName string, deploymentName string, rea
 		// 若异常持续时间超过阈值且未发送过告警，则触发告警
 		if time.Since(state.FirstObserved) >= threshold && !state.Confirmed {
 			state.Confirmed = true // 标记已告警，避免重复发送
-			return true, fmt.Sprintf("🚨 服务 %s 异常副本占比 %.0f%%，已持续 %.0f 秒，请查看完整告警日志",
+			return true, fmt.Sprintf("🚨 サービス %s の異常レプリカ率が %.0f%% に達し、%.0f 秒以上継続しています。詳細なアラートログをご確認ください。",
 				deploymentName, ratioThreshold*100, threshold.Seconds())
 		}
 	} else {

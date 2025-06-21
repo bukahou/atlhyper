@@ -76,7 +76,7 @@ func FormatAllEventsLight(events []types.LogEvent) (bool, string, types.AlertGro
 		nsList = append(nsList, ns)
 	}
 
-	title := "📋 当前全告警事件"
+	title := "📋 現在発生中の全アラート一覧"
 	data := types.AlertGroupData{
 		Title:         title,
 		NodeList:      nodeList,

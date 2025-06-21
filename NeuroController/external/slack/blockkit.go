@@ -9,7 +9,7 @@ import (
 // BuildSlackBlockFromAlert 构造 Slack BlockKit 消息 JSON
 func BuildSlackBlockFromAlert(data types.AlertGroupData, subject string) map[string]interface{} {
 	blocks := []map[string]interface{}{
-		// 🚨 顶部标题
+		// 🚨 ヘッダータイトル
 		{
 			"type": "header",
 			"text": map[string]string{
@@ -17,19 +17,19 @@ func BuildSlackBlockFromAlert(data types.AlertGroupData, subject string) map[str
 				"text": "🚨 " + subject,
 			},
 		},
-		// 📊 命名空间 / 节点 / 告警数量（字段卡片）
+		// 📊 ネームスペース / ノード / アラート数（概要フィールド）
 		{
 			"type": "section",
 			"fields": []map[string]string{
-				{"type": "mrkdwn", "text": "*命名空间:*\n" + strings.Join(data.NamespaceList, ", ")},
-				{"type": "mrkdwn", "text": "*节点:*\n" + strings.Join(data.NodeList, ", ")},
-				{"type": "mrkdwn", "text": "*告警数量:*\n" + fmt.Sprintf("%d", data.AlertCount)},
+				{"type": "mrkdwn", "text": "*ネームスペース:*\n" + strings.Join(data.NamespaceList, ", ")},
+				{"type": "mrkdwn", "text": "*ノード:*\n" + strings.Join(data.NodeList, ", ")},
+				{"type": "mrkdwn", "text": "*アラート数:*\n" + fmt.Sprintf("%d", data.AlertCount)},
 			},
 		},
 		{"type": "divider"},
 	}
 
-	// 🧾 每条告警转为卡片式 fields 展示（限制最多 5 条）
+	// 🧾 各アラートをフィールドカードに変換（最大 30 件まで）
 	const maxItems = 30
 	for i, item := range data.Alerts {
 		if i >= maxItems {
@@ -37,13 +37,13 @@ func BuildSlackBlockFromAlert(data types.AlertGroupData, subject string) map[str
 		}
 
 		fields := []map[string]string{
-			{"type": "mrkdwn", "text": "*资源类型:*\n" + item.Kind},
-			{"type": "mrkdwn", "text": "*名称:*\n" + item.Name},
-			{"type": "mrkdwn", "text": "*命名空间:*\n" + item.Namespace},
-			{"type": "mrkdwn", "text": "*节点:*\n" + nonEmpty(item.Node)},
-			{"type": "mrkdwn", "text": "*时间:*\n" + item.Time},
-			{"type": "mrkdwn", "text": "*原因:*\n" + item.Reason},
-			{"type": "mrkdwn", "text": "*描述:*\n" + item.Message},
+			{"type": "mrkdwn", "text": "*リソース種別:*\n" + item.Kind},
+			{"type": "mrkdwn", "text": "*名前:*\n" + item.Name},
+			{"type": "mrkdwn", "text": "*ネームスペース:*\n" + item.Namespace},
+			{"type": "mrkdwn", "text": "*ノード:*\n" + nonEmpty(item.Node)},
+			{"type": "mrkdwn", "text": "*時刻:*\n" + item.Time},
+			{"type": "mrkdwn", "text": "*理由:*\n" + item.Reason},
+			{"type": "mrkdwn", "text": "*詳細:*\n" + item.Message},
 		}
 
 		blocks = append(blocks,

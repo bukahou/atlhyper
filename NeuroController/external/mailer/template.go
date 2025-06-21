@@ -22,10 +22,10 @@ func RenderAlertTemplate(data types.AlertGroupData) (string, error) {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>系统异常告警</title>
+    <title>システム異常アラート</title>
     <style>
         body {
-            font-family: "微软雅黑", sans-serif;
+            font-family: "メイリオ", sans-serif;
             background-color: #f4f4f4;
             padding: 20px;
         }
@@ -63,23 +63,23 @@ func RenderAlertTemplate(data types.AlertGroupData) (string, error) {
 </head>
 <body>
     <div class="container">
-        <h2>⚠️ 系统异常告警（共 {{.AlertCount}} 条）</h2>
-       <p><strong>涉及节点：</strong><br>
+        <h2>⚠️ システム異常アラート（全 {{.AlertCount}} 件）</h2>
+        <p><strong>影響ノード：</strong><br>
         {{range .NodeList}}{{.}}<br>{{end}}
         </p>
-        <p><strong>涉及命名空间：</strong> {{range .NamespaceList}}{{.}} {{end}}</p>
+        <p><strong>対象ネームスペース：</strong> {{range .NamespaceList}}{{.}} {{end}}</p>
 
         <table>
             <thead>
                 <tr>
-                    <th>资源类型</th>
-                    <th>名称</th>
-                    <th>命名空间</th>
-                    <th>节点</th> 
-                    <th>等级</th>
-                    <th>原因</th>
-                    <th>时间</th>
-                    <th>描述</th>
+                    <th>リソース種別</th>
+                    <th>名前</th>
+                    <th>ネームスペース</th>
+                    <th>ノード</th> 
+                    <th>重要度</th>
+                    <th>理由</th>
+                    <th>発生時刻</th>
+                    <th>説明</th>
                 </tr>
             </thead>
             <tbody>
@@ -99,7 +99,7 @@ func RenderAlertTemplate(data types.AlertGroupData) (string, error) {
         </table>
 
         <div class="footer">
-            此邮件由系统自动发出，请勿回复。
+            ※このメールはシステムより自動送信されています。返信しないでください。
         </div>
     </div>
 </body>

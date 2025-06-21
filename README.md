@@ -109,6 +109,19 @@ This architecture runs on low-resource environments like Raspberry Pi clusters w
 * Unified `AlertGroupData` format for all alerts
 * Deduplication and throttling built-in
 
+## 💬 Slack 告知例 / Slack Alert Example
+
+以下は Slack BlockKit を用いた軽量通知の実例です：
+
+![Slack Alert Sample](NeuroController/docs/images/slack.png)
+
+## 📧 メール通知例 / Email Alert Template
+
+システム異常が発生した場合に送信される HTML メール通知の実例：
+
+![Email Alert Sample](NeuroController/docs/images/mail.png)
+
+
 ### ・ログ清潔・持続化メカニズム
 
 ### ・Log Cleaning and Persistence
