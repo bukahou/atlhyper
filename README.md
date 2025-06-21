@@ -1,13 +1,91 @@
-# 🧠 NeuroController ・ プラグイン化 Kubernetes 異常監視コントローラ
-
-# 🧠 NeuroController ・ Plugin-Based Kubernetes Anomaly Controller
-
-**NeuroController** は、プラグイン構成の Kubernetes コントローラで、クラスタ内のコア資源 (Pod、Node、Service、Deployment、Event など)の異常状態を監視し、構造化ログの構築、イベントの取り扱いと告知管理を実現します。近代的なモジュールGo言語で実装され、低リソース環境や辺端デバイスでの運用に適しています。
-**NeuroController** is a plugin-based Kubernetes controller designed for monitoring resource anomalies across the cluster (Pod, Node, Service, Deployment, Event, etc.). It structures logs, deduplicates events, persists cleaned output, and manages multi-channel alerting. Built in modern Go, it runs effectively on edge devices and lightweight clusters.
+# 🧠 NeuroController ・ Plugin-Based Kubernetes Anomaly Controller 
 
 ---
 
-## ✨ プロジェクト特徴 / Project Highlights
+## 🛍️ Overview: End-to-End Observability Strategy
+
+### NeuroController ・三位一体の全栈監視構想（APM＋eBPF＋K8s異常）
+
+NeuroController は、APM による業務トレース、eBPF によるシステムコール収集、Kubernetes 資源の異常監視という三位一体の戦略に基づき、アプリ・システム・クラスタの全層を越える可観測性と制御機構を実現する Go 実装のプラグイン型コントローラです。
+さらに、今後は trace + metrics に基づく自動スケーリング・ロールバックや、Node 異常時の cordon/drain などの自徴的復旧機能も展開予定です。
+
+この構成において、Elastic APM + Kibana + Filebeat による業務トレースとログ・メトリクスの統合基盤が NeuroController の土台を構成し、M0〜M1 の機能を補完しています。
+
+### NeuroController: A Unified APM + eBPF + Kubernetes Alerting Architecture
+
+NeuroController delivers full-stack observability by combining three pillars: business trace via APM, system trace via eBPF, and cluster anomaly detection through Kubernetes event watchers. It is a plugin-based controller written in Go, designed to work in resource-constrained environments. Future expansions will include trace-driven autoscaling, rollback policies, and node-level self-healing through cordon/drain mechanisms.
+
+In this architecture, Elastic APM + Kibana + Filebeat provide the underlying trace and metric integration, forming the basis of M0–M1 functionality and enabling precise visibility.
+
+---
+
+## 🧹 Module Overview / モジュール構成
+
+| Module | Name                          | Status      | Description                                              |
+| ------ | ----------------------------- | ----------- | -------------------------------------------------------- |
+| M0     | Observability Core            | ✅ Done     | Logging, trace injection, APM initialization             |
+| M1     | Trace Correlation Engine      | ✅ Done     | Swift → Nginx → Gateway → Backend full trace propagation |
+| M2     | NeuroController Control Plane | 🏗️ In Dev   | Pluginized resource watcher + alert engine               |
+| M3     | User Behavior Module          | 🛌 Planned  | Client interaction trace & audit logs                    |
+| M4     | System-Level Trace Bridge     | ⚙️ In Dev   | eBPF syscall + PID ↔ TraceID mapping (双域橋接)            |
+| M5     | SLO Strategy Engine           | 🔬 Research | Policy-based rollback, autoscaling via trace metrics     |
+| M6     | Node Self-Healing Engine      | 🔬 Research | Node abnormality → automatic cordon/drain                |
+
+---
+
+## 🖼️ M0–M1: APM Trace Propagation Demo（全リンク業務トレースの可視化）
+
+NeuroController は Swift → Nginx → Gateway → Backend → Redis/TiDB に至るまで、traceID を越した APM チェーンを確立し、各ステージでの遅延を精富に測定できます。
+
+![APM Trace Example](docs/images/apm.png)
+
+This trace clearly demonstrates:
+
+* 📱 iOS frontend start time and transmission
+* 🌐 Nginx ingress and routing latency
+* 🧠 Gateway and gRPC internal spans
+* 🏢 Redis & TiDB storage backend breakdown
+
+このように、M0（ログと APM 初期化）と M1（trace の end-to-end 伝播）は完全に実装されており、ボトルネック分析と eBPF 連携の基盤となっています。
+
+---
+
+## 📎 M4: System-Level Trace Bridge（双域橋接 / Dual-Domain Binding）
+
+### 🌟 Goals / 目標
+
+* eBPF により syscall を収集し、業務トレースと結びつけ
+* 各リクエストごとの syscall レイテンシを可視化
+* コンテナとホストシステム層のギャップを補答
+
+### 🧠 Bridge Strategy / 橋接方式
+
+* 【業務トレース領域】: Swift フロントエンドが traceID と timestamp を発行
+* 【システムトレース領域】: Agent が PID / TID に基づき syscall を収集
+* 【橋接機構】: Agent 側で PID → traceID の一時キャッシュ（プール）を管理
+* PID がプール内に存在すれば、収集・時間計測・レポートを実行
+
+### 🚁 Agent Responsibilities / Agent 側
+
+* eBPF を使用し全 syscall を監視
+* trace プール内の PID に対してのみフィルタリング
+* 短命な PID→traceID キャッシュを TTL で管理
+* trace 情報を含む syscall span を controller に送信
+
+### 🛍️ Controller Role / Controller 側
+
+* traceID ごとに syscall span を集縮
+* APM 由来のトレースチェーンと結合し Kibana に表示
+* メトリクスしきい値による遅延 syscall のアラート化（オプション）
+
+---
+
+この構成は、Raspberry Pi クラスタや軽量クラウド環境でも実行可能であり、最小リソースでも最大の監視可視化能力を発揮するよう設計されています。
+This architecture runs on low-resource environments like Raspberry Pi clusters while providing full-spectrum observability and control.
+
+---
+
+## ✨ 現M2ジェクト特徴 / Project Highlights
 
 ### ・資源監視プラグインフレーム
 
