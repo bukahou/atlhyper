@@ -37,7 +37,7 @@ In this architecture, Elastic APM + Kibana + Filebeat provide the underlying tra
 
 NeuroController は Swift → Nginx → Gateway → Backend → Redis/TiDB に至るまで、traceID を越した APM チェーンを確立し、各ステージでの遅延を精富に測定できます。
 
-![APM Trace Example](docs/images/apm.png)
+![APM Trace Example](NeuroController/docs/images/apm.png)
 
 This trace clearly demonstrates:
 
