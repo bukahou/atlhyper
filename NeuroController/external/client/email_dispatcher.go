@@ -16,7 +16,7 @@
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================
 
-package bootstrap
+package client
 
 import (
 	"NeuroController/config"

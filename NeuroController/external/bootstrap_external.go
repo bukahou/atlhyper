@@ -11,7 +11,8 @@
 package external
 
 import (
-	"NeuroController/external/bootstrap"
+	"NeuroController/external/client"
+	"NeuroController/external/server"
 	"log"
 )
 
@@ -20,10 +21,13 @@ func StartExternalSystems() {
 	log.Println("🚀 启动外部系统组件 ...")
 
 	// ✅ 启动邮件调度器
-	bootstrap.StartEmailDispatcher()
+	client.StartEmailDispatcher()
 
 	// ✅ 启动 Slack 调度器
-	bootstrap.StartSlackDispatcher()
+	client.StartSlackDispatcher()
+
+	// ✅ 启动 Webhook Server（以协程方式）
+	go server.StartHTTPServer()
 	// ✅ 其他模块预留位
 	// ...
 
