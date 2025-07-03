@@ -11,7 +11,7 @@ import (
 func StartHTTPServer() {
 	router := InitRouter()
 
-	addr := ":8080" // 或使用 config 管理
+	addr := ":8081" // 或使用 config 管理
 	log.Printf("🚀 Webhook Server 启动监听 %s", addr)
 
 	if err := http.ListenAndServe(addr, router); err != nil {

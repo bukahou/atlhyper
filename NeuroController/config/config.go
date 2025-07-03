@@ -47,12 +47,17 @@ type SlackConfig struct {
 	EnableSlackAlert bool // 新增：是否启用 Slack 告警
 }
 
+type WebhookConfig struct {
+	Enable bool //是否启用webhook
+}
+
 // AppConfig 是整个系统的顶层配置结构体
 type AppConfig struct {
 	Diagnosis  DiagnosisConfig
 	Kubernetes KubernetesConfig
 	Mailer     MailerConfig
 	Slack      SlackConfig
+	Webhook    WebhookConfig
 }
 
 // GlobalConfig 是对外暴露的全局配置实例
@@ -85,8 +90,9 @@ var defaultStrings = map[string]string{
 
 // 默认布尔配置（支持覆盖）
 var defaultBools = map[string]bool{
-	"ENABLE_EMAIL_ALERT": true, // 默认关闭 Email 告警-false-true
-	"ENABLE_SLACK_ALERT": true, // 默认关闭 Slack 告警-false-true
+	"ENABLE_EMAIL_ALERT":    false, // 默认关闭 Email 告警-false-true
+	"ENABLE_SLACK_ALERT":    true,  // 默认关闭 Slack 告警-false-true
+	"ENABLE_WEBHOOK_SERVER": true,  // 默认关闭 WEBHOOK 告警-false-true
 }
 
 // 默认浮点数配置（支持覆盖）
@@ -132,6 +138,9 @@ func LoadConfig() {
 		WebhookURL:       getString("SLACK_WEBHOOK_URL"),
 		DispatchInterval: getDuration("SLACK_ALERT_DISPATCH_INTERVAL"),
 		EnableSlackAlert: getBool("ENABLE_SLACK_ALERT"),
+	}
+	GlobalConfig.Webhook = WebhookConfig{
+		Enable: getBool("ENABLE_WEBHOOK_SERVER"),
 	}
 
 	log.Printf("✅ 配置加载完成: %+v", GlobalConfig)

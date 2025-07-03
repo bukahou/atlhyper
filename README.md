@@ -85,7 +85,7 @@ This architecture runs on low-resource environments like Raspberry Pi clusters w
 
 ---
 
-## ✨ 現M2ジェクト特徴 / Project Highlights
+## ✨ 現M2プロジェクト特徴 / Project Highlights
 
 ### ・資源監視プラグインフレーム
 
@@ -196,29 +196,43 @@ NeuroController/
 │   │   └── config.go
 │   ├── Dockerfile
 │   ├── docs
-│   │   └── CHANGELOG.md
+│   │   ├── CHANGELOG.md
+│   │   └── images
+│   │       ├── apm.png
+│   │       ├── mail.png
+│   │       └── slack.png
 │   ├── external
-│   │   ├── bootstrap
+│   │   ├── bootstrap_external.go
+│   │   ├── client
 │   │   │   ├── email_dispatcher.go
 │   │   │   └── slack_dispatcher.go
-│   │   ├── bootstrap_external.go
-│   │   ├── DockerHub
 │   │   ├── mailer
 │   │   │   ├── mailer.go
 │   │   │   ├── sender.go
 │   │   │   ├── template.go
 │   │   │   └── throttle.go
-│   │   └── slack
-│   │       ├── blockkit.go
-│   │       ├── sender.go
-│   │       ├── slacker.go
-│   │       └── throttle.go
+│   │   ├── server
+│   │   │   ├── router.go
+│   │   │   └── server.go
+│   │   ├── slack
+│   │   │   ├── blockkit.go
+│   │   │   ├── sender.go
+│   │   │   ├── slacker.go
+│   │   │   └── throttle.go
+│   │   └── webhook
+│   │       ├── dockerHub
+│   │       │   ├── handler.go
+│   │       │   ├── parser.go
+│   │       │   └── register.go
+│   │       ├── github
+│   │       └── router.go
 │   ├── go.mod
 │   ├── go.sum
 │   ├── interfaces
 │   │   ├── alert_group_lightweight_api.go
 │   │   ├── alert_group_strict_api.go
-│   │   └── cleaned_event_api.go
+│   │   ├── cleaned_event_api.go
+│   │   └── deployment_cicd_api.go
 │   ├── internal
 │   │   ├── alerter
 │   │   │   ├── highrisk.go
@@ -228,6 +242,9 @@ NeuroController/
 │   │   │   ├── Diagnosis.go
 │   │   │   └── manager.go
 │   │   ├── bootstrap_internal.go
+│   │   ├── deployer
+│   │   │   ├── deployment_updater.go
+│   │   │   └── version_utils.go
 │   │   ├── diagnosis
 │   │   │   ├── cleaner.go
 │   │   │   └── collector.go
@@ -278,6 +295,7 @@ NeuroController/
 │   └── logs
 │       └── cleaned_events.log
 └── README.md
+
 
 
 ## 📊 例：構造化ログの出力 / Example: Structured Alert Logs

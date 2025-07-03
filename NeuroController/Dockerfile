@@ -35,6 +35,9 @@ RUN mkdir -p /var/log/neurocontroller && chmod -R 755 /var/log/neurocontroller
 # Make the binary executable
 RUN chmod +x ./neurocontroller
 
+# ✅ 明确暴露 Gin Webhook 服务端口
+EXPOSE 8081
+
 # Default startup command
 ENTRYPOINT ["./neurocontroller"]
 
