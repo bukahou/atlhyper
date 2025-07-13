@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<title>Tables - Atlantis Lite Bootstrap 4 Admin Dashboard</title>
+	<meta content='width=device-width, initial-scale=1.0, shrink-to-fit=no' name='viewport' />
+	<link rel="icon" href="assets/img/icon.ico" type="image/x-icon"/>
+	
+	<!-- Fonts and icons -->
+	<script src="assets/js/plugin/webfont/webfont.min.js"></script>
+	<script>
+		WebFont.load({
+			google: {"families":["Lato:300,400,700,900"]},
+			custom: {"families":["Flaticon", "Font Awesome 5 Solid", "Font Awesome 5 Regular", "Font Awesome 5 Brands", "simple-line-icons"], urls: ['assets/css/fonts.min.css']},
+			active: function() {
+				sessionStorage.fonts = true;
+			}
+		});
+	</script>
+
+	<!-- CSS Files -->
+	<link rel="stylesheet" href="assets/css/bootstrap.min.css">
+	<link rel="stylesheet" href="assets/css/atlantis.min.css">
+	<!-- CSS Just for demo purpose, don't include it in your project -->
+	<link rel="stylesheet" href="assets/css/demo.css">
+</head>
+<body>
+	<div id="app">
+	<div class="wrapper">
+		<div class="main-header">
+			
+			<!-- 图表头 -->
+			<div class="logo-header" data-background-color="blue">
+				
+				<a href="index.html" class="logo">
+					<img src="assets/img/logo.svg" alt="navbar brand" class="navbar-brand">
+				</a>
+				<button class="navbar-toggler sidenav-toggler ml-auto" type="button" data-toggle="collapse" data-target="collapse" aria-expanded="false" aria-label="Toggle navigation">
+					<span class="navbar-toggler-icon">
+						<i class="icon-menu"></i>
+					</span>
+				</button>
+				<button class="topbar-toggler more"><i class="icon-options-vertical"></i></button>
+				<div class="nav-toggle">
+					<button class="btn btn-toggle toggle-sidebar">
+						<i class="icon-menu"></i>
+					</button>
+				</div>
+			</div>
+			<!-- 图表底 -->
+			
+			<!-- 检索栏顶部 -->
+			<nav class="navbar navbar-header navbar-expand-lg" data-background-color="blue2">
+				
+				<nav class="navbar navbar-header navbar-expand-lg py-1 px-3" data-background-color="blue2">
+					<div class="text-white font-weight-bold">
+						Kubernetes 控制台 - 集群状态实时概览
+					</div>
+				</nav>
+			</nav>
+			<!-- 检索栏顶部 -->
+			
+		</div>
+
+		<!-- 导航栏顶部 -->
+		<div class="sidebar sidebar-style-2">			
+			<div class="sidebar-wrapper scrollbar scrollbar-inner">
+				<div class="sidebar-content">
+					<div class="user">
+						<div class="avatar-sm float-left mr-2">
+							<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
+						</div>
+						<div class="info">
+							<a data-toggle="collapse" href="#collapseExample" aria-expanded="true">
+								<span>
+									Wuxiafeng
+									<span class="user-level">我的集群</span>
+									<span class="caret"></span>
+								</span>
+							</a>
+							<div class="clearfix"></div>
+
+							<div class="collapse in" id="collapseExample">
+								<ul class="nav">
+									<li>
+										<a href="#profile">
+											<span class="link-collapse">切换</span>
+										</a>
+									</li>
+								</ul>
+							</div>
+						</div>
+					</div>
+					<ul class="nav nav-primary">
+						<li class="nav-item active">
+							<a data-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false">
+								<i class="fas fa-home"></i>
+								<p>K8sDashboard</p>
+								<span class="caret"></span>
+							</a>
+							<div class="collapse" id="dashboard">
+								<ul class="nav nav-collapse">
+									<li>
+										<a href="index.html">
+											<span class="sub-item">K8sDashboard</span>
+										</a>
+									</li>
+
+								</ul>
+							</div>
+						</li>
+						<li class="nav-section">
+							<span class="sidebar-mini-icon">
+								<i class="fa fa-ellipsis-h"></i>
+							</span>
+							<h4 class="text-section">Components</h4>
+						</li>
+						<li class="nav-item">
+							<a data-toggle="collapse" href="#base">
+								<i class="fas fa-layer-group"></i>
+								<p>监控</p>
+								<span class="caret"></span>
+							</a>
+							<div class="collapse" id="base">
+								<ul class="nav nav-collapse">
+									<li>
+										<a href="Pod.html">
+											<span class="sub-item">Pod</span>
+										</a>
+									</li>
+									<li>
+										<a href="node.html">
+											<span class="sub-item">node</span>
+										</a>
+									</li>
+									<li>
+										<a href="service.html">
+											<span class="sub-item">service</span>
+										</a>
+									</li>
+
+									<li>
+										<a href="namespace.html">
+											<span class="sub-item">namespace</span>
+										</a>
+									</li>
+									<li>
+										<a href="ingress.html">
+											<span class="sub-item">ingress</span>
+										</a>
+									</li>
+									
+
+									<li>
+										<a href="deployment.html">
+											<span class="sub-item">deployment</span>
+										</a>
+									</li>
+
+
+
+								</ul>
+							</div>
+						</li>
+						<li class="nav-item">
+							<a data-toggle="collapse" href="#sidebarLayouts">
+								<i class="fas fa-th-list"></i>
+								<p>操作</p>
+								<span class="caret"></span>
+							</a>
+							<div class="collapse" id="sidebarLayouts">
+								<ul class="nav nav-collapse">
+									<li>
+										<a href="create.html">
+											<span class="sub-item">资源创建</span>
+										</a>
+									</li>
+
+								</ul>
+							</div>
+						</li>
+						<li class="nav-item">
+							<a data-toggle="collapse" href="#forms">
+								<i class="fas fa-pen-square"></i>
+								<p>异常</p>
+								<span class="caret"></span>
+							</a>
+							<div class="collapse" id="forms">
+								<ul class="nav nav-collapse">
+									<li>
+										<a href="eventlog.html">
+											<span class="sub-item">集群告警</span>
+										</a>
+									</li>
+								</ul>
+							</div>
+						</li>
+
+						<li class="nav-item">
+							<a href="widgets.html">
+								<i class="fas fa-desktop"></i>
+								<p>卡片仓库</p>
+								<span class="badge badge-success">4</span>
+							</a>
+						</li>
+
+					</ul>
+				</div>
+			</div>
+		</div>
+		<!-- 导航栏底部 -->
+
+
+		<div class="main-panel">
+		<div class="content">
+			<div class="page-inner">
+			<!-- 标题 -->
+			<h4 class="page-title">告警 总览</h4>
+
+
+				<!-- 卡片区域（手动添加 id） -->
+				<div class="row" id="node-summary-cards">
+				<div class="col-sm-6 col-md-3">
+					<div class="card card-danger card-round">
+					<div class="card-body">
+						<div class="row">
+						<div class="col-5"><div class="icon-big text-center"><i class="flaticon-warning-sign"></i></div></div>
+						<div class="col-7 col-stats">
+							<div class="numbers">
+							<p class="card-category">总告警数量</p>
+							<h4 class="card-title" id="stat-total">--</h4> <!-- 添加 id -->
+							</div>
+						</div>
+						</div>
+					</div>
+					</div>
+				</div>
+
+				<div class="col-sm-6 col-md-3">
+					<div class="card card-primary card-round">
+					<div class="card-body">
+						<div class="row">
+						<div class="col-5"><div class="icon-big text-center"><i class="flaticon-danger"></i></div></div>
+						<div class="col-7 col-stats">
+							<div class="numbers">
+							<p class="card-category">Critical 数量</p>
+							<h4 class="card-title" id="stat-critical">--</h4> <!-- 添加 id -->
+							</div>
+						</div>
+						</div>
+					</div>
+					</div>
+				</div>
+
+				<div class="col-sm-6 col-md-3">
+					<div class="card card-warning card-round">
+					<div class="card-body">
+						<div class="row">
+						<div class="col-5"><div class="icon-big text-center"><i class="flaticon-exclamation"></i></div></div>
+						<div class="col-7 col-stats">
+							<div class="numbers">
+							<p class="card-category">Warning 数量</p>
+							<h4 class="card-title" id="stat-warning">--</h4> <!-- 添加 id -->
+							</div>
+						</div>
+						</div>
+					</div>
+					</div>
+				</div>
+
+				<div class="col-sm-6 col-md-3">
+					<div class="card card-info card-round">
+					<div class="card-body">
+						<div class="row">
+						<div class="col-5"><div class="icon-big text-center"><i class="flaticon-layers"></i></div></div>
+						<div class="col-7 col-stats">
+							<div class="numbers">
+							<p class="card-category">资源种类数量</p>
+							<h4 class="card-title" id="stat-kinds">--</h4> <!-- 添加 id -->
+							</div>
+						</div>
+						</div>
+					</div>
+					</div>
+				</div>
+				</div>
+
+
+
+
+
+
+
+
+
+			<!-- 表格区域 -->
+					<div class="row">
+					<div class="col-md-12">
+						<div class="card">
+						<div class="card-header">
+							<h4 class="card-title">异常告警日志 一览表</h4>
+						</div>
+						<div class="card-body">
+							<div class="table-responsive">
+							<table id="multi-filter-select" class="display table table-striped table-hover">
+								<thead>
+								<tr>
+									<th>名称</th>
+									<th>命名空间</th>
+									<th>资源类型</th>
+									<th>节点</th>
+									<th>严重等级</th>
+									<th>原因</th>
+									<th>信息</th>
+									<th>事件时间</th>
+								</tr>
+								</thead>
+								<tfoot>
+								<tr>
+									<th>名称</th>
+									<th>命名空间</th>
+									<th>资源类型</th>
+									<th>节点</th>
+									<th>严重等级</th>
+									<th>原因</th>
+									<th>信息</th>
+									<th>事件时间</th>
+								</tr>
+								</tfoot>
+								<tbody>
+								<tr v-for="log in logs" :key="log.eventTime + log.name">
+									<td>{{ log.Name }}</td>
+									<td>{{ log.Namespace }}</td>
+									<td>{{ log.Kind }}</td>
+									<td>{{ log.Node || "—" }}</td>
+									<td>{{ log.Severity }}</td>
+									<td>{{ log.ReasonCode }}</td>
+									<td>{{ log.Message }}</td>
+									<td>{{ new Date(log.Timestamp).toLocaleString() }}</td>
+								</tr>
+								</tbody>
+							</table>
+							</div>
+						</div>
+						</div>
+					</div>
+					</div>
+
+
+
+
+
+				</div>
+			</div>
+		</div>
+	</div>
+	<!--   Core JS Files   -->
+	<script src="js/vue.min.js"></script>
+
+	<script src="assets/js/core/jquery.3.2.1.min.js"></script>
+	<script src="assets/js/core/popper.min.js"></script>
+	<script src="assets/js/core/bootstrap.min.js"></script>
+	<!-- jQuery UI -->
+	<script src="assets/js/plugin/jquery-ui-1.12.1.custom/jquery-ui.min.js"></script>
+	<script src="assets/js/plugin/jquery-ui-touch-punch/jquery.ui.touch-punch.min.js"></script>
+
+	<!-- jQuery Scrollbar -->
+	<script src="assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
+	<!-- Datatables -->
+	<script src="assets/js/plugin/datatables/datatables.min.js"></script>
+	<!-- Atlantis JS -->
+	<script src="assets/js/atlantis.min.js"></script>
+	<!-- Atlantis DEMO methods, don't include it in your project! -->
+	<script src="assets/js/setting-demo2.js"></script>
+	<script src="js/api_config.js"></script>
+
+
+<script>
+  const stats = {
+    totalLogs: 0,
+    criticalCount: 0,
+    warningCount: 0,
+    uniqueKinds: 0
+  };
+
+  const safe = val => (val === undefined || val === null ? "—" : val);
+
+  function updateCards() {
+    document.getElementById('stat-total').textContent = stats.totalLogs;
+    document.getElementById('stat-critical').textContent = stats.criticalCount;
+    document.getElementById('stat-warning').textContent = stats.warningCount;
+    document.getElementById('stat-kinds').textContent = stats.uniqueKinds;
+  }
+
+  function rebuildFootFilters(tableApi) {
+    tableApi.columns().every(function () {
+      const column = this;
+      const select = $('<select class="form-control"><option value=""></option></select>')
+        .appendTo($(column.footer()).empty())
+        .on('change', function () {
+          const val = $.fn.dataTable.util.escapeRegex($(this).val());
+          column.search(val ? '^' + val + '$' : '', true, false).draw();
+        });
+
+      column.data().unique().sort().each(function (d) {
+        const clean = $('<div>').html(d).text();
+        select.append('<option value="' + clean + '">' + clean + '</option>');
+      });
+    });
+  }
+
+  function setupDaysSelector(days) {
+    const filterDiv = $('#multi-filter-select_filter');
+    filterDiv.html(`
+      <label>最近 
+        <select id="log-days-selector" class="form-control input-sm" style="width:auto;display:inline-block;margin:0 5px;">
+          <option value="1">1 天</option>
+          <option value="2">2 天</option>
+          <option value="3">3 天</option>
+          <option value="4">4 天</option>
+          <option value="5">5 天</option>
+          <option value="6">6 天</option>
+          <option value="7">7 天</option>
+        </select> 内日志</label>
+    `);
+    document.getElementById('log-days-selector').value = days;
+    document.getElementById('log-days-selector').addEventListener('change', e => {
+      fetchLogs(parseInt(e.target.value));
+    });
+  }
+
+  function fetchLogs(days = 3) {
+    fetch(API_ENDPOINTS.event.listRecent(days))
+      .then(res => res.json())
+      .then(data => {
+        const logs = (data.logs || []).map(log => ({
+          name: safe(log.Name),
+          namespace: safe(log.Namespace),
+          kind: safe(log.Kind),
+          node: safe(log.Node),
+          severity: safe((log.Severity || "").toLowerCase()),
+          ReasonCode: safe(log.ReasonCode),
+          message: safe(log.Message),
+          timestamp: log.Timestamp || log.eventTime || log.time || ""
+        }));
+
+        stats.totalLogs = logs.length;
+        stats.criticalCount = logs.filter(l => l.severity === "critical").length;
+        stats.warningCount = logs.filter(l => l.severity === "warning").length;
+        stats.uniqueKinds = [...new Set(logs.map(l => l.kind))].length;
+        updateCards();
+
+        const tableId = '#multi-filter-select';
+        const tableData = logs.map(log => [
+          log.name,
+          log.namespace,
+          log.kind,
+          log.node,
+          log.severity,
+          log.ReasonCode,
+          log.message,
+          log.timestamp ? new Date(log.timestamp).toLocaleString() : "—"
+        ]);
+
+        if ($.fn.dataTable.isDataTable(tableId)) {
+          const table = $(tableId).DataTable();
+          table.clear();
+          table.rows.add(tableData).draw();
+          rebuildFootFilters(table); // 👈 更新筛选器
+        } else {
+          $(tableId).DataTable({
+            pageLength: 10,
+            data: tableData,
+            columns: [
+              { title: "名称" },
+              { title: "命名空间" },
+              { title: "资源类型" },
+              { title: "节点" },
+              { title: "严重等级" },
+              { title: "原因" },
+              { title: "信息" },
+              { title: "事件时间" }
+            ],
+            initComplete: function () {
+              rebuildFootFilters(this.api());
+              setupDaysSelector(days);
+            }
+          });
+        }
+      })
+      .catch(err => {
+        console.error("获取异常告警日志失败:", err);
+        alert("后端接口异常，无法加载异常日志数据。");
+      });
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    fetchLogs();
+  });
+</script>
+
+
+</body>
+</html>

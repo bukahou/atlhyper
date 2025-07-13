@@ -11,7 +11,6 @@
 package external
 
 import (
-	"NeuroController/config"
 	"NeuroController/external/client"
 	"NeuroController/external/server"
 	"log"
@@ -27,15 +26,8 @@ func StartExternalSystems() {
 	// ✅ 启动 Slack 调度器
 	client.StartSlackDispatcher()
 
-	// ✅ 启动 Webhook Server（以协程方式）
-	if config.GlobalConfig.Webhook.Enable {
-		log.Println("🌐 启用 Webhook Server")
-		go server.StartHTTPServer()
-	} else {
-		log.Println("⛔️ Webhook Server 已被禁用")
-	}
-	// ✅ 其他模块预留位
-	// ...
+	log.Println("🌐 启动统一 HTTP Server（UI API + Webhook）")
+	go server.StartHTTPServer()
 
 	log.Println("✅ 所有外部组件启动完成。")
 }

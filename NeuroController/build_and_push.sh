@@ -10,7 +10,7 @@
 set -e
 
 IMAGE_NAME="bukahou/neurocontroller"
-TAG="v1.2.0"
+TAG="v1.3.0"
 
 echo "🔧 [Step 1] Checking Buildx builder"
 docker buildx create --name mybuilder --use || true

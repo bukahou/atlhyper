@@ -91,8 +91,8 @@ var defaultStrings = map[string]string{
 // 默认布尔配置（支持覆盖）
 var defaultBools = map[string]bool{
 	"ENABLE_EMAIL_ALERT":    false, // 默认关闭 Email 告警-false-true
-	"ENABLE_SLACK_ALERT":    true,  // 默认关闭 Slack 告警-false-true
-	"ENABLE_WEBHOOK_SERVER": true,  // 默认关闭 WEBHOOK 告警-false-true
+	"ENABLE_SLACK_ALERT":    false, // 默认关闭 Slack 告警-false-true
+	"ENABLE_WEBHOOK_SERVER": false, // 默认关闭 WEBHOOK 告警-false-true
 }
 
 // 默认浮点数配置（支持覆盖）
