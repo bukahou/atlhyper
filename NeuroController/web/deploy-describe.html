@@ -190,7 +190,7 @@
 								<ul class="nav nav-collapse">
 									<li>
 										<a href="eventlog.html">
-											<span class="sub-item">集群告警</span>
+											<span class="sub-item">集群异常日志</span>
 										</a>
 									</li>
 								</ul>
@@ -236,39 +236,30 @@
 									<span class="status-specification">{{ deployment.metadata.name }}</span></li>
 								<li><span class="name-specification">命名空间</span>
 									<span class="status-specification">{{ deployment.metadata.namespace }}</span></li>
-								<!-- <li><span class="name-specification">副本数</span>
-									<span class="status-specification">{{ deployment.status.readyReplicas || 0 }} / {{ deployment.spec.replicas || 0 }}</span></li> -->
-
-<li>
-  <span class="name-specification">副本数</span>
-  <span class="status-specification" v-if="!editing">
-    {{ deployment.status.readyReplicas || 0 }} / {{ deployment.spec.replicas || 0 }}
-  </span>
-  <span class="status-specification" v-else>
-    {{ deployment.status.readyReplicas || 0 }} /
-    <input type="number" v-model.number="editableReplicas"
-           class="form-control form-control-sm d-inline-block"
-           style="width: 80px;" min="0" />
-  </span>
-</li>
-
-
-
+								<li>
+								<span class="name-specification">副本数</span>
+								<span class="status-specification" v-if="!editing">
+									{{ deployment.status.readyReplicas || 0 }} / {{ deployment.spec.replicas || 0 }}
+								</span>
+								<span class="status-specification" v-else>
+									{{ deployment.status.readyReplicas || 0 }} /
+									<input type="number" v-model.number="editableReplicas"
+										class="form-control form-control-sm d-inline-block"
+										style="width: 80px;" min="0" />
+								</span>
+								</li>
 								<li><span class="name-specification">创建时间</span>
 									<span class="status-specification">{{ deployment.metadata.creationTimestamp }}</span></li>
 							</ul>
 							<div class="mt-3 text-left">
-  <button class="btn btn-sm btn-outline-primary" @click="editing ? updateReplicas() : enterEdit()">
-    {{ editing ? "✅ 更新" : "✏️ 修改" }}
-  </button>
-</div>
+							<button class="btn btn-sm btn-outline-primary" @click="editing ? updateReplicas() : enterEdit()">
+								{{ editing ? "✅ 更新" : "✏️ 修改" }}
+							</button>
+							</div>
 
 							</div>
 						</div>
 						</div>
-
-
-
 						<div class="col-md-4 pl-md-0 pr-md-0">
 						<div class="card card-pricing card-pricing-focus card-primary">
 							<div class="card-header">
@@ -276,8 +267,22 @@
 							</div>
 							<div class="card-body">
 							<ul class="specification-list">
-								<li><span class="name-specification">镜像</span>
-									<span class="status-specification">{{ container.image }}</span></li>
+								<!-- <li><span class="name-specification">镜像</span>
+									<span class="status-specification">{{ container.image }}</span></li> -->
+
+<li>
+  <span class="name-specification">镜像</span>
+  <span class="status-specification" v-if="!editingImage">
+    {{ container.image }}
+  </span>
+  <span class="status-specification" v-else>
+    <input type="text" v-model="editableImage"
+           class="form-control form-control-sm d-inline-block"
+           style="width: 220px;" />
+  </span>
+</li>
+
+
 								<li><span class="name-specification">端口</span>
 									<span class="status-specification">
 									<span v-for="port in container.ports || []" :key="port.containerPort">
@@ -301,6 +306,15 @@
 									</span>
 									</span></li>
 							</ul>
+
+<div class="mt-3 text-left">
+  <button class="btn btn-sm btn-outline-primary"
+          @click="editingImage ? updateImage() : enterEditImage()">
+    {{ editingImage ? "✅ 提交" : "✏️ 修改镜像" }}
+  </button>
+</div>
+
+
 							</div>
 						</div>
 						</div>
@@ -378,7 +392,9 @@ new Vue({
     deployment: {},
     container: {},
     editing: false,
-    editableReplicas: 0
+    editingImage: false,
+    editableReplicas: 0,
+    editableImage: ""
   },
   created() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -386,7 +402,7 @@ new Vue({
     const name = urlParams.get("name");
 
     if (!ns || !name) {
-      alert("缺少参数，请在 URL 中提供 ?ns=命名空间&name=名称");
+      alert("❌ 缺少参数，请在 URL 中提供 ?ns=命名空间&name=名称");
       return;
     }
 
@@ -397,34 +413,33 @@ new Vue({
         const containers = data.spec?.template?.spec?.containers || [];
         this.container = containers.length > 0 ? containers[0] : {};
         this.editableReplicas = data.spec?.replicas || 1;
+        this.editableImage = this.container.image || "";
       })
       .catch((err) => {
         console.error("获取 Deployment 详情失败:", err);
-        alert("无法加载 Deployment 信息，请稍后再试。");
+        alert("❌ 无法加载 Deployment 信息，请稍后再试。");
       });
   },
   methods: {
-    // 进入编辑模式
+    // ✏️ 副本数：进入编辑模式
     enterEdit() {
       this.editing = true;
       this.editableReplicas = this.deployment.spec?.replicas || 1;
     },
 
-    // 提交更新副本数
+    // ✅ 副本数：提交更新
     updateReplicas() {
       const current = this.deployment.spec?.replicas || 1;
       const updated = this.editableReplicas;
 
       if (current === updated) {
         alert("ℹ️ 副本数未变更，无需更新。");
-        this.editing = false; // ✅ 自动恢复按钮与输入框
+        this.editing = false;
         return;
       }
 
       const confirmText = `请确认是否将副本数从 ${current} 更新为 ${updated}？`;
-      if (!confirm(confirmText)) {
-        return;
-      }
+      if (!confirm(confirmText)) return;
 
       const body = {
         namespace: this.deployment.metadata.namespace,
@@ -434,21 +449,64 @@ new Vue({
 
       fetch(API_ENDPOINTS.deployment.scale, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       })
         .then((res) => res.json())
         .then((resp) => {
           if (resp.error) {
-            alert("❌ 更新失败: " + resp.error);
+            alert("❌ 更新副本数失败: " + resp.error);
             return;
           }
-
           alert("✅ 副本数更新成功！");
           this.deployment.spec.replicas = updated;
           this.editing = false;
+        })
+        .catch((err) => {
+          alert("❌ 请求失败: " + err.message);
+        });
+    },
+
+    // ✏️ 镜像：进入编辑模式
+    enterEditImage() {
+      this.editingImage = true;
+      this.editableImage = this.container.image || "";
+    },
+
+    // ✅ 镜像：提交更新
+    updateImage() {
+      const current = this.container.image || "";
+      const updated = this.editableImage || "";
+
+      if (current === updated) {
+        alert("ℹ️ 镜像未变更，无需更新。");
+        this.editingImage = false;
+        return;
+      }
+
+      const confirmText = `请确认是否将镜像从\n${current}\n更新为\n${updated}？`;
+      if (!confirm(confirmText)) return;
+
+      const body = {
+        namespace: this.deployment.metadata.namespace,
+        name: this.deployment.metadata.name,
+        image: updated
+      };
+
+      fetch(API_ENDPOINTS.deployment.scale, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      })
+        .then((res) => res.json())
+        .then((resp) => {
+          if (resp.error) {
+            alert("❌ 更新镜像失败: " + resp.error);
+            return;
+          }
+          alert("✅ 镜像更新成功！");
+          this.container.image = updated;
+          this.editingImage = false;
         })
         .catch((err) => {
           alert("❌ 请求失败: " + err.message);
@@ -457,84 +515,6 @@ new Vue({
   }
 });
 </script>
-
-
-
-<!-- <script>
-new Vue({
-  el: "#app",
-  data: {
-    deployment: {},
-    container: {},
-    editing: false,
-    editableReplicas: 0
-  },
-  created() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const ns = urlParams.get("ns");
-    const name = urlParams.get("name");
-
-    if (!ns || !name) {
-      alert("缺少参数，请在 URL 中提供 ?ns=命名空间&name=名称");
-      return;
-    }
-
-    fetch(API_ENDPOINTS.deployment.get(ns, name))
-      .then((res) => res.json())
-      .then((data) => {
-        this.deployment = data;
-        const containers = data.spec?.template?.spec?.containers || [];
-        this.container = containers.length > 0 ? containers[0] : {};
-        this.editableReplicas = data.spec?.replicas || 1;
-      })
-      .catch((err) => {
-        console.error("获取 Deployment 详情失败:", err);
-        alert("无法加载 Deployment 信息，请稍后再试。");
-      });
-  },
-  methods: {
-    // 进入编辑模式
-    enterEdit() {
-      this.editing = true;
-      this.editableReplicas = this.deployment.spec?.replicas || 1;
-    },
-
-    // 发送 PATCH 请求更新副本数
-    updateReplicas() {
-      const body = {
-        namespace: this.deployment.metadata.namespace,
-        name: this.deployment.metadata.name,
-        replicas: this.editableReplicas
-      };
-
-      fetch(API_ENDPOINTS.deployment.scale, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      })
-        .then((res) => res.json())
-        .then((resp) => {
-          if (resp.error) {
-            alert("❌ 更新失败: " + resp.error);
-            return;
-          }
-
-          alert("✅ 副本数更新成功！");
-          this.deployment.spec.replicas = this.editableReplicas;
-          this.editing = false;
-        })
-        .catch((err) => {
-          alert("❌ 请求失败: " + err.message);
-        });
-    }
-  }
-});
-</script> -->
-
-
-
 
 
 

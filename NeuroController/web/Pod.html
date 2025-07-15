@@ -1,485 +1,531 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
-	<title>Tables - Atlantis Lite Bootstrap 4 Admin Dashboard</title>
-	<meta content='width=device-width, initial-scale=1.0, shrink-to-fit=no' name='viewport' />
-	<link rel="icon" href="assets/img/icon.ico" type="image/x-icon"/>
-	
-	<!-- Fonts and icons -->
-	<script src="assets/js/plugin/webfont/webfont.min.js"></script>
-	<script>
-		WebFont.load({
-			google: {"families":["Lato:300,400,700,900"]},
-			custom: {"families":["Flaticon", "Font Awesome 5 Solid", "Font Awesome 5 Regular", "Font Awesome 5 Brands", "simple-line-icons"], urls: ['assets/css/fonts.min.css']},
-			active: function() {
-				sessionStorage.fonts = true;
-			}
-		});
-	</script>
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Tables - Atlantis Lite Bootstrap 4 Admin Dashboard</title>
+    <meta
+      content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
+      name="viewport"
+    />
+    <link rel="icon" href="assets/img/icon.ico" type="image/x-icon" />
 
-	<!-- CSS Files -->
-	<link rel="stylesheet" href="assets/css/bootstrap.min.css">
-	<link rel="stylesheet" href="assets/css/atlantis.min.css">
-	<!-- CSS Just for demo purpose, don't include it in your project -->
-	<link rel="stylesheet" href="assets/css/demo.css">
-</head>
-<body>
-	<div class="wrapper">
-	<div class="wrapper">
-		<div class="main-header">
-			
-			<!-- 图表头 -->
-			<div class="logo-header" data-background-color="blue">
-				
-				<a href="index.html" class="logo">
-					<img src="assets/img/logo.svg" alt="navbar brand" class="navbar-brand">
-				</a>
-				<button class="navbar-toggler sidenav-toggler ml-auto" type="button" data-toggle="collapse" data-target="collapse" aria-expanded="false" aria-label="Toggle navigation">
-					<span class="navbar-toggler-icon">
-						<i class="icon-menu"></i>
-					</span>
-				</button>
-				<button class="topbar-toggler more"><i class="icon-options-vertical"></i></button>
-				<div class="nav-toggle">
-					<button class="btn btn-toggle toggle-sidebar">
-						<i class="icon-menu"></i>
-					</button>
-				</div>
-			</div>
-			<!-- 图表底 -->
-			
-			<!-- 检索栏顶部 -->
-			<nav class="navbar navbar-header navbar-expand-lg" data-background-color="blue2">
-				
-				<nav class="navbar navbar-header navbar-expand-lg py-1 px-3" data-background-color="blue2">
-					<div class="text-white font-weight-bold">
-						Kubernetes 控制台 - 集群状态实时概览
-					</div>
-				</nav>
-			</nav>
-			<!-- 检索栏顶部 -->
-			
-		</div>
+    <!-- Fonts and icons -->
+    <script src="assets/js/plugin/webfont/webfont.min.js"></script>
+    <script>
+      WebFont.load({
+        google: { families: ["Lato:300,400,700,900"] },
+        custom: {
+          families: [
+            "Flaticon",
+            "Font Awesome 5 Solid",
+            "Font Awesome 5 Regular",
+            "Font Awesome 5 Brands",
+            "simple-line-icons",
+          ],
+          urls: ["assets/css/fonts.min.css"],
+        },
+        active: function () {
+          sessionStorage.fonts = true;
+        },
+      });
+    </script>
 
-		<!-- 导航栏顶部 -->
-		<div class="sidebar sidebar-style-2">			
-			<div class="sidebar-wrapper scrollbar scrollbar-inner">
-				<div class="sidebar-content">
-					<div class="user">
-						<div class="avatar-sm float-left mr-2">
-							<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
-						</div>
-						<div class="info">
-							<a data-toggle="collapse" href="#collapseExample" aria-expanded="true">
-								<span>
-									Wuxiafeng
-									<span class="user-level">我的集群</span>
-									<span class="caret"></span>
-								</span>
-							</a>
-							<div class="clearfix"></div>
+    <!-- CSS Files -->
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="assets/css/atlantis.min.css" />
+    <!-- CSS Just for demo purpose, don't include it in your project -->
+    <link rel="stylesheet" href="assets/css/demo.css" />
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="wrapper">
+        <div class="main-header">
+          <!-- 图表头 -->
+          <div class="logo-header" data-background-color="blue">
+            <a href="index.html" class="logo">
+              <img
+                src="assets/img/logo.svg"
+                alt="navbar brand"
+                class="navbar-brand"
+              />
+            </a>
+            <button
+              class="navbar-toggler sidenav-toggler ml-auto"
+              type="button"
+              data-toggle="collapse"
+              data-target="collapse"
+              aria-expanded="false"
+              aria-label="Toggle navigation"
+            >
+              <span class="navbar-toggler-icon">
+                <i class="icon-menu"></i>
+              </span>
+            </button>
+            <button class="topbar-toggler more">
+              <i class="icon-options-vertical"></i>
+            </button>
+            <div class="nav-toggle">
+              <button class="btn btn-toggle toggle-sidebar">
+                <i class="icon-menu"></i>
+              </button>
+            </div>
+          </div>
+          <!-- 图表底 -->
 
-							<div class="collapse in" id="collapseExample">
-								<ul class="nav">
-									<li>
-										<a href="#profile">
-											<span class="link-collapse">切换</span>
-										</a>
-									</li>
-								</ul>
-							</div>
-						</div>
-					</div>
-					<ul class="nav nav-primary">
-						<li class="nav-item active">
-							<a data-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false">
-								<i class="fas fa-home"></i>
-								<p>K8sDashboard</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="dashboard">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="index.html">
-											<span class="sub-item">K8sDashboard</span>
-										</a>
-									</li>
+          <!-- 检索栏顶部 -->
+          <nav
+            class="navbar navbar-header navbar-expand-lg"
+            data-background-color="blue2"
+          >
+            <nav
+              class="navbar navbar-header navbar-expand-lg py-1 px-3"
+              data-background-color="blue2"
+            >
+              <div class="text-white font-weight-bold">
+                Kubernetes 控制台 - 集群状态实时概览
+              </div>
+            </nav>
+          </nav>
+          <!-- 检索栏顶部 -->
+        </div>
 
-								</ul>
-							</div>
-						</li>
-						<li class="nav-section">
-							<span class="sidebar-mini-icon">
-								<i class="fa fa-ellipsis-h"></i>
-							</span>
-							<h4 class="text-section">Components</h4>
-						</li>
-						<li class="nav-item">
-							<a data-toggle="collapse" href="#base">
-								<i class="fas fa-layer-group"></i>
-								<p>监控</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="base">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="Pod.html">
-											<span class="sub-item">Pod</span>
-										</a>
-									</li>
-									<li>
-										<a href="node.html">
-											<span class="sub-item">node</span>
-										</a>
-									</li>
-									<li>
-										<a href="service.html">
-											<span class="sub-item">service</span>
-										</a>
-									</li>
+        <!-- 导航栏顶部 -->
+        <div class="sidebar sidebar-style-2">
+          <div class="sidebar-wrapper scrollbar scrollbar-inner">
+            <div class="sidebar-content">
+              <div class="user">
+                <div class="avatar-sm float-left mr-2">
+                  <img
+                    src="assets/img/profile.jpg"
+                    alt="..."
+                    class="avatar-img rounded-circle"
+                  />
+                </div>
+                <div class="info">
+                  <a
+                    data-toggle="collapse"
+                    href="#collapseExample"
+                    aria-expanded="true"
+                  >
+                    <span>
+                      Wuxiafeng
+                      <span class="user-level">我的集群</span>
+                      <span class="caret"></span>
+                    </span>
+                  </a>
+                  <div class="clearfix"></div>
 
-									<li>
-										<a href="namespace.html">
-											<span class="sub-item">namespace</span>
-										</a>
-									</li>
-									<li>
-										<a href="ingress.html">
-											<span class="sub-item">ingress</span>
-										</a>
-									</li>
-									
+                  <div class="collapse in" id="collapseExample">
+                    <ul class="nav">
+                      <li>
+                        <a href="#profile">
+                          <span class="link-collapse">切换</span>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <ul class="nav nav-primary">
+                <li class="nav-item active">
+                  <a
+                    data-toggle="collapse"
+                    href="#dashboard"
+                    class="collapsed"
+                    aria-expanded="false"
+                  >
+                    <i class="fas fa-home"></i>
+                    <p>K8sDashboard</p>
+                    <span class="caret"></span>
+                  </a>
+                  <div class="collapse" id="dashboard">
+                    <ul class="nav nav-collapse">
+                      <li>
+                        <a href="index.html">
+                          <span class="sub-item">K8sDashboard</span>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </li>
+                <li class="nav-section">
+                  <span class="sidebar-mini-icon">
+                    <i class="fa fa-ellipsis-h"></i>
+                  </span>
+                  <h4 class="text-section">Components</h4>
+                </li>
+                <li class="nav-item">
+                  <a data-toggle="collapse" href="#base">
+                    <i class="fas fa-layer-group"></i>
+                    <p>监控</p>
+                    <span class="caret"></span>
+                  </a>
+                  <div class="collapse" id="base">
+                    <ul class="nav nav-collapse">
+                      <li>
+                        <a href="Pod.html">
+                          <span class="sub-item">Pod</span>
+                        </a>
+                      </li>
+                      <li>
+                        <a href="node.html">
+                          <span class="sub-item">node</span>
+                        </a>
+                      </li>
+                      <li>
+                        <a href="service.html">
+                          <span class="sub-item">service</span>
+                        </a>
+                      </li>
 
-									<li>
-										<a href="deployment.html">
-											<span class="sub-item">deployment</span>
-										</a>
-									</li>
+                      <li>
+                        <a href="namespace.html">
+                          <span class="sub-item">namespace</span>
+                        </a>
+                      </li>
+                      <li>
+                        <a href="ingress.html">
+                          <span class="sub-item">ingress</span>
+                        </a>
+                      </li>
 
+                      <li>
+                        <a href="deployment.html">
+                          <span class="sub-item">deployment</span>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </li>
+                <li class="nav-item">
+                  <a data-toggle="collapse" href="#sidebarLayouts">
+                    <i class="fas fa-th-list"></i>
+                    <p>操作</p>
+                    <span class="caret"></span>
+                  </a>
+                  <div class="collapse" id="sidebarLayouts">
+                    <ul class="nav nav-collapse">
+                      <li>
+                        <a href="create.html">
+                          <span class="sub-item">资源创建</span>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </li>
+                <li class="nav-item">
+                  <a data-toggle="collapse" href="#forms">
+                    <i class="fas fa-pen-square"></i>
+                    <p>异常</p>
+                    <span class="caret"></span>
+                  </a>
+                  <div class="collapse" id="forms">
+                    <ul class="nav nav-collapse">
+                      <li>
+                        <a href="eventlog.html">
+                          <span class="sub-item">集群异常日志</span>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </li>
 
+                <li class="nav-item">
+                  <a href="widgets.html">
+                    <i class="fas fa-desktop"></i>
+                    <p>卡片仓库</p>
+                    <span class="badge badge-success">4</span>
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <!-- 导航栏底部 -->
 
-								</ul>
-							</div>
-						</li>
-						<li class="nav-item">
-							<a data-toggle="collapse" href="#sidebarLayouts">
-								<i class="fas fa-th-list"></i>
-								<p>操作</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="sidebarLayouts">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="create.html">
-											<span class="sub-item">资源创建</span>
-										</a>
-									</li>
+        <div class="main-panel">
+          <div class="content">
+            <div class="page-inner">
+              <!-- Card -->
+              <h4 class="page-title">Pod 概要</h4>
+              <div class="row" id="pod-summary-cards">
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-success card-round">
+                    <div class="card-body">
+                      <div class="row">
+                        <div class="col-5">
+                          <div class="icon-big text-center">
+                            <i class="flaticon-analytics"></i>
+                          </div>
+                        </div>
+                        <div class="col-7 col-stats">
+                          <div class="numbers">
+                            <p class="card-category">Running</p>
+                            <h4 class="card-title" id="pod-running">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-info card-round">
+                    <div class="card-body">
+                      <div class="row">
+                        <div class="col-5">
+                          <div class="icon-big text-center">
+                            <i class="flaticon-interface-6"></i>
+                          </div>
+                        </div>
+                        <div class="col-7 col-stats">
+                          <div class="numbers">
+                            <p class="card-category">Pending</p>
+                            <h4 class="card-title" id="pod-pending">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-danger card-round">
+                    <div class="card-body">
+                      <div class="row">
+                        <div class="col-5">
+                          <div class="icon-big text-center">
+                            <i class="flaticon-close"></i>
+                          </div>
+                        </div>
+                        <div class="col-7 col-stats">
+                          <div class="numbers">
+                            <p class="card-category">Failed</p>
+                            <h4 class="card-title" id="pod-failed">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-secondary card-round">
+                    <div class="card-body">
+                      <div class="row">
+                        <div class="col-5">
+                          <div class="icon-big text-center">
+                            <i class="flaticon-question"></i>
+                          </div>
+                        </div>
+                        <div class="col-7 col-stats">
+                          <div class="numbers">
+                            <p class="card-category">Unknown</p>
+                            <h4 class="card-title" id="pod-unknown">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-								</ul>
-							</div>
-						</li>
-						<li class="nav-item">
-							<a data-toggle="collapse" href="#forms">
-								<i class="fas fa-pen-square"></i>
-								<p>异常</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="forms">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="eventlog.html">
-											<span class="sub-item">集群告警</span>
-										</a>
-									</li>
-								</ul>
-							</div>
-						</li>
+              <div class="row">
+                <div class="col-md-12">
+                  <div class="card">
+                    <div class="card-header">
+                      <h4 class="card-title">具体信息展示</h4>
+                    </div>
+                    <div class="table-responsive">
+                      <table
+                        id="pod-table"
+                        class="display table table-striped table-hover"
+                      >
+                        <thead>
+                          <tr>
+                            <th>Namespace</th>
+                            <th>Deployment</th>
+                            <th>Pod Name</th>
+                            <th>Ready</th>
+                            <th>Phase</th>
+                            <th>Restart Count</th>
+                            <th>Start Time</th>
+                            <th>Pod IP</th>
+                            <th>Node</th>
+                            <th>操作</th>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                        <tfoot>
+                          <tr>
+                            <th>Namespace</th>
+                            <th>Deployment</th>
+                            <th>Pod Name</th>
+                            <th>Ready</th>
+                            <th>Phase</th>
+                            <th>Restart Count</th>
+                            <th>Start Time</th>
+                            <th>Pod IP</th>
+                            <th>Node</th>
+                            <th>操作</th>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-						<li class="nav-item">
-							<a href="widgets.html">
-								<i class="fas fa-desktop"></i>
-								<p>卡片仓库</p>
-								<span class="badge badge-success">4</span>
-							</a>
-						</li>
+    <!--   Core JS Files   -->
+    <script src="assets/js/core/jquery.3.2.1.min.js"></script>
+    <script src="assets/js/core/popper.min.js"></script>
+    <script src="assets/js/core/bootstrap.min.js"></script>
+    <!-- jQuery UI -->
+    <script src="assets/js/plugin/jquery-ui-1.12.1.custom/jquery-ui.min.js"></script>
+    <script src="assets/js/plugin/jquery-ui-touch-punch/jquery.ui.touch-punch.min.js"></script>
 
-					</ul>
-				</div>
-			</div>
-		</div>
-		<!-- 导航栏底部 -->
+    <!-- jQuery Scrollbar -->
+    <script src="assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
+    <!-- Datatables -->
+    <script src="assets/js/plugin/datatables/datatables.min.js"></script>
+    <!-- Atlantis JS -->
+    <script src="assets/js/atlantis.min.js"></script>
+    <!-- Atlantis DEMO methods, don't include it in your project! -->
+    <script src="assets/js/setting-demo2.js"></script>
 
+    <!-- 引入 API 配置与加载脚本 -->
+    <script src="js/api_config.js"></script>
+    <script src="js/q_pod.js"></script>
 
-		<div class="main-panel">
-			<div class="content">
-				<div class="page-inner">
-					<!-- Card -->
-					<h4 class="page-title">Pod 概要</h4>
-					<div class="row" id="pod-summary-cards">
-						<div class="col-sm-6 col-md-3">
-							<div class="card card-stats card-success card-round">
-								<div class="card-body">
-									<div class="row">
-										<div class="col-5">
-											<div class="icon-big text-center">
-												<i class="flaticon-analytics"></i>
-											</div>
-										</div>
-										<div class="col-7 col-stats">
-											<div class="numbers">
-												<p class="card-category">Running</p>
-												<h4 class="card-title" id="pod-running">0</h4>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-						<div class="col-sm-6 col-md-3">
-							<div class="card card-stats card-info card-round">
-								<div class="card-body">
-									<div class="row">
-										<div class="col-5">
-											<div class="icon-big text-center">
-												<i class="flaticon-interface-6"></i>
-											</div>
-										</div>
-										<div class="col-7 col-stats">
-											<div class="numbers">
-												<p class="card-category">Pending</p>
-												<h4 class="card-title" id="pod-pending">0</h4>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-						<div class="col-sm-6 col-md-3">
-							<div class="card card-stats card-danger card-round">
-								<div class="card-body">
-									<div class="row">
-										<div class="col-5">
-											<div class="icon-big text-center">
-												<i class="flaticon-close"></i>
-											</div>
-										</div>
-										<div class="col-7 col-stats">
-											<div class="numbers">
-												<p class="card-category">Failed</p>
-												<h4 class="card-title" id="pod-failed">0</h4>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-						<div class="col-sm-6 col-md-3">
-							<div class="card card-stats card-secondary card-round">
-								<div class="card-body">
-									<div class="row">
-										<div class="col-5">
-											<div class="icon-big text-center">
-												<i class="flaticon-question"></i>
-											</div>
-										</div>
-										<div class="col-7 col-stats">
-											<div class="numbers">
-												<p class="card-category">Unknown</p>
-												<h4 class="card-title" id="pod-unknown">0</h4>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>
+    <script>
+      // ✅ 重启 Pod 请求逻辑
+      function restartPod(namespace, name) {
+        if (!confirm(`🔁 确认要重启 Pod「${name}」吗？`)) return;
 
-					<div class="row">
-						<div class="col-md-12">
-							<div class="card">
-									<div class="card-header">
-										<h4 class="card-title">具体信息展示</h4>
-									</div>
-									<div class="table-responsive">
-										<table id="pod-table" class="display table table-striped table-hover">
-										<thead>
-											<tr>
-											<th>Namespace</th>
-											<th>Deployment</th>
-											<th>Pod Name</th>
-											<th>Ready</th>
-											<th>Phase</th>
-											<th>Restart Count</th>
-											<th>Start Time</th>
-											<th>Pod IP</th>
-											<th>Node</th>
-											<th>操作</th>
-											</tr>
-										</thead>
-										<tbody></tbody>
-										<tfoot>
-											<tr>
-											<th>Namespace</th>
-											<th>Deployment</th>
-											<th>Pod Name</th>
-											<th>Ready</th>
-											<th>Phase</th>
-											<th>Restart Count</th>
-											<th>Start Time</th>
-											<th>Pod IP</th>
-											<th>Node</th>
-											<th>操作</th>
-											</tr>
-										</tfoot>
-										</table>
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
+        fetch(API_ENDPOINTS.pod.restart(namespace, name), {
+          method: "POST",
+        })
+          .then((res) => {
+            if (!res.ok)
+              return res.json().then((err) => {
+                throw err;
+              });
+            return res.json();
+          })
+          .then((data) => {
+            alert(data.message || `✅ Pod ${name} 重启成功`);
+            location.reload(); // 刷新页面
+          })
+          .catch((err) => {
+            console.error("❌ 重启失败:", err);
+            alert(err.message || "重启失败，请稍后再试");
+          });
+      }
 
-			
-		</div>
-	</div>
+      $(document).ready(function () {
+        const table = $("#pod-table").DataTable({
+          pageLength: 5,
+          columns: [
+            { title: "Namespace" },
+            { title: "Deployment" },
+            { title: "Pod Name" },
+            { title: "Ready" },
+            { title: "Phase" },
+            { title: "Restart Count" },
+            { title: "Start Time" },
+            { title: "Pod IP" },
+            { title: "Node" },
+            { title: "操作" },
+          ],
+          initComplete: function () {
+            initColumnFilters(this.api());
+          },
+        });
 
-	<!--   Core JS Files   -->
-	<script src="assets/js/core/jquery.3.2.1.min.js"></script>
-	<script src="assets/js/core/popper.min.js"></script>
-	<script src="assets/js/core/bootstrap.min.js"></script>
-	<!-- jQuery UI -->
-	<script src="assets/js/plugin/jquery-ui-1.12.1.custom/jquery-ui.min.js"></script>
-	<script src="assets/js/plugin/jquery-ui-touch-punch/jquery.ui.touch-punch.min.js"></script>
-
-	<!-- jQuery Scrollbar -->
-	<script src="assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
-	<!-- Datatables -->
-	<script src="assets/js/plugin/datatables/datatables.min.js"></script>
-	<!-- Atlantis JS -->
-	<script src="assets/js/atlantis.min.js"></script>
-	<!-- Atlantis DEMO methods, don't include it in your project! -->
-	<script src="assets/js/setting-demo2.js"></script>
-
-	<!-- 引入 API 配置与加载脚本 -->
-<script src="js/api_config.js"></script>
-<script src="js/q_pod.js"></script>
-
-
-<script>
-// ✅ 重启 Pod 请求逻辑
-function restartPod(namespace, name) {
-	if (!confirm(`🔁 确认要重启 Pod「${name}」吗？`)) return;
-
-	fetch(API_ENDPOINTS.pod.restart(namespace, name), {
-		method: "POST"
-	})
-	.then(res => {
-		if (!res.ok) return res.json().then(err => { throw err; });
-		return res.json();
-	})
-	.then(data => {
-		alert(data.message || `✅ Pod ${name} 重启成功`);
-		location.reload(); // 刷新页面
-	})
-	.catch(err => {
-		console.error("❌ 重启失败:", err);
-		alert(err.message || "重启失败，请稍后再试");
-	});
-}
-
-$(document).ready(function () {
-	const table = $('#pod-table').DataTable({
-		pageLength: 5,
-		columns: [
-			{ title: "Namespace" },
-			{ title: "Deployment" },
-			{ title: "Pod Name" },
-			{ title: "Ready" },
-			{ title: "Phase" },
-			{ title: "Restart Count" },
-			{ title: "Start Time" },
-			{ title: "Pod IP" },
-			{ title: "Node" },
-			{ title: "操作" }
-		],
-		initComplete: function () {
-			initColumnFilters(this.api());
-		}
-	});
-
-	// ✅ 加载 Pod 简略数据
-	fetch(API_ENDPOINTS.pod.listBrief)
-		.then(res => res.json())
-		.then(data => {
-			data.forEach(pod => {
-				const actionBtns = `
-					<button class="btn btn-sm btn-primary mr-1" onclick="window.location.href='pod-describe.html?namespace=${encodeURIComponent(pod.namespace)}&name=${encodeURIComponent(pod.name)}'">
+        // ✅ 加载 Pod 简略数据
+        fetch(API_ENDPOINTS.pod.listBrief)
+          .then((res) => res.json())
+          .then((data) => {
+            data.forEach((pod) => {
+              const actionBtns = `
+					<button class="btn btn-sm btn-primary mr-1" onclick="window.location.href='pod-describe.html?namespace=${encodeURIComponent(
+            pod.namespace
+          )}&name=${encodeURIComponent(pod.name)}'">
 						查看
 					</button>
-					<button class="btn btn-sm btn-warning" onclick="restartPod('${pod.namespace}', '${pod.name}')">
+					<button class="btn btn-sm btn-warning" onclick="restartPod('${
+            pod.namespace
+          }', '${pod.name}')">
 						重启
 					</button>
 				`;
 
-				table.row.add([
-					pod.namespace,
-					pod.deployment,
-					pod.name,
-					pod.ready ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-danger">No</span>',
-					pod.phase,
-					pod.restartCount,
-					new Date(pod.startTime).toLocaleString(),
-					pod.podIP,
-					pod.nodeName,
-					actionBtns
-				]);
-			});
-			table.draw();
-		})
-		.catch(err => {
-			console.error("❌ 获取 Pod 简略数据失败:", err);
-		});
+              table.row.add([
+                pod.namespace,
+                pod.deployment,
+                pod.name,
+                pod.ready
+                  ? '<span class="badge badge-success">Yes</span>'
+                  : '<span class="badge badge-danger">No</span>',
+                pod.phase,
+                pod.restartCount,
+                new Date(pod.startTime).toLocaleString(),
+                pod.podIP,
+                pod.nodeName,
+                actionBtns,
+              ]);
+            });
+            table.draw();
+          })
+          .catch((err) => {
+            console.error("❌ 获取 Pod 简略数据失败:", err);
+          });
 
-	// ✅ 筛选器初始化
-	function initColumnFilters(tableInstance) {
-		tableInstance.columns().every(function () {
-			const column = this;
-			const footer = $(column.footer());
-			const currentVal = footer.find('select').val();
+        // ✅ 筛选器初始化
+        function initColumnFilters(tableInstance) {
+          tableInstance.columns().every(function () {
+            const column = this;
+            const footer = $(column.footer());
+            const currentVal = footer.find("select").val();
 
-			// 忽略“操作”列
-			if (column.index() === tableInstance.columns().nodes().length - 1) {
-				footer.empty();
-				return;
-			}
+            // 忽略“操作”列
+            if (column.index() === tableInstance.columns().nodes().length - 1) {
+              footer.empty();
+              return;
+            }
 
-			const select = $('<select class="form-control"><option value=""></option></select>')
-				.on('change', function () {
-					const val = $.fn.dataTable.util.escapeRegex($(this).val());
-					column.search(val ? '^' + val + '$' : '', true, false).draw();
-				});
+            const select = $(
+              '<select class="form-control"><option value=""></option></select>'
+            ).on("change", function () {
+              const val = $.fn.dataTable.util.escapeRegex($(this).val());
+              column.search(val ? "^" + val + "$" : "", true, false).draw();
+            });
 
-			footer.empty().append(select);
+            footer.empty().append(select);
 
-			column.data().unique().sort().each(function (d) {
-				if (d) select.append('<option value="' + d + '">' + d + '</option>');
-			});
+            column
+              .data()
+              .unique()
+              .sort()
+              .each(function (d) {
+                if (d)
+                  select.append('<option value="' + d + '">' + d + "</option>");
+              });
 
-			if (currentVal) select.val(currentVal);
-		});
-	}
+            if (currentVal) select.val(currentVal);
+          });
+        }
 
-	// ✅ 表格刷新后同步更新筛选器
-	table.on('draw', function () {
-		initColumnFilters(table);
-	});
-});
-</script>
+        // ✅ 表格刷新后同步更新筛选器
+        table.on("draw", function () {
+          initColumnFilters(table);
+        });
+      });
+    </script>
 
-
-<!-- <script>
+    <!-- <script>
 $(document).ready(function () {
 	const table = $('#pod-table').DataTable({
 		pageLength: 5,
@@ -567,6 +613,5 @@ $(document).ready(function () {
 	});
 });
 </script> -->
-
-</body>
+  </body>
 </html>

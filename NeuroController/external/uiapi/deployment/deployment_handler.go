@@ -137,11 +137,18 @@ func GetProgressingDeploymentsHandler(c *gin.Context) {
 // =======================================================================================
 
 type ScaleDeploymentRequest struct {
-	Namespace string `json:"namespace" binding:"required"`
-	Name      string `json:"name" binding:"required"`
-	Replicas  int32  `json:"replicas" binding:"required"`
+	Namespace string  `json:"namespace" binding:"required"`
+	Name      string  `json:"name" binding:"required"`
+	Replicas  *int32  `json:"replicas"` // 可选，使用指针判断是否传入
+	Image     string  `json:"image"`    // 可选
 }
 
+// ScaleDeploymentHandler 处理 Deployment 的副本数和镜像更新
+//
+// 支持以下组合：
+//   - 仅更新副本数
+//   - 仅更新镜像
+//   - 同时更新副本数与镜像
 func ScaleDeploymentHandler(c *gin.Context) {
 	var req ScaleDeploymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -150,14 +157,41 @@ func ScaleDeploymentHandler(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	err := uiapi.UpdateDeploymentReplicas(ctx, req.Namespace, req.Name, req.Replicas)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新副本数失败: " + err.Error()})
+	hasImage := req.Image != ""
+	hasReplicas := req.Replicas != nil
+
+	var replicaUpdated, imageUpdated bool
+
+	// ✅ 更新副本数（仅当提供时）
+	if hasReplicas {
+		if err := uiapi.UpdateDeploymentReplicas(ctx, req.Namespace, req.Name, *req.Replicas); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新副本数失败: " + err.Error()})
+			return
+		}
+		replicaUpdated = true
+	}
+
+	// ✅ 更新镜像（仅当提供时）
+	if hasImage {
+		if err := uiapi.UpdateDeploymentImage(ctx, req.Namespace, req.Name, req.Image); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新镜像失败: " + err.Error()})
+			return
+		}
+		imageUpdated = true
+	}
+
+	// ❌ 两个都没提供
+	if !replicaUpdated && !imageUpdated {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "未提供需要更新的字段（replicas 或 image）"})
 		return
 	}
 
+	// ✅ 成功响应
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "副本数更新成功",
-		"replicas": req.Replicas,
+		"message":         "更新成功",
+		"replicasUpdated": replicaUpdated,
+		"imageUpdated":    imageUpdated,
+		"replicas":        req.Replicas,
+		"image":           req.Image,
 	})
 }

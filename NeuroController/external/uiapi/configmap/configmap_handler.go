@@ -71,3 +71,99 @@ func ListAllConfigMapsHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, list)
 }
+
+
+
+// =======================================================================================
+// ✅ GET /uiapi/configmap/alert/get
+//
+// 🔍 获取当前告警系统的配置信息（ConfigMap 字段）
+// =======================================================================================
+func GetAlertSettingsHandler(c *gin.Context) {
+	data, err := uiapi.GetCurrentAlertConfig()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取告警配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, data)
+}
+
+// =======================================================================================
+// ✅ POST /uiapi/configmap/alert/slack
+//
+// ✏️ 更新 Slack 配置（开关 + webhook 地址）
+// Body: { "enabled": true, "webhook": "https://..." }
+// =======================================================================================
+func UpdateSlackConfigHandler(c *gin.Context) {
+	var req struct {
+		Enabled bool   `json:"enabled"`
+		Webhook string `json:"webhook"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式错误: " + err.Error()})
+		return
+	}
+
+	err := uiapi.UpdateSlackConfig(req.Enabled, req.Webhook)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新 Slack 配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Slack 配置已更新"})
+}
+
+// =======================================================================================
+// ✅ POST /uiapi/configmap/alert/webhook
+//
+// ✏️ 更新 Webhook 开关（CI/CD 更新）
+// Body: { "enabled": true }
+// =======================================================================================
+func UpdateWebhookSwitchHandler(c *gin.Context) {
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式错误: " + err.Error()})
+		return
+	}
+
+	err := uiapi.UpdateWebhookEnabled(req.Enabled)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新 Webhook 开关失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Webhook 开关已更新"})
+}
+
+// =======================================================================================
+// ✅ POST /uiapi/configmap/alert/mail
+//
+// ✏️ 更新邮件配置（开关、用户名、密码、发件人、收件人）
+// Body: {
+//   "enabled": true,
+//   "username": "xxx@gmail.com",
+//   "password": "xxx",
+//   "from": "xxx@gmail.com",
+//   "to": ["a@x.com", "b@x.com"]
+// }
+// =======================================================================================
+func UpdateMailConfigHandler(c *gin.Context) {
+	var req struct {
+		Enabled  bool     `json:"enabled"`
+		Username string   `json:"username"`
+		Password string   `json:"password"`
+		From     string   `json:"from"`
+		To       []string `json:"to"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式错误: " + err.Error()})
+		return
+	}
+
+	err := uiapi.UpdateMailConfig(req.Enabled, req.Username, req.Password, req.From, req.To)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新邮件配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "邮件配置已更新"})
+}

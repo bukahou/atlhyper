@@ -18,6 +18,74 @@
 		});
 	</script>
 
+	<style>
+  /* 开关样式 */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 24px;
+  }
+
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0;
+    right: 0; bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 34px;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+  }
+
+  input:checked + .slider {
+    background-color: #4cd964; /* 绿色 */
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(22px);
+  }
+</style>
+<style>
+  .mail-to-input-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .mail-to-input-group input {
+    flex: 1;
+    border: none;
+    box-shadow: none;
+    background-color: transparent;
+  }
+
+  .mail-to-input-group button {
+    margin-left: 4px;
+    font-size: 16px;
+    padding: 0 8px;
+    height: 28px;
+    line-height: 1;
+  }
+</style>
+
 	<!-- CSS Files -->
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css">
 	<link rel="stylesheet" href="assets/css/atlantis.min.css">
@@ -221,167 +289,147 @@
 
 					<!-- Card -->
 					<!-- Describe -->
-					<h4 class="page-title">Pod Describe</h4>
+					<h4 class="page-title">监控系统配置</h4>
 					<div class="row justify-content-center align-items-center mb-1">
 
 
-						<div class="col-md-4 pl-md-0">
-							<div class="card card-pricing">
-								<div class="card-header">
-									<h4 class="card-title">基本信息</h4>
-								</div>
-								<div class="card-body">
-									<ul class="specification-list">
-										<li><span class="name-specification">节点名称</span>
-											<span class="status-specification">{{ node.metadata.name }}</span>
-										</li>
-										<li><span class="name-specification">Provider ID</span>
-											<span class="status-specification">{{ node.spec.providerID }}</span>
-										</li>
-										<li><span class="name-specification">Pod CIDR</span>
-											<span class="status-specification">{{ node.spec.podCIDR }}</span>
-										</li>
-										<li><span class="name-specification">创建时间</span>
-											<span class="status-specification">{{ node.metadata.creationTimestamp }}</span>
-										</li>
+<div class="col-md-4 pl-md-0">
+  <div class="card card-pricing">
+    <div class="card-header">
+      <h4 class="card-title">Slack 告警配置</h4>
+    </div>
+    <div class="card-body">
+      <ul class="specification-list">
+        <li>
+          <span class="name-specification">启用告警</span>
+          <span class="status-specification">
+            <label class="switch mt-1 mb-1">
+              <input type="checkbox" id="slack-enable-switch">
+              <span class="slider"></span>
+            </label>
+          </span>
+        </li>		
+        <li>
+          <span class="name-specification">Webhook 地址</span>
+          <span class="status-specification">
+            <input id="slack-webhook-input" type="text"
+              class="form-control form-control-sm mt-1 mb-1"
+              style="border: none; box-shadow: none; background-color: transparent;"
+              placeholder="请输入完整的 Slack Webhook URL">
+          </span>
+        </li>
 
-
-									</ul>
-								</div>
-							</div>
-						</div>
-
-
-						<div class="col-md-4 pl-md-0 pr-md-0">
-							<div class="card card-pricing card-pricing-focus card-primary">
-								<div class="card-header">
-									<h4 class="card-title">系统信息</h4>
-								</div>
-								<div class="card-body">
-									<ul class="specification-list">
-										<li><span class="name-specification">内核版本</span>
-											<span class="status-specification">{{ node.status.nodeInfo.kernelVersion }}</span>
-										</li>
-										<li><span class="name-specification">OS 镜像</span>
-											<span class="status-specification">{{ node.status.nodeInfo.osImage }}</span>
-										</li>
-										<li><span class="name-specification">运行时</span>
-											<span class="status-specification">{{ node.status.nodeInfo.containerRuntimeVersion }}</span>
-										</li>
-										<li><span class="name-specification">Kubelet</span>
-											<span class="status-specification">{{ node.status.nodeInfo.kubeletVersion }}</span>
-										</li>
-										<li><span class="name-specification">架构</span>
-											<span class="status-specification">{{ node.status.nodeInfo.architecture }}</span>
-										</li>
-
-									</ul>
-								</div>
-							</div>
-						</div>
-
-
-						<div class="col-md-4 pr-md-0">
-							<div class="card card-pricing">
-								<div class="card-header">
-									<h4 class="card-title">网络信息</h4>
-								</div>
-								<div class="card-body">
-									<ul class="specification-list">
-									<li><span class="name-specification">Internal IP</span>
-										<span class="status-specification">{{ getInternalIP(node.status.addresses) }}</span>
-									</li>
-									<li><span class="name-specification">Hostname</span>
-										<span class="status-specification">{{ getHostname(node.status.addresses) }}</span>
-									</li>
-									<li><span class="name-specification">Flannel 公网 IP</span>
-										<span class="status-specification">{{ node.metadata.annotations["flannel.alpha.coreos.com/public-ip"] }}</span>
-									</li>
-
-									</ul>
-								</div>
-							</div>
-						</div>
+      </ul>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary btn-block" onclick="submitSlackConfig()">
+        <b>保存配置</b>
+      </button>
+    </div>
+  </div>
+</div>
 
 
 
 
 
-						<div class="col-md-4 pl-md-0">
-							<div class="card card-pricing">
-								<div class="card-header">
-									<h4 class="card-title">节点状态</h4>
-								</div>
-								<div class="card-body">
-									<ul class="specification-list">
-									<li><span class="name-specification">就绪</span>
-										<span class="status-specification">{{ getCondition("Ready") }}</span>
-									</li>
-									<li><span class="name-specification">内存压力</span>
-										<span class="status-specification">{{ getCondition("MemoryPressure") }}</span>
-									</li>
-									<li><span class="name-specification">磁盘压力</span>
-										<span class="status-specification">{{ getCondition("DiskPressure") }}</span>
-									</li>
-									<li><span class="name-specification">PID 压力</span>
-										<span class="status-specification">{{ getCondition("PIDPressure") }}</span>
-									</li>
-
-
-									</ul>
-								</div>
-							</div>
-						</div>
-
-
-						<div class="col-md-4 pl-md-0 pr-md-0">
-							<div class="card card-pricing card-pricing-focus card-primary">
-								<div class="card-header">
-									<h4 class="card-title">资源容量</h4>
-								</div>
-								<div class="card-body">
-									<ul class="specification-list">
-									<li><span class="name-specification">总 CPU</span>
-										<span class="status-specification">{{ node.status.capacity.cpu }} 核</span>
-									</li>
-									<li><span class="name-specification">总内存</span>
-										<span class="status-specification">{{ formatMemory(node.status.capacity.memory) }} GiB</span>
-									</li>
-									<li><span class="name-specification">最大 Pod 数</span>
-										<span class="status-specification">{{ node.status.capacity.pods }}</span>
-									</li>
-									<li><span class="name-specification">可分配 CPU</span>
-										<span class="status-specification">{{ node.status.allocatable.cpu }}</span>
-									</li>
-									<li><span class="name-specification">可分配内存</span>
-										<span class="status-specification">{{ formatMemory(node.status.allocatable.memory) }} GiB</span>
-									</li>
-
-									</ul>
-								</div>
-							</div>
-						</div>
-
-
-						<div class="col-md-4 pr-md-0">
-						<div class="card card-pricing">
-							<div class="card-header">
-							<h4 class="card-title">已加载镜像（前 5 个）</h4>
-							</div>
-							<div class="card-body">
-							<ul class="specification-list">
-								<li v-for="(image, index) in node.status.images.slice(0, 5)" :key="image.names[0]">
-								<span class="name-specification">{{ image.names[0] }}</span>
-								<span class="status-specification">{{ formatImageSize(image.sizeBytes) }}</span>
-								</li>
-							</ul>
-							</div>
-						</div>
-						</div>
+<div class="col-md-4">
+  <div class="card card-pricing">
+    <div class="card-header">
+      <h4 class="card-title">📧 邮件告警配置</h4>
+    </div>
+    <div class="card-body">
+      <ul class="specification-list">
+        <li>
+          <span class="name-specification">启用邮件告警</span>
+          <span class="status-specification">
+            <label class="switch mt-1 mb-1">
+              <input type="checkbox" id="enable-mail-alert">
+              <span class="slider"></span>
+            </label>
+          </span>
+        </li>
+        <li>
+          <span class="name-specification">SMTP 用户名</span>
+          <span class="status-specification">
+            <input id="mail-username" type="text" class="form-control form-control-sm mt-1 mb-1"
+              style="border: none; box-shadow: none; background-color: transparent;"
+              placeholder="必须: 发件邮箱账号">
+          </span>
+        </li>
+        <li>
+          <span class="name-specification">SMTP 密码</span>
+          <span class="status-specification">
+            <input id="mail-password" type="password" class="form-control form-control-sm mt-1 mb-1"
+              style="border: none; box-shadow: none; background-color: transparent;"
+              placeholder="必须: 授权码或密码">
+          </span>
+        </li>
+        <li>
+          <span class="name-specification">发件人地址</span>
+          <span class="status-specification">
+            <input id="mail-from" type="text" class="form-control form-control-sm mt-1 mb-1"
+              style="border: none; box-shadow: none; background-color: transparent;"
+              placeholder="必须: 发件人邮箱">
+          </span>
+        </li>		
+		<li>
+		<span class="name-specification">收件人地址</span>
+		<span class="status-specification">
+			<div id="mail-to-list">
+			<div class="mail-to-input-group">
+				<input type="text" class="form-control form-control-sm mt-1 mb-1 mail-to-item" placeholder="示例: user@example.com">
+				<button type="button" class="btn btn-success btn-sm" onclick="addMailToField()">＋</button>
+			</div>
+			</div>
+		</span>
+		</li>
+      </ul>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary btn-block" onclick="submitMailConfig()">
+        <b>保存配置</b>
+      </button>
+    </div>
+  </div>
+</div>
 
 
 
-
+<div class="col-md-4">
+  <div class="card card-pricing">
+    <div class="card-header">
+      <h4 class="card-title">🚀 CI/CD Webhook 配置</h4>
+    </div>
+    <div class="card-body">
+      <ul class="specification-list">
+        <li>
+          <span class="name-specification">启用 Webhook</span>
+          <span class="status-specification">
+            <label class="switch mt-1 mb-1">
+              <input type="checkbox" id="enable-webhook">
+              <span class="slider"></span>
+            </label>
+          </span>
+        </li>
+        <li>
+          <span class="name-specification">Webhook 地址</span>
+          <span class="status-specification">
+            <input type="text" id="webhook-url"
+              class="form-control form-control-sm mt-1 mb-1"
+              style="border: none; background-color: transparent;" readonly
+              value="/webhook/dockerhub">
+          </span>
+        </li>
+      </ul>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary btn-block" onclick="submitWebhookConfig()">
+        <b>保存配置</b>
+      </button>
+    </div>
+  </div>
+</div>
 
 
 				</div>
@@ -415,8 +463,49 @@
 	<!-- 引入 API 配置与加载脚本 -->
 <script src="js/api_config.js"></script>
 
-
 <script>
+  function addMailToField(value = "") {
+    const container = document.getElementById("mail-to-list");
+
+    const group = document.createElement("div");
+    group.className = "mail-to-input-group";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "form-control form-control-sm mt-1 mb-1 mail-to-item";
+    input.placeholder = "示例: user@example.com";
+    input.value = value;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "btn btn-danger btn-sm";
+    removeBtn.innerText = "－";
+    removeBtn.onclick = () => group.remove();
+
+    group.appendChild(input);
+    group.appendChild(removeBtn);
+    container.appendChild(group);
+  }
+
+  // 🔁 用于初始化加载收件人列表
+  function setMailToList(addresses) {
+    const container = document.getElementById("mail-to-list");
+    container.innerHTML = ""; // 清空现有
+    if (!addresses || addresses.length === 0) {
+      addMailToField(); // 添加空行
+    } else {
+      addresses.forEach(addr => addMailToField(addr));
+    }
+  }
+
+  // 🔄 获取所有收件人（用于保存）
+  function getMailToList() {
+    return Array.from(document.getElementsByClassName("mail-to-item"))
+      .map(input => input.value.trim())
+      .filter(val => val !== "");
+  }
+</script>
+
+<!-- <script>
 new Vue({
   el: "#app",
   data: {
@@ -472,7 +561,7 @@ new Vue({
     }
   }
 });
-</script>
+</script> -->
 
 
 

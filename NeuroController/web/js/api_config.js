@@ -66,6 +66,11 @@ const API_ENDPOINTS = {
     listByNamespace: (ns) =>
       `${API_BASE_URL}/uiapi/configmap/list/by-namespace/${ns}`,
     get: (ns, name) => `${API_BASE_URL}/uiapi/configmap/get/${ns}/${name}`,
+    // ✅ 告警系统配置
+    getAlertSettings: `${API_BASE_URL}/uiapi/configmap/alert/get`, // 获取配置
+    updateSlack: `${API_BASE_URL}/uiapi/configmap/alert/slack`, // 更新 Slack
+    updateWebhook: `${API_BASE_URL}/uiapi/configmap/alert/webhook`, // 更新 Webhook 开关
+    updateMail: `${API_BASE_URL}/uiapi/configmap/alert/mail`, // 更新 Mail（含多人）
   },
   service: {
     listAll: `${API_BASE_URL}/uiapi/service/list/all`,

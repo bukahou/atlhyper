@@ -16,6 +16,7 @@ package deployment
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"NeuroController/internal/utils"
@@ -52,6 +53,64 @@ func UpdateReplicas(ctx context.Context, namespace, name string, replicas int32)
 	)
 	if err != nil {
 		return fmt.Errorf("PATCH 更新副本数失败: %w", err)
+	}
+
+	return nil
+}
+
+
+
+func UpdateAllContainerImages(ctx context.Context, namespace, name string, newImage string) error {
+	client := utils.GetCoreClient()
+
+	// 获取当前 Deployment
+	deploy, err := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("获取 Deployment 失败: %w", err)
+	}
+
+	// 构造 patch 对象结构体
+	type containerPatch struct {
+		Name  string `json:"name"`
+		Image string `json:"image"`
+	}
+	type patchSpec struct {
+		Spec struct {
+			Template struct {
+				Spec struct {
+					Containers []containerPatch `json:"containers"`
+				} `json:"spec"`
+			} `json:"template"`
+		} `json:"spec"`
+	}
+
+	var patch patchSpec
+	for _, c := range deploy.Spec.Template.Spec.Containers {
+		patch.Spec.Template.Spec.Containers = append(patch.Spec.Template.Spec.Containers, containerPatch{
+			Name:  c.Name,
+			Image: newImage,
+		})
+	}
+
+	// 编码为合法 JSON
+	patchBytes, err := json.Marshal(patch)
+	if err != nil {
+		return fmt.Errorf("JSON 序列化失败: %w", err)
+	}
+
+	// ✅ 可选调试输出
+	// fmt.Println("[DEBUG] PATCH body:", string(patchBytes))
+
+	// 执行 PATCH 请求
+	_, err = client.AppsV1().Deployments(namespace).Patch(
+		ctx,
+		name,
+		types.StrategicMergePatchType,
+		patchBytes,
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("更新 Deployment 容器镜像失败: %w", err)
 	}
 
 	return nil

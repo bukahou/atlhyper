@@ -59,3 +59,15 @@ func GetProgressingDeployments(ctx context.Context) ([]appsv1.Deployment, error)
 func UpdateDeploymentReplicas(ctx context.Context, namespace, name string, replicas int32) error {
 	return deploymentop.UpdateReplicas(ctx, namespace, name, replicas)
 }
+
+// UpdateDeploymentImage 更新指定 Deployment 的所有容器镜像
+// 参数：
+//   - ctx: 上下文
+//   - namespace: Deployment 所在命名空间
+//   - name: Deployment 名称
+//   - newImage: 新的容器镜像名称
+// 返回：
+//   - error: 若失败则返回错误
+func UpdateDeploymentImage(ctx context.Context, namespace, name, newImage string) error {
+	return deploymentop.UpdateAllContainerImages(ctx, namespace, name, newImage)
+}
