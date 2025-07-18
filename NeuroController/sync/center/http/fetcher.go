@@ -24,7 +24,7 @@ var AgentEndpoints = loadAgentEndpoints()
 func loadAgentEndpoints() []string {
 	env := os.Getenv("AGENT_ENDPOINTS")
 	if env == "" {
-		return []string{"http://127.0.0.1:18080"}
+		return []string{"http://127.0.0.1:8082"}
 	}
 	endpoints := strings.Split(env, ",")
 	for i := range endpoints {

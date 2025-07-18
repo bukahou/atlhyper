@@ -32,7 +32,7 @@ COPY --from=builder /app/neuroagent .
 RUN chmod +x ./neuroagent
 
 # Agent 暴露 HTTP 接口，可开启端口（如有需要）
-EXPOSE 18080
+EXPOSE 8082
 
 # 设置容器启动命令
 ENTRYPOINT ["./neuroagent"]

@@ -16,8 +16,8 @@ package server
 
 import (
 	"NeuroController/config"
-	"NeuroController/external/uiapi"   // 📦 UI REST 接口注册模块
-	"NeuroController/external/webhook" // 📦 Webhook 路由模块（CI/CD）
+	"NeuroController/external/uiapi" // 📦 UI REST 接口注册模块
+	// 📦 Webhook 路由模块（CI/CD）
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -30,11 +30,11 @@ func InitRouter() *gin.Engine {
 
 	// ✅ 挂载静态资源目录：/Atlhper 对应本地 ./web 目录
 	//     浏览器访问 /Atlhper/index.html 会映射为 web/index.html 文件
-	router.Static("/Atlhper", "web")
+	router.Static("/Atlhyper", "web")
 
 	// ✅ 首页重定向：访问 /Atlhper 会被 302 跳转至 /Atlhper/index.html
-	router.GET("/Atlhper", func(c *gin.Context) {
-		c.Redirect(302, "/Atlhper/login.html")
+	router.GET("/Atlhyper", func(c *gin.Context) {
+		c.Redirect(302, "/Atlhyper/login.html")
 	})
 
 	// ✅ 注册 UI API 路由（如 /uiapi/node/list 等）
@@ -42,7 +42,7 @@ func InitRouter() *gin.Engine {
 
 	// ✅ 可选注册 Webhook 路由（如 /webhook/dockerhub 等）
 	if config.GlobalConfig.Webhook.Enable {
-		webhook.RegisterWebhookRoutes(router.Group("/webhook"))
+		// webhook.RegisterWebhookRoutes(router.Group("/webhook"))
 	} else {
 		log.Println("⛔️ Webhook Server 已被禁用")
 	}

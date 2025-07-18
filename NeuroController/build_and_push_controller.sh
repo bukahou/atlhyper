@@ -10,7 +10,7 @@
 set -e
 
 IMAGE_NAME="bukahou/neurocontroller"
-TAG="v1.3.1"
+TAG="v2.0.0"
 
 echo "🔧 [Step 1] Checking Buildx builder"
 docker buildx create --name mybuilder --use || true
@@ -19,6 +19,7 @@ docker buildx inspect --bootstrap
 echo "🚀[Step 2] Building and pushing: ${IMAGE_NAME}:${TAG}"
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
+  -f Dockerfile.controller \
   -t ${IMAGE_NAME}:${TAG} \
   --no-cache \
   --push .

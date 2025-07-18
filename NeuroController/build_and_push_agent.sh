@@ -9,7 +9,7 @@
 set -e
 
 IMAGE_NAME="bukahou/neuroagent"
-TAG="v1.3.1"
+TAG="v1.0.0"
 
 echo "🔧 [Step 1] Checking Buildx builder"
 docker buildx create --name mybuilder --use || true

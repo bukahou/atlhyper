@@ -33,8 +33,8 @@ func EnsureAdminUser() error {
 	}
 
 	// 2️⃣ 构造默认用户信息
-	username := "wuxiafeng"
-	password := "wuxiafeng"
+	username := "admin"
+	password := "admin"
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err // 密码加密失败
@@ -55,6 +55,6 @@ func EnsureAdminUser() error {
 		return err // 插入失败
 	}
 
-	log.Println("✅ 默认管理员已创建: 用户名 wuxiafeng / 密码 wuxiafeng")
+	log.Println("✅ 默认管理员已创建: 用户名 admin / 密码 admin")
 	return nil
 }
