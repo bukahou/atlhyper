@@ -22,5 +22,6 @@ func RegisterDeploymentRoutes(rg *gin.RouterGroup) {
 	rg.GET("/get/:ns/:name", GetDeploymentByNameHandler)
 	rg.GET("/list/unavailable", GetUnavailableDeploymentsHandler)
 	rg.GET("/list/progressing", GetProgressingDeploymentsHandler)
-	rg.POST("/scale", ScaleDeploymentHandler)
 }
+
+// rg.POST("/scale", ScaleDeploymentHandler)

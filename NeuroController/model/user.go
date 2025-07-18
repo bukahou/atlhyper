@@ -1,0 +1,14 @@
+package model
+
+import "time"
+
+type User struct {
+	ID          int
+	Username    string
+	PasswordHash string
+	DisplayName string
+	Email       string
+	Role        int
+	CreatedAt   time.Time
+	LastLogin   *time.Time
+}

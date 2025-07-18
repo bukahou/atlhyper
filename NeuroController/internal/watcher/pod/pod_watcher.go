@@ -67,6 +67,9 @@ func (w *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 // 若检测到异常状态，则通过 diagnosis 模块记录该异常。
 // 后续可扩展为调用执行器或上报模块。
 func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	// log.Printf("🎯 PodWatcher Reconcile 被触发: Namespace=%s, Name=%s", req.Namespace, req.Name)
+
+
 	var pod corev1.Pod
 	err := w.client.Get(ctx, req.NamespacedName, &pod)
 	if err != nil {
@@ -78,11 +81,14 @@ func (w *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
+
 	// ✨ 检测是否为异常状态（已内置冷却判断）
 	reason := abnormal.GetPodAbnormalReason(pod)
 	if reason == nil {
+
 		return ctrl.Result{}, nil
 	}
+	
 	// 记录异常事件，供后续处理
 	diagnosis.CollectPodAbnormalEvent(pod, reason)
 

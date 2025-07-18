@@ -19,7 +19,8 @@
 package event
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	"NeuroController/external/logger"
+	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 	"strconv"
 
@@ -34,7 +35,7 @@ import (
 // 用于：事件中心首页、集群总览
 // =======================================================================================
 func GetAllEventsHandler(c *gin.Context) {
-	events, err := uiapi.GetAllEvents(c.Request.Context())
+	events, err := uiapi.GetAllEvents()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取全部事件失败: " + err.Error()})
 		return
@@ -52,7 +53,7 @@ func GetAllEventsHandler(c *gin.Context) {
 func GetEventsByNamespaceHandler(c *gin.Context) {
 	ns := c.Param("ns")
 
-	events, err := uiapi.GetEventsByNamespace(c.Request.Context(), ns)
+	events, err := uiapi.GetEventsByNamespace(ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取命名空间事件失败: " + err.Error()})
 		return
@@ -74,7 +75,7 @@ func GetEventsByInvolvedObjectHandler(c *gin.Context) {
 	kind := c.Param("kind")
 	name := c.Param("name")
 
-	events, err := uiapi.GetEventsByInvolvedObject(c.Request.Context(), ns, kind, name)
+	events, err := uiapi.GetEventsByInvolvedObject(ns, kind, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取关联事件失败: " + err.Error()})
 		return
@@ -90,7 +91,7 @@ func GetEventsByInvolvedObjectHandler(c *gin.Context) {
 // 用于：仪表盘总览统计、趋势图分析
 // =======================================================================================
 func GetEventTypeStatsHandler(c *gin.Context) {
-	stats, err := uiapi.GetEventTypeCounts(c.Request.Context())
+	stats, err := uiapi.GetEventTypeCounts()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取事件类型统计失败: " + err.Error()})
 		return
@@ -113,7 +114,7 @@ func GetRecentLogEventsHandler(c *gin.Context) {
 		days = 1
 	}
 
-	logs, err := uiapi.GetPersistedEventLogs(days)
+	logs, err := logger.GetRecentEventLogs(days)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "日志读取失败: " + err.Error()})
 		return
@@ -123,3 +124,5 @@ func GetRecentLogEventsHandler(c *gin.Context) {
 		"logs": logs,
 	})
 }
+
+

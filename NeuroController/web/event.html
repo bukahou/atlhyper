@@ -70,26 +70,26 @@
 						<div class="avatar-sm float-left mr-2">
 							<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
 						</div>
-						<div class="info">
-							<a data-toggle="collapse" href="#collapseExample" aria-expanded="true">
+							<div class="info">
+							<a data-toggle="collapse" href="#collapseUser" aria-expanded="true">
 								<span>
-									Wuxiafeng
-									<span class="user-level">我的集群</span>
-									<span class="caret"></span>
+								<span id="username-display">用户名</span>
+								<span class="user-level" id="role-display">权限等级</span>
+								<span class="caret"></span>
 								</span>
 							</a>
 							<div class="clearfix"></div>
 
-							<div class="collapse in" id="collapseExample">
+							<div class="collapse in" id="collapseUser">
 								<ul class="nav">
-									<li>
-										<a href="#profile">
-											<span class="link-collapse">切换</span>
-										</a>
-									</li>
+								<li>
+									<a href="#" id="logout-link">
+									<span class="link-collapse text-danger">退出登录</span>
+									</a>
+								</li>
 								</ul>
 							</div>
-						</div>
+							</div>
 					</div>
 					<ul class="nav nav-primary">
 						<li class="nav-item active">
@@ -162,23 +162,27 @@
 								</ul>
 							</div>
 						</li>
-						<li class="nav-item">
-							<a data-toggle="collapse" href="#sidebarLayouts">
-								<i class="fas fa-th-list"></i>
-								<p>操作</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="sidebarLayouts">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="create.html">
-											<span class="sub-item">资源创建</span>
-										</a>
-									</li>
-
-								</ul>
-							</div>
-						</li>
+							<li class="nav-item">
+								<a data-toggle="collapse" href="#sidebarLayouts">
+									<i class="fas fa-th-list"></i>
+									<p>操作</p>
+									<span class="caret"></span>
+								</a>
+								<div class="collapse" id="sidebarLayouts">
+									<ul class="nav nav-collapse">
+										<li>
+											<a href="create.html">
+												<span class="sub-item">资源创建</span>
+											</a>
+										</li>
+										<li>
+											<a href="user.html">
+												<span class="sub-item">用户管理</span>
+											</a>
+										</li>
+									</ul>
+								</div>
+							</li>
 						<li class="nav-item">
 							<a data-toggle="collapse" href="#forms">
 								<i class="fas fa-pen-square"></i>
@@ -487,6 +491,8 @@
 		
 	</div>
 	<!--   Core JS Files   -->
+ 	<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+	<script src="js/init_auth.js"></script>
 	<script src="assets/js/core/jquery.3.2.1.min.js"></script>
 	<script src="assets/js/core/popper.min.js"></script>
 	<script src="assets/js/core/bootstrap.min.js"></script>
@@ -502,53 +508,8 @@
 	<script src="assets/js/atlantis.min.js"></script>
 	<!-- Atlantis DEMO methods, don't include it in your project! -->
 	<script src="assets/js/setting-demo2.js"></script>
-	<script >
-		$(document).ready(function() {
-			$('#basic-datatables').DataTable({
-			});
-
-			$('#multi-filter-select').DataTable( {
-				"pageLength": 5,
-				initComplete: function () {
-					this.api().columns().every( function () {
-						var column = this;
-						var select = $('<select class="form-control"><option value=""></option></select>')
-						.appendTo( $(column.footer()).empty() )
-						.on( 'change', function () {
-							var val = $.fn.dataTable.util.escapeRegex(
-								$(this).val()
-								);
-
-							column
-							.search( val ? '^'+val+'$' : '', true, false )
-							.draw();
-						} );
-
-						column.data().unique().sort().each( function ( d, j ) {
-							select.append( '<option value="'+d+'">'+d+'</option>' )
-						} );
-					} );
-				}
-			});
-
-			// Add Row
-			$('#add-row').DataTable({
-				"pageLength": 5,
-			});
-
-			var action = '<td> <div class="form-button-action"> <button type="button" data-toggle="tooltip" title="" class="btn btn-link btn-primary btn-lg" data-original-title="Edit Task"> <i class="fa fa-edit"></i> </button> <button type="button" data-toggle="tooltip" title="" class="btn btn-link btn-danger" data-original-title="Remove"> <i class="fa fa-times"></i> </button> </div> </td>';
-
-			$('#addRowButton').click(function() {
-				$('#add-row').dataTable().fnAddData([
-					$("#addName").val(),
-					$("#addPosition").val(),
-					$("#addOffice").val(),
-					action
-					]);
-				$('#addRowModal').modal('hide');
-
-			});
-		});
-	</script>
+	<script src="js/api_config.js"></script>
+	<script src="js/event.js"></script>
+	<script src="js/user_info.js"></script>
 </body>
 </html>

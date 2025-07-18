@@ -1,9 +1,9 @@
 // js/api_config.js
-// const API_BASE_URL = "";
+const API_BASE_URL = "";
 
-const ENV = "dev"; // dev / prod
+// const ENV = "dev"; // dev / prod
 
-const API_BASE_URL = ENV === "dev" ? "http://localhost:8081" : "";
+// const API_BASE_URL = ENV === "dev" ? "http://localhost:8081" : "";
 
 const API_ENDPOINTS = {
   cluster: {
@@ -16,7 +16,7 @@ const API_ENDPOINTS = {
     get: (ns, name) => `${API_BASE_URL}/uiapi/deployment/get/${ns}/${name}`,
     listUnavailable: `${API_BASE_URL}/uiapi/deployment/list/unavailable`,
     listProgressing: `${API_BASE_URL}/uiapi/deployment/list/progressing`,
-    scale: `${API_BASE_URL}/uiapi/deployment/scale`,
+    scale: `${API_BASE_URL}/uiapi/deployment-ops/scale`,
   },
   event: {
     listAll: `${API_BASE_URL}/uiapi/event/list/all`,
@@ -57,7 +57,7 @@ const API_ENDPOINTS = {
     listBrief: `${API_BASE_URL}/uiapi/pod/list/brief`,
     describe: (ns, name) => `${API_BASE_URL}/uiapi/pod/describe/${ns}/${name}`,
     restart: (namespace, name) =>
-      `${API_BASE_URL}/uiapi/pod/restart/${namespace}/${name}`, // ✅ 新增重启接口
+      `${API_BASE_URL}/uiapi/pod-ops/restart/${namespace}/${name}`, // ✅ 新增重启接口
     logs: (namespace, name) =>
       `${API_BASE_URL}/uiapi/pod/logs/${namespace}/${name}`,
   },
@@ -79,5 +79,11 @@ const API_ENDPOINTS = {
     get: (ns, name) => `${API_BASE_URL}/uiapi/service/get/${ns}/${name}`,
     listExternal: `${API_BASE_URL}/uiapi/service/list/external`,
     listHeadless: `${API_BASE_URL}/uiapi/service/list/headless`,
+  },
+  auth: {
+    login: `${API_BASE_URL}/uiapi/auth/login`, // 登录接口
+    register: `${API_BASE_URL}/uiapi/auth/user/register`, // 注册用户
+    updateRole: `${API_BASE_URL}/uiapi/auth/user/update-role`, // 修改用户角色
+    listUsers: `${API_BASE_URL}/uiapi/auth/user/list`, // 获取用户列表
   },
 };

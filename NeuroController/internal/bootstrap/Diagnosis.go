@@ -1,35 +1,8 @@
-// =======================================================================================
-// 📄 diagnosis/diagnosis_init.go
-//
-// ✨ Description:
-//     Entry point for initializing and launching the diagnosis subsystem.
-//     This includes launching the log cleaner, the log file writer, and the Kubernetes
-//     API server health checker.
-//
-// 📦 Responsibilities:
-//     - Periodically clean and store deduplicated events (CleanAndStoreEvents)
-//     - Periodically persist cleaned events to disk (WriteNewCleanedEventsToFile)
-//     - Monitor cluster health by probing the API server (/healthz)
-//
-// 🧩 Modules Involved:
-//     - diagnosis.CleanAndStoreEvents: deduplication + retention
-//     - logging.WriteNewCleanedEventsToFile: log persistence
-//     - monitor.StartK8sHealthChecker: API server availability check
-//
-// 🕘 Interval Control:
-//     - Cleaning interval is set via DiagnosisConfig.CleanInterval
-//     - Log writing interval is set via DiagnosisConfig.WriteInterval
-//     - Health check interval is set via KubernetesConfig.APIHealthCheckInterval
-//
-// ✍️ Author: bukahou (@ZGMF-X10A)
-// =======================================================================================
-
 package bootstrap
 
 import (
 	"NeuroController/config"
 	"NeuroController/internal/diagnosis"
-	"NeuroController/internal/logging"
 	"NeuroController/internal/monitor"
 	"NeuroController/internal/utils"
 	"log"
@@ -59,24 +32,24 @@ func StartCleanSystem() {
 
 // StartLogWriter 启动日志写入器协程，定期将清理后的事件写入本地日志文件。
 // 写入周期由 config 中的 WriteInterval 控制。
-func StartLogWriter() {
-	// 读取写入周期配置
-	interval := config.GlobalConfig.Diagnosis.WriteInterval
+// func StartLogWriter() {
+// 	// 读取写入周期配置
+// 	interval := config.GlobalConfig.Diagnosis.WriteInterval
 
-	// 打印启动日志
-	log.Printf("✅ [Startup] 日志写入器启动（周期: %s）", interval)
+// 	// 打印启动日志
+// 	log.Printf("✅ [Startup] 日志写入器启动（周期: %s）", interval)
 
-	// 启动后台协程执行写入逻辑
-	go func() {
-		for {
-			// 执行写入操作，将新事件写入日志文件
-			logging.WriteNewCleanedEventsToFile()
+// 	// 启动后台协程执行写入逻辑
+// 	go func() {
+// 		for {
+// 			// 执行写入操作，将新事件写入日志文件
+// 			logging.WriteNewCleanedEventsToFile()
 
-			// 等待下一个写入周期
-			time.Sleep(interval)
-		}
-	}()
-}
+// 			// 等待下一个写入周期
+// 			time.Sleep(interval)
+// 		}
+// 	}()
+// }
 
 // Startclientchecker 启动 Kubernetes 集群健康检查器。
 // 内部通过 API Server /healthz 探针检测集群是否可用。

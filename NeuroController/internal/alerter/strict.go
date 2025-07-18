@@ -32,10 +32,11 @@ import (
 	"NeuroController/internal/monitor"
 	"NeuroController/internal/types"
 	"NeuroController/internal/utils"
+	"NeuroController/model"
 	"fmt"
 )
 
-func EvaluateAlertsFromCleanedEvents(events []types.LogEvent) (bool, string, types.AlertGroupData) {
+func EvaluateAlertsFromCleanedEvents(events []model.LogEvent) (bool, string, types.AlertGroupData) {
 	for _, ev := range events {
 		if ev.Kind != "Pod" || ev.Name == "" || ev.Name == "default" {
 			continue

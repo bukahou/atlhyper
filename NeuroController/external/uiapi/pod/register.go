@@ -24,8 +24,9 @@ func RegisterPodRoutes(router *gin.RouterGroup) {
 	router.GET("/usage", PodMetricsUsageHandler)
 	router.GET("/list/brief", ListBriefPodsHandler)
 	router.GET("/describe/:ns/:name", GetPodDescribeHandler)
-	router.POST("/restart/:ns/:name", RestartPodHandler)
 	// ✅ 获取 Pod 日志（支持 query: container & tail）
 	router.GET("/logs/:ns/:name", GetPodLogsHandler)
+
+	// router.POST("/restart/:ns/:name", RestartPodHandler)
 
 }

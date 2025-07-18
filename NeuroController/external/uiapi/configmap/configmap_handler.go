@@ -19,7 +19,7 @@
 package configmap
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +33,7 @@ import (
 func ListConfigMapsByNamespaceHandler(c *gin.Context) {
 	ns := c.Param("ns")
 
-	list, err := uiapi.GetConfigMapsByNamespace(c.Request.Context(), ns)
+	list, err := uiapi.GetConfigMapsByNamespace(ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 ConfigMap 列表失败: " + err.Error()})
 		return
@@ -50,7 +50,7 @@ func GetConfigMapDetailHandler(c *gin.Context) {
 	ns := c.Param("ns")
 	name := c.Param("name")
 
-	cfg, err := uiapi.GetConfigMapDetail(c.Request.Context(), ns, name)
+	cfg, err := uiapi.GetConfigMapDetail(ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 ConfigMap 详情失败: " + err.Error()})
 		return
@@ -64,7 +64,7 @@ func GetConfigMapDetailHandler(c *gin.Context) {
 // 🔍 查询所有命名空间下的 ConfigMap 列表（用于全局视图）
 // =======================================================================================
 func ListAllConfigMapsHandler(c *gin.Context) {
-	list, err := uiapi.GetAllConfigMaps(c.Request.Context())
+	list, err := uiapi.GetAllConfigMaps()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取所有 ConfigMap 失败: " + err.Error()})
 		return
@@ -80,7 +80,7 @@ func ListAllConfigMapsHandler(c *gin.Context) {
 // 🔍 获取当前告警系统的配置信息（ConfigMap 字段）
 // =======================================================================================
 func GetAlertSettingsHandler(c *gin.Context) {
-	data, err := uiapi.GetCurrentAlertConfig()
+	data, err := uiapi.GetAlertConfig()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取告警配置失败: " + err.Error()})
 		return
@@ -104,7 +104,7 @@ func UpdateSlackConfigHandler(c *gin.Context) {
 		return
 	}
 
-	err := uiapi.UpdateSlackConfig(req.Enabled, req.Webhook)
+	err := uiapi.UpdateSlack(req.Enabled, req.Webhook)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新 Slack 配置失败: " + err.Error()})
 		return
@@ -127,7 +127,7 @@ func UpdateWebhookSwitchHandler(c *gin.Context) {
 		return
 	}
 
-	err := uiapi.UpdateWebhookEnabled(req.Enabled)
+	err := uiapi.UpdateWebhook(req.Enabled)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新 Webhook 开关失败: " + err.Error()})
 		return
@@ -160,7 +160,7 @@ func UpdateMailConfigHandler(c *gin.Context) {
 		return
 	}
 
-	err := uiapi.UpdateMailConfig(req.Enabled, req.Username, req.Password, req.From, req.To)
+	err := uiapi.UpdateMail(req.Enabled, req.Username, req.Password, req.From, req.To)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新邮件配置失败: " + err.Error()})
 		return

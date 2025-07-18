@@ -70,26 +70,27 @@
 						<div class="avatar-sm float-left mr-2">
 							<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
 						</div>
-						<div class="info">
-							<a data-toggle="collapse" href="#collapseExample" aria-expanded="true">
+							<div class="info">
+							<a data-toggle="collapse" href="#collapseUser" aria-expanded="true">
 								<span>
-									Wuxiafeng
-									<span class="user-level">我的集群</span>
-									<span class="caret"></span>
+								<span id="username-display">用户名</span>
+								<span class="user-level" id="role-display">权限等级</span>
+								<span class="caret"></span>
 								</span>
 							</a>
 							<div class="clearfix"></div>
 
-							<div class="collapse in" id="collapseExample">
+							<div class="collapse in" id="collapseUser">
 								<ul class="nav">
-									<li>
-										<a href="#profile">
-											<span class="link-collapse">切换</span>
-										</a>
-									</li>
+								<li>
+									<a href="#" id="logout-link">
+									<span class="link-collapse text-danger">退出登录</span>
+									</a>
+								</li>
 								</ul>
 							</div>
-						</div>
+							</div>
+
 					</div>
 					<ul class="nav nav-primary">
 						<li class="nav-item active">
@@ -162,23 +163,27 @@
 								</ul>
 							</div>
 						</li>
-						<li class="nav-item">
-							<a data-toggle="collapse" href="#sidebarLayouts">
-								<i class="fas fa-th-list"></i>
-								<p>操作</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="sidebarLayouts">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="create.html">
-											<span class="sub-item">资源创建</span>
-										</a>
-									</li>
-
-								</ul>
-							</div>
-						</li>
+							<li class="nav-item">
+								<a data-toggle="collapse" href="#sidebarLayouts">
+									<i class="fas fa-th-list"></i>
+									<p>操作</p>
+									<span class="caret"></span>
+								</a>
+								<div class="collapse" id="sidebarLayouts">
+									<ul class="nav nav-collapse">
+										<li>
+											<a href="create.html">
+												<span class="sub-item">资源创建</span>
+											</a>
+										</li>
+										<li>
+											<a href="user.html">
+												<span class="sub-item">用户管理</span>
+											</a>
+										</li>
+									</ul>
+								</div>
+							</li>
 						<li class="nav-item">
 							<a data-toggle="collapse" href="#forms">
 								<i class="fas fa-pen-square"></i>
@@ -306,6 +311,8 @@
 		
 	</div>
 	<!--   Core JS Files   -->
+	<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+	<script src="js/init_auth.js"></script>
 	<script src="js/vue.min.js"></script>
 
 	<script src="assets/js/core/jquery.3.2.1.min.js"></script>
@@ -324,89 +331,8 @@
 	<!-- Atlantis DEMO methods, don't include it in your project! -->
 	<script src="assets/js/setting-demo2.js"></script>
 	<script src="js/api_config.js"></script>
-<script>
-  new Vue({
-    el: "#app",
-    data: {
-      stats: {
-        totalNodes: "--",
-        readyNodes: "--",
-        totalCPU: "--",
-        totalMemoryGB: "--"
-      },
-      nodes: []
-    },
-    computed: {
-      cards() {
-        return [
-          {
-            title: "节点总数",
-            value: this.stats.totalNodes,
-            icon: "flaticon-users",
-            class: "card-primary card-round"
-          },
-          {
-            title: "就绪节点",
-            value: this.stats.readyNodes,
-            icon: "flaticon-success",
-            class: "card-success card-round"
-          },
-          {
-            title: "总 CPU",
-            value: this.stats.totalCPU + " 核",
-            icon: "flaticon-analytics",
-            class: "card-info card-round"
-          },
-          {
-            title: "总内存 (GiB)",
-            value: this.stats.totalMemoryGB + " GiB",
-            icon: "flaticon-network",
-            class: "card-secondary card-round"
-          }
-        ];
-      }
-    },
-    methods: {
-      goToDetail(name) {
-        window.location.href = `node-describe.html?name=${encodeURIComponent(name)}`;
-      }
-    },
-    created() {
-      fetch(API_ENDPOINTS.node.overview)
-        .then(res => res.json())
-        .then(data => {
-          this.stats = data.stats;
-          this.nodes = data.nodes;
-
-          this.$nextTick(() => {
-            const table = $('#multi-filter-select').DataTable({
-              pageLength: 10
-            });
-
-            table.columns().every(function () {
-              const column = this;
-              const select = $('<select class="form-control"><option value=""></option></select>')
-                .appendTo($(column.footer()).empty())
-                .on('change', function () {
-                  const val = $.fn.dataTable.util.escapeRegex($(this).val());
-                  column.search(val ? '^' + val + '$' : '', true, false).draw();
-                });
-
-              column.data().unique().sort().each(function (d) {
-                select.append('<option value="' + d + '">' + d + '</option>');
-              });
-            });
-          });
-        })
-        .catch(err => {
-          console.error("获取 Node 总览失败:", err);
-          alert("后端服务异常，无法加载节点总览数据。");
-        });
-    }
-  });
-</script>
-
-
+	<script src="js/node.js"></script>
+	<script src="js/user_info.js"></script>
 
 </body>
 </html>

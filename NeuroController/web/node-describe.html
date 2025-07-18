@@ -71,26 +71,27 @@
 						<div class="avatar-sm float-left mr-2">
 							<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
 						</div>
-						<div class="info">
-							<a data-toggle="collapse" href="#collapseExample" aria-expanded="true">
+							<div class="info">
+							<a data-toggle="collapse" href="#collapseUser" aria-expanded="true">
 								<span>
-									Wuxiafeng
-									<span class="user-level">我的集群</span>
-									<span class="caret"></span>
+								<span id="username-display">用户名</span>
+								<span class="user-level" id="role-display">权限等级</span>
+								<span class="caret"></span>
 								</span>
 							</a>
 							<div class="clearfix"></div>
 
-							<div class="collapse in" id="collapseExample">
+							<div class="collapse in" id="collapseUser">
 								<ul class="nav">
-									<li>
-										<a href="#profile">
-											<span class="link-collapse">切换</span>
-										</a>
-									</li>
+								<li>
+									<a href="#" id="logout-link">
+									<span class="link-collapse text-danger">退出登录</span>
+									</a>
+								</li>
 								</ul>
 							</div>
-						</div>
+							</div>
+
 					</div>
 					<ul class="nav nav-primary">
 						<li class="nav-item active">
@@ -163,23 +164,27 @@
 								</ul>
 							</div>
 						</li>
-						<li class="nav-item">
-							<a data-toggle="collapse" href="#sidebarLayouts">
-								<i class="fas fa-th-list"></i>
-								<p>操作</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="sidebarLayouts">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="create.html">
-											<span class="sub-item">资源创建</span>
-										</a>
-									</li>
-
-								</ul>
-							</div>
-						</li>
+							<li class="nav-item">
+								<a data-toggle="collapse" href="#sidebarLayouts">
+									<i class="fas fa-th-list"></i>
+									<p>操作</p>
+									<span class="caret"></span>
+								</a>
+								<div class="collapse" id="sidebarLayouts">
+									<ul class="nav nav-collapse">
+										<li>
+											<a href="create.html">
+												<span class="sub-item">资源创建</span>
+											</a>
+										</li>
+										<li>
+											<a href="user.html">
+												<span class="sub-item">用户管理</span>
+											</a>
+										</li>
+									</ul>
+								</div>
+							</li>
 						<li class="nav-item">
 							<a data-toggle="collapse" href="#forms">
 								<i class="fas fa-pen-square"></i>
@@ -394,7 +399,9 @@
 
 
 	<!--   Core JS Files   -->
-	   <script src="js/vue.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+	<script src="js/init_auth.js"></script>
+	<script src="js/vue.min.js"></script>
 
 	<script src="assets/js/core/jquery.3.2.1.min.js"></script>
 	<script src="assets/js/core/popper.min.js"></script>
@@ -413,69 +420,8 @@
 	<script src="assets/js/setting-demo2.js"></script>
 
 	<!-- 引入 API 配置与加载脚本 -->
-<script src="js/api_config.js"></script>
-
-
-<script>
-new Vue({
-  el: "#app",
-  data: {
-    node: {},
-  },
-  created() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const nodeName = urlParams.get('name');
-    if (!nodeName) {
-      alert("未提供节点名称参数 ?name=xxx");
-      return;
-    }
-    fetch(API_ENDPOINTS.node.getByName(nodeName))
-      .then(res => res.json())
-      .then(data => {
-        this.node = data;
-      })
-      .catch(err => {
-        console.error("获取 Node 详情失败:", err);
-        alert("无法加载节点信息，请稍后再试。");
-      });
-  },
-  methods: {
-    getInternalIP(addresses) {
-      const addr = addresses.find(a => a.type === 'InternalIP');
-      return addr ? addr.address : 'N/A';
-    },
-    getHostname(addresses) {
-      const addr = addresses.find(a => a.type === 'Hostname');
-      return addr ? addr.address : 'N/A';
-    },
-    getCondition(type) {
-      const cond = this.node.status.conditions.find(c => c.type === type);
-      return cond ? cond.status : 'N/A';
-    },
-    formatMemory(k8sMemoryStr) {
-      if (!k8sMemoryStr) return 'N/A';
-      const match = k8sMemoryStr.match(/(\d+)([A-Za-z]+)/);
-      if (!match) return k8sMemoryStr;
-      const value = parseInt(match[1], 10);
-      const unit = match[2];
-      const unitMap = {
-        Ki: 1024,
-        Mi: 1024 * 1024,
-        Gi: 1024 * 1024 * 1024
-      };
-      const bytes = value * (unitMap[unit] || 1);
-      return (bytes / 1024 / 1024 / 1024).toFixed(1);
-    },
-    formatImageSize(sizeBytes) {
-      if (!sizeBytes) return 'N/A';
-      return (sizeBytes / 1024 / 1024).toFixed(1) + ' MB';
-    }
-  }
-});
-</script>
-
-
-
-
+	<script src="js/api_config.js"></script>
+	<script src="js/node-describe.js"></script>
+	<script src="js/user_info.js"></script>
 </body>
 </html>

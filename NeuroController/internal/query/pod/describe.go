@@ -107,48 +107,6 @@ func findServiceForPod(ctx context.Context, pod *corev1.Pod) (*corev1.Service, e
 	return nil, nil
 }
 
-// === 主函数 ===
-
-// func GetPodDescribeInfo(ctx context.Context, namespace, name string) (*PodDescribeInfo, error) {
-// 	client := utils.GetCoreClient()
-
-// 	// 获取 Pod
-// 	pod, err := client.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
-// 	if err != nil {
-// 		return nil, fmt.Errorf("无法获取 Pod：%w", err)
-// 	}
-
-// 	// 获取 Events
-// 	events, err := client.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
-// 		FieldSelector: fmt.Sprintf("involvedObject.name=%s", name),
-// 	})
-// 	if err != nil {
-// 		return nil, fmt.Errorf("无法获取 Event：%w", err)
-// 	}
-
-// 	// 获取 Metrics
-// 	var usage *PodUsageInfo
-// 	if utils.HasMetricsServer() {
-// 		if metricsClient := utils.GetMetricsClient(); metricsClient != nil {
-// 			metric, err := metricsClient.MetricsV1beta1().PodMetricses(namespace).Get(ctx, name, metav1.GetOptions{})
-// 			if err == nil && len(metric.Containers) > 0 {
-// 				cpu := formatCPU(metric.Containers[0].Usage.Cpu())
-// 				mem := formatMemory(metric.Containers[0].Usage.Memory())
-// 				usage = &PodUsageInfo{CPU: cpu, Memory: mem}
-// 			}
-// 		}
-// 	}
-
-// 	// 查找 Service
-// 	service, _ := findServiceForPod(ctx, pod)
-
-//		return &PodDescribeInfo{
-//			Pod:     pod,
-//			Events:  events.Items,
-//			Usage:   usage,
-//			Service: service,
-//		}, nil
-//	}
 func GetPodDescribeInfo(ctx context.Context, namespace, name string) (*PodDescribeInfo, error) {
 	client := utils.GetCoreClient()
 

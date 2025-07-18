@@ -17,7 +17,7 @@
 package namespace
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +31,7 @@ import (
 // 用于：命名空间总览、资源选择列表
 // =======================================================================================
 func ListAllNamespacesHandler(c *gin.Context) {
-	namespaces, err := uiapi.GetAllNamespaces(c.Request.Context())
+	namespaces, err := uiapi.GetAllNamespaces()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Namespace 列表失败: " + err.Error()})
 		return

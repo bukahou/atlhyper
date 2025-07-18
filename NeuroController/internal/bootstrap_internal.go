@@ -41,8 +41,8 @@ func StartInternalSystems() {
 	// ✅ 启动清理器：周期性清洗并压缩事件日志，形成可判定异常的结构化事件池
 	bootstrap.StartCleanSystem()
 
-	// ✅ 启动日志写入器：将处理后的事件写入文件系统，供后续分析或持久化记录
-	bootstrap.StartLogWriter()
+	// ❌ 已移至 external/logger，请勿再使用此函数
+	// bootstrap.StartLogWriter()
 
 	// ✅ 启动集群健康检查器：持续检查 Kubernetes API Server 的可用性
 	bootstrap.Startclientchecker()

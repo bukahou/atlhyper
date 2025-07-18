@@ -30,14 +30,14 @@ package diagnosis
 
 import (
 	"NeuroController/config"
-	"NeuroController/internal/types"
+	"NeuroController/model"
 	"sync"
 	"time"
 )
 
 var (
 	mu               sync.Mutex
-	cleanedEventPool []types.LogEvent // 去重后的清理池
+	cleanedEventPool []model.LogEvent // 去重后的清理池
 )
 
 // CleanEventPool ✅ 清理原始事件池：只保留最近 N 分钟内的事件（时间窗口由配置项控制）
@@ -53,7 +53,7 @@ func CleanEventPool() {
 	now := time.Now()
 
 	// 创建一个新的事件池，用于保存仍在时间窗口内的事件
-	newRaw := make([]types.LogEvent, 0)
+	newRaw := make([]model.LogEvent, 0)
 
 	// 遍历原始事件池
 	for _, ev := range eventPool {
@@ -82,10 +82,10 @@ func RebuildCleanedEventPool() {
 	now := time.Now()
 
 	// 唯一增量池
-	uniqueMap := make(map[string]types.LogEvent)
+	uniqueMap := make(map[string]model.LogEvent)
 
 	// newCleaned 清理池临时容器
-	newCleaned := make([]types.LogEvent, 0)
+	newCleaned := make([]model.LogEvent, 0)
 
 	// 第一步：从 eventPool（原始池）中提取未过期的事件，并去重
 	for _, ev := range eventPool {
@@ -129,13 +129,13 @@ func RebuildCleanedEventPool() {
 // 为保证并发安全，函数内部使用全局互斥锁（mu）防止读写冲突。
 //
 // 注意：返回的是 cleanedEventPool 的浅拷贝，确保调用者获取的数据不会影响原始池内容。
-func GetCleanedEvents() []types.LogEvent {
+func GetCleanedEvents() []model.LogEvent {
 	// 加锁，防止在读取期间其他 goroutine 修改 cleanedEventPool
 	mu.Lock()
 	defer mu.Unlock()
 
 	// 创建一个与 cleanedEventPool 等长的切片
-	copy := make([]types.LogEvent, len(cleanedEventPool))
+	copy := make([]model.LogEvent, len(cleanedEventPool))
 
 	// 使用 append 构造新切片，避免直接引用原始底层数组
 	copy = append(copy[:0], cleanedEventPool...)
@@ -152,6 +152,7 @@ func GetCleanedEvents() []types.LogEvent {
 //
 // 为确保并发安全，整个过程使用全局互斥锁 mu 包裹，避免并发读写造成数据竞争。
 func CleanAndStoreEvents() {
+
 	// 加锁，确保清理过程中不会有其他线程读写事件池
 	mu.Lock()
 	defer mu.Unlock()

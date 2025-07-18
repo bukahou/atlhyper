@@ -20,8 +20,7 @@
 package pod
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
-	"log"
+	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 	"strconv"
 
@@ -36,7 +35,7 @@ import (
 // 用于：Pod 全局视图、调试页面等
 // =======================================================================================
 func ListAllPodsHandler(c *gin.Context) {
-	pods, err := uiapi.GetAllPods(c.Request.Context())
+	pods, err := uiapi.GetAllPods()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 列表失败: " + err.Error()})
 		return
@@ -53,7 +52,7 @@ func ListAllPodsHandler(c *gin.Context) {
 // =======================================================================================
 func ListPodsByNamespaceHandler(c *gin.Context) {
 	ns := c.Param("ns")
-	pods, err := uiapi.GetPodsByNamespace(c.Request.Context(), ns)
+	pods, err := uiapi.GetPodsByNamespace(ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取命名空间 Pod 失败: " + err.Error()})
 		return
@@ -69,7 +68,7 @@ func ListPodsByNamespaceHandler(c *gin.Context) {
 // 用于：集群 UI 总览图表、资源状态面板
 // =======================================================================================
 func PodStatusSummaryHandler(c *gin.Context) {
-	summary, err := uiapi.GetPodStatusSummary(c.Request.Context())
+	summary, err := uiapi.GetPodStatusSummary()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 状态摘要失败: " + err.Error()})
 		return
@@ -85,7 +84,7 @@ func PodStatusSummaryHandler(c *gin.Context) {
 // 用于：Pod 资源使用图表、趋势统计模块
 // =======================================================================================
 func PodMetricsUsageHandler(c *gin.Context) {
-	usages, err := uiapi.GetPodUsages(c.Request.Context())
+	usages, err := uiapi.GetPodUsages()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 使用量失败: " + err.Error()})
 		return
@@ -101,7 +100,7 @@ func PodMetricsUsageHandler(c *gin.Context) {
 // 用于：Pod 列表页、命名空间面板简表、快速浏览
 // =======================================================================================
 func ListBriefPodsHandler(c *gin.Context) {
-	infos, err := uiapi.GetAllPodInfos(c.Request.Context())
+	infos, err := uiapi.GetAllPodInfos()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取简略 Pod 列表失败: " + err.Error()})
 		return
@@ -120,7 +119,7 @@ func GetPodDescribeHandler(c *gin.Context) {
 	ns := c.Param("ns")
 	name := c.Param("name")
 
-	info, err := uiapi.GetPodDescribe(c.Request.Context(), ns, name)
+	info, err := uiapi.GetPodDescribe(ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "获取 Pod 详情失败: " + err.Error(),
@@ -137,38 +136,6 @@ func GetPodDescribeHandler(c *gin.Context) {
 // 操作函数
 // ============================================================================================================================================
 // ============================================================================================================================================
-
-// =======================================================================================
-// ✅ POST /uiapi/pod/restart/:ns/:name
-//
-// 🔁 重启指定 Pod（通过删除实现，控制器自动重新创建）
-//
-// 用于：Pod 详情页「重启」按钮
-// =======================================================================================
-func RestartPodHandler(c *gin.Context) {
-	ns := c.Param("ns")
-	name := c.Param("name")
-
-	err := uiapi.RestartPod(c.Request.Context(), ns, name)
-	if err != nil {
-		// ✅ 打印详细错误信息
-		log.Printf("❌ 重启 Pod 失败：%v", err)
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "重启 Pod 失败: " + err.Error(),
-			"message": "可能是该 Pod 不存在，或权限不足",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Pod 已成功重启（删除完成，控制器将自动拉起副本）",
-		"pod": gin.H{
-			"namespace": ns,
-			"name":      name,
-		},
-	})
-}
 
 // =======================================================================================
 // ✅ GET /uiapi/pod/logs/:ns/:name
@@ -193,7 +160,7 @@ func GetPodLogsHandler(c *gin.Context) {
 		}
 	}
 
-	logs, err := uiapi.GetPodLogs(c.Request.Context(), ns, name, container, tailLines)
+	logs, err := uiapi.GetPodLogs(ns, name, container, tailLines)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "获取日志失败: " + err.Error(),
@@ -204,3 +171,36 @@ func GetPodLogsHandler(c *gin.Context) {
 
 	c.String(http.StatusOK, logs)
 }
+
+
+// =======================================================================================
+// ✅ POST /uiapi/pod/restart/:ns/:name
+//
+// 🔁 重启指定 Pod（通过删除实现，控制器自动重新创建）
+//
+// 用于：Pod 详情页「重启」按钮
+// =======================================================================================
+// func RestartPodHandler(c *gin.Context) {
+// 	ns := c.Param("ns")
+// 	name := c.Param("name")
+
+// 	err := uiapi.RestartPod(ns, name)
+// 	if err != nil {
+// 		// ✅ 打印详细错误信息
+// 		log.Printf("❌ 重启 Pod 失败：%v", err)
+
+// 		c.JSON(http.StatusInternalServerError, gin.H{
+// 			"error":   "重启 Pod 失败: " + err.Error(),
+// 			"message": "可能是该 Pod 不存在，或权限不足",
+// 		})
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"message": "Pod 已成功重启（删除完成，控制器将自动拉起副本）",
+// 		"pod": gin.H{
+// 			"namespace": ns,
+// 			"name":      name,
+// 		},
+// 	})
+// }

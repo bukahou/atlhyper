@@ -18,7 +18,7 @@
 package node
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +32,7 @@ import (
 // 用于：集群节点列表页、节点信息展示页面
 // =======================================================================================
 func GetAllNodesHandler(c *gin.Context) {
-	nodes, err := uiapi.GetAllNodes(c.Request.Context())
+	nodes, err := uiapi.GetAllNodes()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Node 列表失败: " + err.Error()})
 		return
@@ -48,7 +48,7 @@ func GetAllNodesHandler(c *gin.Context) {
 // 用于：UI 节点概览图表、资源使用汇总分析（非实时）
 // =======================================================================================
 func GetNodeMetricsSummaryHandler(c *gin.Context) {
-	summary, err := uiapi.GetNodeMetricsSummary(c.Request.Context())
+	summary, err := uiapi.GetNodeMetricsSummary()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Node Metrics 失败: " + err.Error()})
 		return
@@ -64,7 +64,7 @@ func GetNodeMetricsSummaryHandler(c *gin.Context) {
 // 用于：UI 概览页中节点模块的汇总展示
 // =======================================================================================
 func GetNodeOverviewHandler(c *gin.Context) {
-	result, err := uiapi.GetNodeOverview(c.Request.Context())
+	result, err := uiapi.GetNodeOverview()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Node 总览失败: " + err.Error()})
 		return
@@ -81,7 +81,7 @@ func GetNodeOverviewHandler(c *gin.Context) {
 // =======================================================================================
 func GetNodeDetailHandler(c *gin.Context) {
 	name := c.Param("name")
-	node, err := uiapi.GetNodeDetail(c.Request.Context(), name)
+	node, err := uiapi.GetNodeDetail(name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Node 详情失败: " + err.Error()})
 		return

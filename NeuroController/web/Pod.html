@@ -104,22 +104,24 @@
                 <div class="info">
                   <a
                     data-toggle="collapse"
-                    href="#collapseExample"
+                    href="#collapseUser"
                     aria-expanded="true"
                   >
                     <span>
-                      Wuxiafeng
-                      <span class="user-level">我的集群</span>
+                      <span id="username-display">用户名</span>
+                      <span class="user-level" id="role-display">权限等级</span>
                       <span class="caret"></span>
                     </span>
                   </a>
                   <div class="clearfix"></div>
 
-                  <div class="collapse in" id="collapseExample">
+                  <div class="collapse in" id="collapseUser">
                     <ul class="nav">
                       <li>
-                        <a href="#profile">
-                          <span class="link-collapse">切换</span>
+                        <a href="#" id="logout-link">
+                          <span class="link-collapse text-danger"
+                            >退出登录</span
+                          >
                         </a>
                       </li>
                     </ul>
@@ -208,6 +210,11 @@
                       <li>
                         <a href="create.html">
                           <span class="sub-item">资源创建</span>
+                        </a>
+                      </li>
+                      <li>
+                        <a href="user.html">
+                          <span class="sub-item">用户管理</span>
                         </a>
                       </li>
                     </ul>
@@ -379,6 +386,8 @@
     </div>
 
     <!--   Core JS Files   -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="js/init_auth.js"></script>
     <script src="assets/js/core/jquery.3.2.1.min.js"></script>
     <script src="assets/js/core/popper.min.js"></script>
     <script src="assets/js/core/bootstrap.min.js"></script>
@@ -398,220 +407,6 @@
     <!-- 引入 API 配置与加载脚本 -->
     <script src="js/api_config.js"></script>
     <script src="js/q_pod.js"></script>
-
-    <script>
-      // ✅ 重启 Pod 请求逻辑
-      function restartPod(namespace, name) {
-        if (!confirm(`🔁 确认要重启 Pod「${name}」吗？`)) return;
-
-        fetch(API_ENDPOINTS.pod.restart(namespace, name), {
-          method: "POST",
-        })
-          .then((res) => {
-            if (!res.ok)
-              return res.json().then((err) => {
-                throw err;
-              });
-            return res.json();
-          })
-          .then((data) => {
-            alert(data.message || `✅ Pod ${name} 重启成功`);
-            location.reload(); // 刷新页面
-          })
-          .catch((err) => {
-            console.error("❌ 重启失败:", err);
-            alert(err.message || "重启失败，请稍后再试");
-          });
-      }
-
-      $(document).ready(function () {
-        const table = $("#pod-table").DataTable({
-          pageLength: 5,
-          columns: [
-            { title: "Namespace" },
-            { title: "Deployment" },
-            { title: "Pod Name" },
-            { title: "Ready" },
-            { title: "Phase" },
-            { title: "Restart Count" },
-            { title: "Start Time" },
-            { title: "Pod IP" },
-            { title: "Node" },
-            { title: "操作" },
-          ],
-          initComplete: function () {
-            initColumnFilters(this.api());
-          },
-        });
-
-        // ✅ 加载 Pod 简略数据
-        fetch(API_ENDPOINTS.pod.listBrief)
-          .then((res) => res.json())
-          .then((data) => {
-            data.forEach((pod) => {
-              const actionBtns = `
-					<button class="btn btn-sm btn-primary mr-1" onclick="window.location.href='pod-describe.html?namespace=${encodeURIComponent(
-            pod.namespace
-          )}&name=${encodeURIComponent(pod.name)}'">
-						查看
-					</button>
-					<button class="btn btn-sm btn-warning" onclick="restartPod('${
-            pod.namespace
-          }', '${pod.name}')">
-						重启
-					</button>
-				`;
-
-              table.row.add([
-                pod.namespace,
-                pod.deployment,
-                pod.name,
-                pod.ready
-                  ? '<span class="badge badge-success">Yes</span>'
-                  : '<span class="badge badge-danger">No</span>',
-                pod.phase,
-                pod.restartCount,
-                new Date(pod.startTime).toLocaleString(),
-                pod.podIP,
-                pod.nodeName,
-                actionBtns,
-              ]);
-            });
-            table.draw();
-          })
-          .catch((err) => {
-            console.error("❌ 获取 Pod 简略数据失败:", err);
-          });
-
-        // ✅ 筛选器初始化
-        function initColumnFilters(tableInstance) {
-          tableInstance.columns().every(function () {
-            const column = this;
-            const footer = $(column.footer());
-            const currentVal = footer.find("select").val();
-
-            // 忽略“操作”列
-            if (column.index() === tableInstance.columns().nodes().length - 1) {
-              footer.empty();
-              return;
-            }
-
-            const select = $(
-              '<select class="form-control"><option value=""></option></select>'
-            ).on("change", function () {
-              const val = $.fn.dataTable.util.escapeRegex($(this).val());
-              column.search(val ? "^" + val + "$" : "", true, false).draw();
-            });
-
-            footer.empty().append(select);
-
-            column
-              .data()
-              .unique()
-              .sort()
-              .each(function (d) {
-                if (d)
-                  select.append('<option value="' + d + '">' + d + "</option>");
-              });
-
-            if (currentVal) select.val(currentVal);
-          });
-        }
-
-        // ✅ 表格刷新后同步更新筛选器
-        table.on("draw", function () {
-          initColumnFilters(table);
-        });
-      });
-    </script>
-
-    <!-- <script>
-$(document).ready(function () {
-	const table = $('#pod-table').DataTable({
-		pageLength: 5,
-		columns: [
-			{ title: "Namespace" },
-			{ title: "Deployment" },
-			{ title: "Pod Name" },
-			{ title: "Ready" },
-			{ title: "Phase" },
-			{ title: "Restart Count" },
-			{ title: "Start Time" },
-			{ title: "Pod IP" },
-			{ title: "Node" },
-			{ title: "操作" }  // ✅ 操作列
-		],
-		initComplete: function () {
-			initColumnFilters(this.api()); // ✅ 初始化 Footer 筛选器
-		}
-	});
-
-	// ✅ 加载 Pod 简略数据
-	fetch(API_ENDPOINTS.pod.listBrief)
-		.then(res => res.json())
-		.then(data => {
-			data.forEach(pod => {
-				const detailBtn = `
-					<button class="btn btn-sm btn-primary" onclick="window.location.href='pod-describe.html?namespace=${encodeURIComponent(pod.namespace)}&name=${encodeURIComponent(pod.name)}'">
-						查看
-					</button>
-				`;
-
-				table.row.add([
-					pod.namespace,
-					pod.deployment,
-					pod.name,
-					pod.ready ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-danger">No</span>',
-					pod.phase,
-					pod.restartCount,
-					new Date(pod.startTime).toLocaleString(),
-					pod.podIP,
-					pod.nodeName,
-					detailBtn
-				]);
-			});
-			table.draw();
-		})
-		.catch(err => {
-			console.error("❌ 获取 Pod 简略数据失败:", err);
-		});
-
-	// 🧠 工具函数：初始化 Footer 下拉筛选器
-	function initColumnFilters(tableInstance) {
-		tableInstance.columns().every(function () {
-			const column = this;
-			const footer = $(column.footer());
-			const currentVal = footer.find('select').val();
-
-			// 忽略最后一列“操作”
-			if (column.index() === tableInstance.columns().nodes().length - 1) {
-				footer.empty();
-				return;
-			}
-
-			const select = $('<select class="form-control"><option value=""></option></select>')
-				.on('change', function () {
-					const val = $.fn.dataTable.util.escapeRegex($(this).val());
-					column.search(val ? '^' + val + '$' : '', true, false).draw();
-				});
-
-			footer.empty().append(select);
-
-			column.data().unique().sort().each(function (d) {
-				if (d) {
-					select.append('<option value="' + d + '">' + d + '</option>');
-				}
-			});
-
-			if (currentVal) select.val(currentVal);
-		});
-	}
-
-	// ⏳ 每次 draw 后重新刷新筛选器内容（动态内容）
-	table.on('draw', function () {
-		initColumnFilters(table);
-	});
-});
-</script> -->
+    <script src="js/user_info.js"></script>
   </body>
 </html>

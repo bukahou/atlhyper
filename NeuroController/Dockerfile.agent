@@ -1,0 +1,38 @@
+# =========================
+# 第一阶段：构建阶段（编译 Go Agent 可执行文件）
+# =========================
+FROM golang:1.24.2-alpine AS builder
+
+# 设置构建工作目录
+WORKDIR /app
+
+# 拷贝 Go 模块文件并预先拉取依赖
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 拷贝全部项目源码（包括 cmd/ internal/ 等）
+COPY . .
+
+# 构建 Agent 二进制文件
+RUN go build -o neuroagent ./cmd/neuroagent/main.go
+
+
+# =========================
+# 第二阶段：运行阶段（构建最终运行镜像）
+# =========================
+FROM alpine:latest
+
+# 设置容器运行目录
+WORKDIR /root/
+
+# 从构建阶段复制已编译的 Agent 可执行文件
+COPY --from=builder /app/neuroagent .
+
+# 赋予执行权限
+RUN chmod +x ./neuroagent
+
+# Agent 暴露 HTTP 接口，可开启端口（如有需要）
+EXPOSE 18080
+
+# 设置容器启动命令
+ENTRYPOINT ["./neuroagent"]

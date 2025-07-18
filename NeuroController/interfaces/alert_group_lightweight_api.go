@@ -21,23 +21,12 @@ package interfaces
 import (
 	"NeuroController/internal/alerter"
 	"NeuroController/internal/types"
+	"NeuroController/model"
 )
 
 // ✅ 提供给外部模块（如 Slack）用于轻量展示事件概览
-func GetLightweightAlertGroup(events []types.LogEvent) (bool, string, types.AlertGroupData) {
+func GetLightweightAlertGroup(events []model.LogEvent) (bool, string, types.AlertGroupData) {
 	shouldDisplay, title, data := alerter.FormatAllEventsLight(events)
-
-	// if shouldDisplay {
-	// 	log.Println("📋 GetLightweightAlertGroup(): 构建轻量级事件概览")
-	// 	log.Printf("🧾 标题: %s\n", title)
-	// 	log.Printf("📦 AlertGroupData: NodeList=%v, NamespaceList=%v, AlertCount=%d\n", data.NodeList, data.NamespaceList, data.AlertCount)
-	// 	for _, item := range data.Alerts {
-	// 		log.Printf("🔹 AlertItem: Kind=%s, Name=%s, Namespace=%s, Node=%s, Reason=%s, Message=%s, Time=%s\n",
-	// 			item.Kind, item.Name, item.Namespace, item.Node, item.Reason, item.Message, item.Time)
-	// 	}
-	// } else {
-	// 	log.Println("ℹ️ GetLightweightAlertGroup(): 当前无事件概览可展示")
-	// }
 
 	return shouldDisplay, title, data
 }

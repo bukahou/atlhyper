@@ -21,7 +21,7 @@
 package service
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -35,7 +35,7 @@ import (
 // 用于：全局 Service 列表视图展示
 // =======================================================================================
 func GetAllServicesHandler(c *gin.Context) {
-	svcs, err := uiapi.GetAllServices(c.Request.Context())
+	svcs, err := uiapi.GetAllServices()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Service 列表失败: " + err.Error()})
 		return
@@ -52,7 +52,8 @@ func GetAllServicesHandler(c *gin.Context) {
 // =======================================================================================
 func GetServicesByNamespaceHandler(c *gin.Context) {
 	ns := c.Param("ns")
-	svcs, err := uiapi.GetServicesByNamespace(c.Request.Context(), ns)
+	// svcs, err := uiapi.GetServicesByNamespace(c.Request.Context(), ns)
+	svcs, err := uiapi.GetServicesByNamespace(ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取命名空间 Service 失败: " + err.Error()})
 		return
@@ -71,7 +72,8 @@ func GetServiceByNameHandler(c *gin.Context) {
 	ns := c.Param("ns")
 	name := c.Param("name")
 
-	svc, err := uiapi.GetServiceByName(c.Request.Context(), ns, name)
+	// svc, err := uiapi.GetServiceByName(c.Request.Context(), ns, name)
+	svc, err := uiapi.GetServiceByName(ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Service 详情失败: " + err.Error()})
 		return
@@ -87,7 +89,8 @@ func GetServiceByNameHandler(c *gin.Context) {
 // 用于：负载暴露资源汇总、访问入口规划、安全审计
 // =======================================================================================
 func GetExternalServicesHandler(c *gin.Context) {
-	svcs, err := uiapi.GetExternalServices(c.Request.Context())
+	// svcs, err := uiapi.GetExternalServices(c.Request.Context())
+	svcs, err := uiapi.GetExternalServices()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取外部 Service 失败: " + err.Error()})
 		return
@@ -103,7 +106,8 @@ func GetExternalServicesHandler(c *gin.Context) {
 // 用于：识别 StatefulSet 配置、服务发现设计等
 // =======================================================================================
 func GetHeadlessServicesHandler(c *gin.Context) {
-	svcs, err := uiapi.GetHeadlessServices(c.Request.Context())
+	// svcs, err := uiapi.GetHeadlessServices(c.Request.Context())
+	svcs, err := uiapi.GetHeadlessServices()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Headless Service 失败: " + err.Error()})
 		return

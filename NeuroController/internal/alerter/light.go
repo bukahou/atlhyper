@@ -19,11 +19,12 @@ package alerter
 import (
 	"NeuroController/internal/monitor"
 	"NeuroController/internal/types"
+	"NeuroController/model"
 	"fmt"
 )
 
 // ✅ 轻量格式化告警信息（不含触发逻辑）
-func FormatAllEventsLight(events []types.LogEvent) (bool, string, types.AlertGroupData) {
+func FormatAllEventsLight(events []model.LogEvent) (bool, string, types.AlertGroupData) {
 	if len(events) == 0 {
 		return false, "", types.AlertGroupData{}
 	}

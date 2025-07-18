@@ -71,26 +71,26 @@
 						<div class="avatar-sm float-left mr-2">
 							<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
 						</div>
-						<div class="info">
-							<a data-toggle="collapse" href="#collapseExample" aria-expanded="true">
+							<div class="info">
+							<a data-toggle="collapse" href="#collapseUser" aria-expanded="true">
 								<span>
-									Wuxiafeng
-									<span class="user-level">我的集群</span>
-									<span class="caret"></span>
+								<span id="username-display">用户名</span>
+								<span class="user-level" id="role-display">权限等级</span>
+								<span class="caret"></span>
 								</span>
 							</a>
 							<div class="clearfix"></div>
 
-							<div class="collapse in" id="collapseExample">
+							<div class="collapse in" id="collapseUser">
 								<ul class="nav">
-									<li>
-										<a href="#profile">
-											<span class="link-collapse">切换</span>
-										</a>
-									</li>
+								<li>
+									<a href="#" id="logout-link">
+									<span class="link-collapse text-danger">退出登录</span>
+									</a>
+								</li>
 								</ul>
 							</div>
-						</div>
+							</div>
 					</div>
 					<ul class="nav nav-primary">
 						<li class="nav-item active">
@@ -163,23 +163,27 @@
 								</ul>
 							</div>
 						</li>
-						<li class="nav-item">
-							<a data-toggle="collapse" href="#sidebarLayouts">
-								<i class="fas fa-th-list"></i>
-								<p>操作</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="sidebarLayouts">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="create.html">
-											<span class="sub-item">资源创建</span>
-										</a>
-									</li>
-
-								</ul>
-							</div>
-						</li>
+							<li class="nav-item">
+								<a data-toggle="collapse" href="#sidebarLayouts">
+									<i class="fas fa-th-list"></i>
+									<p>操作</p>
+									<span class="caret"></span>
+								</a>
+								<div class="collapse" id="sidebarLayouts">
+									<ul class="nav nav-collapse">
+										<li>
+											<a href="create.html">
+												<span class="sub-item">资源创建</span>
+											</a>
+										</li>
+										<li>
+											<a href="user.html">
+												<span class="sub-item">用户管理</span>
+											</a>
+										</li>
+									</ul>
+								</div>
+							</li>
 						<li class="nav-item">
 							<a data-toggle="collapse" href="#forms">
 								<i class="fas fa-pen-square"></i>
@@ -407,6 +411,8 @@
 
 
 	<!--   Core JS Files   -->
+ 	<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+	<script src="js/init_auth.js"></script>	   
 	   <script src="js/vue.min.js"></script>
 
 	<script src="assets/js/core/jquery.3.2.1.min.js"></script>
@@ -426,164 +432,9 @@
 	<script src="assets/js/setting-demo2.js"></script>
 
 	<!-- 引入 API 配置与加载脚本 -->
-<script src="js/api_config.js"></script>
-
-
-<script>
-const app = new Vue({
-	el: "#app",
-	data: {
-		pod: null,
-		events: [],
-		error: null,
-		loading: true,
-	},
-	created() {
-		const urlParams = new URLSearchParams(window.location.search);
-		const namespace = urlParams.get("namespace");
-		const podName = urlParams.get("name");
-
-		if (!namespace || !podName) {
-			this.error = "❌ 缺少必要参数 namespace / name";
-			this.loading = false;
-			return;
-		}
-
-		// ✅ 获取 Pod 详情信息（包含状态、事件、资源使用、日志、Service）
-		const describeUrl = API_ENDPOINTS.pod.describe(namespace, podName);
-		fetch(describeUrl)
-			.then(res => res.json())
-			.then(data => {
-				this.pod = data.pod;
-				this.pod.usage = data.usage || {};
-				this.pod.service = data.service || null;
-				this.pod.logs = data.logs || "（无日志内容）";  // ✅ 日志内容绑定到 pod.logs
-				this.events = data.events || [];
-			})
-			.catch(err => {
-				console.error("❌ 获取 Pod 详情失败", err);
-				this.error = "❌ 获取数据失败：" + err.message;
-			})
-			.finally(() => {
-				this.loading = false;
-			});
-	}
-});
-
-// ✅ 复制按钮逻辑（直接从 Vue 实例中读取日志内容）
-function copyLogs() {
-	const logs = app?.$data?.pod?.logs;
-	if (!logs) {
-		alert("❌ 日志为空，无法复制");
-		return;
-	}
-
-	const textarea = document.createElement("textarea");
-	textarea.value = logs;
-	document.body.appendChild(textarea);
-	textarea.select();
-
-	try {
-		document.execCommand("copy");
-		alert("📋 日志已复制到剪贴板");
-	} catch (err) {
-		alert("❌ 复制失败，请手动复制");
-	}
-	document.body.removeChild(textarea);
-}
-</script>
-
-
-
-
-<!-- <script>
-new Vue({
-	el: "#app",
-	data: {
-		pod: null,
-		events: [],
-		error: null,
-		loading: true,
-	},
-	created() {
-		const urlParams = new URLSearchParams(window.location.search);
-		const namespace = urlParams.get("namespace");
-		const podName = urlParams.get("name");
-
-		if (!namespace || !podName) {
-			this.error = "❌ 缺少必要参数 namespace / name";
-			this.loading = false;
-			return;
-		}
-
-		// ✅ 获取 Pod 详情信息（状态 + 事件 + 资源）
-		const describeUrl = API_ENDPOINTS.pod.describe(namespace, podName);
-		fetch(describeUrl)
-			.then(res => res.json())
-			.then(data => {
-				this.pod = data.pod;
-				this.pod.usage = data.usage || {};
-				this.pod.service = data.service || null;
-				this.events = data.events || [];
-			})
-			.catch(err => {
-				console.error("❌ 获取 Pod 详情失败", err);
-				this.error = "❌ 获取数据失败：" + err.message;
-			})
-			.finally(() => {
-				this.loading = false;
-			});
-	},
-	mounted() {
-		// ✅ 获取日志内容（放 mounted 保证 DOM 渲染完成）
-		const urlParams = new URLSearchParams(window.location.search);
-		const namespace = urlParams.get("namespace");
-		const podName = urlParams.get("name");
-
-		if (!namespace || !podName) return;
-
-		const logUrl = API_ENDPOINTS.pod.logs(namespace, podName);
-		fetch(logUrl)
-			.then(res => res.text())
-			.then(text => {
-				const el = document.getElementById("log-output");
-				if (el) {
-					el.textContent = text || "（无日志内容）";
-				}
-			})
-			.catch(err => {
-				console.error("❌ 加载日志失败", err);
-				const el = document.getElementById("log-output");
-				if (el) {
-					el.textContent = "❌ 加载日志失败：" + err.message;
-				}
-			});
-	}
-});
-
-// ✅ 复制按钮逻辑
-function copyLogs() {
-	const pre = document.getElementById("log-output");
-	if (!pre) return;
-
-	const range = document.createRange();
-	range.selectNodeContents(pre);
-	const selection = window.getSelection();
-	selection.removeAllRanges();
-	selection.addRange(range);
-
-	try {
-		document.execCommand("copy");
-		alert("📋 日志已复制到剪贴板");
-	} catch (err) {
-		alert("❌ 复制失败，请手动复制");
-	}
-	selection.removeAllRanges();
-}
-</script> -->
-
-
-
+	<script src="js/api_config.js"></script>
+	<script src="js/pod-describe.js"></script>
+	<script src="js/user_info.js"></script>
 
 </body>
 </html>

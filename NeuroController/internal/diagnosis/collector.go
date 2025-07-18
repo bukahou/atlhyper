@@ -21,8 +21,8 @@
 package diagnosis
 
 import (
-	"NeuroController/internal/types"
 	"NeuroController/internal/watcher/abnormal"
+	"NeuroController/model"
 	"log"
 	"time"
 
@@ -31,10 +31,13 @@ import (
 )
 
 // ✅ 全局内存中的事件池（原始收集的事件）
-var eventPool = make([]types.LogEvent, 0)
+var eventPool = make([]model.LogEvent, 0)
 
 // 内部工具函数：将事件追加到事件池中（线程安全，仅限内部使用）
-func appendToEventPool(event types.LogEvent) {
+func appendToEventPool(event model.LogEvent) {
+
+	log.Printf("📥 收到事件: %s/%s | %s | %s", event.Namespace, event.Name, event.Kind, event.ReasonCode)
+	
 	if event.Kind == "Pod" && event.Name == "default" {
 		log.Printf("⚠️ 异常事件字段异常: Pod 名称为 'default'，可能未正确识别 → Namespace=%s, Message=%s",
 			event.Namespace, event.Message)
@@ -51,7 +54,7 @@ func appendToEventPool(event types.LogEvent) {
 // ✅ 收集 Pod 异常事件
 // 由 PodWatcher 调用；封装所有内部逻辑
 func CollectPodAbnormalEvent(pod corev1.Pod, reason *abnormal.PodAbnormalReason) {
-	event := types.LogEvent{
+	event := model.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Pod",
 		Namespace:  pod.Namespace,
@@ -70,7 +73,7 @@ func CollectPodAbnormalEvent(pod corev1.Pod, reason *abnormal.PodAbnormalReason)
 
 // ✅ 收集 Node 异常事件
 func CollectNodeAbnormalEvent(node corev1.Node, reason *abnormal.NodeAbnormalReason) {
-	event := types.LogEvent{
+	event := model.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Node",
 		Namespace:  "", // Node 没有命名空间
@@ -89,7 +92,7 @@ func CollectNodeAbnormalEvent(node corev1.Node, reason *abnormal.NodeAbnormalRea
 
 // ✅ 收集核心 Event 资源的异常事件
 func CollectEventAbnormalEvent(ev corev1.Event, reason *abnormal.EventAbnormalReason) {
-	event := types.LogEvent{
+	event := model.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       ev.InvolvedObject.Kind,
 		Namespace:  ev.InvolvedObject.Namespace,
@@ -108,7 +111,7 @@ func CollectEventAbnormalEvent(ev corev1.Event, reason *abnormal.EventAbnormalRe
 
 // ✅ 收集 Endpoints 异常事件
 func CollectEndpointAbnormalEvent(ep corev1.Endpoints, reason *abnormal.EndpointAbnormalReason) {
-	event := types.LogEvent{
+	event := model.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Endpoints",
 		Namespace:  ep.Namespace,
@@ -127,7 +130,7 @@ func CollectEndpointAbnormalEvent(ep corev1.Endpoints, reason *abnormal.Endpoint
 
 // ✅ 收集 Deployment 异常事件
 func CollectDeploymentAbnormalEvent(deploy appsv1.Deployment, reason *abnormal.DeploymentAbnormalReason) {
-	event := types.LogEvent{
+	event := model.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Deployment",
 		Namespace:  deploy.Namespace,
@@ -146,7 +149,7 @@ func CollectDeploymentAbnormalEvent(deploy appsv1.Deployment, reason *abnormal.D
 
 // ✅ 收集 Service 异常事件
 func CollectServiceAbnormalEvent(svc corev1.Service, reason *abnormal.ServiceAbnormalReason) {
-	event := types.LogEvent{
+	event := model.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Service",
 		Namespace:  svc.Namespace,

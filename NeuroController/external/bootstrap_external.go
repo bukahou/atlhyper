@@ -12,6 +12,7 @@ package external
 
 import (
 	"NeuroController/external/client"
+	"NeuroController/external/logger"
 	"NeuroController/external/server"
 	"log"
 )
@@ -26,8 +27,11 @@ func StartExternalSystems() {
 	// ✅ 启动 Slack 调度器
 	client.StartSlackDispatcher()
 
+		// ✅ 启动日志写入调度器（新增）
+	logger.StartLogWriterScheduler()
+
 	log.Println("🌐 启动统一 HTTP Server（UI API + Webhook）")
-	go server.StartHTTPServer()
+	server.StartHTTPServer()
 
 	log.Println("✅ 所有外部组件启动完成。")
 }

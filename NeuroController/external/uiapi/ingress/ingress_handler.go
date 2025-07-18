@@ -19,7 +19,7 @@
 package ingress
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +33,7 @@ import (
 // 用于：全局 Ingress 列表展示，集群总览页面
 // =======================================================================================
 func GetAllIngressesHandler(c *gin.Context) {
-	list, err := uiapi.GetAllIngresses(c.Request.Context())
+	list, err := uiapi.GetAllIngresses()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Ingress 列表失败: " + err.Error()})
 		return
@@ -51,7 +51,7 @@ func GetAllIngressesHandler(c *gin.Context) {
 func GetIngressesByNamespaceHandler(c *gin.Context) {
 	ns := c.Param("ns")
 
-	list, err := uiapi.GetIngressesByNamespace(c.Request.Context(), ns)
+	list, err := uiapi.GetIngressesByNamespace(ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取命名空间 Ingress 失败: " + err.Error()})
 		return
@@ -70,7 +70,7 @@ func GetIngressByNameHandler(c *gin.Context) {
 	ns := c.Param("ns")
 	name := c.Param("name")
 
-	obj, err := uiapi.GetIngressByName(c.Request.Context(), ns, name)
+	obj, err := uiapi.GetIngressByName(ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Ingress 对象失败: " + err.Error()})
 		return
@@ -86,7 +86,7 @@ func GetIngressByNameHandler(c *gin.Context) {
 // 用于：外部服务可访问性检查 / Dashboard 可视化展示
 // =======================================================================================
 func GetReadyIngressesHandler(c *gin.Context) {
-	list, err := uiapi.GetReadyIngresses(c.Request.Context())
+	list, err := uiapi.GetReadyIngresses()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Ready 状态 Ingress 失败: " + err.Error()})
 		return

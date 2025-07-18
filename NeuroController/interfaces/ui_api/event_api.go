@@ -20,9 +20,6 @@ import (
 	"context"
 
 	"NeuroController/internal/query/event"
-	"NeuroController/internal/query/eventlog"
-
-	"NeuroController/internal/types"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -48,6 +45,6 @@ func GetEventTypeCounts(ctx context.Context) (map[string]int, error) {
 }
 
 // GetPersistedEventLogs 查询最近 N 天的结构化日志
-func GetPersistedEventLogs(days int) ([]types.LogEvent, error) {
-	return eventlog.GetRecentEventLogs(days)
-}
+// func GetPersistedEventLogs(days int) ([]types.LogEvent, error) {
+// 	return logger.GetRecentEventLogs(days)
+// }

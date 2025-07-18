@@ -19,7 +19,7 @@
 package deployment
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -33,9 +33,9 @@ import (
 // 用于：前端全局视图 / 搜索 / 集群资源浏览
 // =======================================================================================
 func GetAllDeploymentsHandler(c *gin.Context) {
-	ctx := c.Request.Context()
+	
 
-	list, err := uiapi.GetAllDeployments(ctx)
+	list, err := uiapi.GetAllDeployments()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Deployment 失败: " + err.Error()})
 		return
@@ -51,7 +51,7 @@ func GetAllDeploymentsHandler(c *gin.Context) {
 // 用于：命名空间资源详情页、资源分组展示
 // =======================================================================================
 func GetDeploymentsByNamespaceHandler(c *gin.Context) {
-	ctx := c.Request.Context()
+	
 	ns := c.Param("ns")
 
 	if ns == "" {
@@ -59,7 +59,7 @@ func GetDeploymentsByNamespaceHandler(c *gin.Context) {
 		return
 	}
 
-	list, err := uiapi.GetDeploymentsByNamespace(ctx, ns)
+	list, err := uiapi.GetDeploymentsByNamespace(ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Deployment 失败: " + err.Error()})
 		return
@@ -75,7 +75,7 @@ func GetDeploymentsByNamespaceHandler(c *gin.Context) {
 // 用于：Deployment 详情页 / 弹窗查看配置与状态
 // =======================================================================================
 func GetDeploymentByNameHandler(c *gin.Context) {
-	ctx := c.Request.Context()
+
 	ns := c.Param("ns")
 	name := c.Param("name")
 
@@ -84,7 +84,7 @@ func GetDeploymentByNameHandler(c *gin.Context) {
 		return
 	}
 
-	dep, err := uiapi.GetDeploymentByName(ctx, ns, name)
+	dep, err := uiapi.GetDeploymentByName(ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Deployment 失败: " + err.Error()})
 		return
@@ -100,9 +100,9 @@ func GetDeploymentByNameHandler(c *gin.Context) {
 // 用于：告警中心 / 概览卡片提醒 / 健康性检查
 // =======================================================================================
 func GetUnavailableDeploymentsHandler(c *gin.Context) {
-	ctx := c.Request.Context()
+	
 
-	list, err := uiapi.GetUnavailableDeployments(ctx)
+	list, err := uiapi.GetUnavailableDeployments()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取不可用 Deployment 失败: " + err.Error()})
 		return
@@ -118,9 +118,9 @@ func GetUnavailableDeploymentsHandler(c *gin.Context) {
 // 用于：滚动更新进度监控 / 告警检测
 // =======================================================================================
 func GetProgressingDeploymentsHandler(c *gin.Context) {
-	ctx := c.Request.Context()
+	
 
-	list, err := uiapi.GetProgressingDeployments(ctx)
+	list, err := uiapi.GetProgressingDeployments()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 progressing 状态 Deployment 失败: " + err.Error()})
 		return
@@ -136,12 +136,12 @@ func GetProgressingDeploymentsHandler(c *gin.Context) {
 // 用于：Deployment 详情页的副本数修改操作
 // =======================================================================================
 
-type ScaleDeploymentRequest struct {
-	Namespace string  `json:"namespace" binding:"required"`
-	Name      string  `json:"name" binding:"required"`
-	Replicas  *int32  `json:"replicas"` // 可选，使用指针判断是否传入
-	Image     string  `json:"image"`    // 可选
-}
+// type ScaleDeploymentRequest struct {
+// 	Namespace string  `json:"namespace" binding:"required"`
+// 	Name      string  `json:"name" binding:"required"`
+// 	Replicas  *int32  `json:"replicas"` // 可选，使用指针判断是否传入
+// 	Image     string  `json:"image"`    // 可选
+// }
 
 // ScaleDeploymentHandler 处理 Deployment 的副本数和镜像更新
 //
@@ -149,49 +149,49 @@ type ScaleDeploymentRequest struct {
 //   - 仅更新副本数
 //   - 仅更新镜像
 //   - 同时更新副本数与镜像
-func ScaleDeploymentHandler(c *gin.Context) {
-	var req ScaleDeploymentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
-		return
-	}
+// func ScaleDeploymentHandler(c *gin.Context) {
+// 	var req ScaleDeploymentRequest
+// 	if err := c.ShouldBindJSON(&req); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+// 		return
+// 	}
 
-	ctx := c.Request.Context()
-	hasImage := req.Image != ""
-	hasReplicas := req.Replicas != nil
+	
+// 	hasImage := req.Image != ""
+// 	hasReplicas := req.Replicas != nil
 
-	var replicaUpdated, imageUpdated bool
+// 	var replicaUpdated, imageUpdated bool
 
-	// ✅ 更新副本数（仅当提供时）
-	if hasReplicas {
-		if err := uiapi.UpdateDeploymentReplicas(ctx, req.Namespace, req.Name, *req.Replicas); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新副本数失败: " + err.Error()})
-			return
-		}
-		replicaUpdated = true
-	}
+// 	// ✅ 更新副本数（仅当提供时）
+// 	if hasReplicas {
+// 		if err := uiapi.UpdateDeploymentReplicas(req.Namespace, req.Name, *req.Replicas); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新副本数失败: " + err.Error()})
+// 			return
+// 		}
+// 		replicaUpdated = true
+// 	}
 
-	// ✅ 更新镜像（仅当提供时）
-	if hasImage {
-		if err := uiapi.UpdateDeploymentImage(ctx, req.Namespace, req.Name, req.Image); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新镜像失败: " + err.Error()})
-			return
-		}
-		imageUpdated = true
-	}
+// 	// ✅ 更新镜像（仅当提供时）
+// 	if hasImage {
+// 		if err := uiapi.UpdateDeploymentImage(req.Namespace, req.Name, req.Image); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新镜像失败: " + err.Error()})
+// 			return
+// 		}
+// 		imageUpdated = true
+// 	}
 
-	// ❌ 两个都没提供
-	if !replicaUpdated && !imageUpdated {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "未提供需要更新的字段（replicas 或 image）"})
-		return
-	}
+// 	// ❌ 两个都没提供
+// 	if !replicaUpdated && !imageUpdated {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "未提供需要更新的字段（replicas 或 image）"})
+// 		return
+// 	}
 
-	// ✅ 成功响应
-	c.JSON(http.StatusOK, gin.H{
-		"message":         "更新成功",
-		"replicasUpdated": replicaUpdated,
-		"imageUpdated":    imageUpdated,
-		"replicas":        req.Replicas,
-		"image":           req.Image,
-	})
-}
+// 	// ✅ 成功响应
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"message":         "更新成功",
+// 		"replicasUpdated": replicaUpdated,
+// 		"imageUpdated":    imageUpdated,
+// 		"replicas":        req.Replicas,
+// 		"image":           req.Image,
+// 	})
+// }
