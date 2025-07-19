@@ -1,9 +1,8 @@
 // js/api_config.js
-const API_BASE_URL = "";
+// const API_BASE_URL = "";
 
-// const ENV = "dev"; // dev / prod
-
-// const API_BASE_URL = ENV === "dev" ? "http://localhost:8081" : "";
+const ENV = "dev"; // dev / prod
+const API_BASE_URL = ENV === "dev" ? "http://localhost:8081" : "";
 
 const API_ENDPOINTS = {
   cluster: {

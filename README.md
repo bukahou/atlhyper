@@ -91,57 +91,57 @@ NeuroController · プラグインベースの Kubernetes 異常検知＆アラ�
 ### 集群总览 Dashboard
 
 Login Page
-![Cluster Overview](NeuroController/docs/images/login.png)
+![Cluster Overview](docs/images/login.png)
 
 ### Cluster Dashboard
 
 Displays node status, Pod status, K8s version, and alert summary.
-![Cluster Overview](NeuroController/docs/images/index.png)
+![Cluster Overview](docs/images/index.png)
 
 ### Deployment Summary
 
 Shows Deployment count and replica status across namespaces.
-![Deployment Summary](NeuroController/docs/images/deployment.png)
+![Deployment Summary](docs/images/deployment.png)
 
 ### Namespace View
 
 Displays resource information for all namespaces.
-![Namespace View](NeuroController/docs/images/NS.png)
+![Namespace View](docs/images/NS.png)
 
 ### Pod Summary
 
 Lists Pods grouped by namespace.
-![Pod Summary](NeuroController/docs/images/pod.png)
+![Pod Summary](docs/images/pod.png)
 
 ### Pod Detail View
 
 Summarizes status, services, and container configuration.
-![Pod Describe](NeuroController/docs/images/Pod_Describe.png)
+![Pod Describe](docs/images/Pod_Describe.png)
 
 ### Pod Logs & Events
 
 Aggregated view of events and stdout logs.
-![Pod Logs](NeuroController/docs/images/Pod_Describe_log.png)
+![Pod Logs](docs/images/Pod_Describe_log.png)
 
 ### Service View
 
 Displays all ClusterIP/NodePort services.
-![Service View](NeuroController/docs/images/service.png)
+![Service View](docs/images/service.png)
 
 ### Slack Alert Example
 
 Lightweight alert notification using Slack BlockKit format.
-![Slack Alert Sample](NeuroController/docs/images/slack.png)
+![Slack Alert Sample](docs/images/slack.png)
 
 ### Email Alert Template
 
 HTML email template sent during system anomalies.
-![Email Alert Sample](NeuroController/docs/images/mail.png)
+![Email Alert Sample](docs/images/mail.png)
 
 ### User Management Interface
 
 Interface for managing user roles and permissions.
-![User Management](NeuroController/docs/images/user.png)
+![User Management](docs/images/user.png)
 
 ---
 
