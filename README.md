@@ -1,52 +1,88 @@
-# 🧠 NeuroController · 插件化 Kubernetes 异常检测与告警控制器
+# NeuroController · Plugin-based Kubernetes Anomaly Detection and Alert Controller
 
-## 📌 项目概述
-
-**NeuroController** 是一个轻量级、可运行于边缘设备（如树莓派）的 Kubernetes 异常检测与调控平台。它设计用于补足传统 APM 和 Prometheus 在异常响应上的盲区，具备“事件驱动、插件化、可视化、可自愈”的能力，适用于私有云/边缘云等多场景环境。
-
-项目地址：[https://github.com/bukahou/kubeWatcherPlugin](https://github.com/bukahou/kubeWatcherPlugin)
-Docker 镜像：[bukahou/neurocontroller](https://hub.docker.com/r/bukahou/neurocontroller)
+NeuroController · プラグインベースの Kubernetes 異常検知＆アラート制御コントローラー
 
 ---
 
-## 🏗️ 系统架构模块
+## 📌 Project Overview | プロジェクト概要
 
-### 1. **Watcher 插件系统**
+**NeuroController** is a lightweight Kubernetes anomaly detection and control platform that runs on edge devices such as Raspberry Pi. It fills the gaps left by traditional APM and Prometheus in anomaly response. Featuring "event-driven, plugin-based, visualized, and self-healing" capabilities, it is suitable for private and edge cloud environments.
+**NeuroController** は Raspberry Pi などのエッジデバイスでも動作可能な、軽量の Kubernetes 異常検知・制御プラットフォームです。従来の APM や Prometheus では対応が難しい異常イベントへの反応を補完し、「イベント駆動・プラグイン化・可視化・自己修復」の機能を持ち、プライベートクラウドやエッジクラウドなど様々な環境に対応可能です。
 
-- 对 Pod、Deployment、Node、Endpoint、Event 等资源进行实时监控
-- 支持插件式注册与控制器生命周期管理
-- 内置异常检测与标准化事件生成
+- GitHub: [https://github.com/bukahou/kubeWatcherPlugin](https://github.com/bukahou/kubeWatcherPlugin)
+- DockerHub: [https://hub.docker.com/r/bukahou/neurocontroller](https://hub.docker.com/r/bukahou/neurocontroller)
 
-### 2. **Diagnosis 引擎**
+---
 
-- 对收集到的事件进行聚合、去重、等级评估
-- 维护事件池与“新事件判定”机制，避免重复告警
+## 🏗️ Architecture Modules | システム構成モジュール
 
-### 3. **Alert Dispatcher 告警分发**
+### 1. **Watcher Plugin System**
 
-- 支持 Slack、Email、Webhook 多通道异步分发
-- 配有节流机制、防重复发送、优先级区分（轻量/重度）
+- Real-time monitoring of resources such as Pod, Deployment, Node, Endpoint, and Event
+- Plugin-based registration and controller lifecycle management
+- Built-in anomaly detection and standardized event generation
 
-### 4. **UI API Server（前后端分离）**
+### 1. **Watcher プラグインシステム**
 
-- 提供 RESTful API 支持前端数据展示与交互
-- 支持资源列表、异常日志、事件概览、命名空间/节点视图等接口
-- 与控制器通过 JWT 令牌实现身份鉴别与权限校验
-- 支持用户角色权限控制，不同角色访问权限可配置（普通用户 / 管理员 / 超级管理员）
-- 支持登录认证、权限控制、用户管理、部署调控（副本数/镜像）
-- 提供 RESTful API 支持前端数据展示与交互
-- 支持资源列表、异常日志、事件概览、命名空间/节点视图等接口
-- 支持登录认证、权限控制、用户管理、部署调控（副本数/镜像）
+- Pod、Deployment、Node、Endpoint、Event などのリソースをリアルタイム監視
+- プラグインとしての登録とコントローラーのライフサイクル管理をサポート
+- 内蔵の異常検知ロジックと標準化されたイベント生成
 
-### 5. **Agent 主从架构（实验中）**
+### 2. **Diagnosis Engine**
 
-- 控制器作为中心节点发起调度
-- Agent 独立运行于每个节点，支持状态上报、子集群采集、远程指令响应
+- Aggregates, deduplicates, and evaluates the severity of collected events
+- Maintains event pool and "new event detection" mechanism to prevent redundant alerts
 
-### 6. **SQLite 数据持久层**
+### 2. **Diagnosis エンジン**
 
-- 所有异常事件与用户数据本地持久化
-- 多模块共用统一 `db/models` 模型结构，提升复用性与维护性
+- 収集されたイベントの集約、重複排除、重大度評価を実施
+- イベントプールと「新規イベント判定」メカニズムにより重複通知を防止
+
+### 3. **Alert Dispatcher**
+
+- Supports asynchronous multi-channel alerts via Slack, Email, and Webhook
+- Includes throttling, duplicate prevention, and priority differentiation (light/heavy)
+
+### 3. **Alert Dispatcher アラート分配モジュール**
+
+- Slack・Email・Webhook による非同期マルチチャネル通知をサポート
+- スロットリング、重複防止、優先度分類（軽度/重度）機能を内蔵
+
+### 4. **UI API Server (Frontend-Backend Separation)**
+
+- Provides RESTful APIs for frontend data display and interaction
+- Supports endpoints for resource lists, event overviews, namespace/node views, etc.
+- Uses JWT token for authentication and permission control
+- Role-based access control: user / admin / super admin
+- Deployment scaling (replicas/images) and user management supported
+
+### 4. **UI API サーバー（フロントエンドとバックエンドの分離）**
+
+- フロントエンドとのデータ連携を行う RESTful API を提供
+- リソース一覧・異常ログ・イベント概要・Namespace/Node ビュー等に対応
+- JWT トークンによる認証と認可
+- ユーザーの権限管理機能（一般 / 管理者 / スーパーユーザー）を実装
+- Deployment の調整（レプリカ数・イメージ）やユーザー管理にも対応
+
+### 5. **Agent Master-Slave Architecture (Experimental)**
+
+- Controller acts as central node for coordination
+- Agents run independently on each node for state reporting, sub-cluster collection, remote commands
+
+### 5. **Agent マスター・スレーブ構成（実験中）**
+
+- コントローラーが中央からスケジューリングを実行
+- Agent は各ノード上で独立稼働し、状態報告・部分クラスタ収集・リモート指令実行に対応
+
+### 6. **SQLite Persistence Layer**
+
+- All anomaly events and user data are persisted locally
+- Shared `db/models` structure across modules enhances reuse and maintainability
+
+### 6. **SQLite データ永続層**
+
+- 異常イベントとユーザーデータをローカルに永続化
+- 複数モジュール間で共通の `db/models` モデル構造を採用し、再利用性と保守性を向上
 
 ---
 
@@ -54,64 +90,65 @@ Docker 镜像：[bukahou/neurocontroller](https://hub.docker.com/r/bukahou/neuro
 
 ### 集群总览 Dashboard
 
-登录界面。
+Login Page
 ![Cluster Overview](NeuroController/docs/images/login.png)
 
-### 集群总览 Dashboard
+### Cluster Dashboard
 
-展示节点、Pod 状态、K8s 版本、告警概览。
+Displays node status, Pod status, K8s version, and alert summary.
 ![Cluster Overview](NeuroController/docs/images/index.png)
 
-### Deployment 一览
+### Deployment Summary
 
-显示各命名空间中 Deployment 数量与副本状态。
+Shows Deployment count and replica status across namespaces.
 ![Deployment Summary](NeuroController/docs/images/deployment.png)
 
-### 命名空间视图 Namespace View
+### Namespace View
 
-展示所有命名空间的资源信息。
+Displays resource information for all namespaces.
 ![Namespace View](NeuroController/docs/images/NS.png)
 
-### Pod 概览 Pod Summary
+### Pod Summary
 
-按命名空间展示 Pod 列表。
+Lists Pods grouped by namespace.
 ![Pod Summary](NeuroController/docs/images/pod.png)
 
-### Pod 详情 Pod Describe
+### Pod Detail View
 
-状态 + Service + 容器配置汇总。
+Summarizes status, services, and container configuration.
 ![Pod Describe](NeuroController/docs/images/Pod_Describe.png)
 
-### Pod 日志与事件 Logs + Events
+### Pod Logs & Events
 
-事件与 stdout 日志聚合视图。
+Aggregated view of events and stdout logs.
 ![Pod Logs](NeuroController/docs/images/Pod_Describe_log.png)
 
-### 服务视图 Service View
+### Service View
 
-展示所有 ClusterIP/NodePort 类型服务。
+Displays all ClusterIP/NodePort services.
 ![Service View](NeuroController/docs/images/service.png)
 
-### Slack 告知例 / Slack Alert Example
+### Slack Alert Example
 
-以下为 Slack BlockKit 式的轻量告警通知：
+Lightweight alert notification using Slack BlockKit format.
 ![Slack Alert Sample](NeuroController/docs/images/slack.png)
 
-### 邮件通知例 / Email Alert Template
+### Email Alert Template
 
-系统异常时发送的 HTML 邮件通知样式：
+HTML email template sent during system anomalies.
 ![Email Alert Sample](NeuroController/docs/images/mail.png)
 
-### 用户管理界面 / User Management
+### User Management Interface
 
-展示用户角色权限管理与修改界面：
+Interface for managing user roles and permissions.
 ![User Management](NeuroController/docs/images/user.png)
 
 ---
 
-## ⚙️ 部署方式
+## ⚙️ Deployment | デプロイ構成
 
-以下是完整部署所需的 Kubernetes 资源清单，包括主控制器、Agent、服务暴露和配置：
+The following is a complete list of required Kubernetes manifests, including the main controller, agents, services, and configuration.
+以下は、NeuroController の本体・Agent・サービス公開・設定を含む、Kubernetes リソース定義の完全な一覧です。
 
 ---
 
@@ -295,26 +332,49 @@ data:
 
 ---
 
-- 支持 Kubernetes 原生部署（Deployment + Service）
-- 内置健康检查探针、日志链路自动注入（traceID）
-- 支持通过 GitHub Actions + Webhook 实现自动镜像构建与灰度发布
-- 可配置性高：通过 ConfigMap 管理告警策略、通道开关、邮件配置等
+- Supports native Kubernetes deployment (Deployment + Service)
+- Kubernetes の標準的な Deployment + Service でデプロイ可能です
+
+- Built-in health probes and automatic traceID injection into logs
+- ヘルスチェックプローブと traceID のログ自動挿入に対応しています
+
+- Supports automated image builds and canary releases via GitHub Actions + Webhook
+- GitHub Actions + Webhook による自動ビルド・段階的なデプロイに対応しています
+
+- Highly configurable: alert policies, channel toggles, mail settings via ConfigMap
+- ConfigMap によるアラート設定・チャンネル切替・メール構成などを柔軟に管理できます
 
 ---
 
 ## 📈 项目亮点
 
-- 🚨 **插件化异常监控**：可灵活扩展监控对象与诊断逻辑
-- 🧠 **智能事件判重与告警节流**：有效减少重复通知
-- 📊 **可视化 UI 支持集群资源观察与操作**
-- 🛰 **轻量级，适配低资源设备**：Raspberry Pi 上稳定运行
-- 🔗 **支持 traceID 与系统级 syscall trace 结合**：实现黑盒组件可观测（实验性）
+- **Plugin-based anomaly monitoring**: easily extensible targets and diagnosis logic
+- **プラグイン化された異常監視**：監視対象や診断ロジックの柔軟な拡張が可能
+
+- **Smart deduplication & alert throttling**: effectively reduces noise
+- **インテリジェントな重複排除とアラート間引き**：通知のノイズを大幅に削減
+
+- **Visual UI**: full cluster observability and operational control
+- **可視化された UI**：クラスタ全体の観測と操作が可能
+
+- **Lightweight design for low-resource devices**: runs stably on Raspberry Pi
+- **軽量設計で低リソース環境に最適**：Raspberry Pi でも安定動作
+
+- **TraceID + syscall tracing support (experimental)**: observability for black-box components
+- **traceID + syscall トレースの連携（実験的）**：ブラックボックスなコンポーネントの可観測性を実現
 
 ---
 
 ## 🧪 使用场景
 
-- 私有云 / 边缘云 / 本地集群的异常响应与快速可视化
-- 对 Prometheus 等指标系统不敏感的事件级问题的补足
-- 多节点协同管理的 Agent 式监控与状态聚合
-- 教学演示、Kubernetes 可观测性增强实验平台
+- Private cloud / edge cloud / on-prem cluster anomaly detection & visualization
+- プライベートクラウド・エッジクラウド・ローカルクラスタでの異常検知と可視化に最適
+
+- Complements metric-based tools (e.g., Prometheus) with event-level insights
+- Prometheus 等のメトリクス監視ツールでは補えないイベントレベルの補完
+
+- Agent-based architecture for multi-node monitoring and aggregation
+- マルチノード環境における Agent ベースの監視・集約アーキテクチャ
+
+- Educational / experimental platform for Kubernetes observability enhancement
+- Kubernetes の可観測性向上を目的とした教育・研究用途にも活用可能
