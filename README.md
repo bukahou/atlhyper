@@ -101,6 +101,190 @@ Docker 镜像：[bukahou/neurocontroller](https://hub.docker.com/r/bukahou/neuro
 
 ## ⚙️ 部署方式
 
+以下是完整部署所需的 Kubernetes 资源清单，包括主控制器、Agent、服务暴露和配置：
+
+---
+
+### 🔐 1. NeuroAgent 权限 - ClusterRoleBinding（最大权限）
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: neuroagent-cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: neuro
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+```
+
+---
+
+### 🚀 2. NeuroAgent Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neuroagent
+  namespace: neuro
+  labels:
+    app: neuroagent
+spec:
+  replicas: 2 # 可根据节点数量调整
+  selector:
+    matchLabels:
+      app: neuroagent
+  template:
+    metadata:
+      labels:
+        app: neuroagent
+    spec:
+      serviceAccountName: default
+      containers:
+        - name: neuroagent
+          image: bukahou/neuroagent:v1.0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          envFrom:
+            - configMapRef:
+                name: neuro-config
+```
+
+---
+
+### 🌐 3. NeuroAgent ClusterIP Service（供中心访问）
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuroagent-service
+  namespace: neuro
+spec:
+  selector:
+    app: neuroagent
+  type: ClusterIP
+  ports:
+    - name: agent-api
+      protocol: TCP
+      port: 8082
+      targetPort: 8082
+```
+
+---
+
+### 🎯 4. NeuroController Deployment（主控制器）
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neurocontroller
+  namespace: neuro
+  labels:
+    app: neurocontroller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neurocontroller
+  template:
+    metadata:
+      labels:
+        app: neurocontroller
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: desk-eins
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "node-role.kubernetes.io/master"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: neurocontroller
+          image: bukahou/neurocontroller:v2.0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081 # 📌 控制面板 UI 服务监听端口
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          envFrom:
+            - configMapRef:
+                name: neuro-config
+```
+
+---
+
+### 🌐 5. NeuroController NodePort Service
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: neurocontroller-nodeport
+  namespace: neuro
+spec:
+  selector:
+    app: neurocontroller
+  type: NodePort
+  ports:
+    - name: ui
+      port: 8081 # Service 内部端口
+      targetPort: 8081 # 容器内监听端口
+      nodePort: 30080 # Node 上暴露给外部的端口
+```
+
+---
+
+### 🧾 6. ConfigMap 配置项（共用）
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neuro-config
+  namespace: neuro
+data:
+  # === 🛰️ Agent 访问配置 ===
+  AGENT_ENDPOINTS: "http://neuroagent-service.neuro.svc.cluster.local:8082"
+
+  # === 📧 邮件配置 ===
+  MAIL_USERNAME: "xxxxxxxx@gmail.com"
+  MAIL_PASSWORD: "xxxxxxxx"
+  MAIL_FROM: "xxxxxxxx@gmail.com"
+  MAIL_TO: "xxxxxxxx@gmail.com"
+
+  # Slack Webhook 地址
+  SLACK_WEBHOOK_URL: "https://hooks.slack.com/xxxxxxxxxxxxxxxxx"
+
+  # 启用控制项（true/false）
+  ENABLE_EMAIL_ALERT: "false"
+  ENABLE_SLACK_ALERT: "false"
+  ENABLE_WEBHOOK_SERVER: "true"
+```
+
+---
+
 - 支持 Kubernetes 原生部署（Deployment + Service）
 - 内置健康检查探针、日志链路自动注入（traceID）
 - 支持通过 GitHub Actions + Webhook 实现自动镜像构建与灰度发布
