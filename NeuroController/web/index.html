@@ -52,7 +52,7 @@
 			<nav class="navbar navbar-header navbar-expand-lg" data-background-color="blue2">
 				<nav class="navbar navbar-header navbar-expand-lg py-1 px-3" data-background-color="blue2">
 					<div class="text-white font-weight-bold">
-						Kubernetes 控制台 - 集群状态实时概览
+						Kubernetes Dashboard - Real-time Cluster Overview
 					</div>
 				</nav>
 			</nav>
@@ -115,7 +115,7 @@
 						<li class="nav-item">
 							<a data-toggle="collapse" href="#base">
 								<i class="fas fa-layer-group"></i>
-								<p>监控</p>
+								<p>Monitoring</p>
 								<span class="caret"></span>
 							</a>
 							<div class="collapse" id="base">
@@ -223,10 +223,6 @@
 								<h2 class="text-white pb-2 fw-bold">集群概要</h2>
 								<h5 class="text-white op-7 mb-2">整体信息概要</h5>
 							</div>
-							<!-- <div class="ml-md-auto py-2 py-md-0">
-								<a href="#" class="btn btn-white btn-border btn-round mr-2">备用</a>
-								<a href="#" class="btn btn-secondary btn-round">备用2</a>
-							</div> -->
 						</div>
 					</div>
 				</div>
@@ -259,50 +255,45 @@
 
 
 
-<div class="col-md-6">
-    <div class="card full-height">
-        <div class="card-body">
-           <div class="card-title" id="log-range-title">最近 1 天事件数</div>
-            <div class="row py-3">
-                <div class="col-md-4 d-flex flex-column justify-content-around">
-                    <!-- 显示总告警数量 -->
-                    <div>
-                        <h6 class="fw-bold text-uppercase text-success op-8">总告警数量</h6>
-                        <h3 class="fw-bold" id="stat-total">--</h3> <!-- 将数据动态绑定到这里 -->
-                    </div>
-                    <!-- 显示 Critical 数量 -->
-                    <div>
-                        <h6 class="fw-bold text-uppercase text-danger op-8">Critical 数量</h6>
-                        <h3 class="fw-bold" id="stat-critical">--</h3> <!-- 将数据动态绑定到这里 -->
-                    </div>
-                </div>
-                <div class="col-md-4 d-flex flex-column justify-content-around">
-                    <!-- 显示 Warning 数量 -->
-                    <div>
-                        <h6 class="fw-bold text-uppercase text-warning op-8">Warning 数量</h6>
-                        <h3 class="fw-bold" id="stat-warning">--</h3> <!-- 将数据动态绑定到这里 -->
-                    </div>
-                    <!-- 显示资源种类数量 -->
-                    <div>
-                        <h6 class="fw-bold text-uppercase text-info op-8">资源种类数量</h6>
-                        <h3 class="fw-bold" id="stat-kinds">--</h3> <!-- 将数据动态绑定到这里 -->
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div id="chart-container">
-                        <canvas id="totalIncomeChart"></canvas> <!-- 这里保持原有图表的占位 -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-
+							<div class="col-md-6">
+								<div class="card full-height">
+									<div class="card-body">
+									<div class="card-title" id="log-range-title">最近 1 天事件数</div>
+										<div class="row py-3">
+											<div class="col-md-4 d-flex flex-column justify-content-around">
+												<!-- 显示总告警数量 -->
+												<div>
+													<h6 class="fw-bold text-uppercase text-success op-8">总告警数量</h6>
+													<h3 class="fw-bold" id="stat-total">--</h3> <!-- 将数据动态绑定到这里 -->
+												</div>
+												<!-- 显示 Critical 数量 -->
+												<div>
+													<h6 class="fw-bold text-uppercase text-danger op-8">Critical 数量</h6>
+													<h3 class="fw-bold" id="stat-critical">--</h3> <!-- 将数据动态绑定到这里 -->
+												</div>
+											</div>
+											<div class="col-md-4 d-flex flex-column justify-content-around">
+												<!-- 显示 Warning 数量 -->
+												<div>
+													<h6 class="fw-bold text-uppercase text-warning op-8">Warning 数量</h6>
+													<h3 class="fw-bold" id="stat-warning">--</h3> <!-- 将数据动态绑定到这里 -->
+												</div>
+												<!-- 显示资源种类数量 -->
+												<div>
+													<h6 class="fw-bold text-uppercase text-info op-8">资源种类数量</h6>
+													<h3 class="fw-bold" id="stat-kinds">--</h3> <!-- 将数据动态绑定到这里 -->
+												</div>
+											</div>
+											<div class="col-md-4">
+												<div id="chart-container">
+													<canvas id="totalIncomeChart"></canvas> <!-- 这里保持原有图表的占位 -->
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
 					</div>
-
-
 					<div class="row">
 					<div class="col-md-12">
 						<div class="card">
@@ -311,44 +302,44 @@
 						</div>
 						<div class="card-body">
 							<div class="table-responsive">
-							<table id="multi-filter-select" class="display table table-striped table-hover">
+								<table id="multi-filter-select" class="display table table-striped table-hover">
 								<thead>
-								<tr>
-									<th>名称</th>
-									<th>命名空间</th>
-									<th>资源类型</th>
-									<th>节点</th>
-									<th>严重等级</th>
+									<tr>
+									<th>分类</th>
 									<th>原因</th>
 									<th>信息</th>
+									<th>资源类型</th>
+									<th>名称</th>
+									<th>命名空间</th>
+									<th>节点</th>
 									<th>事件时间</th>
-								</tr>
+									</tr>
 								</thead>
 								<tfoot>
-								<tr>
-									<th>名称</th>
-									<th>命名空间</th>
-									<th>资源类型</th>
-									<th>节点</th>
-									<th>严重等级</th>
+									<tr>
+									<th>分类</th>
 									<th>原因</th>
 									<th>信息</th>
+									<th>资源类型</th>
+									<th>名称</th>
+									<th>命名空间</th>
+									<th>节点</th>
 									<th>事件时间</th>
-								</tr>
+									</tr>
 								</tfoot>
 								<tbody>
-								<tr v-for="log in logs" :key="log.eventTime + log.name">
-									<td>{{ log.Name }}</td>
-									<td>{{ log.Namespace }}</td>
-									<td>{{ log.Kind }}</td>
-									<td>{{ log.Node || "—" }}</td>
-									<td>{{ log.Severity }}</td>
-									<td>{{ log.ReasonCode }}</td>
-									<td>{{ log.Message }}</td>
-									<td>{{ new Date(log.Timestamp).toLocaleString() }}</td>
-								</tr>
+									<tr v-for="log in logs" :key="log.eventTime + log.name">
+									<td>{{ log.category }}</td>
+									<td>{{ log.reason }}</td>
+									<td>{{ log.message }}</td>
+									<td>{{ log.kind }}</td>
+									<td>{{ log.name }}</td>
+									<td>{{ log.namespace }}</td>
+									<td>{{ log.node || "—" }}</td>
+									<td>{{ new Date(log.eventTime).toLocaleString() }}</td>
+									</tr>
 								</tbody>
-							</table>
+								</table>
 							</div>
 						</div>
 						</div>
@@ -397,16 +388,8 @@
 	<!-- jQuery Vector Maps -->
 	<script src="assets/js/plugin/jqvmap/jquery.vmap.min.js"></script>
 	<script src="assets/js/plugin/jqvmap/maps/jquery.vmap.world.js"></script>
-
-	<!-- Sweet Alert -->
 	<script src="assets/js/plugin/sweetalert/sweetalert.min.js"></script>
-
-	<!-- Atlantis JS -->
 	<script src="assets/js/atlantis.min.js"></script>
-
-	<!-- Atlantis DEMO methods, don't include it in your project! -->
-	
-
 	<script src="assets/js/setting-demo.js"></script>
 	<script src="assets/js/demo.js"></script>
 	<script src="js/realtime_refresher.js"></script>

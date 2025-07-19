@@ -23,7 +23,7 @@ new Vue({
         console.log("✅ 获取成功:", res.data);
         if (res.data && res.data.length > 0) {
           this.configmap = res.data[0];
-          alert("✅ 成功加载 ConfigMap 数据！");
+          // alert("✅ 成功加载 ConfigMap 数据！");
         } else {
           alert("⚠️ 未找到该命名空间下的 ConfigMap 数据");
         }

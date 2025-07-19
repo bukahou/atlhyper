@@ -13,6 +13,13 @@
 //   },
 //   methods: {
 //     fetchDeployment() {
+//       const token = localStorage.getItem("jwt");
+//       if (!token) {
+//         alert("❌ 未登录，未找到 Token，请重新登录！");
+//         console.error("Token 不存在，终止请求。");
+//         return;
+//       }
+
 //       const urlParams = new URLSearchParams(window.location.search);
 //       const ns = urlParams.get("ns");
 //       const name = urlParams.get("name");
@@ -25,6 +32,9 @@
 //       $.ajax({
 //         url: API_ENDPOINTS.deployment.get(ns, name),
 //         method: "GET",
+//         headers: {
+//           Authorization: "Bearer " + token,
+//         },
 //         success: (data) => {
 //           this.deployment = data;
 //           const containers = data.spec?.template?.spec?.containers || [];
@@ -48,6 +58,12 @@
 //     },
 
 //     updateReplicas() {
+//       const token = localStorage.getItem("jwt");
+//       if (!token) {
+//         alert("❌ 未登录，未找到 Token，请重新登录！");
+//         return;
+//       }
+
 //       const current = this.deployment.spec?.replicas || 1;
 //       const updated = this.editableReplicas;
 
@@ -64,6 +80,9 @@
 //         url: API_ENDPOINTS.deployment.scale,
 //         method: "POST",
 //         contentType: "application/json",
+//         headers: {
+//           Authorization: "Bearer " + token,
+//         },
 //         data: JSON.stringify({
 //           namespace: this.deployment.metadata.namespace,
 //           name: this.deployment.metadata.name,
@@ -90,6 +109,12 @@
 //     },
 
 //     updateImage() {
+//       const token = localStorage.getItem("jwt");
+//       if (!token) {
+//         alert("❌ 未登录，未找到 Token，请重新登录！");
+//         return;
+//       }
+
 //       const current = this.container.image || "";
 //       const updated = this.editableImage || "";
 
@@ -103,9 +128,12 @@
 //         return;
 
 //       $.ajax({
-//         url: API_ENDPOINTS.deployment.updateImage, // ✅ 替换为正确 endpoint
+//         url: API_ENDPOINTS.deployment.scale,
 //         method: "POST",
 //         contentType: "application/json",
+//         headers: {
+//           Authorization: "Bearer " + token,
+//         },
 //         data: JSON.stringify({
 //           namespace: this.deployment.metadata.namespace,
 //           name: this.deployment.metadata.name,
@@ -142,11 +170,11 @@ const app = new Vue({
     this.fetchDeployment();
   },
   methods: {
+    // ✅ 加载 Deployment 详情
     fetchDeployment() {
       const token = localStorage.getItem("jwt");
       if (!token) {
         alert("❌ 未登录，未找到 Token，请重新登录！");
-        console.error("Token 不存在，终止请求。");
         return;
       }
 
@@ -182,11 +210,13 @@ const app = new Vue({
       });
     },
 
+    // ✏️ 进入副本数编辑模式
     enterEdit() {
       this.editing = true;
       this.editableReplicas = this.deployment.spec?.replicas || 1;
     },
 
+    // ✅ 提交副本数更新
     updateReplicas() {
       const token = localStorage.getItem("jwt");
       if (!token) {
@@ -233,11 +263,13 @@ const app = new Vue({
       });
     },
 
+    // ✏️ 镜像编辑模式
     enterEditImage() {
       this.editingImage = true;
       this.editableImage = this.container.image || "";
     },
 
+    // ✅ 提交镜像更新
     updateImage() {
       const token = localStorage.getItem("jwt");
       if (!token) {
@@ -258,7 +290,7 @@ const app = new Vue({
         return;
 
       $.ajax({
-        url: API_ENDPOINTS.deployment.updateImage,
+        url: API_ENDPOINTS.deployment.scale,
         method: "POST",
         contentType: "application/json",
         headers: {

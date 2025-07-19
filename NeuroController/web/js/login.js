@@ -29,9 +29,9 @@ document.getElementById("login-button").addEventListener("click", function () {
         }
 
         // ✅ 提示成功，并展示截断后的 token（避免太长）
-        alert(
-          `✅ 登录成功！Token 写入成功\n前段片段: ${savedToken.slice(0, 16)}...`
-        );
+        // alert(
+        //   `✅ 登录成功！Token 写入成功\n前段片段: ${savedToken.slice(0, 16)}...`
+        // );
         window.location.href = "index.html";
       } catch (err) {
         alert("❌ Token 写入发生异常：" + err.message);

@@ -24,7 +24,7 @@ func RegisterUIRoutes(rg *gin.RouterGroup) {
 	rg.GET("/deployments/unavailable", HandleUnavailableDeployments)
 	rg.GET("/deployments/progressing", HandleProgressingDeployments)
 	rg.POST("/deployments/scale/:ns/:name/:replicas", HandleUpdateDeploymentReplicas)
-	rg.POST("/deployments/image/:ns/:name/:image", HandleUpdateDeploymentImage)
+	rg.POST("/deployments/image/:ns/:name/image", HandleUpdateDeploymentImage)
 
 	// Event 事件接口
 	rg.GET("/event/list/all", HandleGetAllEvents)

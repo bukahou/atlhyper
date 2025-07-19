@@ -72,6 +72,95 @@ $(document).ready(function () {
   loadUserList();
 });
 
+// function loadUserList() {
+//   $.ajax({
+//     url: API_ENDPOINTS.auth.listUsers,
+//     method: "GET",
+//     headers: {
+//       Authorization: "Bearer " + localStorage.getItem("jwt"),
+//     },
+//     success: function (data) {
+//       const tbody = $("#user-table-body");
+//       tbody.empty();
+
+//       data.forEach(function (user) {
+//         const roleOptions = `
+//           <select class="form-control form-control-sm role-select" data-id="${
+//             user.ID
+//           }">
+//             <option value="1" ${
+//               user.Role === 1 ? "selected" : ""
+//             }>普通用户</option>
+//             <option value="3" ${
+//               user.Role === 3 ? "selected" : ""
+//             }>管理员</option>
+//           </select>
+//         `;
+
+//         const row = `
+//           <tr>
+//             <td>${user.Username}</td>
+//             <td>${user.DisplayName || "—"}</td>
+//             <td>${user.Email || "—"}</td>
+//             <td>${user.CreatedAt || "—"}</td>
+//             <td>${roleOptions}</td>
+//             <td>
+//               <button class="btn btn-xs btn-warning btn-update-role" data-id="${
+//                 user.ID
+//               }">
+//                 更新
+//               </button>
+//             </td>
+//           </tr>
+//         `;
+//         tbody.append(row);
+//       });
+
+//       // ✅ 为“更新”按钮绑定点击事件（每次刷新后都要重新绑定）
+//       $(".btn-update-role")
+//         .off("click")
+//         .on("click", function () {
+//           const userId = $(this).data("id");
+//           const selectedRole = $(`.role-select[data-id=${userId}]`).val();
+
+//           // 弹窗确认
+//           if (
+//             !confirm(
+//               `确认要将用户 ID=${userId} 的权限修改为 ${
+//                 selectedRole == 3 ? "管理员" : "普通用户"
+//               } 吗？`
+//             )
+//           ) {
+//             return;
+//           }
+
+//           // 发起请求
+//           $.ajax({
+//             url: API_ENDPOINTS.auth.updateRole,
+//             method: "POST",
+//             contentType: "application/json",
+//             headers: {
+//               Authorization: "Bearer " + localStorage.getItem("jwt"),
+//             },
+//             data: JSON.stringify({ id: userId, role: parseInt(selectedRole) }),
+//             success: function () {
+//               alert("✅ 权限修改成功");
+//               loadUserList(); // 重新加载列表
+//             },
+//             error: function (xhr) {
+//               alert(
+//                 "❌ 修改失败：" + (xhr.responseJSON?.error || xhr.statusText)
+//               );
+//             },
+//           });
+//         });
+//     },
+//     error: function (xhr) {
+//       alert("❌ 加载用户失败：" + (xhr.responseJSON?.error || xhr.statusText));
+//     },
+//   });
+// }
+
 function loadUserList() {
   $.ajax({
     url: API_ENDPOINTS.auth.listUsers,
@@ -84,18 +173,33 @@ function loadUserList() {
       tbody.empty();
 
       data.forEach(function (user) {
-        const roleOptions = `
-          <select class="form-control form-control-sm role-select" data-id="${
-            user.ID
-          }">
-            <option value="1" ${
-              user.Role === 1 ? "selected" : ""
-            }>普通用户</option>
-            <option value="3" ${
-              user.Role === 3 ? "selected" : ""
-            }>管理员</option>
-          </select>
-        `;
+        let roleColumn = "";
+        let actionColumn = "";
+
+        if (user.Role === 3) {
+          // 超级管理员：显示不可操作文字
+          roleColumn = `<span class="text-danger">超级管理员</span>`;
+          actionColumn = `<span class="text-muted">—</span>`;
+        } else {
+          // 普通用户或管理员（可编辑）
+          roleColumn = `
+            <select class="form-control form-control-sm role-select" data-id="${
+              user.ID
+            }">
+              <option value="1" ${
+                user.Role === 1 ? "selected" : ""
+              }>普通用户</option>
+              <option value="2" ${
+                user.Role === 2 ? "selected" : ""
+              }>管理员</option>
+            </select>
+          `;
+          actionColumn = `
+            <button class="btn btn-xs btn-warning btn-update-role" data-id="${user.ID}">
+              更新
+            </button>
+          `;
+        }
 
         const row = `
           <tr>
@@ -103,38 +207,29 @@ function loadUserList() {
             <td>${user.DisplayName || "—"}</td>
             <td>${user.Email || "—"}</td>
             <td>${user.CreatedAt || "—"}</td>
-            <td>${roleOptions}</td>
-            <td>
-              <button class="btn btn-xs btn-warning btn-update-role" data-id="${
-                user.ID
-              }">
-                更新
-              </button>
-            </td>
+            <td>${roleColumn}</td>
+            <td>${actionColumn}</td>
           </tr>
         `;
         tbody.append(row);
       });
 
-      // ✅ 为“更新”按钮绑定点击事件（每次刷新后都要重新绑定）
       $(".btn-update-role")
         .off("click")
         .on("click", function () {
           const userId = $(this).data("id");
           const selectedRole = $(`.role-select[data-id=${userId}]`).val();
 
-          // 弹窗确认
           if (
             !confirm(
               `确认要将用户 ID=${userId} 的权限修改为 ${
-                selectedRole == 3 ? "管理员" : "普通用户"
+                selectedRole == 2 ? "管理员" : "普通用户"
               } 吗？`
             )
           ) {
             return;
           }
 
-          // 发起请求
           $.ajax({
             url: API_ENDPOINTS.auth.updateRole,
             method: "POST",
@@ -145,7 +240,7 @@ function loadUserList() {
             data: JSON.stringify({ id: userId, role: parseInt(selectedRole) }),
             success: function () {
               alert("✅ 权限修改成功");
-              loadUserList(); // 重新加载列表
+              loadUserList();
             },
             error: function (xhr) {
               alert(
