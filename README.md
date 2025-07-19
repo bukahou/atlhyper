@@ -50,52 +50,52 @@ Docker 镜像：[bukahou/neurocontroller](https://hub.docker.com/r/bukahou/neuro
 ### 🧭 集群总览 Dashboard
 
 展示节点、Pod 状态、K8s 版本、告警概览。
-![Cluster Overview](docs/images/index.png)
+![Cluster Overview](NeuroController/docs/images/index.png)
 
 ### 📦 Deployment 一览
 
 显示各命名空间中 Deployment 数量与副本状态。
-![Deployment Summary](docs/images/deployment.png)
+![Deployment Summary](NeuroController/docs/images/deployment.png)
 
 ### 📁 命名空间视图 Namespace View
 
 展示所有命名空间的资源信息。
-![Namespace View](docs/images/NS.png)
+![Namespace View](NeuroController/docs/images/NS.png)
 
 ### 🔍 Pod 概览 Pod Summary
 
 按命名空间展示 Pod 列表。
-![Pod Summary](docs/images/pod.png)
+![Pod Summary](NeuroController/docs/images/pod.png)
 
 ### 🧪 Pod 详情 Pod Describe
 
 状态 + Service + 容器配置汇总。
-![Pod Describe](docs/images/Pod_Describe.png)
+![Pod Describe](NeuroController/docs/images/Pod_Describe.png)
 
 ### 📄 Pod 日志与事件 Logs + Events
 
 事件与 stdout 日志聚合视图。
-![Pod Logs](docs/images/Pod_Describe_log.png)
+![Pod Logs](NeuroController/docs/images/Pod_Describe_log.png)
 
 ### 🔌 服务视图 Service View
 
 展示所有 ClusterIP/NodePort 类型服务。
-![Service View](docs/images/service.png)
+![Service View](NeuroController/docs/images/service.png)
 
 ### 💬 Slack 告知例 / Slack Alert Example
 
 以下为 Slack BlockKit 式的轻量告警通知：
-![Slack Alert Sample](docs/images/slack.png)
+![Slack Alert Sample](NeuroController/docs/images/slack.png)
 
 ### 📧 邮件通知例 / Email Alert Template
 
 系统异常时发送的 HTML 邮件通知样式：
-![Email Alert Sample](docs/images/mail.png)
+![Email Alert Sample](NeuroController/docs/images/mail.png)
 
 ### 👥 用户管理界面 / User Management
 
 展示用户角色权限管理与修改界面：
-![User Management](docs/images/user.png)
+![User Management](NeuroController/docs/images/user.png)
 
 ---
 
