@@ -346,7 +346,7 @@ data:
 
 ---
 
-## 📈 项目亮点
+## 📈 Key Highlights | プロジェクトの特徴
 
 - **Plugin-based anomaly monitoring**: easily extensible targets and diagnosis logic
 - **プラグイン化された異常監視**：監視対象や診断ロジックの柔軟な拡張が可能
@@ -365,7 +365,7 @@ data:
 
 ---
 
-## 🧪 使用场景
+## 🧪 Use Cases | 使用ユースケース
 
 - Private cloud / edge cloud / on-prem cluster anomaly detection & visualization
 - プライベートクラウド・エッジクラウド・ローカルクラスタでの異常検知と可視化に最適
