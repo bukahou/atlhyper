@@ -33,7 +33,7 @@ func ScaleDeploymentHandler(c *gin.Context) {
 		return
 	}
 
-	
+	// 验证必需参数
 	hasImage := req.Image != ""
 	hasReplicas := req.Replicas != nil
 

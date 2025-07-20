@@ -53,7 +53,7 @@ func CollectNodeAbnormalEvent(node corev1.Node, reason *abnormal.NodeAbnormalRea
 	event := model.LogEvent{
 		Timestamp:  time.Now(),
 		Kind:       "Node",
-		Namespace:  "", // Node 没有命名空间
+		Namespace:  "--", // Node 没有命名空间
 		Name:       node.Name,
 		Node:       node.Name,
 		ReasonCode: reason.Code,
@@ -63,8 +63,6 @@ func CollectNodeAbnormalEvent(node corev1.Node, reason *abnormal.NodeAbnormalRea
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 收到 Node 异常事件: %s → %s (%s)\n",
-	// 	node.Name, reason.Code, reason.Message)
 }
 
 // ✅ 收集核心 Event 资源的异常事件
@@ -90,7 +88,7 @@ func CollectEndpointAbnormalEvent(ep corev1.Endpoints, reason *abnormal.Endpoint
 		Kind:       "Endpoints",
 		Namespace:  ep.Namespace,
 		Name:       ep.Name,
-		Node:       "",
+		Node:       "--",
 		ReasonCode: reason.Code,
 		Category:   "Endpoint", // 用于分组和过滤
 		Severity:   reason.Severity,
@@ -106,7 +104,7 @@ func CollectDeploymentAbnormalEvent(deploy appsv1.Deployment, reason *abnormal.D
 		Kind:       "Deployment",
 		Namespace:  deploy.Namespace,
 		Name:       deploy.Name,
-		Node:       "",
+		Node:       "--",
 		ReasonCode: reason.Code,
 		Category:   reason.Category,
 		Severity:   reason.Severity,
@@ -114,8 +112,6 @@ func CollectDeploymentAbnormalEvent(deploy appsv1.Deployment, reason *abnormal.D
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 收到 Deployment 异常事件: %s/%s → %s (%s)\n",
-	// 	deploy.Namespace, deploy.Name, reason.Code, reason.Message)
 }
 
 // ✅ 收集 Service 异常事件
@@ -125,7 +121,7 @@ func CollectServiceAbnormalEvent(svc corev1.Service, reason *abnormal.ServiceAbn
 		Kind:       "Service",
 		Namespace:  svc.Namespace,
 		Name:       svc.Name,
-		Node:       "",
+		Node:       "--",
 		ReasonCode: reason.Code,
 		Category:   "Warning", // 可选：可扩展为从 reason 中提取
 		Severity:   reason.Severity,
@@ -133,6 +129,4 @@ func CollectServiceAbnormalEvent(svc corev1.Service, reason *abnormal.ServiceAbn
 	}
 	appendToEventPool(event)
 
-	// fmt.Printf("📥 收到 Service 异常事件: %s/%s → %s (%s)\n",
-	// 	svc.Namespace, svc.Name, reason.Code, reason.Message)
 }

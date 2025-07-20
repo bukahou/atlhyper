@@ -4,7 +4,6 @@ import (
 	uiapi "NeuroController/interfaces/ui_api"
 	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -90,18 +89,27 @@ func HandleProgressingDeployments(c *gin.Context) {
 // 📌 POST /agent/uiapi/deployments/scale/:ns/:name?replicas=3
 // ===============================
 func HandleUpdateDeploymentReplicas(c *gin.Context) {
-	ctx := c.Request.Context()
-	namespace := c.Param("ns")
-	name := c.Param("name")
-	repStr := c.Param("replicas")
 
-	replicas, err := strconv.Atoi(repStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的副本数"})
+	type UpdateReplicasRequest struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+		Replicas  int32  `json:"replicas"`
+	}
+
+	var req UpdateReplicasRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
 		return
 	}
 
-	err = uiapi.UpdateDeploymentReplicas(ctx, namespace, name, int32(replicas))
+	if req.Namespace == "" || req.Name == "" || req.Replicas < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少必要参数"})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	err := uiapi.UpdateDeploymentReplicas(ctx, req.Namespace, req.Name, req.Replicas)
 	if err != nil {
 		log.Printf("❌ 更新 Deployment 副本数失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
@@ -114,17 +122,26 @@ func HandleUpdateDeploymentReplicas(c *gin.Context) {
 // 📌 POST /agent/uiapi/deployments/image/:ns/:name?image=nginx:latest
 // ===============================
 func HandleUpdateDeploymentImage(c *gin.Context) {
-	ctx := c.Request.Context()
-	namespace := c.Param("ns")
-	name := c.Param("name")
-	image := c.Param("image")
 
-	if image == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 image 参数"})
+	type UpdateImageRequest struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+		Image     string `json:"image"`
+	}
+
+	var req UpdateImageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
 		return
 	}
 
-	err := uiapi.UpdateDeploymentImage(ctx, namespace, name, image)
+	if req.Image == "" || req.Namespace == "" || req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少必要参数"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	err := uiapi.UpdateDeploymentImage(ctx, req.Namespace, req.Name, req.Image)
 	if err != nil {
 		log.Printf("❌ 更新 Deployment 镜像失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})

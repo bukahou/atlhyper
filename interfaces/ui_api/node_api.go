@@ -16,7 +16,9 @@ package uiapi
 import (
 	"context"
 
+	nodeop "NeuroController/internal/operator/node"
 	"NeuroController/internal/query/node"
+	"NeuroController/model"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -37,6 +39,10 @@ func GetNodeOverview(ctx context.Context) (*node.NodeOverviewResult, error) {
 }
 
 // GetNodeDetail 获取指定名称的 Node 的完整原始信息（用于详情页展示）
-func GetNodeDetail(ctx context.Context, name string) (*corev1.Node, error) {
+func GetNodeDetail(ctx context.Context, name string) (*model.NodeDetailInfo, error) {
 	return node.GetNodeDetail(ctx, name)
+}
+
+func ToggleNodeSchedulable(name string, unschedulable bool) error {
+	return nodeop.SetNodeSchedulable(name, unschedulable)
 }

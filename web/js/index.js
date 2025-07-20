@@ -57,17 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
     updateCards();
 
     const tableId = "#multi-filter-select";
-    // const tableData = logs.map((log) => [
-    //   log.name,
-    //   log.namespace,
-    //   log.kind,
-    //   log.node,
-    //   log.severity,
-    //   log.ReasonCode,
-    //   log.message,
-    //   log.timestamp ? new Date(log.timestamp).toLocaleString() : "—",
-    // ]);
-
     const tableData = logs.map((log) => [
       log.category,
       log.reason,
@@ -88,16 +77,6 @@ document.addEventListener("DOMContentLoaded", () => {
       $(tableId).DataTable({
         pageLength: 10,
         data: tableData,
-        // columns: [
-        //   { title: "名称" },
-        //   { title: "命名空间" },
-        //   { title: "资源类型" },
-        //   { title: "节点" },
-        //   { title: "严重等级" },
-        //   { title: "原因" },
-        //   { title: "信息" },
-        //   { title: "事件时间" },
-        // ],
 
         columns: [
           { title: "category" },
@@ -154,28 +133,16 @@ document.addEventListener("DOMContentLoaded", () => {
       .get(apiUrl)
       .then((res) => {
         const data = res.data;
-        const logs = (data.logs || [])
-          // .map((log) => ({
-          //   name: safe(log.Name),
-          //   namespace: safe(log.Namespace),
-          //   kind: safe(log.Kind),
-          //   node: safe(log.Node),
-          //   severity: safe((log.Severity || "").toLowerCase()),
-          //   ReasonCode: safe(log.ReasonCode),
-          //   message: safe(log.Message),
-          //   timestamp: log.Timestamp || log.eventTime || log.time || "",
-          // }));
-
-          .map((log) => ({
-            category: safe(log.Category),
-            reason: safe(log.Reason),
-            message: safe(log.Message),
-            kind: safe(log.Kind),
-            name: safe(log.Name),
-            namespace: safe(log.Namespace),
-            node: safe(log.Node),
-            timestamp: log.EventTime || log.Timestamp || log.time || "",
-          }));
+        const logs = (data.logs || []).map((log) => ({
+          category: safe(log.Category),
+          reason: safe(log.Reason),
+          message: safe(log.Message),
+          kind: safe(log.Kind),
+          name: safe(log.Name),
+          namespace: safe(log.Namespace),
+          node: safe(log.Node),
+          timestamp: log.EventTime || log.Timestamp || log.time || "",
+        }));
 
         renderLogs(logs);
       })
@@ -193,30 +160,16 @@ document.addEventListener("DOMContentLoaded", () => {
         .get(API_ENDPOINTS.event.listRecent(currentDays))
         .then((res) => {
           const data = res.data;
-          return (
-            (data.logs || [])
-              // .map((log) => ({
-              //   name: safe(log.Name),
-              //   namespace: safe(log.Namespace),
-              //   kind: safe(log.Kind),
-              //   node: safe(log.Node),
-              //   severity: safe((log.Severity || "").toLowerCase()),
-              //   ReasonCode: safe(log.ReasonCode),
-              //   message: safe(log.Message),
-              //   timestamp: log.Timestamp || log.eventTime || log.time || "",
-              // }));
-
-              .map((log) => ({
-                category: safe(log.Category),
-                reason: safe(log.Reason),
-                message: safe(log.Message),
-                kind: safe(log.Kind),
-                name: safe(log.Name),
-                namespace: safe(log.Namespace),
-                node: safe(log.Node),
-                timestamp: log.EventTime || log.Timestamp || log.time || "",
-              }))
-          );
+          return (data.logs || []).map((log) => ({
+            category: safe(log.Category),
+            reason: safe(log.Reason),
+            message: safe(log.Message),
+            kind: safe(log.Kind),
+            name: safe(log.Name),
+            namespace: safe(log.Namespace),
+            node: safe(log.Node),
+            timestamp: log.EventTime || log.Timestamp || log.time || "",
+          }));
         });
     },
     interval: 10000,

@@ -26,6 +26,7 @@ import (
 	"math"
 
 	"NeuroController/internal/utils"
+	"NeuroController/model"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -160,11 +161,80 @@ func getInternalIP(n corev1.Node) string {
 // 用于：Node 详情页展示，支持进一步信息可视化
 // =======================================================================================
 
-func GetNodeDetail(ctx context.Context, nodeName string) (*corev1.Node, error) {
-	client := utils.GetCoreClient()
-	node, err := client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+// func GetNodeDetail(ctx context.Context, nodeName string) (*corev1.Node, error) {
+// 	client := utils.GetCoreClient()
+// 	node, err := client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+// 	if err != nil {
+// 		return nil, fmt.Errorf("获取 Node %s 失败: %w", nodeName, err)
+// 	}
+// 	return node, nil
+// }
+
+func GetNodeDetail(ctx context.Context, nodeName string) (*model.NodeDetailInfo, error) {
+	coreClient := utils.GetCoreClient()
+	metricsClient := utils.GetMetricsClient()
+
+	// 获取 Node 对象
+	node, err := coreClient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("获取 Node %s 失败: %w", nodeName, err)
 	}
-	return node, nil
+
+	// 获取 metrics（资源使用率）
+	metrics, err := metricsClient.MetricsV1beta1().NodeMetricses().Get(ctx, nodeName, metav1.GetOptions{})
+	var usage *model.NodeUsage
+	if err == nil {
+		allocCPU := node.Status.Allocatable.Cpu().MilliValue()
+		allocMem := node.Status.Allocatable.Memory().Value()
+
+		usedCPU := metrics.Usage.Cpu().MilliValue()
+		usedMem := metrics.Usage.Memory().Value()
+
+		var cpuPercent, memPercent float64
+		if allocCPU > 0 {
+			cpuPercent = float64(usedCPU) / float64(allocCPU) * 100
+			cpuPercent = math.Round(cpuPercent*10) / 10
+		}
+		if allocMem > 0 {
+			memPercent = float64(usedMem) / float64(allocMem) * 100
+			memPercent = math.Round(memPercent*10) / 10
+		}
+
+		usage = &model.NodeUsage{
+			CPUUsagePercent:    cpuPercent,
+			MemoryUsagePercent: memPercent,
+		}
+	}
+
+	// 获取当前运行的 Pods
+	pods, err := coreClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("spec.nodeName=%s", nodeName),
+	})
+	var runningPods []corev1.Pod
+	if err == nil {
+		for _, pod := range pods.Items {
+			if pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
+				runningPods = append(runningPods, pod)
+			}
+		}
+	}
+
+	// 获取节点事件
+	events, err := coreClient.CoreV1().Events("").List(ctx, metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("involvedObject.kind=Node,involvedObject.name=%s", nodeName),
+	})
+	var eventList []corev1.Event
+	if err == nil {
+		eventList = events.Items
+	}
+
+	// 拼装结构体
+	return &model.NodeDetailInfo{
+		Node:          node,
+		Unschedulable: node.Spec.Unschedulable,
+		Taints:        node.Spec.Taints,
+		Usage:         usage,
+		RunningPods:   runningPods,
+		Events:        eventList,
+	}, nil
 }

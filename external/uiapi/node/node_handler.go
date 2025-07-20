@@ -88,3 +88,39 @@ func GetNodeDetailHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, node)
 }
+
+
+// =======================================================================================
+// ✅ POST /uiapi/node/schedulable
+//
+// 🔁 修改指定 Node 的调度状态（封锁 cordon / 解封 uncordon）
+//
+// 请求体：
+// {
+//   "name": "node-name",
+//   "unschedulable": true  // true: 封锁；false: 解封
+// }
+//
+// 用于：Node 详情页上的调度状态切换按钮
+// =======================================================================================
+func ToggleNodeSchedulableHandler(c *gin.Context) {
+	type ToggleSchedulableRequest struct {
+		Name          string `json:"name" binding:"required"`
+		Unschedulable bool   `json:"unschedulable"`
+	}
+
+	var req ToggleSchedulableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		return
+	}
+
+	// 🔁 直接调用控制器接口，它内部已向 Agent 发起请求并返回原始响应
+	if err := uiapi.SetNodeSchedulable(req.Name, req.Unschedulable); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置节点调度状态失败: " + err.Error()})
+		return
+	}
+
+	// ✅ 如果 Agent 已返回 message，这里什么都不需要处理，透传即可（保持一致）
+	c.Status(http.StatusOK)
+}

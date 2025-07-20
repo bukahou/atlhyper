@@ -53,15 +53,39 @@ func GetProgressingDeployments() ([]appsv1.Deployment, error) {
 }
 
 // ===============================
-// 📌 POST /agent/uiapi/deployments/scale/:ns/:name/:replicas
+// 📌 POST /agent/uiapi/deployments/replicas
+// UpdateDeploymentReplicas 修改指定 Deployment 的副本数
+// 参数：
+//   - namespace: Deployment 所在命名空间
+//   - name: Deployment 名称
+//   - replicas: 目标副本数（int32）
+// 返回：
+//   - error: 若失败则返回错误
+// ===============================
 func UpdateDeploymentReplicas(namespace, name string, replicas int32) error {
-	path := fmt.Sprintf("/agent/uiapi/deployments/scale/%s/%s/%d", namespace, name, replicas)
-	return http.PostToAgent(path, nil)
+	req := map[string]interface{}{
+		"namespace": namespace,
+		"name":      name,
+		"replicas":  replicas,
+	}
+	return http.PostToAgent("/agent/uiapi/deployments/replicas", req)
 }
 
 // ===============================
-// 📌 POST /agent/uiapi/deployments/image/:ns/:name/:image
+// 📌 POST /agent/uiapi/deployments/image
+// UpdateDeploymentImage 更新指定 Deployment 的所有容器镜像
+// 参数：
+//   - namespace: Deployment 所在命名空间
+//   - name: Deployment 名称
+//   - image: 新的容器镜像名称
+// 返回：
+//   - error: 若失败则返回错误	
+// ===============================
 func UpdateDeploymentImage(namespace, name, image string) error {
-	path := fmt.Sprintf("/agent/uiapi/deployments/image/%s/%s/%s", namespace, name, image)
-	return http.PostToAgent(path, nil)
+	req := map[string]interface{}{
+		"namespace": namespace,
+		"name":      name,
+		"image":     image,
+	}
+	return http.PostToAgent("/agent/uiapi/deployments/image", req)
 }

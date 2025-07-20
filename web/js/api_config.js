@@ -1,8 +1,8 @@
 // js/api_config.js
-// const API_BASE_URL = "";
+const API_BASE_URL = "";
 
-const ENV = "dev"; // dev / prod
-const API_BASE_URL = ENV === "dev" ? "http://localhost:8081" : "";
+// const ENV = "dev"; // dev / prod
+// const API_BASE_URL = ENV === "dev" ? "http://localhost:8081" : "";
 
 const API_ENDPOINTS = {
   cluster: {
@@ -46,6 +46,7 @@ const API_ENDPOINTS = {
     metrics: `${API_BASE_URL}/uiapi/node/metrics`,
     overview: `${API_BASE_URL}/uiapi/node/overview`,
     getByName: (name) => `${API_BASE_URL}/uiapi/node/get/${name}`,
+    schedule: `${API_BASE_URL}/uiapi/node-ops/schedule`,
   },
   pod: {
     listAll: `${API_BASE_URL}/uiapi/pod/list`,

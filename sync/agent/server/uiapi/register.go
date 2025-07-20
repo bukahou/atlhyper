@@ -23,8 +23,8 @@ func RegisterUIRoutes(rg *gin.RouterGroup) {
 	rg.GET("/deployments/detail/:ns/:name", HandleDeploymentDetail)
 	rg.GET("/deployments/unavailable", HandleUnavailableDeployments)
 	rg.GET("/deployments/progressing", HandleProgressingDeployments)
-	rg.POST("/deployments/scale/:ns/:name/:replicas", HandleUpdateDeploymentReplicas)
-	rg.POST("/deployments/image/:ns/:name/image", HandleUpdateDeploymentImage)
+	rg.POST("/deployments/replicas", HandleUpdateDeploymentReplicas)
+	rg.POST("/deployments/image", HandleUpdateDeploymentImage)
 
 	// Event 事件接口
 	rg.GET("/event/list/all", HandleGetAllEvents)
@@ -46,6 +46,7 @@ func RegisterUIRoutes(rg *gin.RouterGroup) {
 	rg.GET("/node/list", HandleListAllNodes)
 	rg.GET("/node/get/:name", HandleGetNodeDetail)
 	rg.GET("/node/metrics-summary", HandleGetNodeMetricsSummary)
+	rg.POST("/node/schedulable", HandleToggleNodeSchedulable)
 
 
 	// Pod 资源接口

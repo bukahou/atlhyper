@@ -1,6 +1,7 @@
 package uiapi
 
 import (
+	"NeuroController/model"
 	"NeuroController/sync/center/http"
 	"fmt"
 
@@ -71,8 +72,8 @@ func GetAllNodes() ([]corev1.Node, error) {
 // =============================================
 // ✅ GET /agent/uiapi/node/get/:name
 // =============================================
-func GetNodeDetail(name string) (*corev1.Node, error) {
-	var result corev1.Node
+func GetNodeDetail(name string) (*model.NodeDetailInfo, error) {
+	var result model.NodeDetailInfo
 	url := fmt.Sprintf("/agent/uiapi/node/get/%s", name)
 	err := http.GetFromAgent(url, &result)
 	if err != nil {
@@ -93,3 +94,30 @@ func GetNodeMetricsSummary() (*NodeMetricsSummary, error) {
 	}
 	return &result, nil
 }
+
+// SetNodeSchedulable 向 Agent 发送调度状态切换请求（封锁或解封 Node）
+// 参数：
+//   - name: 节点名称
+//   - unschedulable: true 表示封锁（cordon），false 表示解封（uncordon）
+// 返回：
+//   - error: 如果请求失败或 Agent 返回错误，将返回详细错误信息
+func SetNodeSchedulable(name string, unschedulable bool) error {
+	type toggleNodeRequest struct {
+		Name          string `json:"name"`
+		Unschedulable bool   `json:"unschedulable"`
+	}
+
+	payload := toggleNodeRequest{
+		Name:          name,
+		Unschedulable: unschedulable,
+	}
+
+	// ✅ 调整为 2 个参数调用
+	err := http.PostToAgent("/agent/uiapi/node/schedulable", payload)
+	if err != nil {
+		return fmt.Errorf("向 Agent 发送调度切换请求失败: %w", err)
+	}
+
+	return nil
+}
+

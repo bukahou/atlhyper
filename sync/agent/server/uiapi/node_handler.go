@@ -2,6 +2,7 @@ package uiapi
 
 import (
 	uiapi "NeuroController/interfaces/ui_api"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -46,4 +47,33 @@ func HandleGetNodeMetricsSummary(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, data)
+}
+
+// POST /uiapi/node/unschedulable
+func HandleToggleNodeSchedulable(c *gin.Context) {
+	type ToggleSchedulableRequest struct {
+		Name          string `json:"name" binding:"required"` // 节点名
+		Unschedulable bool   `json:"unschedulable"`           // true: 封锁；false: 解封
+	}
+
+	var req ToggleSchedulableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		return
+	}
+
+	if err := uiapi.ToggleNodeSchedulable(req.Name, req.Unschedulable); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置节点调度状态失败: " + err.Error()})
+		return
+	}
+
+	// 🔽 根据参数选择反馈内容
+	action := "已封锁"
+	if !req.Unschedulable {
+		action = "已解封"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("节点 %s %s", req.Name, action),
+	})
 }

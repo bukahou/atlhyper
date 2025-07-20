@@ -98,9 +98,6 @@ func UpdateAllContainerImages(ctx context.Context, namespace, name string, newIm
 		return fmt.Errorf("JSON 序列化失败: %w", err)
 	}
 
-	// ✅ 可选调试输出
-	// fmt.Println("[DEBUG] PATCH body:", string(patchBytes))
-
 	// 执行 PATCH 请求
 	_, err = client.AppsV1().Deployments(namespace).Patch(
 		ctx,

@@ -31,7 +31,8 @@ func InsertEventLog(e model.EventLog) error {
 func GetEventLogsSince(since string) ([]model.EventLog, error) {
 	rows, err := utils.DB.Query(`
 		SELECT category, eventTime, kind, message, name, namespace, node, reason, severity, time
-		FROM event_logs WHERE eventTime >= ?`, since)
+		FROM event_logs WHERE eventTime >= ?
+		ORDER BY eventTime DESC`, since)
 	if err != nil {
 		return nil, err
 	}
