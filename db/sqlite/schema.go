@@ -49,5 +49,29 @@ func CreateTables() error {
 	if err != nil {
 		log.Printf("❌ 创建 users 表失败: %v", err)
 	}
-	return err
+	
+
+	// 3️⃣ 创建用户审计表格。主要记录对集群进行的操作细节
+	// username	TEXT	执行操作的用户名
+	// role	INTEGER	用户角色（如 1=普通用户，2=运维，3=管理员）
+	// action	TEXT	操作内容（如 "cordon_node", "delete_pod" 等）
+	// success	BOOLEAN	操作是否成功（true / false）
+	// timestamp	TEXT	操作发生时间（ISO8601 格式字符串）
+	_, err = utils.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS user_audit_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,		   -- 操作用户 ID
+			username TEXT NOT NULL,            -- 执行操作的用户名
+			role INTEGER NOT NULL,             -- 用户角色（如 1=普通用户，2=运维，3=管理员）
+			action TEXT NOT NULL,              -- 操作内容（如 "cordon_node", "delete_pod" 等）
+			success BOOLEAN NOT NULL,          -- 操作是否成功（true / false）
+			timestamp TEXT NOT NULL DEFAULT  (datetime('now', 'localtime'))            -- 操作发生时间（ISO8601 格式字符串）
+		)
+	`)
+	if err != nil {
+		log.Printf("❌ 创建 user_audit_logs 表失败: %v", err)
+		return err
+	}
+
+	return nil
 }

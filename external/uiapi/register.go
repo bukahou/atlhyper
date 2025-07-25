@@ -55,10 +55,15 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	admin := router.Group("")
 	admin.Use(auth.AuthMiddleware(), auth.RequireMinRole(auth.RoleAdmin))
 
+	// 用户注册接口
 	admin.POST("/auth/user/register", auth.HandleRegisterUser)
+	// 用户权限更新接口
 	admin.POST("/auth/user/update-role", auth.HandleUpdateUserRole)
+	//获取全部用户信息接口
 	admin.GET("/auth/user/list", auth.HandleListAllUsers)
-
+	//针对node的操作。因此需要在在组组最高权限
 	admin.POST("/node-ops/schedule", node.ToggleNodeSchedulableHandler)
+	// 获取用户审计日志
+	admin.GET("/auth/userauditlogs/list", auth.HandleGetUserAuditLogs)
 
 }

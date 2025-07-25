@@ -12,3 +12,13 @@ type User struct {
 	CreatedAt   time.Time
 	LastLogin   *time.Time
 }
+
+type GetUserAuditLogsResponse struct {
+	ID        int
+	UserID    int
+	Username  string
+	Role      int
+	Action    string
+	Success   bool
+	Timestamp string
+}

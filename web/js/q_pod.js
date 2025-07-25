@@ -47,7 +47,7 @@ function restartPod(namespace, name) {
     })
     .catch((err) => {
       console.error("❌ 重启失败:", err);
-      alert(err.response?.data?.message || "重启失败，请稍后再试");
+      alert(err.response?.data?.message || "重启失败，权限不足");
     });
 }
 

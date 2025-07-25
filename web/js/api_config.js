@@ -1,8 +1,19 @@
 // js/api_config.js
-const API_BASE_URL = "";
+let API_BASE_URL = "";
 
-// const ENV = "dev"; // dev / prod
-// const API_BASE_URL = ENV === "dev" ? "http://localhost:8081" : "";
+const currentHost = window.location.hostname;
+const currentProtocol = window.location.protocol;
+
+if (currentHost === "127.0.0.1") {
+  // 本地测试：显式设定本地 API 地址（端口根据后端服务实际情况修改）
+  API_BASE_URL = "http://localhost:8081";
+} else if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(currentHost)) {
+  // 局域网部署：IP + 端口
+  API_BASE_URL = `${currentProtocol}//${currentHost}:30080`;
+} else {
+  // 公网部署：默认走当前域名反向代理
+  API_BASE_URL = `${currentProtocol}//${currentHost}`;
+}
 
 const API_ENDPOINTS = {
   cluster: {

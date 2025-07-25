@@ -46,7 +46,7 @@ func EnsureAdminUser() error {
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		username,
 		string(hashed),
-		"武夏锋",              // 显示名
+		"atlhyper",              // 显示名
 		"",                     // 邮箱为空
 		3,                      // 管理员权限标识（例如 3）
 		time.Now().Format(time.RFC3339), // 创建时间
@@ -56,5 +56,41 @@ func EnsureAdminUser() error {
 	}
 
 	log.Println("✅ 默认管理员已创建: 用户名 admin / 密码 admin")
+	return nil
+}
+
+// InsertTestAuditLog 插入一条用于测试的审计记录
+func InsertTestAuditLog() error {
+	 //先查询是否有数据
+	 row := utils.DB.QueryRow(`SELECT COUNT(*) FROM user_audit_logs`)
+
+	 var count int
+
+	 //获取是是数据是否成功
+	 if err := row.Scan(&count); err != nil {
+		log.Panicf("查询用户审计日志失败: %v", err)
+	}
+
+	//如果存在数据则不再插入测试记录
+	if count > 0 {
+		log.Println("ℹ️ 用户审计日志已存在，跳过插入测试记录")
+		return nil
+	}
+
+	// 插入一条测试审计记录
+	_, err := utils.DB.Exec(`
+		INSERT INTO user_audit_logs (user_id, username, role, action, success)
+		VALUES (?, ?, ?, ?, ?)`,
+		1,                      // 假设用户ID为1
+		"wuxiafeng", //用户名
+		3,                      // 管理员角色
+		"restart pod", // 操作描述
+		1,                      // 成功标识（1表示成功）
+	)
+	if err != nil {
+		log.Println("测试数据插入失败:", err)
+	}
+	log.Println("✅ 测试审计记录已插入")
+
 	return nil
 }
