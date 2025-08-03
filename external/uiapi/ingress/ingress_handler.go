@@ -19,6 +19,7 @@
 package ingress
 
 import (
+	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
@@ -35,10 +36,10 @@ import (
 func GetAllIngressesHandler(c *gin.Context) {
 	list, err := uiapi.GetAllIngresses()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Ingress 列表失败: " + err.Error()})
+		response.ErrorCode(c, 50000, "获取 Ingress 列表失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, list)
+	response.Success(c, "获取 Ingress 列表成功", list)
 }
 
 // =======================================================================================

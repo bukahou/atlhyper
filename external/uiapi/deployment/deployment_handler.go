@@ -19,6 +19,7 @@
 package deployment
 
 import (
+	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
@@ -33,14 +34,13 @@ import (
 // 用于：前端全局视图 / 搜索 / 集群资源浏览
 // =======================================================================================
 func GetAllDeploymentsHandler(c *gin.Context) {
-	
-
 	list, err := uiapi.GetAllDeployments()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Deployment 失败: " + err.Error()})
+		response.Error(c, "获取 Deployment 失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, list)
+
+	response.Success(c, "获取 Deployment 成功", list)
 }
 
 // =======================================================================================
@@ -75,21 +75,21 @@ func GetDeploymentsByNamespaceHandler(c *gin.Context) {
 // 用于：Deployment 详情页 / 弹窗查看配置与状态
 // =======================================================================================
 func GetDeploymentByNameHandler(c *gin.Context) {
-
 	ns := c.Param("ns")
 	name := c.Param("name")
 
 	if ns == "" || name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少命名空间或名称参数"})
+		response.Error(c, "缺少命名空间或名称参数")
 		return
 	}
 
 	dep, err := uiapi.GetDeploymentByName(ns, name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Deployment 失败: " + err.Error()})
+		response.ErrorCode(c, 50000, "获取 Deployment 失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, dep)
+
+	response.Success(c, "获取 Deployment 成功", dep)
 }
 
 // =======================================================================================

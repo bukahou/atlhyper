@@ -1,6 +1,7 @@
 package user
 
 import (
+	"NeuroController/config"
 	"NeuroController/db/utils"
 	"log"
 	"time"
@@ -33,8 +34,13 @@ func EnsureAdminUser() error {
 	}
 
 	// 2️⃣ 构造默认用户信息
-	username := "admin"
-	password := "admin"
+	// username := "admin"
+	// password := "123456"
+	username := config.GlobalConfig.Admin.Username
+	password := config.GlobalConfig.Admin.Password
+	displayName := config.GlobalConfig.Admin.DisplayName
+	email := config.GlobalConfig.Admin.Email
+
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err // 密码加密失败
@@ -46,8 +52,8 @@ func EnsureAdminUser() error {
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		username,
 		string(hashed),
-		"atlhyper",              // 显示名
-		"",                     // 邮箱为空
+		displayName,
+		email,
 		3,                      // 管理员权限标识（例如 3）
 		time.Now().Format(time.RFC3339), // 创建时间
 	)

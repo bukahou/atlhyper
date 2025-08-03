@@ -19,6 +19,7 @@
 package configmap
 
 import (
+	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
@@ -35,11 +36,12 @@ func ListConfigMapsByNamespaceHandler(c *gin.Context) {
 
 	list, err := uiapi.GetConfigMapsByNamespace(ns)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 ConfigMap 列表失败: " + err.Error()})
+		response.Error(c, "获取 ConfigMap 列表失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, list)
+	response.Success(c, "获取成功", list)
 }
+
 
 // =======================================================================================
 // ✅ GET /uiapi/configmap/get/:ns/:name

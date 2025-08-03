@@ -20,7 +20,9 @@ package event
 
 import (
 	"NeuroController/external/logger"
+	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -116,13 +118,12 @@ func GetRecentLogEventsHandler(c *gin.Context) {
 
 	logs, err := logger.GetRecentEventLogs(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "日志读取失败: " + err.Error()})
+		response.Error(c, "日志读取失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"logs": logs,
-	})
+	fmt.Println("获取最近", days, "天的日志，数量:", len(logs))
+	response.Success(c, "获取日志成功", gin.H{"logs": logs})
 }
 
 

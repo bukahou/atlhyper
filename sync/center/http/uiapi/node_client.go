@@ -28,6 +28,7 @@ type NodeBrief struct {
 	CPU        int               `json:"cpu"`
 	MemoryGB   float64           `json:"memory"`
 	Labels     map[string]string `json:"labels"`
+	Unschedulable  bool              `json:"unschedulable"`
 }
 
 type NodeOverviewResult struct {

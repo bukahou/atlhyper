@@ -74,6 +74,7 @@ type NodeBrief struct {
 	CPU        int               `json:"cpu"`    // 核数
 	MemoryGB   float64           `json:"memory"` // 单位：GiB，保留 1 位小数
 	Labels     map[string]string `json:"labels"`
+	Unschedulable bool             `json:"unschedulable"` 
 }
 
 type NodeOverviewResult struct {
@@ -115,6 +116,7 @@ func GetNodeOverview(ctx context.Context) (*NodeOverviewResult, error) {
 			CPU:        cpuCores,
 			MemoryGB:   math.Round(memGi*10) / 10.0, // ✅ 保留 1 位小数
 			Labels:     node.Labels,
+			Unschedulable: node.Spec.Unschedulable,
 		}
 		if brief.Ready {
 			readyCount++

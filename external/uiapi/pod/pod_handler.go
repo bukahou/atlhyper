@@ -20,7 +20,9 @@
 package pod
 
 import (
+	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -37,10 +39,10 @@ import (
 func ListAllPodsHandler(c *gin.Context) {
 	pods, err := uiapi.GetAllPods()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 列表失败: " + err.Error()})
+		response.Error(c, "获取 Pod 列表失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, pods)
+	response.Success(c, "获取 Pod 列表成功", pods)
 }
 
 // =======================================================================================
@@ -60,6 +62,8 @@ func ListPodsByNamespaceHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, pods)
 }
 
+
+
 // =======================================================================================
 // ✅ GET /uiapi/pod/summary/status
 //
@@ -67,14 +71,18 @@ func ListPodsByNamespaceHandler(c *gin.Context) {
 //
 // 用于：集群 UI 总览图表、资源状态面板
 // =======================================================================================
+
 func PodStatusSummaryHandler(c *gin.Context) {
+	fmt.Println("✅ PodStatusSummaryHandler 被调用了！")
 	summary, err := uiapi.GetPodStatusSummary()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 状态摘要失败: " + err.Error()})
+		response.Error(c, "获取 Pod 状态摘要失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, summary)
+	response.Success(c, "获取 Pod 状态摘要成功", summary)
 }
+
+
 
 // =======================================================================================
 // ✅ GET /uiapi/pod/metrics/usage
@@ -102,10 +110,10 @@ func PodMetricsUsageHandler(c *gin.Context) {
 func ListBriefPodsHandler(c *gin.Context) {
 	infos, err := uiapi.GetAllPodInfos()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取简略 Pod 列表失败: " + err.Error()})
+		response.Error(c, "获取简略 Pod 列表失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, infos)
+	response.Success(c, "获取简略 Pod 列表成功", infos)
 }
 
 // =======================================================================================
@@ -121,16 +129,12 @@ func GetPodDescribeHandler(c *gin.Context) {
 
 	info, err := uiapi.GetPodDescribe(ns, name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "获取 Pod 详情失败: " + err.Error(),
-			"message": "可能是该 Pod 已删除或命名空间不存在",
-		})
+		response.ErrorCode(c, 50000, "获取 Pod 详情失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, info)
+	response.Success(c, "获取成功", info)
 }
-
 // ============================================================================================================================================
 // ============================================================================================================================================
 // 操作函数

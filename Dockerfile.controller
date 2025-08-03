@@ -1,47 +1,57 @@
 # =========================
-# 第一阶段：构建阶段（启用 CGO + 支持 go-sqlite3）
+# 阶段 1：构建前端（Vue）
 # =========================
-FROM golang:1.24.2-alpine AS builder
+FROM node:20-alpine AS webbuilder
 
-# 安装编译 go-sqlite3 所需的依赖
+WORKDIR /web
+
+# ✅ 安装 git，解决某些依赖可能使用 git+https
+RUN apk add --no-cache git
+
+# ✅ 一次性拷贝所有 web 目录内容，避免脚本缺失导致缓存错乱
+COPY ./web ./ 
+
+# ✅ 安装依赖并构建
+RUN npm install --legacy-peer-deps && npm run build
+
+
+# =========================
+# 阶段 2：构建后端（Go）
+# =========================
+FROM golang:1.24.2-alpine AS gobuilder
+
+# ✅ 安装编译和数据库依赖
 RUN apk add --no-cache gcc musl-dev sqlite-dev
 
-# 设置工作目录
 WORKDIR /app
 
-# 复制依赖定义并下载
 COPY go.mod go.sum ./
 RUN go mod download
 
-# 复制源代码
 COPY . .
 
-# 启用 CGO（不要设 GOARCH，buildx 会自动注入）
 ENV CGO_ENABLED=1
 
-# 构建主控制器（静态页面嵌入）
 RUN go build -o neurocontroller ./cmd/neurocontroller/main.go
 
 # =========================
-# 第二阶段：运行阶段（最终精简镜像）
+# 阶段 3：最终运行镜像
 # =========================
 FROM alpine:latest
 
-# 安装 SQLite 所需的运行时库
 RUN apk add --no-cache sqlite-libs
 
-# 设置运行目录
 WORKDIR /root/
 
-# 拷贝可执行文件和前端静态页面
-COPY --from=builder /app/neurocontroller .
-COPY --from=builder /app/web ./web
+# 拷贝后端可执行文件
+COPY --from=gobuilder /app/neurocontroller .
 
-# 赋予执行权限
+# 拷贝前端构建后的产物（注意：只拷贝 dist）
+COPY --from=webbuilder /web/dist ./web/dist
+
+# 设置启动权限
 RUN chmod +x ./neurocontroller
 
-# 暴露 Web/API/UI 服务端口
 EXPOSE 8081
 
-# 启动命令
 ENTRYPOINT ["./neurocontroller"]

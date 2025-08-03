@@ -21,6 +21,7 @@
 package service
 
 import (
+	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
@@ -37,11 +38,12 @@ import (
 func GetAllServicesHandler(c *gin.Context) {
 	svcs, err := uiapi.GetAllServices()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Service 列表失败: " + err.Error()})
+		response.Error(c, "获取 Service 列表失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, svcs)
+	response.Success(c, "获取 Service 列表成功", svcs)
 }
+
 
 // =======================================================================================
 // ✅ GET /uiapi/service/list/by-namespace/:ns

@@ -50,6 +50,12 @@ type SlackConfig struct {
 type WebhookConfig struct {
 	Enable bool //是否启用webhook
 }
+type AdminConfig struct {
+	Username    string
+	Password    string
+	DisplayName string
+	Email       string
+}
 
 // AppConfig 是整个系统的顶层配置结构体
 type AppConfig struct {
@@ -58,6 +64,7 @@ type AppConfig struct {
 	Mailer     MailerConfig
 	Slack      SlackConfig
 	Webhook    WebhookConfig
+	Admin      AdminConfig
 }
 
 // GlobalConfig 是对外暴露的全局配置实例
@@ -86,6 +93,10 @@ var defaultStrings = map[string]string{
 	"MAIL_SMTP_HOST":    "smtp.gmail.com",
 	"MAIL_SMTP_PORT":    "587",
 	"SLACK_WEBHOOK_URL": "",
+	"DEFAULT_ADMIN_USERNAME":     "admin",
+	"DEFAULT_ADMIN_PASSWORD":     "admin",
+	"DEFAULT_ADMIN_DISPLAY_NAME": "Atlhyper",
+	"DEFAULT_ADMIN_EMAIL":        "admin@example.com",
 }
 
 // 默认布尔配置（支持覆盖）
@@ -142,6 +153,14 @@ func LoadConfig() {
 	GlobalConfig.Webhook = WebhookConfig{
 		Enable: getBool("ENABLE_WEBHOOK_SERVER"),
 	}
+
+	GlobalConfig.Admin = AdminConfig{
+		Username:    getString("DEFAULT_ADMIN_USERNAME"),
+		Password:    getString("DEFAULT_ADMIN_PASSWORD"),
+		DisplayName: getString("DEFAULT_ADMIN_DISPLAY_NAME"),
+		Email:       getString("DEFAULT_ADMIN_EMAIL"),
+}
+
 
 	log.Printf("✅ 配置加载完成: %+v", GlobalConfig)
 

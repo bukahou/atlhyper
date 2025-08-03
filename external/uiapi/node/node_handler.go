@@ -18,6 +18,7 @@
 package node
 
 import (
+	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
 	"net/http"
 
@@ -66,10 +67,10 @@ func GetNodeMetricsSummaryHandler(c *gin.Context) {
 func GetNodeOverviewHandler(c *gin.Context) {
 	result, err := uiapi.GetNodeOverview()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Node 总览失败: " + err.Error()})
+		response.Error(c, "获取 Node 总览失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, result)
+	response.Success(c, "获取 Node 总览成功", result)
 }
 
 // =======================================================================================
@@ -83,10 +84,10 @@ func GetNodeDetailHandler(c *gin.Context) {
 	name := c.Param("name")
 	node, err := uiapi.GetNodeDetail(name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Node 详情失败: " + err.Error()})
+		response.Error(c, "获取 Node 详情失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, node)
+	response.Success(c, "获取 Node 详情成功", node)
 }
 
 
@@ -111,16 +112,19 @@ func ToggleNodeSchedulableHandler(c *gin.Context) {
 
 	var req ToggleSchedulableRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		response.Error(c, "请求参数无效")
 		return
 	}
 
-	// 🔁 直接调用控制器接口，它内部已向 Agent 发起请求并返回原始响应
 	if err := uiapi.SetNodeSchedulable(req.Name, req.Unschedulable); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置节点调度状态失败: " + err.Error()})
+		response.Error(c, "设置节点调度状态失败: "+err.Error())
 		return
 	}
 
-	// ✅ 如果 Agent 已返回 message，这里什么都不需要处理，透传即可（保持一致）
-	c.Status(http.StatusOK)
+	// ✅ 统一成功响应
+	msg := "封锁成功"
+	if !req.Unschedulable {
+		msg = "解封成功"
+	}
+	response.SuccessMsg(c, msg)
 }
