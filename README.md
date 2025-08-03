@@ -45,6 +45,47 @@ The project adopts a **MarstAgent model**, where Agents are deployed within each
 
 ---
 
+### 📸 Feature Overview
+
+#### 🧩 1. Cluster Resource Overview
+
+Real-time status display of resources such as Node, Pod, Deployment, and Service:
+
+![Node View](docs/images/node.png)
+![Pod View](docs/images/pod.png)
+![Deployment View](docs/images/deployment.png)
+![Service View](docs/images/service.png)
+
+---
+
+#### 🚨 2. Anomaly Alerting System
+
+Supports multi-channel alerting via Slack / Mail with event classification and throttling:
+
+![Alert Overview](docs/images/alert.png)
+![Slack Notification](docs/images/slack.png)
+![Email Notification](docs/images/mail.png)
+
+---
+
+#### 🔍 3. Resource Detail Pages
+
+Resources like Pod / Node / Deployment / Namespace support detailed inspection:
+
+![Pod Detail](docs/images/poddesc.png)
+![Node Detail](docs/images/nodedesc.png)
+![Deployment Detail](docs/images/deploymentdesc.png)
+
+---
+
+#### 🗂️ 4. Configuration Management Interface
+
+Manage alerting configurations like Slack, Mail, and Webhook with UI-based toggles:
+
+![Configuration Panel](docs/images/config.png)
+
+---
+
 ### 🧰 Core Dependencies
 
 | Component                      | Description                                       |

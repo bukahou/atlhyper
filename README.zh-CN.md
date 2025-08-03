@@ -41,6 +41,47 @@ AtlHyper 是一个轻量级 Kubernetes 集群可观测性与控制平台，聚�
 
 ---
 
+### 📸 项目功能示意图
+
+#### 🧩 1. 集群资源概览
+
+实时展示 Node、Pod、Deployment、Service 等资源状态：
+
+![节点图示](docs/images/node.png)
+![Pod 图示](docs/images/pod.png)
+![Deployment 图示](docs/images/deployment.png)
+![Service 图示](docs/images/service.png)
+
+---
+
+#### 🚨 2. 异常告警系统
+
+支持 Slack / Mail 多渠道告警，结合事件分类、节流机制：
+
+![告警图示](docs/images/alert.png)
+![Slack 通知](docs/images/slack.png)
+![邮件通知](docs/images/mail.png)
+
+---
+
+#### 🔍 3. 资源详情页面
+
+资源如 Pod / Node / Deployment / Namespace 支持点击查看详情：
+
+![Pod 详情](docs/images/poddesc.png)
+![Node 详情](docs/images/nodedesc.png)
+![Deployment 详情](docs/images/deploymentdesc.png)
+
+---
+
+#### 🗂️ 4. 配置管理界面
+
+管理 Slack、Mail、Webhook 等告警配置，支持 UI 一键切换启用：
+
+![配置界面](docs/images/config.png)
+
+---
+
 ### 🧰 核心依赖
 
 | 组件                                      | 说明                           |

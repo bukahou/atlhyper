@@ -41,6 +41,47 @@
 
 ---
 
+### 📸 機能概要（スクリーンショット）
+
+#### 🧩 1. クラスターリソースの概要
+
+Node、Pod、Deployment、Service などのリソース状況をリアルタイムで表示：
+
+![ノード](docs/images/node.png)
+![Pod](docs/images/pod.png)
+![Deployment](docs/images/deployment.png)
+![Service](docs/images/service.png)
+
+---
+
+#### 🚨 2. 異常アラートシステム
+
+Slack やメールによるマルチチャネル通知、イベント分類や通知の節流も対応：
+
+![アラート](docs/images/alert.png)
+![Slack 通知](docs/images/slack.png)
+![メール通知](docs/images/mail.png)
+
+---
+
+#### 🔍 3. リソース詳細画面
+
+Pod / Node / Deployment / Namespace などの詳細をクリックで表示：
+
+![Pod 詳細](docs/images/poddesc.png)
+![Node 詳細](docs/images/nodedesc.png)
+![Deployment 詳細](docs/images/deploymentdesc.png)
+
+---
+
+#### 🗂️ 4. アラート設定 UI
+
+Slack、メール、Webhook などのアラート送信設定を UI 上で簡単に切り替え可能：
+
+![設定画面](docs/images/config.png)
+
+---
+
 ### 🧰 主要依存コンポーネント
 
 | コンポーネント                 | 説明                                           |
