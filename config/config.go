@@ -90,14 +90,19 @@ var defaultDurations = map[string]string{
 
 // 默认字符串配置（支持覆盖）
 var defaultStrings = map[string]string{
-	"MAIL_SMTP_HOST":    "smtp.gmail.com",
-	"MAIL_SMTP_PORT":    "587",
-	"SLACK_WEBHOOK_URL": "",
-	"DEFAULT_ADMIN_USERNAME":     "admin",
-	"DEFAULT_ADMIN_PASSWORD":     "admin",
-	"DEFAULT_ADMIN_DISPLAY_NAME": "Atlhyper",
-	"DEFAULT_ADMIN_EMAIL":        "admin@example.com",
+	"MAIL_SMTP_HOST":              "smtp.gmail.com",
+	"MAIL_SMTP_PORT":              "587",
+	"MAIL_USERNAME":               "",
+	"MAIL_PASSWORD":               "",
+	"MAIL_FROM":                   "noreply@example.com",
+	"MAIL_TO":                     "", // 空字符串 getStringList 会返回空列表
+	"SLACK_WEBHOOK_URL":           "",
+	"DEFAULT_ADMIN_USERNAME":      "admin",
+	"DEFAULT_ADMIN_PASSWORD":      "admin",
+	"DEFAULT_ADMIN_DISPLAY_NAME":  "Atlhyper",
+	"DEFAULT_ADMIN_EMAIL":         "admin@example.com",
 }
+
 
 // 默认布尔配置（支持覆盖）
 var defaultBools = map[string]bool{

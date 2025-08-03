@@ -9,8 +9,8 @@
 
 set -e
 
-IMAGE_NAME="bukahou/neurocontroller"
-TAG="v3.0.1"
+IMAGE_NAME="bukahou/atlhyper-controller"
+TAG="v1.0.1"
 
 echo "🔧 [Step 1] Checking Buildx builder"
 docker buildx create --name mybuilder --use || true

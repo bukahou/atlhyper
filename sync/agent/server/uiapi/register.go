@@ -4,10 +4,10 @@ import "github.com/gin-gonic/gin"
 
 // RegisterAlertSettingsRoutes 注册告警配置相关接口
 func RegisterUIRoutes(rg *gin.RouterGroup) {
-	rg.GET("/config/alert", HandleGetAlertConfig)
-	rg.POST("/config/slack", HandleUpdateSlackConfig)
-	rg.POST("/config/webhook", HandleUpdateWebhookConfig)
-	rg.POST("/config/mail", HandleUpdateMailConfig)
+	// rg.GET("/config/alert", HandleGetAlertConfig)
+	// rg.POST("/config/slack", HandleUpdateSlackConfig)
+	// rg.POST("/config/webhook", HandleUpdateWebhookConfig)
+	// rg.POST("/config/mail", HandleUpdateMailConfig)
 
 	// 集群概览接口
 	rg.GET("/cluster/overview", HandleClusterOverview)

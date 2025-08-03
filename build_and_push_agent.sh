@@ -8,8 +8,8 @@
 
 set -e
 
-IMAGE_NAME="bukahou/neuroagent"
-TAG="v1.1.0"
+IMAGE_NAME="bukahou/atlhyper-agent"
+TAG="v1.0.1"
 
 echo "🔧 [Step 1] Checking Buildx builder"
 docker buildx create --name mybuilder --use || true
