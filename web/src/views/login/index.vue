@@ -21,52 +21,33 @@
             autocomplete="on"
           >
             <el-form-item prop="username">
-              <!-- <el-input
-                v-model="loginForm.username"
-                placeholder="帐号"
-                prefix-icon="el-icon-user"
-              /> -->
               <el-input
                 v-model="loginForm.username"
                 placeholder="请输入帐号"
                 prefix-icon="el-icon-user"
               />
             </el-form-item>
-
             <el-form-item prop="password">
-              <!-- <el-input
-                v-model="loginForm.password"
-                :type="passwordType"
-                placeholder="密码"
-                prefix-icon="el-icon-lock"
-                @keyup.enter.native="handleLogin"
-              /> -->
-              <!-- <el-input
-                v-model="loginForm.password"
-                :type="passwordType"
-                placeholder="密码"
-                prefix-icon="el-icon-lock"
-                :suffix-icon="
-                  passwordType === 'password'
-                    ? 'el-icon-view'
-                    : 'el-icon-view-off'
-                "
-                @click.native.suffix="showPwd"
-                @keyup.enter.native="handleLogin"
-              /> -->
               <el-input
                 v-model="loginForm.password"
                 :type="passwordType"
                 placeholder="请输入密码"
                 prefix-icon="el-icon-lock"
-                :suffix-icon="
-                  passwordType === 'password'
-                    ? 'el-icon-view'
-                    : 'el-icon-view-off'
-                "
-                @click.native.suffix="showPwd"
                 @keyup.enter.native="handleLogin"
-              />
+                ref="password"
+              >
+                <template slot="suffix">
+                  <i
+                    :class="
+                      passwordType === 'password'
+                        ? 'el-icon-view'
+                        : 'el-icon-view-off'
+                    "
+                    style="cursor: pointer; color: #999"
+                    @click="showPwd"
+                  />
+                </template>
+              </el-input>
             </el-form-item>
 
             <el-button

@@ -45,6 +45,7 @@ const actions = {
           }
 
           const rolesMap = {
+            0: "disabled",
             1: "user",
             2: "admin",
             3: "super-admin",

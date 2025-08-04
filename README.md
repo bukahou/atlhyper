@@ -80,7 +80,7 @@ Resources like Pod / Node / Deployment / Namespace support detailed inspection:
 
 #### 🗂️ 4. Configuration Management Interface
 
-Manage alerting configurations like Slack, Mail, and Webhook with UI-based toggles:
+Allows viewing the contents of a ConfigMap by specifying the Namespace.
 
 ![Configuration Panel](docs/images/config.png)
 

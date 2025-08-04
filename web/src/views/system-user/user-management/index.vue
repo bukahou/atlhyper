@@ -48,13 +48,25 @@
     </div>
 
     <!-- ✅ 用户表格组件 -->
-    <UserTable :users="userList" @view-user="handleViewUser" />
+    <!-- <UserTable :users="userList" @view-user="handleViewUser" /> -->
+
+    <!-- ✅ 注册按钮 -->
+    <UserTable
+      :users="userList"
+      @view-user="handleViewUser"
+      @open-register="showRegisterDialog = true"
+    />
+    <RegisterUserDialog
+      :visible.sync="showRegisterDialog"
+      @register-user="handleRegister"
+    />
   </div>
 </template>
 
 <script>
 import CardStat from "@/components/Atlhyper/CardStat.vue";
 import UserTable from "@/components/Atlhyper/UserTable.vue";
+import RegisterUserDialog from "./components/RegisterUserDialog.vue";
 import { listUsers } from "@/api/user"; // ✅ 导入 API
 
 export default {
@@ -62,6 +74,7 @@ export default {
   components: {
     CardStat,
     UserTable,
+    RegisterUserDialog,
   },
   data() {
     return {
@@ -70,6 +83,7 @@ export default {
       normalUsers: 0,
       failedOperations: 0,
       userList: [],
+      showRegisterDialog: false,
     };
   },
   created() {
@@ -84,6 +98,7 @@ export default {
 
           // ✅ 格式化数据（role 字段翻译）
           const mappedUsers = rawUsers.map((u) => ({
+            id: u.ID,
             username: u.Username,
             displayName: u.DisplayName,
             email: u.Email,

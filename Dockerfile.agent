@@ -35,4 +35,4 @@ RUN chmod +x ./neuroagent
 EXPOSE 8082
 
 # 设置容器启动命令
-ENTRYPOINT ["./neuroagent"]
+ENTRYPOINT ["./atlhyper-agent"]

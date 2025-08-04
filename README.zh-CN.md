@@ -76,7 +76,7 @@ AtlHyper 是一个轻量级 Kubernetes 集群可观测性与控制平台，聚�
 
 #### 🗂️ 4. 配置管理界面
 
-管理 Slack、Mail、Webhook 等告警配置，支持 UI 一键切换启用：
+可通过指定命名空间（Namespace）查看对应的 ConfigMap 内容：
 
 ![配置界面](docs/images/config.png)
 

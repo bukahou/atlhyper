@@ -76,7 +76,7 @@ Pod / Node / Deployment / Namespace などの詳細をクリックで表示：
 
 #### 🗂️ 4. アラート設定 UI
 
-Slack、メール、Webhook などのアラート送信設定を UI 上で簡単に切り替え可能：
+名前空間（Namespace）を指定して ConfigMap の内容を確認可能：
 
 ![設定画面](docs/images/config.png)
 
