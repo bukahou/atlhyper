@@ -4,14 +4,16 @@
       <div class="login-left">
         <div class="login-info">
           <h1 class="title">AtlHyper</h1>
-          <p class="subtitle">Kubernetes 控制台.</p>
+          <p class="subtitle">Kubernetes Dashboard.</p>
         </div>
       </div>
 
       <div class="login-right">
         <div class="login-form-wrapper">
-          <h2 class="form-title">欢迎回来</h2>
-          <p class="form-subtitle">请输入您的账户信息以开始管理您的集群</p>
+          <h2 class="form-title">Welcome AtlHyper</h2>
+          <p class="form-subtitle">
+            Please enter your account information to manage your cluster
+          </p>
 
           <el-form
             ref="loginForm"
@@ -23,7 +25,7 @@
             <el-form-item prop="username">
               <el-input
                 v-model="loginForm.username"
-                placeholder="请输入帐号"
+                placeholder="Please enter your username"
                 prefix-icon="el-icon-user"
               />
             </el-form-item>
@@ -31,7 +33,7 @@
               <el-input
                 v-model="loginForm.password"
                 :type="passwordType"
-                placeholder="请输入密码"
+                placeholder="Please enter your password"
                 prefix-icon="el-icon-lock"
                 @keyup.enter.native="handleLogin"
                 ref="password"
@@ -56,7 +58,7 @@
               class="login-button"
               @click="handleLogin"
             >
-              登录
+              Log In
             </el-button>
           </el-form>
         </div>

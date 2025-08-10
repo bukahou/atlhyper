@@ -1,14 +1,14 @@
 <template>
   <div class="service-table-container">
     <div class="table-title">
-      <h2>Service 服务 一览表</h2>
-      <hr>
+      <h2>Service List</h2>
+      <hr />
     </div>
 
     <!-- 分页控制 -->
     <div class="toolbar">
       <div class="row-size-selector">
-        显示
+        Show
         <el-select
           v-model="pageSize"
           class="row-size-dropdown"
@@ -22,7 +22,7 @@
             :value="num"
           />
         </el-select>
-        条
+        items
       </div>
     </div>
 
@@ -36,7 +36,7 @@
         color: '#333',
         fontWeight: 600,
       }"
-      empty-text="暂无 Service 数据"
+      empty-text="No Service data available"
     >
       <!-- 名称筛选 -->
       <el-table-column prop="name" label="名称" min-width="160">
@@ -59,7 +59,7 @@
       </el-table-column>
 
       <!-- 命名空间筛选 -->
-      <el-table-column prop="namespace" label="命名空间" width="120">
+      <el-table-column prop="namespace" label="Namespace" width="120">
         <template #header>
           <el-select
             v-model="selectedNamespace"
@@ -79,7 +79,7 @@
       </el-table-column>
 
       <!-- 类型筛选 -->
-      <el-table-column prop="type" label="类型" width="120">
+      <el-table-column prop="type" label="Type" width="120">
         <template #header>
           <el-select
             v-model="selectedType"
@@ -119,58 +119,63 @@
 
 <script>
 export default {
-  name: 'ServiceTable',
+  name: "ServiceTable",
   props: {
     services: {
       type: Array,
-      required: true
-    }
+      required: true,
+    },
   },
   data() {
     return {
-      selectedName: '',
-      selectedNamespace: '',
-      selectedType: '',
+      selectedName: "",
+      selectedNamespace: "",
+      selectedType: "",
       pageSize: 10,
-      currentPage: 1
-    }
+      currentPage: 1,
+    };
   },
   computed: {
     nameOptions() {
-      return [...new Set(this.services.map((s) => s.name))].filter(Boolean)
+      return [...new Set(this.services.map((s) => s.name))].filter(Boolean);
     },
     namespaceOptions() {
       return [...new Set(this.services.map((s) => s.namespace))].filter(
         Boolean
-      )
+      );
     },
     typeOptions() {
-      return [...new Set(this.services.map((s) => s.type))].filter(Boolean)
+      return [...new Set(this.services.map((s) => s.type))].filter(Boolean);
     },
     filteredServices() {
       return this.services.filter((svc) => {
-        if (this.selectedName && svc.name !== this.selectedName) return false
-        if (this.selectedNamespace && svc.namespace !== this.selectedNamespace) { return false }
-        if (this.selectedType && svc.type !== this.selectedType) return false
-        return true
-      })
+        if (this.selectedName && svc.name !== this.selectedName) return false;
+        if (
+          this.selectedNamespace &&
+          svc.namespace !== this.selectedNamespace
+        ) {
+          return false;
+        }
+        if (this.selectedType && svc.type !== this.selectedType) return false;
+        return true;
+      });
     },
     pagedServices() {
-      const start = (this.currentPage - 1) * this.pageSize
-      return this.filteredServices.slice(start, start + this.pageSize)
-    }
+      const start = (this.currentPage - 1) * this.pageSize;
+      return this.filteredServices.slice(start, start + this.pageSize);
+    },
   },
 
   methods: {
     handlePageChange(page) {
-      this.currentPage = page
+      this.currentPage = page;
     },
     handlePageSizeChange(size) {
-      this.pageSize = size
-      this.currentPage = 1
-    }
-  }
-}
+      this.pageSize = size;
+      this.currentPage = 1;
+    },
+  },
+};
 </script>
 
 <style scoped>

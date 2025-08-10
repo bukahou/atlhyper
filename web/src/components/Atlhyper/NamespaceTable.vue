@@ -1,14 +1,14 @@
 <template>
   <div class="namespace-table-container">
     <div class="table-title">
-      <h2>Namespace 一览表</h2>
+      <h2>Namespace List</h2>
       <hr />
     </div>
 
     <!-- 分页控制 -->
     <div class="toolbar">
       <div class="row-size-selector">
-        显示
+        Show
         <el-select
           v-model="pageSize"
           class="row-size-dropdown"
@@ -22,7 +22,7 @@
             :value="num"
           />
         </el-select>
-        条
+        items
       </div>
     </div>
 
@@ -36,17 +36,21 @@
         color: '#333',
         fontWeight: 600,
       }"
-      empty-text="暂无 Namespace 数据"
+      empty-text="No Namespace data available"
     >
-      <el-table-column prop="name" label="名称" min-width="160" />
-      <el-table-column prop="status" label="状态" width="100" />
-      <el-table-column prop="podCount" label="Pod 数量" width="100" />
-      <el-table-column prop="labelCount" label="标签数量" width="100" />
-      <el-table-column prop="annotationCount" label="注解数量" width="100" />
-      <el-table-column prop="creationTime" label="创建时间" width="180" />
+      <el-table-column prop="name" label="Name" min-width="160" />
+      <el-table-column prop="status" label="Status" width="100" />
+      <el-table-column prop="podCount" label="Pod Count" width="100" />
+      <el-table-column prop="labelCount" label="Label Count" width="100" />
+      <el-table-column
+        prop="annotationCount"
+        label="Annotation Count"
+        width="100"
+      />
+      <el-table-column prop="creationTime" label="Creation Time" width="180" />
 
       <!-- 操作列 -->
-      <el-table-column label="操作" fixed="right" width="140">
+      <el-table-column label="Actions" fixed="right" width="140">
         <template slot-scope="{ row }">
           <div class="action-buttons">
             <el-button
@@ -62,7 +66,7 @@
                 })
               "
             >
-              查看
+              View
             </el-button>
           </div>
         </template>

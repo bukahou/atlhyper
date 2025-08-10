@@ -1,0 +1,39 @@
+# =========================
+# 阶段 1：构建二进制文件
+# =========================
+FROM golang:1.24.2-alpine AS builder
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制 go.mod / go.sum 并下载依赖
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 复制全部代码
+COPY . .
+
+# 编译 metrics agent
+RUN go build -o atlhyper-metrics ./cmd/metrics_collector/main.go
+
+
+# =========================
+# 阶段 2：精简运行镜像
+# =========================
+FROM alpine:latest
+
+
+# 设置工作目录
+WORKDIR /root/
+
+# 拷贝编译好的二进制
+COPY --from=builder /app/atlhyper-metrics .
+
+# 设置执行权限
+RUN chmod +x ./atlhyper-metrics
+
+# 暴露端口（示例监听 8083）
+EXPOSE 8083
+
+# 启动 agent
+ENTRYPOINT ["./atlhyper-metrics"]

@@ -1,14 +1,14 @@
 <template>
   <div class="deployment-table-container">
     <div class="table-title">
-      <h2>Deployment 一览表</h2>
+      <h2>Deployment List</h2>
       <hr />
     </div>
 
     <!-- 分页控制 -->
     <div class="toolbar">
       <div class="row-size-selector">
-        显示
+        Show
         <el-select
           v-model="pageSize"
           class="row-size-dropdown"
@@ -22,7 +22,7 @@
             :value="num"
           />
         </el-select>
-        条
+        items
       </div>
     </div>
 
@@ -36,14 +36,14 @@
         color: '#333',
         fontWeight: 600,
       }"
-      empty-text="暂无 Deployment 数据"
+      empty-text="No Deployment data available"
     >
       <!-- ✅ 命名空间筛选列 -->
       <el-table-column prop="namespace" label="Namespace" width="160">
         <template slot="header">
           <el-select
             v-model="selectedNamespace"
-            placeholder="全部命名空间"
+            placeholder="All Namespaces"
             clearable
             size="small"
             style="width: 100%"
@@ -68,7 +68,7 @@
             v-if="isEditing(row)"
             v-model="editCache[rowKey(row)].image"
             size="mini"
-            placeholder="新镜像名"
+            placeholder="New Image Name"
           />
           <span v-else>{{ row.image }}</span>
         </template>
@@ -80,7 +80,7 @@
             v-if="isEditing(row)"
             v-model="editCache[rowKey(row)].replicas"
             size="mini"
-            placeholder="选择副本数"
+            placeholder="Select replicas"
           >
             <el-option v-for="n in 10" :key="n" :label="n" :value="n" />
           </el-select>
@@ -103,7 +103,7 @@
               icon="el-icon-view"
               @click="$emit('view', row)"
             >
-              查看
+              View
             </el-button>
 
             <el-button
@@ -114,7 +114,7 @@
               @click="startEdit(row)"
               v-if="!isEditing(row)"
             >
-              修改
+              Edit
             </el-button>
 
             <el-button
@@ -125,7 +125,7 @@
               @click="confirmEdit(row)"
               v-if="isEditing(row)"
             >
-              变更
+              Apply
             </el-button>
           </div>
         </template>

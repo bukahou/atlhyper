@@ -48,6 +48,7 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 
 	pod.RegisterPodOpsRoutes(ops.Group("/pod-ops"))
 	deployment.RegisterDeploymentOpsRoutes(ops.Group("/deployment-ops"))
+	ops.GET("/auth/user/list", auth.HandleListAllUsers)
 
 	// =============================
 	// 🔐 管理员权限接口（角色 == 3）
@@ -60,7 +61,7 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	// 用户权限更新接口
 	admin.POST("/auth/user/update-role", auth.HandleUpdateUserRole)
 	//获取全部用户信息接口
-	admin.GET("/auth/user/list", auth.HandleListAllUsers)
+	// admin.GET("/auth/user/list", auth.HandleListAllUsers)
 	//针对node的操作。因此需要在在组组最高权限
 	admin.POST("/node-ops/schedule", node.ToggleNodeSchedulableHandler)
 	// 获取用户审计日志

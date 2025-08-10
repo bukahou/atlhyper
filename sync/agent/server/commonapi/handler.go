@@ -23,7 +23,6 @@ func HandleCleanedEvents(c *gin.Context) {
 	}
 
 		// ✅ 打印事件数量和部分内容（可视情况裁剪）
-	log.Printf("✅ 返回清理后的事件，共 %d 条\n", len(events))
 
 	// ✅ 正常返回
 	c.JSON(http.StatusOK, events)

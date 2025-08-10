@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # 构建 Agent 二进制文件
-RUN go build -o neuroagent ./cmd/neuroagent/main.go
+RUN go build -o atlhyper-agent ./cmd/neuroagent/main.go
 
 
 # =========================
@@ -26,10 +26,10 @@ FROM alpine:latest
 WORKDIR /root/
 
 # 从构建阶段复制已编译的 Agent 可执行文件
-COPY --from=builder /app/neuroagent .
+COPY --from=builder /app/atlhyper-agent .
 
 # 赋予执行权限
-RUN chmod +x ./neuroagent
+RUN chmod +x ./atlhyper-agent
 
 # Agent 暴露 HTTP 接口，可开启端口（如有需要）
 EXPOSE 8082

@@ -1,14 +1,14 @@
 <template>
   <div class="node-table-container">
     <div class="table-title">
-      <h2>Node 节点 一览表</h2>
+      <h2>Node List</h2>
       <hr />
     </div>
 
     <!-- 分页控制 -->
     <div class="toolbar">
       <div class="row-size-selector">
-        显示
+        Show
         <el-select
           v-model="pageSize"
           class="row-size-dropdown"
@@ -22,7 +22,7 @@
             :value="num"
           />
         </el-select>
-        条
+        items
       </div>
     </div>
 
@@ -36,7 +36,7 @@
         color: '#333',
         fontWeight: 600,
       }"
-      empty-text="暂无 Node 数据"
+      empty-text="No Node data available"
     >
       <el-table-column prop="name" label="Name" min-width="160" />
 
@@ -60,20 +60,20 @@
       <el-table-column prop="memory" label="Memory (GiB)" width="140" />
 
       <!-- ✅ 新增调度状态列 -->
-      <el-table-column label="是否可调度" width="140">
+      <el-table-column label="Schedulable" width="140">
         <template slot-scope="{ row }">
           <el-tag
             :type="row.unschedulable ? 'danger' : 'success'"
             size="mini"
             disable-transitions
           >
-            {{ row.unschedulable ? "不可调度" : "可调度" }}
+            {{ row.unschedulable ? "NotSchedulable" : "Schedulable" }}
           </el-tag>
         </template>
       </el-table-column>
 
       <!-- 操作列 -->
-      <el-table-column label="操作" fixed="right" width="220">
+      <el-table-column label="Actions" fixed="right" width="220">
         <template slot-scope="{ row }">
           <div class="action-buttons">
             <!-- 查看按钮 -->
@@ -85,7 +85,7 @@
               icon="el-icon-view"
               @click="$emit('view', row)"
             >
-              详细
+              View
             </el-button>
 
             <!-- 封锁/解封按钮 -->
@@ -97,7 +97,7 @@
               :icon="row.unschedulable ? 'el-icon-unlock' : 'el-icon-lock'"
               @click="$emit('toggle', row)"
             >
-              {{ row.unschedulable ? "解封" : "封锁" }}
+              {{ row.unschedulable ? "Unblock" : "Block" }}
             </el-button>
           </div>
         </template>

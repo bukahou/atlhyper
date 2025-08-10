@@ -1,30 +1,3 @@
-// =======================================================================================
-// 📄 k8s_client.go
-//
-// ✨ Description:
-//     Encapsulates the initialization of both controller-runtime and client-go Kubernetes clients,
-//     providing globally shared instances to be used across modules such as Watcher, Diagnosis,
-//     Webhook, etc.
-//
-// 🛠️ Provided Functions:
-//     - InitK8sClient(): Initializes Kubernetes clients (controller-runtime + client-go)
-//     - GetClient(): Returns the shared controller-runtime client
-//     - GetRestConfig(): Returns the loaded rest.Config
-//     - GetCoreClient(): Returns the shared client-go CoreV1 clientset
-//
-// 📦 Features:
-//     - Supports KUBECONFIG-based or InCluster configuration
-//     - Thread-safe initialization using sync.Once
-//     - Panics on critical initialization failure
-//
-// 📍 Usage:
-//     - Call InitK8sClient() during startup
-//     - Use GetClient() / GetCoreClient() in other modules
-//
-// ✍️ Author: bukahou (@ZGMF-X10A)
-// 📅 Created: June 2025
-// =======================================================================================
-
 package utils
 
 import (

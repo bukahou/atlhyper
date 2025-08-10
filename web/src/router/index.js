@@ -29,19 +29,19 @@ export const constantRoutes = [
     component: Layout,
     redirect: "analysis",
     name: "Overview",
-    meta: { title: "概览", icon: "dashboard" },
+    meta: { title: "Overview", icon: "dashboard" },
     children: [
       {
         path: "analysis",
         name: "Analysis",
         component: () => import("@/views/overview/Analysis/index.vue"),
-        meta: { title: "分析页", icon: "el-icon-data-analysis" },
+        meta: { title: "Analysis", icon: "el-icon-data-analysis" },
       },
       {
         path: "workbench",
         name: "Workbench",
         component: () => import("@/views/overview/Workbench/index.vue"),
-        meta: { title: "工作台", icon: "el-icon-s-operation" },
+        meta: { title: "Workbench", icon: "el-icon-s-operation" },
       },
     ],
   },
@@ -67,7 +67,7 @@ export const constantRoutes = [
     redirect: "/cluster-monitor/pod",
     name: "ClusterMonitor",
     meta: {
-      title: "集群监控",
+      title: "Cluster Monitor",
       icon: "el-icon-s-platform", // 自行换成你喜欢的 icon
     },
     children: [
@@ -75,7 +75,7 @@ export const constantRoutes = [
         path: "pod",
         name: "PodMonitor",
         component: () => import("@/views/cluster-monitor/pod/index.vue"),
-        meta: { title: "Pod 监控", icon: "el-icon-monitor" },
+        meta: { title: "Pod Monitor", icon: "el-icon-monitor" },
       },
       {
         path: "pod/describe", // ✅ 详情页面路径
@@ -83,13 +83,13 @@ export const constantRoutes = [
         component: () =>
           import("@/views/cluster-monitor/pod/PodDescribe/index.vue"),
         hidden: true,
-        meta: { title: "Pod 详情", noCache: true },
+        meta: { title: "Pod Details", noCache: true },
       },
       {
         path: "node",
         name: "NodeMonitor",
         component: () => import("@/views/cluster-monitor/node/index.vue"),
-        meta: { title: "Node 监控", icon: "el-icon-cpu" },
+        meta: { title: "Node Monitor", icon: "el-icon-cpu" },
       },
       {
         path: "node/describe", // ✅ 详情页面路径
@@ -97,19 +97,19 @@ export const constantRoutes = [
         component: () =>
           import("@/views/cluster-monitor/node/NodeDescribe/index.vue"),
         hidden: true,
-        meta: { title: "Node 详情", noCache: true },
+        meta: { title: "Node Details", noCache: true },
       },
       {
         path: "service",
         name: "ServiceMonitor",
         component: () => import("@/views/cluster-monitor/service/index.vue"),
-        meta: { title: "Service 监控", icon: "el-icon-s-grid" },
+        meta: { title: "Service Monitor", icon: "el-icon-s-grid" },
       },
       {
         path: "namespace",
         name: "NamespaceMonitor",
         component: () => import("@/views/cluster-monitor/namespace/index.vue"),
-        meta: { title: "Namespace 监控", icon: "el-icon-folder" },
+        meta: { title: "Namespace Monitor", icon: "el-icon-folder" },
       },
       {
         path: "configmap",
@@ -117,13 +117,13 @@ export const constantRoutes = [
         component: () =>
           import("@/views/cluster-monitor/namespace/configmap/index.vue"),
         hidden: true,
-        meta: { title: "ConfigMap 详情", noCache: true },
+        meta: { title: "ConfigMap Details", noCache: true },
       },
       {
         path: "ingress",
         name: "IngressMonitor",
         component: () => import("@/views/cluster-monitor/ingress/index.vue"),
-        meta: { title: "Ingress 监控", icon: "el-icon-s-grid" },
+        meta: { title: "Ingress Monitor", icon: "el-icon-s-grid" },
       },
       {
         path: "deployment",
@@ -137,14 +137,14 @@ export const constantRoutes = [
         component: () =>
           import("@/views/cluster-monitor/deployment/deployDescribe/index.vue"),
         hidden: true,
-        meta: { title: "Deployment 详情", noCache: true },
+        meta: { title: "Deployment Details", noCache: true },
       },
       {
         path: "alert",
         name: "ClusterAlert",
         component: () =>
           import("@/views/cluster-monitor/ClusterAlert/index.vue"),
-        meta: { title: "Alert 监控", icon: "el-icon-warning" },
+        meta: { title: "Alert Monitor", icon: "el-icon-warning" },
       },
     ],
   },
@@ -154,7 +154,7 @@ export const constantRoutes = [
     redirect: "/system-monitor/metrics",
     name: "SystemMonitor",
     meta: {
-      title: "系统监控",
+      title: "System Monitor",
       icon: "el-icon-s-data",
     },
     children: [
@@ -162,13 +162,13 @@ export const constantRoutes = [
         path: "metrics",
         name: "MetricsMonitor",
         component: () => import("@/views/system-monitor/metrics/index.vue"),
-        meta: { title: "指标监控", icon: "el-icon-data-line" },
+        meta: { title: "Metrics Monitor", icon: "el-icon-data-line" },
       },
       {
         path: "logs",
         name: "LogMonitor",
         component: () => import("@/views/system-monitor/logs/index.vue"),
-        meta: { title: "日志", icon: "el-icon-document" },
+        meta: { title: "Logs", icon: "el-icon-document" },
       },
     ],
   },
@@ -178,7 +178,7 @@ export const constantRoutes = [
     redirect: "/system-user/user-management",
     name: "SystemUser",
     meta: {
-      title: "系统用户",
+      title: "System User",
       icon: "el-icon-user-solid",
     },
     children: [
@@ -187,13 +187,13 @@ export const constantRoutes = [
         name: "UserManagement",
         component: () =>
           import("@/views/system-user/user-management/index.vue"),
-        meta: { title: "用户管理", icon: "el-icon-user" },
+        meta: { title: "User Management", icon: "el-icon-user" },
       },
       {
         path: "user-audit",
         name: "UserAudit",
         component: () => import("@/views/system-user/user-audit/index.vue"),
-        meta: { title: "用户审计", icon: "el-icon-s-order" },
+        meta: { title: "User Audit", icon: "el-icon-s-order" },
       },
     ],
   },

@@ -1,13 +1,13 @@
 <template>
   <div class="pod-table-container">
     <div class="table-title">
-      <h2>Pod 资源 一览表</h2>
+      <h2>Pod Resource List</h2>
       <hr />
     </div>
 
     <div class="toolbar">
       <div class="row-size-selector">
-        显示
+        Show
         <el-select
           v-model="pageSize"
           class="row-size-dropdown"
@@ -21,7 +21,7 @@
             :value="num"
           />
         </el-select>
-        条
+        items
       </div>
     </div>
 
@@ -34,14 +34,14 @@
         color: '#333',
         fontWeight: 600,
       }"
-      empty-text="暂无 Pod 数据"
+      empty-text="No Pod data available"
     >
       <!-- Namespace 筛选 -->
       <el-table-column prop="namespace" label="Namespace" width="140">
         <template slot="header">
           <el-select
             v-model="selectedNamespace"
-            placeholder="全部命名空间"
+            placeholder="All Namespaces"
             clearable
             size="small"
             style="width: 100%"
@@ -61,7 +61,7 @@
         <template slot="header">
           <el-select
             v-model="selectedDeployment"
-            placeholder="全部 Deployment"
+            placeholder="All Deployments"
             clearable
             size="small"
             style="width: 100%"
@@ -92,7 +92,7 @@
       <el-table-column prop="nodeName" label="Node" width="140" />
 
       <!-- 操作按钮 -->
-      <el-table-column label="操作" fixed="right" width="160">
+      <el-table-column label="Actions" fixed="right" width="160">
         <template slot-scope="{ row }">
           <div class="action-buttons">
             <el-button
@@ -103,7 +103,7 @@
               icon="el-icon-view"
               @click="$emit('view', row)"
             >
-              查看
+              View
             </el-button>
 
             <el-button
@@ -114,7 +114,7 @@
               icon="el-icon-delete"
               @click="emitRestart(row)"
             >
-              重启
+              Restart
             </el-button>
           </div>
         </template>
