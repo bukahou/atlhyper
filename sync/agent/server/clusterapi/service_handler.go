@@ -1,7 +1,7 @@
 package uiapi
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	clusterapi "NeuroController/interfaces/cluster_api"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,7 +9,7 @@ import (
 
 // GET /uiapi/service/list
 func HandleListAllServices(c *gin.Context) {
-	data, err := uiapi.GetAllServices(c.Request.Context())
+	data, err := clusterapi.GetAllServices(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Service 列表失败: " + err.Error()})
 		return
@@ -20,7 +20,7 @@ func HandleListAllServices(c *gin.Context) {
 // GET /uiapi/service/list/by-namespace/:ns
 func HandleListServicesByNamespace(c *gin.Context) {
 	ns := c.Param("ns")
-	data, err := uiapi.GetServicesByNamespace(c.Request.Context(), ns)
+	data, err := clusterapi.GetServicesByNamespace(c.Request.Context(), ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取命名空间 Service 失败: " + err.Error()})
 		return
@@ -38,7 +38,7 @@ func HandleGetServiceByName(c *gin.Context) {
 		return
 	}
 
-	svc, err := uiapi.GetServiceByName(c.Request.Context(), ns, name)
+	svc, err := clusterapi.GetServiceByName(c.Request.Context(), ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Service 详情失败: " + err.Error()})
 		return
@@ -48,7 +48,7 @@ func HandleGetServiceByName(c *gin.Context) {
 
 // GET /uiapi/service/list/external
 func HandleListExternalServices(c *gin.Context) {
-	data, err := uiapi.GetExternalServices(c.Request.Context())
+	data, err := clusterapi.GetExternalServices(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取对外 Service 失败: " + err.Error()})
 		return
@@ -58,7 +58,7 @@ func HandleListExternalServices(c *gin.Context) {
 
 // GET /uiapi/service/list/headless
 func HandleListHeadlessServices(c *gin.Context) {
-	data, err := uiapi.GetHeadlessServices(c.Request.Context())
+	data, err := clusterapi.GetHeadlessServices(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Headless Service 失败: " + err.Error()})
 		return

@@ -1,6 +1,6 @@
 // interfaces/deployment_cicd_api.go
 
-package interfaces
+package cicd
 
 import "NeuroController/internal/deployer"
 
@@ -8,7 +8,4 @@ import "NeuroController/internal/deployer"
 func UpdateDeploymentByTag(repo, tag string) error {
 
 	return deployer.UpdateDeploymentByTag(repo, tag)
-
-	// log.Printf("🧪 模拟执行 Deployment 更新：Repo = %s, Tag = %s", repo, tag)
-	// return nil
 }

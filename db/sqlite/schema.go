@@ -73,5 +73,64 @@ func CreateTables() error {
 		return err
 	}
 
+	// 4️⃣ 创建 node_metrics_flat 表（每个 节点+时间戳 一行的汇总）
+	_, err = utils.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS node_metrics_flat (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			node_name        TEXT NOT NULL,     -- 节点名称
+			ts               TEXT NOT NULL,     -- 采集时间（ISO8601 字符串）
+			cpu_usage        REAL,              -- CPU 使用率（0.0~1.0）
+			cpu_cores        INTEGER,           -- CPU 核心数
+			cpu_load1        REAL,              -- 1 分钟平均负载
+			cpu_load5        REAL,              -- 5 分钟平均负载
+			cpu_load15       REAL,              -- 15 分钟平均负载
+			memory_total     INTEGER,           -- 总内存（字节）
+			memory_used      INTEGER,           -- 已用内存（字节）
+			memory_available INTEGER,           -- 可用内存（字节）
+			memory_usage     REAL,              -- 内存使用率（0.0~1.0）
+			temp_cpu         INTEGER,           -- CPU 温度（摄氏度）
+			temp_gpu         INTEGER,           -- GPU 温度（摄氏度）
+			temp_nvme        INTEGER,           -- NVMe 磁盘温度（摄氏度）
+			disk_total       INTEGER,           -- 磁盘总容量（字节）
+			disk_used        INTEGER,           -- 已用磁盘容量（字节）
+			disk_free        INTEGER,           -- 可用磁盘容量（字节）
+			disk_usage       REAL,              -- 磁盘使用率（0.0~1.0）
+			net_lo_rx_kbps   REAL,               -- lo 网卡接收速率（KB/s）
+			net_lo_tx_kbps   REAL,               -- lo 网卡发送速率（KB/s）
+			net_eth0_rx_kbps REAL,               -- eth0 网卡接收速率（KB/s）
+			net_eth0_tx_kbps REAL,               -- eth0 网卡发送速率（KB/s）
+			UNIQUE(node_name, ts)
+		);
+		CREATE INDEX IF NOT EXISTS idx_node_metrics_flat_ts
+			ON node_metrics_flat(ts DESC);
+		CREATE INDEX IF NOT EXISTS idx_node_metrics_flat_node_ts
+			ON node_metrics_flat(node_name, ts DESC);
+	`)
+	if err != nil {
+		log.Printf("❌ 创建 node_metrics_flat 表失败: %v", err)
+		return err
+	}
+
+	// 5️⃣ 创建 node_top_processes 表（每个 节点+时间戳+PID 一行）
+	_, err = utils.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS node_top_processes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			node_name   TEXT NOT NULL,          -- 节点名称
+			ts          TEXT NOT NULL,          -- 采集时间（ISO8601 字符串）
+			pid         INTEGER NOT NULL,       -- 进程 ID
+			user        TEXT,                   -- 所属用户
+			command     TEXT,                   -- 命令名
+			cpu_percent REAL,                   -- CPU 占用百分比（数值，不带%）
+			memory_mb   REAL,                   -- 内存占用（MB）
+			UNIQUE(node_name, ts, pid)
+		);
+		CREATE INDEX IF NOT EXISTS idx_node_topproc_node_ts
+			ON node_top_processes(node_name, ts DESC);
+	`)
+	if err != nil {
+		log.Printf("❌ 创建 node_top_processes 表失败: %v", err)
+		return err
+	}
+
 	return nil
 }

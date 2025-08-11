@@ -1,4 +1,4 @@
-package uiapi
+package clusterapi
 
 // =======================================================================================
 // 📄 pod_api.go（interfaces/ui_api）

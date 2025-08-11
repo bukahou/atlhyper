@@ -1,7 +1,7 @@
 package uiapi
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	clusterapi "NeuroController/interfaces/cluster_api"
 	"net/http"
 	"strconv"
 
@@ -10,7 +10,7 @@ import (
 
 // GET /uiapi/pod/list
 func HandleListAllPods(c *gin.Context) {
-	data, err := uiapi.GetAllPods(c.Request.Context())
+	data, err := clusterapi.GetAllPods(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取所有 Pod 失败: " + err.Error()})
 		return
@@ -21,7 +21,7 @@ func HandleListAllPods(c *gin.Context) {
 // GET /uiapi/pod/list/by-namespace/:ns
 func HandleListPodsByNamespace(c *gin.Context) {
 	ns := c.Param("ns")
-	data, err := uiapi.GetPodsByNamespace(c.Request.Context(), ns)
+	data, err := clusterapi.GetPodsByNamespace(c.Request.Context(), ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取命名空间 Pod 失败: " + err.Error()})
 		return
@@ -31,7 +31,7 @@ func HandleListPodsByNamespace(c *gin.Context) {
 
 // GET /uiapi/pod/summary
 func HandlePodStatusSummary(c *gin.Context) {
-	data, err := uiapi.GetPodStatusSummary(c.Request.Context())
+	data, err := clusterapi.GetPodStatusSummary(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 状态汇总失败: " + err.Error()})
 		return
@@ -41,7 +41,7 @@ func HandlePodStatusSummary(c *gin.Context) {
 
 // GET /uiapi/pod/usage
 func HandlePodUsage(c *gin.Context) {
-	data, err := uiapi.GetPodUsages(c.Request.Context())
+	data, err := clusterapi.GetPodUsages(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 资源使用情况失败: " + err.Error()})
 		return
@@ -51,7 +51,7 @@ func HandlePodUsage(c *gin.Context) {
 
 // GET /uiapi/pod/infos
 func HandlePodInfos(c *gin.Context) {
-	data, err := uiapi.GetAllPodInfos(c.Request.Context())
+	data, err := clusterapi.GetAllPodInfos(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 精简信息失败: " + err.Error()})
 		return
@@ -69,7 +69,7 @@ func HandlePodDescribe(c *gin.Context) {
 		return
 	}
 
-	data, err := uiapi.GetPodDescribe(c.Request.Context(), ns, name)
+	data, err := clusterapi.GetPodDescribe(c.Request.Context(), ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 详情失败: " + err.Error()})
 		return
@@ -87,7 +87,7 @@ func HandleRestartPod(c *gin.Context) {
 		return
 	}
 
-	err := uiapi.RestartPod(c.Request.Context(), ns, name)
+	err := clusterapi.RestartPod(c.Request.Context(), ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "重启 Pod 失败: " + err.Error()})
 		return
@@ -107,7 +107,7 @@ func HandleGetPodLogs(c *gin.Context) {
 		tailLines = 100
 	}
 
-	logs, err := uiapi.GetPodLogs(c.Request.Context(), ns, name, container, tailLines)
+	logs, err := clusterapi.GetPodLogs(c.Request.Context(), ns, name, container, tailLines)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 Pod 日志失败: " + err.Error()})
 		return

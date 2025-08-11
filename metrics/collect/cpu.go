@@ -47,8 +47,9 @@ var (
 
 // CPU total/idle 跨次采样
 var (
-	lastTotalCPU uint64
-	lastIdleCPU  uint64
+	lastTotalCPU     uint64
+	lastIdleCPU      uint64
+	lastTotalForTop  uint64 // ← Top 归一化所需的系统总 jiffies 基线
 )
 
 // ================= 对外函数 =================
@@ -117,7 +118,8 @@ func samplerLoop() {
 			// 2) 刷新 TopK
 			prev, _ := snapStore.Load().(cpuSnapshot)
 			top, err := collectTopKFast(prev.Stat)
-			if err != nil {
+			// 本轮算不到（首轮/极短间隔）就沿用上一轮，避免闪烁
+			if err != nil || len(top) == 0 {
 				top = lastTop
 			} else {
 				lastTop = top
@@ -134,6 +136,22 @@ func samplerLoop() {
 // ================= TopK =================
 
 func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
+	// 读取系统总 jiffies，用于归一化
+	nowTotal, _, err := readTotalCPU()
+	if err != nil {
+		return nil, err
+	}
+	// 第一次/异常回绕：建立基线并返回空结果，由调用方沿用上一轮
+	if lastTotalForTop == 0 || nowTotal <= lastTotalForTop {
+		lastTotalForTop = nowTotal
+		return []metrics.TopCPUProcess{}, nil
+	}
+	totalDelta := nowTotal - lastTotalForTop
+	lastTotalForTop = nowTotal
+	if totalDelta == 0 {
+		return []metrics.TopCPUProcess{}, nil
+	}
+
 	ents, err := os.ReadDir(procRoot)
 	if err != nil {
 		return nil, err
@@ -168,36 +186,41 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 		st, _ := strconv.ParseUint(f[14], 10, 64)
 		tot := ut + st
 
-		last := lastProcTimes[pid]
-		if tot <= last {
+		// ✅ 首次见到该 pid：仅记录基线，不计入本轮
+		if last, ok := lastProcTimes[pid]; !ok {
 			lastProcTimes[pid] = tot
 			continue
-		}
-		delta := tot - last
-		lastProcTimes[pid] = tot
+		} else {
+			// 进程重启/计数回绕
+			if tot <= last {
+				lastProcTimes[pid] = tot
+				continue
+			}
+			delta := tot - last
+			lastProcTimes[pid] = tot
 
-		liteList = append(liteList, lite{
-			pid:    pid,
-			comm:   strings.Trim(f[1], "()"),
-			deltaJ: delta,
-		})
+			if delta == 0 {
+				continue
+			}
+			liteList = append(liteList, lite{
+				pid:    pid,
+				comm:   strings.Trim(f[1], "()"),
+				deltaJ: delta,
+			})
+		}
 	}
 	lastProcTimesMu.Unlock()
 
 	// 选 TopK
+	if len(liteList) == 0 {
+		return []metrics.TopCPUProcess{}, nil
+	}
 	sort.Slice(liteList, func(i, j int) bool { return liteList[i].deltaJ > liteList[j].deltaJ })
 	K := 5
 	if len(liteList) < K {
 		K = len(liteList)
 	}
 	liteList = liteList[:K]
-
-	numCPU := float64(stat.Cores)
-	if numCPU <= 0 {
-		numCPU = 1
-	}
-	const hz = 100.0
-	const dt = 1.0
 
 	top := make([]metrics.TopCPUProcess, 0, K)
 
@@ -221,10 +244,12 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 			f.Close()
 		}
 
+		// 仅保留进程（过滤线程）
 		if tgid != "" && tgid != strconv.Itoa(it.pid) {
 			continue
 		}
 
+		// 解析用户名（带缓存）
 		username := uid
 		uidCacheMu.Lock()
 		if name, ok := uidCache[uid]; ok {
@@ -240,7 +265,8 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 			}
 		}
 
-		cpuPct := (float64(it.deltaJ)/hz)/(dt*numCPU) * 100.0
+		// ✅ 正确缩放：进程增量 / 系统总增量
+		cpuPct := (float64(it.deltaJ) / float64(totalDelta)) * 100.0
 
 		top = append(top, metrics.TopCPUProcess{
 			PID:        it.pid,

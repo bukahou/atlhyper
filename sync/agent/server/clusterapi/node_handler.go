@@ -1,7 +1,7 @@
 package uiapi
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	clusterapi "NeuroController/interfaces/cluster_api"
 	"fmt"
 	"net/http"
 
@@ -10,7 +10,7 @@ import (
 
 // GET /uiapi/node/overview
 func HandleGetNodeOverview(c *gin.Context) {
-	data, err := uiapi.GetNodeOverview(c.Request.Context())
+	data, err := clusterapi.GetNodeOverview(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取节点概览失败: " + err.Error()})
 		return
@@ -20,7 +20,7 @@ func HandleGetNodeOverview(c *gin.Context) {
 
 // GET /uiapi/node/list
 func HandleListAllNodes(c *gin.Context) {
-	nodes, err := uiapi.GetAllNodes(c.Request.Context())
+	nodes, err := clusterapi.GetAllNodes(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取所有节点失败: " + err.Error()})
 		return
@@ -31,7 +31,7 @@ func HandleListAllNodes(c *gin.Context) {
 // GET /uiapi/node/get/:name
 func HandleGetNodeDetail(c *gin.Context) {
 	name := c.Param("name")
-	node, err := uiapi.GetNodeDetail(c.Request.Context(), name)
+	node, err := clusterapi.GetNodeDetail(c.Request.Context(), name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取节点详情失败: " + err.Error()})
 		return
@@ -41,7 +41,7 @@ func HandleGetNodeDetail(c *gin.Context) {
 
 // GET /uiapi/node/metrics-summary
 func HandleGetNodeMetricsSummary(c *gin.Context) {
-	data, err := uiapi.GetNodeMetricsSummary(c.Request.Context())
+	data, err := clusterapi.GetNodeMetricsSummary(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取节点指标汇总失败: " + err.Error()})
 		return
@@ -62,7 +62,7 @@ func HandleToggleNodeSchedulable(c *gin.Context) {
 		return
 	}
 
-	if err := uiapi.ToggleNodeSchedulable(req.Name, req.Unschedulable); err != nil {
+	if err := clusterapi.ToggleNodeSchedulable(req.Name, req.Unschedulable); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置节点调度状态失败: " + err.Error()})
 		return
 	}

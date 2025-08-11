@@ -2,6 +2,7 @@ package commonapi
 
 import (
 	"NeuroController/interfaces"
+	"NeuroController/interfaces/alert"
 	"log"
 	"net/http"
 
@@ -34,7 +35,7 @@ func HandleAlertGroup(c *gin.Context) {
 	events := interfaces.GetCleanedEventLogs()
 
 	// 组装告警组（根据策略判断是否需要告警）
-	shouldAlert, subject, data := interfaces.ComposeAlertGroupIfNecessary(events)
+	shouldAlert, subject, data := alert.ComposeAlertGroupIfNecessary(events)
 
 	if !shouldAlert {
 		log.Println("✅ 当前不满足告警条件，无需发送")
@@ -60,7 +61,7 @@ func HandleLightweightAlertGroup(c *gin.Context) {
 	events := interfaces.GetCleanedEventLogs()
 
 	// 生成轻量化告警数据
-	shouldDisplay, title, data := interfaces.GetLightweightAlertGroup(events)
+	shouldDisplay, title, data := alert.GetLightweightAlertGroup(events)
 
 	if !shouldDisplay {
 		log.Println("✅ 当前无告警事件（轻量模式）")

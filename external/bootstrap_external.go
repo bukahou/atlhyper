@@ -13,6 +13,7 @@ package external
 import (
 	"NeuroController/external/client"
 	"NeuroController/external/logger"
+	"NeuroController/external/metrics_store"
 	"NeuroController/external/server"
 	"log"
 )
@@ -29,6 +30,8 @@ func StartExternalSystems() {
 
 		// ✅ 启动日志写入调度器（新增）
 	logger.StartLogWriterScheduler()
+
+	go metrics_store.StartMetricsSync()
 
 	log.Println("🌐 启动统一 HTTP Server（UI API + Webhook）")
 	server.StartHTTPServer()

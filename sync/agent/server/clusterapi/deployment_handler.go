@@ -1,7 +1,7 @@
 package uiapi
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	clusterapi "NeuroController/interfaces/cluster_api"
 	"log"
 	"net/http"
 
@@ -13,7 +13,7 @@ import (
 // ===============================
 func HandleAllDeployments(c *gin.Context) {
 	ctx := c.Request.Context()
-	deployments, err := uiapi.GetAllDeployments(ctx)
+	deployments, err := clusterapi.GetAllDeployments(ctx)
 	if err != nil {
 		log.Printf("❌ 获取所有 Deployment 失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取失败"})
@@ -29,7 +29,7 @@ func HandleDeploymentsByNamespace(c *gin.Context) {
 	ctx := c.Request.Context()
 	ns := c.Param("ns")
 
-	deployments, err := uiapi.GetDeploymentsByNamespace(ctx, ns)
+	deployments, err := clusterapi.GetDeploymentsByNamespace(ctx, ns)
 	if err != nil {
 		log.Printf("❌ 获取命名空间 %s 的 Deployment 失败: %v", ns, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取失败"})
@@ -46,7 +46,7 @@ func HandleDeploymentDetail(c *gin.Context) {
 	ns := c.Param("ns")
 	name := c.Param("name")
 
-	deployment, err := uiapi.GetDeploymentByName(ctx, ns, name)
+	deployment, err := clusterapi.GetDeploymentByName(ctx, ns, name)
 	if err != nil {
 		log.Printf("❌ 获取 Deployment %s/%s 失败: %v", ns, name, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取失败"})
@@ -61,7 +61,7 @@ func HandleDeploymentDetail(c *gin.Context) {
 func HandleUnavailableDeployments(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	deployments, err := uiapi.GetUnavailableDeployments(ctx)
+	deployments, err := clusterapi.GetUnavailableDeployments(ctx)
 	if err != nil {
 		log.Printf("❌ 获取不可用 Deployment 失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取失败"})
@@ -76,7 +76,7 @@ func HandleUnavailableDeployments(c *gin.Context) {
 func HandleProgressingDeployments(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	deployments, err := uiapi.GetProgressingDeployments(ctx)
+	deployments, err := clusterapi.GetProgressingDeployments(ctx)
 	if err != nil {
 		log.Printf("❌ 获取 Progressing Deployment 失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取失败"})
@@ -109,7 +109,7 @@ func HandleUpdateDeploymentReplicas(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	err := uiapi.UpdateDeploymentReplicas(ctx, req.Namespace, req.Name, req.Replicas)
+	err := clusterapi.UpdateDeploymentReplicas(ctx, req.Namespace, req.Name, req.Replicas)
 	if err != nil {
 		log.Printf("❌ 更新 Deployment 副本数失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
@@ -141,7 +141,7 @@ func HandleUpdateDeploymentImage(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	err := uiapi.UpdateDeploymentImage(ctx, req.Namespace, req.Name, req.Image)
+	err := clusterapi.UpdateDeploymentImage(ctx, req.Namespace, req.Name, req.Image)
 	if err != nil {
 		log.Printf("❌ 更新 Deployment 镜像失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})

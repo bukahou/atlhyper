@@ -3,7 +3,7 @@
 package uiapi
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	clusterapi "NeuroController/interfaces/cluster_api"
 	"log"
 	"net/http"
 
@@ -14,10 +14,11 @@ import (
 // 📌 GET /agent/uiapi/cluster/overview
 // ===============================
 
+
 func HandleClusterOverview(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	overview, err := uiapi.GetClusterOverview(ctx)
+	overview, err := clusterapi.GetClusterOverview(ctx)
 	if err != nil {
 		log.Printf("❌ 获取集群概要失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

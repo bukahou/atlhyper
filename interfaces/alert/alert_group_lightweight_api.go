@@ -16,7 +16,7 @@
 // ✍️ Author: bukahou (@ZGMF-X10A)
 // =======================================================================================
 
-package interfaces
+package alert
 
 import (
 	"NeuroController/internal/alerter"

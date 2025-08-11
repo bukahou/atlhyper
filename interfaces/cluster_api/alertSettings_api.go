@@ -1,4 +1,4 @@
-package uiapi
+package clusterapi
 
 // import (
 // 	"NeuroController/internal/operator/configmap"

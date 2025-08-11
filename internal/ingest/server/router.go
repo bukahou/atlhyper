@@ -15,8 +15,6 @@ func RegisterIngestRoutes(g *gin.RouterGroup, st *store.Store, maxBodyBytes int6
     // 1) Metrics 接收路由组
     metricsGroup := g.Group("/metrics")
     receivers.RegisterMetricsRoutes(metricsGroup, st, maxBodyBytes)
-
-
 }
 
     // 2) eBPF 接收路由组（预留）

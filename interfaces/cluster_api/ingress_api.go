@@ -14,7 +14,7 @@
 // ✍️ 作者：bukahou (@ZGMF-X10A)
 // =======================================================================================
 
-package uiapi
+package clusterapi
 
 import (
 	"context"

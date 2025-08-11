@@ -1,7 +1,7 @@
 package uiapi
 
 import (
-	uiapi "NeuroController/interfaces/ui_api"
+	clusterapi "NeuroController/interfaces/cluster_api"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,7 +9,7 @@ import (
 
 // GET /uiapi/ingress/list/all
 func HandleGetAllIngresses(c *gin.Context) {
-	ings, err := uiapi.GetAllIngresses(c.Request.Context())
+	ings, err := clusterapi.GetAllIngresses(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -20,7 +20,7 @@ func HandleGetAllIngresses(c *gin.Context) {
 // GET /uiapi/ingress/list/by-namespace/:ns
 func HandleGetIngressesByNamespace(c *gin.Context) {
 	ns := c.Param("ns")
-	ings, err := uiapi.GetIngressesByNamespace(c.Request.Context(), ns)
+	ings, err := clusterapi.GetIngressesByNamespace(c.Request.Context(), ns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -32,7 +32,7 @@ func HandleGetIngressesByNamespace(c *gin.Context) {
 func HandleGetIngressByName(c *gin.Context) {
 	ns := c.Param("ns")
 	name := c.Param("name")
-	ing, err := uiapi.GetIngressByName(c.Request.Context(), ns, name)
+	ing, err := clusterapi.GetIngressByName(c.Request.Context(), ns, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -42,7 +42,7 @@ func HandleGetIngressByName(c *gin.Context) {
 
 // GET /uiapi/ingress/list/ready
 func HandleGetReadyIngresses(c *gin.Context) {
-	ings, err := uiapi.GetReadyIngresses(c.Request.Context())
+	ings, err := clusterapi.GetReadyIngresses(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
