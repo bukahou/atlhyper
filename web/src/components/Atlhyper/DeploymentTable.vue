@@ -82,7 +82,12 @@
             size="mini"
             placeholder="Select replicas"
           >
-            <el-option v-for="n in 10" :key="n" :label="n" :value="n" />
+            <el-option
+              v-for="n in 11"
+              :key="n - 1"
+              :label="n - 1"
+              :value="n - 1"
+            />
           </el-select>
           <span v-else>{{ row.replicas }}</span>
         </template>

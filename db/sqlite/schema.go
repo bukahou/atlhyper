@@ -95,10 +95,10 @@ func CreateTables() error {
 			disk_used        INTEGER,           -- 已用磁盘容量（字节）
 			disk_free        INTEGER,           -- 可用磁盘容量（字节）
 			disk_usage       REAL,              -- 磁盘使用率（0.0~1.0）
-			net_lo_rx_kbps   REAL,               -- lo 网卡接收速率（KB/s）
-			net_lo_tx_kbps   REAL,               -- lo 网卡发送速率（KB/s）
-			net_eth0_rx_kbps REAL,               -- eth0 网卡接收速率（KB/s）
-			net_eth0_tx_kbps REAL,               -- eth0 网卡发送速率（KB/s）
+			net_lo_rx_kbps   REAL,              -- lo 网卡接收速率（KB/s）
+			net_lo_tx_kbps   REAL,              -- lo 网卡发送速率（KB/s）
+			net_eth0_rx_kbps REAL,              -- eth0 网卡接收速率（KB/s）
+			net_eth0_tx_kbps REAL,              -- eth0 网卡发送速率（KB/s）
 			UNIQUE(node_name, ts)
 		);
 		CREATE INDEX IF NOT EXISTS idx_node_metrics_flat_ts
@@ -120,10 +120,12 @@ func CreateTables() error {
 			pid         INTEGER NOT NULL,       -- 进程 ID
 			user        TEXT,                   -- 所属用户
 			command     TEXT,                   -- 命令名
-			cpu_percent REAL,                   -- CPU 占用百分比（数值，不带%）
+			cpu_percent REAL,                   -- CPU 占用百分比
 			memory_mb   REAL,                   -- 内存占用（MB）
 			UNIQUE(node_name, ts, pid)
 		);
+		CREATE INDEX IF NOT EXISTS idx_node_top_processes_ts
+			ON node_top_processes(ts DESC);
 		CREATE INDEX IF NOT EXISTS idx_node_topproc_node_ts
 			ON node_top_processes(node_name, ts DESC);
 	`)
@@ -131,6 +133,7 @@ func CreateTables() error {
 		log.Printf("❌ 创建 node_top_processes 表失败: %v", err)
 		return err
 	}
+
 
 	return nil
 }

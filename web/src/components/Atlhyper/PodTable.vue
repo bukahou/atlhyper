@@ -37,7 +37,11 @@
       empty-text="No Pod data available"
     >
       <!-- Namespace 筛选 -->
-      <el-table-column prop="namespace" label="Namespace" width="140">
+      <el-table-column
+        prop="namespace"
+        label="Namespace"
+        :width="colWidth.namespace"
+      >
         <template slot="header">
           <el-select
             v-model="selectedNamespace"
@@ -57,7 +61,11 @@
       </el-table-column>
 
       <!-- Deployment 筛选 -->
-      <el-table-column prop="deployment" label="Deployment" width="140">
+      <el-table-column
+        prop="deployment"
+        label="Deployment"
+        :width="colWidth.deployment"
+      >
         <template slot="header">
           <el-select
             v-model="selectedDeployment"
@@ -76,8 +84,15 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="name" label="Pod Name" min-width="160" />
-      <el-table-column label="Ready" width="80">
+      <!-- Pod Name：用 min-width + 省略号提示 -->
+      <el-table-column
+        prop="name"
+        label="Pod Name"
+        :min-width="colWidth.name"
+        show-overflow-tooltip
+      />
+
+      <el-table-column label="Ready" :width="colWidth.ready">
         <template slot-scope="{ row }">
           <el-tag :type="row.ready ? 'success' : 'info'" size="small">
             {{ row.ready ? "Yes" : "No" }}
@@ -85,14 +100,33 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="phase" label="Phase" width="100" />
-      <el-table-column prop="restartCount" label="Restart Count" width="120" />
-      <el-table-column prop="startTime" label="Start Time" width="180" />
-      <el-table-column prop="podIP" label="Pod IP" width="150" />
-      <el-table-column prop="nodeName" label="Node" width="140" />
+      <el-table-column prop="phase" label="Phase" :width="colWidth.phase" />
+      <el-table-column
+        prop="restartCount"
+        label="Restart Count"
+        :width="colWidth.restartCount"
+      />
+
+      <!-- ✅ Start Time：格式化显示 + 悬浮原始 ISO -->
+      <el-table-column
+        prop="startTime"
+        label="Start Time"
+        :width="colWidth.startTime"
+      >
+        <template slot-scope="{ row }">
+          <span :title="row.startTime">{{ fmtTime(row.startTime) }}</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="podIP" label="Pod IP" :width="colWidth.podIP" />
+      <el-table-column
+        prop="nodeName"
+        label="Node"
+        :width="colWidth.nodeName"
+      />
 
       <!-- 操作按钮 -->
-      <el-table-column label="Actions" fixed="right" width="160">
+      <el-table-column label="Actions" fixed="right" :width="colWidth.actions">
         <template slot-scope="{ row }">
           <div class="action-buttons">
             <el-button
@@ -138,13 +172,24 @@
 export default {
   name: "PodTable",
   props: {
-    pods: {
-      type: Array,
-      required: true,
-    },
+    pods: { type: Array, required: true },
   },
   data() {
     return {
+      // 统一管理列宽
+      colWidth: {
+        namespace: 150,
+        deployment: 150,
+        name: 220, // min-width
+        ready: 80,
+        phase: 110,
+        restartCount: 130,
+        startTime: 200, // 稍加宽，容纳格式化后的时间
+        podIP: 160,
+        nodeName: 150,
+        actions: 180,
+      },
+
       selectedNamespace: "",
       selectedDeployment: "",
       pageSize: 10,
@@ -160,18 +205,13 @@ export default {
     },
     filteredPods() {
       return this.pods.filter((pod) => {
-        if (
-          this.selectedNamespace &&
-          pod.namespace !== this.selectedNamespace
-        ) {
+        if (this.selectedNamespace && pod.namespace !== this.selectedNamespace)
           return false;
-        }
         if (
           this.selectedDeployment &&
           pod.deployment !== this.selectedDeployment
-        ) {
+        )
           return false;
-        }
         return true;
       });
     },
@@ -191,6 +231,39 @@ export default {
     emitRestart(row) {
       this.$emit("restart", row);
     },
+
+    // ===== 时间格式化（本地时区） =====
+    fmtTime(ts) {
+      const ms = this.parseIsoToMs(ts);
+      if (!Number.isFinite(ms)) return ts || "-";
+      const d = new Date(ms);
+      const pad = (n, w = 2) => String(n).padStart(w, "0");
+      const yyyy = d.getFullYear();
+      const MM = pad(d.getMonth() + 1);
+      const DD = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mm = pad(d.getMinutes());
+      const ss = pad(d.getSeconds());
+      return `${yyyy}-${MM}-${DD} ${hh}:${mm}:${ss}`; // e.g. 2025-06-29 19:19:42
+    },
+    // 兼容：2025-06-29T19:19:42+09:00 / 带毫秒或纳秒 / Z 结尾
+    parseIsoToMs(ts) {
+      if (typeof ts !== "string") return NaN;
+      const m = ts.match(
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.(\d+))?([Zz]|[+-]\d{2}:\d{2})?$/
+      );
+      if (!m) {
+        const t = Date.parse(ts);
+        return Number.isFinite(t) ? t : NaN;
+      }
+      const base = m[1];
+      const frac = m[3] || "";
+      const tz = m[4] || "Z";
+      const ms3 = (frac + "000").slice(0, 3); // 只保留毫秒
+      const iso = `${base}.${ms3}${tz}`;
+      const t = Date.parse(iso);
+      return Number.isFinite(t) ? t : NaN;
+    },
   },
 };
 </script>
@@ -208,5 +281,6 @@ export default {
 .action-buttons {
   display: flex;
   gap: 6px;
+  white-space: nowrap;
 }
 </style>

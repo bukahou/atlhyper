@@ -146,7 +146,36 @@ func toInt64[T ~int | ~int32 | ~int64 | ~uint | ~uint32 | ~uint64 | ~float64](v 
 }
 
 
+func CleanupOldSnapshots(ctx context.Context, db *sql.DB, retention time.Duration) (int64, int64, error) {
+	cutoff := time.Now().Add(-retention).UTC().Format(time.RFC3339Nano)
 
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	res1, err := tx.ExecContext(ctx, `DELETE FROM node_metrics_flat WHERE ts < ?;`, cutoff)
+	if err != nil {
+		return 0, 0, err
+	}
+	aff1, _ := res1.RowsAffected()
+
+	res2, err := tx.ExecContext(ctx, `DELETE FROM node_top_processes WHERE ts < ?;`, cutoff)
+	if err != nil {
+		return 0, 0, err
+	}
+	aff2, _ := res2.RowsAffected()
+
+	if err = tx.Commit(); err != nil {
+		return 0, 0, err
+	}
+	return aff1, aff2, nil
+}
 
 // SaveLatestSnapshots 拉取 /agent/dataapi/latest 并入库
 // func SaveLatestSnapshots(ctx context.Context) error {

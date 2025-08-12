@@ -7,6 +7,7 @@ import (
 	"NeuroController/external/uiapi/deployment"
 	"NeuroController/external/uiapi/event"
 	"NeuroController/external/uiapi/ingress"
+	"NeuroController/external/uiapi/metrics"
 	"NeuroController/external/uiapi/namespace"
 	"NeuroController/external/uiapi/node"
 	"NeuroController/external/uiapi/pod"
@@ -36,6 +37,7 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	ingress.RegisterIngressRoutes(read.Group("/ingress"))
 	service.RegisterServiceRoutes(read.Group("/service"))
 	configmap.RegisterConfigMapRoutes(read.Group("/configmap"))
+	metrics.RegisterMetricsRoutes(read.Group("/metrics"))
 
 	// =============================
 	// 🔒 操作类接口（角色 ≥ 2）
