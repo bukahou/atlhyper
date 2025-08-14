@@ -22,7 +22,6 @@ func BuildNodeMetricsSnapshot() *metrics.NodeMetricsSnapshot {
 	// 获取宿主机名称
 	hostname := os.Getenv("NODE_NAME")
 	if hostname == "" {
-		log.Println("⚠️ NODE_NAME not found, fallback to os.Hostname()")
 		hostname, _ = os.Hostname()
 	}
 	// CPU & Top 进程

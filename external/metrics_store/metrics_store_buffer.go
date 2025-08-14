@@ -36,7 +36,6 @@ func saveLatestSnapshotsOnce() error {
 	var asArray map[string][]*model.NodeMetricsSnapshot
 	if err := json.Unmarshal(raw, &asArray); err == nil && len(asArray) > 0 {
 		memAppendAndTrim(asArray)
-		log.Printf("[MetricsSync] mem append OK (array), nodes=%d", len(asArray))
 		return nil
 	}
 
@@ -50,7 +49,6 @@ func saveLatestSnapshotsOnce() error {
 			}
 		}
 		memAppendAndTrim(arr)
-		log.Printf("[MetricsSync] mem append OK (object), nodes=%d", len(asObject))
 		return nil
 	}
 

@@ -30,12 +30,9 @@ const (
 	defaultInterval = 5 * time.Second
 	defaultTimeout  = 5 * time.Second
 
-	// 当 PUSH_ENABLE=true 且未显式配置 PUSH_URL 时，按以下默认规则拼装 URL：
-	// http://<svcHost>:<port><path>
-	// - svcHost: 同 ns 用 Service 短名；跨 ns 用 FQDN：<name>.<ns>.svc
 	// atlhyper-agent-service
 	// 192.168.0.117
-	defaultAgentSvcName = "atlhyper-agent-service"
+	defaultAgentSvcName = "127.0.0.1"
 	defaultAgentSvcPort = 8082
 	defaultIngestPath   = "/ingest/metrics/v1/snapshot"
 )

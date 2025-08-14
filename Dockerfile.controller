@@ -32,7 +32,7 @@ COPY . .
 
 ENV CGO_ENABLED=1
 
-RUN go build -o neurocontroller ./cmd/neurocontroller/main.go
+RUN go build -o atlhyper-controller ./cmd/neurocontroller/main.go
 
 # =========================
 # 阶段 3：最终运行镜像
@@ -40,18 +40,16 @@ RUN go build -o neurocontroller ./cmd/neurocontroller/main.go
 FROM alpine:latest
 
 RUN apk add --no-cache sqlite-libs
-
 WORKDIR /root/
 
-# 拷贝后端可执行文件
-COPY --from=gobuilder /app/neurocontroller .
+# ✅ 拷贝方案B产物
+COPY --from=gobuilder /app/atlhyper-controller .
 
-# 拷贝前端构建后的产物（注意：只拷贝 dist）
+# 前端构建产物
 COPY --from=webbuilder /web/dist ./web/dist
 
-# 设置启动权限
-RUN chmod +x ./neurocontroller
+# ✅ 赋权并保持既有入口名
+RUN chmod +x ./atlhyper-controller
 
 EXPOSE 8081
-
 ENTRYPOINT ["./atlhyper-controller"]

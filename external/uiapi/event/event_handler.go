@@ -22,7 +22,6 @@ import (
 	"NeuroController/external/logger"
 	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -122,7 +121,6 @@ func GetRecentLogEventsHandler(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("获取最近", days, "天的日志，数量:", len(logs))
 	response.Success(c, "获取日志成功", gin.H{"logs": logs})
 }
 

@@ -22,7 +22,6 @@ package pod
 import (
 	"NeuroController/external/uiapi/response"
 	"NeuroController/sync/center/http/uiapi"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -73,7 +72,6 @@ func ListPodsByNamespaceHandler(c *gin.Context) {
 // =======================================================================================
 
 func PodStatusSummaryHandler(c *gin.Context) {
-	fmt.Println("✅ PodStatusSummaryHandler 被调用了！")
 	summary, err := uiapi.GetPodStatusSummary()
 	if err != nil {
 		response.Error(c, "获取 Pod 状态摘要失败: "+err.Error())

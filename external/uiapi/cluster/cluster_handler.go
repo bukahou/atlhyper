@@ -29,8 +29,7 @@
 package cluster
 
 import (
-	"NeuroController/sync/center/http/uiapi"
-	"net/http"
+	"NeuroController/external/uiapi/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,18 +37,16 @@ import (
 
 func ClusterOverviewHandler(c *gin.Context) {
 	// 提取上下文，用于 traceID 注入、超时控制、日志记录等
+	ctx := c.Request.Context()
 
-
-	// 调用 UI API 接口获取集群概要信息（节点数、Pod 数、版本等）
-	overview, err := uiapi.GetClusterOverview()
+	// 调用聚合函数
+	payload, err := BuildClusterOverviewAggregated(ctx)
 	if err != nil {
-		// 发生错误时，返回 500 错误信息
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "无法获取集群概要信息: " + err.Error(),
-		})
+		// 统一错误响应
+		response.Error(c, err.Error())
 		return
 	}
 
-	// 正常返回 JSON 格式的集群信息
-	c.JSON(http.StatusOK, overview)
+	// 成功响应
+	response.Success(c, "获取集群概览成功", payload)
 }
