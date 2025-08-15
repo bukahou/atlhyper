@@ -3,6 +3,7 @@ package user
 import (
 	"NeuroController/db/utils"
 	"NeuroController/model"
+	"database/sql"
 )
 
 // =======================================================================
@@ -14,39 +15,79 @@ import (
 // =======================================================================
 
 func GetUserAuditLogs() ([]model.GetUserAuditLogsResponse, error) {
-	//查询函数
 	rows, err := utils.DB.Query(`
-		SELECT id, user_id, username, role, action, success, timestamp
-		FROM user_audit_logs ORDER BY timestamp DESC
-		`)
-	
-	if err !=nil {
+		SELECT
+			id,
+			user_id,
+			username,
+			role,
+			action,
+			success,    -- 0/1
+			ip,         -- nullable
+			method,     -- nullable
+			status,     -- nullable
+			timestamp
+		FROM user_audit_logs
+		ORDER BY timestamp DESC
+	`)
+	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var logs []model.GetUserAuditLogsResponse
+	normalizeLoopback := func(ip string) string {
+		if ip == "::1" {
+			return "127.0.0.1"
+		}
+		return ip
+	}
 
+	var logs []model.GetUserAuditLogsResponse
 	for rows.Next() {
-		var log model.GetUserAuditLogsResponse
-		err := rows.Scan(
-			&log.ID,
-			&log.UserID,
-			&log.Username,
-			&log.Role,
-			&log.Action,
-			&log.Success,
-			&log.Timestamp,
+		var (
+			item       model.GetUserAuditLogsResponse
+			successInt int
+			ipNS       sql.NullString
+			methodNS   sql.NullString
+			statusNI64 sql.NullInt64
 		)
-		if err != nil {
+
+		if err := rows.Scan(
+			&item.ID,
+			&item.UserID,
+			&item.Username,
+			&item.Role,
+			&item.Action,
+			&successInt,
+			&ipNS,
+			&methodNS,
+			&statusNI64,
+			&item.Timestamp,
+		); err != nil {
 			return nil, err
 		}
-		logs = append(logs, log)
+
+		// 映射/归一化
+		item.Success = (successInt == 1)
+		if ipNS.Valid {
+			item.IP = normalizeLoopback(ipNS.String)
+		}
+		if methodNS.Valid {
+			item.Method = methodNS.String
+		}
+		if statusNI64.Valid {
+			item.Status = int(statusNI64.Int64)
+		}
+
+		logs = append(logs, item)
 	}
 
-		return logs,nil 
-
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
+	return logs, nil
+}
+
 
 
 // =======================================================================

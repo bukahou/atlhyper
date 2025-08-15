@@ -16,6 +16,7 @@ package server
 
 import (
 	"NeuroController/config"
+	"NeuroController/external/audit"
 	"NeuroController/external/uiapi" // 📦 UI REST 接口注册模块
 
 	// 📦 Webhook 路由模块（CI/CD）
@@ -41,7 +42,10 @@ func InitRouter() *gin.Engine {
 
 
 	// ✅ 注册 UI API 路由（如 /uiapi/node/list 等）
-	uiapi.RegisterUIAPIRoutes(router.Group("/uiapi"))
+	// uiapi.RegisterUIAPIRoutes(router.Group("/uiapi"))
+	api := router.Group("/uiapi")
+    api.Use(audit.Auto(true)) // true = 高风险成功也记；false = 只记失败
+    uiapi.RegisterUIAPIRoutes(api)
 
 	// ✅ 可选注册 Webhook 路由（如 /webhook/dockerhub 等）
 	if config.GlobalConfig.Webhook.Enable {

@@ -57,21 +57,55 @@ func CreateTables() error {
 	// action	TEXT	操作内容（如 "cordon_node", "delete_pod" 等）
 	// success	BOOLEAN	操作是否成功（true / false）
 	// timestamp	TEXT	操作发生时间（ISO8601 格式字符串）
+	// _, err = utils.DB.Exec(`
+	// 	CREATE TABLE IF NOT EXISTS user_audit_logs (
+	// 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+	// 		user_id INTEGER NOT NULL,		   -- 操作用户 ID
+	// 		username TEXT NOT NULL,            -- 执行操作的用户名
+	// 		role INTEGER NOT NULL,             -- 用户角色（如 1=普通用户，2=运维，3=管理员）
+	// 		action TEXT NOT NULL,              -- 操作内容（如 "cordon_node", "delete_pod" 等）
+	// 		success BOOLEAN NOT NULL,          -- 操作是否成功（true / false）
+	// 		timestamp TEXT NOT NULL DEFAULT  (datetime('now', 'localtime'))            -- 操作发生时间（ISO8601 格式字符串）
+	// 	)
+	// `)
+	// if err != nil {
+	// 	log.Printf("❌ 创建 user_audit_logs 表失败: %v", err)
+	// 	return err
+	// }
+
+
 	_, err = utils.DB.Exec(`
 		CREATE TABLE IF NOT EXISTS user_audit_logs (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,		   -- 操作用户 ID
-			username TEXT NOT NULL,            -- 执行操作的用户名
-			role INTEGER NOT NULL,             -- 用户角色（如 1=普通用户，2=运维，3=管理员）
-			action TEXT NOT NULL,              -- 操作内容（如 "cordon_node", "delete_pod" 等）
-			success BOOLEAN NOT NULL,          -- 操作是否成功（true / false）
-			timestamp TEXT NOT NULL DEFAULT  (datetime('now', 'localtime'))            -- 操作发生时间（ISO8601 格式字符串）
-		)
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,                         -- 自增主键
+			timestamp   TEXT    NOT NULL DEFAULT (datetime('now','localtime')),    -- 事件发生时间（本地时区）
+
+			user_id     INTEGER NOT NULL,                                          -- 操作用户 ID（未登录写 0）
+			username    TEXT    NOT NULL,                                          -- 用户名（未登录写 'anonymous'）
+			role        INTEGER NOT NULL CHECK (role IN (1,2,3)),                  -- 用户角色（1=Viewer，2=Operator，3=Admin）
+
+			action      TEXT    NOT NULL,                                          -- 动作：pod.restart / auth.login / ...
+			success     INTEGER NOT NULL CHECK (success IN (0,1)),                 -- 是否成功（0=失败，1=成功）
+
+			ip          TEXT,                                                       -- 客户端 IP（优先 X-Forwarded-For）
+			method      TEXT,                                                       -- HTTP 方法（GET/POST/...）
+			status      INTEGER                                                     -- HTTP 状态码
+		);
+
+		-- 常用检索索引（对齐当前字段集）
+		CREATE INDEX IF NOT EXISTS idx_audit_time           ON user_audit_logs(timestamp DESC);               -- 按时间倒序
+		CREATE INDEX IF NOT EXISTS idx_audit_user_time      ON user_audit_logs(username, timestamp DESC);     -- 按用户+时间
+		CREATE INDEX IF NOT EXISTS idx_audit_action_time    ON user_audit_logs(action, timestamp DESC);       -- 按动作+时间
+		CREATE INDEX IF NOT EXISTS idx_audit_role_time      ON user_audit_logs(role, timestamp DESC);         -- 按角色+时间
+		CREATE INDEX IF NOT EXISTS idx_audit_status_time    ON user_audit_logs(status, timestamp DESC);       -- 按状态码+时间
+		CREATE INDEX IF NOT EXISTS idx_audit_success_action ON user_audit_logs(success, action, timestamp DESC); -- 成功/失败分布
 	`)
 	if err != nil {
-		log.Printf("❌ 创建 user_audit_logs 表失败: %v", err)
+		log.Printf("❌ 创建/升级 user_audit_logs 表失败: %v", err)
 		return err
 	}
+
+
+
 
 	// 4️⃣ 创建 node_metrics_flat 表（每个 节点+时间戳 一行的汇总）
 	_, err = utils.DB.Exec(`

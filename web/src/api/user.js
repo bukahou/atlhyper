@@ -43,6 +43,14 @@ export function updateUserRole(data) {
   });
 }
 
+//获取审计日志列表
+export function listUserAuditLogs() {
+  return request({
+    url: "/uiapi/auth/userauditlogs/list",
+    method: "get",
+  });
+}
+
 // export function login(data) {
 //   return request({
 //     url: "/vue-element-admin/user/login",

@@ -44,7 +44,6 @@ func StartMetricsSync() {
 	// 循环执行任务
 	for range ticker.C {
 		if err := saveLatestSnapshotsOnce(); err != nil {
-			log.Printf("📉 Metrics sync failed: %v", err)
 		}
 	}
 }

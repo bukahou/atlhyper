@@ -20,5 +20,8 @@ type GetUserAuditLogsResponse struct {
 	Role      int
 	Action    string
 	Success   bool
+	IP        string // 新增
+	Method    string // 新增
+	Status    int    // 新增
 	Timestamp string
 }
