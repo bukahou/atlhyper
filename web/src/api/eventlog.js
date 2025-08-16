@@ -1,4 +1,4 @@
-import request from "@/utils/request";
+import request from '@/utils/request'
 
 /**
  * 查询最近异常日志（后端默认返回最近 1 天）
@@ -7,8 +7,8 @@ import request from "@/utils/request";
  */
 export function getRecentEventLogs(days) {
   return request({
-    url: "/uiapi/event/list/recent",
-    method: "get",
-    params: days ? { days } : {}, // 不传参数使用默认 1 天
-  });
+    url: '/uiapi/event/list/recent',
+    method: 'get',
+    params: days ? { days } : {} // 不传参数使用默认 1 天
+  })
 }

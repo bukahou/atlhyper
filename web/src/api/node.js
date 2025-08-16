@@ -1,4 +1,4 @@
-import request from "@/utils/request";
+import request from '@/utils/request'
 
 /**
  * 获取节点总览（统计信息 + 简要节点列表）
@@ -6,9 +6,9 @@ import request from "@/utils/request";
  */
 export function getNodeOverview() {
   return request({
-    url: "/uiapi/node/overview",
-    method: "get",
-  });
+    url: '/uiapi/node/overview',
+    method: 'get'
+  })
 }
 
 /**
@@ -19,13 +19,13 @@ export function getNodeOverview() {
  */
 export function setNodeSchedulable(name, unschedulable) {
   return request({
-    url: "/uiapi/node-ops/schedule",
-    method: "post",
+    url: '/uiapi/node-ops/schedule',
+    method: 'post',
     data: {
       name,
-      unschedulable,
-    },
-  });
+      unschedulable
+    }
+  })
 }
 
 /**
@@ -36,6 +36,6 @@ export function setNodeSchedulable(name, unschedulable) {
 export function getNodeDetail(name) {
   return request({
     url: `/uiapi/node/get/${name}`,
-    method: "get",
-  });
+    method: 'get'
+  })
 }

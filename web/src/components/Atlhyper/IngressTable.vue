@@ -2,7 +2,7 @@
   <div class="ingress-table-container">
     <div class="table-title">
       <h2>Ingress List</h2>
-      <hr />
+      <hr>
     </div>
 
     <!-- 分页控制 -->
@@ -68,35 +68,35 @@
 
 <script>
 export default {
-  name: "IngressTable",
+  name: 'IngressTable',
   props: {
     ingresses: {
       type: Array,
-      required: true,
-    },
+      required: true
+    }
   },
   data() {
     return {
       pageSize: 10,
-      currentPage: 1,
-    };
+      currentPage: 1
+    }
   },
   computed: {
     pagedIngresses() {
-      const start = (this.currentPage - 1) * this.pageSize;
-      return this.ingresses.slice(start, start + this.pageSize);
-    },
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.ingresses.slice(start, start + this.pageSize)
+    }
   },
   methods: {
     handlePageChange(page) {
-      this.currentPage = page;
+      this.currentPage = page
     },
     handlePageSizeChange(size) {
-      this.pageSize = size;
-      this.currentPage = 1;
-    },
-  },
-};
+      this.pageSize = size
+      this.currentPage = 1
+    }
+  }
+}
 </script>
 
 <style scoped>

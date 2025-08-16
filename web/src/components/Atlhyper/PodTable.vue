@@ -2,7 +2,7 @@
   <div class="pod-table-container">
     <div class="table-title">
       <h2>Pod Resource List</h2>
-      <hr />
+      <hr>
     </div>
 
     <div class="toolbar">
@@ -170,9 +170,9 @@
 
 <script>
 export default {
-  name: "PodTable",
+  name: 'PodTable',
   props: {
-    pods: { type: Array, required: true },
+    pods: { type: Array, required: true }
   },
   data() {
     return {
@@ -187,85 +187,83 @@ export default {
         startTime: 200, // 稍加宽，容纳格式化后的时间
         podIP: 160,
         nodeName: 150,
-        actions: 180,
+        actions: 180
       },
 
-      selectedNamespace: "",
-      selectedDeployment: "",
+      selectedNamespace: '',
+      selectedDeployment: '',
       pageSize: 10,
-      currentPage: 1,
-    };
+      currentPage: 1
+    }
   },
   computed: {
     namespaceOptions() {
-      return [...new Set(this.pods.map((p) => p.namespace))].filter(Boolean);
+      return [...new Set(this.pods.map((p) => p.namespace))].filter(Boolean)
     },
     deploymentOptions() {
-      return [...new Set(this.pods.map((p) => p.deployment))].filter(Boolean);
+      return [...new Set(this.pods.map((p) => p.deployment))].filter(Boolean)
     },
     filteredPods() {
       return this.pods.filter((pod) => {
-        if (this.selectedNamespace && pod.namespace !== this.selectedNamespace)
-          return false;
+        if (this.selectedNamespace && pod.namespace !== this.selectedNamespace) { return false }
         if (
           this.selectedDeployment &&
           pod.deployment !== this.selectedDeployment
-        )
-          return false;
-        return true;
-      });
+        ) { return false }
+        return true
+      })
     },
     pagedPods() {
-      const start = (this.currentPage - 1) * this.pageSize;
-      return this.filteredPods.slice(start, start + this.pageSize);
-    },
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.filteredPods.slice(start, start + this.pageSize)
+    }
   },
   methods: {
     handlePageChange(page) {
-      this.currentPage = page;
+      this.currentPage = page
     },
     handlePageSizeChange(size) {
-      this.pageSize = size;
-      this.currentPage = 1;
+      this.pageSize = size
+      this.currentPage = 1
     },
     emitRestart(row) {
-      this.$emit("restart", row);
+      this.$emit('restart', row)
     },
 
     // ===== 时间格式化（本地时区） =====
     fmtTime(ts) {
-      const ms = this.parseIsoToMs(ts);
-      if (!Number.isFinite(ms)) return ts || "-";
-      const d = new Date(ms);
-      const pad = (n, w = 2) => String(n).padStart(w, "0");
-      const yyyy = d.getFullYear();
-      const MM = pad(d.getMonth() + 1);
-      const DD = pad(d.getDate());
-      const hh = pad(d.getHours());
-      const mm = pad(d.getMinutes());
-      const ss = pad(d.getSeconds());
-      return `${yyyy}-${MM}-${DD} ${hh}:${mm}:${ss}`; // e.g. 2025-06-29 19:19:42
+      const ms = this.parseIsoToMs(ts)
+      if (!Number.isFinite(ms)) return ts || '-'
+      const d = new Date(ms)
+      const pad = (n, w = 2) => String(n).padStart(w, '0')
+      const yyyy = d.getFullYear()
+      const MM = pad(d.getMonth() + 1)
+      const DD = pad(d.getDate())
+      const hh = pad(d.getHours())
+      const mm = pad(d.getMinutes())
+      const ss = pad(d.getSeconds())
+      return `${yyyy}-${MM}-${DD} ${hh}:${mm}:${ss}` // e.g. 2025-06-29 19:19:42
     },
     // 兼容：2025-06-29T19:19:42+09:00 / 带毫秒或纳秒 / Z 结尾
     parseIsoToMs(ts) {
-      if (typeof ts !== "string") return NaN;
+      if (typeof ts !== 'string') return NaN
       const m = ts.match(
         /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.(\d+))?([Zz]|[+-]\d{2}:\d{2})?$/
-      );
+      )
       if (!m) {
-        const t = Date.parse(ts);
-        return Number.isFinite(t) ? t : NaN;
+        const t = Date.parse(ts)
+        return Number.isFinite(t) ? t : NaN
       }
-      const base = m[1];
-      const frac = m[3] || "";
-      const tz = m[4] || "Z";
-      const ms3 = (frac + "000").slice(0, 3); // 只保留毫秒
-      const iso = `${base}.${ms3}${tz}`;
-      const t = Date.parse(iso);
-      return Number.isFinite(t) ? t : NaN;
-    },
-  },
-};
+      const base = m[1]
+      const frac = m[3] || ''
+      const tz = m[4] || 'Z'
+      const ms3 = (frac + '000').slice(0, 3) // 只保留毫秒
+      const iso = `${base}.${ms3}${tz}`
+      const t = Date.parse(iso)
+      return Number.isFinite(t) ? t : NaN
+    }
+  }
+}
 </script>
 
 <style scoped>

@@ -9,9 +9,9 @@ import (
 )
 
 // RegisterPodOpsRoutes 注册重大操作类路由（如重启）
-func RegisterPodOpsRoutes(router *gin.RouterGroup) {
-	router.POST("/restart/:ns/:name", RestartPodHandler)
-}
+// func RegisterPodOpsRoutes(router *gin.RouterGroup) {
+// 	router.POST("/restart/:ns/:name", RestartPodHandler)
+// }
 
 
 func RestartPodHandler(c *gin.Context) {

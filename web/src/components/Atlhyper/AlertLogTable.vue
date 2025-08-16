@@ -163,69 +163,69 @@
 </template>
 
 <script>
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import * as XLSX from 'xlsx'
+import { saveAs } from 'file-saver'
 
 export default {
-  name: "AlertLogTable",
+  name: 'AlertLogTable',
   props: {
     logs: {
       type: Array,
-      required: true,
-    },
+      required: true
+    }
   },
   data() {
     return {
       pageSize: 10,
       currentPage: 1,
-      dateRange: "3",
-      selectedCategory: "",
-      selectedKind: "",
-      selectedNamespace: "",
-      selectedNode: "",
-    };
-  },
-  watch: {
-    dateRange(newVal) {
-      this.$emit("update-date-range", Number(newVal)); // 通知父组件选择了几天
-    },
+      dateRange: '3',
+      selectedCategory: '',
+      selectedKind: '',
+      selectedNamespace: '',
+      selectedNode: ''
+    }
   },
 
   computed: {
     categoryOptions() {
-      return [...new Set(this.logs.map((log) => log.category))].filter(Boolean);
+      return [...new Set(this.logs.map((log) => log.category))].filter(Boolean)
     },
     kindOptions() {
-      return [...new Set(this.logs.map((log) => log.kind))].filter(Boolean);
+      return [...new Set(this.logs.map((log) => log.kind))].filter(Boolean)
     },
     namespaceOptions() {
       return [...new Set(this.logs.map((log) => log.namespace))].filter(
         Boolean
-      );
+      )
     },
     nodeOptions() {
-      return [...new Set(this.logs.map((log) => log.node))].filter(Boolean);
+      return [...new Set(this.logs.map((log) => log.node))].filter(Boolean)
     },
     filteredLogs() {
       return this.logs.filter((log) => {
         if (this.selectedCategory && log.category !== this.selectedCategory) {
-          return false;
+          return false
         }
-        if (this.selectedKind && log.kind !== this.selectedKind) return false;
+        if (this.selectedKind && log.kind !== this.selectedKind) return false
         if (
           this.selectedNamespace &&
           log.namespace !== this.selectedNamespace
         ) {
-          return false;
+          return false
         }
-        if (this.selectedNode && log.node !== this.selectedNode) return false;
-        return true;
-      });
+        if (this.selectedNode && log.node !== this.selectedNode) return false
+        return true
+      })
     },
     pagedLogs() {
-      const start = (this.currentPage - 1) * this.pageSize;
-      return this.filteredLogs.slice(start, start + this.pageSize);
-    },
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.filteredLogs.slice(start, start + this.pageSize)
+    }
+  },
+  watch: {
+    dateRange(newVal) {
+      this.$emit('update-date-range', Number(newVal)) // 通知父组件选择了几天
+    }
   },
   methods: {
     exportToExcel() {
@@ -237,27 +237,27 @@ export default {
         namespace: log.namespace,
         node: log.node,
         message: log.message,
-        timestamp: log.timestamp,
-      }));
+        timestamp: log.timestamp
+      }))
 
-      const worksheet = XLSX.utils.json_to_sheet(data);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "异常告警");
+      const worksheet = XLSX.utils.json_to_sheet(data)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, '异常告警')
 
       const excelBuffer = XLSX.write(workbook, {
-        bookType: "xlsx",
-        type: "array",
-      });
+        bookType: 'xlsx',
+        type: 'array'
+      })
       const blob = new Blob([excelBuffer], {
-        type: "application/octet-stream",
-      });
+        type: 'application/octet-stream'
+      })
       saveAs(
         blob,
         `异常告警日志_${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-    },
-  },
-};
+      )
+    }
+  }
+}
 </script>
 
 <style scoped>

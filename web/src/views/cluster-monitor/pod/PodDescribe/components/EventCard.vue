@@ -41,36 +41,36 @@
 
 <script>
 export default {
-  name: "PodEventTable",
+  name: 'PodEventTable',
   props: {
     events: {
       type: Array,
-      required: true,
-    },
+      required: true
+    }
   },
   methods: {
     formatTime(ts) {
-      if (!ts) return "-";
-      const date = new Date(ts);
+      if (!ts) return '-'
+      const date = new Date(ts)
       return `${date.getFullYear()}/${
         date.getMonth() + 1
-      }/${date.getDate()} ${date.getHours().toString().padStart(2, "0")}:${date
+      }/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date
         .getMinutes()
         .toString()
-        .padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}`;
+        .padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
     },
     statusClass(type) {
-      if (type === "Normal") return "True";
-      if (type === "Warning") return "False";
-      return "Unknown";
+      if (type === 'Normal') return 'True'
+      if (type === 'Warning') return 'False'
+      return 'Unknown'
     },
     reasonClass(reason) {
-      if (["Started", "Pulled"].includes(reason)) return "True";
-      if (["Failed", "BackOff", "Unhealthy"].includes(reason)) return "False";
-      return "Unknown";
-    },
-  },
-};
+      if (['Started', 'Pulled'].includes(reason)) return 'True'
+      if (['Failed', 'BackOff', 'Unhealthy'].includes(reason)) return 'False'
+      return 'Unknown'
+    }
+  }
+}
 </script>
 
 <style scoped>

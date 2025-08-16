@@ -39,40 +39,40 @@
 
 <script>
 export default {
-  name: "HealthCard",
+  name: 'HealthCard',
   props: {
     data: {
       type: Object,
-      required: true,
+      required: true
       // 结构：{ status, reason, node_ready_pct, pod_healthy_pct }
-    },
+    }
   },
   computed: {
     tagType() {
-      const s = (this.data.status || "").toLowerCase();
-      if (s === "healthy") return "success";
-      if (s === "degraded") return "warning";
-      return "danger";
-    },
+      const s = (this.data.status || '').toLowerCase()
+      if (s === 'healthy') return 'success'
+      if (s === 'degraded') return 'warning'
+      return 'danger'
+    }
   },
   methods: {
     fmtPct(v) {
-      if (v === null || v === undefined || isNaN(v)) return "--";
-      return `${(+v).toFixed(2)}%`;
+      if (v === null || v === undefined || isNaN(v)) return '--'
+      return `${(+v).toFixed(2)}%`
     },
     clampPct(v) {
-      const x = Number(v);
-      if (isNaN(x)) return 0;
-      return Math.max(0, Math.min(100, x));
+      const x = Number(v)
+      if (isNaN(x)) return 0
+      return Math.max(0, Math.min(100, x))
     },
     progressStatus(v) {
-      const x = Number(v);
-      if (x >= 98) return "success";
-      if (x >= 90) return ""; // 默认蓝色
-      return "exception";
-    },
-  },
-};
+      const x = Number(v)
+      if (x >= 98) return 'success'
+      if (x >= 90) return '' // 默认蓝色
+      return 'exception'
+    }
+  }
+}
 </script>
 
 <style scoped>

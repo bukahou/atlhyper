@@ -2,7 +2,7 @@
   <div class="namespace-table-container">
     <div class="table-title">
       <h2>Namespace List</h2>
-      <hr />
+      <hr>
     </div>
 
     <!-- 分页控制 -->
@@ -88,35 +88,35 @@
 
 <script>
 export default {
-  name: "NamespaceTable",
+  name: 'NamespaceTable',
   props: {
     namespaces: {
       type: Array,
-      required: true,
-    },
+      required: true
+    }
   },
   data() {
     return {
       pageSize: 10,
-      currentPage: 1,
-    };
+      currentPage: 1
+    }
   },
   computed: {
     pagedNamespaces() {
-      const start = (this.currentPage - 1) * this.pageSize;
-      return this.namespaces.slice(start, start + this.pageSize);
-    },
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.namespaces.slice(start, start + this.pageSize)
+    }
   },
   methods: {
     handlePageChange(page) {
-      this.currentPage = page;
+      this.currentPage = page
     },
     handlePageSizeChange(size) {
-      this.pageSize = size;
-      this.currentPage = 1;
-    },
-  },
-};
+      this.pageSize = size
+      this.currentPage = 1
+    }
+  }
+}
 </script>
 
 <style scoped>

@@ -37,7 +37,7 @@
             <PodEventTable :events="eventList" />
           </div>
         </div>
-        <PodLogCard :logText="logs" />
+        <PodLogCard :log-text="logs" />
       </div>
     </div>
   </div>
@@ -45,145 +45,145 @@
 
 <script>
 // import InfoCard from "./components/InfoCard.vue";
-import InfoCard from "@/components/Atlhyper/InfoCard.vue";
+import InfoCard from '@/components/Atlhyper/InfoCard.vue'
 
-import PodConditionTable from "./components/PodConditionTable.vue"; // ✅ 新增引入
-import PodLogCard from "./components/PodLogCard.vue";
-import PodEventTable from "./components/EventCard.vue";
+import PodConditionTable from './components/PodConditionTable.vue' // ✅ 新增引入
+import PodLogCard from './components/PodLogCard.vue'
+import PodEventTable from './components/EventCard.vue'
 
-import { getPodDescribe } from "@/api/pod";
+import { getPodDescribe } from '@/api/pod'
 
 export default {
-  name: "PodDescribe",
+  name: 'PodDescribe',
   components: {
     InfoCard,
     PodConditionTable, // ✅ 注册组件
     PodEventTable,
-    PodLogCard,
+    PodLogCard
   },
   data() {
     return {
       pod: null,
       events: [],
-      logs: "",
+      logs: '',
       error: null,
-      loading: true,
-    };
+      loading: true
+    }
   },
   computed: {
     infoCards() {
       return [
-        { title: "状态概览", items: this.statusInfoItems },
-        { title: "基本信息", items: this.basicInfoItems },
-        { title: "容器信息", items: this.containerInfoItems },
-        { title: "Service 基本信息", items: this.serviceInfoItems },
-      ];
+        { title: '状态概览', items: this.statusInfoItems },
+        { title: '基本信息', items: this.basicInfoItems },
+        { title: '容器信息', items: this.containerInfoItems },
+        { title: 'Service 基本信息', items: this.serviceInfoItems }
+      ]
     },
 
     basicInfoItems() {
-      if (!this.pod) return [];
+      if (!this.pod) return []
       return [
-        { label: "名称", value: this.pod.metadata?.name },
-        { label: "命名空间", value: this.pod.metadata?.namespace },
-        { label: "Pod IP", value: this.pod.status?.podIP },
-        { label: "所属节点", value: this.pod.spec?.nodeName },
-      ];
+        { label: '名称', value: this.pod.metadata?.name },
+        { label: '命名空间', value: this.pod.metadata?.namespace },
+        { label: 'Pod IP', value: this.pod.status?.podIP },
+        { label: '所属节点', value: this.pod.spec?.nodeName }
+      ]
     },
 
     statusInfoItems() {
-      if (!this.pod) return [];
+      if (!this.pod) return []
       return [
-        { label: "状态", value: this.pod.status?.phase },
+        { label: '状态', value: this.pod.status?.phase },
         {
-          label: "启动时间",
+          label: '启动时间',
           value: this.pod.status?.startTime
             ? new Date(this.pod.status.startTime).toLocaleString()
-            : "-",
+            : '-'
         },
         {
-          label: "重启次数",
+          label: '重启次数',
           value:
-            this.pod.status?.containerStatuses?.[0]?.restartCount?.toString(),
+            this.pod.status?.containerStatuses?.[0]?.restartCount?.toString()
         },
-        { label: "QoS 类别", value: this.pod.status?.qosClass },
-        { label: "当前 CPU 使用", value: this.pod.usage?.cpu || "N/A" },
-        { label: "当前内存使用", value: this.pod.usage?.memory || "N/A" },
-      ];
+        { label: 'QoS 类别', value: this.pod.status?.qosClass },
+        { label: '当前 CPU 使用', value: this.pod.usage?.cpu || 'N/A' },
+        { label: '当前内存使用', value: this.pod.usage?.memory || 'N/A' }
+      ]
     },
 
     containerInfoItems() {
-      if (!this.pod) return [];
-      const container = this.pod.spec?.containers?.[0] || {};
+      if (!this.pod) return []
+      const container = this.pod.spec?.containers?.[0] || {}
       const ports = (container.ports || [])
         .map((p) => `${p.containerPort} / ${p.protocol}`)
-        .join(", ");
+        .join(', ')
 
       return [
-        { label: "容器名称", value: container.name },
-        { label: "镜像", value: container.image },
-        { label: "端口", value: ports || "-" },
-        { label: "CPU 限制", value: container.resources?.limits?.cpu || "-" },
+        { label: '容器名称', value: container.name },
+        { label: '镜像', value: container.image },
+        { label: '端口', value: ports || '-' },
+        { label: 'CPU 限制', value: container.resources?.limits?.cpu || '-' },
         {
-          label: "内存限制",
-          value: container.resources?.limits?.memory || "-",
-        },
-      ];
+          label: '内存限制',
+          value: container.resources?.limits?.memory || '-'
+        }
+      ]
     },
 
     serviceInfoItems() {
       const service = {
         spec: {
-          type: "ClusterIP",
-          clusterIP: "10.43.0.1",
+          type: 'ClusterIP',
+          clusterIP: '10.43.0.1',
           ports: [
             {
               port: 443,
               targetPort: 6443,
-              name: "https",
-            },
-          ],
-        },
-      };
+              name: 'https'
+            }
+          ]
+        }
+      }
 
-      const port = service.spec.ports?.[0] || {};
+      const port = service.spec.ports?.[0] || {}
 
       return [
-        { label: "类型", value: service.spec.type },
-        { label: "Cluster IP", value: service.spec.clusterIP },
-        { label: "服务端口", value: port.port },
-        { label: "容器端口", value: port.targetPort },
-        { label: "端口名称", value: port.name },
-      ];
+        { label: '类型', value: service.spec.type },
+        { label: 'Cluster IP', value: service.spec.clusterIP },
+        { label: '服务端口', value: port.port },
+        { label: '容器端口', value: port.targetPort },
+        { label: '端口名称', value: port.name }
+      ]
     },
     eventList() {
-      return this.events || [];
-    },
+      return this.events || []
+    }
   },
   created() {
-    const { namespace, name } = this.$route.query;
+    const { namespace, name } = this.$route.query
     if (!namespace || !name) {
-      this.error = "❌ 缺少必要参数 namespace 或 name";
-      this.loading = false;
-      return;
+      this.error = '❌ 缺少必要参数 namespace 或 name'
+      this.loading = false
+      return
     }
 
     getPodDescribe(namespace, name)
       .then((res) => {
-        const data = res.data;
-        this.pod = data.pod;
-        this.pod.usage = data.usage || {};
-        this.events = data.events || [];
-        this.logs = data.logs || "（无日志内容）";
+        const data = res.data
+        this.pod = data.pod
+        this.pod.usage = data.usage || {}
+        this.events = data.events || []
+        this.logs = data.logs || '（无日志内容）'
       })
       .catch((err) => {
         this.error =
-          err.response?.data?.message || "获取 Pod 信息失败，请稍后重试";
+          err.response?.data?.message || '获取 Pod 信息失败，请稍后重试'
       })
       .finally(() => {
-        this.loading = false;
-      });
-  },
-};
+        this.loading = false
+      })
+  }
+}
 </script>
 
 <style scoped>

@@ -112,54 +112,54 @@
 </template>
 
 <script>
-import { getClusterOverview } from "@/api/analysis";
-import HealthCard from "./components/HealthCard.vue";
-import StatCard from "./components/StatCard.vue";
-import ResourceTrendsChart from "./components/ResourceTrendsChart.vue";
-import AlertTrendsChart from "./components/AlertTrendsChart.vue";
-import RecentAlertsTable from "./components/RecentAlertsTable.vue";
-import NodeResourceUsage from "./components/NodeResourceUsage.vue";
+import { getClusterOverview } from '@/api/analysis'
+import HealthCard from './components/HealthCard.vue'
+import StatCard from './components/StatCard.vue'
+import ResourceTrendsChart from './components/ResourceTrendsChart.vue'
+import AlertTrendsChart from './components/AlertTrendsChart.vue'
+import RecentAlertsTable from './components/RecentAlertsTable.vue'
+import NodeResourceUsage from './components/NodeResourceUsage.vue'
 
 export default {
-  name: "AnalysisIndex",
+  name: 'AnalysisIndex',
   components: {
     HealthCard,
     StatCard,
     ResourceTrendsChart,
     AlertTrendsChart,
     RecentAlertsTable,
-    NodeResourceUsage,
+    NodeResourceUsage
   },
   data() {
     return {
       d: null,
-      loading: false,
-    };
+      loading: false
+    }
   },
   created() {
-    this.fetchData();
+    this.fetchData()
   },
   methods: {
     async fetchData() {
-      this.loading = true;
+      this.loading = true
       try {
-        const res = await getClusterOverview();
+        const res = await getClusterOverview()
         if (res.code === 20000) {
-          this.d = res.data;
+          this.d = res.data
         } else {
-          this.$message.error(res.message || "获取集群概览失败");
+          this.$message.error(res.message || '获取集群概览失败')
         }
       } catch (e) {
-        this.$message.error("请求失败：" + e);
+        this.$message.error('请求失败：' + e)
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
     pct(v) {
-      return `${(v ?? 0).toFixed(2)}%`;
-    },
-  },
-};
+      return `${(v ?? 0).toFixed(2)}%`
+    }
+  }
+}
 </script>
 
 <style scoped>

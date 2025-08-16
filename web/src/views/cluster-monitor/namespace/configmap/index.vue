@@ -8,75 +8,75 @@
 </template>
 
 <script>
-import InfoCard from "@/components/Atlhyper/InfoCard.vue";
-import { getConfigMapsByNamespace } from "@/api/namespace";
+import InfoCard from '@/components/Atlhyper/InfoCard.vue'
+import { getConfigMapsByNamespace } from '@/api/namespace'
 
 export default {
-  name: "ConfigMapDetail",
+  name: 'ConfigMapDetail',
   components: {
-    InfoCard,
+    InfoCard
   },
   data() {
     return {
       firstCard: {
-        title: "基本信息",
-        items: [],
+        title: '基本信息',
+        items: []
       },
       secondCard: {
-        title: "配置项内容",
-        items: [],
-      },
-    };
+        title: '配置项内容',
+        items: []
+      }
+    }
   },
   created() {
-    const namespace = this.$route.query.ns;
+    const namespace = this.$route.query.ns
     if (!namespace) {
-      this.$message.error("未提供命名空间参数");
-      return;
+      this.$message.error('未提供命名空间参数')
+      return
     }
-    this.loadConfigMap(namespace);
+    this.loadConfigMap(namespace)
   },
   methods: {
     async loadConfigMap(ns) {
       try {
-        const res = await getConfigMapsByNamespace(ns);
-        const cm = res.data?.[0];
+        const res = await getConfigMapsByNamespace(ns)
+        const cm = res.data?.[0]
         if (!cm) {
-          this.$message.warning("该命名空间下无 ConfigMap");
-          return;
+          this.$message.warning('该命名空间下无 ConfigMap')
+          return
         }
 
-        const metadata = cm.metadata || {};
-        const data = cm.data || {};
+        const metadata = cm.metadata || {}
+        const data = cm.data || {}
 
         this.firstCard.items = [
-          { label: "名称", value: metadata.name || "-" },
-          { label: "命名空间", value: metadata.namespace || "-" },
+          { label: '名称', value: metadata.name || '-' },
+          { label: '命名空间', value: metadata.namespace || '-' },
           {
-            label: "注解条数",
-            value: Object.keys(metadata.annotations || {}).length,
+            label: '注解条数',
+            value: Object.keys(metadata.annotations || {}).length
           },
           {
-            label: "创建时间",
-            value: new Date(metadata.creationTimestamp).toLocaleString(),
+            label: '创建时间',
+            value: new Date(metadata.creationTimestamp).toLocaleString()
           },
           {
-            label: "数据条数",
-            value: Object.keys(data).length,
-          },
-        ];
+            label: '数据条数',
+            value: Object.keys(data).length
+          }
+        ]
 
         this.secondCard.items = Object.entries(data).map(([key, value]) => ({
           label: key,
-          value,
-        }));
+          value
+        }))
       } catch (err) {
-        console.error("加载 ConfigMap 失败:", err);
-        this.$message.error("加载 ConfigMap 失败");
+        console.error('加载 ConfigMap 失败:', err)
+        this.$message.error('加载 ConfigMap 失败')
       }
-    },
-  },
-};
+    }
+  }
+}
 </script>
 
 <style scoped>

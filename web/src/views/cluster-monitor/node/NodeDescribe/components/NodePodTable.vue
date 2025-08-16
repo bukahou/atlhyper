@@ -41,35 +41,35 @@
 
 <script>
 export default {
-  name: "PodTable",
+  name: 'PodTable',
   props: {
     pods: {
       type: Array,
-      required: true,
+      required: true
     },
     title: {
       type: String,
-      default: "运行中 Pod",
-    },
+      default: '运行中 Pod'
+    }
   },
   methods: {
     formatTime(ts) {
-      if (!ts) return "-";
-      const date = new Date(ts);
+      if (!ts) return '-'
+      const date = new Date(ts)
       return `${date.getFullYear()}/${
         date.getMonth() + 1
-      }/${date.getDate()} ${date.getHours().toString().padStart(2, "0")}:${date
+      }/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date
         .getMinutes()
         .toString()
-        .padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}`;
+        .padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
     },
     statusClass(status) {
-      if (status === "Running") return "True";
-      if (status === "Pending" || status === "Failed") return "False";
-      return "Unknown";
-    },
-  },
-};
+      if (status === 'Running') return 'True'
+      if (status === 'Pending' || status === 'Failed') return 'False'
+      return 'Unknown'
+    }
+  }
+}
 </script>
 
 <style scoped>

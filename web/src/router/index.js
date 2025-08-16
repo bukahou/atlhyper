@@ -1,220 +1,245 @@
-import Vue from "vue";
-import Router from "vue-router";
+import Vue from 'vue'
+import Router from 'vue-router'
 
-Vue.use(Router);
+Vue.use(Router)
 
 /* Layout */
-import Layout from "@/layout";
+import Layout from '@/layout'
+// const Empty = { render: (h) => h("router-view") };
 
 export const constantRoutes = [
   {
-    path: "/redirect",
+    path: '/redirect',
     component: Layout,
     hidden: true,
     children: [
       {
-        path: "/redirect/:path(.*)",
-        component: () => import("@/views/redirect/index"),
-      },
-    ],
+        path: '/redirect/:path(.*)',
+        component: () => import('@/views/redirect/index')
+      }
+    ]
   },
   {
-    path: "/login",
-    component: () => import("@/views/login/index"),
+    path: '/login',
+    component: () => import('@/views/login/index'),
+    hidden: true
+  },
+
+  {
+    path: '/',
+    component: Layout,
+    redirect: 'analysis',
+    name: 'Overview',
+    meta: { title: 'Overview', icon: 'dashboard' },
+    children: [
+      {
+        path: 'analysis',
+        name: 'Analysis',
+        component: () => import('@/views/overview/Analysis/index.vue'),
+        meta: { title: 'Analysis', icon: 'el-icon-data-analysis' }
+      },
+      {
+        path: 'workbench',
+        name: 'Workbench',
+        component: () => import('@/views/overview/Workbench/index.vue'),
+        meta: { title: 'Workbench', icon: 'el-icon-s-operation' }
+      }
+    ]
+  },
+
+  {
+    path: '/profile',
+    component: Layout,
+    redirect: '/profile/index',
     hidden: true,
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/profile/index'),
+        name: 'Profile',
+        meta: { title: 'Profile', icon: 'user', noCache: true }
+      }
+    ]
   },
 
   {
-    path: "/",
+    path: '/cluster-monitor',
     component: Layout,
-    redirect: "analysis",
-    name: "Overview",
-    meta: { title: "Overview", icon: "dashboard" },
+    redirect: '/cluster-monitor/pod',
+    name: 'ClusterMonitor',
+    meta: {
+      title: 'Cluster Monitor',
+      icon: 'el-icon-s-platform' // 自行换成你喜欢的 icon
+    },
     children: [
       {
-        path: "analysis",
-        name: "Analysis",
-        component: () => import("@/views/overview/Analysis/index.vue"),
-        meta: { title: "Analysis", icon: "el-icon-data-analysis" },
+        path: 'pod',
+        name: 'PodMonitor',
+        component: () => import('@/views/cluster-monitor/pod/index.vue'),
+        meta: { title: 'Pod Monitor', icon: 'el-icon-monitor' }
       },
       {
-        path: "workbench",
-        name: "Workbench",
-        component: () => import("@/views/overview/Workbench/index.vue"),
-        meta: { title: "Workbench", icon: "el-icon-s-operation" },
+        path: 'pod/describe', // ✅ 详情页面路径
+        name: 'PodDescribe',
+        component: () =>
+          import('@/views/cluster-monitor/pod/PodDescribe/index.vue'),
+        hidden: true,
+        meta: { title: 'Pod Details', noCache: true }
       },
-    ],
+      {
+        path: 'node',
+        name: 'NodeMonitor',
+        component: () => import('@/views/cluster-monitor/node/index.vue'),
+        meta: { title: 'Node Monitor', icon: 'el-icon-cpu' }
+      },
+      {
+        path: 'node/describe', // ✅ 详情页面路径
+        name: 'NodeDescribe',
+        component: () =>
+          import('@/views/cluster-monitor/node/NodeDescribe/index.vue'),
+        hidden: true,
+        meta: { title: 'Node Details', noCache: true }
+      },
+      {
+        path: 'service',
+        name: 'ServiceMonitor',
+        component: () => import('@/views/cluster-monitor/service/index.vue'),
+        meta: { title: 'Service Monitor', icon: 'el-icon-s-grid' }
+      },
+      {
+        path: 'namespace',
+        name: 'NamespaceMonitor',
+        component: () => import('@/views/cluster-monitor/namespace/index.vue'),
+        meta: { title: 'Namespace Monitor', icon: 'el-icon-folder' }
+      },
+      {
+        path: 'configmap',
+        name: 'ConfigMap',
+        component: () =>
+          import('@/views/cluster-monitor/namespace/configmap/index.vue'),
+        hidden: true,
+        meta: { title: 'ConfigMap Details', noCache: true }
+      },
+      {
+        path: 'ingress',
+        name: 'IngressMonitor',
+        component: () => import('@/views/cluster-monitor/ingress/index.vue'),
+        meta: { title: 'Ingress Monitor', icon: 'el-icon-s-grid' }
+      },
+      {
+        path: 'deployment',
+        name: 'DeploymentMonitor',
+        component: () => import('@/views/cluster-monitor/deployment/index.vue'),
+        meta: { title: 'Deployment', icon: 'el-icon-s-operation' }
+      },
+      {
+        path: 'deployDescribe',
+        name: 'DeploymentDescribe',
+        component: () =>
+          import('@/views/cluster-monitor/deployment/deployDescribe/index.vue'),
+        hidden: true,
+        meta: { title: 'Deployment Details', noCache: true }
+      },
+      {
+        path: 'alert',
+        name: 'ClusterAlert',
+        component: () =>
+          import('@/views/cluster-monitor/ClusterAlert/index.vue'),
+        meta: { title: 'Alert Monitor', icon: 'el-icon-warning' }
+      }
+    ]
   },
 
   {
-    path: "/profile",
+    path: '/resource-create',
     component: Layout,
-    redirect: "/profile/index",
-    hidden: true,
+    redirect: '/resource-create/deployment',
+    name: 'ResourceCreate',
+    meta: { title: 'Resource Create', icon: 'el-icon-plus' },
     children: [
       {
-        path: "index",
-        component: () => import("@/views/profile/index"),
-        name: "Profile",
-        meta: { title: "Profile", icon: "user", noCache: true },
-      },
-    ],
+        path: 'deployment',
+        name: 'RcDeployment',
+        component: () =>
+          import('@/views/resource-create/shells/CreateWizard.vue'),
+        // 把“要创建的资源类型”作为 props 传给壳
+        props: () => ({ workload: 'Deployment' }),
+        meta: {
+          title: 'Deployment',
+          icon: 'el-icon-document-copy',
+          keepAlive: true,
+          category: 'Workloads'
+        }
+      }
+    ]
   },
-
   {
-    path: "/cluster-monitor",
+    path: '/system-monitor',
     component: Layout,
-    redirect: "/cluster-monitor/pod",
-    name: "ClusterMonitor",
+    redirect: '/system-monitor/metrics',
+    name: 'SystemMonitor',
     meta: {
-      title: "Cluster Monitor",
-      icon: "el-icon-s-platform", // 自行换成你喜欢的 icon
+      title: 'System Monitor',
+      icon: 'el-icon-s-data'
     },
     children: [
       {
-        path: "pod",
-        name: "PodMonitor",
-        component: () => import("@/views/cluster-monitor/pod/index.vue"),
-        meta: { title: "Pod Monitor", icon: "el-icon-monitor" },
+        path: 'metrics',
+        name: 'MetricsMonitor',
+        component: () => import('@/views/system-monitor/metrics/index.vue'),
+        meta: { title: 'Metrics Monitor', icon: 'el-icon-data-line' }
       },
       {
-        path: "pod/describe", // ✅ 详情页面路径
-        name: "PodDescribe",
-        component: () =>
-          import("@/views/cluster-monitor/pod/PodDescribe/index.vue"),
-        hidden: true,
-        meta: { title: "Pod Details", noCache: true },
-      },
-      {
-        path: "node",
-        name: "NodeMonitor",
-        component: () => import("@/views/cluster-monitor/node/index.vue"),
-        meta: { title: "Node Monitor", icon: "el-icon-cpu" },
-      },
-      {
-        path: "node/describe", // ✅ 详情页面路径
-        name: "NodeDescribe",
-        component: () =>
-          import("@/views/cluster-monitor/node/NodeDescribe/index.vue"),
-        hidden: true,
-        meta: { title: "Node Details", noCache: true },
-      },
-      {
-        path: "service",
-        name: "ServiceMonitor",
-        component: () => import("@/views/cluster-monitor/service/index.vue"),
-        meta: { title: "Service Monitor", icon: "el-icon-s-grid" },
-      },
-      {
-        path: "namespace",
-        name: "NamespaceMonitor",
-        component: () => import("@/views/cluster-monitor/namespace/index.vue"),
-        meta: { title: "Namespace Monitor", icon: "el-icon-folder" },
-      },
-      {
-        path: "configmap",
-        name: "ConfigMap",
-        component: () =>
-          import("@/views/cluster-monitor/namespace/configmap/index.vue"),
-        hidden: true,
-        meta: { title: "ConfigMap Details", noCache: true },
-      },
-      {
-        path: "ingress",
-        name: "IngressMonitor",
-        component: () => import("@/views/cluster-monitor/ingress/index.vue"),
-        meta: { title: "Ingress Monitor", icon: "el-icon-s-grid" },
-      },
-      {
-        path: "deployment",
-        name: "DeploymentMonitor",
-        component: () => import("@/views/cluster-monitor/deployment/index.vue"),
-        meta: { title: "Deployment", icon: "el-icon-s-operation" },
-      },
-      {
-        path: "deployDescribe",
-        name: "DeploymentDescribe",
-        component: () =>
-          import("@/views/cluster-monitor/deployment/deployDescribe/index.vue"),
-        hidden: true,
-        meta: { title: "Deployment Details", noCache: true },
-      },
-      {
-        path: "alert",
-        name: "ClusterAlert",
-        component: () =>
-          import("@/views/cluster-monitor/ClusterAlert/index.vue"),
-        meta: { title: "Alert Monitor", icon: "el-icon-warning" },
-      },
-    ],
+        path: 'logs',
+        name: 'LogMonitor',
+        component: () => import('@/views/system-monitor/logs/index.vue'),
+        meta: { title: 'Logs', icon: 'el-icon-document' }
+      }
+    ]
   },
   {
-    path: "/system-monitor",
+    path: '/system-user',
     component: Layout,
-    redirect: "/system-monitor/metrics",
-    name: "SystemMonitor",
+    redirect: '/system-user/user-management',
+    name: 'SystemUser',
     meta: {
-      title: "System Monitor",
-      icon: "el-icon-s-data",
+      title: 'System User',
+      icon: 'el-icon-user-solid'
     },
     children: [
       {
-        path: "metrics",
-        name: "MetricsMonitor",
-        component: () => import("@/views/system-monitor/metrics/index.vue"),
-        meta: { title: "Metrics Monitor", icon: "el-icon-data-line" },
-      },
-      {
-        path: "logs",
-        name: "LogMonitor",
-        component: () => import("@/views/system-monitor/logs/index.vue"),
-        meta: { title: "Logs", icon: "el-icon-document" },
-      },
-    ],
-  },
-  {
-    path: "/system-user",
-    component: Layout,
-    redirect: "/system-user/user-management",
-    name: "SystemUser",
-    meta: {
-      title: "System User",
-      icon: "el-icon-user-solid",
-    },
-    children: [
-      {
-        path: "user-management",
-        name: "UserManagement",
+        path: 'user-management',
+        name: 'UserManagement',
         component: () =>
-          import("@/views/system-user/user-management/index.vue"),
-        meta: { title: "User Management", icon: "el-icon-user" },
+          import('@/views/system-user/user-management/index.vue'),
+        meta: { title: 'User Management', icon: 'el-icon-user' }
       },
       {
-        path: "user-audit",
-        name: "UserAudit",
-        component: () => import("@/views/system-user/user-audit/index.vue"),
-        meta: { title: "User Audit", icon: "el-icon-s-order" },
-      },
-    ],
-  },
-];
+        path: 'user-audit',
+        name: 'UserAudit',
+        component: () => import('@/views/system-user/user-audit/index.vue'),
+        meta: { title: 'User Audit', icon: 'el-icon-s-order' }
+      }
+    ]
+  }
+]
 
 const createRouter = () =>
   new Router({
     // mode: 'history', // require service support
     scrollBehavior: () => ({ y: 0 }),
-    routes: constantRoutes,
-  });
+    routes: constantRoutes
+  })
 
-const router = createRouter();
+const router = createRouter()
 
 // Detail see: https://github.com/vuejs/vue-router/issues/1234#issuecomment-357941465
 export function resetRouter() {
-  const newRouter = createRouter();
-  router.matcher = newRouter.matcher; // reset router
+  const newRouter = createRouter()
+  router.matcher = newRouter.matcher // reset router
 }
 
-export default router;
+export default router
 
 /* Router Modules */
 // import componentsRouter from "./modules/components";

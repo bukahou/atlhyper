@@ -3,7 +3,7 @@
     <div class="card-header text-center">
       <h4 class="card-title">Pod 内日志</h4>
     </div>
-    <div class="card-body log-content" ref="logContent">
+    <div ref="logContent" class="card-body log-content">
       <pre class="log-text">{{ logText || "暂无日志内容。" }}</pre>
     </div>
   </div>
@@ -11,14 +11,14 @@
 
 <script>
 export default {
-  name: "PodLogCard",
+  name: 'PodLogCard',
   props: {
     logText: {
       type: String,
-      default: "",
-    },
-  },
-};
+      default: ''
+    }
+  }
+}
 </script>
 
 <style scoped>

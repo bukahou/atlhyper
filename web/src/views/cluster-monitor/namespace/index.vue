@@ -49,124 +49,124 @@
 </template>
 
 <script>
-import CardStat from "@/components/Atlhyper/CardStat.vue";
-import NamespaceTable from "@/components/Atlhyper/NamespaceTable.vue";
-import { getAllNamespaces } from "@/api/namespace";
+import CardStat from '@/components/Atlhyper/CardStat.vue'
+import NamespaceTable from '@/components/Atlhyper/NamespaceTable.vue'
+import { getAllNamespaces } from '@/api/namespace'
 
 export default {
-  name: "NamespaceView",
+  name: 'NamespaceView',
   components: {
     CardStat,
-    NamespaceTable,
+    NamespaceTable
   },
   data() {
     return {
       dialogVisible: false,
-      selectedNamespace: "",
+      selectedNamespace: '',
       namespaceList: [],
       stats: {
-        totalNamespaces: "--",
-        activeNamespaces: "--",
-        terminatingNamespaces: "--",
-        totalPods: "--",
+        totalNamespaces: '--',
+        activeNamespaces: '--',
+        terminatingNamespaces: '--',
+        totalPods: '--'
       },
       fakeConfigMaps: [
         {
-          name: "app-config",
+          name: 'app-config',
           dataCount: 3,
-          creationTime: "2024-07-01 11:00:00",
+          creationTime: '2024-07-01 11:00:00'
         },
         {
-          name: "logging-config",
+          name: 'logging-config',
           dataCount: 2,
-          creationTime: "2024-07-02 09:00:00",
-        },
-      ],
-    };
+          creationTime: '2024-07-02 09:00:00'
+        }
+      ]
+    }
   },
   computed: {
     cards() {
       return [
         {
-          title: "Namespace 总数",
+          title: 'Namespace 总数',
           value: this.stats.totalNamespaces,
-          icon: "fas fa-layer-group",
-          class: "card-primary card-round",
+          icon: 'fas fa-layer-group',
+          class: 'card-primary card-round'
         },
         {
-          title: "Active 数",
+          title: 'Active 数',
           value: this.stats.activeNamespaces,
-          icon: "fas fa-check",
-          class: "card-success card-round",
+          icon: 'fas fa-check',
+          class: 'card-success card-round'
         },
         {
-          title: "Terminating 数",
+          title: 'Terminating 数',
           value: this.stats.terminatingNamespaces,
-          icon: "fas fa-times",
-          class: "card-danger card-round",
+          icon: 'fas fa-times',
+          class: 'card-danger card-round'
         },
         {
-          title: "总 Pod 数",
+          title: '总 Pod 数',
           value: this.stats.totalPods,
-          icon: "fas fa-cube",
-          class: "card-info card-round",
-        },
-      ];
-    },
+          icon: 'fas fa-cube',
+          class: 'card-info card-round'
+        }
+      ]
+    }
   },
   created() {
-    this.fetchNamespaces();
+    this.fetchNamespaces()
   },
   methods: {
     fetchNamespaces() {
       getAllNamespaces()
         .then((res) => {
-          const rawList = res.data || [];
+          const rawList = res.data || []
 
           this.namespaceList = rawList.map((item) => {
-            const nsMeta = item.Namespace.metadata || {};
-            const status = item.Namespace.status?.phase || "Unknown";
+            const nsMeta = item.Namespace.metadata || {}
+            const status = item.Namespace.status?.phase || 'Unknown'
 
             return {
-              name: nsMeta.name || "—",
+              name: nsMeta.name || '—',
               status: status,
               podCount: item.PodCount || 0,
               labelCount: Object.keys(nsMeta.labels || {}).length,
               annotationCount: Object.keys(nsMeta.annotations || {}).length,
-              creationTime: new Date(nsMeta.creationTimestamp).toLocaleString(),
-            };
-          });
+              creationTime: new Date(nsMeta.creationTimestamp).toLocaleString()
+            }
+          })
 
           // 渲染统计卡片数据
-          const total = rawList.length;
-          let active = 0;
-          let terminating = 0;
-          let totalPods = 0;
+          const total = rawList.length
+          let active = 0
+          let terminating = 0
+          let totalPods = 0
 
           rawList.forEach((item) => {
-            const phase = item.Namespace.status?.phase;
-            if (phase === "Active") active++;
-            else terminating++;
-            totalPods += item.PodCount || 0;
-          });
+            const phase = item.Namespace.status?.phase
+            if (phase === 'Active') active++
+            else terminating++
+            totalPods += item.PodCount || 0
+          })
 
           this.stats = {
             totalNamespaces: total,
             activeNamespaces: active,
             terminatingNamespaces: terminating,
-            totalPods: totalPods,
-          };
+            totalPods: totalPods
+          }
         })
         .catch((err) => {
-          console.error("获取 Namespace 数据失败:", err);
+          console.error('获取 Namespace 数据失败:', err)
           this.$message.error(
-            "加载命名空间数据失败：" +
+            '加载命名空间数据失败：' +
               (err.response?.data?.message || err.message)
-          );
-        });
-    },
-  },
-};
+          )
+        })
+    }
+  }
+}
 </script>
 
 <style scoped>

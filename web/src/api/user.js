@@ -1,54 +1,54 @@
-import request from "@/utils/request";
+import request from '@/utils/request'
 
 // 登录
 export function login(data) {
   return request({
-    url: "/uiapi/auth/login",
-    method: "post",
-    data,
-  });
+    url: '/uiapi/auth/login',
+    method: 'post',
+    data
+  })
 }
 
 // 注册用户
 export function register(data) {
   return request({
-    url: "/uiapi/auth/user/register",
-    method: "post",
-    data,
-  });
+    url: '/uiapi/auth/user/register',
+    method: 'post',
+    data
+  })
 }
 
 // 修改用户角色
 export function changeRole(data) {
   return request({
-    url: "/uiapi/auth/user/update-role",
-    method: "post",
-    data,
-  });
+    url: '/uiapi/auth/user/update-role',
+    method: 'post',
+    data
+  })
 }
 
 // 获取用户列表
 export function listUsers() {
   return request({
-    url: "/uiapi/auth/user/list",
-    method: "get",
-  });
+    url: '/uiapi/auth/user/list',
+    method: 'get'
+  })
 }
 
 export function updateUserRole(data) {
   return request({
-    url: "/uiapi/auth/user/update-role",
-    method: "post",
-    data,
-  });
+    url: '/uiapi/auth/user/update-role',
+    method: 'post',
+    data
+  })
 }
 
-//获取审计日志列表
+// 获取审计日志列表
 export function listUserAuditLogs() {
   return request({
-    url: "/uiapi/auth/userauditlogs/list",
-    method: "get",
-  });
+    url: '/uiapi/auth/userauditlogs/list',
+    method: 'get'
+  })
 }
 
 // export function login(data) {

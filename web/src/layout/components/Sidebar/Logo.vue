@@ -7,11 +7,11 @@
         class="sidebar-logo-link"
         to="/"
       >
-        <img v-if="logo" :src="logo" class="sidebar-logo" />
+        <img v-if="logo" :src="logo" class="sidebar-logo">
         <h1 v-else class="sidebar-title">{{ title }}</h1>
       </router-link>
       <router-link v-else key="expand" class="sidebar-logo-link" to="/">
-        <img v-if="logo" :src="logo" class="sidebar-logo" />
+        <img v-if="logo" :src="logo" class="sidebar-logo">
         <h1 class="sidebar-title">{{ title }}</h1>
       </router-link>
     </transition>
@@ -20,20 +20,20 @@
 
 <script>
 export default {
-  name: "SidebarLogo",
+  name: 'SidebarLogo',
   props: {
     collapse: {
       type: Boolean,
-      required: true,
-    },
+      required: true
+    }
   },
   data() {
     return {
-      title: "   AtlHyper",
-      logo: require("@/assets/img/logo1.png"),
-    };
-  },
-};
+      title: '   AtlHyper',
+      logo: require('@/assets/img/logo1.png')
+    }
+  }
+}
 </script>
 
 <style lang="scss" scoped>

@@ -64,17 +64,17 @@
 </template>
 
 <script>
-import CardStat from "@/components/Atlhyper/CardStat.vue";
-import UserTable from "@/components/Atlhyper/UserTable.vue";
-import RegisterUserDialog from "./components/RegisterUserDialog.vue";
-import { listUsers } from "@/api/user"; // ✅ 导入 API
+import CardStat from '@/components/Atlhyper/CardStat.vue'
+import UserTable from '@/components/Atlhyper/UserTable.vue'
+import RegisterUserDialog from './components/RegisterUserDialog.vue'
+import { listUsers } from '@/api/user' // ✅ 导入 API
 
 export default {
-  name: "UserView",
+  name: 'UserView',
   components: {
     CardStat,
     UserTable,
-    RegisterUserDialog,
+    RegisterUserDialog
   },
   data() {
     return {
@@ -83,18 +83,18 @@ export default {
       normalUsers: 0,
       failedOperations: 0,
       userList: [],
-      showRegisterDialog: false,
-    };
+      showRegisterDialog: false
+    }
   },
   created() {
-    this.fetchUsers();
+    this.fetchUsers()
   },
   methods: {
     async fetchUsers() {
       try {
-        const res = await listUsers();
+        const res = await listUsers()
         if (res.code === 20000 && Array.isArray(res.data)) {
-          const rawUsers = res.data;
+          const rawUsers = res.data
 
           // ✅ 格式化数据（role 字段翻译）
           const mappedUsers = rawUsers.map((u) => ({
@@ -103,45 +103,45 @@ export default {
             displayName: u.DisplayName,
             email: u.Email,
             createdAt: u.CreatedAt,
-            role: this.translateRole(u.Role), // 转换角色字段
-          }));
+            role: this.translateRole(u.Role) // 转换角色字段
+          }))
 
           // ✅ 设置表格数据
-          this.userList = mappedUsers;
+          this.userList = mappedUsers
 
           // ✅ 统计卡片数据
-          this.totalUsers = rawUsers.length;
+          this.totalUsers = rawUsers.length
           this.adminUsers = rawUsers.filter(
             (u) => u.Role === 2 || u.Role === 3
-          ).length;
-          this.normalUsers = rawUsers.filter((u) => u.Role === 1).length;
+          ).length
+          this.normalUsers = rawUsers.filter((u) => u.Role === 1).length
           // ⚠️ 操作失败次数暂留为 0，除非你有相关统计
-          this.failedOperations = 0;
+          this.failedOperations = 0
         } else {
-          this.$message.error("获取用户失败：" + res.message);
+          this.$message.error('获取用户失败：' + res.message)
         }
       } catch (err) {
-        console.error(err);
-        this.$message.error("用户请求异常");
+        console.error(err)
+        this.$message.error('用户请求异常')
       }
     },
     translateRole(roleNum) {
       switch (roleNum) {
         case 1:
-          return "普通用户";
+          return '普通用户'
         case 2:
-          return "管理员";
+          return '管理员'
         case 3:
-          return "超级管理员";
+          return '超级管理员'
         default:
-          return "未知";
+          return '未知'
       }
     },
     handleViewUser(user) {
-      console.log("查看用户：", user);
-    },
-  },
-};
+      console.log('查看用户：', user)
+    }
+  }
+}
 </script>
 
 <style scoped>

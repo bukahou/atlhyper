@@ -37,19 +37,19 @@
 
 <script>
 export default {
-  name: "PodConditionTable",
+  name: 'PodConditionTable',
   props: {
     conditions: {
       type: Array,
-      required: true,
-    },
+      required: true
+    }
   },
   methods: {
     formatTime(time) {
-      return time ? new Date(time).toLocaleString() : "-";
-    },
-  },
-};
+      return time ? new Date(time).toLocaleString() : '-'
+    }
+  }
+}
 </script>
 
 <style scoped>

@@ -2,7 +2,7 @@
   <div class="deployment-table-container">
     <div class="table-title">
       <h2>Deployment List</h2>
-      <hr />
+      <hr>
     </div>
 
     <!-- 分页控制 -->
@@ -112,23 +112,23 @@
             </el-button>
 
             <el-button
+              v-if="!isEditing(row)"
               size="mini"
               type="warning"
               plain
               icon="el-icon-edit"
               @click="startEdit(row)"
-              v-if="!isEditing(row)"
             >
               Edit
             </el-button>
 
             <el-button
+              v-if="isEditing(row)"
               size="mini"
               type="success"
               plain
               icon="el-icon-check"
               @click="confirmEdit(row)"
-              v-if="isEditing(row)"
             >
               Apply
             </el-button>
@@ -152,101 +152,101 @@
 
 <script>
 export default {
-  name: "DeploymentTable",
+  name: 'DeploymentTable',
   props: {
     deployments: {
       type: Array,
-      required: true,
-    },
+      required: true
+    }
   },
   data() {
     return {
-      selectedNamespace: "",
+      selectedNamespace: '',
       pageSize: 10,
       currentPage: 1,
-      editCache: {},
-    };
+      editCache: {}
+    }
   },
   computed: {
     namespaceOptions() {
       return [...new Set(this.deployments.map((d) => d.namespace))].filter(
         Boolean
-      );
+      )
     },
     filteredDeployments() {
       return this.deployments.filter((d) => {
         if (this.selectedNamespace && d.namespace !== this.selectedNamespace) {
-          return false;
+          return false
         }
-        return true;
-      });
+        return true
+      })
     },
     pagedDeployments() {
-      const start = (this.currentPage - 1) * this.pageSize;
-      return this.filteredDeployments.slice(start, start + this.pageSize);
-    },
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.filteredDeployments.slice(start, start + this.pageSize)
+    }
   },
   methods: {
     handlePageChange(page) {
-      this.currentPage = page;
+      this.currentPage = page
     },
     handlePageSizeChange(size) {
-      this.pageSize = size;
-      this.currentPage = 1;
+      this.pageSize = size
+      this.currentPage = 1
     },
     rowKey(row) {
-      return `${row.namespace}/${row.name}`;
+      return `${row.namespace}/${row.name}`
     },
 
     isEditing(row) {
-      return !!this.editCache[this.rowKey(row)];
+      return !!this.editCache[this.rowKey(row)]
     },
 
     startEdit(row) {
       this.$set(this.editCache, this.rowKey(row), {
         image: row.image,
-        replicas: parseInt(row.replicas.split("/")[1]) || 1, // 使用总副本数
-      });
+        replicas: parseInt(row.replicas.split('/')[1]) || 1 // 使用总副本数
+      })
     },
 
     confirmEdit(row) {
-      const key = this.rowKey(row);
-      const { image, replicas } = this.editCache[key];
+      const key = this.rowKey(row)
+      const { image, replicas } = this.editCache[key]
 
-      const imageOriginal = row.image;
-      const replicasOriginal = parseInt(row.replicas.split("/")[1]) || 1;
+      const imageOriginal = row.image
+      const replicasOriginal = parseInt(row.replicas.split('/')[1]) || 1
 
       // ✅ 判断是否有实际修改
       if (image === imageOriginal && replicas === replicasOriginal) {
         this.$message({
-          message: "本次无修改",
-          type: "info",
-          duration: 1000,
-        });
-        this.$delete(this.editCache, key); // 清除编辑状态
-        return;
+          message: '本次无修改',
+          type: 'info',
+          duration: 1000
+        })
+        this.$delete(this.editCache, key) // 清除编辑状态
+        return
       }
 
-      this.$confirm("确定要修改该 Deployment 的副本数和镜像吗？", "确认修改", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
+      this.$confirm('确定要修改该 Deployment 的副本数和镜像吗？', '确认修改', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
       })
         .then(() => {
-          this.$emit("update", {
+          this.$emit('update', {
             namespace: row.namespace,
             name: row.name,
             image,
-            replicas,
-          });
-          this.$delete(this.editCache, key); // 清除编辑状态
+            replicas
+          })
+          this.$delete(this.editCache, key) // 清除编辑状态
         })
         .catch(() => {
           // 用户取消
-        });
-    },
-  },
-};
+        })
+    }
+  }
+}
 </script>
 
 <style scoped>

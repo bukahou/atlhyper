@@ -8,9 +8,9 @@ import (
 )
 
 // RegisterDeploymentOpsRoutes 注册 Deployment 的操作类接口（如缩容/镜像更新）
-func RegisterDeploymentOpsRoutes(rg *gin.RouterGroup) {
-	rg.POST("/scale", ScaleDeploymentHandler)
-}
+// func RegisterDeploymentOpsRoutes(rg *gin.RouterGroup) {
+// 	rg.POST("/scale", ScaleDeploymentHandler)
+// }
 
 type ScaleDeploymentRequest struct {
 	Namespace string  `json:"namespace" binding:"required"`

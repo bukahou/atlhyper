@@ -19,7 +19,7 @@
             (status.containerStatuses &&
               status.containerStatuses[0] &&
               status.containerStatuses[0].restartCount) ||
-            0
+              0
           }}
         </span>
       </div>
@@ -41,24 +41,24 @@
 
 <script>
 export default {
-  name: "PodStatusCard",
+  name: 'PodStatusCard',
   props: {
     status: {
       type: Object,
-      required: true,
+      required: true
     },
     usage: {
       type: Object,
-      default: () => ({}),
-    },
+      default: () => ({})
+    }
   },
   methods: {
     formatTime(time) {
-      if (!time) return "-";
-      return new Date(time).toLocaleString();
-    },
-  },
-};
+      if (!time) return '-'
+      return new Date(time).toLocaleString()
+    }
+  }
+}
 </script>
 
 <style scoped>

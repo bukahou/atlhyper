@@ -41,54 +41,54 @@
 
 <script>
 export default {
-  name: "EventTable",
+  name: 'EventTable',
   props: {
     events: {
       type: Array,
-      required: true,
+      required: true
     },
     title: {
       type: String,
-      default: "相关事件",
+      default: '相关事件'
     },
     reasonMap: {
       type: Object,
       default: () => ({
-        good: ["Started", "Pulled", "NodeSchedulable", "NodeReady"],
+        good: ['Started', 'Pulled', 'NodeSchedulable', 'NodeReady'],
         bad: [
-          "Failed",
-          "BackOff",
-          "Unhealthy",
-          "NodeNotSchedulable",
-          "NodeNotReady",
-          "KubeletNotReady",
-        ],
-      }),
-    },
+          'Failed',
+          'BackOff',
+          'Unhealthy',
+          'NodeNotSchedulable',
+          'NodeNotReady',
+          'KubeletNotReady'
+        ]
+      })
+    }
   },
   methods: {
     formatTime(ts) {
-      if (!ts) return "-";
-      const date = new Date(ts);
+      if (!ts) return '-'
+      const date = new Date(ts)
       return `${date.getFullYear()}/${
         date.getMonth() + 1
-      }/${date.getDate()} ${date.getHours().toString().padStart(2, "0")}:${date
+      }/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date
         .getMinutes()
         .toString()
-        .padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}`;
+        .padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
     },
     statusClass(type) {
-      if (type === "Normal") return "True";
-      if (type === "Warning") return "False";
-      return "Unknown";
+      if (type === 'Normal') return 'True'
+      if (type === 'Warning') return 'False'
+      return 'Unknown'
     },
     reasonClass(reason) {
-      if (this.reasonMap.good.includes(reason)) return "True";
-      if (this.reasonMap.bad.includes(reason)) return "False";
-      return "Unknown";
-    },
-  },
-};
+      if (this.reasonMap.good.includes(reason)) return 'True'
+      if (this.reasonMap.bad.includes(reason)) return 'False'
+      return 'Unknown'
+    }
+  }
+}
 </script>
 
 <style scoped>

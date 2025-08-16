@@ -38,6 +38,8 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	service.RegisterServiceRoutes(read.Group("/service"))
 	configmap.RegisterConfigMapRoutes(read.Group("/configmap"))
 	metrics.RegisterMetricsRoutes(read.Group("/metrics"))
+	read.GET("/auth/user/list", auth.HandleListAllUsers)
+	read.GET("/auth/userauditlogs/list", auth.HandleGetUserAuditLogs)
 
 	// =============================
 	// 🔒 操作类接口（角色 ≥ 2）
@@ -48,9 +50,16 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	ops := router.Group("")
 	ops.Use(auth.AuthMiddleware(), auth.RequireMinRole(auth.RoleOperator))
 
-	pod.RegisterPodOpsRoutes(ops.Group("/pod-ops"))
-	deployment.RegisterDeploymentOpsRoutes(ops.Group("/deployment-ops"))
-	ops.GET("/auth/user/list", auth.HandleListAllUsers)
+	// pod.RegisterPodOpsRoutes(ops.Group("/pod-ops"))
+	// deployment.RegisterDeploymentOpsRoutes(ops.Group("/deployment-ops"))
+	ops.POST("/pod-ops/restart/:ns/:name", pod.RestartPodHandler)
+	ops.POST("/deployment-ops/scale", deployment.ScaleDeploymentHandler)
+	ops.POST("/node-ops/schedule", node.ToggleNodeSchedulableHandler)
+	// pod.RegisterPodOpsRoutes(ops.Group("/pod-ops"))
+	// deployment.RegisterDeploymentOpsRoutes(ops.Group("/deployment-ops"))
+	// ops.GET("/auth/user/list", auth.HandleListAllUsers)
+	// ops.GET("/auth/userauditlogs/list", auth.HandleGetUserAuditLogs)
+
 
 	// =============================
 	// 🔐 管理员权限接口（角色 == 3）
@@ -58,15 +67,13 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	admin := router.Group("")
 	admin.Use(auth.AuthMiddleware(), auth.RequireMinRole(auth.RoleAdmin))
 
-	// 用户注册接口
 	admin.POST("/auth/user/register", auth.HandleRegisterUser)
-	// 用户权限更新接口
 	admin.POST("/auth/user/update-role", auth.HandleUpdateUserRole)
 	//获取全部用户信息接口
 	// admin.GET("/auth/user/list", auth.HandleListAllUsers)
 	//针对node的操作。因此需要在在组组最高权限
-	admin.POST("/node-ops/schedule", node.ToggleNodeSchedulableHandler)
+	// admin.POST("/node-ops/schedule", node.ToggleNodeSchedulableHandler)
 	// 获取用户审计日志
-	admin.GET("/auth/userauditlogs/list", auth.HandleGetUserAuditLogs)
+	// admin.GET("/auth/userauditlogs/list", auth.HandleGetUserAuditLogs)
 
 }

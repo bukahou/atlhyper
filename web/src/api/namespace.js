@@ -1,4 +1,4 @@
-import request from "@/utils/request";
+import request from '@/utils/request'
 
 /**
  * 获取所有命名空间及其 Pod 数量等信息
@@ -6,9 +6,9 @@ import request from "@/utils/request";
  */
 export function getAllNamespaces() {
   return request({
-    url: "/uiapi/namespace/list",
-    method: "get",
-  });
+    url: '/uiapi/namespace/list',
+    method: 'get'
+  })
 }
 
 /**
@@ -18,6 +18,6 @@ export function getAllNamespaces() {
 export function getConfigMapsByNamespace(namespace) {
   return request({
     url: `/uiapi/configmap/list/by-namespace/${namespace}`,
-    method: "get",
-  });
+    method: 'get'
+  })
 }

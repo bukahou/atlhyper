@@ -25,7 +25,7 @@ func GetInMemoryLatestHandler(c *gin.Context) {
 
 // 获取全部节点的快照（可选 since、limit）
 func GetInMemoryAllHandler(c *gin.Context) {
-	since, _ := parseSince(c.Query("since")) // parseSince 返回 time.Time.Zero 表示无过滤
+	since, _ := parseSince(c.Query("since")) 
 	limit := parseLimit(c.Query("limit"))
 
 	// 从 metrics_store 直接取全部数据

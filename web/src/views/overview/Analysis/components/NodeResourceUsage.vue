@@ -12,28 +12,27 @@
 
     <!-- 列表区域：固定高度（可见行数 × 行高），内部可滚动 -->
     <div
-      class="rows"
       ref="rows"
+      class="rows"
       :style="{ maxHeight: rowsMaxHeight + 'px', overflowY: 'auto' }"
     >
       <div v-for="(n, idx) in paged" :key="n.node_name + '-' + idx" class="row">
         <!-- 左：节点信息 -->
         <div class="left">
-          <span class="dot" :class="{ ok: n.ready, bad: !n.ready }"></span>
+          <span class="dot" :class="{ ok: n.ready, bad: !n.ready }" />
           <span class="name" :title="n.node_name">{{ n.node_name }}</span>
           <el-tag
             v-if="n.role === 'control-plane'"
             size="mini"
             type="info"
             effect="plain"
-            >control-plane</el-tag
-          >
+          >control-plane</el-tag>
         </div>
 
         <!-- 中：条形百分比 -->
         <div class="meter" :class="[metric, levelClass(val(n))]">
-          <div class="fill" :style="{ width: clampPct(val(n)) + '%' }"></div>
-          <div class="ticks"><i></i><i></i><i></i></div>
+          <div class="fill" :style="{ width: clampPct(val(n)) + '%' }" />
+          <div class="ticks"><i /><i /><i /></div>
         </div>
 
         <!-- 右：数字百分比 -->
@@ -45,19 +44,19 @@
       <div v-if="!paged.length" class="empty">No nodes</div>
     </div>
 
-    <div class="footer" v-if="pages > 1">
+    <div v-if="pages > 1" class="footer">
       <el-button
         type="text"
         icon="el-icon-arrow-left"
-        @click="prev"
         :disabled="page <= 1"
+        @click="prev"
       />
       <span class="page">{{ page }} / {{ pages }}</span>
       <el-button
         type="text"
         icon="el-icon-arrow-right"
-        @click="next"
         :disabled="page >= pages"
+        @click="next"
       />
     </div>
   </div>
@@ -65,108 +64,108 @@
 
 <script>
 export default {
-  name: "NodeResourceUsage",
+  name: 'NodeResourceUsage',
   props: {
     items: { type: Array, default: () => [] }, // node_usages
     pageSize: { type: Number, default: 5 }, // Top N
-    visibleRows: { type: Number, default: 5 }, // 与 RecentAlertsTable 对齐
+    visibleRows: { type: Number, default: 5 } // 与 RecentAlertsTable 对齐
   },
   data() {
     return {
-      metric: "cpu",
+      metric: 'cpu',
       page: 1,
-      rowsMaxHeight: 5 * 44, // 初值，mounted 后按真实行高计算
-    };
+      rowsMaxHeight: 5 * 44 // 初值，mounted 后按真实行高计算
+    }
+  },
+  computed: {
+    sorted() {
+      const arr = (this.items || []).slice()
+      const get = (n) =>
+        (this.metric === 'cpu'
+          ? Number(n.cpu_percent)
+          : Number(n.memory_percent)) || 0
+      return arr.sort((a, b) => get(b) - get(a))
+    },
+    pages() {
+      const len = this.sorted.length
+      return len ? Math.ceil(len / this.pageSize) : 1
+    },
+    paged() {
+      const start = (this.page - 1) * this.pageSize
+      return this.sorted.slice(start, start + this.pageSize)
+    }
   },
   watch: {
     metric() {
-      this.page = 1;
-      this.$nextTick(this.computeRowsMaxHeight);
+      this.page = 1
+      this.$nextTick(this.computeRowsMaxHeight)
     },
     items: {
       deep: true,
       handler() {
-        if (this.page > this.pages) this.page = 1;
-        this.$nextTick(this.computeRowsMaxHeight);
-      },
+        if (this.page > this.pages) this.page = 1
+        this.$nextTick(this.computeRowsMaxHeight)
+      }
     },
     pageSize() {
-      this.$nextTick(this.computeRowsMaxHeight);
+      this.$nextTick(this.computeRowsMaxHeight)
     },
     visibleRows() {
-      this.$nextTick(this.computeRowsMaxHeight);
-    },
+      this.$nextTick(this.computeRowsMaxHeight)
+    }
   },
   mounted() {
     this.$nextTick(() => {
-      this.computeRowsMaxHeight();
+      this.computeRowsMaxHeight()
       // 再次延迟，确保首屏真实行高
-      setTimeout(this.computeRowsMaxHeight, 0);
-      window.addEventListener("resize", this.computeRowsMaxHeight, {
-        passive: true,
-      });
-    });
+      setTimeout(this.computeRowsMaxHeight, 0)
+      window.addEventListener('resize', this.computeRowsMaxHeight, {
+        passive: true
+      })
+    })
   },
   beforeDestroy() {
-    window.removeEventListener("resize", this.computeRowsMaxHeight);
-  },
-  computed: {
-    sorted() {
-      const arr = (this.items || []).slice();
-      const get = (n) =>
-        (this.metric === "cpu"
-          ? Number(n.cpu_percent)
-          : Number(n.memory_percent)) || 0;
-      return arr.sort((a, b) => get(b) - get(a));
-    },
-    pages() {
-      const len = this.sorted.length;
-      return len ? Math.ceil(len / this.pageSize) : 1;
-    },
-    paged() {
-      const start = (this.page - 1) * this.pageSize;
-      return this.sorted.slice(start, start + this.pageSize);
-    },
+    window.removeEventListener('resize', this.computeRowsMaxHeight)
   },
   methods: {
     computeRowsMaxHeight() {
       // 参考 RecentAlertsTable：用实际行高来计算可见区域上限
-      const container = this.$refs.rows;
-      if (!container) return;
+      const container = this.$refs.rows
+      if (!container) return
 
       // 找到一行的真实高度
-      const anyRow = container.querySelector(".row");
-      let rowH = anyRow ? anyRow.offsetHeight : 0;
-      if (!rowH || rowH < 36) rowH = 44; // 合理的保底行高
+      const anyRow = container.querySelector('.row')
+      let rowH = anyRow ? anyRow.offsetHeight : 0
+      if (!rowH || rowH < 36) rowH = 44 // 合理的保底行高
 
-      this.rowsMaxHeight = this.visibleRows * rowH;
+      this.rowsMaxHeight = this.visibleRows * rowH
     },
     val(n) {
-      return this.metric === "cpu" ? n.cpu_percent : n.memory_percent;
+      return this.metric === 'cpu' ? n.cpu_percent : n.memory_percent
     },
     fmtPct(v) {
-      if (v === null || v === undefined || isNaN(v)) return "--";
-      return `${Number(v).toFixed(2)}%`;
+      if (v === null || v === undefined || isNaN(v)) return '--'
+      return `${Number(v).toFixed(2)}%`
     },
     clampPct(v) {
-      const x = Number(v);
-      if (isNaN(x)) return 0;
-      return Math.max(0, Math.min(100, x));
+      const x = Number(v)
+      if (isNaN(x)) return 0
+      return Math.max(0, Math.min(100, x))
     },
     levelClass(v) {
-      const x = Number(v) || 0;
-      if (x >= 85) return "lv-high";
-      if (x >= 60) return "lv-mid";
-      return "lv-low";
+      const x = Number(v) || 0
+      if (x >= 85) return 'lv-high'
+      if (x >= 60) return 'lv-mid'
+      return 'lv-low'
     },
     prev() {
-      if (this.page > 1) this.page--;
+      if (this.page > 1) this.page--
     },
     next() {
-      if (this.page < this.pages) this.page++;
-    },
-  },
-};
+      if (this.page < this.pages) this.page++
+    }
+  }
+}
 </script>
 
 <style scoped>

@@ -64,91 +64,91 @@
 </template>
 
 <script>
-import { register } from "@/api/user"; // ✅ 1. 引入注册 API
-import { Message } from "element-ui"; // ✅ 2. 引入提示组件
+import { register } from '@/api/user' // ✅ 1. 引入注册 API
+import { Message } from 'element-ui' // ✅ 2. 引入提示组件
 
 export default {
-  name: "RegisterUserDialog",
+  name: 'RegisterUserDialog',
   props: {
-    visible: Boolean,
+    visible: Boolean
   },
   data() {
     return {
       form: {
-        username: "",
-        password: "",
-        confirmPassword: "",
-        display_name: "",
-        email: "",
-        role: 1,
+        username: '',
+        password: '',
+        confirmPassword: '',
+        display_name: '',
+        email: '',
+        role: 1
       },
       rules: {
         username: [
-          { required: true, message: "请输入用户名", trigger: "blur" },
+          { required: true, message: '请输入用户名', trigger: 'blur' },
           {
             pattern: /^[A-Za-z]+$/,
-            message: "用户名只能包含字母",
-            trigger: "blur",
-          },
+            message: '用户名只能包含字母',
+            trigger: 'blur'
+          }
         ],
         password: [
-          { required: true, message: "请输入密码", trigger: "blur" },
-          { min: 6, message: "密码长度不能少于 6 位", trigger: "blur" },
+          { required: true, message: '请输入密码', trigger: 'blur' },
+          { min: 6, message: '密码长度不能少于 6 位', trigger: 'blur' }
         ],
         confirmPassword: [
-          { required: true, message: "请确认密码", trigger: "blur" },
+          { required: true, message: '请确认密码', trigger: 'blur' },
           {
             validator: (rule, value, callback) => {
               if (value !== this.form.password) {
-                callback(new Error("两次输入的密码不一致"));
+                callback(new Error('两次输入的密码不一致'))
               } else {
-                callback();
+                callback()
               }
             },
-            trigger: "blur",
-          },
+            trigger: 'blur'
+          }
         ],
         display_name: [
-          { required: true, message: "请输入昵称", trigger: "blur" },
+          { required: true, message: '请输入昵称', trigger: 'blur' }
         ],
         email: [
-          { required: true, message: "请输入邮箱", trigger: "blur" },
-          { type: "email", message: "邮箱格式不正确", trigger: "blur" },
+          { required: true, message: '请输入邮箱', trigger: 'blur' },
+          { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
         ],
-        role: [{ required: true, message: "请选择角色", trigger: "change" }],
-      },
-    };
+        role: [{ required: true, message: '请选择角色', trigger: 'change' }]
+      }
+    }
   },
   methods: {
     handleClose() {
-      this.$emit("update:visible", false);
-      this.resetForm();
+      this.$emit('update:visible', false)
+      this.resetForm()
     },
     resetForm() {
-      this.$refs.registerForm.resetFields();
+      this.$refs.registerForm.resetFields()
     },
     async handleRegister() {
-      this.$refs.registerForm.validate(async (valid) => {
-        if (!valid) return;
+      this.$refs.registerForm.validate(async(valid) => {
+        if (!valid) return
 
-        const { confirmPassword, ...userData } = this.form;
+        const { confirmPassword, ...userData } = this.form
 
         try {
-          const res = await register(userData); // ✅ 3. 调用后端 API
+          const res = await register(userData) // ✅ 3. 调用后端 API
           if (res.code === 20000) {
-            Message.success("✅ 注册成功");
-            this.$emit("register-success", res.data); // 可选：通知父组件刷新用户列表
-            this.handleClose();
+            Message.success('✅ 注册成功')
+            this.$emit('register-success', res.data) // 可选：通知父组件刷新用户列表
+            this.handleClose()
           } else {
-            Message.error(res.message || "注册失败");
+            Message.error(res.message || '注册失败')
           }
         } catch (err) {
-          Message.error("注册请求失败：" + (err.message || "未知错误"));
+          Message.error('注册请求失败：' + (err.message || '未知错误'))
         }
-      });
-    },
-  },
-};
+      })
+    }
+  }
+}
 </script>
 
 <style scoped>

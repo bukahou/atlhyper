@@ -57,15 +57,15 @@
 </template>
 
 <script>
-import CardStat from "@/components/Atlhyper/CardStat.vue";
-import DeploymentTable from "@/components/Atlhyper/DeploymentTable.vue";
-import { getAllDeployments, updateDeployment } from "@/api/deployment";
+import CardStat from '@/components/Atlhyper/CardStat.vue'
+import DeploymentTable from '@/components/Atlhyper/DeploymentTable.vue'
+import { getAllDeployments, updateDeployment } from '@/api/deployment'
 
 export default {
-  name: "DeploymentView",
+  name: 'DeploymentView',
   components: {
     CardStat,
-    DeploymentTable,
+    DeploymentTable
   },
   data() {
     return {
@@ -74,40 +74,40 @@ export default {
         totalDeployments: 0,
         uniqueNamespaces: 0,
         totalReplicas: 0,
-        readyReplicas: 0,
-      },
-    };
+        readyReplicas: 0
+      }
+    }
   },
   created() {
-    this.fetchDeployments();
+    this.fetchDeployments()
   },
   methods: {
     fetchDeployments() {
       getAllDeployments()
         .then((res) => {
-          const raw = res.data || [];
-          const nsSet = new Set();
-          let totalReplicas = 0;
-          let readyReplicas = 0;
-          const list = [];
+          const raw = res.data || []
+          const nsSet = new Set()
+          let totalReplicas = 0
+          let readyReplicas = 0
+          const list = []
 
           raw.forEach((d) => {
-            const name = d.metadata?.name || "—";
-            const namespace = d.metadata?.namespace || "—";
-            const image = d.spec?.template?.spec?.containers?.[0]?.image || "—";
-            const replicas = d.spec?.replicas ?? 0;
-            const ready = d.status?.readyReplicas ?? 0;
+            const name = d.metadata?.name || '—'
+            const namespace = d.metadata?.namespace || '—'
+            const image = d.spec?.template?.spec?.containers?.[0]?.image || '—'
+            const replicas = d.spec?.replicas ?? 0
+            const ready = d.status?.readyReplicas ?? 0
             const labelCount =
-              Object.keys(d.metadata?.labels || {}).length || 0;
+              Object.keys(d.metadata?.labels || {}).length || 0
             const annotationCount =
-              Object.keys(d.metadata?.annotations || {}).length || 0;
+              Object.keys(d.metadata?.annotations || {}).length || 0
             const creationTime = new Date(
               d.metadata?.creationTimestamp
-            ).toLocaleString();
+            ).toLocaleString()
 
-            nsSet.add(namespace);
-            totalReplicas += replicas;
-            readyReplicas += ready;
+            nsSet.add(namespace)
+            totalReplicas += replicas
+            readyReplicas += ready
 
             list.push({
               name,
@@ -116,47 +116,47 @@ export default {
               replicas: `${ready}/${replicas}`,
               labelCount,
               annotationCount,
-              creationTime,
-            });
-          });
+              creationTime
+            })
+          })
 
-          this.deploymentList = list;
+          this.deploymentList = list
           this.stats = {
             totalDeployments: raw.length,
             uniqueNamespaces: nsSet.size,
             totalReplicas,
-            readyReplicas,
-          };
+            readyReplicas
+          }
         })
         .catch((err) => {
-          console.error("获取 Deployment 数据失败:", err);
+          console.error('获取 Deployment 数据失败:', err)
           this.$message.error(
-            "加载 Deployment 数据失败：" +
+            '加载 Deployment 数据失败：' +
               (err.response?.data?.message || err.message)
-          );
-        });
+          )
+        })
     },
     handleViewDeployment(row) {
       this.$router.push({
-        name: "DeploymentDescribe",
+        name: 'DeploymentDescribe',
         query: {
           ns: row.namespace,
-          name: row.name,
-        },
-      });
+          name: row.name
+        }
+      })
     },
     handleUpdateDeployment(payload) {
       updateDeployment(payload)
         .then((res) => {
-          this.$message.success(res.message || "更新成功");
-          this.fetchDeployments(); // 刷新表格
+          this.$message.success(res.message || '更新成功')
+          this.fetchDeployments() // 刷新表格
         })
         .catch((err) => {
-          this.$message.error("更新失败：" + err.message);
-        });
-    },
-  },
-};
+          this.$message.error('更新失败：' + err.message)
+        })
+    }
+  }
+}
 </script>
 
 <style scoped>

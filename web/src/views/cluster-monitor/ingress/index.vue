@@ -22,127 +22,127 @@
 </template>
 
 <script>
-import CardStat from "@/components/Atlhyper/CardStat.vue";
-import IngressTable from "@/components/Atlhyper/IngressTable.vue";
-import { getAllIngresses } from "@/api/ingress";
+import CardStat from '@/components/Atlhyper/CardStat.vue'
+import IngressTable from '@/components/Atlhyper/IngressTable.vue'
+import { getAllIngresses } from '@/api/ingress'
 
 export default {
-  name: "IngressView",
+  name: 'IngressView',
   components: {
     CardStat,
-    IngressTable,
+    IngressTable
   },
   data() {
     return {
       ingressList: [],
       stats: {
-        totalIngresses: "--",
-        uniqueHosts: "--",
-        uniqueTLS: "--",
-        totalPaths: "--",
-      },
-    };
+        totalIngresses: '--',
+        uniqueHosts: '--',
+        uniqueTLS: '--',
+        totalPaths: '--'
+      }
+    }
   },
   computed: {
     cards() {
       return [
         {
-          title: "Ingress 总数",
+          title: 'Ingress 总数',
           value: this.stats.totalIngresses,
-          icon: "fas fa-sign-in-alt",
-          class: "card-primary card-round",
+          icon: 'fas fa-sign-in-alt',
+          class: 'card-primary card-round'
         },
         {
-          title: "使用域名数",
+          title: '使用域名数',
           value: this.stats.uniqueHosts,
-          icon: "fas fa-globe",
-          class: "card-info card-round",
+          icon: 'fas fa-globe',
+          class: 'card-info card-round'
         },
         {
-          title: "TLS 证书数",
+          title: 'TLS 证书数',
           value: this.stats.uniqueTLS,
-          icon: "fas fa-shield-alt",
-          class: "card-success card-round",
+          icon: 'fas fa-shield-alt',
+          class: 'card-success card-round'
         },
         {
-          title: "路由路径总数",
+          title: '路由路径总数',
           value: this.stats.totalPaths,
-          icon: "fas fa-route",
-          class: "card-warning card-round",
-        },
-      ];
-    },
+          icon: 'fas fa-route',
+          class: 'card-warning card-round'
+        }
+      ]
+    }
   },
   created() {
-    this.fetchIngresses();
+    this.fetchIngresses()
   },
   methods: {
     fetchIngresses() {
       getAllIngresses()
         .then((res) => {
-          const rawList = res.data || [];
+          const rawList = res.data || []
 
-          const parsed = [];
-          const hostSet = new Set();
-          const tlsSet = new Set();
-          let totalPaths = 0;
+          const parsed = []
+          const hostSet = new Set()
+          const tlsSet = new Set()
+          let totalPaths = 0
 
           rawList.forEach((item) => {
-            const name = item.metadata?.name || "—";
-            const namespace = item.metadata?.namespace || "—";
+            const name = item.metadata?.name || '—'
+            const namespace = item.metadata?.namespace || '—'
             const creationTime = new Date(
               item.metadata?.creationTimestamp
-            ).toLocaleString();
+            ).toLocaleString()
 
             const tls =
               (item.spec?.tls || [])
                 .map((t) => {
-                  t.hosts?.forEach((h) => tlsSet.add(h));
-                  return t.hosts?.join(", ");
+                  t.hosts?.forEach((h) => tlsSet.add(h))
+                  return t.hosts?.join(', ')
                 })
-                .join("; ") || "—";
+                .join('; ') || '—'
 
             item.spec?.rules?.forEach((rule) => {
-              const host = rule.host || "—";
-              hostSet.add(host);
+              const host = rule.host || '—'
+              hostSet.add(host)
 
               rule.http?.paths?.forEach((p) => {
-                totalPaths++;
+                totalPaths++
                 parsed.push({
                   name,
                   namespace,
                   host,
-                  path: p.path || "/",
-                  serviceName: p.backend?.service?.name || "—",
+                  path: p.path || '/',
+                  serviceName: p.backend?.service?.name || '—',
                   servicePort:
                     p.backend?.service?.port?.number ??
                     p.backend?.service?.port?.name ??
-                    "—",
+                    '—',
                   tls,
-                  creationTime,
-                });
-              });
-            });
-          });
+                  creationTime
+                })
+              })
+            })
+          })
 
-          this.ingressList = parsed;
+          this.ingressList = parsed
           this.stats = {
             totalIngresses: rawList.length,
             uniqueHosts: hostSet.size,
             uniqueTLS: tlsSet.size,
-            totalPaths,
-          };
+            totalPaths
+          }
         })
         .catch((err) => {
-          console.error("获取 Ingress 数据失败:", err);
+          console.error('获取 Ingress 数据失败:', err)
           this.$message.error(
-            "加载 Ingress 数据失败：" +
+            '加载 Ingress 数据失败：' +
               (err.response?.data?.message || err.message)
-          );
-        });
-    },
-  },
-};
+          )
+        })
+    }
+  }
+}
 </script>
 
 <style scoped>

@@ -18,12 +18,12 @@
 
     <el-table
       ref="tbl"
+      v-loading="loading"
       :data="filtered"
       size="mini"
       stripe
       :border="false"
       :max-height="tableHeight"
-      v-loading="loading"
       class="alerts-table"
     >
       <el-table-column label="Time" width="150">
@@ -54,102 +54,102 @@
 
 <script>
 export default {
-  name: "RecentAlertsTable",
+  name: 'RecentAlertsTable',
   props: {
     items: { type: Array, default: () => [] },
     loading: { type: Boolean, default: false },
-    namespace: { type: String, default: "" },
+    namespace: { type: String, default: '' },
     showNsFilter: { type: Boolean, default: true },
-    visibleRows: { type: Number, default: 5 },
+    visibleRows: { type: Number, default: 5 }
   },
   data() {
     return {
-      ns: this.namespace || "",
-      tableHeight: 320, // 初值，mounted 后会被 computeHeight 覆盖
-    };
-  },
-  watch: {
-    namespace(v) {
-      this.ns = v || "";
-      this.$nextTick(this.computeHeight);
-    },
-    items: {
-      deep: true,
-      handler() {
-        this.$nextTick(this.computeHeight);
-      },
-    },
-  },
-  mounted() {
-    this.$nextTick(() => {
-      this.computeHeight();
-      // 延迟一次，确保首次渲染的行高拿到真实值
-      setTimeout(this.computeHeight, 0);
-      window.addEventListener("resize", this.computeHeight, { passive: true });
-    });
-  },
-  beforeDestroy() {
-    window.removeEventListener("resize", this.computeHeight);
+      ns: this.namespace || '',
+      tableHeight: 320 // 初值，mounted 后会被 computeHeight 覆盖
+    }
   },
   computed: {
     namespaces() {
       const set = new Set();
-      (this.items || []).forEach((it) => it.namespace && set.add(it.namespace));
-      return Array.from(set).sort();
+      (this.items || []).forEach((it) => it.namespace && set.add(it.namespace))
+      return Array.from(set).sort()
     },
     sorted() {
-      const arr = (this.items || []).slice();
+      const arr = (this.items || []).slice()
       const toTs = (s) => {
-        const t = Date.parse(s);
-        return isNaN(t) ? 0 : t;
-      };
-      return arr.sort((a, b) => toTs(b.time) - toTs(a.time));
+        const t = Date.parse(s)
+        return isNaN(t) ? 0 : t
+      }
+      return arr.sort((a, b) => toTs(b.time) - toTs(a.time))
     },
     filtered() {
-      if (!this.ns) return this.sorted;
-      return this.sorted.filter((it) => it.namespace === this.ns);
+      if (!this.ns) return this.sorted
+      return this.sorted.filter((it) => it.namespace === this.ns)
+    }
+  },
+  watch: {
+    namespace(v) {
+      this.ns = v || ''
+      this.$nextTick(this.computeHeight)
     },
+    items: {
+      deep: true,
+      handler() {
+        this.$nextTick(this.computeHeight)
+      }
+    }
+  },
+  mounted() {
+    this.$nextTick(() => {
+      this.computeHeight()
+      // 延迟一次，确保首次渲染的行高拿到真实值
+      setTimeout(this.computeHeight, 0)
+      window.addEventListener('resize', this.computeHeight, { passive: true })
+    })
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.computeHeight)
   },
   methods: {
     computeHeight() {
-      const tableVm = this.$refs.tbl;
-      const el = tableVm && tableVm.$el;
-      if (!el) return;
+      const tableVm = this.$refs.tbl
+      const el = tableVm && tableVm.$el
+      if (!el) return
 
       // 表头容器
-      const header = el.querySelector(".el-table__header-wrapper");
-      const headerH = header ? header.offsetHeight : 40;
+      const header = el.querySelector('.el-table__header-wrapper')
+      const headerH = header ? header.offsetHeight : 40
 
       // 任意一行（优先找 body 里的）
-      const body = el.querySelector(".el-table__body-wrapper");
-      const anyRow = body && body.querySelector(".el-table__row");
-      let rowH = anyRow ? anyRow.offsetHeight : 0;
+      const body = el.querySelector('.el-table__body-wrapper')
+      const anyRow = body && body.querySelector('.el-table__row')
+      let rowH = anyRow ? anyRow.offsetHeight : 0
 
       // 如果此时没有行（如 items 为空或还没渲染），给个更接近 mini 尺寸的保守值
-      if (!rowH || rowH < 24) rowH = 28; // mini 行高大约 28
+      if (!rowH || rowH < 24) rowH = 28 // mini 行高大约 28
 
-      this.tableHeight = headerH + this.visibleRows * rowH;
+      this.tableHeight = headerH + this.visibleRows * rowH
     },
     fmtTime(s) {
-      const t = new Date(s);
-      if (isNaN(t)) return s || "--";
-      const hh = String(t.getHours()).padStart(2, "0");
-      const mm = String(t.getMinutes()).padStart(2, "0");
-      return `${hh}:${mm}`;
+      const t = new Date(s)
+      if (isNaN(t)) return s || '--'
+      const hh = String(t.getHours()).padStart(2, '0')
+      const mm = String(t.getMinutes()).padStart(2, '0')
+      return `${hh}:${mm}`
     },
     sevType(s) {
-      const k = String(s || "").toLowerCase();
-      if (k === "critical" || k === "error") return "danger";
-      if (k === "warning" || k === "warn") return "warning";
-      return "info";
+      const k = String(s || '').toLowerCase()
+      if (k === 'critical' || k === 'error') return 'danger'
+      if (k === 'warning' || k === 'warn') return 'warning'
+      return 'info'
     },
     cap(s) {
-      if (!s) return "--";
-      const k = String(s).toLowerCase();
-      return k.charAt(0).toUpperCase() + k.slice(1);
-    },
-  },
-};
+      if (!s) return '--'
+      const k = String(s).toLowerCase()
+      return k.charAt(0).toUpperCase() + k.slice(1)
+    }
+  }
+}
 </script>
 
 <style scoped>

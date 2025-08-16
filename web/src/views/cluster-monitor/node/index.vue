@@ -49,15 +49,15 @@
 </template>
 
 <script>
-import CardStat from "@/components/Atlhyper/CardStat.vue";
-import NodeTable from "@/components/Atlhyper/NodeTable.vue";
-import { getNodeOverview, setNodeSchedulable } from "@/api/node"; // ✅ 导入 API
+import CardStat from '@/components/Atlhyper/CardStat.vue'
+import NodeTable from '@/components/Atlhyper/NodeTable.vue'
+import { getNodeOverview, setNodeSchedulable } from '@/api/node' // ✅ 导入 API
 
 export default {
-  name: "NodeView",
+  name: 'NodeView',
   components: {
     CardStat,
-    NodeTable,
+    NodeTable
   },
   data() {
     return {
@@ -65,78 +65,78 @@ export default {
         totalNodes: 0,
         readyNodes: 0,
         totalCPU: 0,
-        totalMemoryGB: 0,
+        totalMemoryGB: 0
       },
-      nodeList: [],
-    };
+      nodeList: []
+    }
   },
   mounted() {
-    this.loadNodeData();
+    this.loadNodeData()
   },
   methods: {
     loadNodeData() {
       getNodeOverview()
         .then((res) => {
           if (res.code === 20000) {
-            this.stats = res.data.stats;
-            this.nodeList = res.data.nodes;
+            this.stats = res.data.stats
+            this.nodeList = res.data.nodes
           } else {
-            this.$message.error("获取节点总览失败: " + res.message);
+            this.$message.error('获取节点总览失败: ' + res.message)
           }
         })
         .catch((err) => {
-          this.$message.error("请求失败: " + err.message);
-        });
+          this.$message.error('请求失败: ' + err.message)
+        })
     },
     handleViewNode(row) {
-      this.$message.info(`查看节点：${row.name}`);
+      this.$message.info(`查看节点：${row.name}`)
     },
     handlePageChange(page) {
-      this.currentPage = page;
+      this.currentPage = page
     },
     handlePageSizeChange(size) {
-      this.pageSize = size;
-      this.currentPage = 1;
+      this.pageSize = size
+      this.currentPage = 1
     },
     toggleSchedulable(row) {
       // 发出自定义事件给父组件，让父组件决定是否调用 API
-      this.$emit("toggle", row);
+      this.$emit('toggle', row)
     },
     handleToggleSchedulable(row) {
-      const isCurrentlyUnschedulable = row.unschedulable;
-      const next = !isCurrentlyUnschedulable; // 发送反向值
-      const action = isCurrentlyUnschedulable ? "解封" : "封锁";
+      const isCurrentlyUnschedulable = row.unschedulable
+      const next = !isCurrentlyUnschedulable // 发送反向值
+      const action = isCurrentlyUnschedulable ? '解封' : '封锁'
 
-      this.$confirm(`确认要${action}节点 ${row.name} 吗？`, "节点调度控制", {
-        confirmButtonText: "确认",
-        cancelButtonText: "取消",
-        type: "warning",
+      this.$confirm(`确认要${action}节点 ${row.name} 吗？`, '节点调度控制', {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        type: 'warning'
       })
         .then(() => {
-          return setNodeSchedulable(row.name, next);
+          return setNodeSchedulable(row.name, next)
         })
         .then((res) => {
           if (res.code === 20000) {
-            this.$message.success(res.message || `${action}成功`);
-            this.loadNodeData();
+            this.$message.success(res.message || `${action}成功`)
+            this.loadNodeData()
           } else {
-            this.$message.error(`${action}失败：${res.message}`);
+            this.$message.error(`${action}失败：${res.message}`)
           }
         })
         .catch((err) => {
-          if (err !== "cancel") {
-            this.$message.error(`${action}失败：${err.message || err}`);
+          if (err !== 'cancel') {
+            this.$message.error(`${action}失败：${err.message || err}`)
           }
-        });
+        })
     },
     handleViewNode(row) {
       this.$router.push({
-        name: "NodeDescribe",
-        params: { name: row.name },
-      });
-    },
-  },
-};
+        name: 'NodeDescribe',
+        params: { name: row.name }
+      })
+    }
+  }
+}
 </script>
 
 <style scoped>

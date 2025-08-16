@@ -1,33 +1,33 @@
-import { asyncRoutes, constantRoutes } from "@/router";
+import { asyncRoutes, constantRoutes } from '@/router'
 
 const state = {
   routes: [],
-  addRoutes: [],
-};
+  addRoutes: []
+}
 
 const mutations = {
   SET_ROUTES: (state, routes) => {
-    state.addRoutes = routes;
-    state.routes = constantRoutes.concat(routes);
-  },
-};
+    state.addRoutes = routes
+    state.routes = constantRoutes.concat(routes)
+  }
+}
 
 const actions = {
   generateRoutes({ commit }) {
     return new Promise((resolve) => {
-      const accessedRoutes = asyncRoutes || [];
-      commit("SET_ROUTES", accessedRoutes);
-      resolve(accessedRoutes);
-    });
-  },
-};
+      const accessedRoutes = asyncRoutes || []
+      commit('SET_ROUTES', accessedRoutes)
+      resolve(accessedRoutes)
+    })
+  }
+}
 
 export default {
   namespaced: true,
   state,
   mutations,
-  actions,
-};
+  actions
+}
 
 // /**
 //  * Use meta.role to determine if the current user has permission

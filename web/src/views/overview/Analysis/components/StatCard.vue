@@ -3,7 +3,7 @@
     <div class="top">
       <div class="title-wrap">
         <div v-if="icon" class="icon-badge">
-          <i :class="['el-icon', icon]" aria-hidden="true"></i>
+          <i :class="['el-icon', icon]" aria-hidden="true" />
         </div>
         <div class="title">{{ title }}</div>
       </div>
@@ -27,38 +27,37 @@
 
 <script>
 export default {
-  name: "StatCard",
+  name: 'StatCard',
   props: {
     title: { type: String, required: true },
     value: { type: [String, Number], required: true },
-    unit: { type: String, default: "" },
-    subText: { type: String, default: "" }, // 如 '24h' 或 '6 / 6'
-    icon: { type: String, default: "" }, // 如 'el-icon-bell'
+    unit: { type: String, default: '' },
+    subText: { type: String, default: '' }, // 如 '24h' 或 '6 / 6'
+    icon: { type: String, default: '' }, // 如 'el-icon-bell'
     percent: { type: [Number, null], default: null },
-    accent: { type: String, default: "#3B82F6" }, // 主题色，可传 '#10B981' 等
+    accent: { type: String, default: '#3B82F6' } // 主题色，可传 '#10B981' 等
   },
   computed: {
     valueText() {
-      if (this.value === null || this.value === undefined || this.value === "")
-        return "--";
-      if (typeof this.value === "number" && this.unit === "%") {
-        return `${this.value.toFixed(2)}%`;
+      if (this.value === null || this.value === undefined || this.value === '') { return '--' }
+      if (typeof this.value === 'number' && this.unit === '%') {
+        return `${this.value.toFixed(2)}%`
       }
-      return `${this.value}${this.unit}`;
+      return `${this.value}${this.unit}`
     },
     progressPercent() {
-      if (this.percent === null || this.percent === undefined) return null;
-      const x = Number(this.percent);
-      if (isNaN(x)) return 0;
-      return Math.max(0, Math.min(100, x));
+      if (this.percent === null || this.percent === undefined) return null
+      const x = Number(this.percent)
+      if (isNaN(x)) return 0
+      return Math.max(0, Math.min(100, x))
     },
     accentColor() {
       // 简单兜底：传错就用默认蓝
-      const s = String(this.accent || "").trim();
-      return /^#|rgb|hsl/i.test(s) ? s : "#3B82F6";
-    },
-  },
-};
+      const s = String(this.accent || '').trim()
+      return /^#|rgb|hsl/i.test(s) ? s : '#3B82F6'
+    }
+  }
+}
 </script>
 
 <style scoped>

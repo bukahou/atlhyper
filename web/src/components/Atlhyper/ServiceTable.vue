@@ -2,7 +2,7 @@
   <div class="service-table-container">
     <div class="table-title">
       <h2>Service List</h2>
-      <hr />
+      <hr>
     </div>
 
     <!-- 分页控制 -->
@@ -119,63 +119,63 @@
 
 <script>
 export default {
-  name: "ServiceTable",
+  name: 'ServiceTable',
   props: {
     services: {
       type: Array,
-      required: true,
-    },
+      required: true
+    }
   },
   data() {
     return {
-      selectedName: "",
-      selectedNamespace: "",
-      selectedType: "",
+      selectedName: '',
+      selectedNamespace: '',
+      selectedType: '',
       pageSize: 10,
-      currentPage: 1,
-    };
+      currentPage: 1
+    }
   },
   computed: {
     nameOptions() {
-      return [...new Set(this.services.map((s) => s.name))].filter(Boolean);
+      return [...new Set(this.services.map((s) => s.name))].filter(Boolean)
     },
     namespaceOptions() {
       return [...new Set(this.services.map((s) => s.namespace))].filter(
         Boolean
-      );
+      )
     },
     typeOptions() {
-      return [...new Set(this.services.map((s) => s.type))].filter(Boolean);
+      return [...new Set(this.services.map((s) => s.type))].filter(Boolean)
     },
     filteredServices() {
       return this.services.filter((svc) => {
-        if (this.selectedName && svc.name !== this.selectedName) return false;
+        if (this.selectedName && svc.name !== this.selectedName) return false
         if (
           this.selectedNamespace &&
           svc.namespace !== this.selectedNamespace
         ) {
-          return false;
+          return false
         }
-        if (this.selectedType && svc.type !== this.selectedType) return false;
-        return true;
-      });
+        if (this.selectedType && svc.type !== this.selectedType) return false
+        return true
+      })
     },
     pagedServices() {
-      const start = (this.currentPage - 1) * this.pageSize;
-      return this.filteredServices.slice(start, start + this.pageSize);
-    },
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.filteredServices.slice(start, start + this.pageSize)
+    }
   },
 
   methods: {
     handlePageChange(page) {
-      this.currentPage = page;
+      this.currentPage = page
     },
     handlePageSizeChange(size) {
-      this.pageSize = size;
-      this.currentPage = 1;
-    },
-  },
-};
+      this.pageSize = size
+      this.currentPage = 1
+    }
+  }
+}
 </script>
 
 <style scoped>

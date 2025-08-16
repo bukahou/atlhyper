@@ -22,18 +22,18 @@
 </template>
 
 <script>
-import InfoCard from "@/components/Atlhyper/InfoCard.vue";
+import InfoCard from '@/components/Atlhyper/InfoCard.vue'
 // import InfoCard from "../../pod/PodDescribe/components/InfoCard.vue";
-import EventTable from "@/components/Atlhyper/EventDescribe.vue";
-import NodePodTable from "./components/NodePodTable.vue";
-import { getNodeDetail } from "@/api/node";
+import EventTable from '@/components/Atlhyper/EventDescribe.vue'
+import NodePodTable from './components/NodePodTable.vue'
+import { getNodeDetail } from '@/api/node'
 
 export default {
-  name: "NodeDescribe",
+  name: 'NodeDescribe',
   components: {
     InfoCard,
     EventTable,
-    NodePodTable,
+    NodePodTable
   },
   data() {
     return {
@@ -43,114 +43,114 @@ export default {
       networkInfoItems: [],
       statusInfoItems: [],
       nodeEvents: [],
-      runningPods: [],
-    };
+      runningPods: []
+    }
   },
   mounted() {
-    const nodeName = this.$route.params.name;
+    const nodeName = this.$route.params.name
     getNodeDetail(nodeName).then((res) => {
       if (res.code === 20000) {
-        this.node = res.data;
-        this.prepareBasicInfo(res.data);
-        this.prepareSystemInfo(res.data);
-        this.prepareNetworkInfo(res.data);
-        this.prepareStatusInfo(res.data);
-        this.nodeEvents = res.data.events || [];
+        this.node = res.data
+        this.prepareBasicInfo(res.data)
+        this.prepareSystemInfo(res.data)
+        this.prepareNetworkInfo(res.data)
+        this.prepareStatusInfo(res.data)
+        this.nodeEvents = res.data.events || []
         this.runningPods = (res.data.runningPods || []).map((pod) => ({
           name: pod.metadata.name,
           namespace: pod.metadata.namespace,
           containerCount: pod.spec.containers?.length || 0,
-          status: pod.status.phase || "-",
+          status: pod.status.phase || '-',
           restartCount:
             pod.status.containerStatuses?.reduce(
               (sum, c) => sum + (c.restartCount || 0),
               0
             ) || 0,
-          startTime: pod.status.startTime,
-        }));
+          startTime: pod.status.startTime
+        }))
       } else {
-        this.$message.error(res.message || "获取节点信息失败");
+        this.$message.error(res.message || '获取节点信息失败')
       }
-    });
+    })
   },
   methods: {
     prepareBasicInfo(data) {
       this.basicInfoItems = [
-        { label: "节点名称", value: data.node.metadata.name },
+        { label: '节点名称', value: data.node.metadata.name },
         {
-          label: "调度状态",
-          value: data.unschedulable ? "不可调度" : "可调度",
+          label: '调度状态',
+          value: data.unschedulable ? '不可调度' : '可调度'
         },
         {
-          label: "是否为污点",
-          value: data.taints && data.taints.length > 0 ? "是" : "否",
+          label: '是否为污点',
+          value: data.taints && data.taints.length > 0 ? '是' : '否'
         },
         {
-          label: "CPU 使用率",
+          label: 'CPU 使用率',
           value:
             data.usage && data.usage.cpuUsagePercent != null
-              ? data.usage.cpuUsagePercent.toFixed(2) + "%"
-              : "-",
+              ? data.usage.cpuUsagePercent.toFixed(2) + '%'
+              : '-'
         },
         {
-          label: "内存使用率",
+          label: '内存使用率',
           value:
             data.usage && data.usage.memoryUsagePercent != null
-              ? data.usage.memoryUsagePercent.toFixed(2) + "%"
-              : "-",
-        },
-      ];
+              ? data.usage.memoryUsagePercent.toFixed(2) + '%'
+              : '-'
+        }
+      ]
     },
     prepareSystemInfo(data) {
-      const si = data.node.status.nodeInfo;
+      const si = data.node.status.nodeInfo
       this.systemInfoItems = [
-        { label: "内核版本", value: si.kernelVersion || "-" },
-        { label: "OS 镜像", value: si.osImage || "-" },
-        { label: "容器运行时", value: si.containerRuntimeVersion || "-" },
-        { label: "Kubelet 版本", value: si.kubeletVersion || "-" },
-        { label: "架构", value: si.architecture || "-" },
-      ];
+        { label: '内核版本', value: si.kernelVersion || '-' },
+        { label: 'OS 镜像', value: si.osImage || '-' },
+        { label: '容器运行时', value: si.containerRuntimeVersion || '-' },
+        { label: 'Kubelet 版本', value: si.kubeletVersion || '-' },
+        { label: '架构', value: si.architecture || '-' }
+      ]
     },
     prepareNetworkInfo(data) {
-      const status = data.node.status;
-      const addresses = status.addresses || [];
-      const internalIP = addresses.find((a) => a.type === "InternalIP");
-      const hostname = addresses.find((a) => a.type === "Hostname");
+      const status = data.node.status
+      const addresses = status.addresses || []
+      const internalIP = addresses.find((a) => a.type === 'InternalIP')
+      const hostname = addresses.find((a) => a.type === 'Hostname')
 
-      const internal = internalIP?.address || "-";
+      const internal = internalIP?.address || '-'
 
       this.networkInfoItems = [
-        { label: "Internal IP", value: internal },
-        { label: "Hostname", value: hostname?.address || "-" },
-        { label: "Flannel 公网 IP", value: internal }, // ✅ 改为同 internal
-        { label: "Pod CIDR", value: data.node.spec.podCIDR || "-" },
-        { label: "网络插件", value: data.cniPlugin || "Flannel" },
-      ];
+        { label: 'Internal IP', value: internal },
+        { label: 'Hostname', value: hostname?.address || '-' },
+        { label: 'Flannel 公网 IP', value: internal }, // ✅ 改为同 internal
+        { label: 'Pod CIDR', value: data.node.spec.podCIDR || '-' },
+        { label: '网络插件', value: data.cniPlugin || 'Flannel' }
+      ]
     },
     prepareStatusInfo(data) {
-      const conditions = data.node.status.conditions || [];
+      const conditions = data.node.status.conditions || []
 
       const getCondStatus = (type) => {
-        const cond = conditions.find((c) => c.type === type);
-        return cond ? cond.status : "-";
-      };
+        const cond = conditions.find((c) => c.type === type)
+        return cond ? cond.status : '-'
+      }
 
       this.statusInfoItems = [
-        { label: "就绪", value: getCondStatus("Ready") },
-        { label: "内存压力", value: getCondStatus("MemoryPressure") },
-        { label: "磁盘压力", value: getCondStatus("DiskPressure") },
-        { label: "PID 压力", value: getCondStatus("PIDPressure") },
+        { label: '就绪', value: getCondStatus('Ready') },
+        { label: '内存压力', value: getCondStatus('MemoryPressure') },
+        { label: '磁盘压力', value: getCondStatus('DiskPressure') },
+        { label: 'PID 压力', value: getCondStatus('PIDPressure') },
         {
-          label: "运行 Pod 数",
+          label: '运行 Pod 数',
           value:
             Array.isArray(data.runningPods) && data.runningPods.length >= 0
               ? data.runningPods.length
-              : "-",
-        },
-      ];
-    },
-  },
-};
+              : '-'
+        }
+      ]
+    }
+  }
+}
 </script>
 
 <style scoped>
