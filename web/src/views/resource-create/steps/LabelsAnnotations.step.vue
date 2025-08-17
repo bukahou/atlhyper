@@ -1,99 +1,93 @@
 <template>
   <div class="step-labels-annotations">
-    <el-row :gutter="16">
-      <!-- Labels -->
-      <el-col :sm="24" :md="12">
-        <div class="box">
-          <div class="box-title">
-            Labels
-            <el-button
-              type="text"
-              size="mini"
-              @click="quickAddLabel('app', basicName)"
-            >+ app={{ basicName || "..." }}</el-button>
-            <el-button
-              type="text"
-              size="mini"
-              @click="quickAddLabel('version', 'v1')"
-            >+ version=v1</el-button>
-          </div>
-          <el-table :data="labels" border size="mini" style="width: 100%">
-            <el-table-column label="Key" width="220">
-              <template slot-scope="{ row }">
-                <el-input
-                  v-model="row.key"
-                  placeholder="k/v 需为字母数字和 - . _"
-                />
-              </template>
-            </el-table-column>
-            <el-table-column label="Value">
-              <template slot-scope="{ row }">
-                <el-input v-model="row.value" />
-              </template>
-            </el-table-column>
-            <el-table-column width="90" label="操作">
-              <template slot-scope="{ $index }">
-                <el-button
-                  size="mini"
-                  type="text"
-                  @click="labels.splice($index, 1)"
-                >删</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div class="mt8">
-            <el-button
-              size="mini"
-              @click="labels.push({ key: '', value: '' })"
-            >+ 添加</el-button>
-          </div>
-        </div>
-      </el-col>
+    <!-- Labels -->
+    <div class="box mb12">
+      <div class="box-title">
+        Labels
+        <el-button
+          type="text"
+          size="mini"
+          @click="quickAddLabel('app', basicName)"
+          >+ app={{ basicName || "..." }}</el-button
+        >
+        <el-button
+          type="text"
+          size="mini"
+          @click="quickAddLabel('version', 'v1')"
+          >+ version=v1</el-button
+        >
+      </div>
+      <el-table :data="labels" border size="mini" style="width: 100%">
+        <el-table-column label="Key" width="220">
+          <template slot-scope="{ row }">
+            <el-input
+              v-model="row.key"
+              placeholder="k/v 需为字母数字和 - . _"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="Value">
+          <template slot-scope="{ row }">
+            <el-input v-model="row.value" />
+          </template>
+        </el-table-column>
+        <el-table-column width="90" label="操作">
+          <template slot-scope="{ $index }">
+            <el-button size="mini" type="text" @click="labels.splice($index, 1)"
+              >删</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="mt8">
+        <el-button size="mini" @click="labels.push({ key: '', value: '' })"
+          >+ 添加</el-button
+        >
+      </div>
+    </div>
 
-      <!-- Annotations -->
-      <el-col :sm="24" :md="12">
-        <div class="box">
-          <div class="box-title">
-            Annotations
+    <!-- Annotations -->
+    <div class="box mb12">
+      <div class="box-title">
+        Annotations
+        <el-button
+          type="text"
+          size="mini"
+          @click="quickAddAnno('kubectl.kubernetes.io/restartedAt', nowIso)"
+          >+ restartedAt</el-button
+        >
+      </div>
+      <el-table :data="annotations" border size="mini" style="width: 100%">
+        <el-table-column label="Key" width="260">
+          <template slot-scope="{ row }">
+            <el-input
+              v-model="row.key"
+              placeholder="如：kubectl.kubernetes.io/restartedAt"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="Value">
+          <template slot-scope="{ row }">
+            <el-input v-model="row.value" />
+          </template>
+        </el-table-column>
+        <el-table-column width="90" label="操作">
+          <template slot-scope="{ $index }">
             <el-button
+              size="mini"
               type="text"
-              size="mini"
-              @click="quickAddAnno('kubectl.kubernetes.io/restartedAt', nowIso)"
-            >+ restartedAt</el-button>
-          </div>
-          <el-table :data="annotations" border size="mini" style="width: 100%">
-            <el-table-column label="Key" width="260">
-              <template slot-scope="{ row }">
-                <el-input
-                  v-model="row.key"
-                  placeholder="如：kubectl.kubernetes.io/restartedAt"
-                />
-              </template>
-            </el-table-column>
-            <el-table-column label="Value">
-              <template slot-scope="{ row }">
-                <el-input v-model="row.value" />
-              </template>
-            </el-table-column>
-            <el-table-column width="90" label="操作">
-              <template slot-scope="{ $index }">
-                <el-button
-                  size="mini"
-                  type="text"
-                  @click="annotations.splice($index, 1)"
-                >删</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div class="mt8">
-            <el-button
-              size="mini"
-              @click="annotations.push({ key: '', value: '' })"
-            >+ 添加</el-button>
-          </div>
-        </div>
-      </el-col>
-    </el-row>
+              @click="annotations.splice($index, 1)"
+              >删</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="mt8">
+        <el-button size="mini" @click="annotations.push({ key: '', value: '' })"
+          >+ 添加</el-button
+        >
+      </div>
+    </div>
 
     <!-- ✅ 作用范围选择 -->
     <div class="box mt12">
@@ -113,89 +107,104 @@
 </template>
 
 <script>
-import store from '../stores/createForm.store'
+import store from "../stores/createForm.store";
+
+function stripOuterQuotes(s = "") {
+  const t = String(s).trim();
+  if (
+    (t.startsWith('"') && t.endsWith('"')) ||
+    (t.startsWith("'") && t.endsWith("'"))
+  ) {
+    return t.slice(1, -1);
+  }
+  return t;
+}
 
 function normalizeKV(list = []) {
-  const out = []
+  const out = [];
   const seen = new Set();
-  (list || []).forEach(({ key = '', value = '' }) => {
-    const k = String(key).trim()
-    if (!k) return // 过滤空 key
-    const v = String(value).trim()
-    if (seen.has(k)) return // 简单去重（保留首个）
-    seen.add(k)
-    out.push({ key: k, value: v })
-  })
-  return out
+  (list || []).forEach(({ key = "", value = "" }) => {
+    const k = String(key).trim();
+    if (!k) return;
+    const v = stripOuterQuotes(value);
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ key: k, value: v });
+  });
+  return out;
 }
 
 export default {
-  name: 'LabelsAnnotationsStep',
+  name: "LabelsAnnotationsStep",
   data() {
-    const s = store.form
+    const s = store.form;
     return {
       labels: normalizeKV(s.labels || []),
       annotations: normalizeKV(s.annotations || []),
-      // scope 以数组形式管理，便于多选
       scopeSelected:
         Array.isArray(s.scope) && s.scope.length
           ? [...s.scope]
-          : ['metadata', 'podTemplate']
-    }
+          : ["metadata", "podTemplate"],
+    };
   },
   computed: {
     basicName() {
-      return store.form?.basic?.name || ''
+      return store.form?.basic?.name || "";
     },
     nowIso() {
-      // 常用于 kubectl.kubernetes.io/restartedAt
-      // 2025-08-16T19:35:00+09:00 类似格式
-      const d = new Date()
-      const tz = -d.getTimezoneOffset()
-      const sign = tz >= 0 ? '+' : '-'
-      const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, '0')
-      const hh = pad(tz / 60)
-      const mm = pad(tz % 60)
-      return d.toISOString().replace('Z', `${sign}${hh}:${mm}`)
-    }
+      const d = new Date();
+      const tz = -d.getTimezoneOffset();
+      const sign = tz >= 0 ? "+" : "-";
+      const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, "0");
+      const hh = pad(tz / 60);
+      const mm = pad(tz % 60);
+      return d.toISOString().replace("Z", `${sign}${hh}:${mm}`);
+    },
   },
   watch: {
     labels: {
       deep: true,
       handler(v) {
-        store.form.labels = normalizeKV(v)
-      }
+        store.form.labels = normalizeKV(v);
+      },
     },
     annotations: {
       deep: true,
       handler(v) {
-        store.form.annotations = normalizeKV(v)
-      }
+        store.form.annotations = normalizeKV(v);
+      },
     },
     scopeSelected(v) {
-      // 写回 scope；为空则留空，builder 会走默认策略
-      store.form.scope = Array.isArray(v) ? [...v] : []
+      store.form.scope = Array.isArray(v) ? [...v] : [];
+    },
+  },
+  mounted() {
+    if (Array.isArray(store.form.annotations)) {
+      store.form.annotations = normalizeKV(store.form.annotations);
+    }
+    if (Array.isArray(store.form.labels)) {
+      store.form.labels = normalizeKV(store.form.labels);
     }
   },
   methods: {
     quickAddLabel(k, v) {
-      if (!k) return
-      const key = String(k).trim()
-      const val = String(v || '').trim()
-      const idx = this.labels.findIndex((x) => x.key === key)
-      if (idx >= 0) this.$set(this.labels, idx, { key, value: val })
-      else this.labels.push({ key, value: val })
+      if (!k) return;
+      const key = String(k).trim();
+      const val = stripOuterQuotes(v);
+      const idx = this.labels.findIndex((x) => x.key === key);
+      if (idx >= 0) this.$set(this.labels, idx, { key, value: val });
+      else this.labels.push({ key, value: val });
     },
     quickAddAnno(k, v) {
-      if (!k) return
-      const key = String(k).trim()
-      const val = String(v || '').trim()
-      const idx = this.annotations.findIndex((x) => x.key === key)
-      if (idx >= 0) this.$set(this.annotations, idx, { key, value: val })
-      else this.annotations.push({ key, value: val })
-    }
-  }
-}
+      if (!k) return;
+      const key = String(k).trim();
+      const val = stripOuterQuotes(v);
+      const idx = this.annotations.findIndex((x) => x.key === key);
+      if (idx >= 0) this.$set(this.annotations, idx, { key, value: val });
+      else this.annotations.push({ key, value: val });
+    },
+  },
+};
 </script>
 
 <style scoped>
@@ -213,6 +222,9 @@ export default {
 }
 .mt8 {
   margin-top: 8px;
+}
+.mb12 {
+  margin-bottom: 12px;
 }
 .mt12 {
   margin-top: 12px;

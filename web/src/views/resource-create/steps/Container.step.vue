@@ -1,186 +1,28 @@
 <template>
   <div class="step-container">
     <el-form label-width="120px">
-      <el-form-item label="容器名">
-        <el-input v-model="local.name" placeholder="不填默认 container" />
-      </el-form-item>
-
-      <el-form-item label="镜像" required>
-        <el-input
-          v-model="local.image"
-          placeholder="如 nginx:1.25 或 ghcr.io/org/img:tag"
-        />
-      </el-form-item>
-
-      <el-form-item label="拉取策略">
-        <el-select v-model="local.pullPolicy" placeholder="可选">
-          <el-option label="IfNotPresent" value="IfNotPresent" />
-          <el-option label="Always" value="Always" />
-          <el-option label="Never" value="Never" />
-        </el-select>
-      </el-form-item>
+      <!-- 基本信息 -->
+      <el-divider content-position="left">基本信息</el-divider>
+      <BasicFields v-model="local.basic" />
 
       <!-- 端口 -->
-      <el-form-item label="端口">
-        <el-table :data="local.ports" border size="mini" style="width: 100%">
-          <el-table-column label="名称" width="160">
-            <template slot-scope="{ row }">
-              <el-input v-model="row.name" placeholder="可选" />
-            </template>
-          </el-table-column>
-          <el-table-column label="容器端口" width="160">
-            <template slot-scope="{ row }">
-              <el-input v-model.number="row.containerPort" placeholder="80" />
-            </template>
-          </el-table-column>
-          <el-table-column width="90" label="操作">
-            <template slot-scope="{ $index }">
-              <el-button
-                size="mini"
-                type="text"
-                @click="local.ports.splice($index, 1)"
-              >删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div class="mt8">
-          <el-button
-            size="mini"
-            @click="local.ports.push({ name: '', containerPort: null })"
-          >+ 添加端口</el-button>
-        </div>
-      </el-form-item>
+      <el-divider content-position="left">端口</el-divider>
+      <PortsTable v-model="local.ports" />
 
       <!-- 环境变量 -->
-      <el-form-item label="环境变量">
-        <el-table :data="local.env" border size="mini" style="width: 100%">
-          <el-table-column label="名称" width="200">
-            <template slot-scope="{ row }">
-              <el-input v-model="row.name" placeholder="ENV_NAME" />
-            </template>
-          </el-table-column>
-          <el-table-column label="值">
-            <template slot-scope="{ row }">
-              <el-input v-model="row.value" placeholder="ENV_VALUE" />
-            </template>
-          </el-table-column>
-          <el-table-column width="90" label="操作">
-            <template slot-scope="{ $index }">
-              <el-button
-                size="mini"
-                type="text"
-                @click="local.env.splice($index, 1)"
-              >删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div class="mt8">
-          <el-button
-            size="mini"
-            @click="local.env.push({ name: '', value: '' })"
-          >+ 添加变量</el-button>
-        </div>
-      </el-form-item>
+      <el-divider content-position="left">环境变量</el-divider>
+      <EnvTable v-model="local.env" />
 
-      <!-- ✅ envFrom（批量引入 ConfigMap/Secret） -->
-      <el-form-item label="envFrom">
-        <el-table :data="local.envFrom" border size="mini" style="width: 100%">
-          <el-table-column label="类型" width="160">
-            <template slot-scope="{ row }">
-              <el-select v-model="row.type" placeholder="选择">
-                <el-option label="ConfigMap" value="configMapRef" />
-                <el-option label="Secret" value="secretRef" />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="名称">
-            <template slot-scope="{ row }">
-              <el-input v-model="row.name" placeholder="如 common-config" />
-            </template>
-          </el-table-column>
-          <el-table-column width="90" label="操作">
-            <template slot-scope="{ $index }">
-              <el-button
-                size="mini"
-                type="text"
-                @click="local.envFrom.splice($index, 1)"
-              >删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div class="mt8">
-          <el-button
-            size="mini"
-            @click="local.envFrom.push({ type: 'configMapRef', name: '' })"
-          >+ 添加来源</el-button>
-        </div>
-        <div class="hint">将渲染为 <code>containers[].envFrom</code></div>
-      </el-form-item>
+      <!-- envFrom -->
+      <el-divider content-position="left">envFrom</el-divider>
+      <EnvFromTable v-model="local.envFrom" />
 
-      <!-- ✅ 卷挂载（容器内） -->
-      <el-form-item label="卷挂载">
-        <el-table
-          :data="local.volumeMounts"
-          border
-          size="mini"
-          style="width: 100%"
-        >
-          <el-table-column label="卷名" width="220">
-            <template slot-scope="{ row }">
-              <el-input
-                v-model="row.name"
-                placeholder="如 user-avatar-storage"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="挂载路径">
-            <template slot-scope="{ row }">
-              <el-input
-                v-model="row.mountPath"
-                placeholder="/app/img/UserAvatar"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="subPath" width="200">
-            <template slot-scope="{ row }">
-              <el-input v-model="row.subPath" placeholder="可选" />
-            </template>
-          </el-table-column>
-          <el-table-column label="只读" width="100">
-            <template slot-scope="{ row }">
-              <el-switch v-model="row.readOnly" />
-            </template>
-          </el-table-column>
-          <el-table-column width="90" label="操作">
-            <template slot-scope="{ $index }">
-              <el-button
-                size="mini"
-                type="text"
-                @click="local.volumeMounts.splice($index, 1)"
-              >删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div class="mt8">
-          <el-button
-            size="mini"
-            @click="
-              local.volumeMounts.push({
-                name: '',
-                mountPath: '',
-                readOnly: false,
-                subPath: '',
-              })
-            "
-          >+ 添加挂载</el-button>
-        </div>
-        <div class="hint">
-          卷实体在「存储」步骤配置（Pod 级
-          <code>spec.volumes</code>），这里是容器内的挂载点（<code>volumeMounts</code>）。
-        </div>
-      </el-form-item>
+      <!-- 卷挂载 -->
+      <el-divider content-position="left">卷挂载</el-divider>
+      <VolumeMountsTable v-model="local.volumeMounts" />
 
-      <!-- 资源 -->
+      <!-- 资源（仍留在父组件，非 6 子模块之一） -->
+      <el-divider content-position="left">资源（Resources）</el-divider>
       <el-form-item label="Requests">
         <div class="row">
           <el-input
@@ -207,100 +49,126 @@
           />
         </div>
       </el-form-item>
+
+      <!-- 健康检查（第 6 个子模块） -->
+      <el-divider content-position="left">健康检查（Probes）</el-divider>
+      <ProbesEditor v-model="local.probes" :ports="local.ports" />
     </el-form>
   </div>
 </template>
 
 <script>
-import store from '../stores/createForm.store'
+import store from "../stores/createForm.store";
+
+// 子组件
+import BasicFields from "./Container/BasicFields.vue";
+import PortsTable from "./Container/PortsTable.vue";
+import EnvTable from "./Container/EnvTable.vue";
+import EnvFromTable from "./Container/EnvFromTable.vue";
+import VolumeMountsTable from "./Container/VolumeMountsTable.vue";
+import ProbesEditor from "./Container/ProbesEditor.vue";
+
+const trim = (x) => String(x || "").trim();
+const clone = (x) => JSON.parse(JSON.stringify(x || {}));
 
 export default {
-  name: 'ContainerStep',
+  name: "ContainerStep",
+  components: {
+    BasicFields,
+    PortsTable,
+    EnvTable,
+    EnvFromTable,
+    VolumeMountsTable,
+    ProbesEditor,
+  },
   data() {
-    const s = store.form.container
+    const s = store.form.container || {};
     return {
       local: {
-        name: s.name || '',
-        image: s.image || '',
-        pullPolicy: s.pullPolicy || '',
-        ports: (s.ports && s.ports.map((p) => ({ ...p }))) || [],
-        env: (s.env && s.env.map((e) => ({ ...e }))) || [],
-        envFrom: (s.envFrom && s.envFrom.map((x) => ({ ...x }))) || [],
-        volumeMounts:
-          (s.volumeMounts && s.volumeMounts.map((m) => ({ ...m }))) || [],
+        basic: {
+          name: s.name || "",
+          image: s.image || "",
+          pullPolicy: s.pullPolicy || "",
+        },
+        ports: (s.ports || []).map((p) => ({ ...p })),
+        env: (s.env || []).map((e) => ({ ...e })),
+        envFrom: (s.envFrom || []).map((x) => ({ ...x })),
+        volumeMounts: (s.volumeMounts || []).map((m) => ({ ...m })),
         resources: {
           requests: { ...(s.resources?.requests || {}) },
-          limits: { ...(s.resources?.limits || {}) }
-        }
-      }
-    }
+          limits: { ...(s.resources?.limits || {}) },
+        },
+        // 子组件内部会做默认与启停控制；这里只透传已有值
+        probes: clone(s.probes) || { readiness: null, liveness: null },
+      },
+    };
   },
   watch: {
     local: {
       deep: true,
       handler(v) {
-        // ---- 统一清洗 & 去重 ----
-        const trimStr = (x) => String(x || '').trim()
-
         // ports：只保留有 containerPort 的；强转 Number
         const ports = (v.ports || [])
           .map((p) => ({
-            name: trimStr(p.name),
-            containerPort: Number(p.containerPort)
+            name: trim(p.name),
+            containerPort: Number(p.containerPort),
           }))
-          .filter((p) => Number.isFinite(p.containerPort))
+          .filter((p) => Number.isFinite(p.containerPort));
 
-        // env：只保留有 name 的；同名去重（后者覆盖前者）
+        // env：只保留有 name；同名后者覆盖前者
         const envMap = new Map();
         (v.env || []).forEach((e) => {
-          const name = trimStr(e.name)
-          if (!name) return
-          envMap.set(name, { name, value: String(e.value ?? '') })
-        })
-        const env = Array.from(envMap.values())
+          const n = trim(e.name);
+          if (!n) return;
+          envMap.set(n, { name: n, value: String(e.value ?? "") });
+        });
+        const env = Array.from(envMap.values());
 
-        // envFrom：只保留有 name；规范化 type；去重（type/name 组合）
-        const envFromSeen = new Set()
+        // envFrom：规范化 type；去重（type/name 组合）
+        const seen = new Set();
         const envFrom = (v.envFrom || [])
           .map((x) => ({
-            type: x.type === 'secretRef' ? 'secretRef' : 'configMapRef',
-            name: trimStr(x.name)
+            type: x.type === "secretRef" ? "secretRef" : "configMapRef",
+            name: trim(x.name),
           }))
           .filter((x) => x.name)
           .filter((x) => {
-            const k = `${x.type}/${x.name}`
-            if (envFromSeen.has(k)) return false
-            envFromSeen.add(k)
-            return true
-          })
+            const k = `${x.type}/${x.name}`;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
 
-        // volumeMounts：只保留 name+mountPath；去重（按 name+mountPath）
-        const vmSeen = new Set()
+        // volumeMounts：只保留 name+mountPath；去重
+        const vmSeen = new Set();
         const volumeMounts = (v.volumeMounts || [])
           .map((m) => ({
-            name: trimStr(m.name),
-            mountPath: trimStr(m.mountPath),
-            subPath: trimStr(m.subPath),
-            readOnly: !!m.readOnly
+            name: trim(m.name),
+            mountPath: trim(m.mountPath),
+            subPath: trim(m.subPath),
+            readOnly: !!m.readOnly,
           }))
           .filter((m) => m.name && m.mountPath)
           .filter((m) => {
-            const k = `${m.name}|${m.mountPath}`
-            if (vmSeen.has(k)) return false
-            vmSeen.add(k)
-            return true
-          })
+            const k = `${m.name}|${m.mountPath}`;
+            if (vmSeen.has(k)) return false;
+            vmSeen.add(k);
+            return true;
+          });
 
-        // 资源：保持原样（让 builder 决定是否输出）
+        // 资源：保持原样（builder 决定是否输出）
         const resources = {
           requests: { ...(v.resources?.requests || {}) },
-          limits: { ...(v.resources?.limits || {}) }
-        }
+          limits: { ...(v.resources?.limits || {}) },
+        };
 
-        // 顶部基本字段
-        const name = trimStr(v.name)
-        const image = trimStr(v.image)
-        const pullPolicy = trimStr(v.pullPolicy)
+        // probes：子组件已做“启用且完整才返回对象，否则 null”
+        const probes = clone(v.probes);
+
+        // 基本字段
+        const name = trim(v.basic?.name);
+        const image = trim(v.basic?.image);
+        const pullPolicy = trim(v.basic?.pullPolicy);
 
         store.form.container = {
           name,
@@ -310,27 +178,21 @@ export default {
           env,
           envFrom,
           volumeMounts,
-          resources
-        }
-      }
-    }
-  }
-}
+          resources,
+          probes,
+        };
+      },
+    },
+  },
+};
 </script>
 
 <style scoped>
 .row {
   display: flex;
+  align-items: center;
 }
 .mr8 {
   margin-right: 8px;
-}
-.mt8 {
-  margin-top: 8px;
-}
-.hint {
-  color: #909399;
-  font-size: 12px;
-  margin-top: 6px;
 }
 </style>
