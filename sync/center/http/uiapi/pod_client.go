@@ -1,6 +1,7 @@
 package uiapi
 
 import (
+	pod "NeuroController/model"
 	"NeuroController/sync/center/http"
 	"fmt"
 	"net/url"
@@ -9,17 +10,17 @@ import (
 )
 
 // ✅ Pod 精简信息（复用 Agent 定义）
-type PodInfo struct {
-	Namespace    string `json:"namespace"`
-	Deployment   string `json:"deployment"`
-	Name         string `json:"name"`
-	Ready        bool   `json:"ready"`
-	Phase        string `json:"phase"`
-	RestartCount int32  `json:"restartCount"`
-	StartTime    string `json:"startTime"`
-	PodIP        string `json:"podIP"`
-	NodeName     string `json:"nodeName"`
-}
+// type PodInfo struct {
+// 	Namespace    string `json:"namespace"`
+// 	Deployment   string `json:"deployment"`
+// 	Name         string `json:"name"`
+// 	Ready        bool   `json:"ready"`
+// 	Phase        string `json:"phase"`
+// 	RestartCount int32  `json:"restartCount"`
+// 	StartTime    string `json:"startTime"`
+// 	PodIP        string `json:"podIP"`
+// 	NodeName     string `json:"nodeName"`
+// }
 
 // ✅ Pod 资源使用信息（复用 Agent 定义）
 type PodUsage struct {
@@ -49,22 +50,22 @@ type PodUsageInfo struct {
 // ✅ 获取所有 Pod（列表）
 // GET /agent/uiapi/pod/list
 // =======================================
-func GetAllPods() ([]corev1.Pod, error) {
-	var result []corev1.Pod
-	err := http.GetFromAgent("/agent/uiapi/pod/list", &result)
-	return result, err
-}
+// func GetAllPods() ([]corev1.Pod, error) {
+// 	var result []corev1.Pod
+// 	err := http.GetFromAgent("/agent/uiapi/pod/list", &result)
+// 	return result, err
+// }
 
 //
 // =======================================
 // ✅ 获取指定命名空间下 Pod
 // GET /agent/uiapi/pod/list/by-namespace/:ns
 // =======================================
-func GetPodsByNamespace(ns string) ([]corev1.Pod, error) {
-	var result []corev1.Pod
-	err := http.GetFromAgent("/agent/uiapi/pod/list/by-namespace/"+url.PathEscape(ns), &result)
-	return result, err
-}
+// func GetPodsByNamespace(ns string) ([]corev1.Pod, error) {
+// 	var result []corev1.Pod
+// 	err := http.GetFromAgent("/agent/uiapi/pod/list/by-namespace/"+url.PathEscape(ns), &result)
+// 	return result, err
+// }
 
 //
 // =======================================
@@ -82,19 +83,19 @@ func GetPodStatusSummary() (map[string]int, error) {
 // ✅ 获取 Pod 资源使用情况
 // GET /agent/uiapi/pod/usage
 // =======================================
-func GetPodUsages() ([]PodUsage, error) {
-	var result []PodUsage
-	err := http.GetFromAgent("/agent/uiapi/pod/usage", &result)
-	return result, err
-}
+// func GetPodUsages() ([]PodUsage, error) {
+// 	var result []PodUsage
+// 	err := http.GetFromAgent("/agent/uiapi/pod/usage", &result)
+// 	return result, err
+// }
 
 //
 // =======================================
 // ✅ 获取 Pod 精简信息
 // GET /agent/uiapi/pod/infos
 // =======================================
-func GetAllPodInfos() ([]PodInfo, error) {
-	var result []PodInfo
+func GetAllPodInfos() ([]pod.PodInfo, error) {
+	var result []pod.PodInfo
 	err := http.GetFromAgent("/agent/uiapi/pod/infos", &result)
 	return result, err
 }
@@ -129,11 +130,11 @@ func RestartPod(namespace, name string) error {
 // ✅ 获取 Pod 日志
 // GET /agent/uiapi/pod/logs?namespace=xx&name=xx&container=xx&tailLines=100
 // =======================================
-func GetPodLogs(namespace, name, container string, tailLines int64) (string, error) {
-	endpoint := fmt.Sprintf("/agent/uiapi/pod/logs?namespace=%s&name=%s&container=%s&tailLines=%d",
-		url.QueryEscape(namespace), url.QueryEscape(name), url.QueryEscape(container), tailLines)
+// func GetPodLogs(namespace, name, container string, tailLines int64) (string, error) {
+// 	endpoint := fmt.Sprintf("/agent/uiapi/pod/logs?namespace=%s&name=%s&container=%s&tailLines=%d",
+// 		url.QueryEscape(namespace), url.QueryEscape(name), url.QueryEscape(container), tailLines)
 
-	var result string
-	err := http.GetTextFromAgent(endpoint, &result)
-	return result, err
-}
+// 	var result string
+// 	err := http.GetTextFromAgent(endpoint, &result)
+// 	return result, err
+// }

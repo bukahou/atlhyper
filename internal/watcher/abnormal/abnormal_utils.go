@@ -273,7 +273,7 @@ func GetServiceAbnormalReason(svc corev1.Service) *ServiceAbnormalReason {
 		return nil
 	}
 
-	// 🧠 异常 1：Selector 为空
+	//  异常 1：Selector 为空
 	if len(svc.Spec.Selector) == 0 {
 		reason := ServiceAbnormalReasonMap["EmptySelector"]
 		exceptionID := utils.GenerateExceptionID("Service", name, namespace, reason.Code)
@@ -283,7 +283,7 @@ func GetServiceAbnormalReason(svc corev1.Service) *ServiceAbnormalReason {
 		return &reason
 	}
 
-	// 🧠 异常 2：ExternalName 类型
+	//  异常 2：ExternalName 类型
 	if svc.Spec.Type == corev1.ServiceTypeExternalName {
 		reason := ServiceAbnormalReasonMap["ExternalNameService"]
 		exceptionID := utils.GenerateExceptionID("Service", name, namespace, reason.Code)
@@ -293,7 +293,7 @@ func GetServiceAbnormalReason(svc corev1.Service) *ServiceAbnormalReason {
 		return &reason
 	}
 
-	// 🧠 异常 3：ClusterIP 异常
+	//  异常 3：ClusterIP 异常
 	if svc.Spec.ClusterIP == "" || svc.Spec.ClusterIP == "None" {
 		reason := ServiceAbnormalReasonMap["ClusterIPNone"]
 		exceptionID := utils.GenerateExceptionID("Service", name, namespace, reason.Code)
@@ -303,7 +303,7 @@ func GetServiceAbnormalReason(svc corev1.Service) *ServiceAbnormalReason {
 		return &reason
 	}
 
-	// 🧠 异常 4：未定义任何端口
+	//  异常 4：未定义任何端口
 	if len(svc.Spec.Ports) == 0 {
 		reason := ServiceAbnormalReasonMap["PortNotDefined"]
 		exceptionID := utils.GenerateExceptionID("Service", name, namespace, reason.Code)

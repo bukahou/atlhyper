@@ -1,3 +1,4 @@
+// internal/ingest/receivers/metrics.go
 package receivers
 
 import (
@@ -10,28 +11,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"NeuroController/internal/ingest/store"
+	"NeuroController/internal/agent_store"
 	nmodel "NeuroController/model/metrics"
 )
 
-// RegisterMetricsRoutes 注册 metrics 接收路由。
-//   - r: 建议传入 /ingest 前缀下的分组，例如 r := engine.Group("/ingest")
-//   - st: 内存存储（metrics_store）
-//   - maxBodyBytes: 请求体大小限制（字节）；<=0 则使用默认 2MiB
-func RegisterMetricsRoutes(r *gin.RouterGroup, st *store.Store, maxBodyBytes int64) {
-	if maxBodyBytes <= 0 {
-		maxBodyBytes = 2 << 20 // 2 MiB
-	}
-	// 选项 B：语义更明确
-	r.POST("/v1/snapshot", func(c *gin.Context) {
-		handlePostMetrics(c, st, maxBodyBytes)
-	})
+const defaultMaxBodyBytes int64 = 2 << 20 // 2 MiB
 
-}
-
-// handlePostMetrics 处理 collector 推送过来的 metrics 快照。
-// 支持 Content-Encoding: gzip；做基本校验并写入内存 store。
-func handlePostMetrics(c *gin.Context, st *store.Store, maxBody int64) {
+// HandlePostMetrics 处理 collector 推送过来的 metrics 快照。
+// 支持 Content-Encoding: gzip；做基本校验并写入全局 agent_store。
+func HandlePostMetrics(c *gin.Context) {
 	// 方法保护（通常不会触发，因为路由只绑定了 POST）
 	if c.Request.Method != http.MethodPost {
 		c.AbortWithStatus(http.StatusMethodNotAllowed)
@@ -40,10 +28,10 @@ func handlePostMetrics(c *gin.Context, st *store.Store, maxBody int64) {
 
 	// 请求体大小限制（防止打爆内存）
 	body := c.Request.Body
-	defer body.Close()
-	if maxBody > 0 {
-		body = http.MaxBytesReader(c.Writer, body, maxBody)
+	if defaultMaxBodyBytes > 0 {
+		body = http.MaxBytesReader(c.Writer, body, defaultMaxBodyBytes)
 	}
+	defer body.Close() // 注意：放在 MaxBytesReader 包装之后
 
 	// 可选 gzip 解压
 	var reader io.Reader = body
@@ -57,9 +45,14 @@ func handlePostMetrics(c *gin.Context, st *store.Store, maxBody int64) {
 		reader = zr
 	}
 
-	// 反序列化为你们统一的模型结构
+	// 反序列化为统一模型
 	var snap nmodel.NodeMetricsSnapshot
 	if err := json.NewDecoder(reader).Decode(&snap); err != nil {
+		// 大小超限时，这里通常是 *http.MaxBytesError
+		if _, ok := err.(*http.MaxBytesError); ok {
+			c.AbortWithStatus(http.StatusRequestEntityTooLarge)
+			return
+		}
 		c.String(http.StatusBadRequest, "invalid json")
 		return
 	}
@@ -73,9 +66,9 @@ func handlePostMetrics(c *gin.Context, st *store.Store, maxBody int64) {
 		snap.Timestamp = time.Now()
 	}
 
-	// 入内存存储（10分钟窗口由 store 的清理协程负责）
-	st.Put(snap.NodeName, &snap)
+	// 入全局内存存储（只保留各节点“最新一条”）
+	agent_store.PutSnapshot(&snap)
 
-	// 202 表示已接收并入队/入库（此处直接入库）
+	// 202 表示已接收
 	c.Status(http.StatusAccepted)
 }

@@ -38,10 +38,10 @@ func InitDB() {
 		log.Fatalf("初始化管理员失败: %v", err)
 	}
 	// 5️⃣ 插入用户审计测试数据
-	// err = user.InsertTestAuditLog()
-	// if err != nil {
-	// 	log.Fatalf("插入用户审计测试数据失败: %v", err)
-	// }
+	err = user.EnsureDefaultUsers()
+	if err != nil {
+		log.Fatalf("初始化默认用户失败: %v", err)
+	}
 
 	log.Println("✅ SQLite 数据库初始化完成")
 }

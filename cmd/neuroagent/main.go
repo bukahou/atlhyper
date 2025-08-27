@@ -23,6 +23,7 @@ import (
 	"NeuroController/config"
 	"NeuroController/internal"
 	"NeuroController/internal/bootstrap"
+	"NeuroController/internal/push"
 	"NeuroController/internal/utils"
 	bootstrapgo "NeuroController/sync/agent/bootstrap.go"
 
@@ -45,6 +46,9 @@ func main() {
 
 	// ✅ 启动内部子系统（诊断器、清理器等）
 	internal.StartInternalSystems()
+
+	// ✅ 启动事件推送（独立 goroutine，内部自行取 clusterID/定时/优雅退出）
+	go push.StartPusher() 
 
 	// ✅ 启动 Agent HTTP Server
 	go bootstrapgo.StartAgentServer()

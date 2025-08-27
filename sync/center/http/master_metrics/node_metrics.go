@@ -1,17 +1,11 @@
 package master_metrics
 
-import (
-	"NeuroController/sync/center/http"
-	"encoding/json"
-)
-
 // GetLatestNodeMetrics 从 agent 获取所有节点的最新指标数据
-func GetLatestNodeMetrics() (json.RawMessage, error) {
-    var raw json.RawMessage
-    err := http.GetFromAgent("/agent/dataapi/latest", &raw)
-    return raw, err
-}
-
+// func GetLatestNodeMetrics() (json.RawMessage, error) {
+//     var raw json.RawMessage
+//     err := http.GetFromAgent("/agent/dataapi/latest", &raw)
+//     return raw, err
+// }
 
 // func saveLatestSnapshotsOnce() error {
 //     ctx := context.Background()

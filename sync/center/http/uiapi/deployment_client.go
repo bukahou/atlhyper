@@ -17,12 +17,12 @@ func GetAllDeployments() ([]appsv1.Deployment, error) {
 
 // ===============================
 // 📌 GET /agent/uiapi/deployments/by-namespace/:ns
-func GetDeploymentsByNamespace(namespace string) ([]appsv1.Deployment, error) {
-	var result []appsv1.Deployment
-	path := fmt.Sprintf("/agent/uiapi/deployments/by-namespace/%s", namespace)
-	err := http.GetFromAgent(path, &result)
-	return result, err
-}
+// func GetDeploymentsByNamespace(namespace string) ([]appsv1.Deployment, error) {
+// 	var result []appsv1.Deployment
+// 	path := fmt.Sprintf("/agent/uiapi/deployments/by-namespace/%s", namespace)
+// 	err := http.GetFromAgent(path, &result)
+// 	return result, err
+// }
 
 // ===============================
 // 📌 GET /agent/uiapi/deployments/detail/:ns/:name
@@ -38,19 +38,19 @@ func GetDeploymentByName(namespace, name string) (*appsv1.Deployment, error) {
 
 // ===============================
 // 📌 GET /agent/uiapi/deployments/unavailable
-func GetUnavailableDeployments() ([]appsv1.Deployment, error) {
-	var result []appsv1.Deployment
-	err := http.GetFromAgent("/agent/uiapi/deployments/unavailable", &result)
-	return result, err
-}
+// func GetUnavailableDeployments() ([]appsv1.Deployment, error) {
+// 	var result []appsv1.Deployment
+// 	err := http.GetFromAgent("/agent/uiapi/deployments/unavailable", &result)
+// 	return result, err
+// }
 
 // ===============================
 // 📌 GET /agent/uiapi/deployments/progressing
-func GetProgressingDeployments() ([]appsv1.Deployment, error) {
-	var result []appsv1.Deployment
-	err := http.GetFromAgent("/agent/uiapi/deployments/progressing", &result)
-	return result, err
-}
+// func GetProgressingDeployments() ([]appsv1.Deployment, error) {
+// 	var result []appsv1.Deployment
+// 	err := http.GetFromAgent("/agent/uiapi/deployments/progressing", &result)
+// 	return result, err
+// }
 
 // ===============================
 // 📌 POST /agent/uiapi/deployments/replicas

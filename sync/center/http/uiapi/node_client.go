@@ -4,8 +4,6 @@ import (
 	"NeuroController/model"
 	"NeuroController/sync/center/http"
 	"fmt"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 // =============================================
@@ -60,14 +58,14 @@ func GetNodeOverview() (*NodeOverviewResult, error) {
 // =============================================
 // ✅ GET /agent/uiapi/node/list
 // =============================================
-func GetAllNodes() ([]corev1.Node, error) {
-	var result []corev1.Node
-	err := http.GetFromAgent("/agent/uiapi/node/list", &result)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
+// func GetAllNodes() ([]corev1.Node, error) {
+// 	var result []corev1.Node
+// 	err := http.GetFromAgent("/agent/uiapi/node/list", &result)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return result, nil
+// }
 
 //
 // =============================================
@@ -87,14 +85,14 @@ func GetNodeDetail(name string) (*model.NodeDetailInfo, error) {
 // =============================================
 // ✅ GET /agent/uiapi/node/metrics-summary
 // =============================================
-func GetNodeMetricsSummary() (*NodeMetricsSummary, error) {
-	var result NodeMetricsSummary
-	err := http.GetFromAgent("/agent/uiapi/node/metrics-summary", &result)
-	if err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
+// func GetNodeMetricsSummary() (*NodeMetricsSummary, error) {
+// 	var result NodeMetricsSummary
+// 	err := http.GetFromAgent("/agent/uiapi/node/metrics-summary", &result)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &result, nil
+// }
 
 // SetNodeSchedulable 向 Agent 发送调度状态切换请求（封锁或解封 Node）
 // 参数：

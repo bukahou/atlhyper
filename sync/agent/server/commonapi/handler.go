@@ -1,8 +1,8 @@
 package commonapi
 
 import (
-	"NeuroController/interfaces"
-	"NeuroController/interfaces/alert"
+	"NeuroController/internal/interfaces"
+	"NeuroController/internal/interfaces/alert"
 	"log"
 	"net/http"
 

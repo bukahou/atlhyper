@@ -3,7 +3,7 @@
 package uiapi
 
 import (
-	clusterapi "NeuroController/interfaces/cluster_api"
+	clusterapi "NeuroController/internal/interfaces/cluster_api"
 	"log"
 	"net/http"
 

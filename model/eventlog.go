@@ -2,8 +2,9 @@ package model
 
 import "time"
 
-// EventLog 表结构
+//Master落盘以及UI展示的事件结构
 type EventLog struct {
+	ClusterID  string
 	Category   string
 	EventTime  string
 	Kind       string
@@ -16,6 +17,7 @@ type EventLog struct {
 	Time       string
 }
 
+//agent等上报的原始数据结构
 type LogEvent struct {
 	Timestamp  time.Time
 	Kind       string // Pod / Node / ...

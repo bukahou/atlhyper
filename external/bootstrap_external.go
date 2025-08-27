@@ -13,14 +13,17 @@ package external
 import (
 	"NeuroController/external/client"
 	"NeuroController/external/logger"
-	"NeuroController/external/metrics_store"
+	"NeuroController/external/master_store"
 	"NeuroController/external/server"
 	"log"
 )
 
 // ✅ 启动所有 External 功能模块
 func StartExternalSystems() {
-	log.Println("🚀 启动外部系统组件 ...")
+	log.Println("🚀 启动Master系统组件 ...")
+
+	//    必须在任何 Append/读取/调度器启动之前
+	master_store.Bootstrap()
 
 	// ✅ 启动邮件调度器
 	client.StartEmailDispatcher()
@@ -31,10 +34,10 @@ func StartExternalSystems() {
 		// ✅ 启动日志写入调度器（新增）
 	logger.StartLogWriterScheduler()
 
-	go metrics_store.StartMetricsSync()
+	// go metrics_store.StartMetricsSync()
 
 	log.Println("🌐 启动统一 HTTP Server（UI API + Webhook）")
 	server.StartHTTPServer()
 
-	log.Println("✅ 所有外部组件启动完成。")
+	log.Println("✅ 所有Master组件启动完成。")
 }

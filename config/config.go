@@ -55,6 +55,7 @@ type AdminConfig struct {
 	Password    string
 	DisplayName string
 	Email       string
+	Role        string
 }
 
 // AppConfig 是整个系统的顶层配置结构体
@@ -98,9 +99,10 @@ var defaultStrings = map[string]string{
 	"MAIL_TO":                     "", // 空字符串 getStringList 会返回空列表
 	"SLACK_WEBHOOK_URL":           "",
 	"DEFAULT_ADMIN_USERNAME":      "admin",
-	"DEFAULT_ADMIN_PASSWORD":      "admin",
+	"DEFAULT_ADMIN_PASSWORD":      "123456",
 	"DEFAULT_ADMIN_DISPLAY_NAME":  "Atlhyper",
 	"DEFAULT_ADMIN_EMAIL":         "admin@example.com",
+	"DEFAULT_ADMIN_ROLE":          "3",
 }
 
 
@@ -164,6 +166,7 @@ func LoadConfig() {
 		Password:    getString("DEFAULT_ADMIN_PASSWORD"),
 		DisplayName: getString("DEFAULT_ADMIN_DISPLAY_NAME"),
 		Email:       getString("DEFAULT_ADMIN_EMAIL"),
+		Role:        getString("DEFAULT_ADMIN_ROLE"),
 }
 
 

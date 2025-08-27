@@ -15,9 +15,9 @@ import (
 // - 返回：执行出错时返回 error，否则为 nil
 func InsertEventLog(e model.EventLog) error {
 	_, err := utils.DB.Exec(`
-		INSERT INTO event_logs (category, eventTime, kind, message, name, namespace, node, reason, severity, time)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		e.Category, e.EventTime, e.Kind, e.Message, e.Name,
+		INSERT INTO event_logs (cluster_id, category, eventTime, kind, message, name, namespace, node, reason, severity, time)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		e.ClusterID, e.Category, e.EventTime, e.Kind, e.Message, e.Name,
 		e.Namespace, e.Node, e.Reason, e.Severity, e.Time)
 	return err
 }
@@ -28,11 +28,13 @@ func InsertEventLog(e model.EventLog) error {
 // - 参数：since（字符串，通常为 RFC3339 时间戳）
 // - 查询所有 event_logs 中 eventTime >= since 的记录
 // - 返回：[]model.EventLog 切片 和可能的 error
-func GetEventLogsSince(since string) ([]model.EventLog, error) {
+func GetEventLogsSince(clusterID string, since string) ([]model.EventLog, error) {
 	rows, err := utils.DB.Query(`
-		SELECT category, eventTime, kind, message, name, namespace, node, reason, severity, time
-		FROM event_logs WHERE eventTime >= ?
-		ORDER BY eventTime DESC`, since)
+		SELECT category, eventTime, kind, message, name,
+		       namespace, node, reason, severity, time
+		FROM event_logs
+		WHERE cluster_id = ? AND eventTime >= ?
+		ORDER BY eventTime DESC`, clusterID, since)
 	if err != nil {
 		return nil, err
 	}
@@ -40,11 +42,12 @@ func GetEventLogsSince(since string) ([]model.EventLog, error) {
 
 	var logs []model.EventLog
 
-	// 遍历结果集并逐条解析
 	for rows.Next() {
 		var e model.EventLog
-		err := rows.Scan(&e.Category, &e.EventTime, &e.Kind, &e.Message, &e.Name,
-			&e.Namespace, &e.Node, &e.Reason, &e.Severity, &e.Time)
+		err := rows.Scan(
+			&e.Category, &e.EventTime, &e.Kind, &e.Message, &e.Name,
+			&e.Namespace, &e.Node, &e.Reason, &e.Severity, &e.Time,
+		)
 		if err != nil {
 			continue // 忽略解析错误的行
 		}
@@ -53,3 +56,29 @@ func GetEventLogsSince(since string) ([]model.EventLog, error) {
 
 	return logs, nil
 }
+
+// func GetEventLogsSince(since string) ([]model.EventLog, error) {
+// 	rows, err := utils.DB.Query(`
+// 		SELECT cluster_id, category, eventTime, kind, message, name, namespace, node, reason, severity, time
+// 		FROM event_logs WHERE eventTime >= ?
+// 		ORDER BY eventTime DESC`, since)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer rows.Close()
+
+// 	var logs []model.EventLog
+
+// 	// 遍历结果集并逐条解析
+// 	for rows.Next() {
+// 		var e model.EventLog
+// 		err := rows.Scan(&e.Category, &e.EventTime, &e.Kind, &e.Message, &e.Name,
+// 			&e.Namespace, &e.Node, &e.Reason, &e.Severity, &e.Time)
+// 		if err != nil {
+// 			continue // 忽略解析错误的行
+// 		}
+// 		logs = append(logs, e)
+// 	}
+
+// 	return logs, nil
+// }

@@ -2,7 +2,7 @@ package client
 
 import (
 	"NeuroController/config"
-	"NeuroController/external/mailer"
+	"NeuroController/external/client/mailer"
 	"log"
 	"time"
 )

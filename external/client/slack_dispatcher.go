@@ -2,7 +2,7 @@ package client
 
 import (
 	"NeuroController/config"
-	"NeuroController/external/slack"
+	"NeuroController/external/client/slack"
 	"log"
 	"time"
 )
