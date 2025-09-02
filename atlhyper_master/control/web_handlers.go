@@ -12,6 +12,34 @@ import (
 )
 
 //
+// ============================= 路由注册 =============================
+//
+// RegisterWebOpsRoutes —— 面向“Web/管理端”的操作入口。
+// 前缀：/ingest/ops/admin/*
+// 说明：这些接口负责把“值令（Command）”塞入指定集群的 CommandSet，
+//       由 Agent 通过 /ops/watch 拉取执行。建议挂鉴权/审计中间件。
+func RegisterWebOpsRoutes(rg *gin.RouterGroup) {
+	ops := rg.Group("/ops")
+
+	// 1) 重启 Pod（删除指定 Pod，通常会被控制器拉起新的副本）
+	ops.POST("/pod/restart", HandleWebRestartPod)
+
+	// 2) 封锁 / 解锁 Node（仅设置 unschedulable，不做 drain）
+	ops.POST("/node/cordon", HandleWebCordonNode)
+	ops.POST("/node/uncordon", HandleWebUncordonNode)
+
+	// 3) 更新镜像（指定工作负载到某个“完整镜像”）
+	ops.POST("/workload/updateImage", HandleWebUpdateImage)
+
+	// 4) 修改副本数（Deployment/StatefulSet，默认 Deployment）
+	ops.POST("/workload/scale", HandleWebScaleWorkload)
+
+	// 获取 Pod 日志
+	ops.POST("/pod/logs", HandleWebGetPodLogs)
+}
+
+
+//
 // ============================= 工具函数（命令ID / 幂等键） =============================
 //
 // genID：生成唯一命令ID（用于审计、ACK回执关联）。
@@ -34,29 +62,6 @@ func idem(parts ...any) string {
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
-//
-// ============================= 路由注册 =============================
-//
-// RegisterWebOpsRoutes —— 面向“Web/管理端”的操作入口。
-// 前缀：/ingest/ops/admin/*
-// 说明：这些接口负责把“值令（Command）”塞入指定集群的 CommandSet，
-//       由 Agent 通过 /ops/watch 拉取执行。建议挂鉴权/审计中间件。
-func RegisterWebOpsRoutes(rg *gin.RouterGroup) {
-	admin := rg.Group("/ops/admin")
-
-	// 1) 重启 Pod（删除指定 Pod，通常会被控制器拉起新的副本）
-	admin.POST("/pod/restart", HandleWebRestartPod)
-
-	// 2) 封锁 / 解锁 Node（仅设置 unschedulable，不做 drain）
-	admin.POST("/node/cordon", HandleWebCordonNode)
-	admin.POST("/node/uncordon", HandleWebUncordonNode)
-
-	// 3) 更新镜像（指定工作负载到某个“完整镜像”）
-	admin.POST("/workload/updateImage", HandleWebUpdateImage)
-
-	// 4) 修改副本数（Deployment/StatefulSet，默认 Deployment）
-	admin.POST("/workload/scale", HandleWebScaleWorkload)
-}
 
 //
 // ============================= 1) 重启 Pod =============================
@@ -265,4 +270,70 @@ func HandleWebScaleWorkload(c *gin.Context) {
 		"target":    cmd.Target,
 		"args":      cmd.Args,
 	})
+}
+
+
+// ============================= 5) 获取 Pod 日志 =============================
+//
+// POST /uiapi/ops/pod/logs
+// 请求体：{
+//   "clusterID": "...",           // 必填：集群
+//   "namespace": "default",       // 必填：命名空间
+//   "pod": "xxx-123",             // 必填：pod 名
+//   "tailLines": 200              // 可选：末尾日志行数，默认 100
+// }
+// 说明：Agent 执行后在 ACK 中返回日志文本（可放在 message 中；如需更大体量可日后扩展 Data 字段）
+// control/web_handlers.go
+func HandleWebGetPodLogs(c *gin.Context) {
+    var req struct {
+        ClusterID string `json:"clusterID" binding:"required"`
+        Namespace string `json:"namespace"  binding:"required"`
+        Pod       string `json:"pod"        binding:"required"`
+        Container string `json:"container"`            // 可选
+        TailLines int    `json:"tailLines"`            // 可选：默认 50
+        Timeout   int    `json:"timeoutSeconds"`       // 可选：默认 20
+    }
+    if err := c.ShouldBindJSON(&req); err != nil {
+        response.Error(c, "bad request: "+err.Error())
+        return
+    }
+    if req.TailLines <= 0 { req.TailLines = 50 }
+    if req.Timeout   <= 0 { req.Timeout   = 20 }
+
+    cmd := Command{
+        ID:   genID(),
+        Type: "PodGetLogs",
+        Target: map[string]string{
+            "ns":  req.Namespace,
+            "pod": req.Pod,
+        },
+        Args: map[string]any{
+            "tailLines": req.TailLines,
+        },
+        Idem: idem("getlogs", req.ClusterID, req.Namespace, req.Pod, req.TailLines, req.Container),
+        Op:   "add",
+    }
+    if req.Container != "" {
+        cmd.Args["container"] = req.Container
+    }
+
+    // 1) 入队
+    upsertCommand(req.ClusterID, cmd)
+
+    // 2) 同步等待 ACK（把 commandID 丢进去匹配）
+    ack, ok := waitAck(req.ClusterID, cmd.ID, time.Duration(req.Timeout)*time.Second)
+    if !ok {
+        // 超时：提示前端稍后重试或加大 timeout / tailLines
+        response.Error(c, fmt.Sprintf("timeout waiting logs for command %s", cmd.ID))
+        return
+    }
+
+    // 3) 返回日志（放在 data.logs，前端直接展示）
+    // 注意：Agent 已把日志放入 AckResult.Message
+    response.Success(c, "ok", gin.H{
+        "commandID": cmd.ID,
+        "status":    ack.Status,
+        "logs":      ack.Message,   // ★ 日志主体
+        "errorCode": ack.ErrorCode, // 失败时可用
+    })
 }

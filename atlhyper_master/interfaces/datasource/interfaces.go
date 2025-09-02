@@ -37,6 +37,9 @@ type Reader interface {
 	GetIngressListLatest(ctx context.Context, clusterID string) ([]Ingress, error)
 	GetDeploymentListLatest(ctx context.Context, clusterID string) ([]Deployment, error)
 	GetConfigMapListLatest(ctx context.Context, clusterID string) ([]ConfigMap, error)
+
+	// 新增：返回去重后的 ClusterID 列表
+    ListClusterIDs(ctx context.Context) ([]string, error)
 }
 
 // -----------------------------------------------------------------------------
@@ -88,4 +91,9 @@ func GetDeploymentListLatest(ctx context.Context, clusterID string) ([]Deploymen
 }
 func GetConfigMapListLatest(ctx context.Context, clusterID string) ([]ConfigMap, error) {
 	return impl.GetConfigMapListLatest(ctx, clusterID)
+}
+
+// ListClusterIDs 返回去重后的 ClusterID 列表
+func ListClusterIDs(ctx context.Context) ([]string, error) {
+    return impl.ListClusterIDs(ctx)
 }

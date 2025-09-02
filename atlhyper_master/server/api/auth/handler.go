@@ -2,6 +2,7 @@ package auth
 
 import (
 	"AtlHyper/atlhyper_master/db/repository/user"
+	"AtlHyper/atlhyper_master/interfaces/datasource"
 	response "AtlHyper/atlhyper_master/server/api/response"
 
 	"github.com/gin-gonic/gin"
@@ -42,15 +43,18 @@ func HandleLogin(c *gin.Context) {
 		return
 	}
 
+	ClusterIDs, _ := datasource.ListClusterIDs(c.Request.Context())
+
 	// Step 5️⃣: 登录成功，返回统一结构
 	response.Success(c, "登录成功", gin.H{
 		"token": token,
 		"user": gin.H{
-			"id":       u.ID,
-			"username": u.Username,
+			"id":          u.ID,
+			"username":    u.Username,
 			"displayName": u.DisplayName,
-			"role":     u.Role,
+			"role":        u.Role,
 		},
+		"cluster_ids": ClusterIDs,
 	})
 }
 

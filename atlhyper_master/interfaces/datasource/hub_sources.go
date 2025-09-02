@@ -19,6 +19,35 @@ import (
 //   * 不做 UI/页面定制的裁剪或聚合（这些应在上层 handler/service 完成）。
 type HubSources struct{}
 
+
+// interfaces/datasource/hub_sources.go
+
+func (HubSources) ListClusterIDs(ctx context.Context) ([]string, error) {
+    snap := master_store.Snapshot()
+    if len(snap) == 0 {
+        return nil, nil
+    }
+
+    uniq := make(map[string]struct{}, 32)
+    for _, r := range snap {
+        cid := r.ClusterID
+        if cid == "" {
+            continue
+        }
+        uniq[cid] = struct{}{}
+    }
+
+    out := make([]string, 0, len(uniq))
+    for cid := range uniq {
+        out = append(out, cid)
+    }
+    sort.Strings(out)
+    return out, nil
+}
+
+
+
+
 // hubFilter：按 clusterID+source 从 Hub 快照中过滤记录并按时间排序（升序）
 // -----------------------------------------------------------------------------
 // Snapshot() 返回只读副本；此处排序与筛选不会影响底层。

@@ -11,4 +11,5 @@ const (
 	PathIngressList    = "/ingest/ingresslist"
 	PathDeploymentList = "/ingest/deploymentlist"
 	PathConfigMapList  = "/ingest/configmaplist"
+	PathOps            = "/ingest/ops"
 )

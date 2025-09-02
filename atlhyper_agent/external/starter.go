@@ -4,6 +4,7 @@ package push
 import (
 	"time"
 
+	"AtlHyper/atlhyper_agent/external/control"
 	pcfg "AtlHyper/atlhyper_agent/external/push/config"
 	Pusher "AtlHyper/atlhyper_agent/external/push/pusher"
 	"AtlHyper/atlhyper_agent/external/push/utils"
@@ -20,6 +21,7 @@ func StartPusher() {
 	ingressListPath := pcfg.PathIngressList
 	deploymentListPath := pcfg.PathDeploymentList
 	configMapListPath := pcfg.PathConfigMapList
+	opsPath := pcfg.PathOps
 
 	// 支持用环境变量覆盖频率（单位：秒）
 	eventsInterval := 5*time.Second
@@ -42,5 +44,6 @@ func StartPusher() {
 	Pusher.StartIngressListPusher(clusterID, ingressListPath, ingressListInterval)
 	Pusher.StartDeploymentListPusher(clusterID, deploymentListPath, deploymentListInterval)
 	Pusher.StartConfigMapListPusher(clusterID, configMapListPath, configMapListInterval)
-}
+	control.StartControlLoop(clusterID, opsPath) 
 
+}

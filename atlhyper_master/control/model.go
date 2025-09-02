@@ -30,8 +30,11 @@ type Command struct {
 // - Agent 在执行完命令后，会将结果（AckResult）回报给 Master
 // - Master 根据结果更新命令状态、写入审计日志，必要时做重试或清理
 type AckResult struct {
-    ID     string `json:"id"`     // 对应的命令 ID（Command.ID），用于精确匹配
-    Idem   string `json:"idem"`   // 幂等键（Command.Idem），防止 Master/Agent 状态不一致
-    Status string `json:"status"` // 执行结果：Succeeded=成功，Failed=失败，Skipped=跳过/幂等短路
-    Detail string `json:"detail,omitempty"` // 详细说明（如错误原因、执行信息），便于审计与排障
+    CommandID  string `json:"commandID"`
+    Status     string `json:"status"`
+    Message    string `json:"message,omitempty"`
+    ErrorCode  string `json:"errorCode,omitempty"`
+    StartedAt  string `json:"startedAt,omitempty"`
+    FinishedAt string `json:"finishedAt,omitempty"`
+    Attempt    int    `json:"attempt,omitempty"`
 }

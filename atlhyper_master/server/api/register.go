@@ -1,6 +1,7 @@
 package uiapi
 
 import (
+	"AtlHyper/atlhyper_master/control"
 	"AtlHyper/atlhyper_master/server/api/auth"
 	"AtlHyper/atlhyper_master/server/api/testapi"
 	"AtlHyper/atlhyper_master/server/api/web_api"
@@ -39,8 +40,6 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	read.POST("/metrics/node/detail", web_api.GetMetricsNodeDetailHandler)
 
 	testapi.RegisterRoutes(read)
-	
-
 
 
 	// =============================
@@ -48,10 +47,7 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	// =============================
 	ops := router.Group("")
 	ops.Use(auth.AuthMiddleware(), auth.RequireMinRole(auth.RoleOperator))
-
-
-
-
+	control.RegisterWebOpsRoutes(ops)
 
 	
 	// =============================

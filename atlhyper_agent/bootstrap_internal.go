@@ -3,8 +3,8 @@ package internal
 import (
 	"AtlHyper/atlhyper_agent/agent_store"
 	"AtlHyper/atlhyper_agent/bootstrap"
+	push "AtlHyper/atlhyper_agent/external"
 	ingestserver "AtlHyper/atlhyper_agent/external/ingest/server"
-	"AtlHyper/atlhyper_agent/external/push"
 	"log"
 	"time"
 

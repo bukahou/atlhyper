@@ -48,8 +48,8 @@ func InitRouter() *gin.Engine {
 	// ing.Use(audit.Auto(true))
 	ingest.RegisterIngestRoutes(ing)
 
-    ctl := r.Group("/control")
-    control.RegisterControlRoutes(ctl)
+    // ctl := r.Group("/control")
+    control.RegisterControlRoutes(ing)
 
     if config.GlobalConfig.Webhook.Enable {
         // webhook.RegisterWebhookRoutes(r.Group("/webhook"))
