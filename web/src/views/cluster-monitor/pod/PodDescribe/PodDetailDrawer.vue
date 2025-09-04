@@ -7,8 +7,8 @@
     append-to-body
     :destroy-on-close="true"
     :close-on-click-modal="true"
-    @update:visible="$emit('update:visible', $event)"
     :before-close="handleBeforeClose"
+    @update:visible="$emit('update:visible', $event)"
     @close="handleClose"
   >
     <!-- 顶部摘要栏（吸顶） -->
@@ -47,7 +47,7 @@
       </div>
 
       <!-- 右：内容（可滚） -->
-      <div class="content" ref="scrollEl" @scroll="onScroll">
+      <div ref="scrollEl" class="content" @scroll="onScroll">
         <!-- 概览 -->
         <section ref="overview" data-id="overview" class="section">
           <h3 class="section-title">概览</h3>
@@ -95,7 +95,7 @@
             </div>
             <div class="progress-row">
               <div class="bar">
-                <div class="bar-inner" :style="{ width: cpuPercentStr }"></div>
+                <div class="bar-inner" :style="{ width: cpuPercentStr }" />
               </div>
               <div class="val">{{ cpuPercentStr }}</div>
             </div>
@@ -105,7 +105,7 @@
             </div>
             <div class="progress-row">
               <div class="bar">
-                <div class="bar-inner" :style="{ width: memPercentStr }"></div>
+                <div class="bar-inner" :style="{ width: memPercentStr }" />
               </div>
               <div class="val">{{ memPercentStr }}</div>
             </div>
@@ -171,17 +171,13 @@
             <div class="kv">
               <div>
                 <span>Requests</span>
-                <b
-                  >CPU {{ (c.requests && c.requests.cpu) || "-" }}, 内存
-                  {{ (c.requests && c.requests.memory) || "-" }}</b
-                >
+                <b>CPU {{ (c.requests && c.requests.cpu) || "-" }}, 内存
+                  {{ (c.requests && c.requests.memory) || "-" }}</b>
               </div>
               <div>
                 <span>Limits</span>
-                <b
-                  >CPU {{ (c.limits && c.limits.cpu) || "-" }}, 内存
-                  {{ (c.limits && c.limits.memory) || "-" }}</b
-                >
+                <b>CPU {{ (c.limits && c.limits.cpu) || "-" }}, 内存
+                  {{ (c.limits && c.limits.memory) || "-" }}</b>
               </div>
             </div>
 
@@ -216,8 +212,7 @@
             <h4 class="sub">环境变量</h4>
             <div v-if="c.envs && c.envs.length" class="kv">
               <div v-for="(e, i) in c.envs" :key="i">
-                <span>{{ e.name }}</span
-                ><b class="mono">{{ e.value }}</b>
+                <span>{{ e.name }}</span><b class="mono">{{ e.value }}</b>
               </div>
             </div>
             <div v-else class="muted">无</div>
@@ -226,12 +221,10 @@
             <div v-if="c.volumeMounts && c.volumeMounts.length" class="kv">
               <div v-for="(vm, i) in c.volumeMounts" :key="i">
                 <span>{{ vm.name }}</span>
-                <b
-                  >{{ vm.mountPath }}
-                  <i class="muted"
-                    >（只读：{{ String(vm.readOnly || false) }}）</i
-                  ></b
-                >
+                <b>{{ vm.mountPath }}
+                  <i
+                    class="muted"
+                  >（只读：{{ String(vm.readOnly || false) }}）</i></b>
               </div>
             </div>
             <div v-else class="muted">无</div>
@@ -260,8 +253,7 @@
                     :key="i"
                     size="mini"
                     class="mr8"
-                    >{{ ip }}</el-tag
-                  >
+                  >{{ ip }}</el-tag>
                 </template>
                 <template v-else>-</template>
               </b>
@@ -279,11 +271,9 @@
           <div v-if="pod.tolerations && pod.tolerations.length" class="kv">
             <div v-for="(t, i) in pod.tolerations" :key="i">
               <span>{{ t.key }}</span>
-              <b
-                >op={{ t.operator }}；effect={{ t.effect }}；seconds={{
-                  t.tolerationSeconds || "-"
-                }}</b
-              >
+              <b>op={{ t.operator }}；effect={{ t.effect }}；seconds={{
+                t.tolerationSeconds || "-"
+              }}</b>
             </div>
           </div>
           <div v-else class="muted">无</div>
@@ -297,8 +287,7 @@
                   labelSelectorStr(
                     p.podAffinityTerm && p.podAffinityTerm.labelSelector
                   )
-                }}</span
-                >， topologyKey：{{
+                }}</span>， topologyKey：{{
                   p.podAffinityTerm && p.podAffinityTerm.topologyKey
                 }}
               </b>
@@ -338,8 +327,7 @@
               <span>RestartPolicy</span><b>{{ pod.restartPolicy }}</b>
             </div>
             <div>
-              <span>优雅终止（秒）</span
-              ><b>{{ pod.terminationGracePeriodSeconds }}</b>
+              <span>优雅终止（秒）</span><b>{{ pod.terminationGracePeriodSeconds }}</b>
             </div>
           </div>
         </section>
@@ -356,131 +344,131 @@
 
 <script>
 export default {
-  name: "PodDetailDrawer",
+  name: 'PodDetailDrawer',
   props: {
     visible: { type: Boolean, default: false },
     pod: { type: Object, required: true },
-    width: { type: String, default: "45%" }, // 右侧检查器：45%；想要更宽可传 60%/70%
+    width: { type: String, default: '45%' } // 右侧检查器：45%；想要更宽可传 60%/70%
   },
   data() {
-    return { activeSection: "overview" };
+    return { activeSection: 'overview' }
   },
   computed: {
     phaseTagType() {
-      const p = (this.pod.phase || "").toLowerCase();
-      if (p === "running") return "success";
-      if (p === "pending") return "warning";
-      if (p === "failed") return "danger";
-      return "info";
+      const p = (this.pod.phase || '').toLowerCase()
+      if (p === 'running') return 'success'
+      if (p === 'pending') return 'warning'
+      if (p === 'failed') return 'danger'
+      return 'info'
     },
     prettyJSON() {
       try {
-        return JSON.stringify(this.pod, null, 2);
+        return JSON.stringify(this.pod, null, 2)
       } catch (e) {
-        return "{}";
+        return '{}'
       }
     },
     antiPreferred() {
       return (
         ((this.pod.affinity || {}).podAntiAffinity || {})
           .preferredDuringSchedulingIgnoredDuringExecution || []
-      );
+      )
     },
     normalizedCpuLimit() {
-      const lim = String(this.pod.cpuLimit || "")
+      const lim = String(this.pod.cpuLimit || '')
         .trim()
-        .toLowerCase();
-      if (lim === "700") return "700m"; // 友好显示
-      if (lim === "1k" || lim === "1000" || lim === "1000m") return "1000m";
-      return this.pod.cpuLimit || "-";
+        .toLowerCase()
+      if (lim === '700') return '700m' // 友好显示
+      if (lim === '1k' || lim === '1000' || lim === '1000m') return '1000m'
+      return this.pod.cpuLimit || '-'
     },
     cpuPercentStr() {
-      const u = this.parseCpuToMilli(this.pod.cpuUsage);
-      const l = this.parseCpuToMilli(this.normalizedCpuLimit);
-      if (!u || !l) return "0%";
-      const pct = Math.max(0, Math.min(100, (u / l) * 100));
-      return pct.toFixed(0) + "%";
+      const u = this.parseCpuToMilli(this.pod.cpuUsage)
+      const l = this.parseCpuToMilli(this.normalizedCpuLimit)
+      if (!u || !l) return '0%'
+      const pct = Math.max(0, Math.min(100, (u / l) * 100))
+      return pct.toFixed(0) + '%'
     },
     memPercentStr() {
-      if (typeof this.pod.memUtilPct === "number") {
-        return Math.max(0, Math.min(100, this.pod.memUtilPct)).toFixed(1) + "%";
+      if (typeof this.pod.memUtilPct === 'number') {
+        return Math.max(0, Math.min(100, this.pod.memUtilPct)).toFixed(1) + '%'
       }
-      const u = this.parseBytes(this.pod.memUsage);
-      const l = this.parseBytes(this.pod.memLimit);
-      if (!u || !l) return "0%";
-      const pct = Math.max(0, Math.min(100, (u / l) * 100));
-      return pct.toFixed(1) + "%";
-    },
+      const u = this.parseBytes(this.pod.memUsage)
+      const l = this.parseBytes(this.pod.memLimit)
+      if (!u || !l) return '0%'
+      const pct = Math.max(0, Math.min(100, (u / l) * 100))
+      return pct.toFixed(1) + '%'
+    }
   },
   methods: {
     // 让 el-drawer 关闭行为同步父级的 :visible.sync
     handleBeforeClose(done) {
-      this.$emit("update:visible", false);
-      done && done();
+      this.$emit('update:visible', false)
+      done && done()
     },
     handleClose() {
-      this.$emit("update:visible", false);
+      this.$emit('update:visible', false)
     },
 
     labelSelectorStr(sel) {
-      if (!sel || !sel.matchLabels) return "-";
+      if (!sel || !sel.matchLabels) return '-'
       return Object.entries(sel.matchLabels)
         .map(([k, v]) => `${k}=${v}`)
-        .join(", ");
+        .join(', ')
     },
     parseCpuToMilli(v) {
-      if (v == null) return 0;
-      const s = String(v).trim().toLowerCase();
-      if (s.endsWith("m")) return parseFloat(s.slice(0, -1)) || 0;
-      if (s === "1k" || s === "1000" || s === "1000m") return 1000;
-      const num = parseFloat(s);
-      return isNaN(num) ? 0 : num * 1000; // 无单位视为核
+      if (v == null) return 0
+      const s = String(v).trim().toLowerCase()
+      if (s.endsWith('m')) return parseFloat(s.slice(0, -1)) || 0
+      if (s === '1k' || s === '1000' || s === '1000m') return 1000
+      const num = parseFloat(s)
+      return isNaN(num) ? 0 : num * 1000 // 无单位视为核
     },
     parseBytes(v) {
-      if (!v) return 0;
-      const s = String(v).trim().toLowerCase();
-      const map = { ki: 1024, mi: 1024 ** 2, gi: 1024 ** 3, ti: 1024 ** 4 };
-      const m = s.match(/^([\d.]+)\s*(ki|mi|gi|ti|k|m|g|t)?$/i);
-      if (!m) return parseFloat(s) || 0;
-      const val = parseFloat(m[1]);
-      const unit = (m[2] || "").toLowerCase();
-      if (!unit) return val;
-      if (unit === "k") return val * 1000;
-      if (unit === "m") return val * 1000 ** 2;
-      if (unit === "g") return val * 1000 ** 3;
-      if (unit === "t") return val * 1000 ** 4;
-      return val * (map[unit] || 1);
+      if (!v) return 0
+      const s = String(v).trim().toLowerCase()
+      const map = { ki: 1024, mi: 1024 ** 2, gi: 1024 ** 3, ti: 1024 ** 4 }
+      const m = s.match(/^([\d.]+)\s*(ki|mi|gi|ti|k|m|g|t)?$/i)
+      if (!m) return parseFloat(s) || 0
+      const val = parseFloat(m[1])
+      const unit = (m[2] || '').toLowerCase()
+      if (!unit) return val
+      if (unit === 'k') return val * 1000
+      if (unit === 'm') return val * 1000 ** 2
+      if (unit === 'g') return val * 1000 ** 3
+      if (unit === 't') return val * 1000 ** 4
+      return val * (map[unit] || 1)
     },
     scrollTo(id) {
-      const el = this.$refs[id];
-      if (!el || !this.$refs.scrollEl) return;
-      const top = el.offsetTop - 8; // 上方留空
-      this.$refs.scrollEl.scrollTo({ top, behavior: "smooth" });
-      this.activeSection = id;
-      this.$emit("section-change", id);
+      const el = this.$refs[id]
+      if (!el || !this.$refs.scrollEl) return
+      const top = el.offsetTop - 8 // 上方留空
+      this.$refs.scrollEl.scrollTo({ top, behavior: 'smooth' })
+      this.activeSection = id
+      this.$emit('section-change', id)
     },
     onScroll() {
-      const container = this.$refs.scrollEl;
-      if (!container) return;
+      const container = this.$refs.scrollEl
+      if (!container) return
       const sections = [
-        "overview",
-        "resource",
-        "containers",
-        "network",
-        "scheduling",
-        "storage",
-        "account",
-        "raw",
-      ];
-      let current = sections[0];
+        'overview',
+        'resource',
+        'containers',
+        'network',
+        'scheduling',
+        'storage',
+        'account',
+        'raw'
+      ]
+      let current = sections[0]
       for (const id of sections) {
-        const el = this.$refs[id];
-        if (el && el.offsetTop - container.scrollTop <= 40) current = id;
+        const el = this.$refs[id]
+        if (el && el.offsetTop - container.scrollTop <= 40) current = id
       }
-      this.activeSection = current;
-    },
-  },
-};
+      this.activeSection = current
+    }
+  }
+}
 </script>
 
 <style scoped>

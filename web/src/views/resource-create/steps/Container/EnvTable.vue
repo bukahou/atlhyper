@@ -13,45 +13,48 @@
       </el-table-column>
       <el-table-column width="90" label="操作">
         <template slot-scope="{ $index }">
-          <el-button size="mini" type="text" @click="list.splice($index, 1)"
-            >删除</el-button
-          >
+          <el-button
+            size="mini"
+            type="text"
+            @click="list.splice($index, 1)"
+          >删除</el-button>
         </template>
       </el-table-column>
     </el-table>
     <div class="mt8">
-      <el-button size="mini" @click="list.push({ name: '', value: '' })"
-        >+ 添加变量</el-button
-      >
+      <el-button
+        size="mini"
+        @click="list.push({ name: '', value: '' })"
+      >+ 添加变量</el-button>
     </div>
   </el-form-item>
 </template>
 
 <script>
 export default {
-  name: "EnvTable",
-  props: { value: { type: Array, default: () => [] } },
+  name: 'EnvTable',
+  props: { value: { type: Array, default: () => [] }},
   data() {
-    return { list: this.value.map((x) => ({ ...x })) };
+    return { list: this.value.map((x) => ({ ...x })) }
   },
   watch: {
     list: {
       deep: true,
       handler(v) {
         this.$emit(
-          "input",
+          'input',
           v.map((x) => ({ ...x }))
-        );
-      },
+        )
+      }
     },
     value: {
       deep: true,
       handler(v) {
-        this.list = v.map((x) => ({ ...x }));
-      },
-    },
-  },
-};
+        this.list = v.map((x) => ({ ...x }))
+      }
+    }
+  }
+}
 </script>
 
 <style scoped>

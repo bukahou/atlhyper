@@ -52,25 +52,25 @@
     <!-- ▶️ 右侧抽屉：Namespace 详情 -->
     <NamespaceDetailDrawer
       v-if="drawerVisible"
+      v-loading="drawerLoading"
       :visible.sync="drawerVisible"
       :ns="nsDetail"
       width="45%"
-      v-loading="drawerLoading"
       @close="drawerVisible = false"
     />
   </div>
 </template>
 
 <script>
-import AutoPoll from "@/components/Atlhyper/AutoPoll.vue";
-import CardStat from "@/components/Atlhyper/CardStat.vue";
-import NamespaceTable from "@/components/Atlhyper/NamespaceTable.vue";
-import NamespaceDetailDrawer from "./NsDescribe/NamespaceDetailDrawer.vue";
-import { getAllNamespaces, getNamespacesDetail } from "@/api/namespace";
-import { mapState } from "vuex";
+import AutoPoll from '@/components/Atlhyper/AutoPoll.vue'
+import CardStat from '@/components/Atlhyper/CardStat.vue'
+import NamespaceTable from '@/components/Atlhyper/NamespaceTable.vue'
+import NamespaceDetailDrawer from './NsDescribe/NamespaceDetailDrawer.vue'
+import { getAllNamespaces, getNamespacesDetail } from '@/api/namespace'
+import { mapState } from 'vuex'
 
 export default {
-  name: "NamespaceView",
+  name: 'NamespaceView',
   components: { AutoPoll, CardStat, NamespaceTable, NamespaceDetailDrawer },
   data() {
     return {
@@ -78,7 +78,7 @@ export default {
         totalNamespaces: 0,
         activeCount: 0,
         terminating: 0,
-        totalPods: 0,
+        totalPods: 0
       },
       namespaceList: [],
       loading: false,
@@ -86,100 +86,100 @@ export default {
       // 抽屉相关
       drawerVisible: false,
       drawerLoading: false,
-      nsDetail: {},
-    };
+      nsDetail: {}
+    }
   },
   computed: {
-    ...mapState("cluster", ["currentId"]),
+    ...mapState('cluster', ['currentId'])
   },
   watch: {
     currentId: {
       immediate: true,
       handler(id) {
-        if (id) this.refresh();
-      },
-    },
+        if (id) this.refresh()
+      }
+    }
   },
   methods: {
     // 🔁 轮询与首帧统一入口
     async refresh() {
-      if (!this.currentId || this.loading) return;
-      await this.loadNamespaces(this.currentId);
+      if (!this.currentId || this.loading) return
+      await this.loadNamespaces(this.currentId)
     },
 
     async loadNamespaces(clusterId) {
-      if (!clusterId || this.loading) return;
-      this.loading = true;
+      if (!clusterId || this.loading) return
+      this.loading = true
       try {
-        const res = await getAllNamespaces(clusterId);
+        const res = await getAllNamespaces(clusterId)
         if (res.code !== 20000) {
-          this.$message.error(res.message || "命名空间概览获取失败");
-          return;
+          this.$message.error(res.message || '命名空间概览获取失败')
+          return
         }
-        const { cards = {}, rows } = res.data || {};
+        const { cards = {}, rows } = res.data || {}
 
         // 顶部 4 卡
         this.stats = {
           totalNamespaces: Number(cards.totalNamespaces ?? 0),
           activeCount: Number(cards.activeCount ?? 0),
           terminating: Number(cards.terminating ?? 0),
-          totalPods: Number(cards.totalPods ?? 0),
-        };
+          totalPods: Number(cards.totalPods ?? 0)
+        }
 
         // 表格数据
-        const list = Array.isArray(rows) ? rows : [];
+        const list = Array.isArray(rows) ? rows : []
         this.namespaceList = list.map((r) => ({
-          name: r.name || "",
-          status: r.status || "Unknown",
+          name: r.name || '',
+          status: r.status || 'Unknown',
           podCount: Number(r.podCount ?? 0),
           labelCount: Number(r.labelCount ?? 0),
           annotationCount: Number(r.annotationCount ?? 0),
-          createdAt: r.createdAt || "",
-          creationTime: this.formatTime(r.createdAt),
-        }));
+          createdAt: r.createdAt || '',
+          creationTime: this.formatTime(r.createdAt)
+        }))
       } catch (err) {
-        this.$message.error("请求失败：" + (err.message || err));
+        this.$message.error('请求失败：' + (err.message || err))
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
 
     // 查看 Namespace 详情并打开抽屉
     async handleViewNamespace(row) {
       if (!this.currentId) {
-        this.$message.error("未选择集群");
-        return;
+        this.$message.error('未选择集群')
+        return
       }
-      const name = row.name;
-      if (!name) return;
+      const name = row.name
+      if (!name) return
 
-      this.drawerLoading = true;
+      this.drawerLoading = true
       try {
-        const res = await getNamespacesDetail(this.currentId, name);
+        const res = await getNamespacesDetail(this.currentId, name)
         if (res.code !== 20000) {
-          this.$message.error(res.message || "获取命名空间详情失败");
-          return;
+          this.$message.error(res.message || '获取命名空间详情失败')
+          return
         }
-        this.nsDetail = res.data || {};
-        this.drawerVisible = true;
+        this.nsDetail = res.data || {}
+        this.drawerVisible = true
       } catch (e) {
-        this.$message.error("获取命名空间详情失败：" + (e?.message || e));
+        this.$message.error('获取命名空间详情失败：' + (e?.message || e))
       } finally {
-        this.drawerLoading = false;
+        this.drawerLoading = false
       }
     },
 
     formatTime(iso) {
-      const t = Date.parse(iso);
-      if (!Number.isFinite(t)) return iso || "-";
-      const d = new Date(t);
-      const pad = (n) => String(n).padStart(2, "0");
+      const t = Date.parse(iso)
+      if (!Number.isFinite(t)) return iso || '-'
+      const d = new Date(t)
+      const pad = (n) => String(n).padStart(2, '0')
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
         d.getDate()
-      )} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    },
-  },
-};
+      )} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    }
+  }
+}
 </script>
 
 <style scoped>

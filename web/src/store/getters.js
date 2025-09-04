@@ -14,6 +14,6 @@ const getters = {
 
   // ✅ 新增 cluster 模块相关
   clusterIds: (state) => state.cluster.clusterIds, // 登录时返回的集群列表
-  currentClusterId: (state) => state.cluster.currentId, // 当前选中的集群 ID
-};
-export default getters;
+  currentClusterId: (state) => state.cluster.currentId // 当前选中的集群 ID
+}
+export default getters

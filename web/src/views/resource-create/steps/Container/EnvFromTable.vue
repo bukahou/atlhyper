@@ -16,9 +16,11 @@
       </el-table-column>
       <el-table-column width="90" label="操作">
         <template slot-scope="{ $index }">
-          <el-button size="mini" type="text" @click="list.splice($index, 1)"
-            >删除</el-button
-          >
+          <el-button
+            size="mini"
+            type="text"
+            @click="list.splice($index, 1)"
+          >删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -26,8 +28,7 @@
       <el-button
         size="mini"
         @click="list.push({ type: 'configMapRef', name: '' })"
-        >+ 添加来源</el-button
-      >
+      >+ 添加来源</el-button>
     </div>
     <div class="hint">将渲染为 <code>containers[].envFrom</code></div>
   </el-form-item>
@@ -35,29 +36,29 @@
 
 <script>
 export default {
-  name: "EnvFromTable",
-  props: { value: { type: Array, default: () => [] } },
+  name: 'EnvFromTable',
+  props: { value: { type: Array, default: () => [] }},
   data() {
-    return { list: this.value.map((x) => ({ ...x })) };
+    return { list: this.value.map((x) => ({ ...x })) }
   },
   watch: {
     list: {
       deep: true,
       handler(v) {
         this.$emit(
-          "input",
+          'input',
           v.map((x) => ({ ...x }))
-        );
-      },
+        )
+      }
     },
     value: {
       deep: true,
       handler(v) {
-        this.list = v.map((x) => ({ ...x }));
-      },
-    },
-  },
-};
+        this.list = v.map((x) => ({ ...x }))
+      }
+    }
+  }
+}
 </script>
 
 <style scoped>

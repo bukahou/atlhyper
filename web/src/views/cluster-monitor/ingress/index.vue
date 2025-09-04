@@ -52,25 +52,25 @@
     <!-- ▶️ 右侧抽屉：Ingress 详情 -->
     <IngressDetailDrawer
       v-if="drawerVisible"
+      v-loading="drawerLoading"
       :visible.sync="drawerVisible"
       :ing="ingDetail"
       width="50%"
-      v-loading="drawerLoading"
       @close="drawerVisible = false"
     />
   </div>
 </template>
 
 <script>
-import AutoPoll from "@/components/Atlhyper/AutoPoll.vue";
-import CardStat from "@/components/Atlhyper/CardStat.vue";
-import IngressTable from "@/components/Atlhyper/IngressTable.vue";
-import IngressDetailDrawer from "./ingressDescribe/IngressDetailDrawer.vue";
-import { getAllIngresses, getIngressesDetail } from "@/api/ingress";
-import { mapState } from "vuex";
+import AutoPoll from '@/components/Atlhyper/AutoPoll.vue'
+import CardStat from '@/components/Atlhyper/CardStat.vue'
+import IngressTable from '@/components/Atlhyper/IngressTable.vue'
+import IngressDetailDrawer from './ingressDescribe/IngressDetailDrawer.vue'
+import { getAllIngresses, getIngressesDetail } from '@/api/ingress'
+import { mapState } from 'vuex'
 
 export default {
-  name: "IngressView",
+  name: 'IngressView',
   components: { AutoPoll, CardStat, IngressTable, IngressDetailDrawer },
   data() {
     return {
@@ -81,103 +81,103 @@ export default {
       // 抽屉
       drawerVisible: false,
       drawerLoading: false,
-      ingDetail: {},
-    };
+      ingDetail: {}
+    }
   },
   computed: {
-    ...mapState("cluster", ["currentId"]),
+    ...mapState('cluster', ['currentId'])
   },
   watch: {
     currentId: {
       immediate: true,
       handler(id) {
-        if (id) this.refresh();
-      },
-    },
+        if (id) this.refresh()
+      }
+    }
   },
   methods: {
     // 🔁 轮询/首帧统一入口
     async refresh() {
-      if (!this.currentId || this.loading) return;
-      await this.loadIngressData(this.currentId);
+      if (!this.currentId || this.loading) return
+      await this.loadIngressData(this.currentId)
     },
 
     async loadIngressData(clusterId) {
-      if (!clusterId || this.loading) return;
-      this.loading = true;
+      if (!clusterId || this.loading) return
+      this.loading = true
       try {
-        const res = await getAllIngresses(clusterId);
+        const res = await getAllIngresses(clusterId)
         if (res.code !== 20000) {
-          this.$message.error(res.message || "获取 Ingress 概览失败");
-          return;
+          this.$message.error(res.message || '获取 Ingress 概览失败')
+          return
         }
-        const { cards = {}, rows } = res.data || {};
+        const { cards = {}, rows } = res.data || {}
 
         // 顶部 4 卡
         this.stats = {
           totalIngresses: Number(cards.totalIngresses || 0),
           usedHosts: Number(cards.usedHosts || 0),
           tlsCerts: Number(cards.tlsCerts || 0),
-          totalPaths: Number(cards.totalPaths || 0),
-        };
+          totalPaths: Number(cards.totalPaths || 0)
+        }
 
         // 表格数据
-        const list = Array.isArray(rows) ? rows : [];
+        const list = Array.isArray(rows) ? rows : []
         this.ingressList = list.map((r) => ({
-          name: r.name || "-",
-          namespace: r.namespace || "-",
-          host: r.host || "-",
-          path: r.path || "/",
-          serviceName: r.serviceName || "-",
-          servicePort: r.servicePort != null ? r.servicePort : "-",
-          tls: Array.isArray(r.tls) ? r.tls.join(", ") : r.tls || "",
-          createdAt: r.createdAt || "",
-          creationTime: this.formatTime(r.createdAt),
-        }));
+          name: r.name || '-',
+          namespace: r.namespace || '-',
+          host: r.host || '-',
+          path: r.path || '/',
+          serviceName: r.serviceName || '-',
+          servicePort: r.servicePort != null ? r.servicePort : '-',
+          tls: Array.isArray(r.tls) ? r.tls.join(', ') : r.tls || '',
+          createdAt: r.createdAt || '',
+          creationTime: this.formatTime(r.createdAt)
+        }))
       } catch (err) {
-        this.$message.error("请求失败：" + (err.message || err));
+        this.$message.error('请求失败：' + (err.message || err))
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
 
     // ▶️ 查看详情：clusterId + namespace + name
     async handleViewIngress(row) {
       if (!this.currentId) {
-        this.$message.error("未选择集群");
-        return;
+        this.$message.error('未选择集群')
+        return
       }
-      const ns = row.namespace;
-      const name = row.name;
-      if (!ns || !name) return;
+      const ns = row.namespace
+      const name = row.name
+      if (!ns || !name) return
 
-      this.drawerLoading = true;
+      this.drawerLoading = true
       try {
-        const res = await getIngressesDetail(this.currentId, ns, name);
+        const res = await getIngressesDetail(this.currentId, ns, name)
         if (res.code !== 20000) {
-          this.$message.error(res.message || "获取 Ingress 详情失败");
-          return;
+          this.$message.error(res.message || '获取 Ingress 详情失败')
+          return
         }
-        this.ingDetail = res.data || {};
-        this.drawerVisible = true;
+        this.ingDetail = res.data || {}
+        this.drawerVisible = true
       } catch (e) {
-        this.$message.error("获取 Ingress 详情失败：" + (e?.message || e));
+        this.$message.error('获取 Ingress 详情失败：' + (e?.message || e))
       } finally {
-        this.drawerLoading = false;
+        this.drawerLoading = false
       }
     },
 
     formatTime(iso) {
-      const t = Date.parse(iso);
-      if (!Number.isFinite(t)) return iso || "-";
-      const d = new Date(t);
-      const pad = (n) => String(n).padStart(2, "0");
+      const t = Date.parse(iso)
+      if (!Number.isFinite(t)) return iso || '-'
+      const d = new Date(t)
+      const pad = (n) => String(n).padStart(2, '0')
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
         d.getDate()
-      )} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    },
-  },
-};
+      )} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    }
+  }
+}
 </script>
 
 <style scoped>

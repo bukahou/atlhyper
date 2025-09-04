@@ -7,8 +7,8 @@
     append-to-body
     :destroy-on-close="true"
     :close-on-click-modal="true"
-    @update:visible="$emit('update:visible', $event)"
     :before-close="handleBeforeClose"
+    @update:visible="$emit('update:visible', $event)"
     @close="handleClose"
   >
     <!-- 顶部摘要栏（吸顶） -->
@@ -21,9 +21,10 @@
         <span class="age">Age {{ ns.age || "-" }}</span>
         <span class="age">Created {{ ns.createdAt || "-" }}</span>
         <el-tag size="mini" type="info">Labels {{ n(ns.labelCount) }}</el-tag>
-        <el-tag size="mini" type="info"
-          >Annotations {{ n(ns.annotationCount) }}</el-tag
-        >
+        <el-tag
+          size="mini"
+          type="info"
+        >Annotations {{ n(ns.annotationCount) }}</el-tag>
       </div>
     </div>
 
@@ -46,7 +47,7 @@
       </div>
 
       <!-- 右：内容（可滚） -->
-      <div class="content" ref="scrollEl" @scroll="onScroll">
+      <div ref="scrollEl" class="content" @scroll="onScroll">
         <!-- 概览 -->
         <section ref="overview" data-id="overview" class="section">
           <h3 class="section-title">概览</h3>
@@ -113,7 +114,7 @@
               <div
                 class="bar-inner"
                 :style="{ width: podsRunningPctStr }"
-              ></div>
+              />
             </div>
             <div class="val">Running {{ podsRunningPctStr }}</div>
           </div>
@@ -170,9 +171,9 @@
           <div class="kv">
             <div>
               <span>使用 / 请求 / 限制</span>
-              <b class="mono"
-                >{{ cpuUsageStr }} / {{ cpuReqStr }} / {{ cpuLimStr }}</b
-              >
+              <b
+                class="mono"
+              >{{ cpuUsageStr }} / {{ cpuReqStr }} / {{ cpuLimStr }}</b>
             </div>
             <div>
               <span>利用率（基于 {{ cpuUtilBasis }}）</span>
@@ -181,7 +182,7 @@
           </div>
           <div class="progress-row">
             <div class="bar">
-              <div class="bar-inner" :style="{ width: cpuPctStr }"></div>
+              <div class="bar-inner" :style="{ width: cpuPctStr }" />
             </div>
             <div class="val">{{ cpuPctStr }}</div>
           </div>
@@ -190,9 +191,9 @@
           <div class="kv">
             <div>
               <span>使用 / 请求 / 限制</span>
-              <b class="mono"
-                >{{ memUsageStr }} / {{ memReqStr }} / {{ memLimStr }}</b
-              >
+              <b
+                class="mono"
+              >{{ memUsageStr }} / {{ memReqStr }} / {{ memLimStr }}</b>
             </div>
             <div>
               <span>利用率（基于 {{ memUtilBasis }}）</span>
@@ -201,7 +202,7 @@
           </div>
           <div class="progress-row">
             <div class="bar">
-              <div class="bar-inner" :style="{ width: memPctStr }"></div>
+              <div class="bar-inner" :style="{ width: memPctStr }" />
             </div>
             <div class="val">{{ memPctStr }}</div>
           </div>
@@ -219,213 +220,213 @@
 
 <script>
 export default {
-  name: "NamespaceDetailDrawer",
+  name: 'NamespaceDetailDrawer',
   props: {
     visible: { type: Boolean, default: false },
     ns: { type: Object, required: true },
-    width: { type: String, default: "45%" },
+    width: { type: String, default: '45%' }
   },
   data() {
-    return { activeSection: "overview" };
+    return { activeSection: 'overview' }
   },
   computed: {
     phaseTagType() {
-      const p = (this.ns.phase || "").toLowerCase();
-      if (p === "active") return "success";
-      if (p === "terminating") return "warning";
-      return "info";
+      const p = (this.ns.phase || '').toLowerCase()
+      if (p === 'active') return 'success'
+      if (p === 'terminating') return 'warning'
+      return 'info'
     },
     labelArray() {
-      const obj = this.ns.labels || {};
-      return Object.keys(obj).map((k) => ({ k, v: obj[k] }));
+      const obj = this.ns.labels || {}
+      return Object.keys(obj).map((k) => ({ k, v: obj[k] }))
     },
     podsRunningPctStr() {
-      const total = Number(this.ns.pods || 0);
-      const run = Number(this.ns.podsRunning || 0);
-      const pct = total > 0 ? (run / total) * 100 : 0;
-      return this.clampPct(pct).toFixed(0) + "%";
+      const total = Number(this.ns.pods || 0)
+      const run = Number(this.ns.podsRunning || 0)
+      const pct = total > 0 ? (run / total) * 100 : 0
+      return this.clampPct(pct).toFixed(0) + '%'
     },
 
     // ---- Metrics（去掉 ?. / ??）----
     cpuUtilBasis() {
       const m =
-        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {};
-      return m.utilBasis || "limit";
+        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {}
+      return m.utilBasis || 'limit'
     },
     memUtilBasis() {
       const m =
-        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {};
-      return m.utilBasis || "limit";
+        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {}
+      return m.utilBasis || 'limit'
     },
 
     cpuUsageStr() {
       const m =
-        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {};
-      return this.fmtCpuMilliStr(m.usage);
+        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {}
+      return this.fmtCpuMilliStr(m.usage)
     },
     cpuReqStr() {
       const m =
-        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {};
-      return this.fmtCpuMilliStr(m.requests);
+        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {}
+      return this.fmtCpuMilliStr(m.requests)
     },
     cpuLimStr() {
       const m =
-        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {};
-      return this.fmtCpuMilliStr(m.limits);
+        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {}
+      return this.fmtCpuMilliStr(m.limits)
     },
     cpuPctStr() {
       const m =
-        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {};
-      if (typeof m.utilPct === "number") {
-        return this.clampPct(m.utilPct).toFixed(1) + "%";
+        this.ns.metrics && this.ns.metrics.cpu ? this.ns.metrics.cpu : {}
+      if (typeof m.utilPct === 'number') {
+        return this.clampPct(m.utilPct).toFixed(1) + '%'
       }
-      const usage = this.parseCpuToMilli(m.usage);
+      const usage = this.parseCpuToMilli(m.usage)
       const denom =
-        (m.utilBasis || "limit") === "request"
+        (m.utilBasis || 'limit') === 'request'
           ? this.parseCpuToMilli(m.requests)
-          : this.parseCpuToMilli(m.limits);
-      const pct = denom > 0 ? (usage / denom) * 100 : 0;
-      return this.clampPct(pct).toFixed(1) + "%";
+          : this.parseCpuToMilli(m.limits)
+      const pct = denom > 0 ? (usage / denom) * 100 : 0
+      return this.clampPct(pct).toFixed(1) + '%'
     },
 
     memUsageStr() {
       const m =
-        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {};
-      return this.fmtBytesStr(m.usage);
+        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {}
+      return this.fmtBytesStr(m.usage)
     },
     memReqStr() {
       const m =
-        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {};
-      return this.fmtBytesStr(m.requests);
+        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {}
+      return this.fmtBytesStr(m.requests)
     },
     memLimStr() {
       const m =
-        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {};
-      return this.fmtBytesStr(m.limits);
+        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {}
+      return this.fmtBytesStr(m.limits)
     },
     memPctStr() {
       const m =
-        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {};
-      if (typeof m.utilPct === "number") {
-        return this.clampPct(m.utilPct).toFixed(1) + "%";
+        this.ns.metrics && this.ns.metrics.memory ? this.ns.metrics.memory : {}
+      if (typeof m.utilPct === 'number') {
+        return this.clampPct(m.utilPct).toFixed(1) + '%'
       }
-      const usage = this.parseBytes(m.usage);
+      const usage = this.parseBytes(m.usage)
       const denom =
-        (m.utilBasis || "limit") === "request"
+        (m.utilBasis || 'limit') === 'request'
           ? this.parseBytes(m.requests)
-          : this.parseBytes(m.limits);
-      const pct = denom > 0 ? (usage / denom) * 100 : 0;
-      return this.clampPct(pct).toFixed(1) + "%";
+          : this.parseBytes(m.limits)
+      const pct = denom > 0 ? (usage / denom) * 100 : 0
+      return this.clampPct(pct).toFixed(1) + '%'
     },
 
     prettyJSON() {
       try {
-        return JSON.stringify(this.ns, null, 2);
+        return JSON.stringify(this.ns, null, 2)
       } catch (e) {
-        return "{}";
+        return '{}'
       }
-    },
+    }
   },
   methods: {
     handleBeforeClose(done) {
-      this.$emit("update:visible", false);
-      done && done();
+      this.$emit('update:visible', false)
+      done && done()
     },
     handleClose() {
-      this.$emit("update:visible", false);
+      this.$emit('update:visible', false)
     },
 
     // ---- helpers ----
     n(v, d = 0) {
-      return v == null ? d : v;
+      return v == null ? d : v
     },
     clampPct(v) {
-      return Math.max(0, Math.min(100, Number(v) || 0));
+      return Math.max(0, Math.min(100, Number(v) || 0))
     },
 
     // CPU：格式化毫核字符串，如 "5400" / "250m" / "0.5"
     fmtCpuMilliStr(v) {
-      const m = this.parseCpuToMilli(v);
-      if (m == null) return "-";
-      const cores = m / 1000;
+      const m = this.parseCpuToMilli(v)
+      if (m == null) return '-'
+      const cores = m / 1000
       const coresStr = (cores < 10 ? cores.toFixed(1) : Math.round(cores))
         .toString()
-        .replace(/\.0$/, "");
-      return `${m}m (${coresStr} cores)`;
+        .replace(/\.0$/, '')
+      return `${m}m (${coresStr} cores)`
     },
     parseCpuToMilli(v) {
-      if (v == null || v === "") return 0;
-      const s = String(v).trim().toLowerCase();
-      if (s.endsWith("m")) {
-        const n = parseFloat(s.slice(0, -1));
-        return Number.isFinite(n) ? n : 0;
+      if (v == null || v === '') return 0
+      const s = String(v).trim().toLowerCase()
+      if (s.endsWith('m')) {
+        const n = parseFloat(s.slice(0, -1))
+        return Number.isFinite(n) ? n : 0
       }
-      const n = parseFloat(s);
-      if (!Number.isFinite(n)) return 0;
+      const n = parseFloat(s)
+      if (!Number.isFinite(n)) return 0
       // 小数视为核
-      return s.indexOf(".") >= 0 ? n * 1000 : n;
+      return s.indexOf('.') >= 0 ? n * 1000 : n
     },
 
     fmtBytesStr(v) {
-      const bytes = this.parseBytes(v);
-      if (bytes == null) return "-";
-      const units = ["B", "Ki", "Mi", "Gi", "Ti"];
-      let i = 0;
-      let val = bytes;
+      const bytes = this.parseBytes(v)
+      if (bytes == null) return '-'
+      const units = ['B', 'Ki', 'Mi', 'Gi', 'Ti']
+      let i = 0
+      let val = bytes
       while (i < units.length - 1 && val >= 1024) {
-        val /= 1024;
-        i++;
+        val /= 1024
+        i++
       }
-      const num = val < 10 ? val.toFixed(2) : val.toFixed(1);
-      return `${num.replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1")} ${
+      const num = val < 10 ? val.toFixed(2) : val.toFixed(1)
+      return `${num.replace(/\.0+$/, '').replace(/(\.\d)0$/, '$1')} ${
         units[i]
-      }`;
+      }`
     },
     parseBytes(v) {
-      if (v == null || v === "") return 0;
-      const s = String(v).trim().toLowerCase();
-      const m = s.match(/^([\d.]+)\s*(ki|mi|gi|ti|k|m|g|t|b)?$/i);
-      if (!m) return parseFloat(s) || 0;
-      const val = parseFloat(m[1]);
-      const unit = (m[2] || "b").toLowerCase();
-      if (unit === "b") return val;
-      if (unit === "k") return val * 1000;
-      if (unit === "m") return val * 1000 ** 2;
-      if (unit === "g") return val * 1000 ** 3;
-      if (unit === "t") return val * 1000 ** 4;
-      const map = { ki: 1024, mi: 1024 ** 2, gi: 1024 ** 3, ti: 1024 ** 4 };
-      return val * (map[unit] || 1);
+      if (v == null || v === '') return 0
+      const s = String(v).trim().toLowerCase()
+      const m = s.match(/^([\d.]+)\s*(ki|mi|gi|ti|k|m|g|t|b)?$/i)
+      if (!m) return parseFloat(s) || 0
+      const val = parseFloat(m[1])
+      const unit = (m[2] || 'b').toLowerCase()
+      if (unit === 'b') return val
+      if (unit === 'k') return val * 1000
+      if (unit === 'm') return val * 1000 ** 2
+      if (unit === 'g') return val * 1000 ** 3
+      if (unit === 't') return val * 1000 ** 4
+      const map = { ki: 1024, mi: 1024 ** 2, gi: 1024 ** 3, ti: 1024 ** 4 }
+      return val * (map[unit] || 1)
     },
 
     // 目录滚动
     scrollTo(id) {
-      const el = this.$refs[id];
-      if (!el || !this.$refs.scrollEl) return;
-      const top = el.offsetTop - 8;
-      this.$refs.scrollEl.scrollTo({ top, behavior: "smooth" });
-      this.activeSection = id;
-      this.$emit("section-change", id);
+      const el = this.$refs[id]
+      if (!el || !this.$refs.scrollEl) return
+      const top = el.offsetTop - 8
+      this.$refs.scrollEl.scrollTo({ top, behavior: 'smooth' })
+      this.activeSection = id
+      this.$emit('section-change', id)
     },
     onScroll() {
-      const container = this.$refs.scrollEl;
-      if (!container) return;
+      const container = this.$refs.scrollEl
+      if (!container) return
       const sections = [
-        "overview",
-        "labels",
-        "pods",
-        "resources",
-        "metrics",
-        "raw",
-      ];
-      let current = sections[0];
+        'overview',
+        'labels',
+        'pods',
+        'resources',
+        'metrics',
+        'raw'
+      ]
+      let current = sections[0]
       for (const id of sections) {
-        const el = this.$refs[id];
-        if (el && el.offsetTop - container.scrollTop <= 40) current = id;
+        const el = this.$refs[id]
+        if (el && el.offsetTop - container.scrollTop <= 40) current = id
       }
-      this.activeSection = current;
-    },
-  },
-};
+      this.activeSection = current
+    }
+  }
+}
 </script>
 
 <style scoped>

@@ -8,14 +8,12 @@
           type="text"
           size="mini"
           @click="quickAddLabel('app', basicName)"
-          >+ app={{ basicName || "..." }}</el-button
-        >
+        >+ app={{ basicName || "..." }}</el-button>
         <el-button
           type="text"
           size="mini"
           @click="quickAddLabel('version', 'v1')"
-          >+ version=v1</el-button
-        >
+        >+ version=v1</el-button>
       </div>
       <el-table :data="labels" border size="mini" style="width: 100%">
         <el-table-column label="Key" width="220">
@@ -33,16 +31,19 @@
         </el-table-column>
         <el-table-column width="90" label="操作">
           <template slot-scope="{ $index }">
-            <el-button size="mini" type="text" @click="labels.splice($index, 1)"
-              >删</el-button
-            >
+            <el-button
+              size="mini"
+              type="text"
+              @click="labels.splice($index, 1)"
+            >删</el-button>
           </template>
         </el-table-column>
       </el-table>
       <div class="mt8">
-        <el-button size="mini" @click="labels.push({ key: '', value: '' })"
-          >+ 添加</el-button
-        >
+        <el-button
+          size="mini"
+          @click="labels.push({ key: '', value: '' })"
+        >+ 添加</el-button>
       </div>
     </div>
 
@@ -54,8 +55,7 @@
           type="text"
           size="mini"
           @click="quickAddAnno('kubectl.kubernetes.io/restartedAt', nowIso)"
-          >+ restartedAt</el-button
-        >
+        >+ restartedAt</el-button>
       </div>
       <el-table :data="annotations" border size="mini" style="width: 100%">
         <el-table-column label="Key" width="260">
@@ -77,15 +77,15 @@
               size="mini"
               type="text"
               @click="annotations.splice($index, 1)"
-              >删</el-button
-            >
+            >删</el-button>
           </template>
         </el-table-column>
       </el-table>
       <div class="mt8">
-        <el-button size="mini" @click="annotations.push({ key: '', value: '' })"
-          >+ 添加</el-button
-        >
+        <el-button
+          size="mini"
+          @click="annotations.push({ key: '', value: '' })"
+        >+ 添加</el-button>
       </div>
     </div>
 
@@ -107,104 +107,104 @@
 </template>
 
 <script>
-import store from "../stores/createForm.store";
+import store from '../stores/createForm.store'
 
-function stripOuterQuotes(s = "") {
-  const t = String(s).trim();
+function stripOuterQuotes(s = '') {
+  const t = String(s).trim()
   if (
     (t.startsWith('"') && t.endsWith('"')) ||
     (t.startsWith("'") && t.endsWith("'"))
   ) {
-    return t.slice(1, -1);
+    return t.slice(1, -1)
   }
-  return t;
+  return t
 }
 
 function normalizeKV(list = []) {
-  const out = [];
+  const out = []
   const seen = new Set();
-  (list || []).forEach(({ key = "", value = "" }) => {
-    const k = String(key).trim();
-    if (!k) return;
-    const v = stripOuterQuotes(value);
-    if (seen.has(k)) return;
-    seen.add(k);
-    out.push({ key: k, value: v });
-  });
-  return out;
+  (list || []).forEach(({ key = '', value = '' }) => {
+    const k = String(key).trim()
+    if (!k) return
+    const v = stripOuterQuotes(value)
+    if (seen.has(k)) return
+    seen.add(k)
+    out.push({ key: k, value: v })
+  })
+  return out
 }
 
 export default {
-  name: "LabelsAnnotationsStep",
+  name: 'LabelsAnnotationsStep',
   data() {
-    const s = store.form;
+    const s = store.form
     return {
       labels: normalizeKV(s.labels || []),
       annotations: normalizeKV(s.annotations || []),
       scopeSelected:
         Array.isArray(s.scope) && s.scope.length
           ? [...s.scope]
-          : ["metadata", "podTemplate"],
-    };
+          : ['metadata', 'podTemplate']
+    }
   },
   computed: {
     basicName() {
-      return store.form?.basic?.name || "";
+      return store.form?.basic?.name || ''
     },
     nowIso() {
-      const d = new Date();
-      const tz = -d.getTimezoneOffset();
-      const sign = tz >= 0 ? "+" : "-";
-      const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, "0");
-      const hh = pad(tz / 60);
-      const mm = pad(tz % 60);
-      return d.toISOString().replace("Z", `${sign}${hh}:${mm}`);
-    },
+      const d = new Date()
+      const tz = -d.getTimezoneOffset()
+      const sign = tz >= 0 ? '+' : '-'
+      const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, '0')
+      const hh = pad(tz / 60)
+      const mm = pad(tz % 60)
+      return d.toISOString().replace('Z', `${sign}${hh}:${mm}`)
+    }
   },
   watch: {
     labels: {
       deep: true,
       handler(v) {
-        store.form.labels = normalizeKV(v);
-      },
+        store.form.labels = normalizeKV(v)
+      }
     },
     annotations: {
       deep: true,
       handler(v) {
-        store.form.annotations = normalizeKV(v);
-      },
+        store.form.annotations = normalizeKV(v)
+      }
     },
     scopeSelected(v) {
-      store.form.scope = Array.isArray(v) ? [...v] : [];
-    },
+      store.form.scope = Array.isArray(v) ? [...v] : []
+    }
   },
   mounted() {
     if (Array.isArray(store.form.annotations)) {
-      store.form.annotations = normalizeKV(store.form.annotations);
+      store.form.annotations = normalizeKV(store.form.annotations)
     }
     if (Array.isArray(store.form.labels)) {
-      store.form.labels = normalizeKV(store.form.labels);
+      store.form.labels = normalizeKV(store.form.labels)
     }
   },
   methods: {
     quickAddLabel(k, v) {
-      if (!k) return;
-      const key = String(k).trim();
-      const val = stripOuterQuotes(v);
-      const idx = this.labels.findIndex((x) => x.key === key);
-      if (idx >= 0) this.$set(this.labels, idx, { key, value: val });
-      else this.labels.push({ key, value: val });
+      if (!k) return
+      const key = String(k).trim()
+      const val = stripOuterQuotes(v)
+      const idx = this.labels.findIndex((x) => x.key === key)
+      if (idx >= 0) this.$set(this.labels, idx, { key, value: val })
+      else this.labels.push({ key, value: val })
     },
     quickAddAnno(k, v) {
-      if (!k) return;
-      const key = String(k).trim();
-      const val = stripOuterQuotes(v);
-      const idx = this.annotations.findIndex((x) => x.key === key);
-      if (idx >= 0) this.$set(this.annotations, idx, { key, value: val });
-      else this.annotations.push({ key, value: val });
-    },
-  },
-};
+      if (!k) return
+      const key = String(k).trim()
+      const val = stripOuterQuotes(v)
+      const idx = this.annotations.findIndex((x) => x.key === key)
+      if (idx >= 0) this.$set(this.annotations, idx, { key, value: val })
+      else this.annotations.push({ key, value: val })
+    }
+  }
+}
 </script>
 
 <style scoped>

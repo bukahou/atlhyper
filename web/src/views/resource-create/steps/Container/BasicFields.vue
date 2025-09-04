@@ -23,24 +23,24 @@
 
 <script>
 export default {
-  name: "BasicFields",
-  props: { value: { type: Object, default: () => ({}) } },
+  name: 'BasicFields',
+  props: { value: { type: Object, default: () => ({}) }},
   data() {
-    return { m: { name: "", image: "", pullPolicy: "", ...this.value } };
+    return { m: { name: '', image: '', pullPolicy: '', ...this.value }}
   },
   watch: {
     m: {
       deep: true,
       handler(v) {
-        this.$emit("input", { ...v });
-      },
+        this.$emit('input', { ...v })
+      }
     },
     value: {
       deep: true,
       handler(v) {
-        this.m = { ...this.m, ...v };
-      },
-    },
-  },
-};
+        this.m = { ...this.m, ...v }
+      }
+    }
+  }
+}
 </script>

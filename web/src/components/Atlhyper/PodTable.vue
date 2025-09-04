@@ -2,7 +2,7 @@
   <div class="pod-table-container">
     <div class="table-title">
       <h2>Pod Resource List</h2>
-      <hr />
+      <hr>
     </div>
 
     <div class="toolbar">
@@ -237,9 +237,9 @@
 
 <script>
 export default {
-  name: "PodTable",
+  name: 'PodTable',
   props: {
-    pods: { type: Array, required: true },
+    pods: { type: Array, required: true }
   },
   data() {
     return {
@@ -254,75 +254,73 @@ export default {
         memory: 170,
         startTime: 160,
         nodeName: 120,
-        actions: 170, // 两个按钮（View + Ops）
+        actions: 170 // 两个按钮（View + Ops）
       },
-      selectedNamespace: "",
-      selectedDeployment: "",
+      selectedNamespace: '',
+      selectedDeployment: '',
       pageSize: 10,
-      currentPage: 1,
-    };
+      currentPage: 1
+    }
   },
   computed: {
     namespaceOptions() {
-      return [...new Set(this.pods.map((p) => p.namespace))].filter(Boolean);
+      return [...new Set(this.pods.map((p) => p.namespace))].filter(Boolean)
     },
     deploymentOptions() {
-      return [...new Set(this.pods.map((p) => p.deployment))].filter(Boolean);
+      return [...new Set(this.pods.map((p) => p.deployment))].filter(Boolean)
     },
     filteredPods() {
       return this.pods.filter((pod) => {
-        if (this.selectedNamespace && pod.namespace !== this.selectedNamespace)
-          return false;
+        if (this.selectedNamespace && pod.namespace !== this.selectedNamespace) { return false }
         if (
           this.selectedDeployment &&
           pod.deployment !== this.selectedDeployment
-        )
-          return false;
-        return true;
-      });
+        ) { return false }
+        return true
+      })
     },
     pagedPods() {
-      const start = (this.currentPage - 1) * this.pageSize;
-      return this.filteredPods.slice(start, start + this.pageSize);
-    },
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.filteredPods.slice(start, start + this.pageSize)
+    }
   },
   methods: {
     handlePageChange(page) {
-      this.currentPage = page;
+      this.currentPage = page
     },
     handlePageSizeChange(size) {
-      this.pageSize = size;
-      this.currentPage = 1;
+      this.pageSize = size
+      this.currentPage = 1
     },
     emitRestart(row) {
-      this.$emit("restart", row);
+      this.$emit('restart', row)
     },
     fmtTime(ts) {
-      const ms = this.parseIsoToMs(ts);
-      if (!Number.isFinite(ms)) return ts || "-";
-      const d = new Date(ms);
-      const pad = (n, w = 2) => String(n).padStart(w, "0");
+      const ms = this.parseIsoToMs(ts)
+      if (!Number.isFinite(ms)) return ts || '-'
+      const d = new Date(ms)
+      const pad = (n, w = 2) => String(n).padStart(w, '0')
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
         d.getDate()
-      )} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      )} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
     },
     parseIsoToMs(ts) {
-      if (typeof ts !== "string") return NaN;
+      if (typeof ts !== 'string') return NaN
       const m = ts.match(
         /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.(\d+))?([Zz]|[+-]\d{2}:\d{2})?$/
-      );
+      )
       if (!m) {
-        const t = Date.parse(ts);
-        return Number.isFinite(t) ? t : NaN;
+        const t = Date.parse(ts)
+        return Number.isFinite(t) ? t : NaN
       }
-      const base = m[1];
-      const frac = m[3] || "";
-      const tz = m[4] || "Z";
-      const ms3 = (frac + "000").slice(0, 3);
-      return Date.parse(`${base}.${ms3}${tz}`);
-    },
-  },
-};
+      const base = m[1]
+      const frac = m[3] || ''
+      const tz = m[4] || 'Z'
+      const ms3 = (frac + '000').slice(0, 3)
+      return Date.parse(`${base}.${ms3}${tz}`)
+    }
+  }
+}
 </script>
 
 <!-- 局部样式（保留 scoped） -->

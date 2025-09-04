@@ -12,7 +12,6 @@
     <div class="right-menu">
       <template v-if="device !== 'mobile'">
 
-
         <error-log class="errLog-container right-menu-item hover-effect" />
 
         <screenfull id="screenfull" class="right-menu-item hover-effect" />
@@ -196,7 +195,7 @@ export default {
         trigger="click"
       >
         <div class="avatar-wrapper">
-          <img :src="avatar + '?imageView2/1/w/80/h/80'" class="user-avatar" />
+          <img :src="avatar + '?imageView2/1/w/80/h/80'" class="user-avatar">
           <i class="el-icon-caret-bottom" />
         </div>
         <el-dropdown-menu slot="dropdown">
@@ -213,12 +212,12 @@ export default {
 </template>
 
 <script>
-import { mapGetters, mapState } from "vuex";
-import Breadcrumb from "@/components/Breadcrumb";
-import Hamburger from "@/components/Hamburger";
-import ErrorLog from "@/components/ErrorLog";
-import Screenfull from "@/components/Screenfull";
-import SizeSelect from "@/components/SizeSelect";
+import { mapGetters, mapState } from 'vuex'
+import Breadcrumb from '@/components/Breadcrumb'
+import Hamburger from '@/components/Hamburger'
+import ErrorLog from '@/components/ErrorLog'
+import Screenfull from '@/components/Screenfull'
+import SizeSelect from '@/components/SizeSelect'
 
 export default {
   components: {
@@ -226,35 +225,35 @@ export default {
     Hamburger,
     ErrorLog,
     Screenfull,
-    SizeSelect,
+    SizeSelect
   },
   computed: {
-    ...mapGetters(["sidebar", "avatar", "device"]),
+    ...mapGetters(['sidebar', 'avatar', 'device']),
     // 直接从 cluster 模块取
-    ...mapState("cluster", ["clusterIds", "currentId"]),
+    ...mapState('cluster', ['clusterIds', 'currentId']),
     currentCluster: {
       get() {
-        return this.currentId;
+        return this.currentId
       },
       set(val) {
-        this.onClusterChange(val);
-      },
-    },
+        this.onClusterChange(val)
+      }
+    }
   },
   methods: {
     toggleSideBar() {
-      this.$store.dispatch("app/toggleSideBar");
+      this.$store.dispatch('app/toggleSideBar')
     },
     onClusterChange(val) {
       // ✅ 交给 cluster 模块管理，不直接碰 localStorage
-      this.$store.dispatch("cluster/setCurrentId", val);
+      this.$store.dispatch('cluster/setCurrentId', val)
     },
     async logout() {
-      await this.$store.dispatch("user/logout");
-      this.$router.push(`/login?redirect=${this.$route.fullPath}`);
-    },
-  },
-};
+      await this.$store.dispatch('user/logout')
+      this.$router.push(`/login?redirect=${this.$route.fullPath}`)
+    }
+  }
+}
 </script>
 
 <style lang="scss" scoped>

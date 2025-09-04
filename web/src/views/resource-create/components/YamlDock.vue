@@ -4,12 +4,16 @@
     <div class="header">
       <span class="title">YAML 预览</span>
       <div class="tools">
-        <el-button size="mini" :disabled="!yaml" @click="copyYaml"
-          >复制</el-button
-        >
-        <el-button size="mini" :disabled="!yaml" @click="downloadYaml"
-          >下载</el-button
-        >
+        <el-button
+          size="mini"
+          :disabled="!yaml"
+          @click="copyYaml"
+        >复制</el-button>
+        <el-button
+          size="mini"
+          :disabled="!yaml"
+          @click="downloadYaml"
+        >下载</el-button>
       </div>
     </div>
 
@@ -20,7 +24,7 @@
       <template v-else>
         <!-- 使用普通占位，不依赖 el-empty -->
         <div class="empty-wrap">
-          <i class="el-icon-document"></i>
+          <i class="el-icon-document" />
           <p class="empty-desc">
             暂无 YAML（请在左侧填写名称与镜像，点击“刷新 YAML”）
           </p>
@@ -47,43 +51,43 @@
 
 <script>
 export default {
-  name: "YamlDock",
+  name: 'YamlDock',
   props: {
-    yaml: { type: String, default: "" },
+    yaml: { type: String, default: '' },
     results: { type: Array, default: () => [] },
-    height: { type: String, default: "calc(100vh - 220px)" },
+    height: { type: String, default: 'calc(100vh - 220px)' },
     showResults: { type: Boolean, default: true },
-    filename: { type: String, default: "resource.yaml" },
+    filename: { type: String, default: 'resource.yaml' }
   },
   methods: {
     async copyYaml() {
       try {
-        await navigator.clipboard.writeText(this.yaml || "");
-        this.$message.success("已复制到剪贴板");
+        await navigator.clipboard.writeText(this.yaml || '')
+        this.$message.success('已复制到剪贴板')
       } catch (e) {
         // 兼容不支持 clipboard 的环境
-        const ta = document.createElement("textarea");
-        ta.value = this.yaml || "";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        this.$message.success("已复制到剪贴板");
+        const ta = document.createElement('textarea')
+        ta.value = this.yaml || ''
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+        this.$message.success('已复制到剪贴板')
       }
     },
     downloadYaml() {
-      const blob = new Blob([this.yaml || ""], {
-        type: "text/yaml;charset=utf-8",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = this.filename || "resource.yaml";
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-  },
-};
+      const blob = new Blob([this.yaml || ''], {
+        type: 'text/yaml;charset=utf-8'
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = this.filename || 'resource.yaml'
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+}
 </script>
 
 <style scoped>

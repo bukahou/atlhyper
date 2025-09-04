@@ -7,20 +7,22 @@
     append-to-body
     :destroy-on-close="true"
     :close-on-click-modal="true"
-    @update:visible="$emit('update:visible', $event)"
     :before-close="handleBeforeClose"
+    @update:visible="$emit('update:visible', $event)"
     @close="handleClose"
   >
     <!-- 顶部摘要栏（吸顶） -->
     <div class="summary-bar">
       <div class="left">
         <span class="node-name">{{ node.name }}</span>
-        <el-tag size="mini" :type="readyTagType"
-          >Ready: {{ boolStr(node.ready) }}</el-tag
-        >
-        <el-tag size="mini" :type="schedTagType"
-          >Schedulable: {{ boolStr(node.schedulable) }}</el-tag
-        >
+        <el-tag
+          size="mini"
+          :type="readyTagType"
+        >Ready: {{ boolStr(node.ready) }}</el-tag>
+        <el-tag
+          size="mini"
+          :type="schedTagType"
+        >Schedulable: {{ boolStr(node.schedulable) }}</el-tag>
         <el-tag size="mini" type="info">{{ node.architecture || "-" }}</el-tag>
         <el-tag size="mini" type="info">{{
           node.osImage || node.os || "-"
@@ -52,7 +54,7 @@
       </div>
 
       <!-- 右：内容（可滚） -->
-      <div class="content" ref="scrollEl" @scroll="onScroll">
+      <div ref="scrollEl" class="content" @scroll="onScroll">
         <!-- 概览 -->
         <section ref="overview" data-id="overview" class="section">
           <h3 class="section-title">概览</h3>
@@ -76,8 +78,7 @@
               <span>主机名</span><b class="mono">{{ node.hostname }}</b>
             </div>
             <div>
-              <span>ProviderID</span
-              ><b class="mono">{{ node.providerID || "-" }}</b>
+              <span>ProviderID</span><b class="mono">{{ node.providerID || "-" }}</b>
             </div>
           </div>
         </section>
@@ -88,28 +89,24 @@
           <div class="kv">
             <div>
               <span>CPU 使用 / 可分配</span>
-              <b
-                >{{ fmtCores(node.cpuUsageCores) }} /
-                {{ fmtCores(node.cpuAllocatableCores) }}</b
-              >
+              <b>{{ fmtCores(node.cpuUsageCores) }} /
+                {{ fmtCores(node.cpuAllocatableCores) }}</b>
             </div>
             <div class="progress-row">
               <div class="bar">
-                <div class="bar-inner" :style="{ width: cpuPercentStr }"></div>
+                <div class="bar-inner" :style="{ width: cpuPercentStr }" />
               </div>
               <div class="val">{{ cpuPercentStr }}</div>
             </div>
 
             <div>
               <span>内存 使用 / 可分配</span>
-              <b
-                >{{ fmtGiB(node.memUsageGiB) }} /
-                {{ fmtGiB(node.memAllocatableGiB) }}</b
-              >
+              <b>{{ fmtGiB(node.memUsageGiB) }} /
+                {{ fmtGiB(node.memAllocatableGiB) }}</b>
             </div>
             <div class="progress-row">
               <div class="bar">
-                <div class="bar-inner" :style="{ width: memPercentStr }"></div>
+                <div class="bar-inner" :style="{ width: memPercentStr }" />
               </div>
               <div class="val">{{ memPercentStr }}</div>
             </div>
@@ -120,7 +117,7 @@
             </div>
             <div class="progress-row">
               <div class="bar">
-                <div class="bar-inner" :style="{ width: podsPercentStr }"></div>
+                <div class="bar-inner" :style="{ width: podsPercentStr }" />
               </div>
               <div class="val">{{ podsPercentStr }}</div>
             </div>
@@ -135,8 +132,7 @@
               <span>CPU 容量</span><b>{{ fmtCores(node.cpuCapacityCores) }}</b>
             </div>
             <div>
-              <span>CPU 可分配</span
-              ><b>{{ fmtCores(node.cpuAllocatableCores) }}</b>
+              <span>CPU 可分配</span><b>{{ fmtCores(node.cpuAllocatableCores) }}</b>
             </div>
             <div>
               <span>内存容量</span><b>{{ fmtGiB(node.memCapacityGiB) }}</b>
@@ -145,8 +141,7 @@
               <span>内存可分配</span><b>{{ fmtGiB(node.memAllocatableGiB) }}</b>
             </div>
             <div>
-              <span>临时存储（Ephemeral）</span
-              ><b>{{ fmtGiB(node.ephemeralStorageGiB) }}</b>
+              <span>临时存储（Ephemeral）</span><b>{{ fmtGiB(node.ephemeralStorageGiB) }}</b>
             </div>
             <div>
               <span>Pods 容量</span><b>{{ node.podsCapacity || 0 }}</b>
@@ -173,8 +168,7 @@
                     :key="i"
                     size="mini"
                     class="mr8 mono"
-                    >{{ cidr }}</el-tag
-                  >
+                  >{{ cidr }}</el-tag>
                 </template>
                 <template v-else>-</template>
               </b>
@@ -205,8 +199,7 @@
               <span>Kubelet</span><b class="mono">{{ node.kubelet || "-" }}</b>
             </div>
             <div>
-              <span>Kube-Proxy</span
-              ><b class="mono">{{ node.kubeProxy || "-" }}</b>
+              <span>Kube-Proxy</span><b class="mono">{{ node.kubeProxy || "-" }}</b>
             </div>
           </div>
         </section>
@@ -259,126 +252,123 @@
 
 <script>
 export default {
-  name: "NodeDetailDrawer",
+  name: 'NodeDetailDrawer',
   props: {
     visible: { type: Boolean, default: false },
     node: { type: Object, required: true },
-    width: { type: String, default: "45%" },
+    width: { type: String, default: '45%' }
   },
   data() {
-    return { activeSection: "overview" };
+    return { activeSection: 'overview' }
   },
   computed: {
     prettyJSON() {
       try {
-        return JSON.stringify(this.node, null, 2);
+        return JSON.stringify(this.node, null, 2)
       } catch (e) {
-        return "{}";
+        return '{}'
       }
     },
     readyTagType() {
-      return this.node.ready ? "success" : "danger";
+      return this.node.ready ? 'success' : 'danger'
     },
     schedTagType() {
-      return this.node.schedulable ? "success" : "warning";
+      return this.node.schedulable ? 'success' : 'warning'
     },
     cpuPercentStr() {
-      if (typeof this.node.cpuUtilPct === "number")
-        return this.clampPct(this.node.cpuUtilPct).toFixed(1) + "%";
-      const u = Number(this.node.cpuUsageCores || 0);
-      const a = Number(this.node.cpuAllocatableCores || 0);
-      const pct = a > 0 ? (u / a) * 100 : 0;
-      return this.clampPct(pct).toFixed(1) + "%";
+      if (typeof this.node.cpuUtilPct === 'number') { return this.clampPct(this.node.cpuUtilPct).toFixed(1) + '%' }
+      const u = Number(this.node.cpuUsageCores || 0)
+      const a = Number(this.node.cpuAllocatableCores || 0)
+      const pct = a > 0 ? (u / a) * 100 : 0
+      return this.clampPct(pct).toFixed(1) + '%'
     },
     memPercentStr() {
-      if (typeof this.node.memUtilPct === "number")
-        return this.clampPct(this.node.memUtilPct).toFixed(1) + "%";
-      const u = Number(this.node.memUsageGiB || 0);
-      const a = Number(this.node.memAllocatableGiB || 0);
-      const pct = a > 0 ? (u / a) * 100 : 0;
-      return this.clampPct(pct).toFixed(1) + "%";
+      if (typeof this.node.memUtilPct === 'number') { return this.clampPct(this.node.memUtilPct).toFixed(1) + '%' }
+      const u = Number(this.node.memUsageGiB || 0)
+      const a = Number(this.node.memAllocatableGiB || 0)
+      const pct = a > 0 ? (u / a) * 100 : 0
+      return this.clampPct(pct).toFixed(1) + '%'
     },
     podsPercentStr() {
-      if (typeof this.node.podsUtilPct === "number")
-        return this.clampPct(this.node.podsUtilPct).toFixed(1) + "%";
-      const u = Number(this.node.podsUsed || 0);
-      const a = Number(this.node.podsAllocatable || 0);
-      const pct = a > 0 ? (u / a) * 100 : 0;
-      return this.clampPct(pct).toFixed(1) + "%";
+      if (typeof this.node.podsUtilPct === 'number') { return this.clampPct(this.node.podsUtilPct).toFixed(1) + '%' }
+      const u = Number(this.node.podsUsed || 0)
+      const a = Number(this.node.podsAllocatable || 0)
+      const pct = a > 0 ? (u / a) * 100 : 0
+      return this.clampPct(pct).toFixed(1) + '%'
     },
     labelArray() {
-      const obj = this.node.labels || {};
-      return Object.keys(obj).map((k) => ({ k, v: obj[k] }));
-    },
+      const obj = this.node.labels || {}
+      return Object.keys(obj).map((k) => ({ k, v: obj[k] }))
+    }
   },
   methods: {
     handleBeforeClose(done) {
-      this.$emit("update:visible", false);
-      done && done();
+      this.$emit('update:visible', false)
+      done && done()
     },
     handleClose() {
-      this.$emit("update:visible", false);
+      this.$emit('update:visible', false)
     },
 
     // helpers
     boolStr(v) {
-      return v ? "True" : "False";
+      return v ? 'True' : 'False'
     },
     clampPct(v) {
-      return Math.max(0, Math.min(100, Number(v) || 0));
+      return Math.max(0, Math.min(100, Number(v) || 0))
     },
     fmtCores(v) {
-      const n = Number(v);
-      if (!Number.isFinite(n)) return "-";
-      return n.toFixed(n < 10 ? 3 : 0).replace(/\.?0+$/, "") + " cores";
+      const n = Number(v)
+      if (!Number.isFinite(n)) return '-'
+      return n.toFixed(n < 10 ? 3 : 0).replace(/\.?0+$/, '') + ' cores'
     },
     fmtGiB(v) {
-      const n = Number(v);
-      if (!Number.isFinite(n)) return "-";
-      return n.toFixed(n < 10 ? 3 : 1).replace(/\.?0+$/, "") + " GiB";
+      const n = Number(v)
+      if (!Number.isFinite(n)) return '-'
+      return n.toFixed(n < 10 ? 3 : 1).replace(/\.?0+$/, '') + ' GiB'
     },
     condTypeTag(c) {
       // 仅做区分：Ready 用 primary，其它 info
-      return (c.type || "").toLowerCase() === "ready" ? "primary" : "info";
+      return (c.type || '').toLowerCase() === 'ready' ? 'primary' : 'info'
     },
     condStatusTag(c) {
-      const s = (c.status || "").toLowerCase();
-      if (s === "true") return "success";
-      if (s === "false") return "danger";
-      return "warning";
+      const s = (c.status || '').toLowerCase()
+      if (s === 'true') return 'success'
+      if (s === 'false') return 'danger'
+      return 'warning'
     },
 
     // 目录滚动
     scrollTo(id) {
-      const el = this.$refs[id];
-      if (!el || !this.$refs.scrollEl) return;
-      const top = el.offsetTop - 8;
-      this.$refs.scrollEl.scrollTo({ top, behavior: "smooth" });
-      this.activeSection = id;
-      this.$emit("section-change", id);
+      const el = this.$refs[id]
+      if (!el || !this.$refs.scrollEl) return
+      const top = el.offsetTop - 8
+      this.$refs.scrollEl.scrollTo({ top, behavior: 'smooth' })
+      this.activeSection = id
+      this.$emit('section-change', id)
     },
     onScroll() {
-      const container = this.$refs.scrollEl;
-      if (!container) return;
+      const container = this.$refs.scrollEl
+      if (!container) return
       const sections = [
-        "overview",
-        "resource",
-        "capacity",
-        "network",
-        "components",
-        "conditions",
-        "labels",
-        "raw",
-      ];
-      let current = sections[0];
+        'overview',
+        'resource',
+        'capacity',
+        'network',
+        'components',
+        'conditions',
+        'labels',
+        'raw'
+      ]
+      let current = sections[0]
       for (const id of sections) {
-        const el = this.$refs[id];
-        if (el && el.offsetTop - container.scrollTop <= 40) current = id;
+        const el = this.$refs[id]
+        if (el && el.offsetTop - container.scrollTop <= 40) current = id
       }
-      this.activeSection = current;
-    },
-  },
-};
+      this.activeSection = current
+    }
+  }
+}
 </script>
 
 <style scoped>

@@ -7,8 +7,8 @@
     append-to-body
     :destroy-on-close="true"
     :close-on-click-modal="true"
-    @update:visible="$emit('update:visible', $event)"
     :before-close="handleBeforeClose"
+    @update:visible="$emit('update:visible', $event)"
     @close="handleClose"
   >
     <!-- 顶部摘要 -->
@@ -49,7 +49,7 @@
       </div>
 
       <!-- 右：内容 -->
-      <div class="content" ref="scrollEl" @scroll="onScroll">
+      <div ref="scrollEl" class="content" @scroll="onScroll">
         <!-- 概览 -->
         <section ref="overview" data-id="overview" class="section">
           <h3 class="section-title">概览</h3>
@@ -61,12 +61,10 @@
               <span>命名空间</span><b>{{ dep.namespace }}</b>
             </div>
             <div>
-              <span>策略</span
-              ><b>{{ dep.strategy || spec.strategyType || "-" }}</b>
+              <span>策略</span><b>{{ dep.strategy || spec.strategyType || "-" }}</b>
             </div>
             <div>
-              <span>Selector</span
-              ><b class="mono">{{ dep.selector || selectorStr }}</b>
+              <span>Selector</span><b class="mono">{{ dep.selector || selectorStr }}</b>
             </div>
             <div>
               <span>创建时间</span><b>{{ dep.createdAt || "-" }}</b>
@@ -87,8 +85,8 @@
                 spec.replicas != null
                   ? spec.replicas
                   : dep.replicas != null
-                  ? dep.replicas
-                  : "-"
+                    ? dep.replicas
+                    : "-"
               }}</b>
             </div>
             <div>
@@ -101,8 +99,7 @@
               </b>
             </div>
             <div>
-              <span>Rollout 阶段</span
-              ><b>{{ (dep.rollout && dep.rollout.phase) || "—" }}</b>
+              <span>Rollout 阶段</span><b>{{ (dep.rollout && dep.rollout.phase) || "—" }}</b>
             </div>
           </div>
 
@@ -112,10 +109,10 @@
               <span>{{ c.type }} ({{ c.status }})</span>
               <b>
                 {{ c.reason || "-" }} — {{ c.message || "-" }}
-                <i class="muted"
-                  >updated {{ c.lastUpdateTime || "-" }}, transition
-                  {{ c.lastTransitionTime || "-" }}</i
-                >
+                <i
+                  class="muted"
+                >updated {{ c.lastUpdateTime || "-" }}, transition
+                  {{ c.lastTransitionTime || "-" }}</i>
               </b>
             </div>
           </div>
@@ -127,27 +124,23 @@
           <h3 class="section-title">更新策略</h3>
           <div class="kv">
             <div>
-              <span>Strategy</span
-              ><b>{{ spec.strategyType || dep.strategy || "-" }}</b>
+              <span>Strategy</span><b>{{ spec.strategyType || dep.strategy || "-" }}</b>
             </div>
             <div>
               <span>Max Surge</span><b>{{ spec.maxSurge || "—" }}</b>
             </div>
             <div>
-              <span>Max Unavailable</span
-              ><b>{{ spec.maxUnavailable || "—" }}</b>
+              <span>Max Unavailable</span><b>{{ spec.maxUnavailable || "—" }}</b>
             </div>
             <div>
-              <span>RevisionHistoryLimit</span
-              ><b>{{
+              <span>RevisionHistoryLimit</span><b>{{
                 spec.revisionHistoryLimit != null
                   ? spec.revisionHistoryLimit
                   : "—"
               }}</b>
             </div>
             <div>
-              <span>ProgressDeadlineSeconds</span
-              ><b>{{
+              <span>ProgressDeadlineSeconds</span><b>{{
                 spec.progressDeadlineSeconds != null
                   ? spec.progressDeadlineSeconds
                   : "—"
@@ -178,8 +171,7 @@
                     :key="k"
                     size="mini"
                     class="mr8 mono"
-                    >{{ k }}={{ v }}</el-tag
-                  >
+                  >{{ k }}={{ v }}</el-tag>
                 </template>
                 <template v-else>—</template>
               </b>
@@ -203,8 +195,7 @@
                     :key="i"
                     size="mini"
                     class="mr8 mono"
-                    >{{ s }}</el-tag
-                  >
+                  >{{ s }}</el-tag>
                 </template>
                 <template v-else>—</template>
               </b>
@@ -248,13 +239,13 @@
                     (c.resources &&
                       c.resources.requests &&
                       c.resources.requests.cpu) ||
-                    "-"
+                      "-"
                   }}, 内存
                   {{
                     (c.resources &&
                       c.resources.requests &&
                       c.resources.requests.memory) ||
-                    "-"
+                      "-"
                   }}
                 </b>
               </div>
@@ -266,13 +257,13 @@
                     (c.resources &&
                       c.resources.limits &&
                       c.resources.limits.cpu) ||
-                    "-"
+                      "-"
                   }}, 内存
                   {{
                     (c.resources &&
                       c.resources.limits &&
                       c.resources.limits.memory) ||
-                    "-"
+                      "-"
                   }}
                 </b>
               </div>
@@ -281,8 +272,7 @@
             <h4 class="sub">环境变量</h4>
             <div v-if="(c.env || []).length" class="kv">
               <div v-for="(e, i) in c.env" :key="i">
-                <span class="mono">{{ e.name }}</span
-                ><b class="mono">{{ e.value }}</b>
+                <span class="mono">{{ e.name }}</span><b class="mono">{{ e.value }}</b>
               </div>
             </div>
             <div v-else class="muted">无</div>
@@ -303,11 +293,8 @@
                   <span>Revision</span><b>{{ rs.revision }}</b>
                 </div>
                 <div>
-                  <span>Replicas</span
-                  ><b
-                    >ready {{ rs.ready }}/{{ rs.replicas }}, available
-                    {{ rs.available }}</b
-                  >
+                  <span>Replicas</span><b>ready {{ rs.ready }}/{{ rs.replicas }}, available
+                    {{ rs.available }}</b>
                 </div>
                 <div>
                   <span>创建时间</span><b>{{ rs.createdAt || "-" }}</b>
@@ -325,8 +312,7 @@
           <h3 class="section-title">注解</h3>
           <div v-if="annotationArray.length" class="kv">
             <div v-for="(a, i) in annotationArray" :key="i">
-              <span class="mono">{{ a.k }}</span
-              ><b class="mono">{{ a.v }}</b>
+              <span class="mono">{{ a.k }}</span><b class="mono">{{ a.v }}</b>
             </div>
           </div>
           <div v-else class="muted">—</div>
@@ -344,91 +330,91 @@
 
 <script>
 export default {
-  name: "DeploymentDetailDrawer",
+  name: 'DeploymentDetailDrawer',
   props: {
     visible: { type: Boolean, default: false },
     dep: { type: Object, required: true },
-    width: { type: String, default: "55%" },
+    width: { type: String, default: '55%' }
   },
   data() {
-    return { activeSection: "overview" };
+    return { activeSection: 'overview' }
   },
   computed: {
     spec() {
-      return this.dep.spec || {};
+      return this.dep.spec || {}
     },
     tpl() {
-      return this.dep.template || {};
+      return this.dep.template || {}
     },
     status() {
-      return this.dep.status || {};
+      return this.dep.status || {}
     },
     selectorStr() {
-      const m = (this.spec && this.spec.matchLabels) || {};
-      const pairs = Object.keys(m).map((k) => k + "=" + m[k]);
-      return pairs.join(", ");
+      const m = (this.spec && this.spec.matchLabels) || {}
+      const pairs = Object.keys(m).map((k) => k + '=' + m[k])
+      return pairs.join(', ')
     },
     containers() {
-      return Array.isArray(this.tpl.containers) ? this.tpl.containers : [];
+      return Array.isArray(this.tpl.containers) ? this.tpl.containers : []
     },
     imagePullSecrets() {
       // 兼容 string[] 或 {name:string}[]
-      const ips = this.tpl.imagePullSecrets || [];
+      const ips = this.tpl.imagePullSecrets || []
       return ips
-        .map((s) => (typeof s === "string" ? s : (s && s.name) || ""))
-        .filter(Boolean);
+        .map((s) => (typeof s === 'string' ? s : (s && s.name) || ''))
+        .filter(Boolean)
     },
     annotationArray() {
-      const obj = this.dep.annotations || {};
-      return Object.keys(obj).map((k) => ({ k, v: obj[k] }));
+      const obj = this.dep.annotations || {}
+      return Object.keys(obj).map((k) => ({ k, v: obj[k] }))
     },
     prettyJSON() {
       try {
-        return JSON.stringify(this.dep, null, 2);
+        return JSON.stringify(this.dep, null, 2)
       } catch (e) {
-        return "{}";
+        return '{}'
       }
-    },
+    }
   },
   methods: {
     handleBeforeClose(done) {
-      this.$emit("update:visible", false);
-      if (typeof done === "function") done();
+      this.$emit('update:visible', false)
+      if (typeof done === 'function') done()
     },
     handleClose() {
-      this.$emit("update:visible", false);
+      this.$emit('update:visible', false)
     },
     scrollTo(id) {
-      const el = this.$refs[id];
-      if (!el || !this.$refs.scrollEl) return;
-      const top = el.offsetTop - 8;
-      this.$refs.scrollEl.scrollTo({ top, behavior: "smooth" });
-      this.activeSection = id;
-      this.$emit("section-change", id);
+      const el = this.$refs[id]
+      if (!el || !this.$refs.scrollEl) return
+      const top = el.offsetTop - 8
+      this.$refs.scrollEl.scrollTo({ top, behavior: 'smooth' })
+      this.activeSection = id
+      this.$emit('section-change', id)
     },
     onScroll() {
-      const container = this.$refs.scrollEl;
-      if (!container) return;
+      const container = this.$refs.scrollEl
+      if (!container) return
       const ids = [
-        "overview",
-        "replicas",
-        "strategy",
-        "selectors",
-        "template",
-        "replicasets",
-        "annotations",
-        "raw",
-      ];
-      let current = ids[0];
+        'overview',
+        'replicas',
+        'strategy',
+        'selectors',
+        'template',
+        'replicasets',
+        'annotations',
+        'raw'
+      ]
+      let current = ids[0]
       for (let i = 0; i < ids.length; i++) {
-        const id = ids[i];
-        const el = this.$refs[id];
-        if (el && el.offsetTop - container.scrollTop <= 40) current = id;
+        const id = ids[i]
+        const el = this.$refs[id]
+        if (el && el.offsetTop - container.scrollTop <= 40) current = id
       }
-      this.activeSection = current;
-    },
-  },
-};
+      this.activeSection = current
+    }
+  }
+}
 </script>
 
 <style scoped>

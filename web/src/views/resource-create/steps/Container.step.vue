@@ -58,37 +58,37 @@
 </template>
 
 <script>
-import store from "../stores/createForm.store";
+import store from '../stores/createForm.store'
 
 // 子组件
-import BasicFields from "./Container/BasicFields.vue";
-import PortsTable from "./Container/PortsTable.vue";
-import EnvTable from "./Container/EnvTable.vue";
-import EnvFromTable from "./Container/EnvFromTable.vue";
-import VolumeMountsTable from "./Container/VolumeMountsTable.vue";
-import ProbesEditor from "./Container/ProbesEditor.vue";
+import BasicFields from './Container/BasicFields.vue'
+import PortsTable from './Container/PortsTable.vue'
+import EnvTable from './Container/EnvTable.vue'
+import EnvFromTable from './Container/EnvFromTable.vue'
+import VolumeMountsTable from './Container/VolumeMountsTable.vue'
+import ProbesEditor from './Container/ProbesEditor.vue'
 
-const trim = (x) => String(x || "").trim();
-const clone = (x) => JSON.parse(JSON.stringify(x || {}));
+const trim = (x) => String(x || '').trim()
+const clone = (x) => JSON.parse(JSON.stringify(x || {}))
 
 export default {
-  name: "ContainerStep",
+  name: 'ContainerStep',
   components: {
     BasicFields,
     PortsTable,
     EnvTable,
     EnvFromTable,
     VolumeMountsTable,
-    ProbesEditor,
+    ProbesEditor
   },
   data() {
-    const s = store.form.container || {};
+    const s = store.form.container || {}
     return {
       local: {
         basic: {
-          name: s.name || "",
-          image: s.image || "",
-          pullPolicy: s.pullPolicy || "",
+          name: s.name || '',
+          image: s.image || '',
+          pullPolicy: s.pullPolicy || ''
         },
         ports: (s.ports || []).map((p) => ({ ...p })),
         env: (s.env || []).map((e) => ({ ...e })),
@@ -96,12 +96,12 @@ export default {
         volumeMounts: (s.volumeMounts || []).map((m) => ({ ...m })),
         resources: {
           requests: { ...(s.resources?.requests || {}) },
-          limits: { ...(s.resources?.limits || {}) },
+          limits: { ...(s.resources?.limits || {}) }
         },
         // 子组件内部会做默认与启停控制；这里只透传已有值
-        probes: clone(s.probes) || { readiness: null, liveness: null },
-      },
-    };
+        probes: clone(s.probes) || { readiness: null, liveness: null }
+      }
+    }
   },
   watch: {
     local: {
@@ -111,64 +111,64 @@ export default {
         const ports = (v.ports || [])
           .map((p) => ({
             name: trim(p.name),
-            containerPort: Number(p.containerPort),
+            containerPort: Number(p.containerPort)
           }))
-          .filter((p) => Number.isFinite(p.containerPort));
+          .filter((p) => Number.isFinite(p.containerPort))
 
         // env：只保留有 name；同名后者覆盖前者
         const envMap = new Map();
         (v.env || []).forEach((e) => {
-          const n = trim(e.name);
-          if (!n) return;
-          envMap.set(n, { name: n, value: String(e.value ?? "") });
-        });
-        const env = Array.from(envMap.values());
+          const n = trim(e.name)
+          if (!n) return
+          envMap.set(n, { name: n, value: String(e.value ?? '') })
+        })
+        const env = Array.from(envMap.values())
 
         // envFrom：规范化 type；去重（type/name 组合）
-        const seen = new Set();
+        const seen = new Set()
         const envFrom = (v.envFrom || [])
           .map((x) => ({
-            type: x.type === "secretRef" ? "secretRef" : "configMapRef",
-            name: trim(x.name),
+            type: x.type === 'secretRef' ? 'secretRef' : 'configMapRef',
+            name: trim(x.name)
           }))
           .filter((x) => x.name)
           .filter((x) => {
-            const k = `${x.type}/${x.name}`;
-            if (seen.has(k)) return false;
-            seen.add(k);
-            return true;
-          });
+            const k = `${x.type}/${x.name}`
+            if (seen.has(k)) return false
+            seen.add(k)
+            return true
+          })
 
         // volumeMounts：只保留 name+mountPath；去重
-        const vmSeen = new Set();
+        const vmSeen = new Set()
         const volumeMounts = (v.volumeMounts || [])
           .map((m) => ({
             name: trim(m.name),
             mountPath: trim(m.mountPath),
             subPath: trim(m.subPath),
-            readOnly: !!m.readOnly,
+            readOnly: !!m.readOnly
           }))
           .filter((m) => m.name && m.mountPath)
           .filter((m) => {
-            const k = `${m.name}|${m.mountPath}`;
-            if (vmSeen.has(k)) return false;
-            vmSeen.add(k);
-            return true;
-          });
+            const k = `${m.name}|${m.mountPath}`
+            if (vmSeen.has(k)) return false
+            vmSeen.add(k)
+            return true
+          })
 
         // 资源：保持原样（builder 决定是否输出）
         const resources = {
           requests: { ...(v.resources?.requests || {}) },
-          limits: { ...(v.resources?.limits || {}) },
-        };
+          limits: { ...(v.resources?.limits || {}) }
+        }
 
         // probes：子组件已做“启用且完整才返回对象，否则 null”
-        const probes = clone(v.probes);
+        const probes = clone(v.probes)
 
         // 基本字段
-        const name = trim(v.basic?.name);
-        const image = trim(v.basic?.image);
-        const pullPolicy = trim(v.basic?.pullPolicy);
+        const name = trim(v.basic?.name)
+        const image = trim(v.basic?.image)
+        const pullPolicy = trim(v.basic?.pullPolicy)
 
         store.form.container = {
           name,
@@ -179,12 +179,12 @@ export default {
           envFrom,
           volumeMounts,
           resources,
-          probes,
-        };
-      },
-    },
-  },
-};
+          probes
+        }
+      }
+    }
+  }
+}
 </script>
 
 <style scoped>

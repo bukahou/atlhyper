@@ -45,151 +45,151 @@
 </template>
 
 <script>
-import AutoPoll from "@/components/Atlhyper/AutoPoll.vue";
-import CardStat from "@/components/Atlhyper/CardStat.vue";
-import MetricsTable from "./components/MetricsTable.vue";
-import MetricsDetailDrawer from "./components/MetricsDetailDrawer.vue";
-import { getMetricsOverview } from "@/api/metrics";
-import { mapState } from "vuex";
+import AutoPoll from '@/components/Atlhyper/AutoPoll.vue'
+import CardStat from '@/components/Atlhyper/CardStat.vue'
+import MetricsTable from './components/MetricsTable.vue'
+import MetricsDetailDrawer from './components/MetricsDetailDrawer.vue'
+import { getMetricsOverview } from '@/api/metrics'
+import { mapState } from 'vuex'
 
 export default {
-  name: "MetricsPage",
+  name: 'MetricsPage',
   components: { AutoPoll, CardStat, MetricsTable, MetricsDetailDrawer },
   data() {
     return {
       statCards: [
         {
-          key: "cpuAvg",
-          title: "CPU Avg",
-          value: "-",
-          tooltip: "CPU 平均使用率",
-          iconClass: "fas fa-microchip",
-          iconBg: "bg2",
+          key: 'cpuAvg',
+          title: 'CPU Avg',
+          value: '-',
+          tooltip: 'CPU 平均使用率',
+          iconClass: 'fas fa-microchip',
+          iconBg: 'bg2'
         },
         {
-          key: "memAvg",
-          title: "Mem Avg",
-          value: "-",
-          tooltip: "内存平均使用率",
-          iconClass: "fas fa-memory",
-          iconBg: "bg3",
+          key: 'memAvg',
+          title: 'Mem Avg',
+          value: '-',
+          tooltip: '内存平均使用率',
+          iconClass: 'fas fa-memory',
+          iconBg: 'bg3'
         },
         {
-          key: "tempMax",
-          title: "Temp Max",
-          value: "-",
-          tooltip: "最高 CPU 温度",
-          iconClass: "fas fa-thermometer-half",
-          iconBg: "bg4",
+          key: 'tempMax',
+          title: 'Temp Max',
+          value: '-',
+          tooltip: '最高 CPU 温度',
+          iconClass: 'fas fa-thermometer-half',
+          iconBg: 'bg4'
         },
         {
-          key: "diskMax",
-          title: "Disk Max",
-          value: "-",
-          tooltip: "磁盘使用峰值",
-          iconClass: "fas fa-hdd",
-          iconBg: "bg1",
-        },
+          key: 'diskMax',
+          title: 'Disk Max',
+          value: '-',
+          tooltip: '磁盘使用峰值',
+          iconClass: 'fas fa-hdd',
+          iconBg: 'bg1'
+        }
       ],
       tableRows: [],
       // 抽屉
       drawerVisible: false,
-      selectedNodeId: "",
-    };
+      selectedNodeId: ''
+    }
   },
   computed: {
-    ...mapState("cluster", ["currentId"]),
+    ...mapState('cluster', ['currentId'])
   },
   watch: {
     currentId: {
       immediate: true,
       handler(id) {
-        if (id) this.loadLatest();
-      },
-    },
+        if (id) this.loadLatest()
+      }
+    }
   },
   methods: {
     async loadLatest() {
-      if (!this.currentId) return;
+      if (!this.currentId) return
       try {
-        const res = await getMetricsOverview(this.currentId);
+        const res = await getMetricsOverview(this.currentId)
         if (res.code !== 20000) {
-          this.$message.error(res.message || "获取集群指标概览失败");
-          return;
+          this.$message.error(res.message || '获取集群指标概览失败')
+          return
         }
-        const { cards = {}, rows = [] } = res.data || {};
+        const { cards = {}, rows = [] } = res.data || {}
 
         // 顶部卡片
         this.setCard(
-          "cpuAvg",
+          'cpuAvg',
           Number(cards.avgCPUPercent),
           (v) => `${v.toFixed(2)}%`,
-          "CPU 平均使用率"
-        );
+          'CPU 平均使用率'
+        )
         this.setCard(
-          "memAvg",
+          'memAvg',
           Number(cards.avgMemPercent),
           (v) => `${v.toFixed(2)}%`,
-          "内存平均使用率"
-        );
+          '内存平均使用率'
+        )
         this.setCard(
-          "tempMax",
+          'tempMax',
           Number(cards.peakTempC),
           (v) => `${v.toFixed(2)}℃`,
-          `最高温度节点：${cards.peakTempNode || "-"}`
-        );
+          `最高温度节点：${cards.peakTempNode || '-'}`
+        )
         this.setCard(
-          "diskMax",
+          'diskMax',
           Number(cards.peakDiskPercent),
           (v) => `${v.toFixed(2)}%`,
-          `峰值磁盘节点：${cards.peakDiskNode || "-"}`
-        );
+          `峰值磁盘节点：${cards.peakDiskNode || '-'}`
+        )
 
         // 表格数据
         this.tableRows = rows.map((r) => ({
-          node: r.node || "-",
+          node: r.node || '-',
           cpuPercent: this.toNum(r.cpuPercent),
           memoryPercent: this.toNum(r.memPercent),
           cpuTemp: this.toNum(r.cpuTempC),
           diskPercent: this.toNum(r.diskUsedPercent),
           eth0Tx: this.kbpsToString(r.eth0TxKBps),
           eth0Rx: this.kbpsToString(r.eth0RxKBps),
-          topCpuProcess: r.topCPUProcess || "-",
-          timestamp: r.timestamp || "-",
-        }));
+          topCpuProcess: r.topCPUProcess || '-',
+          timestamp: r.timestamp || '-'
+        }))
       } catch (e) {
-        this.$message.error("请求失败：" + (e.message || e));
+        this.$message.error('请求失败：' + (e.message || e))
       }
     },
 
     setCard(key, raw, fmt, tooltip) {
-      const idx = this.statCards.findIndex((c) => c.key === key);
-      if (idx < 0) return;
-      const n = this.toNum(raw);
+      const idx = this.statCards.findIndex((c) => c.key === key)
+      if (idx < 0) return
+      const n = this.toNum(raw)
       this.$set(this.statCards, idx, {
         ...this.statCards[idx],
-        value: Number.isFinite(n) ? fmt(n) : "-",
-        tooltip,
-      });
+        value: Number.isFinite(n) ? fmt(n) : '-',
+        tooltip
+      })
     },
 
     toNum(v) {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : NaN;
+      const n = Number(v)
+      return Number.isFinite(n) ? n : NaN
     },
     kbpsToString(v) {
-      const n = Number(v);
-      return Number.isFinite(n) ? `${n.toFixed(0)} KB/s` : "-";
+      const n = Number(v)
+      return Number.isFinite(n) ? `${n.toFixed(0)} KB/s` : '-'
       // 如需自动换单位，可自行扩展
     },
 
     // 打开详情抽屉
     handleViewRow(row) {
-      this.selectedNodeId = row.node; // API 的 NodeID 用节点名
-      this.drawerVisible = true;
-    },
-  },
-};
+      this.selectedNodeId = row.node // API 的 NodeID 用节点名
+      this.drawerVisible = true
+    }
+  }
+}
 </script>
 
 <style scoped>

@@ -7,8 +7,8 @@
     append-to-body
     :destroy-on-close="true"
     :close-on-click-modal="true"
-    @update:visible="$emit('update:visible', $event)"
     :before-close="handleBeforeClose"
+    @update:visible="$emit('update:visible', $event)"
     @close="handleClose"
   >
     <!-- 顶部摘要栏（吸顶） -->
@@ -44,7 +44,7 @@
       </div>
 
       <!-- 右：内容（可滚） -->
-      <div class="content" ref="scrollEl" @scroll="onScroll">
+      <div ref="scrollEl" class="content" @scroll="onScroll">
         <!-- 概览 -->
         <section ref="overview" data-id="overview" class="section">
           <h3 class="section-title">概览</h3>
@@ -68,12 +68,10 @@
               <span>会话亲和性</span><b>{{ svc.sessionAffinity || "None" }}</b>
             </div>
             <div>
-              <span>内部流量策略</span
-              ><b>{{ svc.internalTrafficPolicy || "-" }}</b>
+              <span>内部流量策略</span><b>{{ svc.internalTrafficPolicy || "-" }}</b>
             </div>
             <div>
-              <span>IP Family Policy</span
-              ><b>{{ svc.ipFamilyPolicy || "-" }}</b>
+              <span>IP Family Policy</span><b>{{ svc.ipFamilyPolicy || "-" }}</b>
             </div>
           </div>
         </section>
@@ -100,9 +98,9 @@
           <div v-if="portsArray.length" class="kv">
             <div v-for="(p, i) in portsArray" :key="i">
               <span>{{ p.name || "—" }}</span>
-              <b class="mono"
-                >{{ p.protocol || "TCP" }} {{ p.port }} → {{ p.targetPort }}</b
-              >
+              <b
+                class="mono"
+              >{{ p.protocol || "TCP" }} {{ p.port }} → {{ p.targetPort }}</b>
             </div>
           </div>
           <div v-else class="muted">无</div>
@@ -115,18 +113,15 @@
           <template v-if="svc.backends">
             <div class="kv">
               <div>
-                <span>Ready/Total</span
-                ><b
-                  >{{ svc.backends.ready || 0 }} /
-                  {{ svc.backends.total || 0 }}</b
-                >
+                <span>Ready/Total</span><b>{{ svc.backends.ready || 0 }} /
+                  {{ svc.backends.total || 0 }}</b>
               </div>
               <div class="progress-row">
                 <div class="bar">
                   <div
                     class="bar-inner"
                     :style="{ width: readyPercentStr }"
-                  ></div>
+                  />
                 </div>
                 <div class="val">{{ readyPercentStr }}</div>
               </div>
@@ -155,7 +150,7 @@
                 }}</el-tag>
                 <span class="mono addr">{{ ep.address }}</span>
                 <span class="node mono">node={{ ep.nodeName || "-" }}</span>
-                <span class="tref mono" v-if="ep.targetRef">
+                <span v-if="ep.targetRef" class="tref mono">
                   {{ ep.targetRef.kind }}/{{ ep.targetRef.namespace }}/{{
                     ep.targetRef.name
                   }}
@@ -180,8 +175,7 @@
                     :key="i"
                     size="mini"
                     class="mr8 mono"
-                    >{{ ip }}</el-tag
-                  >
+                  >{{ ip }}</el-tag>
                 </template>
                 <template v-else>—</template>
               </b>
@@ -195,8 +189,7 @@
                     :key="i"
                     size="mini"
                     class="mr8 mono"
-                    >{{ fam }}</el-tag
-                  >
+                  >{{ fam }}</el-tag>
                 </template>
                 <template v-else>—</template>
               </b>
@@ -216,100 +209,100 @@
 
 <script>
 export default {
-  name: "ServiceDetailDrawer",
+  name: 'ServiceDetailDrawer',
   props: {
     visible: { type: Boolean, default: false },
     svc: { type: Object, required: true },
-    width: { type: String, default: "45%" },
+    width: { type: String, default: '45%' }
   },
   data() {
-    return { activeSection: "overview" };
+    return { activeSection: 'overview' }
   },
   computed: {
     typeTagType() {
-      const t = (this.svc.type || "ClusterIP").toLowerCase();
-      if (t === "clusterip") return "primary";
-      if (t === "nodeport") return "warning";
-      if (t === "loadbalancer") return "success";
-      if (t === "externalname") return "info";
-      return "info";
+      const t = (this.svc.type || 'ClusterIP').toLowerCase()
+      if (t === 'clusterip') return 'primary'
+      if (t === 'nodeport') return 'warning'
+      if (t === 'loadbalancer') return 'success'
+      if (t === 'externalname') return 'info'
+      return 'info'
     },
     prettyJSON() {
       try {
-        return JSON.stringify(this.svc, null, 2);
+        return JSON.stringify(this.svc, null, 2)
       } catch {
-        return "{}";
+        return '{}'
       }
     },
     selectorArray() {
-      const obj = this.svc.selector || {};
-      return Object.keys(obj).map((k) => ({ k, v: obj[k] }));
+      const obj = this.svc.selector || {}
+      return Object.keys(obj).map((k) => ({ k, v: obj[k] }))
     },
     portsArray() {
-      return Array.isArray(this.svc.ports) ? this.svc.ports : [];
+      return Array.isArray(this.svc.ports) ? this.svc.ports : []
     },
     clusterIPs() {
-      return Array.isArray(this.svc.clusterIPs) ? this.svc.clusterIPs : [];
+      return Array.isArray(this.svc.clusterIPs) ? this.svc.clusterIPs : []
     },
     ipFamilies() {
-      return Array.isArray(this.svc.ipFamilies) ? this.svc.ipFamilies : [];
+      return Array.isArray(this.svc.ipFamilies) ? this.svc.ipFamilies : []
     },
     backendPorts() {
-      const p = this.svc.backends && this.svc.backends.ports;
-      return Array.isArray(p) ? p : [];
+      const p = this.svc.backends && this.svc.backends.ports
+      return Array.isArray(p) ? p : []
     },
     backendEndpoints() {
-      const e = this.svc.backends && this.svc.backends.endpoints;
-      return Array.isArray(e) ? e : [];
+      const e = this.svc.backends && this.svc.backends.endpoints
+      return Array.isArray(e) ? e : []
     },
     readyPercentStr() {
-      const r = Number(this.svc.backends?.ready || 0);
-      const t = Number(this.svc.backends?.total || 0);
-      const pct = t > 0 ? (r / t) * 100 : 0;
-      return this.clampPct(pct).toFixed(0) + "%";
-    },
+      const r = Number(this.svc.backends?.ready || 0)
+      const t = Number(this.svc.backends?.total || 0)
+      const pct = t > 0 ? (r / t) * 100 : 0
+      return this.clampPct(pct).toFixed(0) + '%'
+    }
   },
   methods: {
     handleBeforeClose(done) {
-      this.$emit("update:visible", false);
-      done && done();
+      this.$emit('update:visible', false)
+      done && done()
     },
     handleClose() {
-      this.$emit("update:visible", false);
+      this.$emit('update:visible', false)
     },
     clampPct(v) {
-      return Math.max(0, Math.min(100, Number(v) || 0));
+      return Math.max(0, Math.min(100, Number(v) || 0))
     },
 
     // 目录滚动
     scrollTo(id) {
-      const el = this.$refs[id];
-      if (!el || !this.$refs.scrollEl) return;
-      const top = el.offsetTop - 8;
-      this.$refs.scrollEl.scrollTo({ top, behavior: "smooth" });
-      this.activeSection = id;
-      this.$emit("section-change", id);
+      const el = this.$refs[id]
+      if (!el || !this.$refs.scrollEl) return
+      const top = el.offsetTop - 8
+      this.$refs.scrollEl.scrollTo({ top, behavior: 'smooth' })
+      this.activeSection = id
+      this.$emit('section-change', id)
     },
     onScroll() {
-      const container = this.$refs.scrollEl;
-      if (!container) return;
+      const container = this.$refs.scrollEl
+      if (!container) return
       const sections = [
-        "overview",
-        "selector",
-        "ports",
-        "backends",
-        "network",
-        "raw",
-      ];
-      let current = sections[0];
+        'overview',
+        'selector',
+        'ports',
+        'backends',
+        'network',
+        'raw'
+      ]
+      let current = sections[0]
       for (const id of sections) {
-        const el = this.$refs[id];
-        if (el && el.offsetTop - container.scrollTop <= 40) current = id;
+        const el = this.$refs[id]
+        if (el && el.offsetTop - container.scrollTop <= 40) current = id
       }
-      this.activeSection = current;
-    },
-  },
-};
+      this.activeSection = current
+    }
+  }
+}
 </script>
 
 <style scoped>

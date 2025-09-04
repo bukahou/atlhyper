@@ -108,32 +108,32 @@
 </template>
 
 <script>
-const clone = (x) => JSON.parse(JSON.stringify(x || {}));
-const trim = (x) => String(x || "").trim();
+const clone = (x) => JSON.parse(JSON.stringify(x || {}))
+const trim = (x) => String(x || '').trim()
 
 export default {
-  name: "ProbesEditor",
+  name: 'ProbesEditor',
   props: {
     // 父组件 v-model 值：{ readiness: {...} | null, liveness: {...} | null }
     value: {
       type: Object,
-      default: () => ({ readiness: null, liveness: null }),
+      default: () => ({ readiness: null, liveness: null })
     },
     // 用于智能推断端口（此版本不自动填充，只作为未来扩展）
-    ports: { type: Array, default: () => [] },
+    ports: { type: Array, default: () => [] }
   },
   data() {
     // 初始化：尽量保留父值；空则给出结构但不设默认值（path='', port=null）
-    const r = clone(this.value?.readiness) || {};
-    const l = clone(this.value?.liveness) || {};
+    const r = clone(this.value?.readiness) || {}
+    const l = clone(this.value?.liveness) || {}
     return {
       m: {
         readiness: {
           // HTTP 结构固定存在，便于双绑；不填就不写入
           http: {
-            path: trim(r?.http?.path || ""),
+            path: trim(r?.http?.path || ''),
             port: Number.isFinite(r?.http?.port) ? r.http.port : null,
-            scheme: r?.http?.scheme || "HTTP",
+            scheme: r?.http?.scheme || 'HTTP'
           },
           // 时序参数，只有填了才输出
           initialDelaySeconds: Number.isFinite(r?.initialDelaySeconds)
@@ -150,13 +150,13 @@ export default {
             : undefined,
           successThreshold: Number.isFinite(r?.successThreshold)
             ? r.successThreshold
-            : undefined,
+            : undefined
         },
         liveness: {
           http: {
-            path: trim(l?.http?.path || ""),
+            path: trim(l?.http?.path || ''),
             port: Number.isFinite(l?.http?.port) ? l.http.port : null,
-            scheme: l?.http?.scheme || "HTTP",
+            scheme: l?.http?.scheme || 'HTTP'
           },
           initialDelaySeconds: Number.isFinite(l?.initialDelaySeconds)
             ? l.initialDelaySeconds
@@ -169,84 +169,55 @@ export default {
             : undefined,
           failureThreshold: Number.isFinite(l?.failureThreshold)
             ? l.failureThreshold
-            : undefined,
-        },
-      },
-    };
-  },
-  methods: {
-    normalizeHttpProbe(p, withSuccess) {
-      // 只要 path 与 port 其中一个缺失，就返回 null（父级不生成）
-      const path = trim(p?.http?.path || "");
-      const port = Number(p?.http?.port);
-      if (!path || !Number.isFinite(port)) return null;
-
-      const out = {
-        http: {
-          path,
-          port,
-          scheme: p?.http?.scheme === "HTTPS" ? "HTTPS" : "HTTP",
-        },
-      };
-      // 可选时序
-      if (Number.isFinite(p?.initialDelaySeconds))
-        out.initialDelaySeconds = p.initialDelaySeconds;
-      if (Number.isFinite(p?.periodSeconds))
-        out.periodSeconds = p.periodSeconds;
-      if (Number.isFinite(p?.timeoutSeconds))
-        out.timeoutSeconds = p.timeoutSeconds;
-      if (Number.isFinite(p?.failureThreshold))
-        out.failureThreshold = p.failureThreshold;
-      if (withSuccess && Number.isFinite(p?.successThreshold))
-        out.successThreshold = p.successThreshold;
-
-      return out;
-    },
+            : undefined
+        }
+      }
+    }
   },
   watch: {
     // 本地编辑 -> 回传父组件（v-model）
     m: {
       deep: true,
       handler(v) {
-        this.$emit("input", {
+        this.$emit('input', {
           readiness: this.normalizeHttpProbe(v.readiness, true),
-          liveness: this.normalizeHttpProbe(v.liveness, false),
-        });
-      },
+          liveness: this.normalizeHttpProbe(v.liveness, false)
+        })
+      }
     },
     // 父组件值变化（例如回填）-> 合并到本地（就地更新，避免替换引用）
     value: {
       deep: true,
       handler(nv) {
-        const r = nv?.readiness || null;
-        const l = nv?.liveness || null;
+        const r = nv?.readiness || null
+        const l = nv?.liveness || null
         if (r) {
-          this.m.readiness.http.path = trim(r?.http?.path || "");
+          this.m.readiness.http.path = trim(r?.http?.path || '')
           this.m.readiness.http.port = Number.isFinite(r?.http?.port)
             ? r.http.port
-            : null;
-          this.m.readiness.http.scheme = r?.http?.scheme || "HTTP";
+            : null
+          this.m.readiness.http.scheme = r?.http?.scheme || 'HTTP'
           this.m.readiness.initialDelaySeconds = Number.isFinite(
             r?.initialDelaySeconds
           )
             ? r.initialDelaySeconds
-            : undefined;
+            : undefined
           this.m.readiness.periodSeconds = Number.isFinite(r?.periodSeconds)
             ? r.periodSeconds
-            : undefined;
+            : undefined
           this.m.readiness.timeoutSeconds = Number.isFinite(r?.timeoutSeconds)
             ? r.timeoutSeconds
-            : undefined;
+            : undefined
           this.m.readiness.failureThreshold = Number.isFinite(
             r?.failureThreshold
           )
             ? r.failureThreshold
-            : undefined;
+            : undefined
           this.m.readiness.successThreshold = Number.isFinite(
             r?.successThreshold
           )
             ? r.successThreshold
-            : undefined;
+            : undefined
         } else {
           // 父值清空时，不强制清空用户草稿；如需清空，按需启用下面两行
           // this.m.readiness.http.path = ''
@@ -254,36 +225,60 @@ export default {
         }
 
         if (l) {
-          this.m.liveness.http.path = trim(l?.http?.path || "");
+          this.m.liveness.http.path = trim(l?.http?.path || '')
           this.m.liveness.http.port = Number.isFinite(l?.http?.port)
             ? l.http.port
-            : null;
-          this.m.liveness.http.scheme = l?.http?.scheme || "HTTP";
+            : null
+          this.m.liveness.http.scheme = l?.http?.scheme || 'HTTP'
           this.m.liveness.initialDelaySeconds = Number.isFinite(
             l?.initialDelaySeconds
           )
             ? l.initialDelaySeconds
-            : undefined;
+            : undefined
           this.m.liveness.periodSeconds = Number.isFinite(l?.periodSeconds)
             ? l.periodSeconds
-            : undefined;
+            : undefined
           this.m.liveness.timeoutSeconds = Number.isFinite(l?.timeoutSeconds)
             ? l.timeoutSeconds
-            : undefined;
+            : undefined
           this.m.liveness.failureThreshold = Number.isFinite(
             l?.failureThreshold
           )
             ? l.failureThreshold
-            : undefined;
+            : undefined
         } else {
           // 同上：不强行清空草稿
           // this.m.liveness.http.path = ''
           // this.m.liveness.http.port = null
         }
-      },
-    },
+      }
+    }
   },
-};
+  methods: {
+    normalizeHttpProbe(p, withSuccess) {
+      // 只要 path 与 port 其中一个缺失，就返回 null（父级不生成）
+      const path = trim(p?.http?.path || '')
+      const port = Number(p?.http?.port)
+      if (!path || !Number.isFinite(port)) return null
+
+      const out = {
+        http: {
+          path,
+          port,
+          scheme: p?.http?.scheme === 'HTTPS' ? 'HTTPS' : 'HTTP'
+        }
+      }
+      // 可选时序
+      if (Number.isFinite(p?.initialDelaySeconds)) { out.initialDelaySeconds = p.initialDelaySeconds }
+      if (Number.isFinite(p?.periodSeconds)) { out.periodSeconds = p.periodSeconds }
+      if (Number.isFinite(p?.timeoutSeconds)) { out.timeoutSeconds = p.timeoutSeconds }
+      if (Number.isFinite(p?.failureThreshold)) { out.failureThreshold = p.failureThreshold }
+      if (withSuccess && Number.isFinite(p?.successThreshold)) { out.successThreshold = p.successThreshold }
+
+      return out
+    }
+  }
+}
 </script>
 
 <style scoped>
