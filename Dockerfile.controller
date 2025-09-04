@@ -32,7 +32,7 @@ COPY . .
 
 ENV CGO_ENABLED=1
 
-RUN go build -o atlhyper-controller ./cmd/neurocontroller/main.go
+RUN go build -o atlhyper-controller ./cmd/atlhyper_master/main.go
 
 # =========================
 # 阶段 3：最终运行镜像

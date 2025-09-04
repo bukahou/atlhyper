@@ -2,7 +2,7 @@
   <div class="ingress-table-container">
     <div class="table-title">
       <h2>Ingress List</h2>
-      <hr>
+      <hr />
     </div>
 
     <!-- 分页控制 -->
@@ -44,12 +44,30 @@
       <el-table-column prop="path" label="Path" min-width="180" />
       <el-table-column prop="serviceName" label="Service Name" width="160" />
       <el-table-column prop="servicePort" label="Service Port" width="120" />
-      <el-table-column prop="tls" label="TLS" width="100">
+      <el-table-column prop="tls" label="TLS" width="120">
         <template slot-scope="{ row }">
           <span>{{ row.tls ? row.tls : "-" }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="creationTime" label="Creation Time" width="200" />
+
+      <!-- 操作列：只派发事件，不做路由跳转 -->
+      <el-table-column label="Actions" fixed="right" width="120">
+        <template slot-scope="{ row }">
+          <div class="action-buttons">
+            <el-button
+              size="mini"
+              type="primary"
+              plain
+              icon="el-icon-view"
+              :style="{ padding: '4px 12px', fontSize: '12px' }"
+              @click.stop="$emit('view', row)"
+            >
+              View
+            </el-button>
+          </div>
+        </template>
+      </el-table-column>
     </el-table>
 
     <!-- 分页器 -->
@@ -68,35 +86,32 @@
 
 <script>
 export default {
-  name: 'IngressTable',
+  name: "IngressTable",
   props: {
-    ingresses: {
-      type: Array,
-      required: true
-    }
+    ingresses: { type: Array, required: true },
   },
   data() {
     return {
       pageSize: 10,
-      currentPage: 1
-    }
+      currentPage: 1,
+    };
   },
   computed: {
     pagedIngresses() {
-      const start = (this.currentPage - 1) * this.pageSize
-      return this.ingresses.slice(start, start + this.pageSize)
-    }
+      const start = (this.currentPage - 1) * this.pageSize;
+      return this.ingresses.slice(start, start + this.pageSize);
+    },
   },
   methods: {
     handlePageChange(page) {
-      this.currentPage = page
+      this.currentPage = page;
     },
     handlePageSizeChange(size) {
-      this.pageSize = size
-      this.currentPage = 1
-    }
-  }
-}
+      this.pageSize = size;
+      this.currentPage = 1;
+    },
+  },
+};
 </script>
 
 <style scoped>
@@ -108,5 +123,10 @@ export default {
 }
 .toolbar {
   margin-bottom: 12px;
+}
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
 }
 </style>

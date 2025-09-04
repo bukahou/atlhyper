@@ -1,172 +1,185 @@
 <template>
   <div class="page-container">
-    <!-- ✅ 顶部卡片区域 -->
+    <!-- 🔁 自动轮询（页面可见时；集群切换重建定时器） -->
+    <AutoPoll
+      v-if="currentId"
+      :key="currentId"
+      :interval="10000"
+      :visible-only="true"
+      :immediate="false"
+      :task="refresh"
+    />
+
+    <!-- 顶部卡片 -->
     <div class="card-row">
       <CardStat
-        v-for="(card, index) in cards"
-        :key="index"
-        :icon-bg="'bg' + (index + 1)"
-        :number="card.value"
-        :number-color="'color' + (index + 1)"
-        :title="card.title"
+        icon-bg="bg1"
+        :number="stats.totalNamespaces"
+        number-color="color1"
+        title="Namespace 总数"
       >
-        <template #icon>
-          <i :class="card.icon" />
-        </template>
+        <template #icon><i class="fas fa-layer-group" /></template>
+      </CardStat>
+      <CardStat
+        icon-bg="bg2"
+        :number="stats.activeCount"
+        number-color="color1"
+        title="Active 数"
+      >
+        <template #icon><i class="fas fa-check" /></template>
+      </CardStat>
+      <CardStat
+        icon-bg="bg3"
+        :number="stats.terminating"
+        number-color="color1"
+        title="Terminating 数"
+      >
+        <template #icon><i class="fas fa-times" /></template>
+      </CardStat>
+      <CardStat
+        icon-bg="bg4"
+        :number="stats.totalPods"
+        number-color="color1"
+        title="总 Pod 数"
+      >
+        <template #icon><i class="fas fa-cube" /></template>
       </CardStat>
     </div>
 
-    <!-- ✅ 表格区域 -->
-    <NamespaceTable
-      :namespaces="namespaceList"
-      @view-configmap="handleViewConfigMap"
+    <!-- 表格：记得在 NamespaceTable 里触发 $emit('view', row) -->
+    <NamespaceTable :namespaces="namespaceList" @view="handleViewNamespace" />
+
+    <!-- ▶️ 右侧抽屉：Namespace 详情 -->
+    <NamespaceDetailDrawer
+      v-if="drawerVisible"
+      :visible.sync="drawerVisible"
+      :ns="nsDetail"
+      width="45%"
+      v-loading="drawerLoading"
+      @close="drawerVisible = false"
     />
-
-    <!-- ✅ ConfigMap 弹窗 -->
-    <el-dialog
-      title="ConfigMap 一览"
-      :visible.sync="dialogVisible"
-      width="600px"
-      center
-    >
-      <p>所属 Namespace：{{ selectedNamespace }}</p>
-      <el-table
-        :data="fakeConfigMaps"
-        border
-        size="small"
-        style="margin-top: 10px"
-      >
-        <el-table-column prop="name" label="名称" width="200" />
-        <el-table-column prop="dataCount" label="数据项数量" width="140" />
-        <el-table-column prop="creationTime" label="创建时间" />
-      </el-table>
-
-      <span slot="footer" class="dialog-footer">
-        <el-button @click="dialogVisible = false">关闭</el-button>
-      </span>
-    </el-dialog>
   </div>
 </template>
 
 <script>
-import CardStat from '@/components/Atlhyper/CardStat.vue'
-import NamespaceTable from '@/components/Atlhyper/NamespaceTable.vue'
-import { getAllNamespaces } from '@/api/namespace'
+import AutoPoll from "@/components/Atlhyper/AutoPoll.vue";
+import CardStat from "@/components/Atlhyper/CardStat.vue";
+import NamespaceTable from "@/components/Atlhyper/NamespaceTable.vue";
+import NamespaceDetailDrawer from "./NsDescribe/NamespaceDetailDrawer.vue";
+import { getAllNamespaces, getNamespacesDetail } from "@/api/namespace";
+import { mapState } from "vuex";
 
 export default {
-  name: 'NamespaceView',
-  components: {
-    CardStat,
-    NamespaceTable
-  },
+  name: "NamespaceView",
+  components: { AutoPoll, CardStat, NamespaceTable, NamespaceDetailDrawer },
   data() {
     return {
-      dialogVisible: false,
-      selectedNamespace: '',
-      namespaceList: [],
       stats: {
-        totalNamespaces: '--',
-        activeNamespaces: '--',
-        terminatingNamespaces: '--',
-        totalPods: '--'
+        totalNamespaces: 0,
+        activeCount: 0,
+        terminating: 0,
+        totalPods: 0,
       },
-      fakeConfigMaps: [
-        {
-          name: 'app-config',
-          dataCount: 3,
-          creationTime: '2024-07-01 11:00:00'
-        },
-        {
-          name: 'logging-config',
-          dataCount: 2,
-          creationTime: '2024-07-02 09:00:00'
-        }
-      ]
-    }
+      namespaceList: [],
+      loading: false,
+
+      // 抽屉相关
+      drawerVisible: false,
+      drawerLoading: false,
+      nsDetail: {},
+    };
   },
   computed: {
-    cards() {
-      return [
-        {
-          title: 'Namespace 总数',
-          value: this.stats.totalNamespaces,
-          icon: 'fas fa-layer-group',
-          class: 'card-primary card-round'
-        },
-        {
-          title: 'Active 数',
-          value: this.stats.activeNamespaces,
-          icon: 'fas fa-check',
-          class: 'card-success card-round'
-        },
-        {
-          title: 'Terminating 数',
-          value: this.stats.terminatingNamespaces,
-          icon: 'fas fa-times',
-          class: 'card-danger card-round'
-        },
-        {
-          title: '总 Pod 数',
-          value: this.stats.totalPods,
-          icon: 'fas fa-cube',
-          class: 'card-info card-round'
-        }
-      ]
-    }
+    ...mapState("cluster", ["currentId"]),
   },
-  created() {
-    this.fetchNamespaces()
+  watch: {
+    currentId: {
+      immediate: true,
+      handler(id) {
+        if (id) this.refresh();
+      },
+    },
   },
   methods: {
-    fetchNamespaces() {
-      getAllNamespaces()
-        .then((res) => {
-          const rawList = res.data || []
+    // 🔁 轮询与首帧统一入口
+    async refresh() {
+      if (!this.currentId || this.loading) return;
+      await this.loadNamespaces(this.currentId);
+    },
 
-          this.namespaceList = rawList.map((item) => {
-            const nsMeta = item.Namespace.metadata || {}
-            const status = item.Namespace.status?.phase || 'Unknown'
+    async loadNamespaces(clusterId) {
+      if (!clusterId || this.loading) return;
+      this.loading = true;
+      try {
+        const res = await getAllNamespaces(clusterId);
+        if (res.code !== 20000) {
+          this.$message.error(res.message || "命名空间概览获取失败");
+          return;
+        }
+        const { cards = {}, rows } = res.data || {};
 
-            return {
-              name: nsMeta.name || '—',
-              status: status,
-              podCount: item.PodCount || 0,
-              labelCount: Object.keys(nsMeta.labels || {}).length,
-              annotationCount: Object.keys(nsMeta.annotations || {}).length,
-              creationTime: new Date(nsMeta.creationTimestamp).toLocaleString()
-            }
-          })
+        // 顶部 4 卡
+        this.stats = {
+          totalNamespaces: Number(cards.totalNamespaces ?? 0),
+          activeCount: Number(cards.activeCount ?? 0),
+          terminating: Number(cards.terminating ?? 0),
+          totalPods: Number(cards.totalPods ?? 0),
+        };
 
-          // 渲染统计卡片数据
-          const total = rawList.length
-          let active = 0
-          let terminating = 0
-          let totalPods = 0
+        // 表格数据
+        const list = Array.isArray(rows) ? rows : [];
+        this.namespaceList = list.map((r) => ({
+          name: r.name || "",
+          status: r.status || "Unknown",
+          podCount: Number(r.podCount ?? 0),
+          labelCount: Number(r.labelCount ?? 0),
+          annotationCount: Number(r.annotationCount ?? 0),
+          createdAt: r.createdAt || "",
+          creationTime: this.formatTime(r.createdAt),
+        }));
+      } catch (err) {
+        this.$message.error("请求失败：" + (err.message || err));
+      } finally {
+        this.loading = false;
+      }
+    },
 
-          rawList.forEach((item) => {
-            const phase = item.Namespace.status?.phase
-            if (phase === 'Active') active++
-            else terminating++
-            totalPods += item.PodCount || 0
-          })
+    // 查看 Namespace 详情并打开抽屉
+    async handleViewNamespace(row) {
+      if (!this.currentId) {
+        this.$message.error("未选择集群");
+        return;
+      }
+      const name = row.name;
+      if (!name) return;
 
-          this.stats = {
-            totalNamespaces: total,
-            activeNamespaces: active,
-            terminatingNamespaces: terminating,
-            totalPods: totalPods
-          }
-        })
-        .catch((err) => {
-          console.error('获取 Namespace 数据失败:', err)
-          this.$message.error(
-            '加载命名空间数据失败：' +
-              (err.response?.data?.message || err.message)
-          )
-        })
-    }
-  }
-}
+      this.drawerLoading = true;
+      try {
+        const res = await getNamespacesDetail(this.currentId, name);
+        if (res.code !== 20000) {
+          this.$message.error(res.message || "获取命名空间详情失败");
+          return;
+        }
+        this.nsDetail = res.data || {};
+        this.drawerVisible = true;
+      } catch (e) {
+        this.$message.error("获取命名空间详情失败：" + (e?.message || e));
+      } finally {
+        this.drawerLoading = false;
+      }
+    },
+
+    formatTime(iso) {
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) return iso || "-";
+      const d = new Date(t);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+        d.getDate()
+      )} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    },
+  },
+};
 </script>
 
 <style scoped>

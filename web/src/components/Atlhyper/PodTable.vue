@@ -125,12 +125,10 @@
       <!-- CPU Usage (%) -->
       <el-table-column label="CPU%" :width="150" show-overflow-tooltip>
         <template slot-scope="{ row }">
-          <span
-            >{{ row.cpuUsage || "-" }}
-            <span v-if="row.cpuUsagePercent"
-              >({{ row.cpuUsagePercent }})</span
-            ></span
-          >
+          <span>
+            {{ row.cpuUsage || "-" }}
+            <span v-if="row.cpuUsagePercent">({{ row.cpuUsagePercent }})</span>
+          </span>
         </template>
       </el-table-column>
 
@@ -141,12 +139,10 @@
         show-overflow-tooltip
       >
         <template slot-scope="{ row }">
-          <span
-            >{{ row.memoryUsage || "-" }}
-            <span v-if="row.memoryPercent"
-              >({{ row.memoryPercent }})</span
-            ></span
-          >
+          <span>
+            {{ row.memoryUsage || "-" }}
+            <span v-if="row.memoryPercent">({{ row.memoryPercent }})</span>
+          </span>
         </template>
       </el-table-column>
 
@@ -168,7 +164,7 @@
         :width="colWidth.nodeName"
       />
 
-      <!-- 操作按钮 -->
+      <!-- 操作按钮（View + Ops） -->
       <el-table-column label="Actions" fixed="right" :width="colWidth.actions">
         <template slot-scope="{ row }">
           <div class="action-buttons">
@@ -183,16 +179,44 @@
               View
             </el-button>
 
-            <el-button
-              size="mini"
-              type="danger"
-              plain
-              :style="{ padding: '4px 8px', fontSize: '12px' }"
-              icon="el-icon-delete"
-              @click="emitRestart(row)"
+            <!-- 用 template 做 reference（Vue2 正确姿势） -->
+            <el-popover
+              :key="row.name + '-ops'"
+              placement="bottom-end"
+              trigger="click"
+              popper-class="ops-popover"
             >
-              Restart
-            </el-button>
+              <div class="ops-menu">
+                <el-button
+                  size="mini"
+                  type="text"
+                  icon="el-icon-document"
+                  @click="$emit('logs', row)"
+                >
+                  Logs
+                </el-button>
+                <el-button
+                  size="mini"
+                  type="text"
+                  class="danger"
+                  icon="el-icon-refresh"
+                  @click="emitRestart(row)"
+                >
+                  Restart
+                </el-button>
+              </div>
+
+              <template slot="reference">
+                <el-button
+                  size="mini"
+                  plain
+                  :style="{ padding: '4px 8px', fontSize: '12px' }"
+                  icon="el-icon-more"
+                >
+                  Ops
+                </el-button>
+              </template>
+            </el-popover>
           </div>
         </template>
       </el-table-column>
@@ -230,7 +254,7 @@ export default {
         memory: 170,
         startTime: 160,
         nodeName: 120,
-        actions: 180,
+        actions: 170, // 两个按钮（View + Ops）
       },
       selectedNamespace: "",
       selectedDeployment: "",
@@ -301,6 +325,7 @@ export default {
 };
 </script>
 
+<!-- 局部样式（保留 scoped） -->
 <style scoped>
 .pod-table-container {
   padding: 16px;
@@ -315,5 +340,24 @@ export default {
   display: flex;
   gap: 6px;
   white-space: nowrap;
+}
+</style>
+
+<!-- 全局样式：给弹层用（el-popover 渲染到 body 下）-->
+<style>
+.ops-popover {
+  padding: 6px 8px;
+}
+.ops-popover .ops-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+.ops-popover .el-button--text {
+  padding: 4px 8px;
+}
+.ops-popover .danger {
+  color: #f56c6c;
 }
 </style>

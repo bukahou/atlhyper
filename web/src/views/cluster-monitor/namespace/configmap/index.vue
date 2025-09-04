@@ -1,4 +1,4 @@
-<template>
+<!-- <template>
   <div class="configmap-detail-container">
     <div class="card-column">
       <InfoCard :title="firstCard.title" :items="firstCard.items" />
@@ -97,4 +97,4 @@ export default {
   gap: 32px;
   align-items: center;
 }
-</style>
+</style> -->

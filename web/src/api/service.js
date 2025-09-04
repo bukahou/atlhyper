@@ -1,13 +1,21 @@
-// src/api/service.js
-import request from '@/utils/request'
+import request from "@/utils/request";
 
-/**
- * 获取所有 Service 列表
- * GET /uiapi/service/list/all
- */
-export function getAllServices() {
+export function getAllServices(clusterId) {
   return request({
-    url: '/uiapi/service/list/all',
-    method: 'get'
-  })
+    url: "/uiapi/service/overview",
+    method: "post",
+    data: { ClusterID: clusterId },
+  });
+}
+
+export function getServiceDetails(clusterId, namespace, name) {
+  return request({
+    url: "/uiapi/service/detail",
+    method: "post",
+    data: {
+      ClusterID: clusterId,
+      namespace: namespace,
+      name: name,
+    },
+  });
 }

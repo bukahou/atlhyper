@@ -1,3 +1,4 @@
+// interfaces/ui_api/pod/dto.go
 package pod
 
 import "time"
@@ -8,8 +9,6 @@ type PodOverviewDTO struct {
     Pods  []PodOverviewItem `json:"pods"`  // 表格区
 }
 
-// ====================== 卡片区 ======================
-
 type PodCards struct {
     Running int `json:"running"`
     Pending int `json:"pending"`
@@ -17,19 +16,26 @@ type PodCards struct {
     Unknown int `json:"unknown"`
 }
 
-// ====================== 表格区 ======================
-
 type PodOverviewItem struct {
-    Namespace  string    `json:"namespace"`
-    Deployment string    `json:"deployment,omitempty"` // ControlledBy.Name
-    Name       string    `json:"name"`
-    Ready      string    `json:"ready"`
-    Phase      string    `json:"phase"`
-    Restarts   int32     `json:"restarts"`
-    CPU        string    `json:"cpu,omitempty"`        // metrics.CPU.Usage
-    CPUPercent float64   `json:"cpuPercent,omitempty"` // metrics.CPU.UtilPct
-    Memory     string    `json:"memory,omitempty"`
-    MemPercent float64   `json:"memPercent,omitempty"`
-    StartTime  time.Time `json:"startTime"`
-    Node       string    `json:"node"`
+    Namespace  string     `json:"namespace"`
+    Deployment string     `json:"deployment,omitempty"`
+    Name       string     `json:"name"`
+    Ready      string     `json:"ready"`
+    Phase      string     `json:"phase"`
+    Restarts   int32      `json:"restarts"`
+
+    // 数值字段（保持你的原口径）
+    CPU        float64    `json:"cpu"`        // 单位：core
+    CPUPercent float64    `json:"cpuPercent"` // 0-100
+    Memory     int        `json:"memory"`     // 单位：m（≈Mi）
+    MemPercent float64    `json:"memPercent"` // 0-100
+
+    // 展示字段（新增：带单位/百分号，直接可渲染）
+    CPUText        string `json:"cpuText,omitempty"`        // 例如 "1m" / "125m" / "0m"
+    CPUPercentText string `json:"cpuPercentText,omitempty"` // 例如 "0.100%"
+    MemoryText     string `json:"memoryText,omitempty"`     // 例如 "13 m"
+    MemPercentText string `json:"memPercentText,omitempty"` // 例如 "2.600%"
+
+    StartTime  time.Time  `json:"startTime"`
+    Node       string     `json:"node"`
 }

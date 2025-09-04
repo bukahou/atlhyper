@@ -1,7 +1,11 @@
 // internal/push/config/restclient_config.go
 package config
 
-import "time"
+import (
+	"os"
+	"strings"
+	"time"
+)
 
 // RestClientConfig 定义 RESTful 客户端的配置。
 // Path 不再提供默认值，调用时必须指定。
@@ -14,10 +18,30 @@ type RestClientConfig struct {
 	DefaultHeaders map[string]string // 默认请求头
 }
 
+// func NewDefaultRestClientConfig() RestClientConfig {
+// 	return RestClientConfig{
+// 		BaseURL:        "http://localhost:8081",
+// 		Path:           "",           
+// 		Timeout:        8 * time.Second,
+// 		Gzip:           true,
+// 		MaxRespBytes:   1 << 20, // 1MB
+// 		DefaultHeaders: map[string]string{},
+// 	}
+// }
+
+
+const defaultBaseURL = "http://localhost:8081" // 默认值
+
 func NewDefaultRestClientConfig() RestClientConfig {
+	base := strings.TrimSpace(os.Getenv("AGENT_API_BASE_URL"))
+	if base == "" {
+		base = defaultBaseURL
+	}
+	base = strings.TrimRight(base, "/") // 规范化，去掉末尾的 "/"
+
 	return RestClientConfig{
-		BaseURL:        "http://localhost:8081",
-		Path:           "",           
+		BaseURL:        base,
+		Path:           "",
 		Timeout:        8 * time.Second,
 		Gzip:           true,
 		MaxRespBytes:   1 << 20, // 1MB

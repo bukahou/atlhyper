@@ -2,7 +2,7 @@
   <div class="service-table-container">
     <div class="table-title">
       <h2>Service List</h2>
-      <hr>
+      <hr />
     </div>
 
     <!-- 分页控制 -->
@@ -58,7 +58,7 @@
         </template>
       </el-table-column>
 
-      <!-- 命名空间筛选 -->
+      <!-- 命名空间筛选（修正了错误的结束标签） -->
       <el-table-column prop="namespace" label="Namespace" width="120">
         <template #header>
           <el-select
@@ -97,11 +97,28 @@
           </el-select>
         </template>
       </el-table-column>
+
       <el-table-column prop="clusterIP" label="Cluster IP" width="160" />
       <el-table-column prop="ports" label="ports" min-width="140" />
       <el-table-column prop="protocol" label="protocol" width="100" />
       <el-table-column prop="selector" label="selector" min-width="180" />
       <el-table-column prop="createTime" label="createTime" width="180" />
+
+      <!-- 操作 -->
+      <el-table-column label="Actions" fixed="right" width="120">
+        <template slot-scope="{ row }">
+          <el-button
+            size="mini"
+            type="primary"
+            plain
+            :style="{ padding: '4px 8px', fontSize: '12px' }"
+            icon="el-icon-view"
+            @click="$emit('view', row)"
+          >
+            View
+          </el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
     <el-pagination
@@ -111,7 +128,7 @@
       layout="prev, pager, next"
       :page-size="pageSize"
       :current-page="currentPage"
-      :total="services.length"
+      :total="filteredServices.length"
       @current-change="handlePageChange"
     />
   </div>
@@ -119,63 +136,55 @@
 
 <script>
 export default {
-  name: 'ServiceTable',
+  name: "ServiceTable",
   props: {
-    services: {
-      type: Array,
-      required: true
-    }
+    services: { type: Array, required: true },
   },
   data() {
     return {
-      selectedName: '',
-      selectedNamespace: '',
-      selectedType: '',
+      selectedName: "",
+      selectedNamespace: "",
+      selectedType: "",
       pageSize: 10,
-      currentPage: 1
-    }
+      currentPage: 1,
+    };
   },
   computed: {
     nameOptions() {
-      return [...new Set(this.services.map((s) => s.name))].filter(Boolean)
+      return [...new Set(this.services.map((s) => s.name))].filter(Boolean);
     },
     namespaceOptions() {
       return [...new Set(this.services.map((s) => s.namespace))].filter(
         Boolean
-      )
+      );
     },
     typeOptions() {
-      return [...new Set(this.services.map((s) => s.type))].filter(Boolean)
+      return [...new Set(this.services.map((s) => s.type))].filter(Boolean);
     },
     filteredServices() {
       return this.services.filter((svc) => {
-        if (this.selectedName && svc.name !== this.selectedName) return false
-        if (
-          this.selectedNamespace &&
-          svc.namespace !== this.selectedNamespace
-        ) {
-          return false
-        }
-        if (this.selectedType && svc.type !== this.selectedType) return false
-        return true
-      })
+        if (this.selectedName && svc.name !== this.selectedName) return false;
+        if (this.selectedNamespace && svc.namespace !== this.selectedNamespace)
+          return false;
+        if (this.selectedType && svc.type !== this.selectedType) return false;
+        return true;
+      });
     },
     pagedServices() {
-      const start = (this.currentPage - 1) * this.pageSize
-      return this.filteredServices.slice(start, start + this.pageSize)
-    }
+      const start = (this.currentPage - 1) * this.pageSize;
+      return this.filteredServices.slice(start, start + this.pageSize);
+    },
   },
-
   methods: {
     handlePageChange(page) {
-      this.currentPage = page
+      this.currentPage = page;
     },
     handlePageSizeChange(size) {
-      this.pageSize = size
-      this.currentPage = 1
-    }
-  }
-}
+      this.pageSize = size;
+      this.currentPage = 1;
+    },
+  },
+};
 </script>
 
 <style scoped>

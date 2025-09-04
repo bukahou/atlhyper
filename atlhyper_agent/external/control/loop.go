@@ -66,8 +66,8 @@ func StartControlLoop(clusterID, opsBasePath string) {
 				})
 
 				// 执行后打印
-				log.Printf("[控制循环] 执行完成: 命令ID=%s 状态=%s 信息=%s",
-					r.CommandID, r.Status, r.Message)
+				// log.Printf("[控制循环] 执行完成: 命令ID=%s 状态=%s 信息=%s",
+				// 	r.CommandID, r.Status, r.Message)
 
 				results = append(results, AckResult{
 					CommandID:  r.CommandID,

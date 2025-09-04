@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # 构建 Agent 二进制文件
-RUN go build -o atlhyper-agent ./cmd/neuroagent/main.go
+RUN go build -o atlhyper-agent ./cmd/atlhyper_agent/main.go
 
 
 # =========================

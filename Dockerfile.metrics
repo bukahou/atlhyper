@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # 编译 metrics agent
-RUN go build -o atlhyper-metrics ./cmd/metrics_collector/main.go
+RUN go build -o atlhyper-metrics ./cmd/atlhyper_metrics/main.go
 
 
 # =========================

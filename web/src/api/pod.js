@@ -1,46 +1,46 @@
 import request from "@/utils/request";
 
-/**
- * 获取 Pod 状态概要
- */
-export function getPodSummary() {
+export function getPodOverview(clusterId) {
   return request({
-    url: "/uiapi/pod/summary",
-    method: "get",
-  });
-}
-
-/**
- * 获取 Pod 简要列表
- */
-export function getBriefPods() {
-  return request({
-    url: "/uiapi/pod/list/brief",
-    method: "get",
-  });
-}
-
-/**
- * 获取 Pod 详情信息
- * @param {string} namespace 命名空间
- * @param {string} name Pod 名称
- * @returns Promise
- */
-export function getPodDescribe(namespace, name) {
-  return request({
-    url: `/uiapi/pod/describe/${namespace}/${name}`,
-    method: "get",
-  });
-}
-
-/**
- * 重启 Pod
- * @param {string} namespace
- * @param {string} name
- */
-export function restartPod(namespace, name) {
-  return request({
-    url: `/uiapi/pod-ops/restart/${namespace}/${name}`,
+    url: "/uiapi/pod/overview",
     method: "post",
+    data: { ClusterID: clusterId },
+  });
+}
+
+export function getPodDetail(clusterId, namespace, podName) {
+  return request({
+    url: "/uiapi/pod/detail",
+    method: "post",
+    data: {
+      ClusterID: clusterId,
+      Namespace: namespace,
+      PodName: podName,
+    },
+  });
+}
+
+export function getPodLogs(clusterId, namespace, Pod, tailLines) {
+  return request({
+    url: "/uiapi/ops/pod/logs",
+    method: "post",
+    data: {
+      ClusterID: clusterId,
+      Namespace: namespace,
+      Pod: Pod,
+      TailLines: tailLines,
+    },
+  });
+}
+
+export function getPodRestart(clusterId, namespace, pod) {
+  return request({
+    url: "/uiapi/ops/pod/restart",
+    method: "post",
+    data: {
+      ClusterID: clusterId,
+      Namespace: namespace,
+      Pod: pod,
+    },
   });
 }

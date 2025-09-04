@@ -2,7 +2,7 @@
   <div class="namespace-table-container">
     <div class="table-title">
       <h2>Namespace List</h2>
-      <hr>
+      <hr />
     </div>
 
     <!-- 分页控制 -->
@@ -45,28 +45,33 @@
       <el-table-column
         prop="annotationCount"
         label="Annotation Count"
-        width="100"
+        width="120"
       />
       <el-table-column prop="creationTime" label="Creation Time" width="180" />
 
-      <!-- 操作列 -->
-      <el-table-column label="Actions" fixed="right" width="140">
+      <!-- 操作列：仅派发事件，不做路由跳转 -->
+      <el-table-column label="Actions" fixed="right" width="200">
         <template slot-scope="{ row }">
           <div class="action-buttons">
             <el-button
               size="mini"
               type="primary"
               plain
-              icon="el-icon-document"
+              icon="el-icon-view"
               :style="{ padding: '4px 12px', fontSize: '12px' }"
-              @click="
-                $router.push({
-                  path: '/cluster-monitor/configmap',
-                  query: { ns: row.name },
-                })
-              "
+              @click.stop="$emit('view', row)"
             >
               View
+            </el-button>
+            <el-button
+              size="mini"
+              plain
+              type="success"
+              icon="el-icon-collection"
+              :style="{ padding: '4px 12px', fontSize: '12px' }"
+              @click.stop="$emit('configmap', row)"
+            >
+              ConfigMap
             </el-button>
           </div>
         </template>
@@ -88,35 +93,32 @@
 
 <script>
 export default {
-  name: 'NamespaceTable',
+  name: "NamespaceTable",
   props: {
-    namespaces: {
-      type: Array,
-      required: true
-    }
+    namespaces: { type: Array, required: true },
   },
   data() {
     return {
       pageSize: 10,
-      currentPage: 1
-    }
+      currentPage: 1,
+    };
   },
   computed: {
     pagedNamespaces() {
-      const start = (this.currentPage - 1) * this.pageSize
-      return this.namespaces.slice(start, start + this.pageSize)
-    }
+      const start = (this.currentPage - 1) * this.pageSize;
+      return this.namespaces.slice(start, start + this.pageSize);
+    },
   },
   methods: {
     handlePageChange(page) {
-      this.currentPage = page
+      this.currentPage = page;
     },
     handlePageSizeChange(size) {
-      this.pageSize = size
-      this.currentPage = 1
-    }
-  }
-}
+      this.pageSize = size;
+      this.currentPage = 1;
+    },
+  },
+};
 </script>
 
 <style scoped>
@@ -129,11 +131,6 @@ export default {
 .toolbar {
   margin-bottom: 12px;
 }
-.action-buttons {
-  display: flex;
-  gap: 6px;
-}
-
 .action-buttons {
   display: flex;
   justify-content: center;
