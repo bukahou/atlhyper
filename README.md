@@ -1,3 +1,9 @@
+## 🌐 Language / 言語 / 语言
+
+- 🇺🇸 English (current)
+- 🇯🇵 [日本語 / Japanese](./README.ja.md)
+- 🇨🇳 [简体中文 / Simplified Chinese](./README.zh-CN.md)
+
 ## 🧠 Project Name: AtlHyper
 
 ### 📌 Project Overview
