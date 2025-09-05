@@ -1,31 +1,3 @@
-// =======================================================================================
-// 📄 diagnosis/cleaner.go
-//
-// ✨ Description:
-//     Implements the event cleanup and deduplication logic for the diagnostic subsystem.
-//     Maintains two pools:
-//       - `eventPool`: raw incoming Kubernetes events (volatile)
-//       - `cleanedEventPool`: deduplicated, retention-aware pool used for alerting & logging
-//
-// 🧼 Responsibilities:
-//     - ⏳ Remove expired events from `eventPool` based on configurable duration
-//     - 🔁 Deduplicate events into `cleanedEventPool` using Kind|Namespace|Name|ReasonCode
-//     - 🔐 Provide thread-safe access via global mutex `mu`
-//     - 📦 Expose cleaned pool to other modules (e.g., alert evaluators, file writers)
-//
-// 🧵 Thread-Safety:
-//     - All mutation and access logic is guarded by `mu`
-//     - `CleanAndStoreEvents()` performs a full atomic cleanup pass
-//
-// 📎 Used By:
-//     - diagnosis/diagnosis_init.go (periodic scheduler)
-//     - alerter/alerter.go (alert trigger logic)
-//     - logging/logwriter.go (persistent logs)
-//     - external modules via `GetCleanedEvents()`
-//
-// ✍️ Author: bukahou (@ZGMF-X10A)
-// =======================================================================================
-
 package diagnosis
 
 import (
