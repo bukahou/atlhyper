@@ -4,6 +4,7 @@ package logger
 import (
 	"AtlHyper/atlhyper_master/db/repository/eventlog"
 	"AtlHyper/atlhyper_master/master_store"
+	m "AtlHyper/model" // 含 Source 常量定义
 	model "AtlHyper/model/event"
 	"encoding/json"
 	"log"
@@ -67,7 +68,7 @@ func WriteNewCleanedEventsToFile() {
 	// 2) 过滤 k8s_event 并解析
 	eventLogs := make([]model.EventLog, 0)
 	for _, r := range recs {
-		if r.Source != "k8s_event" {
+		if r.Source != m.SourceK8sEvent {
 			continue
 		}
 		events, err := decodeEnvelopeEvents(r.Payload)

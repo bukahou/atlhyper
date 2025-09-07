@@ -18,3 +18,14 @@ export function getNamespacesDetail(clusterId, namespace) {
     }
   })
 }
+
+export function getNamespacesConfigmap(clusterId, namespace) {
+  return request({
+    url: '/uiapi/configmap/detail',
+    method: 'post',
+    data: {
+      ClusterID: clusterId,
+      Namespace: namespace
+    }
+  })
+}

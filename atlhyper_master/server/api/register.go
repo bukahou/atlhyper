@@ -1,6 +1,7 @@
 package uiapi
 
 import (
+	"AtlHyper/atlhyper_master/client/alert"
 	"AtlHyper/atlhyper_master/control"
 	"AtlHyper/atlhyper_master/server/api/auth"
 	"AtlHyper/atlhyper_master/server/api/testapi"
@@ -12,6 +13,7 @@ import (
 func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	// ✅ 注册登录接口（不需要任何认证）
 	router.POST("/auth/login", auth.HandleLogin)
+	router.GET("/alert/slack/preview", alert.HandleAlertSlackPreview)
 
 	// =============================
 	// 📖 基础只读接口（角色 ≥ 1）
@@ -38,6 +40,7 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	read.POST("/event/logs", web_api.GetEventLogsSinceHandler)
 	read.POST("/metrics/overview", web_api.GetMetricsOverviewHandler)
 	read.POST("/metrics/node/detail", web_api.GetMetricsNodeDetailHandler)
+	read.POST("/config/slack/get", web_api.GetSlackConfig)
 
 	testapi.RegisterRoutes(read)
 
@@ -58,5 +61,6 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 
 	admin.POST("/auth/user/register", auth.HandleRegisterUser)
 	admin.POST("/auth/user/update-role", auth.HandleUpdateUserRole)
+	admin.POST("/config/slack/update", web_api.UpdateSlackConfig)
 
 }

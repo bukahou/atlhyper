@@ -1,11 +1,11 @@
 package slack
 
 import (
-	"AtlHyper/config"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // ✅ SendSlackAlert 发送 BlockKit 格式的消息到 Slack Webhook
@@ -15,12 +15,10 @@ import (
 //
 // 返回：
 //   - error: 若发送失败则返回错误信息，否则返回 nil
-func SendSlackAlert(payload map[string]interface{}) error {
+func SendSlackAlert(webhookURL string, payload map[string]interface{}) error {
 
-	// ✅ 从全局配置中读取 Slack Webhook URL
-	webhookURL := config.GlobalConfig.Slack.WebhookURL
-	if webhookURL == "" {
-		return fmt.Errorf("Slack Webhook 未配置（SLACK_WEBHOOK_URL）")
+	if strings.TrimSpace(webhookURL) == "" {
+		return fmt.Errorf("Slack Webhook 未配置")
 	}
 
 	// ✅ 将消息体编码为 JSON 格式

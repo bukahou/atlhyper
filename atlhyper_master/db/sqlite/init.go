@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"AtlHyper/atlhyper_master/db/repository/config"
 	"AtlHyper/atlhyper_master/db/repository/user"
 	"AtlHyper/atlhyper_master/db/utils"
 	"database/sql"
@@ -37,10 +38,17 @@ func InitDB() {
 	if err = user.EnsureAdminUser(); err != nil {
 		log.Fatalf("初始化管理员失败: %v", err)
 	}
-	// 5️⃣ 插入用户审计测试数据
+	// 5️⃣ 插入默认普通用户（仅在用户表为空时创建）
 	err = user.EnsureDefaultUsers()
 	if err != nil {
 		log.Fatalf("初始化默认用户失败: %v", err)
+	}
+
+	// 6️⃣ 初始化配置表（仅在 config 表无记录时创建）
+	//    包括：Slack 警报的启用状态、Webhook URL、发送间隔等
+	//    相关环境变量：ENABLE_SLACK_ALERT, SLACK_WEBHOOK_URL, SLACK_DISPATCH_INTERVAL_SEC
+	if err = config.InitConfigTables(); err != nil {
+		log.Fatalf("slack初始化配置表失败: %v", err)
 	}
 
 	log.Println("✅ SQLite 数据库初始化完成")

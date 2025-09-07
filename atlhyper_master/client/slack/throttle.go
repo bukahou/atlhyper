@@ -31,7 +31,7 @@ const slackThrottleInterval = 1 * time.Minute
 // 返回：
 //   - error: 若发送失败则返回错误；若节流跳过则返回 nil
 // =======================================================================================
-func SendSlackAlertWithThrottle(subject string, data Alertmodel.AlertGroupData) error {
+func SendSlackAlertWithThrottle(webhook string, subject string, data Alertmodel.AlertGroupData) error {
 	lastSlackSentTimeMu.Lock()
 	defer lastSlackSentTimeMu.Unlock()
 
@@ -45,8 +45,8 @@ func SendSlackAlertWithThrottle(subject string, data Alertmodel.AlertGroupData) 
 	lastSlackSentTime = time.Now()
 
 	// 构造 BlockKit 消息体并发送
-	payload := BuildSlackBlockFromAlert(data, subject)
-	return SendSlackAlert(payload)
+	payload := BuildSlackBlockFromAlert(data, subject,)
+	return SendSlackAlert(webhook, payload)
 }
 
 // =======================================================================================
@@ -62,31 +62,6 @@ var (
 // ⏳ 事件缓存有效期（同一事件仅在 10 分钟外才可再次发送）
 const sentEventTTL = 10 * time.Minute
 
-// ✅ eventKey: 生成事件的唯一标识字符串
-//
-// 用于判断事件是否已发送，字段组合应能唯一描述一次异常
-func eventKey(ev model.LogEvent) string {
-	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
-		ev.Kind,            // 资源类型（Pod, Deployment 等）
-		ev.Namespace,       // 命名空间
-		ev.Name,            // 名称
-		ev.ReasonCode,      // 原因代码（如 CrashLoopBackOff）
-		ev.Severity,        // 严重等级
-		ev.Message,         // 报错信息
-		ev.Category,        // 分类（如资源型 / 系统型）
-		ev.Timestamp.Format(time.RFC3339), // 精确时间戳
-	)
-}
-
-// ✅ cleanExpiredSentEvents: 移除已过期的发送记录
-func cleanExpiredSentEvents() {
-	now := time.Now()
-	for key, t := range sentEvents {
-		if now.Sub(t) > sentEventTTL {
-			delete(sentEvents, key)
-		}
-	}
-}
 
 // ✅ filterNewEvents: 过滤出尚未发送或已过期的事件列表
 //
@@ -110,4 +85,32 @@ func filterNewEvents(events []model.LogEvent) []model.LogEvent {
 		}
 	}
 	return newEvents
+}
+
+
+// ✅ cleanExpiredSentEvents: 移除已过期的发送记录
+func cleanExpiredSentEvents() {
+	now := time.Now()
+	for key, t := range sentEvents {
+		if now.Sub(t) > sentEventTTL {
+			delete(sentEvents, key)
+		}
+	}
+}
+
+
+// ✅ eventKey: 生成事件的唯一标识字符串
+//
+// 用于判断事件是否已发送，字段组合应能唯一描述一次异常
+func eventKey(ev model.LogEvent) string {
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+		ev.Kind,            // 资源类型（Pod, Deployment 等）
+		ev.Namespace,       // 命名空间
+		ev.Name,            // 名称
+		ev.ReasonCode,      // 原因代码（如 CrashLoopBackOff）
+		ev.Severity,        // 严重等级
+		ev.Message,         // 报错信息
+		ev.Category,        // 分类（如资源型 / 系统型）
+		ev.Timestamp.Format(time.RFC3339), // 精确时间戳
+	)
 }

@@ -147,5 +147,24 @@ func CreateTables() error {
 	}
 
 
+	// 6️⃣ 创建 config 表（仅一行，存储 Slack 通知配置）
+	_, err = utils.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS config (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		name         TEXT NOT NULL UNIQUE,      -- 'slack' / 'mail' / ...
+		enable       INTEGER NOT NULL DEFAULT 0,    -- 0/1
+		webhook      TEXT,                          -- slack 用；mail 可留空
+		interval_sec INTEGER NOT NULL DEFAULT 5,   -- 发送间隔（秒）
+		updated_at   TEXT                           -- ISO8601
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_config_name ON config(name);
+	`)
+	if err != nil {
+		log.Printf("❌ create config table failed: %v", err)
+		return err
+	}
+
+
 	return nil
 }

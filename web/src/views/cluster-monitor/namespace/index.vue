@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <!-- 🔁 自动轮询（页面可见时；集群切换重建定时器） -->
+    <!-- 🔁 自动轮询（页面可见；集群切换重建定时器） -->
     <AutoPoll
       v-if="currentId"
       :key="currentId"
@@ -46,8 +46,12 @@
       </CardStat>
     </div>
 
-    <!-- 表格：记得在 NamespaceTable 里触发 $emit('view', row) -->
-    <NamespaceTable :namespaces="namespaceList" @view="handleViewNamespace" />
+    <!-- 表格 -->
+    <NamespaceTable
+      :namespaces="namespaceList"
+      @view="handleViewNamespace"
+      @configmap="handleViewConfigMap"
+    />
 
     <!-- ▶️ 右侧抽屉：Namespace 详情 -->
     <NamespaceDetailDrawer
@@ -58,6 +62,16 @@
       width="45%"
       @close="drawerVisible = false"
     />
+
+    <!-- ▶️ ConfigMap 抽屉 -->
+    <ConfigMapDrawer
+      v-if="cmDrawerVisible"
+      :visible.sync="cmDrawerVisible"
+      :namespace="cmNsName"
+      :items="cmList"
+      :loading="cmLoading"
+      width="60%"
+    />
   </div>
 </template>
 
@@ -66,12 +80,23 @@ import AutoPoll from '@/components/Atlhyper/AutoPoll.vue'
 import CardStat from '@/components/Atlhyper/CardStat.vue'
 import NamespaceTable from '@/components/Atlhyper/NamespaceTable.vue'
 import NamespaceDetailDrawer from './NsDescribe/NamespaceDetailDrawer.vue'
-import { getAllNamespaces, getNamespacesDetail } from '@/api/namespace'
+import ConfigMapDrawer from './NsDescribe/ConfigMapDrawer.vue'
+import {
+  getAllNamespaces,
+  getNamespacesDetail,
+  getNamespacesConfigmap
+} from '@/api/namespace'
 import { mapState } from 'vuex'
 
 export default {
   name: 'NamespaceView',
-  components: { AutoPoll, CardStat, NamespaceTable, NamespaceDetailDrawer },
+  components: {
+    AutoPoll,
+    CardStat,
+    NamespaceTable,
+    NamespaceDetailDrawer,
+    ConfigMapDrawer
+  },
   data() {
     return {
       stats: {
@@ -83,10 +108,16 @@ export default {
       namespaceList: [],
       loading: false,
 
-      // 抽屉相关
+      // NS 详情抽屉
       drawerVisible: false,
       drawerLoading: false,
-      nsDetail: {}
+      nsDetail: {},
+
+      // ConfigMap 抽屉
+      cmDrawerVisible: false,
+      cmLoading: false,
+      cmNsName: '',
+      cmList: []
     }
   },
   computed: {
@@ -101,7 +132,7 @@ export default {
     }
   },
   methods: {
-    // 🔁 轮询与首帧统一入口
+    // 轮询与首页加载
     async refresh() {
       if (!this.currentId || this.loading) return
       await this.loadNamespaces(this.currentId)
@@ -118,7 +149,6 @@ export default {
         }
         const { cards = {}, rows } = res.data || {}
 
-        // 顶部 4 卡
         this.stats = {
           totalNamespaces: Number(cards.totalNamespaces ?? 0),
           activeCount: Number(cards.activeCount ?? 0),
@@ -126,7 +156,6 @@ export default {
           totalPods: Number(cards.totalPods ?? 0)
         }
 
-        // 表格数据
         const list = Array.isArray(rows) ? rows : []
         this.namespaceList = list.map((r) => ({
           name: r.name || '',
@@ -144,7 +173,7 @@ export default {
       }
     },
 
-    // 查看 Namespace 详情并打开抽屉
+    // 查看 Namespace 详情
     async handleViewNamespace(row) {
       if (!this.currentId) {
         this.$message.error('未选择集群')
@@ -169,6 +198,31 @@ export default {
       }
     },
 
+    // ▶️ 查看 Namespace 下的 ConfigMap 抽屉
+    async handleViewConfigMap(row) {
+      if (!this.currentId) return this.$message.error('未选择集群')
+      const ns = row.name
+      if (!ns) return
+
+      this.cmNsName = ns
+      this.cmLoading = true
+      this.cmDrawerVisible = true // 先打开抽屉，loading 态
+      try {
+        const res = await getNamespacesConfigmap(this.currentId, ns)
+        if (res.code !== 20000) {
+          this.$message.error(res.message || '获取 ConfigMap 失败')
+          this.cmList = []
+          return
+        }
+        this.cmList = Array.isArray(res.data) ? res.data : []
+      } catch (e) {
+        this.$message.error('请求失败：' + (e.message || e))
+        this.cmList = []
+      } finally {
+        this.cmLoading = false
+      }
+    },
+
     formatTime(iso) {
       const t = Date.parse(iso)
       if (!Number.isFinite(t)) return iso || '-'
@@ -184,11 +238,8 @@ export default {
 
 <style scoped>
 .page-container {
-  padding-top: 35px;
-  padding-left: 32px;
-  padding-right: 32px;
+  padding: 35px 32px;
 }
-
 .card-row {
   display: flex;
   flex-wrap: wrap;
