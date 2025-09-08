@@ -142,3 +142,43 @@ func EnsureDefaultUsers() error {
 }
 
 
+
+// ============================================================
+// ✅ EnsureAdminTodo：初始化默认代办事项
+// ============================================================
+// 功能：
+// - 检查 todos 表中是否已有 admin 用户的待办事项。
+// - 如果没有，则插入一条默认待办任务，用于开发验证。
+func EnsureAdminTodo() error {
+	// 1️⃣ 检查 admin 是否已有待办
+	row := utils.DB.QueryRow(`SELECT COUNT(*) FROM todos WHERE username = ?`, "admin")
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		log.Println("ℹ️ admin 已存在待办事项，跳过初始化")
+		return nil
+	}
+
+	// 2️⃣ 插入一条默认待办事项
+	_, err := utils.DB.Exec(`
+		INSERT INTO todos (username, title, content, created_at, is_done, priority, category, deleted)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"admin",                                   // username
+		"欢迎使用AtlHyper",                         // title
+		"这是系统自动生成的第一条代办事项",           // content
+		time.Now().Format("2006-01-02 15:04:05"),  // created_at
+		0,                                         // is_done
+		1,                                         // priority
+		"系统初始化",                                // category
+		0,                                         // deleted
+	)
+	if err != nil {
+		log.Printf("⚠️ 默认代办事项初始化失败: %v", err)
+		return err
+	}
+
+	log.Println("✅ 默认代办事项已创建 (用户名=admin)")
+	return nil
+}

@@ -165,6 +165,30 @@ func CreateTables() error {
 		return err
 	}
 
+	// 7️⃣ 创建 用户代办事项 表
+	_, err = utils.DB.Exec(`
+	
+	CREATE TABLE IF NOT EXISTS todos (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,   -- 唯一ID，自增主键
+	username   TEXT NOT NULL UNIQUE,                -- 用户名，必填且唯一
+	title      TEXT NOT NULL,                       -- 待办标题，必填
+	content    TEXT,                                -- 待办内容，详细描述
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 创建时间，默认当前时间
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 更新时间，需触发器或应用层更新
+	is_done    INTEGER DEFAULT 0,                   -- 是否完成 (0=未完成,1=完成)
+	due_date   DATE,                                -- 截止日期，可选
+	priority   INTEGER DEFAULT 3,                   -- 优先级 (1=高,2=中,3=低)
+	category   TEXT,                                -- 分类标签（如 工作/学习/生活）
+	deleted    INTEGER DEFAULT 0                    -- 软删除标记 (0=正常,1=删除)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_todos_username ON todos(username);
+
+	`)
+	if err != nil {
+		log.Printf("❌ create todos table failed: %v", err)
+		return err
+	}
 
 	return nil
 }

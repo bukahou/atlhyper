@@ -23,6 +23,12 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	//新接口/获取agent推送上来的集群信息
 	read.GET("/auth/user/list", auth.HandleListAllUsers)
 	read.GET("/auth/userauditlogs/list", auth.HandleGetUserAuditLogs)
+	//用户相关接口
+	read.POST("/user/todos", web_api.GetUserTodosHandler)
+	read.POST("/user/todos", web_api.GetAllTodosHandler)
+	read.POST("/user/todo/create", web_api.CreateTodoHandler)
+	read.POST("/user/todo/update", web_api.UpdateTodoHandler)
+	//集群相关接口
 	read.POST("/cluster/overview", web_api.GetOverviewHandler)
 	read.POST("/pod/overview", web_api.GetPodOverviewHandler)
 	read.POST("/pod/detail", web_api.GetPodDetailHandler)
