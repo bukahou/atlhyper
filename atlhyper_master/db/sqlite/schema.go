@@ -167,22 +167,35 @@ func CreateTables() error {
 
 	// 7️⃣ 创建 用户代办事项 表
 	_, err = utils.DB.Exec(`
-	
 	CREATE TABLE IF NOT EXISTS todos (
-	id         INTEGER PRIMARY KEY AUTOINCREMENT,   -- 唯一ID，自增主键
-	username   TEXT NOT NULL UNIQUE,                -- 用户名，必填且唯一
-	title      TEXT NOT NULL,                       -- 待办标题，必填
-	content    TEXT,                                -- 待办内容，详细描述
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 创建时间，默认当前时间
-	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 更新时间，需触发器或应用层更新
-	is_done    INTEGER DEFAULT 0,                   -- 是否完成 (0=未完成,1=完成)
-	due_date   DATE,                                -- 截止日期，可选
-	priority   INTEGER DEFAULT 3,                   -- 优先级 (1=高,2=中,3=低)
-	category   TEXT,                                -- 分类标签（如 工作/学习/生活）
-	deleted    INTEGER DEFAULT 0                    -- 软删除标记 (0=正常,1=删除)
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	username   TEXT    NOT NULL,
+	title      TEXT    NOT NULL,
+	content    TEXT,
+	created_at TEXT    NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	updated_at TEXT    NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	is_done    INTEGER NOT NULL DEFAULT 0 CHECK (is_done IN (0,1)),
+	due_date   TEXT,
+	priority   INTEGER NOT NULL DEFAULT 2 CHECK (priority BETWEEN 1 AND 3),
+	category   TEXT,
+	deleted    INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0,1))
 	);
 
-	CREATE INDEX IF NOT EXISTS idx_todos_username ON todos(username);
+	--  触发器作用在 todos（避免递归：不包含 updated_at）
+	CREATE TRIGGER IF NOT EXISTS trg_todos_touch_updated_at
+	AFTER UPDATE OF
+	username, title, content, is_done, due_date, priority, category, deleted
+	ON todos
+	FOR EACH ROW
+	BEGIN
+	UPDATE todos SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+	END;
+
+	--  索引也建在 todos 上
+	CREATE INDEX IF NOT EXISTS idx_todos_user_deleted ON todos(username, deleted);
+	CREATE INDEX IF NOT EXISTS idx_todos_done_deleted ON todos(is_done, deleted);
+	CREATE INDEX IF NOT EXISTS idx_todos_prio_deleted ON todos(priority, deleted);
+	CREATE INDEX IF NOT EXISTS idx_todos_created_desc ON todos(created_at DESC);
 
 	`)
 	if err != nil {

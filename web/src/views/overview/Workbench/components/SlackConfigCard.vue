@@ -1,5 +1,4 @@
 <template>
-  <!-- 关键：增加 one-third 类 -->
   <el-card class="slack-config-card compact one-third" shadow="never">
     <div class="card-header">
       <div class="title">
@@ -16,7 +15,6 @@
       class="dense-form"
       @submit.native.prevent
     >
-      <!-- 启用（单字段提交） -->
       <el-form-item label="启用">
         <div class="inline">
           <el-switch
@@ -31,7 +29,6 @@
         </div>
       </el-form-item>
 
-      <!-- Webhook：默认仅展示；点“修改”后可编辑，确认前弹窗 -->
       <el-form-item label="Webhook">
         <div class="row">
           <template v-if="!editingWebhook">
@@ -69,7 +66,6 @@
         </div>
       </el-form-item>
 
-      <!-- 发送间隔（只展示） -->
       <el-form-item label="发送间隔">
         <span class="kv">{{ (form.IntervalSec || 5) + " 秒" }}</span>
       </el-form-item>
@@ -118,7 +114,9 @@ export default {
       try {
         const res = await getSlackConfig()
         const { code, data, message } = res || {}
-        if (code === 20000 && data) { this.form = Object.assign({}, this.form, data) } else this.$message && this.$message.error(message || '读取失败')
+        if (code === 20000 && data) {
+          this.form = Object.assign({}, this.form, data)
+        } else this.$message && this.$message.error(message || '读取失败')
       } catch (e) {
         this.$message && this.$message.error(e.message || '读取异常')
       } finally {
@@ -210,22 +208,19 @@ export default {
 </script>
 
 <style scoped>
-/* ——长度控制：让卡片约占父容器 1/3 宽—— */
 .slack-config-card.one-third {
-  width: 33.333%;
-  min-width: 360px; /* 防止过窄，按需调整 */
-  display: inline-block; /* 允许多卡片并排 */
+  width: 100%; /* 从 33.333% 改为 66.666% */
+  min-width: 480px; /* 可选：比 360px 再大一点，避免过窄 */
+  display: inline-block;
   vertical-align: top;
   box-sizing: border-box;
 }
-/* 中屏回退到 1/2 宽 */
 @media (max-width: 1200px) {
   .slack-config-card.one-third {
-    width: 50%;
-    min-width: 320px;
+    width: 100%;
+    min-width: 360px;
   }
 }
-/* 小屏回退到 100% 宽 */
 @media (max-width: 768px) {
   .slack-config-card.one-third {
     width: 100%;
@@ -233,7 +228,6 @@ export default {
   }
 }
 
-/* 卡片更紧凑 */
 .slack-config-card.compact,
 .slack-config-card {
   --pad-x: 14px;
@@ -250,7 +244,6 @@ export default {
   font-size: var(--font);
 }
 
-/* 头部 */
 .card-header {
   display: flex;
   align-items: center;
@@ -276,7 +269,6 @@ export default {
   background: #f56c6c;
 }
 
-/* 表单更紧凑 */
 .dense-form :deep(.el-form-item) {
   margin-bottom: 8px;
 }
@@ -293,7 +285,6 @@ export default {
   transform-origin: left center;
 }
 
-/* 文本样式 */
 .row {
   display: flex;
   align-items: center;
@@ -316,7 +307,6 @@ export default {
   border-radius: 6px;
 }
 
-/* 底部 */
 .footer {
   margin-top: 12px;
   padding-top: 10px;
@@ -327,7 +317,6 @@ export default {
   align-items: center;
 }
 
-/* 细节 */
 .ml8 {
   margin-left: 8px;
 }

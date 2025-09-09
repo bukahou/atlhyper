@@ -40,6 +40,7 @@ func InitDB() {
 	}
 	// 5️⃣ 插入默认普通用户（仅在用户表为空时创建）
 	err = user.EnsureDefaultUsers()
+	err = user.EnsureAdminTodo()
 	if err != nil {
 		log.Fatalf("初始化默认用户失败: %v", err)
 	}

@@ -24,10 +24,12 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	read.GET("/auth/user/list", auth.HandleListAllUsers)
 	read.GET("/auth/userauditlogs/list", auth.HandleGetUserAuditLogs)
 	//用户相关接口
-	read.POST("/user/todos", web_api.GetUserTodosHandler)
-	read.POST("/user/todos", web_api.GetAllTodosHandler)
+	read.POST("/user/todos/by-username", web_api.GetUserTodosHandler) 
+	read.GET("/user/todos/all", web_api.GetAllTodosHandler)    
 	read.POST("/user/todo/create", web_api.CreateTodoHandler)
 	read.POST("/user/todo/update", web_api.UpdateTodoHandler)
+	read.POST("/user/todo/delete", web_api.SoftDeleteTodoHandler)      
+
 	//集群相关接口
 	read.POST("/cluster/overview", web_api.GetOverviewHandler)
 	read.POST("/pod/overview", web_api.GetPodOverviewHandler)

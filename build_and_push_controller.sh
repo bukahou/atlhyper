@@ -6,11 +6,13 @@
 # 🔧 このスクリプトは個人用です。使用する場合は、IMAGE_NAME を自分のリポジトリに変更してください。
 # 🔧 This script is for personal use. If you want to use it, please change IMAGE_NAME to your own repository.
 
+# 版本: v1.1.0架构调整为只接收数据上报
+# 版本: v1.1.1新增工作台功能
 
 set -e
 
 IMAGE_NAME="bukahou/atlhyper-controller"
-TAG="v1.1.0"
+TAG="v1.1.1"
 
 echo "🔧 [Step 1] Checking Buildx builder"
 docker buildx create --name mybuilder --use || true

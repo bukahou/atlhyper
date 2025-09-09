@@ -1,4 +1,4 @@
-<template>
+<!-- <template>
   <div class="pod-describe-page">
     <div v-if="loading" class="text-center text-muted mt-4">
       ⏳ 正在加载 Pod 信息...
@@ -13,9 +13,7 @@
 
     <div v-else-if="pod">
       <div class="container">
-        <!-- ✅ 横排 InfoCard 卡片 -->
         <div class="row mb-6">
-          <!-- ✅ 用 flex 包裹所有卡片 -->
           <div class="card-flex-container">
             <InfoCard
               v-for="(card, index) in infoCards"
@@ -26,7 +24,6 @@
           </div>
         </div>
 
-        <!-- ✅ 状态条件 与 相关事件 并排展示 -->
         <div class="row mt-4 condition-event-row">
           <div class="half-panel">
             <PodConditionTable
@@ -44,10 +41,9 @@
 </template>
 
 <script>
-// import InfoCard from "./components/InfoCard.vue";
 import InfoCard from '@/components/Atlhyper/InfoCard.vue'
 
-import PodConditionTable from './components/PodConditionTable.vue' // ✅ 新增引入
+import PodConditionTable from './components/PodConditionTable.vue'
 import PodLogCard from './components/PodLogCard.vue'
 import PodEventTable from './components/EventCard.vue'
 
@@ -57,7 +53,7 @@ export default {
   name: 'PodDescribe',
   components: {
     InfoCard,
-    PodConditionTable, // ✅ 注册组件
+    PodConditionTable,
     PodEventTable,
     PodLogCard
   },
@@ -207,6 +203,6 @@ export default {
 
 .half-panel {
   flex: 1 1 0;
-  min-width: 420px; /* 你 InfoCard 最大宽度是 420，这样风格一致 */
+  min-width: 420px;
 }
-</style>
+</style> -->
