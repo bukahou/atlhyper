@@ -35,7 +35,7 @@ func RegisterWebOpsRoutes(rg *gin.RouterGroup) {
 	ops.POST("/workload/scale", HandleWebScaleWorkload)
 
 	// 获取 Pod 日志
-	ops.POST("/pod/logs", HandleWebGetPodLogs)
+	// ops.POST("/pod/logs", HandleWebGetPodLogs)
 }
 
 

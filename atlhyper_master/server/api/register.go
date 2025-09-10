@@ -49,6 +49,7 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	read.POST("/metrics/overview", web_api.GetMetricsOverviewHandler)
 	read.POST("/metrics/node/detail", web_api.GetMetricsNodeDetailHandler)
 	read.POST("/config/slack/get", web_api.GetSlackConfig)
+	read.POST("/ops/pod/logs", control.HandleWebGetPodLogs)
 
 	testapi.RegisterRoutes(read)
 
