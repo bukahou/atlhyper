@@ -53,6 +53,23 @@ func BuildNodeMetricsSnapshot() *metrics.NodeMetricsSnapshot {
 		log.Printf("❌ [Metrics] 网络采集失败: %v", err)
 	}
 
+	// 网络
+// if ns, err := collect.CollectNetwork(); err == nil {
+// 	if len(ns) == 0 {
+// 		log.Printf("⚠️ [Metrics] 网络采集结果为空")
+// 	} else {
+// 		log.Printf("✅ [Metrics] 网络采集成功，共 %d 个接口", len(ns))
+// 		for _, n := range ns {
+// 			log.Printf("  ↳ Interface=%s, Rx=%.2f KB/s (%s), Tx=%.2f KB/s (%s)",
+// 				n.Interface, n.RxKBps, n.RxSpeed, n.TxKBps, n.TxSpeed)
+// 		}
+// 	}
+// 	networkStats = ns
+// } else {
+// 	log.Printf("❌ [Metrics] 网络采集失败: %v", err)
+// }
+
+
 	// 温度
 	if ts, err := collect.CollectTemperature(); err == nil {
 		tempStat = ts
