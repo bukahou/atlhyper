@@ -1,3 +1,4 @@
+// atlhyper_master/interfaces/ui_interfaces/service/service_detail.go
 package service
 
 import (

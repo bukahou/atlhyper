@@ -1,3 +1,4 @@
+// atlhyper_master/interfaces/ui_interfaces/node/node_detail.go
 package node
 
 import (

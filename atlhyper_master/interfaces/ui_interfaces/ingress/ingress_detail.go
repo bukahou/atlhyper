@@ -1,4 +1,4 @@
-// ui_interfaces/ingress/detail.go
+// atlhyper_master/interfaces/ui_interfaces/ingress/ingress_detail.go
 package ingress
 
 import (

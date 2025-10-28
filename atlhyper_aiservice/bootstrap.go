@@ -2,7 +2,7 @@
 package bootstrap
 
 import (
-	"AtlHyper/atlhyper_aiservice/client"
+	"AtlHyper/atlhyper_aiservice/client/ai"
 	"AtlHyper/atlhyper_aiservice/server"
 	"log"
 )
@@ -12,7 +12,7 @@ func StartAIService() {
 	log.Println("🧠 初始化 AI Service 系统组件 ...")
 
 	// ✅ 初始化 Gemini 客户端（单例）
-	client.InitGeminiClient()
+	ai.InitGeminiClient()
 
 	// ✅ 启动 HTTP 服务（测试接口、后续 AI 处理接口等）
 	server.StartHTTPServer()

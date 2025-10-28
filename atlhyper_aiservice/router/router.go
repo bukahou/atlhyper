@@ -11,9 +11,6 @@ import (
 func RegisterRoutes(r *gin.Engine) {
     ai := r.Group("/ai")
     {
-        ai.GET("/test", handler.AiTestHandler)
-        // ai.POST("/report", handler.GenerateOpsReportHandler)
-        // ai.POST("/analyze", handler.AnalyzeLogHandler)
         ai.POST("/diagnose", handler.DiagnoseEventHandler)
     }
 }

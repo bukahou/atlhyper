@@ -1,5 +1,5 @@
-// atlhyper_aiservice/client/gemini_client.go
-package client
+// atlhyper_aiservice/client/ai/gemini_client.go
+package ai
 
 import (
 	"context"

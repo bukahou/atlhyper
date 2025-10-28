@@ -1,16 +1,4 @@
-// 📄 external/server/server.go
-//
-// 🌐 Gin HTTP 服务启动模块（含 CORS 中间件）
-//
-// 说明：
-//   - 提供启动 HTTP 服务的主函数 StartHTTPServer()
-//   - 增加了 CORS（跨域资源共享）中间件以允许跨源访问
-//
-// 用法：
-//   - 在 main.go 中调用 StartHTTPServer() 即可启动 UI 接口服务
-//
-// 作者：@bukahou
-// 更新时间：2025年7月
+//atlhyper_master/server/server.go
 
 package server
 

@@ -27,22 +27,20 @@ func HandleRunAIDiagnosis(c *gin.Context) {
 	if len(groups) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "暂无可分析的新事件（agent 端暂无告警级上报）",
-			"groups":  []alert.ClusterEventGroup{},
 		})
 		return
 	}
 
-	// 3️⃣ 统计总事件数
-	totalEvents := 0
-	for _, g := range groups {
-		totalEvents += g.Count
+	// 3️⃣ 如果只有一个集群 → 直接返回该集群的事件组结构（便于直接复制测试）
+	if len(groups) == 1 {
+		c.JSON(http.StatusOK, groups[0])
+		return
 	}
 
-	// 4️⃣ 返回完整数据
+	// 4️⃣ 如果存在多个集群 → 提供全部（保留原始结构）
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "✅ 已生成 AI 分析所需原始数据",
+		"message":      "✅ 检测到多个集群事件组，请手动选择需要测试的集群",
 		"clusterCount": len(groups),
-		"eventCount":   totalEvents,
-		"rawData":      groups, // 直接返回完整结构
+		"rawData":      groups,
 	})
 }

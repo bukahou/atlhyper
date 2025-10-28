@@ -1,12 +1,4 @@
-// =======================================================================================
-// 📄 external/bootstrap/bootstrap_external.go
-//
-// 🧠 Description:
-//     Unified startup entry point for external modules such as Email, Slack, and Webhook.
-//     Recommended to be called from controller/main.go via StartExternalSystems.
-//
-// ✍️ Author: bukahou (@ZGMF-X10A)
-// =======================================================================================
+//atlhyper_master/bootstrap_external.go
 
 package external
 

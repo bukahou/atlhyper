@@ -1,4 +1,4 @@
-// ui_interfaces/deployment/detail.go
+// atlhyper_master/interfaces/ui_interfaces/deployment/deployment_detail.go
 package deployment
 
 import (

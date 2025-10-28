@@ -1,3 +1,4 @@
+// atlhyper_master/interfaces/ui_interfaces/pod/service_detail.go
 package pod
 
 import (

@@ -1,3 +1,4 @@
+// atlhyper_master/interfaces/ui_interfaces/metrics/metrics_detail.go
 package metrics
 
 import (

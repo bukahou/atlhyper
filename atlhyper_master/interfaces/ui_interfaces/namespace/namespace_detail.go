@@ -1,4 +1,4 @@
-// ui_interfaces/namespace/detail.go
+// atlhyper_master/interfaces/ui_interfaces/namespace/namespace_detail.go
 package namespace
 
 import (
