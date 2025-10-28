@@ -14,6 +14,7 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	// ✅ 注册登录接口（不需要任何认证）
 	router.POST("/auth/login", auth.HandleLogin)
 	router.GET("/alert/slack/preview", alert.HandleAlertSlackPreview)
+	testapi.RegisterRoutes(router)
 
 	// =============================
 	// 📖 基础只读接口（角色 ≥ 1）
@@ -51,7 +52,7 @@ func RegisterUIAPIRoutes(router *gin.RouterGroup) {
 	read.POST("/config/slack/get", web_api.GetSlackConfig)
 	read.POST("/ops/pod/logs", control.HandleWebGetPodLogs)
 
-	testapi.RegisterRoutes(read)
+	// testapi.RegisterRoutes(read)
 
 
 	// =============================

@@ -1,3 +1,4 @@
+// atlhyper_master/server/api/testapi/eventlist.go
 package testapi
 
 import (
@@ -7,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"AtlHyper/atlhyper_master/client/alert"
 	ifaceevent "AtlHyper/atlhyper_master/interfaces/test_interfaces"
 
 	"github.com/gin-gonic/gin"
@@ -93,5 +95,25 @@ func HandleGetDbEvents(c *gin.Context) {
 		"days":      days,
 		"count":     len(events),
 		"events":    events,
+	})
+}
+
+// HandleGetNewAlertEvents —— 收集并返回当前内存中的“增量告警事件”
+func HandleGetNewAlertEvents(c *gin.Context) {
+	newEvents := alert.CollectNewEventLogsForAlert() // ✅ 无需参数，内部会自动扫描所有集群
+
+	if len(newEvents) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "暂无新增事件",
+			"count":   0,
+			"events":  []interface{}{},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "成功获取增量事件",
+		"count":   len(newEvents),
+		"events":  newEvents,
 	})
 }

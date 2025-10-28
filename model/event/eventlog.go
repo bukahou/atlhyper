@@ -1,3 +1,4 @@
+// model/event/eventlog.go
 package model
 
 import "time"
