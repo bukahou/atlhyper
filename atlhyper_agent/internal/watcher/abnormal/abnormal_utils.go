@@ -6,6 +6,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 )
 
 // ✅ 提取 Pod 中首个识别的主要异常原因（返回结构体）
@@ -220,19 +221,40 @@ func GetDeploymentAbnormalReason(deploy appsv1.Deployment) *DeploymentAbnormalRe
 	return nil
 }
 
-func GetEndpointAbnormalReason(ep *corev1.Endpoints) *EndpointAbnormalReason {
+// func GetEndpointAbnormalReason(ep *corev1.Endpoints) *EndpointAbnormalReason {
+// 	now := time.Now()
+
+// 	for _, rule := range EndpointAbnormalRules {
+// 		if rule.Check(ep) {
+// 			// fmt.Printf("🧩 [异常识别] Endpoints 状态异常：%s/%s → Rule=%s（候选）\n", ep.Namespace, ep.Name, rule.Code)
+
+// 			exceptionID := utils.GenerateExceptionID("Endpoints", ep.Name, ep.Namespace, rule.Code)
+// 			if !utils.ShouldProcessException(exceptionID, now, 2*time.Minute) {
+// 				return nil
+// 			}
+
+// 			// fmt.Printf(" [异常识别] Endpoints 状态异常：%s/%s → Code=%s，Message=%s（已确认）\n", ep.Namespace, ep.Name, rule.Code, rule.Message)
+
+// 			return &EndpointAbnormalReason{
+// 				Code:     rule.Code,
+// 				Message:  rule.Message,
+// 				Severity: rule.Severity,
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
+
+// ✅ EndpointSlice 异常判定逻辑（保留原函数名）
+func GetEndpointAbnormalReason(slice *discoveryv1.EndpointSlice) *EndpointAbnormalReason {
 	now := time.Now()
 
 	for _, rule := range EndpointAbnormalRules {
-		if rule.Check(ep) {
-			// fmt.Printf("🧩 [异常识别] Endpoints 状态异常：%s/%s → Rule=%s（候选）\n", ep.Namespace, ep.Name, rule.Code)
-
-			exceptionID := utils.GenerateExceptionID("Endpoints", ep.Name, ep.Namespace, rule.Code)
+		if rule.Check(slice) {
+			exceptionID := utils.GenerateExceptionID("EndpointSlice", slice.Name, slice.Namespace, rule.Code)
 			if !utils.ShouldProcessException(exceptionID, now, 2*time.Minute) {
 				return nil
 			}
-
-			// fmt.Printf(" [异常识别] Endpoints 状态异常：%s/%s → Code=%s，Message=%s（已确认）\n", ep.Namespace, ep.Name, rule.Code, rule.Message)
 
 			return &EndpointAbnormalReason{
 				Code:     rule.Code,
@@ -241,6 +263,7 @@ func GetEndpointAbnormalReason(ep *corev1.Endpoints) *EndpointAbnormalReason {
 			}
 		}
 	}
+
 	return nil
 }
 

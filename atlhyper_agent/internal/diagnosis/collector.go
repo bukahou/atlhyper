@@ -8,6 +8,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 )
 
 // ✅ 全局内存中的事件池（原始收集的事件）
@@ -81,21 +82,36 @@ func CollectEventAbnormalEvent(ev corev1.Event, reason *abnormal.EventAbnormalRe
 	appendToEventPool(event)
 }
 
-// ✅ 收集 Endpoints 异常事件
-func CollectEndpointAbnormalEvent(ep corev1.Endpoints, reason *abnormal.EndpointAbnormalReason) {
-	event := model.LogEvent{
-		Timestamp:  time.Now(),
-		Kind:       "Endpoints",
-		Namespace:  ep.Namespace,
-		Name:       ep.Name,
-		Node:       "--",
-		ReasonCode: reason.Code,
-		Category:   "Endpoint", // 用于分组和过滤
-		Severity:   reason.Severity,
-		Message:    reason.Message,
+	// ✅ 收集 Endpoints 异常事件
+	// func CollectEndpointAbnormalEvent(ep corev1.Endpoints, reason *abnormal.EndpointAbnormalReason) {
+	// 	event := model.LogEvent{
+	// 		Timestamp:  time.Now(),
+	// 		Kind:       "Endpoints",
+	// 		Namespace:  ep.Namespace,
+	// 		Name:       ep.Name,
+	// 		Node:       "--",
+	// 		ReasonCode: reason.Code,
+	// 		Category:   "Endpoint", // 用于分组和过滤
+	// 		Severity:   reason.Severity,
+	// 		Message:    reason.Message,
+	// 	}
+	// 	appendToEventPool(event)
+	// }
+
+	func CollectEndpointAbnormalEvent(slice discoveryv1.EndpointSlice, reason *abnormal.EndpointAbnormalReason) {
+		event := model.LogEvent{
+			Timestamp:  time.Now(),
+			Kind:       "EndpointSlice",
+			Namespace:  slice.Namespace,
+			Name:       slice.Name,
+			Node:       "--",
+			ReasonCode: reason.Code,
+			Category:   "Endpoint", // 分组保持不变
+			Severity:   reason.Severity,
+			Message:    reason.Message,
+		}
+		appendToEventPool(event)
 	}
-	appendToEventPool(event)
-}
 
 // ✅ 收集 Deployment 异常事件
 func CollectDeploymentAbnormalEvent(deploy appsv1.Deployment, reason *abnormal.DeploymentAbnormalReason) {
