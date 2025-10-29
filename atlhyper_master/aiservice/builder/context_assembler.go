@@ -11,9 +11,11 @@ package builder
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
-	"AtlHyper/atlhyper_master/aiservice/model"
 	"AtlHyper/atlhyper_master/aiservice/service"
+	model "AtlHyper/model/ai"
 )
 
 // =============================================================
@@ -25,6 +27,16 @@ import (
 // - 对单个失败项具备容错能力
 // =============================================================
 func BuildAIContext(ctx context.Context, req model.AIFetchRequest) (*model.AIFetchResponse, error) {
+
+	// =========================================================
+	// 🧾 打印外部请求清单（仅输入部分）
+	// ---------------------------------------------------------
+	if b, err := json.MarshalIndent(req, "", "  "); err == nil {
+		fmt.Printf("🧠 收到 AIService 上下文拉取请求（ClusterID: %s）:\n%s\n\n", req.ClusterID, string(b))
+	} else {
+		fmt.Printf("⚠️ 无法序列化 AIFetchRequest: %v\n", err)
+	}
+
 	out := &model.AIFetchResponse{
 		ClusterID: req.ClusterID,
 	}

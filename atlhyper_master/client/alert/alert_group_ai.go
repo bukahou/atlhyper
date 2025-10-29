@@ -1,35 +1,28 @@
-// atlhyper_master/client/alert/alert_group_ai.go
 package alert
 
 import (
 	event "AtlHyper/model/event"
 )
 
-//
 // ClusterEventGroup —— 表示按集群整合后的事件包
 // ------------------------------------------------------------
-// 仅用于 AI 分析模块的输入准备阶段。
-// 每个结构体对应一个集群的增量事件集合。
-//
+// ✅ 此结构现在直接符合 AI Service /ai/diagnose 的请求格式：
+//    { "clusterID": "...", "events": [...] }
 type ClusterEventGroup struct {
-	ClusterID string           `json:"clusterID"`
-	Events    []event.EventLog `json:"events"`
-	Count     int              `json:"count"`
+	ClusterID string           `json:"clusterID"` // 集群唯一标识
+	Events    []event.EventLog `json:"events"`    // 该集群的事件列表
 }
 
-//
 // CollectNewEventsGroupedForAI —— 整合增量事件以供 AI 分析
 // ------------------------------------------------------------
 // 🧠 功能说明：
-//   - 调用 CollectNewEventLogsForAlert() 获取最新的增量事件。
-//   - 按 ClusterID 分组整合（每个集群一组）。
-//   - 不做过滤、不做网络请求。
-//   - 结果供上层 handler 或调度逻辑调用，用于发送至 AI Service。
+//   - 从数据库或缓存收集最新事件（由 CollectNewEventLogsForAlert 提供）
+//   - 按 ClusterID 聚合事件
+//   - 返回结构体切片，可直接作为 /ai/diagnose POST 请求体使用
 //
 // ✅ 返回值：
-//   - []ClusterEventGroup ：每个集群一组事件。
-//   - 若无新事件，返回 nil。
-//
+//   - []ClusterEventGroup ：每个元素均符合 AI Service 的 JSON 请求格式
+//   - 若无新事件，返回 nil
 func CollectNewEventsGroupedForAI() []ClusterEventGroup {
 	// 1️⃣ 收集所有增量事件
 	events := CollectNewEventLogsForAlert()
@@ -47,13 +40,12 @@ func CollectNewEventsGroupedForAI() []ClusterEventGroup {
 		grouped[clusterID] = append(grouped[clusterID], e)
 	}
 
-	// 3️⃣ 构建返回结构
+	// 3️⃣ 构建返回结构（符合 AI 请求格式）
 	out := make([]ClusterEventGroup, 0, len(grouped))
 	for clusterID, list := range grouped {
 		out = append(out, ClusterEventGroup{
 			ClusterID: clusterID,
 			Events:    list,
-			Count:     len(list),
 		})
 	}
 

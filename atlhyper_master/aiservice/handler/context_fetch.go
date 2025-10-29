@@ -2,7 +2,7 @@ package handler
 
 import (
 	"AtlHyper/atlhyper_master/aiservice/builder"
-	"AtlHyper/atlhyper_master/aiservice/model"
+	model "AtlHyper/model/ai"
 	"context"
 	"net/http"
 

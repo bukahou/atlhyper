@@ -3,7 +3,7 @@ package master
 
 import (
 	"AtlHyper/atlhyper_aiservice/config"
-	masterModel "AtlHyper/atlhyper_master/aiservice/model"
+	model "AtlHyper/model/ai"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -59,6 +59,6 @@ func doPost[T any](ctx context.Context, endpoint string, reqBody any) (*T, error
 // ============================================================
 
 // FetchAIContext —— 拉取集群上下文资源（Pod/Deployment/Node/...）
-func FetchAIContext(ctx context.Context, req *masterModel.AIFetchRequest) (*masterModel.AIFetchResponse, error) {
-	return doPost[masterModel.AIFetchResponse](ctx, PathFetchContext, req)
+func FetchAIContext(ctx context.Context, req *model.AIFetchRequest) (*model.AIFetchResponse, error) {
+	return doPost[model.AIFetchResponse](ctx, PathFetchContext, req)
 }

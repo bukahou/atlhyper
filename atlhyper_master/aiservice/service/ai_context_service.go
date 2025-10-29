@@ -13,7 +13,7 @@ import (
 	"context"
 	"log"
 
-	"AtlHyper/atlhyper_master/aiservice/model"
+	model "AtlHyper/model/ai"
 
 	"AtlHyper/atlhyper_master/interfaces/ui_interfaces/configmap"
 	"AtlHyper/atlhyper_master/interfaces/ui_interfaces/deployment"
