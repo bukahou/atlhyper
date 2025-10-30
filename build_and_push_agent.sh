@@ -23,5 +23,4 @@ docker buildx build \
   -f Dockerfile.agent \
   --platform linux/amd64,linux/arm64 \
   -t ${IMAGE_NAME}:${TAG} \
-  --no-cache \
   --push .

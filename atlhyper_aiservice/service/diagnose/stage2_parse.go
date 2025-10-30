@@ -1,4 +1,5 @@
-package service
+// atlhyper_aiservice/service/diagnose/stage2_parse.go
+package diagnose
 
 import (
 	model "AtlHyper/model/ai"

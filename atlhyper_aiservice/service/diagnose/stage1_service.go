@@ -1,76 +1,40 @@
-package service
+// atlhyper_aiservice/service/diagnose/stage1_service.go
+package diagnose
 
 import (
 	"AtlHyper/atlhyper_aiservice/client/ai"
-	"AtlHyper/atlhyper_aiservice/config"
 	m "AtlHyper/model/event"
 	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/google/generative-ai-go/genai"
 )
 
-//
-// RunStage1Analysis —— 执行 AI 诊断的第一阶段：事件初步分析
-// ----------------------------------------------------------------------
-// 📘 功能说明：
-//   该函数接收来自 Master 的事件列表，调用 Gemini 模型进行初步分析，
-//   自动生成聚合报告（summary / rootCause / impact / recommendation 等）。
-//
-// 🔧 逻辑步骤：
-//   1. 构造输入 Prompt（按事件严重性分组，提供上下文信息）
-//   2. 调用 Gemini API 执行自然语言分析
-//   3. 尝试解析返回内容为 JSON（若失败则保留原始文本）
-//   4. 统一返回结构体，包含原始输入、AI 输出与摘要说明
-//
-// 🧩 参数说明：
-//   - clusterID：集群唯一标识符（例如 cluster-1）
-//   - events：事件列表（来自 model/event.EventLog）
-//
-// 📤 返回值说明：
-//   - map[string]interface{}：包含分析结果的通用结构体：
-//       {
-//         "summary": "✅ 初步分析完成（cluster=xxx）",
-//         "prompt": "AI 输入 Prompt 内容",
-//         "ai_json": {summary, rootCause, impact, recommendation, needResources},
-//         "ai_raw": "AI 原始输出"
-//       }
-//   - error：出现调用或解析错误时返回错误信息
-//
+// RunStage1Analysis —— 阶段 1：事件级别初步分析（AI 驱动）
+// ------------------------------------------------------------
+// 该函数负责：
+// 1️⃣ 组装 Prompt
+// 2️⃣ 调用通用 LLM 接口执行分析（内部自动完成 client 初始化/关闭）
+// 3️⃣ 尝试将输出解析为 JSON
+// 4️⃣ 返回结构化与原始结果
 func RunStage1Analysis(clusterID string, events []m.EventLog) (map[string]interface{}, error) {
 	// 🧭 Step 1. 参数检查
 	if len(events) == 0 {
-		return nil, fmt.Errorf("no events to analyze") // 没有事件可供分析
+		return nil, fmt.Errorf("no events to analyze")
 	}
 
 	// 🧠 Step 2. 构造 AI Prompt 输入
 	prompt := buildStage1Prompt(clusterID, events)
 
-	// ⚙️ Step 3. 初始化 Gemini 客户端
-	cfg := config.GetGeminiConfig()             // 获取模型配置（ModelName / APIKey）
-	ctx := context.Background()                 // 创建上下文
-	c, err := ai.GetGeminiClient(ctx)           // 获取 Gemini API 客户端
-	if err != nil {
-		return nil, fmt.Errorf("get gemini client failed: %v", err)
-	}
-	model := c.GenerativeModel(cfg.ModelName)   // 选择模型（如 gemini-2.5-flash）
-
-	// 🚀 Step 4. 调用 AI 模型执行分析
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	// ⚙️ Step 3. 调用通用 AI 接口（内部自动初始化与关闭 LLMClient）
+	ctx := context.Background()
+	out, err := ai.GenerateText(ctx, prompt)
 	if err != nil {
 		return nil, fmt.Errorf("AI 调用失败: %v", err)
 	}
 
-	// 🪄 Step 5. 拼接 AI 原始输出（Gemini 返回内容以多段形式存在）
-	out := ""
-	for _, p := range resp.Candidates[0].Content.Parts {
-		out += fmt.Sprintf("%v", p)
-	}
-
-	// 🧩 Step 6. 尝试解析输出为 JSON
+	// 🧩 Step 4. 尝试解析输出为 JSON
 	var parsed map[string]interface{}
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		// 若首部存在多余文本，则尝试从 “{” 开始重新解析
@@ -79,16 +43,16 @@ func RunStage1Analysis(clusterID string, events []m.EventLog) (map[string]interf
 		}
 	}
 
-	// 🧱 Step 7. 若无法解析出结构化 JSON，则保留原始文本
+	// 🧱 Step 5. 若无法解析出结构化 JSON，则保留原始文本
 	if parsed == nil {
 		parsed = map[string]interface{}{"raw": out}
 	}
 
-	// 🧾 Step 8. 构造统一返回结果
+	// 🧾 Step 6. 返回统一结果
 	return map[string]interface{}{
 		"summary": fmt.Sprintf("✅ 初步分析完成（cluster=%s）", clusterID),
 		"prompt":  prompt,  // 输入提示词内容
-		"ai_json": parsed,  // 解析后的 AI JSON 输出
+		"ai_json": parsed,  // 解析后的 JSON 输出
 		"ai_raw":  out,     // 原始文本输出
 	}, nil
 }

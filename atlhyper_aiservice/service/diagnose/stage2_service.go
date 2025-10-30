@@ -1,4 +1,5 @@
-package service
+// atlhyper_aiservice/service/diagnose/stage2_service.go
+package diagnose
 
 import (
 	"AtlHyper/atlhyper_aiservice/client/master"

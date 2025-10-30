@@ -1,45 +1,51 @@
-package service
+// atlhyper_aiservice/service/diagnose/stage3_service.go
+package diagnose
 
 import (
 	"AtlHyper/atlhyper_aiservice/client/ai"
-	"AtlHyper/atlhyper_aiservice/config"
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/google/generative-ai-go/genai"
+	"strings"
 )
 
+// RunStage3FinalDiagnosis —— 阶段三：最终综合诊断分析
+// ------------------------------------------------------------
+// 基于阶段一（AI 初步分析）与阶段二（Master 上下文资源），
+// 进行最终的上下文一致性诊断，返回结构化结果。
 func RunStage3FinalDiagnosis(clusterID string, stage1, stage2 map[string]interface{}) (map[string]interface{}, error) {
 	ctx := context.Background()
+
+	// 🧠 Step 1. 构造 Prompt（融合前两阶段输出）
 	prompt := buildStage3Prompt(clusterID, stage1, stage2)
 
-	cfg := config.GetGeminiConfig()
-	c, err := ai.GetGeminiClient(ctx)
+	// ⚙️ Step 2. 调用通用 AI 接口（内部自动完成客户端初始化与关闭）
+	out, err := ai.GenerateText(ctx, prompt)
 	if err != nil {
-		return nil, fmt.Errorf("get gemini client failed: %v", err)
-	}
-	model := c.GenerativeModel(cfg.ModelName)
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
-	if err != nil {
-		return nil, fmt.Errorf("AI second stage failed: %v", err)
+		return nil, fmt.Errorf("AI final diagnosis failed: %v", err)
 	}
 
-	out := ""
-	for _, p := range resp.Candidates[0].Content.Parts {
-		out += fmt.Sprintf("%v", p)
-	}
-
+	// 🧩 Step 3. 尝试解析输出为 JSON（与前面阶段保持一致）
 	var parsed map[string]interface{}
-	_ = json.Unmarshal([]byte(out), &parsed)
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		if idx := strings.Index(out, "{"); idx != -1 {
+			_ = json.Unmarshal([]byte(out[idx:]), &parsed)
+		}
+	}
 
+	// 🧱 Step 4. 若无法解析则保留原始输出
+	if parsed == nil {
+		parsed = map[string]interface{}{"raw": out}
+	}
+
+	// 🧾 Step 5. 返回统一结构
 	return map[string]interface{}{
+		"summary": fmt.Sprintf("✅ 阶段三诊断完成（cluster=%s）", clusterID),
 		"prompt":  prompt,
 		"ai_raw":  out,
 		"ai_json": parsed,
 	}, nil
 }
-
 func buildStage3Prompt(clusterID string, stage1, stage2 map[string]interface{}) string {
 	// 序列化前两阶段结果
 	b, _ := json.MarshalIndent(stage1, "", "  ")

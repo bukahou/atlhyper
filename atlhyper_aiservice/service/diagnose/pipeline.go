@@ -1,4 +1,5 @@
-package service
+// atlhyper_aiservice/service/diagnose/pipeline.go
+package diagnose
 
 import (
 	"context"

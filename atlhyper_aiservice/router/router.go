@@ -12,6 +12,7 @@ func RegisterRoutes(r *gin.Engine) {
     ai := r.Group("/ai")
     {
         ai.POST("/diagnose", handler.DiagnoseEventHandler)
+        ai.POST("/insight", handler.InsightHandler)
     }
 }
 

@@ -1,4 +1,4 @@
-// atlhyper_aiservice/main.go
+// cmd/atlhyper_aiservice/main.go
 package main
 
 import (

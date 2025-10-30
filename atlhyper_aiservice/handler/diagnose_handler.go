@@ -2,7 +2,7 @@
 package handler
 
 import (
-	"AtlHyper/atlhyper_aiservice/service"
+	"AtlHyper/atlhyper_aiservice/service/diagnose"
 	m "AtlHyper/model/event"
 	"net/http"
 
@@ -32,7 +32,7 @@ func DiagnoseEventHandler(c *gin.Context) {
 
 	// 2️⃣ 执行诊断
 	ctx := c.Request.Context()
-	resp, err := service.RunAIDiagnosisPipeline(ctx, req.ClusterID, req.Events)
+	resp, err := diagnose.RunAIDiagnosisPipeline(ctx, req.ClusterID, req.Events)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "AI 诊断执行失败",
