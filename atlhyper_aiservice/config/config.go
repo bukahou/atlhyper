@@ -4,16 +4,26 @@ var C struct {
 	Server AIServerConfig
 	Gemini GeminiConfig
 	Master MasterAPIConfig
+	DB     DBConfig
 }
 
 func Load() error {
 	var err error
+
 	C.Server = loadServerConfig()
+
 	C.Gemini, err = loadGeminiConfig()
 	if err != nil {
 		return err
 	}
+
 	C.Master = loadMasterConfig()
+
+	C.DB, err = loadDBConfig()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -27,6 +37,9 @@ func MustLoad() {
 func GetServerConfig() *AIServerConfig { return &C.Server }
 func GetGeminiConfig() *GeminiConfig   { return &C.Gemini }
 func GetMasterAPI() *MasterAPIConfig   { return &C.Master }
+func GetDBConfig() *DBConfig           { return &C.DB }
+
+
 
 
 // // atlhyper_aiservice/config/config.go
