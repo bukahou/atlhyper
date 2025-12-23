@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: atlhyper
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: atlhyper-metrics
+  namespace: atlhyper
+  labels:
+    app: atlhyper-metrics
+spec:
+  selector:
+    matchLabels:
+      app: atlhyper-metrics
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: atlhyper-metrics
+    spec:
+      tolerations:
+        - key: "node-role.kubernetes.io/master"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+
+      containers:
+        - name: atlhyper-metrics
+          image: bukahou/atlhyper-metrics:v1.1.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+          securityContext:
+            privileged: true
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: PROC_ROOT
+              value: /hostproc
+            - name: SYS_ROOT
+              value: /hostsys
+            - name: ROOT_PATH
+              value: /host_root
+            - name: AGENT_SVC_NAME
+              value: "atlhyper-agent-service"
+          volumeMounts:
+            - name: proc-volume
+              mountPath: /hostproc
+              readOnly: true
+            - name: sys-volume
+              mountPath: /hostsys
+              readOnly: true
+            - name: root-volume
+              mountPath: /host_root
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: proc-volume
+          hostPath:
+            path: /proc
+            type: Directory
+        - name: sys-volume
+          hostPath:
+            path: /sys
+            type: Directory
+        - name: root-volume
+          hostPath:
+            path: /
+            type: Directory
