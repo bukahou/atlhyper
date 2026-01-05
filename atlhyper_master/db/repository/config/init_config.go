@@ -1,39 +1,14 @@
 package config
 
 import (
-	"AtlHyper/atlhyper_master/db/utils"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
 	"time"
+
+	"AtlHyper/atlhyper_master/config"
+	"AtlHyper/atlhyper_master/db/utils"
 )
 
-// 环境变量解析 —— 读不到就用默认值
-func envBoolDefault(key string, def int) int {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" { return def }
-	switch strings.ToLower(v) {
-	case "1", "true", "t", "yes", "y", "on":
-		return 1
-	default:
-		return 0
-	}
-}
-func envInt64Default(key string, def int64) int64 {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" { return def }
-	n, err := strconv.ParseInt(v, 10, 64)
-	if err != nil || n <= 0 { return def }
-	return n
-}
-func envStringDefault(key, def string) string {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" { return def }
-	return v
-}
-
-// 只在不存在记录时，用环境变量写入一行初始配置
+// InitConfigTables 只在不存在记录时，用全局配置写入一行初始配置
 func InitConfigTables() error {
 	var exists int
 	if err := utils.DB.QueryRow(
@@ -46,9 +21,13 @@ func InitConfigTables() error {
 		return nil
 	}
 
-	enable := envBoolDefault("ENABLE_SLACK_ALERT", 0)                // 读不到 ⇒ 0
-	webhook := envStringDefault("SLACK_WEBHOOK_URL", "")             // 读不到 ⇒ ""
-	intervalSec := envInt64Default("SLACK_DISPATCH_INTERVAL_SEC", 5) // 读不到 ⇒ 5
+	// 从全局配置读取 Slack 设置
+	enable := 0
+	if config.GlobalConfig.Slack.EnableSlackAlert {
+		enable = 1
+	}
+	webhook := config.GlobalConfig.Slack.WebhookURL
+	intervalSec := int64(config.GlobalConfig.Slack.DispatchInterval / time.Second)
 
 	_, err := utils.DB.Exec(`
 		INSERT INTO config (id, name, enable, webhook, interval_sec, updated_at)
@@ -58,6 +37,6 @@ func InitConfigTables() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("✅ slack 配置初始化完成（来源：环境变量）")
+	fmt.Println("✅ slack 配置初始化完成（来源：全局配置）")
 	return nil
 }

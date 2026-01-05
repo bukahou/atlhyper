@@ -12,12 +12,12 @@ import (
 	restcfg "AtlHyper/atlhyper_agent/external/push/config"
 	pushutils "AtlHyper/atlhyper_agent/external/push/utils"
 	"AtlHyper/atlhyper_agent/interfaces/cluster"
-	"AtlHyper/model"
-	modelpod "AtlHyper/model/pod"
+	"AtlHyper/model/transport"
+	modelpod "AtlHyper/model/k8s"
 )
 
 // 区分数据来源类型（Envelope.Source）
-const SourcePodListSnapshot = model.SourcePodListSnapshot
+const SourcePodListSnapshot = transport.SourcePodListSnapshot
 
 // 载荷结构（和 metrics_pusher 风格一致，简单明了）
 type PodListPayload struct {

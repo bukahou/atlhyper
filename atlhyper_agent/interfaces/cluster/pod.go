@@ -2,7 +2,7 @@ package cluster
 
 import (
 	readonlypod "AtlHyper/atlhyper_agent/internal/readonly/pod"
-	modelpod "AtlHyper/model/pod"
+	modelpod "AtlHyper/model/k8s"
 	"context"
 )
 

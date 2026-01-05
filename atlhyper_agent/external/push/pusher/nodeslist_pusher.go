@@ -12,13 +12,13 @@ import (
 	restcfg "AtlHyper/atlhyper_agent/external/push/config"
 	pushutils "AtlHyper/atlhyper_agent/external/push/utils"
 	"AtlHyper/atlhyper_agent/interfaces/cluster"
-	"AtlHyper/model"
-	modelnode "AtlHyper/model/node"
+	"AtlHyper/model/transport"
+	modelnode "AtlHyper/model/k8s"
 )
 
 // 区分数据来源类型（Envelope.Source）
 // 需要在 model/Source.go 中声明：const SourceNodeListSnapshot = "node_list_snapshot"
-const SourceNodeListSnapshot = model.SourceNodeListSnapshot
+const SourceNodeListSnapshot = transport.SourceNodeListSnapshot
 
 // 载荷结构（与 Pod/Metrics 保持一致）
 type NodeListPayload struct {

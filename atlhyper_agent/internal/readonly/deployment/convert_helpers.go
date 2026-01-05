@@ -2,7 +2,7 @@
 package deployment
 
 import (
-	modeldep "AtlHyper/model/deployment"
+	modeldep "AtlHyper/model/k8s"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"

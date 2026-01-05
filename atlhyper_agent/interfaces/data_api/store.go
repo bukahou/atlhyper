@@ -3,10 +3,10 @@ package data_api
 
 import (
 	agentstore "AtlHyper/atlhyper_agent/agent_store"
-	nmetrics "AtlHyper/model/metrics"
+	"AtlHyper/model/collect"
 )
 
-func GetAllLatestNodeMetrics() map[string]nmetrics.NodeMetricsSnapshot {
+func GetAllLatestNodeMetrics() map[string]collect.NodeMetricsSnapshot {
 	m := agentstore.GetAllLatestCopy()
 
 	return m

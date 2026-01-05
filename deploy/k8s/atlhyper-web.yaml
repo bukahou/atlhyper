@@ -1,0 +1,64 @@
+# ============================================
+# AtlHyper Web Frontend (Next.js)
+# ============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlhyper-web
+  namespace: atlhyper
+  labels:
+    app: atlhyper-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atlhyper-web
+  template:
+    metadata:
+      labels:
+        app: atlhyper-web
+    spec:
+      containers:
+        - name: web
+          image: bukahou/atlhyper-web:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: atlhyper-config
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlhyper-web
+  namespace: atlhyper
+spec:
+  selector:
+    app: atlhyper-web
+  type: ClusterIP
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: 3000

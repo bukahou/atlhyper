@@ -1,7 +1,7 @@
 package alert
 
 import (
-	event "AtlHyper/model/event"
+	event "AtlHyper/model/transport"
 )
 
 // ClusterEventGroup —— 表示按集群整合后的事件包

@@ -7,15 +7,14 @@ import (
 	"net/http"
 
 	"AtlHyper/atlhyper_master/master_store"
-	"AtlHyper/model"
-	"AtlHyper/model/envelope"
-	ziputil "AtlHyper/utils" // 通用 gzip 工具：压缩/自动解压/透传
+	"AtlHyper/model/transport"
+	ziputil "AtlHyper/common" // 通用 gzip 工具：压缩/自动解压/透传
 
 	"github.com/gin-gonic/gin"
 )
 
 // 仅接收 node 列表快照
-const SourceNodeListSnapshot = model.SourceNodeListSnapshot
+const SourceNodeListSnapshot = transport.SourceNodeListSnapshot
 
 // HandleNodeListSnapshotIngest 处理 /ingest/nodes/snapshot
 // - 兼容压缩与未压缩：支持 Content-Encoding:gzip，且自动嗅探魔数
@@ -37,7 +36,7 @@ func HandleNodeListSnapshotIngest(c *gin.Context) {
 	rcLimited := io.LimitReader(rc, 64<<20) // 64MiB
 
 	// 4) 解析 JSON Envelope
-	var env envelope.Envelope
+	var env transport.Envelope
 	if err := json.NewDecoder(rcLimited).Decode(&env); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "请求体解析失败：不是有效的 JSON Envelope"})
 		return

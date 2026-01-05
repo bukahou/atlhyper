@@ -1,7 +1,7 @@
 package node
 
 import (
-	modelnode "AtlHyper/model/node"
+	modelnode "AtlHyper/model/k8s"
 	"context"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -77,8 +77,8 @@ func attachMetrics(dst *modelnode.Node, nm *metricsv1beta1.NodeMetrics, podsUsed
 	}
 
 	dst.Metrics = &modelnode.NodeMetrics{
-		CPU:    modelnode.ResourceMetric{Usage: cpuUsageStr, Allocatable: allocCPU, Capacity: capCPU, UtilPct: cpuPct},
-		Memory: modelnode.ResourceMetric{Usage: memUsageStr, Allocatable: allocMem, Capacity: capMem, UtilPct: memPct},
+		CPU:    modelnode.NodeResourceMetric{Usage: cpuUsageStr, Allocatable: allocCPU, Capacity: capCPU, UtilPct: cpuPct},
+		Memory: modelnode.NodeResourceMetric{Usage: memUsageStr, Allocatable: allocMem, Capacity: capMem, UtilPct: memPct},
 		Pods:   modelnode.PodCountMetric{Used: podsUsed, Capacity: podCap, UtilPct: podPct},
 		Pressure: buildPressureFlags(dst.Conditions),
 	}

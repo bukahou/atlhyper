@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"AtlHyper/atlhyper_agent/utils"
-	modelcm "AtlHyper/model/configmap"
+	modelcm "AtlHyper/model/k8s"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

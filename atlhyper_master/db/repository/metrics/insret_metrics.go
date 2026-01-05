@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	model "AtlHyper/model/metrics"
+	model "AtlHyper/model/collect"
 )
 
 // upsertSnapshots 将 map[node][]*snapshot 批量写入两张表（事务）

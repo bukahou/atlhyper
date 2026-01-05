@@ -1,2 +1,50 @@
-# 忽略 neuro.db
+# ===========================================
+# AtlHyper 项目 .gitignore
+# ===========================================
+
+# ===== 后端 (Go) =====
 atlhyper_master/db/data/atlhyper.db
+
+# ===== 前端 (Next.js) =====
+# Dependencies
+atlhyper_web/node_modules/
+atlhyper_web/.pnpm-store/
+
+# Next.js
+atlhyper_web/.next/
+atlhyper_web/out/
+
+# Production
+atlhyper_web/build/
+atlhyper_web/dist/
+
+# Debug
+atlhyper_web/npm-debug.log*
+atlhyper_web/yarn-debug.log*
+atlhyper_web/yarn-error.log*
+
+# Local env files (保留 .env.development 和 .env.production)
+atlhyper_web/.env
+atlhyper_web/.env.local
+atlhyper_web/.env.*.local
+
+# Vercel
+atlhyper_web/.vercel
+
+# TypeScript
+atlhyper_web/*.tsbuildinfo
+atlhyper_web/next-env.d.ts
+
+# Testing
+atlhyper_web/coverage/
+
+# ===== 通用 =====
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

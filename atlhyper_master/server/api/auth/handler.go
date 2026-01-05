@@ -2,7 +2,7 @@ package auth
 
 import (
 	"AtlHyper/atlhyper_master/db/repository/user"
-	"AtlHyper/atlhyper_master/interfaces/datasource"
+	"AtlHyper/atlhyper_master/repository"
 	response "AtlHyper/atlhyper_master/server/api/response"
 
 	"github.com/gin-gonic/gin"
@@ -43,7 +43,7 @@ func HandleLogin(c *gin.Context) {
 		return
 	}
 
-	ClusterIDs, _ := datasource.ListClusterIDs(c.Request.Context())
+	ClusterIDs, _ := repository.ListClusterIDs(c.Request.Context())
 
 	// Step 5️⃣: 登录成功，返回统一结构
 	response.Success(c, "登录成功", gin.H{
@@ -128,4 +128,34 @@ func HandleGetUserAuditLogs(c *gin.Context) {
 
 	// 成功：带消息与数据
 	response.Success(c, "获取用户审计日志成功", logs)
+}
+
+
+// =======================================================================
+// 📌 POST /auth/user/delete
+// ✅ 删除用户（仅管理员可操作）
+// =======================================================================
+func HandleDeleteUser(c *gin.Context) {
+	var req struct {
+		ID int `json:"id"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, "请求参数无效: "+err.Error())
+		return
+	}
+
+	// 从 JWT 中获取当前操作者 ID
+	operatorID, exists := c.Get("user_id")
+	if !exists {
+		response.ErrorCode(c, 40100, "无法获取当前用户信息")
+		return
+	}
+
+	if err := user.DeleteUser(req.ID, operatorID.(int)); err != nil {
+		response.ErrorCode(c, 50000, "删除失败: "+err.Error())
+		return
+	}
+
+	response.SuccessMsg(c, "✅ 用户删除成功")
 }

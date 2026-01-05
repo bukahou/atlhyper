@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 // ✅ 启动控制器管理器（加载并运行所有 Watcher 模块）
@@ -20,7 +21,10 @@ func StartManager() {
 		return
 	}
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		// 禁用 metrics server，避免与 HTTP 服务端口冲突
+		Metrics: metricsserver.Options{BindAddress: "0"},
+	})
 	if err != nil {
 		log.Printf("❌ 无法创建 controller manager: %v", err)
 		return

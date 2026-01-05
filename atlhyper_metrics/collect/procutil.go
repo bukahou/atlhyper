@@ -1,14 +1,8 @@
 package collect
 
-import "os"
+import "AtlHyper/atlhyper_metrics/config"
 
-// ✅ 公共变量：所有指标模块共享
-var procRoot = getProcRoot()
-
-// ✅ 允许通过环境变量 PROC_ROOT 覆盖宿主机 /proc 路径
-func getProcRoot() string {
-	if root := os.Getenv("PROC_ROOT"); root != "" {
-		return root
-	}
-	return "/proc"
+// ProcRoot 返回 /proc 路径（从配置获取）
+func ProcRoot() string {
+	return config.C.Collect.ProcRoot
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"AtlHyper/atlhyper_agent/agent_store"
-	nmodel "AtlHyper/model/metrics"
+	"AtlHyper/model/collect"
 )
 
 const defaultMaxBodyBytes int64 = 2 << 20 // 2 MiB
@@ -46,7 +46,7 @@ func HandlePostMetrics(c *gin.Context) {
 	}
 
 	// 反序列化为统一模型
-	var snap nmodel.NodeMetricsSnapshot
+	var snap collect.NodeMetricsSnapshot
 	if err := json.NewDecoder(reader).Decode(&snap); err != nil {
 		// 大小超限时，这里通常是 *http.MaxBytesError
 		if _, ok := err.(*http.MaxBytesError); ok {

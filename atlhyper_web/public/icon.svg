@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Geass Symbol - Teal/Cyan (#14B8A6) -->
+  <g filter="url(#glow)">
+    <!-- Left wing -->
+    <path d="M50 75 L35 50 L10 20 L35 35 L50 25" fill="#14B8A6" />
+    <!-- Right wing -->
+    <path d="M50 75 L65 50 L90 20 L65 35 L50 25" fill="#14B8A6" />
+  </g>
+</svg>

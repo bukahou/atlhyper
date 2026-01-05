@@ -12,14 +12,14 @@ import (
 	restcfg "AtlHyper/atlhyper_agent/external/push/config"
 	pushutils "AtlHyper/atlhyper_agent/external/push/utils"
 	dataapi "AtlHyper/atlhyper_agent/interfaces/data_api"
-	"AtlHyper/model"
-	"AtlHyper/model/metrics"
+	"AtlHyper/model/collect"
+	"AtlHyper/model/transport"
 )
 
-const SourceMetricsSnapshot = model.SourceMetricsSnapshot
+const SourceMetricsSnapshot = transport.SourceMetricsSnapshot
 
 type MetricsPayload struct {
-	Snapshots []metrics.NodeMetricsSnapshot `json:"snapshots"`
+	Snapshots []collect.NodeMetricsSnapshot `json:"snapshots"`
 }
 
 func PushLatestMetrics(ctx context.Context, clusterID, path string) (int, error) {
@@ -30,7 +30,7 @@ func PushLatestMetrics(ctx context.Context, clusterID, path string) (int, error)
 	}
 
 	payload := MetricsPayload{
-		Snapshots: make([]metrics.NodeMetricsSnapshot, 0, len(latest)),
+		Snapshots: make([]collect.NodeMetricsSnapshot, 0, len(latest)),
 	}
 	for _, snap := range latest {
 		payload.Snapshots = append(payload.Snapshots, snap)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	modeldep "AtlHyper/model/deployment"
+	modeldep "AtlHyper/model/k8s"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"

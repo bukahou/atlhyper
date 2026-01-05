@@ -7,7 +7,7 @@
 // 	"time"
 
 // 	"AtlHyper/atlhyper_agent/utils"
-// 	modelsvc "AtlHyper/model/service"
+// 	modelsvc "AtlHyper/model/k8s"
 
 // 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // )
@@ -82,7 +82,7 @@ import (
 	"fmt"
 
 	"AtlHyper/atlhyper_agent/utils"
-	modelsvc "AtlHyper/model/service"
+	modelsvc "AtlHyper/model/k8s"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

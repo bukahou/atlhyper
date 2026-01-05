@@ -2,12 +2,12 @@
 package master_store
 
 import (
-	"AtlHyper/model/envelope"
+	"AtlHyper/model/transport"
 	"encoding/json"
 	"time"
 )
 
-// EnvelopeRecord 是 Master 侧统一入池的“壳记录”。
+// EnvelopeRecord 是 Master 侧统一入池的"壳记录"。
 // -----------------------------------------------------------------------------
 // - 设计目的：
 //     * Master 不直接存储业务结构（LogEvent / NodeMetrics / Pod 等）
@@ -53,7 +53,7 @@ func NewRecordFromEnvelope(ver, clusterID, source string, tsMs int64, payload js
 	}
 }
 
-func NewRecordFromStd(env envelope.Envelope) EnvelopeRecord {
+func NewRecordFromStd(env transport.Envelope) EnvelopeRecord {
     return EnvelopeRecord{
         Version:    env.Version,
         ClusterID:  env.ClusterID,

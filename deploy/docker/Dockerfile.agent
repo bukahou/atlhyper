@@ -1,0 +1,50 @@
+# =============================================================================
+# AtlHyper Agent Dockerfile
+# 集群数据采集代理 - 部署在各 K8s 集群中
+# =============================================================================
+
+ARG GO_VERSION=1.24
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build
+# -----------------------------------------------------------------------------
+FROM golang:${GO_VERSION}-alpine AS builder
+
+LABEL stage=builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+
+RUN go build -ldflags="-s -w" -o atlhyper-agent ./cmd/atlhyper_agent/main.go
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime (使用 scratch 最小镜像)
+# -----------------------------------------------------------------------------
+FROM alpine:3.19
+
+LABEL maintainer="AtlHyper Team"
+LABEL description="AtlHyper Agent - Kubernetes Cluster Data Collector"
+
+RUN apk add --no-cache ca-certificates tzdata
+
+ENV TZ=Asia/Shanghai
+
+WORKDIR /app
+
+COPY --from=builder /app/atlhyper-agent .
+
+RUN chmod +x ./atlhyper-agent
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8082/health || exit 1
+
+EXPOSE 8082
+
+ENTRYPOINT ["./atlhyper-agent"]

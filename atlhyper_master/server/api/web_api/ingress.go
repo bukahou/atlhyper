@@ -1,7 +1,7 @@
 package web_api
 
 import (
-	"AtlHyper/atlhyper_master/interfaces/ui_interfaces/ingress"
+	"AtlHyper/atlhyper_master/service/ingress"
 	"AtlHyper/atlhyper_master/server/api/response"
 
 	"github.com/gin-gonic/gin"

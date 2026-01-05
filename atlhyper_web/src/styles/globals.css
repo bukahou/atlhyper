@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode for Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* AtlHyper Brand Colors - Teal/Cyan */
+  --primary: #14b8a6;
+  --primary-hover: #0d9488;
+  --primary-light: #ccfbf1;
+  --primary-dark: #0f766e;
+
+  /* Light Theme - 柔和的浅灰白背景 */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card-bg: #ffffff;
+  --sidebar-bg: #ffffff;
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --border-color: #e2e8f0;
+
+  /* Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* Status Colors */
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+}
+
+.dark {
+  /* AtlHyper Brand Colors - Teal/Cyan (Dark Mode) */
+  --primary: #2dd4bf;
+  --primary-hover: #14b8a6;
+  --primary-light: #134e4a;
+  --primary-dark: #5eead4;
+
+  /* Dark Theme - 柔和的深蓝灰背景 */
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --card-bg: #1e293b;
+  --sidebar-bg: #1e293b;
+  --nav-bg: rgba(15, 23, 42, 0.95);
+  --border-color: #334155;
+
+  /* Text Colors */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+}
+
+html, body {
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Hide scrollbar when not needed */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Utility classes for brand colors */
+.text-primary {
+  color: var(--primary);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.border-primary {
+  border-color: var(--primary);
+}
+
+.hover\:bg-primary-hover:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Card and surface utilities */
+.bg-card {
+  background-color: var(--card-bg);
+}
+
+.bg-sidebar {
+  background-color: var(--sidebar-bg);
+}
+
+.border-default {
+  border-color: var(--border-color);
+}
+
+/* Text utilities */
+.text-default {
+  color: var(--foreground);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* Interactive states */
+.hover-bg {
+  transition: background-color 0.2s;
+}
+
+.hover-bg:hover {
+  background-color: var(--background);
+}
+
+/* Dropdown menu styles */
+.dropdown-menu {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+}

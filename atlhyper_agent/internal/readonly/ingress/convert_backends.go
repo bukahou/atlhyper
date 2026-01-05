@@ -2,7 +2,7 @@
 package ingress
 
 import (
-	modelingr "AtlHyper/model/ingress"
+	modelingr "AtlHyper/model/k8s"
 
 	networkingv1 "k8s.io/api/networking/v1"
 )

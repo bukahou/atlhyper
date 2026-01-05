@@ -2,7 +2,7 @@
 package utils
 
 import (
-	"AtlHyper/model/envelope"
+	"AtlHyper/model/transport"
 	"encoding/json"
 	"time"
 )
@@ -13,8 +13,8 @@ const EnvelopeVersion = "v1"
 
 // NewEnvelope 便捷构造函数：自动填充 Version 与当前毫秒时间戳。
 // 其余字段由调用者显式传入，保持可读性与可控性。
-func NewEnvelope(clusterID, source string, payload json.RawMessage) envelope.Envelope {
-	return envelope.Envelope{
+func NewEnvelope(clusterID, source string, payload json.RawMessage) transport.Envelope {
+	return transport.Envelope{
 		Version:     EnvelopeVersion,
 		ClusterID:   clusterID,
 		Source:      source,

@@ -7,7 +7,7 @@
 package mailer
 
 import (
-	"AtlHyper/model"
+	"AtlHyper/model/integration"
 	"bytes"
 	"fmt"
 	"html/template"
@@ -16,7 +16,7 @@ import (
 // AlertItem 表示单条告警信息
 
 // RenderAlertTemplate 渲染 HTML 告警聚合模板
-func RenderAlertTemplate(data model.AlertGroupData) (string, error) {
+func RenderAlertTemplate(data integration.AlertGroupData) (string, error) {
 	tmpl := `
 <!DOCTYPE html>
 <html>

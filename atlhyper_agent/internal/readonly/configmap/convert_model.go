@@ -3,7 +3,7 @@ package configmap
 import (
 	"sort"
 
-	modelcm "AtlHyper/model/configmap"
+	modelcm "AtlHyper/model/k8s"
 
 	corev1 "k8s.io/api/core/v1"
 )

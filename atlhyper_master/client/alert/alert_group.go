@@ -3,10 +3,10 @@ package alert
 
 import (
 	"AtlHyper/atlhyper_master/master_store"
-	m "AtlHyper/model"
+	"AtlHyper/model/transport"
 	"strconv"
 
-	event "AtlHyper/model/event"
+	event "AtlHyper/model/transport"
 	"encoding/json"
 	"log"
 	"time"
@@ -29,7 +29,7 @@ func CollectNewEventLogsForAlert() []event.EventLog {
 
 	eventLogs := make([]event.EventLog, 0, 256)
 	for _, r := range recs {
-		if r.Source != m.SourceK8sEvent {
+		if r.Source != transport.SourceK8sEvent {
 			continue
 		}
 		events, err := decodeEnvelopeEvents(r.Payload) // 你现有的解析函数

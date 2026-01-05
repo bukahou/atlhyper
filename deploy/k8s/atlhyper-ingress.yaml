@@ -1,0 +1,47 @@
+# ============================================
+# AtlHyper Ingress 配置
+# Web:        your-domain.com
+# Controller: api.your-domain.com
+# ============================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: atlhyper-ingress
+  namespace: atlhyper
+  annotations:
+    # 使用 cert-manager 自动申请证书
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Traefik 配置（如使用其他 Ingress Controller 请修改）
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.priority: "5"
+spec:
+  ingressClassName: traefik  # 根据实际 Ingress Controller 修改
+  tls:
+    - hosts:
+        - your-domain.com
+        - api.your-domain.com
+      secretName: atlhyper-tls
+  rules:
+    # Web Frontend
+    - host: your-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: atlhyper-web
+                port:
+                  number: 3000
+    # API Backend
+    - host: api.your-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: atlhyper-controller
+                port:
+                  number: 8081

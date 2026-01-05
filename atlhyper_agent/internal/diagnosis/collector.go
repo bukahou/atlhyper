@@ -2,7 +2,7 @@ package diagnosis
 
 import (
 	"AtlHyper/atlhyper_agent/internal/watcher/abnormal"
-	model "AtlHyper/model/event"
+	model "AtlHyper/model/transport"
 	"log"
 	"time"
 

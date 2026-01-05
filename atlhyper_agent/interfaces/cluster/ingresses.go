@@ -2,7 +2,7 @@ package cluster
 
 import (
 	readonlyingress "AtlHyper/atlhyper_agent/internal/readonly/ingress"
-	modelingress "AtlHyper/model/ingress"
+	modelingress "AtlHyper/model/k8s"
 	"context"
 )
 

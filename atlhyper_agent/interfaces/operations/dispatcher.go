@@ -1,4 +1,4 @@
-// internal/ops/dispatcher.go
+// atlhyper_agent/interfaces/operations/dispatcher.go
 package operations
 
 import (
@@ -7,31 +7,17 @@ import (
 	"fmt"
 	"strconv"
 
-	// 根据你的实际目录调整下面三行导入路径
 	"AtlHyper/atlhyper_agent/internal/operator/deployment"
 	"AtlHyper/atlhyper_agent/internal/operator/node"
 	"AtlHyper/atlhyper_agent/internal/operator/pod"
+	"AtlHyper/atlhyper_agent/model"
 )
 
-// Command 是 Agent 侧执行入口约定的最小字段集合。
-// 如果你已经在别处定义了完全一致的结构，可以删掉这里的定义并改为引用你现有的类型。
-type Command struct {
-	ID     string                 `json:"id"`
-	Type   string                 `json:"type"`            // PodRestart / NodeCordon / NodeUncordon / UpdateImage / ScaleWorkload
-	Target map[string]string      `json:"target,omitempty"`// 资源定位：ns/pod 或 ns/kind/name 或 node
-	Args   map[string]any         `json:"args,omitempty"`  // 参数：newImage/replicas 等
-	Idem   string                 `json:"idem,omitempty"`  // 幂等键（透传给上层用于 Ack/去重）
-}
-
-// Result 是执行结果的统一返回。
-// 上层可直接把它映射为 /ack 的 AckResult；也可在更上一层转换。
-type Result struct {
-	CommandID string `json:"commandID"`
-	Idem      string `json:"idem,omitempty"`
-	Status    string `json:"status"`     // Succeeded / Failed / Skipped（当前未细分 NotFound 等，后续可扩展）
-	ErrorCode string `json:"errorCode"`  // 预留：Forbidden/NotFound/Conflict...
-	Message   string `json:"message"`
-}
+// 类型别名，简化代码
+type (
+	Command = model.Command
+	Result  = model.Result
+)
 
 // Execute 是对外唯一入口：根据命令类型分发到底层具体实现。
 func Execute(ctx context.Context, cmd Command) Result {

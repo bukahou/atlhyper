@@ -1,12 +1,12 @@
 package slack
 
 import (
-	"AtlHyper/model"
+	"AtlHyper/model/integration"
 	"fmt"
 	"strings"
 )
 
-func BuildSlackBlockFromAlert(data model.AlertGroupData, subject string) map[string]interface{} {
+func BuildSlackBlockFromAlert(data integration.AlertGroupData, subject string) map[string]interface{} {
 	blocks := []map[string]interface{}{
 		{
 			"type": "header",

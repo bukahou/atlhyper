@@ -4,7 +4,7 @@ package main
 import (
 	agent "AtlHyper/atlhyper_agent"
 	"AtlHyper/atlhyper_agent/bootstrap"
-	"AtlHyper/config"
+	"AtlHyper/atlhyper_agent/config"
 
 	"AtlHyper/atlhyper_agent/utils"
 

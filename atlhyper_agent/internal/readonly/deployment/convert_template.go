@@ -2,8 +2,8 @@
 package deployment
 
 import (
-	modeldep "AtlHyper/model/deployment"
-	modelpod "AtlHyper/model/pod"
+	modeldep "AtlHyper/model/k8s"
+	modelpod "AtlHyper/model/k8s"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

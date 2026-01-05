@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"syscall"
 
-	"AtlHyper/model/metrics"
+	"AtlHyper/model/collect"
 )
 
 // CollectDisk 采集宿主机的磁盘使用情况（需要宿主机挂载进容器）
-func CollectDisk() ([]metrics.DiskStat, error) {
-	var result []metrics.DiskStat
+func CollectDisk() ([]collect.DiskStat, error) {
+	var result []collect.DiskStat
 
 	mounts := []struct {
 		MountPoint string
@@ -45,7 +45,7 @@ func CollectDisk() ([]metrics.DiskStat, error) {
 			return fmt.Sprintf("%.2f MB", mb)
 		}
 
-		result = append(result, metrics.DiskStat{
+		result = append(result, collect.DiskStat{
 			MountPoint:    m.Label,
 			Total:         total,
 			Used:          used,

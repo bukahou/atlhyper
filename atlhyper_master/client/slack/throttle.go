@@ -1,8 +1,8 @@
 package slack
 
 import (
-	Alertmodel "AtlHyper/model"
-	model "AtlHyper/model/event"
+	"AtlHyper/model/integration"
+	"AtlHyper/model/transport"
 	"fmt"
 	"sync"
 	"time"
@@ -31,7 +31,7 @@ const slackThrottleInterval = 1 * time.Minute
 // 返回：
 //   - error: 若发送失败则返回错误；若节流跳过则返回 nil
 // =======================================================================================
-func SendSlackAlertWithThrottle(webhook string, subject string, data Alertmodel.AlertGroupData) error {
+func SendSlackAlertWithThrottle(webhook string, subject string, data integration.AlertGroupData) error {
 	lastSlackSentTimeMu.Lock()
 	defer lastSlackSentTimeMu.Unlock()
 
@@ -67,14 +67,14 @@ const sentEventTTL = 10 * time.Minute
 //
 // 输入：events - 原始事件列表
 // 返回：仅包含“未曾发送”或“发送已过期”的新事件列表（供 Slack 发送）
-func filterNewEvents(events []model.LogEvent) []model.LogEvent {
+func filterNewEvents(events []transport.LogEvent) []transport.LogEvent {
 	sentEventsMu.Lock()
 	defer sentEventsMu.Unlock()
 
 	// 🔄 清理超时缓存
 	cleanExpiredSentEvents()
 
-	newEvents := make([]model.LogEvent, 0)
+	newEvents := make([]transport.LogEvent, 0)
 	now := time.Now()
 
 	for _, ev := range events {
@@ -102,7 +102,7 @@ func cleanExpiredSentEvents() {
 // ✅ eventKey: 生成事件的唯一标识字符串
 //
 // 用于判断事件是否已发送，字段组合应能唯一描述一次异常
-func eventKey(ev model.LogEvent) string {
+func eventKey(ev transport.LogEvent) string {
 	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
 		ev.Kind,            // 资源类型（Pod, Deployment 等）
 		ev.Namespace,       // 命名空间

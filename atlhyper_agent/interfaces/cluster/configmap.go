@@ -2,7 +2,7 @@ package cluster
 
 import (
 	readonlyconfigmap "AtlHyper/atlhyper_agent/internal/readonly/configmap"
-	modelconfigmap "AtlHyper/model/configmap"
+	modelconfigmap "AtlHyper/model/k8s"
 	"context"
 )
 

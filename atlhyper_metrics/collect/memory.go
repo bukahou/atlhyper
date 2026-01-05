@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"strings"
 
-	"AtlHyper/model/metrics"
+	"AtlHyper/model/collect"
 )
 
-func CollectMemory() (metrics.MemoryStat, error) {
-	var stat metrics.MemoryStat
+func CollectMemory() (collect.MemoryStat, error) {
+	var stat collect.MemoryStat
 
-	meminfoPath := filepath.Join(procRoot, "meminfo")
+	meminfoPath := filepath.Join(ProcRoot(), "meminfo")
 	file, err := os.Open(meminfoPath)
 	if err != nil {
 		return stat, err

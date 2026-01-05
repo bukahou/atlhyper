@@ -5,6 +5,8 @@ package server
 import (
 	"log"
 	"net/http"
+
+	"AtlHyper/atlhyper_master/config"
 )
 
 // corsMiddleware 是一个 HTTP 中间件，用于处理跨域请求（CORS）
@@ -29,14 +31,15 @@ func corsMiddleware(h http.Handler) http.Handler {
 	})
 }
 
-// StartHTTPServer 启动 Gin HTTP 服务器（端口: 8081）
+// StartHTTPServer 启动 Gin HTTP 服务器
 // ✅ 加载 InitRouter() 构建的所有路由，自动绑定 CORS 支持
+// 端口通过 config.GlobalConfig.Server.Port 配置（环境变量 SERVER_PORT，默认 8080）
 func StartHTTPServer() {
 	// 初始化 Gin 路由
 	router := InitRouter()
 
-	// 启动监听地址
-	addr := ":8081"
+	// 启动监听地址（从统一配置读取）
+	addr := ":" + config.GlobalConfig.Server.Port
 	log.Printf("🚀 Web UI API Server 启动监听 %s", addr)
 
 	// 启动 HTTP 服务（加上 CORS 中间件）

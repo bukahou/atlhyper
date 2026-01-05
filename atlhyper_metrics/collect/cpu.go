@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"AtlHyper/model/metrics"
+	"AtlHyper/model/collect"
 )
 
 var (
@@ -26,8 +26,8 @@ var (
 // ================= 缓存结构 =================
 
 type cpuSnapshot struct {
-	Stat    metrics.CPUStat
-	Top     []metrics.TopCPUProcess
+	Stat    collect.CPUStat
+	Top     []collect.TopCPUProcess
 	Updated time.Time
 }
 
@@ -55,10 +55,10 @@ var (
 // ================= 对外函数 =================
 
 // CollectCPU 现在只读缓存
-func CollectCPU() (metrics.CPUStat, []metrics.TopCPUProcess, error) {
+func CollectCPU() (collect.CPUStat, []collect.TopCPUProcess, error) {
 	v := snapStore.Load()
 	if v == nil {
-		return metrics.CPUStat{UsagePercent: "N/A", Cores: runtime.NumCPU()}, nil, nil
+		return collect.CPUStat{UsagePercent: "N/A", Cores: runtime.NumCPU()}, nil, nil
 	}
 	s := v.(cpuSnapshot)
 	return s.Stat, s.Top, nil
@@ -76,13 +76,13 @@ func samplerLoop() {
 	defer cpuTicker.Stop()
 	defer topTicker.Stop()
 
-	var lastTop []metrics.TopCPUProcess
+	var lastTop []collect.TopCPUProcess
 
 	for {
 		select {
 		case <-cpuTicker.C:
 			// 1) CPU 使用率 + Load
-			stat := metrics.CPUStat{}
+			stat := collect.CPUStat{}
 			nowTotal, nowIdle, err := readTotalCPU()
 			if err == nil && lastTotalCPU != 0 && nowTotal > lastTotalCPU {
 				td := nowTotal - lastTotalCPU
@@ -97,7 +97,7 @@ func samplerLoop() {
 			stat.Cores = runtime.NumCPU()
 
 			// Load
-			if b, err := os.ReadFile(filepath.Join(procRoot, "loadavg")); err == nil {
+			if b, err := os.ReadFile(filepath.Join(ProcRoot(), "loadavg")); err == nil {
 				fields := strings.Fields(string(b))
 				if len(fields) >= 3 {
 					stat.Load1, _ = strconv.ParseFloat(fields[0], 64)
@@ -135,7 +135,7 @@ func samplerLoop() {
 
 // ================= TopK =================
 
-func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
+func collectTopKFast(stat collect.CPUStat) ([]collect.TopCPUProcess, error) {
 	// 读取系统总 jiffies，用于归一化
 	nowTotal, _, err := readTotalCPU()
 	if err != nil {
@@ -144,15 +144,15 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 	// 第一次/异常回绕：建立基线并返回空结果，由调用方沿用上一轮
 	if lastTotalForTop == 0 || nowTotal <= lastTotalForTop {
 		lastTotalForTop = nowTotal
-		return []metrics.TopCPUProcess{}, nil
+		return []collect.TopCPUProcess{}, nil
 	}
 	totalDelta := nowTotal - lastTotalForTop
 	lastTotalForTop = nowTotal
 	if totalDelta == 0 {
-		return []metrics.TopCPUProcess{}, nil
+		return []collect.TopCPUProcess{}, nil
 	}
 
-	ents, err := os.ReadDir(procRoot)
+	ents, err := os.ReadDir(ProcRoot())
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 		if err != nil || pid <= 0 {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(procRoot, e.Name(), "stat"))
+		data, err := os.ReadFile(filepath.Join(ProcRoot(), e.Name(), "stat"))
 		if err != nil {
 			continue
 		}
@@ -213,7 +213,7 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 
 	// 选 TopK
 	if len(liteList) == 0 {
-		return []metrics.TopCPUProcess{}, nil
+		return []collect.TopCPUProcess{}, nil
 	}
 	sort.Slice(liteList, func(i, j int) bool { return liteList[i].deltaJ > liteList[j].deltaJ })
 	K := 5
@@ -222,14 +222,14 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 	}
 	liteList = liteList[:K]
 
-	top := make([]metrics.TopCPUProcess, 0, K)
+	top := make([]collect.TopCPUProcess, 0, K)
 
 	// 富集信息
 	for _, it := range liteList {
 		var uid, tgid string
 		var memKB uint64
 
-		if f, err := os.Open(filepath.Join(procRoot, strconv.Itoa(it.pid), "status")); err == nil {
+		if f, err := os.Open(filepath.Join(ProcRoot(), strconv.Itoa(it.pid), "status")); err == nil {
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
 				line := scanner.Text()
@@ -268,7 +268,7 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 		// ✅ 正确缩放：进程增量 / 系统总增量
 		cpuPct := (float64(it.deltaJ) / float64(totalDelta)) * 100.0
 
-		top = append(top, metrics.TopCPUProcess{
+		top = append(top, collect.TopCPUProcess{
 			PID:        it.pid,
 			User:       username,
 			Command:    it.comm,
@@ -289,7 +289,7 @@ func collectTopKFast(stat metrics.CPUStat) ([]metrics.TopCPUProcess, error) {
 // ================= /proc/stat 解析 =================
 
 func readTotalCPU() (uint64, uint64, error) {
-	f, err := os.Open(filepath.Join(procRoot, "stat"))
+	f, err := os.Open(filepath.Join(ProcRoot(), "stat"))
 	if err != nil {
 		return 0, 0, err
 	}

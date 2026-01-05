@@ -2,7 +2,7 @@
 
 // import (
 // 	"AtlHyper/atlhyper_master/client/slack"
-// 	"AtlHyper/config"
+// 	"AtlHyper/atlhyper_master/config"
 // 	"log"
 // 	"time"
 // )
@@ -35,7 +35,7 @@ package client
 
 import (
 	"AtlHyper/atlhyper_master/client/slack"
-	"AtlHyper/atlhyper_master/interfaces/ui_interfaces/config"
+	"AtlHyper/atlhyper_master/service/config"
 	"log"
 	"strings"
 	"sync"

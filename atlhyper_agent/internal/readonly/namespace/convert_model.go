@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	modelns "AtlHyper/model/namespace"
+	modelns "AtlHyper/model/k8s"
 
 	corev1 "k8s.io/api/core/v1"
 )

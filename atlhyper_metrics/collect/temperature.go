@@ -1,22 +1,21 @@
 package collect
 
 import (
-	"AtlHyper/model/metrics"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"AtlHyper/atlhyper_metrics/config"
+	"AtlHyper/model/collect"
 )
 
 // CollectTemperature 采集 CPU、GPU、NVMe 的温度（单位：℃）
-func CollectTemperature() (metrics.TemperatureStat, error) {
-	var stat metrics.TemperatureStat
+func CollectTemperature() (collect.TemperatureStat, error) {
+	var stat collect.TemperatureStat
 
-	// ✅ 支持通过环境变量覆盖宿主机 /sys 路径（默认使用容器内 /sys）
-	sysRoot := os.Getenv("SYS_ROOT")
-	if sysRoot == "" {
-		sysRoot = "/sys"
-	}
+	// 从配置获取 /sys 路径
+	sysRoot := config.C.Collect.SysRoot
 	baseDir := filepath.Join(sysRoot, "class/hwmon")
 
 	entries, err := os.ReadDir(baseDir)

@@ -1,8 +1,8 @@
 package diagnosis
 
 import (
-	"AtlHyper/config"
-	model "AtlHyper/model/event"
+	"AtlHyper/atlhyper_agent/config"
+	model "AtlHyper/model/transport"
 	"sync"
 	"time"
 )

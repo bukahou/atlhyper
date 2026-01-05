@@ -1,8 +1,9 @@
 package user
 
 import (
+	"AtlHyper/atlhyper_master/config"
 	"AtlHyper/atlhyper_master/db/utils"
-	"AtlHyper/model"
+	"AtlHyper/atlhyper_master/model"
 	"errors"
 	"fmt"
 	"time"
@@ -30,6 +31,15 @@ import (
 //   - error：若插入失败或用户已存在，则返回错误
 // =======================================================================
 func RegisterUser(username, password, displayName, email string, role int) (*model.User, error) {
+	// 0️⃣ 检查密码长度
+	minLen := config.GlobalConfig.JWT.MinPasswordLen
+	if minLen == 0 {
+		minLen = 6 // 默认最小 6 位
+	}
+	if len(password) < minLen {
+		return nil, fmt.Errorf("密码长度不能少于 %d 位", minLen)
+	}
+
 	// 1️⃣ 检查用户名是否已存在
 	var exists int
 	err := utils.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE username = ?`, username).Scan(&exists)
@@ -92,5 +102,45 @@ func UpdateUserRole(id int, newRole int) error {
 	if err != nil {
 		return fmt.Errorf("修改用户角色失败: %w", err)
 	}
+	return nil
+}
+
+
+// =======================================================================
+// ✅ DeleteUser：根据用户 ID 删除用户
+//
+// 功能说明：
+//   - 检查用户是否存在
+//   - 执行硬删除（从数据库中移除用户记录）
+//
+// 参数：
+//   - id：要删除的用户 ID
+//   - operatorID：执行删除操作的管理员 ID（用于防止自删）
+//
+// 返回值：
+//   - error：若删除失败或用户不存在，则返回错误
+// =======================================================================
+func DeleteUser(id int, operatorID int) error {
+	// 1️⃣ 检查是否删除自己
+	if id == operatorID {
+		return errors.New("不能删除自己的账户")
+	}
+
+	// 2️⃣ 检查用户是否存在
+	var exists int
+	err := utils.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE id = ?`, id).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("查询用户失败: %w", err)
+	}
+	if exists == 0 {
+		return errors.New("用户不存在")
+	}
+
+	// 3️⃣ 执行删除操作
+	_, err = utils.DB.Exec(`DELETE FROM users WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("删除用户失败: %w", err)
+	}
+
 	return nil
 }

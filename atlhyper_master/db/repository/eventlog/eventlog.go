@@ -2,7 +2,7 @@ package eventlog
 
 import (
 	"AtlHyper/atlhyper_master/db/utils"
-	model "AtlHyper/model/event"
+	model "AtlHyper/model/transport"
 
 	_ "github.com/mattn/go-sqlite3" // ✅ 引入 SQLite3 驱动（初始化阶段注册）
 )

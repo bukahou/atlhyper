@@ -12,13 +12,13 @@ import (
 	restcfg "AtlHyper/atlhyper_agent/external/push/config"
 	pushutils "AtlHyper/atlhyper_agent/external/push/utils"
 	"AtlHyper/atlhyper_agent/interfaces/cluster"
-	"AtlHyper/model"
-	modelingress "AtlHyper/model/ingress"
+	"AtlHyper/model/transport"
+	modelingress "AtlHyper/model/k8s"
 )
 
 // 区分数据来源类型（Envelope.Source）
 // 请确保在 model/Source.go 中声明：const SourceIngressListSnapshot = "ingress_list_snapshot"
-const SourceIngressListSnapshot = model.SourceIngressListSnapshot
+const SourceIngressListSnapshot = transport.SourceIngressListSnapshot
 
 // 载荷结构（与 Pod/Node/Service/Namespace/Metrics 保持一致）
 type IngressListPayload struct {

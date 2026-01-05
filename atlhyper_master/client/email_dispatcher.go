@@ -2,7 +2,7 @@ package client
 
 import (
 	"AtlHyper/atlhyper_master/client/mailer"
-	"AtlHyper/config"
+	"AtlHyper/atlhyper_master/config"
 	"log"
 	"time"
 )

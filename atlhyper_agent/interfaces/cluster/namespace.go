@@ -2,7 +2,7 @@ package cluster
 
 import (
 	readonlyservice "AtlHyper/atlhyper_agent/internal/readonly/namespace"
-	model "AtlHyper/model/namespace"
+	model "AtlHyper/model/k8s"
 	"context"
 )
 

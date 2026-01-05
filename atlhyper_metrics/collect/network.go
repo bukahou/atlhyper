@@ -9,15 +9,15 @@
 // 	"strings"
 // 	"time"
 
-// 	"AtlHyper/model/metrics"
+// 	"AtlHyper/model/collect"
 // )
 
 // var lastNetStats = make(map[string][2]uint64) // interface -> [rxBytes, txBytes]
 // var lastNetTime time.Time
 
 // // CollectNetwork 采集网络速率（KB/s + 可读格式）
-// func CollectNetwork() ([]metrics.NetworkStat, error) {
-// 	devFile := filepath.Join(procRoot, "net/dev")
+// func CollectNetwork() ([]collect.NetworkStat, error) {
+// 	devFile := filepath.Join(ProcRoot(), "net/dev")
 // 	file, err := os.Open(devFile)
 // 	if err != nil {
 // 		return nil, err
@@ -25,7 +25,7 @@
 // 	defer file.Close()
 
 // 	now := time.Now()
-// 	var result []metrics.NetworkStat
+// 	var result []collect.NetworkStat
 // 	scanner := bufio.NewScanner(file)
 
 // 	for i := 0; scanner.Scan(); i++ {
@@ -64,7 +64,7 @@
 // 			return fmt.Sprintf("%.2f KB/s", kbps)
 // 		}
 
-// 		result = append(result, metrics.NetworkStat{
+// 		result = append(result, collect.NetworkStat{
 // 			Interface: iface,
 // 			RxKBps:    rxKBps,
 // 			TxKBps:    txKBps,
@@ -91,7 +91,7 @@ import (
 	"strings"
 	"time"
 
-	"AtlHyper/model/metrics"
+	"AtlHyper/model/collect"
 )
 
 var lastNetStats = make(map[string][2]uint64) // interface -> [rxBytes, txBytes]
@@ -99,7 +99,7 @@ var lastNetTime time.Time
 
 // detectMainInterface —— 通过 /proc/net/route 检测默认路由所用接口
 func detectMainInterface() string {
-	routeFile := filepath.Join(procRoot, "net/route")
+	routeFile := filepath.Join(ProcRoot(), "net/route")
 	f, err := os.Open(routeFile)
 	if err != nil {
 		return "" // 回退
@@ -124,8 +124,8 @@ func detectMainInterface() string {
 }
 
 // CollectNetwork —— 采集主接口网络速率（统一上报为 eth0）
-func CollectNetwork() ([]metrics.NetworkStat, error) {
-	devFile := filepath.Join(procRoot, "net/dev")
+func CollectNetwork() ([]collect.NetworkStat, error) {
+	devFile := filepath.Join(ProcRoot(), "net/dev")
 	file, err := os.Open(devFile)
 	if err != nil {
 		return nil, err
@@ -139,7 +139,7 @@ func CollectNetwork() ([]metrics.NetworkStat, error) {
 
 	now := time.Now()
 	scanner := bufio.NewScanner(file)
-	var result []metrics.NetworkStat
+	var result []collect.NetworkStat
 
 	for i := 0; scanner.Scan(); i++ {
 		line := scanner.Text()
@@ -185,7 +185,7 @@ func CollectNetwork() ([]metrics.NetworkStat, error) {
 		}
 
 		// ✅ 上报时强制命名为 eth0
-		result = append(result, metrics.NetworkStat{
+		result = append(result, collect.NetworkStat{
 			Interface: "eth0",
 			RxKBps:    rxKBps,
 			TxKBps:    txKBps,

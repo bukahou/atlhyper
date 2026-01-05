@@ -1,124 +1,172 @@
-<p align="right">
-🌐 <strong>Languages:</strong>
-<a href="./README.md">日本語</a> |
-<a href="./README.en.md">English</a> |
-<a href="./README.zh-CN.md">简体中文</a>
-</p>
+# AtlHyper
 
-## 🧠 プロジェクト名：AtlHyper
+Kubernetes 集群监控与管理平台
 
-### 📌 プロジェクトの位置付け
+## 项目简介
 
-AtlHyper は、Kubernetes クラスタの軽量系オブザービリティ・制御プラットフォームです。Node、Pod、Deployment などのリソースをリアルタイムに監視し、異常検知、アラート通知、AI 診断、さらにはクラスタ操作までを統合的に提供します。前後端分離構成を採用しており、中小規模クラスタやエッジ環境、開発・検証環境での導入を容易にします。
+AtlHyper 是一个现代化的 Kubernetes 集群监控与管理平台，提供直观的 Web 界面用于查看和管理多个 Kubernetes 集群的资源状态。
 
-本プロジェクトは **Master-Agent モデル** を採用しています。Kubernetes クラスタ内部で稼働する Agent がデータを収集し、外部環境（Docker Compose 推奨）で動作する Master が集中管理を行います。Master と Agent は HTTP 通信で接続され、AI 診断サービス（AIServer）や第三者監視連携モジュール（Adapter）と連携します。
+## 技术栈
 
----
+### 后端
+- **语言**: Go 1.21+
+- **Web 框架**: Gin
+- **数据库**: SQLite
+- **认证**: JWT (HS256)
 
-🫭 デモ環境：
-👉 [https://atlhyper.com](https://atlhyper.com)
-ID：admin / PW：123456
-(一部機能は動作中)
+### 前端
+- **框架**: Next.js 16 (App Router)
+- **语言**: TypeScript
+- **样式**: Tailwind CSS 4
+- **状态管理**: Zustand
+- **图表**: ECharts
+- **图标**: Lucide React
 
----
+### Agent
+- **语言**: Go
+- **通信**: gRPC
 
-### 🚀 機能概要
+## 项目结构
 
-| モジュール     | 機能概要                                                                            |
-| -------------- | ----------------------------------------------------------------------------------- |
-| クラスタ概要   | Node、Pod、Service、Deployment の統合ビュー表示。統計カードとテーブルリストで構成。 |
-| 異常アラート   | イベントベースの診断、重複排除、Slack・メール通知（レート制御機構付き）。           |
-| 詳細ビュー     | Pod、Deployment、Namespace などの詳細構成、状態、過去イベントを可視化。             |
-| 操作支援       | Pod 再起動、Node cordon/drain、リソース削除を UI 上から実行可能。                   |
-| フィルター検索 | Namespace、状態、Node、原因などのフィルタリング、時間・キーワード検索対応。         |
-| 操作ログ       | 全操作を構造化ログとして記録し、履歴画面に表示。                                    |
-| 設定管理       | Slack・メール・Webhook 通知やアクセス設定を Web UI で統一管理。                     |
-
----
-
-### 🏗️ システム構成
-
-```plaintext
-AtlHyper/
-├── atlhyper_master       # 主制御プロセス（外部環境）
-├── atlhyper_agent        # クラスタ内部常駐エージェント
-├── atlhyper_metrics      # 指標収集デーモン（Node 指標収集）
-├── atlhyper_aiservice    # AI 診断・要因分析モジュール
-├── atlhyper_adapter      # 第三者監視システムとの連携アダプタ
-├── model/                # 共通リソースモデル（Pod/Node/Event/Metrics...）
-├── utils/                # 共通ユーティリティ（gzip, frame, config）
-└── web/                  # Vue3 + ElementPlus ベースの管理フロントエンド
+```
+atlhyper/
+├── atlhyper_master/     # 主控端 (Master)
+│   ├── server/          # HTTP API 服务
+│   ├── db/              # 数据库层
+│   ├── config/          # 配置管理
+│   └── control/         # 集群控制逻辑
+│
+├── atlhyper_agent/      # 集群代理 (Agent)
+│   ├── grpc/            # gRPC 服务
+│   └── collector/       # 数据采集
+│
+├── atlhyper_metrics/    # 指标采集模块
+│
+├── atlhyper_web/        # Web 前端
+│   ├── src/app/         # 页面路由
+│   ├── src/components/  # 组件库
+│   ├── src/api/         # API 调用
+│   ├── src/store/       # 状态管理
+│   ├── src/hooks/       # 自定义 Hooks
+│   ├── src/i18n/        # 国际化 (中/日)
+│   └── src/types/       # TypeScript 类型
+│
+├── model/               # 共享数据模型
+├── common/              # 公共工具库
+├── deploy/              # 部署配置
+└── docs/                # 文档
 ```
 
----
+## 功能模块
 
-### 🧩 各モジュール概要
+### 集群管理
+- 多集群注册与管理
+- Agent 状态监控
+- 通知配置 (Slack)
 
-#### 🧠 atlhyper_master（主制御）
+### 资源监控
+- **Pod**: 列表、详情、日志查看、重启
+- **Node**: 列表、详情、隔离/解除隔离
+- **Deployment**: 列表、详情、副本调整、镜像更新
+- **Service**: 列表、详情
+- **Namespace**: 列表、详情、ConfigMap 查看
+- **Ingress**: 列表、详情
 
-- Agent からのデータ収集・統合・保存
-- /ingest/ エンドポイントによるメトリクス・イベント受付
-- Slack・Mail・Webhook への通知統合
-- AIService との通信・診断依頼連携
-- コントロール機能（Pod 再起動、Node 隔離など）
+### 系统管理
+- **指标概览**: 集群资源使用情况
+- **日志管理**: 待开发
+- **告警管理**: 待开发
 
-#### 🛰️ atlhyper_agent（クラスタエージェント）
+### 用户与权限
+- **用户管理**: 创建、角色修改、删除 (仅 Admin)
+- **角色权限**: Viewer / Operator / Admin 三级权限
+- **审计日志**: 操作记录与追溯
 
-- Pod、Node、Service、Deployment、Event の監視と収集
-- Metrics モジュールとの統合（Node 情報・使用率取得）
-- Master への圧縮転送（gzip HTTP）
-- 外部からの操作指令を受けて実行
+### 国际化
+- 简体中文 (zh)
+- 日本語 (ja)
 
-#### 📊 atlhyper_metrics（メトリクス収集）
+## 快速开始
 
-- Node ごとの温度、ネットワーク速度、ディスク使用率を定期取得
-- 軽量構成で Raspberry Pi 環境にも適応
-- 収集結果を Agent 経由で Master に転送
+### 环境要求
+- Go 1.21+
+- Node.js 18+
+- pnpm / npm
 
-#### 🤖 atlhyper_aiservice（AI 診断サービス）
+### 启动后端
 
-- Master から診断リクエストを受け、LLM による多段階解析を実行
-- Stage1（初判）→ Stage2（情報取得）→ Stage3（結論）
-- Gemini などの LLM API を利用（将来は RAG 拡張予定）
-- 異常原因、推定 Runbook、概要レポートを生成
+```bash
+cd atlhyper_master
+go run main.go
+```
 
-#### 🔌 atlhyper_adapter（第三者監視アダプタ）
+### 启动前端
 
-- Prometheus、Zabbix、Datadog、Grafana など外部監視データを受信
-- 標準化構造 `ThirdPartyRecord` に変換
-- Agent 経由または直接 Master にデータ提供
-- 例：/adapter/prometheus/push, /adapter/zabbix/alert
+```bash
+cd atlhyper_web
+npm install
+npm run dev
+```
 
-#### 💻 web（フロントエンド）
+### 默认账户
 
-- Vue3 + ElementPlus による SPA 管理 UI
-- クラスタ概要、Pod 詳細、イベントログ表示、告知設定画面
-- Axios 統一 API 管理（code=20000 成功判定）
-- CountUp.js, ECharts によるリアルタイム統計描画
+| 用户名 | 密码 | 角色 |
+|--------|------|------|
+| admin  | admin123 | Admin |
 
----
+## API 概览
 
-### 🧠 AI パイプライン構成
+### 公开接口
+- `POST /uiapi/auth/login` - 用户登录
+- `GET /uiapi/auth/user/list` - 用户列表
+- `POST /uiapi/*/overview` - 资源概览
+- `POST /uiapi/*/detail` - 资源详情
 
-| ステージ | 概要                                                                  |
-| -------- | --------------------------------------------------------------------- |
-| Stage1   | イベント群から初期診断を生成。必要なリソースを抽出（needResources）。 |
-| Stage2   | Master から該当リソース情報を収集・整理。                             |
-| Stage3   | 最終解析と RootCause・Runbook の生成。                                |
+### 需登录接口
+- `POST /uiapi/ops/pod/restart` - 重启 Pod
+- `POST /uiapi/ops/pod/logs` - 查看日志
+- `POST /uiapi/ops/node/cordon` - 隔离节点
+- `POST /uiapi/ops/workload/scale` - 调整副本数
 
----
+### 管理员接口
+- `POST /uiapi/auth/user/register` - 创建用户
+- `POST /uiapi/auth/user/update-role` - 修改角色
+- `POST /uiapi/auth/user/delete` - 删除用户
 
-### 🧭 将来拡張計画
+## 配置
 
-| フェーズ | 内容                                                               |
-| -------- | ------------------------------------------------------------------ |
-| Phase 1  | atlhyper_adapter による外部監視データ統合（Prometheus / Zabbix）。 |
-| Phase 2  | AIService に RAG / Embedding 検索を導入し、知識強化型診断を実装。  |
-| Phase 3  | Master にマルチクラスタ・マルチテナント対応を追加。                |
-| Phase 4  | Node / Pod の自己修復戦略（Self-Healing Engine）を開発。           |
+### 后端配置 (config.yaml)
 
----
+```yaml
+server:
+  port: 8080
 
-### 🧾 一言まとめ
+jwt:
+  secret: "your-secret-key"
+  expire_hours: 24
+  min_password_len: 6
+```
 
-> **AtlHyper は、軽量かつ拡張性の高い AI 対応 Kubernetes オブザービリティ基盤です。Master-Agent-Adapter-AI の 4 層構成により、異常検知から自動診断、制御までを一元的に統合します。**
+### 前端环境变量 (.env)
+
+```
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+## 开发规范
+
+### 后端
+- 遵循 Go 标准项目布局
+- 使用统一的响应格式 (`response.Success/Error`)
+- Handler → Repository 分层架构
+- 完整的注释文档
+
+### 前端
+- 组件化开发，按功能模块组织
+- 使用 TypeScript 强类型
+- i18n 支持多语言
+- 响应式设计，支持移动端
+
+## License
+
+MIT

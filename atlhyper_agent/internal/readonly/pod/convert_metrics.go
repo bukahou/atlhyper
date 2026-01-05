@@ -2,7 +2,7 @@ package pod
 
 import (
 	"AtlHyper/atlhyper_agent/utils"
-	modelpod "AtlHyper/model/pod"
+	modelpod "AtlHyper/model/k8s"
 	"context"
 
 	corev1 "k8s.io/api/core/v1"

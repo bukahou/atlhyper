@@ -1,0 +1,1 @@
+export { NamespaceDetailModal } from "./NamespaceDetailModal";

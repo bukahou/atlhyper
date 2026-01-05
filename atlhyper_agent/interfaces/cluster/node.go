@@ -2,7 +2,7 @@ package cluster
 
 import (
 	readonlynode "AtlHyper/atlhyper_agent/internal/readonly/node"
-	modelnode "AtlHyper/model/node"
+	modelnode "AtlHyper/model/k8s"
 	"context"
 )
 

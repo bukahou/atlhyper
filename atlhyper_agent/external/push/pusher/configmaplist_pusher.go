@@ -12,13 +12,13 @@ import (
 	restcfg "AtlHyper/atlhyper_agent/external/push/config"
 	pushutils "AtlHyper/atlhyper_agent/external/push/utils"
 	"AtlHyper/atlhyper_agent/interfaces/cluster"
-	"AtlHyper/model"
-	modelcm "AtlHyper/model/configmap"
+	"AtlHyper/model/transport"
+	modelcm "AtlHyper/model/k8s"
 )
 
 // 区分数据来源类型（Envelope.Source）
 // 请在 model/Source.go 中声明：const SourceConfigMapListSnapshot = "configmap_list_snapshot"
-const SourceConfigMapListSnapshot = model.SourceConfigMapListSnapshot
+const SourceConfigMapListSnapshot = transport.SourceConfigMapListSnapshot
 
 // 载荷结构（与 Pod/Node/Service/Deployment/Metrics 保持一致）
 type ConfigMapListPayload struct {

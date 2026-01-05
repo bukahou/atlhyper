@@ -3,10 +3,10 @@ package utils
 import (
 	"context"
 	"log"
-	"os"
 	"strings"
 	"sync"
 
+	"AtlHyper/atlhyper_agent/config"
 	agentutils "AtlHyper/atlhyper_agent/utils"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,15 +17,15 @@ var (
 	clusterIDOnce sync.Once
 )
 
-// GetClusterID 返回集群唯一 ID：优先环境变量 CLUSTER_ID → 其次 kube-system Namespace UID → 最后兜底
+// GetClusterID 返回集群唯一 ID：优先配置 → 其次 kube-system Namespace UID → 最后兜底
 // - 缓存一次结果，避免重复打 K8s API
 // - 单行结构化日志，便于检索
 func GetClusterID() string {
 	clusterIDOnce.Do(func() {
-		// 1) ENV 优先
-		if env := strings.TrimSpace(os.Getenv("CLUSTER_ID")); env != "" {
+		// 1) 配置优先
+		if env := strings.TrimSpace(config.GlobalConfig.Cluster.ClusterID); env != "" {
 			clusterID = env
-			log.Printf("level=info msg=\"cluster_id resolved\" source=env cluster_id=%s", clusterID)
+			log.Printf("level=info msg=\"cluster_id resolved\" source=config cluster_id=%s", clusterID)
 			return
 		}
 

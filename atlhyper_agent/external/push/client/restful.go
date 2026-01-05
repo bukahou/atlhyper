@@ -9,7 +9,7 @@ import (
 	"time"
 
 	restcfg "AtlHyper/atlhyper_agent/external/push/config"
-	ziputil "AtlHyper/utils" // ★ 公共 gzip 工具（根目录 utils）
+	ziputil "AtlHyper/common" // ★ 公共 gzip 工具（根目录 utils）
 )
 
 type RestfulClient struct {

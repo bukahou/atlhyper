@@ -3,7 +3,7 @@ package main
 import (
 	external "AtlHyper/atlhyper_master"
 	"AtlHyper/atlhyper_master/db/sqlite"
-	"AtlHyper/config"
+	"AtlHyper/atlhyper_master/config"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"

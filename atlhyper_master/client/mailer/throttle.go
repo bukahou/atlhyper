@@ -1,7 +1,7 @@
 package mailer
 
 import (
-	"AtlHyper/model"
+	"AtlHyper/model/integration"
 	"sync"
 	"time"
 )
@@ -39,7 +39,7 @@ const throttleInterval = 1 * time.Hour
 // 返回：
 //     - error      若邮件发送失败则返回错误，否则为 nil
 // ===================================================================================
-func SendAlertEmailWithThrottle(to []string, subject string, data model.AlertGroupData, eventTime time.Time) error {
+func SendAlertEmailWithThrottle(to []string, subject string, data integration.AlertGroupData, eventTime time.Time) error {
 	// ✅ 加锁，确保多协程下不会重复发送
 	lastEmailSentTimeMu.Lock()
 	defer lastEmailSentTimeMu.Unlock()

@@ -2,7 +2,7 @@ package cluster
 
 import (
 	readonlydeployment "AtlHyper/atlhyper_agent/internal/readonly/deployment"
-	modeldeployment "AtlHyper/model/deployment"
+	modeldeployment "AtlHyper/model/k8s"
 	"context"
 )
 

@@ -3,7 +3,7 @@ package web_api
 
 import (
 	repo "AtlHyper/atlhyper_master/db/repository/user"
-	uiuser "AtlHyper/atlhyper_master/interfaces/ui_interfaces/user"
+	uiuser "AtlHyper/atlhyper_master/service/user"
 	"AtlHyper/atlhyper_master/server/api/response"
 	"errors"
 	"strconv"

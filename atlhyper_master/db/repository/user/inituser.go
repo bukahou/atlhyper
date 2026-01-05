@@ -2,7 +2,7 @@ package user
 
 import (
 	"AtlHyper/atlhyper_master/db/utils"
-	"AtlHyper/config"
+	"AtlHyper/atlhyper_master/config"
 	"log"
 	"os"
 	"strconv"

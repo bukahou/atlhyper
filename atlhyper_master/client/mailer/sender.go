@@ -4,8 +4,8 @@ import (
 	"log"
 	"time"
 
-	"AtlHyper/config"
-	"AtlHyper/model" // ✅ 需要这个
+	"AtlHyper/atlhyper_master/config"
+	"AtlHyper/model/integration" // ✅ 需要这个
 )
 
 // ===================================================================================
@@ -16,7 +16,7 @@ func DispatchEmailAlertFromCleanedEvents() {
 	type EmailAlertStub struct {
 		Title string
 		Alert bool
-		Data  model.AlertGroupData // ✅ 和 SendAlertEmailWithThrottle 的参数一致
+		Data  integration.AlertGroupData // ✅ 和 SendAlertEmailWithThrottle 的参数一致
 	}
 	alertResponses := []EmailAlertStub{} // 空切片
 

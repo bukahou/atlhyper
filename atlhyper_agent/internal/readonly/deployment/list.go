@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"AtlHyper/atlhyper_agent/utils"
-	modeldep "AtlHyper/model/deployment"
+	modeldep "AtlHyper/model/k8s"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

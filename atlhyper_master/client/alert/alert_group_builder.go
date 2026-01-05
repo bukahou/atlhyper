@@ -2,21 +2,21 @@
 package alert
 
 import (
-	m "AtlHyper/model"
+	"AtlHyper/model/integration"
 	"sort"
 	"time"
 )
 
 const hardcodedTitle = "集群告警信息"
 
-func BuildAlertGroupFromEvents() m.LightweightAlertStub {
+func BuildAlertGroupFromEvents() integration.LightweightAlertStub {
 	rows := CollectNewEventLogsForAlert()
 
 	// 无数据：返回占位，Display=false
 	if len(rows) == 0 {
-		return m.LightweightAlertStub{
+		return integration.LightweightAlertStub{
 			Title:   hardcodedTitle,
-			Data:    m.AlertGroupData{},
+			Data:    integration.AlertGroupData{},
 			Display: false,
 		}
 	}
@@ -24,7 +24,7 @@ func BuildAlertGroupFromEvents() m.LightweightAlertStub {
 	clusterSet := map[string]struct{}{}
 	nsSet := map[string]struct{}{}
 	nodeSet := map[string]struct{}{}
-	items := make([]m.AlertItem, 0, len(rows))
+	items := make([]integration.AlertItem, 0, len(rows))
 
 	for _, e := range rows {
 		// 去重收集汇总字段
@@ -39,7 +39,7 @@ func BuildAlertGroupFromEvents() m.LightweightAlertStub {
 		}
 
 		// 充填明细
-		items = append(items, m.AlertItem{
+		items = append(items, integration.AlertItem{
 			ClusterID: e.ClusterID,
 			Kind:      e.Kind,
 			Name:      e.Name,
@@ -52,7 +52,7 @@ func BuildAlertGroupFromEvents() m.LightweightAlertStub {
 		})
 	}
 
-	data := m.AlertGroupData{
+	data := integration.AlertGroupData{
 		Title:         hardcodedTitle,
 		ClusterID:     toSortedList(clusterSet),
 		NodeList:      toSortedList(nodeSet),      // 未来可在这里拼 CPU/Mem 注释
@@ -61,7 +61,7 @@ func BuildAlertGroupFromEvents() m.LightweightAlertStub {
 		Alerts:        items,
 	}
 
-	return m.LightweightAlertStub{
+	return integration.LightweightAlertStub{
 		Title:   hardcodedTitle,
 		Data:    data,
 		Display: true,

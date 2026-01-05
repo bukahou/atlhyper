@@ -2,7 +2,7 @@
 package master_store
 
 import (
-	"AtlHyper/model/envelope"
+	"AtlHyper/model/transport"
 	"sync"
 	"time"
 )
@@ -77,7 +77,7 @@ func AppendBatch(recs []EnvelopeRecord) {
 // - 功能：直接接受上报的 Envelope，内部转换成 EnvelopeRecord 再写入
 // - 使用场景：接收器 HTTP Handler 中最常用的一行写入
 // - 注意：内部调用 Append，锁仍在 Append 内部处理
-func AppendEnvelope(env envelope.Envelope) {
+func AppendEnvelope(env transport.Envelope) {
 	ensureInit()
 	Append(NewRecordFromStd(env))
 }
@@ -89,7 +89,7 @@ func AppendEnvelope(env envelope.Envelope) {
 // 并发安全：整段在同一把写锁内完成，避免“先删再写”两步在并发下产生竞态。
 // 注意：不能在这里调用 AppendEnvelope/Append（会二次加锁导致死锁）。
 // 复杂度：O(N)，N 为当前池中记录数；考虑到这些来源每次只保留 1 条，整体可控。
-func ReplaceLatest(env envelope.Envelope) int {
+func ReplaceLatest(env transport.Envelope) int {
     ensureInit()
 
     rec := NewRecordFromStd(env) // ✅ 与 AppendEnvelope 同步的转换路径
@@ -121,7 +121,7 @@ func ReplaceLatest(env envelope.Envelope) int {
 // - 功能：直接接受一批 Envelope，上报时自动转换为 EnvelopeRecord 并批量写入
 // - 特点：同一批次的记录共用一个 EnqueuedAt（Master 入池时刻）
 // - 并发：内部最终调用 AppendBatch，一次加锁
-func AppendEnvelopeBatch(envs []envelope.Envelope) {
+func AppendEnvelopeBatch(envs []transport.Envelope) {
 	if len(envs) == 0 {
 		return
 	}

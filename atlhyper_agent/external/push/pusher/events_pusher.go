@@ -11,8 +11,8 @@ import (
 	pcfg "AtlHyper/atlhyper_agent/external/push/config"
 	"AtlHyper/atlhyper_agent/external/push/utils"
 	"AtlHyper/atlhyper_agent/interfaces"
-	Source "AtlHyper/model"
-	model "AtlHyper/model/event"
+	Source "AtlHyper/model/transport"
+	model "AtlHyper/model/transport"
 )
 
 const SourceK8sEvent = Source.SourceK8sEvent

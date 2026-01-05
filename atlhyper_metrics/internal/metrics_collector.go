@@ -2,28 +2,25 @@ package internal
 
 import (
 	"log"
-	"os"
 	"time"
 
 	"AtlHyper/atlhyper_metrics/collect"
-	"AtlHyper/model/metrics"
+	"AtlHyper/atlhyper_metrics/config"
+	modelcollect "AtlHyper/model/collect"
 )
 
-func BuildNodeMetricsSnapshot() *metrics.NodeMetricsSnapshot {
+func BuildNodeMetricsSnapshot() *modelcollect.NodeMetricsSnapshot {
 	var (
-		diskStats    []metrics.DiskStat
-		networkStats []metrics.NetworkStat
-		tempStat     metrics.TemperatureStat
-		cpuStat      metrics.CPUStat
-		memStat      metrics.MemoryStat
-		topList      []metrics.TopCPUProcess
+		diskStats    []modelcollect.DiskStat
+		networkStats []modelcollect.NetworkStat
+		tempStat     modelcollect.TemperatureStat
+		cpuStat      modelcollect.CPUStat
+		memStat      modelcollect.MemoryStat
+		topList      []modelcollect.TopCPUProcess
 	)
 
-	// 获取宿主机名称
-	hostname := os.Getenv("NODE_NAME")
-	if hostname == "" {
-		hostname, _ = os.Hostname()
-	}
+	// 从配置获取节点名称
+	hostname := config.C.Collect.NodeName
 	// CPU & Top 进程
 	if cs, tl, err := collect.CollectCPU(); err == nil {
 		cpuStat = cs
@@ -78,7 +75,7 @@ func BuildNodeMetricsSnapshot() *metrics.NodeMetricsSnapshot {
 	}
 
 	// ✅ 全量聚合结构返回
-	return &metrics.NodeMetricsSnapshot{
+	return &modelcollect.NodeMetricsSnapshot{
 		NodeName:        hostname,
 		Timestamp:       time.Now(),
 		CPU:             cpuStat,

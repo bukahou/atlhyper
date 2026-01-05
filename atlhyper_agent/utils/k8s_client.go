@@ -2,8 +2,9 @@ package utils
 
 import (
 	"log"
-	"os"
 	"sync"
+
+	"AtlHyper/atlhyper_agent/config"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -14,21 +15,18 @@ import (
 var (
 	k8sClient     client.Client         // controller-runtime
 	coreClientset *kubernetes.Clientset // client-go
-	// k8sClient     client.Client
-	once sync.Once
-	cfg  *rest.Config // 存储解析得到的 Kubernetes 配置
+	once          sync.Once
+	cfg           *rest.Config // 存储解析得到的 Kubernetes 配置
 )
 
-// 初始化全局的 controller-runtime client.Client 实例
 // InitK8sClient 初始化 Kubernetes 客户端配置（rest.Config）
-// 支持从 KUBECONFIG 环境变量加载配置，也支持 InCluster 模式
+// 支持从配置加载 kubeconfig 路径，也支持 InCluster 模式
 func InitK8sClient() *rest.Config {
-	// once.Do 确保只执行一次初始化（线程安全）
 	once.Do(func() {
 		var err error
 
-		// 尝试从环境变量 KUBECONFIG 读取 kubeconfig 路径
-		kubeconfig := os.Getenv("KUBECONFIG")
+		// 从配置获取 kubeconfig 路径
+		kubeconfig := config.GlobalConfig.Kubernetes.Kubeconfig
 		if kubeconfig != "" {
 			// 若环境变量存在，尝试使用该路径构建配置
 			cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfig)

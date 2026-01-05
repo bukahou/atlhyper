@@ -12,13 +12,13 @@ import (
 	restcfg "AtlHyper/atlhyper_agent/external/push/config"
 	pushutils "AtlHyper/atlhyper_agent/external/push/utils"
 	"AtlHyper/atlhyper_agent/interfaces/cluster"
-	"AtlHyper/model"
-	modelservice "AtlHyper/model/service"
+	"AtlHyper/model/transport"
+	modelservice "AtlHyper/model/k8s"
 )
 
 // 区分数据来源类型（Envelope.Source）
 // 请在 model/Source.go 中声明：const SourceServiceListSnapshot = "service_list_snapshot"
-const SourceServiceListSnapshot = model.SourceServiceListSnapshot
+const SourceServiceListSnapshot = transport.SourceServiceListSnapshot
 
 // 载荷结构（与 Pod/Node/Metrics 保持一致）
 type ServiceListPayload struct {

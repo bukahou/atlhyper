@@ -2,7 +2,7 @@ package user
 
 import (
 	"AtlHyper/atlhyper_master/db/utils"
-	"AtlHyper/model"
+	"AtlHyper/atlhyper_master/model"
 	"database/sql"
 	"time"
 )

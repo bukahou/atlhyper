@@ -1,0 +1,66 @@
+# ============================================
+# AtlHyper Controller
+# ============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlhyper-controller
+  namespace: atlhyper
+  labels:
+    app: atlhyper-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atlhyper-controller
+  template:
+    metadata:
+      labels:
+        app: atlhyper-controller
+    spec:
+      containers:
+        - name: controller
+          image: bukahou/atlhyper-controller:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: atlhyper-config
+            - secretRef:
+                name: atlhyper-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "128Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlhyper-controller
+  namespace: atlhyper
+spec:
+  selector:
+    app: atlhyper-controller
+  type: ClusterIP
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8081
+      targetPort: 8081

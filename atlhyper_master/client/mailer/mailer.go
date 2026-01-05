@@ -1,8 +1,8 @@
 package mailer
 
 import (
-	"AtlHyper/config"
-	"AtlHyper/model"
+	"AtlHyper/atlhyper_master/config"
+	"AtlHyper/model/integration"
 	"fmt"
 	"net/smtp"
 )
@@ -23,7 +23,7 @@ import (
 //     - config.GlobalConfig.Mailer 必须提前初始化（含 SMTPHost, Username, Password 等）
 //     - 模板渲染失败或 SMTP 错误将返回非 nil 错误
 // =======================================================================================
-func SendAlertEmail(to []string, subject string, data model.AlertGroupData) error {
+func SendAlertEmail(to []string, subject string, data integration.AlertGroupData) error {
 	// ✅ 从全局配置读取邮件参数
 	mailCfg := config.GlobalConfig.Mailer
 

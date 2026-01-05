@@ -6,15 +6,14 @@ import (
 	"net/http"
 
 	"AtlHyper/atlhyper_master/master_store"
-	"AtlHyper/model"
-	"AtlHyper/model/envelope"
-	ziputil "AtlHyper/utils" // 根目录通用 gzip 工具
+	"AtlHyper/model/transport"
+	ziputil "AtlHyper/common" // 根目录通用 gzip 工具
 
 	"github.com/gin-gonic/gin"
 )
 
 // 仅接收 pod 列表快照
-const SourcePodListSnapshot = model.SourcePodListSnapshot
+const SourcePodListSnapshot = transport.SourcePodListSnapshot
 
 // HandlePodListSnapshotIngest 处理 /engest/pods/snapshot
 // - 兼容压缩与未压缩：支持 Content-Encoding:gzip，且自动嗅探魔数
@@ -37,7 +36,7 @@ func HandlePodListSnapshotIngest(c *gin.Context) {
 	rcLimited := io.LimitReader(rc, 64<<20)
 
 	// 4) 解析 JSON Envelope
-	var env envelope.Envelope
+	var env transport.Envelope
 	if err := json.NewDecoder(rcLimited).Decode(&env); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "请求体解析失败：不是有效的 JSON Envelope"})
 		return

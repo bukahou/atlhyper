@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"AtlHyper/atlhyper_agent/internal/diagnosis"
 	"AtlHyper/atlhyper_agent/utils"
-	"AtlHyper/config"
+	"AtlHyper/atlhyper_agent/config"
 	"crypto/tls"
 	"log"
 	"net/http"

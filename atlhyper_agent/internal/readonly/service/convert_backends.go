@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	modelsvc "AtlHyper/model/service"
+	modelsvc "AtlHyper/model/k8s"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"

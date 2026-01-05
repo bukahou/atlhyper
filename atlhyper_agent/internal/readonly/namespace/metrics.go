@@ -4,7 +4,7 @@ package namespace
 import (
 	"context"
 
-	modelns "AtlHyper/model/namespace"
+	modelns "AtlHyper/model/k8s"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

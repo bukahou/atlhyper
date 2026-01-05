@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	ziputil "AtlHyper/utils"
+	ziputil "AtlHyper/common"
 
 	"github.com/gin-gonic/gin"
 )

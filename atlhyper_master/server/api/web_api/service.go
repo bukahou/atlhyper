@@ -2,7 +2,7 @@
 package web_api
 
 import (
-	"AtlHyper/atlhyper_master/interfaces/ui_interfaces/service"
+	"AtlHyper/atlhyper_master/service/service"
 	"AtlHyper/atlhyper_master/server/api/response"
 
 	"github.com/gin-gonic/gin"

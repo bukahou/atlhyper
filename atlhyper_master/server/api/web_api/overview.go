@@ -3,7 +3,7 @@ package web_api
 import (
 	"github.com/gin-gonic/gin"
 
-	"AtlHyper/atlhyper_master/interfaces/ui_interfaces/overview"
+	"AtlHyper/atlhyper_master/service/overview"
 	"AtlHyper/atlhyper_master/server/api/response"
 )
 

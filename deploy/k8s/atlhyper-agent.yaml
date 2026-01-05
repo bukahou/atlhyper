@@ -1,0 +1,65 @@
+# ============================================
+# AtlHyper Agent
+# ============================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: atlhyper-agent-cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: atlhyper
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlhyper-agent
+  namespace: atlhyper
+  labels:
+    app: atlhyper-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atlhyper-agent
+  template:
+    metadata:
+      labels:
+        app: atlhyper-agent
+    spec:
+      serviceAccountName: default
+      containers:
+        - name: atlhyper-agent
+          image: bukahou/atlhyper-agent:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - configMapRef:
+                name: atlhyper-config
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlhyper-agent-service
+  namespace: atlhyper
+spec:
+  selector:
+    app: atlhyper-agent
+  type: ClusterIP
+  ports:
+    - name: agent-api
+      protocol: TCP
+      port: 8082
+      targetPort: 8082
