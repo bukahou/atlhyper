@@ -1,15 +1,16 @@
 package bootstrap
 
 import (
-	"AtlHyper/atlhyper_agent/internal/diagnosis"
-	"AtlHyper/atlhyper_agent/utils"
-	"AtlHyper/atlhyper_agent/config"
 	"crypto/tls"
 	"log"
 	"net/http"
 	"os"
 	"sync"
 	"time"
+
+	"AtlHyper/atlhyper_agent/config"
+	"AtlHyper/atlhyper_agent/source/event/datahub"
+	"AtlHyper/atlhyper_agent/sdk"
 
 	"k8s.io/client-go/rest"
 )
@@ -27,7 +28,7 @@ func StartCleanSystem() {
 	go func() {
 		for {
 			// 调用清理函数：去重、聚合、生成告警候选
-			diagnosis.CleanAndStoreEvents()
+			datahub.CleanAndStoreEvents()
 
 			// 等待下一周期
 			time.Sleep(interval)
@@ -40,7 +41,7 @@ func StartCleanSystem() {
 func Startclientchecker() {
 	log.Println("✅ [Startup] 启动集群健康检查器")
 
-	cfg := utils.GetRestConfig() // 💡 现在只获取配置，不再做初始化
+	cfg := sdk.Get().RestConfig() // 💡 通过 SDK 获取配置
 	interval := config.GlobalConfig.Kubernetes.APIHealthCheckInterval
 
 	go func() {

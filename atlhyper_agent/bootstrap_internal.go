@@ -1,12 +1,15 @@
 package internal
 
 import (
-	"AtlHyper/atlhyper_agent/agent_store"
-	"AtlHyper/atlhyper_agent/bootstrap"
-	push "AtlHyper/atlhyper_agent/external"
-	ingestserver "AtlHyper/atlhyper_agent/external/ingest/server"
+	"context"
 	"log"
 	"time"
+
+	"AtlHyper/atlhyper_agent/bootstrap"
+	"AtlHyper/atlhyper_agent/executor"
+	"AtlHyper/atlhyper_agent/gateway"
+	"AtlHyper/atlhyper_agent/pusher"
+	"AtlHyper/atlhyper_agent/source/metrics"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,8 +25,8 @@ func StartInternalSystems() {
 	// 打印启动日志，标记内部系统组件初始化流程开始
 	log.Println("🚀 启动内部系统组件 ...")
 
-	agent_store.Bootstrap()
-	log.Println("✅ agent_store 初始化完成（全局单例 + 周期清理）")
+	metrics.Init(5 * time.Minute) // 默认 TTL: 5 分钟
+	log.Println("✅ metrics store 初始化完成（全局单例 + 周期清理）")
 
 	// ✅ 启动清理器：周期性清洗并压缩事件日志，形成可判定异常的结构化事件池
 	bootstrap.StartCleanSystem()
@@ -31,8 +34,14 @@ func StartInternalSystems() {
 	// ✅ 启动集群健康检查器：持续检查 Kubernetes API Server 的可用性
 	bootstrap.Startclientchecker()
 
-		// ✅ 启动上报器与 Agent HTTP（从 main.go 移到这里，确保只启动一次）
-	go push.StartPusher()
+	// ✅ 启动数据推送器（向 Master 推送集群数据）
+	go pusher.StartAllPushers(context.Background())
+
+	// ✅ 启动控制循环（长轮询接收 Master 下发的指令）
+	clusterID := pusher.GetClusterID()
+	executor.StartControlLoop(clusterID, gateway.PathOps)
+
+	// ✅ 启动 Agent HTTP Server
 	go StartAgentServer()
 
 
@@ -66,7 +75,7 @@ func StartAgentServer() {
 
 	// /ingest 路由：只负责接收 Metrics 插件推送的数据快照
 	ingGroup := r.Group("/ingest")
-	ingestserver.RegisterIngestRoutes(ingGroup) 
+	gateway.RegisterIngestRoutes(ingGroup) 
 
 	// ===== 启动服务 =====
 	if err := r.Run(":8082"); err != nil {

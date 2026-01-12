@@ -5,13 +5,12 @@ import (
 	agent "AtlHyper/atlhyper_agent"
 	"AtlHyper/atlhyper_agent/bootstrap"
 	"AtlHyper/atlhyper_agent/config"
-
-	"AtlHyper/atlhyper_agent/utils"
+	"AtlHyper/atlhyper_agent/sdk"
+	_ "AtlHyper/atlhyper_agent/sdk/k8s" // 自动注册 K8s Provider
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
-
 
 func main() {
 	config.LoadConfig()
@@ -19,11 +18,12 @@ func main() {
 	// ✅ 设置结构化日志
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	// ✅ 初始化 controller-runtime client（含 rest.Config）
-	utils.InitK8sClient()
-
-	// ✅ 初始化 metrics.k8s.io 客户端（需要在 InitK8sClient 之后）
-	utils.InitMetricsClient()
+	// ✅ 初始化 SDK（含 runtime client, core client, metrics client）
+	if err := sdk.Init("kubernetes", sdk.ProviderConfig{
+		Kubeconfig: config.GlobalConfig.Kubernetes.Kubeconfig,
+	}); err != nil {
+		panic(err)
+	}
 
 	// ✅ 启动内部子系统（诊断器、清理器等）
 	agent.StartInternalSystems()

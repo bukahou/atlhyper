@@ -1,10 +1,11 @@
 package bootstrap
 
 import (
-	"AtlHyper/atlhyper_agent/internal/watcher"
 	"context"
 	"log"
 	"os"
+
+	"AtlHyper/atlhyper_agent/source/event/watcher"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
