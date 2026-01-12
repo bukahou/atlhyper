@@ -173,7 +173,7 @@ function DeleteUserModal({
     setLoading(true);
 
     try {
-      await deleteUser(user.ID);
+      await deleteUser(user.id);
       toast.success("用户删除成功");
       onSuccess();
       onClose();
@@ -198,7 +198,7 @@ function DeleteUserModal({
 
         <div className="space-y-4">
           <p className="text-secondary">
-            确定要删除用户 <span className="font-medium text-default">{user.Username}</span> 吗？
+            确定要删除用户 <span className="font-medium text-default">{user.username}</span> 吗？
           </p>
           <p className="text-sm text-muted">
             此操作不可撤销，该用户的所有数据将被永久删除。
@@ -242,12 +242,12 @@ function EditRoleModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [role, setRole] = useState(user?.Role || UserRole.VIEWER);
+  const [role, setRole] = useState(user?.role || UserRole.VIEWER);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (user) setRole(user.Role);
+    if (user) setRole(user.role);
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -258,7 +258,7 @@ function EditRoleModal({
     setLoading(true);
 
     try {
-      await updateUserRole({ userId: user.ID, role });
+      await updateUserRole({ userId: user.id, role });
       toast.success("角色更新成功");
       onSuccess();
       onClose();
@@ -271,7 +271,7 @@ function EditRoleModal({
 
   if (!user) return null;
 
-  const roleChanged = role !== user.Role;
+  const roleChanged = role !== user.role;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -286,7 +286,7 @@ function EditRoleModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-muted mb-1">用户</label>
-            <div className="text-default font-medium">{user.Username}</div>
+            <div className="text-default font-medium">{user.username}</div>
           </div>
 
           <div>
@@ -318,7 +318,7 @@ function EditRoleModal({
 
           {roleChanged && (
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 rounded-lg text-sm">
-              确认将 <span className="font-medium">{user.Username}</span> 的角色从 {roleConfig[user.Role as keyof typeof roleConfig]?.label} 更改为 {roleConfig[role as keyof typeof roleConfig]?.label}？
+              确认将 <span className="font-medium">{user.username}</span> 的角色从 {roleConfig[user.role as keyof typeof roleConfig]?.label} 更改为 {roleConfig[role as keyof typeof roleConfig]?.label}？
             </div>
           )}
 
@@ -446,25 +446,25 @@ export default function UsersPage() {
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
                 {users.map((user) => {
-                  const config = roleConfig[user.Role as keyof typeof roleConfig] || roleConfig[UserRole.VIEWER];
+                  const config = roleConfig[user.role as keyof typeof roleConfig] || roleConfig[UserRole.VIEWER];
                   const RoleIcon = config.icon;
                   return (
-                    <tr key={user.ID} className="hover:bg-[var(--background)]">
+                    <tr key={user.id} className="hover:bg-[var(--background)]">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                             <RoleIcon className="w-4 h-4 text-primary" />
                           </div>
                           <div>
-                            <div className="font-medium text-default">{user.Username}</div>
-                            {user.DisplayName && (
-                              <div className="text-xs text-muted">{user.DisplayName}</div>
+                            <div className="font-medium text-default">{user.username}</div>
+                            {user.displayName && (
+                              <div className="text-xs text-muted">{user.displayName}</div>
                             )}
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-secondary">
-                        {user.Email || "-"}
+                        {user.email || "-"}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
@@ -472,10 +472,10 @@ export default function UsersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-secondary">
-                        {formatDate(user.CreatedAt)}
+                        {formatDate(user.createdAt)}
                       </td>
                       <td className="px-4 py-3 text-sm text-secondary">
-                        {formatDate(user.LastLogin)}
+                        {formatDate(user.lastLogin)}
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3">

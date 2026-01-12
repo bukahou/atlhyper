@@ -5,5 +5,5 @@ import type { EventOverview, EventLogRequest } from "@/types/cluster";
  * 获取事件日志
  */
 export function getEventLogs(data: EventLogRequest) {
-  return post<EventOverview, EventLogRequest>("/uiapi/event/logs", data);
+  return post<EventOverview, EventLogRequest>("/uiapi/event/list", data);
 }

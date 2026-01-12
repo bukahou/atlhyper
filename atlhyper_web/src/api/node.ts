@@ -6,14 +6,14 @@ import type { NodeOverview, NodeDetail, NodeDetailRequest, NodeOperationRequest 
  * 获取 Node 概览
  */
 export function getNodeOverview(data: ClusterRequest) {
-  return post<NodeOverview, ClusterRequest>("/uiapi/node/overview", data);
+  return post<NodeOverview, ClusterRequest>("/uiapi/cluster/node/list", data);
 }
 
 /**
  * 获取 Node 详情
  */
 export function getNodeDetail(data: NodeDetailRequest) {
-  return post<NodeDetail, NodeDetailRequest>("/uiapi/node/detail", data);
+  return post<NodeDetail, NodeDetailRequest>("/uiapi/cluster/node/detail", data);
 }
 
 /**

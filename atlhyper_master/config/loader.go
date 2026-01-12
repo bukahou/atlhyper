@@ -50,6 +50,13 @@ func LoadConfig() {
 		Port: getString("MASTER_SERVER_PORT"),
 	}
 
+	GlobalConfig.CORS = CORSConfig{
+		AllowOrigins:     getString("MASTER_CORS_ALLOW_ORIGINS"),
+		AllowMethods:     getString("MASTER_CORS_ALLOW_METHODS"),
+		AllowHeaders:     getString("MASTER_CORS_ALLOW_HEADERS"),
+		AllowCredentials: getBool("MASTER_CORS_ALLOW_CREDENTIALS"),
+	}
+
 	GlobalConfig.Admin = AdminConfig{
 		Username:    getString("MASTER_ADMIN_USERNAME"),
 		Password:    getString("MASTER_ADMIN_PASSWORD"),

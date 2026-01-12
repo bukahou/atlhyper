@@ -21,12 +21,12 @@ export interface SlackConfigUpdateRequest {
  * 获取 Slack 配置
  */
 export function getSlackConfig() {
-  return post<SlackConfigResponse>("/uiapi/config/slack/get", {});
+  return post<SlackConfigResponse>("/uiapi/system/notify/slack/get", {});
 }
 
 /**
  * 更新 Slack 配置（需要 Admin 权限）
  */
 export function updateSlackConfig(data: SlackConfigUpdateRequest) {
-  return post<SlackConfigResponse, SlackConfigUpdateRequest>("/uiapi/config/slack/update", data);
+  return post<SlackConfigResponse, SlackConfigUpdateRequest>("/uiapi/system/notify/slack/update", data);
 }

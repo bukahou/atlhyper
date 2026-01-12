@@ -48,6 +48,14 @@ type ServerConfig struct {
 	Port string
 }
 
+// CORSConfig 跨域配置
+type CORSConfig struct {
+	AllowOrigins     string // 允许的源，多个用逗号分隔，"*" 表示全部允许
+	AllowMethods     string // 允许的 HTTP 方法
+	AllowHeaders     string // 允许的请求头
+	AllowCredentials bool   // 是否允许凭证（AllowOrigins="*" 时必须为 false）
+}
+
 // AdminConfig 管理员初始配置
 type AdminConfig struct {
 	Username    string
@@ -57,7 +65,7 @@ type AdminConfig struct {
 	Role        string
 }
 
-// StoreConfig 内存存储配置（master_store）
+// StoreConfig 内存存储配置（datahub）
 type StoreConfig struct {
 	TTL             time.Duration // 每条记录的默认生存时间
 	MaxItems        int           // 全局池最多保留的记录数
@@ -67,9 +75,9 @@ type StoreConfig struct {
 
 // JWTConfig JWT 认证配置
 type JWTConfig struct {
-	SecretKey       string        // JWT 签名密钥
-	TokenExpiry     time.Duration // Token 有效期
-	MinPasswordLen  int           // 密码最小长度
+	SecretKey      string        // JWT 签名密钥
+	TokenExpiry    time.Duration // Token 有效期
+	MinPasswordLen int           // 密码最小长度
 }
 
 // AppConfig Master 顶层配置结构体
@@ -80,6 +88,7 @@ type AppConfig struct {
 	Slack      SlackConfig
 	Webhook    WebhookConfig
 	Server     ServerConfig
+	CORS       CORSConfig
 	Admin      AdminConfig
 	Store      StoreConfig
 	JWT        JWTConfig

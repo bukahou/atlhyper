@@ -21,7 +21,7 @@ var defaultDurations = map[string]string{
 	// -------------------- Slack --------------------
 	"MASTER_SLACK_ALERT_DISPATCH_INTERVAL": "5s", // Slack 告警推送间隔
 
-	// -------------------- 内存存储（master_store） --------------------
+	// -------------------- 内存存储（datahub） --------------------
 	"MASTER_STORE_TTL":              "24h", // 每条记录的默认生存时间
 	"MASTER_STORE_CLEANUP_INTERVAL": "5m",  // 清理任务的执行间隔
 	"MASTER_STORE_METRICS_TTL":      "15m", // 指标数据的 TTL（比事件更短，减少内存占用）
@@ -55,6 +55,11 @@ var defaultStrings = map[string]string{
 	// -------------------- 服务器配置 --------------------
 	"MASTER_SERVER_PORT": "8080", // HTTP 服务端口
 
+	// -------------------- CORS 跨域配置 --------------------
+	"MASTER_CORS_ALLOW_ORIGINS": "*",                                    // 允许的源，"*" 表示全部允许
+	"MASTER_CORS_ALLOW_METHODS": "GET, POST, PUT, DELETE, OPTIONS",      // 允许的 HTTP 方法
+	"MASTER_CORS_ALLOW_HEADERS": "Content-Type, Authorization, X-Token", // 允许的请求头
+
 	// -------------------- JWT 认证 --------------------
 	"MASTER_JWT_SECRET_KEY": "atlhyper_jwt_secret_key_change_in_production", // JWT 签名密钥（生产环境请修改）
 }
@@ -63,16 +68,17 @@ var defaultStrings = map[string]string{
 // 布尔类型默认值
 // ============================================================
 var defaultBools = map[string]bool{
-	"MASTER_ENABLE_EMAIL_ALERT":    false, // 是否启用邮件告警
-	"MASTER_ENABLE_SLACK_ALERT":    false, // 是否启用 Slack 告警
-	"MASTER_ENABLE_WEBHOOK_SERVER": false, // 是否启用 Webhook 服务
+	"MASTER_ENABLE_EMAIL_ALERT":      false, // 是否启用邮件告警
+	"MASTER_ENABLE_SLACK_ALERT":      false, // 是否启用 Slack 告警
+	"MASTER_ENABLE_WEBHOOK_SERVER":   false, // 是否启用 Webhook 服务
+	"MASTER_CORS_ALLOW_CREDENTIALS":  false, // 是否允许跨域凭证（AllowOrigins="*" 时必须为 false）
 }
 
 // ============================================================
 // 整数类型默认值
 // ============================================================
 var defaultInts = map[string]int{
-	// -------------------- 内存存储（master_store） --------------------
+	// -------------------- 内存存储（datahub） --------------------
 	"MASTER_STORE_MAX_ITEMS": 50000, // 全局池最多保留的记录数（超过则裁剪最旧的）
 
 	// -------------------- JWT 认证 --------------------

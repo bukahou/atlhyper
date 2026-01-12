@@ -12,14 +12,14 @@ import type {
  * 获取 Deployment 概览
  */
 export function getDeploymentOverview(data: ClusterRequest) {
-  return post<DeploymentOverview, ClusterRequest>("/uiapi/deployment/overview", data);
+  return post<DeploymentOverview, ClusterRequest>("/uiapi/cluster/deployment/list", data);
 }
 
 /**
  * 获取 Deployment 详情
  */
 export function getDeploymentDetail(data: DeploymentDetailRequest) {
-  return post<DeploymentDetail, DeploymentDetailRequest>("/uiapi/deployment/detail", data);
+  return post<DeploymentDetail, DeploymentDetailRequest>("/uiapi/cluster/deployment/detail", data);
 }
 
 /**

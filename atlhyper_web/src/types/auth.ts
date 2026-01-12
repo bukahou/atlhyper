@@ -24,30 +24,29 @@ export interface LoginResponse {
   user: UserInfo;
 }
 
-// 用户列表项
+// 用户列表项（匹配后端 UserDTO JSON 格式）
 export interface UserListItem {
-  ID: number;
-  Username: string;
-  PasswordHash: string;
-  DisplayName: string;
-  Email: string;
-  Role: number;
-  CreatedAt: string;
-  LastLogin: string | null;
+  id: number;
+  username: string;
+  displayName: string;
+  email: string;
+  role: number;
+  createdAt: string;
+  lastLogin: string | null;
 }
 
-// 审计日志项
+// 审计日志项（匹配后端 AuditLogDTO JSON 格式）
 export interface AuditLogItem {
-  ID: number;
-  UserID: number;
-  Username: string;
-  Role: number;
-  Action: string;
-  Success: boolean;
-  IP: string;
-  Method: string;
-  Status: number;
-  Timestamp: string;
+  id: number;
+  userId: number;
+  username: string;
+  role: number;
+  action: string;
+  success: boolean;
+  ip: string;
+  method: string;
+  status: number;
+  timestamp: string;
 }
 
 // 认证状态

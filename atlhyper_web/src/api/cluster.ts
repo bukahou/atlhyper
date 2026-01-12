@@ -6,5 +6,5 @@ import type { ClusterInfo } from "@/types/cluster";
  * 获取集群信息
  */
 export function getClusterInfo() {
-  return post<{ clusters: ClusterInfo[] }, undefined>("/uiapi/cluster/info", undefined);
+  return post<{ clusters: ClusterInfo[] }, undefined>("/uiapi/overview/cluster/list", undefined);
 }

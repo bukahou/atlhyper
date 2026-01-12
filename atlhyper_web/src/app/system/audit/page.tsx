@@ -47,47 +47,47 @@ function getActionKey(action: string): ActionKey {
 
 // 单条审计记录组件
 function AuditItem({ log, auditT }: { log: AuditLogItem; auditT: AuditTranslations }) {
-  const resultStyle = log.Success
+  const resultStyle = log.success
     ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
     : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
 
-  const actionKey = getActionKey(log.Action);
+  const actionKey = getActionKey(log.action);
   const actionLabel = auditT.actions[actionKey];
-  const roleLabel = roleLabels[log.Role] || `Role ${log.Role}`;
+  const roleLabel = roleLabels[log.role] || `Role ${log.role}`;
 
   return (
     <div className="flex gap-4">
       <div className="flex flex-col items-center">
-        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${log.Success ? "bg-green-500" : "bg-red-500"}`} />
+        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${log.success ? "bg-green-500" : "bg-red-500"}`} />
         <div className="w-px flex-1 bg-[var(--border-color)]" />
       </div>
       <div className="flex-1 pb-6">
         <div className="flex items-center gap-4 mb-2 flex-wrap">
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-gray-400" />
-            <span className="font-medium text-default">{log.Username}</span>
+            <span className="font-medium text-default">{log.username}</span>
             <span className="text-xs text-muted px-1.5 py-0.5 bg-[var(--background)] rounded">
               {roleLabel}
             </span>
           </div>
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${resultStyle}`}>
-            {log.Success ? (
+            {log.success ? (
               <CheckCircle className="w-3 h-3" />
             ) : (
               <XCircle className="w-3 h-3" />
             )}
-            {log.Success ? auditT.successOnly : auditT.failedOnly}
+            {log.success ? auditT.successOnly : auditT.failedOnly}
           </span>
         </div>
 
         <div className="flex items-center gap-2 mb-2">
           <Activity className="w-4 h-4 text-primary" />
           <span className="text-default font-medium">{actionLabel}</span>
-          {log.Status > 0 && (
+          {log.status > 0 && (
             <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-              log.Status >= 400 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+              log.status >= 400 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
             }`}>
-              {log.Status}
+              {log.status}
             </span>
           )}
         </div>
@@ -95,9 +95,9 @@ function AuditItem({ log, auditT }: { log: AuditLogItem; auditT: AuditTranslatio
         <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
           <div className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
-            {new Date(log.Timestamp).toLocaleString()}
+            {new Date(log.timestamp).toLocaleString()}
           </div>
-          <span>IP: {log.IP}</span>
+          <span>IP: {log.ip}</span>
         </div>
       </div>
     </div>
@@ -144,19 +144,19 @@ export default function AuditPage() {
   const filteredLogs = logs.filter((log) => {
     // 时间范围过滤
     if (timeRange > 0) {
-      const logTime = new Date(log.Timestamp).getTime();
+      const logTime = new Date(log.timestamp).getTime();
       const cutoff = Date.now() - timeRange * 60 * 60 * 1000;
       if (logTime < cutoff) return false;
     }
 
     // 用户过滤
-    if (filterUser && !log.Username.toLowerCase().includes(filterUser.toLowerCase())) {
+    if (filterUser && !log.username.toLowerCase().includes(filterUser.toLowerCase())) {
       return false;
     }
 
     // 结果过滤
-    if (filterResult === "success" && !log.Success) return false;
-    if (filterResult === "failed" && log.Success) return false;
+    if (filterResult === "success" && !log.success) return false;
+    if (filterResult === "failed" && log.success) return false;
 
     return true;
   });
@@ -164,8 +164,8 @@ export default function AuditPage() {
   // 统计
   const stats = {
     total: filteredLogs.length,
-    success: filteredLogs.filter((l) => l.Success).length,
-    failed: filteredLogs.filter((l) => !l.Success).length,
+    success: filteredLogs.filter((l) => l.success).length,
+    failed: filteredLogs.filter((l) => !l.success).length,
   };
 
   return (
@@ -250,7 +250,7 @@ export default function AuditPage() {
           ) : (
             <div className="space-y-0">
               {filteredLogs.map((log) => (
-                <AuditItem key={log.ID} log={log} auditT={auditT} />
+                <AuditItem key={log.id} log={log} auditT={auditT} />
               ))}
             </div>
           )}

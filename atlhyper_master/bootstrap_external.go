@@ -1,35 +1,37 @@
-//atlhyper_master/bootstrap_external.go
-
+// atlhyper_master/bootstrap_external.go
 package external
 
 import (
-	"AtlHyper/atlhyper_master/client"
-	"AtlHyper/atlhyper_master/logger"
-	"AtlHyper/atlhyper_master/master_store"
-	"AtlHyper/atlhyper_master/server"
 	"log"
+
+	"AtlHyper/atlhyper_master/config"
+	"AtlHyper/atlhyper_master/gateway/integration"
+	"AtlHyper/atlhyper_master/repository/eventwriter"
 )
 
-// ✅ 启动所有 External 功能模块
-func StartExternalSystems() {
-	log.Println("🚀 启动Master系统组件 ...")
+// StartOptionalServices 启动可选功能模块
+// -----------------------------------------------------------------------------
+// 这些服务是非核心功能，可以根据配置开关启用/禁用
+// 即使某个服务启动失败，也不应影响主服务运行
+// -----------------------------------------------------------------------------
+func StartOptionalServices() {
+	log.Println("🔧 启动可选功能模块 ...")
 
-	//    必须在任何 Append/读取/调度器启动之前
-	master_store.Bootstrap()
+	// 邮件告警调度器（根据配置决定是否真正发送）
+	if config.GlobalConfig.Mailer.EnableEmailAlert {
+		log.Println("  📧 启动邮件告警调度器")
+	}
+	integration.StartEmailDispatcher()
 
-	// ✅ 启动邮件调度器
-	client.StartEmailDispatcher()
+	// Slack 告警调度器（根据配置决定是否真正发送）
+	if config.GlobalConfig.Slack.EnableSlackAlert {
+		log.Println("  💬 启动 Slack 告警调度器")
+	}
+	integration.StartSlackDispatcher()
 
-	// ✅ 启动 Slack 调度器
-	client.StartSlackDispatcher()
+	// 事件日志写入调度器（DataHub → SQLite 同步）
+	log.Println("  📝 启动事件日志写入调度器")
+	eventwriter.StartLogWriterScheduler()
 
-		// ✅ 启动日志写入调度器（新增）
-	logger.StartLogWriterScheduler()
-
-	// go metrics_store.StartMetricsSync()
-
-	log.Println("🌐 启动统一 HTTP Server（UI API + Webhook）")
-	server.StartHTTPServer()
-
-	log.Println("✅ 所有Master组件启动完成。")
+	log.Println("✅ 可选功能模块启动完成")
 }

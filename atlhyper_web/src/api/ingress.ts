@@ -6,12 +6,12 @@ import type { IngressOverview, IngressDetail, IngressDetailRequest } from "@/typ
  * 获取 Ingress 概览
  */
 export function getIngressOverview(data: ClusterRequest) {
-  return post<IngressOverview, ClusterRequest>("/uiapi/ingress/overview", data);
+  return post<IngressOverview, ClusterRequest>("/uiapi/cluster/ingress/list", data);
 }
 
 /**
  * 获取 Ingress 详情
  */
 export function getIngressDetail(data: IngressDetailRequest) {
-  return post<IngressDetail, IngressDetailRequest>("/uiapi/ingress/detail", data);
+  return post<IngressDetail, IngressDetailRequest>("/uiapi/cluster/ingress/detail", data);
 }

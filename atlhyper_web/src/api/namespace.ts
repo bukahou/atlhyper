@@ -12,19 +12,19 @@ import type {
  * 获取 Namespace 概览
  */
 export function getNamespaceOverview(data: ClusterRequest) {
-  return post<NamespaceOverview, ClusterRequest>("/uiapi/namespace/overview", data);
+  return post<NamespaceOverview, ClusterRequest>("/uiapi/cluster/namespace/list", data);
 }
 
 /**
  * 获取 Namespace 详情
  */
 export function getNamespaceDetail(data: NamespaceDetailRequest) {
-  return post<NamespaceDetail, NamespaceDetailRequest>("/uiapi/namespace/detail", data);
+  return post<NamespaceDetail, NamespaceDetailRequest>("/uiapi/cluster/namespace/detail", data);
 }
 
 /**
  * 获取 ConfigMap 列表（按 Namespace）
  */
 export function getConfigMaps(data: ConfigMapRequest) {
-  return post<ConfigMapDTO[], ConfigMapRequest>("/uiapi/configmap/detail", data);
+  return post<ConfigMapDTO[], ConfigMapRequest>("/uiapi/cluster/configmap/detail", data);
 }
