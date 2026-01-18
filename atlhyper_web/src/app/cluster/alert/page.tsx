@@ -24,14 +24,16 @@ const severityConfig: Record<string, { icon: typeof AlertCircle; color: string; 
   info: { icon: Info, color: "text-blue-500", badgeType: "info" },
 };
 
-// 时间范围选项
-const timeRangeOptions = [
-  { value: 1, label: "最近 1 天" },
-  { value: 3, label: "最近 3 天" },
-  { value: 7, label: "最近 7 天" },
-  { value: 14, label: "最近 14 天" },
-  { value: 30, label: "最近 30 天" },
-];
+// 时间范围选项 - 动态生成以支持国际化
+function getTimeRangeOptions(t: ReturnType<typeof useI18n>["t"]) {
+  return [
+    { value: 1, label: `${t.common.from} 1 ${t.common.date}` },
+    { value: 3, label: `${t.common.from} 3 ${t.common.date}` },
+    { value: 7, label: `${t.common.from} 7 ${t.common.date}` },
+    { value: 14, label: `${t.common.from} 14 ${t.common.date}` },
+    { value: 30, label: `${t.common.from} 30 ${t.common.date}` },
+  ];
+}
 
 // 带清除按钮的筛选输入框
 function FilterInput({
@@ -146,16 +148,15 @@ export default function AlertPage() {
     setError("");
     try {
       const res = await getEventLogs({
-        clusterID: getCurrentClusterId(),
-        withinDays: timeRange,
+        ClusterID: getCurrentClusterId(),
       });
       setData(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, [timeRange]);
+  }, []);
 
   const { intervalSeconds } = useAutoRefresh(fetchData);
 
@@ -209,7 +210,7 @@ export default function AlertPage() {
   const columns: TableColumn<EventLog>[] = [
     {
       key: "time",
-      header: "时间",
+      header: t.common.time,
       render: (e) => (
         <span className="text-sm text-muted whitespace-nowrap">
           {e.EventTime ? new Date(e.EventTime).toLocaleString() : "-"}
@@ -218,7 +219,7 @@ export default function AlertPage() {
     },
     {
       key: "severity",
-      header: "级别",
+      header: t.alert.severity,
       render: (e) => {
         const sev = (e.Severity || "info").toLowerCase();
         const config = severityConfig[sev] || severityConfig.info;
@@ -227,7 +228,7 @@ export default function AlertPage() {
     },
     {
       key: "kind",
-      header: "类型",
+      header: t.alert.type,
       render: (e) => (
         <span className="inline-flex px-2 py-1 text-xs bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 rounded">
           {e.Kind || "-"}
@@ -236,7 +237,7 @@ export default function AlertPage() {
     },
     {
       key: "name",
-      header: "名称",
+      header: t.common.name,
       render: (e) => <span className="font-medium text-default">{e.Name || "-"}</span>,
     },
     {
@@ -246,7 +247,7 @@ export default function AlertPage() {
     },
     {
       key: "reason",
-      header: "原因",
+      header: t.alert.source,
       render: (e) => (
         <span className="inline-flex px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">
           {e.Reason || "-"}
@@ -255,7 +256,7 @@ export default function AlertPage() {
     },
     {
       key: "message",
-      header: "消息",
+      header: t.alert.message,
       render: (e) => (
         <span className="text-sm text-secondary max-w-xs truncate block" title={e.Message}>
           {e.Message || "-"}
@@ -269,7 +270,7 @@ export default function AlertPage() {
         <button
           onClick={() => handleViewDetail(e)}
           className="p-2 hover-bg rounded-lg"
-          title="查看详情"
+          title={t.alert.viewDetails}
         >
           <Eye className="w-4 h-4 text-muted hover:text-primary" />
         </button>
@@ -282,20 +283,20 @@ export default function AlertPage() {
       <div className="space-y-6">
         <PageHeader
           title={t.nav.alert}
-          description="集群事件与告警监控"
+          description={t.alert.pageDescription}
           autoRefreshSeconds={intervalSeconds}
         />
 
         {/* 统计卡片 */}
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            <StatsCard label="总事件" value={data.cards.totalAlerts} />
-            <StatsCard label="Error" value={data.cards.error} icon={AlertCircle} iconColor="text-red-500" />
-            <StatsCard label="Warning" value={data.cards.warning} icon={AlertTriangle} iconColor="text-yellow-500" />
-            <StatsCard label="Info" value={data.cards.info} icon={Info} iconColor="text-blue-500" />
-            <StatsCard label="事件数" value={data.cards.totalEvents} iconColor="text-purple-500" />
-            <StatsCard label="类别数" value={data.cards.categoriesCount} iconColor="text-green-500" />
-            <StatsCard label="资源类型" value={data.cards.kindsCount} iconColor="text-orange-500" />
+            <StatsCard label={t.common.total} value={data.cards.totalAlerts ?? 0} />
+            <StatsCard label={t.alert.critical} value={data.cards.error ?? 0} icon={AlertCircle} iconColor="text-red-500" />
+            <StatsCard label={t.alert.warning} value={data.cards.warning ?? 0} icon={AlertTriangle} iconColor="text-yellow-500" />
+            <StatsCard label={t.alert.info} value={data.cards.info ?? 0} icon={Info} iconColor="text-blue-500" />
+            <StatsCard label={t.common.total} value={data.cards.totalEvents ?? 0} iconColor="text-purple-500" />
+            <StatsCard label={t.alert.type} value={data.cards.categoriesCount ?? 0} iconColor="text-green-500" />
+            <StatsCard label={t.alert.type} value={data.cards.kindsCount ?? 0} iconColor="text-orange-500" />
           </div>
         )}
 
@@ -304,7 +305,7 @@ export default function AlertPage() {
           {/* 标题栏 */}
           <div className="flex items-center gap-2 mb-3">
             <Filter className="w-4 h-4 text-muted" />
-            <span className="text-sm font-medium text-default">筛选</span>
+            <span className="text-sm font-medium text-default">{t.common.filter}</span>
             {activeFilterCount > 0 && (
               <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
                 {activeFilterCount}
@@ -316,7 +317,7 @@ export default function AlertPage() {
                 className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-default transition-colors"
               >
                 <X className="w-3 h-3" />
-                清除全部
+                {t.common.clearAll}
               </button>
             )}
           </div>
@@ -330,7 +331,7 @@ export default function AlertPage() {
                 onChange={(e) => setTimeRange(Number(e.target.value))}
                 className="px-3 py-2 pr-8 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary appearance-none min-w-[130px]"
               >
-                {timeRangeOptions.map((opt) => (
+                {getTimeRangeOptions(t).map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
@@ -348,7 +349,7 @@ export default function AlertPage() {
               value={severityFilter}
               onChange={setSeverityFilter}
               onClear={() => setSeverityFilter("")}
-              placeholder="全部级别"
+              placeholder={t.alert.allSeverities}
               options={[
                 { value: "error", label: "Error" },
                 { value: "warning", label: "Warning" },
@@ -361,7 +362,7 @@ export default function AlertPage() {
               value={kindFilter}
               onChange={setKindFilter}
               onClear={() => setKindFilter("")}
-              placeholder="全部类型"
+              placeholder={t.alert.allTypes}
               options={kinds.map((k) => ({ value: k, label: k }))}
             />
 
@@ -370,7 +371,7 @@ export default function AlertPage() {
               value={namespaceFilter}
               onChange={setNamespaceFilter}
               onClear={() => setNamespaceFilter("")}
-              placeholder="全部 Namespace"
+              placeholder={t.pod.allNamespaces}
               options={namespaces.map((ns) => ({ value: ns, label: ns }))}
             />
 
@@ -379,12 +380,12 @@ export default function AlertPage() {
               value={searchTerm}
               onChange={setSearchTerm}
               onClear={() => setSearchTerm("")}
-              placeholder="搜索名称、消息、原因..."
+              placeholder={t.alert.searchPlaceholder}
             />
 
             {/* 结果计数 */}
             <span className="text-sm text-muted whitespace-nowrap">
-              {filteredRows.length} / {data?.rows?.length || 0} 条
+              {filteredRows.length} / {data?.rows?.length || 0} {t.common.items}
             </span>
           </div>
         </div>
@@ -414,6 +415,7 @@ export default function AlertPage() {
         <EventDetailModal
           event={selectedEvent}
           onClose={() => setDetailOpen(false)}
+          t={t}
         />
       )}
     </Layout>
@@ -421,21 +423,21 @@ export default function AlertPage() {
 }
 
 // 事件详情弹窗
-function EventDetailModal({ event, onClose }: { event: EventLog; onClose: () => void }) {
+function EventDetailModal({ event, onClose, t }: { event: EventLog; onClose: () => void; t: ReturnType<typeof useI18n>["t"] }) {
   const sev = (event.Severity || "info").toLowerCase();
   const config = severityConfig[sev] || severityConfig.info;
   const Icon = config.icon;
 
   const details = [
-    { label: "集群", value: event.ClusterID },
-    { label: "类型", value: event.Kind },
-    { label: "名称", value: event.Name },
-    { label: "命名空间", value: event.Namespace },
-    { label: "节点", value: event.Node },
-    { label: "原因", value: event.Reason },
-    { label: "类别", value: event.Category },
-    { label: "事件时间", value: event.EventTime ? new Date(event.EventTime).toLocaleString() : "-" },
-    { label: "记录时间", value: event.Time ? new Date(event.Time).toLocaleString() : "-" },
+    { label: t.nav.cluster, value: event.ClusterID },
+    { label: t.alert.type, value: event.Kind },
+    { label: t.common.name, value: event.Name },
+    { label: t.common.namespace, value: event.Namespace },
+    { label: t.nav.node, value: event.Node },
+    { label: t.alert.source, value: event.Reason },
+    { label: t.alert.type, value: event.Category },
+    { label: t.alert.timestamp, value: event.EventTime ? new Date(event.EventTime).toLocaleString() : "-" },
+    { label: t.common.time, value: event.Time ? new Date(event.Time).toLocaleString() : "-" },
   ];
 
   return (
@@ -447,7 +449,7 @@ function EventDetailModal({ event, onClose }: { event: EventLog; onClose: () => 
           <div className="flex items-center gap-3">
             <Icon className={`w-6 h-6 ${config.color}`} />
             <div>
-              <h2 className="text-lg font-semibold text-default">事件详情</h2>
+              <h2 className="text-lg font-semibold text-default">{t.common.details}</h2>
               <StatusBadge status={sev.toUpperCase()} type={config.badgeType} />
             </div>
           </div>
@@ -460,15 +462,15 @@ function EventDetailModal({ event, onClose }: { event: EventLog; onClose: () => 
         <div className="p-6 space-y-6">
           {/* 消息 */}
           <div>
-            <h3 className="text-sm font-semibold text-default mb-2">消息内容</h3>
+            <h3 className="text-sm font-semibold text-default mb-2">{t.alert.message}</h3>
             <div className="bg-[var(--background)] rounded-lg p-4">
-              <p className="text-sm text-default whitespace-pre-wrap">{event.Message || "无消息"}</p>
+              <p className="text-sm text-default whitespace-pre-wrap">{event.Message || t.common.noData}</p>
             </div>
           </div>
 
           {/* 详细信息 */}
           <div>
-            <h3 className="text-sm font-semibold text-default mb-3">详细信息</h3>
+            <h3 className="text-sm font-semibold text-default mb-3">{t.common.details}</h3>
             <div className="grid grid-cols-2 gap-4">
               {details.map((item, i) => (
                 <div key={i} className="bg-[var(--background)] rounded-lg p-3">

@@ -4,8 +4,17 @@
 
 import type { ClusterRequest, NamespaceRequest, ResourceStatus, NodeStatus } from "./common";
 
-// 集群信息
+// 集群信息（Master V2 使用 snake_case）
 export interface ClusterInfo {
+  cluster_id: string;
+  status: string;
+  last_seen: string;
+  node_count: number;
+  pod_count: number;
+}
+
+// 旧集群信息类型（兼容）
+export interface ClusterInfoLegacy {
   ClusterID: string;
   ClusterName: string;
 }
@@ -39,6 +48,7 @@ export interface PodItem {
   memPercentText: string;
   startTime: string;
   node: string;
+  age?: string;
 }
 
 // Pod 详情请求
@@ -321,16 +331,58 @@ export interface WorkloadUpdateImageRequest extends NamespaceRequest {
   OldImage?: string;
 }
 
+// 容器端口
+export interface ContainerPortSpec {
+  name?: string;
+  containerPort: number;
+  protocol?: string;
+  hostPort?: number;
+}
+
+// 环境变量
+export interface EnvVarSpec {
+  name: string;
+  value?: string;
+  valueFrom?: string;
+}
+
+// 卷挂载
+export interface VolumeMountSpec {
+  name: string;
+  mountPath: string;
+  subPath?: string;
+  readOnly?: boolean;
+}
+
+// 探针
+export interface ProbeSpec {
+  type: string; // httpGet, tcpSocket, exec
+  path?: string;
+  port?: number;
+  command?: string;
+  initialDelaySeconds?: number;
+  periodSeconds?: number;
+  timeoutSeconds?: number;
+  successThreshold?: number;
+  failureThreshold?: number;
+}
+
 // Deployment 容器信息
 export interface DeploymentContainer {
   name: string;
   image: string;
   imagePullPolicy?: string;
-  ports?: { containerPort: number; protocol: string; name?: string }[];
-  envs?: { name: string; value?: string }[];
-  volumeMounts?: { name: string; mountPath: string; readOnly?: boolean }[];
+  command?: string[];
+  args?: string[];
+  workingDir?: string;
+  ports?: ContainerPortSpec[];
+  envs?: EnvVarSpec[];
+  volumeMounts?: VolumeMountSpec[];
   requests?: Record<string, string>;
   limits?: Record<string, string>;
+  livenessProbe?: ProbeSpec;
+  readinessProbe?: ProbeSpec;
+  startupProbe?: ProbeSpec;
 }
 
 // Deployment Condition
@@ -366,14 +418,39 @@ export interface DeploymentSpec {
   matchLabels?: Record<string, string>;
 }
 
+// 容忍
+export interface TolerationSpec {
+  key?: string;
+  operator?: string;
+  value?: string;
+  effect?: string;
+  tolerationSeconds?: number;
+}
+
+// 亲和性（简化）
+export interface AffinitySpec {
+  nodeAffinity?: string;
+  podAffinity?: string;
+  podAntiAffinity?: string;
+}
+
+// 卷定义
+export interface VolumeSpec {
+  name: string;
+  type: string;
+  source?: string;
+}
+
 // Deployment Template DTO
 export interface DeploymentTemplate {
   labels?: Record<string, string>;
   annotations?: Record<string, string>;
   containers: DeploymentContainer[];
-  volumes?: { name: string; type: string; source?: string }[];
+  volumes?: VolumeSpec[];
   serviceAccountName?: string;
   nodeSelector?: Record<string, string>;
+  tolerations?: TolerationSpec[];
+  affinity?: AffinitySpec;
   hostNetwork?: boolean;
   dnsPolicy?: string;
   runtimeClassName?: string;
@@ -682,6 +759,17 @@ export interface ConfigMapDTO {
   binaryTotalSizeBytes: number;
   data?: ConfigMapDataEntry[];
   binary?: ConfigMapBinaryEntry[];
+}
+
+// Secret DTO - 匹配后端 model_v2.Secret
+export interface SecretDTO {
+  name: string;
+  namespace: string;
+  uid?: string;
+  createdAt?: string;
+  age?: string;
+  type: string; // Opaque, kubernetes.io/tls, etc.
+  dataKeys?: string[]; // 只有键名，不含值
 }
 
 // Ingress 概览 - 匹配后端 API 返回格式

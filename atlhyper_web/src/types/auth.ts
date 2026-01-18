@@ -31,22 +31,29 @@ export interface UserListItem {
   displayName: string;
   email: string;
   role: number;
+  status: number; // 1=Active, 0=Disabled
   createdAt: string;
   lastLogin: string | null;
+  lastLoginIP: string;
 }
 
-// 审计日志项（匹配后端 AuditLogDTO JSON 格式）
+// 审计日志项（匹配后端 AuditLogResponse JSON 格式）
 export interface AuditLogItem {
   id: number;
+  timestamp: string;
   userId: number;
   username: string;
   role: number;
-  action: string;
+  source: string;        // web / api / ai
+  action: string;        // login / create / update / delete / execute / read
+  resource: string;      // user / pod / deployment / node / configmap / secret / command / notify
+  method: string;        // GET / POST / PUT / DELETE
+  requestSummary?: string;
+  status: number;        // HTTP 状态码
   success: boolean;
+  errorMessage?: string;
   ip: string;
-  method: string;
-  status: number;
-  timestamp: string;
+  durationMs: number;
 }
 
 // 认证状态

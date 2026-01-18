@@ -1,15 +1,20 @@
 /**
  * Axios 请求封装
  *
+ * 适配 Master V2 API
+ *
  * 权限控制策略：
  * - 权限验证集中在后端处理
  * - 前端根据后端返回的 HTTP 状态码和错误信息进行相应处理
  * - 401: 未登录或 Token 失效 -> 触发登录流程
  * - 403: 权限不足 -> 显示权限不足提示
+ *
+ * 响应格式（Master V2）：
+ * - 成功: HTTP 200，直接返回 JSON 数据
+ * - 错误: HTTP 4xx/5xx，返回 { error: "错误信息" }
  */
 
 import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig, type AxiosError } from "axios";
-import type { ApiResponse } from "@/types";
 import { env } from "@/config/env";
 
 // ============================================================
@@ -71,16 +76,10 @@ request.interceptors.request.use(
 );
 
 // 响应拦截器
+// Master V2 使用 HTTP 状态码判断成功/失败，不再使用 code: 20000
 request.interceptors.response.use(
-  (response: AxiosResponse<ApiResponse>) => {
-    const res = response.data;
-
-    // 成功码为 20000
-    if (res.code !== 20000) {
-      console.error("API Error:", res.message);
-      return Promise.reject(new Error(res.message || "请求失败"));
-    }
-
+  (response: AxiosResponse) => {
+    // HTTP 2xx 都视为成功，直接返回
     return response;
   },
   (error: AxiosError<{ error?: string; message?: string }>) => {
@@ -107,7 +106,7 @@ request.interceptors.response.use(
       authErrorManager.emit(authError);
       console.warn("[Auth] 403 Forbidden:", errorMsg);
     } else {
-      console.error("Request Error:", error.message);
+      console.error("[Request] Error:", status, errorMsg);
     }
 
     return Promise.reject(error);
@@ -116,17 +115,34 @@ request.interceptors.response.use(
 
 export default request;
 
+// ============================================================
 // 便捷方法
-export const get = <T, P = Record<string, unknown>>(
-  url: string,
-  params?: P
-): Promise<AxiosResponse<ApiResponse<T>>> => {
+// ============================================================
+
+/**
+ * GET 请求
+ */
+export const get = <T>(url: string, params?: object): Promise<AxiosResponse<T>> => {
   return request.get(url, { params });
 };
 
-export const post = <T, D = Record<string, unknown>>(
-  url: string,
-  data?: D
-): Promise<AxiosResponse<ApiResponse<T>>> => {
+/**
+ * POST 请求
+ */
+export const post = <T>(url: string, data?: object): Promise<AxiosResponse<T>> => {
   return request.post(url, data);
+};
+
+/**
+ * PUT 请求
+ */
+export const put = <T>(url: string, data?: object): Promise<AxiosResponse<T>> => {
+  return request.put(url, data);
+};
+
+/**
+ * DELETE 请求
+ */
+export const del = <T>(url: string, params?: object): Promise<AxiosResponse<T>> => {
+  return request.delete(url, { params });
 };

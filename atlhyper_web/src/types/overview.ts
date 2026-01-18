@@ -31,39 +31,62 @@ export interface OverviewCards {
   events24h: number;
 }
 
-// 资源趋势点
-export interface ResourceTrendPoint {
-  at: string;
-  cpuPeak: number;
-  memPeak: number;
-  tempPeak?: number;
+// 工作负载状态
+export interface WorkloadStatus {
+  total: number;
+  ready: number;
 }
 
-// 趋势峰值统计（底部状态卡片）
-export interface TrendPeakStats {
-  peakCpu: number;       // 当前最高 CPU 使用率 %
-  peakCpuNode: string;   // 最高 CPU 节点名
-  peakMem: number;       // 当前最高内存使用率 %
-  peakMemNode: string;   // 最高内存节点名
-  peakTemp: number;      // 当前最高温度
-  peakTempNode: string;  // 最高温度节点名
-  netRxKBps: number;     // 集群总入流量 KB/s
-  netTxKBps: number;     // 集群总出流量 KB/s
-  hasData: boolean;      // 是否有 metrics 插件数据
+// Job 状态
+export interface JobStatus {
+  total: number;
+  running: number;
+  succeeded: number;
+  failed: number;
 }
 
-// 资源趋势
-export interface ResourceTrends {
-  resourceUsage: ResourceTrendPoint[];
-  peakStats?: TrendPeakStats;
+// 工作负载汇总
+export interface WorkloadSummary {
+  deployments: WorkloadStatus;
+  daemonsets: WorkloadStatus;
+  statefulsets: WorkloadStatus;
+  jobs: JobStatus;
 }
 
-// 告警趋势点
+// Pod 状态分布
+export interface PodStatusDistribution {
+  total: number;
+  running: number;
+  pending: number;
+  failed: number;
+  succeeded: number;
+  unknown: number;
+  runningPercent: number;
+  pendingPercent: number;
+  failedPercent: number;
+  succeededPercent: number;
+}
+
+// 峰值统计
+export interface PeakStats {
+  peakCpu: number;
+  peakCpuNode: string;
+  peakMem: number;
+  peakMemNode: string;
+  hasData: boolean;
+}
+
+// 工作负载数据
+export interface WorkloadsData {
+  summary: WorkloadSummary;
+  podStatus: PodStatusDistribution;
+  peakStats?: PeakStats;
+}
+
+// 告警趋势点（按资源类型统计）
 export interface AlertTrendPoint {
   at: string;
-  critical: number;
-  warning: number;
-  info: number;
+  kinds: Record<string, number>; // 每种资源类型的告警数量: {"Pod": 5, "Node": 2}
 }
 
 // 告警统计
@@ -73,16 +96,15 @@ export interface AlertTotals {
   info: number;
 }
 
-// 最近告警
+// 最近告警（后端返回小写字段名）
 export interface RecentAlert {
-  Timestamp: string;
-  Severity: "critical" | "warning" | "info";
-  Kind: string;
-  Namespace: string;
-  Name: string;
-  Message: string;
-  ReasonCode: string;
-  Node?: string;
+  timestamp: string;
+  severity: "critical" | "warning" | "info";
+  kind: string;
+  namespace: string;
+  name: string;
+  message: string;
+  reason: string;
 }
 
 // 告警数据
@@ -108,7 +130,7 @@ export interface NodesData {
 export interface ClusterOverview {
   clusterId: string;
   cards: OverviewCards;
-  trends: ResourceTrends;
+  workloads: WorkloadsData;
   alerts: AlertsData;
   nodes: NodesData;
 }
@@ -134,14 +156,34 @@ export interface TransformedOverview {
     percent: number;
   };
   alertsTotal: number;
-  cpuSeries: [number, number][];
-  memSeries: [number, number][];
-  tempSeries: [number, number][];
+  // 工作负载统计
+  workloads: {
+    deployments: { total: number; ready: number };
+    daemonsets: { total: number; ready: number };
+    statefulsets: { total: number; ready: number };
+    jobs: { total: number; running: number; succeeded: number; failed: number };
+  };
+  podStatus: {
+    total: number;
+    running: number;
+    pending: number;
+    failed: number;
+    succeeded: number;
+    runningPercent: number;
+    pendingPercent: number;
+    failedPercent: number;
+    succeededPercent: number;
+  };
+  peakStats: {
+    peakCpu: number;
+    peakCpuNode: string;
+    peakMem: number;
+    peakMemNode: string;
+    hasData: boolean;
+  };
   alertTrends: {
     ts: number;
-    critical: number;
-    warning: number;
-    info: number;
+    kinds: Record<string, number>; // 按资源类型统计
   }[];
   recentAlerts: {
     time: string;
@@ -157,15 +199,4 @@ export interface TransformedOverview {
     cpuPercent: number;
     memoryPercent: number;
   }[];
-  peakStats: {
-    peakCpu: number;
-    peakCpuNode: string;
-    peakMem: number;
-    peakMemNode: string;
-    peakTemp: number;
-    peakTempNode: string;
-    netRxKBps: number;
-    netTxKBps: number;
-    hasData: boolean;
-  };
 }

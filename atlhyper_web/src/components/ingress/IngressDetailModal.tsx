@@ -6,6 +6,7 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
 import { getIngressDetail } from "@/api/ingress";
 import { getCurrentClusterId } from "@/config/cluster";
+import { useI18n } from "@/i18n/context";
 import type {
   IngressDetail,
   IngressRuleDTO,
@@ -39,6 +40,7 @@ export function IngressDetailModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<IngressDetail | null>(null);
+  const { t } = useI18n();
 
   const fetchDetail = useCallback(async () => {
     if (!ingressName || !namespace) return;
@@ -52,11 +54,11 @@ export function IngressDetailModal({
       });
       setDetail(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.ingress.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, [namespace, ingressName]);
+  }, [namespace, ingressName, t.ingress.loadFailed]);
 
   useEffect(() => {
     if (isOpen) {
@@ -66,10 +68,10 @@ export function IngressDetailModal({
   }, [isOpen, fetchDetail]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: "overview", label: "概览", icon: <Globe className="w-4 h-4" /> },
-    { key: "rules", label: "路由规则", icon: <Route className="w-4 h-4" /> },
+    { key: "overview", label: t.ingress.overview, icon: <Globe className="w-4 h-4" /> },
+    { key: "rules", label: t.ingress.routingRules, icon: <Route className="w-4 h-4" /> },
     { key: "tls", label: "TLS", icon: <Lock className="w-4 h-4" /> },
-    { key: "annotations", label: "注解", icon: <Tag className="w-4 h-4" /> },
+    { key: "annotations", label: t.ingress.annotations, icon: <Tag className="w-4 h-4" /> },
   ];
 
   return (
@@ -102,10 +104,10 @@ export function IngressDetailModal({
 
           {/* Tab Content */}
           <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} />}
-            {activeTab === "rules" && <RulesTab rules={detail.spec?.rules || []} defaultBackend={detail.spec?.defaultBackend} />}
-            {activeTab === "tls" && <TLSTab tls={detail.spec?.tls || []} />}
-            {activeTab === "annotations" && <AnnotationsTab annotations={detail.annotations || {}} />}
+            {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
+            {activeTab === "rules" && <RulesTab rules={detail.spec?.rules || []} defaultBackend={detail.spec?.defaultBackend} t={t} />}
+            {activeTab === "tls" && <TLSTab tls={detail.spec?.tls || []} t={t} />}
+            {activeTab === "annotations" && <AnnotationsTab annotations={detail.annotations || {}} t={t} />}
           </div>
         </div>
       ) : null}
@@ -114,21 +116,21 @@ export function IngressDetailModal({
 }
 
 // 概览 Tab
-function OverviewTab({ detail }: { detail: IngressDetail }) {
+function OverviewTab({ detail, t }: { detail: IngressDetail; t: ReturnType<typeof useI18n>["t"] }) {
   const infoItems = [
-    { label: "名称", value: detail.name },
-    { label: "命名空间", value: detail.namespace },
-    { label: "Ingress Class", value: detail.class || detail.spec?.ingressClassName || "-" },
+    { label: t.common.name, value: detail.name },
+    { label: t.common.namespace, value: detail.namespace },
+    { label: t.ingress.ingressClass, value: detail.class || detail.spec?.ingressClassName || "-" },
     { label: "Controller", value: detail.controller || "-" },
-    { label: "Age", value: detail.age || "-" },
-    { label: "创建时间", value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
+    { label: t.ingress.age, value: detail.age || "-" },
+    { label: t.common.createdAt, value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
   ];
 
   return (
     <div className="space-y-6">
       {/* 基本信息 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">基本信息</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.ingress.basicInfo}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {infoItems.map((item, i) => (
             <div key={i} className="bg-[var(--background)] rounded-lg p-3">
@@ -141,19 +143,19 @@ function OverviewTab({ detail }: { detail: IngressDetail }) {
 
       {/* TLS 状态 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">TLS 状态</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.ingress.tlsStatus}</h3>
         <div className="bg-[var(--background)] rounded-lg p-4">
           <div className="flex items-center gap-3">
             {detail.tlsEnabled ? (
               <>
                 <Lock className="w-5 h-5 text-green-500" />
-                <span className="text-green-600 font-medium">TLS 已启用</span>
+                <span className="text-green-600 font-medium">{t.ingress.tlsEnabled}</span>
                 <StatusBadge status="Enabled" type="success" />
               </>
             ) : (
               <>
                 <Lock className="w-5 h-5 text-muted" />
-                <span className="text-muted">TLS 未启用</span>
+                <span className="text-muted">{t.ingress.tlsDisabled}</span>
                 <StatusBadge status="Disabled" type="default" />
               </>
             )}
@@ -191,21 +193,21 @@ function OverviewTab({ detail }: { detail: IngressDetail }) {
 
       {/* 规则统计 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">规则统计</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.ingress.ruleStatistics}</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-[var(--background)] rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-primary">{detail.spec?.rules?.length || 0}</div>
-            <div className="text-xs text-muted mt-1">路由规则</div>
+            <div className="text-xs text-muted mt-1">{t.ingress.routingRules}</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-blue-500">
               {detail.spec?.rules?.reduce((sum, r) => sum + (r.paths?.length || 0), 0) || 0}
             </div>
-            <div className="text-xs text-muted mt-1">路径数</div>
+            <div className="text-xs text-muted mt-1">{t.ingress.pathCount}</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-green-500">{detail.spec?.tls?.length || 0}</div>
-            <div className="text-xs text-muted mt-1">TLS 证书</div>
+            <div className="text-xs text-muted mt-1">{t.ingress.tlsCertificates}</div>
           </div>
         </div>
       </div>
@@ -214,9 +216,9 @@ function OverviewTab({ detail }: { detail: IngressDetail }) {
 }
 
 // 路由规则 Tab
-function RulesTab({ rules, defaultBackend }: { rules: IngressRuleDTO[]; defaultBackend?: IngressDetail["spec"]["defaultBackend"] }) {
+function RulesTab({ rules, defaultBackend, t }: { rules: IngressRuleDTO[]; defaultBackend?: IngressDetail["spec"]["defaultBackend"]; t: ReturnType<typeof useI18n>["t"] }) {
   if (rules.length === 0 && !defaultBackend) {
-    return <div className="text-center py-8 text-muted">暂无路由规则</div>;
+    return <div className="text-center py-8 text-muted">{t.ingress.noRules}</div>;
   }
 
   return (
@@ -224,7 +226,7 @@ function RulesTab({ rules, defaultBackend }: { rules: IngressRuleDTO[]; defaultB
       {/* Default Backend */}
       {defaultBackend && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-2">默认后端</h4>
+          <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-2">{t.ingress.defaultBackend}</h4>
           <BackendDisplay backend={defaultBackend} />
         </div>
       )}
@@ -285,9 +287,9 @@ function BackendDisplay({ backend }: { backend: IngressDetail["spec"]["defaultBa
 }
 
 // TLS Tab
-function TLSTab({ tls }: { tls: IngressTLSDTO[] }) {
+function TLSTab({ tls, t }: { tls: IngressTLSDTO[]; t: ReturnType<typeof useI18n>["t"] }) {
   if (tls.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无 TLS 配置</div>;
+    return <div className="text-center py-8 text-muted">{t.ingress.noTlsConfig}</div>;
   }
 
   return (
@@ -318,11 +320,11 @@ function TLSTab({ tls }: { tls: IngressTLSDTO[] }) {
 }
 
 // 注解 Tab
-function AnnotationsTab({ annotations }: { annotations: Record<string, string> }) {
+function AnnotationsTab({ annotations, t }: { annotations: Record<string, string>; t: ReturnType<typeof useI18n>["t"] }) {
   const entries = Object.entries(annotations);
 
   if (entries.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无注解</div>;
+    return <div className="text-center py-8 text-muted">{t.ingress.noAnnotations}</div>;
   }
 
   return (

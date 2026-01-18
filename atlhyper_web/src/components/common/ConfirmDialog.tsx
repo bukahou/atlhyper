@@ -1,6 +1,7 @@
 "use client";
 
 import { X, AlertTriangle, Loader2 } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -20,11 +21,14 @@ export function ConfirmDialog({
   onConfirm,
   title,
   message,
-  confirmText = "确认",
-  cancelText = "取消",
+  confirmText,
+  cancelText,
   loading = false,
   variant = "warning",
 }: ConfirmDialogProps) {
+  const { t } = useI18n();
+  const resolvedConfirmText = confirmText ?? t.common.confirm;
+  const resolvedCancelText = cancelText ?? t.common.cancel;
   if (!isOpen) return null;
 
   const variantStyles = {
@@ -78,7 +82,7 @@ export function ConfirmDialog({
               disabled={loading}
               className="px-4 py-2 text-sm font-medium text-muted hover:text-default rounded-lg hover-bg transition-colors disabled:opacity-50"
             >
-              {cancelText}
+              {resolvedCancelText}
             </button>
             <button
               onClick={onConfirm}
@@ -86,7 +90,7 @@ export function ConfirmDialog({
               className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 ${styles.button}`}
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {confirmText}
+              {resolvedConfirmText}
             </button>
           </div>
         </div>

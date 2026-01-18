@@ -5,9 +5,9 @@ import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { useAuthStore } from "@/store/authStore";
 import { PageHeader, LoadingSpinner } from "@/components/common";
-import { getUserList, registerUser, updateUserRole, deleteUser } from "@/api/auth";
+import { getUserList, registerUser, updateUserRole, updateUserStatus, deleteUser } from "@/api/auth";
 import { toast } from "@/components/common";
-import { Plus, Edit2, Trash2, Shield, User, Eye, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Shield, User, Eye, X, Power, PowerOff } from "lucide-react";
 import type { UserListItem } from "@/types/auth";
 import { UserRole } from "@/types/auth";
 
@@ -35,12 +35,20 @@ function AddUserModal({
   isOpen,
   onClose,
   onSuccess,
+  t,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  t: ReturnType<typeof useI18n>["t"];
 }) {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    username: string;
+    password: string;
+    displayName: string;
+    email: string;
+    role: number;
+  }>({
     username: "",
     password: "",
     displayName: "",
@@ -61,13 +69,14 @@ function AddUserModal({
         password: form.password,
         displayName: form.displayName,
         email: form.email,
+        role: form.role,
       });
-      toast.success("用户添加成功");
+      toast.success(t.common.success);
       onSuccess();
       onClose();
       setForm({ username: "", password: "", displayName: "", email: "", role: UserRole.VIEWER });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "注册失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -79,7 +88,7 @@ function AddUserModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-card rounded-xl border border-[var(--border-color)] p-6 w-full max-w-md">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-default">添加用户</h3>
+          <h3 className="text-lg font-semibold text-default">{t.users.addUser}</h3>
           <button onClick={onClose} className="p-1 hover-bg rounded">
             <X className="w-5 h-5 text-muted" />
           </button>
@@ -87,7 +96,7 @@ function AddUserModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">用户名 *</label>
+            <label className="block text-sm font-medium text-muted mb-1">{t.users.username} *</label>
             <input
               type="text"
               required
@@ -97,7 +106,7 @@ function AddUserModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">密码 *</label>
+            <label className="block text-sm font-medium text-muted mb-1">{t.common.password} *</label>
             <input
               type="password"
               required
@@ -107,7 +116,7 @@ function AddUserModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">显示名称</label>
+            <label className="block text-sm font-medium text-muted mb-1">{t.users.displayName}</label>
             <input
               type="text"
               value={form.displayName}
@@ -116,13 +125,25 @@ function AddUserModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">邮箱</label>
+            <label className="block text-sm font-medium text-muted mb-1">{t.users.email}</label>
             <input
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--background)] text-default focus:ring-2 focus:ring-primary outline-none"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-muted mb-1">{t.users.role}</label>
+            <select
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: Number(e.target.value) })}
+              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--background)] text-default focus:ring-2 focus:ring-primary outline-none"
+            >
+              <option value={UserRole.VIEWER}>{t.users.roleViewer}</option>
+              <option value={UserRole.OPERATOR}>{t.users.roleOperator}</option>
+              <option value={UserRole.ADMIN}>{t.users.roleAdmin}</option>
+            </select>
           </div>
 
           {error && (
@@ -137,14 +158,14 @@ function AddUserModal({
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-[var(--border-color)] rounded-lg hover-bg"
             >
-              取消
+              {t.common.cancel}
             </button>
             <button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg disabled:opacity-50"
             >
-              {loading ? "添加中..." : "添加"}
+              {loading ? t.common.loading : t.common.add}
             </button>
           </div>
         </form>
@@ -158,10 +179,12 @@ function DeleteUserModal({
   user,
   onClose,
   onSuccess,
+  t,
 }: {
   user: UserListItem | null;
   onClose: () => void;
   onSuccess: () => void;
+  t: ReturnType<typeof useI18n>["t"];
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -174,11 +197,11 @@ function DeleteUserModal({
 
     try {
       await deleteUser(user.id);
-      toast.success("用户删除成功");
+      toast.success(t.common.success);
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "删除失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -190,7 +213,7 @@ function DeleteUserModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-card rounded-xl border border-[var(--border-color)] p-6 w-full max-w-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-default">确认删除</h3>
+          <h3 className="text-lg font-semibold text-default">{t.users.deleteConfirmTitle}</h3>
           <button onClick={onClose} className="p-1 hover-bg rounded">
             <X className="w-5 h-5 text-muted" />
           </button>
@@ -198,10 +221,7 @@ function DeleteUserModal({
 
         <div className="space-y-4">
           <p className="text-secondary">
-            确定要删除用户 <span className="font-medium text-default">{user.username}</span> 吗？
-          </p>
-          <p className="text-sm text-muted">
-            此操作不可撤销，该用户的所有数据将被永久删除。
+            {t.users.deleteConfirmMessage.replace("{name}", user.username)}
           </p>
 
           {error && (
@@ -216,14 +236,14 @@ function DeleteUserModal({
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-[var(--border-color)] rounded-lg hover-bg"
             >
-              取消
+              {t.common.cancel}
             </button>
             <button
               onClick={handleDelete}
               disabled={loading}
               className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50"
             >
-              {loading ? "删除中..." : "确认删除"}
+              {loading ? t.common.loading : t.common.delete}
             </button>
           </div>
         </div>
@@ -237,10 +257,12 @@ function EditRoleModal({
   user,
   onClose,
   onSuccess,
+  t,
 }: {
   user: UserListItem | null;
   onClose: () => void;
   onSuccess: () => void;
+  t: ReturnType<typeof useI18n>["t"];
 }) {
   const [role, setRole] = useState(user?.role || UserRole.VIEWER);
   const [loading, setLoading] = useState(false);
@@ -259,11 +281,11 @@ function EditRoleModal({
 
     try {
       await updateUserRole({ userId: user.id, role });
-      toast.success("角色更新成功");
+      toast.success(t.common.success);
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -277,7 +299,7 @@ function EditRoleModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-card rounded-xl border border-[var(--border-color)] p-6 w-full max-w-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-default">编辑角色</h3>
+          <h3 className="text-lg font-semibold text-default">{t.users.changeRole}</h3>
           <button onClick={onClose} className="p-1 hover-bg rounded">
             <X className="w-5 h-5 text-muted" />
           </button>
@@ -285,12 +307,12 @@ function EditRoleModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">用户</label>
+            <label className="block text-sm font-medium text-muted mb-1">{t.users.username}</label>
             <div className="text-default font-medium">{user.username}</div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-muted mb-2">角色</label>
+            <label className="block text-sm font-medium text-muted mb-2">{t.users.role}</label>
             <div className="space-y-2">
               {Object.entries(roleConfig).map(([value, config]) => (
                 <label
@@ -316,12 +338,6 @@ function EditRoleModal({
             </div>
           </div>
 
-          {roleChanged && (
-            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 rounded-lg text-sm">
-              确认将 <span className="font-medium">{user.username}</span> 的角色从 {roleConfig[user.role as keyof typeof roleConfig]?.label} 更改为 {roleConfig[role as keyof typeof roleConfig]?.label}？
-            </div>
-          )}
-
           {error && (
             <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm">
               {error}
@@ -334,14 +350,14 @@ function EditRoleModal({
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-[var(--border-color)] rounded-lg hover-bg"
             >
-              取消
+              {t.common.cancel}
             </button>
             <button
               type="submit"
               disabled={loading || !roleChanged}
               className="flex-1 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg disabled:opacity-50"
             >
-              {loading ? "保存中..." : "确认修改"}
+              {loading ? t.common.loading : t.common.confirm}
             </button>
           </div>
         </form>
@@ -368,7 +384,7 @@ export default function UsersPage() {
       setUsers(res.data.data || []);
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -402,6 +418,23 @@ export default function UsersPage() {
     }
   };
 
+  const handleToggleStatus = async (user: UserListItem) => {
+    if (!isAuthenticated) {
+      openLoginDialog(() => handleToggleStatus(user));
+      return;
+    }
+    if (!isAdmin) return;
+
+    const newStatus = user.status === 1 ? 0 : 1;
+    try {
+      await updateUserStatus({ userId: user.id, status: newStatus });
+      toast.success(newStatus === 1 ? t.users.enable : t.users.disable);
+      fetchUsers();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t.common.loadFailed);
+    }
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "-";
     return new Date(dateStr).toLocaleString();
@@ -413,14 +446,14 @@ export default function UsersPage() {
       className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors"
     >
       <Plus className="w-4 h-4" />
-      添加用户
+      {t.users.addUser}
     </button>
   ) : null;
 
   return (
     <Layout>
       <div className="space-y-6">
-        <PageHeader title={t.nav.users} description="用户账户管理" actions={addButton} />
+        <PageHeader title={t.nav.users} description={t.users.pageDescription} actions={addButton} />
 
         {/* Users Table */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
@@ -434,13 +467,14 @@ export default function UsersPage() {
             <table className="w-full">
               <thead className="bg-[var(--background)]">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">用户</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">邮箱</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">角色</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">创建时间</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">最后登录</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.username}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.email}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.role}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.status}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.createdAt}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.lastLogin}</th>
                   {isAdmin && (
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">操作</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.common.action}</th>
                   )}
                 </tr>
               </thead>
@@ -471,11 +505,23 @@ export default function UsersPage() {
                           {config.label}
                         </span>
                       </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          user.status === 1
+                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                            : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                        }`}>
+                          {user.status === 1 ? t.users.statusActive : t.users.statusDisabled}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm text-secondary">
                         {formatDate(user.createdAt)}
                       </td>
                       <td className="px-4 py-3 text-sm text-secondary">
-                        {formatDate(user.lastLogin)}
+                        <div>{formatDate(user.lastLogin)}</div>
+                        {user.lastLoginIP && (
+                          <div className="text-xs text-muted">{user.lastLoginIP}</div>
+                        )}
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3">
@@ -483,17 +529,34 @@ export default function UsersPage() {
                             <button
                               onClick={() => handleEditRole(user)}
                               className="p-2 hover-bg rounded-lg"
-                              title="编辑角色"
+                              title={t.users.changeRole}
                             >
                               <Edit2 className="w-4 h-4 text-muted hover:text-primary" />
                             </button>
-                            <button
-                              onClick={() => handleDeleteUser(user)}
-                              className="p-2 hover-bg rounded-lg"
-                              title="删除用户"
-                            >
-                              <Trash2 className="w-4 h-4 text-muted hover:text-red-500" />
-                            </button>
+                            {/* admin 用户不可禁用 */}
+                            {user.username !== "admin" && (
+                              <button
+                                onClick={() => handleToggleStatus(user)}
+                                className="p-2 hover-bg rounded-lg"
+                                title={user.status === 1 ? t.users.disable : t.users.enable}
+                              >
+                                {user.status === 1 ? (
+                                  <PowerOff className="w-4 h-4 text-muted hover:text-yellow-500" />
+                                ) : (
+                                  <Power className="w-4 h-4 text-muted hover:text-green-500" />
+                                )}
+                              </button>
+                            )}
+                            {/* admin 用户不可删除 */}
+                            {user.username !== "admin" && (
+                              <button
+                                onClick={() => handleDeleteUser(user)}
+                                className="p-2 hover-bg rounded-lg"
+                                title={t.users.deleteUser}
+                              >
+                                <Trash2 className="w-4 h-4 text-muted hover:text-red-500" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -502,8 +565,8 @@ export default function UsersPage() {
                 })}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={isAdmin ? 6 : 5} className="px-4 py-12 text-center text-muted">
-                      暂无用户数据
+                    <td colSpan={isAdmin ? 7 : 6} className="px-4 py-12 text-center text-muted">
+                      {t.common.noData}
                     </td>
                   </tr>
                 )}
@@ -518,16 +581,19 @@ export default function UsersPage() {
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         onSuccess={fetchUsers}
+        t={t}
       />
       <EditRoleModal
         user={editUser}
         onClose={() => setEditUser(null)}
         onSuccess={fetchUsers}
+        t={t}
       />
       <DeleteUserModal
         user={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onSuccess={fetchUsers}
+        t={t}
       />
     </Layout>
   );

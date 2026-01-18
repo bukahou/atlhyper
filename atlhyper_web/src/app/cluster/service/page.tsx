@@ -105,6 +105,7 @@ function FilterBar({
   filters: { namespace: string; type: string; search: string };
   onFilterChange: (key: string, value: string) => void;
 }) {
+  const { t } = useI18n();
   const hasFilters = filters.namespace || filters.type || filters.search;
   const activeCount = [filters.namespace, filters.type, filters.search].filter(Boolean).length;
 
@@ -112,7 +113,7 @@ function FilterBar({
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
       <div className="flex items-center gap-2 mb-3">
         <Filter className="w-4 h-4 text-muted" />
-        <span className="text-sm font-medium text-default">筛选</span>
+        <span className="text-sm font-medium text-default">{t.common.filter}</span>
         {activeCount > 0 && (
           <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
             {activeCount}
@@ -128,7 +129,7 @@ function FilterBar({
             className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-default transition-colors"
           >
             <X className="w-3 h-3" />
-            清除全部
+            {t.common.clearAll}
           </button>
         )}
       </div>
@@ -137,21 +138,21 @@ function FilterBar({
           value={filters.search}
           onChange={(v) => onFilterChange("search", v)}
           onClear={() => onFilterChange("search", "")}
-          placeholder="搜索 Service 名称..."
+          placeholder={t.service.searchPlaceholder}
         />
         <FilterSelect
           value={filters.namespace}
           onChange={(v) => onFilterChange("namespace", v)}
           onClear={() => onFilterChange("namespace", "")}
-          placeholder="全部 Namespace"
+          placeholder={t.service.allNamespaces}
           options={namespaces.map((ns) => ({ value: ns, label: ns }))}
         />
         <FilterSelect
           value={filters.type}
           onChange={(v) => onFilterChange("type", v)}
           onClear={() => onFilterChange("type", "")}
-          placeholder="全部类型"
-          options={types.map((t) => ({ value: t, label: t }))}
+          placeholder={t.service.allTypes}
+          options={types.map((tp) => ({ value: tp, label: tp }))}
         />
       </div>
     </div>
@@ -181,7 +182,7 @@ export default function ServicePage() {
       const res = await getServiceOverview({ ClusterID: getCurrentClusterId() });
       setData(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -246,30 +247,30 @@ export default function ServicePage() {
     {
       key: "name",
       header: t.common.name,
-      render: (s) => <span className="font-medium text-default">{s.name}</span>,
+      render: (s) => <span className="font-medium text-default">{s.name || "-"}</span>,
     },
     { key: "namespace", header: t.common.namespace },
     {
       key: "type",
-      header: "Type",
-      render: (s) => <StatusBadge status={s.type} type={getTypeStatus(s.type)} />,
+      header: t.service.serviceType,
+      render: (s) => <StatusBadge status={s.type || "-"} type={getTypeStatus(s.type || "")} />,
     },
     {
       key: "clusterIP",
-      header: "Cluster IP",
-      render: (s) => <span className="font-mono text-sm">{s.clusterIP}</span>,
+      header: t.service.clusterIP,
+      render: (s) => <span className="font-mono text-sm">{s.clusterIP || "-"}</span>,
     },
     {
       key: "ports",
-      header: "Ports",
-      render: (s) => <span className="text-sm">{s.ports}</span>,
+      header: t.service.ports,
+      render: (s) => <span className="text-sm">{s.ports || "-"}</span>,
     },
     {
       key: "selector",
-      header: "Selector",
+      header: t.service.selector,
       render: (s) => (
-        <span className="text-xs text-muted truncate max-w-[150px] block" title={s.selector}>
-          {s.selector}
+        <span className="text-xs text-muted truncate max-w-[150px] block" title={s.selector || ""}>
+          {s.selector || "-"}
         </span>
       ),
     },
@@ -283,7 +284,7 @@ export default function ServicePage() {
             handleViewDetail(s);
           }}
           className="p-2 hover-bg rounded-lg"
-          title="查看详情"
+          title={t.service.viewDetails}
         >
           <Eye className="w-4 h-4 text-muted" />
         </button>
@@ -296,7 +297,7 @@ export default function ServicePage() {
       <div className="space-y-4">
         <PageHeader
           title={t.nav.service}
-          description="Service 资源监控与管理"
+          description={t.service.pageDescription}
           autoRefreshSeconds={intervalSeconds}
         />
 

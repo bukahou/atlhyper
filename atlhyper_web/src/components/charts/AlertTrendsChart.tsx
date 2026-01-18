@@ -1,19 +1,37 @@
 "use client";
 
-import { useEffect, useRef, memo } from "react";
+import { useEffect, useRef, memo, useMemo } from "react";
 import * as echarts from "echarts";
 
 interface AlertTrendPoint {
   ts: number;
-  critical: number;
-  warning: number;
-  info: number;
+  kinds: Record<string, number>; // 按资源类型统计: {"Pod": 5, "Node": 2}
 }
 
 interface AlertTrendsChartProps {
   series: AlertTrendPoint[];
   height?: string;
 }
+
+// 资源类型颜色配置
+const KIND_COLORS: Record<string, string> = {
+  Pod: "#F59E0B",           // Amber
+  Node: "#EF4444",          // Red
+  Deployment: "#3B82F6",    // Blue
+  StatefulSet: "#8B5CF6",   // Purple
+  DaemonSet: "#10B981",     // Emerald
+  ReplicaSet: "#6366F1",    // Indigo
+  Job: "#EC4899",           // Pink
+  CronJob: "#14B8A6",       // Teal
+  Service: "#F97316",       // Orange
+  Ingress: "#06B6D4",       // Cyan
+  PersistentVolumeClaim: "#84CC16", // Lime
+};
+
+// 获取 Kind 的颜色
+const getKindColor = (kind: string): string => {
+  return KIND_COLORS[kind] || "#9CA3AF"; // 默认灰色
+};
 
 // 使用 memo 避免不必要的重渲染
 export const AlertTrendsChart = memo(function AlertTrendsChart({
@@ -23,6 +41,26 @@ export const AlertTrendsChart = memo(function AlertTrendsChart({
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const isInitializedRef = useRef(false);
+
+  // 提取所有出现过的 Kind
+  const allKinds = useMemo(() => {
+    const kindsSet = new Set<string>();
+    for (const point of series) {
+      if (point.kinds) {
+        Object.keys(point.kinds).forEach((k) => kindsSet.add(k));
+      }
+    }
+    // 按预定义顺序排序，未定义的放最后
+    const predefinedOrder = Object.keys(KIND_COLORS);
+    return Array.from(kindsSet).sort((a, b) => {
+      const aIdx = predefinedOrder.indexOf(a);
+      const bIdx = predefinedOrder.indexOf(b);
+      if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
+      if (aIdx === -1) return 1;
+      if (bIdx === -1) return -1;
+      return aIdx - bIdx;
+    });
+  }, [series]);
 
   // 获取主题颜色
   const getThemeColors = () => {
@@ -50,7 +88,7 @@ export const AlertTrendsChart = memo(function AlertTrendsChart({
       animation: true,
       animationDuration: 300,
       animationEasing: "cubicOut",
-      grid: { left: 50, right: 16, top: 40, bottom: 30 },
+      grid: { left: 50, right: 16, top: 32, bottom: 30 },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "cross" },
@@ -58,19 +96,27 @@ export const AlertTrendsChart = memo(function AlertTrendsChart({
         borderColor: colors.tooltipBorder,
         textStyle: { color: colors.tooltipText },
         formatter: (params: unknown) => {
-          const items = params as { value: [number, number]; seriesName: string; marker: string }[];
+          const items = params as { value: [number, number]; marker: string; seriesName: string }[];
           if (!items?.length) return "";
           const dt = new Date(items[0].value[0]);
-          const time = `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
-          const total = items.reduce((s, it) => s + (Number(it.value[1]) || 0), 0);
-          const lines = items.map((it) => `${it.marker}${it.seriesName}: ${it.value[1]}`);
-          return `${time}  (total ${total})<br/>${lines.join("<br/>")}`;
+          const time = `${String(dt.getHours()).padStart(2, "0")}:00`;
+          let html = `<b>${time}</b>`;
+          for (const item of items) {
+            const count = item.value[1] || 0;
+            if (count > 0) {
+              html += `<br/>${item.marker} ${item.seriesName}: ${count}`;
+            }
+          }
+          return html;
         },
       },
       legend: {
-        top: 6,
-        data: ["Critical", "Warning", "Info"],
-        textStyle: { color: colors.textColor },
+        show: true,
+        top: 0,
+        right: 0,
+        itemWidth: 12,
+        itemHeight: 12,
+        textStyle: { color: colors.textColor, fontSize: 11 },
       },
       xAxis: {
         type: "time",
@@ -85,44 +131,7 @@ export const AlertTrendsChart = memo(function AlertTrendsChart({
         axisLine: { show: false },
         splitLine: { lineStyle: { color: colors.splitLineColor } },
       },
-      series: [
-        {
-          name: "Critical",
-          type: "line",
-          stack: "total",
-          areaStyle: { opacity: 0.6 },
-          showSymbol: false,
-          smooth: true,
-          lineStyle: { width: 2 },
-          emphasis: { focus: "series" },
-          data: [],
-          itemStyle: { color: "#EF4444" },
-        },
-        {
-          name: "Warning",
-          type: "line",
-          stack: "total",
-          areaStyle: { opacity: 0.6 },
-          showSymbol: false,
-          smooth: true,
-          lineStyle: { width: 2 },
-          emphasis: { focus: "series" },
-          data: [],
-          itemStyle: { color: "#F59E0B" },
-        },
-        {
-          name: "Info",
-          type: "line",
-          stack: "total",
-          areaStyle: { opacity: 0.6 },
-          showSymbol: false,
-          smooth: true,
-          lineStyle: { width: 2 },
-          emphasis: { focus: "series" },
-          data: [],
-          itemStyle: { color: "#3B82F6" },
-        },
-      ],
+      series: [],
     };
 
     chartInstance.current.setOption(baseOption);
@@ -170,27 +179,42 @@ export const AlertTrendsChart = memo(function AlertTrendsChart({
 
     const data = Array.isArray(series) ? series : [];
 
-    // 使用 setOption 平滑更新数据
-    chartInstance.current.setOption({
-      series: [
-        { data: data.map((p) => [p.ts, p.critical]) },
-        { data: data.map((p) => [p.ts, p.warning]) },
-        { data: data.map((p) => [p.ts, p.info]) },
-      ],
+    // 为每种 Kind 生成一个 series
+    const chartSeries = allKinds.map((kind) => {
+      const color = getKindColor(kind);
+      return {
+        name: kind,
+        type: "line" as const,
+        stack: "total", // 堆叠显示
+        areaStyle: { opacity: 0.4 },
+        showSymbol: false,
+        smooth: true,
+        lineStyle: { width: 1.5, color },
+        itemStyle: { color },
+        emphasis: { focus: "series" as const },
+        data: data.map((p) => [p.ts, p.kinds?.[kind] || 0]),
+      };
     });
-  }, [series]);
+
+    chartInstance.current.setOption({
+      series: chartSeries,
+    }, { replaceMerge: ["series"] });
+  }, [series, allKinds]);
 
   const hasData = series.length > 0;
 
+  // 图表高度 = 290px(总高) - 32px(padding) - 28px(标题) = 230px
+  const chartHeight = "230px";
+
   return (
-    <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
+    <div className="bg-card rounded-xl border border-[var(--border-color)] p-4 h-[290px]">
       <h3 className="text-base font-semibold text-default mb-2">Alert Trends</h3>
       {!hasData ? (
-        <div className="flex items-center justify-center text-muted" style={{ height }}>
+        <div className="flex items-center justify-center text-muted" style={{ height: chartHeight }}>
           No alert trend data available
         </div>
       ) : (
-        <div ref={chartRef} style={{ width: "100%", height }} />
+        <div ref={chartRef} style={{ width: "100%", height: chartHeight }} />
       )}
     </div>
   );

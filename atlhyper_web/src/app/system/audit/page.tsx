@@ -10,39 +10,33 @@ import type { AuditLogItem } from "@/types/auth";
 import type { AuditTranslations } from "@/types/i18n";
 import { UserRole } from "@/types/auth";
 
-// 角色标签配置
-const roleLabels: Record<number, string> = {
-  [UserRole.ADMIN]: "Admin",
-  [UserRole.OPERATOR]: "Operator",
-  [UserRole.VIEWER]: "Viewer",
-};
+// 获取角色标签
+function getRoleLabel(role: number, auditT: AuditTranslations): string {
+  if (role === 0) return auditT.roles.guest;
+  if (role === UserRole.VIEWER) return auditT.roles.viewer;
+  if (role === UserRole.OPERATOR) return auditT.roles.operator;
+  if (role === UserRole.ADMIN) return auditT.roles.admin;
+  return `Role ${role}`;
+}
 
-// API 路径到翻译 key 的映射
-type ActionKey = keyof AuditTranslations["actions"];
-const actionKeyMap: Record<string, ActionKey> = {
-  // 认证相关
-  "auth.login": "login",
-  "auto.uiapi/auth/login": "login",
-  // Pod 操作
-  "auto.uiapi/ops/pod/restart": "podRestart",
-  "auto.uiapi/ops/pod/logs": "podLogs",
-  // Node 操作
-  "auto.uiapi/ops/node/cordon": "nodeCordon",
-  "auto.uiapi/ops/node/uncordon": "nodeUncordon",
-  // Workload 操作
-  "auto.uiapi/ops/workload/scale": "deploymentScale",
-  "auto.uiapi/ops/workload/updateImage": "deploymentUpdateImage",
-  // 用户管理
-  "auto.uiapi/auth/user/register": "userRegister",
-  "auto.uiapi/auth/user/update-role": "userUpdateRole",
-  "auto.uiapi/auth/user/delete": "userDelete",
-  // 配置管理
-  "auto.uiapi/config/slack/update": "slackConfigUpdate",
-};
+// 获取资源标签
+function getResourceLabel(resource: string, auditT: AuditTranslations): string {
+  const key = resource as keyof typeof auditT.resources;
+  return auditT.resources[key] || resource;
+}
 
-// 获取操作的翻译 key
-function getActionKey(action: string): ActionKey {
-  return actionKeyMap[action] || "unknown";
+// 获取操作的显示标签
+function getActionLabel(action: string, resource: string, auditT: AuditTranslations): string {
+  // 构造 actionLabels 的键名，例如 login + user → loginUser
+  const labelKey = `${action}${resource.charAt(0).toUpperCase()}${resource.slice(1)}` as keyof typeof auditT.actionLabels;
+  const label = auditT.actionLabels[labelKey];
+  if (label) return label;
+
+  // 回退：显示 action + resource
+  const resourceName = getResourceLabel(resource, auditT);
+  const actionKey = action as keyof typeof auditT.actionNames;
+  const actionName = auditT.actionNames[actionKey] || action;
+  return `${actionName} ${resourceName}`;
 }
 
 // 单条审计记录组件
@@ -51,9 +45,9 @@ function AuditItem({ log, auditT }: { log: AuditLogItem; auditT: AuditTranslatio
     ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
     : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
 
-  const actionKey = getActionKey(log.action);
-  const actionLabel = auditT.actions[actionKey];
-  const roleLabel = roleLabels[log.role] || `Role ${log.role}`;
+  const actionLabel = getActionLabel(log.action, log.resource, auditT);
+  const roleLabel = getRoleLabel(log.role, auditT);
+  const resourceLabel = getResourceLabel(log.resource, auditT);
 
   return (
     <div className="flex gap-4">
@@ -83,6 +77,9 @@ function AuditItem({ log, auditT }: { log: AuditLogItem; auditT: AuditTranslatio
         <div className="flex items-center gap-2 mb-2">
           <Activity className="w-4 h-4 text-primary" />
           <span className="text-default font-medium">{actionLabel}</span>
+          <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+            {resourceLabel}
+          </span>
           {log.status > 0 && (
             <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${
               log.status >= 400 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"

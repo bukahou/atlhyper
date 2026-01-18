@@ -17,10 +17,12 @@ function NodeCard({
   node,
   onViewDetail,
   onToggleSchedulable,
+  t,
 }: {
   node: NodeItem;
   onViewDetail: () => void;
   onToggleSchedulable: () => void;
+  t: ReturnType<typeof useI18n>["t"];
 }) {
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-6">
@@ -29,21 +31,21 @@ function NodeCard({
           <h3 className="text-lg font-semibold text-default">{node.name}</h3>
           <div className="flex items-center gap-2 mt-1">
             <StatusBadge status={node.ready ? "Ready" : "NotReady"} />
-            <StatusBadge status={node.architecture} type="info" />
+            {node.architecture && <StatusBadge status={node.architecture} type="info" />}
             <StatusBadge
-              status={node.schedulable ? "Schedulable" : "Unschedulable"}
-              type={node.schedulable ? "success" : "warning"}
+              status={node.schedulable !== false ? "Schedulable" : "Unschedulable"}
+              type={node.schedulable !== false ? "success" : "warning"}
             />
           </div>
         </div>
         <div className="flex gap-1">
-          <button onClick={onViewDetail} className="p-2 hover-bg rounded-lg" title="查看详情">
+          <button onClick={onViewDetail} className="p-2 hover-bg rounded-lg" title={t.node.viewDetails}>
             <Eye className="w-4 h-4 text-muted" />
           </button>
           <button
             onClick={onToggleSchedulable}
             className="p-2 hover-bg rounded-lg"
-            title={node.schedulable ? "封锁节点" : "解封节点"}
+            title={node.schedulable ? t.node.cordon : t.node.uncordon}
           >
             {node.schedulable ? (
               <Shield className="w-4 h-4 text-muted" />
@@ -58,15 +60,15 @@ function NodeCard({
         <div className="flex items-center gap-2">
           <Cpu className="w-4 h-4 text-muted" />
           <div>
-            <p className="text-sm text-muted">CPU Cores</p>
-            <p className="font-medium">{node.cpuCores}</p>
+            <p className="text-sm text-muted">{t.node.cpuUsage}</p>
+            <p className="font-medium">{node.cpuCores ?? "-"}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <HardDrive className="w-4 h-4 text-muted" />
           <div>
-            <p className="text-sm text-muted">Memory</p>
-            <p className="font-medium">{node.memoryGiB.toFixed(1)} GiB</p>
+            <p className="text-sm text-muted">{t.node.memoryUsage}</p>
+            <p className="font-medium">{node.memoryGiB != null ? `${node.memoryGiB.toFixed(1)} GiB` : "-"}</p>
           </div>
         </div>
       </div>
@@ -74,11 +76,11 @@ function NodeCard({
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-muted">IP</span>
-          <span className="font-mono text-xs">{node.internalIP}</span>
+          <span className="font-mono text-xs">{node.internalIP || "-"}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted">OS</span>
-          <span>{node.osImage}</span>
+          <span>{node.osImage || "-"}</span>
         </div>
       </div>
     </div>
@@ -106,11 +108,11 @@ export default function NodePage() {
       const res = await getNodeOverview({ ClusterID: getCurrentClusterId() });
       setData(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t.common.loadFailed]);
 
   const { intervalSeconds } = useAutoRefresh(fetchData);
 
@@ -148,14 +150,14 @@ export default function NodePage() {
   return (
     <Layout>
       <div className="space-y-6">
-        <PageHeader title={t.nav.node} description="Node 资源监控与管理" autoRefreshSeconds={intervalSeconds} />
+        <PageHeader title={t.nav.node} description={t.node.pageDescription} autoRefreshSeconds={intervalSeconds} />
 
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatsCard label={t.common.total} value={data.cards.totalNodes} />
-            <StatsCard label="Ready" value={data.cards.readyNodes} iconColor="text-green-500" />
-            <StatsCard label="Total CPU" value={data.cards.totalCPU} iconColor="text-blue-500" />
-            <StatsCard label="Total Memory" value={`${data.cards.totalMemoryGiB.toFixed(1)} GiB`} iconColor="text-purple-500" />
+            <StatsCard label={t.common.total} value={data.cards.totalNodes ?? 0} />
+            <StatsCard label={t.status.ready} value={data.cards.readyNodes ?? 0} iconColor="text-green-500" />
+            <StatsCard label="Total CPU" value={data.cards.totalCPU ?? 0} iconColor="text-blue-500" />
+            <StatsCard label="Total Memory" value={data.cards.totalMemoryGiB != null ? `${data.cards.totalMemoryGiB.toFixed(1)} GiB` : "-"} iconColor="text-purple-500" />
           </div>
         )}
 
@@ -173,6 +175,7 @@ export default function NodePage() {
                 node={node}
                 onViewDetail={() => handleViewDetail(node)}
                 onToggleSchedulable={() => handleToggleSchedulable(node)}
+                t={t}
               />
             ))}
           </div>
@@ -193,14 +196,14 @@ export default function NodePage() {
         isOpen={!!blockTarget}
         onClose={() => setBlockTarget(null)}
         onConfirm={handleBlockConfirm}
-        title={blockTarget?.schedulable ? "确认封锁节点" : "确认解封节点"}
+        title={blockTarget?.schedulable ? t.node.cordonConfirmTitle : t.node.uncordonConfirmTitle}
         message={
           blockTarget?.schedulable
-            ? `确定要封锁节点 "${blockTarget?.name}" 吗？封锁后新的 Pod 将不会调度到此节点。`
-            : `确定要解封节点 "${blockTarget?.name}" 吗？解封后 Pod 可以调度到此节点。`
+            ? t.node.cordonConfirmMessage.replace("{name}", blockTarget?.name || "")
+            : t.node.uncordonConfirmMessage.replace("{name}", blockTarget?.name || "")
         }
-        confirmText={blockTarget?.schedulable ? "封锁" : "解封"}
-        cancelText="取消"
+        confirmText={blockTarget?.schedulable ? t.node.cordon : t.node.uncordon}
+        cancelText={t.common.cancel}
         loading={blockLoading}
         variant={blockTarget?.schedulable ? "warning" : "info"}
       />

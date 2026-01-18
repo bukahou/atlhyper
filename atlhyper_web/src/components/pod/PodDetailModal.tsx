@@ -5,7 +5,8 @@ import { Modal } from "@/components/common/Modal";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
 import { getPodDetail } from "@/api/pod";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
+import { useI18n } from "@/i18n/context";
 import type { PodDetail, PodContainerDetail, PodVolume } from "@/types/cluster";
 import {
   Box,
@@ -15,8 +16,6 @@ import {
   Settings,
   Cpu,
   MemoryStick,
-  Clock,
-  Server,
 } from "lucide-react";
 
 interface PodDetailModalProps {
@@ -36,28 +35,30 @@ export function PodDetailModal({
   podName,
   onViewLogs,
 }: PodDetailModalProps) {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<PodDetail | null>(null);
+  const { currentClusterId } = useClusterStore();
 
   const fetchDetail = useCallback(async () => {
-    if (!namespace || !podName) return;
+    if (!namespace || !podName || !currentClusterId) return;
     setLoading(true);
     setError("");
     try {
       const res = await getPodDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         PodName: podName,
       });
       setDetail(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, [namespace, podName]);
+  }, [namespace, podName, currentClusterId, t.common.loadFailed]);
 
   useEffect(() => {
     if (isOpen) {
@@ -67,11 +68,11 @@ export function PodDetailModal({
   }, [isOpen, fetchDetail]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: "overview", label: "概览", icon: <Box className="w-4 h-4" /> },
-    { key: "containers", label: "容器", icon: <Container className="w-4 h-4" /> },
-    { key: "volumes", label: "存储卷", icon: <HardDrive className="w-4 h-4" /> },
-    { key: "network", label: "网络", icon: <Network className="w-4 h-4" /> },
-    { key: "scheduling", label: "调度", icon: <Settings className="w-4 h-4" /> },
+    { key: "overview", label: t.pod.overview, icon: <Box className="w-4 h-4" /> },
+    { key: "containers", label: t.pod.containers, icon: <Container className="w-4 h-4" /> },
+    { key: "volumes", label: t.pod.volumeMounts, icon: <HardDrive className="w-4 h-4" /> },
+    { key: "network", label: t.pod.network, icon: <Network className="w-4 h-4" /> },
+    { key: "scheduling", label: t.pod.scheduling, icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (
@@ -109,13 +110,13 @@ export function PodDetailModal({
 
           {/* Tab Content */}
           <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} />}
+            {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
             {activeTab === "containers" && (
-              <ContainersTab containers={detail.containers} onViewLogs={onViewLogs} />
+              <ContainersTab containers={detail.containers} onViewLogs={onViewLogs} t={t} />
             )}
-            {activeTab === "volumes" && <VolumesTab volumes={detail.volumes || []} />}
-            {activeTab === "network" && <NetworkTab detail={detail} />}
-            {activeTab === "scheduling" && <SchedulingTab detail={detail} />}
+            {activeTab === "volumes" && <VolumesTab volumes={detail.volumes || []} t={t} />}
+            {activeTab === "network" && <NetworkTab detail={detail} t={t} />}
+            {activeTab === "scheduling" && <SchedulingTab detail={detail} t={t} />}
           </div>
         </div>
       ) : null}
@@ -124,25 +125,39 @@ export function PodDetailModal({
 }
 
 // 概览 Tab
-function OverviewTab({ detail }: { detail: PodDetail }) {
+function OverviewTab({ detail, t }: { detail: PodDetail; t: ReturnType<typeof useI18n>["t"] }) {
+  // 计算运行时间
+  const getAge = (startTime?: string) => {
+    if (!startTime) return "-";
+    const start = new Date(startTime);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffDays > 0) return `${diffDays}d${diffHours}h`;
+    if (diffHours > 0) return `${diffHours}h${diffMins}m`;
+    return `${diffMins}m`;
+  };
+
   const infoItems = [
-    { label: "命名空间", value: detail.namespace },
-    { label: "状态", value: <StatusBadge status={detail.phase} /> },
-    { label: "Ready", value: detail.ready },
-    { label: "重启次数", value: detail.restarts },
-    { label: "节点", value: detail.node },
-    { label: "Pod IP", value: detail.podIP || "-" },
-    { label: "QoS Class", value: detail.qosClass || "-" },
-    { label: "Age", value: detail.age || "-" },
-    { label: "Controller", value: detail.controller || "-" },
-    { label: "Service Account", value: detail.serviceAccountName || "-" },
+    { label: t.common.namespace, value: detail.namespace },
+    { label: t.common.status, value: <StatusBadge status={detail.phase} /> },
+    { label: t.pod.ready, value: detail.ready || "-" },
+    { label: t.pod.restartCount, value: detail.restarts ?? 0 },
+    { label: t.pod.node, value: detail.node || "-" },
+    { label: t.pod.ip, value: detail.podIP || "-" },
+    { label: t.pod.hostIP, value: detail.hostIP || "-" },
+    { label: t.pod.age, value: getAge(detail.startTime) },
+    { label: t.pod.controller, value: detail.controller || "-" },
   ];
 
   return (
     <div className="space-y-6">
       {/* 基本信息 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">基本信息</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.pod.basicInfo}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {infoItems.map((item) => (
             <div key={item.label} className="bg-[var(--background)] rounded-lg p-3">
@@ -156,27 +171,16 @@ function OverviewTab({ detail }: { detail: PodDetail }) {
       {/* 资源使用 */}
       {(detail.cpuUsage || detail.memUsage) && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">资源使用</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.pod.resourceUsage}</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-[var(--background)] rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Cpu className="w-4 h-4 text-orange-500" />
                 <span className="text-sm font-medium text-default">CPU</span>
               </div>
-              <div className="text-lg font-semibold text-default">
-                {detail.cpuUsage || "0"} / {detail.cpuLimit || "unlimited"}
+              <div className="text-2xl font-semibold text-default">
+                {detail.cpuUsage || "-"}
               </div>
-              {detail.cpuUtilPct !== undefined && (
-                <div className="mt-2">
-                  <div className="h-2 bg-[var(--border-color)] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-orange-500 transition-all duration-300"
-                      style={{ width: `${Math.min(detail.cpuUtilPct, 100)}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-muted mt-1">{detail.cpuUtilPct.toFixed(1)}%</div>
-                </div>
-              )}
             </div>
 
             <div className="bg-[var(--background)] rounded-lg p-4">
@@ -184,53 +188,40 @@ function OverviewTab({ detail }: { detail: PodDetail }) {
                 <MemoryStick className="w-4 h-4 text-green-500" />
                 <span className="text-sm font-medium text-default">Memory</span>
               </div>
-              <div className="text-lg font-semibold text-default">
-                {detail.memUsage || "0"} / {detail.memLimit || "unlimited"}
+              <div className="text-2xl font-semibold text-default">
+                {detail.memUsage || "-"}
               </div>
-              {detail.memUtilPct !== undefined && (
-                <div className="mt-2">
-                  <div className="h-2 bg-[var(--border-color)] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-500 transition-all duration-300"
-                      style={{ width: `${Math.min(detail.memUtilPct, 100)}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-muted mt-1">{detail.memUtilPct.toFixed(1)}%</div>
-                </div>
-              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Badges */}
-      {detail.badges && detail.badges.length > 0 && (
+      {/* 容器摘要 */}
+      {detail.containers && detail.containers.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">标签</h3>
-          <div className="flex flex-wrap gap-2">
-            {detail.badges.map((badge, i) => (
-              <span
-                key={i}
-                className="px-2 py-1 bg-primary/10 text-primary text-xs rounded"
+          <h3 className="text-sm font-semibold text-default mb-3">
+            {t.pod.containers} ({detail.containers.length})
+          </h3>
+          <div className="space-y-2">
+            {detail.containers.map((c) => (
+              <div
+                key={c.name}
+                className="bg-[var(--background)] rounded-lg p-3 flex items-center justify-between"
               >
-                {badge}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 状态消息 */}
-      {(detail.reason || detail.message) && (
-        <div>
-          <h3 className="text-sm font-semibold text-default mb-3">状态信息</h3>
-          <div className="bg-[var(--background)] rounded-lg p-4">
-            {detail.reason && (
-              <div className="text-sm text-yellow-600 dark:text-yellow-400 font-medium">
-                {detail.reason}
+                <div className="flex items-center gap-3">
+                  <Container className="w-4 h-4 text-muted" />
+                  <span className="text-sm font-medium text-default">{c.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {c.restartCount !== undefined && c.restartCount > 0 && (
+                    <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                      {t.pod.restartTimes.replace("{count}", String(c.restartCount))}
+                    </span>
+                  )}
+                  <StatusBadge status={c.state === "running" ? "Running" : c.state || "Unknown"} />
+                </div>
               </div>
-            )}
-            {detail.message && <div className="text-sm text-muted mt-1">{detail.message}</div>}
+            ))}
           </div>
         </div>
       )}
@@ -242,9 +233,11 @@ function OverviewTab({ detail }: { detail: PodDetail }) {
 function ContainersTab({
   containers,
   onViewLogs,
+  t,
 }: {
   containers: PodContainerDetail[];
   onViewLogs: (name: string) => void;
+  t: ReturnType<typeof useI18n>["t"];
 }) {
   return (
     <div className="space-y-4">
@@ -266,7 +259,7 @@ function ContainersTab({
               onClick={() => onViewLogs(container.name)}
               className="px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 rounded transition-colors"
             >
-              查看日志
+              {t.pod.viewLogs}
             </button>
           </div>
 
@@ -274,7 +267,7 @@ function ContainersTab({
           <div className="p-4 space-y-4">
             {/* 镜像 */}
             <div>
-              <div className="text-xs text-muted mb-1">镜像</div>
+              <div className="text-xs text-muted mb-1">{t.pod.image}</div>
               <div className="text-sm text-default font-mono bg-[var(--background)] px-2 py-1 rounded break-all">
                 {container.image}
               </div>
@@ -283,7 +276,7 @@ function ContainersTab({
             {/* 资源配置 */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-xs text-muted mb-1">Requests</div>
+                <div className="text-xs text-muted mb-1">{t.pod.requests}</div>
                 <div className="text-sm text-default">
                   {container.requests ? (
                     <div className="space-y-1">
@@ -299,7 +292,7 @@ function ContainersTab({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-muted mb-1">Limits</div>
+                <div className="text-xs text-muted mb-1">{t.pod.limits}</div>
                 <div className="text-sm text-default">
                   {container.limits ? (
                     <div className="space-y-1">
@@ -319,7 +312,7 @@ function ContainersTab({
             {/* 端口 */}
             {container.ports && container.ports.length > 0 && (
               <div>
-                <div className="text-xs text-muted mb-1">端口</div>
+                <div className="text-xs text-muted mb-1">{t.pod.ports}</div>
                 <div className="flex flex-wrap gap-2">
                   {container.ports.map((port, i) => (
                     <span
@@ -338,14 +331,14 @@ function ContainersTab({
             {container.restartCount !== undefined && container.restartCount > 0 && (
               <div className="flex items-center gap-4 text-sm">
                 <div>
-                  <span className="text-muted">重启次数: </span>
+                  <span className="text-muted">{t.pod.restartCount}: </span>
                   <span className="text-yellow-600 dark:text-yellow-400 font-medium">
                     {container.restartCount}
                   </span>
                 </div>
                 {container.lastTerminatedReason && (
                   <div>
-                    <span className="text-muted">上次终止原因: </span>
+                    <span className="text-muted">{t.pod.lastTerminatedReason}: </span>
                     <span className="text-default">{container.lastTerminatedReason}</span>
                   </div>
                 )}
@@ -359,9 +352,9 @@ function ContainersTab({
 }
 
 // 存储卷 Tab
-function VolumesTab({ volumes }: { volumes: PodVolume[] }) {
+function VolumesTab({ volumes, t }: { volumes: PodVolume[]; t: ReturnType<typeof useI18n>["t"] }) {
   if (volumes.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无存储卷</div>;
+    return <div className="text-center py-8 text-muted">{t.pod.noVolumes}</div>;
   }
 
   return (
@@ -386,13 +379,11 @@ function VolumesTab({ volumes }: { volumes: PodVolume[] }) {
 }
 
 // 网络 Tab
-function NetworkTab({ detail }: { detail: PodDetail }) {
+function NetworkTab({ detail, t }: { detail: PodDetail; t: ReturnType<typeof useI18n>["t"] }) {
   const networkItems = [
-    { label: "Pod IP", value: detail.podIP || "-" },
-    { label: "Host IP", value: detail.hostIP || "-" },
-    { label: "Host Network", value: detail.hostNetwork ? "是" : "否" },
-    { label: "DNS Policy", value: detail.dnsPolicy || "-" },
-    { label: "Service Account", value: detail.serviceAccountName || "-" },
+    { label: t.pod.ip, value: detail.podIP || "-" },
+    { label: t.pod.hostIP, value: detail.hostIP || "-" },
+    { label: t.pod.node, value: detail.node || "-" },
   ];
 
   return (
@@ -401,44 +392,36 @@ function NetworkTab({ detail }: { detail: PodDetail }) {
         {networkItems.map((item) => (
           <div key={item.label} className="bg-[var(--background)] rounded-lg p-3">
             <div className="text-xs text-muted mb-1">{item.label}</div>
-            <div className="text-sm text-default font-medium">{item.value}</div>
+            <div className="text-sm text-default font-medium font-mono">{item.value}</div>
           </div>
         ))}
       </div>
-
-      {/* Pod IPs */}
-      {detail.podIPs && detail.podIPs.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-default mb-3">Pod IPs</h3>
-          <div className="flex flex-wrap gap-2">
-            {detail.podIPs.map((ip, i) => (
-              <span
-                key={i}
-                className="px-3 py-1.5 bg-[var(--background)] text-sm font-mono rounded"
-              >
-                {ip}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 // 调度 Tab
-function SchedulingTab({ detail }: { detail: PodDetail }) {
+function SchedulingTab({ detail, t }: { detail: PodDetail; t: ReturnType<typeof useI18n>["t"] }) {
+  // 计算运行时间
+  const getAge = (startTime?: string) => {
+    if (!startTime) return "-";
+    const start = new Date(startTime);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffDays > 0) return `${diffDays}d${diffHours}h`;
+    if (diffHours > 0) return `${diffHours}h${diffMins}m`;
+    return `${diffMins}m`;
+  };
+
   const schedulingItems = [
-    { label: "节点", value: detail.node },
-    { label: "重启策略", value: detail.restartPolicy || "-" },
-    { label: "优先级类", value: detail.priorityClassName || "-" },
-    { label: "运行时类", value: detail.runtimeClassName || "-" },
-    {
-      label: "终止宽限期",
-      value: detail.terminationGracePeriodSeconds
-        ? `${detail.terminationGracePeriodSeconds}s`
-        : "-",
-    },
+    { label: t.pod.node, value: detail.node || "-" },
+    { label: t.pod.controller, value: detail.controller || "-" },
+    { label: t.common.createdAt, value: detail.startTime ? new Date(detail.startTime).toLocaleString() : "-" },
+    { label: t.pod.age, value: getAge(detail.startTime) },
   ];
 
   return (
@@ -451,31 +434,6 @@ function SchedulingTab({ detail }: { detail: PodDetail }) {
           </div>
         ))}
       </div>
-
-      {/* Node Selector */}
-      {detail.nodeSelector && Object.keys(detail.nodeSelector).length > 0 ? (
-        <div>
-          <h3 className="text-sm font-semibold text-default mb-3">Node Selector</h3>
-          <div className="bg-[var(--background)] rounded-lg p-4">
-            {Object.entries(detail.nodeSelector).map(([k, v]) => (
-              <div key={k} className="text-sm">
-                <span className="text-muted">{k}: </span>
-                <span className="text-default">{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* Tolerations */}
-      {Array.isArray(detail.tolerations) && detail.tolerations.length > 0 ? (
-        <div>
-          <h3 className="text-sm font-semibold text-default mb-3">Tolerations</h3>
-          <div className="bg-[var(--background)] rounded-lg p-4 text-sm font-mono overflow-x-auto">
-            <pre className="text-xs">{JSON.stringify(detail.tolerations, null, 2)}</pre>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

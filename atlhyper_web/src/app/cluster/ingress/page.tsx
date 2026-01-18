@@ -27,7 +27,7 @@ export default function IngressPage() {
       const res = await getIngressOverview({ ClusterID: getCurrentClusterId() });
       setData(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -42,42 +42,42 @@ export default function IngressPage() {
       render: (ing) => (
         <div className="flex items-center gap-2">
           <Globe className="w-4 h-4 text-primary" />
-          <span className="font-medium text-default">{ing.name}</span>
+          <span className="font-medium text-default">{ing.name || "-"}</span>
         </div>
       ),
     },
     { key: "namespace", header: t.common.namespace },
     {
       key: "host",
-      header: "Host",
+      header: t.ingress.host,
       render: (ing) => (
         <span className="inline-flex px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 rounded">
-          {ing.host}
+          {ing.host || "-"}
         </span>
       ),
     },
     {
       key: "path",
-      header: "Path",
-      render: (ing) => <span className="font-mono text-sm">{ing.path}</span>,
+      header: t.ingress.path,
+      render: (ing) => <span className="font-mono text-sm">{ing.path || "-"}</span>,
     },
     {
       key: "service",
-      header: "Service",
+      header: t.nav.service,
       render: (ing) => (
-        <span className="text-sm">{ing.serviceName}:{ing.servicePort}</span>
+        <span className="text-sm">{ing.serviceName || "-"}:{ing.servicePort || "-"}</span>
       ),
     },
     {
       key: "tls",
-      header: "TLS",
-      render: (ing) => ing.tls ? (
+      header: t.ingress.tls,
+      render: (ing) => ing.tls && ing.tls !== "-" ? (
         <div className="flex items-center gap-1 text-green-600">
           <Lock className="w-3 h-3" />
-          <span className="text-xs">Yes</span>
+          <span className="text-xs">{t.common.yes}</span>
         </div>
       ) : (
-        <span className="text-xs text-muted">No</span>
+        <span className="text-xs text-muted">{t.common.no}</span>
       ),
     },
     {
@@ -87,7 +87,7 @@ export default function IngressPage() {
         <button
           onClick={() => handleViewDetail(ing)}
           className="p-2 hover-bg rounded-lg"
-          title="查看详情"
+          title={t.ingress.viewDetails}
         >
           <Eye className="w-4 h-4 text-muted hover:text-primary" />
         </button>
@@ -106,17 +106,17 @@ export default function IngressPage() {
       <div className="space-y-6">
         <PageHeader
           title={t.nav.ingress}
-          description="Ingress 资源监控"
+          description={t.ingress.pageDescription}
           autoRefreshSeconds={intervalSeconds}
           onRefresh={refresh}
         />
 
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatsCard label={t.common.total} value={data.cards.totalIngresses} />
-            <StatsCard label="Hosts" value={data.cards.usedHosts} iconColor="text-blue-500" />
-            <StatsCard label="TLS Certs" value={data.cards.tlsCerts} iconColor="text-green-500" />
-            <StatsCard label="Paths" value={data.cards.totalPaths} iconColor="text-purple-500" />
+            <StatsCard label={t.common.total} value={data.cards.totalIngresses ?? 0} />
+            <StatsCard label={t.ingress.host} value={data.cards.usedHosts ?? 0} iconColor="text-blue-500" />
+            <StatsCard label={t.ingress.tls} value={data.cards.tlsCerts ?? 0} iconColor="text-green-500" />
+            <StatsCard label={t.ingress.path} value={data.cards.totalPaths ?? 0} iconColor="text-purple-500" />
           </div>
         )}
 

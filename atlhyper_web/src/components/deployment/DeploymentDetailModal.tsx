@@ -7,7 +7,8 @@ import { StatusBadge, ConfirmDialog } from "@/components/common";
 import { getDeploymentDetail, scaleDeployment, updateDeploymentImage } from "@/api/deployment";
 import { getCurrentClusterId } from "@/config/cluster";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import type { DeploymentDetail, DeploymentContainer } from "@/types/cluster";
+import { useI18n } from "@/i18n/context";
+import type { DeploymentDetail, DeploymentContainer, DeploymentReplicaSet, TolerationSpec, ProbeSpec } from "@/types/cluster";
 import {
   Layers,
   Box,
@@ -18,6 +19,14 @@ import {
   Edit2,
   Plus,
   Minus,
+  GitBranch,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Pause,
+  Activity,
+  Server,
 } from "lucide-react";
 
 interface DeploymentDetailModalProps {
@@ -28,7 +37,7 @@ interface DeploymentDetailModalProps {
   onUpdated?: () => void;
 }
 
-type TabType = "overview" | "containers" | "scale" | "labels";
+type TabType = "overview" | "containers" | "strategy" | "scheduling" | "replicasets" | "labels";
 
 export function DeploymentDetailModal({
   isOpen,
@@ -42,6 +51,7 @@ export function DeploymentDetailModal({
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<DeploymentDetail | null>(null);
   const requireAuth = useRequireAuth();
+  const { t } = useI18n();
 
   // 编辑状态
   const [editingImage, setEditingImage] = useState<{ containerName: string; oldImage: string; newImage: string } | null>(null);
@@ -61,7 +71,7 @@ export function DeploymentDetailModal({
       });
       setDetail(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.deployment.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -91,7 +101,6 @@ export function DeploymentDetailModal({
       });
       setEditingImage(null);
       setConfirmAction(null);
-      // 延迟刷新
       setTimeout(() => {
         fetchDetail();
         onUpdated?.();
@@ -117,7 +126,6 @@ export function DeploymentDetailModal({
       });
       setEditingReplicas(null);
       setConfirmAction(null);
-      // 延迟刷新
       setTimeout(() => {
         fetchDetail();
         onUpdated?.();
@@ -130,10 +138,12 @@ export function DeploymentDetailModal({
   };
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: "overview", label: "概览", icon: <Layers className="w-4 h-4" /> },
-    { key: "containers", label: "容器", icon: <Box className="w-4 h-4" /> },
-    { key: "scale", label: "扩缩容", icon: <Settings className="w-4 h-4" /> },
-    { key: "labels", label: "标签", icon: <Tag className="w-4 h-4" /> },
+    { key: "overview", label: t.deployment.overview, icon: <Layers className="w-4 h-4" /> },
+    { key: "containers", label: t.deployment.containers, icon: <Box className="w-4 h-4" /> },
+    { key: "strategy", label: t.deployment.strategy, icon: <Settings className="w-4 h-4" /> },
+    { key: "scheduling", label: t.deployment.scheduling, icon: <Server className="w-4 h-4" /> },
+    { key: "replicasets", label: t.deployment.replicaSets, icon: <GitBranch className="w-4 h-4" /> },
+    { key: "labels", label: t.deployment.labels, icon: <Tag className="w-4 h-4" /> },
   ];
 
   return (
@@ -148,12 +158,12 @@ export function DeploymentDetailModal({
         ) : detail ? (
           <div className="flex flex-col h-[70vh]">
             {/* Tabs */}
-            <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
+            <div className="flex border-b border-[var(--border-color)] px-4 shrink-0 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab.key
                       ? "border-primary text-primary"
                       : "border-transparent text-muted hover:text-default"
@@ -167,7 +177,17 @@ export function DeploymentDetailModal({
 
             {/* Tab Content */}
             <div className="flex-1 overflow-auto p-6">
-              {activeTab === "overview" && <OverviewTab detail={detail} />}
+              {activeTab === "overview" && (
+                <OverviewTab
+                  detail={detail}
+                  editingReplicas={editingReplicas}
+                  onStartEdit={() => requireAuth(() => setEditingReplicas(detail.spec?.replicas ?? detail.replicas))}
+                  onReplicasChange={setEditingReplicas}
+                  onCancelEdit={() => setEditingReplicas(null)}
+                  onSave={() => setConfirmAction("scale")}
+                  t={t}
+                />
+              )}
               {activeTab === "containers" && (
                 <ContainersTab
                   containers={detail.template?.containers || []}
@@ -180,22 +200,14 @@ export function DeploymentDetailModal({
                   }
                   onCancelEdit={() => setEditingImage(null)}
                   onSaveImage={() => setConfirmAction("image")}
+                  t={t}
                 />
               )}
-              {activeTab === "scale" && (
-                <ScaleTab
-                  currentReplicas={detail.spec?.replicas ?? detail.replicas}
-                  readyReplicas={detail.ready}
-                  availableReplicas={detail.available}
-                  editingReplicas={editingReplicas}
-                  onStartEdit={() => requireAuth(() => setEditingReplicas(detail.spec?.replicas ?? detail.replicas))}
-                  onReplicasChange={setEditingReplicas}
-                  onCancelEdit={() => setEditingReplicas(null)}
-                  onSave={() => setConfirmAction("scale")}
-                />
-              )}
+              {activeTab === "strategy" && <StrategyTab detail={detail} t={t} />}
+              {activeTab === "scheduling" && <SchedulingTab detail={detail} t={t} />}
+              {activeTab === "replicasets" && <ReplicaSetsTab replicaSets={detail.replicaSets || []} t={t} />}
               {activeTab === "labels" && (
-                <LabelsTab labels={detail.labels || {}} annotations={detail.annotations || {}} />
+                <LabelsTab labels={detail.labels || {}} annotations={detail.annotations || {}} t={t} />
               )}
             </div>
           </div>
@@ -207,14 +219,17 @@ export function DeploymentDetailModal({
         isOpen={confirmAction === "image"}
         onClose={() => setConfirmAction(null)}
         onConfirm={handleUpdateImage}
-        title="确认更新镜像"
+        title={t.deployment.confirmUpdateImage}
         message={
           editingImage
-            ? `确定要将容器 "${editingImage.containerName}" 的镜像从 "${editingImage.oldImage}" 更新为 "${editingImage.newImage}" 吗？这将触发滚动更新。`
+            ? t.deployment.confirmUpdateImageMessage
+                .replace("{containerName}", editingImage.containerName)
+                .replace("{oldImage}", editingImage.oldImage)
+                .replace("{newImage}", editingImage.newImage)
             : ""
         }
-        confirmText="更新"
-        cancelText="取消"
+        confirmText={t.common.update}
+        cancelText={t.common.cancel}
         loading={saving}
         variant="warning"
       />
@@ -224,14 +239,16 @@ export function DeploymentDetailModal({
         isOpen={confirmAction === "scale"}
         onClose={() => setConfirmAction(null)}
         onConfirm={handleUpdateReplicas}
-        title="确认扩缩容"
+        title={t.deployment.confirmScale}
         message={
           detail && editingReplicas !== null
-            ? `确定要将副本数从 ${detail.spec?.replicas ?? detail.replicas} 调整为 ${editingReplicas} 吗？`
+            ? t.deployment.confirmScaleMessage
+                .replace("{from}", String(detail.spec?.replicas ?? detail.replicas))
+                .replace("{to}", String(editingReplicas))
             : ""
         }
-        confirmText="确认"
-        cancelText="取消"
+        confirmText={t.common.confirm}
+        cancelText={t.common.cancel}
         loading={saving}
         variant="info"
       />
@@ -240,68 +257,172 @@ export function DeploymentDetailModal({
 }
 
 // 概览 Tab
-function OverviewTab({ detail }: { detail: DeploymentDetail }) {
-  const infoItems = [
-    { label: "名称", value: detail.name },
-    { label: "命名空间", value: detail.namespace },
-    { label: "副本", value: `${detail.ready}/${detail.replicas}` },
-    { label: "策略", value: detail.strategy || detail.spec?.strategyType || "-" },
-    { label: "Ready", value: detail.ready },
-    { label: "Available", value: detail.available },
-    { label: "暂停", value: detail.paused ? "是" : "否" },
-    { label: "Age", value: detail.age || "-" },
-    { label: "创建时间", value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
-  ];
+function OverviewTab({
+  detail,
+  editingReplicas,
+  onStartEdit,
+  onReplicasChange,
+  onCancelEdit,
+  onSave,
+  t,
+}: {
+  detail: DeploymentDetail;
+  editingReplicas: number | null;
+  onStartEdit: () => void;
+  onReplicasChange: (n: number) => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  t: ReturnType<typeof useI18n>["t"];
+}) {
+  const isEditing = editingReplicas !== null;
+  const replicas = editingReplicas ?? detail.replicas;
 
   return (
     <div className="space-y-6">
-      {/* 基本信息 */}
-      <div>
-        <h3 className="text-sm font-semibold text-default mb-3">基本信息</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {infoItems.map((item) => (
-            <div key={item.label} className="bg-[var(--background)] rounded-lg p-3">
-              <div className="text-xs text-muted mb-1">{item.label}</div>
-              <div className="text-sm text-default font-medium">{item.value}</div>
-            </div>
+      {/* Rollout 状态徽标 */}
+      {detail.rollout && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {detail.rollout.badges?.map((badge, i) => (
+            <RolloutBadge key={i} badge={badge} />
           ))}
+          {detail.paused && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 text-xs rounded">
+              <Pause className="w-3 h-3" /> {t.deployment.paused}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 副本状态卡片 */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-[var(--background)] rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-default">{detail.replicas}</div>
+          <div className="text-xs text-muted mt-1">{t.deployment.desired}</div>
+        </div>
+        <div className="bg-[var(--background)] rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-green-500">{detail.ready}</div>
+          <div className="text-xs text-muted mt-1">{t.deployment.ready}</div>
+        </div>
+        <div className="bg-[var(--background)] rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-blue-500">{detail.available}</div>
+          <div className="text-xs text-muted mt-1">{t.deployment.available}</div>
+        </div>
+        <div className="bg-[var(--background)] rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-orange-500">{detail.updated}</div>
+          <div className="text-xs text-muted mt-1">{t.deployment.updated}</div>
         </div>
       </div>
 
-      {/* 策略详情 */}
-      {(detail.spec?.maxUnavailable || detail.spec?.maxSurge) && (
-        <div>
-          <h3 className="text-sm font-semibold text-default mb-3">滚动更新策略</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-[var(--background)] rounded-lg p-3">
-              <div className="text-xs text-muted mb-1">MaxUnavailable</div>
-              <div className="text-sm text-default font-medium">{detail.spec?.maxUnavailable || "-"}</div>
-            </div>
-            <div className="bg-[var(--background)] rounded-lg p-3">
-              <div className="text-xs text-muted mb-1">MaxSurge</div>
-              <div className="text-sm text-default font-medium">{detail.spec?.maxSurge || "-"}</div>
-            </div>
+      {/* 扩缩容 */}
+      <div className="bg-[var(--background)] rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.adjustReplicas}</h3>
+        {isEditing ? (
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => onReplicasChange(Math.max(0, replicas - 1))}
+              className="p-2 bg-card hover:bg-[var(--border-color)] rounded-lg"
+            >
+              <Minus className="w-5 h-5" />
+            </button>
+            <input
+              type="number"
+              min="0"
+              value={replicas}
+              onChange={(e) => onReplicasChange(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-20 px-3 py-2 text-center text-xl font-bold bg-card border border-[var(--border-color)] rounded-lg"
+            />
+            <button
+              onClick={() => onReplicasChange(replicas + 1)}
+              className="p-2 bg-card hover:bg-[var(--border-color)] rounded-lg"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onSave}
+              disabled={replicas === detail.replicas}
+              className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+            </button>
+            <button onClick={onCancelEdit} className="px-3 py-2 hover-bg rounded-lg">
+              <X className="w-4 h-4 text-muted" />
+            </button>
           </div>
+        ) : (
+          <button
+            onClick={onStartEdit}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center gap-2"
+          >
+            <Edit2 className="w-4 h-4" />
+            {t.deployment.adjustReplicas}
+          </button>
+        )}
+      </div>
+
+      {/* 基本信息 */}
+      <div>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.basicInfo}</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <InfoCard label={t.common.name} value={detail.name} />
+          <InfoCard label={t.common.namespace} value={detail.namespace} />
+          <InfoCard label={t.deployment.strategy} value={detail.strategy || "-"} />
+          <InfoCard label={t.deployment.age} value={detail.age || "-"} />
+          <InfoCard label={t.deployment.selector} value={detail.selector || "-"} />
+          <InfoCard label={t.common.createdAt} value={detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-"} />
         </div>
-      )}
+      </div>
 
       {/* Conditions */}
       {detail.conditions && detail.conditions.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">Conditions</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.conditions}</h3>
           <div className="space-y-2">
             {detail.conditions.map((cond, i) => (
               <div key={i} className="bg-[var(--background)] rounded-lg p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={cond.type} type={cond.status === "True" ? "success" : "warning"} />
-                  {cond.reason && <span className="text-sm text-muted">{cond.reason}</span>}
+                  {cond.status === "True" ? (
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                  ) : cond.status === "False" ? (
+                    <XCircle className="w-4 h-4 text-gray-400" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                  )}
+                  <span className="font-medium text-default">{cond.type}</span>
+                  {cond.reason && <span className="text-sm text-muted">({cond.reason})</span>}
                 </div>
-                <span className="text-xs text-muted">{cond.status}</span>
+                <StatusBadge status={cond.status} type={cond.status === "True" ? "success" : "warning"} />
               </div>
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Rollout 徽标组件
+function RolloutBadge({ badge }: { badge: string }) {
+  const config: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+    Available: { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-600 dark:text-green-400", icon: <CheckCircle className="w-3 h-3" /> },
+    Progressing: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-600 dark:text-blue-400", icon: <Activity className="w-3 h-3" /> },
+    Failed: { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-600 dark:text-red-400", icon: <XCircle className="w-3 h-3" /> },
+    ReplicaFailure: { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-600 dark:text-red-400", icon: <AlertTriangle className="w-3 h-3" /> },
+    Paused: { bg: "bg-yellow-100 dark:bg-yellow-900/30", text: "text-yellow-600 dark:text-yellow-400", icon: <Pause className="w-3 h-3" /> },
+  };
+  const c = config[badge] || { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-600 dark:text-gray-400", icon: null };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 ${c.bg} ${c.text} text-xs rounded`}>
+      {c.icon} {badge}
+    </span>
+  );
+}
+
+// 信息卡片组件
+function InfoCard({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="bg-[var(--background)] rounded-lg p-3">
+      <div className="text-xs text-muted mb-1">{label}</div>
+      <div className="text-sm text-default font-medium break-all">{value}</div>
     </div>
   );
 }
@@ -314,6 +435,7 @@ function ContainersTab({
   onImageChange,
   onCancelEdit,
   onSaveImage,
+  t,
 }: {
   containers: DeploymentContainer[];
   editingImage: { containerName: string; oldImage: string; newImage: string } | null;
@@ -321,9 +443,10 @@ function ContainersTab({
   onImageChange: (newImage: string) => void;
   onCancelEdit: () => void;
   onSaveImage: () => void;
+  t: ReturnType<typeof useI18n>["t"];
 }) {
   if (!containers || containers.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无容器信息</div>;
+    return <div className="text-center py-8 text-muted">{t.deployment.noContainers}</div>;
   }
 
   return (
@@ -332,46 +455,35 @@ function ContainersTab({
         <div key={container.name} className="bg-[var(--background)] rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-medium text-default">{container.name}</h4>
-            {container.imagePullPolicy && (
-              <StatusBadge status={container.imagePullPolicy} type="info" />
-            )}
+            {container.imagePullPolicy && <StatusBadge status={container.imagePullPolicy} type="info" />}
           </div>
 
           {/* 镜像 */}
           <div className="mb-4">
-            <div className="text-xs text-muted mb-1">镜像</div>
+            <div className="text-xs text-muted mb-1">{t.deployment.image}</div>
             {editingImage?.containerName === container.name ? (
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={editingImage.newImage}
                   onChange={(e) => onImageChange(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-card border border-[var(--border-color)] rounded-lg text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="flex-1 px-3 py-2 bg-card border border-[var(--border-color)] rounded-lg text-sm"
                 />
                 <button
                   onClick={onSaveImage}
                   disabled={editingImage.newImage === editingImage.oldImage}
-                  className="p-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="保存"
+                  className="p-2 bg-primary text-white rounded-lg disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={onCancelEdit}
-                  className="p-2 hover-bg rounded-lg"
-                  title="取消"
-                >
+                <button onClick={onCancelEdit} className="p-2 hover-bg rounded-lg">
                   <X className="w-4 h-4 text-muted" />
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-sm font-mono text-default break-all">{container.image}</span>
-                <button
-                  onClick={() => onEditImage(container.name, container.image)}
-                  className="p-1.5 hover-bg rounded-lg shrink-0"
-                  title="编辑镜像"
-                >
+                <button onClick={() => onEditImage(container.name, container.image)} className="p-1.5 hover-bg rounded-lg shrink-0">
                   <Edit2 className="w-3.5 h-3.5 text-muted" />
                 </button>
               </div>
@@ -381,11 +493,11 @@ function ContainersTab({
           {/* 端口 */}
           {container.ports && container.ports.length > 0 && (
             <div className="mb-3">
-              <div className="text-xs text-muted mb-1">端口</div>
+              <div className="text-xs text-muted mb-1">{t.deployment.ports}</div>
               <div className="flex flex-wrap gap-2">
                 {container.ports.map((port, i) => (
                   <span key={i} className="px-2 py-1 bg-card rounded text-xs font-mono">
-                    {port.containerPort}/{port.protocol}
+                    {port.containerPort}/{port.protocol || "TCP"}
                     {port.name && ` (${port.name})`}
                   </span>
                 ))}
@@ -395,15 +507,14 @@ function ContainersTab({
 
           {/* 资源限制 */}
           {(container.requests || container.limits) && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 mb-3">
               {container.requests && Object.keys(container.requests).length > 0 && (
                 <div>
                   <div className="text-xs text-muted mb-1">Requests</div>
                   <div className="space-y-1">
                     {Object.entries(container.requests).map(([k, v]) => (
                       <div key={k} className="text-xs">
-                        <span className="text-muted">{k}:</span>{" "}
-                        <span className="font-mono">{v}</span>
+                        <span className="text-muted">{k}:</span> <span className="font-mono">{v}</span>
                       </div>
                     ))}
                   </div>
@@ -415,8 +526,7 @@ function ContainersTab({
                   <div className="space-y-1">
                     {Object.entries(container.limits).map(([k, v]) => (
                       <div key={k} className="text-xs">
-                        <span className="text-muted">{k}:</span>{" "}
-                        <span className="font-mono">{v}</span>
+                        <span className="text-muted">{k}:</span> <span className="font-mono">{v}</span>
                       </div>
                     ))}
                   </div>
@@ -424,131 +534,271 @@ function ContainersTab({
               )}
             </div>
           )}
+
+          {/* 探针 */}
+          <ProbesDisplay
+            liveness={container.livenessProbe}
+            readiness={container.readinessProbe}
+            startup={container.startupProbe}
+            t={t}
+          />
+
+          {/* 环境变量 */}
+          {container.envs && container.envs.length > 0 && (
+            <details className="mt-3">
+              <summary className="text-xs text-muted cursor-pointer">{t.deployment.envVars} ({container.envs.length})</summary>
+              <div className="mt-2 space-y-1">
+                {container.envs.map((env, i) => (
+                  <div key={i} className="text-xs font-mono bg-card px-2 py-1 rounded">
+                    <span className="text-primary">{env.name}</span>
+                    <span className="text-muted">=</span>
+                    <span className="text-default">{env.value || env.valueFrom || '""'}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* 挂载 */}
+          {container.volumeMounts && container.volumeMounts.length > 0 && (
+            <details className="mt-3">
+              <summary className="text-xs text-muted cursor-pointer">{t.deployment.volumeMounts} ({container.volumeMounts.length})</summary>
+              <div className="mt-2 space-y-1">
+                {container.volumeMounts.map((vm, i) => (
+                  <div key={i} className="text-xs font-mono bg-card px-2 py-1 rounded flex justify-between">
+                    <span className="text-primary">{vm.name}</span>
+                    <span className="text-default">{vm.mountPath}</span>
+                    {vm.readOnly && <span className="text-muted">(ro)</span>}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       ))}
     </div>
   );
 }
 
-// 扩缩容 Tab
-function ScaleTab({
-  currentReplicas,
-  readyReplicas,
-  availableReplicas,
-  editingReplicas,
-  onStartEdit,
-  onReplicasChange,
-  onCancelEdit,
-  onSave,
-}: {
-  currentReplicas: number;
-  readyReplicas: number;
-  availableReplicas: number;
-  editingReplicas: number | null;
-  onStartEdit: () => void;
-  onReplicasChange: (replicas: number) => void;
-  onCancelEdit: () => void;
-  onSave: () => void;
-}) {
-  const isEditing = editingReplicas !== null;
-  const replicas = editingReplicas ?? currentReplicas;
+// 探针显示组件
+function ProbesDisplay({ liveness, readiness, startup, t }: { liveness?: ProbeSpec; readiness?: ProbeSpec; startup?: ProbeSpec; t: ReturnType<typeof useI18n>["t"] }) {
+  const probes = [
+    { name: "Liveness", probe: liveness },
+    { name: "Readiness", probe: readiness },
+    { name: "Startup", probe: startup },
+  ].filter((p) => p.probe);
+
+  if (probes.length === 0) return null;
 
   return (
-    <div className="space-y-6">
-      {/* 当前状态 */}
-      <div>
-        <h3 className="text-sm font-semibold text-default mb-3">当前状态</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-[var(--background)] rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-default">{currentReplicas}</div>
-            <div className="text-xs text-muted mt-1">期望副本</div>
-          </div>
-          <div className="bg-[var(--background)] rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-green-500">{readyReplicas}</div>
-            <div className="text-xs text-muted mt-1">就绪</div>
-          </div>
-          <div className="bg-[var(--background)] rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-blue-500">{availableReplicas}</div>
-            <div className="text-xs text-muted mt-1">可用</div>
-          </div>
-        </div>
-      </div>
-
-      {/* 调整副本数 */}
-      <div>
-        <h3 className="text-sm font-semibold text-default mb-3">调整副本数</h3>
-        <div className="bg-[var(--background)] rounded-lg p-6">
-          {isEditing ? (
-            <div className="space-y-4">
-              {/* 上下布局的调整控件 */}
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={() => onReplicasChange(replicas + 1)}
-                  className="p-3 bg-card hover:bg-[var(--border-color)] rounded-lg transition-colors w-24"
-                >
-                  <Plus className="w-5 h-5 mx-auto" />
-                </button>
-                <input
-                  type="number"
-                  min="0"
-                  value={replicas}
-                  onChange={(e) => onReplicasChange(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="w-24 px-4 py-3 text-center text-2xl font-bold bg-card border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <button
-                  onClick={() => onReplicasChange(Math.max(0, replicas - 1))}
-                  className="p-3 bg-card hover:bg-[var(--border-color)] rounded-lg transition-colors w-24"
-                >
-                  <Minus className="w-5 h-5 mx-auto" />
-                </button>
-              </div>
-
-              {replicas !== currentReplicas && (
-                <div className="text-center text-sm text-muted">
-                  {replicas > currentReplicas
-                    ? `将增加 ${replicas - currentReplicas} 个副本`
-                    : `将减少 ${currentReplicas - replicas} 个副本`}
-                </div>
-              )}
-
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  onClick={onSave}
-                  disabled={replicas === currentReplicas}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  保存
-                </button>
-                <button
-                  onClick={onCancelEdit}
-                  className="px-4 py-2 bg-card hover:bg-[var(--border-color)] rounded-lg flex items-center gap-2"
-                >
-                  <X className="w-4 h-4" />
-                  取消
-                </button>
-              </div>
+    <div className="mt-3">
+      <div className="text-xs text-muted mb-2">{t.deployment.probes}</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        {probes.map(({ name, probe }) => (
+          <div key={name} className="bg-card rounded p-2">
+            <div className="text-xs font-medium text-default mb-1">{name}</div>
+            <div className="text-xs text-muted">
+              {probe!.type === "httpGet" && `HTTP GET ${probe!.path || "/"}:${probe!.port}`}
+              {probe!.type === "tcpSocket" && `TCP :${probe!.port}`}
+              {probe!.type === "exec" && `Exec: ${probe!.command}`}
             </div>
-          ) : (
-            <div className="text-center">
-              <div className="text-4xl font-bold text-default mb-4">{currentReplicas}</div>
-              <button
-                onClick={onStartEdit}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center gap-2 mx-auto"
-              >
-                <Edit2 className="w-4 h-4" />
-                调整副本数
-              </button>
+            <div className="text-xs text-muted mt-1">
+              delay={probe!.initialDelaySeconds || 0}s period={probe!.periodSeconds || 10}s
             </div>
-          )}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
+// 策略 Tab
+function StrategyTab({ detail, t }: { detail: DeploymentDetail; t: ReturnType<typeof useI18n>["t"] }) {
+  const spec = detail.spec;
+  return (
+    <div className="space-y-6">
+      {/* 更新策略 */}
+      <div>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.updateStrategy}</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <InfoCard label={t.deployment.strategyType} value={spec?.strategyType || detail.strategy || "-"} />
+          <InfoCard label="MaxUnavailable" value={spec?.maxUnavailable || "-"} />
+          <InfoCard label="MaxSurge" value={spec?.maxSurge || "-"} />
+        </div>
+      </div>
+
+      {/* 其他配置 */}
+      <div>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.otherConfig}</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <InfoCard label="MinReadySeconds" value={spec?.minReadySeconds ?? 0} />
+          <InfoCard label="RevisionHistoryLimit" value={spec?.revisionHistoryLimit ?? 10} />
+          <InfoCard label="ProgressDeadlineSeconds" value={spec?.progressDeadlineSeconds ?? 600} />
+        </div>
+      </div>
+
+      {/* 选择器 */}
+      {spec?.matchLabels && Object.keys(spec.matchLabels).length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.selector}</h3>
+          <div className="space-y-2">
+            {Object.entries(spec.matchLabels).map(([k, v]) => (
+              <div key={k} className="bg-[var(--background)] rounded-lg p-3 flex items-start gap-2">
+                <span className="text-sm font-mono text-primary">{k}</span>
+                <span className="text-muted">=</span>
+                <span className="text-sm font-mono text-default">{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 调度 Tab
+function SchedulingTab({ detail, t }: { detail: DeploymentDetail; t: ReturnType<typeof useI18n>["t"] }) {
+  const template = detail.template;
+  return (
+    <div className="space-y-6">
+      {/* 基本调度配置 */}
+      <div>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.schedulingConfig}</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <InfoCard label="ServiceAccount" value={template?.serviceAccountName || "default"} />
+          <InfoCard label="RuntimeClass" value={template?.runtimeClassName || "-"} />
+          <InfoCard label="DNSPolicy" value={template?.dnsPolicy || "ClusterFirst"} />
+          <InfoCard label={t.deployment.hostNetwork} value={template?.hostNetwork ? t.common.yes : t.common.no} />
+        </div>
+      </div>
+
+      {/* NodeSelector */}
+      {template?.nodeSelector && Object.keys(template.nodeSelector).length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-default mb-3">NodeSelector</h3>
+          <div className="space-y-2">
+            {Object.entries(template.nodeSelector).map(([k, v]) => (
+              <div key={k} className="bg-[var(--background)] rounded-lg p-3 flex items-start gap-2">
+                <span className="text-sm font-mono text-primary">{k}</span>
+                <span className="text-muted">=</span>
+                <span className="text-sm font-mono text-default">{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tolerations */}
+      {template?.tolerations && template.tolerations.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-default mb-3">Tolerations</h3>
+          <div className="space-y-2">
+            {template.tolerations.map((tol: TolerationSpec, i: number) => (
+              <div key={i} className="bg-[var(--background)] rounded-lg p-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {tol.key && <span className="text-sm font-mono text-primary">{tol.key}</span>}
+                  {tol.operator && <span className="text-xs text-muted">{tol.operator}</span>}
+                  {tol.value && <span className="text-sm font-mono text-default">{tol.value}</span>}
+                  {tol.effect && (
+                    <span className="px-2 py-0.5 bg-card text-xs rounded">{tol.effect}</span>
+                  )}
+                  {tol.tolerationSeconds !== undefined && (
+                    <span className="text-xs text-muted">({tol.tolerationSeconds}s)</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Affinity */}
+      {template?.affinity && (
+        <div>
+          <h3 className="text-sm font-semibold text-default mb-3">Affinity</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {template.affinity.nodeAffinity && <InfoCard label="NodeAffinity" value={template.affinity.nodeAffinity} />}
+            {template.affinity.podAffinity && <InfoCard label="PodAffinity" value={template.affinity.podAffinity} />}
+            {template.affinity.podAntiAffinity && <InfoCard label="PodAntiAffinity" value={template.affinity.podAntiAffinity} />}
+          </div>
+        </div>
+      )}
+
+      {/* ImagePullSecrets */}
+      {template?.imagePullSecrets && template.imagePullSecrets.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-default mb-3">ImagePullSecrets</h3>
+          <div className="flex flex-wrap gap-2">
+            {template.imagePullSecrets.map((s, i) => (
+              <span key={i} className="px-2 py-1 bg-[var(--background)] text-sm font-mono rounded">{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 副本集 Tab
+function ReplicaSetsTab({ replicaSets, t }: { replicaSets: DeploymentReplicaSet[]; t: ReturnType<typeof useI18n>["t"] }) {
+  if (replicaSets.length === 0) {
+    return <div className="text-center py-8 text-muted">{t.deployment.noReplicaSets}</div>;
+  }
+
+  // 按 revision 排序，最新的在前
+  const sorted = [...replicaSets].sort((a, b) => {
+    const ra = parseInt(a.revision || "0", 10);
+    const rb = parseInt(b.revision || "0", 10);
+    return rb - ra;
+  });
+
+  return (
+    <div className="space-y-3">
+      {sorted.map((rs, i) => (
+        <div
+          key={rs.name}
+          className={`bg-[var(--background)] rounded-lg p-4 ${i === 0 ? "ring-2 ring-primary" : ""}`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-default">{rs.name}</span>
+              {rs.revision && (
+                <span className="px-2 py-0.5 bg-card text-xs rounded">Rev {rs.revision}</span>
+              )}
+              {i === 0 && (
+                <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded">{t.deployment.current}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-muted" />
+              <span className="text-sm text-muted">{rs.createdAt ? new Date(rs.createdAt).toLocaleString() : "-"}</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-lg font-bold text-default">{rs.replicas}</div>
+              <div className="text-xs text-muted">{t.deployment.desired}</div>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-green-500">{rs.ready}</div>
+              <div className="text-xs text-muted">{t.deployment.ready}</div>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-blue-500">{rs.available}</div>
+              <div className="text-xs text-muted">{t.deployment.available}</div>
+            </div>
+          </div>
+          {rs.image && (
+            <div className="mt-2 text-xs font-mono text-muted truncate">{rs.image}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // 标签 Tab
-function LabelsTab({ labels, annotations }: { labels: Record<string, string>; annotations: Record<string, string> }) {
+function LabelsTab({ labels, annotations, t }: { labels: Record<string, string>; annotations: Record<string, string>; t: ReturnType<typeof useI18n>["t"] }) {
   const labelEntries = Object.entries(labels);
   const annoEntries = Object.entries(annotations);
 
@@ -556,9 +806,9 @@ function LabelsTab({ labels, annotations }: { labels: Record<string, string>; an
     <div className="space-y-6">
       {/* Labels */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">Labels ({labelEntries.length})</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.labels} ({labelEntries.length})</h3>
         {labelEntries.length === 0 ? (
-          <div className="text-center py-4 text-muted">暂无标签</div>
+          <div className="text-center py-4 text-muted">{t.deployment.noLabels}</div>
         ) : (
           <div className="space-y-2">
             {labelEntries.map(([key, value]) => (
@@ -574,9 +824,9 @@ function LabelsTab({ labels, annotations }: { labels: Record<string, string>; an
 
       {/* Annotations */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">Annotations ({annoEntries.length})</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.deployment.annotations} ({annoEntries.length})</h3>
         {annoEntries.length === 0 ? (
-          <div className="text-center py-4 text-muted">暂无注解</div>
+          <div className="text-center py-4 text-muted">{t.deployment.noAnnotations}</div>
         ) : (
           <div className="space-y-2">
             {annoEntries.map(([key, value]) => (

@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
     return [
+      // Master V2 API
+      {
+        source: "/api/v2/:path*",
+        destination: `${apiBase}/api/v2/:path*`,
+      },
+      // 旧 API（兼容）
       {
         source: "/uiapi/:path*",
         destination: `${apiBase}/uiapi/:path*`,

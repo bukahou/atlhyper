@@ -6,6 +6,7 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
 import { getNodeDetail } from "@/api/node";
 import { getCurrentClusterId } from "@/config/cluster";
+import { useI18n } from "@/i18n/context";
 import type { NodeDetail, NodeCondition, NodeTaint } from "@/types/cluster";
 import {
   Server,
@@ -29,6 +30,7 @@ interface NodeDetailModalProps {
 type TabType = "overview" | "resources" | "conditions" | "taints" | "labels";
 
 export function NodeDetailModal({ isOpen, onClose, nodeName }: NodeDetailModalProps) {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,11 +47,11 @@ export function NodeDetailModal({ isOpen, onClose, nodeName }: NodeDetailModalPr
       });
       setDetail(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, [nodeName]);
+  }, [nodeName, t.common.loadFailed]);
 
   useEffect(() => {
     if (isOpen) {
@@ -59,11 +61,11 @@ export function NodeDetailModal({ isOpen, onClose, nodeName }: NodeDetailModalPr
   }, [isOpen, fetchDetail]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: "overview", label: "概览", icon: <Server className="w-4 h-4" /> },
-    { key: "resources", label: "资源", icon: <Cpu className="w-4 h-4" /> },
-    { key: "conditions", label: "状态", icon: <CheckCircle className="w-4 h-4" /> },
-    { key: "taints", label: "污点", icon: <AlertTriangle className="w-4 h-4" /> },
-    { key: "labels", label: "标签", icon: <Tag className="w-4 h-4" /> },
+    { key: "overview", label: t.node.overview, icon: <Server className="w-4 h-4" /> },
+    { key: "resources", label: t.node.resources, icon: <Cpu className="w-4 h-4" /> },
+    { key: "conditions", label: t.node.conditions, icon: <CheckCircle className="w-4 h-4" /> },
+    { key: "taints", label: t.node.taints, icon: <AlertTriangle className="w-4 h-4" /> },
+    { key: "labels", label: t.node.labels, icon: <Tag className="w-4 h-4" /> },
   ];
 
   return (
@@ -96,11 +98,11 @@ export function NodeDetailModal({ isOpen, onClose, nodeName }: NodeDetailModalPr
 
           {/* Tab Content */}
           <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} />}
-            {activeTab === "resources" && <ResourcesTab detail={detail} />}
-            {activeTab === "conditions" && <ConditionsTab conditions={detail.conditions || []} />}
-            {activeTab === "taints" && <TaintsTab taints={detail.taints || []} />}
-            {activeTab === "labels" && <LabelsTab labels={detail.labels || {}} />}
+            {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
+            {activeTab === "resources" && <ResourcesTab detail={detail} t={t} />}
+            {activeTab === "conditions" && <ConditionsTab conditions={detail.conditions || []} t={t} />}
+            {activeTab === "taints" && <TaintsTab taints={detail.taints || []} t={t} />}
+            {activeTab === "labels" && <LabelsTab labels={detail.labels || {}} t={t} />}
           </div>
         </div>
       ) : null}
@@ -109,27 +111,27 @@ export function NodeDetailModal({ isOpen, onClose, nodeName }: NodeDetailModalPr
 }
 
 // 概览 Tab
-function OverviewTab({ detail }: { detail: NodeDetail }) {
+function OverviewTab({ detail, t }: { detail: NodeDetail; t: ReturnType<typeof useI18n>["t"] }) {
   const infoItems = [
-    { label: "状态", value: <StatusBadge status={detail.ready ? "Ready" : "NotReady"} /> },
-    { label: "可调度", value: detail.schedulable ? "是" : "否（已封锁）" },
-    { label: "角色", value: detail.roles?.join(", ") || "-" },
+    { label: t.common.status, value: <StatusBadge status={detail.ready ? "Ready" : "NotReady"} /> },
+    { label: t.node.schedulable, value: detail.schedulable ? t.common.yes : `${t.common.no}（${t.node.cordoned}）` },
+    { label: t.node.role, value: detail.roles?.join(", ") || "-" },
     { label: "Age", value: detail.age || "-" },
-    { label: "Hostname", value: detail.hostname || "-" },
-    { label: "Internal IP", value: detail.internalIP || "-" },
-    { label: "External IP", value: detail.externalIP || "-" },
-    { label: "OS", value: detail.osImage || "-" },
-    { label: "架构", value: detail.architecture || "-" },
-    { label: "内核", value: detail.kernel || "-" },
-    { label: "容器运行时", value: detail.cri || "-" },
-    { label: "Kubelet", value: detail.kubelet || "-" },
+    { label: t.node.hostname, value: detail.hostname || "-" },
+    { label: t.node.internalIP, value: detail.internalIP || "-" },
+    { label: t.node.externalIP, value: detail.externalIP || "-" },
+    { label: t.node.osImage, value: detail.osImage || "-" },
+    { label: t.node.architecture, value: detail.architecture || "-" },
+    { label: t.node.kernelVersion, value: detail.kernel || "-" },
+    { label: t.node.containerRuntime, value: detail.cri || "-" },
+    { label: t.node.kubeletVersion, value: detail.kubelet || "-" },
   ];
 
   return (
     <div className="space-y-6">
       {/* 基本信息 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">基本信息</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.node.basicInfo}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {infoItems.map((item) => (
             <div key={item.label} className="bg-[var(--background)] rounded-lg p-3">
@@ -143,26 +145,26 @@ function OverviewTab({ detail }: { detail: NodeDetail }) {
       {/* 压力状态 */}
       {(detail.pressureMemory || detail.pressureDisk || detail.pressurePID || detail.networkUnavailable) && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">压力告警</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.node.pressureWarning}</h3>
           <div className="flex flex-wrap gap-2">
             {detail.pressureMemory && (
               <span className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm rounded">
-                内存压力
+                {t.node.memoryPressure}
               </span>
             )}
             {detail.pressureDisk && (
               <span className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm rounded">
-                磁盘压力
+                {t.node.diskPressure}
               </span>
             )}
             {detail.pressurePID && (
               <span className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm rounded">
-                PID 压力
+                {t.node.pidPressure}
               </span>
             )}
             {detail.networkUnavailable && (
               <span className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm rounded">
-                网络不可用
+                {t.node.networkUnavailable}
               </span>
             )}
           </div>
@@ -187,7 +189,7 @@ function OverviewTab({ detail }: { detail: NodeDetail }) {
 }
 
 // 资源 Tab
-function ResourcesTab({ detail }: { detail: NodeDetail }) {
+function ResourcesTab({ detail, t }: { detail: NodeDetail; t: ReturnType<typeof useI18n>["t"] }) {
   const ResourceBar = ({
     label,
     icon,
@@ -228,7 +230,7 @@ function ResourcesTab({ detail }: { detail: NodeDetail }) {
     <div className="space-y-6">
       {/* 使用情况 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">资源使用</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.node.resourceUsage}</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <ResourceBar
             label="CPU"
@@ -259,34 +261,34 @@ function ResourcesTab({ detail }: { detail: NodeDetail }) {
 
       {/* 容量信息 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">容量 / 可分配</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.node.capacityAllocatable}</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">CPU 容量</div>
+            <div className="text-xs text-muted mb-1">{t.node.cpuCapacity}</div>
             <div className="text-sm text-default font-medium">{detail.cpuCapacityCores || 0} cores</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">CPU 可分配</div>
+            <div className="text-xs text-muted mb-1">{t.node.cpuAllocatable}</div>
             <div className="text-sm text-default font-medium">{detail.cpuAllocatableCores || 0} cores</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">内存容量</div>
+            <div className="text-xs text-muted mb-1">{t.node.memoryCapacity}</div>
             <div className="text-sm text-default font-medium">{(detail.memCapacityGiB || 0).toFixed(1)} GiB</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">内存可分配</div>
+            <div className="text-xs text-muted mb-1">{t.node.memoryAllocatable}</div>
             <div className="text-sm text-default font-medium">{(detail.memAllocatableGiB || 0).toFixed(1)} GiB</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">Pod 容量</div>
+            <div className="text-xs text-muted mb-1">{t.node.podCapacity}</div>
             <div className="text-sm text-default font-medium">{detail.podsCapacity || 0}</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">Pod 可分配</div>
+            <div className="text-xs text-muted mb-1">{t.node.podAllocatable}</div>
             <div className="text-sm text-default font-medium">{detail.podsAllocatable || 0}</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">临时存储</div>
+            <div className="text-xs text-muted mb-1">{t.node.ephemeralStorage}</div>
             <div className="text-sm text-default font-medium">{(detail.ephemeralStorageGiB || 0).toFixed(1)} GiB</div>
           </div>
         </div>
@@ -296,9 +298,9 @@ function ResourcesTab({ detail }: { detail: NodeDetail }) {
 }
 
 // 状态 Tab
-function ConditionsTab({ conditions }: { conditions: NodeCondition[] }) {
+function ConditionsTab({ conditions, t }: { conditions: NodeCondition[]; t: ReturnType<typeof useI18n>["t"] }) {
   if (conditions.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无状态信息</div>;
+    return <div className="text-center py-8 text-muted">{t.node.noConditions}</div>;
   }
 
   const getStatusIcon = (status: string) => {
@@ -335,9 +337,9 @@ function ConditionsTab({ conditions }: { conditions: NodeCondition[] }) {
 }
 
 // 污点 Tab
-function TaintsTab({ taints }: { taints: NodeTaint[] }) {
+function TaintsTab({ taints, t }: { taints: NodeTaint[]; t: ReturnType<typeof useI18n>["t"] }) {
   if (taints.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无污点</div>;
+    return <div className="text-center py-8 text-muted">{t.node.noTaints}</div>;
   }
 
   const effectColors: Record<string, string> = {
@@ -364,10 +366,10 @@ function TaintsTab({ taints }: { taints: NodeTaint[] }) {
 }
 
 // 标签 Tab
-function LabelsTab({ labels }: { labels: Record<string, string> }) {
+function LabelsTab({ labels, t }: { labels: Record<string, string>; t: ReturnType<typeof useI18n>["t"] }) {
   const entries = Object.entries(labels);
   if (entries.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无标签</div>;
+    return <div className="text-center py-8 text-muted">{t.node.noLabels}</div>;
   }
 
   return (

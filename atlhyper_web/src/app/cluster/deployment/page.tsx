@@ -103,6 +103,7 @@ function FilterBar({
   filters: { namespace: string; search: string };
   onFilterChange: (key: string, value: string) => void;
 }) {
+  const { t } = useI18n();
   const hasFilters = filters.namespace || filters.search;
   const activeCount = [filters.namespace, filters.search].filter(Boolean).length;
 
@@ -110,7 +111,7 @@ function FilterBar({
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
       <div className="flex items-center gap-2 mb-3">
         <Filter className="w-4 h-4 text-muted" />
-        <span className="text-sm font-medium text-default">筛选</span>
+        <span className="text-sm font-medium text-default">{t.common.filter}</span>
         {activeCount > 0 && (
           <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
             {activeCount}
@@ -125,7 +126,7 @@ function FilterBar({
             className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-default transition-colors"
           >
             <X className="w-3 h-3" />
-            清除全部
+            {t.common.clearAll}
           </button>
         )}
       </div>
@@ -134,13 +135,13 @@ function FilterBar({
           value={filters.search}
           onChange={(v) => onFilterChange("search", v)}
           onClear={() => onFilterChange("search", "")}
-          placeholder="搜索 Deployment 名称..."
+          placeholder={t.deployment.searchPlaceholder}
         />
         <FilterSelect
           value={filters.namespace}
           onChange={(v) => onFilterChange("namespace", v)}
           onClear={() => onFilterChange("namespace", "")}
-          placeholder="全部 Namespace"
+          placeholder={t.deployment.allNamespaces}
           options={namespaces.map((ns) => ({ value: ns, label: ns }))}
         />
       </div>
@@ -170,7 +171,7 @@ export default function DeploymentPage() {
       const res = await getDeploymentOverview({ ClusterID: getCurrentClusterId() });
       setData(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -220,17 +221,20 @@ export default function DeploymentPage() {
       header: t.common.name,
       render: (d) => (
         <div>
-          <span className="font-medium text-default">{d.name}</span>
-          <div className="text-xs text-muted truncate max-w-[200px]" title={d.image}>{d.image}</div>
+          <span className="font-medium text-default">{d.name || "-"}</span>
+          <div className="text-xs text-muted truncate max-w-[200px]" title={d.image || ""}>{d.image || "-"}</div>
         </div>
       ),
     },
     { key: "namespace", header: t.common.namespace },
     {
       key: "replicas",
-      header: "Replicas",
+      header: t.deployment.replicas,
       render: (d) => {
-        const [ready, total] = d.replicas.split("/").map(Number);
+        if (!d.replicas) return <StatusBadge status="-" type="default" />;
+        const parts = d.replicas.split("/");
+        const ready = parseInt(parts[0], 10) || 0;
+        const total = parseInt(parts[1], 10) || 0;
         const type = ready === total ? "success" : ready === 0 ? "error" : "warning";
         return <StatusBadge status={d.replicas} type={type} />;
       },
@@ -238,7 +242,7 @@ export default function DeploymentPage() {
     {
       key: "createdAt",
       header: t.common.createdAt,
-      render: (d) => new Date(d.createdAt).toLocaleString(),
+      render: (d) => d.createdAt ? new Date(d.createdAt).toLocaleString() : "-",
     },
     {
       key: "action",
@@ -250,7 +254,7 @@ export default function DeploymentPage() {
             handleViewDetail(d);
           }}
           className="p-2 hover-bg rounded-lg"
-          title="查看详情"
+          title={t.deployment.viewDetails}
         >
           <Eye className="w-4 h-4 text-muted" />
         </button>
@@ -263,16 +267,16 @@ export default function DeploymentPage() {
       <div className="space-y-4">
         <PageHeader
           title={t.nav.deployment}
-          description="Deployment 资源监控与管理"
+          description={t.deployment.pageDescription}
           autoRefreshSeconds={intervalSeconds}
         />
 
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatsCard label={t.common.total} value={data.cards.totalDeployments} />
-            <StatsCard label="Namespaces" value={data.cards.namespaces} iconColor="text-blue-500" />
-            <StatsCard label="Total Replicas" value={data.cards.totalReplicas} iconColor="text-purple-500" />
-            <StatsCard label="Ready" value={data.cards.readyReplicas} iconColor="text-green-500" />
+            <StatsCard label={t.common.namespace} value={data.cards.namespaces} iconColor="text-blue-500" />
+            <StatsCard label={t.deployment.replicas} value={data.cards.totalReplicas} iconColor="text-purple-500" />
+            <StatsCard label={t.deployment.readyReplicas} value={data.cards.readyReplicas} iconColor="text-green-500" />
           </div>
         )}
 

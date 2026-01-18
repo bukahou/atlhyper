@@ -5,7 +5,7 @@ import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getPodOverview, restartPod } from "@/api/pod";
 import { PageHeader, StatsCard, DataTable, StatusBadge, ConfirmDialog, type TableColumn } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { RotateCcw, Filter, X, Eye } from "lucide-react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -106,6 +106,7 @@ function FilterBar({
   filters: { namespace: string; node: string; status: string; search: string };
   onFilterChange: (key: string, value: string) => void;
 }) {
+  const { t } = useI18n();
   const hasFilters = filters.namespace || filters.node || filters.status || filters.search;
   const activeCount = [filters.namespace, filters.node, filters.status, filters.search].filter(Boolean).length;
 
@@ -113,7 +114,7 @@ function FilterBar({
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
       <div className="flex items-center gap-2 mb-3">
         <Filter className="w-4 h-4 text-muted" />
-        <span className="text-sm font-medium text-default">筛选</span>
+        <span className="text-sm font-medium text-default">{t.common.filter}</span>
         {activeCount > 0 && (
           <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
             {activeCount}
@@ -130,7 +131,7 @@ function FilterBar({
             className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-default transition-colors"
           >
             <X className="w-3 h-3" />
-            清除全部
+            {t.common.clearAll}
           </button>
         )}
       </div>
@@ -140,7 +141,7 @@ function FilterBar({
           value={filters.search}
           onChange={(v) => onFilterChange("search", v)}
           onClear={() => onFilterChange("search", "")}
-          placeholder="搜索 Pod 名称..."
+          placeholder={t.pod.searchPlaceholder}
         />
 
         {/* Namespace 筛选 */}
@@ -148,7 +149,7 @@ function FilterBar({
           value={filters.namespace}
           onChange={(v) => onFilterChange("namespace", v)}
           onClear={() => onFilterChange("namespace", "")}
-          placeholder="全部 Namespace"
+          placeholder={t.pod.allNamespaces}
           options={namespaces.map((ns) => ({ value: ns, label: ns }))}
         />
 
@@ -157,7 +158,7 @@ function FilterBar({
           value={filters.node}
           onChange={(v) => onFilterChange("node", v)}
           onClear={() => onFilterChange("node", "")}
-          placeholder="全部 Node"
+          placeholder={t.pod.allNodes}
           options={nodes.map((node) => ({ value: node, label: node }))}
         />
 
@@ -166,7 +167,7 @@ function FilterBar({
           value={filters.status}
           onChange={(v) => onFilterChange("status", v)}
           onClear={() => onFilterChange("status", "")}
-          placeholder="全部状态"
+          placeholder={t.pod.allStatus}
           options={[
             { value: "Running", label: "Running" },
             { value: "Pending", label: "Pending" },
@@ -183,6 +184,7 @@ function FilterBar({
 export default function PodPage() {
   const { t } = useI18n();
   const requireAuth = useRequireAuth();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PodOverview | null>(null);
   const [error, setError] = useState("");
@@ -208,16 +210,17 @@ export default function PodPage() {
   const [restartLoading, setRestartLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
+    if (!currentClusterId) return;
     setError("");
     try {
-      const res = await getPodOverview({ ClusterID: getCurrentClusterId() });
+      const res = await getPodOverview({ ClusterID: currentClusterId });
       setData(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentClusterId]);
 
   const { intervalSeconds } = useAutoRefresh(fetchData);
 
@@ -246,7 +249,7 @@ export default function PodPage() {
     setRestartLoading(true);
     try {
       await restartPod({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: restartTarget.namespace,
         Pod: restartTarget.name,
       });
@@ -312,8 +315,8 @@ export default function PodPage() {
       header: t.common.name,
       render: (pod) => (
         <div>
-          <span className="font-medium text-default">{pod.name}</span>
-          <div className="text-xs text-muted">{pod.deployment}</div>
+          <span className="font-medium text-default">{pod.name || "-"}</span>
+          <div className="text-xs text-muted">{pod.deployment || "-"}</div>
         </div>
       ),
     },
@@ -321,12 +324,12 @@ export default function PodPage() {
     {
       key: "phase",
       header: t.common.status,
-      render: (pod) => <StatusBadge status={pod.phase} />,
+      render: (pod) => <StatusBadge status={pod.phase || "Unknown"} />,
     },
     {
       key: "ready",
       header: "Ready",
-      render: (pod) => <span className="font-mono text-sm">{pod.ready}</span>,
+      render: (pod) => <span className="font-mono text-sm">{pod.ready || "-"}</span>,
     },
     { key: "node", header: "Node" },
     {
@@ -334,8 +337,8 @@ export default function PodPage() {
       header: "CPU",
       render: (pod) => (
         <div className="text-sm">
-          <span>{pod.cpuText}</span>
-          <span className="text-muted ml-1">({pod.cpuPercentText})</span>
+          <span>{pod.cpuText || "-"}</span>
+          <span className="text-muted ml-1">({pod.cpuPercentText || "-"})</span>
         </div>
       ),
     },
@@ -344,12 +347,21 @@ export default function PodPage() {
       header: "Memory",
       render: (pod) => (
         <div className="text-sm">
-          <span>{pod.memoryText}</span>
-          <span className="text-muted ml-1">({pod.memPercentText})</span>
+          <span>{pod.memoryText || "-"}</span>
+          <span className="text-muted ml-1">({pod.memPercentText || "-"})</span>
         </div>
       ),
     },
-    { key: "restarts", header: "Restarts" },
+    {
+      key: "restarts",
+      header: "Restarts",
+      render: (pod) => <span>{pod.restarts ?? 0}</span>,
+    },
+    {
+      key: "age",
+      header: "Age",
+      render: (pod) => <span className="text-sm text-muted">{pod.age || "-"}</span>,
+    },
     {
       key: "action",
       header: t.common.action,
@@ -361,7 +373,7 @@ export default function PodPage() {
               handleRowClick(pod);
             }}
             className="p-2 hover-bg rounded-lg"
-            title="查看详情"
+            title={t.pod.viewDetails}
           >
             <Eye className="w-4 h-4 text-muted" />
           </button>
@@ -371,7 +383,7 @@ export default function PodPage() {
               handleRestartClick(pod);
             }}
             className="p-2 hover-bg rounded-lg"
-            title="重启 Pod"
+            title={t.pod.restart}
           >
             <RotateCcw className="w-4 h-4 text-muted" />
           </button>
@@ -380,24 +392,24 @@ export default function PodPage() {
     },
   ];
 
-  const totalPods = data ? data.cards.running + data.cards.pending + data.cards.failed + data.cards.unknown : 0;
+  const totalPods = data ? (data.cards.running ?? 0) + (data.cards.pending ?? 0) + (data.cards.failed ?? 0) + (data.cards.unknown ?? 0) : 0;
 
   return (
     <Layout>
       <div className="space-y-4">
         <PageHeader
           title={t.nav.pod}
-          description="Pod 资源监控与管理"
+          description={t.pod.pageDescription}
           autoRefreshSeconds={intervalSeconds}
         />
 
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <StatsCard label={t.common.total} value={totalPods} />
-            <StatsCard label={t.status.running} value={data.cards.running} iconColor="text-green-500" />
-            <StatsCard label={t.status.pending} value={data.cards.pending} iconColor="text-yellow-500" />
-            <StatsCard label={t.status.failed} value={data.cards.failed} iconColor="text-red-500" />
-            <StatsCard label="Unknown" value={data.cards.unknown} iconColor="text-gray-500" />
+            <StatsCard label={t.status.running} value={data.cards.running ?? 0} iconColor="text-green-500" />
+            <StatsCard label={t.status.pending} value={data.cards.pending ?? 0} iconColor="text-yellow-500" />
+            <StatsCard label={t.status.failed} value={data.cards.failed ?? 0} iconColor="text-red-500" />
+            <StatsCard label={t.status.unknown} value={data.cards.unknown ?? 0} iconColor="text-gray-500" />
           </div>
         )}
 
@@ -450,10 +462,10 @@ export default function PodPage() {
         isOpen={!!restartTarget}
         onClose={() => setRestartTarget(null)}
         onConfirm={handleRestartConfirm}
-        title="确认重启 Pod"
-        message={`确定要重启 Pod "${restartTarget?.name}" 吗？这将导致 Pod 短暂不可用。`}
-        confirmText="重启"
-        cancelText="取消"
+        title={t.pod.restartConfirmTitle}
+        message={t.pod.restartConfirmMessage.replace("{name}", restartTarget?.name || "")}
+        confirmText={t.pod.restart}
+        cancelText={t.common.cancel}
         loading={restartLoading}
         variant="warning"
       />

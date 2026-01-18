@@ -124,10 +124,10 @@ export function DataTable<T>({
         <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-color)] bg-[var(--background)]">
           <div className="flex items-center gap-4 text-sm text-muted">
             <span>
-              显示 {startIndex}-{endIndex} / 共 {data.length} 条
+              {t.table.showing} {startIndex}-{endIndex} / {t.common.total} {data.length} {t.table.entries}
             </span>
             <div className="flex items-center gap-2">
-              <span>每页</span>
+              <span>{t.table.rowsPerPage}</span>
               <select
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
@@ -139,7 +139,7 @@ export function DataTable<T>({
                   </option>
                 ))}
               </select>
-              <span>条</span>
+              <span>{t.table.entries}</span>
             </div>
           </div>
 

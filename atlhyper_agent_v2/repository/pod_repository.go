@@ -1,0 +1,95 @@
+// Package repository 数据访问层
+//
+// pod_repository.go - Pod 仓库实现
+//
+// 本文件实现 PodRepository 接口，提供 Pod 资源的查询操作。
+//
+// 职责:
+//   - 调用 SDK 层获取 K8s 原生 Pod 对象
+//   - 使用 converter 转换为 model_v2.Pod 类型
+//   - 处理 Pod 特有的读操作 (日志获取)
+package repository
+
+import (
+	"context"
+
+	"AtlHyper/atlhyper_agent_v2/model"
+	"AtlHyper/atlhyper_agent_v2/sdk"
+	"AtlHyper/model_v2"
+)
+
+// podRepository Pod 仓库实现
+//
+// 所有方法都委托给 sdk.K8sClient，并转换返回类型。
+type podRepository struct {
+	client sdk.K8sClient
+}
+
+// NewPodRepository 创建 Pod 仓库
+func NewPodRepository(client sdk.K8sClient) PodRepository {
+	return &podRepository{client: client}
+}
+
+// List 列出 Pod
+func (r *podRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Pod, error) {
+	k8sPods, err := r.client.ListPods(ctx, namespace, sdk.ListOptions{
+		LabelSelector: opts.LabelSelector,
+		FieldSelector: opts.FieldSelector,
+		Limit:         opts.Limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取 Pod Metrics
+	podMetrics, _ := r.client.ListPodMetrics(ctx)
+
+	pods := make([]model_v2.Pod, 0, len(k8sPods))
+	for i := range k8sPods {
+		pod := ConvertPod(&k8sPods[i])
+
+		// 关联 metrics
+		key := pod.GetNamespace() + "/" + pod.GetName()
+		if pm, ok := podMetrics[key]; ok {
+			// 汇总所有容器的 CPU 和 Memory
+			pod.Status.CPUUsage, pod.Status.MemoryUsage = aggregateContainerMetrics(pm.Containers)
+		}
+
+		pods = append(pods, pod)
+	}
+	return pods, nil
+}
+
+// aggregateContainerMetrics 汇总容器 metrics
+func aggregateContainerMetrics(containers []sdk.ContainerMetrics) (string, string) {
+	if len(containers) == 0 {
+		return "", ""
+	}
+	if len(containers) == 1 {
+		return containers[0].CPU, containers[0].Memory
+	}
+	// 多容器时，返回第一个容器的值（简化处理）
+	// TODO: 可以汇总多个容器的使用量
+	return containers[0].CPU, containers[0].Memory
+}
+
+// Get 获取单个 Pod
+func (r *podRepository) Get(ctx context.Context, namespace, name string) (*model_v2.Pod, error) {
+	k8sPod, err := r.client.GetPod(ctx, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	pod := ConvertPod(k8sPod)
+	return &pod, nil
+}
+
+// GetLogs 获取 Pod 日志
+func (r *podRepository) GetLogs(ctx context.Context, namespace, name string, opts model.LogOptions) (string, error) {
+	return r.client.GetPodLogs(ctx, namespace, name, sdk.LogOptions{
+		Container:    opts.Container,
+		TailLines:    opts.TailLines,
+		SinceSeconds: opts.SinceSeconds,
+		Timestamps:   opts.Timestamps,
+		Previous:     opts.Previous,
+	})
+}

@@ -6,6 +6,7 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
 import { getServiceDetail } from "@/api/service";
 import { getCurrentClusterId } from "@/config/cluster";
+import { useI18n } from "@/i18n/context";
 import type { ServiceDetail, ServicePort, BackendEndpoint } from "@/types/cluster";
 import {
   Globe,
@@ -35,6 +36,7 @@ export function ServiceDetailModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<ServiceDetail | null>(null);
+  const { t } = useI18n();
 
   const fetchDetail = useCallback(async () => {
     if (!serviceName || !namespace) return;
@@ -48,11 +50,11 @@ export function ServiceDetailModal({
       });
       setDetail(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.service.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, [namespace, serviceName]);
+  }, [namespace, serviceName, t.service.loadFailed]);
 
   useEffect(() => {
     if (isOpen) {
@@ -62,10 +64,10 @@ export function ServiceDetailModal({
   }, [isOpen, fetchDetail]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: "overview", label: "概览", icon: <Globe className="w-4 h-4" /> },
-    { key: "ports", label: "端口", icon: <Network className="w-4 h-4" /> },
-    { key: "endpoints", label: "端点", icon: <Server className="w-4 h-4" /> },
-    { key: "selector", label: "选择器", icon: <Tag className="w-4 h-4" /> },
+    { key: "overview", label: t.service.overview, icon: <Globe className="w-4 h-4" /> },
+    { key: "ports", label: t.service.ports, icon: <Network className="w-4 h-4" /> },
+    { key: "endpoints", label: t.service.endpoints, icon: <Server className="w-4 h-4" /> },
+    { key: "selector", label: t.service.selector, icon: <Tag className="w-4 h-4" /> },
   ];
 
   return (
@@ -98,10 +100,10 @@ export function ServiceDetailModal({
 
           {/* Tab Content */}
           <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} />}
-            {activeTab === "ports" && <PortsTab ports={detail.ports || []} />}
-            {activeTab === "endpoints" && <EndpointsTab backends={detail.backends} />}
-            {activeTab === "selector" && <SelectorTab selector={detail.selector || {}} />}
+            {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
+            {activeTab === "ports" && <PortsTab ports={detail.ports || []} t={t} />}
+            {activeTab === "endpoints" && <EndpointsTab backends={detail.backends} t={t} />}
+            {activeTab === "selector" && <SelectorTab selector={detail.selector || {}} t={t} />}
           </div>
         </div>
       ) : null}
@@ -110,7 +112,7 @@ export function ServiceDetailModal({
 }
 
 // 概览 Tab
-function OverviewTab({ detail }: { detail: ServiceDetail }) {
+function OverviewTab({ detail, t }: { detail: ServiceDetail; t: ReturnType<typeof useI18n>["t"] }) {
   const getTypeStatus = (type: string): "success" | "info" | "default" => {
     if (type === "LoadBalancer") return "success";
     if (type === "NodePort") return "info";
@@ -118,19 +120,19 @@ function OverviewTab({ detail }: { detail: ServiceDetail }) {
   };
 
   const infoItems = [
-    { label: "名称", value: detail.name },
-    { label: "命名空间", value: detail.namespace },
-    { label: "类型", value: <StatusBadge status={detail.type} type={getTypeStatus(detail.type)} /> },
-    { label: "Age", value: detail.age || "-" },
-    { label: "创建时间", value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
-    { label: "Session Affinity", value: detail.sessionAffinity || "None" },
+    { label: t.common.name, value: detail.name },
+    { label: t.common.namespace, value: detail.namespace },
+    { label: t.service.serviceType, value: <StatusBadge status={detail.type} type={getTypeStatus(detail.type)} /> },
+    { label: t.service.age, value: detail.age || "-" },
+    { label: t.common.createdAt, value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
+    { label: t.service.sessionAffinity, value: detail.sessionAffinity || "None" },
   ];
 
   return (
     <div className="space-y-6">
       {/* 基本信息 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">基本信息</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.service.basicInfo}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {infoItems.map((item, i) => (
             <div key={i} className="bg-[var(--background)] rounded-lg p-3">
@@ -158,7 +160,7 @@ function OverviewTab({ detail }: { detail: ServiceDetail }) {
       {/* External IPs */}
       {detail.externalIPs && detail.externalIPs.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">External IPs</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.service.externalIP}</h3>
           <div className="flex flex-wrap gap-2">
             {detail.externalIPs.map((ip, i) => (
               <span key={i} className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-sm font-mono rounded">
@@ -172,7 +174,7 @@ function OverviewTab({ detail }: { detail: ServiceDetail }) {
       {/* LoadBalancer Ingress */}
       {detail.loadBalancerIngress && detail.loadBalancerIngress.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">LoadBalancer Ingress</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.service.loadBalancerIP}</h3>
           <div className="flex flex-wrap gap-2">
             {detail.loadBalancerIngress.map((addr, i) => (
               <span key={i} className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-mono rounded">
@@ -186,7 +188,7 @@ function OverviewTab({ detail }: { detail: ServiceDetail }) {
       {/* Traffic Policies */}
       {(detail.externalTrafficPolicy || detail.internalTrafficPolicy) && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">Traffic Policy</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.service.trafficPolicy}</h3>
           <div className="grid grid-cols-2 gap-4">
             {detail.externalTrafficPolicy && (
               <div className="bg-[var(--background)] rounded-lg p-3">
@@ -222,19 +224,19 @@ function OverviewTab({ detail }: { detail: ServiceDetail }) {
       {/* Backends Summary */}
       {detail.backends && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">端点状态</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.service.endpointStatus}</h3>
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-[var(--background)] rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-green-500">{detail.backends.ready}</div>
-              <div className="text-xs text-muted mt-1">就绪</div>
+              <div className="text-xs text-muted mt-1">{t.service.ready}</div>
             </div>
             <div className="bg-[var(--background)] rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-red-500">{detail.backends.notReady}</div>
-              <div className="text-xs text-muted mt-1">未就绪</div>
+              <div className="text-xs text-muted mt-1">{t.service.notReady}</div>
             </div>
             <div className="bg-[var(--background)] rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-default">{detail.backends.total}</div>
-              <div className="text-xs text-muted mt-1">总计</div>
+              <div className="text-xs text-muted mt-1">{t.service.total}</div>
             </div>
           </div>
         </div>
@@ -244,9 +246,9 @@ function OverviewTab({ detail }: { detail: ServiceDetail }) {
 }
 
 // 端口 Tab
-function PortsTab({ ports }: { ports: ServicePort[] }) {
+function PortsTab({ ports, t }: { ports: ServicePort[]; t: ReturnType<typeof useI18n>["t"] }) {
   if (ports.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无端口信息</div>;
+    return <div className="text-center py-8 text-muted">{t.service.noPorts}</div>;
   }
 
   return (
@@ -265,16 +267,16 @@ function PortsTab({ ports }: { ports: ServicePort[] }) {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <div className="text-xs text-muted mb-1">Port</div>
+              <div className="text-xs text-muted mb-1">{t.service.port}</div>
               <div className="text-sm font-mono text-default">{port.port}</div>
             </div>
             <div>
-              <div className="text-xs text-muted mb-1">Target Port</div>
+              <div className="text-xs text-muted mb-1">{t.service.targetPort}</div>
               <div className="text-sm font-mono text-default">{port.targetPort}</div>
             </div>
             {port.nodePort && port.nodePort > 0 && (
               <div>
-                <div className="text-xs text-muted mb-1">Node Port</div>
+                <div className="text-xs text-muted mb-1">{t.service.nodePort}</div>
                 <div className="text-sm font-mono text-default">{port.nodePort}</div>
               </div>
             )}
@@ -286,9 +288,9 @@ function PortsTab({ ports }: { ports: ServicePort[] }) {
 }
 
 // 端点 Tab
-function EndpointsTab({ backends }: { backends?: { ready: number; notReady: number; total: number; endpoints?: BackendEndpoint[] } }) {
+function EndpointsTab({ backends, t }: { backends?: { ready: number; notReady: number; total: number; endpoints?: BackendEndpoint[] }; t: ReturnType<typeof useI18n>["t"] }) {
   if (!backends || !backends.endpoints || backends.endpoints.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无端点信息</div>;
+    return <div className="text-center py-8 text-muted">{t.service.noEndpoints}</div>;
   }
 
   return (
@@ -304,7 +306,7 @@ function EndpointsTab({ backends }: { backends?: { ready: number; notReady: numb
               )}
               <span className="font-mono text-default">{ep.address}</span>
             </div>
-            <StatusBadge status={ep.ready ? "Ready" : "NotReady"} type={ep.ready ? "success" : "error"} />
+            <StatusBadge status={ep.ready ? t.service.ready : t.service.notReady} type={ep.ready ? "success" : "error"} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
@@ -334,11 +336,11 @@ function EndpointsTab({ backends }: { backends?: { ready: number; notReady: numb
 }
 
 // 选择器 Tab
-function SelectorTab({ selector }: { selector: Record<string, string> }) {
+function SelectorTab({ selector, t }: { selector: Record<string, string>; t: ReturnType<typeof useI18n>["t"] }) {
   const entries = Object.entries(selector);
 
   if (entries.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无选择器</div>;
+    return <div className="text-center py-8 text-muted">{t.service.noSelector}</div>;
   }
 
   return (

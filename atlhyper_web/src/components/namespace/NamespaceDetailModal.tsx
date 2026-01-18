@@ -4,16 +4,18 @@ import { useState, useEffect, useCallback } from "react";
 import { Modal } from "@/components/common/Modal";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
-import { getNamespaceDetail, getConfigMaps } from "@/api/namespace";
+import { getNamespaceDetail, getConfigMaps, getConfigMapData, getSecrets, getSecretData } from "@/api/namespace";
 import { getCurrentClusterId } from "@/config/cluster";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import type { NamespaceDetail, ConfigMapDTO, ResourceQuotaDTO, LimitRangeDTO } from "@/types/cluster";
+import { useI18n } from "@/i18n/context";
+import type { NamespaceDetail, ConfigMapDTO, SecretDTO, ResourceQuotaDTO, LimitRangeDTO } from "@/types/cluster";
 import {
   FolderTree,
   Box,
   FileText,
   Tag,
   Shield,
+  Lock,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -24,7 +26,7 @@ interface NamespaceDetailModalProps {
   namespaceName: string;
 }
 
-type TabType = "overview" | "quotas" | "configmaps" | "labels";
+type TabType = "overview" | "quotas" | "configmaps" | "secrets" | "labels";
 
 export function NamespaceDetailModal({
   isOpen,
@@ -37,7 +39,10 @@ export function NamespaceDetailModal({
   const [detail, setDetail] = useState<NamespaceDetail | null>(null);
   const [configMaps, setConfigMaps] = useState<ConfigMapDTO[]>([]);
   const [configMapsLoading, setConfigMapsLoading] = useState(false);
+  const [secrets, setSecrets] = useState<SecretDTO[]>([]);
+  const [secretsLoading, setSecretsLoading] = useState(false);
   const requireAuth = useRequireAuth();
+  const { t } = useI18n();
 
   const fetchDetail = useCallback(async () => {
     if (!namespaceName) return;
@@ -50,11 +55,11 @@ export function NamespaceDetailModal({
       });
       setDetail(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.namespace.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, [namespaceName]);
+  }, [namespaceName, t.namespace.loadFailed]);
 
   const fetchConfigMaps = useCallback(async () => {
     if (!namespaceName) return;
@@ -73,11 +78,29 @@ export function NamespaceDetailModal({
     }
   }, [namespaceName]);
 
+  const fetchSecrets = useCallback(async () => {
+    if (!namespaceName) return;
+    setSecretsLoading(true);
+    try {
+      const res = await getSecrets({
+        ClusterID: getCurrentClusterId(),
+        Namespace: namespaceName,
+      });
+      setSecrets(res.data.data || []);
+    } catch (err) {
+      console.error("Failed to fetch secrets:", err);
+      setSecrets([]);
+    } finally {
+      setSecretsLoading(false);
+    }
+  }, [namespaceName]);
+
   useEffect(() => {
     if (isOpen) {
       fetchDetail();
       setActiveTab("overview");
       setConfigMaps([]);
+      setSecrets([]);
     }
   }, [isOpen, fetchDetail]);
 
@@ -88,11 +111,21 @@ export function NamespaceDetailModal({
     }
   }, [activeTab, configMaps.length, configMapsLoading, fetchConfigMaps]);
 
+  // 当切换到 Secrets tab 时加载数据（需要 Operator 权限）
+  useEffect(() => {
+    if (activeTab === "secrets" && secrets.length === 0 && !secretsLoading) {
+      requireAuth(() => {
+        fetchSecrets();
+      });
+    }
+  }, [activeTab, secrets.length, secretsLoading, fetchSecrets, requireAuth]);
+
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: "overview", label: "概览", icon: <FolderTree className="w-4 h-4" /> },
-    { key: "quotas", label: "配额", icon: <Shield className="w-4 h-4" /> },
-    { key: "configmaps", label: "ConfigMap", icon: <FileText className="w-4 h-4" /> },
-    { key: "labels", label: "标签", icon: <Tag className="w-4 h-4" /> },
+    { key: "overview", label: t.namespace.overview, icon: <FolderTree className="w-4 h-4" /> },
+    { key: "quotas", label: t.namespace.quotas, icon: <Shield className="w-4 h-4" /> },
+    { key: "configmaps", label: t.namespace.configMaps, icon: <FileText className="w-4 h-4" /> },
+    { key: "secrets", label: t.namespace.secrets, icon: <Lock className="w-4 h-4" /> },
+    { key: "labels", label: t.namespace.labels, icon: <Tag className="w-4 h-4" /> },
   ];
 
   return (
@@ -125,15 +158,18 @@ export function NamespaceDetailModal({
 
           {/* Tab Content */}
           <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} />}
+            {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
             {activeTab === "quotas" && (
-              <QuotasTab quotas={detail.quotas || []} limitRanges={detail.limitRanges || []} />
+              <QuotasTab quotas={detail.quotas || []} limitRanges={detail.limitRanges || []} t={t} />
             )}
             {activeTab === "configmaps" && (
-              <ConfigMapsTab configMaps={configMaps} loading={configMapsLoading} requireAuth={requireAuth} />
+              <ConfigMapsTab configMaps={configMaps} loading={configMapsLoading} requireAuth={requireAuth} namespace={namespaceName} t={t} />
+            )}
+            {activeTab === "secrets" && (
+              <SecretsTab secrets={secrets} loading={secretsLoading} requireAuth={requireAuth} namespace={namespaceName} t={t} />
             )}
             {activeTab === "labels" && (
-              <LabelsTab labels={detail.labels || {}} annotations={detail.annotations || {}} />
+              <LabelsTab labels={detail.labels || {}} annotations={detail.annotations || {}} t={t} />
             )}
           </div>
         </div>
@@ -143,14 +179,14 @@ export function NamespaceDetailModal({
 }
 
 // 概览 Tab
-function OverviewTab({ detail }: { detail: NamespaceDetail }) {
+function OverviewTab({ detail, t }: { detail: NamespaceDetail; t: ReturnType<typeof useI18n>["t"] }) {
   const basicInfo = [
-    { label: "名称", value: detail.name },
-    { label: "状态", value: <StatusBadge status={detail.phase} /> },
-    { label: "Age", value: detail.age || "-" },
-    { label: "创建时间", value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
-    { label: "Labels", value: detail.labelCount },
-    { label: "Annotations", value: detail.annotationCount },
+    { label: t.common.name, value: detail.name },
+    { label: t.common.status, value: <StatusBadge status={detail.phase} /> },
+    { label: t.namespace.age, value: detail.age || "-" },
+    { label: t.common.createdAt, value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
+    { label: t.namespace.labels, value: detail.labelCount },
+    { label: t.namespace.annotations, value: detail.annotationCount },
   ];
 
   const workloads = [
@@ -179,7 +215,7 @@ function OverviewTab({ detail }: { detail: NamespaceDetail }) {
     <div className="space-y-6">
       {/* 基本信息 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">基本信息</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.namespace.basicInfo}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {basicInfo.map((item, i) => (
             <div key={i} className="bg-[var(--background)] rounded-lg p-3">
@@ -192,11 +228,11 @@ function OverviewTab({ detail }: { detail: NamespaceDetail }) {
 
       {/* Pod 状态 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">Pod 状态</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.namespace.podStatus}</h3>
         <div className="grid grid-cols-4 gap-4">
           <div className="bg-[var(--background)] rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-default">{detail.pods}</div>
-            <div className="text-xs text-muted mt-1">总计</div>
+            <div className="text-xs text-muted mt-1">{t.namespace.total}</div>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-green-500">{detail.podsRunning}</div>
@@ -215,7 +251,7 @@ function OverviewTab({ detail }: { detail: NamespaceDetail }) {
 
       {/* 工作负载 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">工作负载</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.namespace.workloads}</h3>
         <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
           {workloads.map((item, i) => (
             <div key={i} className="bg-[var(--background)] rounded-lg p-3 text-center">
@@ -229,7 +265,7 @@ function OverviewTab({ detail }: { detail: NamespaceDetail }) {
       {/* 网络 & 配置 */}
       <div className="grid grid-cols-2 gap-6">
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">网络</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.namespace.network}</h3>
           <div className="grid grid-cols-3 gap-3">
             {network.map((item, i) => (
               <div key={i} className="bg-[var(--background)] rounded-lg p-3 text-center">
@@ -240,7 +276,7 @@ function OverviewTab({ detail }: { detail: NamespaceDetail }) {
           </div>
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">配置</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.namespace.config}</h3>
           <div className="grid grid-cols-2 gap-3">
             {config.map((item, i) => (
               <div key={i} className="bg-[var(--background)] rounded-lg p-3 text-center">
@@ -255,20 +291,20 @@ function OverviewTab({ detail }: { detail: NamespaceDetail }) {
       {/* 指标 */}
       {detail.metrics && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">资源使用</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.namespace.resourceUsage}</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-[var(--background)] rounded-lg p-4">
               <div className="text-sm font-medium mb-2">CPU</div>
               <div className="text-lg font-bold text-default">{detail.metrics.cpu.usage}</div>
               {detail.metrics.cpu.utilPct !== undefined && (
-                <div className="text-xs text-muted mt-1">{detail.metrics.cpu.utilPct.toFixed(1)}% 使用率</div>
+                <div className="text-xs text-muted mt-1">{detail.metrics.cpu.utilPct.toFixed(1)}% {t.namespace.utilization}</div>
               )}
             </div>
             <div className="bg-[var(--background)] rounded-lg p-4">
               <div className="text-sm font-medium mb-2">Memory</div>
               <div className="text-lg font-bold text-default">{detail.metrics.memory.usage}</div>
               {detail.metrics.memory.utilPct !== undefined && (
-                <div className="text-xs text-muted mt-1">{detail.metrics.memory.utilPct.toFixed(1)}% 使用率</div>
+                <div className="text-xs text-muted mt-1">{detail.metrics.memory.utilPct.toFixed(1)}% {t.namespace.utilization}</div>
               )}
             </div>
           </div>
@@ -279,9 +315,9 @@ function OverviewTab({ detail }: { detail: NamespaceDetail }) {
 }
 
 // 配额 Tab
-function QuotasTab({ quotas, limitRanges }: { quotas: ResourceQuotaDTO[]; limitRanges: LimitRangeDTO[] }) {
+function QuotasTab({ quotas, limitRanges, t }: { quotas: ResourceQuotaDTO[]; limitRanges: LimitRangeDTO[]; t: ReturnType<typeof useI18n>["t"] }) {
   if (quotas.length === 0 && limitRanges.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无配额或限制范围</div>;
+    return <div className="text-center py-8 text-muted">{t.namespace.noQuotas}</div>;
   }
 
   return (
@@ -384,30 +420,59 @@ function ConfigMapsTab({
   configMaps,
   loading,
   requireAuth,
+  namespace,
+  t,
 }: {
   configMaps: ConfigMapDTO[];
   loading: boolean;
   requireAuth: (action: () => void) => boolean;
+  namespace: string;
+  t: ReturnType<typeof useI18n>["t"];
 }) {
   const [expandedCMs, setExpandedCMs] = useState<Set<string>>(new Set());
+  const [cmDataMap, setCmDataMap] = useState<Record<string, Record<string, string>>>({});
+  const [loadingCMs, setLoadingCMs] = useState<Set<string>>(new Set());
 
-  const toggleExpand = (name: string) => {
+  const toggleExpand = async (name: string) => {
     const isExpanded = expandedCMs.has(name);
     if (isExpanded) {
-      // 收起不需要检查登录
+      // 收起
       setExpandedCMs((prev) => {
         const next = new Set(prev);
         next.delete(name);
         return next;
       });
     } else {
-      // 展开需要检查登录
-      requireAuth(() => {
+      // 展开需要检查登录并获取数据
+      requireAuth(async () => {
+        // 标记展开
         setExpandedCMs((prev) => {
           const next = new Set(prev);
           next.add(name);
           return next;
         });
+
+        // 如果已有数据则不重复获取
+        if (cmDataMap[name]) return;
+
+        // 获取数据
+        setLoadingCMs((prev) => new Set(prev).add(name));
+        try {
+          const data = await getConfigMapData({
+            ClusterID: getCurrentClusterId(),
+            Namespace: namespace,
+            Name: name,
+          });
+          setCmDataMap((prev) => ({ ...prev, [name]: data }));
+        } catch (err) {
+          console.error("Failed to fetch ConfigMap data:", err);
+        } finally {
+          setLoadingCMs((prev) => {
+            const next = new Set(prev);
+            next.delete(name);
+            return next;
+          });
+        }
       });
     }
   };
@@ -421,7 +486,7 @@ function ConfigMapsTab({
   }
 
   if (configMaps.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无 ConfigMap</div>;
+    return <div className="text-center py-8 text-muted">{t.namespace.noConfigMaps}</div>;
   }
 
   const formatBytes = (bytes: number): string => {
@@ -436,6 +501,9 @@ function ConfigMapsTab({
     <div className="space-y-3">
       {configMaps.map((cm) => {
         const isExpanded = expandedCMs.has(cm.name);
+        const isLoadingData = loadingCMs.has(cm.name);
+        const cmData = cmDataMap[cm.name];
+
         return (
           <div key={cm.name} className="bg-[var(--background)] rounded-lg overflow-hidden">
             <button
@@ -459,35 +527,163 @@ function ConfigMapsTab({
               )}
             </button>
 
-            {isExpanded && cm.data && cm.data.length > 0 && (
+            {isExpanded && (
               <div className="px-4 pb-4 border-t border-[var(--border-color)]">
-                <div className="mt-3 space-y-2">
-                  {cm.data.map((entry, i) => (
-                    <div key={i} className="bg-card rounded p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-mono text-sm text-primary">{entry.key}</span>
-                        <span className="text-xs text-muted">{entry.size} bytes</span>
-                      </div>
-                      {entry.preview && (
-                        <pre className="text-xs text-muted bg-[var(--background)] p-2 rounded overflow-x-auto max-h-24">
-                          {entry.preview}
-                          {entry.truncated && <span className="text-yellow-500">...</span>}
-                        </pre>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {cm.binary && cm.binary.length > 0 && (
-                  <div className="mt-3">
-                    <div className="text-xs text-muted mb-2">Binary Data ({cm.binaryKeys} keys)</div>
-                    <div className="flex flex-wrap gap-2">
-                      {cm.binary.map((entry, i) => (
-                        <span key={i} className="px-2 py-1 bg-card rounded text-xs font-mono">
-                          {entry.key} ({formatBytes(entry.size)})
-                        </span>
-                      ))}
-                    </div>
+                {isLoadingData ? (
+                  <div className="py-4 flex justify-center">
+                    <LoadingSpinner />
                   </div>
+                ) : cmData && Object.keys(cmData).length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {Object.entries(cmData).map(([key, value]) => (
+                      <div key={key} className="bg-card rounded p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-mono text-sm text-primary">{key}</span>
+                          <span className="text-xs text-muted">{value.length} bytes</span>
+                        </div>
+                        <pre className="text-xs text-muted bg-[var(--background)] p-2 rounded overflow-x-auto max-h-48 whitespace-pre-wrap break-all">
+                          {value}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-4 text-center text-muted text-sm">{t.namespace.noData}</div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Secret Tab
+function SecretsTab({
+  secrets,
+  loading,
+  requireAuth,
+  namespace,
+  t,
+}: {
+  secrets: SecretDTO[];
+  loading: boolean;
+  requireAuth: (action: () => void) => boolean;
+  namespace: string;
+  t: ReturnType<typeof useI18n>["t"];
+}) {
+  const [expandedSecrets, setExpandedSecrets] = useState<Set<string>>(new Set());
+  const [secretDataMap, setSecretDataMap] = useState<Record<string, Record<string, string>>>({});
+  const [loadingSecrets, setLoadingSecrets] = useState<Set<string>>(new Set());
+
+  const toggleExpand = async (name: string) => {
+    const isExpanded = expandedSecrets.has(name);
+    if (isExpanded) {
+      // 收起
+      setExpandedSecrets((prev) => {
+        const next = new Set(prev);
+        next.delete(name);
+        return next;
+      });
+    } else {
+      // 展开需要检查登录并获取数据
+      requireAuth(async () => {
+        // 标记展开
+        setExpandedSecrets((prev) => {
+          const next = new Set(prev);
+          next.add(name);
+          return next;
+        });
+
+        // 如果已有数据则不重复获取
+        if (secretDataMap[name]) return;
+
+        // 获取数据
+        setLoadingSecrets((prev) => new Set(prev).add(name));
+        try {
+          const data = await getSecretData({
+            ClusterID: getCurrentClusterId(),
+            Namespace: namespace,
+            Name: name,
+          });
+          setSecretDataMap((prev) => ({ ...prev, [name]: data }));
+        } catch (err) {
+          console.error("Failed to fetch Secret data:", err);
+        } finally {
+          setLoadingSecrets((prev) => {
+            const next = new Set(prev);
+            next.delete(name);
+            return next;
+          });
+        }
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="py-8">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (secrets.length === 0) {
+    return <div className="text-center py-8 text-muted">{t.namespace.noSecrets}</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {secrets.map((secret) => {
+        const isExpanded = expandedSecrets.has(secret.name);
+        const isLoadingData = loadingSecrets.has(secret.name);
+        const secretData = secretDataMap[secret.name];
+
+        return (
+          <div key={secret.name} className="bg-[var(--background)] rounded-lg overflow-hidden">
+            <button
+              onClick={() => toggleExpand(secret.name)}
+              className="w-full p-4 flex items-center justify-between hover:bg-[var(--border-color)]/30 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Lock className="w-5 h-5 text-yellow-500" />
+                <div className="text-left">
+                  <div className="font-medium text-default">{secret.name}</div>
+                  <div className="text-xs text-muted">
+                    {secret.type} · {secret.dataKeys?.length || 0} keys
+                  </div>
+                </div>
+              </div>
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4 text-muted" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-muted" />
+              )}
+            </button>
+
+            {isExpanded && (
+              <div className="px-4 pb-4 border-t border-[var(--border-color)]">
+                {isLoadingData ? (
+                  <div className="py-4 flex justify-center">
+                    <LoadingSpinner />
+                  </div>
+                ) : secretData && Object.keys(secretData).length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {Object.entries(secretData).map(([key, value]) => (
+                      <div key={key} className="bg-card rounded p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-mono text-sm text-yellow-500">{key}</span>
+                          <span className="text-xs text-muted">{value.length} bytes</span>
+                        </div>
+                        <pre className="text-xs text-muted bg-[var(--background)] p-2 rounded overflow-x-auto max-h-48 whitespace-pre-wrap break-all">
+                          {value}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-4 text-center text-muted text-sm">{t.namespace.noData}</div>
                 )}
               </div>
             )}
@@ -499,7 +695,7 @@ function ConfigMapsTab({
 }
 
 // 标签 Tab
-function LabelsTab({ labels, annotations }: { labels: Record<string, string>; annotations: Record<string, string> }) {
+function LabelsTab({ labels, annotations, t }: { labels: Record<string, string>; annotations: Record<string, string>; t: ReturnType<typeof useI18n>["t"] }) {
   const labelEntries = Object.entries(labels);
   const annoEntries = Object.entries(annotations);
 
@@ -507,9 +703,9 @@ function LabelsTab({ labels, annotations }: { labels: Record<string, string>; an
     <div className="space-y-6">
       {/* Labels */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">Labels ({labelEntries.length})</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.namespace.labels} ({labelEntries.length})</h3>
         {labelEntries.length === 0 ? (
-          <div className="text-center py-4 text-muted">暂无标签</div>
+          <div className="text-center py-4 text-muted">{t.namespace.noLabels}</div>
         ) : (
           <div className="space-y-2">
             {labelEntries.map(([key, value]) => (
@@ -525,9 +721,9 @@ function LabelsTab({ labels, annotations }: { labels: Record<string, string>; an
 
       {/* Annotations */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">Annotations ({annoEntries.length})</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.namespace.annotations} ({annoEntries.length})</h3>
         {annoEntries.length === 0 ? (
-          <div className="text-center py-4 text-muted">暂无注解</div>
+          <div className="text-center py-4 text-muted">{t.namespace.noAnnotations}</div>
         ) : (
           <div className="space-y-2">
             {annoEntries.map(([key, value]) => (
