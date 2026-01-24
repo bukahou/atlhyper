@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // NodeHandler Node Handler
 type NodeHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewNodeHandler 创建 NodeHandler
-func NewNodeHandler(q query.Query) *NodeHandler {
-	return &NodeHandler{query: q}
+func NewNodeHandler(svc service.Query) *NodeHandler {
+	return &NodeHandler{svc: svc}
 }
 
 // List 获取 Node 列表
@@ -33,7 +33,7 @@ func (h *NodeHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nodes, err := h.query.GetNodes(r.Context(), clusterID)
+	nodes, err := h.svc.GetNodes(r.Context(), clusterID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Node 失败")
 		return
@@ -68,7 +68,7 @@ func (h *NodeHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nodes, err := h.query.GetNodes(r.Context(), clusterID)
+	nodes, err := h.svc.GetNodes(r.Context(), clusterID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Node 失败")
 		return

@@ -13,19 +13,19 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/database/repository"
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // EventHandler Event Handler
 type EventHandler struct {
-	query    query.Query
+	svc      service.Query
 	database database.Database
 }
 
 // NewEventHandler 创建 EventHandler
-func NewEventHandler(q query.Query, db database.Database) *EventHandler {
+func NewEventHandler(svc service.Query, db database.Database) *EventHandler {
 	return &EventHandler{
-		query:    q,
+		svc:      svc,
 		database: db,
 	}
 }
@@ -90,7 +90,7 @@ func (h *EventHandler) listFromQuery(w http.ResponseWriter, r *http.Request, clu
 		}
 	}
 
-	events, err := h.query.GetEvents(r.Context(), clusterID, opts)
+	events, err := h.svc.GetEvents(r.Context(), clusterID, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to query events")
 		return
@@ -200,7 +200,7 @@ func (h *EventHandler) ListByResource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 从 Query 层查询实时数据
-	events, err := h.query.GetEventsByResource(r.Context(), clusterID, kind, namespace, name)
+	events, err := h.svc.GetEventsByResource(r.Context(), clusterID, kind, namespace, name)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to query events")
 		return

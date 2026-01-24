@@ -5,17 +5,17 @@ package handler
 import (
 	"net/http"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // OverviewHandler 集群概览处理器
 type OverviewHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewOverviewHandler 创建 OverviewHandler
-func NewOverviewHandler(q query.Query) *OverviewHandler {
-	return &OverviewHandler{query: q}
+func NewOverviewHandler(svc service.Query) *OverviewHandler {
+	return &OverviewHandler{svc: svc}
 }
 
 // Get 获取集群概览
@@ -34,7 +34,7 @@ func (h *OverviewHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	overview, err := h.query.GetOverview(r.Context(), clusterID)
+	overview, err := h.svc.GetOverview(r.Context(), clusterID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),

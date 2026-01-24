@@ -8,17 +8,17 @@ import (
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // PodHandler Pod Handler
 type PodHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewPodHandler 创建 PodHandler
-func NewPodHandler(q query.Query) *PodHandler {
-	return &PodHandler{query: q}
+func NewPodHandler(svc service.Query) *PodHandler {
+	return &PodHandler{svc: svc}
 }
 
 // List 获取 Pod 列表
@@ -53,7 +53,7 @@ func (h *PodHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	pods, err := h.query.GetPods(r.Context(), clusterID, opts)
+	pods, err := h.svc.GetPods(r.Context(), clusterID, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Pod 失败")
 		return
@@ -91,7 +91,7 @@ func (h *PodHandler) Get(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
 
 	// 获取 Pod 列表并查找
-	pods, err := h.query.GetPods(r.Context(), clusterID, model.PodQueryOpts{
+	pods, err := h.svc.GetPods(r.Context(), clusterID, model.PodQueryOpts{
 		Namespace: namespace,
 	})
 	if err != nil {

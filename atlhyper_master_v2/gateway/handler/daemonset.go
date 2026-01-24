@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // DaemonSetHandler DaemonSet Handler
 type DaemonSetHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewDaemonSetHandler 创建 DaemonSetHandler
-func NewDaemonSetHandler(q query.Query) *DaemonSetHandler {
-	return &DaemonSetHandler{query: q}
+func NewDaemonSetHandler(svc service.Query) *DaemonSetHandler {
+	return &DaemonSetHandler{svc: svc}
 }
 
 // List 获取 DaemonSet 列表
@@ -35,7 +35,7 @@ func (h *DaemonSetHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	daemonsets, err := h.query.GetDaemonSets(r.Context(), clusterID, namespace)
+	daemonsets, err := h.svc.GetDaemonSets(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 DaemonSet 失败")
 		return
@@ -71,7 +71,7 @@ func (h *DaemonSetHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	daemonsets, err := h.query.GetDaemonSets(r.Context(), clusterID, namespace)
+	daemonsets, err := h.svc.GetDaemonSets(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 DaemonSet 失败")
 		return

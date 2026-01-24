@@ -72,7 +72,7 @@ atlhyper/
 
 | 层级 | 职责 | 可调用 |
 |------|------|--------|
-| **Gateway** | HTTP Handler, 认证鉴权 | Service (统一接口) |
+| **Gateway** | HTTP Handler, 认证鉴权 | service.Query / service.Ops |
 | **Service** | 统一业务接口 | - |
 | **service/query** | 读取查询实现 | Store (读), MQ (读), Database |
 | **service/operations** | 写入操作实现 | MQ (写) |
@@ -124,36 +124,37 @@ AgentSDK
 
 ### 接口规范
 
-- `service/interfaces.go` 定义统一 `Service` 接口，包含所有方法签名
+- `service/interfaces.go` 定义 `Query` (只读) + `Ops` (写入) + `Service` (组合) 接口
 - 子包 (`query/`, `operations/`) 提供具体实现，导出结构体类型
 - `service/factory.go` 通过工厂函数组合子包实现为统一接口
-- Gateway 只依赖 `service.Service` 接口
+- Gateway Handler 按需依赖最小接口：查询用 `service.Query`，操作用 `service.Ops`
 
 ```go
-// service/interfaces.go — 统一接口 (所有方法显式列出)
-type Service interface {
-    GetPods(ctx context.Context, clusterID string, opts model.PodQueryOpts) ([]model.PodInfo, error)
-    CreateCommand(req *operations.CreateCommandRequest) (*operations.CreateCommandResponse, error)
-    // ... 所有读写方法
+// service/interfaces.go — 接口隔离
+type Query interface {        // 只读查询 (13 个 handler 依赖)
+    ListClusters(...)
+    GetPods(...)
+    GetCommandStatus(...)
+    // ... 所有 Get/List 方法
+}
+
+type Ops interface {          // 写入操作 (OpsHandler 依赖)
+    CreateCommand(...)
+}
+
+type Service interface {      // 组合接口 (master.go / Router 持有)
+    Query
+    Ops
 }
 
 // service/factory.go — 工厂函数
-type serviceImpl struct {
-    *query.QueryService
-    *operations.CommandService
-}
+func New(q *query.QueryService, ops *operations.CommandService) Service { ... }
 
-func New(q *query.QueryService, ops *operations.CommandService) Service {
-    return &serviceImpl{QueryService: q, CommandService: ops}
-}
+// service/query/impl.go — 读取实现
+type QueryService struct { store datahub.Store; bus mq.Producer }
 
-// service/query/impl.go — 读取实现 (导出结构体)
-type QueryService struct { store datahub.Store; bus mq.CommandBus }
-func New(store datahub.Store, bus mq.CommandBus) *QueryService { ... }
-
-// service/operations/command.go — 写入实现 (导出结构体)
-type CommandService struct { bus mq.CommandBus }
-func NewCommandService(bus mq.CommandBus) *CommandService { ... }
+// service/operations/command.go — 写入实现
+type CommandService struct { bus mq.Producer }
 ```
 
 ### 命名规范
@@ -176,7 +177,7 @@ func NewCommandService(bus mq.CommandBus) *CommandService { ... }
 | **S - 单一职责** | 每个模块/结构体只负责一件事 | agentsdk=传输, processor=处理, query=读取, operations=写入 |
 | **O - 开闭原则** | 对扩展开放，对修改关闭 | 新增读取方法只需在 query/ 加实现 + interfaces.go 加签名 |
 | **L - 里氏替换** | 子类型可替换父类型 | QueryService 和 CommandService 都满足 Service 接口 |
-| **I - 接口隔离** | 不强迫依赖不需要的方法 | Processor 接口只有 ProcessSnapshot + ProcessHeartbeat |
+| **I - 接口隔离** | 不强迫依赖不需要的方法 | service.Query/Ops, mq.Producer/Consumer, Processor |
 | **D - 依赖倒置** | 依赖抽象而非具体实现 | Gateway 依赖 service.Service 接口，不知道 query/operations 的存在 |
 
 #### 其他原则

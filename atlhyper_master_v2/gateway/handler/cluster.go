@@ -7,19 +7,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // ClusterHandler 集群 Handler
 type ClusterHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewClusterHandler 创建 ClusterHandler
-func NewClusterHandler(q query.Query) *ClusterHandler {
-	return &ClusterHandler{
-		query: q,
-	}
+func NewClusterHandler(svc service.Query) *ClusterHandler {
+	return &ClusterHandler{svc: svc}
 }
 
 // List 列出所有集群
@@ -29,7 +27,7 @@ func (h *ClusterHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clusters, err := h.query.ListClusters(r.Context())
+	clusters, err := h.svc.ListClusters(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list clusters")
 		return
@@ -56,7 +54,7 @@ func (h *ClusterHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	detail, err := h.query.GetCluster(r.Context(), clusterID)
+	detail, err := h.svc.GetCluster(r.Context(), clusterID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get cluster")
 		return

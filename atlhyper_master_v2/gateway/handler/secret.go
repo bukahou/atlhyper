@@ -5,17 +5,17 @@ package handler
 import (
 	"net/http"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // SecretHandler Secret Handler
 type SecretHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewSecretHandler 创建 SecretHandler
-func NewSecretHandler(q query.Query) *SecretHandler {
-	return &SecretHandler{query: q}
+func NewSecretHandler(svc service.Query) *SecretHandler {
+	return &SecretHandler{svc: svc}
 }
 
 // List 获取 Secret 列表
@@ -34,7 +34,7 @@ func (h *SecretHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	secrets, err := h.query.GetSecrets(r.Context(), clusterID, namespace)
+	secrets, err := h.svc.GetSecrets(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Secret 失败")
 		return

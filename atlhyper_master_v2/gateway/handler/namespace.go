@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // NamespaceHandler Namespace Handler
 type NamespaceHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewNamespaceHandler 创建 NamespaceHandler
-func NewNamespaceHandler(q query.Query) *NamespaceHandler {
-	return &NamespaceHandler{query: q}
+func NewNamespaceHandler(svc service.Query) *NamespaceHandler {
+	return &NamespaceHandler{svc: svc}
 }
 
 // List 获取 Namespace 列表
@@ -33,7 +33,7 @@ func (h *NamespaceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namespaces, err := h.query.GetNamespaces(r.Context(), clusterID)
+	namespaces, err := h.svc.GetNamespaces(r.Context(), clusterID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Namespace 失败")
 		return
@@ -67,7 +67,7 @@ func (h *NamespaceHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namespaces, err := h.query.GetNamespaces(r.Context(), clusterID)
+	namespaces, err := h.svc.GetNamespaces(r.Context(), clusterID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Namespace 失败")
 		return

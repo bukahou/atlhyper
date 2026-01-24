@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // IngressHandler Ingress Handler
 type IngressHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewIngressHandler 创建 IngressHandler
-func NewIngressHandler(q query.Query) *IngressHandler {
-	return &IngressHandler{query: q}
+func NewIngressHandler(svc service.Query) *IngressHandler {
+	return &IngressHandler{svc: svc}
 }
 
 // List 获取 Ingress 列表
@@ -35,7 +35,7 @@ func (h *IngressHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	ingresses, err := h.query.GetIngresses(r.Context(), clusterID, namespace)
+	ingresses, err := h.svc.GetIngresses(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Ingress 失败")
 		return
@@ -71,7 +71,7 @@ func (h *IngressHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	ingresses, err := h.query.GetIngresses(r.Context(), clusterID, namespace)
+	ingresses, err := h.svc.GetIngresses(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Ingress 失败")
 		return

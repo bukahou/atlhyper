@@ -16,12 +16,12 @@ import (
 
 // OpsHandler 操作 Handler
 type OpsHandler struct {
-	svc service.Service
+	svc service.Ops
 	bus mq.Producer
 }
 
 // NewOpsHandler 创建 OpsHandler
-func NewOpsHandler(svc service.Service, bus mq.Producer) *OpsHandler {
+func NewOpsHandler(svc service.Ops, bus mq.Producer) *OpsHandler {
 	return &OpsHandler{
 		svc: svc,
 		bus: bus,

@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // ServiceHandler Service Handler
 type ServiceHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewServiceHandler 创建 ServiceHandler
-func NewServiceHandler(q query.Query) *ServiceHandler {
-	return &ServiceHandler{query: q}
+func NewServiceHandler(svc service.Query) *ServiceHandler {
+	return &ServiceHandler{svc: svc}
 }
 
 // List 获取 Service 列表
@@ -35,7 +35,7 @@ func (h *ServiceHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	services, err := h.query.GetServices(r.Context(), clusterID, namespace)
+	services, err := h.svc.GetServices(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Service 失败")
 		return
@@ -72,7 +72,7 @@ func (h *ServiceHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	services, err := h.query.GetServices(r.Context(), clusterID, namespace)
+	services, err := h.svc.GetServices(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Service 失败")
 		return

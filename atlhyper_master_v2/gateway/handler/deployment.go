@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // DeploymentHandler Deployment Handler
 type DeploymentHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewDeploymentHandler 创建 DeploymentHandler
-func NewDeploymentHandler(q query.Query) *DeploymentHandler {
-	return &DeploymentHandler{query: q}
+func NewDeploymentHandler(svc service.Query) *DeploymentHandler {
+	return &DeploymentHandler{svc: svc}
 }
 
 // List 获取 Deployment 列表
@@ -35,7 +35,7 @@ func (h *DeploymentHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	deployments, err := h.query.GetDeployments(r.Context(), clusterID, namespace)
+	deployments, err := h.svc.GetDeployments(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Deployment 失败")
 		return
@@ -72,7 +72,7 @@ func (h *DeploymentHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	deployments, err := h.query.GetDeployments(r.Context(), clusterID, namespace)
+	deployments, err := h.svc.GetDeployments(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 Deployment 失败")
 		return

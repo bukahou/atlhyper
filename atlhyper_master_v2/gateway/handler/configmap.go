@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // ConfigMapHandler ConfigMap Handler
 type ConfigMapHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewConfigMapHandler 创建 ConfigMapHandler
-func NewConfigMapHandler(q query.Query) *ConfigMapHandler {
-	return &ConfigMapHandler{query: q}
+func NewConfigMapHandler(svc service.Query) *ConfigMapHandler {
+	return &ConfigMapHandler{svc: svc}
 }
 
 // List 获取 ConfigMap 列表
@@ -35,7 +35,7 @@ func (h *ConfigMapHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	configmaps, err := h.query.GetConfigMaps(r.Context(), clusterID, namespace)
+	configmaps, err := h.svc.GetConfigMaps(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 ConfigMap 失败")
 		return
@@ -69,7 +69,7 @@ func (h *ConfigMapHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	configmaps, err := h.query.GetConfigMaps(r.Context(), clusterID, "")
+	configmaps, err := h.svc.GetConfigMaps(r.Context(), clusterID, "")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 ConfigMap 失败")
 		return

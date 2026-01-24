@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // StatefulSetHandler StatefulSet Handler
 type StatefulSetHandler struct {
-	query query.Query
+	svc service.Query
 }
 
 // NewStatefulSetHandler 创建 StatefulSetHandler
-func NewStatefulSetHandler(q query.Query) *StatefulSetHandler {
-	return &StatefulSetHandler{query: q}
+func NewStatefulSetHandler(svc service.Query) *StatefulSetHandler {
+	return &StatefulSetHandler{svc: svc}
 }
 
 // List 获取 StatefulSet 列表
@@ -35,7 +35,7 @@ func (h *StatefulSetHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	statefulsets, err := h.query.GetStatefulSets(r.Context(), clusterID, namespace)
+	statefulsets, err := h.svc.GetStatefulSets(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 StatefulSet 失败")
 		return
@@ -71,7 +71,7 @@ func (h *StatefulSetHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	namespace := r.URL.Query().Get("namespace")
 
-	statefulsets, err := h.query.GetStatefulSets(r.Context(), clusterID, namespace)
+	statefulsets, err := h.svc.GetStatefulSets(r.Context(), clusterID, namespace)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询 StatefulSet 失败")
 		return
