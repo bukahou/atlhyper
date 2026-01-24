@@ -1,29 +1,31 @@
-// atlhyper_master_v2/database/event.go
+// atlhyper_master_v2/database/repo/event.go
 // ClusterEventRepository 实现
-package database
+package repo
 
 import (
 	"context"
 	"database/sql"
 	"time"
+
+	"AtlHyper/atlhyper_master_v2/database"
 )
 
 type eventRepo struct {
 	db      *sql.DB
-	dialect EventDialect
+	dialect database.EventDialect
 }
 
-func newEventRepo(db *sql.DB, dialect EventDialect) *eventRepo {
+func newEventRepo(db *sql.DB, dialect database.EventDialect) *eventRepo {
 	return &eventRepo{db: db, dialect: dialect}
 }
 
-func (r *eventRepo) Upsert(ctx context.Context, event *ClusterEvent) error {
+func (r *eventRepo) Upsert(ctx context.Context, event *database.ClusterEvent) error {
 	query, args := r.dialect.Upsert(event)
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
-func (r *eventRepo) UpsertBatch(ctx context.Context, events []*ClusterEvent) error {
+func (r *eventRepo) UpsertBatch(ctx context.Context, events []*database.ClusterEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -52,17 +54,17 @@ func (r *eventRepo) UpsertBatch(ctx context.Context, events []*ClusterEvent) err
 	return tx.Commit()
 }
 
-func (r *eventRepo) ListByCluster(ctx context.Context, clusterID string, opts EventQueryOpts) ([]*ClusterEvent, error) {
+func (r *eventRepo) ListByCluster(ctx context.Context, clusterID string, opts database.EventQueryOpts) ([]*database.ClusterEvent, error) {
 	query, args := r.dialect.ListByCluster(clusterID, opts)
 	return r.queryEvents(ctx, query, args...)
 }
 
-func (r *eventRepo) ListByInvolvedResource(ctx context.Context, clusterID, kind, namespace, name string) ([]*ClusterEvent, error) {
+func (r *eventRepo) ListByInvolvedResource(ctx context.Context, clusterID, kind, namespace, name string) ([]*database.ClusterEvent, error) {
 	query, args := r.dialect.ListByInvolvedResource(clusterID, kind, namespace, name)
 	return r.queryEvents(ctx, query, args...)
 }
 
-func (r *eventRepo) ListByType(ctx context.Context, clusterID, eventType string, since time.Time) ([]*ClusterEvent, error) {
+func (r *eventRepo) ListByType(ctx context.Context, clusterID, eventType string, since time.Time) ([]*database.ClusterEvent, error) {
 	query, args := r.dialect.ListByType(clusterID, eventType, since)
 	return r.queryEvents(ctx, query, args...)
 }
@@ -109,7 +111,7 @@ func (r *eventRepo) CountByCluster(ctx context.Context, clusterID string) (int64
 	return count, err
 }
 
-func (r *eventRepo) CountByHour(ctx context.Context, clusterID string, hours int) ([]HourlyEventCount, error) {
+func (r *eventRepo) CountByHour(ctx context.Context, clusterID string, hours int) ([]database.HourlyEventCount, error) {
 	since := time.Now().Add(-time.Duration(hours) * time.Hour)
 	query, args := r.dialect.CountByHour(clusterID, since)
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -118,7 +120,7 @@ func (r *eventRepo) CountByHour(ctx context.Context, clusterID string, hours int
 	}
 	defer rows.Close()
 
-	var results []HourlyEventCount
+	var results []database.HourlyEventCount
 	for rows.Next() {
 		h, err := r.dialect.ScanHourlyCount(rows)
 		if err != nil {
@@ -129,7 +131,7 @@ func (r *eventRepo) CountByHour(ctx context.Context, clusterID string, hours int
 	return results, rows.Err()
 }
 
-func (r *eventRepo) CountByHourAndKind(ctx context.Context, clusterID string, hours int) ([]HourlyKindCount, error) {
+func (r *eventRepo) CountByHourAndKind(ctx context.Context, clusterID string, hours int) ([]database.HourlyKindCount, error) {
 	since := time.Now().Add(-time.Duration(hours) * time.Hour)
 	query, args := r.dialect.CountByHourAndKind(clusterID, since)
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -138,7 +140,7 @@ func (r *eventRepo) CountByHourAndKind(ctx context.Context, clusterID string, ho
 	}
 	defer rows.Close()
 
-	var results []HourlyKindCount
+	var results []database.HourlyKindCount
 	for rows.Next() {
 		h, err := r.dialect.ScanHourlyKindCount(rows)
 		if err != nil {
@@ -149,14 +151,14 @@ func (r *eventRepo) CountByHourAndKind(ctx context.Context, clusterID string, ho
 	return results, rows.Err()
 }
 
-func (r *eventRepo) queryEvents(ctx context.Context, query string, args ...any) ([]*ClusterEvent, error) {
+func (r *eventRepo) queryEvents(ctx context.Context, query string, args ...any) ([]*database.ClusterEvent, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var events []*ClusterEvent
+	var events []*database.ClusterEvent
 	for rows.Next() {
 		e, err := r.dialect.ScanRow(rows)
 		if err != nil {

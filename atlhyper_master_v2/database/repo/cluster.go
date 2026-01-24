@@ -1,22 +1,24 @@
-// atlhyper_master_v2/database/cluster.go
+// atlhyper_master_v2/database/repo/cluster.go
 // ClusterRepository 实现
-package database
+package repo
 
 import (
 	"context"
 	"database/sql"
+
+	"AtlHyper/atlhyper_master_v2/database"
 )
 
 type clusterRepo struct {
 	db      *sql.DB
-	dialect ClusterDialect
+	dialect database.ClusterDialect
 }
 
-func newClusterRepo(db *sql.DB, dialect ClusterDialect) *clusterRepo {
+func newClusterRepo(db *sql.DB, dialect database.ClusterDialect) *clusterRepo {
 	return &clusterRepo{db: db, dialect: dialect}
 }
 
-func (r *clusterRepo) Create(ctx context.Context, cluster *Cluster) error {
+func (r *clusterRepo) Create(ctx context.Context, cluster *database.Cluster) error {
 	query, args := r.dialect.Insert(cluster)
 	result, err := r.db.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -27,7 +29,7 @@ func (r *clusterRepo) Create(ctx context.Context, cluster *Cluster) error {
 	return nil
 }
 
-func (r *clusterRepo) Update(ctx context.Context, cluster *Cluster) error {
+func (r *clusterRepo) Update(ctx context.Context, cluster *database.Cluster) error {
 	query, args := r.dialect.Update(cluster)
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
@@ -39,17 +41,17 @@ func (r *clusterRepo) Delete(ctx context.Context, id int64) error {
 	return err
 }
 
-func (r *clusterRepo) GetByID(ctx context.Context, id int64) (*Cluster, error) {
+func (r *clusterRepo) GetByID(ctx context.Context, id int64) (*database.Cluster, error) {
 	query, args := r.dialect.SelectByID(id)
 	return r.queryOne(ctx, query, args...)
 }
 
-func (r *clusterRepo) GetByUID(ctx context.Context, uid string) (*Cluster, error) {
+func (r *clusterRepo) GetByUID(ctx context.Context, uid string) (*database.Cluster, error) {
 	query, args := r.dialect.SelectByUID(uid)
 	return r.queryOne(ctx, query, args...)
 }
 
-func (r *clusterRepo) List(ctx context.Context) ([]*Cluster, error) {
+func (r *clusterRepo) List(ctx context.Context) ([]*database.Cluster, error) {
 	query, args := r.dialect.SelectAll()
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -57,7 +59,7 @@ func (r *clusterRepo) List(ctx context.Context) ([]*Cluster, error) {
 	}
 	defer rows.Close()
 
-	var clusters []*Cluster
+	var clusters []*database.Cluster
 	for rows.Next() {
 		c, err := r.dialect.ScanRow(rows)
 		if err != nil {
@@ -68,7 +70,7 @@ func (r *clusterRepo) List(ctx context.Context) ([]*Cluster, error) {
 	return clusters, rows.Err()
 }
 
-func (r *clusterRepo) queryOne(ctx context.Context, query string, args ...any) (*Cluster, error) {
+func (r *clusterRepo) queryOne(ctx context.Context, query string, args ...any) (*database.Cluster, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

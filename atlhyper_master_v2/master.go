@@ -28,6 +28,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/database/repo"
 	"AtlHyper/atlhyper_master_v2/database/sqlite"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/gateway"
@@ -95,12 +96,8 @@ func New() (*Master, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init database: %w", err)
 	}
+	repo.Init(db, dialect)
 	log.Printf("[Master] 数据库初始化完成: type=%s", cfg.Database.Type)
-
-	// 执行数据库迁移
-	if err := db.Migrate(); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
 
 	// 4. 初始化 EventPersistService
 	eventPersist := operations.NewEventPersistService(

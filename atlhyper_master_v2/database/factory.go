@@ -19,7 +19,7 @@ type Config struct {
 }
 
 // New 创建数据库实例
-// 根据配置类型选择对应的 Dialect，初始化连接和 Repository
+// 打开连接并执行迁移，Repository 通过 repo.Init() 注入
 func New(cfg Config, dialect Dialect) (*DB, error) {
 	var conn *sql.DB
 	var err error
@@ -35,22 +35,14 @@ func New(cfg Config, dialect Dialect) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	db := &DB{
-		conn:    conn,
-		dialect: dialect,
+	// 执行迁移
+	if err := dialect.Migrate(conn); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	// 初始化 Repository（注入 conn + dialect）
-	db.Audit = newAuditRepo(conn, dialect.Audit())
-	db.User = newUserRepo(conn, dialect.User())
-	db.Event = newEventRepo(conn, dialect.Event())
-	db.Notify = newNotifyRepo(conn, dialect.Notify())
-	db.Cluster = newClusterRepo(conn, dialect.Cluster())
-	db.Command = newCommandRepo(conn, dialect.Command())
-	db.Settings = newSettingsRepo(conn, dialect.Settings())
-
 	log.Printf("[Database] 已连接数据库: type=%s", cfg.Type)
-	return db, nil
+	return &DB{Conn: conn}, nil
 }
 
 // openSQLite 打开 SQLite 数据库连接

@@ -12,7 +12,7 @@ import (
 // ==================== DB 结构体 ====================
 
 // DB 数据库统一访问点
-// 通过 New() 工厂函数创建，持有所有 Repository 实例
+// 通过 New() 工厂函数创建，repo.Init() 注入 Repository 实例
 type DB struct {
 	Audit    AuditRepository
 	User     UserRepository
@@ -22,23 +22,12 @@ type DB struct {
 	Command  CommandHistoryRepository
 	Settings SettingsRepository
 
-	conn    *sql.DB
-	dialect Dialect
+	Conn *sql.DB // 导出供 repo 包使用
 }
 
 // Close 关闭数据库连接
 func (db *DB) Close() error {
-	return db.conn.Close()
-}
-
-// Migrate 执行数据库迁移
-func (db *DB) Migrate() error {
-	return db.dialect.Migrate(db.conn)
-}
-
-// Conn 获取底层数据库连接（供事务使用）
-func (db *DB) Conn() *sql.DB {
-	return db.conn
+	return db.Conn.Close()
 }
 
 // ==================== 模型定义 ====================

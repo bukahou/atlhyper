@@ -1,22 +1,24 @@
-// atlhyper_master_v2/database/settings.go
+// atlhyper_master_v2/database/repo/settings.go
 // SettingsRepository 实现
-package database
+package repo
 
 import (
 	"context"
 	"database/sql"
+
+	"AtlHyper/atlhyper_master_v2/database"
 )
 
 type settingsRepo struct {
 	db      *sql.DB
-	dialect SettingsDialect
+	dialect database.SettingsDialect
 }
 
-func newSettingsRepo(db *sql.DB, dialect SettingsDialect) *settingsRepo {
+func newSettingsRepo(db *sql.DB, dialect database.SettingsDialect) *settingsRepo {
 	return &settingsRepo{db: db, dialect: dialect}
 }
 
-func (r *settingsRepo) Get(ctx context.Context, key string) (*Setting, error) {
+func (r *settingsRepo) Get(ctx context.Context, key string) (*database.Setting, error) {
 	query, args := r.dialect.SelectByKey(key)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -30,7 +32,7 @@ func (r *settingsRepo) Get(ctx context.Context, key string) (*Setting, error) {
 	return r.dialect.ScanRow(rows)
 }
 
-func (r *settingsRepo) Set(ctx context.Context, s *Setting) error {
+func (r *settingsRepo) Set(ctx context.Context, s *database.Setting) error {
 	query, args := r.dialect.Upsert(s)
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
@@ -42,7 +44,7 @@ func (r *settingsRepo) Delete(ctx context.Context, key string) error {
 	return err
 }
 
-func (r *settingsRepo) List(ctx context.Context) ([]*Setting, error) {
+func (r *settingsRepo) List(ctx context.Context) ([]*database.Setting, error) {
 	query, args := r.dialect.SelectAll()
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -50,7 +52,7 @@ func (r *settingsRepo) List(ctx context.Context) ([]*Setting, error) {
 	}
 	defer rows.Close()
 
-	var settings []*Setting
+	var settings []*database.Setting
 	for rows.Next() {
 		s, err := r.dialect.ScanRow(rows)
 		if err != nil {

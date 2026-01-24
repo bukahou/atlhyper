@@ -1,22 +1,24 @@
-// atlhyper_master_v2/database/command.go
+// atlhyper_master_v2/database/repo/command.go
 // CommandHistoryRepository 实现
-package database
+package repo
 
 import (
 	"context"
 	"database/sql"
+
+	"AtlHyper/atlhyper_master_v2/database"
 )
 
 type commandRepo struct {
 	db      *sql.DB
-	dialect CommandDialect
+	dialect database.CommandDialect
 }
 
-func newCommandRepo(db *sql.DB, dialect CommandDialect) *commandRepo {
+func newCommandRepo(db *sql.DB, dialect database.CommandDialect) *commandRepo {
 	return &commandRepo{db: db, dialect: dialect}
 }
 
-func (r *commandRepo) Create(ctx context.Context, cmd *CommandHistory) error {
+func (r *commandRepo) Create(ctx context.Context, cmd *database.CommandHistory) error {
 	query, args := r.dialect.Insert(cmd)
 	result, err := r.db.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -27,28 +29,28 @@ func (r *commandRepo) Create(ctx context.Context, cmd *CommandHistory) error {
 	return nil
 }
 
-func (r *commandRepo) Update(ctx context.Context, cmd *CommandHistory) error {
+func (r *commandRepo) Update(ctx context.Context, cmd *database.CommandHistory) error {
 	query, args := r.dialect.Update(cmd)
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
-func (r *commandRepo) GetByCommandID(ctx context.Context, cmdID string) (*CommandHistory, error) {
+func (r *commandRepo) GetByCommandID(ctx context.Context, cmdID string) (*database.CommandHistory, error) {
 	query, args := r.dialect.SelectByCommandID(cmdID)
 	return r.queryOne(ctx, query, args...)
 }
 
-func (r *commandRepo) ListByCluster(ctx context.Context, clusterID string, limit, offset int) ([]*CommandHistory, error) {
+func (r *commandRepo) ListByCluster(ctx context.Context, clusterID string, limit, offset int) ([]*database.CommandHistory, error) {
 	query, args := r.dialect.SelectByCluster(clusterID, limit, offset)
 	return r.queryAll(ctx, query, args...)
 }
 
-func (r *commandRepo) ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*CommandHistory, error) {
+func (r *commandRepo) ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*database.CommandHistory, error) {
 	query, args := r.dialect.SelectByUser(userID, limit, offset)
 	return r.queryAll(ctx, query, args...)
 }
 
-func (r *commandRepo) queryOne(ctx context.Context, query string, args ...any) (*CommandHistory, error) {
+func (r *commandRepo) queryOne(ctx context.Context, query string, args ...any) (*database.CommandHistory, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -61,14 +63,14 @@ func (r *commandRepo) queryOne(ctx context.Context, query string, args ...any) (
 	return r.dialect.ScanRow(rows)
 }
 
-func (r *commandRepo) queryAll(ctx context.Context, query string, args ...any) ([]*CommandHistory, error) {
+func (r *commandRepo) queryAll(ctx context.Context, query string, args ...any) ([]*database.CommandHistory, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var cmds []*CommandHistory
+	var cmds []*database.CommandHistory
 	for rows.Next() {
 		cmd, err := r.dialect.ScanRow(rows)
 		if err != nil {
