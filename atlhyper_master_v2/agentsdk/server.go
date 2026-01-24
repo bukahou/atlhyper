@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/processor"
 )
@@ -21,6 +22,7 @@ type Server struct {
 	timeout    time.Duration
 	bus        mq.Consumer
 	processor  processor.Processor
+	cmdRepo    database.CommandHistoryRepository
 	httpServer *http.Server
 }
 
@@ -30,6 +32,7 @@ type Config struct {
 	CommandTimeout time.Duration
 	Bus            mq.Consumer
 	Processor      processor.Processor
+	CmdRepo        database.CommandHistoryRepository
 }
 
 // NewServer 创建 Server
@@ -39,6 +42,7 @@ func NewServer(cfg Config) *Server {
 		timeout:   cfg.CommandTimeout,
 		bus:       cfg.Bus,
 		processor: cfg.Processor,
+		cmdRepo:   cfg.CmdRepo,
 	}
 }
 

@@ -134,18 +134,19 @@ func New() (*Master, error) {
 	log.Println("[Master] 查询层初始化完成")
 
 	// 7. 初始化 Operations（写入路径）
-	ops := operations.NewCommandService(bus)
+	ops := operations.NewCommandService(bus, db.Command)
 	log.Println("[Master] 操作服务初始化完成")
 
 	// 组合统一 Service
 	svc := service.New(q, ops)
 
-	// 8. 初始化 AgentSDK（使用 Processor + Bus）
+	// 8. 初始化 AgentSDK（使用 Processor + Bus + CommandRepo）
 	agentServer := agentsdk.NewServer(agentsdk.Config{
 		Port:           cfg.Server.AgentSDKPort,
 		CommandTimeout: cfg.Timeout.CommandPoll,
 		Bus:            bus,
 		Processor:      proc,
+		CmdRepo:        db.Command,
 	})
 	log.Printf("[Master] AgentSDK 初始化完成: 端口=%d", cfg.Server.AgentSDKPort)
 
