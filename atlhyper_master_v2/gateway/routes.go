@@ -24,12 +24,12 @@ type Router struct {
 	mux       *http.ServeMux
 	publicMux *http.ServeMux // 公开路由（不需要认证）
 	service   service.Service
-	database  database.Database
+	database  *database.DB
 	bus       mq.Producer
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(svc service.Service, db database.Database, bus mq.Producer) *Router {
+func NewRouter(svc service.Service, db *database.DB, bus mq.Producer) *Router {
 	return &Router{
 		mux:       http.NewServeMux(),
 		publicMux: http.NewServeMux(),
@@ -58,7 +58,7 @@ func (r *Router) Handler() http.Handler {
 // registerRoutes 注册所有路由
 func (r *Router) registerRoutes() {
 	// 创建 Handlers
-	userHandler := handler.NewUserHandler(r.database.UserRepository())
+	userHandler := handler.NewUserHandler(r.database.User)
 	clusterHandler := handler.NewClusterHandler(r.service)
 	overviewHandler := handler.NewOverviewHandler(r.service)
 	podHandler := handler.NewPodHandler(r.service)
@@ -234,7 +234,7 @@ func (r *Router) admin(fn func(register func(pattern string, h http.HandlerFunc)
 
 // audit 创建审计中间件
 func (r *Router) audit(action, resource string) func(http.HandlerFunc) http.HandlerFunc {
-	return middleware.Audit(r.database.AuditRepository(), middleware.AuditConfig{
+	return middleware.Audit(r.database.Audit, middleware.AuditConfig{
 		Action:   action,
 		Resource: resource,
 	})

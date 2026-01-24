@@ -9,18 +9,17 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/database/repository"
 )
 
 // AuditHandler 审计日志 Handler
 type AuditHandler struct {
-	database database.Database
+	db *database.DB
 }
 
 // NewAuditHandler 创建 AuditHandler
-func NewAuditHandler(db database.Database) *AuditHandler {
+func NewAuditHandler(db *database.DB) *AuditHandler {
 	return &AuditHandler{
-		database: db,
+		db: db,
 	}
 }
 
@@ -54,7 +53,7 @@ func (h *AuditHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// 解析查询参数
 	query := r.URL.Query()
-	opts := repository.AuditQueryOpts{
+	opts := database.AuditQueryOpts{
 		Limit:  50, // 默认
 		Offset: 0,
 	}
@@ -104,14 +103,14 @@ func (h *AuditHandler) List(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// 查询日志
-	logs, err := h.database.AuditRepository().List(ctx, opts)
+	logs, err := h.db.Audit.List(ctx, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "获取审计日志失败")
 		return
 	}
 
 	// 查询总数
-	total, err := h.database.AuditRepository().Count(ctx, opts)
+	total, err := h.db.Audit.Count(ctx, opts)
 	if err != nil {
 		total = int64(len(logs))
 	}

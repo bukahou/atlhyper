@@ -42,7 +42,7 @@ import (
 type Master struct {
 	store        datahub.Store
 	bus          mq.CommandBus
-	database     database.Database
+	database     *database.DB
 	processor    processor.Processor
 	service      service.Service
 	agentSDK     *agentsdk.Server
@@ -87,16 +87,13 @@ func New() (*Master, error) {
 	log.Println("[Master] CommandBus 初始化完成")
 
 	// 3. 初始化 Database
-	var db database.Database
-	var err error
-	switch cfg.Database.Type {
-	case "sqlite":
-		db, err = sqlite.New(cfg.Database.Path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to init sqlite: %w", err)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported database type: %s", cfg.Database.Type)
+	dialect := sqlite.NewDialect()
+	db, err := database.New(database.Config{
+		Type: cfg.Database.Type,
+		Path: cfg.Database.Path,
+	}, dialect)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init database: %w", err)
 	}
 	log.Printf("[Master] 数据库初始化完成: type=%s", cfg.Database.Type)
 
@@ -108,7 +105,7 @@ func New() (*Master, error) {
 	// 4. 初始化 EventPersistService
 	eventPersist := operations.NewEventPersistService(
 		store,
-		db.ClusterEventRepository(),
+		db.Event,
 		operations.EventPersistConfig{
 			RetentionDays:   cfg.Event.RetentionDays,
 			MaxCount:        cfg.Event.MaxCount,
@@ -130,7 +127,7 @@ func New() (*Master, error) {
 	log.Println("[Master] 数据处理器初始化完成")
 
 	// 6. 初始化 Query（读取路径）
-	q := query.NewWithEventRepo(store, bus, db.ClusterEventRepository())
+	q := query.NewWithEventRepo(store, bus, db.Event)
 	log.Println("[Master] 查询层初始化完成")
 
 	// 7. 初始化 Operations（写入路径）
@@ -269,7 +266,7 @@ func (m *Master) Bus() mq.CommandBus {
 }
 
 // Database 获取 Database 实例（供测试使用）
-func (m *Master) Database() database.Database {
+func (m *Master) Database() *database.DB {
 	return m.database
 }
 

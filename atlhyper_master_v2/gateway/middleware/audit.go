@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/database/repository"
+	"AtlHyper/atlhyper_master_v2/database"
 )
 
 // AuditConfig 审计配置
@@ -21,7 +21,7 @@ type AuditConfig struct {
 
 // AuditRepository 审计日志仓库接口（避免循环依赖）
 type AuditRepository interface {
-	Create(ctx context.Context, log *repository.AuditLog) error
+	Create(ctx context.Context, log *database.AuditLog) error
 }
 
 // auditResponseWriter 包装 ResponseWriter 以获取状态码
@@ -74,7 +74,7 @@ func Audit(repo AuditRepository, config AuditConfig) func(http.HandlerFunc) http
 				// 脱敏请求体
 				sanitizedBody := sanitizeRequestBody(string(bodyBytes))
 
-				log := &repository.AuditLog{
+				log := &database.AuditLog{
 					Timestamp:   start,
 					UserID:      userID,
 					Username:    username,

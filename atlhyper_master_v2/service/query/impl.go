@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/database/repository"
+	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
@@ -17,7 +17,7 @@ import (
 type QueryService struct {
 	store     datahub.Store
 	bus       mq.Producer
-	eventRepo repository.ClusterEventRepository
+	eventRepo database.ClusterEventRepository
 }
 
 // New 创建 QueryService 实例
@@ -29,7 +29,7 @@ func New(store datahub.Store, bus mq.Producer) *QueryService {
 }
 
 // NewWithEventRepo 创建带事件仓库的 QueryService 实例（用于 Alert Trends）
-func NewWithEventRepo(store datahub.Store, bus mq.Producer, eventRepo repository.ClusterEventRepository) *QueryService {
+func NewWithEventRepo(store datahub.Store, bus mq.Producer, eventRepo database.ClusterEventRepository) *QueryService {
 	return &QueryService{
 		store:     store,
 		bus:       bus,
@@ -480,7 +480,7 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 
 		// 2. 最近告警（最近 10 条 Warning 事件）
 		since24h := now.Add(-24 * time.Hour)
-		dbEvents, _ := q.eventRepo.ListByCluster(ctx, clusterID, repository.EventQueryOpts{
+		dbEvents, _ := q.eventRepo.ListByCluster(ctx, clusterID, database.EventQueryOpts{
 			Since: since24h,
 			Limit: 10,
 		})

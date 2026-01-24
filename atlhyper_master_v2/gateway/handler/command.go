@@ -8,22 +8,18 @@ import (
 	"net/http"
 	"strings"
 
-	"AtlHyper/atlhyper_master_v2/query"
 	"AtlHyper/atlhyper_master_v2/service"
+	"AtlHyper/atlhyper_master_v2/service/operations"
 )
 
 // CommandHandler 指令 Handler
 type CommandHandler struct {
-	query          query.Query
-	commandService service.CommandService
+	svc service.Service
 }
 
 // NewCommandHandler 创建 CommandHandler
-func NewCommandHandler(q query.Query, cs service.CommandService) *CommandHandler {
-	return &CommandHandler{
-		query:          q,
-		commandService: cs,
-	}
+func NewCommandHandler(svc service.Service) *CommandHandler {
+	return &CommandHandler{svc: svc}
 }
 
 // CreateCommandRequest 创建指令请求
@@ -49,8 +45,8 @@ func (h *CommandHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 通过 CommandService 创建指令
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	// 创建指令
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          req.Action,
 		TargetKind:      req.TargetKind,
@@ -86,7 +82,7 @@ func (h *CommandHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 通过 Query 层查询状态
-	status, err := h.query.GetCommandStatus(r.Context(), commandID)
+	status, err := h.svc.GetCommandStatus(r.Context(), commandID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get command status")
 		return

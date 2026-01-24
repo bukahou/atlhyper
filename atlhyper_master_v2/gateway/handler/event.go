@@ -11,22 +11,21 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/database/repository"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // EventHandler Event Handler
 type EventHandler struct {
-	svc      service.Query
-	database database.Database
+	svc service.Query
+	db  *database.DB
 }
 
 // NewEventHandler 创建 EventHandler
-func NewEventHandler(svc service.Query, db database.Database) *EventHandler {
+func NewEventHandler(svc service.Query, db *database.DB) *EventHandler {
 	return &EventHandler{
-		svc:      svc,
-		database: db,
+		svc: svc,
+		db:  db,
 	}
 }
 
@@ -107,7 +106,7 @@ func (h *EventHandler) listFromQuery(w http.ResponseWriter, r *http.Request, clu
 func (h *EventHandler) listFromDatabase(w http.ResponseWriter, r *http.Request, clusterID string) {
 	params := r.URL.Query()
 
-	opts := repository.EventQueryOpts{}
+	opts := database.EventQueryOpts{}
 
 	// 分页
 	if limitStr := params.Get("limit"); limitStr != "" {
@@ -140,13 +139,13 @@ func (h *EventHandler) listFromDatabase(w http.ResponseWriter, r *http.Request, 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	dbEvents, err := h.database.ClusterEventRepository().ListByCluster(ctx, clusterID, opts)
+	dbEvents, err := h.db.Event.ListByCluster(ctx, clusterID, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to query events")
 		return
 	}
 
-	total, _ := h.database.ClusterEventRepository().CountByCluster(ctx, clusterID)
+	total, _ := h.db.Event.CountByCluster(ctx, clusterID)
 
 	// 转换为前端期望的格式
 	events := make([]map[string]interface{}, 0, len(dbEvents))

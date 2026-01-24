@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"AtlHyper/atlhyper_master_v2/database/repository"
+	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 
 	"golang.org/x/crypto/bcrypt"
@@ -15,11 +15,11 @@ import (
 
 // UserHandler 用户管理 Handler
 type UserHandler struct {
-	userRepo repository.UserRepository
+	userRepo database.UserRepository
 }
 
 // NewUserHandler 创建 UserHandler
-func NewUserHandler(userRepo repository.UserRepository) *UserHandler {
+func NewUserHandler(userRepo database.UserRepository) *UserHandler {
 	return &UserHandler{userRepo: userRepo}
 }
 
@@ -203,7 +203,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 创建用户
-	user := &repository.User{
+	user := &database.User{
 		Username:     req.Username,
 		PasswordHash: string(hashedPassword),
 		DisplayName:  req.DisplayName,

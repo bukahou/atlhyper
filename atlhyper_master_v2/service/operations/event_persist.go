@@ -11,14 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/database/repository"
+	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 )
 
 // EventPersistService Event 持久化服务
 type EventPersistService struct {
 	store     datahub.Store
-	eventRepo repository.ClusterEventRepository
+	eventRepo database.ClusterEventRepository
 
 	// 配置
 	retentionDays int
@@ -40,7 +40,7 @@ type EventPersistConfig struct {
 // NewEventPersistService 创建服务
 func NewEventPersistService(
 	store datahub.Store,
-	eventRepo repository.ClusterEventRepository,
+	eventRepo database.ClusterEventRepository,
 	cfg EventPersistConfig,
 ) *EventPersistService {
 	return &EventPersistService{
@@ -88,7 +88,7 @@ func (s *EventPersistService) Sync(clusterID string) error {
 	}
 
 	// 2. 过滤 Warning 事件，转换为 Repository 格式
-	repoEvents := make([]*repository.ClusterEvent, 0)
+	repoEvents := make([]*database.ClusterEvent, 0)
 	for _, e := range events {
 		// 只持久化 Warning 事件
 		if e.Type != "Warning" {
@@ -98,7 +98,7 @@ func (s *EventPersistService) Sync(clusterID string) error {
 		// 生成去重键: MD5(cluster_id + involved_kind + involved_namespace + involved_name + reason)
 		dedupKey := generateDedupKey(clusterID, e.InvolvedObject.Kind, e.InvolvedObject.Namespace, e.InvolvedObject.Name, e.Reason)
 
-		repoEvents = append(repoEvents, &repository.ClusterEvent{
+		repoEvents = append(repoEvents, &database.ClusterEvent{
 			DedupKey:          dedupKey,
 			ClusterID:         clusterID,
 			Namespace:         e.Namespace,

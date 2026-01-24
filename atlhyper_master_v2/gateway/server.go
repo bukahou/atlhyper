@@ -22,7 +22,7 @@ import (
 type Server struct {
 	port       int
 	service    service.Service
-	database   database.Database
+	database   *database.DB
 	bus        mq.Producer
 	httpServer *http.Server
 }
@@ -31,7 +31,7 @@ type Server struct {
 type Config struct {
 	Port     int
 	Service  service.Service
-	Database database.Database
+	Database *database.DB
 	Bus      mq.Producer
 }
 
