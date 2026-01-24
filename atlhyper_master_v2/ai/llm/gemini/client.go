@@ -133,29 +133,50 @@ func convertPart(part genai.Part) *llm.Chunk {
 
 // splitMessages 分割消息为历史和最后一条
 // 返回: (历史 Content 列表, 最后一条消息的 Parts)
+//
+// 关键处理: 合并连续的 function role Content。
+// Gemini 要求一轮 N 个 FunctionCall 对应的 FunctionResponse 必须在同一个 Content 中。
 func splitMessages(msgs []llm.Message) ([]*genai.Content, []genai.Part) {
 	if len(msgs) == 0 {
 		return nil, []genai.Part{genai.Text("")}
 	}
 
 	// 将所有消息转为 Content
-	var contents []*genai.Content
+	var rawContents []*genai.Content
 	for _, msg := range msgs {
 		content := convertMessage(msg)
 		if content != nil {
-			contents = append(contents, content)
+			rawContents = append(rawContents, content)
 		}
 	}
 
-	if len(contents) == 0 {
+	if len(rawContents) == 0 {
 		return nil, []genai.Part{genai.Text("")}
 	}
+
+	// 合并连续的 function role Content
+	contents := mergeFunctionContents(rawContents)
 
 	// 分割: 历史 + 最后一条的 Parts
 	history := contents[:len(contents)-1]
 	lastParts := contents[len(contents)-1].Parts
 
 	return history, lastParts
+}
+
+// mergeFunctionContents 合并连续的 role=function Content
+// 例: [model, function, function] → [model, function(合并)]
+func mergeFunctionContents(contents []*genai.Content) []*genai.Content {
+	var merged []*genai.Content
+	for _, c := range contents {
+		if c.Role == "function" && len(merged) > 0 && merged[len(merged)-1].Role == "function" {
+			// 追加 Parts 到前一个 function Content
+			merged[len(merged)-1].Parts = append(merged[len(merged)-1].Parts, c.Parts...)
+		} else {
+			merged = append(merged, c)
+		}
+	}
+	return merged
 }
 
 // convertMessage 将 llm.Message 转换为 genai.Content
