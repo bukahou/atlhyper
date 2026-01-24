@@ -79,11 +79,12 @@ func New(
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 
-	// 启动三个后台任务
-	s.wg.Add(3)
-	go s.runSnapshotLoop()  // 快照采集
-	go s.runCommandLoop()   // 指令轮询
-	go s.runHeartbeatLoop() // 心跳
+	// 启动后台任务
+	s.wg.Add(4)
+	go s.runSnapshotLoop()       // 快照采集
+	go s.runCommandLoop("ops")   // 系统操作指令轮询
+	go s.runCommandLoop("ai")    // AI 查询指令轮询
+	go s.runHeartbeatLoop()      // 心跳
 
 	log.Println("[Scheduler] 调度器已启动")
 	return nil
@@ -156,12 +157,13 @@ func (s *Scheduler) collectAndPushSnapshot() {
 
 // runCommandLoop 指令轮询循环
 //
+// 每个 topic 独立运行一个循环，互不阻塞。
 // 工作流程:
 //  1. 长轮询获取 Master 指令 (超时 60s)
 //  2. 执行每个指令
 //  3. 上报执行结果
 //  4. 短暂等待后继续轮询
-func (s *Scheduler) runCommandLoop() {
+func (s *Scheduler) runCommandLoop(topic string) {
 	defer s.wg.Done()
 
 	for {
@@ -169,7 +171,7 @@ func (s *Scheduler) runCommandLoop() {
 		case <-s.ctx.Done():
 			return
 		default:
-			s.pollAndExecuteCommands()
+			s.pollAndExecuteCommands(topic)
 			// 短暂等待后继续
 			select {
 			case <-s.ctx.Done():
@@ -181,14 +183,14 @@ func (s *Scheduler) runCommandLoop() {
 }
 
 // pollAndExecuteCommands 轮询并执行指令
-func (s *Scheduler) pollAndExecuteCommands() {
+func (s *Scheduler) pollAndExecuteCommands(topic string) {
 	ctx, cancel := context.WithTimeout(s.ctx, s.config.CommandPollTimeout)
 	defer cancel()
 
 	// 拉取指令
-	commands, err := s.masterGw.PollCommands(ctx)
+	commands, err := s.masterGw.PollCommands(ctx, topic)
 	if err != nil {
-		log.Printf("[Scheduler] 拉取指令失败: %v", err)
+		log.Printf("[Scheduler] 拉取指令失败 [%s]: %v", topic, err)
 		return
 	}
 
@@ -196,7 +198,7 @@ func (s *Scheduler) pollAndExecuteCommands() {
 		return
 	}
 
-	log.Printf("[Scheduler] 收到 %d 条指令", len(commands))
+	log.Printf("[Scheduler] 收到 %d 条指令 [%s]", len(commands), topic)
 
 	// 执行每个指令
 	for i := range commands {

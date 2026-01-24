@@ -99,8 +99,8 @@ type commandInfo struct {
 }
 
 // PollCommands 拉取指令 (长轮询)
-func (g *masterGateway) PollCommands(ctx context.Context) ([]model.Command, error) {
-	url := fmt.Sprintf("%s/agent/commands?cluster_id=%s", g.masterURL, g.clusterID)
+func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]model.Command, error) {
+	url := fmt.Sprintf("%s/agent/commands?cluster_id=%s&topic=%s", g.masterURL, g.clusterID, topic)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)

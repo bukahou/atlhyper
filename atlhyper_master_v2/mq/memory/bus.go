@@ -24,6 +24,9 @@ type MemoryBus struct {
 	// 指令结果等待者（用于同步等待）
 	commandWaiters   map[string]chan *model.CommandResult
 	commandWaitersMu sync.Mutex
+
+	// 生命周期
+	stopCh chan struct{}
 }
 
 // commandQueue 单个集群的指令队列
@@ -39,17 +42,20 @@ func New() *MemoryBus {
 		queues:         make(map[string]*commandQueue),
 		commands:       make(map[string]*model.CommandStatus),
 		commandWaiters: make(map[string]chan *model.CommandResult),
+		stopCh:         make(chan struct{}),
 	}
 }
 
 // Start 启动 MemoryBus
 func (b *MemoryBus) Start() error {
+	go b.cleanupLoop()
 	log.Println("[MemoryBus] 已启动")
 	return nil
 }
 
 // Stop 停止 MemoryBus
 func (b *MemoryBus) Stop() error {
+	close(b.stopCh)
 	log.Println("[MemoryBus] 已停止")
 	return nil
 }
@@ -239,5 +245,34 @@ func (b *MemoryBus) WaitCommandResult(cmdID string, timeout time.Duration) (*mod
 		return result, nil
 	case <-time.After(timeout):
 		return nil, nil // 超时返回 nil
+	}
+}
+
+// cleanupLoop 定期清理已完成的指令记录
+func (b *MemoryBus) cleanupLoop() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-b.stopCh:
+			return
+		case <-ticker.C:
+			b.cleanupCompleted()
+		}
+	}
+}
+
+// cleanupCompleted 清理完成超过保留时间的指令记录
+func (b *MemoryBus) cleanupCompleted() {
+	const retention = 5 * time.Minute
+	now := time.Now()
+
+	b.commandsMu.Lock()
+	defer b.commandsMu.Unlock()
+
+	for id, cs := range b.commands {
+		if cs.FinishedAt != nil && now.Sub(*cs.FinishedAt) > retention {
+			delete(b.commands, id)
+		}
 	}
 }

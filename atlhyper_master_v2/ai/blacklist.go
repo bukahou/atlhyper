@@ -5,17 +5,23 @@ package ai
 
 import "fmt"
 
-// 禁止的写操作
+// 禁止的写操作（包含所有可能的写动词）
 var forbiddenActions = map[string]bool{
-	"scale":        true,
-	"restart":      true,
+	"create":       true,
+	"update":       true,
+	"patch":        true,
 	"delete":       true,
 	"delete_pod":   true,
+	"scale":        true,
+	"restart":      true,
 	"exec":         true,
 	"cordon":       true,
 	"uncordon":     true,
 	"drain":        true,
 	"update_image": true,
+	"apply":        true,
+	"edit":         true,
+	"replace":      true,
 }
 
 // 禁止的命名空间

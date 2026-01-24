@@ -35,6 +35,13 @@ func (rw *auditResponseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Flush 实现 http.Flusher 接口（SSE 流式响应需要）
+func (rw *auditResponseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // Audit 审计中间件
 // 记录敏感操作到审计日志
 func Audit(repo AuditRepository, config AuditConfig) func(http.HandlerFunc) http.HandlerFunc {

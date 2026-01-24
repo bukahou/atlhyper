@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/model"
@@ -174,6 +175,15 @@ func (s *commandService) handleGetLogs(ctx context.Context, cmd *model.Command) 
 		}
 	}
 
+	// 强制 tailLines 范围
+	const maxTailLines int64 = 200
+	if params.TailLines <= 0 {
+		params.TailLines = 100
+	}
+	if params.TailLines > maxTailLines {
+		params.TailLines = maxTailLines
+	}
+
 	return s.podRepo.GetLogs(ctx, cmd.Namespace, cmd.Name, model.LogOptions{
 		Container:    params.Container,
 		TailLines:    params.TailLines,
@@ -199,28 +209,75 @@ func (s *commandService) handleGetSecret(ctx context.Context, cmd *model.Command
 	return s.genericRepo.GetSecretData(ctx, cmd.Namespace, cmd.Name)
 }
 
-// handleDynamic 处理动态请求指令
+// handleDynamic 处理 AI 动态查询指令
 //
-// 用于 AI 只读查询 K8s API (仅 GET)
-func (s *commandService) handleDynamic(ctx context.Context, cmd *model.Command) (*model.DynamicResponse, error) {
+// 将 AI 的高级语义 (command + kind) 翻译为 K8s API 路径，
+// 通过 GenericRepository.Execute 执行只读 GET 请求。
+//
+// Params 格式:
+//   - command: get / list / describe / get_events
+//   - kind: Pod / Deployment / Node / ...
+//   - label_selector: 标签过滤 (list 时使用)
+//   - involved_kind: 事件关联资源类型 (get_events 时使用)
+//   - involved_name: 事件关联资源名称 (get_events 时使用)
+func (s *commandService) handleDynamic(ctx context.Context, cmd *model.Command) (string, error) {
 	var params struct {
-		Path  string            `json:"path"`
-		Query map[string]string `json:"query,omitempty"`
+		Command       string `json:"command"`
+		Kind          string `json:"kind"`
+		LabelSelector string `json:"label_selector"`
+		InvolvedKind  string `json:"involved_kind"`
+		InvolvedName  string `json:"involved_name"`
 	}
 	if err := s.parseParams(cmd.Params, &params); err != nil {
-		return nil, fmt.Errorf("invalid dynamic params: %w", err)
+		return "", fmt.Errorf("invalid dynamic params: %w", err)
 	}
 
-	if params.Path == "" {
-		return nil, fmt.Errorf("path is required")
+	if params.Command == "" {
+		return "", fmt.Errorf("command is required in params")
+	}
+	if params.Kind == "" && params.Command != "get_events" {
+		return "", fmt.Errorf("kind is required in params")
 	}
 
-	req := &model.DynamicRequest{
-		Path:  params.Path,
-		Query: params.Query,
+	// 构建 API 路径
+	path, err := buildAPIPath(params.Command, params.Kind, cmd.Namespace, cmd.Name)
+	if err != nil {
+		return "", fmt.Errorf("build API path: %w", err)
 	}
 
-	return s.genericRepo.Execute(ctx, req)
+	// 构建查询参数
+	query := map[string]string{}
+	if params.LabelSelector != "" {
+		query["labelSelector"] = params.LabelSelector
+	}
+	if params.Command == "get_events" {
+		if fs := buildEventFieldSelector(params.InvolvedKind, params.InvolvedName); fs != "" {
+			query["fieldSelector"] = fs
+		}
+	}
+
+	// list 类请求强制限制返回数量
+	if params.Command == "list" || params.Command == "get_events" {
+		if _, hasLimit := query["limit"]; !hasLimit {
+			query["limit"] = "50"
+		}
+	}
+
+	// 执行查询
+	resp, err := s.genericRepo.Execute(ctx, &model.DynamicRequest{
+		Path:  path,
+		Query: query,
+	})
+	if err != nil {
+		return "", fmt.Errorf("execute dynamic query: %w", err)
+	}
+
+	// HTTP 4xx/5xx 视为错误
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(resp.Body))
+	}
+
+	return string(resp.Body), nil
 }
 
 // handleDelete 处理通用删除指令
@@ -256,4 +313,94 @@ func (s *commandService) parseParams(params any, target any) error {
 		return err
 	}
 	return json.Unmarshal(data, target)
+}
+
+// =============================================================================
+// Dynamic 查询辅助 (AI 专用)
+// =============================================================================
+
+// resourceInfo K8s 资源的 API 路径信息
+type resourceInfo struct {
+	APIPrefix    string // "/api/v1" 或 "/apis/apps/v1" 等
+	Resource     string // 复数小写: "pods", "deployments"
+	ClusterScope bool   // 是否集群级资源 (无需 namespace)
+}
+
+// kindToResource Kind → API 路径映射表
+var kindToResource = map[string]resourceInfo{
+	// Core API (/api/v1)
+	"Pod":                   {"/api/v1", "pods", false},
+	"Node":                  {"/api/v1", "nodes", true},
+	"Service":               {"/api/v1", "services", false},
+	"ConfigMap":             {"/api/v1", "configmaps", false},
+	"Secret":                {"/api/v1", "secrets", false},
+	"Event":                 {"/api/v1", "events", false},
+	"Namespace":             {"/api/v1", "namespaces", true},
+	"PersistentVolume":      {"/api/v1", "persistentvolumes", true},
+	"PersistentVolumeClaim": {"/api/v1", "persistentvolumeclaims", false},
+	"ServiceAccount":        {"/api/v1", "serviceaccounts", false},
+	"ResourceQuota":         {"/api/v1", "resourcequotas", false},
+	"LimitRange":            {"/api/v1", "limitranges", false},
+	"Endpoints":             {"/api/v1", "endpoints", false},
+	// Apps API (/apis/apps/v1)
+	"Deployment":  {"/apis/apps/v1", "deployments", false},
+	"StatefulSet": {"/apis/apps/v1", "statefulsets", false},
+	"DaemonSet":   {"/apis/apps/v1", "daemonsets", false},
+	"ReplicaSet":  {"/apis/apps/v1", "replicasets", false},
+	// Batch API (/apis/batch/v1)
+	"Job":     {"/apis/batch/v1", "jobs", false},
+	"CronJob": {"/apis/batch/v1", "cronjobs", false},
+	// Networking API (/apis/networking.k8s.io/v1)
+	"Ingress":       {"/apis/networking.k8s.io/v1", "ingresses", false},
+	"NetworkPolicy": {"/apis/networking.k8s.io/v1", "networkpolicies", false},
+	// Autoscaling API (/apis/autoscaling/v2)
+	"HorizontalPodAutoscaler": {"/apis/autoscaling/v2", "horizontalpodautoscalers", false},
+	"HPA":                     {"/apis/autoscaling/v2", "horizontalpodautoscalers", false},
+}
+
+// buildAPIPath 根据 command/kind/namespace/name 构建 K8s API 路径
+func buildAPIPath(command, kind, namespace, name string) (string, error) {
+	if command == "get_events" {
+		kind = "Event"
+	}
+
+	info, ok := kindToResource[kind]
+	if !ok {
+		return "", fmt.Errorf("unsupported kind: %s", kind)
+	}
+
+	switch command {
+	case "list", "get_events":
+		if info.ClusterScope || namespace == "" {
+			return fmt.Sprintf("%s/%s", info.APIPrefix, info.Resource), nil
+		}
+		return fmt.Sprintf("%s/namespaces/%s/%s", info.APIPrefix, namespace, info.Resource), nil
+
+	case "get", "describe":
+		if name == "" {
+			return "", fmt.Errorf("name is required for %s", command)
+		}
+		if info.ClusterScope {
+			return fmt.Sprintf("%s/%s/%s", info.APIPrefix, info.Resource, name), nil
+		}
+		if namespace == "" {
+			return "", fmt.Errorf("namespace is required for %s %s", command, kind)
+		}
+		return fmt.Sprintf("%s/namespaces/%s/%s/%s", info.APIPrefix, namespace, info.Resource, name), nil
+
+	default:
+		return "", fmt.Errorf("unsupported command: %s", command)
+	}
+}
+
+// buildEventFieldSelector 构建 Event 查询的 fieldSelector
+func buildEventFieldSelector(involvedKind, involvedName string) string {
+	var selectors []string
+	if involvedKind != "" {
+		selectors = append(selectors, "involvedObject.kind="+involvedKind)
+	}
+	if involvedName != "" {
+		selectors = append(selectors, "involvedObject.name="+involvedName)
+	}
+	return strings.Join(selectors, ",")
 }

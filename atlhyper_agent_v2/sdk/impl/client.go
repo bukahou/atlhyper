@@ -15,6 +15,7 @@ package impl
 import (
 	"fmt"
 	"log"
+	"net/http"
 
 	"AtlHyper/atlhyper_agent_v2/sdk"
 
@@ -31,10 +32,12 @@ import (
 //   - clientset: client-go 的 Kubernetes 客户端
 //   - metricsClient: metrics-server 客户端 (可选)
 //   - config: REST 配置 (用于 exec/logs 等流式操作)
+//   - httpClient: 通用 HTTP 客户端 (用于 Dynamic 查询)
 type Client struct {
 	clientset     *kubernetes.Clientset
 	metricsClient *metricsv.Clientset // 可能为 nil (集群未安装 metrics-server)
 	config        *rest.Config
+	httpClient    *http.Client // Dynamic 查询用 (已配置 TLS/Auth)
 }
 
 // NewClient 创建 K8s 客户端实现
@@ -67,9 +70,17 @@ func NewClient(kubeconfig string) (sdk.K8sClient, error) {
 		metricsClient = nil
 	}
 
+	// 初始化通用 HTTP 客户端 (用于 Dynamic 查询，复用 TLS/Auth 配置)
+	transport, err := rest.TransportFor(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transport: %w", err)
+	}
+	httpClient := &http.Client{Transport: transport}
+
 	return &Client{
 		clientset:     clientset,
 		metricsClient: metricsClient,
 		config:        config,
+		httpClient:    httpClient,
 	}, nil
 }

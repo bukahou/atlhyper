@@ -1,23 +1,12 @@
 // atlhyper_master_v2/ai/prompt.go
 // 提示词构建
-// 使用 go:embed 加载提示词文件，拼接为完整的 system prompt
 package ai
 
 import (
-	"embed"
 	"encoding/json"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 )
-
-//go:embed prompts/security.txt
-var securityPrompt string
-
-//go:embed prompts/role.txt
-var rolePrompt string
-
-//go:embed prompts/tools.json
-var toolsJSON string
 
 // BuildSystemPrompt 构建系统提示词
 // L0(security) + L1(role) 拼接
@@ -26,7 +15,7 @@ func BuildSystemPrompt() string {
 }
 
 // LoadToolDefinitions 加载 Tool 定义
-// 从 prompts/tools.json 解析为 llm.ToolDefinition 列表
+// 从 toolsJSON 常量解析为 llm.ToolDefinition 列表
 func LoadToolDefinitions() ([]llm.ToolDefinition, error) {
 	var rawTools []struct {
 		Name        string          `json:"name"`
@@ -62,6 +51,3 @@ func GetToolDefinitions() []llm.ToolDefinition {
 	}
 	return toolsCache
 }
-
-// 确保 embed 包被使用
-var _ embed.FS

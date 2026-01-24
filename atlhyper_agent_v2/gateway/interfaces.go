@@ -47,9 +47,10 @@ type MasterGateway interface {
 	//
 	// 使用长轮询方式，Master 会 hold 请求直到有指令或超时。
 	// 204 No Content 表示无指令。
+	// topic: "ops" 或 "ai"，分别对应系统操作和 AI 查询队列。
 	//
-	// HTTP: GET /agent/commands?cluster_id=xxx
-	PollCommands(ctx context.Context) ([]model.Command, error)
+	// HTTP: GET /agent/commands?cluster_id=xxx&topic=yyy
+	PollCommands(ctx context.Context, topic string) ([]model.Command, error)
 
 	// ReportResult 上报指令执行结果到 Master
 	//

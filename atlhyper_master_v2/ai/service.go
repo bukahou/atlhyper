@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
-	"AtlHyper/atlhyper_master_v2/ai/llm/gemini"
+	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini" // 注册 gemini provider
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service/operations"
@@ -38,20 +38,14 @@ func NewService(
 	convRepo database.AIConversationRepository,
 	msgRepo database.AIMessageRepository,
 ) (AIService, error) {
-	// 创建 LLM Client
-	var client llm.LLMClient
-	var err error
-	switch cfg.Provider {
-	case "gemini":
-		client, err = gemini.New(cfg.APIKey, cfg.Model)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		client, err = gemini.New(cfg.APIKey, cfg.Model)
-		if err != nil {
-			return nil, err
-		}
+	// 通过工厂创建 LLM Client（由 provider 注册机制决定具体实现）
+	client, err := llm.New(llm.Config{
+		Provider: cfg.Provider,
+		APIKey:   cfg.APIKey,
+		Model:    cfg.Model,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Tool 超时默认 30s

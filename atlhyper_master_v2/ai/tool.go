@@ -1,6 +1,6 @@
 // atlhyper_master_v2/ai/tool.go
 // Tool 执行器
-// 将 LLM 的 ToolCall 映射为 Command，通过 MQ 下发并等待结果
+// 将 LLM 的 ToolCall 解析为 Command，通过 MQ 下发并等待结果
 package ai
 
 import (
@@ -27,31 +27,55 @@ func newToolExecutor(ops *operations.CommandService, bus mq.Producer, timeout ti
 }
 
 // Execute 执行 Tool Call
-// 1. 解析参数 → 2. Blacklist 校验 → 3. 创建指令 → 4. 等待结果
+// 1. 解析参数 → 2. 映射 action → 3. Blacklist 校验 → 4. 创建指令 → 5. 等待结果
 func (e *toolExecutor) Execute(clusterID string, tc *llm.ToolCall) (string, error) {
-	// 1. 映射 Tool → Command
-	req, err := e.mapToolToCommand(clusterID, tc)
-	if err != nil {
-		return "", fmt.Errorf("映射 Tool 失败: %w", err)
+	// 1. 解析参数
+	var params map[string]interface{}
+	if tc.Params != "" {
+		if err := json.Unmarshal([]byte(tc.Params), &params); err != nil {
+			return "", fmt.Errorf("解析参数 JSON 失败: %w", err)
+		}
 	}
 
+	action := getString(params, "action")
+	kind := getString(params, "kind")
+	namespace := getString(params, "namespace")
+	name := getString(params, "name")
+
 	// 2. Blacklist 校验
-	if err := BlacklistCheck(req.Action, req.TargetNamespace, req.TargetKind); err != nil {
+	if err := BlacklistCheck(action, namespace, kind); err != nil {
 		return "", err
 	}
 
-	// 3. 创建指令
+	// 3. 映射为内部 action + 构建 Command 参数
+	internalAction, cmdParams := mapToInternalAction(action, params)
+
+	req := &operations.CreateCommandRequest{
+		ClusterID:       clusterID,
+		Action:          internalAction,
+		TargetKind:      kind,
+		TargetNamespace: namespace,
+		TargetName:      name,
+		Source:          "ai",
+		Params:          cmdParams,
+	}
+
+	// 4. 创建指令
 	resp, err := e.ops.CreateCommand(req)
 	if err != nil {
 		return "", fmt.Errorf("创建指令失败: %w", err)
 	}
 
-	log.Printf("[AI-Tool] 指令已下发: tool=%s, cmdID=%s", tc.Name, resp.CommandID)
+	log.Printf("[AI-Tool] 指令已下发: action=%s, kind=%s, ns=%s, name=%s, cmdID=%s",
+		action, kind, namespace, name, resp.CommandID)
 
-	// 4. 等待结果
+	// 5. 等待结果
 	result, err := e.bus.WaitCommandResult(resp.CommandID, e.timeout)
 	if err != nil {
-		return "", fmt.Errorf("等待指令结果超时: %w", err)
+		return "", fmt.Errorf("等待指令结果失败: %w", err)
+	}
+	if result == nil {
+		return "", fmt.Errorf("指令执行超时: 未收到 Agent 响应 (cmdID=%s)", resp.CommandID)
 	}
 
 	if !result.Success {
@@ -60,91 +84,38 @@ func (e *toolExecutor) Execute(clusterID string, tc *llm.ToolCall) (string, erro
 	return result.Output, nil
 }
 
-// mapToolToCommand 将 ToolCall 映射为 CreateCommandRequest
-func (e *toolExecutor) mapToolToCommand(clusterID string, tc *llm.ToolCall) (*operations.CreateCommandRequest, error) {
-	var params map[string]interface{}
-	if tc.Params != "" {
-		if err := json.Unmarshal([]byte(tc.Params), &params); err != nil {
-			return nil, fmt.Errorf("解析参数 JSON 失败: %w", err)
-		}
-	}
+// mapToInternalAction 将 AI 的 action 映射为系统内部 action
+// get_logs / get_configmap 有专用 action，其余统一走 dynamic
+func mapToInternalAction(action string, params map[string]interface{}) (string, map[string]interface{}) {
+	cmdParams := map[string]interface{}{}
 
-	req := &operations.CreateCommandRequest{
-		ClusterID: clusterID,
-		Source:    "ai",
-	}
-
-	switch tc.Name {
-	case "get_pod_logs":
-		req.Action = "get_logs"
-		req.TargetKind = "Pod"
-		req.TargetNamespace = getString(params, "namespace")
-		req.TargetName = getString(params, "pod_name")
-		req.Params = map[string]interface{}{
-			"container":  getString(params, "container"),
-			"tail_lines": getInt(params, "tail_lines", 100),
-		}
-
-	case "get_pod_describe":
-		req.Action = "dynamic"
-		req.TargetKind = "Pod"
-		req.TargetNamespace = getString(params, "namespace")
-		req.TargetName = getString(params, "pod_name")
-		req.Params = map[string]interface{}{
-			"command": "describe",
-			"kind":    "pod",
-		}
-
-	case "get_deployment_status":
-		req.Action = "dynamic"
-		req.TargetKind = "Deployment"
-		req.TargetNamespace = getString(params, "namespace")
-		req.TargetName = getString(params, "deployment_name")
-		req.Params = map[string]interface{}{
-			"command": "describe",
-			"kind":    "deployment",
-		}
-
-	case "get_events":
-		req.Action = "dynamic"
-		req.TargetKind = "Event"
-		req.TargetNamespace = getString(params, "namespace")
-		req.Params = map[string]interface{}{
-			"command":       "get_events",
-			"involved_kind": getString(params, "involved_kind"),
-			"involved_name": getString(params, "involved_name"),
-		}
+	switch action {
+	case "get_logs":
+		// 直接使用 get_logs action
+		cmdParams["container"] = getString(params, "container")
+		cmdParams["tail_lines"] = getInt(params, "tail_lines", 100)
+		return "get_logs", cmdParams
 
 	case "get_configmap":
-		req.Action = "get_configmap"
-		req.TargetKind = "ConfigMap"
-		req.TargetNamespace = getString(params, "namespace")
-		req.TargetName = getString(params, "configmap_name")
-
-	case "get_node_status":
-		req.Action = "dynamic"
-		req.TargetKind = "Node"
-		req.TargetName = getString(params, "node_name")
-		req.Params = map[string]interface{}{
-			"command": "describe",
-			"kind":    "node",
-		}
-
-	case "list_pods":
-		req.Action = "dynamic"
-		req.TargetKind = "Pod"
-		req.TargetNamespace = getString(params, "namespace")
-		req.Params = map[string]interface{}{
-			"command":        "list",
-			"kind":           "pod",
-			"label_selector": getString(params, "label_selector"),
-		}
+		// 直接使用 get_configmap action
+		return "get_configmap", cmdParams
 
 	default:
-		return nil, fmt.Errorf("未知的 Tool: %s", tc.Name)
+		// get / list / describe / get_events 等统一走 dynamic
+		cmdParams["command"] = action
+		cmdParams["kind"] = getString(params, "kind")
+		// 传递可选过滤参数
+		if v := getString(params, "label_selector"); v != "" {
+			cmdParams["label_selector"] = v
+		}
+		if v := getString(params, "involved_kind"); v != "" {
+			cmdParams["involved_kind"] = v
+		}
+		if v := getString(params, "involved_name"); v != "" {
+			cmdParams["involved_name"] = v
+		}
+		return "dynamic", cmdParams
 	}
-
-	return req, nil
 }
 
 // getString 从 map 中安全获取字符串

@@ -14,7 +14,10 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
-const maxToolRounds = 5 // 最大 Tool 调用轮数
+const maxToolRounds = 5            // 最大 Tool 调用轮数
+const maxToolCallsPerRound = 5     // 每轮最多 Tool Call 数
+const chatTimeout = 3 * time.Minute // Chat 全局超时
+const maxHistoryMessages = 20      // 最大历史消息加载数
 
 // Chat 发送消息并获取流式响应
 func (s *aiServiceImpl) Chat(ctx context.Context, req *ChatRequest) (<-chan *ChatChunk, error) {
@@ -33,16 +36,21 @@ func (s *aiServiceImpl) Chat(ctx context.Context, req *ChatRequest) (<-chan *Cha
 		return nil, fmt.Errorf("加载历史消息失败: %w", err)
 	}
 
-	// 3. 转换为 LLM 消息格式
+	// 3. 限制历史消息数量，只保留最近 N 条
+	if len(dbMsgs) > maxHistoryMessages {
+		dbMsgs = dbMsgs[len(dbMsgs)-maxHistoryMessages:]
+	}
+
+	// 4. 转换为 LLM 消息格式
 	messages := buildLLMMessages(dbMsgs)
 
-	// 4. 追加用户消息
+	// 5. 追加用户消息
 	messages = append(messages, llm.Message{
 		Role:    "user",
 		Content: req.Message,
 	})
 
-	// 5. 持久化用户消息
+	// 6. 持久化用户消息
 	userMsg := &database.AIMessage{
 		ConversationID: req.ConversationID,
 		Role:           "user",
@@ -53,11 +61,13 @@ func (s *aiServiceImpl) Chat(ctx context.Context, req *ChatRequest) (<-chan *Cha
 		log.Printf("[AI-Chat] 持久化用户消息失败: %v", err)
 	}
 
-	// 6. 启动异步 Chat 循环
+	// 7. 启动异步 Chat 循环（带全局超时）
+	chatCtx, cancel := context.WithTimeout(ctx, chatTimeout)
 	ch := make(chan *ChatChunk, 64)
 	go func() {
 		defer close(ch)
-		s.chatLoop(ctx, req.ClusterID, req.ConversationID, messages, ch)
+		defer cancel()
+		s.chatLoop(chatCtx, req.ClusterID, req.ConversationID, messages, ch)
 	}()
 
 	return ch, nil
@@ -72,9 +82,17 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	var allToolCalls []llm.ToolCall
 
 	for round := 0; round < maxToolRounds; round++ {
+		remaining := maxToolRounds - round
+
+		// 注入剩余次数提示（让 AI 合理规划 Tool 调用）
+		roundHint := fmt.Sprintf(
+			"\n\n[系统提示] 你还有 %d 次 Tool 调用机会（每次可并行调用多个 query_cluster）。请合理规划，在机会用完前完成分析。",
+			remaining,
+		)
+
 		// 调用 LLM
 		llmReq := &llm.Request{
-			SystemPrompt: systemPrompt,
+			SystemPrompt: systemPrompt + roundHint,
 			Messages:     messages,
 			Tools:        tools,
 		}
@@ -103,6 +121,11 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		}
 
 		// 有 Tool Call → 执行并继续
+		// 限制每轮 Tool Call 数量
+		if len(toolCalls) > maxToolCallsPerRound {
+			toolCalls = toolCalls[:maxToolCallsPerRound]
+			ch <- &ChatChunk{Type: "text", Content: "\n[系统: 本轮 Tool 调用过多，已截断为前5个]\n"}
+		}
 		allToolCalls = append(allToolCalls, toolCalls...)
 
 		// 添加 assistant 消息（含 tool calls）到历史
@@ -134,13 +157,13 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 				Content: truncate(result, 2000),
 			}
 
-			// 添加 tool 结果到历史
+			// 添加 tool 结果到历史（截断防 token 爆炸）
 			messages = append(messages, llm.Message{
 				Role: "tool",
 				ToolResult: &llm.ToolResult{
 					CallID:  tc.ID,
 					Name:    tc.Name,
-					Content: result,
+					Content: truncate(result, 8000),
 				},
 			})
 		}
@@ -149,8 +172,22 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		assistantContent += "\n"
 	}
 
-	// 超过最大轮数
-	sendError(ch, "分析轮数已达上限，请简化问题重试")
+	// 超过最大轮数，要求 AI 基于已有信息给出结论
+	// 最后一次调用不提供 tools，强制 AI 输出文本结论
+	llmReq := &llm.Request{
+		SystemPrompt: systemPrompt + "\n\n[系统提示] Tool 调用次数已用完。请根据已获取的信息给出分析结论。不要再调用 Tool。",
+		Messages:     messages,
+		Tools:        nil, // 不提供 tools，强制文本输出
+	}
+	stream, err := s.llmClient.ChatStream(ctx, llmReq)
+	if err != nil {
+		sendError(ch, fmt.Sprintf("LLM 调用失败: %v", err))
+		return
+	}
+	text, _, _ := s.readLLMStream(ctx, stream, ch)
+	assistantContent += text
+	s.persistAssistantMessage(ctx, convID, assistantContent, allToolCalls)
+	ch <- &ChatChunk{Type: "done"}
 }
 
 // readLLMStream 读取 LLM 流式响应

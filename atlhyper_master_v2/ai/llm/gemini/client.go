@@ -15,6 +15,12 @@ import (
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 )
 
+func init() {
+	llm.Register("gemini", func(apiKey, model string) (llm.LLMClient, error) {
+		return New(apiKey, model)
+	})
+}
+
 // Client Gemini 客户端
 type Client struct {
 	client *genai.Client

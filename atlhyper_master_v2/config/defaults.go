@@ -102,5 +102,5 @@ var defaultBools = map[string]bool{
 	"MASTER_WEBHOOK_ENABLED": false, // 是否启用 Webhook
 
 	// -------------------- AI 配置 --------------------
-	"MASTER_AI_ENABLED": false, // 是否启用 AI 功能
+	"MASTER_AI_ENABLED": true, // 是否启用 AI 功能
 }
