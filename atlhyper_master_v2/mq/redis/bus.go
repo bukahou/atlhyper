@@ -206,9 +206,8 @@ func (b *RedisBus) GetCommandStatus(cmdID string) (*model.CommandStatus, error) 
 }
 
 // WaitCommandResult 等待指令执行完成（阻塞等待）
-func (b *RedisBus) WaitCommandResult(cmdID string, timeout time.Duration) (*model.CommandResult, error) {
-	ctx := context.Background()
-
+// 支持 ctx 取消，Chat 全局超时后立即释放
+func (b *RedisBus) WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*model.CommandResult, error) {
 	// 先检查是否已完成
 	data, err := b.client.Get(ctx, keyCmd+cmdID).Bytes()
 	if err == nil {
@@ -218,12 +217,18 @@ func (b *RedisBus) WaitCommandResult(cmdID string, timeout time.Duration) (*mode
 		}
 	}
 
-	// BRPOP 等待结果
-	result, err := b.client.BRPop(ctx, timeout, keyResult+cmdID).Result()
+	// 使用带超时的 context 进行 BRPOP
+	brpopCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	result, err := b.client.BRPop(brpopCtx, timeout, keyResult+cmdID).Result()
 	if err == redis.Nil {
 		return nil, nil // 超时
 	}
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, fmt.Errorf("brpop result: %w", err)
 	}
 

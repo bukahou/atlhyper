@@ -4,6 +4,7 @@
 package ai
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -28,7 +29,7 @@ func newToolExecutor(ops *operations.CommandService, bus mq.Producer, timeout ti
 
 // Execute 执行 Tool Call
 // 1. 解析参数 → 2. 映射 action → 3. Blacklist 校验 → 4. 创建指令 → 5. 等待结果
-func (e *toolExecutor) Execute(clusterID string, tc *llm.ToolCall) (string, error) {
+func (e *toolExecutor) Execute(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error) {
 	// 1. 解析参数
 	var params map[string]interface{}
 	if tc.Params != "" {
@@ -69,8 +70,8 @@ func (e *toolExecutor) Execute(clusterID string, tc *llm.ToolCall) (string, erro
 	log.Printf("[AI-Tool] 指令已下发: action=%s, kind=%s, ns=%s, name=%s, cmdID=%s",
 		action, kind, namespace, name, resp.CommandID)
 
-	// 5. 等待结果
-	result, err := e.bus.WaitCommandResult(resp.CommandID, e.timeout)
+	// 5. 等待结果（支持 ctx 取消）
+	result, err := e.bus.WaitCommandResult(ctx, resp.CommandID, e.timeout)
 	if err != nil {
 		return "", fmt.Errorf("等待指令结果失败: %w", err)
 	}

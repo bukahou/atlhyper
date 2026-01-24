@@ -139,7 +139,7 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. 同步等待结果（30秒超时）
-	result, err := h.bus.WaitCommandResult(resp.CommandID, 30*time.Second)
+	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
 	if err != nil {
 		writeError(w, http.StatusGatewayTimeout, "获取日志超时")
 		return
@@ -447,7 +447,7 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. 同步等待结果（30秒超时）
-	result, err := h.bus.WaitCommandResult(resp.CommandID, 30*time.Second)
+	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
 	if err != nil {
 		writeError(w, http.StatusGatewayTimeout, "获取数据超时")
 		return
@@ -504,7 +504,7 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. 同步等待结果（30秒超时）
-	result, err := h.bus.WaitCommandResult(resp.CommandID, 30*time.Second)
+	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
 	if err != nil {
 		writeError(w, http.StatusGatewayTimeout, "获取数据超时")
 		return

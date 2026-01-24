@@ -277,7 +277,8 @@ func (s *commandService) handleDynamic(ctx context.Context, cmd *model.Command) 
 		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(resp.Body))
 	}
 
-	return string(resp.Body), nil
+	// 过滤 managedFields（节省 LLM token）
+	return string(stripManagedFields(resp.Body)), nil
 }
 
 // handleDelete 处理通用删除指令
@@ -390,6 +391,37 @@ func buildAPIPath(command, kind, namespace, name string) (string, error) {
 
 	default:
 		return "", fmt.Errorf("unsupported command: %s", command)
+	}
+}
+
+// stripManagedFields 从 K8s API 响应中移除 managedFields
+// managedFields 仅用于 Server-Side Apply 冲突检测，对 AI 分析无用但占 30-60% 体积
+func stripManagedFields(data []byte) []byte {
+	var obj map[string]interface{}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return data // 非 JSON 原样返回
+	}
+	removeManagedFields(obj)
+	result, err := json.Marshal(obj)
+	if err != nil {
+		return data
+	}
+	return result
+}
+
+// removeManagedFields 递归移除 metadata.managedFields
+func removeManagedFields(obj interface{}) {
+	switch v := obj.(type) {
+	case map[string]interface{}:
+		if meta, ok := v["metadata"].(map[string]interface{}); ok {
+			delete(meta, "managedFields")
+		}
+		// 递归处理 items（list 返回的数组）
+		if items, ok := v["items"].([]interface{}); ok {
+			for _, item := range items {
+				removeManagedFields(item)
+			}
+		}
 	}
 }
 

@@ -200,18 +200,23 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) {
 
 	log.Printf("[Scheduler] 收到 %d 条指令 [%s]", len(commands), topic)
 
-	// 执行每个指令
+	// 并发执行所有指令
+	var wg sync.WaitGroup
 	for i := range commands {
 		cmd := &commands[i]
-		result := s.commandSvc.Execute(ctx, cmd)
-
-		// 上报结果
-		if err := s.masterGw.ReportResult(ctx, result); err != nil {
-			log.Printf("[Scheduler] 上报执行结果失败: 指令=%s, 错误=%v", cmd.ID, err)
-		} else {
-			log.Printf("[Scheduler] 指令已执行: id=%s, 成功=%v", cmd.ID, result.Success)
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result := s.commandSvc.Execute(ctx, cmd)
+			// 上报结果
+			if err := s.masterGw.ReportResult(ctx, result); err != nil {
+				log.Printf("[Scheduler] 上报执行结果失败: 指令=%s, 错误=%v", cmd.ID, err)
+			} else {
+				log.Printf("[Scheduler] 指令已执行: id=%s, 成功=%v", cmd.ID, result.Success)
+			}
+		}()
 	}
+	wg.Wait()
 }
 
 // =============================================================================

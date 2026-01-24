@@ -215,8 +215,8 @@ func (b *MemoryBus) GetCommandStatus(cmdID string) (*model.CommandStatus, error)
 }
 
 // WaitCommandResult 等待指令执行完成（同步等待）
-// 阻塞直到 Agent 上报结果或超时
-func (b *MemoryBus) WaitCommandResult(cmdID string, timeout time.Duration) (*model.CommandResult, error) {
+// 阻塞直到 Agent 上报结果、超时、或 ctx 取消
+func (b *MemoryBus) WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*model.CommandResult, error) {
 	// 先检查是否已完成
 	b.commandsMu.RLock()
 	if cs, ok := b.commands[cmdID]; ok && cs.Result != nil {
@@ -239,10 +239,12 @@ func (b *MemoryBus) WaitCommandResult(cmdID string, timeout time.Duration) (*mod
 		b.commandWaitersMu.Unlock()
 	}()
 
-	// 等待结果或超时
+	// 等待结果、超时、或 ctx 取消
 	select {
 	case result := <-ch:
 		return result, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case <-time.After(timeout):
 		return nil, nil // 超时返回 nil
 	}

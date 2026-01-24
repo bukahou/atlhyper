@@ -26,8 +26,8 @@ type Producer interface {
 	GetCommandStatus(cmdID string) (*model.CommandStatus, error)
 
 	// WaitCommandResult 等待指令执行完成（同步等待）
-	// 阻塞直到 Agent 上报结果或超时
-	WaitCommandResult(cmdID string, timeout time.Duration) (*model.CommandResult, error)
+	// 阻塞直到 Agent 上报结果、超时、或 ctx 取消
+	WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*model.CommandResult, error)
 }
 
 // Consumer 指令消费端 (下层: AgentSDK 使用)

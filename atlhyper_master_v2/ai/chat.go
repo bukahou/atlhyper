@@ -144,8 +144,8 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 				Params: tc.Params,
 			}
 
-			// 执行
-			result, err := s.executor.Execute(clusterID, &tc)
+			// 执行（传递 ctx 以支持全局超时取消）
+			result, err := s.executor.Execute(ctx, clusterID, &tc)
 			if err != nil {
 				result = fmt.Sprintf("Tool 执行失败: %v", err)
 			}
