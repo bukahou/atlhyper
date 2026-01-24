@@ -23,7 +23,7 @@ type Server struct {
 	port       int
 	service    service.Service
 	database   database.Database
-	bus        mq.CommandBus
+	bus        mq.Producer
 	httpServer *http.Server
 }
 
@@ -32,7 +32,7 @@ type Config struct {
 	Port     int
 	Service  service.Service
 	Database database.Database
-	Bus      mq.CommandBus
+	Bus      mq.Producer
 }
 
 // NewServer 创建 Server

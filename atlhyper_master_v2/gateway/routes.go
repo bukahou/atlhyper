@@ -25,11 +25,11 @@ type Router struct {
 	publicMux *http.ServeMux // 公开路由（不需要认证）
 	service   service.Service
 	database  database.Database
-	bus       mq.CommandBus
+	bus       mq.Producer
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(svc service.Service, db database.Database, bus mq.CommandBus) *Router {
+func NewRouter(svc service.Service, db database.Database, bus mq.Producer) *Router {
 	return &Router{
 		mux:       http.NewServeMux(),
 		publicMux: http.NewServeMux(),

@@ -15,11 +15,11 @@ import (
 
 // CommandService 指令服务
 type CommandService struct {
-	bus mq.CommandBus
+	bus mq.Producer
 }
 
 // NewCommandService 创建 CommandService
-func NewCommandService(bus mq.CommandBus) *CommandService {
+func NewCommandService(bus mq.Producer) *CommandService {
 	return &CommandService{
 		bus: bus,
 	}

@@ -19,7 +19,7 @@ import (
 type Server struct {
 	port       int
 	timeout    time.Duration
-	bus        mq.CommandBus
+	bus        mq.Consumer
 	processor  processor.Processor
 	httpServer *http.Server
 }
@@ -28,7 +28,7 @@ type Server struct {
 type Config struct {
 	Port           int
 	CommandTimeout time.Duration
-	Bus            mq.CommandBus
+	Bus            mq.Consumer
 	Processor      processor.Processor
 }
 

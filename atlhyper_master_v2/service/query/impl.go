@@ -16,12 +16,12 @@ import (
 // QueryService Query 层实现
 type QueryService struct {
 	store     datahub.Store
-	bus       mq.CommandBus
+	bus       mq.Producer
 	eventRepo repository.ClusterEventRepository
 }
 
 // New 创建 QueryService 实例
-func New(store datahub.Store, bus mq.CommandBus) *QueryService {
+func New(store datahub.Store, bus mq.Producer) *QueryService {
 	return &QueryService{
 		store: store,
 		bus:   bus,
@@ -29,7 +29,7 @@ func New(store datahub.Store, bus mq.CommandBus) *QueryService {
 }
 
 // NewWithEventRepo 创建带事件仓库的 QueryService 实例（用于 Alert Trends）
-func NewWithEventRepo(store datahub.Store, bus mq.CommandBus, eventRepo repository.ClusterEventRepository) *QueryService {
+func NewWithEventRepo(store datahub.Store, bus mq.Producer, eventRepo repository.ClusterEventRepository) *QueryService {
 	return &QueryService{
 		store:     store,
 		bus:       bus,
