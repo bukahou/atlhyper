@@ -53,7 +53,7 @@ var defaultStrings = map[string]string{
 
 	// -------------------- 数据库配置 --------------------
 	"MASTER_DB_TYPE": "sqlite",         // 数据库类型
-	"MASTER_DB_PATH": "atlhyper_master_v2/database/sqlite/master.db", // SQLite 路径
+	"MASTER_DB_PATH": "atlhyper_master_v2/database/sqlite/data/master.db", // SQLite 路径
 	"MASTER_DB_DSN":  "",               // MySQL/PG 连接串
 
 	// -------------------- JWT 配置 --------------------

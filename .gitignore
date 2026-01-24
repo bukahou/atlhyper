@@ -4,6 +4,7 @@
 
 # ===== 后端 (Go) =====
 atlhyper_master/db/data/atlhyper.db
+atlhyper_master_v2/database/sqlite/data/
 
 # ===== 前端 (Next.js) =====
 # Dependencies
