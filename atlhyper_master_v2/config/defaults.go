@@ -20,6 +20,9 @@ var defaultDurations = map[string]string{
 
 	// -------------------- JWT 配置 --------------------
 	"MASTER_JWT_TOKEN_EXPIRY": "24h", // Token 有效期
+
+	// -------------------- AI 配置 --------------------
+	"MASTER_AI_TOOL_TIMEOUT": "30s", // Tool 执行超时
 }
 
 // ============================================================
@@ -81,6 +84,11 @@ var defaultStrings = map[string]string{
 	"MASTER_ADMIN_USERNAME":     "admin",         // 管理员用户名
 	"MASTER_ADMIN_PASSWORD":     "admin123",      // 管理员密码（首次登录后请修改）
 	"MASTER_ADMIN_DISPLAY_NAME": "Administrator", // 管理员显示名称
+
+	// -------------------- AI 配置 --------------------
+	"MASTER_AI_PROVIDER":       "gemini",          // LLM 提供商
+	"MASTER_AI_GEMINI_API_KEY": "",                // Gemini API Key（必须设置才能启用 AI）
+	"MASTER_AI_GEMINI_MODEL":   "gemini-2.0-flash", // Gemini 模型
 }
 
 // ============================================================
@@ -92,4 +100,7 @@ var defaultBools = map[string]bool{
 
 	// -------------------- Webhook 配置 --------------------
 	"MASTER_WEBHOOK_ENABLED": false, // 是否启用 Webhook
+
+	// -------------------- AI 配置 --------------------
+	"MASTER_AI_ENABLED": false, // 是否启用 AI 功能
 }

@@ -86,6 +86,15 @@ type RedisConfig struct {
 	DB       int    // 数据库编号
 }
 
+// AIConfig AI 功能配置
+type AIConfig struct {
+	Enabled     bool          // 是否启用 AI 功能
+	Provider    string        // LLM 提供商: gemini
+	APIKey      string        // API Key
+	Model       string        // 模型名称
+	ToolTimeout time.Duration // Tool 执行超时
+}
+
 // AppConfig Master 顶层配置结构体
 type AppConfig struct {
 	Server   ServerConfig
@@ -97,6 +106,7 @@ type AppConfig struct {
 	JWT      JWTConfig
 	Notifier NotifierConfig
 	Admin    AdminConfig
+	AI       AIConfig
 }
 
 // GlobalConfig 全局配置实例

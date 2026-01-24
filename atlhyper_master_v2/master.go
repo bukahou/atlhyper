@@ -26,6 +26,7 @@ import (
 	"syscall"
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
+	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/database/repo"
@@ -150,12 +151,33 @@ func New() (*Master, error) {
 	})
 	log.Printf("[Master] AgentSDK 初始化完成: 端口=%d", cfg.Server.AgentSDKPort)
 
-	// 9. 初始化 Gateway（使用统一 Service + Bus）
+	// 9. 初始化 AIService（可选）
+	var aiService ai.AIService
+	if cfg.AI.Enabled && cfg.AI.APIKey != "" {
+		var err2 error
+		aiService, err2 = ai.NewService(
+			ai.ServiceConfig{
+				Provider:    cfg.AI.Provider,
+				APIKey:      cfg.AI.APIKey,
+				Model:       cfg.AI.Model,
+				ToolTimeout: cfg.AI.ToolTimeout,
+			},
+			ops, bus,
+			db.AIConversation, db.AIMessage,
+		)
+		if err2 != nil {
+			return nil, fmt.Errorf("failed to init AI service: %w", err2)
+		}
+		log.Printf("[Master] AI 服务初始化完成: provider=%s, model=%s", cfg.AI.Provider, cfg.AI.Model)
+	}
+
+	// 10. 初始化 Gateway（使用统一 Service + Bus + AIService）
 	gw := gateway.NewServer(gateway.Config{
-		Port:     cfg.Server.GatewayPort,
-		Service:  svc,
-		Database: db,
-		Bus:      bus,
+		Port:      cfg.Server.GatewayPort,
+		Service:   svc,
+		Database:  db,
+		Bus:       bus,
+		AIService: aiService,
 	})
 	log.Printf("[Master] Gateway 初始化完成: 端口=%d", cfg.Server.GatewayPort)
 

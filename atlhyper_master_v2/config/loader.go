@@ -79,6 +79,14 @@ func LoadConfig() {
 		DisplayName: getString("MASTER_ADMIN_DISPLAY_NAME"),
 	}
 
+	GlobalConfig.AI = AIConfig{
+		Enabled:     getBool("MASTER_AI_ENABLED"),
+		Provider:    getString("MASTER_AI_PROVIDER"),
+		APIKey:      getString("MASTER_AI_GEMINI_API_KEY"),
+		Model:       getString("MASTER_AI_GEMINI_MODEL"),
+		ToolTimeout: getDuration("MASTER_AI_TOOL_TIMEOUT"),
+	}
+
 	log.Printf("[config] Master 配置加载完成: GatewayPort=%d, AgentSDKPort=%d, DBType=%s, Admin=%s",
 		GlobalConfig.Server.GatewayPort, GlobalConfig.Server.AgentSDKPort, GlobalConfig.Database.Type, GlobalConfig.Admin.Username)
 
@@ -88,6 +96,9 @@ func LoadConfig() {
 	}
 	if GlobalConfig.Notifier.Webhook.Enabled {
 		log.Printf("[config] Webhook 通知已启用: %s", GlobalConfig.Notifier.Webhook.URL)
+	}
+	if GlobalConfig.AI.Enabled {
+		log.Printf("[config] AI 功能已启用: provider=%s, model=%s", GlobalConfig.AI.Provider, GlobalConfig.AI.Model)
 	}
 }
 
