@@ -23,20 +23,20 @@ type Processor interface {
 
 // processorImpl Processor 实现
 type processorImpl struct {
-	datahub            datahub.DataHub
+	store              datahub.Store
 	onSnapshotReceived func(clusterID string) // 快照接收回调（触发 Event 持久化）
 }
 
 // Config Processor 配置
 type Config struct {
-	DataHub            datahub.DataHub
+	Store              datahub.Store
 	OnSnapshotReceived func(clusterID string)
 }
 
 // New 创建 Processor
 func New(cfg Config) Processor {
 	return &processorImpl{
-		datahub:            cfg.DataHub,
+		store:              cfg.Store,
 		onSnapshotReceived: cfg.OnSnapshotReceived,
 	}
 }
@@ -49,7 +49,7 @@ func (p *processorImpl) ProcessSnapshot(clusterID string, snapshot *model_v2.Clu
 	}
 
 	// 2. 写入 DataHub
-	if err := p.datahub.SetSnapshot(clusterID, snapshot); err != nil {
+	if err := p.store.SetSnapshot(clusterID, snapshot); err != nil {
 		return fmt.Errorf("set snapshot: %w", err)
 	}
 
@@ -69,7 +69,7 @@ func (p *processorImpl) ProcessHeartbeat(clusterID string) error {
 	if clusterID == "" {
 		return fmt.Errorf("cluster_id required")
 	}
-	return p.datahub.UpdateHeartbeat(clusterID)
+	return p.store.UpdateHeartbeat(clusterID)
 }
 
 // validateSnapshot 校验快照

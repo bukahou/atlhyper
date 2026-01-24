@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/datahub"
+	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/processor"
 )
 
@@ -19,7 +19,7 @@ import (
 type Server struct {
 	port       int
 	timeout    time.Duration
-	datahub    datahub.DataHub  // 用于指令队列（MQ）
+	bus        mq.CommandBus
 	processor  processor.Processor
 	httpServer *http.Server
 }
@@ -28,7 +28,7 @@ type Server struct {
 type Config struct {
 	Port           int
 	CommandTimeout time.Duration
-	DataHub        datahub.DataHub
+	Bus            mq.CommandBus
 	Processor      processor.Processor
 }
 
@@ -37,7 +37,7 @@ func NewServer(cfg Config) *Server {
 	return &Server{
 		port:      cfg.Port,
 		timeout:   cfg.CommandTimeout,
-		datahub:   cfg.DataHub,
+		bus:       cfg.Bus,
 		processor: cfg.Processor,
 	}
 }

@@ -13,32 +13,29 @@ import (
 	"net/http"
 
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // Router 路由管理器
 type Router struct {
-	mux            *http.ServeMux
-	publicMux      *http.ServeMux // 公开路由（不需要认证）
-	query          query.Query
-	commandService service.CommandService
-	database       database.Database
-	datahub        datahub.DataHub
+	mux       *http.ServeMux
+	publicMux *http.ServeMux // 公开路由（不需要认证）
+	service   service.Service
+	database  database.Database
+	bus       mq.CommandBus
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(q query.Query, cs service.CommandService, db database.Database, dh datahub.DataHub) *Router {
+func NewRouter(svc service.Service, db database.Database, bus mq.CommandBus) *Router {
 	return &Router{
-		mux:            http.NewServeMux(),
-		publicMux:      http.NewServeMux(),
-		query:          q,
-		commandService: cs,
-		database:       db,
-		datahub:        dh,
+		mux:       http.NewServeMux(),
+		publicMux: http.NewServeMux(),
+		service:   svc,
+		database:  db,
+		bus:       bus,
 	}
 }
 
@@ -62,22 +59,22 @@ func (r *Router) Handler() http.Handler {
 func (r *Router) registerRoutes() {
 	// 创建 Handlers
 	userHandler := handler.NewUserHandler(r.database.UserRepository())
-	clusterHandler := handler.NewClusterHandler(r.query)
-	overviewHandler := handler.NewOverviewHandler(r.query)
-	podHandler := handler.NewPodHandler(r.query)
-	nodeHandler := handler.NewNodeHandler(r.query)
-	deploymentHandler := handler.NewDeploymentHandler(r.query)
-	daemonsetHandler := handler.NewDaemonSetHandler(r.query)
-	statefulsetHandler := handler.NewStatefulSetHandler(r.query)
-	serviceHandler := handler.NewServiceHandler(r.query)
-	ingressHandler := handler.NewIngressHandler(r.query)
-	configmapHandler := handler.NewConfigMapHandler(r.query)
-	secretHandler := handler.NewSecretHandler(r.query)
-	namespaceHandler := handler.NewNamespaceHandler(r.query)
-	eventHandler := handler.NewEventHandler(r.query, r.database)
-	commandHandler := handler.NewCommandHandler(r.query, r.commandService)
+	clusterHandler := handler.NewClusterHandler(r.service)
+	overviewHandler := handler.NewOverviewHandler(r.service)
+	podHandler := handler.NewPodHandler(r.service)
+	nodeHandler := handler.NewNodeHandler(r.service)
+	deploymentHandler := handler.NewDeploymentHandler(r.service)
+	daemonsetHandler := handler.NewDaemonSetHandler(r.service)
+	statefulsetHandler := handler.NewStatefulSetHandler(r.service)
+	serviceHandler := handler.NewServiceHandler(r.service)
+	ingressHandler := handler.NewIngressHandler(r.service)
+	configmapHandler := handler.NewConfigMapHandler(r.service)
+	secretHandler := handler.NewSecretHandler(r.service)
+	namespaceHandler := handler.NewNamespaceHandler(r.service)
+	eventHandler := handler.NewEventHandler(r.service, r.database)
+	commandHandler := handler.NewCommandHandler(r.service)
 	notifyHandler := handler.NewNotifyHandler(r.database)
-	opsHandler := handler.NewOpsHandler(r.query, r.commandService, r.datahub)
+	opsHandler := handler.NewOpsHandler(r.service, r.bus)
 	auditHandler := handler.NewAuditHandler(r.database)
 
 	// ================================================================

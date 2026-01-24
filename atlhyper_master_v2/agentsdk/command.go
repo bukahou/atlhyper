@@ -23,7 +23,7 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 长轮询等待指令
-	cmd, err := s.datahub.WaitCommand(r.Context(), clusterID, s.timeout)
+	cmd, err := s.bus.WaitCommand(r.Context(), clusterID, s.timeout)
 	if err != nil {
 		// 客户端断开连接
 		if r.Context().Err() != nil {

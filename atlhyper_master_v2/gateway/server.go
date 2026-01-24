@@ -1,7 +1,7 @@
 // atlhyper_master_v2/gateway/server.go
 // Gateway HTTP Server（Web API）
 // Gateway 是外部访问层，禁止直接访问 DataHub
-// 读取通过 Query 层，写入通过 CommandService
+// 读取通过 Service 统一接口
 //
 // 路由注册见 routes.go
 package gateway
@@ -14,45 +14,41 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/datahub"
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // Server Gateway HTTP Server
 type Server struct {
-	port           int
-	query          query.Query
-	commandService service.CommandService
-	database       database.Database
-	datahub        datahub.DataHub
-	httpServer     *http.Server
+	port       int
+	service    service.Service
+	database   database.Database
+	bus        mq.CommandBus
+	httpServer *http.Server
 }
 
 // Config Server 配置
 type Config struct {
-	Port           int
-	Query          query.Query
-	CommandService service.CommandService
-	Database       database.Database
-	DataHub        datahub.DataHub
+	Port     int
+	Service  service.Service
+	Database database.Database
+	Bus      mq.CommandBus
 }
 
 // NewServer 创建 Server
 func NewServer(cfg Config) *Server {
 	return &Server{
-		port:           cfg.Port,
-		query:          cfg.Query,
-		commandService: cfg.CommandService,
-		database:       cfg.Database,
-		datahub:        cfg.DataHub,
+		port:     cfg.Port,
+		service:  cfg.Service,
+		database: cfg.Database,
+		bus:      cfg.Bus,
 	}
 }
 
 // Start 启动 Server
 func (s *Server) Start() error {
 	// 使用 Router 统一管理路由（见 routes.go）
-	router := NewRouter(s.query, s.commandService, s.database, s.datahub)
+	router := NewRouter(s.service, s.database, s.bus)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),

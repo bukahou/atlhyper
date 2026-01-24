@@ -8,25 +8,23 @@ import (
 	"net/http"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/atlhyper_master_v2/query"
+	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
+	"AtlHyper/atlhyper_master_v2/service/operations"
 )
 
 // OpsHandler 操作 Handler
 type OpsHandler struct {
-	query          query.Query
-	commandService service.CommandService
-	datahub        datahub.DataHub
+	svc service.Service
+	bus mq.CommandBus
 }
 
 // NewOpsHandler 创建 OpsHandler
-func NewOpsHandler(q query.Query, cs service.CommandService, dh datahub.DataHub) *OpsHandler {
+func NewOpsHandler(svc service.Service, bus mq.CommandBus) *OpsHandler {
 	return &OpsHandler{
-		query:          q,
-		commandService: cs,
-		datahub:        dh,
+		svc: svc,
+		bus: bus,
 	}
 }
 
@@ -126,7 +124,7 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. 创建指令
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          model.ActionGetLogs,
 		TargetKind:      "Pod",
@@ -141,7 +139,7 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. 同步等待结果（30秒超时）
-	result, err := h.datahub.WaitCommandResult(resp.CommandID, 30*time.Second)
+	result, err := h.bus.WaitCommandResult(resp.CommandID, 30*time.Second)
 	if err != nil {
 		writeError(w, http.StatusGatewayTimeout, "获取日志超时")
 		return
@@ -185,7 +183,7 @@ func (h *OpsHandler) PodRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          model.ActionDelete,
 		TargetKind:      "Pod",
@@ -229,7 +227,7 @@ func (h *OpsHandler) DeploymentScale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          model.ActionScale,
 		TargetKind:      "Deployment",
@@ -271,7 +269,7 @@ func (h *OpsHandler) DeploymentRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          model.ActionRestart,
 		TargetKind:      "Deployment",
@@ -315,7 +313,7 @@ func (h *OpsHandler) DeploymentImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          model.ActionUpdateImage,
 		TargetKind:      "Deployment",
@@ -358,7 +356,7 @@ func (h *OpsHandler) NodeCordon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:  req.ClusterID,
 		Action:     model.ActionCordon,
 		TargetKind: "Node",
@@ -396,7 +394,7 @@ func (h *OpsHandler) NodeUncordon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:  req.ClusterID,
 		Action:     model.ActionUncordon,
 		TargetKind: "Node",
@@ -435,7 +433,7 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. 创建指令
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          model.ActionGetConfigMap,
 		TargetKind:      "ConfigMap",
@@ -449,7 +447,7 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. 同步等待结果（30秒超时）
-	result, err := h.datahub.WaitCommandResult(resp.CommandID, 30*time.Second)
+	result, err := h.bus.WaitCommandResult(resp.CommandID, 30*time.Second)
 	if err != nil {
 		writeError(w, http.StatusGatewayTimeout, "获取数据超时")
 		return
@@ -492,7 +490,7 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. 创建指令
-	resp, err := h.commandService.CreateCommand(&service.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          model.ActionGetSecret,
 		TargetKind:      "Secret",
@@ -506,7 +504,7 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. 同步等待结果（30秒超时）
-	result, err := h.datahub.WaitCommandResult(resp.CommandID, 30*time.Second)
+	result, err := h.bus.WaitCommandResult(resp.CommandID, 30*time.Second)
 	if err != nil {
 		writeError(w, http.StatusGatewayTimeout, "获取数据超时")
 		return

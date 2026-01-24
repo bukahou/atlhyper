@@ -38,7 +38,7 @@ func (s *Server) handleResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 确认指令完成
-	if err := s.datahub.AckCommand(req.CommandID, result); err != nil {
+	if err := s.bus.AckCommand(req.CommandID, result); err != nil {
 		log.Printf("[AgentSDK] 确认指令完成失败: %v", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return

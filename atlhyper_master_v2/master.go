@@ -1,14 +1,14 @@
 // Package atlhyper_master_v2 Master V2 核心包
 //
 // 本包提供 Master 的启动器，负责:
-//   - 初始化所有依赖 (DataHub, Database, Processor, Query, CommandService, AgentSDK, Gateway)
+//   - 初始化所有依赖 (Store, CommandBus, Database, Processor, Query, CommandService, AgentSDK, Gateway)
 //   - 依赖注入和组装
 //   - 生命周期管理 (启动、运行、停止)
 //
 // 架构设计:
-//   - 外部访问: Gateway → Query（读取）/ CommandService（写入）→ DataHub
-//   - 内部处理: AgentSDK → Processor → DataHub
-//   - Gateway 禁止直接访问 DataHub
+//   - 外部访问: Gateway → Query（读取）/ CommandService（写入）→ Store / CommandBus
+//   - 内部处理: AgentSDK → Processor → Store; AgentSDK → CommandBus
+//   - Gateway 禁止直接访问 Store
 //
 // 使用方式:
 //
@@ -30,23 +30,24 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/database/sqlite"
 	"AtlHyper/atlhyper_master_v2/datahub"
-	"AtlHyper/atlhyper_master_v2/datahub/memory"
 	"AtlHyper/atlhyper_master_v2/gateway"
+	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/processor"
-	"AtlHyper/atlhyper_master_v2/query"
 	"AtlHyper/atlhyper_master_v2/service"
+	"AtlHyper/atlhyper_master_v2/service/operations"
+	"AtlHyper/atlhyper_master_v2/service/query"
 )
 
 // Master 是 Master V2 的主结构体
 type Master struct {
-	datahub        datahub.DataHub
-	database       database.Database
-	processor      processor.Processor
-	query          query.Query
-	commandService service.CommandService
-	agentSDK       *agentsdk.Server
-	gateway        *gateway.Server
-	eventPersist   *service.EventPersistService
+	store        datahub.Store
+	bus          mq.CommandBus
+	database     database.Database
+	processor    processor.Processor
+	service      service.Service
+	agentSDK     *agentsdk.Server
+	gateway      *gateway.Server
+	eventPersist *operations.EventPersistService
 }
 
 // New 创建并初始化 Master 实例
@@ -55,14 +56,15 @@ type Master struct {
 // 调用前必须先调用 config.LoadConfig()。
 //
 // 初始化顺序:
-//  1. DataHub - 实时数据中心
-//  2. Database - 持久化数据库
-//  3. EventPersistService - Event 持久化服务
-//  4. Processor - 数据处理层（写入 DataHub）
-//  5. Query - 查询抽象层（读取 DataHub）
-//  6. CommandService - 指令写入服务
-//  7. AgentSDK - Agent 通信层
-//  8. Gateway - Web API 网关
+//  1. Store - 数据存储
+//  2. CommandBus - 消息队列
+//  3. Database - 持久化数据库
+//  4. EventPersistService - Event 持久化服务
+//  5. Processor - 数据处理层（写入 Store）
+//  6. Query - 查询抽象层（读取 Store + CommandBus）
+//  7. CommandService - 指令写入服务（写入 CommandBus）
+//  8. AgentSDK - Agent 通信层
+//  9. Gateway - Web API 网关
 //
 // 返回:
 //   - *Master: Master 实例
@@ -70,17 +72,21 @@ type Master struct {
 func New() (*Master, error) {
 	cfg := &config.GlobalConfig
 
-	// 1. 初始化 DataHub
-	var hub datahub.DataHub
-	switch cfg.DataHub.Type {
-	case "memory":
-		hub = memory.New(cfg.DataHub.EventRetention, cfg.DataHub.HeartbeatExpire)
-	default:
-		return nil, fmt.Errorf("unsupported datahub type: %s", cfg.DataHub.Type)
-	}
-	log.Printf("[Master] DataHub 初始化完成: type=%s", cfg.DataHub.Type)
+	// 1. 初始化 Store (数据存储)
+	store := datahub.New(datahub.Config{
+		Type:            cfg.DataHub.Type,
+		EventRetention:  cfg.DataHub.EventRetention,
+		HeartbeatExpire: cfg.DataHub.HeartbeatExpire,
+	})
+	log.Printf("[Master] Store 初始化完成: type=%s", cfg.DataHub.Type)
 
-	// 2. 初始化 Database
+	// 2. 初始化 CommandBus (消息队列)
+	bus := mq.New(mq.Config{
+		Type: cfg.DataHub.Type,
+	})
+	log.Println("[Master] CommandBus 初始化完成")
+
+	// 3. 初始化 Database
 	var db database.Database
 	var err error
 	switch cfg.Database.Type {
@@ -99,11 +105,11 @@ func New() (*Master, error) {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	// 3. 初始化 EventPersistService
-	eventPersist := service.NewEventPersistService(
-		hub,
+	// 4. 初始化 EventPersistService
+	eventPersist := operations.NewEventPersistService(
+		store,
 		db.ClusterEventRepository(),
-		service.EventPersistConfig{
+		operations.EventPersistConfig{
 			RetentionDays:   cfg.Event.RetentionDays,
 			MaxCount:        cfg.Event.MaxCount,
 			CleanupInterval: cfg.Event.CleanupInterval,
@@ -111,9 +117,9 @@ func New() (*Master, error) {
 	)
 	log.Println("[Master] 事件持久化服务初始化完成")
 
-	// 4. 初始化 Processor（写入路径）
+	// 5. 初始化 Processor（写入路径）
 	proc := processor.New(processor.Config{
-		DataHub: hub,
+		Store: store,
 		OnSnapshotReceived: func(clusterID string) {
 			// 触发 Event 持久化
 			if err := eventPersist.Sync(clusterID); err != nil {
@@ -123,42 +129,44 @@ func New() (*Master, error) {
 	})
 	log.Println("[Master] 数据处理器初始化完成")
 
-	// 5. 初始化 Query（读取路径）
-	q := query.NewWithEventRepo(hub, db.ClusterEventRepository())
+	// 6. 初始化 Query（读取路径）
+	q := query.NewWithEventRepo(store, bus, db.ClusterEventRepository())
 	log.Println("[Master] 查询层初始化完成")
 
-	// 6. 初始化 CommandService（指令写入）
-	cmdService := service.NewCommandService(hub)
-	log.Println("[Master] 指令服务初始化完成")
+	// 7. 初始化 Operations（写入路径）
+	ops := operations.NewCommandService(bus)
+	log.Println("[Master] 操作服务初始化完成")
 
-	// 7. 初始化 AgentSDK（使用 Processor）
+	// 组合统一 Service
+	svc := service.New(q, ops)
+
+	// 8. 初始化 AgentSDK（使用 Processor + Bus）
 	agentServer := agentsdk.NewServer(agentsdk.Config{
 		Port:           cfg.Server.AgentSDKPort,
 		CommandTimeout: cfg.Timeout.CommandPoll,
-		DataHub:        hub, // 用于指令队列
+		Bus:            bus,
 		Processor:      proc,
 	})
 	log.Printf("[Master] AgentSDK 初始化完成: 端口=%d", cfg.Server.AgentSDKPort)
 
-	// 8. 初始化 Gateway（使用 Query + CommandService + DataHub）
+	// 9. 初始化 Gateway（使用统一 Service + Bus）
 	gw := gateway.NewServer(gateway.Config{
-		Port:           cfg.Server.GatewayPort,
-		Query:          q,
-		CommandService: cmdService,
-		Database:       db,
-		DataHub:        hub,
+		Port:     cfg.Server.GatewayPort,
+		Service:  svc,
+		Database: db,
+		Bus:      bus,
 	})
 	log.Printf("[Master] Gateway 初始化完成: 端口=%d", cfg.Server.GatewayPort)
 
 	return &Master{
-		datahub:        hub,
-		database:       db,
-		processor:      proc,
-		query:          q,
-		commandService: cmdService,
-		agentSDK:       agentServer,
-		gateway:        gw,
-		eventPersist:   eventPersist,
+		store:        store,
+		bus:          bus,
+		database:     db,
+		processor:    proc,
+		service:      svc,
+		agentSDK:     agentServer,
+		gateway:      gw,
+		eventPersist: eventPersist,
 	}, nil
 }
 
@@ -173,9 +181,14 @@ func New() (*Master, error) {
 // 返回:
 //   - error: 停止时的错误
 func (m *Master) Run(ctx context.Context) error {
-	// 启动 DataHub
-	if err := m.datahub.Start(); err != nil {
-		return fmt.Errorf("failed to start datahub: %w", err)
+	// 启动 Store
+	if err := m.store.Start(); err != nil {
+		return fmt.Errorf("failed to start store: %w", err)
+	}
+
+	// 启动 CommandBus
+	if err := m.bus.Start(); err != nil {
+		return fmt.Errorf("failed to start commandbus: %w", err)
 	}
 
 	// 启动 EventPersistService
@@ -226,9 +239,14 @@ func (m *Master) Stop() error {
 		log.Printf("[Master] 停止事件持久化服务失败: %v", err)
 	}
 
-	// 停止 DataHub
-	if err := m.datahub.Stop(); err != nil {
-		log.Printf("[Master] 停止 DataHub 失败: %v", err)
+	// 停止 CommandBus
+	if err := m.bus.Stop(); err != nil {
+		log.Printf("[Master] 停止 CommandBus 失败: %v", err)
+	}
+
+	// 停止 Store
+	if err := m.store.Stop(); err != nil {
+		log.Printf("[Master] 停止 Store 失败: %v", err)
 	}
 
 	// 关闭数据库
@@ -240,9 +258,14 @@ func (m *Master) Stop() error {
 	return nil
 }
 
-// DataHub 获取 DataHub 实例（供测试使用）
-func (m *Master) DataHub() datahub.DataHub {
-	return m.datahub
+// Store 获取 Store 实例（供测试使用）
+func (m *Master) Store() datahub.Store {
+	return m.store
+}
+
+// Bus 获取 CommandBus 实例（供测试使用）
+func (m *Master) Bus() mq.CommandBus {
+	return m.bus
 }
 
 // Database 获取 Database 实例（供测试使用）
@@ -250,7 +273,7 @@ func (m *Master) Database() database.Database {
 	return m.database
 }
 
-// Query 获取 Query 实例（供测试使用）
-func (m *Master) Query() query.Query {
-	return m.query
+// Service 获取 Service 实例（供测试使用）
+func (m *Master) Service() service.Service {
+	return m.service
 }
