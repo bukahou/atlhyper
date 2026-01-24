@@ -12,6 +12,7 @@ package gateway
 import (
 	"net/http"
 
+	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
@@ -26,16 +27,18 @@ type Router struct {
 	service   service.Service
 	database  *database.DB
 	bus       mq.Producer
+	aiService ai.AIService
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(svc service.Service, db *database.DB, bus mq.Producer) *Router {
+func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.AIService) *Router {
 	return &Router{
 		mux:       http.NewServeMux(),
 		publicMux: http.NewServeMux(),
 		service:   svc,
 		database:  db,
 		bus:       bus,
+		aiService: aiSvc,
 	}
 }
 
@@ -179,6 +182,18 @@ func (r *Router) registerRoutes() {
 	// ConfigMap/Secret 数据获取（敏感数据读取需要审计）
 	r.operatorAudited("/api/v2/ops/configmaps/data", "read", "configmap", opsHandler.ConfigMapData)
 	r.operatorAudited("/api/v2/ops/secrets/data", "read", "secret", opsHandler.SecretData)
+
+	// ================================================================
+	// AI 对话（需要认证，Viewer+ 即可使用）
+	// SSE 流式响应需要较长的 WriteTimeout（在 handler 内处理）
+	// ================================================================
+
+	if r.aiService != nil {
+		aiHandler := handler.NewAIHandler(r.aiService)
+		r.mux.HandleFunc("/api/v2/ai/conversations", aiHandler.Conversations)
+		r.mux.HandleFunc("/api/v2/ai/conversations/", aiHandler.ConversationByID)
+		r.mux.HandleFunc("/api/v2/ai/chat", aiHandler.Chat)
+	}
 
 	// ================================================================
 	// Admin 权限（Role >= 3）

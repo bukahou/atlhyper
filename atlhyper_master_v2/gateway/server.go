@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
@@ -24,37 +25,40 @@ type Server struct {
 	service    service.Service
 	database   *database.DB
 	bus        mq.Producer
+	aiService  ai.AIService
 	httpServer *http.Server
 }
 
 // Config Server 配置
 type Config struct {
-	Port     int
-	Service  service.Service
-	Database *database.DB
-	Bus      mq.Producer
+	Port      int
+	Service   service.Service
+	Database  *database.DB
+	Bus       mq.Producer
+	AIService ai.AIService // 可选，nil 表示 AI 功能未启用
 }
 
 // NewServer 创建 Server
 func NewServer(cfg Config) *Server {
 	return &Server{
-		port:     cfg.Port,
-		service:  cfg.Service,
-		database: cfg.Database,
-		bus:      cfg.Bus,
+		port:      cfg.Port,
+		service:   cfg.Service,
+		database:  cfg.Database,
+		bus:       cfg.Bus,
+		aiService: cfg.AIService,
 	}
 }
 
 // Start 启动 Server
 func (s *Server) Start() error {
 	// 使用 Router 统一管理路由（见 routes.go）
-	router := NewRouter(s.service, s.database, s.bus)
+	router := NewRouter(s.service, s.database, s.bus, s.aiService)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),
 		Handler:      router.Handler(),
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 180 * time.Second, // AI SSE 需要较长超时（多轮 Tool 调用）
 	}
 
 	log.Printf("[Gateway] 启动服务器: 端口=%d", s.port)
