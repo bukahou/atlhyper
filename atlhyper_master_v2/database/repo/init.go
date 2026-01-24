@@ -16,4 +16,6 @@ func Init(db *database.DB, dialect database.Dialect) {
 	db.Cluster = newClusterRepo(db.Conn, dialect.Cluster())
 	db.Command = newCommandRepo(db.Conn, dialect.Command())
 	db.Settings = newSettingsRepo(db.Conn, dialect.Settings())
+	db.AIConversation = newAIConversationRepo(db.Conn, dialect.AIConversation())
+	db.AIMessage = newAIMessageRepo(db.Conn, dialect.AIMessage())
 }

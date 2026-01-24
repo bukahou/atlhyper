@@ -131,6 +131,31 @@ func migrate(db *sql.DB) error {
 			updated_at TEXT NOT NULL,
 			updated_by INTEGER
 		)`,
+
+		// ==================== AI 对话表 ====================
+		`CREATE TABLE IF NOT EXISTS ai_conversations (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			cluster_id TEXT NOT NULL,
+			title TEXT,
+			message_count INTEGER DEFAULT 0,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_ai_conv_user ON ai_conversations(user_id, updated_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_ai_conv_cluster ON ai_conversations(cluster_id)`,
+
+		// ==================== AI 消息表 ====================
+		`CREATE TABLE IF NOT EXISTS ai_messages (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			conversation_id INTEGER NOT NULL,
+			role TEXT NOT NULL,
+			content TEXT NOT NULL,
+			tool_calls TEXT,
+			created_at TEXT NOT NULL,
+			FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_ai_msg_conv ON ai_messages(conversation_id, created_at ASC)`,
 	}
 
 	for _, m := range migrations {

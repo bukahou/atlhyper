@@ -14,13 +14,15 @@ import (
 // DB 数据库统一访问点
 // 通过 New() 工厂函数创建，repo.Init() 注入 Repository 实例
 type DB struct {
-	Audit    AuditRepository
-	User     UserRepository
-	Event    ClusterEventRepository
-	Notify   NotifyChannelRepository
-	Cluster  ClusterRepository
-	Command  CommandHistoryRepository
-	Settings SettingsRepository
+	Audit          AuditRepository
+	User           UserRepository
+	Event          ClusterEventRepository
+	Notify         NotifyChannelRepository
+	Cluster        ClusterRepository
+	Command        CommandHistoryRepository
+	Settings       SettingsRepository
+	AIConversation AIConversationRepository
+	AIMessage      AIMessageRepository
 
 	Conn *sql.DB // 导出供 repo 包使用
 }
@@ -193,6 +195,27 @@ type Setting struct {
 	UpdatedBy   int64
 }
 
+// AIConversation AI 对话
+type AIConversation struct {
+	ID           int64
+	UserID       int64
+	ClusterID    string
+	Title        string
+	MessageCount int
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// AIMessage AI 消息
+type AIMessage struct {
+	ID             int64
+	ConversationID int64
+	Role           string // user / assistant / tool
+	Content        string
+	ToolCalls      string // JSON: [{id, name, params, result}]
+	CreatedAt      time.Time
+}
+
 // ==================== Repository 接口 ====================
 
 // AuditRepository 审计日志接口
@@ -272,6 +295,22 @@ type SettingsRepository interface {
 	List(ctx context.Context) ([]*Setting, error)
 }
 
+// AIConversationRepository AI 对话接口
+type AIConversationRepository interface {
+	Create(ctx context.Context, conv *AIConversation) error
+	Update(ctx context.Context, conv *AIConversation) error
+	Delete(ctx context.Context, id int64) error
+	GetByID(ctx context.Context, id int64) (*AIConversation, error)
+	ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*AIConversation, error)
+}
+
+// AIMessageRepository AI 消息接口
+type AIMessageRepository interface {
+	Create(ctx context.Context, msg *AIMessage) error
+	ListByConversation(ctx context.Context, convID int64) ([]*AIMessage, error)
+	DeleteByConversation(ctx context.Context, convID int64) error
+}
+
 // ==================== Dialect 接口 ====================
 
 // Dialect 数据库方言接口
@@ -285,6 +324,8 @@ type Dialect interface {
 	Cluster() ClusterDialect
 	Command() CommandDialect
 	Settings() SettingsDialect
+	AIConversation() AIConversationDialect
+	AIMessage() AIMessageDialect
 	Migrate(db *sql.DB) error
 }
 
@@ -363,4 +404,22 @@ type SettingsDialect interface {
 	Delete(key string) (query string, args []any)
 	SelectAll() (query string, args []any)
 	ScanRow(rows *sql.Rows) (*Setting, error)
+}
+
+// AIConversationDialect AI 对话 SQL 方言
+type AIConversationDialect interface {
+	Insert(conv *AIConversation) (query string, args []any)
+	Update(conv *AIConversation) (query string, args []any)
+	Delete(id int64) (query string, args []any)
+	SelectByID(id int64) (query string, args []any)
+	SelectByUser(userID int64, limit, offset int) (query string, args []any)
+	ScanRow(rows *sql.Rows) (*AIConversation, error)
+}
+
+// AIMessageDialect AI 消息 SQL 方言
+type AIMessageDialect interface {
+	Insert(msg *AIMessage) (query string, args []any)
+	SelectByConversation(convID int64) (query string, args []any)
+	DeleteByConversation(convID int64) (query string, args []any)
+	ScanRow(rows *sql.Rows) (*AIMessage, error)
 }
