@@ -33,6 +33,9 @@ var defaultInts = map[string]int{
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_SNAPSHOT_RETAIN": 10, // 快照保留数量
 
+	// -------------------- Redis 配置 --------------------
+	"MASTER_REDIS_DB": 0, // Redis 数据库编号
+
 	// -------------------- 数据库配置 --------------------
 	"MASTER_DB_MAX_CONNS": 10, // 最大连接数
 
@@ -50,6 +53,10 @@ var defaultInts = map[string]int{
 var defaultStrings = map[string]string{
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_TYPE": "memory", // DataHub 类型
+
+	// -------------------- Redis 配置 --------------------
+	"MASTER_REDIS_ADDR":     "localhost:6379", // Redis 地址
+	"MASTER_REDIS_PASSWORD": "",               // Redis 密码
 
 	// -------------------- 数据库配置 --------------------
 	"MASTER_DB_TYPE": "sqlite",         // 数据库类型

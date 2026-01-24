@@ -78,12 +78,18 @@ func New() (*Master, error) {
 		Type:            cfg.DataHub.Type,
 		EventRetention:  cfg.DataHub.EventRetention,
 		HeartbeatExpire: cfg.DataHub.HeartbeatExpire,
+		RedisAddr:       cfg.Redis.Addr,
+		RedisPassword:   cfg.Redis.Password,
+		RedisDB:         cfg.Redis.DB,
 	})
 	log.Printf("[Master] Store 初始化完成: type=%s", cfg.DataHub.Type)
 
 	// 2. 初始化 CommandBus (消息队列)
 	bus := mq.New(mq.Config{
-		Type: cfg.DataHub.Type,
+		Type:          cfg.DataHub.Type,
+		RedisAddr:     cfg.Redis.Addr,
+		RedisPassword: cfg.Redis.Password,
+		RedisDB:       cfg.Redis.DB,
 	})
 	log.Println("[Master] CommandBus 初始化完成")
 

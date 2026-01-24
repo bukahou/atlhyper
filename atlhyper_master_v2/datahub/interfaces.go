@@ -50,4 +50,9 @@ type Config struct {
 	Type            string        // 类型: memory / redis
 	EventRetention  time.Duration // Event 保留时间
 	HeartbeatExpire time.Duration // 心跳过期时间
+
+	// Redis 配置（Type=redis 时使用）
+	RedisAddr     string
+	RedisPassword string
+	RedisDB       int
 }

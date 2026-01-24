@@ -27,6 +27,12 @@ func LoadConfig() {
 		HeartbeatExpire: getDuration("MASTER_DATAHUB_HEARTBEAT_EXPIRE"),
 	}
 
+	GlobalConfig.Redis = RedisConfig{
+		Addr:     getString("MASTER_REDIS_ADDR"),
+		Password: getString("MASTER_REDIS_PASSWORD"),
+		DB:       getInt("MASTER_REDIS_DB"),
+	}
+
 	GlobalConfig.Database = DatabaseConfig{
 		Type:     getString("MASTER_DB_TYPE"),
 		Path:     getString("MASTER_DB_PATH"),

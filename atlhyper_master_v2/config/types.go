@@ -79,11 +79,19 @@ type AdminConfig struct {
 	DisplayName string // 显示名称
 }
 
+// RedisConfig Redis 配置
+type RedisConfig struct {
+	Addr     string // 地址 (host:port)
+	Password string // 密码（空为无密码）
+	DB       int    // 数据库编号
+}
+
 // AppConfig Master 顶层配置结构体
 type AppConfig struct {
 	Server   ServerConfig
 	DataHub  DataHubConfig
 	Database DatabaseConfig
+	Redis    RedisConfig
 	Event    EventConfig
 	Timeout  TimeoutConfig
 	JWT      JWTConfig
