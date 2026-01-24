@@ -10,10 +10,17 @@ import (
 	"AtlHyper/atlhyper_master_v2/model"
 )
 
+// Topic 常量
+// 每个 Cluster 有多个 Topic 队列，互不阻塞
+const (
+	TopicOps = "ops" // 系统操作（Web UI 发起的 scale, restart 等）
+	TopicAI  = "ai"  // AI 指令（AI 发起的查询/操作）
+)
+
 // Producer 指令发送端 (上层: Gateway/Service 使用)
 type Producer interface {
-	// EnqueueCommand 入队指令
-	EnqueueCommand(clusterID string, cmd *model.Command) error
+	// EnqueueCommand 入队指令到指定 topic
+	EnqueueCommand(clusterID, topic string, cmd *model.Command) error
 
 	// GetCommandStatus 获取指令状态
 	GetCommandStatus(cmdID string) (*model.CommandStatus, error)
@@ -25,9 +32,9 @@ type Producer interface {
 
 // Consumer 指令消费端 (下层: AgentSDK 使用)
 type Consumer interface {
-	// WaitCommand 等待指令（长轮询）
-	// 阻塞等待直到有指令或超时
-	WaitCommand(ctx context.Context, clusterID string, timeout time.Duration) (*model.Command, error)
+	// WaitCommand 等待指定 topic 的指令（长轮询）
+	// Agent 为每个 topic 开独立 goroutine 轮询
+	WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*model.Command, error)
 
 	// AckCommand 确认指令完成
 	AckCommand(cmdID string, result *model.CommandResult) error

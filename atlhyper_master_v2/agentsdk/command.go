@@ -22,8 +22,14 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// topic: ops / ai，默认 ops
+	topic := r.URL.Query().Get("topic")
+	if topic == "" {
+		topic = "ops"
+	}
+
 	// 长轮询等待指令
-	cmd, err := s.bus.WaitCommand(r.Context(), clusterID, s.timeout)
+	cmd, err := s.bus.WaitCommand(r.Context(), clusterID, topic, s.timeout)
 	if err != nil {
 		// 客户端断开连接
 		if r.Context().Err() != nil {

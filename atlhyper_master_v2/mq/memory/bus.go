@@ -54,25 +54,32 @@ func (b *MemoryBus) Stop() error {
 	return nil
 }
 
+// queueKey 生成队列 key: clusterID:topic
+func queueKey(clusterID, topic string) string {
+	return clusterID + ":" + topic
+}
+
 // getOrCreateQueue 获取或创建队列
-func (b *MemoryBus) getOrCreateQueue(clusterID string) *commandQueue {
+func (b *MemoryBus) getOrCreateQueue(clusterID, topic string) *commandQueue {
+	key := queueKey(clusterID, topic)
+
 	b.queuesMu.Lock()
 	defer b.queuesMu.Unlock()
 
-	if q, ok := b.queues[clusterID]; ok {
+	if q, ok := b.queues[key]; ok {
 		return q
 	}
 	q := &commandQueue{
 		commands: make([]*model.Command, 0),
 		waiting:  make(chan struct{}, 1),
 	}
-	b.queues[clusterID] = q
+	b.queues[key] = q
 	return q
 }
 
-// EnqueueCommand 入队指令
-func (b *MemoryBus) EnqueueCommand(clusterID string, cmd *model.Command) error {
-	q := b.getOrCreateQueue(clusterID)
+// EnqueueCommand 入队指令到指定 topic
+func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *model.Command) error {
+	q := b.getOrCreateQueue(clusterID, topic)
 
 	q.mu.Lock()
 	q.commands = append(q.commands, cmd)
@@ -93,13 +100,13 @@ func (b *MemoryBus) EnqueueCommand(clusterID string, cmd *model.Command) error {
 	default:
 	}
 
-	log.Printf("[MemoryBus] 指令已入队: %s -> %s", cmd.ID, clusterID)
+	log.Printf("[MemoryBus] 指令已入队: %s -> %s [%s]", cmd.ID, clusterID, topic)
 	return nil
 }
 
-// WaitCommand 等待指令（长轮询）
-func (b *MemoryBus) WaitCommand(ctx context.Context, clusterID string, timeout time.Duration) (*model.Command, error) {
-	q := b.getOrCreateQueue(clusterID)
+// WaitCommand 等待指定 topic 的指令（长轮询）
+func (b *MemoryBus) WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*model.Command, error) {
+	q := b.getOrCreateQueue(clusterID, topic)
 
 	// 先检查是否有待处理的指令
 	q.mu.Lock()

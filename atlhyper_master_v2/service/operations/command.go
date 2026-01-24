@@ -64,8 +64,12 @@ func (s *CommandService) CreateCommand(req *CreateCommandRequest) (*CreateComman
 		CreatedAt:       time.Now(),
 	}
 
-	// 4. 写入 DataHub MQ
-	if err := s.bus.EnqueueCommand(req.ClusterID, cmd); err != nil {
+	// 4. 写入 DataHub MQ（按来源路由 topic）
+	topic := mq.TopicOps
+	if req.Source == "ai" {
+		topic = mq.TopicAI
+	}
+	if err := s.bus.EnqueueCommand(req.ClusterID, topic, cmd); err != nil {
 		return nil, fmt.Errorf("enqueue command: %w", err)
 	}
 
