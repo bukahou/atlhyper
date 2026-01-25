@@ -18,6 +18,7 @@ func LoadConfig() {
 	GlobalConfig.Server = ServerConfig{
 		GatewayPort:  getInt("MASTER_GATEWAY_PORT"),
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
+		TesterPort:   getInt("MASTER_TESTER_PORT"),
 	}
 
 	GlobalConfig.DataHub = DataHubConfig{
@@ -87,8 +88,8 @@ func LoadConfig() {
 		ToolTimeout: getDuration("MASTER_AI_TOOL_TIMEOUT"),
 	}
 
-	log.Printf("[config] Master 配置加载完成: GatewayPort=%d, AgentSDKPort=%d, DBType=%s, Admin=%s",
-		GlobalConfig.Server.GatewayPort, GlobalConfig.Server.AgentSDKPort, GlobalConfig.Database.Type, GlobalConfig.Admin.Username)
+	log.Printf("[config] Master 配置加载完成: GatewayPort=%d, AgentSDKPort=%d, TesterPort=%d, DBType=%s, Admin=%s",
+		GlobalConfig.Server.GatewayPort, GlobalConfig.Server.AgentSDKPort, GlobalConfig.Server.TesterPort, GlobalConfig.Database.Type, GlobalConfig.Admin.Username)
 
 	// 打印通知配置状态
 	if GlobalConfig.Notifier.Mail.Enabled {

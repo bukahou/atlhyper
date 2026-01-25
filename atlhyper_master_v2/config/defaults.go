@@ -32,6 +32,7 @@ var defaultInts = map[string]int{
 	// -------------------- 服务器配置 --------------------
 	"MASTER_GATEWAY_PORT":  8080, // Gateway 端口（Web/API）
 	"MASTER_AGENTSDK_PORT": 8081, // AgentSDK 端口（Agent 数据上报）
+	"MASTER_TESTER_PORT":   9080, // Tester 端口（测试服务）
 
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_SNAPSHOT_RETAIN": 10, // 快照保留数量

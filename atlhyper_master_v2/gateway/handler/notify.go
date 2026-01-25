@@ -210,42 +210,19 @@ func (h *NotifyHandler) updateChannel(w http.ResponseWriter, r *http.Request, ch
 }
 
 // testChannel 测试通知渠道（内部方法）
+// 已迁移到独立的 tester 模块（端口 9080）
+// 此处保留空实现，返回提示信息
 func (h *NotifyHandler) testChannel(w http.ResponseWriter, r *http.Request, channelType string) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	if channelType == "" {
-		writeError(w, http.StatusBadRequest, "channel type required")
-		return
-	}
-
-	if !isValidChannelType(channelType) {
-		writeError(w, http.StatusBadRequest, "invalid channel type")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	// 获取渠道配置
-	channel, err := h.db.Notify.GetByType(ctx, channelType)
-	if err != nil || channel == nil {
-		writeError(w, http.StatusNotFound, "channel not found")
-		return
-	}
-
-	if !channel.Enabled {
-		writeError(w, http.StatusBadRequest, "channel is disabled")
-		return
-	}
-
-	// TODO: 实际发送测试通知
+	// 测试功能已迁移到独立端口
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "测试通知已发送",
+		"message": "测试功能已迁移到 :9080/test/notifier/" + channelType,
 		"channel": channelType,
-		"success": true,
+		"success": false,
 	})
 }
 

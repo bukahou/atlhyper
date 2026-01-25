@@ -8,6 +8,7 @@ import "time"
 type ServerConfig struct {
 	GatewayPort  int // Gateway 端口（Web/API）
 	AgentSDKPort int // AgentSDK 端口（Agent 数据上报）
+	TesterPort   int // Tester 端口（测试服务）
 }
 
 // DataHubConfig DataHub 配置

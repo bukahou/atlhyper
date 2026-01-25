@@ -34,7 +34,9 @@ import (
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/mq"
+	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/processor"
+	"AtlHyper/atlhyper_master_v2/tester"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/atlhyper_master_v2/service/query"
@@ -42,14 +44,17 @@ import (
 
 // Master 是 Master V2 的主结构体
 type Master struct {
-	store        datahub.Store
-	bus          mq.CommandBus
-	database     *database.DB
-	processor    processor.Processor
-	service      service.Service
-	agentSDK     *agentsdk.Server
-	gateway      *gateway.Server
-	eventPersist *operations.EventPersistService
+	store          datahub.Store
+	bus            mq.CommandBus
+	database       *database.DB
+	processor      processor.Processor
+	service        service.Service
+	agentSDK       *agentsdk.Server
+	gateway        *gateway.Server
+	testerServer   *tester.Server
+	eventPersist   *operations.EventPersistService
+	alertManager   *notifier.AlertManager
+	heartbeatCheck *operations.HeartbeatCheckService
 }
 
 // New 创建并初始化 Master 实例
@@ -171,7 +176,18 @@ func New() (*Master, error) {
 		log.Printf("[Master] AI 服务初始化完成: provider=%s, model=%s", cfg.AI.Provider, cfg.AI.Model)
 	}
 
-	// 10. 初始化 Gateway（使用统一 Service + Bus + AIService）
+	// 10. 初始化 AlertManager（告警管理器）
+	alertMgr := notifier.NewAlertManager(db.Notify)
+	log.Println("[Master] 告警管理器初始化完成")
+
+	// 11. 初始化 HeartbeatCheckService（心跳检测服务）
+	heartbeatCheck := operations.NewHeartbeatCheckService(store, alertMgr, operations.HeartbeatCheckConfig{
+		CheckInterval: cfg.DataHub.HeartbeatExpire / 2, // 检测间隔为过期时间的一半
+		OfflineAfter:  cfg.DataHub.HeartbeatExpire,     // 使用配置的心跳过期时间
+	})
+	log.Println("[Master] 心跳检测服务初始化完成")
+
+	// 12. 初始化 Gateway（使用统一 Service + Bus + AIService）
 	gw := gateway.NewServer(gateway.Config{
 		Port:      cfg.Server.GatewayPort,
 		Service:   svc,
@@ -181,15 +197,25 @@ func New() (*Master, error) {
 	})
 	log.Printf("[Master] Gateway 初始化完成: 端口=%d", cfg.Server.GatewayPort)
 
+	// 13. 初始化 Tester（独立测试服务器）
+	testerServer := tester.NewServer(tester.Config{
+		Port:         cfg.Server.TesterPort,
+		AlertManager: alertMgr,
+	})
+	log.Printf("[Master] Tester 初始化完成: 端口=%d", cfg.Server.TesterPort)
+
 	return &Master{
-		store:        store,
-		bus:          bus,
-		database:     db,
-		processor:    proc,
-		service:      svc,
-		agentSDK:     agentServer,
-		gateway:      gw,
-		eventPersist: eventPersist,
+		store:          store,
+		bus:            bus,
+		database:       db,
+		processor:      proc,
+		service:        svc,
+		agentSDK:       agentServer,
+		gateway:        gw,
+		testerServer:   testerServer,
+		eventPersist:   eventPersist,
+		alertManager:   alertMgr,
+		heartbeatCheck: heartbeatCheck,
 	}, nil
 }
 
@@ -219,6 +245,14 @@ func (m *Master) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start event persist: %w", err)
 	}
 
+	// 启动 AlertManager
+	m.alertManager.Start()
+
+	// 启动 HeartbeatCheckService
+	if err := m.heartbeatCheck.Start(); err != nil {
+		return fmt.Errorf("failed to start heartbeat check: %w", err)
+	}
+
 	// 启动 AgentSDK
 	if err := m.agentSDK.Start(); err != nil {
 		return fmt.Errorf("failed to start agentsdk: %w", err)
@@ -227,6 +261,11 @@ func (m *Master) Run(ctx context.Context) error {
 	// 启动 Gateway
 	if err := m.gateway.Start(); err != nil {
 		return fmt.Errorf("failed to start gateway: %w", err)
+	}
+
+	// 启动 Tester
+	if err := m.testerServer.Start(); err != nil {
+		return fmt.Errorf("failed to start tester: %w", err)
 	}
 
 	log.Println("[Master] Master 启动成功")
@@ -247,6 +286,11 @@ func (m *Master) Run(ctx context.Context) error {
 
 // Stop 停止 Master
 func (m *Master) Stop() error {
+	// 停止 Tester
+	if err := m.testerServer.Stop(); err != nil {
+		log.Printf("[Master] 停止 Tester 失败: %v", err)
+	}
+
 	// 停止 Gateway
 	if err := m.gateway.Stop(); err != nil {
 		log.Printf("[Master] 停止 Gateway 失败: %v", err)
@@ -256,6 +300,14 @@ func (m *Master) Stop() error {
 	if err := m.agentSDK.Stop(); err != nil {
 		log.Printf("[Master] 停止 AgentSDK 失败: %v", err)
 	}
+
+	// 停止 HeartbeatCheckService
+	if err := m.heartbeatCheck.Stop(); err != nil {
+		log.Printf("[Master] 停止心跳检测服务失败: %v", err)
+	}
+
+	// 停止 AlertManager
+	m.alertManager.Stop()
 
 	// 停止 EventPersistService
 	if err := m.eventPersist.Stop(); err != nil {
