@@ -29,7 +29,7 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
             <X className="w-5 h-5 text-secondary" />
           </button>
         </div>
-        <Sidebar />
+        <Sidebar collapsed={false} onToggle={onClose} />
       </div>
     </>
   );

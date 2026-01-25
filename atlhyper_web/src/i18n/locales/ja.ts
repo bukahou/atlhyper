@@ -4,6 +4,7 @@ export const ja: Translations = {
   nav: {
     overview: "概要",
     workbench: "ワークベンチ",
+    workbenchHome: "ワークベンチホーム",
     ai: "AI チャット",
     cluster: "クラスタ",
     pod: "Pod",

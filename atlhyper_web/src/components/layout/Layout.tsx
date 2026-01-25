@@ -15,8 +15,8 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { setClusterIds } = useClusterStore();
 
   // 全局监听权限错误，自动触发登录对话框
@@ -42,15 +42,15 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen flex bg-[var(--background)]">
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <Sidebar collapsed={sidebarCollapsed} />
+      <div className="hidden lg:flex overflow-visible">
+        <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((v) => !v)} />
       </div>
 
       {/* Mobile Menu */}
       <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen relative z-0">
         <Navbar onMenuClick={() => setMobileMenuOpen(true)} />
         <main className="flex-1 p-6 overflow-y-auto overflow-x-hidden">{children}</main>
       </div>

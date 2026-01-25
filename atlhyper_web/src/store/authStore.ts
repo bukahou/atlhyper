@@ -30,10 +30,15 @@ const getInitialState = () => {
   const userStr = localStorage.getItem("user");
   const clusterIdsStr = localStorage.getItem("clusterIds");
 
+  const parseJSON = <T>(str: string | null, fallback: T): T => {
+    if (!str || str === "undefined" || str === "null") return fallback;
+    try { return JSON.parse(str); } catch { return fallback; }
+  };
+
   return {
     token,
-    user: userStr ? JSON.parse(userStr) : null,
-    clusterIds: clusterIdsStr ? JSON.parse(clusterIdsStr) : [],
+    user: parseJSON(userStr, null),
+    clusterIds: parseJSON(clusterIdsStr, []),
     isAuthenticated: !!token,
   };
 };
@@ -46,11 +51,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   setLoginData: (data: LoginResponse) => {
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
-    localStorage.setItem("clusterIds", JSON.stringify(data.cluster_ids));
+    localStorage.setItem("clusterIds", JSON.stringify(data.cluster_ids || []));
     set({
       token: data.token,
       user: data.user,
-      clusterIds: data.cluster_ids,
+      clusterIds: data.cluster_ids || [],
       isAuthenticated: true,
     });
   },

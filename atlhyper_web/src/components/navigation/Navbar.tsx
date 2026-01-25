@@ -12,9 +12,10 @@ interface NavbarProps {
 
 export function Navbar({ onMenuClick }: NavbarProps) {
   return (
-    <header className="h-16 bg-[var(--background)] border-b border-[var(--border-color)] px-4 flex items-center justify-between">
+    <header className="h-14 bg-[var(--background)] border-b border-[var(--border-color)]/50 px-4 flex items-center justify-between">
       {/* Left side */}
       <div className="flex items-center gap-4">
+        {/* Mobile menu toggle */}
         <button
           onClick={onMenuClick}
           className="p-2 rounded-lg hover-bg lg:hidden"
@@ -28,22 +29,15 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-2">
-        {/* Notifications */}
+      <div className="flex items-center gap-1">
         <button
           className="p-2 rounded-lg hover-bg relative"
           aria-label="Notifications"
         >
-          <Bell className="w-5 h-5 text-secondary" />
+          <Bell className="w-[18px] h-[18px] text-muted" />
         </button>
-
-        {/* Language Switcher */}
         <LanguageSwitcher />
-
-        {/* Theme Switcher */}
         <ThemeSwitcher />
-
-        {/* User Menu */}
         <UserMenu />
       </div>
     </header>

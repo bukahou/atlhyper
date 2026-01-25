@@ -8,6 +8,7 @@ import type { Language } from "./common";
 export interface NavTranslations {
   overview: string;
   workbench: string;
+  workbenchHome: string;
   ai: string;
   cluster: string;
   pod: string;

@@ -10,3 +10,4 @@ export { DataTable, type TableColumn } from "./DataTable";
 export { Modal } from "./Modal";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { ToastContainer, toast } from "./Toast";
+export { StatusPage } from "./StatusPage";

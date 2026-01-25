@@ -4,6 +4,7 @@ export const zh: Translations = {
   nav: {
     overview: "概览",
     workbench: "工作台",
+    workbenchHome: "工作台首页",
     ai: "AI 对话",
     cluster: "集群",
     pod: "Pod",

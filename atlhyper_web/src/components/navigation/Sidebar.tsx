@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Wrench,
+  Bot,
   Box,
   Server,
   Layers,
@@ -16,265 +16,219 @@ import {
   FileText,
   Users,
   ClipboardList,
-  ChevronDown,
-  ChevronRight,
-  FlaskConical,
-  ShieldAlert,
-  ShieldX,
   ShieldCheck,
   Bell,
   UserCog,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "@/i18n/context";
 import { useAuthStore } from "@/store/authStore";
-import { testPublicApi, testOperatorApi, testAdminApi } from "@/api/test";
 
 interface NavChild {
   key: string;
   href: string;
-  adminOnly?: boolean; // 仅 Admin 可见
+  icon: typeof Box;
+  adminOnly?: boolean;
 }
 
-interface NavItem {
+interface NavGroup {
   key: string;
-  href?: string;
   icon: typeof LayoutDashboard;
+  href?: string;
   children?: NavChild[];
 }
 
-const navItems: NavItem[] = [
+const navGroups: NavGroup[] = [
   { key: "overview", href: "/overview", icon: LayoutDashboard },
   {
     key: "workbench",
-    icon: Wrench,
+    icon: Bot,
     children: [
-      { key: "ai", href: "/workbench" },
-      { key: "clusters", href: "/system/clusters" },
-      { key: "agents", href: "/system/agents" },
-      { key: "notifications", href: "/system/notifications" },
+      { key: "workbenchHome", href: "/workbench", icon: LayoutDashboard },
+      { key: "ai", href: "/workbench/ai", icon: Bot },
+      { key: "clusters", href: "/system/clusters", icon: Server },
+      { key: "agents", href: "/system/agents", icon: Server },
+      { key: "notifications", href: "/system/notifications", icon: Bell },
     ],
   },
   {
     key: "cluster",
     icon: Server,
     children: [
-      { key: "pod", href: "/cluster/pod" },
-      { key: "node", href: "/cluster/node" },
-      { key: "deployment", href: "/cluster/deployment" },
-      { key: "service", href: "/cluster/service" },
-      { key: "namespace", href: "/cluster/namespace" },
-      { key: "ingress", href: "/cluster/ingress" },
-      { key: "alert", href: "/cluster/alert" },
+      { key: "pod", href: "/cluster/pod", icon: Box },
+      { key: "node", href: "/cluster/node", icon: Server },
+      { key: "deployment", href: "/cluster/deployment", icon: Layers },
+      { key: "service", href: "/cluster/service", icon: Network },
+      { key: "namespace", href: "/cluster/namespace", icon: FolderTree },
+      { key: "ingress", href: "/cluster/ingress", icon: Globe },
+      { key: "alert", href: "/cluster/alert", icon: AlertTriangle },
     ],
   },
   {
     key: "system",
     icon: Activity,
     children: [
-      { key: "metrics", href: "/system/metrics" },
-      { key: "logs", href: "/system/logs" },
-      { key: "alerts", href: "/system/alerts" },
+      { key: "metrics", href: "/system/metrics", icon: Activity },
+      { key: "logs", href: "/system/logs", icon: FileText },
+      { key: "alerts", href: "/system/alerts", icon: AlertTriangle },
     ],
   },
   {
     key: "account",
     icon: UserCog,
     children: [
-      { key: "users", href: "/system/users", adminOnly: true },
-      { key: "roles", href: "/system/roles" },
-      { key: "audit", href: "/system/audit" },
+      { key: "users", href: "/system/users", icon: Users, adminOnly: true },
+      { key: "roles", href: "/system/roles", icon: ShieldCheck },
+      { key: "audit", href: "/system/audit", icon: ClipboardList },
     ],
   },
 ];
 
-const iconMap: Record<string, typeof Box> = {
-  // workbench
-  ai: Wrench,
-  clusters: Server,
-  agents: Server,
-  notifications: Bell,
-  // cluster
-  pod: Box,
-  node: Server,
-  deployment: Layers,
-  service: Network,
-  namespace: FolderTree,
-  ingress: Globe,
-  alert: AlertTriangle,
-  // system
-  metrics: Activity,
-  logs: FileText,
-  alerts: AlertTriangle,
-  // account
-  users: Users,
-  roles: ShieldCheck,
-  audit: ClipboardList,
-};
-
 interface SidebarProps {
-  collapsed?: boolean;
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
-// ============================================================
-// [TEST] 测试区域状态和处理函数
-// 功能开发完成后需要删除这部分代码
-// ============================================================
-function TestSection({ collapsed }: { collapsed: boolean }) {
-  const [testResult, setTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [showTest, setShowTest] = useState(false);
-
-  const runTest = async (name: string, testFn: () => Promise<unknown>) => {
-    setTestResult(null);
-    try {
-      await testFn();
-      setTestResult({ type: "success", message: `${name}: 成功` });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "失败";
-      setTestResult({ type: "error", message: `${name}: ${msg}` });
-    }
-  };
-
-  if (collapsed) return null;
-
-  return (
-    <div className="border-t border-[var(--border-color)] mt-4 pt-4">
-      <button
-        onClick={() => setShowTest(!showTest)}
-        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-yellow-600 dark:text-yellow-400 hover-bg"
-      >
-        <FlaskConical className="w-5 h-5" />
-        <span className="flex-1 text-left text-sm">权限测试</span>
-        {showTest ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-      </button>
-
-      {showTest && (
-        <div className="ml-4 mt-2 space-y-2">
-          <p className="text-xs text-muted px-3 mb-2">无需登录:</p>
-          <button
-            onClick={() => runTest("公开", testPublicApi)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover-bg text-muted"
-          >
-            <ShieldCheck className="w-4 h-4 text-green-500" />
-            查看接口
-          </button>
-
-          <p className="text-xs text-muted px-3 mt-3 mb-2">需要登录:</p>
-          <button
-            onClick={() => runTest("操作", testOperatorApi)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover-bg text-muted"
-          >
-            <ShieldAlert className="w-4 h-4 text-orange-500" />
-            操作接口
-          </button>
-          <button
-            onClick={() => runTest("管理", testAdminApi)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover-bg text-muted"
-          >
-            <ShieldX className="w-4 h-4 text-red-500" />
-            管理接口
-          </button>
-
-          {testResult && (
-            <div
-              className={`px-3 py-2 text-xs rounded-lg ${
-                testResult.type === "success"
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                  : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-              }`}
-            >
-              {testResult.message}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-// ============================================================
-// [TEST] 测试区域结束
-// ============================================================
-
-export function Sidebar({ collapsed = false }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { t } = useI18n();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 3; // Admin role
-  const [expandedItems, setExpandedItems] = useState<string[]>(["workbench", "cluster", "system", "account"]);
+  const isAdmin = user?.role === 3;
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(["workbench", "cluster", "system", "account"]);
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
 
-  const toggleExpand = (key: string) => {
-    setExpandedItems((prev) =>
+  const isActive = (href: string) => pathname === href;
+  const isGroupActive = (group: NavGroup) => {
+    if (group.href) return pathname === group.href;
+    return group.children?.some((child) => pathname === child.href) ?? false;
+  };
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );
   };
 
-  const isActive = (href: string) => pathname === href;
-  const isParentActive = (children: { href: string }[]) =>
-    children.some((child) => pathname === child.href);
-
   return (
     <aside
-      className={`bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] h-full transition-all duration-300 ${
-        collapsed ? "w-16" : "w-64"
+      className={`h-full flex flex-col bg-[var(--sidebar-bg)] relative z-40 overflow-visible ${
+        collapsed ? "w-14" : "w-56"
       }`}
+      style={{ transition: "width 200ms ease" }}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center justify-center border-b border-[var(--border-color)]">
+      <div className={`h-14 flex items-center border-b border-[var(--border-color)]/30 ${collapsed ? "justify-center" : "px-3"}`}>
         <Link href="/" className="flex items-center gap-2">
-          <img src="/icon.svg" alt="AtlHyper" className="w-8 h-8" />
-          {!collapsed && (
-            <span className="text-xl font-bold text-primary">AtlHyper</span>
-          )}
+          <img src="/icon.svg" alt="AtlHyper" className="w-7 h-7" />
+          {!collapsed && <span className="text-base font-bold text-primary">AtlHyper</span>}
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="p-2 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const hasChildren = item.children && item.children.length > 0;
-          const isExpanded = expandedItems.includes(item.key);
-          const parentActive = hasChildren && isParentActive(item.children!);
+      <nav className={`flex-1 py-2 ${collapsed ? "px-1.5 overflow-visible" : "px-2 overflow-y-auto"}`}>
+        {navGroups.map((group) => {
+          const Icon = group.icon;
+          const active = isGroupActive(group);
+          const hasChildren = !!group.children;
+          const isExpanded = expandedGroups.includes(group.key);
 
+          // 折叠模式: icon-only + hover flyout
+          if (collapsed) {
+            return (
+              <div
+                key={group.key}
+                className="relative mb-0.5"
+                onMouseEnter={() => hasChildren && setHoveredGroup(group.key)}
+                onMouseLeave={() => setHoveredGroup(null)}
+              >
+                {group.href ? (
+                  <Link
+                    href={group.href}
+                    className={`flex items-center justify-center w-full h-10 rounded-lg transition-colors ${
+                      active ? "bg-primary/10 text-primary" : "text-muted hover:bg-[var(--hover-bg)] hover:text-default"
+                    }`}
+                    title={t.nav[group.key as keyof typeof t.nav]}
+                  >
+                    {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-primary" />}
+                    <Icon className="w-5 h-5" />
+                  </Link>
+                ) : (
+                  <button
+                    className={`flex items-center justify-center w-full h-10 rounded-lg transition-colors ${
+                      active ? "bg-primary/10 text-primary" : "text-muted hover:bg-[var(--hover-bg)] hover:text-default"
+                    }`}
+                    title={t.nav[group.key as keyof typeof t.nav]}
+                  >
+                    {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-primary" />}
+                    <Icon className="w-5 h-5" />
+                  </button>
+                )}
+
+                {/* Flyout (collapsed mode) */}
+                {hasChildren && hoveredGroup === group.key && (
+                  <div className="absolute left-full top-0 pl-1 z-50">
+                    <div className="py-2 px-1 min-w-[160px] rounded-lg border border-[var(--border-color)] bg-card shadow-lg">
+                      <div className="px-3 py-1.5 text-[11px] font-medium text-muted uppercase tracking-wide">
+                        {t.nav[group.key as keyof typeof t.nav]}
+                      </div>
+                      {group.children!
+                        .filter((child) => !child.adminOnly || isAdmin)
+                        .map((child) => {
+                          const ChildIcon = child.icon;
+                          return (
+                            <Link
+                              key={child.key}
+                              href={child.href}
+                              className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-colors ${
+                                isActive(child.href)
+                                  ? "bg-primary/10 text-primary font-medium"
+                                  : "text-secondary hover:bg-[var(--hover-bg)] hover:text-default"
+                              }`}
+                            >
+                              <ChildIcon className="w-4 h-4" />
+                              {t.nav[child.key as keyof typeof t.nav]}
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // 展开模式: 完整导航
           if (hasChildren) {
             return (
-              <div key={item.key}>
+              <div key={group.key} className="mb-1">
                 <button
-                  onClick={() => toggleExpand(item.key)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                    parentActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-secondary hover-bg"
+                  onClick={() => toggleGroup(group.key)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-sm ${
+                    active ? "text-primary" : "text-secondary hover:bg-[var(--hover-bg)]"
                   }`}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && (
-                    <>
-                      <span className="flex-1 text-left text-sm">
-                        {t.nav[item.key as keyof typeof t.nav]}
-                      </span>
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                    </>
-                  )}
+                  <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <span className="flex-1 text-left">{t.nav[group.key as keyof typeof t.nav]}</span>
+                  {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-muted" /> : <ChevronRight className="w-3.5 h-3.5 text-muted" />}
                 </button>
-                {!collapsed && isExpanded && (
-                  <div className="ml-4 mt-1 space-y-1">
-                    {item.children!
+                {isExpanded && (
+                  <div className="ml-3 mt-0.5 space-y-0.5 border-l border-[var(--border-color)]/40 pl-3">
+                    {group.children!
                       .filter((child) => !child.adminOnly || isAdmin)
                       .map((child) => {
-                        const ChildIcon = iconMap[child.key] || Box;
+                        const ChildIcon = child.icon;
                         return (
                           <Link
                             key={child.key}
                             href={child.href}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                            className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors ${
                               isActive(child.href)
-                                ? "bg-primary text-white"
-                                : "text-muted hover-bg"
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "text-muted hover:bg-[var(--hover-bg)] hover:text-default"
                             }`}
                           >
                             <ChildIcon className="w-4 h-4" />
@@ -290,27 +244,38 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
 
           return (
             <Link
-              key={item.key}
-              href={item.href!}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                isActive(item.href!)
-                  ? "bg-primary text-white"
-                  : "text-secondary hover-bg"
+              key={group.key}
+              href={group.href!}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors mb-1 ${
+                active ? "bg-primary/10 text-primary font-medium" : "text-secondary hover:bg-[var(--hover-bg)]"
               }`}
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && (
-                <span className="text-sm">
-                  {t.nav[item.key as keyof typeof t.nav]}
-                </span>
-              )}
+              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+              <span>{t.nav[group.key as keyof typeof t.nav]}</span>
             </Link>
           );
         })}
-
-        {/* [TEST] 权限测试区域 - 功能开发完成后删除 */}
-        <TestSection collapsed={collapsed} />
       </nav>
+
+      {/* 底部: 折叠/展开按钮 (固定位置) */}
+      <div className={`py-2 border-t border-[var(--border-color)]/30 ${collapsed ? "flex justify-center" : "px-2"}`}>
+        <button
+          onClick={onToggle}
+          className={`flex items-center gap-2 rounded-lg hover:bg-[var(--hover-bg)] transition-colors ${
+            collapsed ? "p-2" : "w-full px-3 py-2"
+          }`}
+          title={collapsed ? "展开侧栏" : "收起侧栏"}
+        >
+          {collapsed ? (
+            <ChevronsRight className="w-4 h-4 text-muted" />
+          ) : (
+            <>
+              <ChevronsLeft className="w-4 h-4 text-muted" />
+              <span className="text-xs text-muted">收起</span>
+            </>
+          )}
+        </button>
+      </div>
     </aside>
   );
 }
