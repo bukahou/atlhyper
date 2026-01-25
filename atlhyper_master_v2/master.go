@@ -112,6 +112,11 @@ func New() (*Master, error) {
 	repo.Init(db, dialect)
 	log.Printf("[Master] 数据库初始化完成: type=%s", cfg.Database.Type)
 
+	// 3.1 同步通知渠道配置到数据库
+	if err := database.SyncNotifyChannels(context.Background(), db, &cfg.Notifier); err != nil {
+		log.Printf("[Master] 通知配置同步失败: %v", err)
+	}
+
 	// 4. 初始化 EventPersistService
 	eventPersist := operations.NewEventPersistService(
 		store,

@@ -58,19 +58,19 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.Notifier = NotifierConfig{
-		Mail: MailConfig{
-			Enabled:  getBool("MASTER_MAIL_ENABLED"),
-			SMTPHost: getString("MASTER_MAIL_SMTP_HOST"),
-			SMTPPort: getInt("MASTER_MAIL_SMTP_PORT"),
-			Username: getString("MASTER_MAIL_USERNAME"),
-			Password: getString("MASTER_MAIL_PASSWORD"),
-			From:     getString("MASTER_MAIL_FROM"),
-			To:       getString("MASTER_MAIL_TO"),
+		Slack: SlackChannelConfig{
+			Enabled:    getBool("MASTER_SLACK_ENABLED"),
+			WebhookURL: getString("MASTER_SLACK_WEBHOOK_URL"),
 		},
-		Webhook: WebhookConfig{
-			Enabled: getBool("MASTER_WEBHOOK_ENABLED"),
-			URL:     getString("MASTER_WEBHOOK_URL"),
-			Secret:  getString("MASTER_WEBHOOK_SECRET"),
+		Email: EmailChannelConfig{
+			Enabled:      getBool("MASTER_EMAIL_ENABLED"),
+			SMTPHost:     getString("MASTER_EMAIL_SMTP_HOST"),
+			SMTPPort:     getInt("MASTER_EMAIL_SMTP_PORT"),
+			SMTPUser:     getString("MASTER_EMAIL_SMTP_USER"),
+			SMTPPassword: getString("MASTER_EMAIL_SMTP_PASSWORD"),
+			SMTPTLS:      getBool("MASTER_EMAIL_SMTP_TLS"),
+			FromAddress:  getString("MASTER_EMAIL_FROM"),
+			ToAddresses:  getStringSlice("MASTER_EMAIL_TO"),
 		},
 	}
 
@@ -92,11 +92,11 @@ func LoadConfig() {
 		GlobalConfig.Server.GatewayPort, GlobalConfig.Server.AgentSDKPort, GlobalConfig.Server.TesterPort, GlobalConfig.Database.Type, GlobalConfig.Admin.Username)
 
 	// 打印通知配置状态
-	if GlobalConfig.Notifier.Mail.Enabled {
-		log.Printf("[config] 邮件通知已启用: %s -> %s", GlobalConfig.Notifier.Mail.From, GlobalConfig.Notifier.Mail.To)
+	if GlobalConfig.Notifier.Slack.Enabled {
+		log.Printf("[config] Slack 通知已启用")
 	}
-	if GlobalConfig.Notifier.Webhook.Enabled {
-		log.Printf("[config] Webhook 通知已启用: %s", GlobalConfig.Notifier.Webhook.URL)
+	if GlobalConfig.Notifier.Email.Enabled {
+		log.Printf("[config] Email 通知已启用: %s -> %v", GlobalConfig.Notifier.Email.FromAddress, GlobalConfig.Notifier.Email.ToAddresses)
 	}
 	if GlobalConfig.AI.Enabled {
 		log.Printf("[config] AI 功能已启用: provider=%s, model=%s", GlobalConfig.AI.Provider, GlobalConfig.AI.Model)
@@ -160,4 +160,27 @@ func getBool(envKey string) bool {
 		log.Fatalf("[config] 未定义默认布尔配置项: %s", envKey)
 	}
 	return def
+}
+
+// getStringSlice 获取字符串数组类型配置（逗号分隔）
+func getStringSlice(envKey string) []string {
+	val := os.Getenv(envKey)
+	if val == "" {
+		if def, ok := defaultStrings[envKey]; ok {
+			val = def
+		}
+	}
+	if val == "" {
+		return []string{}
+	}
+	// 按逗号分隔并去除空格
+	parts := strings.Split(val, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }

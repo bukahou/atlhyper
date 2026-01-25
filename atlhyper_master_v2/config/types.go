@@ -47,30 +47,28 @@ type JWTConfig struct {
 }
 
 // NotifierConfig 通知配置
+// 启动时同步到数据库，运行时从数据库读取
 type NotifierConfig struct {
-	// 邮件配置
-	Mail MailConfig
-
-	// Webhook 配置（可选）
-	Webhook WebhookConfig
+	Slack SlackChannelConfig // Slack 配置 (对应数据库 type=slack)
+	Email EmailChannelConfig // Email 配置 (对应数据库 type=email)
 }
 
-// MailConfig 邮件配置
-type MailConfig struct {
-	Enabled  bool   // 是否启用邮件通知
-	SMTPHost string // SMTP 服务器地址
-	SMTPPort int    // SMTP 端口（587 for TLS, 465 for SSL）
-	Username string // SMTP 用户名
-	Password string // SMTP 密码
-	From     string // 发件人地址
-	To       string // 收件人列表，逗号分隔
+// SlackChannelConfig Slack 渠道配置
+type SlackChannelConfig struct {
+	Enabled    bool   // 是否启用
+	WebhookURL string // Webhook URL
 }
 
-// WebhookConfig Webhook 配置
-type WebhookConfig struct {
-	Enabled bool   // 是否启用 Webhook
-	URL     string // Webhook URL
-	Secret  string // 签名密钥（可选）
+// EmailChannelConfig Email 渠道配置
+type EmailChannelConfig struct {
+	Enabled      bool     // 是否启用
+	SMTPHost     string   // SMTP 服务器地址
+	SMTPPort     int      // SMTP 端口（587 for TLS, 465 for SSL）
+	SMTPUser     string   // SMTP 用户名
+	SMTPPassword string   // SMTP 密码
+	SMTPTLS      bool     // 是否启用 TLS
+	FromAddress  string   // 发件人地址
+	ToAddresses  []string // 收件人列表
 }
 
 // AdminConfig 默认管理员配置

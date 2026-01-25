@@ -47,8 +47,8 @@ var defaultInts = map[string]int{
 	"MASTER_EVENT_RETENTION_DAYS": 30,     // 保留天数
 	"MASTER_EVENT_MAX_COUNT":      100000, // 单集群最大事件数
 
-	// -------------------- 邮件配置 --------------------
-	"MASTER_MAIL_SMTP_PORT": 587, // SMTP 端口（587 for TLS）
+	// -------------------- Email 配置 --------------------
+	"MASTER_EMAIL_SMTP_PORT": 587, // SMTP 端口（587 for TLS）
 }
 
 // ============================================================
@@ -70,16 +70,15 @@ var defaultStrings = map[string]string{
 	// -------------------- JWT 配置 --------------------
 	"MASTER_JWT_SECRET": "atlhyper-default-secret-change-in-production", // JWT 密钥
 
-	// -------------------- 邮件配置 --------------------
-	"MASTER_MAIL_SMTP_HOST": "",                    // SMTP 服务器地址
-	"MASTER_MAIL_USERNAME":  "",                    // SMTP 用户名
-	"MASTER_MAIL_PASSWORD":  "",                    // SMTP 密码（敏感信息）
-	"MASTER_MAIL_FROM":      "", // 发件人地址
-	"MASTER_MAIL_TO":        "",                    // 收件人列表，逗号分隔
+	// -------------------- Slack 配置 --------------------
+	"MASTER_SLACK_WEBHOOK_URL": "", // Slack Webhook URL
 
-	// -------------------- Webhook 配置 --------------------
-	"MASTER_WEBHOOK_URL":    "", // Webhook URL
-	"MASTER_WEBHOOK_SECRET": "", // Webhook 签名密钥
+	// -------------------- Email 配置 --------------------
+	"MASTER_EMAIL_SMTP_HOST":     "", // SMTP 服务器地址
+	"MASTER_EMAIL_SMTP_USER":     "", // SMTP 用户名
+	"MASTER_EMAIL_SMTP_PASSWORD": "", // SMTP 密码（敏感信息）
+	"MASTER_EMAIL_FROM":          "", // 发件人地址
+	"MASTER_EMAIL_TO":            "", // 收件人列表，逗号分隔
 
 	// -------------------- 默认管理员配置 --------------------
 	"MASTER_ADMIN_USERNAME":     "admin",         // 管理员用户名
@@ -96,11 +95,12 @@ var defaultStrings = map[string]string{
 // 布尔类型默认值
 // ============================================================
 var defaultBools = map[string]bool{
-	// -------------------- 邮件配置 --------------------
-	"MASTER_MAIL_ENABLED": false, // 是否启用邮件通知
+	// -------------------- Slack 配置 --------------------
+	"MASTER_SLACK_ENABLED": false, // 是否启用 Slack 通知
 
-	// -------------------- Webhook 配置 --------------------
-	"MASTER_WEBHOOK_ENABLED": false, // 是否启用 Webhook
+	// -------------------- Email 配置 --------------------
+	"MASTER_EMAIL_ENABLED":  false, // 是否启用邮件通知
+	"MASTER_EMAIL_SMTP_TLS": true,  // 是否启用 SMTP TLS
 
 	// -------------------- AI 配置 --------------------
 	"MASTER_AI_ENABLED": true, // 是否启用 AI 功能
