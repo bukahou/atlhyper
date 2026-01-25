@@ -1,6 +1,6 @@
-// atlhyper_master_v2/notifier/limiter.go
+// atlhyper_master_v2/notifier/manager/limiter.go
 // 发送限流器
-package notifier
+package manager
 
 import (
 	"sync"

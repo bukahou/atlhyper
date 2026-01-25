@@ -34,7 +34,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/mq"
-	"AtlHyper/atlhyper_master_v2/notifier"
+	"AtlHyper/atlhyper_master_v2/notifier/manager"
 	"AtlHyper/atlhyper_master_v2/processor"
 	"AtlHyper/atlhyper_master_v2/tester"
 	"AtlHyper/atlhyper_master_v2/service"
@@ -53,7 +53,7 @@ type Master struct {
 	gateway        *gateway.Server
 	testerServer   *tester.Server
 	eventPersist   *operations.EventPersistService
-	alertManager   *notifier.AlertManager
+	alertManager   *manager.AlertManager
 	heartbeatCheck *operations.HeartbeatCheckService
 }
 
@@ -177,7 +177,7 @@ func New() (*Master, error) {
 	}
 
 	// 10. 初始化 AlertManager（告警管理器）
-	alertMgr := notifier.NewAlertManager(db.Notify)
+	alertMgr := manager.NewAlertManager(db.Notify)
 	log.Println("[Master] 告警管理器初始化完成")
 
 	// 11. 初始化 HeartbeatCheckService（心跳检测服务）

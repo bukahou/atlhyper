@@ -1,6 +1,6 @@
-// atlhyper_master_v2/notifier/email.go
-// Email 通知发送
-package notifier
+// atlhyper_master_v2/notifier/channel/email.go
+// Email 通知渠道
+package channel
 
 import (
 	"context"
@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"net/smtp"
 	"strings"
+
+	"AtlHyper/atlhyper_master_v2/notifier"
 )
 
-// EmailNotifier Email 通知器
-type EmailNotifier struct {
+// EmailChannel Email 通知渠道
+type EmailChannel struct {
 	host        string
 	port        int
 	user        string
@@ -23,18 +25,18 @@ type EmailNotifier struct {
 
 // EmailConfig Email 配置
 type EmailConfig struct {
-	SMTPHost    string
-	SMTPPort    int
-	SMTPUser    string
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUser     string
 	SMTPPassword string
-	SMTPTLS     bool
-	FromAddress string
-	ToAddresses []string
+	SMTPTLS      bool
+	FromAddress  string
+	ToAddresses  []string
 }
 
-// NewEmailNotifier 创建 Email 通知器
-func NewEmailNotifier(cfg EmailConfig) *EmailNotifier {
-	return &EmailNotifier{
+// NewEmailChannel 创建 Email 通知渠道
+func NewEmailChannel(cfg EmailConfig) *EmailChannel {
+	return &EmailChannel{
 		host:        cfg.SMTPHost,
 		port:        cfg.SMTPPort,
 		user:        cfg.SMTPUser,
@@ -45,21 +47,21 @@ func NewEmailNotifier(cfg EmailConfig) *EmailNotifier {
 	}
 }
 
-// Type 返回通知类型
-func (n *EmailNotifier) Type() string {
+// Type 返回渠道类型
+func (c *EmailChannel) Type() string {
 	return "email"
 }
 
 // Send 发送 Email 通知
-func (n *EmailNotifier) Send(ctx context.Context, msg *Message) error {
+func (c *EmailChannel) Send(ctx context.Context, msg *notifier.Message) error {
 	// 构建邮件内容
-	subject := n.buildSubject(msg)
-	body := n.buildBody(msg)
+	subject := c.buildSubject(msg)
+	body := c.buildBody(msg)
 
 	// 构建邮件头
 	headers := make(map[string]string)
-	headers["From"] = n.fromAddress
-	headers["To"] = strings.Join(n.toAddresses, ",")
+	headers["From"] = c.fromAddress
+	headers["To"] = strings.Join(c.toAddresses, ",")
 	headers["Subject"] = subject
 	headers["MIME-Version"] = "1.0"
 	headers["Content-Type"] = "text/html; charset=UTF-8"
@@ -73,19 +75,19 @@ func (n *EmailNotifier) Send(ctx context.Context, msg *Message) error {
 	message.WriteString(body)
 
 	// 发送邮件
-	addr := fmt.Sprintf("%s:%d", n.host, n.port)
-	auth := smtp.PlainAuth("", n.user, n.password, n.host)
+	addr := fmt.Sprintf("%s:%d", c.host, c.port)
+	auth := smtp.PlainAuth("", c.user, c.password, c.host)
 
-	if n.useTLS {
-		return n.sendWithTLS(addr, auth, message.String())
+	if c.useTLS {
+		return c.sendWithTLS(addr, auth, message.String())
 	}
-	return smtp.SendMail(addr, auth, n.fromAddress, n.toAddresses, []byte(message.String()))
+	return smtp.SendMail(addr, auth, c.fromAddress, c.toAddresses, []byte(message.String()))
 }
 
 // sendWithTLS 使用 TLS 发送邮件
-func (n *EmailNotifier) sendWithTLS(addr string, auth smtp.Auth, message string) error {
+func (c *EmailChannel) sendWithTLS(addr string, auth smtp.Auth, message string) error {
 	tlsConfig := &tls.Config{
-		ServerName: n.host,
+		ServerName: c.host,
 	}
 
 	conn, err := tls.Dial("tcp", addr, tlsConfig)
@@ -94,7 +96,7 @@ func (n *EmailNotifier) sendWithTLS(addr string, auth smtp.Auth, message string)
 	}
 	defer conn.Close()
 
-	client, err := smtp.NewClient(conn, n.host)
+	client, err := smtp.NewClient(conn, c.host)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
@@ -104,11 +106,11 @@ func (n *EmailNotifier) sendWithTLS(addr string, auth smtp.Auth, message string)
 		return fmt.Errorf("failed to auth: %w", err)
 	}
 
-	if err := client.Mail(n.fromAddress); err != nil {
+	if err := client.Mail(c.fromAddress); err != nil {
 		return fmt.Errorf("failed to set from: %w", err)
 	}
 
-	for _, to := range n.toAddresses {
+	for _, to := range c.toAddresses {
 		if err := client.Rcpt(to); err != nil {
 			return fmt.Errorf("failed to set to %s: %w", to, err)
 		}
@@ -131,19 +133,19 @@ func (n *EmailNotifier) sendWithTLS(addr string, auth smtp.Auth, message string)
 }
 
 // buildSubject 构建邮件主题
-func (n *EmailNotifier) buildSubject(msg *Message) string {
+func (c *EmailChannel) buildSubject(msg *notifier.Message) string {
 	prefix := "[INFO]"
 	switch msg.Severity {
-	case "warning":
+	case notifier.SeverityWarning:
 		prefix = "[WARNING]"
-	case "critical":
+	case notifier.SeverityCritical:
 		prefix = "[CRITICAL]"
 	}
 	return fmt.Sprintf("%s %s", prefix, msg.Title)
 }
 
 // buildBody 构建邮件正文
-func (n *EmailNotifier) buildBody(msg *Message) string {
+func (c *EmailChannel) buildBody(msg *notifier.Message) string {
 	var body strings.Builder
 
 	// HTML 头部和样式
@@ -172,9 +174,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 	// Header
 	severityClass := "severity-info"
 	switch msg.Severity {
-	case "critical":
+	case notifier.SeverityCritical:
 		severityClass = "severity-critical"
-	case "warning":
+	case notifier.SeverityWarning:
 		severityClass = "severity-warning"
 	}
 	body.WriteString(fmt.Sprintf(`<div class="header"><h2 class="%s">%s</h2></div>`, severityClass, msg.Title))
@@ -203,4 +205,4 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 }
 
 // 确保实现了接口
-var _ Notifier = (*EmailNotifier)(nil)
+var _ Channel = (*EmailChannel)(nil)

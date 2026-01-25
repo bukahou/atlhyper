@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/notifier"
+	"AtlHyper/atlhyper_master_v2/notifier/manager"
 )
 
 // Server 测试服务器
@@ -24,7 +24,7 @@ type Server struct {
 // Config 服务器配置
 type Config struct {
 	Port         int
-	AlertManager *notifier.AlertManager
+	AlertManager *manager.AlertManager
 	// 未来可添加更多依赖
 	// Store datahub.Store
 	// AIService ai.AIService

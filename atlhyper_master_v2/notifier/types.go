@@ -1,11 +1,15 @@
-// atlhyper_master_v2/notifier/alert.go
-// 告警结构定义
+// atlhyper_master_v2/notifier/types.go
+// 通知系统数据模型
 package notifier
 
 import (
 	"fmt"
 	"time"
 )
+
+// ============================================================
+// 告警模型
+// ============================================================
 
 // Alert 告警信息
 type Alert struct {
@@ -39,14 +43,36 @@ type AlertSummary struct {
 	GeneratedAt time.Time      // 生成时间
 }
 
-// 严重级别常量
+// ============================================================
+// 消息模型
+// ============================================================
+
+// Message 通知消息
+type Message struct {
+	Title    string            // 标题
+	Content  string            // 内容
+	Severity string            // 严重程度: info / warning / critical
+	Fields   map[string]string // 额外字段
+}
+
+// Result 发送结果
+type Result struct {
+	Success bool
+	Error   string
+}
+
+// ============================================================
+// 常量定义
+// ============================================================
+
+// 严重级别
 const (
 	SeverityCritical = "critical"
 	SeverityWarning  = "warning"
 	SeverityInfo     = "info"
 )
 
-// 告警来源常量
+// 告警来源
 const (
 	SourceAgentHeartbeat = "agent_heartbeat"
 	SourceK8sEvent       = "k8s_event"

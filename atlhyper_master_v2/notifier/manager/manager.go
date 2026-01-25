@@ -1,6 +1,6 @@
-// atlhyper_master_v2/notifier/manager.go
-// 告警管理器
-package notifier
+// atlhyper_master_v2/notifier/manager/manager.go
+// 告警管理器核心
+package manager
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/notifier"
+	"AtlHyper/atlhyper_master_v2/notifier/channel"
 )
 
 // 配置常量
@@ -75,6 +77,7 @@ func (m *AlertManager) Stop() {
 
 	// 停止缓冲区（会 flush 剩余告警）
 	m.buffer.Stop()
+	m.dedup.Stop()
 
 	close(m.stopCh)
 	log.Println("[AlertManager] 停止告警管理器")
@@ -82,7 +85,7 @@ func (m *AlertManager) Stop() {
 
 // Send 发送告警
 // 告警会经过去重 → 缓冲 → 限流 → 发送
-func (m *AlertManager) Send(ctx context.Context, alert *Alert) error {
+func (m *AlertManager) Send(ctx context.Context, alert *notifier.Alert) error {
 	m.mu.Lock()
 	running := m.running
 	m.mu.Unlock()
@@ -116,39 +119,39 @@ func (m *AlertManager) Send(ctx context.Context, alert *Alert) error {
 // 发送一条测试告警到指定渠道
 func (m *AlertManager) Test(ctx context.Context, channelType string) error {
 	// 获取渠道配置
-	channel, err := m.channelRepo.GetByType(ctx, channelType)
+	ch, err := m.channelRepo.GetByType(ctx, channelType)
 	if err != nil {
 		return err
 	}
-	if channel == nil {
-		return ErrChannelNotFound
+	if ch == nil {
+		return notifier.ErrChannelNotFound
 	}
-	if !channel.Enabled {
-		return ErrChannelDisabled
+	if !ch.Enabled {
+		return notifier.ErrChannelDisabled
 	}
 
-	// 创建 notifier
-	notifier, err := m.createNotifier(channel)
+	// 创建 channel
+	sender, err := m.createChannel(ch)
 	if err != nil {
 		return err
 	}
 
 	// 发送测试消息
-	testMsg := &Message{
+	testMsg := &notifier.Message{
 		Title:    "AtlHyper 测试通知",
 		Content:  "这是一条测试消息，如果您收到此消息，说明通知配置正确。",
-		Severity: SeverityInfo,
+		Severity: notifier.SeverityInfo,
 		Fields: map[string]string{
 			"渠道类型": channelType,
 			"发送时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
 
-	return notifier.Send(ctx, testMsg)
+	return sender.Send(ctx, testMsg)
 }
 
 // flush 缓冲区 flush 回调
-func (m *AlertManager) flush(alerts []*Alert) {
+func (m *AlertManager) flush(alerts []*notifier.Alert) {
 	if len(alerts) == 0 {
 		return
 	}
@@ -175,8 +178,8 @@ func (m *AlertManager) flush(alerts []*Alert) {
 }
 
 // buildSummary 构建告警摘要
-func (m *AlertManager) buildSummary(alerts []*Alert) *AlertSummary {
-	summary := &AlertSummary{
+func (m *AlertManager) buildSummary(alerts []*notifier.Alert) *notifier.AlertSummary {
+	summary := &notifier.AlertSummary{
 		Total:       len(alerts),
 		BySeverity:  make(map[string]int),
 		GeneratedAt: time.Now(),
@@ -221,7 +224,7 @@ func (m *AlertManager) buildSummary(alerts []*Alert) *AlertSummary {
 }
 
 // dispatch 分发到各渠道
-func (m *AlertManager) dispatch(ctx context.Context, summary *AlertSummary) {
+func (m *AlertManager) dispatch(ctx context.Context, summary *notifier.AlertSummary) {
 	// 获取所有启用的渠道
 	channels, err := m.channelRepo.ListEnabled(ctx)
 	if err != nil {
@@ -238,43 +241,43 @@ func (m *AlertManager) dispatch(ctx context.Context, summary *AlertSummary) {
 	msg := m.buildMessage(summary)
 
 	// 发送到各渠道
-	for _, channel := range channels {
-		notifier, err := m.createNotifier(channel)
+	for _, ch := range channels {
+		sender, err := m.createChannel(ch)
 		if err != nil {
-			log.Printf("[AlertManager] 创建 %s notifier 失败: %v", channel.Type, err)
+			log.Printf("[AlertManager] 创建 %s channel 失败: %v", ch.Type, err)
 			continue
 		}
 
-		if err := notifier.Send(ctx, msg); err != nil {
-			log.Printf("[%s] 发送失败: %v", channel.Type, err)
+		if err := sender.Send(ctx, msg); err != nil {
+			log.Printf("[%s] 发送失败: %v", ch.Type, err)
 		} else {
-			log.Printf("[%s] 发送成功: %d 条告警", channel.Type, summary.Total)
+			log.Printf("[%s] 发送成功: %d 条告警", ch.Type, summary.Total)
 		}
 	}
 }
 
-// createNotifier 根据渠道配置创建 notifier
-func (m *AlertManager) createNotifier(channel *database.NotifyChannel) (Notifier, error) {
-	switch channel.Type {
+// createChannel 根据渠道配置创建 channel
+func (m *AlertManager) createChannel(ch *database.NotifyChannel) (channel.Channel, error) {
+	switch ch.Type {
 	case "slack":
 		var cfg database.SlackConfig
-		if err := json.Unmarshal([]byte(channel.Config), &cfg); err != nil {
+		if err := json.Unmarshal([]byte(ch.Config), &cfg); err != nil {
 			return nil, err
 		}
 		if cfg.WebhookURL == "" {
-			return nil, ErrInvalidConfig
+			return nil, notifier.ErrInvalidConfig
 		}
-		return NewSlackNotifier(SlackConfig{WebhookURL: cfg.WebhookURL}), nil
+		return channel.NewSlackChannel(channel.SlackConfig{WebhookURL: cfg.WebhookURL}), nil
 
 	case "email":
 		var cfg database.EmailConfig
-		if err := json.Unmarshal([]byte(channel.Config), &cfg); err != nil {
+		if err := json.Unmarshal([]byte(ch.Config), &cfg); err != nil {
 			return nil, err
 		}
 		if cfg.SMTPHost == "" || len(cfg.ToAddresses) == 0 {
-			return nil, ErrInvalidConfig
+			return nil, notifier.ErrInvalidConfig
 		}
-		return NewEmailNotifier(EmailConfig{
+		return channel.NewEmailChannel(channel.EmailConfig{
 			SMTPHost:     cfg.SMTPHost,
 			SMTPPort:     cfg.SMTPPort,
 			SMTPUser:     cfg.SMTPUser,
@@ -285,16 +288,16 @@ func (m *AlertManager) createNotifier(channel *database.NotifyChannel) (Notifier
 		}), nil
 
 	default:
-		return nil, ErrUnsupportedChannel
+		return nil, notifier.ErrUnsupportedChannel
 	}
 }
 
 // buildMessage 构建通知消息
-func (m *AlertManager) buildMessage(summary *AlertSummary) *Message {
+func (m *AlertManager) buildMessage(summary *notifier.AlertSummary) *notifier.Message {
 	// 构建内容
 	content := m.buildContent(summary)
 
-	return &Message{
+	return &notifier.Message{
 		Title:    m.buildTitle(summary),
 		Content:  content,
 		Severity: m.determineSeverity(summary),
@@ -303,23 +306,23 @@ func (m *AlertManager) buildMessage(summary *AlertSummary) *Message {
 }
 
 // buildTitle 构建标题
-func (m *AlertManager) buildTitle(summary *AlertSummary) string {
+func (m *AlertManager) buildTitle(summary *notifier.AlertSummary) string {
 	return "集群告警汇总"
 }
 
 // buildContent 构建内容
-func (m *AlertManager) buildContent(summary *AlertSummary) string {
+func (m *AlertManager) buildContent(summary *notifier.AlertSummary) string {
 	var content string
 
 	// 级别统计
 	content += "📊 级别分布\n"
-	if c := summary.BySeverity[SeverityCritical]; c > 0 {
+	if c := summary.BySeverity[notifier.SeverityCritical]; c > 0 {
 		content += "🔴 Critical: " + itoa(c) + "  "
 	}
-	if c := summary.BySeverity[SeverityWarning]; c > 0 {
+	if c := summary.BySeverity[notifier.SeverityWarning]; c > 0 {
 		content += "🟠 Warning: " + itoa(c) + "  "
 	}
-	if c := summary.BySeverity[SeverityInfo]; c > 0 {
+	if c := summary.BySeverity[notifier.SeverityInfo]; c > 0 {
 		content += "🔵 Info: " + itoa(c)
 	}
 	content += "\n\n"
@@ -342,7 +345,7 @@ func (m *AlertManager) buildContent(summary *AlertSummary) string {
 }
 
 // buildFields 构建扩展字段
-func (m *AlertManager) buildFields(summary *AlertSummary) map[string]string {
+func (m *AlertManager) buildFields(summary *notifier.AlertSummary) map[string]string {
 	fields := make(map[string]string)
 	fields["告警总数"] = itoa(summary.Total)
 
@@ -357,14 +360,14 @@ func (m *AlertManager) buildFields(summary *AlertSummary) map[string]string {
 }
 
 // determineSeverity 确定整体严重级别
-func (m *AlertManager) determineSeverity(summary *AlertSummary) string {
-	if summary.BySeverity[SeverityCritical] > 0 {
-		return SeverityCritical
+func (m *AlertManager) determineSeverity(summary *notifier.AlertSummary) string {
+	if summary.BySeverity[notifier.SeverityCritical] > 0 {
+		return notifier.SeverityCritical
 	}
-	if summary.BySeverity[SeverityWarning] > 0 {
-		return SeverityWarning
+	if summary.BySeverity[notifier.SeverityWarning] > 0 {
+		return notifier.SeverityWarning
 	}
-	return SeverityInfo
+	return notifier.SeverityInfo
 }
 
 // 辅助函数
@@ -380,9 +383,9 @@ func extractNamespace(resource string) string {
 
 func severityEmoji(severity string) string {
 	switch severity {
-	case SeverityCritical:
+	case notifier.SeverityCritical:
 		return "🔴"
-	case SeverityWarning:
+	case notifier.SeverityWarning:
 		return "🟠"
 	default:
 		return "🔵"

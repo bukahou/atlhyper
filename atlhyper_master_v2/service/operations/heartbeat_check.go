@@ -11,6 +11,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/notifier"
+	"AtlHyper/atlhyper_master_v2/notifier/manager"
 	"AtlHyper/model_v2"
 )
 
@@ -23,7 +24,7 @@ type HeartbeatCheckConfig struct {
 // HeartbeatCheckService Agent 心跳检测服务
 type HeartbeatCheckService struct {
 	store        datahub.Store
-	alertManager *notifier.AlertManager
+	alertManager *manager.AlertManager
 	config       HeartbeatCheckConfig
 
 	running bool
@@ -32,7 +33,7 @@ type HeartbeatCheckService struct {
 }
 
 // NewHeartbeatCheckService 创建心跳检测服务
-func NewHeartbeatCheckService(store datahub.Store, alertMgr *notifier.AlertManager, cfg HeartbeatCheckConfig) *HeartbeatCheckService {
+func NewHeartbeatCheckService(store datahub.Store, alertMgr *manager.AlertManager, cfg HeartbeatCheckConfig) *HeartbeatCheckService {
 	// 设置默认值
 	if cfg.CheckInterval == 0 {
 		cfg.CheckInterval = 30 * time.Second

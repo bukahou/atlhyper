@@ -7,15 +7,16 @@ import (
 	"errors"
 
 	"AtlHyper/atlhyper_master_v2/notifier"
+	"AtlHyper/atlhyper_master_v2/notifier/manager"
 )
 
 // NotifierTester 通知渠道测试器
 type NotifierTester struct {
-	alertManager *notifier.AlertManager
+	alertManager *manager.AlertManager
 }
 
 // NewNotifierTester 创建通知渠道测试器
-func NewNotifierTester(alertMgr *notifier.AlertManager) *NotifierTester {
+func NewNotifierTester(alertMgr *manager.AlertManager) *NotifierTester {
 	return &NotifierTester{
 		alertManager: alertMgr,
 	}

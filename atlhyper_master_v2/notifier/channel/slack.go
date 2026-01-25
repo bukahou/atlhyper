@@ -1,6 +1,6 @@
-// atlhyper_master_v2/notifier/slack.go
-// Slack 通知发送
-package notifier
+// atlhyper_master_v2/notifier/channel/slack.go
+// Slack 通知渠道
+package channel
 
 import (
 	"bytes"
@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"AtlHyper/atlhyper_master_v2/notifier"
 )
 
-// SlackNotifier Slack 通知器
-type SlackNotifier struct {
+// SlackChannel Slack 通知渠道
+type SlackChannel struct {
 	webhookURL string
 	httpClient *http.Client
 }
@@ -22,9 +24,9 @@ type SlackConfig struct {
 	WebhookURL string
 }
 
-// NewSlackNotifier 创建 Slack 通知器
-func NewSlackNotifier(cfg SlackConfig) *SlackNotifier {
-	return &SlackNotifier{
+// NewSlackChannel 创建 Slack 通知渠道
+func NewSlackChannel(cfg SlackConfig) *SlackChannel {
+	return &SlackChannel{
 		webhookURL: cfg.WebhookURL,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -32,28 +34,28 @@ func NewSlackNotifier(cfg SlackConfig) *SlackNotifier {
 	}
 }
 
-// Type 返回通知类型
-func (n *SlackNotifier) Type() string {
+// Type 返回渠道类型
+func (c *SlackChannel) Type() string {
 	return "slack"
 }
 
 // Send 发送 Slack 通知
-func (n *SlackNotifier) Send(ctx context.Context, msg *Message) error {
+func (c *SlackChannel) Send(ctx context.Context, msg *notifier.Message) error {
 	// 构建 Slack BlockKit 消息
-	payload := n.buildBlockKitPayload(msg)
+	payload := c.buildBlockKitPayload(msg)
 
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, n.webhookURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.webhookURL, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := n.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -67,11 +69,11 @@ func (n *SlackNotifier) Send(ctx context.Context, msg *Message) error {
 }
 
 // buildBlockKitPayload 构建 Slack BlockKit 消息体
-func (n *SlackNotifier) buildBlockKitPayload(msg *Message) map[string]interface{} {
+func (c *SlackChannel) buildBlockKitPayload(msg *notifier.Message) map[string]interface{} {
 	blocks := []interface{}{}
 
 	// 1. Header
-	emoji := n.severityEmoji(msg.Severity)
+	emoji := c.severityEmoji(msg.Severity)
 	headerText := fmt.Sprintf("%s %s", emoji, msg.Title)
 	if count, ok := msg.Fields["告警总数"]; ok {
 		headerText = fmt.Sprintf("%s（共 %s 条）", headerText, count)
@@ -141,11 +143,11 @@ func (n *SlackNotifier) buildBlockKitPayload(msg *Message) map[string]interface{
 }
 
 // severityEmoji 返回严重级别对应的 emoji
-func (n *SlackNotifier) severityEmoji(severity string) string {
+func (c *SlackChannel) severityEmoji(severity string) string {
 	switch severity {
-	case SeverityCritical:
+	case notifier.SeverityCritical:
 		return "🚨"
-	case SeverityWarning:
+	case notifier.SeverityWarning:
 		return "⚠️"
 	default:
 		return "ℹ️"
@@ -153,4 +155,4 @@ func (n *SlackNotifier) severityEmoji(severity string) string {
 }
 
 // 确保实现了接口
-var _ Notifier = (*SlackNotifier)(nil)
+var _ Channel = (*SlackChannel)(nil)
