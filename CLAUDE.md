@@ -168,6 +168,31 @@ type CommandService struct { bus mq.Producer }
 | 内部实现 | 小写开头 | `serviceImpl` (factory 内部) |
 | 工厂函数 | `New` 前缀 | `New(...)`, `NewCommandService(...)` |
 
+### 标准文件命名 (重要)
+
+| 文件名 | 职责 | 内容 |
+|--------|------|------|
+| `interfaces.go` | 接口定义 | 对外暴露的 interface 类型 |
+| `factory.go` | 工厂函数 | `New...()` 构造函数 |
+| `types.go` | 数据模型 | struct 定义、常量 |
+| `errors.go` | 错误定义 | `var ErrXxx = errors.New(...)` |
+| `{feature}.go` | 功能实现 | 具体业务逻辑 |
+
+```
+示例：notifier/
+├── interfaces.go     # AlertManager 接口
+├── types.go          # Alert, Message 等模型
+├── errors.go         # ErrChannelNotFound 等
+├── manager/
+│   ├── manager.go    # AlertManager 实现 + NewAlertManager 工厂
+│   └── ...
+└── channel/
+    ├── channel.go    # Channel 接口 (适配器接口)
+    └── ...
+```
+
+**规则：看到文件名就知道里面是什么**
+
 ### 目录结构规范 (重要)
 
 #### 核心原则：按职责分层，而非平铺
@@ -195,12 +220,12 @@ notifier/
 
 ```
 notifier/
-├── notifier.go         # 对外接口 + 工厂函数
+├── interfaces.go       # 对外接口 (AlertManager interface)
 ├── types.go            # 数据模型 (Alert, Message)
 ├── errors.go           # 错误定义
 │
 ├── manager/            # 核心调度逻辑 (内聚)
-│   ├── manager.go      #   AlertManager 主逻辑
+│   ├── manager.go      #   AlertManager 实现 + NewAlertManager 工厂
 │   ├── dedup.go        #   去重组件
 │   ├── buffer.go       #   聚合组件
 │   └── limiter.go      #   限流组件
@@ -232,8 +257,8 @@ notifier/
 
 | 层级 | 位置 | 职责 | 示例 |
 |------|------|------|------|
-| **接口层** | 包根目录 | 对外暴露的接口和工厂 | `notifier.go`, `types.go` |
-| **核心层** | `core/` 或 `manager/` | 纯业务逻辑，无外部依赖 | 去重、聚合、限流 |
+| **接口层** | 包根目录 | 对外暴露的接口和类型 | `interfaces.go`, `types.go`, `errors.go` |
+| **核心层** | `core/` 或 `manager/` | 业务逻辑 + 工厂函数 | 去重、聚合、限流、NewXxx() |
 | **适配层** | `adapter/` 或 `channel/` | 外部依赖的封装 | Slack API, SMTP |
 
 #### 检查清单
