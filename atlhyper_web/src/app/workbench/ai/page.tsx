@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { ChatPanel } from "@/components/ai/ChatPanel";
@@ -15,8 +16,11 @@ import {
   getMessages,
   streamChat,
 } from "@/api/ai";
+import { formatAlertsMessage } from "@/lib/alertFormat";
+import type { RecentAlert } from "@/types/overview";
 
 export default function AIChatPage() {
+  const searchParams = useSearchParams();
   const { currentClusterId } = useClusterStore();
   const { isAuthenticated, openLoginDialog } = useAuthStore();
 
@@ -25,6 +29,7 @@ export default function AIChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [streamSegments, setStreamSegments] = useState<StreamSegment[]>([]);
+  const [alertsProcessed, setAlertsProcessed] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -51,6 +56,90 @@ export default function AIChatPage() {
       loadConversations();
     }
   }, [isAuthenticated, loadConversations]);
+
+  // 处理从告警页面跳转过来的情况
+  useEffect(() => {
+    const fromAlerts = searchParams.get("from") === "alerts";
+    if (!fromAlerts || alertsProcessed || !isAuthenticated) return;
+
+    const stored = sessionStorage.getItem("alertContext");
+    if (!stored) return;
+
+    try {
+      const alerts: RecentAlert[] = JSON.parse(stored);
+      sessionStorage.removeItem("alertContext"); // 用完即删
+      setAlertsProcessed(true);
+
+      if (alerts.length === 0) return;
+
+      // 格式化告警为消息并自动发送
+      const message = formatAlertsMessage(alerts);
+
+      // 创建新对话并发送消息
+      (async () => {
+        try {
+          const res = await createConversation(currentClusterId, "告警分析");
+          const newConv = res.data;
+          setConversations((prev) => [newConv, ...prev]);
+          setCurrentConvId(newConv.id);
+          setMessages([]);
+          setStreamSegments([]);
+
+          // 追加 user 消息到 UI
+          const userMsg: Message = {
+            id: Date.now(),
+            conversation_id: newConv.id,
+            role: "user",
+            content: message,
+            created_at: new Date().toISOString(),
+          };
+          setMessages([userMsg]);
+          setStreaming(true);
+          setStreamSegments([]);
+
+          // 创建 AbortController 并发送
+          const controller = new AbortController();
+          abortRef.current = controller;
+
+          streamChat(
+            {
+              conversation_id: newConv.id,
+              cluster_id: currentClusterId,
+              message,
+            },
+            (segment) => {
+              setStreamSegments((prev) => [...prev, segment]);
+            },
+            () => {
+              setStreaming(false);
+              abortRef.current = null;
+              getMessages(newConv.id)
+                .then((res) => {
+                  setMessages(res.data || []);
+                  setStreamSegments([]);
+                })
+                .catch(() => {});
+              loadConversations();
+            },
+            (err) => {
+              setStreaming(false);
+              abortRef.current = null;
+              setStreamSegments((prev) => [
+                ...prev,
+                { type: "error", content: err },
+              ]);
+            },
+            controller.signal,
+          );
+        } catch {
+          // 创建对话失败
+        }
+      })();
+    } catch {
+      // JSON 解析失败
+      sessionStorage.removeItem("alertContext");
+    }
+  }, [searchParams, alertsProcessed, isAuthenticated, currentClusterId, loadConversations]);
 
   // 选择对话 → 加载消息
   const handleSelect = useCallback(async (id: number) => {

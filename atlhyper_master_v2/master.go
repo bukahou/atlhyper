@@ -35,48 +35,32 @@ import (
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/notifier"
-	"AtlHyper/atlhyper_master_v2/notifier/manager"
+	"AtlHyper/atlhyper_master_v2/notifier/trigger"
 	"AtlHyper/atlhyper_master_v2/processor"
-	"AtlHyper/atlhyper_master_v2/tester"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/atlhyper_master_v2/service/query"
+	"AtlHyper/atlhyper_master_v2/service/sync"
+	"AtlHyper/atlhyper_master_v2/tester"
 )
 
 // Master 是 Master V2 的主结构体
 type Master struct {
-	store          datahub.Store
-	bus            mq.CommandBus
-	database       *database.DB
-	processor      processor.Processor
-	service        service.Service
-	agentSDK       *agentsdk.Server
-	gateway        *gateway.Server
-	testerServer   *tester.Server
-	eventPersist   *operations.EventPersistService
-	alertManager   notifier.AlertManager
-	heartbeatCheck *operations.HeartbeatCheckService
+	store        datahub.Store
+	bus          mq.CommandBus
+	database     *database.DB
+	processor    processor.Processor
+	service      service.Service
+	agentSDK     *agentsdk.Server
+	gateway      *gateway.Server
+	testerServer *tester.Server
+	eventPersist *sync.EventPersistService
+	alertManager notifier.AlertManager
+	heartbeat    *trigger.HeartbeatTrigger
+	eventTrigger *trigger.EventTrigger
 }
 
 // New 创建并初始化 Master 实例
-//
-// 使用 config.GlobalConfig 中的配置初始化各层组件。
-// 调用前必须先调用 config.LoadConfig()。
-//
-// 初始化顺序:
-//  1. Store - 数据存储
-//  2. CommandBus - 消息队列
-//  3. Database - 持久化数据库
-//  4. EventPersistService - Event 持久化服务
-//  5. Processor - 数据处理层（写入 Store）
-//  6. Query - 查询抽象层（读取 Store + CommandBus）
-//  7. CommandService - 指令写入服务（写入 CommandBus）
-//  8. AgentSDK - Agent 通信层
-//  9. Gateway - Web API 网关
-//
-// 返回:
-//   - *Master: Master 实例
-//   - error: 初始化错误
 func New() (*Master, error) {
 	cfg := &config.GlobalConfig
 
@@ -117,11 +101,16 @@ func New() (*Master, error) {
 		log.Printf("[Master] 通知配置同步失败: %v", err)
 	}
 
+	// 3.2 同步 AI 配置到数据库
+	if err := database.SyncAIConfig(context.Background(), db, &cfg.AI); err != nil {
+		log.Printf("[Master] AI 配置同步失败: %v", err)
+	}
+
 	// 4. 初始化 EventPersistService
-	eventPersist := operations.NewEventPersistService(
+	eventPersist := sync.NewEventPersistService(
 		store,
 		db.Event,
-		operations.EventPersistConfig{
+		sync.EventPersistConfig{
 			RetentionDays:   cfg.Event.RetentionDays,
 			MaxCount:        cfg.Event.MaxCount,
 			CleanupInterval: cfg.Event.CleanupInterval,
@@ -133,7 +122,6 @@ func New() (*Master, error) {
 	proc := processor.New(processor.Config{
 		Store: store,
 		OnSnapshotReceived: func(clusterID string) {
-			// 触发 Event 持久化
 			if err := eventPersist.Sync(clusterID); err != nil {
 				log.Printf("[Master] 事件同步失败: 集群=%s, 错误=%v", clusterID, err)
 			}
@@ -152,7 +140,7 @@ func New() (*Master, error) {
 	// 组合统一 Service
 	svc := service.New(q, ops)
 
-	// 8. 初始化 AgentSDK（使用 Processor + Bus + CommandRepo）
+	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{
 		Port:           cfg.Server.AgentSDKPort,
 		CommandTimeout: cfg.Timeout.CommandPoll,
@@ -163,15 +151,27 @@ func New() (*Master, error) {
 	log.Printf("[Master] AgentSDK 初始化完成: 端口=%d", cfg.Server.AgentSDKPort)
 
 	// 9. 初始化 AIService（可选）
+	// 优先从数据库加载配置，若无则使用环境变量配置
 	var aiService ai.AIService
-	if cfg.AI.Enabled && cfg.AI.APIKey != "" {
+	aiCfg := database.LoadAIConfigFromDB(context.Background(), db)
+	configSource := "数据库"
+	if aiCfg == nil {
+		// 数据库无配置，使用环境变量配置
+		aiCfg = &cfg.AI
+		configSource = "环境变量"
+	}
+	if !aiCfg.Enabled {
+		log.Printf("[Master] AI 功能未启用 (配置来源: %s)", configSource)
+	} else if aiCfg.APIKey == "" {
+		log.Printf("[Master] AI 功能已启用但未配置 API Key (配置来源: %s)", configSource)
+	} else {
 		var err2 error
 		aiService, err2 = ai.NewService(
 			ai.ServiceConfig{
-				Provider:    cfg.AI.Provider,
-				APIKey:      cfg.AI.APIKey,
-				Model:       cfg.AI.Model,
-				ToolTimeout: cfg.AI.ToolTimeout,
+				Provider:    aiCfg.Provider,
+				APIKey:      aiCfg.APIKey,
+				Model:       aiCfg.Model,
+				ToolTimeout: aiCfg.ToolTimeout,
 			},
 			ops, bus,
 			db.AIConversation, db.AIMessage,
@@ -179,21 +179,38 @@ func New() (*Master, error) {
 		if err2 != nil {
 			return nil, fmt.Errorf("failed to init AI service: %w", err2)
 		}
-		log.Printf("[Master] AI 服务初始化完成: provider=%s, model=%s", cfg.AI.Provider, cfg.AI.Model)
+		log.Printf("[Master] AI 服务初始化完成: provider=%s, model=%s (配置来源: %s)", aiCfg.Provider, aiCfg.Model, configSource)
 	}
 
 	// 10. 初始化 AlertManager（告警管理器）
-	alertMgr := manager.NewAlertManager(db.Notify)
+	alertMgr, err := notifier.NewManager(db.Notify)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init alert manager: %w", err)
+	}
 	log.Println("[Master] 告警管理器初始化完成")
 
-	// 11. 初始化 HeartbeatCheckService（心跳检测服务）
-	heartbeatCheck := operations.NewHeartbeatCheckService(store, alertMgr, operations.HeartbeatCheckConfig{
-		CheckInterval: cfg.DataHub.HeartbeatExpire / 2, // 检测间隔为过期时间的一半
-		OfflineAfter:  cfg.DataHub.HeartbeatExpire,     // 使用配置的心跳过期时间
+	// 11. 初始化 HeartbeatTrigger（心跳检测触发器）
+	heartbeat := trigger.NewHeartbeatTrigger(store, alertMgr, trigger.HeartbeatConfig{
+		CheckInterval: cfg.DataHub.HeartbeatExpire / 2,
+		OfflineAfter:  cfg.DataHub.HeartbeatExpire,
 	})
-	log.Println("[Master] 心跳检测服务初始化完成")
+	log.Println("[Master] 心跳检测触发器初始化完成")
 
-	// 12. 初始化 Gateway（使用统一 Service + Bus + AIService）
+	// 11.1 初始化 EventTrigger（事件告警触发器，可选）
+	var eventTrigger *trigger.EventTrigger
+	if cfg.EventAlert.Enabled {
+		eventTrigger = trigger.NewEventTrigger(
+			db.Event,
+			q,
+			alertMgr,
+			trigger.EventConfig{
+				CheckInterval: cfg.EventAlert.CheckInterval,
+			},
+		)
+		log.Println("[Master] 事件告警触发器初始化完成")
+	}
+
+	// 12. 初始化 Gateway
 	gw := gateway.NewServer(gateway.Config{
 		Port:      cfg.Server.GatewayPort,
 		Service:   svc,
@@ -203,7 +220,7 @@ func New() (*Master, error) {
 	})
 	log.Printf("[Master] Gateway 初始化完成: 端口=%d", cfg.Server.GatewayPort)
 
-	// 13. 初始化 Tester（独立测试服务器）
+	// 13. 初始化 Tester
 	testerServer := tester.NewServer(tester.Config{
 		Port:         cfg.Server.TesterPort,
 		AlertManager: alertMgr,
@@ -211,30 +228,22 @@ func New() (*Master, error) {
 	log.Printf("[Master] Tester 初始化完成: 端口=%d", cfg.Server.TesterPort)
 
 	return &Master{
-		store:          store,
-		bus:            bus,
-		database:       db,
-		processor:      proc,
-		service:        svc,
-		agentSDK:       agentServer,
-		gateway:        gw,
-		testerServer:   testerServer,
-		eventPersist:   eventPersist,
-		alertManager:   alertMgr,
-		heartbeatCheck: heartbeatCheck,
+		store:        store,
+		bus:          bus,
+		database:     db,
+		processor:    proc,
+		service:      svc,
+		agentSDK:     agentServer,
+		gateway:      gw,
+		testerServer: testerServer,
+		eventPersist: eventPersist,
+		alertManager: alertMgr,
+		heartbeat:    heartbeat,
+		eventTrigger: eventTrigger,
 	}, nil
 }
 
 // Run 运行 Master
-//
-// 启动所有组件后阻塞等待退出信号 (SIGINT/SIGTERM)。
-// 收到信号后优雅停止所有组件。
-//
-// 参数:
-//   - ctx: 上下文，可用于外部取消
-//
-// 返回:
-//   - error: 停止时的错误
 func (m *Master) Run(ctx context.Context) error {
 	// 启动 Store
 	if err := m.store.Start(); err != nil {
@@ -252,11 +261,20 @@ func (m *Master) Run(ctx context.Context) error {
 	}
 
 	// 启动 AlertManager
-	m.alertManager.Start()
+	if err := m.alertManager.Start(); err != nil {
+		return fmt.Errorf("failed to start alert manager: %w", err)
+	}
 
-	// 启动 HeartbeatCheckService
-	if err := m.heartbeatCheck.Start(); err != nil {
-		return fmt.Errorf("failed to start heartbeat check: %w", err)
+	// 启动 HeartbeatTrigger
+	if err := m.heartbeat.Start(); err != nil {
+		return fmt.Errorf("failed to start heartbeat trigger: %w", err)
+	}
+
+	// 启动 EventTrigger
+	if m.eventTrigger != nil {
+		if err := m.eventTrigger.Start(); err != nil {
+			return fmt.Errorf("failed to start event trigger: %w", err)
+		}
 	}
 
 	// 启动 AgentSDK
@@ -307,9 +325,16 @@ func (m *Master) Stop() error {
 		log.Printf("[Master] 停止 AgentSDK 失败: %v", err)
 	}
 
-	// 停止 HeartbeatCheckService
-	if err := m.heartbeatCheck.Stop(); err != nil {
-		log.Printf("[Master] 停止心跳检测服务失败: %v", err)
+	// 停止 HeartbeatTrigger
+	if err := m.heartbeat.Stop(); err != nil {
+		log.Printf("[Master] 停止心跳检测触发器失败: %v", err)
+	}
+
+	// 停止 EventTrigger
+	if m.eventTrigger != nil {
+		if err := m.eventTrigger.Stop(); err != nil {
+			log.Printf("[Master] 停止事件告警触发器失败: %v", err)
+		}
 	}
 
 	// 停止 AlertManager

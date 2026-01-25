@@ -1,9 +1,13 @@
 // atlhyper_master_v2/agentsdk/types.go
 // Agent 通信协议类型定义
-// 注意：快照数据使用 model_v2.ClusterSnapshot，不再在此定义
+// 使用 model_v2 统一定义，避免字段丢失
 package agentsdk
 
-import "time"
+import (
+	"time"
+
+	"AtlHyper/model_v2"
+)
 
 // HeartbeatRequest 心跳请求
 type HeartbeatRequest struct {
@@ -18,18 +22,8 @@ type HeartbeatResponse struct {
 
 // CommandResponse 指令响应
 type CommandResponse struct {
-	HasCommand bool         `json:"has_command"`
-	Command    *CommandInfo `json:"command,omitempty"`
-}
-
-// CommandInfo 指令信息
-type CommandInfo struct {
-	ID              string                 `json:"id"`
-	Action          string                 `json:"action"`
-	TargetKind      string                 `json:"target_kind"`
-	TargetNamespace string                 `json:"target_namespace"`
-	TargetName      string                 `json:"target_name"`
-	Params          map[string]interface{} `json:"params,omitempty"`
+	HasCommand bool             `json:"has_command"`
+	Command    *model_v2.Command `json:"command,omitempty"` // 直接使用 model_v2.Command
 }
 
 // ResultRequest 执行结果请求

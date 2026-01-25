@@ -30,6 +30,7 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/repository"
+	"AtlHyper/model_v2"
 )
 
 // commandService 指令执行服务实现
@@ -61,7 +62,7 @@ func NewCommandService(
 // 返回值:
 //   - Success=true: 执行成功，Data 包含返回数据 (如日志内容)
 //   - Success=false: 执行失败，Error 包含错误信息
-func (s *commandService) Execute(ctx context.Context, cmd *model.Command) *model.Result {
+func (s *commandService) Execute(ctx context.Context, cmd *model_v2.Command) *model.Result {
 	result := &model.Result{
 		CommandID:  cmd.ID,
 		ExecutedAt: time.Now(),
@@ -71,25 +72,25 @@ func (s *commandService) Execute(ctx context.Context, cmd *model.Command) *model
 	var data any
 
 	switch cmd.Action {
-	case model.ActionScale:
+	case model_v2.ActionScale:
 		err = s.handleScale(ctx, cmd)
-	case model.ActionRestart:
+	case model_v2.ActionRestart:
 		err = s.handleRestart(ctx, cmd)
-	case model.ActionUpdateImage:
+	case model_v2.ActionUpdateImage:
 		err = s.handleUpdateImage(ctx, cmd)
-	case model.ActionGetLogs:
+	case model_v2.ActionGetLogs:
 		data, err = s.handleGetLogs(ctx, cmd)
-	case model.ActionGetConfigMap:
+	case model_v2.ActionGetConfigMap:
 		data, err = s.handleGetConfigMap(ctx, cmd)
-	case model.ActionGetSecret:
+	case model_v2.ActionGetSecret:
 		data, err = s.handleGetSecret(ctx, cmd)
-	case model.ActionDynamic:
+	case model_v2.ActionDynamic:
 		data, err = s.handleDynamic(ctx, cmd)
-	case model.ActionDelete:
+	case model_v2.ActionDelete:
 		err = s.handleDelete(ctx, cmd)
-	case model.ActionCordon:
+	case model_v2.ActionCordon:
 		err = s.handleCordon(ctx, cmd)
-	case model.ActionUncordon:
+	case model_v2.ActionUncordon:
 		err = s.handleUncordon(ctx, cmd)
 	default:
 		err = fmt.Errorf("unknown action: %s", cmd.Action)
@@ -118,7 +119,7 @@ func (s *commandService) Execute(ctx context.Context, cmd *model.Command) *model
 }
 
 // handleScale 处理扩缩容指令
-func (s *commandService) handleScale(ctx context.Context, cmd *model.Command) error {
+func (s *commandService) handleScale(ctx context.Context, cmd *model_v2.Command) error {
 	var params struct {
 		Replicas int32 `json:"replicas"`
 	}
@@ -130,12 +131,12 @@ func (s *commandService) handleScale(ctx context.Context, cmd *model.Command) er
 }
 
 // handleRestart 处理重启指令
-func (s *commandService) handleRestart(ctx context.Context, cmd *model.Command) error {
+func (s *commandService) handleRestart(ctx context.Context, cmd *model_v2.Command) error {
 	return s.genericRepo.RestartDeployment(ctx, cmd.Namespace, cmd.Name)
 }
 
 // handleUpdateImage 处理更新镜像指令
-func (s *commandService) handleUpdateImage(ctx context.Context, cmd *model.Command) error {
+func (s *commandService) handleUpdateImage(ctx context.Context, cmd *model_v2.Command) error {
 	var params struct {
 		Container string `json:"container,omitempty"`
 		Image     string `json:"image"`
@@ -151,17 +152,17 @@ func (s *commandService) handleUpdateImage(ctx context.Context, cmd *model.Comma
 }
 
 // handleCordon 处理封锁节点指令
-func (s *commandService) handleCordon(ctx context.Context, cmd *model.Command) error {
+func (s *commandService) handleCordon(ctx context.Context, cmd *model_v2.Command) error {
 	return s.genericRepo.CordonNode(ctx, cmd.Name)
 }
 
 // handleUncordon 处理解封节点指令
-func (s *commandService) handleUncordon(ctx context.Context, cmd *model.Command) error {
+func (s *commandService) handleUncordon(ctx context.Context, cmd *model_v2.Command) error {
 	return s.genericRepo.UncordonNode(ctx, cmd.Name)
 }
 
 // handleGetLogs 处理获取日志指令
-func (s *commandService) handleGetLogs(ctx context.Context, cmd *model.Command) (string, error) {
+func (s *commandService) handleGetLogs(ctx context.Context, cmd *model_v2.Command) (string, error) {
 	var params struct {
 		Container    string `json:"container,omitempty"`
 		TailLines    int64  `json:"tailLines,omitempty"`
@@ -194,7 +195,7 @@ func (s *commandService) handleGetLogs(ctx context.Context, cmd *model.Command) 
 }
 
 // handleGetConfigMap 处理获取 ConfigMap 数据指令
-func (s *commandService) handleGetConfigMap(ctx context.Context, cmd *model.Command) (map[string]string, error) {
+func (s *commandService) handleGetConfigMap(ctx context.Context, cmd *model_v2.Command) (map[string]string, error) {
 	if cmd.Namespace == "" || cmd.Name == "" {
 		return nil, fmt.Errorf("namespace and name are required")
 	}
@@ -202,7 +203,7 @@ func (s *commandService) handleGetConfigMap(ctx context.Context, cmd *model.Comm
 }
 
 // handleGetSecret 处理获取 Secret 数据指令
-func (s *commandService) handleGetSecret(ctx context.Context, cmd *model.Command) (map[string]string, error) {
+func (s *commandService) handleGetSecret(ctx context.Context, cmd *model_v2.Command) (map[string]string, error) {
 	if cmd.Namespace == "" || cmd.Name == "" {
 		return nil, fmt.Errorf("namespace and name are required")
 	}
@@ -220,7 +221,7 @@ func (s *commandService) handleGetSecret(ctx context.Context, cmd *model.Command
 //   - label_selector: 标签过滤 (list 时使用)
 //   - involved_kind: 事件关联资源类型 (get_events 时使用)
 //   - involved_name: 事件关联资源名称 (get_events 时使用)
-func (s *commandService) handleDynamic(ctx context.Context, cmd *model.Command) (string, error) {
+func (s *commandService) handleDynamic(ctx context.Context, cmd *model_v2.Command) (string, error) {
 	var params struct {
 		Command       string `json:"command"`
 		Kind          string `json:"kind"`
@@ -259,7 +260,7 @@ func (s *commandService) handleDynamic(ctx context.Context, cmd *model.Command) 
 	// list 类请求强制限制返回数量
 	if params.Command == "list" || params.Command == "get_events" {
 		if _, hasLimit := query["limit"]; !hasLimit {
-			query["limit"] = "50"
+			query["limit"] = "200"
 		}
 	}
 
@@ -287,7 +288,7 @@ func (s *commandService) handleDynamic(ctx context.Context, cmd *model.Command) 
 }
 
 // handleDelete 处理通用删除指令
-func (s *commandService) handleDelete(ctx context.Context, cmd *model.Command) error {
+func (s *commandService) handleDelete(ctx context.Context, cmd *model_v2.Command) error {
 	var params struct {
 		GracePeriodSeconds *int64 `json:"gracePeriodSeconds,omitempty"`
 		Force              bool   `json:"force,omitempty"`

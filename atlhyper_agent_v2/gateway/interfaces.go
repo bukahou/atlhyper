@@ -50,7 +50,7 @@ type MasterGateway interface {
 	// topic: "ops" 或 "ai"，分别对应系统操作和 AI 查询队列。
 	//
 	// HTTP: GET /agent/commands?cluster_id=xxx&topic=yyy
-	PollCommands(ctx context.Context, topic string) ([]model.Command, error)
+	PollCommands(ctx context.Context, topic string) ([]model_v2.Command, error)
 
 	// ReportResult 上报指令执行结果到 Master
 	//

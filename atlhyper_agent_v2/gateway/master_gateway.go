@@ -83,23 +83,14 @@ func (g *masterGateway) PushSnapshot(ctx context.Context, snapshot *model_v2.Clu
 }
 
 // commandResponse Master 返回的指令响应格式
+// 直接使用 model_v2.Command，无需中间类型转换
 type commandResponse struct {
-	HasCommand bool         `json:"has_command"`
-	Command    *commandInfo `json:"command,omitempty"`
-}
-
-// commandInfo 指令信息（与 Master agentsdk.CommandInfo 对应）
-type commandInfo struct {
-	ID              string                 `json:"id"`
-	Action          string                 `json:"action"`
-	TargetKind      string                 `json:"target_kind"`
-	TargetNamespace string                 `json:"target_namespace"`
-	TargetName      string                 `json:"target_name"`
-	Params          map[string]interface{} `json:"params,omitempty"`
+	HasCommand bool              `json:"has_command"`
+	Command    *model_v2.Command `json:"command,omitempty"`
 }
 
 // PollCommands 拉取指令 (长轮询)
-func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]model.Command, error) {
+func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]model_v2.Command, error) {
 	url := fmt.Sprintf("%s/agent/commands?cluster_id=%s&topic=%s", g.masterURL, g.clusterID, topic)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -128,7 +119,7 @@ func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]model
 		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	// 解析 Master 返回的格式
+	// 解析 Master 返回的格式，直接使用 model_v2.Command
 	var cmdResp commandResponse
 	if err := json.NewDecoder(resp.Body).Decode(&cmdResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
@@ -139,17 +130,8 @@ func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]model
 		return nil, nil
 	}
 
-	// 转换为 model.Command
-	cmd := model.Command{
-		ID:        cmdResp.Command.ID,
-		Action:    cmdResp.Command.Action,
-		Kind:      cmdResp.Command.TargetKind,
-		Namespace: cmdResp.Command.TargetNamespace,
-		Name:      cmdResp.Command.TargetName,
-		Params:    cmdResp.Command.Params,
-	}
-
-	return []model.Command{cmd}, nil
+	// 直接返回，无需转换
+	return []model_v2.Command{*cmdResp.Command}, nil
 }
 
 // ReportResult 上报执行结果

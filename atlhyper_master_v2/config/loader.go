@@ -47,6 +47,11 @@ func LoadConfig() {
 		CleanupInterval: getDuration("MASTER_EVENT_CLEANUP_INTERVAL"),
 	}
 
+	GlobalConfig.EventAlert = EventAlertConfig{
+		Enabled:       getBool("MASTER_EVENT_ALERT_ENABLED"),
+		CheckInterval: getDuration("MASTER_EVENT_ALERT_INTERVAL"),
+	}
+
 	GlobalConfig.Timeout = TimeoutConfig{
 		CommandPoll: getDuration("MASTER_TIMEOUT_COMMAND_POLL"),
 		Heartbeat:   getDuration("MASTER_TIMEOUT_HEARTBEAT"),

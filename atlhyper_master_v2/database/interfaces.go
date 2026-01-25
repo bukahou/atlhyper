@@ -186,6 +186,17 @@ type CommandHistory struct {
 	DurationMs      int64
 }
 
+// CommandQueryOpts 命令查询选项
+type CommandQueryOpts struct {
+	ClusterID string // 集群 ID
+	Source    string // web / ai
+	Status    string // pending / running / success / failed / timeout
+	Action    string // restart / scale / delete_pod / cordon / uncordon
+	Search    string // 模糊搜索目标名称
+	Limit     int
+	Offset    int
+}
+
 // Setting 系统设置
 type Setting struct {
 	Key         string
@@ -247,6 +258,10 @@ type ClusterEventRepository interface {
 	ListByInvolvedResource(ctx context.Context, clusterID, kind, namespace, name string) ([]*ClusterEvent, error)
 	ListByType(ctx context.Context, clusterID, eventType string, since time.Time) ([]*ClusterEvent, error)
 
+	// 告警服务专用
+	GetLatestEventID(ctx context.Context) (int64, error)
+	GetEventsSince(ctx context.Context, sinceID int64) ([]*ClusterEvent, error)
+
 	// 清理
 	DeleteBefore(ctx context.Context, clusterID string, before time.Time) (int64, error)
 	DeleteOldest(ctx context.Context, clusterID string, keepCount int) (int64, error)
@@ -285,11 +300,15 @@ type CommandHistoryRepository interface {
 	GetByCommandID(ctx context.Context, cmdID string) (*CommandHistory, error)
 	ListByCluster(ctx context.Context, clusterID string, limit, offset int) ([]*CommandHistory, error)
 	ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*CommandHistory, error)
+	// 新增：带筛选条件的列表查询
+	List(ctx context.Context, opts CommandQueryOpts) ([]*CommandHistory, error)
+	Count(ctx context.Context, opts CommandQueryOpts) (int64, error)
 }
 
 // SettingsRepository 设置接口
 type SettingsRepository interface {
 	Get(ctx context.Context, key string) (*Setting, error)
+	GetByPrefix(ctx context.Context, prefix string) ([]*Setting, error)
 	Set(ctx context.Context, setting *Setting) error
 	Delete(ctx context.Context, key string) error
 	List(ctx context.Context) ([]*Setting, error)
@@ -394,12 +413,16 @@ type CommandDialect interface {
 	SelectByCommandID(cmdID string) (query string, args []any)
 	SelectByCluster(clusterID string, limit, offset int) (query string, args []any)
 	SelectByUser(userID int64, limit, offset int) (query string, args []any)
+	// 新增：带筛选条件的查询
+	SelectWithOpts(opts CommandQueryOpts) (query string, args []any)
+	CountWithOpts(opts CommandQueryOpts) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*CommandHistory, error)
 }
 
 // SettingsDialect 设置 SQL 方言
 type SettingsDialect interface {
 	SelectByKey(key string) (query string, args []any)
+	SelectByPrefix(prefix string) (query string, args []any)
 	Upsert(s *Setting) (query string, args []any)
 	Delete(key string) (query string, args []any)
 	SelectAll() (query string, args []any)

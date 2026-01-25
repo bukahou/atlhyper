@@ -75,8 +75,9 @@ func (r *Router) registerRoutes() {
 	secretHandler := handler.NewSecretHandler(r.service)
 	namespaceHandler := handler.NewNamespaceHandler(r.service)
 	eventHandler := handler.NewEventHandler(r.service, r.database)
-	commandHandler := handler.NewCommandHandler(r.service)
+	commandHandler := handler.NewCommandHandler(r.service, r.database)
 	notifyHandler := handler.NewNotifyHandler(r.database)
+	settingsHandler := handler.NewSettingsHandler(r.database)
 	opsHandler := handler.NewOpsHandler(r.service, r.bus)
 	auditHandler := handler.NewAuditHandler(r.database)
 
@@ -140,7 +141,8 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/events", eventHandler.List)
 		register("/api/v2/events/by-resource", eventHandler.ListByResource)
 
-		// ---------- 指令状态查询 ----------
+		// ---------- 指令查询 ----------
+		register("/api/v2/commands/history", commandHandler.ListHistory)
 		register("/api/v2/commands/", commandHandler.GetStatus)
 
 		// ---------- 通知渠道查询 ----------
@@ -148,6 +150,9 @@ func (r *Router) registerRoutes() {
 
 		// ---------- 审计日志查询 ----------
 		register("/api/v2/audit/logs", auditHandler.List)
+
+		// ---------- AI 配置查询（只读） ----------
+		register("/api/v2/settings/ai", settingsHandler.AIConfigHandler)
 	})
 
 	// ================================================================
@@ -215,6 +220,9 @@ func (r *Router) registerRoutes() {
 
 	// 通知渠道管理
 	r.adminAudited("/api/v2/notify/channels/", "update", "notify", notifyHandler.ChannelHandler)
+
+	// AI 配置管理（需要 Admin 权限）
+	r.adminAudited("/api/v2/settings/ai/", "update", "ai_config", settingsHandler.AIConfigHandler)
 }
 
 // ================================================================

@@ -1,58 +1,38 @@
+// model_v2/command.go
+// 统一指令模型定义
+// Master/Agent/HTTP 传输层共用，避免字段丢失
 package model_v2
 
 import "time"
 
 // ============================================================
-// Command 指令模型
+// Command 指令模型（统一定义）
 // ============================================================
 
 // Command 操作指令
 //
 // Master 下发给 Agent 执行的操作指令。
-// 指令通过长轮询机制下发，Agent 执行后上报结果。
+// 此结构体被 Master、Agent、HTTP 传输层共用。
+// 新增字段时只需修改此处，全链路自动生效。
 type Command struct {
 	// 标识
 	ID        string `json:"id"`         // 指令唯一 ID（UUID）
 	ClusterID string `json:"cluster_id"` // 目标集群 ID
 
-	// 指令类型
-	Type string `json:"type"` // 指令类型（见 CommandType 常量）
+	// 指令内容
+	Action    string         `json:"action"`              // 操作类型 (scale, restart, dynamic 等)
+	Kind      string         `json:"kind,omitempty"`      // 资源类型 (Pod, Deployment, Node 等)
+	Namespace string         `json:"namespace,omitempty"` // 目标命名空间
+	Name      string         `json:"name,omitempty"`      // 目标资源名称
+	Params    map[string]any `json:"params,omitempty"`    // 额外参数（随 Action 不同而变化）
 
-	// 目标资源
-	Target CommandTarget `json:"target"` // 操作目标
-
-	// 参数（根据 Type 不同而不同）
-	Params map[string]interface{} `json:"params,omitempty"`
+	// 来源
+	Source    string `json:"source,omitempty"`     // 来源: "ai" / "web"
+	CreatedBy string `json:"created_by,omitempty"` // 创建者用户名
 
 	// 时间
 	CreatedAt time.Time `json:"created_at"` // 创建时间
-	ExpiresAt time.Time `json:"expires_at"` // 过期时间
 }
-
-// CommandTarget 指令目标
-type CommandTarget struct {
-	Kind      string `json:"kind"`                // 资源类型 (Pod, Deployment, Node 等)
-	Namespace string `json:"namespace,omitempty"` // 命名空间
-	Name      string `json:"name"`                // 资源名称
-}
-
-// 指令类型常量
-const (
-	// Pod 操作
-	CommandTypePodLogs    = "pod_logs"    // 获取 Pod 日志
-	CommandTypePodRestart = "pod_restart" // 重启 Pod
-	CommandTypePodExec    = "pod_exec"    // 执行命令
-
-	// Deployment 操作
-	CommandTypeDeploymentScale   = "deployment_scale"   // 扩缩容
-	CommandTypeDeploymentRestart = "deployment_restart" // 重启（滚动更新）
-	CommandTypeDeploymentImage   = "deployment_image"   // 更新镜像
-
-	// Node 操作
-	CommandTypeNodeCordon   = "node_cordon"   // 禁止调度
-	CommandTypeNodeUncordon = "node_uncordon" // 允许调度
-	CommandTypeNodeDrain    = "node_drain"    // 驱逐 Pod
-)
 
 // ============================================================
 // CommandResult 指令执行结果
@@ -60,23 +40,14 @@ const (
 
 // CommandResult 指令执行结果
 //
-// Agent 执行指令后上报的结果。
+// Agent 执行指令后上报给 Master。
 type CommandResult struct {
-	// 标识
-	CommandID string `json:"command_id"` // 关联的指令 ID
-	ClusterID string `json:"cluster_id"` // 集群 ID
-
-	// 结果
-	Success bool   `json:"success"`         // 是否成功
-	Message string `json:"message"`         // 结果消息
-	Error   string `json:"error,omitempty"` // 错误信息（失败时）
-
-	// 数据（根据指令类型不同而不同）
-	Data interface{} `json:"data,omitempty"` // 返回数据（如日志内容）
-
-	// 时间
-	StartedAt  time.Time `json:"started_at"`  // 开始执行时间
-	FinishedAt time.Time `json:"finished_at"` // 完成时间
+	CommandID  string        `json:"command_id"`          // 关联的指令 ID
+	Success    bool          `json:"success"`             // 是否成功
+	Output     string        `json:"output,omitempty"`    // 返回数据（如日志、查询结果）
+	Error      string        `json:"error,omitempty"`     // 错误信息（失败时）
+	ExecTime   time.Duration `json:"exec_time,omitempty"` // 执行耗时
+	ExecutedAt time.Time     `json:"executed_at"`         // 执行时间
 }
 
 // ============================================================
@@ -87,56 +58,57 @@ type CommandResult struct {
 //
 // 用于查询指令执行进度和结果。
 type CommandStatus struct {
-	// 标识
-	CommandID string `json:"command_id"`
-	ClusterID string `json:"cluster_id"`
-
-	// 状态
-	Status string `json:"status"` // pending, running, success, failed, expired
-
-	// 指令信息
-	Type   string        `json:"type"`
-	Target CommandTarget `json:"target"`
-
-	// 结果（执行完成后填充）
-	Result *CommandResult `json:"result,omitempty"`
-
-	// 时间
-	CreatedAt  time.Time  `json:"created_at"`
-	StartedAt  *time.Time `json:"started_at,omitempty"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	CommandID  string         `json:"command_id"`
+	Status     string         `json:"status"` // pending, running, success, failed, timeout
+	Result     *CommandResult `json:"result,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	StartedAt  *time.Time     `json:"started_at,omitempty"`
+	FinishedAt *time.Time     `json:"finished_at,omitempty"`
 }
 
-// 指令状态常量
+// ============================================================
+// 常量定义
+// ============================================================
+
+// 指令状态
 const (
-	CommandStatusPending = "pending" // 等待执行
-	CommandStatusRunning = "running" // 执行中
-	CommandStatusSuccess = "success" // 执行成功
-	CommandStatusFailed  = "failed"  // 执行失败
-	CommandStatusExpired = "expired" // 已过期
+	CommandStatusPending = "pending"
+	CommandStatusRunning = "running"
+	CommandStatusSuccess = "success"
+	CommandStatusFailed  = "failed"
+	CommandStatusTimeout = "timeout"
 )
 
-// IsPending 判断是否等待执行
-func (s *CommandStatus) IsPending() bool {
-	return s.Status == CommandStatusPending
-}
+// 指令动作
+const (
+	ActionScale        = "scale"
+	ActionRestart      = "restart"
+	ActionDelete       = "delete"
+	ActionDeletePod    = "delete_pod"
+	ActionExec         = "exec"
+	ActionCordon       = "cordon"
+	ActionUncordon     = "uncordon"
+	ActionDrain        = "drain"
+	ActionUpdateImage  = "update_image"
+	ActionGetLogs      = "get_logs"
+	ActionGetConfigMap = "get_configmap"
+	ActionGetSecret    = "get_secret"
+	ActionDynamic      = "dynamic" // AI 只读查询
+)
 
-// IsRunning 判断是否执行中
-func (s *CommandStatus) IsRunning() bool {
-	return s.Status == CommandStatusRunning
-}
-
-// IsCompleted 判断是否已完成（成功或失败）
-func (s *CommandStatus) IsCompleted() bool {
-	return s.Status == CommandStatusSuccess || s.Status == CommandStatusFailed
-}
-
-// IsSuccess 判断是否执行成功
-func (s *CommandStatus) IsSuccess() bool {
-	return s.Status == CommandStatusSuccess
-}
-
-// IsFailed 判断是否执行失败
-func (s *CommandStatus) IsFailed() bool {
-	return s.Status == CommandStatusFailed
+// ValidActions 有效的指令动作
+var ValidActions = map[string]bool{
+	ActionScale:        true,
+	ActionRestart:      true,
+	ActionDelete:       true,
+	ActionDeletePod:    true,
+	ActionExec:         true,
+	ActionCordon:       true,
+	ActionUncordon:     true,
+	ActionDrain:        true,
+	ActionUpdateImage:  true,
+	ActionGetLogs:      true,
+	ActionGetConfigMap: true,
+	ActionGetSecret:    true,
+	ActionDynamic:      true,
 }

@@ -32,6 +32,25 @@ func (r *settingsRepo) Get(ctx context.Context, key string) (*database.Setting, 
 	return r.dialect.ScanRow(rows)
 }
 
+func (r *settingsRepo) GetByPrefix(ctx context.Context, prefix string) ([]*database.Setting, error) {
+	query, args := r.dialect.SelectByPrefix(prefix)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var settings []*database.Setting
+	for rows.Next() {
+		s, err := r.dialect.ScanRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		settings = append(settings, s)
+	}
+	return settings, rows.Err()
+}
+
 func (r *settingsRepo) Set(ctx context.Context, s *database.Setting) error {
 	query, args := r.dialect.Upsert(s)
 	_, err := r.db.ExecContext(ctx, query, args...)

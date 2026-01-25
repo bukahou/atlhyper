@@ -1,0 +1,11 @@
+{{.SeverityEmoji}} *{{.Title}}*
+
+{{.Message}}
+
+*集群:* {{.ClusterID}}
+*资源:* {{.Resource}}
+{{- if .Fields.downtime}}
+*离线时长:* {{.Fields.downtime}}
+{{- end}}
+
+*时间:* {{.TimeStr}}

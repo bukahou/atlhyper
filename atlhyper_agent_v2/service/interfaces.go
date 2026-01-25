@@ -27,6 +27,8 @@ import (
 	"AtlHyper/model_v2"
 )
 
+// 注：指令使用 model_v2.Command（统一定义），结果使用 model.Result（Agent 内部）
+
 // =============================================================================
 // 快照服务
 // =============================================================================
@@ -66,10 +68,10 @@ type CommandService interface {
 	//   - dynamic: 动态 API 调用
 	//
 	// 参数:
-	//   - cmd: 待执行的指令
+	//   - cmd: 待执行的指令 (使用 model_v2.Command 统一定义)
 	//
 	// 返回:
 	//   - *Result: 执行结果 (始终返回，不返回 error)
-	Execute(ctx context.Context, cmd *model.Command) *model.Result
+	Execute(ctx context.Context, cmd *model_v2.Command) *model.Result
 }
 

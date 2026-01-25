@@ -639,3 +639,78 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 
 	return overview, nil
 }
+
+// ==================== 单资源查询 (Event Alert Enrichment) ====================
+
+// GetPod 获取单个 Pod
+func (q *QueryService) GetPod(ctx context.Context, clusterID, namespace, name string) (*model_v2.Pod, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	for i := range snapshot.Pods {
+		pod := &snapshot.Pods[i]
+		if pod.GetNamespace() == namespace && pod.GetName() == name {
+			return pod, nil
+		}
+	}
+	return nil, nil
+}
+
+// GetNode 获取单个 Node
+func (q *QueryService) GetNode(ctx context.Context, clusterID, name string) (*model_v2.Node, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	for i := range snapshot.Nodes {
+		node := &snapshot.Nodes[i]
+		if node.GetName() == name {
+			return node, nil
+		}
+	}
+	return nil, nil
+}
+
+// GetDeployment 获取单个 Deployment
+func (q *QueryService) GetDeployment(ctx context.Context, clusterID, namespace, name string) (*model_v2.Deployment, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	for i := range snapshot.Deployments {
+		dep := &snapshot.Deployments[i]
+		if dep.GetNamespace() == namespace && dep.GetName() == name {
+			return dep, nil
+		}
+	}
+	return nil, nil
+}
+
+// GetDeploymentByReplicaSet 通过 ReplicaSet 名称查找所属 Deployment
+// ReplicaSet 名称格式: {deployment-name}-{hash}
+func (q *QueryService) GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*model_v2.Deployment, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	// ReplicaSet 名称格式: {deployment-name}-{hash}
+	// 遍历 Deployment 查找匹配的
+	for i := range snapshot.Deployments {
+		dep := &snapshot.Deployments[i]
+		if dep.GetNamespace() != namespace {
+			continue
+		}
+
+		// 检查 ReplicaSet 名称是否以 Deployment 名称为前缀
+		depName := dep.GetName()
+		if len(rsName) > len(depName)+1 && rsName[:len(depName)+1] == depName+"-" {
+			return dep, nil
+		}
+	}
+	return nil, nil
+}

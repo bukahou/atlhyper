@@ -18,6 +18,9 @@ var defaultDurations = map[string]string{
 	// -------------------- Event 持久化 --------------------
 	"MASTER_EVENT_CLEANUP_INTERVAL": "1h", // 清理检查间隔
 
+	// -------------------- Event 告警 --------------------
+	"MASTER_EVENT_ALERT_INTERVAL": "30s", // 告警检测间隔
+
 	// -------------------- JWT 配置 --------------------
 	"MASTER_JWT_TOKEN_EXPIRY": "24h", // Token 有效期
 
@@ -75,10 +78,10 @@ var defaultStrings = map[string]string{
 
 	// -------------------- Email 配置 --------------------
 	"MASTER_EMAIL_SMTP_HOST":     "", // SMTP 服务器地址
-	"MASTER_EMAIL_SMTP_USER":     "", // SMTP 用户名
-	"MASTER_EMAIL_SMTP_PASSWORD": "", // SMTP 密码（敏感信息）
-	"MASTER_EMAIL_FROM":          "", // 发件人地址
-	"MASTER_EMAIL_TO":            "", // 收件人列表，逗号分隔
+	"MASTER_EMAIL_SMTP_USER":     "",               // SMTP 用户名（敏感）
+	"MASTER_EMAIL_SMTP_PASSWORD": "",               // SMTP 密码（敏感）
+	"MASTER_EMAIL_FROM":          "",               // 发件人地址（敏感）
+	"MASTER_EMAIL_TO":            "",               // 收件人列表（敏感）
 
 	// -------------------- 默认管理员配置 --------------------
 	"MASTER_ADMIN_USERNAME":     "admin",         // 管理员用户名
@@ -86,9 +89,9 @@ var defaultStrings = map[string]string{
 	"MASTER_ADMIN_DISPLAY_NAME": "Administrator", // 管理员显示名称
 
 	// -------------------- AI 配置 --------------------
-	"MASTER_AI_PROVIDER":       "gemini",          // LLM 提供商
+	"MASTER_AI_PROVIDER":       "",          // LLM 提供商
 	"MASTER_AI_GEMINI_API_KEY": "",                // Gemini API Key（必须设置才能启用 AI）
-	"MASTER_AI_GEMINI_MODEL":   "gemini-2.0-flash", // Gemini 模型
+	"MASTER_AI_GEMINI_MODEL":   "", // Gemini 模型
 }
 
 // ============================================================
@@ -96,12 +99,15 @@ var defaultStrings = map[string]string{
 // ============================================================
 var defaultBools = map[string]bool{
 	// -------------------- Slack 配置 --------------------
-	"MASTER_SLACK_ENABLED": false, // 是否启用 Slack 通知
+	"MASTER_SLACK_ENABLED": false, // 是否启用 Slack 通知（需配置 WEBHOOK_URL）
 
 	// -------------------- Email 配置 --------------------
-	"MASTER_EMAIL_ENABLED":  false, // 是否启用邮件通知
-	"MASTER_EMAIL_SMTP_TLS": true,  // 是否启用 SMTP TLS
+	"MASTER_EMAIL_ENABLED":  false, // 是否启用邮件通知（需配置 SMTP）
+	"MASTER_EMAIL_SMTP_TLS": false, // 是否启用 SMTP TLS
 
 	// -------------------- AI 配置 --------------------
-	"MASTER_AI_ENABLED": true, // 是否启用 AI 功能
+	"MASTER_AI_ENABLED": false, // 是否启用 AI 功能（需配置 API Key）
+
+	// -------------------- Event 告警 --------------------
+	"MASTER_EVENT_ALERT_ENABLED": true, // 是否启用事件告警/false
 }

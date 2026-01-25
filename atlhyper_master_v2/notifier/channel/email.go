@@ -1,5 +1,5 @@
 // atlhyper_master_v2/notifier/channel/email.go
-// Email 通知渠道
+// Email 通知器
 package channel
 
 import (
@@ -8,20 +8,7 @@ import (
 	"fmt"
 	"net/smtp"
 	"strings"
-
-	"AtlHyper/atlhyper_master_v2/notifier"
 )
-
-// EmailChannel Email 通知渠道
-type EmailChannel struct {
-	host        string
-	port        int
-	user        string
-	password    string
-	useTLS      bool
-	fromAddress string
-	toAddresses []string
-}
 
 // EmailConfig Email 配置
 type EmailConfig struct {
@@ -29,180 +16,149 @@ type EmailConfig struct {
 	SMTPPort     int
 	SMTPUser     string
 	SMTPPassword string
-	SMTPTLS      bool
+	UseTLS       bool
 	FromAddress  string
 	ToAddresses  []string
 }
 
-// NewEmailChannel 创建 Email 通知渠道
-func NewEmailChannel(cfg EmailConfig) *EmailChannel {
-	return &EmailChannel{
-		host:        cfg.SMTPHost,
-		port:        cfg.SMTPPort,
-		user:        cfg.SMTPUser,
-		password:    cfg.SMTPPassword,
-		useTLS:      cfg.SMTPTLS,
-		fromAddress: cfg.FromAddress,
-		toAddresses: cfg.ToAddresses,
-	}
+// EmailNotifier Email 通知器
+type EmailNotifier struct {
+	config EmailConfig
 }
 
-// Type 返回渠道类型
-func (c *EmailChannel) Type() string {
+// NewEmailNotifier 创建 Email 通知器
+func NewEmailNotifier(config EmailConfig) *EmailNotifier {
+	return &EmailNotifier{config: config}
+}
+
+// Name 返回通知器名称
+func (e *EmailNotifier) Name() string {
 	return "email"
 }
 
-// Send 发送 Email 通知
-func (c *EmailChannel) Send(ctx context.Context, msg *notifier.Message) error {
-	// 构建邮件内容
-	subject := c.buildSubject(msg)
-	body := c.buildBody(msg)
+// Send 发送邮件
+func (e *EmailNotifier) Send(ctx context.Context, msg *Message) error {
+	// 构建邮件
+	mailMsg := e.buildMailMessage(msg.Subject, msg.Body)
 
-	// 构建邮件头
-	headers := make(map[string]string)
-	headers["From"] = c.fromAddress
-	headers["To"] = strings.Join(c.toAddresses, ",")
-	headers["Subject"] = subject
-	headers["MIME-Version"] = "1.0"
-	headers["Content-Type"] = "text/html; charset=UTF-8"
+	// 发送
+	addr := fmt.Sprintf("%s:%d", e.config.SMTPHost, e.config.SMTPPort)
+	auth := smtp.PlainAuth("", e.config.SMTPUser, e.config.SMTPPassword, e.config.SMTPHost)
 
-	// 构建完整邮件
-	var message strings.Builder
-	for k, v := range headers {
-		message.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+	if e.config.UseTLS {
+		// 端口 587 使用 STARTTLS，端口 465 使用直接 TLS
+		if e.config.SMTPPort == 587 {
+			return e.sendSTARTTLS(addr, auth, mailMsg)
+		}
+		return e.sendTLS(addr, auth, mailMsg)
 	}
-	message.WriteString("\r\n")
-	message.WriteString(body)
-
-	// 发送邮件
-	addr := fmt.Sprintf("%s:%d", c.host, c.port)
-	auth := smtp.PlainAuth("", c.user, c.password, c.host)
-
-	if c.useTLS {
-		return c.sendWithTLS(addr, auth, message.String())
-	}
-	return smtp.SendMail(addr, auth, c.fromAddress, c.toAddresses, []byte(message.String()))
+	return smtp.SendMail(addr, auth, e.config.FromAddress, e.config.ToAddresses, []byte(mailMsg))
 }
 
-// sendWithTLS 使用 TLS 发送邮件
-func (c *EmailChannel) sendWithTLS(addr string, auth smtp.Auth, message string) error {
-	tlsConfig := &tls.Config{
-		ServerName: c.host,
-	}
+// buildMailMessage 构建邮件消息
+func (e *EmailNotifier) buildMailMessage(subject, body string) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("From: %s\r\n", e.config.FromAddress))
+	sb.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(e.config.ToAddresses, ",")))
+	sb.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	sb.WriteString("MIME-Version: 1.0\r\n")
+	sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+	sb.WriteString("\r\n")
+	sb.WriteString(body)
+	return sb.String()
+}
 
-	conn, err := tls.Dial("tcp", addr, tlsConfig)
+// sendSTARTTLS 使用 STARTTLS 发送邮件（端口 587）
+func (e *EmailNotifier) sendSTARTTLS(addr string, auth smtp.Auth, msg string) error {
+	// 先建立明文连接
+	client, err := smtp.Dial(addr)
 	if err != nil {
-		return fmt.Errorf("failed to connect: %w", err)
-	}
-	defer conn.Close()
-
-	client, err := smtp.NewClient(conn, c.host)
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		return fmt.Errorf("smtp dial: %w", err)
 	}
 	defer client.Close()
 
+	// 升级到 TLS
+	tlsConfig := &tls.Config{ServerName: e.config.SMTPHost}
+	if err := client.StartTLS(tlsConfig); err != nil {
+		return fmt.Errorf("starttls: %w", err)
+	}
+
+	// 认证
 	if err := client.Auth(auth); err != nil {
-		return fmt.Errorf("failed to auth: %w", err)
+		return fmt.Errorf("smtp auth: %w", err)
 	}
 
-	if err := client.Mail(c.fromAddress); err != nil {
-		return fmt.Errorf("failed to set from: %w", err)
+	// 发件人
+	if err := client.Mail(e.config.FromAddress); err != nil {
+		return fmt.Errorf("smtp mail: %w", err)
 	}
 
-	for _, to := range c.toAddresses {
+	// 收件人
+	for _, to := range e.config.ToAddresses {
 		if err := client.Rcpt(to); err != nil {
-			return fmt.Errorf("failed to set to %s: %w", to, err)
+			return fmt.Errorf("smtp rcpt %s: %w", to, err)
 		}
 	}
 
+	// 写入邮件内容
 	w, err := client.Data()
 	if err != nil {
-		return fmt.Errorf("failed to get writer: %w", err)
+		return fmt.Errorf("smtp data: %w", err)
 	}
 
-	if _, err := w.Write([]byte(message)); err != nil {
-		return fmt.Errorf("failed to write message: %w", err)
+	if _, err := w.Write([]byte(msg)); err != nil {
+		return fmt.Errorf("write message: %w", err)
 	}
 
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("failed to close writer: %w", err)
+		return fmt.Errorf("close writer: %w", err)
 	}
 
 	return client.Quit()
 }
 
-// buildSubject 构建邮件主题
-func (c *EmailChannel) buildSubject(msg *notifier.Message) string {
-	prefix := "[INFO]"
-	switch msg.Severity {
-	case notifier.SeverityWarning:
-		prefix = "[WARNING]"
-	case notifier.SeverityCritical:
-		prefix = "[CRITICAL]"
+// sendTLS 使用直接 TLS 发送邮件（端口 465）
+func (e *EmailNotifier) sendTLS(addr string, auth smtp.Auth, msg string) error {
+	tlsConfig := &tls.Config{ServerName: e.config.SMTPHost}
+
+	conn, err := tls.Dial("tcp", addr, tlsConfig)
+	if err != nil {
+		return fmt.Errorf("tls dial: %w", err)
 	}
-	return fmt.Sprintf("%s %s", prefix, msg.Title)
-}
+	defer conn.Close()
 
-// buildBody 构建邮件正文
-func (c *EmailChannel) buildBody(msg *notifier.Message) string {
-	var body strings.Builder
-
-	// HTML 头部和样式
-	body.WriteString(`<html>
-<head>
-<style>
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
-.container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-.header { padding: 20px; border-bottom: 1px solid #eee; }
-.header h2 { margin: 0; color: #333; }
-.content { padding: 20px; }
-.content pre { background: #f8f9fa; padding: 12px; border-radius: 4px; white-space: pre-wrap; font-size: 13px; }
-.fields { margin-top: 16px; }
-.fields table { width: 100%; border-collapse: collapse; }
-.fields td { padding: 8px 12px; border: 1px solid #eee; }
-.fields td:first-child { background: #f8f9fa; font-weight: 600; width: 120px; }
-.footer { padding: 16px 20px; border-top: 1px solid #eee; color: #666; font-size: 12px; }
-.severity-critical { color: #dc3545; }
-.severity-warning { color: #fd7e14; }
-.severity-info { color: #0d6efd; }
-</style>
-</head>
-<body>
-<div class="container">`)
-
-	// Header
-	severityClass := "severity-info"
-	switch msg.Severity {
-	case notifier.SeverityCritical:
-		severityClass = "severity-critical"
-	case notifier.SeverityWarning:
-		severityClass = "severity-warning"
+	client, err := smtp.NewClient(conn, e.config.SMTPHost)
+	if err != nil {
+		return fmt.Errorf("smtp client: %w", err)
 	}
-	body.WriteString(fmt.Sprintf(`<div class="header"><h2 class="%s">%s</h2></div>`, severityClass, msg.Title))
+	defer client.Close()
 
-	// Content
-	body.WriteString(`<div class="content">`)
-	if msg.Content != "" {
-		body.WriteString(fmt.Sprintf("<pre>%s</pre>", msg.Content))
+	if err := client.Auth(auth); err != nil {
+		return fmt.Errorf("smtp auth: %w", err)
 	}
 
-	// Fields
-	if len(msg.Fields) > 0 {
-		body.WriteString(`<div class="fields"><table>`)
-		for k, v := range msg.Fields {
-			body.WriteString(fmt.Sprintf("<tr><td>%s</td><td>%s</td></tr>", k, v))
+	if err := client.Mail(e.config.FromAddress); err != nil {
+		return fmt.Errorf("smtp mail: %w", err)
+	}
+
+	for _, to := range e.config.ToAddresses {
+		if err := client.Rcpt(to); err != nil {
+			return fmt.Errorf("smtp rcpt %s: %w", to, err)
 		}
-		body.WriteString("</table></div>")
 	}
-	body.WriteString("</div>")
 
-	// Footer
-	body.WriteString(`<div class="footer">Sent by AtlHyper</div>`)
-	body.WriteString("</div></body></html>")
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp data: %w", err)
+	}
 
-	return body.String()
+	if _, err := w.Write([]byte(msg)); err != nil {
+		return fmt.Errorf("write message: %w", err)
+	}
+
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("close writer: %w", err)
+	}
+
+	return client.Quit()
 }
-
-// 确保实现了接口
-var _ Channel = (*EmailChannel)(nil)

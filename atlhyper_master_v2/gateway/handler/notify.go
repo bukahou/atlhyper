@@ -26,13 +26,15 @@ func NewNotifyHandler(db *database.DB) *NotifyHandler {
 
 // ChannelResponse 渠道响应
 type ChannelResponse struct {
-	ID        int64           `json:"id"`
-	Type      string          `json:"type"`
-	Name      string          `json:"name"`
-	Enabled   bool            `json:"enabled"`
-	Config    json.RawMessage `json:"config"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID               int64           `json:"id"`
+	Type             string          `json:"type"`
+	Name             string          `json:"name"`
+	Enabled          bool            `json:"enabled"`           // 用户设置的启用状态
+	EffectiveEnabled bool            `json:"effective_enabled"` // 实际可用状态（启用+配置完整）
+	ValidationErrors []string        `json:"validation_errors"` // 配置校验错误
+	Config           json.RawMessage `json:"config"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
 }
 
 // ListChannels 列出通知渠道
@@ -51,18 +53,10 @@ func (h *NotifyHandler) ListChannels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 转换响应
+	// 转换响应（含校验信息）
 	var responses []ChannelResponse
 	for _, ch := range channels {
-		responses = append(responses, ChannelResponse{
-			ID:        ch.ID,
-			Type:      ch.Type,
-			Name:      ch.Name,
-			Enabled:   ch.Enabled,
-			Config:    json.RawMessage(ch.Config),
-			CreatedAt: ch.CreatedAt,
-			UpdatedAt: ch.UpdatedAt,
-		})
+		responses = append(responses, toChannelResponse(ch))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -120,20 +114,12 @@ func (h *NotifyHandler) getChannel(w http.ResponseWriter, r *http.Request, chann
 	defer cancel()
 
 	channel, err := h.db.Notify.GetByType(ctx, channelType)
-	if err != nil {
+	if err != nil || channel == nil {
 		writeError(w, http.StatusNotFound, "channel not found")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, ChannelResponse{
-		ID:        channel.ID,
-		Type:      channel.Type,
-		Name:      channel.Name,
-		Enabled:   channel.Enabled,
-		Config:    json.RawMessage(channel.Config),
-		CreatedAt: channel.CreatedAt,
-		UpdatedAt: channel.UpdatedAt,
-	})
+	writeJSON(w, http.StatusOK, toChannelResponse(channel))
 }
 
 // UpdateChannel 更新通知渠道（保留用于独立路由）
@@ -198,15 +184,7 @@ func (h *NotifyHandler) updateChannel(w http.ResponseWriter, r *http.Request, ch
 		return
 	}
 
-	writeJSON(w, http.StatusOK, ChannelResponse{
-		ID:        existing.ID,
-		Type:      existing.Type,
-		Name:      existing.Name,
-		Enabled:   existing.Enabled,
-		Config:    json.RawMessage(existing.Config),
-		CreatedAt: existing.CreatedAt,
-		UpdatedAt: existing.UpdatedAt,
-	})
+	writeJSON(w, http.StatusOK, toChannelResponse(existing))
 }
 
 // testChannel 测试通知渠道（内部方法）
@@ -240,4 +218,90 @@ var validChannelTypes = map[string]bool{
 // isValidChannelType 校验渠道类型
 func isValidChannelType(channelType string) bool {
 	return validChannelTypes[channelType]
+}
+
+// validateChannelConfig 校验渠道配置完整性
+// 返回校验错误列表，空列表表示配置完整
+func validateChannelConfig(channelType, config string) []string {
+	var errors []string
+
+	switch channelType {
+	case "slack":
+		var cfg database.SlackConfig
+		if err := json.Unmarshal([]byte(config), &cfg); err != nil {
+			errors = append(errors, "配置格式错误")
+			return errors
+		}
+		if cfg.WebhookURL == "" {
+			errors = append(errors, "webhook_url 未配置")
+		}
+
+	case "email", "mail":
+		var cfg database.EmailConfig
+		if err := json.Unmarshal([]byte(config), &cfg); err != nil {
+			errors = append(errors, "配置格式错误")
+			return errors
+		}
+		if cfg.SMTPHost == "" {
+			errors = append(errors, "smtp_host 未配置")
+		}
+		if cfg.SMTPPort == 0 {
+			errors = append(errors, "smtp_port 未配置")
+		}
+		if cfg.SMTPUser == "" {
+			errors = append(errors, "smtp_user 未配置")
+		}
+		if cfg.SMTPPassword == "" {
+			errors = append(errors, "smtp_password 未配置")
+		}
+		if cfg.FromAddress == "" {
+			errors = append(errors, "from_address 未配置")
+		}
+
+	case "webhook":
+		// webhook 类型需要 url
+		var cfg struct {
+			URL string `json:"url"`
+		}
+		if err := json.Unmarshal([]byte(config), &cfg); err != nil {
+			errors = append(errors, "配置格式错误")
+			return errors
+		}
+		if cfg.URL == "" {
+			errors = append(errors, "url 未配置")
+		}
+
+	case "dingtalk":
+		// 钉钉需要 webhook
+		var cfg struct {
+			WebhookURL string `json:"webhook_url"`
+		}
+		if err := json.Unmarshal([]byte(config), &cfg); err != nil {
+			errors = append(errors, "配置格式错误")
+			return errors
+		}
+		if cfg.WebhookURL == "" {
+			errors = append(errors, "webhook_url 未配置")
+		}
+	}
+
+	return errors
+}
+
+// toChannelResponse 转换为响应结构（含校验）
+func toChannelResponse(ch *database.NotifyChannel) ChannelResponse {
+	validationErrors := validateChannelConfig(ch.Type, ch.Config)
+	effectiveEnabled := ch.Enabled && len(validationErrors) == 0
+
+	return ChannelResponse{
+		ID:               ch.ID,
+		Type:             ch.Type,
+		Name:             ch.Name,
+		Enabled:          ch.Enabled,
+		EffectiveEnabled: effectiveEnabled,
+		ValidationErrors: validationErrors,
+		Config:           json.RawMessage(ch.Config),
+		CreatedAt:        ch.CreatedAt,
+		UpdatedAt:        ch.UpdatedAt,
+	}
 }

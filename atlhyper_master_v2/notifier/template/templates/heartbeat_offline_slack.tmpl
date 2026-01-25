@@ -1,0 +1,14 @@
+{{.SeverityEmoji}} *{{.Title}}*
+
+{{.Message}}
+
+*集群:* {{.ClusterID}}
+*资源:* {{.Resource}}
+{{- if .Fields.last_heartbeat}}
+*最后心跳:* {{.Fields.last_heartbeat}}
+{{- end}}
+{{- if .Fields.offline_after}}
+*离线阈值:* {{.Fields.offline_after}}
+{{- end}}
+
+*时间:* {{.TimeStr}}

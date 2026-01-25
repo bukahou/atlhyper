@@ -10,6 +10,7 @@ export interface NavTranslations {
   workbench: string;
   workbenchHome: string;
   ai: string;
+  commands: string;
   cluster: string;
   pod: string;
   node: string;
@@ -28,7 +29,9 @@ export interface NavTranslations {
   audit: string;
   clusters: string;
   agents: string;
+  settings: string;
   notifications: string;
+  aiSettings: string;
 }
 
 // 通用翻译
@@ -817,6 +820,46 @@ export interface PlaceholderTranslations {
   developingMessage: string;
 }
 
+// Commands 页面翻译
+export interface CommandsTranslations {
+  pageDescription: string;
+  searchPlaceholder: string;
+  allSources: string;
+  allStatus: string;
+  allActions: string;
+  source: string;
+  target: string;
+  params: string;
+  result: string;
+  duration: string;
+  noCommands: string;
+  viewDetails: string;
+  commandId: string;
+  errorMessage: string;
+  createdAt: string;
+  startedAt: string;
+  finishedAt: string;
+  sources: {
+    web: string;
+    ai: string;
+  };
+  statuses: {
+    pending: string;
+    running: string;
+    success: string;
+    failed: string;
+    timeout: string;
+  };
+  actions: {
+    restart: string;
+    scale: string;
+    delete_pod: string;
+    cordon: string;
+    uncordon: string;
+    update_image: string;
+  };
+}
+
 // 完整翻译结构
 export interface Translations {
   nav: NavTranslations;
@@ -843,6 +886,7 @@ export interface Translations {
   daemonset: DaemonSetTranslations;
   statefulset: StatefulSetTranslations;
   placeholder: PlaceholderTranslations;
+  commands: CommandsTranslations;
 }
 
 // 国际化上下文

@@ -182,6 +182,88 @@ npm install && npm run dev
 # 访问 http://localhost:3000
 ```
 
+## 部署说明
+
+### Master 配置
+
+Master 可以使用默认配置直接启动，但 **生产环境强烈建议** 配置以下环境变量：
+
+| 环境变量 | 默认值 | 说明 |
+| -------- | ------ | ---- |
+| `MASTER_ADMIN_USERNAME` | `admin` | 管理员用户名 |
+| `MASTER_ADMIN_PASSWORD` | `admin123` | 管理员密码（**必须修改**） |
+| `MASTER_JWT_SECRET` | `atlhyper-default-secret-change-in-production` | JWT 签名密钥（**必须修改**） |
+
+示例：
+
+```bash
+export MASTER_ADMIN_USERNAME=myadmin
+export MASTER_ADMIN_PASSWORD=your-secure-password
+export MASTER_JWT_SECRET=your-random-secret-key-at-least-32-chars
+
+cd cmd/atlhyper_master
+go run main.go
+```
+
+其他可选配置：
+
+| 环境变量 | 默认值 | 说明 |
+| -------- | ------ | ---- |
+| `MASTER_GATEWAY_PORT` | `8080` | Web/API 端口 |
+| `MASTER_AGENTSDK_PORT` | `8081` | Agent 数据上报端口 |
+| `MASTER_DB_TYPE` | `sqlite` | 数据库类型 |
+| `MASTER_JWT_TOKEN_EXPIRY` | `24h` | Token 有效期 |
+
+### Agent 配置
+
+Agent **必须** 配置 Master 的地址才能正常工作：
+
+| 环境变量 / 参数 | 必填 | 说明 |
+| --------------- | ---- | ---- |
+| `--cluster-id` | 是 | 集群唯一标识符 |
+| `--master` | 是 | Master 的 AgentSDK 地址 |
+
+示例：
+
+```bash
+cd cmd/atlhyper_agent
+go run main.go \
+  --cluster-id=production-cluster \
+  --master=http://192.168.1.100:8081
+```
+
+> **注意**：Agent 连接的是 Master 的 AgentSDK 端口（默认 8081），不是 Gateway 端口（8080）。
+
+### Web 配置
+
+Web 前端需要配置 Master API 地址：
+
+```bash
+cd atlhyper_web
+# 创建 .env.local 文件
+echo "NEXT_PUBLIC_API_URL=http://192.168.1.100:8080" > .env.local
+npm install && npm run build && npm start
+```
+
+### Docker 部署（推荐）
+
+```bash
+# Master
+docker run -d \
+  -e MASTER_ADMIN_PASSWORD=your-password \
+  -e MASTER_JWT_SECRET=your-jwt-secret \
+  -p 8080:8080 \
+  -p 8081:8081 \
+  atlhyper/master:latest
+
+# Agent (在每个 K8s 集群中部署)
+docker run -d \
+  --network host \
+  atlhyper/agent:latest \
+  --cluster-id=my-cluster \
+  --master=http://master-ip:8081
+```
+
 ## API 接口
 
 ### UI API (前端调用)

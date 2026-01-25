@@ -94,18 +94,25 @@ type AIConfig struct {
 	ToolTimeout time.Duration // Tool 执行超时
 }
 
+// EventAlertConfig 事件告警配置
+type EventAlertConfig struct {
+	Enabled       bool          // 是否启用事件告警
+	CheckInterval time.Duration // 检测间隔
+}
+
 // AppConfig Master 顶层配置结构体
 type AppConfig struct {
-	Server   ServerConfig
-	DataHub  DataHubConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Event    EventConfig
-	Timeout  TimeoutConfig
-	JWT      JWTConfig
-	Notifier NotifierConfig
-	Admin    AdminConfig
-	AI       AIConfig
+	Server     ServerConfig
+	DataHub    DataHubConfig
+	Database   DatabaseConfig
+	Redis      RedisConfig
+	Event      EventConfig
+	EventAlert EventAlertConfig
+	Timeout    TimeoutConfig
+	JWT        JWTConfig
+	Notifier   NotifierConfig
+	Admin      AdminConfig
+	AI         AIConfig
 }
 
 // GlobalConfig 全局配置实例

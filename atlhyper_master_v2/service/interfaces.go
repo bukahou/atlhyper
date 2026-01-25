@@ -46,6 +46,13 @@ type Query interface {
 	// ==================== 概览 ====================
 
 	GetOverview(ctx context.Context, clusterID string) (*model_v2.ClusterOverview, error)
+
+	// ==================== 单资源查询 (Event Alert Enrichment) ====================
+
+	GetPod(ctx context.Context, clusterID, namespace, name string) (*model_v2.Pod, error)
+	GetNode(ctx context.Context, clusterID, name string) (*model_v2.Node, error)
+	GetDeployment(ctx context.Context, clusterID, namespace, name string) (*model_v2.Deployment, error)
+	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*model_v2.Deployment, error)
 }
 
 // Ops 写入操作接口

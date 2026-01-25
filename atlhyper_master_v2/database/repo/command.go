@@ -50,6 +50,21 @@ func (r *commandRepo) ListByUser(ctx context.Context, userID int64, limit, offse
 	return r.queryAll(ctx, query, args...)
 }
 
+func (r *commandRepo) List(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error) {
+	query, args := r.dialect.SelectWithOpts(opts)
+	return r.queryAll(ctx, query, args...)
+}
+
+func (r *commandRepo) Count(ctx context.Context, opts database.CommandQueryOpts) (int64, error) {
+	query, args := r.dialect.CountWithOpts(opts)
+	var count int64
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *commandRepo) queryOne(ctx context.Context, query string, args ...any) (*database.CommandHistory, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

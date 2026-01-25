@@ -15,6 +15,10 @@ func (d *settingsDialect) SelectByKey(key string) (string, []any) {
 	return "SELECT key, value, description, updated_at, updated_by FROM settings WHERE key = ?", []any{key}
 }
 
+func (d *settingsDialect) SelectByPrefix(prefix string) (string, []any) {
+	return "SELECT key, value, description, updated_at, updated_by FROM settings WHERE key LIKE ?", []any{prefix + "%"}
+}
+
 func (d *settingsDialect) Upsert(s *database.Setting) (string, []any) {
 	query := `INSERT INTO settings (key, value, description, updated_at, updated_by)
 	VALUES (?, ?, ?, ?, ?)

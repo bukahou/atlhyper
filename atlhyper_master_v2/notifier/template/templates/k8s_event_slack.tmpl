@@ -1,0 +1,31 @@
+{{.SeverityEmoji}} *{{.Title}}*
+
+*资源:* {{.Resource}}
+*消息:* {{.Message}}
+{{- if .Fields.count}}
+*发生次数:* {{.Fields.count}}
+{{- end}}
+
+{{- if .Enriched}}
+{{- if .Enriched.Pod}}
+*Pod 状态:*
+  Phase: {{.Enriched.Pod.Phase}}
+  Restarts: {{.Enriched.Pod.Restarts}}
+  Ready: {{.Enriched.Pod.Ready}}
+  Node: {{.Enriched.Pod.NodeName}}
+{{- end}}
+{{- if .Enriched.Node}}
+*Node 状态:*
+  Ready: {{if .Enriched.Node.Ready}}Yes{{else}}No{{end}}
+  Conditions: {{.Enriched.Node.Conditions}}
+{{- end}}
+{{- if .Enriched.Deployment}}
+*关联 Deployment:*
+  Name: {{.Enriched.Deployment.Name}}
+  Namespace: {{.Enriched.Deployment.Namespace}}
+  Replicas: {{.Enriched.Deployment.Replicas}}
+{{- end}}
+{{- end}}
+
+*集群:* {{.ClusterID}}
+*时间:* {{.TimeStr}}

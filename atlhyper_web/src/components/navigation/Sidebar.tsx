@@ -23,6 +23,7 @@ import {
   ChevronsRight,
   ChevronDown,
   ChevronRight,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "@/i18n/context";
@@ -50,9 +51,7 @@ const navGroups: NavGroup[] = [
     children: [
       { key: "workbenchHome", href: "/workbench", icon: LayoutDashboard },
       { key: "ai", href: "/workbench/ai", icon: Bot },
-      { key: "clusters", href: "/system/clusters", icon: Server },
-      { key: "agents", href: "/system/agents", icon: Server },
-      { key: "notifications", href: "/system/notifications", icon: Bell },
+      { key: "commands", href: "/workbench/commands", icon: ClipboardList },
     ],
   },
   {
@@ -74,7 +73,14 @@ const navGroups: NavGroup[] = [
     children: [
       { key: "metrics", href: "/system/metrics", icon: Activity },
       { key: "logs", href: "/system/logs", icon: FileText },
-      { key: "alerts", href: "/system/alerts", icon: AlertTriangle },
+    ],
+  },
+  {
+    key: "settings",
+    icon: Settings,
+    children: [
+      { key: "aiSettings", href: "/system/settings/ai", icon: Bot, adminOnly: true },
+      { key: "notifications", href: "/system/notifications", icon: Bell, adminOnly: true },
     ],
   },
   {
@@ -98,7 +104,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { t } = useI18n();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 3;
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(["workbench", "cluster", "system", "account"]);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(["workbench", "cluster", "system", "settings", "account"]);
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
 
   const isActive = (href: string) => pathname === href;

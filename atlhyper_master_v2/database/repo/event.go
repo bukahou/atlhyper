@@ -111,6 +111,37 @@ func (r *eventRepo) CountByCluster(ctx context.Context, clusterID string) (int64
 	return count, err
 }
 
+// GetLatestEventID 获取最新事件 ID（用于告警服务启动同步）
+func (r *eventRepo) GetLatestEventID(ctx context.Context) (int64, error) {
+	var id int64
+	err := r.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(id), 0) FROM cluster_events").Scan(&id)
+	return id, err
+}
+
+// GetEventsSince 获取指定 ID 之后的所有事件（用于告警服务增量拉取）
+func (r *eventRepo) GetEventsSince(ctx context.Context, sinceID int64) ([]*database.ClusterEvent, error) {
+	query := `SELECT id, dedup_key, cluster_id, namespace, name, type, reason, message,
+		source_component, source_host, involved_kind, involved_name, involved_namespace,
+		first_timestamp, last_timestamp, count, created_at, updated_at
+		FROM cluster_events WHERE id > ? ORDER BY id ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, sinceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*database.ClusterEvent
+	for rows.Next() {
+		e, err := r.dialect.ScanRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
 func (r *eventRepo) CountByHour(ctx context.Context, clusterID string, hours int) ([]database.HourlyEventCount, error) {
 	since := time.Now().Add(-time.Duration(hours) * time.Hour)
 	query, args := r.dialect.CountByHour(clusterID, since)

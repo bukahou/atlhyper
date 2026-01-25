@@ -1,7 +1,7 @@
-// atlhyper_master_v2/service/operations/event_persist.go
+// atlhyper_master_v2/service/sync/event_persist.go
 // Event 持久化服务
 // 核心功能：将 DataHub 中的 Warning Events UPSERT 到 RDB（去重）
-package operations
+package sync
 
 import (
 	"context"
@@ -21,8 +21,8 @@ type EventPersistService struct {
 	eventRepo database.ClusterEventRepository
 
 	// 配置
-	retentionDays int
-	maxCount      int
+	retentionDays   int
+	maxCount        int
 	cleanupInterval time.Duration
 
 	// 控制

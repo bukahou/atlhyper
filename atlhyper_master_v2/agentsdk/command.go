@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"AtlHyper/model_v2"
 )
 
 // handleCommands 处理指令轮询
@@ -44,16 +46,21 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 	resp := CommandResponse{HasCommand: false}
 	if cmd != nil {
 		resp.HasCommand = true
-		resp.Command = &CommandInfo{
-			ID:              cmd.ID,
-			Action:          cmd.Action,
-			TargetKind:      cmd.TargetKind,
-			TargetNamespace: cmd.TargetNamespace,
-			TargetName:      cmd.TargetName,
-			Params:          cmd.Params,
+		// 从 model.Command 转换为 model_v2.Command
+		resp.Command = &model_v2.Command{
+			ID:        cmd.ID,
+			ClusterID: cmd.ClusterID,
+			Action:    cmd.Action,
+			Kind:      cmd.TargetKind,
+			Namespace: cmd.TargetNamespace,
+			Name:      cmd.TargetName,
+			Params:    cmd.Params,
+			Source:    cmd.Source,
+			CreatedBy: cmd.CreatedBy,
+			CreatedAt: cmd.CreatedAt,
 		}
-		log.Printf("[AgentSDK] 指令已下发: id=%s, 集群=%s, 操作=%s",
-			cmd.ID, clusterID, cmd.Action)
+		log.Printf("[AgentSDK] 指令已下发: id=%s, 集群=%s, 操作=%s, 来源=%s",
+			cmd.ID, clusterID, cmd.Action, cmd.Source)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
