@@ -34,6 +34,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/mq"
+	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/notifier/manager"
 	"AtlHyper/atlhyper_master_v2/processor"
 	"AtlHyper/atlhyper_master_v2/tester"
@@ -53,7 +54,7 @@ type Master struct {
 	gateway        *gateway.Server
 	testerServer   *tester.Server
 	eventPersist   *operations.EventPersistService
-	alertManager   *manager.AlertManager
+	alertManager   notifier.AlertManager
 	heartbeatCheck *operations.HeartbeatCheckService
 }
 
