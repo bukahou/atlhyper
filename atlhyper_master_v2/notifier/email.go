@@ -145,20 +145,60 @@ func (n *EmailNotifier) buildSubject(msg *Message) string {
 // buildBody 构建邮件正文
 func (n *EmailNotifier) buildBody(msg *Message) string {
 	var body strings.Builder
-	body.WriteString("<html><body>")
-	body.WriteString(fmt.Sprintf("<h2>%s</h2>", msg.Title))
-	body.WriteString(fmt.Sprintf("<p>%s</p>", msg.Content))
 
-	if len(msg.Fields) > 0 {
-		body.WriteString("<table border='1' cellpadding='5'>")
-		for k, v := range msg.Fields {
-			body.WriteString(fmt.Sprintf("<tr><td><strong>%s</strong></td><td>%s</td></tr>", k, v))
-		}
-		body.WriteString("</table>")
+	// HTML 头部和样式
+	body.WriteString(`<html>
+<head>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+.container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.header { padding: 20px; border-bottom: 1px solid #eee; }
+.header h2 { margin: 0; color: #333; }
+.content { padding: 20px; }
+.content pre { background: #f8f9fa; padding: 12px; border-radius: 4px; white-space: pre-wrap; font-size: 13px; }
+.fields { margin-top: 16px; }
+.fields table { width: 100%; border-collapse: collapse; }
+.fields td { padding: 8px 12px; border: 1px solid #eee; }
+.fields td:first-child { background: #f8f9fa; font-weight: 600; width: 120px; }
+.footer { padding: 16px 20px; border-top: 1px solid #eee; color: #666; font-size: 12px; }
+.severity-critical { color: #dc3545; }
+.severity-warning { color: #fd7e14; }
+.severity-info { color: #0d6efd; }
+</style>
+</head>
+<body>
+<div class="container">`)
+
+	// Header
+	severityClass := "severity-info"
+	switch msg.Severity {
+	case "critical":
+		severityClass = "severity-critical"
+	case "warning":
+		severityClass = "severity-warning"
+	}
+	body.WriteString(fmt.Sprintf(`<div class="header"><h2 class="%s">%s</h2></div>`, severityClass, msg.Title))
+
+	// Content
+	body.WriteString(`<div class="content">`)
+	if msg.Content != "" {
+		body.WriteString(fmt.Sprintf("<pre>%s</pre>", msg.Content))
 	}
 
-	body.WriteString("<hr><p><small>Sent by AtlHyper</small></p>")
-	body.WriteString("</body></html>")
+	// Fields
+	if len(msg.Fields) > 0 {
+		body.WriteString(`<div class="fields"><table>`)
+		for k, v := range msg.Fields {
+			body.WriteString(fmt.Sprintf("<tr><td>%s</td><td>%s</td></tr>", k, v))
+		}
+		body.WriteString("</table></div>")
+	}
+	body.WriteString("</div>")
+
+	// Footer
+	body.WriteString(`<div class="footer">Sent by AtlHyper</div>`)
+	body.WriteString("</div></body></html>")
+
 	return body.String()
 }
 

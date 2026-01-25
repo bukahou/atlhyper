@@ -39,8 +39,8 @@ func (n *SlackNotifier) Type() string {
 
 // Send 发送 Slack 通知
 func (n *SlackNotifier) Send(ctx context.Context, msg *Message) error {
-	// 构建 Slack 消息
-	payload := n.buildPayload(msg)
+	// 构建 Slack BlockKit 消息
+	payload := n.buildBlockKitPayload(msg)
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -66,38 +66,89 @@ func (n *SlackNotifier) Send(ctx context.Context, msg *Message) error {
 	return nil
 }
 
-// buildPayload 构建 Slack 消息体
-func (n *SlackNotifier) buildPayload(msg *Message) map[string]interface{} {
-	// 根据严重程度设置颜色
-	color := "#36a64f" // green
-	switch msg.Severity {
-	case "warning":
-		color = "#ff9800" // orange
-	case "critical":
-		color = "#f44336" // red
+// buildBlockKitPayload 构建 Slack BlockKit 消息体
+func (n *SlackNotifier) buildBlockKitPayload(msg *Message) map[string]interface{} {
+	blocks := []interface{}{}
+
+	// 1. Header
+	emoji := n.severityEmoji(msg.Severity)
+	headerText := fmt.Sprintf("%s %s", emoji, msg.Title)
+	if count, ok := msg.Fields["告警总数"]; ok {
+		headerText = fmt.Sprintf("%s（共 %s 条）", headerText, count)
 	}
 
-	// 构建 fields
-	var fields []map[string]interface{}
-	for k, v := range msg.Fields {
-		fields = append(fields, map[string]interface{}{
-			"title": k,
-			"value": v,
-			"short": true,
+	blocks = append(blocks, map[string]interface{}{
+		"type": "header",
+		"text": map[string]interface{}{
+			"type":  "plain_text",
+			"text":  headerText,
+			"emoji": true,
+		},
+	})
+
+	// 2. Divider
+	blocks = append(blocks, map[string]interface{}{"type": "divider"})
+
+	// 3. Stats section (fields)
+	if len(msg.Fields) > 0 {
+		var fieldBlocks []interface{}
+		for k, v := range msg.Fields {
+			if k == "告警总数" {
+				continue // 已在标题中显示
+			}
+			fieldBlocks = append(fieldBlocks, map[string]interface{}{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("*%s*\n%s", k, v),
+			})
+		}
+		if len(fieldBlocks) > 0 {
+			blocks = append(blocks, map[string]interface{}{
+				"type":   "section",
+				"fields": fieldBlocks,
+			})
+			blocks = append(blocks, map[string]interface{}{"type": "divider"})
+		}
+	}
+
+	// 4. Content (alert details)
+	if msg.Content != "" {
+		blocks = append(blocks, map[string]interface{}{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": msg.Content,
+			},
 		})
 	}
 
-	return map[string]interface{}{
-		"attachments": []map[string]interface{}{
-			{
-				"color":  color,
-				"title":  msg.Title,
-				"text":   msg.Content,
-				"fields": fields,
-				"footer": "AtlHyper",
-				"ts":     time.Now().Unix(),
+	// 5. Divider
+	blocks = append(blocks, map[string]interface{}{"type": "divider"})
+
+	// 6. Footer
+	blocks = append(blocks, map[string]interface{}{
+		"type": "context",
+		"elements": []interface{}{
+			map[string]interface{}{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("⏰ %s | *AtlHyper*", time.Now().Format("2006-01-02 15:04:05")),
 			},
 		},
+	})
+
+	return map[string]interface{}{
+		"blocks": blocks,
+	}
+}
+
+// severityEmoji 返回严重级别对应的 emoji
+func (n *SlackNotifier) severityEmoji(severity string) string {
+	switch severity {
+	case SeverityCritical:
+		return "🚨"
+	case SeverityWarning:
+		return "⚠️"
+	default:
+		return "ℹ️"
 	}
 }
 
