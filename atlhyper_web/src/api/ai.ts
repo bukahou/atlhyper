@@ -5,7 +5,7 @@
  * SSE 流式对话使用原生 fetch + ReadableStream (Axios 不支持 SSE)
  */
 
-import { get, post, del } from "./request";
+import { get, post, del, authErrorManager } from "./request";
 import { env } from "@/config/env";
 import { Conversation, Message, StreamSegment } from "@/components/ai/types";
 
@@ -79,6 +79,9 @@ export function streamChat(
   })
     .then(async (response) => {
       if (!response.ok) {
+        if (response.status === 401) {
+          authErrorManager.emit({ type: "unauthorized", message: "登录已过期，请重新登录" });
+        }
         const text = await response.text().catch(() => "");
         onError(`HTTP ${response.status}: ${text}`);
         return;
