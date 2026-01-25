@@ -13,6 +13,7 @@ type Command struct {
 	TargetNamespace string                 `json:"target_namespace"`
 	TargetName      string                 `json:"target_name"`
 	Params          map[string]interface{} `json:"params,omitempty"`
+	Source          string                 `json:"source,omitempty"` // 来源: "ai" / "web"
 	CreatedAt       time.Time              `json:"created_at"`
 	CreatedBy       string                 `json:"created_by,omitempty"` // 创建者用户名
 }

@@ -277,7 +277,12 @@ func (s *commandService) handleDynamic(ctx context.Context, cmd *model.Command) 
 		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(resp.Body))
 	}
 
-	// 过滤 managedFields（节省 LLM token）
+	// AI 来源的 list 操作: 转为表格摘要（大幅压缩体积）
+	if params.Command == "list" && cmd.Source == "ai" {
+		return summarizeList(stripManagedFields(resp.Body)), nil
+	}
+
+	// 其他情况: 保留完整 JSON（仅去 managedFields）
 	return string(stripManagedFields(resp.Body)), nil
 }
 

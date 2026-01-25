@@ -67,6 +67,7 @@ func (s *CommandService) CreateCommand(req *CreateCommandRequest) (*CreateComman
 		TargetNamespace: req.TargetNamespace,
 		TargetName:      req.TargetName,
 		Params:          req.Params,
+		Source:          req.Source,
 		CreatedAt:       time.Now(),
 	}
 

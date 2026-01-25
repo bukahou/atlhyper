@@ -154,7 +154,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			ch <- &ChatChunk{
 				Type:    "tool_result",
 				Tool:    tc.Name,
-				Content: truncate(result, 2000),
+				Content: truncate(result, 4000),
 			}
 
 			// 添加 tool 结果到历史（截断防 token 爆炸）
@@ -163,7 +163,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 				ToolResult: &llm.ToolResult{
 					CallID:  tc.ID,
 					Name:    tc.Name,
-					Content: truncate(result, 8000),
+					Content: truncate(result, 32000),
 				},
 			})
 		}

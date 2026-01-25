@@ -19,11 +19,12 @@ type Command struct {
 	ClusterID string `json:"cluster_id"` // 目标集群
 
 	// 指令内容
-	Action    string         `json:"action"`    // 操作类型 (见常量定义)
-	Kind      string         `json:"kind"`      // 资源类型 (Pod, Deployment 等)
-	Namespace string         `json:"namespace"` // 目标命名空间
-	Name      string         `json:"name"`      // 目标资源名称
-	Params    map[string]any `json:"params"`    // 额外参数 (随 Action 不同而变化)
+	Action    string         `json:"action"`              // 操作类型 (见常量定义)
+	Kind      string         `json:"kind"`                // 资源类型 (Pod, Deployment 等)
+	Namespace string         `json:"namespace"`           // 目标命名空间
+	Name      string         `json:"name"`                // 目标资源名称
+	Params    map[string]any `json:"params"`              // 额外参数 (随 Action 不同而变化)
+	Source    string         `json:"source,omitempty"`    // 来源: "ai" / "web"
 
 	// 时间
 	CreatedAt time.Time `json:"created_at"` // 创建时间
