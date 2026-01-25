@@ -1,5 +1,5 @@
-// atlhyper_master_v2/notifier/notifier.go
-// 通知模块入口 - 接口定义
+// atlhyper_master_v2/notifier/interfaces.go
+// 接口定义
 package notifier
 
 import "context"
