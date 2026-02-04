@@ -16,16 +16,16 @@ export function PageHeader({ title, description, autoRefreshSeconds, onRefresh, 
   const { t } = useI18n();
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
           {title}
         </h1>
         {description && (
-          <p className="text-gray-500 dark:text-gray-400 mt-1">{description}</p>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mt-1">{description}</p>
         )}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
         {actions}
         {onRefresh && (
           <div className="flex items-center gap-2">
@@ -36,7 +36,7 @@ export function PageHeader({ title, description, autoRefreshSeconds, onRefresh, 
             )}
             <button
               onClick={onRefresh}
-              className="flex items-center gap-2 px-3 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-2.5 sm:py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors"
               title={t.common.refresh}
             >
               <RefreshCw className="w-4 h-4" />
