@@ -150,8 +150,15 @@ func (h *AIHandler) getMessages(w http.ResponseWriter, r *http.Request, convID i
 	writeJSON(w, http.StatusOK, msgs)
 }
 
-// deleteConversation 删除对话
+// deleteConversation 删除对话（需要 Operator 权限）
 func (h *AIHandler) deleteConversation(w http.ResponseWriter, r *http.Request, convID int64) {
+	// 检查权限：需要 Operator (Role >= 2)
+	role, ok := middleware.GetRole(r.Context())
+	if !ok || role < middleware.RoleOperator {
+		writeError(w, http.StatusForbidden, "需要 Operator 权限")
+		return
+	}
+
 	if err := h.aiService.DeleteConversation(r.Context(), convID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

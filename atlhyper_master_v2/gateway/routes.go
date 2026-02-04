@@ -148,19 +148,6 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/commands/history", commandHandler.ListHistory)
 		register("/api/v2/commands/", commandHandler.GetStatus)
 
-		// ---------- 通知渠道查询 ----------
-		register("/api/v2/notify/channels", notifyHandler.ListChannels)
-
-		// ---------- 审计日志查询 ----------
-		register("/api/v2/audit/logs", auditHandler.List)
-
-		// ---------- AI 配置查询（只读） ----------
-		register("/api/v2/settings/ai", settingsHandler.AIConfigHandler)
-
-		// ---------- AI Provider 查询（只读） ----------
-		register("/api/v2/ai/providers", aiProviderHandler.ProvidersHandler)
-		register("/api/v2/ai/active", aiProviderHandler.ActiveConfigHandler)
-
 		// ---------- SLO 监控查询（只读） ----------
 		register("/api/v2/slo/domains", sloHandler.Domains)       // V1: 按 service key
 		register("/api/v2/slo/domains/v2", sloHandler.DomainsV2)  // V2: 按真实域名
@@ -180,10 +167,15 @@ func (r *Router) registerRoutes() {
 	// 所有敏感操作都需要审计（包括权限不足的失败尝试）
 	// ================================================================
 
-	// ConfigMap 详情（不审计，只是查看）
+	// ConfigMap 详情、通知渠道、审计日志、AI 配置查询（不审计，只是查看）
 	r.operator(func(register func(pattern string, h http.HandlerFunc)) {
 		register("/api/v2/configmaps/", configmapHandler.Get)
 		register("/api/v2/secrets", secretHandler.List)
+		register("/api/v2/notify/channels", notifyHandler.ListChannels)
+		register("/api/v2/audit/logs", auditHandler.List)
+		register("/api/v2/settings/ai", settingsHandler.AIConfigHandler)
+		register("/api/v2/ai/providers", aiProviderHandler.ProvidersHandler)
+		register("/api/v2/ai/active", aiProviderHandler.ActiveConfigHandler)
 	})
 
 	// ---------- 需要审计的敏感操作 ----------
@@ -237,8 +229,8 @@ func (r *Router) registerRoutes() {
 	r.adminAudited("/api/v2/user/update-status", "update", "user", userHandler.UpdateStatus)
 	r.adminAudited("/api/v2/user/delete", "delete", "user", userHandler.Delete)
 
-	// 通知渠道管理
-	r.adminAudited("/api/v2/notify/channels/", "update", "notify", notifyHandler.ChannelHandler)
+	// 通知渠道管理（Operator 可管理）
+	r.operatorAudited("/api/v2/notify/channels/", "update", "notify", notifyHandler.ChannelHandler)
 
 	// AI 配置管理（需要 Admin 权限）
 	r.adminAudited("/api/v2/settings/ai/", "update", "ai_config", settingsHandler.AIConfigHandler)
