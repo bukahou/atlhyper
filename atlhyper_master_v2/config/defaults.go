@@ -26,6 +26,13 @@ var defaultDurations = map[string]string{
 
 	// -------------------- AI 配置 --------------------
 	"MASTER_AI_TOOL_TIMEOUT": "30s", // Tool 执行超时
+
+	// -------------------- SLO 配置 --------------------
+	"MASTER_SLO_AGGREGATE_INTERVAL": "1h",     // 聚合间隔
+	"MASTER_SLO_CLEANUP_INTERVAL":   "1h",     // 清理间隔
+	"MASTER_SLO_RAW_RETENTION":      "48h",    // raw 数据保留时间
+	"MASTER_SLO_HOURLY_RETENTION":   "2160h",  // hourly 数据保留时间 (90 天)
+	"MASTER_SLO_STATUS_RETENTION":   "4320h",  // 状态历史保留时间 (180 天)
 }
 
 // ============================================================
@@ -49,15 +56,16 @@ var defaultInts = map[string]int{
 	// -------------------- Event 持久化 --------------------
 	"MASTER_EVENT_RETENTION_DAYS": 30,     // 保留天数
 	"MASTER_EVENT_MAX_COUNT":      100000, // 单集群最大事件数
-
-	// -------------------- Email 配置 --------------------
-	"MASTER_EMAIL_SMTP_PORT": 587, // SMTP 端口（587 for TLS）
 }
 
 // ============================================================
 // 字符串类型默认值
 // ============================================================
 var defaultStrings = map[string]string{
+	// -------------------- 日志配置 --------------------
+	"MASTER_LOG_LEVEL":  "info", // 日志级别: debug / info / warn / error
+	"MASTER_LOG_FORMAT": "text", // 日志格式: text / json
+
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_TYPE": "memory", // DataHub 类型
 
@@ -71,43 +79,22 @@ var defaultStrings = map[string]string{
 	"MASTER_DB_DSN":  "",               // MySQL/PG 连接串
 
 	// -------------------- JWT 配置 --------------------
-	"MASTER_JWT_SECRET": "atlhyper-default-secret-change-in-production", // JWT 密钥
-
-	// -------------------- Slack 配置 --------------------
-	"MASTER_SLACK_WEBHOOK_URL": "", // Slack Webhook URL
-
-	// -------------------- Email 配置 --------------------
-	"MASTER_EMAIL_SMTP_HOST":     "", // SMTP 服务器地址
-	"MASTER_EMAIL_SMTP_USER":     "",               // SMTP 用户名（敏感）
-	"MASTER_EMAIL_SMTP_PASSWORD": "",               // SMTP 密码（敏感）
-	"MASTER_EMAIL_FROM":          "",               // 发件人地址（敏感）
-	"MASTER_EMAIL_TO":            "",               // 收件人列表（敏感）
+	"MASTER_JWT_SECRET": "", // JWT 密钥（必须通过环境变量配置）
 
 	// -------------------- 默认管理员配置 --------------------
-	"MASTER_ADMIN_USERNAME":     "admin",         // 管理员用户名
-	"MASTER_ADMIN_PASSWORD":     "admin123",      // 管理员密码（首次登录后请修改）
-	"MASTER_ADMIN_DISPLAY_NAME": "Administrator", // 管理员显示名称
+	"MASTER_ADMIN_USERNAME":     "", // 管理员用户名（必须通过环境变量配置）
+	"MASTER_ADMIN_PASSWORD":     "", // 管理员密码（必须通过环境变量配置）
+	"MASTER_ADMIN_DISPLAY_NAME": "", // 管理员显示名称
 
-	// -------------------- AI 配置 --------------------
-	"MASTER_AI_PROVIDER":       "",          // LLM 提供商
-	"MASTER_AI_GEMINI_API_KEY": "",                // Gemini API Key（必须设置才能启用 AI）
-	"MASTER_AI_GEMINI_MODEL":   "", // Gemini 模型
 }
 
 // ============================================================
 // 布尔类型默认值
 // ============================================================
 var defaultBools = map[string]bool{
-	// -------------------- Slack 配置 --------------------
-	"MASTER_SLACK_ENABLED": false, // 是否启用 Slack 通知（需配置 WEBHOOK_URL）
-
-	// -------------------- Email 配置 --------------------
-	"MASTER_EMAIL_ENABLED":  false, // 是否启用邮件通知（需配置 SMTP）
-	"MASTER_EMAIL_SMTP_TLS": false, // 是否启用 SMTP TLS
-
 	// -------------------- AI 配置 --------------------
-	"MASTER_AI_ENABLED": false, // 是否启用 AI 功能（需配置 API Key）
+	"MASTER_AI_ENABLED": false, // 是否启用 AI 功能（Web UI 配置）
 
 	// -------------------- Event 告警 --------------------
-	"MASTER_EVENT_ALERT_ENABLED": true, // 是否启用事件告警/false
+	"MASTER_EVENT_ALERT_ENABLED": true, // 是否启用事件告警
 }

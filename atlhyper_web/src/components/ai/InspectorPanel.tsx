@@ -7,14 +7,17 @@ import {
   Check,
   X,
   Loader2,
+  Brain,
 } from "lucide-react";
-import { Message, StreamSegment } from "./types";
+import { Message, StreamSegment, ChatStats, Conversation } from "./types";
 
 export interface InspectorPanelProps {
   messages: Message[];
   streamSegments: StreamSegment[];
   streaming: boolean;
   clusterId: string;
+  currentStats?: ChatStats; // 当前提问的统计信息（streaming 结束后更新）
+  currentConversation?: Conversation; // 当前对话（含累计统计）
 }
 
 export function InspectorPanel({
@@ -22,27 +25,28 @@ export function InspectorPanel({
   streamSegments,
   streaming,
   clusterId,
+  currentStats,
+  currentConversation,
 }: InspectorPanelProps) {
-  // 统计 tool 调用次数
-  let toolCallCount = 0;
+  // 实时统计 streaming 中的 tool 调用（streaming 时显示）
+  let streamingToolCalls = 0;
+  for (const seg of streamSegments) {
+    if (seg.type === "tool_call") streamingToolCalls++;
+  }
+
+  // 计算对话轮次（一问一答算一轮）
+  const conversationRounds = messages.filter((m) => m.role === "user").length;
+
+  // 计算对话历史中的总指令数（所有消息）
+  let historyToolCalls = 0;
   for (const msg of messages) {
     if (msg.role === "assistant" && msg.tool_calls) {
       try {
         const calls = JSON.parse(msg.tool_calls);
-        toolCallCount += calls.length;
+        historyToolCalls += calls.length;
       } catch { /* ignore */ }
     }
   }
-  for (const seg of streamSegments) {
-    if (seg.type === "tool_call") toolCallCount++;
-  }
-
-  // 估算 token 总量
-  const totalChars = messages.reduce(
-    (sum, m) => sum + (m.content?.length || 0) + (m.tool_calls?.length || 0),
-    0
-  );
-  const estimatedTokens = Math.ceil(totalChars * 0.7) + 550; // +550 system prompt overhead
 
   return (
     <div className="flex flex-col overflow-hidden">
@@ -63,16 +67,62 @@ export function InspectorPanel({
           </div>
         </Section>
 
-        {/* 对话统计 */}
-        <Section icon={BarChart3} title="对话统计">
+        {/* 本次提问统计 */}
+        <Section icon={Brain} title="本次提问">
           <div className="px-4 space-y-1.5">
-            <InfoRow label="消息数" value={`${messages.length}`} />
-            <InfoRow label="Tool 调用" value={`${toolCallCount} 次`} />
-            <InfoRow label="估算 Token" value={`~${estimatedTokens.toLocaleString()}`} />
+            {streaming ? (
+              <>
+                <InfoRow
+                  label="思考轮次"
+                  value="进行中..."
+                  highlight
+                />
+                <InfoRow
+                  label="执行指令"
+                  value={`${streamingToolCalls} 条`}
+                  highlight={streamingToolCalls > 0}
+                />
+              </>
+            ) : currentStats ? (
+              <>
+                <InfoRow
+                  label="思考轮次"
+                  value={`${currentStats.rounds} 轮`}
+                />
+                <InfoRow
+                  label="执行指令"
+                  value={`${currentStats.total_tool_calls} 条`}
+                />
+                <InfoRow
+                  label="输入 Token"
+                  value={currentStats.input_tokens.toLocaleString()}
+                />
+                <InfoRow
+                  label="输出 Token"
+                  value={currentStats.output_tokens.toLocaleString()}
+                />
+                <InfoRow
+                  label="总计 Token"
+                  value={(currentStats.input_tokens + currentStats.output_tokens).toLocaleString()}
+                />
+              </>
+            ) : (
+              <InfoRow label="状态" value="等待提问" />
+            )}
+          </div>
+        </Section>
+
+        {/* 对话统计 */}
+        <Section icon={BarChart3} title="对话概览">
+          <div className="px-4 space-y-1.5">
+            <InfoRow label="对话轮次" value={`${conversationRounds} 轮`} />
+            <InfoRow label="累计指令" value={`${currentConversation?.total_tool_calls ?? historyToolCalls} 条`} />
             <InfoRow
-              label="当前状态"
-              value={streaming ? "生成中..." : "空闲"}
-              highlight={streaming}
+              label="累计 Token"
+              value={currentConversation
+                ? `↑${currentConversation.total_input_tokens.toLocaleString()} ↓${currentConversation.total_output_tokens.toLocaleString()}`
+                : "-"
+              }
             />
           </div>
         </Section>

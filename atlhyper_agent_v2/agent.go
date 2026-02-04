@@ -15,24 +15,28 @@ package atlhyper_agent_v2
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"AtlHyper/atlhyper_agent_v2/config"
 	"AtlHyper/atlhyper_agent_v2/gateway"
+	"AtlHyper/atlhyper_agent_v2/metricsdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/atlhyper_agent_v2/scheduler"
-	"AtlHyper/atlhyper_agent_v2/sdk"
+	sdkpkg "AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/sdk/impl"
 	"AtlHyper/atlhyper_agent_v2/service"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Agent")
 
 // Agent 是 Agent V2 的主结构体
 // 封装调度器，提供启动/运行/停止接口
 type Agent struct {
-	scheduler *scheduler.Scheduler
+	scheduler  *scheduler.Scheduler
+	metricsSDK *metricsdk.Server
 }
 
 // New 创建并初始化 Agent 实例
@@ -58,7 +62,7 @@ func New() (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println("[Agent] K8s 客户端初始化完成")
+	log.Info("K8s 客户端初始化完成")
 
 	// 如果未配置 ClusterID，自动获取集群 UID (kube-system namespace 的 UID)
 	if cfg.Agent.ClusterID == "" {
@@ -67,7 +71,7 @@ func New() (*Agent, error) {
 			return nil, fmt.Errorf("failed to get cluster UID: %w", err)
 		}
 		cfg.Agent.ClusterID = string(ns.UID)
-		log.Printf("[Agent] 自动检测 ClusterID: %s", cfg.Agent.ClusterID)
+		log.Info("自动检测 ClusterID", "cluster", cfg.Agent.ClusterID)
 	}
 
 	// 2. 初始化 Gateway (Master 通信)
@@ -75,6 +79,18 @@ func New() (*Agent, error) {
 
 	// 3. 初始化 Repository (数据访问层)
 	repos := initRepositories(k8sClient)
+
+	// 3.1 初始化 MetricsRepository (节点指标)
+	var metricsRepo repository.MetricsRepository
+	var metricsSvr *metricsdk.Server
+	if cfg.MetricsSDK.Enabled {
+		metricsRepo = repository.NewMetricsRepository()
+		metricsSvr = metricsdk.NewServer(metricsdk.Config{
+			Port:        cfg.MetricsSDK.Port,
+			MetricsRepo: metricsRepo,
+		})
+		log.Info("Metrics Repository 初始化完成")
+	}
 
 	// 4. 初始化 Service (业务逻辑层)
 	snapshotSvc := service.NewSnapshotService(
@@ -86,9 +102,22 @@ func New() (*Agent, error) {
 		repos.job, repos.cronJob, repos.pv, repos.pvc,
 		repos.resourceQuota, repos.limitRange,
 		repos.networkPolicy, repos.serviceAccount,
+		metricsRepo,
 	)
 
 	commandSvc := service.NewCommandService(repos.pod, repos.generic)
+
+	// 4.1 初始化 SLO Service (可选)
+	var sloSvc service.SLOService
+	if cfg.SLO.Enabled {
+		scraper := impl.NewMetricsScraper(k8sClient, cfg.SLO.ScrapeTimeout)
+		routeCollector := impl.NewIngressRouteCollector(k8sClient)
+		sloSvc = service.NewSLOService(scraper, routeCollector, service.SLOServiceConfig{
+			MetricsURL:   cfg.SLO.IngressURL,
+			AutoDiscover: cfg.SLO.AutoDiscover,
+		})
+		log.Info("SLO 服务初始化完成")
+	}
 
 	// 5. 初始化 Scheduler (调度层)
 	schedCfg := scheduler.Config{
@@ -98,11 +127,15 @@ func New() (*Agent, error) {
 		SnapshotTimeout:     cfg.Timeout.SnapshotCollect,
 		CommandPollTimeout:  cfg.Timeout.CommandPoll,
 		HeartbeatTimeout:    cfg.Timeout.Heartbeat,
+		SLOEnabled:          cfg.SLO.Enabled,
+		SLOScrapeInterval:   cfg.SLO.ScrapeInterval,
+		SLOScrapeTimeout:    cfg.SLO.ScrapeTimeout,
 	}
-	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw)
+	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, sloSvc, masterGw)
 
 	return &Agent{
-		scheduler: sched,
+		scheduler:  sched,
+		metricsSDK: metricsSvr,
 	}, nil
 }
 
@@ -117,12 +150,19 @@ func New() (*Agent, error) {
 // 返回:
 //   - error: 调度器停止时的错误
 func (a *Agent) Run(ctx context.Context) error {
+	// 启动 Metrics SDK (如果启用)
+	if a.metricsSDK != nil {
+		if err := a.metricsSDK.Start(); err != nil {
+			return err
+		}
+	}
+
 	// 启动调度器 (开始快照采集、指令轮询、心跳)
 	if err := a.scheduler.Start(ctx); err != nil {
 		return err
 	}
 
-	log.Println("[Agent] Agent 启动成功")
+	log.Info("Agent 启动成功")
 
 	// 等待退出信号
 	sigCh := make(chan os.Signal, 1)
@@ -130,7 +170,15 @@ func (a *Agent) Run(ctx context.Context) error {
 	<-sigCh
 
 	// 优雅停止
-	log.Println("[Agent] 正在关闭...")
+	log.Info("正在关闭...")
+
+	// 停止 Metrics SDK
+	if a.metricsSDK != nil {
+		if err := a.metricsSDK.Stop(); err != nil {
+			log.Error("停止 Metrics SDK 失败", "err", err)
+		}
+	}
+
 	return a.scheduler.Stop()
 }
 
@@ -166,7 +214,7 @@ type repositories struct {
 
 // initRepositories 初始化所有 Repository
 // 每个 Repository 封装对应 K8s 资源的 CRUD 操作
-func initRepositories(client sdk.K8sClient) *repositories {
+func initRepositories(client sdkpkg.K8sClient) *repositories {
 	return &repositories{
 		pod:            repository.NewPodRepository(client),
 		node:           repository.NewNodeRepository(client),

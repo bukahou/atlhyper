@@ -14,6 +14,9 @@ type LLMClient interface {
 	// 返回 Chunk channel，调用方通过 range 读取流式响应
 	// channel 关闭表示响应结束
 	ChatStream(ctx context.Context, req *Request) (<-chan *Chunk, error)
+
+	// Close 关闭客户端，释放资源
+	Close() error
 }
 
 // Request 对话请求
@@ -58,6 +61,13 @@ type Chunk struct {
 	Content  string    // 文本片段（Type=ChunkText 时使用）
 	ToolCall *ToolCall // Tool Call 信息（Type=ChunkToolCall 时使用）
 	Error    error     // 错误信息（Type=ChunkError 时使用）
+	Usage    *Usage    // Token 使用量（Type=ChunkDone 时可能返回）
+}
+
+// Usage Token 使用量
+type Usage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
 }
 
 // ChunkType 响应块类型

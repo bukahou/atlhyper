@@ -73,16 +73,25 @@ func (c *Client) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.
 
 // readStream 读取流式响应并转换为 Chunk
 func (c *Client) readStream(ctx context.Context, iter *genai.GenerateContentResponseIterator, ch chan<- *llm.Chunk) {
+	var lastUsage *llm.Usage
 	for {
 		resp, err := iter.Next()
 		if err == iterator.Done {
-			ch <- &llm.Chunk{Type: llm.ChunkDone}
+			ch <- &llm.Chunk{Type: llm.ChunkDone, Usage: lastUsage}
 			return
 		}
 		if err != nil {
 			log.Printf("[Gemini] 流式读取错误: %v", err)
 			ch <- &llm.Chunk{Type: llm.ChunkError, Error: err}
 			return
+		}
+
+		// 记录 usage（每次响应可能包含 usage，取最后一个）
+		if resp.UsageMetadata != nil {
+			lastUsage = &llm.Usage{
+				InputTokens:  int(resp.UsageMetadata.PromptTokenCount),
+				OutputTokens: int(resp.UsageMetadata.CandidatesTokenCount),
+			}
 		}
 
 		// 解析候选响应
@@ -320,8 +329,9 @@ func buildSchema(m map[string]any) *genai.Schema {
 }
 
 // Close 关闭客户端
-func (c *Client) Close() {
+func (c *Client) Close() error {
 	if c.client != nil {
-		c.client.Close()
+		return c.client.Close()
 	}
+	return nil
 }

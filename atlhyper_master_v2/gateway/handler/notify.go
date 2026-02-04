@@ -254,8 +254,9 @@ func validateChannelConfig(channelType, config string) []string {
 		if cfg.SMTPPassword == "" {
 			errors = append(errors, "smtp_password 未配置")
 		}
-		if cfg.FromAddress == "" {
-			errors = append(errors, "from_address 未配置")
+		// from_address 统一使用 smtp_user，无需单独验证
+		if len(cfg.ToAddresses) == 0 {
+			errors = append(errors, "to_addresses 未配置（至少需要一个收件人）")
 		}
 
 	case "webhook":

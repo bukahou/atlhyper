@@ -64,6 +64,7 @@ func (r *Router) registerRoutes() {
 	userHandler := handler.NewUserHandler(r.database.User)
 	clusterHandler := handler.NewClusterHandler(r.service)
 	overviewHandler := handler.NewOverviewHandler(r.service)
+	sloHandler := handler.NewSLOHandler(r.database.SLO, nil) // Aggregator 在 master.go 中注入
 	podHandler := handler.NewPodHandler(r.service)
 	nodeHandler := handler.NewNodeHandler(r.service)
 	deploymentHandler := handler.NewDeploymentHandler(r.service)
@@ -78,8 +79,10 @@ func (r *Router) registerRoutes() {
 	commandHandler := handler.NewCommandHandler(r.service, r.database)
 	notifyHandler := handler.NewNotifyHandler(r.database)
 	settingsHandler := handler.NewSettingsHandler(r.database)
+	aiProviderHandler := handler.NewAIProviderHandler(r.database)
 	opsHandler := handler.NewOpsHandler(r.service, r.bus)
 	auditHandler := handler.NewAuditHandler(r.database)
+	nodeMetricsHandler := handler.NewNodeMetricsHandler(r.database.NodeMetrics)
 
 	// ================================================================
 	// 公开路由（无需认证）
@@ -153,6 +156,22 @@ func (r *Router) registerRoutes() {
 
 		// ---------- AI 配置查询（只读） ----------
 		register("/api/v2/settings/ai", settingsHandler.AIConfigHandler)
+
+		// ---------- AI Provider 查询（只读） ----------
+		register("/api/v2/ai/providers", aiProviderHandler.ProvidersHandler)
+		register("/api/v2/ai/active", aiProviderHandler.ActiveConfigHandler)
+
+		// ---------- SLO 监控查询（只读） ----------
+		register("/api/v2/slo/domains", sloHandler.Domains)       // V1: 按 service key
+		register("/api/v2/slo/domains/v2", sloHandler.DomainsV2)  // V2: 按真实域名
+		register("/api/v2/slo/domains/detail", sloHandler.DomainDetail)
+		register("/api/v2/slo/domains/history", sloHandler.DomainHistory)
+		register("/api/v2/slo/targets", sloHandler.Targets)
+		register("/api/v2/slo/status-history", sloHandler.StatusHistory)
+
+		// ---------- 节点指标查询（只读） ----------
+		register("/api/v2/node-metrics", nodeMetricsHandler.Route)
+		register("/api/v2/node-metrics/", nodeMetricsHandler.Route)
 	})
 
 	// ================================================================
@@ -223,6 +242,10 @@ func (r *Router) registerRoutes() {
 
 	// AI 配置管理（需要 Admin 权限）
 	r.adminAudited("/api/v2/settings/ai/", "update", "ai_config", settingsHandler.AIConfigHandler)
+
+	// AI Provider 管理（需要 Admin 权限）
+	r.adminAudited("/api/v2/ai/providers/", "update", "ai_provider", aiProviderHandler.ProviderHandler)
+	r.adminAudited("/api/v2/ai/active/", "update", "ai_provider", aiProviderHandler.ActiveConfigHandler)
 }
 
 // ================================================================

@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "AtlHyper - Kubernetes Monitoring Platform",
   description: "AtlHyper Kubernetes 监控平台",
   icons: {
-    icon: "/icon.svg",
+    icon: "/icon.png",
   },
 };
 

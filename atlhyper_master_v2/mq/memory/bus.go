@@ -4,12 +4,14 @@ package memory
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("MemoryBus")
 
 // MemoryBus 内存消息队列
 type MemoryBus struct {
@@ -49,14 +51,14 @@ func New() *MemoryBus {
 // Start 启动 MemoryBus
 func (b *MemoryBus) Start() error {
 	go b.cleanupLoop()
-	log.Println("[MemoryBus] 已启动")
+	log.Info("已启动")
 	return nil
 }
 
 // Stop 停止 MemoryBus
 func (b *MemoryBus) Stop() error {
 	close(b.stopCh)
-	log.Println("[MemoryBus] 已停止")
+	log.Info("已停止")
 	return nil
 }
 
@@ -106,7 +108,7 @@ func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *model.Command) 
 	default:
 	}
 
-	log.Printf("[MemoryBus] 指令已入队: %s -> %s [%s]", cmd.ID, clusterID, topic)
+	log.Debug("指令已入队", "cmd", cmd.ID, "cluster", clusterID, "topic", topic)
 	return nil
 }
 
@@ -198,7 +200,7 @@ func (b *MemoryBus) AckCommand(cmdID string, result *model.CommandResult) error 
 	}
 	b.commandWaitersMu.Unlock()
 
-	log.Printf("[MemoryBus] 指令已完成: %s -> %s", cmdID, cs.Status)
+	log.Debug("指令已完成", "cmd", cmdID, "status", cs.Status)
 	return nil
 }
 

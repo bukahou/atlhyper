@@ -46,31 +46,6 @@ type JWTConfig struct {
 	TokenExpiry time.Duration // Token 有效期
 }
 
-// NotifierConfig 通知配置
-// 启动时同步到数据库，运行时从数据库读取
-type NotifierConfig struct {
-	Slack SlackChannelConfig // Slack 配置 (对应数据库 type=slack)
-	Email EmailChannelConfig // Email 配置 (对应数据库 type=email)
-}
-
-// SlackChannelConfig Slack 渠道配置
-type SlackChannelConfig struct {
-	Enabled    bool   // 是否启用
-	WebhookURL string // Webhook URL
-}
-
-// EmailChannelConfig Email 渠道配置
-type EmailChannelConfig struct {
-	Enabled      bool     // 是否启用
-	SMTPHost     string   // SMTP 服务器地址
-	SMTPPort     int      // SMTP 端口（587 for TLS, 465 for SSL）
-	SMTPUser     string   // SMTP 用户名
-	SMTPPassword string   // SMTP 密码
-	SMTPTLS      bool     // 是否启用 TLS
-	FromAddress  string   // 发件人地址
-	ToAddresses  []string // 收件人列表
-}
-
 // AdminConfig 默认管理员配置
 type AdminConfig struct {
 	Username    string // 管理员用户名
@@ -86,12 +61,11 @@ type RedisConfig struct {
 }
 
 // AIConfig AI 功能配置
+// Enabled 和 ToolTimeout 用于首次启动时初始化数据库
+// 运行时配置从数据库 ai_active_config 表读取
 type AIConfig struct {
-	Enabled     bool          // 是否启用 AI 功能
-	Provider    string        // LLM 提供商: gemini
-	APIKey      string        // API Key
-	Model       string        // 模型名称
-	ToolTimeout time.Duration // Tool 执行超时
+	Enabled     bool          // 是否启用 AI（默认 false，用于初始化数据库）
+	ToolTimeout time.Duration // Tool 执行超时（默认 30s）
 }
 
 // EventAlertConfig 事件告警配置
@@ -100,8 +74,26 @@ type EventAlertConfig struct {
 	CheckInterval time.Duration // 检测间隔
 }
 
+// LogConfig 日志配置
+type LogConfig struct {
+	Level  string // 日志级别: debug / info / warn / error (默认 info)
+	Format string // 日志格式: text / json (默认 text)
+}
+
+// SLOConfig SLO 监控配置
+// Master 端 SLO 功能始终启用，无需开关配置
+// 如果 Agent 未上报数据，前端显示"暂无数据"即可
+type SLOConfig struct {
+	AggregateInterval time.Duration // 聚合间隔（默认 1h）
+	CleanupInterval   time.Duration // 清理间隔（默认 1h）
+	RawRetention      time.Duration // raw 数据保留时间（默认 48h）
+	HourlyRetention   time.Duration // hourly 数据保留时间（默认 90d）
+	StatusRetention   time.Duration // 状态历史保留时间（默认 180d）
+}
+
 // AppConfig Master 顶层配置结构体
 type AppConfig struct {
+	Log        LogConfig
 	Server     ServerConfig
 	DataHub    DataHubConfig
 	Database   DatabaseConfig
@@ -110,9 +102,9 @@ type AppConfig struct {
 	EventAlert EventAlertConfig
 	Timeout    TimeoutConfig
 	JWT        JWTConfig
-	Notifier   NotifierConfig
 	Admin      AdminConfig
 	AI         AIConfig
+	SLO        SLOConfig
 }
 
 // GlobalConfig 全局配置实例

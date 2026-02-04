@@ -5,11 +5,14 @@ package processor
 
 import (
 	"fmt"
-	"log"
+	"sync"
 
 	"AtlHyper/atlhyper_master_v2/datahub"
+	"AtlHyper/common/logger"
 	"AtlHyper/model_v2"
 )
+
+var log = logger.Module("Processor")
 
 // Processor 数据处理器接口
 type Processor interface {
@@ -25,6 +28,16 @@ type Processor interface {
 type processorImpl struct {
 	store              datahub.Store
 	onSnapshotReceived func(clusterID string) // 快照接收回调（触发 Event 持久化）
+
+	// 状态追踪（用于变化检测）
+	mu         sync.RWMutex
+	lastCounts map[string]snapshotCounts
+}
+
+type snapshotCounts struct {
+	pods   int
+	nodes  int
+	events int
 }
 
 // Config Processor 配置
@@ -38,6 +51,7 @@ func New(cfg Config) Processor {
 	return &processorImpl{
 		store:              cfg.Store,
 		onSnapshotReceived: cfg.OnSnapshotReceived,
+		lastCounts:         make(map[string]snapshotCounts),
 	}
 }
 
@@ -53,10 +67,39 @@ func (p *processorImpl) ProcessSnapshot(clusterID string, snapshot *model_v2.Clu
 		return fmt.Errorf("set snapshot: %w", err)
 	}
 
-	log.Printf("[Processor] 快照处理完成: 集群=%s, Pods=%d, Nodes=%d, Events=%d",
-		clusterID, len(snapshot.Pods), len(snapshot.Nodes), len(snapshot.Events))
+	// 3. 检测资源数量变化，决定日志级别
+	current := snapshotCounts{
+		pods:   len(snapshot.Pods),
+		nodes:  len(snapshot.Nodes),
+		events: len(snapshot.Events),
+	}
 
-	// 3. 触发回调（Event 持久化）
+	p.mu.RLock()
+	last, exists := p.lastCounts[clusterID]
+	p.mu.RUnlock()
+
+	if !exists || current != last {
+		// 首次或资源数量变化，输出 INFO 日志
+		log.Info("快照处理完成",
+			"cluster", clusterID,
+			"pods", current.pods,
+			"nodes", current.nodes,
+			"events", current.events,
+		)
+		p.mu.Lock()
+		p.lastCounts[clusterID] = current
+		p.mu.Unlock()
+	} else {
+		// 无变化，输出 DEBUG 日志
+		log.Debug("快照处理完成",
+			"cluster", clusterID,
+			"pods", current.pods,
+			"nodes", current.nodes,
+			"events", current.events,
+		)
+	}
+
+	// 4. 触发回调（Event 持久化）
 	if p.onSnapshotReceived != nil {
 		p.onSnapshotReceived(clusterID)
 	}

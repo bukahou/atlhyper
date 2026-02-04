@@ -7,6 +7,8 @@ import type { Language } from "./common";
 // 导航菜单翻译
 export interface NavTranslations {
   overview: string;
+  stylePreview: string;
+  slo: string;
   workbench: string;
   workbenchHome: string;
   ai: string;
@@ -820,6 +822,55 @@ export interface PlaceholderTranslations {
   developingMessage: string;
 }
 
+// SLO 页面翻译
+export interface SLOTranslations {
+  pageDescription: string;
+  noData: string;
+  noDataHint: string;
+  refreshing: string;
+  lastUpdated: string;
+  // 状态
+  healthy: string;
+  degraded: string;
+  atRisk: string;
+  breached: string;
+  unknown: string;
+  // 趋势
+  trendUp: string;
+  trendDown: string;
+  trendStable: string;
+  // 指标
+  availability: string;
+  latency: string;
+  errorRate: string;
+  rps: string;
+  totalRequests: string;
+  errorRequests: string;
+  // 详情弹窗
+  domainDetail: string;
+  currentMetrics: string;
+  sloTarget: string;
+  errorBudget: string;
+  history: string;
+  noTarget: string;
+  setTarget: string;
+  editTarget: string;
+  deleteTarget: string;
+  targetAvailability: string;
+  targetP95: string;
+  remaining: string;
+  consumed: string;
+  // 图表
+  hourlyTrend: string;
+  dailyTrend: string;
+  // 单位
+  ms: string;
+  percent: string;
+  // 操作
+  viewDetail: string;
+  configTarget: string;
+}
+
 // Commands 页面翻译
 export interface CommandsTranslations {
   pageDescription: string;
@@ -887,6 +938,7 @@ export interface Translations {
   statefulset: StatefulSetTranslations;
   placeholder: PlaceholderTranslations;
   commands: CommandsTranslations;
+  slo: SLOTranslations;
 }
 
 // 国际化上下文

@@ -3,6 +3,8 @@ import type { Translations } from "@/types/i18n";
 export const ja: Translations = {
   nav: {
     overview: "概要",
+    stylePreview: "スタイルプレビュー",
+    slo: "SLO モニタリング",
     workbench: "ワークベンチ",
     workbenchHome: "ワークベンチホーム",
     ai: "AI チャット",
@@ -802,5 +804,52 @@ export const ja: Translations = {
       uncordon: "隔離解除",
       update_image: "イメージ更新",
     },
+  },
+  slo: {
+    pageDescription: "SLO モニタリング - ドメイン別の可用性、レイテンシ、エラー率を確認",
+    noData: "SLO データがありません",
+    noDataHint: "Agent で SLO 収集が有効になっていて、Ingress Controller が正しく設定されていることを確認してください",
+    refreshing: "更新中...",
+    lastUpdated: "最終更新",
+    // 状態
+    healthy: "正常",
+    degraded: "低下",
+    atRisk: "リスク",
+    breached: "違反",
+    unknown: "不明",
+    // トレンド
+    trendUp: "上昇",
+    trendDown: "下降",
+    trendStable: "安定",
+    // メトリクス
+    availability: "可用性",
+    latency: "レイテンシ",
+    errorRate: "エラー率",
+    rps: "QPS",
+    totalRequests: "総リクエスト数",
+    errorRequests: "エラーリクエスト",
+    // 詳細モーダル
+    domainDetail: "ドメイン詳細",
+    currentMetrics: "現在のメトリクス",
+    sloTarget: "SLO 目標",
+    errorBudget: "エラーバジェット",
+    history: "履歴トレンド",
+    noTarget: "SLO 目標が設定されていません",
+    setTarget: "目標を設定",
+    editTarget: "目標を編集",
+    deleteTarget: "目標を削除",
+    targetAvailability: "目標可用性",
+    targetP95: "目標 P95 レイテンシ",
+    remaining: "残り",
+    consumed: "消費済み",
+    // チャート
+    hourlyTrend: "時間別トレンド",
+    dailyTrend: "日別トレンド",
+    // 単位
+    ms: "ms",
+    percent: "%",
+    // 操作
+    viewDetail: "詳細を表示",
+    configTarget: "目標を設定",
   },
 };

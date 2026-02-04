@@ -7,13 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service/operations"
+	"AtlHyper/common/logger"
 )
+
+var toolLog = logger.Module("AI-Tool")
 
 // toolExecutor 工具执行器
 type toolExecutor struct {
@@ -67,8 +69,7 @@ func (e *toolExecutor) Execute(ctx context.Context, clusterID string, tc *llm.To
 		return "", fmt.Errorf("创建指令失败: %w", err)
 	}
 
-	log.Printf("[AI-Tool] 指令已下发: action=%s, kind=%s, ns=%s, name=%s, cmdID=%s",
-		action, kind, namespace, name, resp.CommandID)
+	toolLog.Debug("指令已下发", "action", action, "kind", kind, "ns", namespace, "name", name, "cmd", resp.CommandID)
 
 	// 5. 等待结果（支持 ctx 取消）
 	result, err := e.bus.WaitCommandResult(ctx, resp.CommandID, e.timeout)

@@ -3,10 +3,16 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 	"time"
+
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Gateway")
+
+// 慢请求阈值
+const slowRequestThreshold = 1 * time.Second
 
 // responseWriter 包装 ResponseWriter 以获取状态码
 type responseWriter struct {
@@ -27,6 +33,11 @@ func (rw *responseWriter) Flush() {
 }
 
 // Logging 日志中间件
+// 智能日志级别：
+// - 非 2xx 响应 → INFO
+// - 慢请求 (>1s) → INFO
+// - 非 GET 请求 → INFO
+// - 其他 → DEBUG
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -37,9 +48,28 @@ func Logging(next http.Handler) http.Handler {
 		// 处理请求
 		next.ServeHTTP(rw, r)
 
-		// 记录日志
+		// 计算耗时
 		duration := time.Since(start)
-		log.Printf("[Gateway] %s %s %d %v",
-			r.Method, r.URL.Path, rw.statusCode, duration)
+
+		// 判断是否需要输出 INFO 日志
+		isError := rw.statusCode < 200 || rw.statusCode >= 400
+		isSlow := duration > slowRequestThreshold
+		isWriteRequest := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
+
+		if isError || isSlow || isWriteRequest {
+			log.Info("HTTP 请求",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", rw.statusCode,
+				"duration", logger.Duration(duration),
+			)
+		} else {
+			log.Debug("HTTP 请求",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", rw.statusCode,
+				"duration", logger.Duration(duration),
+			)
+		}
 	})
 }

@@ -5,9 +5,10 @@ package agentsdk
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 )
+
+// 使用 server.go 中定义的 log 变量
 
 // handleHeartbeat 处理心跳请求
 // POST /agent/heartbeat
@@ -27,7 +28,7 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 
 	// 通过 Processor 处理心跳
 	if err := s.processor.ProcessHeartbeat(clusterID); err != nil {
-		log.Printf("[AgentSDK] 处理心跳失败: %v", err)
+		log.Error("处理心跳失败", "err", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}

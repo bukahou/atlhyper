@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { LogIn, Settings, AlertTriangle, Loader2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { ChatPanel } from "@/components/ai/ChatPanel";
 import { StatusPage } from "@/components/common";
-import { Conversation, Message, StreamSegment } from "@/components/ai/types";
+import { Conversation, Message, StreamSegment, ChatStats } from "@/components/ai/types";
 import { useClusterStore } from "@/store/clusterStore";
 import { useAuthStore } from "@/store/authStore";
 import {
@@ -16,22 +16,50 @@ import {
   getMessages,
   streamChat,
 } from "@/api/ai";
+import { getActiveConfig, type ActiveConfig } from "@/api/ai-provider";
 import { formatAlertsMessage } from "@/lib/alertFormat";
 import type { RecentAlert } from "@/types/overview";
 
+// AI 配置状态类型
+type AIConfigStatus = "loading" | "not_enabled" | "not_configured" | "ready";
+
 export default function AIChatPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { currentClusterId } = useClusterStore();
   const { isAuthenticated, openLoginDialog } = useAuthStore();
+
+  // AI 配置状态
+  const [aiStatus, setAiStatus] = useState<AIConfigStatus>("loading");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConvId, setCurrentConvId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [streamSegments, setStreamSegments] = useState<StreamSegment[]>([]);
+  const [currentStats, setCurrentStats] = useState<ChatStats | undefined>();
   const [alertsProcessed, setAlertsProcessed] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
+
+  // 检查 AI 配置状态
+  const checkAIConfig = useCallback(async () => {
+    try {
+      const res = await getActiveConfig();
+      const config: ActiveConfig = res.data;
+
+      if (!config.enabled) {
+        setAiStatus("not_enabled");
+      } else if (config.provider_id === null) {
+        setAiStatus("not_configured");
+      } else {
+        setAiStatus("ready");
+      }
+    } catch {
+      // API 调用失败，可能是未登录或网络问题
+      setAiStatus("not_configured");
+    }
+  }, []);
 
   // 加载对话列表
   const loadConversations = useCallback(async () => {
@@ -50,17 +78,24 @@ export default function AIChatPage() {
     }
   }, [isAuthenticated, openLoginDialog]);
 
-  // 初始化加载（仅登录后）
+  // 登录后检查 AI 配置状态
   useEffect(() => {
     if (isAuthenticated) {
+      checkAIConfig();
+    }
+  }, [isAuthenticated, checkAIConfig]);
+
+  // AI 配置就绪后加载对话列表
+  useEffect(() => {
+    if (isAuthenticated && aiStatus === "ready") {
       loadConversations();
     }
-  }, [isAuthenticated, loadConversations]);
+  }, [isAuthenticated, aiStatus, loadConversations]);
 
   // 处理从告警页面跳转过来的情况
   useEffect(() => {
     const fromAlerts = searchParams.get("from") === "alerts";
-    if (!fromAlerts || alertsProcessed || !isAuthenticated) return;
+    if (!fromAlerts || alertsProcessed || !isAuthenticated || aiStatus !== "ready") return;
 
     const stored = sessionStorage.getItem("alertContext");
     if (!stored) return;
@@ -110,24 +145,26 @@ export default function AIChatPage() {
             (segment) => {
               setStreamSegments((prev) => [...prev, segment]);
             },
-            () => {
+            (stats) => {
               setStreaming(false);
+              setCurrentStats(stats);
               abortRef.current = null;
               getMessages(newConv.id)
                 .then((res) => {
                   setMessages(res.data || []);
-                  setStreamSegments([]);
+                  setStreamSegments([]); // 清空 streamSegments
                 })
                 .catch(() => {});
               loadConversations();
             },
             (err) => {
-              setStreaming(false);
-              abortRef.current = null;
+              // 先添加 error segment，再停止 streaming
               setStreamSegments((prev) => [
                 ...prev,
                 { type: "error", content: err },
               ]);
+              setStreaming(false);
+              abortRef.current = null;
             },
             controller.signal,
           );
@@ -139,13 +176,14 @@ export default function AIChatPage() {
       // JSON 解析失败
       sessionStorage.removeItem("alertContext");
     }
-  }, [searchParams, alertsProcessed, isAuthenticated, currentClusterId, loadConversations]);
+  }, [searchParams, alertsProcessed, isAuthenticated, aiStatus, currentClusterId, loadConversations]);
 
   // 选择对话 → 加载消息
   const handleSelect = useCallback(async (id: number) => {
     setCurrentConvId(id);
     setStreamSegments([]);
     setStreaming(false);
+    setCurrentStats(undefined); // 切换对话时重置统计
     try {
       const res = await getMessages(id);
       setMessages(res.data || []);
@@ -163,6 +201,7 @@ export default function AIChatPage() {
       setCurrentConvId(newConv.id);
       setMessages([]);
       setStreamSegments([]);
+      setCurrentStats(undefined);
     } catch {
       // 创建失败忽略
     }
@@ -209,6 +248,7 @@ export default function AIChatPage() {
     setMessages((prev) => [...prev, userMsg]);
     setStreaming(true);
     setStreamSegments([]);
+    setCurrentStats(undefined); // 开始新提问时重置统计
 
     // 创建 AbortController
     const controller = new AbortController();
@@ -225,14 +265,15 @@ export default function AIChatPage() {
         setStreamSegments((prev) => [...prev, segment]);
       },
       // onDone
-      () => {
+      (stats) => {
         setStreaming(false);
+        setCurrentStats(stats);
         abortRef.current = null;
-        // 重新加载消息（后端已持久化，获取正确 id）
+        // 重新加载消息和对话列表（后端已持久化统计信息）
         getMessages(convId!)
           .then((res) => {
             setMessages(res.data || []);
-            setStreamSegments([]);
+            setStreamSegments([]); // 清空 streamSegments
           })
           .catch(() => {});
         // 刷新对话列表（更新 message_count）
@@ -240,12 +281,13 @@ export default function AIChatPage() {
       },
       // onError
       (err) => {
-        setStreaming(false);
-        abortRef.current = null;
+        // 先添加 error segment，再停止 streaming
         setStreamSegments((prev) => [
           ...prev,
           { type: "error", content: err },
         ]);
+        setStreaming(false);
+        abortRef.current = null;
       },
       controller.signal,
     );
@@ -258,6 +300,14 @@ export default function AIChatPage() {
     setStreaming(false);
   }, []);
 
+  // 跳转到设置页
+  const goToSettings = useCallback(() => {
+    router.push("/system/settings/ai");
+  }, [router]);
+
+  // ==================== 条件渲染 ====================
+
+  // 未登录
   if (!isAuthenticated) {
     return (
       <Layout>
@@ -273,6 +323,54 @@ export default function AIChatPage() {
     );
   }
 
+  // 加载中
+  if (aiStatus === "loading") {
+    return (
+      <Layout>
+        <div className="-m-6 h-[calc(100vh-3.5rem)]">
+          <StatusPage
+            icon={Loader2}
+            title="加载中"
+            description="正在检查 AI 配置..."
+          />
+        </div>
+      </Layout>
+    );
+  }
+
+  // AI 功能未启用
+  if (aiStatus === "not_enabled") {
+    return (
+      <Layout>
+        <div className="-m-6 h-[calc(100vh-3.5rem)]">
+          <StatusPage
+            icon={AlertTriangle}
+            title="AI 功能未启用"
+            description="管理员已关闭 AI 功能，请联系管理员或在系统设置中启用"
+            action={{ label: "前往设置", onClick: goToSettings }}
+          />
+        </div>
+      </Layout>
+    );
+  }
+
+  // 未配置 AI 提供商
+  if (aiStatus === "not_configured") {
+    return (
+      <Layout>
+        <div className="-m-6 h-[calc(100vh-3.5rem)]">
+          <StatusPage
+            icon={Settings}
+            title="AI 功能未配置"
+            description="请先在系统设置中添加 AI 提供商（如 Gemini、OpenAI、Claude）并选择激活"
+            action={{ label: "前往设置", onClick: goToSettings }}
+          />
+        </div>
+      </Layout>
+    );
+  }
+
+  // AI 配置就绪，显示聊天界面
   return (
     <Layout>
       {/* 负边距抵消 Layout 的 p-6，全屏聊天布局 */}
@@ -284,6 +382,7 @@ export default function AIChatPage() {
           conversations={conversations}
           currentConvId={currentConvId}
           clusterId={currentClusterId}
+          currentStats={currentStats}
           onSelectConv={handleSelect}
           onNewConv={handleNew}
           onDeleteConv={handleDelete}

@@ -20,10 +20,10 @@ package atlhyper_master_v2
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
@@ -41,8 +41,12 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/atlhyper_master_v2/service/query"
 	"AtlHyper/atlhyper_master_v2/service/sync"
+	"AtlHyper/atlhyper_master_v2/slo"
 	"AtlHyper/atlhyper_master_v2/tester"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Master")
 
 // Master 是 Master V2 的主结构体
 type Master struct {
@@ -54,10 +58,15 @@ type Master struct {
 	agentSDK     *agentsdk.Server
 	gateway      *gateway.Server
 	testerServer *tester.Server
-	eventPersist *sync.EventPersistService
-	alertManager notifier.AlertManager
+	eventPersist   *sync.EventPersistService
+	metricsPersist *sync.MetricsPersistService
+	alertManager   notifier.AlertManager
 	heartbeat    *trigger.HeartbeatTrigger
 	eventTrigger *trigger.EventTrigger
+	// SLO 组件（始终启用）
+	sloProcessor  *slo.Processor
+	sloAggregator *slo.Aggregator
+	sloCleaner    *slo.Cleaner
 }
 
 // New 创建并初始化 Master 实例
@@ -73,7 +82,7 @@ func New() (*Master, error) {
 		RedisPassword:   cfg.Redis.Password,
 		RedisDB:         cfg.Redis.DB,
 	})
-	log.Printf("[Master] Store 初始化完成: type=%s", cfg.DataHub.Type)
+	log.Info("Store 初始化完成", "type", cfg.DataHub.Type)
 
 	// 2. 初始化 CommandBus (消息队列)
 	bus := mq.New(mq.Config{
@@ -82,7 +91,7 @@ func New() (*Master, error) {
 		RedisPassword: cfg.Redis.Password,
 		RedisDB:       cfg.Redis.DB,
 	})
-	log.Println("[Master] CommandBus 初始化完成")
+	log.Info("CommandBus 初始化完成")
 
 	// 3. 初始化 Database
 	dialect := sqlite.NewDialect()
@@ -93,17 +102,23 @@ func New() (*Master, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init database: %w", err)
 	}
-	repo.Init(db, dialect)
-	log.Printf("[Master] 数据库初始化完成: type=%s", cfg.Database.Type)
 
-	// 3.1 同步通知渠道配置到数据库
-	if err := database.SyncNotifyChannels(context.Background(), db, &cfg.Notifier); err != nil {
-		log.Printf("[Master] 通知配置同步失败: %v", err)
+	// 设置 API Key 加密密钥（使用 JWT Secret）
+	if err := repo.SetEncryptionSecret(cfg.JWT.SecretKey); err != nil {
+		return nil, fmt.Errorf("failed to set encryption secret: %w", err)
 	}
 
-	// 3.2 同步 AI 配置到数据库
-	if err := database.SyncAIConfig(context.Background(), db, &cfg.AI); err != nil {
-		log.Printf("[Master] AI 配置同步失败: %v", err)
+	repo.Init(db, dialect)
+	log.Info("数据库初始化完成", "type", cfg.Database.Type)
+
+	// 3.1 迁移旧 AI 配置到新表（如有）
+	if err := database.MigrateOldAIConfig(context.Background(), db); err != nil {
+		log.Warn("AI 配置迁移失败", "err", err)
+	}
+
+	// 3.2 初始化 AI Active Config（首次启动，从配置文件读取默认值）
+	if err := database.InitAIActiveConfig(context.Background(), db, &cfg.AI); err != nil {
+		log.Warn("AI Active Config 初始化失败", "err", err)
 	}
 
 	// 4. 初始化 EventPersistService
@@ -116,26 +131,54 @@ func New() (*Master, error) {
 			CleanupInterval: cfg.Event.CleanupInterval,
 		},
 	)
-	log.Println("[Master] 事件持久化服务初始化完成")
+	log.Info("事件持久化服务初始化完成")
+
+	// 4.1 初始化 MetricsPersistService
+	metricsPersist := sync.NewMetricsPersistService(
+		store,
+		db.NodeMetrics,
+		sync.MetricsPersistConfig{
+			SampleInterval:  5 * time.Minute,
+			RetentionDays:   30,
+			CleanupInterval: 1 * time.Hour,
+		},
+	)
+	log.Info("节点指标持久化服务初始化完成")
+
+	// 4.2 初始化 SLO 组件（始终启用，无需配置开关）
+	sloProcessor := slo.NewProcessor(db.SLO)
+	sloAggregator := slo.NewAggregator(db.SLO, cfg.SLO.AggregateInterval)
+	sloCleaner := slo.NewCleaner(db.SLO, slo.CleanerConfig{
+		RawRetention:    cfg.SLO.RawRetention,
+		HourlyRetention: cfg.SLO.HourlyRetention,
+		StatusRetention: cfg.SLO.StatusRetention,
+		Interval:        cfg.SLO.CleanupInterval,
+	})
+	log.Info("SLO 组件初始化完成")
 
 	// 5. 初始化 Processor（写入路径）
 	proc := processor.New(processor.Config{
 		Store: store,
 		OnSnapshotReceived: func(clusterID string) {
+			// 同步事件到数据库
 			if err := eventPersist.Sync(clusterID); err != nil {
-				log.Printf("[Master] 事件同步失败: 集群=%s, 错误=%v", clusterID, err)
+				log.Error("事件同步失败", "cluster", clusterID, "err", err)
+			}
+			// 同步节点指标到数据库
+			if err := metricsPersist.Sync(clusterID); err != nil {
+				log.Error("节点指标同步失败", "cluster", clusterID, "err", err)
 			}
 		},
 	})
-	log.Println("[Master] 数据处理器初始化完成")
+	log.Info("数据处理器初始化完成")
 
 	// 6. 初始化 Query（读取路径）
 	q := query.NewWithEventRepo(store, bus, db.Event)
-	log.Println("[Master] 查询层初始化完成")
+	log.Info("查询层初始化完成")
 
 	// 7. 初始化 Operations（写入路径）
 	ops := operations.NewCommandService(bus, db.Command)
-	log.Println("[Master] 操作服务初始化完成")
+	log.Info("操作服务初始化完成")
 
 	// 组合统一 Service
 	svc := service.New(q, ops)
@@ -146,55 +189,37 @@ func New() (*Master, error) {
 		CommandTimeout: cfg.Timeout.CommandPoll,
 		Bus:            bus,
 		Processor:      proc,
+		SLOProcessor:   sloProcessor,
 		CmdRepo:        db.Command,
 	})
-	log.Printf("[Master] AgentSDK 初始化完成: 端口=%d", cfg.Server.AgentSDKPort)
+	log.Info("AgentSDK 初始化完成", "port", cfg.Server.AgentSDKPort)
 
-	// 9. 初始化 AIService（可选）
-	// 优先从数据库加载配置，若无则使用环境变量配置
-	var aiService ai.AIService
-	aiCfg := database.LoadAIConfigFromDB(context.Background(), db)
-	configSource := "数据库"
-	if aiCfg == nil {
-		// 数据库无配置，使用环境变量配置
-		aiCfg = &cfg.AI
-		configSource = "环境变量"
-	}
-	if !aiCfg.Enabled {
-		log.Printf("[Master] AI 功能未启用 (配置来源: %s)", configSource)
-	} else if aiCfg.APIKey == "" {
-		log.Printf("[Master] AI 功能已启用但未配置 API Key (配置来源: %s)", configSource)
-	} else {
-		var err2 error
-		aiService, err2 = ai.NewService(
-			ai.ServiceConfig{
-				Provider:    aiCfg.Provider,
-				APIKey:      aiCfg.APIKey,
-				Model:       aiCfg.Model,
-				ToolTimeout: aiCfg.ToolTimeout,
-			},
-			ops, bus,
-			db.AIConversation, db.AIMessage,
-		)
-		if err2 != nil {
-			return nil, fmt.Errorf("failed to init AI service: %w", err2)
-		}
-		log.Printf("[Master] AI 服务初始化完成: provider=%s, model=%s (配置来源: %s)", aiCfg.Provider, aiCfg.Model, configSource)
-	}
+	// 9. 初始化 AIService
+	// AI 配置从 ai_providers + ai_active_config 表动态获取，支持热更新
+	// 不再在启动时检查配置，Chat 时会实时从 DB 读取最新配置
+	aiService := ai.NewService(
+		ai.ServiceConfig{
+			ToolTimeout: cfg.AI.ToolTimeout,
+		},
+		ops, bus,
+		db.AIProvider, db.AIActive,
+		db.AIConversation, db.AIMessage,
+	)
+	log.Info("AI 服务初始化完成 (动态配置)")
 
 	// 10. 初始化 AlertManager（告警管理器）
 	alertMgr, err := notifier.NewManager(db.Notify)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init alert manager: %w", err)
 	}
-	log.Println("[Master] 告警管理器初始化完成")
+	log.Info("告警管理器初始化完成")
 
 	// 11. 初始化 HeartbeatTrigger（心跳检测触发器）
 	heartbeat := trigger.NewHeartbeatTrigger(store, alertMgr, trigger.HeartbeatConfig{
 		CheckInterval: cfg.DataHub.HeartbeatExpire / 2,
 		OfflineAfter:  cfg.DataHub.HeartbeatExpire,
 	})
-	log.Println("[Master] 心跳检测触发器初始化完成")
+	log.Info("心跳检测触发器初始化完成")
 
 	// 11.1 初始化 EventTrigger（事件告警触发器，可选）
 	var eventTrigger *trigger.EventTrigger
@@ -207,7 +232,7 @@ func New() (*Master, error) {
 				CheckInterval: cfg.EventAlert.CheckInterval,
 			},
 		)
-		log.Println("[Master] 事件告警触发器初始化完成")
+		log.Info("事件告警触发器初始化完成")
 	}
 
 	// 12. 初始化 Gateway
@@ -218,28 +243,32 @@ func New() (*Master, error) {
 		Bus:       bus,
 		AIService: aiService,
 	})
-	log.Printf("[Master] Gateway 初始化完成: 端口=%d", cfg.Server.GatewayPort)
+	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
 
 	// 13. 初始化 Tester
 	testerServer := tester.NewServer(tester.Config{
 		Port:         cfg.Server.TesterPort,
 		AlertManager: alertMgr,
 	})
-	log.Printf("[Master] Tester 初始化完成: 端口=%d", cfg.Server.TesterPort)
+	log.Info("Tester 初始化完成", "port", cfg.Server.TesterPort)
 
 	return &Master{
-		store:        store,
-		bus:          bus,
-		database:     db,
-		processor:    proc,
-		service:      svc,
-		agentSDK:     agentServer,
-		gateway:      gw,
-		testerServer: testerServer,
-		eventPersist: eventPersist,
-		alertManager: alertMgr,
-		heartbeat:    heartbeat,
-		eventTrigger: eventTrigger,
+		store:          store,
+		bus:            bus,
+		database:       db,
+		processor:      proc,
+		service:        svc,
+		agentSDK:       agentServer,
+		gateway:        gw,
+		testerServer:   testerServer,
+		eventPersist:   eventPersist,
+		metricsPersist: metricsPersist,
+		alertManager:   alertMgr,
+		heartbeat:      heartbeat,
+		eventTrigger:   eventTrigger,
+		sloProcessor:   sloProcessor,
+		sloAggregator:  sloAggregator,
+		sloCleaner:     sloCleaner,
 	}, nil
 }
 
@@ -260,6 +289,11 @@ func (m *Master) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start event persist: %w", err)
 	}
 
+	// 启动 MetricsPersistService
+	if err := m.metricsPersist.Start(); err != nil {
+		return fmt.Errorf("failed to start metrics persist: %w", err)
+	}
+
 	// 启动 AlertManager
 	if err := m.alertManager.Start(); err != nil {
 		return fmt.Errorf("failed to start alert manager: %w", err)
@@ -277,6 +311,14 @@ func (m *Master) Run(ctx context.Context) error {
 		}
 	}
 
+	// 启动 SLO Aggregator
+	m.sloAggregator.Start()
+	log.Info("SLO 聚合器已启动")
+
+	// 启动 SLO Cleaner
+	m.sloCleaner.Start()
+	log.Info("SLO 清理器已启动")
+
 	// 启动 AgentSDK
 	if err := m.agentSDK.Start(); err != nil {
 		return fmt.Errorf("failed to start agentsdk: %w", err)
@@ -292,10 +334,9 @@ func (m *Master) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start tester: %w", err)
 	}
 
-	log.Println("[Master] Master 启动成功")
-	log.Printf("[Master] Gateway 端口: %d, AgentSDK 端口: %d",
-		config.GlobalConfig.Server.GatewayPort,
-		config.GlobalConfig.Server.AgentSDKPort,
+	log.Info("Master 启动成功",
+		"gateway_port", config.GlobalConfig.Server.GatewayPort,
+		"agentsdk_port", config.GlobalConfig.Server.AgentSDKPort,
 	)
 
 	// 等待退出信号
@@ -304,7 +345,7 @@ func (m *Master) Run(ctx context.Context) error {
 	<-sigCh
 
 	// 优雅停止
-	log.Println("[Master] 正在关闭...")
+	log.Info("正在关闭...")
 	return m.Stop()
 }
 
@@ -312,55 +353,68 @@ func (m *Master) Run(ctx context.Context) error {
 func (m *Master) Stop() error {
 	// 停止 Tester
 	if err := m.testerServer.Stop(); err != nil {
-		log.Printf("[Master] 停止 Tester 失败: %v", err)
+		log.Error("停止 Tester 失败", "err", err)
 	}
 
 	// 停止 Gateway
 	if err := m.gateway.Stop(); err != nil {
-		log.Printf("[Master] 停止 Gateway 失败: %v", err)
+		log.Error("停止 Gateway 失败", "err", err)
 	}
 
 	// 停止 AgentSDK
 	if err := m.agentSDK.Stop(); err != nil {
-		log.Printf("[Master] 停止 AgentSDK 失败: %v", err)
+		log.Error("停止 AgentSDK 失败", "err", err)
 	}
 
 	// 停止 HeartbeatTrigger
 	if err := m.heartbeat.Stop(); err != nil {
-		log.Printf("[Master] 停止心跳检测触发器失败: %v", err)
+		log.Error("停止心跳检测触发器失败", "err", err)
 	}
 
 	// 停止 EventTrigger
 	if m.eventTrigger != nil {
 		if err := m.eventTrigger.Stop(); err != nil {
-			log.Printf("[Master] 停止事件告警触发器失败: %v", err)
+			log.Error("停止事件告警触发器失败", "err", err)
 		}
 	}
+
+	// 停止 SLO Cleaner
+	m.sloCleaner.Stop()
+	log.Info("SLO 清理器已停止")
+
+	// 停止 SLO Aggregator
+	m.sloAggregator.Stop()
+	log.Info("SLO 聚合器已停止")
 
 	// 停止 AlertManager
 	m.alertManager.Stop()
 
 	// 停止 EventPersistService
 	if err := m.eventPersist.Stop(); err != nil {
-		log.Printf("[Master] 停止事件持久化服务失败: %v", err)
+		log.Error("停止事件持久化服务失败", "err", err)
+	}
+
+	// 停止 MetricsPersistService
+	if err := m.metricsPersist.Stop(); err != nil {
+		log.Error("停止节点指标持久化服务失败", "err", err)
 	}
 
 	// 停止 CommandBus
 	if err := m.bus.Stop(); err != nil {
-		log.Printf("[Master] 停止 CommandBus 失败: %v", err)
+		log.Error("停止 CommandBus 失败", "err", err)
 	}
 
 	// 停止 Store
 	if err := m.store.Stop(); err != nil {
-		log.Printf("[Master] 停止 Store 失败: %v", err)
+		log.Error("停止 Store 失败", "err", err)
 	}
 
 	// 关闭数据库
 	if err := m.database.Close(); err != nil {
-		log.Printf("[Master] 关闭数据库失败: %v", err)
+		log.Error("关闭数据库失败", "err", err)
 	}
 
-	log.Println("[Master] Master 已停止")
+	log.Info("Master 已停止")
 	return nil
 }
 

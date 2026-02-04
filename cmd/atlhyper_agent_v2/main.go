@@ -27,6 +27,8 @@
 //   - AGENT_KUBECONFIG: kubeconfig 路径，空则使用 InCluster 模式
 //   - AGENT_SNAPSHOT_INTERVAL: 快照间隔，默认 30s
 //   - AGENT_HEARTBEAT_INTERVAL: 心跳间隔，默认 15s
+//   - AGENT_LOG_LEVEL: 日志级别 (debug/info/warn/error)，默认 info
+//   - AGENT_LOG_FORMAT: 日志格式 (text/json)，默认 text
 //
 // 启动示例:
 //
@@ -35,28 +37,39 @@ package main
 
 import (
 	"context"
-	"log"
+	"os"
 
 	agent "AtlHyper/atlhyper_agent_v2"
 	"AtlHyper/atlhyper_agent_v2/config"
+	"AtlHyper/common/logger"
 )
 
-func main() {
-	log.Println("[Agent] Starting AtlHyper Agent V2...")
+var log = logger.Module("Agent")
 
-	// 从环境变量加载配置
+func main() {
+	// 从环境变量加载配置（优先，日志配置也在其中）
 	config.LoadConfig()
+
+	// 初始化日志（使用配置中的设置）
+	logger.Init(logger.Config{
+		Level:  config.GlobalConfig.Log.Level,
+		Format: config.GlobalConfig.Log.Format,
+	})
+
+	log.Info("Starting AtlHyper Agent V2...")
 
 	// 创建 Agent 实例 (内部完成所有依赖注入)
 	a, err := agent.New()
 	if err != nil {
-		log.Fatalf("[Agent] Failed to initialize: %v", err)
+		log.Error("初始化失败", "err", err)
+		os.Exit(1)
 	}
 
 	// 运行 Agent (阻塞直到收到 SIGINT/SIGTERM)
 	if err := a.Run(context.Background()); err != nil {
-		log.Fatalf("[Agent] Error: %v", err)
+		log.Error("运行错误", "err", err)
+		os.Exit(1)
 	}
 
-	log.Println("[Agent] Agent stopped")
+	log.Info("Agent 已停止")
 }

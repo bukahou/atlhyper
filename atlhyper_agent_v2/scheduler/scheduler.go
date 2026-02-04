@@ -2,13 +2,15 @@ package scheduler
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/gateway"
 	"AtlHyper/atlhyper_agent_v2/service"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Scheduler")
 
 // Config 调度器配置
 type Config struct {
@@ -32,6 +34,11 @@ type Config struct {
 
 	// HeartbeatTimeout 心跳操作超时
 	HeartbeatTimeout time.Duration
+
+	// SLO 配置
+	SLOEnabled       bool          // 是否启用 SLO 采集
+	SLOScrapeInterval time.Duration // SLO 采集间隔
+	SLOScrapeTimeout  time.Duration // SLO 采集超时
 }
 
 // Scheduler 调度器
@@ -40,18 +47,25 @@ type Config struct {
 //   - 快照采集循环 - 定时采集集群资源，推送给 Master
 //   - 指令轮询循环 - 长轮询获取 Master 指令，执行后上报结果
 //   - 心跳循环 - 定时向 Master 发送心跳，维持连接状态
+//   - SLO 采集循环 - 定时采集 Ingress 指标，推送给 Master
 type Scheduler struct {
 	config Config
 
 	// 依赖的服务
 	snapshotSvc service.SnapshotService
 	commandSvc  service.CommandService
+	sloSvc      service.SLOService
 	masterGw    gateway.MasterGateway
 
 	// 生命周期控制
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+
+	// 状态追踪（用于变化检测）
+	lastPodCount        int
+	lastNodeCount       int
+	lastDeploymentCount int
 }
 
 // New 创建调度器
@@ -60,17 +74,20 @@ type Scheduler struct {
 //   - config: 调度器配置
 //   - snapshotSvc: 快照服务，用于采集集群资源
 //   - commandSvc: 指令服务，用于执行 Master 下发的指令
+//   - sloSvc: SLO 服务，用于采集 Ingress 指标（可为 nil）
 //   - masterGw: Master 网关，用于与 Master 通信
 func New(
 	config Config,
 	snapshotSvc service.SnapshotService,
 	commandSvc service.CommandService,
+	sloSvc service.SLOService,
 	masterGw gateway.MasterGateway,
 ) *Scheduler {
 	return &Scheduler{
 		config:      config,
 		snapshotSvc: snapshotSvc,
 		commandSvc:  commandSvc,
+		sloSvc:      sloSvc,
 		masterGw:    masterGw,
 	}
 }
@@ -79,14 +96,26 @@ func New(
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 
-	// 启动后台任务
-	s.wg.Add(4)
-	go s.runSnapshotLoop()       // 快照采集
-	go s.runCommandLoop("ops")   // 系统操作指令轮询
-	go s.runCommandLoop("ai")    // AI 查询指令轮询
-	go s.runHeartbeatLoop()      // 心跳
+	// 计算后台任务数量
+	taskCount := 4 // 快照 + ops轮询 + ai轮询 + 心跳
+	if s.config.SLOEnabled && s.sloSvc != nil {
+		taskCount++ // SLO 采集
+	}
 
-	log.Println("[Scheduler] 调度器已启动")
+	// 启动后台任务
+	s.wg.Add(taskCount)
+	go s.runSnapshotLoop()     // 快照采集
+	go s.runCommandLoop("ops") // 系统操作指令轮询
+	go s.runCommandLoop("ai")  // AI 查询指令轮询
+	go s.runHeartbeatLoop()    // 心跳
+
+	// SLO 采集（可选）
+	if s.config.SLOEnabled && s.sloSvc != nil {
+		go s.runSLOLoop()
+		log.Info("SLO 采集已启用", "interval", s.config.SLOScrapeInterval)
+	}
+
+	log.Info("调度器已启动")
 	return nil
 }
 
@@ -96,7 +125,7 @@ func (s *Scheduler) Stop() error {
 		s.cancel() // 通知所有 goroutine 停止
 	}
 	s.wg.Wait() // 等待所有 goroutine 退出
-	log.Println("[Scheduler] 调度器已停止")
+	log.Info("调度器已停止")
 	return nil
 }
 
@@ -137,18 +166,39 @@ func (s *Scheduler) collectAndPushSnapshot() {
 	// 采集快照
 	snapshot, err := s.snapshotSvc.Collect(ctx)
 	if err != nil {
-		log.Printf("[Scheduler] 采集快照失败: %v", err)
+		log.Error("采集快照失败", "err", err)
 		return
 	}
 
 	// 推送到 Master
 	if err := s.masterGw.PushSnapshot(ctx, snapshot); err != nil {
-		log.Printf("[Scheduler] 推送快照失败: %v", err)
+		log.Error("推送快照失败", "err", err)
 		return
 	}
 
-	log.Printf("[Scheduler] 快照已推送: Pods=%d, Nodes=%d, Deployments=%d",
-		len(snapshot.Pods), len(snapshot.Nodes), len(snapshot.Deployments))
+	// 检测资源数量变化
+	podCount := len(snapshot.Pods)
+	nodeCount := len(snapshot.Nodes)
+	deploymentCount := len(snapshot.Deployments)
+
+	if podCount != s.lastPodCount || nodeCount != s.lastNodeCount || deploymentCount != s.lastDeploymentCount {
+		// 资源数量变化，输出 INFO 日志
+		log.Info("快照已推送（资源变化）",
+			"pods", podCount,
+			"nodes", nodeCount,
+			"deployments", deploymentCount,
+		)
+		s.lastPodCount = podCount
+		s.lastNodeCount = nodeCount
+		s.lastDeploymentCount = deploymentCount
+	} else {
+		// 无变化，输出 DEBUG 日志
+		log.Debug("快照已推送",
+			"pods", podCount,
+			"nodes", nodeCount,
+			"deployments", deploymentCount,
+		)
+	}
 }
 
 // =============================================================================
@@ -190,7 +240,7 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) {
 	// 拉取指令
 	commands, err := s.masterGw.PollCommands(ctx, topic)
 	if err != nil {
-		log.Printf("[Scheduler] 拉取指令失败 [%s]: %v", topic, err)
+		log.Warn("拉取指令失败", "topic", topic, "err", err)
 		return
 	}
 
@@ -198,7 +248,7 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) {
 		return
 	}
 
-	log.Printf("[Scheduler] 收到 %d 条指令 [%s]", len(commands), topic)
+	log.Info("收到指令", "count", len(commands), "topic", topic)
 
 	// 并发执行所有指令
 	var wg sync.WaitGroup
@@ -210,9 +260,9 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) {
 			result := s.commandSvc.Execute(ctx, cmd)
 			// 上报结果
 			if err := s.masterGw.ReportResult(ctx, result); err != nil {
-				log.Printf("[Scheduler] 上报执行结果失败: 指令=%s, 错误=%v", cmd.ID, err)
+				log.Error("上报执行结果失败", "cmd_id", cmd.ID, "err", err)
 			} else {
-				log.Printf("[Scheduler] 指令已执行: id=%s, 成功=%v", cmd.ID, result.Success)
+				log.Debug("指令已执行", "cmd_id", cmd.ID, "success", result.Success)
 			}
 		}()
 	}
@@ -239,9 +289,71 @@ func (s *Scheduler) runHeartbeatLoop() {
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(s.ctx, s.config.HeartbeatTimeout)
 			if err := s.masterGw.Heartbeat(ctx); err != nil {
-				log.Printf("[Scheduler] 心跳发送失败: %v", err)
+				log.Warn("心跳发送失败", "err", err)
 			}
 			cancel()
 		}
 	}
+}
+
+// =============================================================================
+// SLO 采集循环
+// =============================================================================
+
+// runSLOLoop SLO 指标采集循环
+//
+// 工作流程:
+//  1. 启动时等待一个采集周期（避免与快照采集冲突）
+//  2. 之后每隔 SLOScrapeInterval 采集一次
+//  3. 采集失败只记录日志，不中断循环
+func (s *Scheduler) runSLOLoop() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(s.config.SLOScrapeInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.collectAndPushSLO()
+		}
+	}
+}
+
+// collectAndPushSLO 采集并推送 SLO 指标
+func (s *Scheduler) collectAndPushSLO() {
+	ctx, cancel := context.WithTimeout(s.ctx, s.config.SLOScrapeTimeout)
+	defer cancel()
+
+	// 采集指标
+	metrics, err := s.sloSvc.Collect(ctx)
+	if err != nil {
+		log.Warn("SLO 指标采集失败", "err", err)
+		return
+	}
+
+	if metrics == nil {
+		return // 没有配置指标 URL
+	}
+
+	// 采集 IngressRoute 映射
+	routes, err := s.sloSvc.CollectRoutes(ctx)
+	if err != nil {
+		log.Warn("IngressRoute 采集失败", "err", err)
+		// 继续推送 metrics，routes 可以为空
+	}
+
+	// 推送到 Master
+	if err := s.masterGw.PushSLOMetrics(ctx, metrics, routes); err != nil {
+		log.Warn("SLO 指标推送失败", "err", err)
+		return
+	}
+
+	log.Debug("SLO 指标已推送",
+		"counters", len(metrics.Counters),
+		"histograms", len(metrics.Histograms),
+		"routes", len(routes),
+	)
 }

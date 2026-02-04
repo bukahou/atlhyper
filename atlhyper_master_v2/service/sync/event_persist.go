@@ -7,13 +7,15 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("EventPersist")
 
 // EventPersistService Event 持久化服务
 type EventPersistService struct {
@@ -59,7 +61,7 @@ func (s *EventPersistService) Start() error {
 	s.wg.Add(1)
 	go s.cleanupLoop()
 
-	log.Println("[EventPersist] 事件持久化服务已启动")
+	log.Info("事件持久化服务已启动")
 	return nil
 }
 
@@ -67,7 +69,7 @@ func (s *EventPersistService) Start() error {
 func (s *EventPersistService) Stop() error {
 	close(s.stopCh)
 	s.wg.Wait()
-	log.Println("[EventPersist] 事件持久化服务已停止")
+	log.Info("事件持久化服务已停止")
 	return nil
 }
 
@@ -123,12 +125,19 @@ func (s *EventPersistService) Sync(clusterID string) error {
 
 	// 3. 批量 UPSERT
 	if err := s.eventRepo.UpsertBatch(ctx, repoEvents); err != nil {
-		log.Printf("[EventPersist] Warning 事件写入失败: 集群=%s, 数量=%d, 错误=%v",
-			clusterID, len(repoEvents), err)
+		log.Error("Warning 事件写入失败",
+			"cluster", clusterID,
+			"count", len(repoEvents),
+			"err", err,
+		)
 		return err
 	}
 
-	log.Printf("[EventPersist] Warning 事件同步完成: 集群=%s, 数量=%d", clusterID, len(repoEvents))
+	// 正常同步使用 DEBUG 级别（避免刷屏）
+	log.Debug("Warning 事件同步完成",
+		"cluster", clusterID,
+		"count", len(repoEvents),
+	)
 	return nil
 }
 
@@ -164,7 +173,7 @@ func (s *EventPersistService) cleanup() {
 	// 获取所有 Agent
 	agents, err := s.store.ListAgents()
 	if err != nil {
-		log.Printf("[EventPersist] 获取 Agent 列表失败: %v", err)
+		log.Error("获取 Agent 列表失败", "err", err)
 		return
 	}
 
@@ -176,11 +185,11 @@ func (s *EventPersistService) cleanup() {
 		// 1. 删除过期事件
 		deleted, err := s.eventRepo.DeleteBefore(ctx, clusterID, cutoff)
 		if err != nil {
-			log.Printf("[EventPersist] 删除过期事件失败: 集群=%s, 错误=%v", clusterID, err)
+			log.Error("删除过期事件失败", "cluster", clusterID, "err", err)
 			continue
 		}
 		if deleted > 0 {
-			log.Printf("[EventPersist] 已删除过期事件: 集群=%s, 数量=%d", clusterID, deleted)
+			log.Info("已删除过期事件", "cluster", clusterID, "count", deleted)
 		}
 
 		// 2. 检查是否超过最大数量
@@ -192,11 +201,11 @@ func (s *EventPersistService) cleanup() {
 		if count > int64(s.maxCount) {
 			deleted, err := s.eventRepo.DeleteOldest(ctx, clusterID, s.maxCount)
 			if err != nil {
-				log.Printf("[EventPersist] 删除最旧事件失败: 集群=%s, 错误=%v", clusterID, err)
+				log.Error("删除最旧事件失败", "cluster", clusterID, "err", err)
 				continue
 			}
 			if deleted > 0 {
-				log.Printf("[EventPersist] 已删除最旧事件: 集群=%s, 数量=%d", clusterID, deleted)
+				log.Info("已删除最旧事件", "cluster", clusterID, "count", deleted)
 			}
 		}
 	}

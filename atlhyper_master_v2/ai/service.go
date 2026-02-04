@@ -7,47 +7,40 @@ import (
 	"context"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/ai/llm"
-	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini" // 注册 gemini provider
+	_ "AtlHyper/atlhyper_master_v2/ai/llm/anthropic" // 注册 anthropic provider
+	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini"    // 注册 gemini provider
+	_ "AtlHyper/atlhyper_master_v2/ai/llm/openai"    // 注册 openai provider
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 )
 
-// ServiceConfig AI 服务配置
+// ServiceConfig AI 服务配置（仅用于 Tool 超时等非敏感配置）
 type ServiceConfig struct {
-	Provider    string // gemini
-	APIKey      string
-	Model       string
 	ToolTimeout time.Duration // Tool 执行超时，默认 30s
 }
 
 // aiServiceImpl AIService 实现
+// 注意：不再缓存 llmClient，每次 Chat 时从 DB 获取最新配置并创建客户端
 type aiServiceImpl struct {
-	llmClient llm.LLMClient
-	executor  *toolExecutor
-	convRepo  database.AIConversationRepository
-	msgRepo   database.AIMessageRepository
+	providerRepo database.AIProviderRepository
+	activeRepo   database.AIActiveConfigRepository
+	executor     *toolExecutor
+	convRepo     database.AIConversationRepository
+	msgRepo      database.AIMessageRepository
 }
 
 // NewService 创建 AIService
+// AI 配置（API Key、Model 等）从数据库动态获取，支持热更新
 func NewService(
 	cfg ServiceConfig,
 	ops *operations.CommandService,
 	bus mq.Producer,
+	providerRepo database.AIProviderRepository,
+	activeRepo database.AIActiveConfigRepository,
 	convRepo database.AIConversationRepository,
 	msgRepo database.AIMessageRepository,
-) (AIService, error) {
-	// 通过工厂创建 LLM Client（由 provider 注册机制决定具体实现）
-	client, err := llm.New(llm.Config{
-		Provider: cfg.Provider,
-		APIKey:   cfg.APIKey,
-		Model:    cfg.Model,
-	})
-	if err != nil {
-		return nil, err
-	}
-
+) AIService {
 	// Tool 超时默认 30s
 	toolTimeout := cfg.ToolTimeout
 	if toolTimeout == 0 {
@@ -55,11 +48,12 @@ func NewService(
 	}
 
 	return &aiServiceImpl{
-		llmClient: client,
-		executor:  newToolExecutor(ops, bus, toolTimeout),
-		convRepo:  convRepo,
-		msgRepo:   msgRepo,
-	}, nil
+		providerRepo: providerRepo,
+		activeRepo:   activeRepo,
+		executor:     newToolExecutor(ops, bus, toolTimeout),
+		convRepo:     convRepo,
+		msgRepo:      msgRepo,
+	}
 }
 
 // CreateConversation 创建对话
@@ -119,13 +113,16 @@ func (s *aiServiceImpl) DeleteConversation(ctx context.Context, conversationID i
 // toConversation 转换 DB 模型为 API 类型
 func toConversation(c *database.AIConversation) *Conversation {
 	return &Conversation{
-		ID:           c.ID,
-		UserID:       c.UserID,
-		ClusterID:    c.ClusterID,
-		Title:        c.Title,
-		MessageCount: c.MessageCount,
-		CreatedAt:    c.CreatedAt,
-		UpdatedAt:    c.UpdatedAt,
+		ID:                c.ID,
+		UserID:            c.UserID,
+		ClusterID:         c.ClusterID,
+		Title:             c.Title,
+		MessageCount:      c.MessageCount,
+		TotalInputTokens:  c.TotalInputTokens,
+		TotalOutputTokens: c.TotalOutputTokens,
+		TotalToolCalls:    c.TotalToolCalls,
+		CreatedAt:         c.CreatedAt,
+		UpdatedAt:         c.UpdatedAt,
 	}
 }
 

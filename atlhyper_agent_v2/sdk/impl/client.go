@@ -14,16 +14,18 @@ package impl
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"AtlHyper/atlhyper_agent_v2/sdk"
+	"AtlHyper/common/logger"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 )
+
+var log = logger.Module("SDK")
 
 // Client K8s 客户端实现
 //
@@ -66,7 +68,7 @@ func NewClient(kubeconfig string) (sdk.K8sClient, error) {
 	// 初始化 metrics client (可选，失败不影响其他功能)
 	metricsClient, err := metricsv.NewForConfig(config)
 	if err != nil {
-		log.Printf("[SDK] metrics 客户端初始化失败（非致命）: %v", err)
+		log.Warn("metrics 客户端初始化失败（非致命）", "err", err)
 		metricsClient = nil
 	}
 

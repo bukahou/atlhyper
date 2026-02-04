@@ -5,12 +5,13 @@ package agentsdk
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/model"
 )
+
+// 使用 server.go 中定义的 log 变量
 
 // handleResult 处理执行结果上报
 // POST /agent/result
@@ -22,7 +23,7 @@ func (s *Server) handleResult(w http.ResponseWriter, r *http.Request) {
 
 	var req ResultRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("[AgentSDK] 解析执行结果失败: %v", err)
+		log.Error("解析执行结果失败", "err", err)
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -42,7 +43,7 @@ func (s *Server) handleResult(w http.ResponseWriter, r *http.Request) {
 
 	// 确认指令完成
 	if err := s.bus.AckCommand(req.CommandID, result); err != nil {
-		log.Printf("[AgentSDK] 确认指令完成失败: %v", err)
+		log.Error("确认指令完成失败", "err", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
@@ -50,7 +51,7 @@ func (s *Server) handleResult(w http.ResponseWriter, r *http.Request) {
 	// 持久化执行结果到数据库
 	s.persistResult(req.CommandID, result)
 
-	log.Printf("[AgentSDK] 已收到执行结果: 指令=%s, 成功=%v", req.CommandID, req.Success)
+	log.Debug("已收到执行结果", "cmd", req.CommandID, "success", req.Success)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(ResultResponse{Status: "ok"})
@@ -67,7 +68,7 @@ func (s *Server) persistResult(cmdID string, result *model.CommandResult) {
 	// 获取现有记录
 	history, err := s.cmdRepo.GetByCommandID(ctx, cmdID)
 	if err != nil || history == nil {
-		log.Printf("[AgentSDK] 获取指令历史失败或不存在: cmd=%s, err=%v", cmdID, err)
+		log.Warn("获取指令历史失败或不存在", "cmd", cmdID, "err", err)
 		return
 	}
 
@@ -90,6 +91,6 @@ func (s *Server) persistResult(cmdID string, result *model.CommandResult) {
 	history.DurationMs = now.Sub(history.CreatedAt).Milliseconds()
 
 	if err := s.cmdRepo.Update(ctx, history); err != nil {
-		log.Printf("[AgentSDK] 更新指令历史失败: cmd=%s, err=%v", cmdID, err)
+		log.Error("更新指令历史失败", "cmd", cmdID, "err", err)
 	}
 }

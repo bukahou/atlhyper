@@ -15,17 +15,19 @@ import {
 import { getCurrentClusterId } from "@/config/cluster";
 import {
   Filter,
-  Eye,
   X,
   Terminal,
   Bot,
   Globe,
-  Clock,
+  Eye,
   CheckCircle2,
   XCircle,
   Loader2,
   AlertCircle,
+  Clock,
 } from "lucide-react";
+
+import { FilterInput, FilterSelect, CommandDetailModal } from "./components";
 
 // 状态配置
 const statusConfig: Record<
@@ -44,88 +46,6 @@ const sourceIcons: Record<string, typeof Terminal> = {
   web: Globe,
   ai: Bot,
 };
-
-// 带清除按钮的筛选输入框
-function FilterInput({
-  value,
-  onChange,
-  onClear,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onClear: () => void;
-  placeholder: string;
-}) {
-  return (
-    <div className="relative flex-1 min-w-[200px]">
-      <input
-        type="text"
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 pr-8 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-sm text-default placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-primary"
-      />
-      {value && (
-        <button
-          onClick={onClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-default transition-colors"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-// 带清除按钮的筛选下拉框
-function FilterSelect({
-  value,
-  onChange,
-  onClear,
-  placeholder,
-  options,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onClear: () => void;
-  placeholder: string;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 pr-8 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary appearance-none min-w-[120px]"
-      >
-        <option value="">{placeholder}</option>
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-      {value ? (
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            onClear();
-          }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-default transition-colors z-10"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      ) : (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-          <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function CommandsPage() {
   const { t } = useI18n();
@@ -299,7 +219,6 @@ export default function CommandsPage() {
 
         {/* 筛选工具栏 */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
-          {/* 标题栏 */}
           <div className="flex items-center gap-2 mb-3">
             <Filter className="w-4 h-4 text-muted" />
             <span className="text-sm font-medium text-default">{t.common.filter}</span>
@@ -319,37 +238,21 @@ export default function CommandsPage() {
             )}
           </div>
 
-          {/* 筛选控件 */}
           <div className="flex flex-wrap gap-3 items-center">
-            {/* 来源 */}
             <FilterSelect
               value={sourceFilter}
-              onChange={(v) => {
-                setSourceFilter(v);
-                setPage(0);
-              }}
-              onClear={() => {
-                setSourceFilter("");
-                setPage(0);
-              }}
+              onChange={(v) => { setSourceFilter(v); setPage(0); }}
+              onClear={() => { setSourceFilter(""); setPage(0); }}
               placeholder={t.commands.allSources}
               options={[
                 { value: "web", label: t.commands.sources.web },
                 { value: "ai", label: t.commands.sources.ai },
               ]}
             />
-
-            {/* 状态 */}
             <FilterSelect
               value={statusFilter}
-              onChange={(v) => {
-                setStatusFilter(v);
-                setPage(0);
-              }}
-              onClear={() => {
-                setStatusFilter("");
-                setPage(0);
-              }}
+              onChange={(v) => { setStatusFilter(v); setPage(0); }}
+              onClear={() => { setStatusFilter(""); setPage(0); }}
               placeholder={t.commands.allStatus}
               options={[
                 { value: "pending", label: t.commands.statuses.pending },
@@ -359,37 +262,19 @@ export default function CommandsPage() {
                 { value: "timeout", label: t.commands.statuses.timeout },
               ]}
             />
-
-            {/* 操作 */}
             <FilterSelect
               value={actionFilter}
-              onChange={(v) => {
-                setActionFilter(v);
-                setPage(0);
-              }}
-              onClear={() => {
-                setActionFilter("");
-                setPage(0);
-              }}
+              onChange={(v) => { setActionFilter(v); setPage(0); }}
+              onClear={() => { setActionFilter(""); setPage(0); }}
               placeholder={t.commands.allActions}
               options={actionOptions}
             />
-
-            {/* 搜索 */}
             <FilterInput
               value={searchTerm}
-              onChange={(v) => {
-                setSearchTerm(v);
-                setPage(0);
-              }}
-              onClear={() => {
-                setSearchTerm("");
-                setPage(0);
-              }}
+              onChange={(v) => { setSearchTerm(v); setPage(0); }}
+              onClear={() => { setSearchTerm(""); setPage(0); }}
               placeholder={t.commands.searchPlaceholder}
             />
-
-            {/* 结果计数 */}
             <span className="text-sm text-muted whitespace-nowrap">
               {commands.length} / {total} {t.common.items}
             </span>
@@ -455,127 +340,5 @@ export default function CommandsPage() {
         />
       )}
     </Layout>
-  );
-}
-
-// 命令详情弹窗
-function CommandDetailModal({
-  command,
-  onClose,
-  t,
-}: {
-  command: CommandHistory;
-  onClose: () => void;
-  t: ReturnType<typeof useI18n>["t"];
-}) {
-  const config = statusConfig[command.status] || statusConfig.pending;
-  const Icon = config.icon;
-  const statusLabel = t.commands.statuses[command.status as keyof typeof t.commands.statuses] || command.status;
-  const actionLabel = t.commands.actions[command.action as keyof typeof t.commands.actions] || command.action;
-  const sourceLabel = t.commands.sources[command.source as keyof typeof t.commands.sources] || command.source;
-
-  const formatDuration = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`;
-    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-    return `${(ms / 60000).toFixed(1)}m`;
-  };
-
-  const details = [
-    { label: t.commands.commandId, value: command.command_id },
-    { label: t.commands.source, value: sourceLabel },
-    { label: t.common.action, value: actionLabel },
-    { label: t.common.type, value: command.target_kind },
-    { label: t.common.namespace, value: command.target_namespace },
-    { label: t.common.name, value: command.target_name },
-    { label: t.common.status, value: statusLabel },
-    { label: t.commands.duration, value: command.duration_ms > 0 ? formatDuration(command.duration_ms) : "-" },
-    { label: t.commands.createdAt, value: command.created_at ? new Date(command.created_at).toLocaleString() : "-" },
-    { label: t.commands.startedAt, value: command.started_at ? new Date(command.started_at).toLocaleString() : "-" },
-    { label: t.commands.finishedAt, value: command.finished_at ? new Date(command.finished_at).toLocaleString() : "-" },
-  ];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card rounded-xl border border-[var(--border-color)] shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-          <div className="flex items-center gap-3">
-            <Icon className={`w-6 h-6 ${config.color}`} />
-            <div>
-              <h2 className="text-lg font-semibold text-default">{t.common.details}</h2>
-              <StatusBadge status={statusLabel} type={config.badgeType} />
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover-bg rounded-lg">
-            <X className="w-5 h-5 text-muted" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* 详细信息 */}
-          <div>
-            <h3 className="text-sm font-semibold text-default mb-3">{t.common.details}</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {details.map((item, i) => (
-                <div key={i} className="bg-[var(--background)] rounded-lg p-3">
-                  <div className="text-xs text-muted mb-1">{item.label}</div>
-                  <div className="text-sm text-default font-medium break-all">{item.value || "-"}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 参数 */}
-          {command.params && (
-            <div>
-              <h3 className="text-sm font-semibold text-default mb-2">{t.commands.params}</h3>
-              <div className="bg-[var(--background)] rounded-lg p-4">
-                <pre className="text-sm text-default whitespace-pre-wrap font-mono">
-                  {(() => {
-                    try {
-                      return JSON.stringify(JSON.parse(command.params), null, 2);
-                    } catch {
-                      return command.params;
-                    }
-                  })()}
-                </pre>
-              </div>
-            </div>
-          )}
-
-          {/* 结果 */}
-          {command.result && (
-            <div>
-              <h3 className="text-sm font-semibold text-default mb-2">{t.commands.result}</h3>
-              <div className="bg-[var(--background)] rounded-lg p-4">
-                <pre className="text-sm text-default whitespace-pre-wrap font-mono">
-                  {(() => {
-                    try {
-                      return JSON.stringify(JSON.parse(command.result), null, 2);
-                    } catch {
-                      return command.result;
-                    }
-                  })()}
-                </pre>
-              </div>
-            </div>
-          )}
-
-          {/* 错误信息 */}
-          {command.error_message && (
-            <div>
-              <h3 className="text-sm font-semibold text-red-500 mb-2">{t.commands.errorMessage}</h3>
-              <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
-                <p className="text-sm text-red-600 dark:text-red-400 whitespace-pre-wrap">
-                  {command.error_message}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }

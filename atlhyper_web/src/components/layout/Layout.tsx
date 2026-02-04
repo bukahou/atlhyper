@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Menu } from "lucide-react";
 import { Sidebar } from "@/components/navigation/Sidebar";
-import { Navbar } from "@/components/navigation/Navbar";
 import { MobileMenu } from "@/components/navigation/MobileMenu";
 import { LoginDialog } from "@/components/auth/LoginDialog";
 import { ToastContainer } from "@/components/common";
@@ -40,9 +40,9 @@ export function Layout({ children }: LayoutProps) {
   }, [setClusterIds]);
 
   return (
-    <div className="min-h-screen flex bg-[var(--background)]">
+    <div className="h-screen flex bg-[var(--background)] overflow-hidden">
       {/* Desktop Sidebar */}
-      <div className="hidden lg:flex overflow-visible">
+      <div className="hidden lg:flex h-screen sticky top-0 overflow-visible z-50">
         <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((v) => !v)} />
       </div>
 
@@ -50,9 +50,21 @@ export function Layout({ children }: LayoutProps) {
       <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen relative z-0">
-        <Navbar onMenuClick={() => setMobileMenuOpen(true)} />
-        <main className="flex-1 p-6 overflow-y-auto overflow-x-hidden">{children}</main>
+      <div className="flex-1 flex flex-col h-screen relative z-0 py-6 pr-6">
+        {/* Mobile Header - only shows on mobile */}
+        <div className="lg:hidden h-14 flex items-center px-4 border-b border-[var(--border-color)]/30 flex-shrink-0 -mt-6 -mr-6 mb-6 bg-card rounded-t-2xl">
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-2 rounded-lg hover:bg-[var(--hover-bg)]"
+            aria-label="Toggle menu"
+          >
+            <Menu className="w-5 h-5 text-secondary" />
+          </button>
+        </div>
+        {/* 主内容卡片 - 圆角风格与 Sidebar 一致 */}
+        <main className="flex-1 p-6 overflow-y-auto overflow-x-hidden min-h-0 rounded-2xl bg-card border border-[var(--border-color)]/50 shadow-[0_10px_40px_rgb(0,0,0,0.08),0_0_20px_rgb(0,0,0,0.05)] dark:shadow-[0_10px_40px_rgb(0,0,0,0.3),0_0_20px_rgb(0,0,0,0.2)]">
+          {children}
+        </main>
       </div>
 
       {/* Login Dialog */}

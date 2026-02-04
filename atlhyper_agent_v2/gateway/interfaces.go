@@ -65,4 +65,12 @@ type MasterGateway interface {
 	//
 	// HTTP: POST /agent/heartbeat
 	Heartbeat(ctx context.Context) error
+
+	// PushSLOMetrics 推送 SLO 指标到 Master
+	//
+	// Agent 定时调用此方法，将采集的 Ingress 指标推送给 Master。
+	// 同时推送 IngressRoute 映射信息，用于 domain/path 维度的展示。
+	//
+	// HTTP: POST /agent/slo
+	PushSLOMetrics(ctx context.Context, metrics *model.IngressMetrics, routes []model.IngressRouteInfo) error
 }

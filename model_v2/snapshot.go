@@ -47,6 +47,11 @@ type ClusterSnapshot struct {
 	Nodes  []Node  `json:"nodes"`
 	Events []Event `json:"events"`
 
+	// ========== 硬件指标 ==========
+	// NodeMetrics 存储每个节点的详细硬件指标
+	// key: 节点名称, value: 节点指标快照
+	NodeMetrics map[string]*NodeMetricsSnapshot `json:"node_metrics,omitempty"`
+
 	// ========== 摘要 ==========
 	Summary ClusterSummary `json:"summary"`
 }

@@ -4,11 +4,12 @@ package agentsdk
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"AtlHyper/model_v2"
 )
+
+// 使用 server.go 中定义的 log 变量
 
 // handleCommands 处理指令轮询
 // GET /agent/commands?cluster_id=xxx
@@ -37,7 +38,7 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 		if r.Context().Err() != nil {
 			return
 		}
-		log.Printf("[AgentSDK] 等待指令出错: %v", err)
+		log.Error("等待指令出错", "err", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
@@ -59,8 +60,7 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 			CreatedBy: cmd.CreatedBy,
 			CreatedAt: cmd.CreatedAt,
 		}
-		log.Printf("[AgentSDK] 指令已下发: id=%s, 集群=%s, 操作=%s, 来源=%s",
-			cmd.ID, clusterID, cmd.Action, cmd.Source)
+		log.Debug("指令已下发", "cmd", cmd.ID, "cluster", clusterID, "action", cmd.Action, "source", cmd.Source)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

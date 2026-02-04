@@ -7,11 +7,12 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 
 	"AtlHyper/model_v2"
 )
+
+// 使用 server.go 中定义的 log 变量
 
 // handleSnapshot 处理快照上报
 // POST /agent/snapshot
@@ -26,7 +27,7 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		gr, err := gzip.NewReader(r.Body)
 		if err != nil {
-			log.Printf("[AgentSDK] 创建 gzip 解码器失败: %v", err)
+			log.Error("创建 gzip 解码器失败", "err", err)
 			http.Error(w, "Invalid gzip", http.StatusBadRequest)
 			return
 		}
@@ -37,7 +38,7 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	// 直接解析为 model_v2.ClusterSnapshot
 	var snapshot model_v2.ClusterSnapshot
 	if err := json.NewDecoder(reader).Decode(&snapshot); err != nil {
-		log.Printf("[AgentSDK] 解析快照失败: %v", err)
+		log.Error("解析快照失败", "err", err)
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -58,7 +59,7 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	// 通过 Processor 处理
 	if err := s.processor.ProcessSnapshot(clusterID, &snapshot); err != nil {
-		log.Printf("[AgentSDK] 处理器错误: %v", err)
+		log.Error("处理器错误", "err", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}

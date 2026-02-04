@@ -9,7 +9,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -17,7 +16,10 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
+	"AtlHyper/common/logger"
 )
+
+var serverLog = logger.Module("Gateway")
 
 // Server Gateway HTTP Server
 type Server struct {
@@ -61,11 +63,11 @@ func (s *Server) Start() error {
 		WriteTimeout: 180 * time.Second, // AI SSE 需要较长超时（多轮 Tool 调用）
 	}
 
-	log.Printf("[Gateway] 启动服务器: 端口=%d", s.port)
+	serverLog.Info("启动服务器", "port", s.port)
 
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("[Gateway] 服务器错误: %v", err)
+			serverLog.Error("服务器错误", "err", err)
 		}
 	}()
 

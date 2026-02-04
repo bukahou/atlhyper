@@ -3,6 +3,8 @@ import type { Translations } from "@/types/i18n";
 export const zh: Translations = {
   nav: {
     overview: "概览",
+    stylePreview: "样式设计",
+    slo: "SLO 监控",
     workbench: "工作台",
     workbenchHome: "工作台首页",
     ai: "AI 对话",
@@ -764,6 +766,53 @@ export const zh: Translations = {
   placeholder: {
     developingTitle: "功能开发中",
     developingMessage: "该功能正在设计开发中，敬请期待...",
+  },
+  slo: {
+    pageDescription: "SLO 监控，按域名维度查看可用性、延迟和错误率指标",
+    noData: "暂无 SLO 数据",
+    noDataHint: "请确保 Agent 已启用 SLO 采集并正确配置 Ingress Controller",
+    refreshing: "刷新中...",
+    lastUpdated: "最后更新",
+    // 状态
+    healthy: "健康",
+    degraded: "降级",
+    atRisk: "风险",
+    breached: "违规",
+    unknown: "未知",
+    // 趋势
+    trendUp: "上升",
+    trendDown: "下降",
+    trendStable: "稳定",
+    // 指标
+    availability: "可用性",
+    latency: "延迟",
+    errorRate: "错误率",
+    rps: "QPS",
+    totalRequests: "总请求数",
+    errorRequests: "错误请求",
+    // 详情弹窗
+    domainDetail: "域名详情",
+    currentMetrics: "当前指标",
+    sloTarget: "SLO 目标",
+    errorBudget: "错误预算",
+    history: "历史趋势",
+    noTarget: "未配置 SLO 目标",
+    setTarget: "设置目标",
+    editTarget: "编辑目标",
+    deleteTarget: "删除目标",
+    targetAvailability: "目标可用性",
+    targetP95: "目标 P95 延迟",
+    remaining: "剩余",
+    consumed: "已消耗",
+    // 图表
+    hourlyTrend: "小时趋势",
+    dailyTrend: "日趋势",
+    // 单位
+    ms: "ms",
+    percent: "%",
+    // 操作
+    viewDetail: "查看详情",
+    configTarget: "配置目标",
   },
   commands: {
     pageDescription: "通过 Web 或 AI 执行的指令历史记录",

@@ -6,14 +6,16 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
 	aiPkg "AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
+	"AtlHyper/common/logger"
 )
+
+var aiLog = logger.Module("AI-Handler")
 
 // AIHandler AI Handler
 type AIHandler struct {
@@ -215,11 +217,17 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 流式输出
+	chunkCount := 0
 	for chunk := range ch {
+		chunkCount++
 		data, _ := json.Marshal(chunk)
+		// 只记录错误类型的消息
+		if chunk.Type == "error" {
+			aiLog.Warn("SSE 发送错误", "chunk", chunkCount, "type", chunk.Type)
+		}
 		fmt.Fprintf(w, "event: message\ndata: %s\n\n", data)
 		flusher.Flush()
 	}
 
-	log.Printf("[AI-Handler] SSE 流结束: convID=%d, userID=%d", req.ConversationID, userID)
+	aiLog.Debug("SSE 流结束", "conv", req.ConversationID, "user", userID, "chunks", chunkCount)
 }

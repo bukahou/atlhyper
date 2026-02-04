@@ -3,12 +3,14 @@
 package memory
 
 import (
-	"log"
 	"sync"
 	"time"
 
+	"AtlHyper/common/logger"
 	"AtlHyper/model_v2"
 )
+
+var log = logger.Module("MemoryStore")
 
 // MemoryStore 内存数据存储
 type MemoryStore struct {
@@ -46,7 +48,7 @@ func (s *MemoryStore) Start() error {
 	s.wg.Add(1)
 	go s.cleanupLoop()
 
-	log.Println("[MemoryStore] 已启动")
+	log.Info("已启动")
 	return nil
 }
 
@@ -54,7 +56,7 @@ func (s *MemoryStore) Start() error {
 func (s *MemoryStore) Stop() error {
 	close(s.stopCh)
 	s.wg.Wait()
-	log.Println("[MemoryStore] 已停止")
+	log.Info("已停止")
 	return nil
 }
 
@@ -84,16 +86,21 @@ func (s *MemoryStore) cleanupExpiredEvents() {
 	cutoff := time.Now().Add(-s.eventRetention)
 
 	for clusterID, snapshot := range s.snapshots {
+		beforeCount := len(snapshot.Events)
 		var validEvents []model_v2.Event
 		for _, e := range snapshot.Events {
 			if e.LastTimestamp.After(cutoff) {
 				validEvents = append(validEvents, e)
 			}
 		}
-		if len(validEvents) < len(snapshot.Events) {
+		if len(validEvents) < beforeCount {
 			snapshot.Events = validEvents
-			log.Printf("[MemoryStore] 已清理过期事件: 集群=%s, %d -> %d",
-				clusterID, len(snapshot.Events), len(validEvents))
+			// 有事件被清理时输出 INFO
+			log.Info("已清理过期事件",
+				"cluster", clusterID,
+				"before", beforeCount,
+				"after", len(validEvents),
+			)
 		}
 	}
 }
@@ -108,7 +115,7 @@ func (s *MemoryStore) updateAgentStatus() {
 	for clusterID, agent := range s.agents {
 		if agent.LastHeartbeat.Before(cutoff) && agent.Status == model_v2.AgentStatusOnline {
 			agent.Status = model_v2.AgentStatusOffline
-			log.Printf("[MemoryStore] Agent 已标记为离线: 集群=%s", clusterID)
+			log.Warn("Agent 已标记为离线", "cluster", clusterID)
 		}
 	}
 }

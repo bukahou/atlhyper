@@ -50,6 +50,9 @@ type snapshotService struct {
 	limitRangeRepo     repository.LimitRangeRepository
 	networkPolicyRepo  repository.NetworkPolicyRepository
 	serviceAccountRepo repository.ServiceAccountRepository
+
+	// 节点指标仓库 (可选)
+	metricsRepo repository.MetricsRepository
 }
 
 // NewSnapshotService 创建快照服务
@@ -75,6 +78,7 @@ func NewSnapshotService(
 	limitRangeRepo repository.LimitRangeRepository,
 	networkPolicyRepo repository.NetworkPolicyRepository,
 	serviceAccountRepo repository.ServiceAccountRepository,
+	metricsRepo repository.MetricsRepository,
 ) SnapshotService {
 	return &snapshotService{
 		clusterID:          clusterID,
@@ -98,6 +102,7 @@ func NewSnapshotService(
 		limitRangeRepo:     limitRangeRepo,
 		networkPolicyRepo:  networkPolicyRepo,
 		serviceAccountRepo: serviceAccountRepo,
+		metricsRepo:        metricsRepo,
 	}
 }
 
@@ -381,6 +386,11 @@ func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapsho
 	}()
 
 	wg.Wait()
+
+	// 聚合节点指标
+	if s.metricsRepo != nil {
+		snapshot.NodeMetrics = s.metricsRepo.GetAll()
+	}
 
 	// 统计每个 Namespace 的资源数量
 	s.calculateNamespaceResources(snapshot)

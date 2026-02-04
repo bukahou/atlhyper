@@ -6,7 +6,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,7 +14,10 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/atlhyper_master_v2/service/operations"
+	"AtlHyper/common/logger"
 )
+
+var cmdHandlerLog = logger.Module("CommandHandler")
 
 // CommandHandler 指令 Handler
 type CommandHandler struct {
@@ -132,7 +134,7 @@ func (h *CommandHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
 
 	// 检查数据库连接
 	if h.db == nil || h.db.Command == nil {
-		log.Printf("[CommandHandler] ListHistory: database or Command repository is nil")
+		cmdHandlerLog.Error("数据库未初始化")
 		writeError(w, http.StatusInternalServerError, "database not initialized")
 		return
 	}
@@ -162,7 +164,7 @@ func (h *CommandHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
 	// 查询列表
 	commands, err := h.db.Command.List(ctx, opts)
 	if err != nil {
-		log.Printf("[CommandHandler] List error: %v, opts: %+v", err, opts)
+		cmdHandlerLog.Error("查询命令列表失败", "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to list commands: "+err.Error())
 		return
 	}
@@ -170,7 +172,7 @@ func (h *CommandHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
 	// 查询总数
 	total, err := h.db.Command.Count(ctx, opts)
 	if err != nil {
-		log.Printf("[CommandHandler] Count error: %v, opts: %+v", err, opts)
+		cmdHandlerLog.Error("统计命令数量失败", "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to count commands: "+err.Error())
 		return
 	}

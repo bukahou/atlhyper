@@ -15,6 +15,11 @@ import (
 // 从环境变量加载配置，未设置则使用默认值。
 // 加载完成后配置存储在 GlobalConfig 全局变量中。
 func LoadConfig() {
+	GlobalConfig.Log = LogConfig{
+		Level:  getString("MASTER_LOG_LEVEL"),
+		Format: getString("MASTER_LOG_FORMAT"),
+	}
+
 	GlobalConfig.Server = ServerConfig{
 		GatewayPort:  getInt("MASTER_GATEWAY_PORT"),
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
@@ -62,23 +67,6 @@ func LoadConfig() {
 		TokenExpiry: getDuration("MASTER_JWT_TOKEN_EXPIRY"),
 	}
 
-	GlobalConfig.Notifier = NotifierConfig{
-		Slack: SlackChannelConfig{
-			Enabled:    getBool("MASTER_SLACK_ENABLED"),
-			WebhookURL: getString("MASTER_SLACK_WEBHOOK_URL"),
-		},
-		Email: EmailChannelConfig{
-			Enabled:      getBool("MASTER_EMAIL_ENABLED"),
-			SMTPHost:     getString("MASTER_EMAIL_SMTP_HOST"),
-			SMTPPort:     getInt("MASTER_EMAIL_SMTP_PORT"),
-			SMTPUser:     getString("MASTER_EMAIL_SMTP_USER"),
-			SMTPPassword: getString("MASTER_EMAIL_SMTP_PASSWORD"),
-			SMTPTLS:      getBool("MASTER_EMAIL_SMTP_TLS"),
-			FromAddress:  getString("MASTER_EMAIL_FROM"),
-			ToAddresses:  getStringSlice("MASTER_EMAIL_TO"),
-		},
-	}
-
 	GlobalConfig.Admin = AdminConfig{
 		Username:    getString("MASTER_ADMIN_USERNAME"),
 		Password:    getString("MASTER_ADMIN_PASSWORD"),
@@ -87,25 +75,19 @@ func LoadConfig() {
 
 	GlobalConfig.AI = AIConfig{
 		Enabled:     getBool("MASTER_AI_ENABLED"),
-		Provider:    getString("MASTER_AI_PROVIDER"),
-		APIKey:      getString("MASTER_AI_GEMINI_API_KEY"),
-		Model:       getString("MASTER_AI_GEMINI_MODEL"),
 		ToolTimeout: getDuration("MASTER_AI_TOOL_TIMEOUT"),
+	}
+
+	GlobalConfig.SLO = SLOConfig{
+		AggregateInterval: getDuration("MASTER_SLO_AGGREGATE_INTERVAL"),
+		CleanupInterval:   getDuration("MASTER_SLO_CLEANUP_INTERVAL"),
+		RawRetention:      getDuration("MASTER_SLO_RAW_RETENTION"),
+		HourlyRetention:   getDuration("MASTER_SLO_HOURLY_RETENTION"),
+		StatusRetention:   getDuration("MASTER_SLO_STATUS_RETENTION"),
 	}
 
 	log.Printf("[config] Master 配置加载完成: GatewayPort=%d, AgentSDKPort=%d, TesterPort=%d, DBType=%s, Admin=%s",
 		GlobalConfig.Server.GatewayPort, GlobalConfig.Server.AgentSDKPort, GlobalConfig.Server.TesterPort, GlobalConfig.Database.Type, GlobalConfig.Admin.Username)
-
-	// 打印通知配置状态
-	if GlobalConfig.Notifier.Slack.Enabled {
-		log.Printf("[config] Slack 通知已启用")
-	}
-	if GlobalConfig.Notifier.Email.Enabled {
-		log.Printf("[config] Email 通知已启用: %s -> %v", GlobalConfig.Notifier.Email.FromAddress, GlobalConfig.Notifier.Email.ToAddresses)
-	}
-	if GlobalConfig.AI.Enabled {
-		log.Printf("[config] AI 功能已启用: provider=%s, model=%s", GlobalConfig.AI.Provider, GlobalConfig.AI.Model)
-	}
 }
 
 // ==================== 工具函数 ====================

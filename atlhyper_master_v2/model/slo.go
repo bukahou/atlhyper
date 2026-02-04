@@ -1,0 +1,135 @@
+// atlhyper_master_v2/model/slo.go
+// SLO API 类型定义
+package model
+
+// ==================== API 响应类型 ====================
+
+// DomainSLO 域名 SLO 信息
+type DomainSLO struct {
+	Host         string                    `json:"host"`
+	IngressName  string                    `json:"ingress_name"`
+	IngressClass string                    `json:"ingress_class"`
+	Namespace    string                    `json:"namespace"`
+	TLS          bool                      `json:"tls"`
+	Targets      map[string]*SLOTargetSpec `json:"targets"` // "1d", "7d", "30d"
+	Current      *SLOMetrics               `json:"current"`
+	Previous     *SLOMetrics               `json:"previous,omitempty"`
+	ErrorBudget  float64                   `json:"error_budget_remaining"`
+	Status       string                    `json:"status"` // healthy / warning / critical
+	Trend        string                    `json:"trend"`  // up / down / stable
+}
+
+// SLOTargetSpec SLO 目标规格
+type SLOTargetSpec struct {
+	Availability float64 `json:"availability"`
+	P95Latency   int     `json:"p95_latency"`
+}
+
+// SLOMetrics SLO 指标
+type SLOMetrics struct {
+	Availability   float64 `json:"availability"`
+	P95Latency     int     `json:"p95_latency"`
+	P99Latency     int     `json:"p99_latency"`
+	ErrorRate      float64 `json:"error_rate"`
+	RequestsPerSec float64 `json:"requests_per_sec"`
+	TotalRequests  int64   `json:"total_requests"`
+}
+
+// SLOSummary SLO 汇总信息
+type SLOSummary struct {
+	TotalDomains    int     `json:"total_domains"`
+	HealthyCount    int     `json:"healthy_count"`
+	WarningCount    int     `json:"warning_count"`
+	CriticalCount   int     `json:"critical_count"`
+	AvgAvailability float64 `json:"avg_availability"`
+	AvgErrorBudget  float64 `json:"avg_error_budget"`
+	TotalRPS        float64 `json:"total_rps"`
+}
+
+// SLODomainsResponse 域名列表响应 (V1 兼容，使用 host/service key)
+type SLODomainsResponse struct {
+	Domains []DomainSLO `json:"domains"`
+	Summary SLOSummary  `json:"summary"`
+}
+
+// ==================== V2 API 响应类型（按真实域名分组）====================
+
+// DomainSLOResponseV2 域名级别的 SLO 响应 (V2)
+// 以真实域名为单位，包含该域名下的所有后端服务
+type DomainSLOResponseV2 struct {
+	Domain               string        `json:"domain"`                 // 真实域名（如 example.com）
+	TLS                  bool          `json:"tls"`                    // 是否启用 TLS
+	Services             []ServiceSLO  `json:"services"`               // 该域名下的所有后端服务
+	Summary              *SLOMetrics   `json:"summary"`                // 域名级别汇总指标
+	Status               string        `json:"status"`                 // healthy / warning / critical
+	ErrorBudgetRemaining float64       `json:"error_budget_remaining"` // 剩余错误预算
+}
+
+// ServiceSLO 后端服务级别的 SLO 数据（Metrics 的实际数据来源）
+type ServiceSLO struct {
+	ServiceKey   string                    `json:"service_key"`            // Traefik service key (namespace-name-port@kubernetes)
+	ServiceName  string                    `json:"service_name"`           // 服务名称
+	ServicePort  int                       `json:"service_port"`           // 服务端口
+	Namespace    string                    `json:"namespace"`              // 命名空间
+	Paths        []string                  `json:"paths"`                  // 使用该服务的路径列表
+	IngressName  string                    `json:"ingress_name"`           // IngressRoute/Ingress 名称
+	Current      *SLOMetrics               `json:"current"`                // 当前周期指标
+	Previous     *SLOMetrics               `json:"previous,omitempty"`     // 上一周期指标（用于对比）
+	Targets      map[string]*SLOTargetSpec `json:"targets,omitempty"`      // 目标配置
+	Status       string                    `json:"status"`                 // healthy / warning / critical
+	ErrorBudget  float64                   `json:"error_budget_remaining"` // 剩余错误预算
+}
+
+// SLODomainsResponseV2 域名列表响应 (V2)
+type SLODomainsResponseV2 struct {
+	Domains []DomainSLOResponseV2 `json:"domains"`
+	Summary SLOSummary            `json:"summary"`
+}
+
+// SLODomainHistoryItem 域名历史数据项
+type SLODomainHistoryItem struct {
+	Timestamp    string  `json:"timestamp"`
+	Availability float64 `json:"availability"`
+	P95Latency   int     `json:"p95_latency"`
+	P99Latency   int     `json:"p99_latency"`
+	RPS          float64 `json:"rps"`
+	ErrorRate    float64 `json:"error_rate"`
+}
+
+// SLODomainHistoryResponse 域名历史响应
+type SLODomainHistoryResponse struct {
+	Host    string                 `json:"host"`
+	History []SLODomainHistoryItem `json:"history"`
+}
+
+// SLOStatusHistoryItem 状态变更历史项
+type SLOStatusHistoryItem struct {
+	Host                 string  `json:"host"`
+	TimeRange            string  `json:"time_range"`
+	OldStatus            string  `json:"old_status"`
+	NewStatus            string  `json:"new_status"`
+	Availability         float64 `json:"availability"`
+	P95Latency           int     `json:"p95_latency"`
+	ErrorBudgetRemaining float64 `json:"error_budget_remaining"`
+	ChangedAt            string  `json:"changed_at"`
+}
+
+// ==================== API 请求类型 ====================
+
+// UpdateSLOTargetRequest 更新 SLO 目标请求
+type UpdateSLOTargetRequest struct {
+	ClusterID          string  `json:"cluster_id"`
+	Host               string  `json:"host"`
+	TimeRange          string  `json:"time_range"` // "1d", "7d", "30d"
+	AvailabilityTarget float64 `json:"availability_target"`
+	P95LatencyTarget   int     `json:"p95_latency_target"`
+}
+
+// SLOQueryParams SLO 查询参数
+type SLOQueryParams struct {
+	ClusterID string `form:"cluster_id"`
+	TimeRange string `form:"time_range"` // "1d", "7d", "30d"
+	Host      string `form:"host"`
+	Limit     int    `form:"limit"`
+	Offset    int    `form:"offset"`
+}

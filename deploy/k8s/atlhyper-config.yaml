@@ -49,7 +49,11 @@ data:
 
 ---
 # ============================================
-# Secret - 敏感信息（请修改为实际值）
+# Secret - 敏感信息
+# ============================================
+# !! 重要安全警告 !!
+# 以下所有值都是占位符，必须在部署前修改为实际值
+# 使用默认值部署会导致严重安全风险
 # ============================================
 apiVersion: v1
 kind: Secret
@@ -59,13 +63,16 @@ metadata:
 type: Opaque
 stringData:
   # === 管理员密码 ===
-  DEFAULT_ADMIN_PASSWORD: "change-me-in-production"
+  # 必须修改！建议使用 16+ 字符的强密码
+  DEFAULT_ADMIN_PASSWORD: "<CHANGE_THIS_SECURE_PASSWORD>"
 
-  # === 邮件密码 ===
-  MAIL_PASSWORD: "your-app-password"
+  # === 邮件密码（如不使用可保留占位符） ===
+  MAIL_PASSWORD: "<YOUR_MAIL_APP_PASSWORD>"
 
-  # === Slack Webhook ===
-  SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  # === Slack Webhook（如不使用可保留占位符） ===
+  SLACK_WEBHOOK_URL: "<YOUR_SLACK_WEBHOOK_URL>"
 
   # === JWT 密钥 ===
-  JWT_SECRET: "your-jwt-secret-key-change-in-production"
+  # 必须修改！建议使用 32+ 字符的随机字符串
+  # 生成命令: openssl rand -base64 32
+  JWT_SECRET: "<CHANGE_THIS_RANDOM_JWT_SECRET_MIN_32_CHARS>"

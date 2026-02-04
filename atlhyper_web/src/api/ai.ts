@@ -7,7 +7,7 @@
 
 import { get, post, del, authErrorManager } from "./request";
 import { env } from "@/config/env";
-import { Conversation, Message, StreamSegment } from "@/components/ai/types";
+import { Conversation, Message, StreamSegment, ChatStats } from "@/components/ai/types";
 
 // ============================================================
 // CRUD 接口
@@ -55,14 +55,14 @@ export interface StreamChatParams {
  *
  * @param params - 请求参数
  * @param onChunk - 收到 text/tool_call/tool_result 时回调
- * @param onDone - 流结束回调
+ * @param onDone - 流结束回调，接收可选的统计信息
  * @param onError - 错误回调
  * @param signal - AbortSignal，用于取消请求
  */
 export function streamChat(
   params: StreamChatParams,
   onChunk: (segment: StreamSegment) => void,
-  onDone: () => void,
+  onDone: (stats?: ChatStats) => void,
   onError: (err: string) => void,
   signal?: AbortSignal,
 ) {
@@ -95,7 +95,7 @@ export function streamChat(
 
       const decoder = new TextDecoder();
       let buffer = "";
-      let doneReceived = false;
+      let streamEnded = false; // 标记流是否已正常结束（done 或 error）
 
       while (true) {
         const { done, value } = await reader.read();
@@ -114,9 +114,11 @@ export function streamChat(
             try {
               const chunk = JSON.parse(jsonStr);
               if (chunk.type === "done") {
-                doneReceived = true;
-                onDone();
+                streamEnded = true;
+                // 提取 stats 并传递给 onDone
+                onDone(chunk.stats as ChatStats | undefined);
               } else if (chunk.type === "error") {
+                streamEnded = true; // error 也算流结束，避免再调用 onDone 清空 streamSegments
                 onError(chunk.content || "未知错误");
               } else {
                 onChunk(chunk as StreamSegment);
@@ -128,8 +130,8 @@ export function streamChat(
         }
       }
 
-      // 流结束但未收到 done 事件（连接意外关闭）
-      if (!doneReceived) {
+      // 流结束但未收到 done/error 事件（连接意外关闭）
+      if (!streamEnded) {
         onDone();
       }
     })

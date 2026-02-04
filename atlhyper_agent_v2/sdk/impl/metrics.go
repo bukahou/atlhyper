@@ -10,12 +10,13 @@ package impl
 
 import (
 	"context"
-	"log"
 
 	"AtlHyper/atlhyper_agent_v2/sdk"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// 使用 client.go 中声明的 log 变量
 
 // =============================================================================
 // Node Metrics 操作
@@ -37,7 +38,7 @@ func (c *Client) ListNodeMetrics(ctx context.Context) (map[string]sdk.NodeMetric
 	metricsList, err := c.metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		// metrics-server 不可用，返回空 map (不报错)
-		log.Printf("[SDK] 获取节点 metrics 失败: %v", err)
+		log.Warn("获取节点 metrics 失败", "err", err)
 		return result, nil
 	}
 
@@ -72,7 +73,7 @@ func (c *Client) ListPodMetrics(ctx context.Context) (map[string]sdk.PodMetrics,
 	metricsList, err := c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		// metrics-server 不可用，返回空 map (不报错)
-		log.Printf("[SDK] 获取 Pod metrics 失败: %v", err)
+		log.Warn("获取 Pod metrics 失败", "err", err)
 		return result, nil
 	}
 

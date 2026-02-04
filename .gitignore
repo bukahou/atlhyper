@@ -40,6 +40,12 @@ atlhyper_web/next-env.d.ts
 atlhyper_web/coverage/
 
 # ===== 通用 =====
+# Binary output
+bin/
+
+# Database
+*.db
+
 # IDE
 .idea/
 .vscode/

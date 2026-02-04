@@ -10,18 +10,19 @@
   --primary-light: #ccfbf1;
   --primary-dark: #0f766e;
 
-  /* Light Theme - 柔和的浅灰白背景 */
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card-bg: #ffffff;
-  --sidebar-bg: #ffffff;
-  --nav-bg: rgba(255, 255, 255, 0.95);
-  --border-color: #e2e8f0;
+  /* Light Theme - 柔和护眼配色 */
+  --background: #e9ecf0;
+  --foreground: #1e293b;
+  --card-bg: #f0f2f5;
+  --sidebar-bg: #dfe3e8;
+  --nav-bg: rgba(223, 227, 232, 0.95);
+  --border-color: #d1d5db;
+  --hover-bg: rgba(0, 0, 0, 0.04);
 
-  /* Text Colors */
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  /* Text Colors - 降低对比度 */
+  --text-primary: #1e293b;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
 
   /* Status Colors */
   --success: #22c55e;

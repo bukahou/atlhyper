@@ -49,8 +49,9 @@ func (f *Factory) Create(ch *database.NotifyChannel) (Notifier, error) {
 		if err := json.Unmarshal([]byte(ch.Config), &cfg); err != nil {
 			return nil, errors.New("invalid email config")
 		}
-		if cfg.SMTPHost == "" || len(cfg.ToAddresses) == 0 {
-			return nil, errors.New("email smtp host and recipients required")
+		// 完整性验证：host、user、password、recipients 都必须配置
+		if cfg.SMTPHost == "" || cfg.SMTPUser == "" || cfg.SMTPPassword == "" || len(cfg.ToAddresses) == 0 {
+			return nil, errors.New("email config incomplete: smtp_host, smtp_user, smtp_password, to_addresses required")
 		}
 		return NewEmailNotifier(EmailConfig{
 			SMTPHost:     cfg.SMTPHost,
