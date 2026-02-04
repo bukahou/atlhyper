@@ -169,7 +169,7 @@ export function ChatPanel({
       {activePanel && (
         <div
           ref={panelRef}
-          className="absolute right-16 top-1/2 -translate-y-1/2 z-30 w-[320px] max-h-[70vh] flex flex-col rounded-xl border border-[var(--border-color)] bg-card shadow-xl overflow-hidden"
+          className="absolute right-16 top-1/2 -translate-y-1/2 z-30 w-[85vw] sm:w-[320px] max-w-[320px] max-h-[70vh] flex flex-col rounded-xl border border-[var(--border-color)] bg-card shadow-xl overflow-hidden"
         >
           {activePanel === "history" && (
             <ConversationPanel

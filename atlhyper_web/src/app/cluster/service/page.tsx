@@ -247,6 +247,7 @@ export default function ServicePage() {
     {
       key: "name",
       header: t.common.name,
+      mobileTitle: true,
       render: (s) => <span className="font-medium text-default">{s.name || "-"}</span>,
     },
     { key: "namespace", header: t.common.namespace },
@@ -258,6 +259,7 @@ export default function ServicePage() {
     {
       key: "clusterIP",
       header: t.service.clusterIP,
+      mobileVisible: false,
       render: (s) => <span className="font-mono text-sm">{s.clusterIP || "-"}</span>,
     },
     {
@@ -268,6 +270,7 @@ export default function ServicePage() {
     {
       key: "selector",
       header: t.service.selector,
+      mobileVisible: false,
       render: (s) => (
         <span className="text-xs text-muted truncate max-w-[150px] block" title={s.selector || ""}>
           {s.selector || "-"}
@@ -277,6 +280,7 @@ export default function ServicePage() {
     {
       key: "action",
       header: t.common.action,
+      mobileVisible: false,
       render: (s) => (
         <button
           onClick={(e) => {

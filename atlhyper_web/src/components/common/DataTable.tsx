@@ -10,6 +10,10 @@ export interface TableColumn<T> {
   header: string;
   render?: (item: T) => React.ReactNode;
   className?: string;
+  /** 移动端卡片视图中是否显示，默认 true */
+  mobileVisible?: boolean;
+  /** 移动端作为卡片主标题（只能有一列设置） */
+  mobileTitle?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -71,6 +75,15 @@ export function DataTable<T>({
     }
   }, [currentPage, totalPages]);
 
+  // 移动端列过滤
+  const mobileColumns = useMemo(() => {
+    const titleCol = columns.find((c) => c.mobileTitle);
+    const otherCols = columns.filter(
+      (c) => c.mobileVisible !== false && !c.mobileTitle
+    );
+    return { titleCol, otherCols };
+  }, [columns]);
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -83,9 +96,18 @@ export function DataTable<T>({
     return <div className="text-center py-12 text-gray-500">{t.common.noData}</div>;
   }
 
+  // 渲染单元格内容
+  const renderCell = (item: T, col: TableColumn<T>) => {
+    if (col.render) {
+      return col.render(item);
+    }
+    return String((item as Record<string, unknown>)[col.key] ?? "");
+  };
+
   return (
     <div>
-      <div className="overflow-x-auto">
+      {/* 桌面端表格视图 */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead className="bg-[var(--background)]">
             <tr>
@@ -108,9 +130,7 @@ export function DataTable<T>({
               >
                 {columns.map((col) => (
                   <td key={col.key} className={`px-4 py-3 text-sm ${col.className || ""}`}>
-                    {col.render
-                      ? col.render(item)
-                      : String((item as Record<string, unknown>)[col.key] ?? "")}
+                    {renderCell(item, col)}
                   </td>
                 ))}
               </tr>
@@ -119,10 +139,40 @@ export function DataTable<T>({
         </table>
       </div>
 
+      {/* 移动端卡片视图 */}
+      <div className="md:hidden space-y-3">
+        {paginatedData.map((item, index) => (
+          <div
+            key={keyExtractor(item, startIndex - 1 + index)}
+            className={`p-4 rounded-xl border border-[var(--border-color)] bg-card ${
+              onRowClick ? "cursor-pointer active:bg-[var(--hover-bg)]" : ""
+            }`}
+            onClick={() => onRowClick?.(item)}
+          >
+            {/* 卡片标题 */}
+            {mobileColumns.titleCol && (
+              <div className="font-medium text-default mb-2">
+                {renderCell(item, mobileColumns.titleCol)}
+              </div>
+            )}
+            {/* 其他字段 */}
+            <div className="space-y-1.5">
+              {mobileColumns.otherCols.map((col) => (
+                <div key={col.key} className="flex justify-between items-start gap-2 text-sm">
+                  <span className="text-muted flex-shrink-0">{col.header}</span>
+                  <span className="text-default text-right">{renderCell(item, col)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* 分页控制 */}
       {showPagination && totalPages > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-color)] bg-[var(--background)]">
-          <div className="flex items-center gap-4 text-sm text-muted">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 border-t border-[var(--border-color)] bg-[var(--background)]">
+          {/* 左侧信息 */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 text-sm text-muted">
             <span>
               {t.table.showing} {startIndex}-{endIndex} / {t.common.total} {data.length} {t.table.entries}
             </span>
@@ -143,34 +193,35 @@ export function DataTable<T>({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* 右侧分页按钮 */}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-1.5 rounded hover:bg-card disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2 sm:p-1.5 rounded hover:bg-card disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
 
-            {/* 页码按钮 */}
+            {/* 页码按钮 - 移动端显示更少 */}
             <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
                 let pageNum: number;
-                if (totalPages <= 5) {
+                if (totalPages <= 3) {
                   pageNum = i + 1;
-                } else if (currentPage <= 3) {
+                } else if (currentPage <= 2) {
                   pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
+                } else if (currentPage >= totalPages - 1) {
+                  pageNum = totalPages - 2 + i;
                 } else {
-                  pageNum = currentPage - 2 + i;
+                  pageNum = currentPage - 1 + i;
                 }
 
                 return (
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
-                    className={`w-8 h-8 text-sm rounded transition-colors ${
+                    className={`w-9 h-9 sm:w-8 sm:h-8 text-sm rounded transition-colors ${
                       currentPage === pageNum
                         ? "bg-primary text-white"
                         : "hover:bg-card text-muted"
@@ -185,9 +236,9 @@ export function DataTable<T>({
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="p-1.5 rounded hover:bg-card disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2 sm:p-1.5 rounded hover:bg-card disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>

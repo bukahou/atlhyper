@@ -219,6 +219,7 @@ export default function DeploymentPage() {
     {
       key: "name",
       header: t.common.name,
+      mobileTitle: true,
       render: (d) => (
         <div>
           <span className="font-medium text-default">{d.name || "-"}</span>
@@ -242,11 +243,13 @@ export default function DeploymentPage() {
     {
       key: "createdAt",
       header: t.common.createdAt,
+      mobileVisible: false,
       render: (d) => d.createdAt ? new Date(d.createdAt).toLocaleString() : "-",
     },
     {
       key: "action",
       header: t.common.action,
+      mobileVisible: false,
       render: (d) => (
         <button
           onClick={(e) => {

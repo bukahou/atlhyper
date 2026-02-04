@@ -134,6 +134,7 @@ export default function CommandsPage() {
     {
       key: "time",
       header: t.common.time,
+      mobileVisible: false,
       render: (cmd) => (
         <span className="text-sm text-muted whitespace-nowrap">
           {cmd.created_at ? new Date(cmd.created_at).toLocaleString() : "-"}
@@ -157,6 +158,7 @@ export default function CommandsPage() {
     {
       key: "action",
       header: t.common.action,
+      mobileTitle: true,
       render: (cmd) => {
         const label = t.commands.actions[cmd.action as keyof typeof t.commands.actions] || cmd.action;
         return (
@@ -187,6 +189,7 @@ export default function CommandsPage() {
     {
       key: "duration",
       header: t.commands.duration,
+      mobileVisible: false,
       render: (cmd) => (
         <span className="text-sm text-muted whitespace-nowrap">
           {cmd.duration_ms > 0 ? formatDuration(cmd.duration_ms) : "-"}
@@ -196,6 +199,7 @@ export default function CommandsPage() {
     {
       key: "actions",
       header: "",
+      mobileVisible: false,
       render: (cmd) => (
         <button
           onClick={() => handleViewDetail(cmd)}

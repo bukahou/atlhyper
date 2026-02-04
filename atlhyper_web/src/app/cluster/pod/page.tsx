@@ -313,6 +313,7 @@ export default function PodPage() {
     {
       key: "name",
       header: t.common.name,
+      mobileTitle: true,
       render: (pod) => (
         <div>
           <span className="font-medium text-default">{pod.name || "-"}</span>
@@ -331,10 +332,11 @@ export default function PodPage() {
       header: "Ready",
       render: (pod) => <span className="font-mono text-sm">{pod.ready || "-"}</span>,
     },
-    { key: "node", header: "Node" },
+    { key: "node", header: "Node", mobileVisible: false },
     {
       key: "cpu",
       header: "CPU",
+      mobileVisible: false,
       render: (pod) => (
         <div className="text-sm">
           <span>{pod.cpuText || "-"}</span>
@@ -345,6 +347,7 @@ export default function PodPage() {
     {
       key: "memory",
       header: "Memory",
+      mobileVisible: false,
       render: (pod) => (
         <div className="text-sm">
           <span>{pod.memoryText || "-"}</span>
@@ -360,11 +363,13 @@ export default function PodPage() {
     {
       key: "age",
       header: "Age",
+      mobileVisible: false,
       render: (pod) => <span className="text-sm text-muted">{pod.age || "-"}</span>,
     },
     {
       key: "action",
       header: t.common.action,
+      mobileVisible: false,
       render: (pod) => (
         <div className="flex items-center gap-1">
           <button

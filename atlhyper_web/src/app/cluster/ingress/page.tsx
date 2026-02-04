@@ -39,6 +39,7 @@ export default function IngressPage() {
     {
       key: "name",
       header: t.common.name,
+      mobileTitle: true,
       render: (ing) => (
         <div className="flex items-center gap-2">
           <Globe className="w-4 h-4 text-primary" />
@@ -59,6 +60,7 @@ export default function IngressPage() {
     {
       key: "path",
       header: t.ingress.path,
+      mobileVisible: false,
       render: (ing) => <span className="font-mono text-sm">{ing.path || "-"}</span>,
     },
     {
@@ -83,6 +85,7 @@ export default function IngressPage() {
     {
       key: "actions",
       header: "",
+      mobileVisible: false,
       render: (ing) => (
         <button
           onClick={() => handleViewDetail(ing)}

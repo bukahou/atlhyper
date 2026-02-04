@@ -20,7 +20,7 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
       />
 
       {/* Menu */}
-      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-[var(--sidebar-bg)] lg:hidden">
+      <div className="fixed inset-y-0 left-0 z-50 w-[80vw] sm:w-64 max-w-xs bg-[var(--sidebar-bg)] lg:hidden">
         <div className="absolute top-4 right-4">
           <button
             onClick={onClose}
