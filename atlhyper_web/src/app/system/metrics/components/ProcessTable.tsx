@@ -70,15 +70,15 @@ export const ProcessTable = memo(function ProcessTable({ data }: ProcessTablePro
   });
 
   return (
-    <div className="bg-card rounded-xl border border-[var(--border-color)] p-5">
+    <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
       {/* 头部 */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
-          <div className="p-2 bg-indigo-500/10 rounded-lg">
-            <ListTree className="w-5 h-5 text-indigo-500" />
+          <div className="p-1.5 sm:p-2 bg-indigo-500/10 rounded-lg">
+            <ListTree className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-default">Top Processes</h3>
+            <h3 className="text-sm sm:text-base font-semibold text-default">Top Processes</h3>
             <p className="text-xs text-muted">{data.length} processes</p>
           </div>
         </div>
@@ -91,13 +91,72 @@ export const ProcessTable = memo(function ProcessTable({ data }: ProcessTablePro
             placeholder="Filter..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="w-full sm:w-auto pl-8 pr-3 py-2 sm:py-1.5 text-sm bg-[var(--background)] border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
           />
         </div>
       </div>
 
-      {/* 表格 */}
-      <div className="overflow-x-auto">
+      {/* 移动端卡片视图 */}
+      <div className="sm:hidden space-y-2">
+        {sortedData.slice(0, 10).map((proc) => (
+          <div
+            key={proc.pid}
+            className="p-3 bg-[var(--background)] rounded-lg border border-[var(--border-color)]"
+          >
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-default text-sm truncate" title={proc.name}>
+                  {proc.name}
+                </div>
+                <div className="text-xs text-muted">
+                  PID: {proc.pid} · {proc.user}
+                </div>
+              </div>
+              <span className={`px-1.5 py-0.5 text-xs rounded flex-shrink-0 ${getStateColor(proc.state)}`}>
+                {getStateName(proc.state)}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted">CPU</span>
+                  <span className={proc.cpuPercent > 50 ? "text-orange-500" : "text-default"}>
+                    {proc.cpuPercent.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-1.5 bg-[var(--border-color)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-orange-500 rounded-full"
+                    style={{ width: `${Math.min(100, proc.cpuPercent)}%` }}
+                  />
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted">MEM</span>
+                  <span className={proc.memPercent > 50 ? "text-green-500" : "text-default"}>
+                    {proc.memPercent.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-1.5 bg-[var(--border-color)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 rounded-full"
+                    style={{ width: `${Math.min(100, proc.memPercent)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {sortedData.length > 10 && (
+          <div className="text-center text-xs text-muted py-2">
+            +{sortedData.length - 10} more processes
+          </div>
+        )}
+      </div>
+
+      {/* 桌面端表格 */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-muted border-b border-[var(--border-color)]">

@@ -101,18 +101,19 @@ export function PodLogsViewer({
       title={`日志: ${podName}${containerName ? ` / ${containerName}` : ""}`}
       size="full"
     >
-      <div className="flex flex-col h-[80vh]">
+      <div className="flex flex-col h-full">
         {/* 工具栏 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] bg-[var(--background)] shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 sm:px-4 py-2 sm:py-3 border-b border-[var(--border-color)] bg-[var(--background)] shrink-0">
+          {/* 左侧控制 */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* 行数选择 */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted">显示最后</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-xs sm:text-sm text-muted hidden sm:inline">显示最后</span>
               <div className="relative">
                 <select
                   value={tailLines}
                   onChange={(e) => setTailLines(Number(e.target.value))}
-                  className="appearance-none pl-3 pr-8 py-1.5 bg-card border border-[var(--border-color)] rounded text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="appearance-none pl-2 sm:pl-3 pr-6 sm:pr-8 py-1.5 bg-card border border-[var(--border-color)] rounded text-xs sm:text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {tailLinesOptions.map((n) => (
                     <option key={n} value={n}>
@@ -120,15 +121,15 @@ export function PodLogsViewer({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
+                <ChevronDown className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-muted pointer-events-none" />
               </div>
-              <span className="text-sm text-muted">行</span>
+              <span className="text-xs sm:text-sm text-muted">行</span>
             </div>
 
             {/* 搜索按钮 */}
             <button
               onClick={() => setShowSearch(!showSearch)}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
                 showSearch ? "bg-primary/10 text-primary" : "hover-bg text-muted"
               }`}
               title="搜索"
@@ -136,21 +137,21 @@ export function PodLogsViewer({
               <Search className="w-4 h-4" />
             </button>
 
-            {/* 搜索框 */}
+            {/* 搜索框 - 移动端显示在下方 */}
             {showSearch && (
-              <div className="relative">
+              <div className="relative w-full sm:w-auto order-last sm:order-none">
                 <input
                   type="text"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   placeholder="搜索日志..."
-                  className="w-48 pl-3 pr-8 py-1.5 bg-card border border-[var(--border-color)] rounded text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full sm:w-48 pl-3 pr-8 py-1.5 bg-card border border-[var(--border-color)] rounded text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary"
                   autoFocus
                 />
                 {searchText && (
                   <button
                     onClick={() => setSearchText("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-default"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-default p-1"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -159,26 +160,27 @@ export function PodLogsViewer({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* 右侧按钮 */}
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* 自动滚动 */}
             <button
               onClick={() => setAutoScroll(!autoScroll)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded text-xs sm:text-sm transition-colors ${
                 autoScroll
                   ? "bg-primary/10 text-primary"
                   : "hover-bg text-muted"
               }`}
               title="自动滚动到底部"
             >
-              <ArrowDown className="w-4 h-4" />
-              自动滚动
+              <ArrowDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">自动滚动</span>
             </button>
 
             {/* 刷新 */}
             <button
               onClick={fetchLogs}
               disabled={loading}
-              className="p-2 rounded-lg hover-bg text-muted hover:text-default disabled:opacity-50 transition-colors"
+              className="p-1.5 sm:p-2 rounded-lg hover-bg text-muted hover:text-default disabled:opacity-50 transition-colors"
               title="刷新"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -188,7 +190,7 @@ export function PodLogsViewer({
             <button
               onClick={handleDownload}
               disabled={!logs || loading}
-              className="p-2 rounded-lg hover-bg text-muted hover:text-default disabled:opacity-50 transition-colors"
+              className="p-1.5 sm:p-2 rounded-lg hover-bg text-muted hover:text-default disabled:opacity-50 transition-colors"
               title="下载日志"
             >
               <Download className="w-4 h-4" />
@@ -197,17 +199,17 @@ export function PodLogsViewer({
         </div>
 
         {/* 日志内容 */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-h-0">
           {loading && !logs ? (
             <div className="h-full flex items-center justify-center">
               <LoadingSpinner />
             </div>
           ) : error ? (
-            <div className="h-full flex items-center justify-center text-red-500">{error}</div>
+            <div className="h-full flex items-center justify-center text-red-500 p-4 text-sm">{error}</div>
           ) : (
             <pre
               ref={logsRef}
-              className="h-full overflow-auto p-4 bg-gray-900 text-gray-100 text-xs font-mono leading-relaxed whitespace-pre-wrap break-all"
+              className="h-full overflow-auto p-2 sm:p-4 bg-gray-900 text-gray-100 text-[10px] sm:text-xs font-mono leading-relaxed whitespace-pre-wrap break-all"
               dangerouslySetInnerHTML={{
                 __html: searchText ? highlightLogs(logs) : logs,
               }}
@@ -216,7 +218,7 @@ export function PodLogsViewer({
         </div>
 
         {/* 状态栏 */}
-        <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--border-color)] bg-[var(--background)] text-xs text-muted shrink-0">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 sm:py-2 border-t border-[var(--border-color)] bg-[var(--background)] text-[10px] sm:text-xs text-muted shrink-0">
           <span>
             {logs ? `${logs.split("\n").length} 行` : "暂无日志"}
           </span>

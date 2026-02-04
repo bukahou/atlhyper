@@ -39,17 +39,17 @@ export function DeleteUserModal({ user, onClose, onSuccess, t }: DeleteUserModal
   if (!user) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-card rounded-xl border border-[var(--border-color)] p-6 w-full max-w-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-card rounded-t-xl sm:rounded-xl border border-[var(--border-color)] p-4 sm:p-6 w-full sm:max-w-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-default">{t.users.deleteConfirmTitle}</h3>
-          <button onClick={onClose} className="p-1 hover-bg rounded">
+          <h3 className="text-base sm:text-lg font-semibold text-default">{t.users.deleteConfirmTitle}</h3>
+          <button onClick={onClose} className="p-1.5 hover-bg rounded">
             <X className="w-5 h-5 text-muted" />
           </button>
         </div>
 
-        <div className="space-y-4">
-          <p className="text-secondary">
+        <div className="space-y-3 sm:space-y-4">
+          <p className="text-secondary text-sm sm:text-base">
             {t.users.deleteConfirmMessage.replace("{name}", user.username)}
           </p>
 
@@ -63,14 +63,14 @@ export function DeleteUserModal({ user, onClose, onSuccess, t }: DeleteUserModal
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-[var(--border-color)] rounded-lg hover-bg"
+              className="flex-1 px-4 py-2.5 sm:py-2 border border-[var(--border-color)] rounded-lg hover-bg text-sm"
             >
               {t.common.cancel}
             </button>
             <button
               onClick={handleDelete}
               disabled={loading}
-              className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50"
+              className="flex-1 px-4 py-2.5 sm:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 text-sm"
             >
               {loading ? t.common.loading : t.common.delete}
             </button>

@@ -556,6 +556,7 @@ export const ja: Translations = {
     reason: "理由",
     totalAlerts: "合計 {count} 件のアラート",
     selectedCount: "{count} 件選択中",
+    selectAll: "すべて選択",
     analyzeHint: "アラートを選択して「AI 分析」ボタンをクリックすると、AI が関連リソースの状態、ログ、イベントを照会して診断します。",
   },
   overview: {

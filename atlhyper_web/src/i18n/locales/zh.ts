@@ -556,6 +556,7 @@ export const zh: Translations = {
     reason: "原因",
     totalAlerts: "共 {count} 条告警",
     selectedCount: "已选择 {count} 条",
+    selectAll: "全选",
     analyzeHint: "选择告警后点击「AI 分析」按钮，AI 将查询相关资源状态、日志和事件进行诊断。",
   },
   overview: {

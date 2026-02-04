@@ -17,62 +17,63 @@ export const NetworkCard = memo(function NetworkCard({ data }: NetworkCardProps)
   const totalDropped = data.reduce((acc, n) => acc + n.rxDropped + n.txDropped, 0);
 
   return (
-    <div className="bg-card rounded-xl border border-[var(--border-color)] p-5">
+    <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
       {/* 头部 */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
         <div className="flex items-center gap-2">
-          <div className="p-2 bg-blue-500/10 rounded-lg">
-            <Network className="w-5 h-5 text-blue-500" />
+          <div className="p-1.5 sm:p-2 bg-blue-500/10 rounded-lg">
+            <Network className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-default">Network</h3>
-            <p className="text-xs text-muted">{data.length} interface(s)</p>
+            <h3 className="text-sm sm:text-base font-semibold text-default">Network</h3>
+            <p className="text-[10px] sm:text-xs text-muted">{data.length} interface(s)</p>
           </div>
         </div>
         {/* 总流量 */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-1">
-            <ArrowDownToLine className="w-4 h-4 text-green-500" />
-            <span className="text-sm font-medium text-default">{formatBytesPS(totalRxPS)}</span>
+            <ArrowDownToLine className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
+            <span className="text-xs sm:text-sm font-medium text-default">{formatBytesPS(totalRxPS)}</span>
           </div>
           <div className="flex items-center gap-1">
-            <ArrowUpFromLine className="w-4 h-4 text-blue-500" />
-            <span className="text-sm font-medium text-default">{formatBytesPS(totalTxPS)}</span>
+            <ArrowUpFromLine className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />
+            <span className="text-xs sm:text-sm font-medium text-default">{formatBytesPS(totalTxPS)}</span>
           </div>
         </div>
       </div>
 
       {/* 网络接口列表 */}
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         {data.map((iface) => (
-          <div key={iface.interface} className="p-3 bg-[var(--background)] rounded-lg">
+          <div key={iface.interface} className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
             {/* 接口名 & 状态 */}
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
                 {iface.status === "up" ? (
-                  <Wifi className="w-4 h-4 text-green-500" />
+                  <Wifi className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
                 ) : (
-                  <WifiOff className="w-4 h-4 text-red-500" />
+                  <WifiOff className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
                 )}
-                <span className="text-sm font-medium text-default">{iface.interface}</span>
-                <span className="text-xs text-muted">{iface.ipAddress}</span>
+                <span className="text-xs sm:text-sm font-medium text-default truncate">{iface.interface}</span>
+                <span className="text-[10px] sm:text-xs text-muted truncate hidden sm:inline">{iface.ipAddress}</span>
               </div>
-              <span className="text-xs text-muted">
-                {iface.speed >= 1000 ? `${iface.speed / 1000} Gbps` : `${iface.speed} Mbps`}
+              <span className="text-[10px] sm:text-xs text-muted flex-shrink-0">
+                {iface.speed >= 1000 ? `${iface.speed / 1000}G` : `${iface.speed}M`}
               </span>
             </div>
 
             {/* 流量 */}
-            <div className="grid grid-cols-2 gap-4 mb-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-2">
               <div>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-muted flex items-center gap-1">
-                    <ArrowDownToLine className="w-3 h-3 text-green-500" />
-                    Receive
+                <div className="flex items-center justify-between text-[10px] sm:text-xs mb-1">
+                  <span className="text-muted flex items-center gap-0.5 sm:gap-1">
+                    <ArrowDownToLine className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-green-500" />
+                    <span className="hidden sm:inline">Receive</span>
+                    <span className="sm:hidden">Rx</span>
                   </span>
                   <span className="text-green-500 font-medium">{formatBytesPS(iface.rxBytesPS)}</span>
                 </div>
-                <div className="h-1.5 bg-[var(--background-secondary,#1f2937)] rounded-full overflow-hidden">
+                <div className="h-1 sm:h-1.5 bg-[var(--background-secondary,#1f2937)] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-green-500 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(100, (iface.rxBytesPS / (iface.speed * 125000)) * 100)}%` }}
@@ -80,14 +81,15 @@ export const NetworkCard = memo(function NetworkCard({ data }: NetworkCardProps)
                 </div>
               </div>
               <div>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-muted flex items-center gap-1">
-                    <ArrowUpFromLine className="w-3 h-3 text-blue-500" />
-                    Transmit
+                <div className="flex items-center justify-between text-[10px] sm:text-xs mb-1">
+                  <span className="text-muted flex items-center gap-0.5 sm:gap-1">
+                    <ArrowUpFromLine className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-blue-500" />
+                    <span className="hidden sm:inline">Transmit</span>
+                    <span className="sm:hidden">Tx</span>
                   </span>
                   <span className="text-blue-500 font-medium">{formatBytesPS(iface.txBytesPS)}</span>
                 </div>
-                <div className="h-1.5 bg-[var(--background-secondary,#1f2937)] rounded-full overflow-hidden">
+                <div className="h-1 sm:h-1.5 bg-[var(--background-secondary,#1f2937)] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-500 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(100, (iface.txBytesPS / (iface.speed * 125000)) * 100)}%` }}
@@ -96,8 +98,8 @@ export const NetworkCard = memo(function NetworkCard({ data }: NetworkCardProps)
               </div>
             </div>
 
-            {/* 包 & 错误 */}
-            <div className="grid grid-cols-4 gap-2 text-xs">
+            {/* 包 & 错误 - 仅桌面端显示 */}
+            <div className="hidden sm:grid grid-cols-4 gap-2 text-xs">
               <div>
                 <div className="text-muted">Rx Pkts</div>
                 <div className="text-default">{formatNumber(iface.rxPacketsPS)}/s</div>
@@ -123,9 +125,9 @@ export const NetworkCard = memo(function NetworkCard({ data }: NetworkCardProps)
         ))}
       </div>
 
-      {/* 底部统计信息 */}
+      {/* 底部统计信息 - 仅桌面端显示 */}
       {(totalErrors > 0 || totalDropped > 0) && (
-        <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
+        <div className="hidden sm:block mt-4 pt-4 border-t border-[var(--border-color)]">
           <div className="flex items-center gap-2 text-xs text-muted">
             <span>累计统计:</span>
             {totalErrors > 0 && (

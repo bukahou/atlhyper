@@ -79,34 +79,38 @@ function getPermissions(t: RolesTranslations): ResourcePermission[] {
 }
 
 // 权限标记组件
-function PermissionBadge({ permission, t }: { permission: Permission; t: RolesTranslations }) {
+function PermissionBadge({ permission, t, compact }: { permission: Permission; t: RolesTranslations; compact?: boolean }) {
+  const baseClasses = compact
+    ? "inline-flex items-center justify-center w-6 h-6 rounded-full"
+    : "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium";
+
   switch (permission) {
     case "full":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <span className={`${baseClasses} bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400`} title={t.permissionFull}>
           <Check className="w-3 h-3" />
-          {t.permissionFull}
+          {!compact && t.permissionFull}
         </span>
       );
     case "read":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <span className={`${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400`} title={t.permissionReadOnly}>
           <Eye className="w-3 h-3" />
-          {t.permissionReadOnly}
+          {!compact && t.permissionReadOnly}
         </span>
       );
     case "partial":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+        <span className={`${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400`} title={t.permissionPartial}>
           <Info className="w-3 h-3" />
-          {t.permissionPartial}
+          {!compact && t.permissionPartial}
         </span>
       );
     case "none":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+        <span className={`${baseClasses} bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400`} title={t.permissionNone}>
           <X className="w-3 h-3" />
-          {t.permissionNone}
+          {!compact && t.permissionNone}
         </span>
       );
   }
@@ -129,24 +133,24 @@ export default function RolesPage() {
         <PageHeader title={t.nav.roles} description={rolesT.pageDescription} />
 
         {/* 角色卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {roles.map((role) => {
             const Icon = role.icon;
             return (
               <div
                 key={role.id}
-                className="bg-card rounded-xl border border-[var(--border-color)] p-5"
+                className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5"
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`p-2 rounded-lg ${role.bgColor}`}>
-                    <Icon className={`w-5 h-5 ${role.color}`} />
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className={`p-1.5 sm:p-2 rounded-lg ${role.bgColor}`}>
+                    <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${role.color}`} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-default">{role.name}</h3>
-                    <p className="text-xs text-muted">Level {role.id}</p>
+                    <h3 className="font-semibold text-default text-sm sm:text-base">{role.name}</h3>
+                    <p className="text-[10px] sm:text-xs text-muted">Level {role.id}</p>
                   </div>
                 </div>
-                <p className="text-sm text-secondary">{role.description}</p>
+                <p className="text-xs sm:text-sm text-secondary">{role.description}</p>
               </div>
             );
           })}
@@ -154,12 +158,57 @@ export default function RolesPage() {
 
         {/* 权限矩阵 */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[var(--border-color)]">
-            <h3 className="font-semibold text-default">{rolesT.permissionMatrix}</h3>
-            <p className="text-sm text-muted mt-1">{rolesT.permissionMatrixDescription}</p>
+          <div className="px-3 sm:px-4 py-3 border-b border-[var(--border-color)]">
+            <h3 className="font-semibold text-default text-sm sm:text-base">{rolesT.permissionMatrix}</h3>
+            <p className="text-xs sm:text-sm text-muted mt-1 hidden sm:block">{rolesT.permissionMatrixDescription}</p>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* 移动端卡片视图 */}
+          <div className="sm:hidden">
+            {categories.map((category) => (
+              <div key={category}>
+                {/* 分类标题 */}
+                <div className="px-3 py-2 bg-[var(--background)] text-xs font-semibold text-muted uppercase tracking-wider">
+                  {category}
+                </div>
+                {/* 该分类下的资源 */}
+                <div className="divide-y divide-[var(--border-color)]">
+                  {permissions
+                    .filter((p) => p.category === category)
+                    .map((perm) => (
+                      <div
+                        key={`${category}-${perm.resource}`}
+                        className="px-3 py-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="text-sm text-default font-medium">{perm.resource}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <Shield className="w-3 h-3 text-red-500" />
+                            <PermissionBadge permission={perm.admin} t={rolesT} compact />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <User className="w-3 h-3 text-blue-500" />
+                            <PermissionBadge permission={perm.operator} t={rolesT} compact />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Eye className="w-3 h-3 text-gray-500" />
+                            <PermissionBadge permission={perm.viewer} t={rolesT} compact />
+                          </div>
+                        </div>
+                        {perm.note && (
+                          <p className="text-[10px] text-muted mt-1">{perm.note}</p>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 桌面端表格视图 */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-[var(--background)]">
                 <tr>
@@ -227,35 +276,39 @@ export default function RolesPage() {
         </div>
 
         {/* 权限说明 */}
-        <div className="bg-card rounded-xl border border-[var(--border-color)] p-5">
-          <h3 className="font-semibold text-default mb-4">{rolesT.permissionLevelDescription}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="flex items-start gap-3">
-              <PermissionBadge permission="full" t={rolesT} />
-              <div>
-                <p className="text-sm font-medium text-default">{rolesT.fullPermission}</p>
-                <p className="text-xs text-muted">{rolesT.fullPermissionDesc}</p>
+        <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
+          <h3 className="font-semibold text-default text-sm sm:text-base mb-3 sm:mb-4">{rolesT.permissionLevelDescription}</h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="flex items-start gap-2 sm:gap-3">
+              <div className="hidden sm:block flex-shrink-0"><PermissionBadge permission="full" t={rolesT} /></div>
+              <div className="sm:hidden flex-shrink-0"><PermissionBadge permission="full" t={rolesT} compact /></div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-default">{rolesT.fullPermission}</p>
+                <p className="text-[10px] sm:text-xs text-muted hidden sm:block">{rolesT.fullPermissionDesc}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <PermissionBadge permission="read" t={rolesT} />
-              <div>
-                <p className="text-sm font-medium text-default">{rolesT.readOnlyPermission}</p>
-                <p className="text-xs text-muted">{rolesT.readOnlyPermissionDesc}</p>
+            <div className="flex items-start gap-2 sm:gap-3">
+              <div className="hidden sm:block flex-shrink-0"><PermissionBadge permission="read" t={rolesT} /></div>
+              <div className="sm:hidden flex-shrink-0"><PermissionBadge permission="read" t={rolesT} compact /></div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-default">{rolesT.readOnlyPermission}</p>
+                <p className="text-[10px] sm:text-xs text-muted hidden sm:block">{rolesT.readOnlyPermissionDesc}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <PermissionBadge permission="partial" t={rolesT} />
-              <div>
-                <p className="text-sm font-medium text-default">{rolesT.partialPermission}</p>
-                <p className="text-xs text-muted">{rolesT.partialPermissionDesc}</p>
+            <div className="flex items-start gap-2 sm:gap-3">
+              <div className="hidden sm:block flex-shrink-0"><PermissionBadge permission="partial" t={rolesT} /></div>
+              <div className="sm:hidden flex-shrink-0"><PermissionBadge permission="partial" t={rolesT} compact /></div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-default">{rolesT.partialPermission}</p>
+                <p className="text-[10px] sm:text-xs text-muted hidden sm:block">{rolesT.partialPermissionDesc}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <PermissionBadge permission="none" t={rolesT} />
-              <div>
-                <p className="text-sm font-medium text-default">{rolesT.noPermission}</p>
-                <p className="text-xs text-muted">{rolesT.noPermissionDesc}</p>
+            <div className="flex items-start gap-2 sm:gap-3">
+              <div className="hidden sm:block flex-shrink-0"><PermissionBadge permission="none" t={rolesT} /></div>
+              <div className="sm:hidden flex-shrink-0"><PermissionBadge permission="none" t={rolesT} compact /></div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-default">{rolesT.noPermission}</p>
+                <p className="text-[10px] sm:text-xs text-muted hidden sm:block">{rolesT.noPermissionDesc}</p>
               </div>
             </div>
           </div>

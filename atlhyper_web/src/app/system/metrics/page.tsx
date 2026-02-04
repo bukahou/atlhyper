@@ -58,15 +58,15 @@ function SummaryCard({
   color: string;
 }) {
   return (
-    <div className="p-4 rounded-xl bg-card border border-[var(--border-color)]">
-      <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-lg ${color}`}>
-          <Icon className="w-5 h-5" />
+    <div className="p-2.5 sm:p-4 rounded-xl bg-card border border-[var(--border-color)]">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className={`p-1.5 sm:p-2 rounded-lg ${color}`}>
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
-        <div>
-          <div className="text-xs text-muted">{label}</div>
-          <div className="text-xl font-bold text-default">{value}</div>
-          {subValue && <div className="text-xs text-muted">{subValue}</div>}
+        <div className="min-w-0">
+          <div className="text-[10px] sm:text-xs text-muted truncate">{label}</div>
+          <div className="text-base sm:text-xl font-bold text-default">{value}</div>
+          {subValue && <div className="text-[10px] sm:text-xs text-muted truncate hidden sm:block">{subValue}</div>}
         </div>
       </div>
     </div>
@@ -120,22 +120,36 @@ function NodeCard({
       {/* 节点摘要行 */}
       <button
         onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center gap-4 hover:bg-[var(--hover-bg)] transition-colors"
+        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4 hover:bg-[var(--hover-bg)] transition-colors active:bg-[var(--hover-bg)]"
       >
         {/* 节点信息 */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="p-2 rounded-lg bg-emerald-500/10">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/10 flex-shrink-0">
             <Server className="w-4 h-4 text-emerald-500" />
           </div>
-          <div className="text-left min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-default truncate">{metrics.nodeName}</span>
+          <div className="text-left min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-default text-sm sm:text-base truncate max-w-[120px] sm:max-w-none">{metrics.nodeName}</span>
               <NodeStatusBadge isOnline={true} />
+            </div>
+            {/* 移动端显示关键指标 */}
+            <div className="flex items-center gap-3 mt-1 lg:hidden">
+              <span className={`text-xs font-medium ${getUsageColor(cpuUsage)}`}>
+                CPU {cpuUsage.toFixed(0)}%
+              </span>
+              <span className={`text-xs font-medium ${getUsageColor(memUsage)}`}>
+                MEM {memUsage.toFixed(0)}%
+              </span>
+              {temp > 0 && (
+                <span className={`text-xs font-medium ${getTempColor(temp)}`}>
+                  {temp.toFixed(0)}°C
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 汇总指标 */}
+        {/* 汇总指标 - 仅桌面端 */}
         <div className="hidden lg:flex items-center gap-5">
           <div className="w-24">
             <div className="text-[10px] text-muted mb-0.5">CPU</div>
@@ -180,7 +194,7 @@ function NodeCard({
           </div>
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center flex-shrink-0">
           {expanded ? (
             <ChevronDown className="w-4 h-4 text-muted" />
           ) : (
@@ -191,24 +205,24 @@ function NodeCard({
 
       {/* 展开详情 */}
       {expanded && (
-        <div className="border-t border-[var(--border-color)] bg-[var(--background)] p-6 space-y-6">
+        <div className="border-t border-[var(--border-color)] bg-[var(--background)] p-3 sm:p-6 space-y-4 sm:space-y-6">
           {/* 资源趋势图 */}
           <ResourceChart data={historyData} title="Resource Trends" />
 
           {/* 第一行：CPU + Memory */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
             <CPUCard data={metrics.cpu} />
             <MemoryCard data={metrics.memory} />
           </div>
 
           {/* 第二行：Disk + Network */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
             <DiskCard data={metrics.disks} />
             <NetworkCard data={metrics.networks} />
           </div>
 
           {/* 第三行：Temperature + GPU (如果有) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
             <TemperatureCard data={metrics.temperature} />
             {metrics.gpus && metrics.gpus.length > 0 && (
               <GPUCard data={metrics.gpus} />
@@ -358,19 +372,19 @@ export default function MetricsPage() {
         {/* 固定头部 + 概览卡片 */}
         <div className="sticky top-[-24px] z-10 bg-card rounded-t-2xl">
           {/* 标题栏 */}
-          <div className="px-6 py-4 border-b border-[var(--border-color)]">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30">
-                  <Activity className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+          <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-[var(--border-color)]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 flex-shrink-0">
+                  <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600 dark:text-orange-400" />
                 </div>
-                <div>
-                  <h1 className="text-lg font-semibold text-default">{t.nav.metrics}</h1>
-                  <p className="text-xs text-muted">Node hardware metrics - CPU, Memory, Disk, Network, Temperature</p>
+                <div className="min-w-0">
+                  <h1 className="text-base sm:text-lg font-semibold text-default truncate">{t.nav.metrics}</h1>
+                  <p className="text-[10px] sm:text-xs text-muted hidden sm:block">Node hardware metrics - CPU, Memory, Disk, Network, Temperature</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted">
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                <span className="text-[10px] sm:text-xs text-muted hidden sm:block">
                   Last: {lastUpdate.toLocaleTimeString()}
                 </span>
                 <button
@@ -386,8 +400,8 @@ export default function MetricsPage() {
 
           {/* 集群概览卡片 */}
           {summary && (
-            <div className="px-6 py-4 border-b border-[var(--border-color)] bg-[var(--background)]">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-[var(--border-color)] bg-[var(--background)]">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4">
                 <SummaryCard
                   icon={Server}
                   label="Nodes"
@@ -436,13 +450,13 @@ export default function MetricsPage() {
         </div>
 
         {/* 可滚动内容区域 */}
-        <div className="p-6 space-y-6 bg-[var(--background)]">
+        <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 bg-[var(--background)]">
           {/* 节点列表标题 */}
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-default">
               Node Metrics
               <span className="ml-2 text-xs font-normal text-muted">
-                ({nodes.length} nodes)
+                ({nodes.length})
               </span>
             </h2>
           </div>
@@ -468,10 +482,10 @@ export default function MetricsPage() {
             </div>
           )}
 
-          {/* 说明 */}
-          <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+          {/* 说明 - 仅桌面端显示 */}
+          <div className="hidden sm:block p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
             <div className="flex items-start gap-3">
-              <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/50">
+              <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex-shrink-0">
                 <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="text-sm">

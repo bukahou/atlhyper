@@ -85,10 +85,11 @@ export default function UsersPage() {
   const addButton = isAdmin ? (
     <button
       onClick={handleAddUser}
-      className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors"
+      className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors text-sm"
     >
       <Plus className="w-4 h-4" />
-      {t.users.addUser}
+      <span className="hidden sm:inline">{t.users.addUser}</span>
+      <span className="sm:hidden">{t.common.add}</span>
     </button>
   ) : null;
 
@@ -106,21 +107,9 @@ export default function UsersPage() {
           ) : error ? (
             <div className="text-center py-12 text-red-500">{error}</div>
           ) : (
-            <table className="w-full">
-              <thead className="bg-[var(--background)]">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.username}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.email}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.role}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.status}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.createdAt}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.lastLogin}</th>
-                  {isAdmin && (
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.common.action}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-color)]">
+            <>
+              {/* 移动端卡片视图 */}
+              <div className="md:hidden divide-y divide-[var(--border-color)]">
                 {users.map((user) => (
                   <UserRow
                     key={user.id}
@@ -130,17 +119,53 @@ export default function UsersPage() {
                     onToggleStatus={handleToggleStatus}
                     onDelete={handleDeleteUser}
                     t={t}
+                    isMobile
                   />
                 ))}
                 {users.length === 0 && (
-                  <tr>
-                    <td colSpan={isAdmin ? 7 : 6} className="px-4 py-12 text-center text-muted">
-                      {t.common.noData}
-                    </td>
-                  </tr>
+                  <div className="px-4 py-12 text-center text-muted">
+                    {t.common.noData}
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+
+              {/* 桌面端表格视图 */}
+              <table className="w-full hidden md:table">
+                <thead className="bg-[var(--background)]">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.username}</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.email}</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.role}</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.status}</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.createdAt}</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.lastLogin}</th>
+                    {isAdmin && (
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.common.action}</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-color)]">
+                  {users.map((user) => (
+                    <UserRow
+                      key={user.id}
+                      user={user}
+                      isAdmin={isAdmin}
+                      onEditRole={handleEditRole}
+                      onToggleStatus={handleToggleStatus}
+                      onDelete={handleDeleteUser}
+                      t={t}
+                    />
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={isAdmin ? 7 : 6} className="px-4 py-12 text-center text-muted">
+                        {t.common.noData}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>

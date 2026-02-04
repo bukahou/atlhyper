@@ -583,6 +583,7 @@ export interface AlertTranslations {
   reason: string;
   totalAlerts: string;
   selectedCount: string;
+  selectAll: string;
   analyzeHint: string;
 }
 
