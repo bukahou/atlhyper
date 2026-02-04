@@ -10,6 +10,7 @@ import {
   Brain,
 } from "lucide-react";
 import { Message, StreamSegment, ChatStats, Conversation } from "./types";
+import { useI18n } from "@/i18n/context";
 
 export interface InspectorPanelProps {
   messages: Message[];
@@ -28,6 +29,9 @@ export function InspectorPanel({
   currentStats,
   currentConversation,
 }: InspectorPanelProps) {
+  const { t } = useI18n();
+  const inspectorT = t.aiChatPage.inspector;
+
   // 实时统计 streaming 中的 tool 调用（streaming 时显示）
   let streamingToolCalls = 0;
   for (const seg of streamSegments) {
@@ -51,74 +55,74 @@ export function InspectorPanel({
   return (
     <div className="flex flex-col overflow-hidden">
       <div className="px-4 py-3 border-b border-[var(--border-color)]/50">
-        <h3 className="text-sm font-medium text-default">对话详情</h3>
+        <h3 className="text-sm font-medium text-default">{inspectorT.title}</h3>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {/* 集群上下文 */}
-        <Section icon={Server} title="集群上下文">
+        <Section icon={Server} title={inspectorT.clusterContext}>
           <div className="px-4 space-y-1.5">
-            <InfoRow label="集群 ID" value={clusterId || "未选择"} />
+            <InfoRow label={inspectorT.clusterId} value={clusterId || inspectorT.notSelected} />
             <InfoRow
-              label="状态"
-              value={streaming ? "查询中" : "已连接"}
+              label={inspectorT.status}
+              value={streaming ? inspectorT.querying : inspectorT.connected}
               highlight={streaming}
             />
           </div>
         </Section>
 
         {/* 本次提问统计 */}
-        <Section icon={Brain} title="本次提问">
+        <Section icon={Brain} title={inspectorT.currentQuestion}>
           <div className="px-4 space-y-1.5">
             {streaming ? (
               <>
                 <InfoRow
-                  label="思考轮次"
-                  value="进行中..."
+                  label={inspectorT.thinkingRounds}
+                  value={inspectorT.inProgress}
                   highlight
                 />
                 <InfoRow
-                  label="执行指令"
-                  value={`${streamingToolCalls} 条`}
+                  label={inspectorT.executedCommands}
+                  value={`${streamingToolCalls} ${inspectorT.commandsUnit}`}
                   highlight={streamingToolCalls > 0}
                 />
               </>
             ) : currentStats ? (
               <>
                 <InfoRow
-                  label="思考轮次"
-                  value={`${currentStats.rounds} 轮`}
+                  label={inspectorT.thinkingRounds}
+                  value={`${currentStats.rounds} ${inspectorT.roundsUnit}`}
                 />
                 <InfoRow
-                  label="执行指令"
-                  value={`${currentStats.total_tool_calls} 条`}
+                  label={inspectorT.executedCommands}
+                  value={`${currentStats.total_tool_calls} ${inspectorT.commandsUnit}`}
                 />
                 <InfoRow
-                  label="输入 Token"
+                  label={inspectorT.inputTokens}
                   value={currentStats.input_tokens.toLocaleString()}
                 />
                 <InfoRow
-                  label="输出 Token"
+                  label={inspectorT.outputTokens}
                   value={currentStats.output_tokens.toLocaleString()}
                 />
                 <InfoRow
-                  label="总计 Token"
+                  label={inspectorT.totalTokens}
                   value={(currentStats.input_tokens + currentStats.output_tokens).toLocaleString()}
                 />
               </>
             ) : (
-              <InfoRow label="状态" value="等待提问" />
+              <InfoRow label={inspectorT.status} value={inspectorT.waitingQuestion} />
             )}
           </div>
         </Section>
 
         {/* 对话统计 */}
-        <Section icon={BarChart3} title="对话概览">
+        <Section icon={BarChart3} title={inspectorT.conversationOverview}>
           <div className="px-4 space-y-1.5">
-            <InfoRow label="对话轮次" value={`${conversationRounds} 轮`} />
-            <InfoRow label="累计指令" value={`${currentConversation?.total_tool_calls ?? historyToolCalls} 条`} />
+            <InfoRow label={inspectorT.conversationRounds} value={`${conversationRounds} ${inspectorT.roundsUnit}`} />
+            <InfoRow label={inspectorT.totalCommands} value={`${currentConversation?.total_tool_calls ?? historyToolCalls} ${inspectorT.commandsUnit}`} />
             <InfoRow
-              label="累计 Token"
+              label={inspectorT.totalTokensLabel}
               value={currentConversation
                 ? `↑${currentConversation.total_input_tokens.toLocaleString()} ↓${currentConversation.total_output_tokens.toLocaleString()}`
                 : "-"
@@ -128,21 +132,21 @@ export function InspectorPanel({
         </Section>
 
         {/* AI 能力边界 */}
-        <Section icon={Shield} title="AI 能力边界">
+        <Section icon={Shield} title={inspectorT.aiCapabilities}>
           <div className="px-4 space-y-2">
             <div className="space-y-1">
-              <p className="text-[11px] font-medium text-secondary mb-1">可执行</p>
-              <CapRow allowed text="查询所有资源类型 (Pod, Node, Deployment...)" />
-              <CapRow allowed text="查看 Pod 日志 (最近 200 行)" />
-              <CapRow allowed text="查看 Event 和 ConfigMap" />
-              <CapRow allowed text="按标签过滤资源" />
+              <p className="text-[11px] font-medium text-secondary mb-1">{inspectorT.canDo}</p>
+              <CapRow allowed text={inspectorT.capQueryResources} />
+              <CapRow allowed text={inspectorT.capViewLogs} />
+              <CapRow allowed text={inspectorT.capViewEvents} />
+              <CapRow allowed text={inspectorT.capFilterByLabel} />
             </div>
             <div className="space-y-1 pt-1 border-t border-[var(--border-color)]">
-              <p className="text-[11px] font-medium text-secondary mb-1">不可执行</p>
-              <CapRow allowed={false} text="任何写操作 (创建/删除/重启/扩缩容)" />
-              <CapRow allowed={false} text="查询 Secret 资源" />
-              <CapRow allowed={false} text="访问 kube-system 等系统命名空间" />
-              <CapRow allowed={false} text="输出密码/Token/API Key" />
+              <p className="text-[11px] font-medium text-secondary mb-1">{inspectorT.cannotDo}</p>
+              <CapRow allowed={false} text={inspectorT.capNoWrite} />
+              <CapRow allowed={false} text={inspectorT.capNoSecrets} />
+              <CapRow allowed={false} text={inspectorT.capNoSystemNs} />
+              <CapRow allowed={false} text={inspectorT.capNoSensitive} />
             </div>
           </div>
         </Section>

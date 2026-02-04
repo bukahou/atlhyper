@@ -47,11 +47,11 @@ const languages: { code: Language; label: string }[] = [
   { code: "ja", label: "日本語" },
 ];
 
-// 主题选项
-const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
-  { value: "light", icon: Sun, label: "亮色" },
-  { value: "dark", icon: Moon, label: "暗色" },
-  { value: "system", icon: Monitor, label: "系统" },
+// 主题选项（label 会在组件中使用 i18n）
+const themeOptions: { value: Theme; icon: typeof Sun }[] = [
+  { value: "light", icon: Sun },
+  { value: "dark", icon: Moon },
+  { value: "system", icon: Monitor },
 ];
 
 // 角色显示名称
@@ -120,8 +120,8 @@ const navGroups: NavGroup[] = [
     key: "settings",
     icon: Settings,
     children: [
-      { key: "aiSettings", href: "/system/settings/ai", icon: Bot, adminOnly: true },
-      { key: "notifications", href: "/system/notifications", icon: Bell, adminOnly: true },
+      { key: "aiSettings", href: "/system/settings/ai", icon: Bot },
+      { key: "notifications", href: "/system/notifications", icon: Bell },
     ],
   },
   {
@@ -195,6 +195,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [clusterMenuOpen, setClusterMenuOpen] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   // 路由变化时，确保当前激活的组被展开（但不收起其他组）
   useEffect(() => {
@@ -448,9 +449,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* 底部: 用户菜单 + 折叠按钮 */}
+      {/* 底部: 用户区域 + 设置/折叠 */}
       <div className={`border-t border-[var(--border-color)]/20 ${collapsed ? "py-2" : "p-3"}`}>
-        {/* 用户区域 */}
+        {/* 用户区域（独立一行） */}
         <div
           className="relative"
           onMouseEnter={() => setUserMenuOpen(true)}
@@ -481,7 +482,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               {/* 用户悬浮卡片 */}
               {userMenuOpen && (
                 <div className={`absolute z-50 ${collapsed ? "left-full bottom-0 pl-2" : "left-0 right-0 bottom-full pb-2"}`}>
-                  <div className="py-2 rounded-2xl border border-[var(--border-color)] bg-card shadow-[0_8px_30px_rgb(0,0,0,0.15)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] min-w-[200px]">
+                  <div className="py-2 rounded-2xl border border-[var(--border-color)] bg-card shadow-[0_8px_30px_rgb(0,0,0,0.15)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] min-w-[180px]">
                     {/* 用户信息 */}
                     <div className="px-4 py-3 border-b border-[var(--border-color)]/30">
                       <p className="text-sm font-medium text-default">
@@ -490,56 +491,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       <p className="text-xs text-muted">
                         {user ? getRoleName(user.role) : ""}
                       </p>
-                    </div>
-
-                    {/* 语言切换 */}
-                    <div className="px-2 py-2 border-b border-[var(--border-color)]/30">
-                      <div className="px-2 py-1 text-[11px] font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
-                        <Languages className="w-3.5 h-3.5" />
-                        Language
-                      </div>
-                      <div className="flex gap-1 mt-1">
-                        {languages.map((lang) => (
-                          <button
-                            key={lang.code}
-                            onClick={() => setLanguage(lang.code)}
-                            className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                              language === lang.code
-                                ? "bg-primary/15 text-primary"
-                                : "text-secondary hover:bg-white/5"
-                            }`}
-                          >
-                            {lang.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 主题切换 */}
-                    <div className="px-2 py-2 border-b border-[var(--border-color)]/30">
-                      <div className="px-2 py-1 text-[11px] font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
-                        <Sun className="w-3.5 h-3.5" />
-                        Theme
-                      </div>
-                      <div className="flex gap-1 mt-1">
-                        {themes.map((t) => {
-                          const ThemeIcon = t.icon;
-                          return (
-                            <button
-                              key={t.value}
-                              onClick={() => setTheme(t.value)}
-                              className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
-                                theme === t.value
-                                  ? "bg-primary/15 text-primary"
-                                  : "text-secondary hover:bg-white/5"
-                              }`}
-                            >
-                              <ThemeIcon className="w-3.5 h-3.5" />
-                              {t.label}
-                            </button>
-                          );
-                        })}
-                      </div>
                     </div>
 
                     {/* 退出登录 */}
@@ -569,23 +520,101 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </div>
 
-        {/* 折叠按钮 */}
-        <button
-          onClick={onToggle}
-          className={`flex items-center gap-2 rounded-xl hover:bg-white/5 transition-all duration-150 mt-2 ${
-            collapsed ? "p-2 mx-auto" : "w-full px-3 py-2"
-          }`}
-          title={collapsed ? "展开侧栏" : "收起侧栏"}
-        >
-          {collapsed ? (
-            <ChevronsRight className="w-4 h-4 text-muted" />
-          ) : (
-            <>
-              <ChevronsLeft className="w-4 h-4 text-muted" />
-              <span className="text-xs text-muted font-medium">收起侧栏</span>
-            </>
-          )}
-        </button>
+        {/* 设置 + 折叠 并列 */}
+        <div className={`flex items-center gap-1 mt-2 ${collapsed ? "flex-col" : ""}`}>
+          {/* 设置按钮（语言+主题） */}
+          <div
+            className="relative flex-1"
+            onMouseEnter={() => setSettingsMenuOpen(true)}
+            onMouseLeave={() => setSettingsMenuOpen(false)}
+          >
+            <button
+              className={`flex items-center gap-2 rounded-xl hover:bg-white/5 transition-all ${
+                collapsed ? "p-2 mx-auto" : "w-full px-3 py-2"
+              }`}
+              title="Settings"
+            >
+              <Settings className="w-4 h-4 text-muted" />
+              {!collapsed && <span className="text-xs text-muted font-medium">{t.common.settings}</span>}
+            </button>
+
+            {/* 设置弹出面板 */}
+            {settingsMenuOpen && (
+              <div className={`absolute z-50 ${collapsed ? "left-full bottom-0 pl-2" : "left-0 bottom-full pb-2"}`}>
+                <div className="py-2 rounded-2xl border border-[var(--border-color)] bg-card shadow-[0_8px_30px_rgb(0,0,0,0.15)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] min-w-[180px]">
+                  {/* 语言切换 */}
+                  <div className="px-2 py-2 border-b border-[var(--border-color)]/30">
+                    <div className="px-2 py-1 text-[11px] font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
+                      <Languages className="w-3.5 h-3.5" />
+                      Language
+                    </div>
+                    <div className="flex gap-1 mt-1">
+                      {languages.map((lang) => (
+                        <button
+                          key={lang.code}
+                          onClick={() => setLanguage(lang.code)}
+                          className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            language === lang.code
+                              ? "bg-primary/15 text-primary"
+                              : "text-secondary hover:bg-white/5"
+                          }`}
+                        >
+                          {lang.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 主题切换 */}
+                  <div className="px-2 py-2">
+                    <div className="px-2 py-1 text-[11px] font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
+                      <Sun className="w-3.5 h-3.5" />
+                      Theme
+                    </div>
+                    <div className="flex gap-1 mt-1">
+                      {themeOptions.map((th) => {
+                        const ThemeIcon = th.icon;
+                        const themeLabel = th.value === "light" ? t.common.themeLight : th.value === "dark" ? t.common.themeDark : t.common.themeSystem;
+                        return (
+                          <button
+                            key={th.value}
+                            onClick={() => setTheme(th.value)}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+                              theme === th.value
+                                ? "bg-primary/15 text-primary"
+                                : "text-secondary hover:bg-white/5"
+                            }`}
+                          >
+                            <ThemeIcon className="w-3.5 h-3.5" />
+                            {themeLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 折叠按钮 */}
+          <button
+            onClick={onToggle}
+            className={`flex items-center gap-2 rounded-xl hover:bg-white/5 transition-all duration-150 ${
+              collapsed ? "p-2" : "flex-1 px-3 py-2"
+            }`}
+            title={collapsed ? t.common.expandSidebar : t.common.collapseSidebar}
+          >
+            {collapsed ? (
+              <ChevronsRight className="w-4 h-4 text-muted" />
+            ) : (
+              <>
+                <ChevronsLeft className="w-4 h-4 text-muted" />
+                <span className="text-xs text-muted font-medium">{t.common.collapseSidebar}</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </aside>
   );

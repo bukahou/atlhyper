@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 import type { AIProvider, ProviderModelInfo } from "@/api/ai-provider";
 
 interface ProviderModalProps {
@@ -27,6 +28,9 @@ export function ProviderModal({
   onClose,
   onSave,
 }: ProviderModalProps) {
+  const { t } = useI18n();
+  const aiT = t.aiSettingsPage;
+
   const [formName, setFormName] = useState("");
   const [formProvider, setFormProvider] = useState("gemini");
   const [formApiKey, setFormApiKey] = useState("");
@@ -103,7 +107,7 @@ export function ProviderModal({
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
           <h3 className="text-lg font-medium text-default">
-            {editingProvider ? "プロバイダー編集" : "新規プロバイダー"}
+            {editingProvider ? aiT.editProvider : aiT.newProvider}
           </h3>
           <button
             onClick={onClose}
@@ -118,13 +122,13 @@ export function ProviderModal({
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              名前 <span className="text-red-500">*</span>
+              {aiT.name} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
-              placeholder="例: Gemini 本番"
+              placeholder={aiT.namePlaceholder}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
             />
           </div>
@@ -132,7 +136,7 @@ export function ProviderModal({
           {/* Provider */}
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              プロバイダー <span className="text-red-500">*</span>
+              {aiT.provider} <span className="text-red-500">*</span>
             </label>
             <select
               value={formProvider}
@@ -150,14 +154,14 @@ export function ProviderModal({
           {/* API Key */}
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              API Key {!editingProvider && <span className="text-red-500">*</span>}
+              {aiT.apiKey} {!editingProvider && <span className="text-red-500">*</span>}
             </label>
             <div className="relative">
               <input
                 type={showApiKey ? "text" : "password"}
                 value={formApiKey}
                 onChange={(e) => setFormApiKey(e.target.value)}
-                placeholder={editingProvider ? "変更する場合のみ入力" : "API Keyを入力"}
+                placeholder={editingProvider ? aiT.apiKeyUpdatePlaceholder : aiT.apiKeyPlaceholder}
                 className="w-full px-3 py-2 pr-10 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 font-mono"
               />
               <button
@@ -170,7 +174,7 @@ export function ProviderModal({
             </div>
             {editingProvider?.api_key_set && (
               <p className="mt-1 text-xs text-muted">
-                現在: {editingProvider.api_key_masked}
+                {aiT.current}: {editingProvider.api_key_masked}
               </p>
             )}
           </div>
@@ -178,7 +182,7 @@ export function ProviderModal({
           {/* Model */}
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              モデル <span className="text-red-500">*</span>
+              {aiT.model} <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-2 mb-2">
               <input
@@ -195,7 +199,7 @@ export function ProviderModal({
                 className="w-4 h-4 rounded"
               />
               <label htmlFor="useCustomModel" className="text-sm text-muted">
-                カスタムモデル
+                {aiT.customModel}
               </label>
             </div>
             {formUseCustomModel ? (
@@ -203,7 +207,7 @@ export function ProviderModal({
                 type="text"
                 value={formCustomModel}
                 onChange={(e) => setFormCustomModel(e.target.value)}
-                placeholder="例: gemini-2.0-flash-exp"
+                placeholder={aiT.customModelPlaceholder}
                 className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 font-mono"
               />
             ) : (
@@ -223,11 +227,11 @@ export function ProviderModal({
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-default mb-1">説明</label>
+            <label className="block text-sm font-medium text-default mb-1">{aiT.description}</label>
             <textarea
               value={formDescription}
               onChange={(e) => setFormDescription(e.target.value)}
-              placeholder="用途やメモなど"
+              placeholder={aiT.descriptionPlaceholder}
               rows={2}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 resize-none"
             />
@@ -240,7 +244,7 @@ export function ProviderModal({
             onClick={onClose}
             className="px-4 py-2 text-sm rounded-lg border border-[var(--border-color)] text-default hover:bg-[var(--bg-primary)]"
           >
-            キャンセル
+            {aiT.cancel}
           </button>
           <button
             onClick={handleSave}
@@ -248,7 +252,7 @@ export function ProviderModal({
             className="px-4 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 flex items-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            保存
+            {aiT.save}
           </button>
         </div>
       </div>

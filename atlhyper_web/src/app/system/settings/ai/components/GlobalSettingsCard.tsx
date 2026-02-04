@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 
 interface GlobalSettingsCardProps {
   enabled: boolean;
@@ -21,13 +22,16 @@ export function GlobalSettingsCard({
   onTimeoutChange,
   onSaveTimeout,
 }: GlobalSettingsCardProps) {
+  const { t } = useI18n();
+  const aiT = t.aiSettingsPage;
+
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-6">
-      <h3 className="text-lg font-medium text-default mb-4">グローバル設定</h3>
+      <h3 className="text-lg font-medium text-default mb-4">{aiT.globalSettings}</h3>
       <div className="flex flex-wrap items-center gap-6">
         {/* Enable Toggle */}
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted">AI機能:</span>
+          <span className="text-sm text-muted">{aiT.aiFeature}:</span>
           <button
             onClick={onToggleEnabled}
             disabled={!isAdmin || saving}
@@ -42,13 +46,13 @@ export function GlobalSettingsCard({
             />
           </button>
           <span className={`text-sm ${enabled ? "text-green-600" : "text-muted"}`}>
-            {enabled ? "有効" : "無効"}
+            {enabled ? aiT.enabled : aiT.disabled}
           </span>
         </div>
 
         {/* Tool Timeout */}
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted">Tool Timeout:</span>
+          <span className="text-sm text-muted">{aiT.toolTimeout}:</span>
           <input
             type="number"
             value={timeout}
@@ -58,14 +62,14 @@ export function GlobalSettingsCard({
             disabled={!isAdmin}
             className="w-20 px-2 py-1 rounded border border-[var(--border-color)] bg-[var(--bg-primary)] text-default text-sm"
           />
-          <span className="text-sm text-muted">秒</span>
+          <span className="text-sm text-muted">{aiT.seconds}</span>
           {isAdmin && (
             <button
               onClick={onSaveTimeout}
               disabled={saving}
               className="px-3 py-1 text-sm rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "保存"}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : aiT.save}
             </button>
           )}
         </div>

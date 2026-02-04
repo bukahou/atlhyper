@@ -14,9 +14,18 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // 优先使用用户手动选择的语言
     const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
     if (stored && (stored === "zh" || stored === "ja")) {
       setLanguageState(stored);
+    } else {
+      // 未手动选择时，跟随浏览器语言
+      const browserLang = navigator.language || (navigator as unknown as { userLanguage?: string }).userLanguage || "";
+      // 检测是否为日语（ja, ja-JP 等）
+      if (browserLang.toLowerCase().startsWith("ja")) {
+        setLanguageState("ja");
+      }
+      // 其他情况默认中文（defaultLanguage）
     }
     setMounted(true);
   }, []);

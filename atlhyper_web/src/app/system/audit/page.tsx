@@ -5,10 +5,81 @@ import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { PageHeader, LoadingSpinner } from "@/components/common";
 import { getAuditLogs } from "@/api/auth";
-import { User, Clock, Activity, CheckCircle, XCircle, Filter } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
+import { User, Clock, Activity, CheckCircle, XCircle, Filter, Eye } from "lucide-react";
 import type { AuditLogItem } from "@/types/auth";
 import type { AuditTranslations } from "@/types/i18n";
 import { UserRole } from "@/types/auth";
+
+// Mock 数据（展示用）
+const MOCK_AUDIT_LOGS: AuditLogItem[] = [
+  {
+    id: 1,
+    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    username: "admin",
+    role: UserRole.ADMIN,
+    action: "login",
+    resource: "user",
+    success: true,
+    ip: "192.168.1.100",
+    status: 200,
+  },
+  {
+    id: 2,
+    timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    username: "operator",
+    role: UserRole.OPERATOR,
+    action: "execute",
+    resource: "deployment",
+    success: true,
+    ip: "192.168.1.101",
+    status: 200,
+  },
+  {
+    id: 3,
+    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+    username: "viewer",
+    role: UserRole.VIEWER,
+    action: "read",
+    resource: "pod",
+    success: false,
+    ip: "192.168.1.102",
+    status: 403,
+  },
+  {
+    id: 4,
+    timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    username: "admin",
+    role: UserRole.ADMIN,
+    action: "create",
+    resource: "user",
+    success: true,
+    ip: "192.168.1.100",
+    status: 201,
+  },
+  {
+    id: 5,
+    timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    username: "operator",
+    role: UserRole.OPERATOR,
+    action: "execute",
+    resource: "pod",
+    success: true,
+    ip: "192.168.1.101",
+    status: 200,
+  },
+  {
+    id: 6,
+    timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+    username: "guest",
+    role: 0,
+    action: "login",
+    resource: "user",
+    success: false,
+    ip: "10.0.0.50",
+    status: 401,
+  },
+];
 
 // 获取角色标签
 function getRoleLabel(role: number, auditT: AuditTranslations): string {
@@ -104,9 +175,14 @@ function AuditItem({ log, auditT }: { log: AuditLogItem; auditT: AuditTranslatio
 export default function AuditPage() {
   const { t } = useI18n();
   const auditT = t.audit;
+  const { isAuthenticated, user } = useAuthStore();
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // 判断是否有权限查看真实数据（需要 Operator 权限）
+  const hasPermission = isAuthenticated && user && user.role >= UserRole.OPERATOR;
+  const isDemo = !hasPermission;
 
   // 过滤器状态
   const [timeRange, setTimeRange] = useState(24); // 默认 24 小时
@@ -122,6 +198,13 @@ export default function AuditPage() {
   ];
 
   const fetchLogs = useCallback(async () => {
+    // 无权限时使用 mock 数据
+    if (!hasPermission) {
+      setLogs(MOCK_AUDIT_LOGS);
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await getAuditLogs();
       setLogs(res.data.data || []);
@@ -131,7 +214,7 @@ export default function AuditPage() {
     } finally {
       setLoading(false);
     }
-  }, [t.common.error]);
+  }, [t.common.error, hasPermission]);
 
   useEffect(() => {
     fetchLogs();
@@ -169,6 +252,23 @@ export default function AuditPage() {
     <Layout>
       <div className="space-y-6">
         <PageHeader title={t.nav.audit} description={auditT.description} />
+
+        {/* 演示模式提示 */}
+        {isDemo && (
+          <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+            <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                {t.locale === "zh" ? "演示模式" : "デモモード"}
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t.locale === "zh"
+                  ? "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实审计日志。"
+                  : "サンプルデータを表示中です。Operator 権限でログインすると実際の監査ログを確認できます。"}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 过滤器 */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">

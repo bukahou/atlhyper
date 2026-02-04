@@ -6,7 +6,8 @@ import { useI18n } from "@/i18n/context";
 import { PageHeader, LoadingSpinner } from "@/components/common";
 import { toast } from "@/components/common/Toast";
 import { useAuthStore } from "@/store/authStore";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Eye } from "lucide-react";
+import { UserRole } from "@/types/auth";
 
 import { SlackCard, EmailCard } from "./components";
 import {
@@ -25,9 +26,9 @@ export default function NotificationsPage() {
   const { t } = useI18n();
   const { user, isAuthenticated } = useAuthStore();
 
-  // 权限判断
-  const isGuest = !isAuthenticated;
-  const isAdmin = user?.role === 3;
+  // 权限判断：Operator 即可查看和修改
+  const hasPermission = isAuthenticated && user && user.role >= UserRole.OPERATOR;
+  const isDemo = !hasPermission;
 
   // 状态
   const [loading, setLoading] = useState(true);
@@ -35,8 +36,8 @@ export default function NotificationsPage() {
 
   // 加载数据
   useEffect(() => {
-    if (isGuest) {
-      // Guest 使用 mock 数据
+    if (isDemo) {
+      // 无权限时使用 mock 数据
       setChannels(mockChannels);
       setLoading(false);
       return;
@@ -49,12 +50,12 @@ export default function NotificationsPage() {
       })
       .catch((err) => {
         console.error("Failed to load channels:", err);
-        toast.error("加载通知配置失败");
+        toast.error(t.notifications.loadFailed);
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [isGuest]);
+  }, [isDemo]);
 
   // 获取渠道配置
   const getSlackChannel = useCallback(() => {
@@ -74,14 +75,14 @@ export default function NotificationsPage() {
         setChannels((prev) =>
           prev.map((ch) => (ch.type === "slack" ? res.data : ch))
         );
-        toast.success("Slack 配置已保存");
+        toast.success(t.notifications.slackSaved);
       } catch (err) {
         console.error("Failed to save Slack config:", err);
-        toast.error("保存失败");
+        toast.error(t.notifications.saveFailed);
         throw err;
       }
     },
-    []
+    [t]
   );
 
   // 保存 Email 配置
@@ -92,13 +93,13 @@ export default function NotificationsPage() {
       setChannels((prev) =>
         prev.map((ch) => (ch.type === "email" ? res.data : ch))
       );
-      toast.success("邮件配置已保存");
+      toast.success(t.notifications.emailSaved);
     } catch (err) {
       console.error("Failed to save Email config:", err);
-      toast.error("保存失败");
+      toast.error(t.notifications.saveFailed);
       throw err;
     }
-  }, []);
+  }, [t]);
 
   // 测试 Slack
   const handleTestSlack = useCallback(async () => {
@@ -131,28 +132,26 @@ export default function NotificationsPage() {
       <div className="space-y-6">
         <PageHeader
           title={t.nav.notifications}
-          description={t.notifications?.pageDescription || "配置告警通知渠道"}
+          description={t.notifications.pageDescription}
         />
 
-        {/* Guest 提示 */}
-        {isGuest && (
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
-            <p className="text-sm text-yellow-800 dark:text-yellow-300">
-              演示模式 - 显示的是示例数据。请登录后查看真实配置。
-            </p>
+        {/* 演示模式提示 */}
+        {isDemo && (
+          <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+            <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                {t.locale === "zh" ? "演示模式" : "デモモード"}
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t.locale === "zh"
+                  ? "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实配置。"
+                  : "サンプルデータを表示中です。Operator 権限でログインすると実際の設定を確認できます。"}
+              </p>
+            </div>
           </div>
         )}
 
-        {/* 非 Admin 提示 */}
-        {!isGuest && !isAdmin && (
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-            <AlertTriangle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-            <p className="text-sm text-blue-800 dark:text-blue-300">
-              您只有查看权限。如需修改配置，请联系管理员。
-            </p>
-          </div>
-        )}
 
         {/* 加载状态 */}
         {loading ? (
@@ -167,7 +166,7 @@ export default function NotificationsPage() {
               enabled={slackChannel?.enabled || false}
               effectiveEnabled={slackChannel?.effective_enabled || false}
               validationErrors={slackChannel?.validation_errors || []}
-              readOnly={!isAdmin}
+              readOnly={isDemo}
               onSave={handleSaveSlack}
               onTest={handleTestSlack}
             />
@@ -186,7 +185,7 @@ export default function NotificationsPage() {
               enabled={emailChannel?.enabled || false}
               effectiveEnabled={emailChannel?.effective_enabled || false}
               validationErrors={emailChannel?.validation_errors || []}
-              readOnly={!isAdmin}
+              readOnly={isDemo}
               onSave={handleSaveEmail}
               onTest={handleTestEmail}
             />

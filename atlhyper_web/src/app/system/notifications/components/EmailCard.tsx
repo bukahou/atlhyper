@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Mail, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 import { TagInput, emailValidator } from "./TagInput";
 import type { EmailConfig, EmailUpdateData } from "@/api/notify";
 
@@ -36,6 +37,9 @@ export function EmailCard({
   onSave,
   onTest,
 }: EmailCardProps) {
+  const { t } = useI18n();
+  const nt = t.notifications;
+
   // 表单状态
   const [localEnabled, setLocalEnabled] = useState(enabled);
   const [smtpHost, setSmtpHost] = useState(config.smtp_host || "");
@@ -152,14 +156,14 @@ export function EmailCard({
             <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h3 className="font-medium text-default">邮件通知</h3>
+            <h3 className="font-medium text-default">{nt.emailNotify}</h3>
             <p className="text-sm text-muted">
               {effectiveEnabled ? (
-                <span className="text-green-600">已启用</span>
+                <span className="text-green-600">{nt.statusEnabled}</span>
               ) : localEnabled ? (
-                <span className="text-yellow-600">配置不完整</span>
+                <span className="text-yellow-600">{nt.statusIncomplete}</span>
               ) : (
-                "已禁用"
+                nt.statusDisabled
               )}
             </p>
           </div>
@@ -187,7 +191,7 @@ export function EmailCard({
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
             <div className="text-sm text-yellow-700 dark:text-yellow-400">
-              <p className="font-medium mb-1">配置不完整</p>
+              <p className="font-medium mb-1">{nt.configIncomplete}</p>
               <ul className="list-disc list-inside space-y-0.5">
                 {validationErrors.map((err, i) => (
                   <li key={i}>{err}</li>
@@ -204,7 +208,7 @@ export function EmailCard({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              SMTP 服务器 <span className="text-red-500">*</span>
+              {nt.smtpServer} <span className="text-red-500">*</span>
             </label>
             <select
               value={isCustomSmtp ? "__custom__" : smtpHost}
@@ -231,20 +235,20 @@ export function EmailCard({
                 [&>option]:bg-white [&>option]:text-gray-900
                 dark:[&>option]:bg-gray-800 dark:[&>option]:text-gray-100"
             >
-              <option value="">请选择...</option>
+              <option value="">{nt.smtpServerPlaceholder}</option>
               {SMTP_PRESETS.map((preset) => (
                 <option key={preset.value} value={preset.value}>
                   {preset.label} ({preset.value})
                 </option>
               ))}
-              <option value="__custom__">自定义...</option>
+              <option value="__custom__">{nt.smtpCustom}</option>
             </select>
             {isCustomSmtp && (
               <input
                 type="text"
                 value={smtpHost}
                 onChange={(e) => setSmtpHost(e.target.value)}
-                placeholder="输入 SMTP 服务器地址"
+                placeholder={nt.smtpCustomPlaceholder}
                 disabled={readOnly}
                 className="w-full mt-2 px-3 py-2 rounded-lg border border-[var(--border-color)]
                   bg-[var(--bg-primary)] text-default
@@ -256,7 +260,7 @@ export function EmailCard({
           </div>
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              端口 <span className="text-red-500">*</span>
+              {nt.port} <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
@@ -271,7 +275,7 @@ export function EmailCard({
                 disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <p className="mt-1 text-xs text-muted">
-              常用: 587 (TLS) / 465 (SSL) / 25
+              {nt.portHint}
             </p>
           </div>
         </div>
@@ -280,7 +284,7 @@ export function EmailCard({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              邮箱账号 <span className="text-red-500">*</span>
+              {nt.emailAccount} <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
@@ -294,18 +298,18 @@ export function EmailCard({
                 focus:outline-none focus:ring-2 focus:ring-blue-500
                 disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <p className="mt-1 text-xs text-muted">同时作为发件人地址</p>
+            <p className="mt-1 text-xs text-muted">{nt.emailAccountHint}</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              密码 <span className="text-red-500">*</span>
+              {nt.password} <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 value={smtpPassword}
                 onChange={(e) => setSmtpPassword(e.target.value)}
-                placeholder="留空则不修改"
+                placeholder={nt.passwordPlaceholder}
                 disabled={readOnly}
                 className="w-full px-3 py-2 pr-10 rounded-lg border border-[var(--border-color)]
                   bg-[var(--bg-primary)] text-default
@@ -332,9 +336,9 @@ export function EmailCard({
         <div className="flex items-center justify-between py-2">
           <div>
             <label className="block text-sm font-medium text-default">
-              TLS 加密
+              {nt.tlsEncryption}
             </label>
-            <p className="text-xs text-muted">推荐启用，确保传输安全</p>
+            <p className="text-xs text-muted">{nt.tlsHint}</p>
           </div>
           <button
             onClick={() => !readOnly && setSmtpTls(!smtpTls)}
@@ -354,12 +358,12 @@ export function EmailCard({
         {/* 收件人 */}
         <div>
           <label className="block text-sm font-medium text-default mb-1">
-            收件人
+            {nt.recipients}
           </label>
           <TagInput
             value={recipients}
             onChange={setRecipients}
-            placeholder="输入邮箱地址后按 Enter 添加"
+            placeholder={nt.recipientsPlaceholder}
             disabled={readOnly}
             validator={emailValidator}
           />
@@ -379,7 +383,7 @@ export function EmailCard({
               transition-colors flex items-center gap-2"
           >
             {testing && <Loader2 className="w-4 h-4 animate-spin" />}
-            测试
+            {nt.test}
           </button>
           <button
             onClick={handleSave}
@@ -391,7 +395,7 @@ export function EmailCard({
               transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            保存
+            {nt.save}
           </button>
         </div>
       )}

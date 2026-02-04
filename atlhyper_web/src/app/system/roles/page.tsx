@@ -57,8 +57,9 @@ function getPermissions(t: RolesTranslations): ResourcePermission[] {
     // 用户管理
     { resource: t.userManagement, category: t.categorySystem, admin: "full", operator: "none", viewer: "none", note: t.noteViewUserList },
     { resource: t.roleAssignment, category: t.categorySystem, admin: "full", operator: "none", viewer: "none" },
-    { resource: t.auditLogs, category: t.categorySystem, admin: "full", operator: "read", viewer: "read" },
-    { resource: t.notificationConfig, category: t.categorySystem, admin: "full", operator: "read", viewer: "read" },
+    { resource: t.auditLogs, category: t.categorySystem, admin: "full", operator: "read", viewer: "none" },
+    { resource: t.notificationConfig, category: t.categorySystem, admin: "full", operator: "read", viewer: "none" },
+    { resource: t.aiConfig, category: t.categorySystem, admin: "full", operator: "read", viewer: "none" },
     // 集群资源
     { resource: "Pods", category: t.categoryCluster, admin: "full", operator: "full", viewer: "read" },
     { resource: "Nodes", category: t.categoryCluster, admin: "full", operator: "read", viewer: "read" },

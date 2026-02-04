@@ -8,6 +8,7 @@ import { Conversation, ChatStats } from "./types";
 import { Message, StreamSegment } from "./types";
 import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
+import { useI18n } from "@/i18n/context";
 
 // 合并 tool_calls JSON 字符串
 function mergeToolCalls(tc1?: string, tc2?: string): string | undefined {
@@ -81,6 +82,7 @@ interface ChatPanelProps {
   onSend: (message: string) => void;
   onStop: () => void;
   onQuickQuestion?: (question: string) => void; // 快捷问题点击回调
+  readOnly?: boolean; // 只读模式（演示用）
 }
 
 export function ChatPanel({
@@ -97,7 +99,10 @@ export function ChatPanel({
   onSend,
   onStop,
   onQuickQuestion,
+  readOnly = false,
 }: ChatPanelProps) {
+  const { t } = useI18n();
+  const aiChatT = t.aiChatPage;
   const [activePanel, setActivePanel] = useState<PanelType>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -141,7 +146,7 @@ export function ChatPanel({
           <History className="w-5 h-5" />
           {/* Tooltip */}
           <span className="absolute right-12 px-2 py-1 rounded-md bg-gray-900 dark:bg-gray-700 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
-            对话历史
+            {aiChatT.conversationHistory}
           </span>
         </button>
         <button
@@ -155,7 +160,7 @@ export function ChatPanel({
           <Settings2 className="w-5 h-5" />
           {/* Tooltip */}
           <span className="absolute right-12 px-2 py-1 rounded-md bg-gray-900 dark:bg-gray-700 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
-            执行详情
+            {aiChatT.executionDetails}
           </span>
         </button>
       </div>
@@ -194,7 +199,7 @@ export function ChatPanel({
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-6">
         <div className="w-full px-4 sm:px-6 md:w-[85%] lg:w-[75%] mx-auto space-y-6">
           {messages.length === 0 && !streaming ? (
-            <EmptyState onQuickQuestion={onQuickQuestion || onSend} />
+            <EmptyState onQuickQuestion={onQuickQuestion || onSend} translations={aiChatT} />
           ) : (
             <>
               {(() => {
@@ -228,32 +233,46 @@ export function ChatPanel({
         onSend={onSend}
         onStop={onStop}
         streaming={streaming}
+        disabled={readOnly}
       />
     </div>
   );
 }
 
-// 快捷问题列表
-const QUICK_QUESTIONS = [
-  "为什么 Pod 一直重启？",
-  "查看节点资源使用率",
-  "分析最近的告警事件",
-  "检查 Deployment 状态",
-];
-
 // 空状态引导
-function EmptyState({ onQuickQuestion }: { onQuickQuestion: (q: string) => void }) {
+interface EmptyStateProps {
+  onQuickQuestion: (q: string) => void;
+  translations: {
+    aiAssistant: string;
+    aiAssistantDesc: string;
+    quickQuestions: {
+      podRestart: string;
+      nodeResource: string;
+      alertEvents: string;
+      deploymentStatus: string;
+    };
+  };
+}
+
+function EmptyState({ onQuickQuestion, translations }: EmptyStateProps) {
+  const quickQuestions = [
+    translations.quickQuestions.podRestart,
+    translations.quickQuestions.nodeResource,
+    translations.quickQuestions.alertEvents,
+    translations.quickQuestions.deploymentStatus,
+  ];
+
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-8">
       <div className="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
         <Bot className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
       </div>
-      <h3 className="text-lg font-semibold text-default mb-2">AI 集群助手</h3>
+      <h3 className="text-lg font-semibold text-default mb-2">{translations.aiAssistant}</h3>
       <p className="text-sm text-muted max-w-sm mb-6">
-        我可以帮你分析 Kubernetes 集群状态、诊断 Pod 问题、查看日志和事件。
+        {translations.aiAssistantDesc}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
-        {QUICK_QUESTIONS.map((q) => (
+        {quickQuestions.map((q) => (
           <button
             key={q}
             onClick={() => onQuickQuestion(q)}

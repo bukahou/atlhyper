@@ -1,6 +1,7 @@
 "use client";
 
 import { Bot, Check, Settings, Trash2, Zap, MessageSquare, Coins } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 import type { AIProvider } from "@/api/ai-provider";
 
 const providerColors: Record<string, string> = {
@@ -30,6 +31,9 @@ export function ProviderCard({
   onEdit,
   onDelete,
 }: ProviderCardProps) {
+  const { t } = useI18n();
+  const aiT = t.aiSettingsPage;
+
   return (
     <div
       className={`relative rounded-xl border p-4 transition-all ${
@@ -42,7 +46,7 @@ export function ProviderCard({
       {provider.is_active && (
         <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-green-500 text-white text-xs flex items-center gap-1">
           <Check className="w-3 h-3" />
-          有効
+          {aiT.enabled}
         </div>
       )}
 
@@ -94,13 +98,13 @@ export function ProviderCard({
               onClick={() => onActivate(provider)}
               className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
             >
-              有効化
+              {aiT.activate}
             </button>
           )}
           <button
             onClick={() => onEdit(provider)}
             className="p-1.5 rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] transition-colors"
-            title="設定"
+            title={aiT.settings}
           >
             <Settings className="w-4 h-4 text-muted" />
           </button>
@@ -108,7 +112,7 @@ export function ProviderCard({
             <button
               onClick={() => onDelete(provider)}
               className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              title="削除"
+              title={aiT.delete}
             >
               <Trash2 className="w-4 h-4 text-red-500" />
             </button>

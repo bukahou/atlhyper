@@ -3,6 +3,7 @@
 import { SquarePen, MessageSquare, Trash2, EllipsisVertical } from "lucide-react";
 import { useState } from "react";
 import { Conversation } from "./types";
+import { useI18n } from "@/i18n/context";
 
 interface ConversationPanelProps {
   open: boolean;
@@ -14,8 +15,17 @@ interface ConversationPanelProps {
   onDelete: (id: number) => void;
 }
 
+// 时间分组标签类型
+interface TimeLabels {
+  today: string;
+  yesterday: string;
+  past7Days: string;
+  past30Days: string;
+  older: string;
+}
+
 // 按时间分组
-function groupByTime(conversations: Conversation[]) {
+function groupByTime(conversations: Conversation[], labels: TimeLabels) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86400000);
@@ -23,11 +33,11 @@ function groupByTime(conversations: Conversation[]) {
   const prev30 = new Date(today.getTime() - 30 * 86400000);
 
   const groups: { label: string; items: Conversation[] }[] = [
-    { label: "今天", items: [] },
-    { label: "昨天", items: [] },
-    { label: "过去 7 天", items: [] },
-    { label: "过去 30 天", items: [] },
-    { label: "更早", items: [] },
+    { label: labels.today, items: [] },
+    { label: labels.yesterday, items: [] },
+    { label: labels.past7Days, items: [] },
+    { label: labels.past30Days, items: [] },
+    { label: labels.older, items: [] },
   ];
 
   for (const conv of conversations) {
@@ -51,14 +61,22 @@ export function ConversationPanel({
   onNew,
   onDelete,
 }: ConversationPanelProps) {
+  const { t } = useI18n();
+  const sidebarT = t.aiChatPage.sidebar;
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
-  const groups = groupByTime(conversations);
+  const groups = groupByTime(conversations, {
+    today: sidebarT.today,
+    yesterday: sidebarT.yesterday,
+    past7Days: sidebarT.past7Days,
+    past30Days: sidebarT.past30Days,
+    older: sidebarT.older,
+  });
 
   return (
     <div className="flex flex-col overflow-hidden">
       {/* 头部 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]/50">
-        <span className="text-sm font-medium text-default">对话记录</span>
+        <span className="text-sm font-medium text-default">{sidebarT.title}</span>
         <button
           onClick={() => {
             onNew();
@@ -67,7 +85,7 @@ export function ConversationPanel({
           className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-primary hover:bg-primary/10 transition-colors"
         >
           <SquarePen className="w-3.5 h-3.5" />
-          新对话
+          {sidebarT.newConversation}
         </button>
       </div>
 
@@ -76,7 +94,7 @@ export function ConversationPanel({
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted">
             <MessageSquare className="w-8 h-8 mb-2 opacity-20" />
-            <span className="text-xs">暂无对话记录</span>
+            <span className="text-xs">{sidebarT.noConversations}</span>
           </div>
         ) : (
           groups.map((group) => (
@@ -101,6 +119,7 @@ export function ConversationPanel({
                   onMenuToggle={() =>
                     setMenuOpenId((prev) => (prev === conv.id ? null : conv.id))
                   }
+                  deleteLabel={sidebarT.deleteConversation}
                 />
               ))}
             </div>
@@ -119,6 +138,7 @@ function ConversationItem({
   onSelect,
   onDelete,
   onMenuToggle,
+  deleteLabel,
 }: {
   conversation: Conversation;
   active: boolean;
@@ -126,6 +146,7 @@ function ConversationItem({
   onSelect: () => void;
   onDelete: () => void;
   onMenuToggle: () => void;
+  deleteLabel: string;
 }) {
   return (
     <div className="relative">
@@ -160,7 +181,7 @@ function ConversationItem({
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
             <Trash2 className="w-3 h-3" />
-            删除对话
+            {deleteLabel}
           </button>
         </div>
       )}

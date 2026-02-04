@@ -50,6 +50,14 @@ export interface CommonTranslations {
   refresh: string;
   login: string;
   logout: string;
+  // 主题
+  themeLight: string;
+  themeDark: string;
+  themeSystem: string;
+  // 侧栏
+  collapseSidebar: string;
+  expandSidebar: string;
+  settings: string;
   username: string;
   password: string;
   submit: string;
@@ -561,6 +569,21 @@ export interface AlertTranslations {
   critical: string;
   warning: string;
   info: string;
+  // 告警列表页面
+  loadFailed: string;
+  refresh: string;
+  aiAnalyze: string;
+  noAlertsTitle: string;
+  noAlertsDescription: string;
+  time: string;
+  level: string;
+  resourceType: string;
+  namespace: string;
+  resourceName: string;
+  reason: string;
+  totalAlerts: string;
+  selectedCount: string;
+  analyzeHint: string;
 }
 
 // Overview 页面翻译
@@ -605,6 +628,15 @@ export interface WorkbenchTranslations {
   podOperations: string;
   nodeOperations: string;
   deploymentOperations: string;
+  // 快捷入口描述
+  enter: string;
+  aiDescription: string;
+  clustersDescription: string;
+  agentsDescription: string;
+  notificationsDescription: string;
+  // 开发中
+  comingSoon: string;
+  comingSoonDesc: string;
 }
 
 // Users 页面翻译
@@ -659,6 +691,7 @@ export interface RolesTranslations {
   roleAssignment: string;
   auditLogs: string;
   notificationConfig: string;
+  aiConfig: string;
   metricsView: string;
   logsView: string;
   alertRules: string;
@@ -717,15 +750,45 @@ export interface AgentsTranslations {
 // Notifications 页面翻译
 export interface NotificationsTranslations {
   pageDescription: string;
+  loadFailed: string;
+  // Slack
+  slackNotify: string;
   slackConfig: string;
   webhookUrl: string;
+  webhookUrlHint: string;
   channel: string;
+  // Email
+  emailNotify: string;
+  smtpServer: string;
+  smtpServerPlaceholder: string;
+  smtpCustom: string;
+  smtpCustomPlaceholder: string;
+  port: string;
+  portHint: string;
+  emailAccount: string;
+  emailAccountHint: string;
+  password: string;
+  passwordPlaceholder: string;
+  tlsEncryption: string;
+  tlsHint: string;
+  recipients: string;
+  recipientsPlaceholder: string;
+  // 状态
+  statusEnabled: string;
+  statusIncomplete: string;
+  statusDisabled: string;
+  configIncomplete: string;
+  // 操作
   enabled: string;
+  test: string;
+  save: string;
   testMessage: string;
   testSuccess: string;
   testFailed: string;
   saveSuccess: string;
   saveFailed: string;
+  slackSaved: string;
+  emailSaved: string;
 }
 
 // Login 页面翻译
@@ -824,13 +887,19 @@ export interface PlaceholderTranslations {
 
 // SLO 页面翻译
 export interface SLOTranslations {
+  // 页面标题
+  pageTitle: string;
   pageDescription: string;
   noData: string;
   noDataHint: string;
   refreshing: string;
   lastUpdated: string;
+  loadFailed: string;
+  noCluster: string;
   // 状态
   healthy: string;
+  warning: string;
+  critical: string;
   degraded: string;
   atRisk: string;
   breached: string;
@@ -839,36 +908,97 @@ export interface SLOTranslations {
   trendUp: string;
   trendDown: string;
   trendStable: string;
+  // 时间范围
+  day: string;
+  week: string;
+  month: string;
+  selectPeriod: string;
+  previousPeriod: string;
+  currentVsPrevious: string;
   // 指标
   availability: string;
+  p95Latency: string;
+  p99Latency: string;
   latency: string;
   errorRate: string;
   rps: string;
+  throughput: string;
   totalRequests: string;
+  successRequests: string;
   errorRequests: string;
+  avgThroughput: string;
   // 详情弹窗
   domainDetail: string;
+  targetDomain: string;
   currentMetrics: string;
   sloTarget: string;
+  sloStatus: string;
+  sloAchievement: string;
   errorBudget: string;
+  errorBudgetDetail: string;
+  remainingBudget: string;
+  allowedErrors: string;
+  actualErrors: string;
+  remainingQuota: string;
+  trafficStats: string;
   history: string;
   noTarget: string;
   setTarget: string;
   editTarget: string;
   deleteTarget: string;
+  configTarget: string;
+  configSloTarget: string;
   targetAvailability: string;
+  targetAvailabilityHint: string;
   targetP95: string;
+  targetP95Hint: string;
+  errorRateThreshold: string;
+  errorRateAutoCalc: string;
   remaining: string;
   consumed: string;
+  actual: string;
+  target: string;
+  threshold: string;
+  achieved: string;
+  notAchieved: string;
+  exceeded: string;
+  // Tabs
+  tabSloStatus: string;
+  tabServices: string;
+  tabCompare: string;
+  // 服务相关
+  services: string;
+  servicesCount: string;
+  backendServices: string;
+  noServiceData: string;
+  totalBackendServices: string;
+  // 汇总卡片
+  monitoredDomains: string;
+  avgAvailability: string;
+  errorBudgetRemaining: string;
+  avgRemaining: string;
+  totalThroughput: string;
+  inWarning: string;
+  needsAttention: string;
+  criticalIssues: string;
+  needsImmediate: string;
+  domainSloStatus: string;
   // 图表
   hourlyTrend: string;
   dailyTrend: string;
   // 单位
   ms: string;
   percent: string;
+  reqPerSec: string;
   // 操作
   viewDetail: string;
-  configTarget: string;
+  save: string;
+  saving: string;
+  cancel: string;
+  saveFailed: string;
+  // 说明
+  dataSourceTitle: string;
+  dataSourceDesc: string;
 }
 
 // Commands 页面翻译
@@ -911,8 +1041,168 @@ export interface CommandsTranslations {
   };
 }
 
+// AI Settings 页面翻译
+export interface AISettingsPageTranslations {
+  // 页面标题
+  pageTitle: string;
+  pageDescription: string;
+  // 全局设置
+  globalSettings: string;
+  globalSettingsDesc: string;
+  aiFeature: string;
+  enableAI: string;
+  enableAIDesc: string;
+  enabled: string;
+  disabled: string;
+  toolTimeout: string;
+  toolTimeoutDesc: string;
+  seconds: string;
+  saveTimeout: string;
+  // 提供商列表
+  providerList: string;
+  addProvider: string;
+  addFirstProvider: string;
+  noProviders: string;
+  // 提供商卡片
+  active: string;
+  activate: string;
+  settings: string;
+  edit: string;
+  delete: string;
+  model: string;
+  apiKeyConfigured: string;
+  // 提供商弹窗
+  newProvider: string;
+  editProvider: string;
+  addProviderTitle: string;
+  editProviderTitle: string;
+  name: string;
+  namePlaceholder: string;
+  providerName: string;
+  providerNamePlaceholder: string;
+  provider: string;
+  providerType: string;
+  selectProvider: string;
+  apiKey: string;
+  apiKeyPlaceholder: string;
+  apiKeyUpdatePlaceholder: string;
+  apiKeyHint: string;
+  current: string;
+  selectModel: string;
+  customModel: string;
+  customModelPlaceholder: string;
+  description: string;
+  descriptionPlaceholder: string;
+  cancel: string;
+  save: string;
+  saving: string;
+  // Toast 消息
+  loadFailed: string;
+  requiredFields: string;
+  apiKeyRequired: string;
+  providerUpdated: string;
+  providerAdded: string;
+  saveFailed: string;
+  cannotDeleteActive: string;
+  confirmDelete: string;
+  providerDeleted: string;
+  deleteFailed: string;
+  providerActivated: string;
+  activateFailed: string;
+  aiEnabled: string;
+  aiDisabled: string;
+  settingChangeFailed: string;
+  timeoutSaved: string;
+}
+
+// AI Chat 页面翻译
+export interface AIChatPageTranslations {
+  // 状态页面
+  loading: string;
+  checkingConfig: string;
+  notEnabled: string;
+  notEnabledDesc: string;
+  notConfigured: string;
+  notConfiguredDesc: string;
+  goToSettings: string;
+  // 演示模式
+  demoMode: string;
+  demoModeDesc: string;
+  login: string;
+  // 告警分析
+  alertAnalysis: string;
+  // ChatPanel
+  conversationHistory: string;
+  executionDetails: string;
+  aiAssistant: string;
+  aiAssistantDesc: string;
+  // 快捷问题
+  quickQuestions: {
+    podRestart: string;
+    nodeResource: string;
+    alertEvents: string;
+    deploymentStatus: string;
+  };
+  // ChatInput
+  chatInput: {
+    placeholderStreaming: string;
+    placeholderNormal: string;
+    stopButton: string;
+    sendButton: string;
+    disclaimer: string;
+  };
+  // InspectorPanel
+  inspector: {
+    title: string;
+    clusterContext: string;
+    clusterId: string;
+    notSelected: string;
+    status: string;
+    querying: string;
+    connected: string;
+    currentQuestion: string;
+    thinkingRounds: string;
+    inProgress: string;
+    executedCommands: string;
+    commandsUnit: string;
+    roundsUnit: string;
+    inputTokens: string;
+    outputTokens: string;
+    totalTokens: string;
+    waitingQuestion: string;
+    conversationOverview: string;
+    conversationRounds: string;
+    totalCommands: string;
+    totalTokensLabel: string;
+    aiCapabilities: string;
+    canDo: string;
+    cannotDo: string;
+    capQueryResources: string;
+    capViewLogs: string;
+    capViewEvents: string;
+    capFilterByLabel: string;
+    capNoWrite: string;
+    capNoSecrets: string;
+    capNoSystemNs: string;
+    capNoSensitive: string;
+  };
+  // ConversationSidebar
+  sidebar: {
+    title: string;
+    newConversation: string;
+    noConversations: string;
+    deleteConversation: string;
+    today: string;
+    yesterday: string;
+    past7Days: string;
+    past30Days: string;
+    older: string;
+  };
+}
+
 // 完整翻译结构
 export interface Translations {
+  locale: "zh" | "ja";  // 语言标识符，用于日期格式化等
   nav: NavTranslations;
   common: CommonTranslations;
   status: StatusTranslations;
@@ -939,6 +1229,8 @@ export interface Translations {
   placeholder: PlaceholderTranslations;
   commands: CommandsTranslations;
   slo: SLOTranslations;
+  aiSettingsPage: AISettingsPageTranslations;
+  aiChatPage: AIChatPageTranslations;
 }
 
 // 国际化上下文

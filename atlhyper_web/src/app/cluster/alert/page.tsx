@@ -48,6 +48,7 @@ function severityColor(severity: string): string {
 
 export default function AlertsPage() {
   const { t } = useI18n();
+  const alertT = t.alert;
   const router = useRouter();
   const { currentClusterId } = useClusterStore();
 
@@ -67,7 +68,7 @@ export default function AlertsPage() {
       const res = await getClusterOverview({ cluster_id: currentClusterId });
       setAlerts(res.data.data.alerts.recent || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : alertT.loadFailed);
       setAlerts([]);
     } finally {
       setLoading(false);
@@ -118,7 +119,8 @@ export default function AlertsPage() {
   // 格式化时间
   const formatTime = (timestamp: string) => {
     try {
-      return new Date(timestamp).toLocaleString("zh-CN", {
+      const locale = t.locale === "zh" ? "zh-CN" : "ja-JP";
+      return new Date(timestamp).toLocaleString(locale, {
         month: "2-digit",
         day: "2-digit",
         hour: "2-digit",
@@ -135,7 +137,7 @@ export default function AlertsPage() {
       <div className="space-y-6">
         <PageHeader
           title={t.nav.alerts}
-          description="查看集群告警事件，支持多选后使用 AI 进行分析"
+          description={alertT.pageDescription}
           actions={
             <div className="flex items-center gap-3">
               <button
@@ -146,7 +148,7 @@ export default function AlertsPage() {
                 <RefreshCw
                   className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
                 />
-                刷新
+                {alertT.refresh}
               </button>
               <button
                 onClick={handleAnalyze}
@@ -154,7 +156,7 @@ export default function AlertsPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Bot className="w-4 h-4" />
-                AI 分析 ({selectedKeys.size})
+                {alertT.aiAnalyze} ({selectedKeys.size})
               </button>
             </div>
           }
@@ -176,8 +178,8 @@ export default function AlertsPage() {
           ) : alerts.length === 0 ? (
             <StatusPage
               icon={Inbox}
-              title="暂无告警"
-              description="当前集群运行正常，没有告警事件"
+              title={alertT.noAlertsTitle}
+              description={alertT.noAlertsDescription}
             />
           ) : (
             <table className="w-full">
@@ -195,25 +197,25 @@ export default function AlertsPage() {
                     />
                   </th>
                   <th className="p-3 text-left text-sm font-medium text-muted">
-                    时间
+                    {alertT.time}
                   </th>
                   <th className="p-3 text-left text-sm font-medium text-muted">
-                    级别
+                    {alertT.level}
                   </th>
                   <th className="p-3 text-left text-sm font-medium text-muted">
-                    资源类型
+                    {alertT.resourceType}
                   </th>
                   <th className="p-3 text-left text-sm font-medium text-muted">
-                    命名空间
+                    {alertT.namespace}
                   </th>
                   <th className="p-3 text-left text-sm font-medium text-muted">
-                    资源名称
+                    {alertT.resourceName}
                   </th>
                   <th className="p-3 text-left text-sm font-medium text-muted">
-                    原因
+                    {alertT.reason}
                   </th>
                   <th className="p-3 text-left text-sm font-medium text-muted">
-                    消息
+                    {alertT.message}
                   </th>
                 </tr>
               </thead>
@@ -278,8 +280,11 @@ export default function AlertsPage() {
         {/* 底部说明 */}
         {alerts.length > 0 && (
           <p className="text-sm text-muted">
-            共 {alerts.length} 条告警，已选择 {selectedKeys.size} 条。
-            选择告警后点击 "AI 分析" 按钮，AI 将查询相关资源状态、日志和事件进行诊断。
+            {alertT.totalAlerts.replace("{count}", String(alerts.length))}
+            {", "}
+            {alertT.selectedCount.replace("{count}", String(selectedKeys.size))}
+            {"。"}
+            {alertT.analyzeHint}
           </p>
         )}
       </div>

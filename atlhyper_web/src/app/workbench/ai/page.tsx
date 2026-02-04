@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { LogIn, Settings, AlertTriangle, Loader2 } from "lucide-react";
+import { LogIn, Settings, AlertTriangle, Loader2, Eye } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { ChatPanel } from "@/components/ai/ChatPanel";
 import { StatusPage } from "@/components/common";
 import { Conversation, Message, StreamSegment, ChatStats } from "@/components/ai/types";
 import { useClusterStore } from "@/store/clusterStore";
 import { useAuthStore } from "@/store/authStore";
+import { useI18n } from "@/i18n/context";
 import {
   getConversations,
   createConversation,
@@ -20,17 +21,141 @@ import { getActiveConfig, type ActiveConfig } from "@/api/ai-provider";
 import { formatAlertsMessage } from "@/lib/alertFormat";
 import type { RecentAlert } from "@/types/overview";
 
+// Mock 数据（演示用）
+const MOCK_CONVERSATIONS: Conversation[] = [
+  {
+    id: 1,
+    cluster_id: "demo-cluster",
+    title: "Pod 故障诊断",
+    message_count: 4,
+    total_input_tokens: 256,
+    total_output_tokens: 512,
+    total_tool_calls: 3,
+    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+  },
+  {
+    id: 2,
+    cluster_id: "demo-cluster",
+    title: "集群资源分析",
+    message_count: 2,
+    total_input_tokens: 128,
+    total_output_tokens: 256,
+    total_tool_calls: 1,
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+  },
+];
+
+const MOCK_MESSAGES: Message[] = [
+  {
+    id: 1,
+    conversation_id: 1,
+    role: "user",
+    content: "nginx-deployment 的 Pod 一直在重启，帮我分析一下原因",
+    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+  },
+  {
+    id: 2,
+    conversation_id: 1,
+    role: "assistant",
+    content: `我来帮你分析 nginx-deployment 的 Pod 重启问题。
+
+## 诊断结果
+
+通过查询集群状态，发现以下问题：
+
+### Pod 状态
+- **Pod 名称**: nginx-deployment-5d4f7b8c9-abc12
+- **状态**: CrashLoopBackOff
+- **重启次数**: 5 次
+- **最后退出码**: 137 (OOMKilled)
+
+### 根因分析
+Pod 因为内存不足 (OOM) 被系统终止。当前配置：
+- 内存限制: 128Mi
+- 实际使用峰值: ~150Mi
+
+### 修复建议
+1. **临时方案**: 增加内存限制到 256Mi
+\`\`\`yaml
+resources:
+  limits:
+    memory: "256Mi"
+  requests:
+    memory: "128Mi"
+\`\`\`
+
+2. **长期方案**: 检查应用是否有内存泄漏
+
+需要我帮你执行修复操作吗？`,
+    tool_calls: JSON.stringify([
+      {
+        tool: "query_cluster",
+        params: '{"action":"describe","kind":"Pod","namespace":"default","name":"nginx-deployment-5d4f7b8c9-abc12"}',
+        result: "Pod 详情: Status=CrashLoopBackOff, RestartCount=5, LastExitCode=137",
+      },
+      {
+        tool: "query_cluster",
+        params: '{"action":"get_events","involved_kind":"Pod","involved_name":"nginx-deployment-5d4f7b8c9-abc12"}',
+        result: "Events: OOMKilled - Container exceeded memory limit",
+      },
+    ]),
+    created_at: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+  },
+  {
+    id: 3,
+    conversation_id: 1,
+    role: "user",
+    content: "好的，请帮我把内存限制调整到 256Mi",
+    created_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+  },
+  {
+    id: 4,
+    conversation_id: 1,
+    role: "assistant",
+    content: `已成功更新 nginx-deployment 的内存配置！
+
+## 执行结果
+✅ Deployment 已更新，新的 Pod 正在启动中
+
+### 变更详情
+- **资源**: Deployment/nginx-deployment
+- **命名空间**: default
+- **变更内容**: memory limit 128Mi → 256Mi
+
+### 当前状态
+- 新 Pod 已创建: nginx-deployment-5d4f7b8c9-xyz99
+- 状态: Running
+- 重启次数: 0
+
+建议持续观察 10-15 分钟确认问题已解决。`,
+    tool_calls: JSON.stringify([
+      {
+        tool: "execute_command",
+        params: '{"action":"patch","kind":"Deployment","namespace":"default","name":"nginx-deployment","patch":"..."}',
+        result: "deployment.apps/nginx-deployment patched",
+      },
+    ]),
+    created_at: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+  },
+];
+
 // AI 配置状态类型
 type AIConfigStatus = "loading" | "not_enabled" | "not_configured" | "ready";
 
 export default function AIChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const { currentClusterId } = useClusterStore();
   const { isAuthenticated, openLoginDialog } = useAuthStore();
 
+  // 演示模式（未登录）
+  const isDemo = !isAuthenticated;
+
   // AI 配置状态
-  const [aiStatus, setAiStatus] = useState<AIConfigStatus>("loading");
+  const [aiStatus, setAiStatus] = useState<AIConfigStatus>(isDemo ? "ready" : "loading");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConvId, setCurrentConvId] = useState<number | null>(null);
@@ -71,12 +196,15 @@ export default function AIChatPage() {
     }
   }, []);
 
-  // 未登录时弹出登录框
+  // 演示模式：加载 mock 数据
   useEffect(() => {
-    if (!isAuthenticated) {
-      openLoginDialog();
+    if (isDemo) {
+      setConversations(MOCK_CONVERSATIONS);
+      setCurrentConvId(1);
+      setMessages(MOCK_MESSAGES);
+      setAiStatus("ready");
     }
-  }, [isAuthenticated, openLoginDialog]);
+  }, [isDemo]);
 
   // 登录后检查 AI 配置状态
   useEffect(() => {
@@ -111,9 +239,10 @@ export default function AIChatPage() {
       const message = formatAlertsMessage(alerts);
 
       // 创建新对话并发送消息
+      const alertTitle = t.locale === "zh" ? "告警分析" : "アラート分析";
       (async () => {
         try {
-          const res = await createConversation(currentClusterId, "告警分析");
+          const res = await createConversation(currentClusterId, alertTitle);
           const newConv = res.data;
           setConversations((prev) => [newConv, ...prev]);
           setCurrentConvId(newConv.id);
@@ -305,33 +434,23 @@ export default function AIChatPage() {
     router.push("/system/settings/ai");
   }, [router]);
 
+  // 演示模式下的处理函数（禁用操作，显示登录提示）
+  const handleDemoAction = useCallback(() => {
+    openLoginDialog();
+  }, [openLoginDialog]);
+
   // ==================== 条件渲染 ====================
+  const aiChatT = t.aiChatPage;
 
-  // 未登录
-  if (!isAuthenticated) {
-    return (
-      <Layout>
-        <div className="-m-6 h-[calc(100vh-3.5rem)]">
-          <StatusPage
-            icon={LogIn}
-            title="需要登录"
-            description="请先登录后使用 AI 助手"
-            action={{ label: "登录", onClick: () => openLoginDialog() }}
-          />
-        </div>
-      </Layout>
-    );
-  }
-
-  // 加载中
+  // 加载中（仅登录后）
   if (aiStatus === "loading") {
     return (
       <Layout>
         <div className="-m-6 h-[calc(100vh-3.5rem)]">
           <StatusPage
             icon={Loader2}
-            title="加载中"
-            description="正在检查 AI 配置..."
+            title={aiChatT.loading}
+            description={aiChatT.checkingConfig}
           />
         </div>
       </Layout>
@@ -345,9 +464,9 @@ export default function AIChatPage() {
         <div className="-m-6 h-[calc(100vh-3.5rem)]">
           <StatusPage
             icon={AlertTriangle}
-            title="AI 功能未启用"
-            description="管理员已关闭 AI 功能，请联系管理员或在系统设置中启用"
-            action={{ label: "前往设置", onClick: goToSettings }}
+            title={aiChatT.notEnabled}
+            description={aiChatT.notEnabledDesc}
+            action={{ label: aiChatT.goToSettings, onClick: goToSettings }}
           />
         </div>
       </Layout>
@@ -361,9 +480,9 @@ export default function AIChatPage() {
         <div className="-m-6 h-[calc(100vh-3.5rem)]">
           <StatusPage
             icon={Settings}
-            title="AI 功能未配置"
-            description="请先在系统设置中添加 AI 提供商（如 Gemini、OpenAI、Claude）并选择激活"
-            action={{ label: "前往设置", onClick: goToSettings }}
+            title={aiChatT.notConfigured}
+            description={aiChatT.notConfiguredDesc}
+            action={{ label: aiChatT.goToSettings, onClick: goToSettings }}
           />
         </div>
       </Layout>
@@ -374,21 +493,41 @@ export default function AIChatPage() {
   return (
     <Layout>
       {/* 负边距抵消 Layout 的 p-6，全屏聊天布局 */}
-      <div className="-m-6 h-[calc(100vh-3.5rem)] flex relative">
-        <ChatPanel
-          messages={messages}
-          streaming={streaming}
-          streamSegments={streamSegments}
-          conversations={conversations}
-          currentConvId={currentConvId}
-          clusterId={currentClusterId}
-          currentStats={currentStats}
-          onSelectConv={handleSelect}
-          onNewConv={handleNew}
-          onDeleteConv={handleDelete}
-          onSend={handleSend}
-          onStop={handleStop}
-        />
+      <div className="-m-6 h-[calc(100vh-3.5rem)] flex flex-col relative">
+        {/* 演示模式横幅 */}
+        {isDemo && (
+          <div className="flex items-center justify-between gap-3 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+            <div className="flex items-center gap-2">
+              <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span className="text-sm text-amber-800 dark:text-amber-300">
+                {aiChatT.demoMode} - {aiChatT.demoModeDesc}
+              </span>
+            </div>
+            <button
+              onClick={() => openLoginDialog()}
+              className="px-3 py-1 text-xs font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+            >
+              {aiChatT.login}
+            </button>
+          </div>
+        )}
+        <div className="flex-1 flex">
+          <ChatPanel
+            messages={messages}
+            streaming={streaming}
+            streamSegments={streamSegments}
+            conversations={conversations}
+            currentConvId={currentConvId}
+            clusterId={currentClusterId}
+            currentStats={currentStats}
+            onSelectConv={isDemo ? () => {} : handleSelect}
+            onNewConv={isDemo ? handleDemoAction : handleNew}
+            onDeleteConv={isDemo ? handleDemoAction : handleDelete}
+            onSend={isDemo ? handleDemoAction : handleSend}
+            onStop={handleStop}
+            readOnly={isDemo}
+          />
+        </div>
       </div>
     </Layout>
   );

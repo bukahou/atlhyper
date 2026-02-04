@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { LoadingSpinner } from "@/components/common";
+import { useI18n } from "@/i18n/context";
 import { getSLODomainsV2, upsertSLOTarget } from "@/api/slo";
 import { getClusterList } from "@/api/cluster";
 import {
@@ -45,12 +46,13 @@ function TrendIcon({ trend }: { trend?: string }) {
 }
 
 // 对比指标组件
-function CompareMetric({ label, current, previous, unit, inverse = false }: {
+function CompareMetric({ label, current, previous, unit, inverse = false, previousPeriodLabel }: {
   label: string;
   current: number;
   previous: number;
   unit: string;
   inverse?: boolean;
+  previousPeriodLabel: string;
 }) {
   const diff = current - previous;
   const percentDiff = previous !== 0 ? (diff / previous) * 100 : 0;
@@ -73,7 +75,7 @@ function CompareMetric({ label, current, previous, unit, inverse = false }: {
           <span>{Math.abs(percentDiff).toFixed(1)}%</span>
         </div>
       </div>
-      <div className="text-xs text-muted mt-0.5">上周期: {previous.toFixed(2)}{unit}</div>
+      <div className="text-xs text-muted mt-0.5">{previousPeriodLabel} {previous.toFixed(2)}{unit}</div>
     </div>
   );
 }
@@ -86,6 +88,7 @@ function SLOTargetModal({
   clusterId,
   timeRange,
   onSaved,
+  translations,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -93,6 +96,23 @@ function SLOTargetModal({
   clusterId: string;
   timeRange: TimeRange;
   onSaved: () => void;
+  translations: {
+    configSloTarget: string;
+    targetDomain: string;
+    selectPeriod: string;
+    day: string;
+    week: string;
+    month: string;
+    targetAvailability: string;
+    targetAvailabilityHint: string;
+    targetP95: string;
+    targetP95Hint: string;
+    errorRateThreshold: string;
+    errorRateAutoCalc: string;
+    cancel: string;
+    save: string;
+    saving: string;
+  };
 }) {
   const [selectedRange, setSelectedRange] = useState<TimeRange>(timeRange);
   const [availability, setAvailability] = useState(95);
@@ -106,7 +126,7 @@ function SLOTargetModal({
     try {
       await upsertSLOTarget({
         clusterId,
-        host: domain, // 使用域名作为 host
+        host: domain,
         timeRange: selectedRange,
         availabilityTarget: availability,
         p95LatencyTarget: p95Latency,
@@ -114,7 +134,7 @@ function SLOTargetModal({
       onSaved();
       onClose();
     } catch (err) {
-      console.error("保存 SLO 目标失败:", err);
+      console.error("Save SLO target failed:", err);
     } finally {
       setSaving(false);
     }
@@ -133,7 +153,7 @@ function SLOTargetModal({
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2">
             <Target className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-default">配置 SLO 目标</h3>
+            <h3 className="font-semibold text-default">{translations.configSloTarget}</h3>
           </div>
           <button
             onClick={onClose}
@@ -147,18 +167,18 @@ function SLOTargetModal({
         <div className="p-4 space-y-4">
           {/* 域名显示 */}
           <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
-            <div className="text-xs text-muted mb-1">目标域名</div>
+            <div className="text-xs text-muted mb-1">{translations.targetDomain}</div>
             <div className="font-medium text-default">{domain}</div>
           </div>
 
           {/* 周期选择 */}
           <div>
-            <label className="block text-sm font-medium text-default mb-2">选择周期</label>
+            <label className="block text-sm font-medium text-default mb-2">{translations.selectPeriod}</label>
             <div className="flex gap-2">
               {([
-                { value: "1d", label: "天" },
-                { value: "7d", label: "周" },
-                { value: "30d", label: "月" },
+                { value: "1d", label: translations.day },
+                { value: "7d", label: translations.week },
+                { value: "30d", label: translations.month },
               ] as const).map((range) => (
                 <button
                   key={range.value}
@@ -177,7 +197,7 @@ function SLOTargetModal({
 
           {/* 可用性目标 */}
           <div>
-            <label className="block text-sm font-medium text-default mb-2">可用性目标 (%)</label>
+            <label className="block text-sm font-medium text-default mb-2">{translations.targetAvailability}</label>
             <input
               type="number"
               value={availability}
@@ -187,12 +207,12 @@ function SLOTargetModal({
               step={0.1}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--background)] text-default focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
-            <p className="text-xs text-muted mt-1">默认: 95%，高要求服务可设为 99% 或 99.9%</p>
+            <p className="text-xs text-muted mt-1">{translations.targetAvailabilityHint}</p>
           </div>
 
           {/* P95 延迟阈值 */}
           <div>
-            <label className="block text-sm font-medium text-default mb-2">P95 延迟阈值 (ms)</label>
+            <label className="block text-sm font-medium text-default mb-2">{translations.targetP95}</label>
             <input
               type="number"
               value={p95Latency}
@@ -201,16 +221,16 @@ function SLOTargetModal({
               step={10}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--background)] text-default focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
-            <p className="text-xs text-muted mt-1">默认: 300ms，高性能服务可设为 100-200ms</p>
+            <p className="text-xs text-muted mt-1">{translations.targetP95Hint}</p>
           </div>
 
           {/* 错误率阈值（自动计算） */}
           <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted">错误率阈值</span>
+              <span className="text-sm text-muted">{translations.errorRateThreshold}</span>
               <span className="text-sm font-medium text-default">{errorRateThreshold}%</span>
             </div>
-            <p className="text-xs text-muted mt-1">自动计算: 100% - 可用性目标</p>
+            <p className="text-xs text-muted mt-1">{translations.errorRateAutoCalc}</p>
           </div>
         </div>
 
@@ -220,14 +240,14 @@ function SLOTargetModal({
             onClick={onClose}
             className="px-4 py-2 text-sm rounded-lg border border-[var(--border-color)] text-muted hover:text-default hover:bg-[var(--hover-bg)]"
           >
-            取消
+            {translations.cancel}
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
             className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
           >
-            {saving ? "保存中..." : "保存"}
+            {saving ? translations.saving : translations.save}
           </button>
         </div>
       </div>
@@ -236,12 +256,15 @@ function SLOTargetModal({
 }
 
 // 状态徽章
-function StatusBadge({ status }: { status: DomainStatus }) {
+function StatusBadge({ status, labels }: {
+  status: DomainStatus;
+  labels: { healthy: string; warning: string; critical: string; unknown: string };
+}) {
   const config = {
-    healthy: { bg: "bg-emerald-500/10", text: "text-emerald-500", dot: "bg-emerald-500", label: "健康" },
-    warning: { bg: "bg-amber-500/10", text: "text-amber-500", dot: "bg-amber-500", label: "告警" },
-    critical: { bg: "bg-red-500/10", text: "text-red-500", dot: "bg-red-500", label: "严重" },
-    unknown: { bg: "bg-gray-500/10", text: "text-gray-500", dot: "bg-gray-500", label: "未知" },
+    healthy: { bg: "bg-emerald-500/10", text: "text-emerald-500", dot: "bg-emerald-500", label: labels.healthy },
+    warning: { bg: "bg-amber-500/10", text: "text-amber-500", dot: "bg-amber-500", label: labels.warning },
+    critical: { bg: "bg-red-500/10", text: "text-red-500", dot: "bg-red-500", label: labels.critical },
+    unknown: { bg: "bg-gray-500/10", text: "text-gray-500", dot: "bg-gray-500", label: labels.unknown },
   };
   const c = config[status] || config.unknown;
   return (
@@ -347,14 +370,71 @@ function ServiceRow({ service, timeRange }: { service: ServiceSLO; timeRange: Ti
   );
 }
 
+// DomainCard 翻译类型
+interface DomainCardTranslations {
+  services: string;
+  availability: string;
+  p95Latency: string;
+  errorRate: string;
+  errorBudget: string;
+  throughput: string;
+  tabSloStatus: string;
+  tabServices: string;
+  tabCompare: string;
+  configTarget: string;
+  sloAchievement: string;
+  actual: string;
+  target: string;
+  threshold: string;
+  achieved: string;
+  notAchieved: string;
+  exceeded: string;
+  errorBudgetDetail: string;
+  remainingBudget: string;
+  allowedErrors: string;
+  actualErrors: string;
+  remainingQuota: string;
+  trafficStats: string;
+  totalRequests: string;
+  successRequests: string;
+  errorRequests: string;
+  avgThroughput: string;
+  backendServices: string;
+  noServiceData: string;
+  totalBackendServices: string;
+  currentVsPrevious: string;
+  previousPeriod: string;
+  healthy: string;
+  warning: string;
+  critical: string;
+  unknown: string;
+  // Modal translations
+  configSloTarget: string;
+  targetDomain: string;
+  selectPeriod: string;
+  day: string;
+  week: string;
+  month: string;
+  targetAvailability: string;
+  targetAvailabilityHint: string;
+  targetP95: string;
+  targetP95Hint: string;
+  errorRateThreshold: string;
+  errorRateAutoCalc: string;
+  cancel: string;
+  save: string;
+  saving: string;
+}
+
 // 域名卡片（V2 版本 - 支持域名→路由层级 + 概览 + 周期对比）
-function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefresh }: {
+function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefresh, translations }: {
   domain: DomainSLOV2;
   expanded: boolean;
   onToggle: () => void;
   timeRange: TimeRange;
   clusterId: string;
   onRefresh: () => void;
+  translations: DomainCardTranslations;
 }) {
   const [activeTab, setActiveTab] = useState<"slo-status" | "services" | "compare">("slo-status");
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -378,6 +458,14 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
   // 默认目标值
   const targets = { availability: 95, p95_latency: 300 };
 
+  // 状态徽章标签
+  const statusLabels = {
+    healthy: translations.healthy,
+    warning: translations.warning,
+    critical: translations.critical,
+    unknown: translations.unknown,
+  };
+
   return (
     <div className="border border-[var(--border-color)] rounded-xl overflow-hidden bg-card">
       {/* 域名摘要行 */}
@@ -400,8 +488,8 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
             <div className="flex items-center gap-2">
               {domain.tls && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">HTTPS</span>}
               <span className="font-medium text-default truncate">{domain.domain}</span>
-              <StatusBadge status={domain.status as DomainStatus} />
-              <span className="text-xs text-muted">({domain.services.length} 个服务)</span>
+              <StatusBadge status={domain.status as DomainStatus} labels={statusLabels} />
+              <span className="text-xs text-muted">({domain.services.length} {translations.services})</span>
             </div>
           </div>
         </div>
@@ -409,7 +497,7 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
         {/* 汇总指标 */}
         <div className="hidden lg:flex items-center gap-5">
           <div className="w-32">
-            <div className="text-[10px] text-muted mb-0.5">可用性</div>
+            <div className="text-[10px] text-muted mb-0.5">{translations.availability}</div>
             <div className="flex items-center gap-1">
               <span className={`text-sm font-semibold ${
                 availability >= targets.availability ? "text-emerald-500" : "text-red-500"
@@ -420,7 +508,7 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
             </div>
           </div>
           <div className="w-32">
-            <div className="text-[10px] text-muted mb-0.5">P95 延迟</div>
+            <div className="text-[10px] text-muted mb-0.5">{translations.p95Latency}</div>
             <div className="flex items-center gap-1">
               <span className={`text-sm font-semibold ${
                 p95Latency <= targets.p95_latency ? "text-emerald-500" : "text-amber-500"
@@ -431,7 +519,7 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
             </div>
           </div>
           <div className="w-28">
-            <div className="text-[10px] text-muted mb-0.5">错误率</div>
+            <div className="text-[10px] text-muted mb-0.5">{translations.errorRate}</div>
             <div className="flex items-center gap-1">
               <span className={`text-sm font-semibold ${
                 errorRate <= 1 ? "text-emerald-500" : "text-red-500"
@@ -441,11 +529,11 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
             </div>
           </div>
           <div className="w-32">
-            <div className="text-[10px] text-muted mb-0.5">错误预算</div>
+            <div className="text-[10px] text-muted mb-0.5">{translations.errorBudget}</div>
             <ErrorBudgetBar percent={domain.error_budget_remaining} />
           </div>
           <div className="w-24">
-            <div className="text-[10px] text-muted mb-0.5">吞吐量</div>
+            <div className="text-[10px] text-muted mb-0.5">{translations.throughput}</div>
             <span className="text-sm font-semibold text-default">
               {formatNumber(rps)}/s
             </span>
@@ -469,9 +557,9 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
           <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-[var(--border-color)]">
             <div className="flex items-center gap-1">
               {[
-                { id: "slo-status", label: "SLO 状态", icon: Target },
-                { id: "services", label: "服务明细", icon: Box },
-                { id: "compare", label: "周期对比", icon: Calendar },
+                { id: "slo-status", label: translations.tabSloStatus, icon: Target },
+                { id: "services", label: translations.tabServices, icon: Box },
+                { id: "compare", label: translations.tabCompare, icon: Calendar },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -494,7 +582,7 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-muted hover:text-default hover:bg-[var(--hover-bg)] transition-colors"
             >
               <Settings2 className="w-3.5 h-3.5" />
-              配置目标
+              {translations.configTarget}
             </button>
           </div>
 
@@ -504,7 +592,7 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
               <div className="p-4 space-y-5">
                 {/* SLO 目标达成情况 */}
                 <div>
-                  <div className="text-xs font-medium text-muted mb-3">SLO 目标达成情况</div>
+                  <div className="text-xs font-medium text-muted mb-3">{translations.sloAchievement}</div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* 可用性 */}
                     <div className={`p-4 rounded-lg border-2 ${
@@ -513,7 +601,7 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                         : "border-red-500/30 bg-red-500/5"
                     }`}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-default">可用性</span>
+                        <span className="text-sm font-medium text-default">{translations.availability}</span>
                         {availability >= targets.availability ? (
                           <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                         ) : (
@@ -523,15 +611,15 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                       <div className="space-y-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-2xl font-bold text-default">{availability.toFixed(2)}%</span>
-                          <span className="text-xs text-muted">实际</span>
+                          <span className="text-xs text-muted">{translations.actual}</span>
                         </div>
-                        <div className="text-xs text-muted">目标: ≥{targets.availability}%</div>
+                        <div className="text-xs text-muted">{translations.target} ≥{targets.availability}%</div>
                         <div className={`text-xs font-medium ${
                           availability >= targets.availability ? "text-emerald-500" : "text-red-500"
                         }`}>
                           {availability >= targets.availability
-                            ? `✓ 达标 (+${(availability - targets.availability).toFixed(2)}%)`
-                            : `✗ 未达标 (${(availability - targets.availability).toFixed(2)}%)`}
+                            ? `✓ ${translations.achieved} (+${(availability - targets.availability).toFixed(2)}%)`
+                            : `✗ ${translations.notAchieved} (${(availability - targets.availability).toFixed(2)}%)`}
                         </div>
                       </div>
                     </div>
@@ -543,7 +631,7 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                         : "border-amber-500/30 bg-amber-500/5"
                     }`}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-default">P95 延迟</span>
+                        <span className="text-sm font-medium text-default">{translations.p95Latency}</span>
                         {p95Latency <= targets.p95_latency ? (
                           <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                         ) : (
@@ -553,15 +641,15 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                       <div className="space-y-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-2xl font-bold text-default">{p95Latency}ms</span>
-                          <span className="text-xs text-muted">实际</span>
+                          <span className="text-xs text-muted">{translations.actual}</span>
                         </div>
-                        <div className="text-xs text-muted">目标: ≤{targets.p95_latency}ms</div>
+                        <div className="text-xs text-muted">{translations.target} ≤{targets.p95_latency}ms</div>
                         <div className={`text-xs font-medium ${
                           p95Latency <= targets.p95_latency ? "text-emerald-500" : "text-amber-500"
                         }`}>
                           {p95Latency <= targets.p95_latency
-                            ? `✓ 达标 (-${targets.p95_latency - p95Latency}ms)`
-                            : `✗ 超标 (+${p95Latency - targets.p95_latency}ms)`}
+                            ? `✓ ${translations.achieved} (-${targets.p95_latency - p95Latency}ms)`
+                            : `✗ ${translations.exceeded} (+${p95Latency - targets.p95_latency}ms)`}
                         </div>
                       </div>
                     </div>
@@ -577,7 +665,7 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                             : "border-red-500/30 bg-red-500/5"
                         }`}>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-default">错误率</span>
+                            <span className="text-sm font-medium text-default">{translations.errorRate}</span>
                             {isErrorRateOk ? (
                               <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                             ) : (
@@ -587,13 +675,13 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                           <div className="space-y-1">
                             <div className="flex items-baseline gap-2">
                               <span className="text-2xl font-bold text-default">{errorRate.toFixed(2)}%</span>
-                              <span className="text-xs text-muted">实际</span>
+                              <span className="text-xs text-muted">{translations.actual}</span>
                             </div>
-                            <div className="text-xs text-muted">阈值: ≤{errorRateThreshold.toFixed(2)}%</div>
+                            <div className="text-xs text-muted">{translations.threshold} ≤{errorRateThreshold.toFixed(2)}%</div>
                             <div className={`text-xs font-medium ${isErrorRateOk ? "text-emerald-500" : "text-red-500"}`}>
                               {isErrorRateOk
-                                ? `✓ 达标`
-                                : `✗ 超标 (+${(errorRate - errorRateThreshold).toFixed(2)}%)`}
+                                ? `✓ ${translations.achieved}`
+                                : `✗ ${translations.exceeded} (+${(errorRate - errorRateThreshold).toFixed(2)}%)`}
                             </div>
                           </div>
                         </div>
@@ -604,10 +692,10 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
 
                 {/* 错误预算详情 */}
                 <div>
-                  <div className="text-xs font-medium text-muted mb-3">错误预算详情</div>
+                  <div className="text-xs font-medium text-muted mb-3">{translations.errorBudgetDetail}</div>
                   <div className="p-4 rounded-lg bg-[var(--hover-bg)]">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm text-default">剩余预算</span>
+                      <span className="text-sm text-default">{translations.remainingBudget}</span>
                       <span className={`text-lg font-bold ${
                         domain.error_budget_remaining > 50 ? "text-emerald-500" :
                         domain.error_budget_remaining > 20 ? "text-amber-500" : "text-red-500"
@@ -633,19 +721,19 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div>
                             <div className="text-lg font-bold text-default">{allowedErrors}</div>
-                            <div className="text-xs text-muted">允许错误数</div>
+                            <div className="text-xs text-muted">{translations.allowedErrors}</div>
                           </div>
                           <div>
                             <div className={`text-lg font-bold ${actualErrors > allowedErrors ? "text-red-500" : "text-amber-500"}`}>
                               {actualErrors}
                             </div>
-                            <div className="text-xs text-muted">已发生错误</div>
+                            <div className="text-xs text-muted">{translations.actualErrors}</div>
                           </div>
                           <div>
                             <div className={`text-lg font-bold ${remainingErrors > 0 ? "text-emerald-500" : "text-red-500"}`}>
                               {remainingErrors}
                             </div>
-                            <div className="text-xs text-muted">剩余配额</div>
+                            <div className="text-xs text-muted">{translations.remainingQuota}</div>
                           </div>
                         </div>
                       );
@@ -655,28 +743,28 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
 
                 {/* 流量统计 */}
                 <div>
-                  <div className="text-xs font-medium text-muted mb-3">流量统计</div>
+                  <div className="text-xs font-medium text-muted mb-3">{translations.trafficStats}</div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
-                      <div className="text-xs text-muted mb-1">总请求数</div>
+                      <div className="text-xs text-muted mb-1">{translations.totalRequests}</div>
                       <div className="text-lg font-bold text-default">{formatNumber(totalRequests)}</div>
                     </div>
                     <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
-                      <div className="text-xs text-muted mb-1">成功请求</div>
+                      <div className="text-xs text-muted mb-1">{translations.successRequests}</div>
                       <div className="text-lg font-bold text-emerald-500">
                         {formatNumber(Math.round(totalRequests * (1 - errorRate / 100)))}
                       </div>
                       <div className="text-xs text-muted">{(100 - errorRate).toFixed(2)}%</div>
                     </div>
                     <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
-                      <div className="text-xs text-muted mb-1">错误请求</div>
+                      <div className="text-xs text-muted mb-1">{translations.errorRequests}</div>
                       <div className={`text-lg font-bold ${errorRate > 0 ? "text-red-500" : "text-default"}`}>
                         {formatNumber(Math.round(totalRequests * errorRate / 100))}
                       </div>
                       <div className="text-xs text-muted">{errorRate.toFixed(2)}%</div>
                     </div>
                     <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
-                      <div className="text-xs text-muted mb-1">平均吞吐量</div>
+                      <div className="text-xs text-muted mb-1">{translations.avgThroughput}</div>
                       <div className="text-lg font-bold text-default">{rps.toFixed(2)}/s</div>
                     </div>
                   </div>
@@ -689,13 +777,13 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
               <div>
                 {/* 服务列表头 */}
                 <div className="flex items-center gap-4 px-4 py-2 text-xs text-muted border-b border-[var(--border-color)] bg-[var(--hover-bg)]">
-                  <div className="flex-1">后端服务（Metrics 数据来源）</div>
+                  <div className="flex-1">{translations.backendServices}</div>
                   <div className="hidden lg:flex items-center gap-4">
-                    <div className="w-24 text-right">可用性</div>
-                    <div className="w-20 text-right">P95 延迟</div>
-                    <div className="w-20 text-right">错误率</div>
-                    <div className="w-20 text-right">吞吐量</div>
-                    <div className="w-16">错误预算</div>
+                    <div className="w-24 text-right">{translations.availability}</div>
+                    <div className="w-20 text-right">{translations.p95Latency}</div>
+                    <div className="w-20 text-right">{translations.errorRate}</div>
+                    <div className="w-20 text-right">{translations.throughput}</div>
+                    <div className="w-16">{translations.errorBudget}</div>
                   </div>
                 </div>
 
@@ -712,14 +800,14 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                   </div>
                 ) : (
                   <div className="px-4 py-6 text-center text-sm text-muted">
-                    暂无服务数据
+                    {translations.noServiceData}
                   </div>
                 )}
 
                 {/* 服务数量提示 */}
                 {domain.services.length > 3 && (
                   <div className="px-4 py-2 text-xs text-muted border-t border-[var(--border-color)] bg-[var(--hover-bg)]">
-                    共 {domain.services.length} 个后端服务
+                    {translations.totalBackendServices.replace("{count}", String(domain.services.length))}
                   </div>
                 )}
               </div>
@@ -730,29 +818,32 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
               <div className="p-4 space-y-4">
                 <div className="flex items-center gap-2 text-xs text-muted">
                   <Calendar className="w-4 h-4" />
-                  <span>本周期 vs 上周期对比</span>
+                  <span>{translations.currentVsPrevious}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <CompareMetric
-                    label="可用性"
+                    label={translations.availability}
                     current={availability}
                     previous={prevAvailability}
                     unit="%"
                     inverse={false}
+                    previousPeriodLabel={translations.previousPeriod}
                   />
                   <CompareMetric
-                    label="P95 延迟"
+                    label={translations.p95Latency}
                     current={p95Latency}
                     previous={prevP95Latency}
                     unit="ms"
                     inverse={true}
+                    previousPeriodLabel={translations.previousPeriod}
                   />
                   <CompareMetric
-                    label="错误率"
+                    label={translations.errorRate}
                     current={errorRate}
                     previous={prevErrorRate}
                     unit="%"
                     inverse={true}
+                    previousPeriodLabel={translations.previousPeriod}
                   />
                 </div>
               </div>
@@ -769,6 +860,23 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
         clusterId={clusterId}
         timeRange={timeRange}
         onSaved={onRefresh}
+        translations={{
+          configSloTarget: translations.configSloTarget,
+          targetDomain: translations.targetDomain,
+          selectPeriod: translations.selectPeriod,
+          day: translations.day,
+          week: translations.week,
+          month: translations.month,
+          targetAvailability: translations.targetAvailability,
+          targetAvailabilityHint: translations.targetAvailabilityHint,
+          targetP95: translations.targetP95,
+          targetP95Hint: translations.targetP95Hint,
+          errorRateThreshold: translations.errorRateThreshold,
+          errorRateAutoCalc: translations.errorRateAutoCalc,
+          cancel: translations.cancel,
+          save: translations.save,
+          saving: translations.saving,
+        }}
       />
     </div>
   );
@@ -809,6 +917,8 @@ function SummaryCard({
 const REFRESH_INTERVAL = 30000;
 
 export default function SLOPage() {
+  const { t } = useI18n();
+  const sloT = t.slo;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -833,7 +943,7 @@ export default function SLOPage() {
         const clusters = clusterRes.data?.clusters || [];
         if (clusters.length === 0) {
           if (isMountedRef.current && isFirstLoadRef.current) {
-            setError("暂无可用集群");
+            setError(sloT.noCluster);
           }
           return;
         }
@@ -851,7 +961,7 @@ export default function SLOPage() {
       if (isMountedRef.current) {
         console.warn("[SLO] Fetch error:", err);
         if (isFirstLoadRef.current) {
-          setError(err instanceof Error ? err.message : "加载失败");
+          setError(err instanceof Error ? err.message : sloT.loadFailed);
         }
       }
     } finally {
@@ -940,17 +1050,17 @@ export default function SLOPage() {
                 <Activity className="w-6 h-6 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-default">SLO 监控</h1>
-                <p className="text-xs text-muted">按域名维度查看可用性、延迟和错误率指标</p>
+                <h1 className="text-lg font-semibold text-default">{sloT.pageTitle}</h1>
+                <p className="text-xs text-muted">{sloT.pageDescription}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               {/* 时间范围选择 */}
               <div className="flex items-center gap-1 p-1 rounded-lg bg-[var(--hover-bg)]">
                 {([
-                  { value: "1d", label: "天" },
-                  { value: "7d", label: "周" },
-                  { value: "30d", label: "月" },
+                  { value: "1d", label: sloT.day },
+                  { value: "7d", label: sloT.week },
+                  { value: "30d", label: sloT.month },
                 ] as const).map((range) => (
                   <button
                     key={range.value}
@@ -989,8 +1099,8 @@ export default function SLOPage() {
           {!error && domains.length === 0 && (
             <div className="text-center py-12 bg-card rounded-xl border border-[var(--border-color)]">
               <Server className="w-12 h-12 mx-auto mb-3 text-muted opacity-50" />
-              <p className="text-default font-medium mb-2">暂无 SLO 数据</p>
-              <p className="text-sm text-muted">请确保 Agent 已启用 SLO 采集并正确配置 Ingress Controller</p>
+              <p className="text-default font-medium mb-2">{sloT.noData}</p>
+              <p className="text-sm text-muted">{sloT.noDataHint}</p>
             </div>
           )}
 
@@ -1001,43 +1111,43 @@ export default function SLOPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <SummaryCard
                   icon={Globe}
-                  label="监控域名"
+                  label={sloT.monitoredDomains}
                   value={summaryData.totalDomains.toString()}
-                  subValue={`${summaryData.healthyCount} 健康`}
+                  subValue={`${summaryData.healthyCount} ${sloT.healthy}`}
                   color="bg-blue-500/10 text-blue-500"
                 />
                 <SummaryCard
                   icon={Activity}
-                  label="平均可用性"
+                  label={sloT.avgAvailability}
                   value={`${summaryData.avgAvailability.toFixed(2)}%`}
                   color="bg-emerald-500/10 text-emerald-500"
                 />
                 <SummaryCard
                   icon={Gauge}
-                  label="错误预算剩余"
+                  label={sloT.errorBudgetRemaining}
                   value={`${summaryData.avgErrorBudget.toFixed(0)}%`}
-                  subValue="平均剩余"
+                  subValue={sloT.avgRemaining}
                   color={summaryData.avgErrorBudget > 50 ? "bg-emerald-500/10 text-emerald-500" : summaryData.avgErrorBudget > 20 ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-500"}
                 />
                 <SummaryCard
                   icon={Zap}
-                  label="总吞吐量"
+                  label={sloT.totalThroughput}
                   value={formatNumber(summaryData.totalRPS)}
-                  subValue="req/s"
+                  subValue={sloT.reqPerSec}
                   color="bg-violet-500/10 text-violet-500"
                 />
                 <SummaryCard
                   icon={AlertTriangle}
-                  label="告警中"
+                  label={sloT.inWarning}
                   value={summaryData.warningCount.toString()}
-                  subValue="需要关注"
+                  subValue={sloT.needsAttention}
                   color="bg-amber-500/10 text-amber-500"
                 />
                 <SummaryCard
                   icon={AlertTriangle}
-                  label="严重问题"
+                  label={sloT.criticalIssues}
                   value={summaryData.criticalCount.toString()}
-                  subValue="需立即处理"
+                  subValue={sloT.needsImmediate}
                   color="bg-red-500/10 text-red-500"
                 />
               </div>
@@ -1046,8 +1156,8 @@ export default function SLOPage() {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-semibold text-default">
-                    域名 SLO 状态
-                    <span className="ml-2 text-xs font-normal text-muted">({summaryData.totalDomains} 个域名)</span>
+                    {sloT.domainSloStatus}
+                    <span className="ml-2 text-xs font-normal text-muted">({summaryData.totalDomains})</span>
                   </h2>
                 </div>
                 <div className="space-y-3">
@@ -1060,6 +1170,59 @@ export default function SLOPage() {
                       timeRange={timeRange}
                       clusterId={clusterId}
                       onRefresh={handleRefresh}
+                      translations={{
+                        services: sloT.services,
+                        availability: sloT.availability,
+                        p95Latency: sloT.p95Latency,
+                        errorRate: sloT.errorRate,
+                        errorBudget: sloT.errorBudget,
+                        throughput: sloT.throughput,
+                        tabSloStatus: sloT.tabSloStatus,
+                        tabServices: sloT.tabServices,
+                        tabCompare: sloT.tabCompare,
+                        configTarget: sloT.configTarget,
+                        sloAchievement: sloT.sloAchievement,
+                        actual: sloT.actual,
+                        target: sloT.target,
+                        threshold: sloT.threshold,
+                        achieved: sloT.achieved,
+                        notAchieved: sloT.notAchieved,
+                        exceeded: sloT.exceeded,
+                        errorBudgetDetail: sloT.errorBudgetDetail,
+                        remainingBudget: sloT.remainingBudget,
+                        allowedErrors: sloT.allowedErrors,
+                        actualErrors: sloT.actualErrors,
+                        remainingQuota: sloT.remainingQuota,
+                        trafficStats: sloT.trafficStats,
+                        totalRequests: sloT.totalRequests,
+                        successRequests: sloT.successRequests,
+                        errorRequests: sloT.errorRequests,
+                        avgThroughput: sloT.avgThroughput,
+                        backendServices: sloT.backendServices,
+                        noServiceData: sloT.noServiceData,
+                        totalBackendServices: sloT.totalBackendServices,
+                        currentVsPrevious: sloT.currentVsPrevious,
+                        previousPeriod: sloT.previousPeriod,
+                        healthy: sloT.healthy,
+                        warning: sloT.warning,
+                        critical: sloT.critical,
+                        unknown: sloT.unknown,
+                        configSloTarget: sloT.configSloTarget,
+                        targetDomain: sloT.targetDomain,
+                        selectPeriod: sloT.selectPeriod,
+                        day: sloT.day,
+                        week: sloT.week,
+                        month: sloT.month,
+                        targetAvailability: sloT.targetAvailability,
+                        targetAvailabilityHint: sloT.targetAvailabilityHint,
+                        targetP95: sloT.targetP95,
+                        targetP95Hint: sloT.targetP95Hint,
+                        errorRateThreshold: sloT.errorRateThreshold,
+                        errorRateAutoCalc: sloT.errorRateAutoCalc,
+                        cancel: sloT.cancel,
+                        save: sloT.save,
+                        saving: sloT.saving,
+                      }}
                     />
                   ))}
                 </div>
@@ -1072,10 +1235,9 @@ export default function SLOPage() {
                     <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="text-sm">
-                    <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">数据来源说明</p>
+                    <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">{sloT.dataSourceTitle}</p>
                     <p className="text-blue-700 dark:text-blue-300 text-xs leading-relaxed">
-                      所有指标均基于 Ingress Controller 流量数据计算，按域名（Host）维度聚合。
-                      系统采集 Traefik/Nginx/Kong 的 Prometheus 指标，计算可用性、延迟百分位数和错误率。
+                      {sloT.dataSourceDesc}
                     </p>
                   </div>
                 </div>

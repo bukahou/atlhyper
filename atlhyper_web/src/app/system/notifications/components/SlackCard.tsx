@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { MessageSquare, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 import type { SlackConfig } from "@/api/notify";
 
 interface SlackCardProps {
@@ -23,6 +24,9 @@ export function SlackCard({
   onSave,
   onTest,
 }: SlackCardProps) {
+  const { t } = useI18n();
+  const nt = t.notifications;
+
   const [localEnabled, setLocalEnabled] = useState(enabled);
   const [webhookUrl, setWebhookUrl] = useState(config.webhook_url || "");
   const [showWebhook, setShowWebhook] = useState(false);
@@ -89,14 +93,14 @@ export function SlackCard({
             <MessageSquare className="w-5 h-5 text-purple-600 dark:text-purple-400" />
           </div>
           <div>
-            <h3 className="font-medium text-default">Slack 通知</h3>
+            <h3 className="font-medium text-default">{nt.slackNotify}</h3>
             <p className="text-sm text-muted">
               {effectiveEnabled ? (
-                <span className="text-green-600">已启用</span>
+                <span className="text-green-600">{nt.statusEnabled}</span>
               ) : localEnabled ? (
-                <span className="text-yellow-600">配置不完整</span>
+                <span className="text-yellow-600">{nt.statusIncomplete}</span>
               ) : (
-                "已禁用"
+                nt.statusDisabled
               )}
             </p>
           </div>
@@ -126,7 +130,7 @@ export function SlackCard({
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
             <div className="text-sm text-yellow-700 dark:text-yellow-400">
-              <p className="font-medium mb-1">配置不完整</p>
+              <p className="font-medium mb-1">{nt.configIncomplete}</p>
               <ul className="list-disc list-inside space-y-0.5">
                 {validationErrors.map((err, i) => (
                   <li key={i}>{err}</li>
@@ -175,7 +179,7 @@ export function SlackCard({
         {/* 提示 */}
         {!readOnly && (
           <p className="text-xs text-muted">
-            在 Slack 中创建 Incoming Webhook 应用，并将 Webhook URL 粘贴到此处。
+            {nt.webhookUrlHint}
           </p>
         )}
       </div>
@@ -193,7 +197,7 @@ export function SlackCard({
               transition-colors flex items-center gap-2"
           >
             {testing && <Loader2 className="w-4 h-4 animate-spin" />}
-            测试
+            {nt.test}
           </button>
           <button
             onClick={handleSave}
@@ -205,7 +209,7 @@ export function SlackCard({
               transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            保存
+            {nt.save}
           </button>
         </div>
       )}
