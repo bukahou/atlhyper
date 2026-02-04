@@ -314,29 +314,43 @@ function ServiceRow({ service, timeRange }: { service: ServiceSLO; timeRange: Ti
   const rps = service.current?.requests_per_sec ?? 0;
 
   return (
-    <div className="flex items-center gap-4 px-4 py-3 hover:bg-[var(--hover-bg)] transition-colors border-b border-[var(--border-color)] last:border-b-0">
+    <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4 px-3 sm:px-4 py-3 hover:bg-[var(--hover-bg)] transition-colors border-b border-[var(--border-color)] last:border-b-0">
       {/* 服务信息 */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
           <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
             service.status === "healthy" ? "bg-emerald-500" :
             service.status === "warning" ? "bg-amber-500" : "bg-red-500"
           }`} />
           <span className="text-sm font-medium text-default">{service.service_name}</span>
           <span className="text-xs text-muted">:{service.service_port}</span>
-          <span className="text-xs text-muted">({service.namespace})</span>
+          <span className="text-xs text-muted hidden sm:inline">({service.namespace})</span>
         </div>
         {/* 路径列表 */}
         <div className="flex flex-wrap gap-1 ml-3.5">
-          {service.paths.map((path, idx) => (
+          {service.paths.slice(0, 2).map((path, idx) => (
             <code key={idx} className="text-xs font-mono text-muted bg-[var(--hover-bg)] px-1.5 py-0.5 rounded">
               {path}
             </code>
           ))}
+          {service.paths.length > 2 && (
+            <span className="text-xs text-muted">+{service.paths.length - 2}</span>
+          )}
         </div>
       </div>
 
-      {/* 指标 */}
+      {/* 移动端指标 */}
+      <div className="flex items-center gap-3 lg:hidden ml-3.5 text-xs">
+        <span className={availability >= targets.availability ? "text-emerald-500" : "text-red-500"}>
+          {availability.toFixed(1)}%
+        </span>
+        <span className={errorRate <= 1 ? "text-emerald-500" : "text-red-500"}>
+          {errorRate.toFixed(2)}% err
+        </span>
+        <span className="text-default">{formatNumber(rps)}/s</span>
+      </div>
+
+      {/* 桌面端指标 */}
       <div className="hidden lg:flex items-center gap-4">
         <div className="w-24 text-right">
           <span className={`text-sm font-medium ${
@@ -471,11 +485,11 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
       {/* 域名摘要行 */}
       <button
         onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center gap-4 hover:bg-[var(--hover-bg)] transition-colors"
+        className="w-full px-3 sm:px-4 py-3 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4 hover:bg-[var(--hover-bg)] transition-colors"
       >
         {/* 域名信息 */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className={`p-2 rounded-lg ${
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <div className={`p-1.5 sm:p-2 rounded-lg flex-shrink-0 ${
             domain.status === "healthy" ? "bg-emerald-500/10" :
             domain.status === "warning" ? "bg-amber-500/10" : "bg-red-500/10"
           }`}>
@@ -484,17 +498,50 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
               domain.status === "warning" ? "text-amber-500" : "text-red-500"
             }`} />
           </div>
-          <div className="text-left min-w-0">
-            <div className="flex items-center gap-2">
+          <div className="text-left min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               {domain.tls && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">HTTPS</span>}
-              <span className="font-medium text-default truncate">{domain.domain}</span>
+              <span className="font-medium text-default text-sm sm:text-base truncate max-w-[150px] sm:max-w-none">{domain.domain}</span>
               <StatusBadge status={domain.status as DomainStatus} labels={statusLabels} />
-              <span className="text-xs text-muted">({domain.services.length} {translations.services})</span>
+              <span className="text-xs text-muted hidden sm:inline">({domain.services.length} {translations.services})</span>
             </div>
+          </div>
+          {/* 移动端展开图标 */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <TrendIcon trend={trend} />
+            {expanded ? (
+              <ChevronDown className="w-4 h-4 text-muted" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted" />
+            )}
           </div>
         </div>
 
-        {/* 汇总指标 */}
+        {/* 移动端关键指标（简化版） */}
+        <div className="flex items-center gap-3 lg:hidden ml-8 sm:ml-10">
+          <div className="text-center">
+            <div className={`text-sm font-semibold ${
+              availability >= targets.availability ? "text-emerald-500" : "text-red-500"
+            }`}>
+              {availability.toFixed(1)}%
+            </div>
+            <div className="text-[10px] text-muted">{translations.availability}</div>
+          </div>
+          <div className="text-center">
+            <div className={`text-sm font-semibold ${
+              errorRate <= 1 ? "text-emerald-500" : "text-red-500"
+            }`}>
+              {errorRate.toFixed(2)}%
+            </div>
+            <div className="text-[10px] text-muted">{translations.errorRate}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm font-semibold text-default">{formatNumber(rps)}/s</div>
+            <div className="text-[10px] text-muted">{translations.throughput}</div>
+          </div>
+        </div>
+
+        {/* 桌面端完整指标 */}
         <div className="hidden lg:flex items-center gap-5">
           <div className="w-32">
             <div className="text-[10px] text-muted mb-0.5">{translations.availability}</div>
@@ -540,7 +587,8 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* 桌面端展开图标 */}
+        <div className="hidden lg:flex items-center gap-2">
           <TrendIcon trend={trend} />
           {expanded ? (
             <ChevronDown className="w-4 h-4 text-muted" />
@@ -554,8 +602,8 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
       {expanded && (
         <div className="border-t border-[var(--border-color)]">
           {/* Tab 切换 */}
-          <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-[var(--border-color)]">
-            <div className="flex items-center gap-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 sm:px-4 pt-3 pb-2 border-b border-[var(--border-color)]">
+            <div className="flex items-center gap-1 overflow-x-auto">
               {[
                 { id: "slo-status", label: translations.tabSloStatus, icon: Target },
                 { id: "services", label: translations.tabServices, icon: Box },
@@ -564,14 +612,14 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs rounded-lg transition-colors whitespace-nowrap ${
                     activeTab === tab.id
                       ? "bg-primary/10 text-primary"
                       : "text-muted hover:text-default hover:bg-[var(--hover-bg)]"
                   }`}
                 >
                   <tab.icon className="w-3.5 h-3.5" />
-                  {tab.label}
+                  <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               ))}
             </div>
@@ -579,21 +627,21 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
             {/* 设置按钮 */}
             <button
               onClick={() => setShowTargetModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-muted hover:text-default hover:bg-[var(--hover-bg)] transition-colors"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs rounded-lg text-muted hover:text-default hover:bg-[var(--hover-bg)] transition-colors self-end sm:self-auto"
             >
               <Settings2 className="w-3.5 h-3.5" />
-              {translations.configTarget}
+              <span className="hidden sm:inline">{translations.configTarget}</span>
             </button>
           </div>
 
           <div className="bg-[var(--background)]">
             {/* SLO 状态 Tab */}
             {activeTab === "slo-status" && (
-              <div className="p-4 space-y-5">
+              <div className="p-3 sm:p-4 space-y-4 sm:space-y-5">
                 {/* SLO 目标达成情况 */}
                 <div>
-                  <div className="text-xs font-medium text-muted mb-3">{translations.sloAchievement}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-xs font-medium text-muted mb-2 sm:mb-3">{translations.sloAchievement}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {/* 可用性 */}
                     <div className={`p-4 rounded-lg border-2 ${
                       availability >= targets.availability
@@ -743,8 +791,8 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
 
                 {/* 流量统计 */}
                 <div>
-                  <div className="text-xs font-medium text-muted mb-3">{translations.trafficStats}</div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-xs font-medium text-muted mb-2 sm:mb-3">{translations.trafficStats}</div>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
                       <div className="text-xs text-muted mb-1">{translations.totalRequests}</div>
                       <div className="text-lg font-bold text-default">{formatNumber(totalRequests)}</div>
@@ -815,12 +863,12 @@ function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefres
 
             {/* 周期对比 Tab */}
             {activeTab === "compare" && (
-              <div className="p-4 space-y-4">
+              <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
                 <div className="flex items-center gap-2 text-xs text-muted">
                   <Calendar className="w-4 h-4" />
                   <span>{translations.currentVsPrevious}</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   <CompareMetric
                     label={translations.availability}
                     current={availability}
@@ -897,15 +945,15 @@ function SummaryCard({
   color: string;
 }) {
   return (
-    <div className="p-4 rounded-xl bg-card border border-[var(--border-color)]">
-      <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-lg ${color}`}>
-          <Icon className="w-5 h-5" />
+    <div className="p-3 sm:p-4 rounded-xl bg-card border border-[var(--border-color)]">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className={`p-1.5 sm:p-2 rounded-lg flex-shrink-0 ${color}`}>
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
-        <div>
-          <div className="text-xs text-muted">{label}</div>
-          <div className="text-xl font-bold text-default">{value}</div>
-          {subValue && <div className="text-xs text-muted">{subValue}</div>}
+        <div className="min-w-0">
+          <div className="text-[10px] sm:text-xs text-muted truncate">{label}</div>
+          <div className="text-lg sm:text-xl font-bold text-default">{value}</div>
+          {subValue && <div className="text-[10px] sm:text-xs text-muted truncate">{subValue}</div>}
         </div>
       </div>
     </div>
@@ -1043,20 +1091,20 @@ export default function SLOPage() {
     <Layout>
       <div className="-m-6 min-h-[calc(100vh-3.5rem)] bg-[var(--background)]">
         {/* 头部 */}
-        <div className="px-6 py-4 border-b border-[var(--border-color)] bg-card">
-          <div className="flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-b border-[var(--border-color)] bg-card">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/30 dark:to-indigo-900/30">
-                <Activity className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-default">{sloT.pageTitle}</h1>
-                <p className="text-xs text-muted">{sloT.pageDescription}</p>
+                <h1 className="text-base sm:text-lg font-semibold text-default">{sloT.pageTitle}</h1>
+                <p className="text-xs text-muted hidden sm:block">{sloT.pageDescription}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
               {/* 时间范围选择 */}
-              <div className="flex items-center gap-1 p-1 rounded-lg bg-[var(--hover-bg)]">
+              <div className="flex items-center gap-0.5 sm:gap-1 p-1 rounded-lg bg-[var(--hover-bg)]">
                 {([
                   { value: "1d", label: sloT.day },
                   { value: "7d", label: sloT.week },
@@ -1065,7 +1113,7 @@ export default function SLOPage() {
                   <button
                     key={range.value}
                     onClick={() => setTimeRange(range.value)}
-                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    className={`px-2.5 sm:px-3 py-1.5 sm:py-1 text-xs rounded-md transition-colors ${
                       timeRange === range.value
                         ? "bg-card text-default shadow-sm"
                         : "text-muted hover:text-default"
@@ -1078,7 +1126,7 @@ export default function SLOPage() {
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="p-2 rounded-lg hover:bg-[var(--hover-bg)] text-muted hover:text-default transition-colors disabled:opacity-50"
+                className="p-2.5 sm:p-2 rounded-lg hover:bg-[var(--hover-bg)] text-muted hover:text-default transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               </button>
@@ -1086,7 +1134,7 @@ export default function SLOPage() {
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Error State */}
           {error && domains.length === 0 && (
             <div className="text-center py-12 bg-card rounded-xl border border-[var(--border-color)]">
@@ -1108,7 +1156,7 @@ export default function SLOPage() {
           {domains.length > 0 && (
             <>
               {/* 汇总卡片 */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                 <SummaryCard
                   icon={Globe}
                   label={sloT.monitoredDomains}
