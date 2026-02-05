@@ -1,45 +1,45 @@
 # AtlHyper
 
-**Lightweight Kubernetes Multi-Cluster Monitoring & Operations Platform**
+**軽量 Kubernetes マルチクラスター監視・運用プラットフォーム**
 
-English | [中文](docs/README_zh.md) | [日本語](docs/README_ja.md)
-
----
-
-AtlHyper is a monitoring and management platform designed for lightweight Kubernetes environments. It adopts a Master-Agent architecture, supporting unified multi-cluster management, real-time resource monitoring, anomaly detection, SLO tracking, and remote operations.
+[English](../README.md) | [中文](README_zh.md) | 日本語
 
 ---
 
-## Features
-
-- **Multi-Cluster Management** — Manage multiple Kubernetes clusters from a single dashboard
-- **Real-Time Monitoring** — Live Pod, Node, Deployment status with metrics visualization
-- **Anomaly Detection** — Automatic detection of CrashLoopBackOff, OOMKilled, ImagePullBackOff, etc.
-- **SLO Monitoring** — Track service availability, latency, and error rates based on Ingress metrics
-- **Alert Notifications** — Email (SMTP) and Slack (Webhook) integrations
-- **Remote Operations** — Execute kubectl commands, restart pods, scale deployments remotely
-- **AI Assistant** — Natural language interface for cluster operations (optional)
-- **Audit Logging** — Complete operation history with user tracking
-- **Multi-Language** — English, Chinese, Japanese support
+AtlHyper は軽量 Kubernetes 環境向けの監視・管理プラットフォームです。Master-Agent アーキテクチャを採用し、マルチクラスター統合管理、リアルタイムリソース監視、異常検知、SLO 追跡、リモート運用をサポートしています。
 
 ---
 
-## Tech Stack
+## 機能
 
-| Component | Technology | Description |
-|-----------|------------|-------------|
-| **Master** | Go + Gin + SQLite/MySQL | Central control, data aggregation, API server |
-| **Agent** | Go + controller-runtime | Cluster data collection, command execution |
-| **Metrics** | Go (DaemonSet) | Node-level metrics collection (CPU, Memory, Disk, Network) |
-| **Web** | Next.js 15 + TypeScript + Tailwind CSS | Modern responsive dashboard |
+- **マルチクラスター管理** — 単一のダッシュボードで複数の Kubernetes クラスターを管理
+- **リアルタイム監視** — Pod、Node、Deployment のステータスをリアルタイム表示、メトリクス可視化
+- **異常検知** — CrashLoopBackOff、OOMKilled、ImagePullBackOff などを自動検知
+- **SLO 監視** — Ingress メトリクスに基づくサービス可用性、レイテンシ、エラー率の追跡
+- **アラート通知** — メール (SMTP) と Slack (Webhook) に対応
+- **リモート運用** — kubectl コマンドのリモート実行、Pod 再起動、レプリカ数調整
+- **AI アシスタント** — 自然言語でクラスター運用（オプション）
+- **監査ログ** — 完全な操作履歴とユーザー追跡
+- **多言語対応** — 英語、中国語、日本語
 
 ---
 
-## Architecture
+## 技術スタック
+
+| コンポーネント | 技術 | 説明 |
+|---------------|------|------|
+| **Master** | Go + Gin + SQLite/MySQL | 中央制御、データ集約、API サーバー |
+| **Agent** | Go + controller-runtime | クラスターデータ収集、コマンド実行 |
+| **Metrics** | Go (DaemonSet) | ノードレベルのメトリクス収集 (CPU/メモリ/ディスク/ネットワーク) |
+| **Web** | Next.js 15 + TypeScript + Tailwind CSS | モダンなレスポンシブダッシュボード |
+
+---
+
+## アーキテクチャ
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              AtlHyper Platform                              │
+│                           AtlHyper プラットフォーム                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌─────────────┐     ┌─────────────────────────────────────────────────┐   │
@@ -47,11 +47,11 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 │   │  (Next.js)  │◀────│                                                 │   │
 │   └─────────────┘     │  ┌─────────┐  ┌──────────┐  ┌───────────────┐   │   │
 │                       │  │ Gateway │  │ DataHub  │  │   Services    │   │   │
-│                       │  │  (API)  │  │ (Memory) │  │ (SLO/Alert)   │   │   │
+│                       │  │  (API)  │  │ (メモリ) │  │ (SLO/アラート)│   │   │
 │                       │  └─────────┘  └──────────┘  └───────────────┘   │   │
 │                       │                     │                           │   │
 │                       │              ┌──────┴──────┐                    │   │
-│                       │              │   Database  │                    │   │
+│                       │              │ データベース │                    │   │
 │                       │              │(SQLite/MySQL)│                   │   │
 │                       └──────────────┴──────────────┴───────────────────┘   │
 │                                          │                                  │
@@ -59,13 +59,13 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 │            │                             │                             │    │
 │            ▼                             ▼                             ▼    │
 │   ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│   │  Agent (K8s A)  │         │  Agent (K8s B)  │         │  Agent (K8s N)  │
+│   │Agent (クラスタA)│         │Agent (クラスタB)│         │Agent (クラスタN)│
 │   │                 │         │                 │         │                 │
 │   │  ┌───────────┐  │         │  ┌───────────┐  │         │  ┌───────────┐  │
 │   │  │  Source   │  │         │  │  Source   │  │         │  │  Source   │  │
-│   │  │ ├─ Event  │  │         │  │ ├─ Event  │  │         │  │ ├─ Event  │  │
-│   │  │ ├─ Snapshot│ │         │  │ ├─ Snapshot│ │         │  │ ├─ Snapshot│ │
-│   │  │ └─ Metrics│  │         │  │ └─ Metrics│  │         │  │ └─ Metrics│  │
+│   │  │ ├─ イベント│  │         │  │ ├─ イベント│  │         │  │ ├─ イベント│  │
+│   │  │ ├─ スナップ│ │         │  │ ├─ スナップ│ │         │  │ ├─ スナップ│ │
+│   │  │ └─ メトリクス│ │        │  │ └─ メトリクス│ │        │  │ └─ メトリクス│ │
 │   │  ├───────────┤  │         │  ├───────────┤  │         │  ├───────────┤  │
 │   │  │  Executor │  │         │  │  Executor │  │         │  │  Executor │  │
 │   │  └───────────┘  │         │  └───────────┘  │         │  └───────────┘  │
@@ -74,8 +74,7 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 │            ▼                           ▼                           ▼        │
 │   ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
 │   │   Kubernetes    │         │   Kubernetes    │         │   Kubernetes    │
-│   │    Cluster A    │         │    Cluster B    │         │    Cluster N    │
-│   │                 │         │                 │         │                 │
+│   │   クラスター A   │         │   クラスター B   │         │   クラスター N   │
 │   │ ┌─────────────┐ │         │ ┌─────────────┐ │         │ ┌─────────────┐ │
 │   │ │   Metrics   │ │         │ │   Metrics   │ │         │ │   Metrics   │ │
 │   │ │ (DaemonSet) │ │         │ │ (DaemonSet) │ │         │ │ (DaemonSet) │ │
@@ -86,55 +85,55 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 
 ---
 
-## Data Flow
+## データフロー
 
-AtlHyper consists of four modules with distinct data flows:
+AtlHyper は4つのモジュールで構成され、それぞれ独立したデータフローを持ちます：
 
-### 1. Agent Data Flow (4 Streams)
+### 1. Agent データフロー（4つのストリーム）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                        Agent → Master Data Flows                         │
+│                        Agent → Master データフロー                        │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  [Event Stream]                                                          │
-│  K8s Watch ──▶ Abnormal Filter ──▶ DataHub ──▶ Pusher ──▶ Master        │
-│  • Detects: CrashLoop, OOM, ImagePull, NodeNotReady, etc.               │
+│  [イベントストリーム]                                                      │
+│  K8s Watch ──▶ 異常フィルタ ──▶ DataHub ──▶ Pusher ──▶ Master            │
+│  • 検知: CrashLoop、OOM、ImagePull、NodeNotReady など                    │
 │                                                                          │
-│  [Snapshot Stream]                                                       │
+│  [スナップショットストリーム]                                               │
 │  SDK.List() ──▶ Snapshot ──▶ Pusher ──▶ Master                          │
-│  • Resources: Pods, Nodes, Deployments, Services, Ingresses, etc.       │
+│  • リソース: Pod、Node、Deployment、Service、Ingress など                 │
 │                                                                          │
-│  [Metrics Stream]                                                        │
+│  [メトリクスストリーム]                                                     │
 │  Metrics DaemonSet ──▶ Agent Gateway ──▶ Receiver ──▶ Pusher ──▶ Master │
-│  • Node metrics: CPU, Memory, Disk, Network per node                    │
+│  • ノードメトリクス: 各ノードの CPU、メモリ、ディスク、ネットワーク          │
 │                                                                          │
-│  [Command Stream]                                                        │
-│  Master ──▶ Agent Gateway ──▶ Executor ──▶ K8s SDK ──▶ Result ──▶ Master│
-│  • Operations: Restart Pod, Scale Deployment, Cordon Node, etc.         │
+│  [コマンドストリーム]                                                      │
+│  Master ──▶ Agent Gateway ──▶ Executor ──▶ K8s SDK ──▶ 結果 ──▶ Master  │
+│  • 操作: Pod 再起動、レプリカ調整、ノード隔離など                           │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Metrics DaemonSet Data Flow
+### 2. Metrics DaemonSet データフロー
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                     Metrics Collector (Per Node)                         │
+│                     メトリクスコレクター（各ノード）                         │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
-│  │ /proc/stat  │    │ /proc/meminfo│   │/proc/diskstats│                 │
+│  │ /proc/stat  │    │/proc/meminfo│    │/proc/diskstats│                 │
 │  │ /proc/net   │    │   syscall   │    │/proc/mounts │                   │
 │  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘                   │
 │         │                  │                  │                          │
 │         ▼                  ▼                  ▼                          │
 │  ┌─────────────────────────────────────────────────────┐                 │
-│  │              Metrics Collector (Go)                 │                 │
-│  │  • CPU: usage%, per-core, load average              │                 │
-│  │  • Memory: used, available, cached, buffers         │                 │
-│  │  • Disk: space, IO rate, IOPS, utilization          │                 │
-│  │  • Network: bytes/packets in/out per interface      │                 │
+│  │           メトリクスコレクター (Go)                   │                 │
+│  │  • CPU: 使用率、コアごと、ロードアベレージ              │                 │
+│  │  • メモリ: 使用中、利用可能、キャッシュ、バッファ        │                 │
+│  │  • ディスク: 容量、IO レート、IOPS、使用率             │                 │
+│  │  • ネットワーク: インターフェースごとのバイト/パケット   │                 │
 │  └──────────────────────────┬──────────────────────────┘                 │
 │                             │                                            │
 │                             ▼                                            │
@@ -142,111 +141,111 @@ AtlHyper consists of four modules with distinct data flows:
 │                             │                                            │
 │                             ▼                                            │
 │                    ┌─────────────────┐                                   │
-│                    │  Agent (同节点)  │                                   │
+│                    │  Agent (同ノード) │                                  │
 │                    └─────────────────┘                                   │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Master Data Flow (3 Streams)
+### 3. Master データフロー（3つのストリーム）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         Master Data Streams                              │
+│                         Master データストリーム                            │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  [1. Cluster Snapshot — In-Memory (DataHub)]                             │
+│  [1. クラスタースナップショット — メモリストレージ (DataHub)]               │
 │  ─────────────────────────────────────────────────────────────────────── │
-│  Agent ──▶ AgentSDK ──▶ Processor ──▶ DataHub (Memory)                  │
+│  Agent ──▶ AgentSDK ──▶ Processor ──▶ DataHub (メモリ)                   │
 │                                            │                             │
-│  Purpose: Real-time query of Pods/Nodes    ◀── Web API queries          │
-│  Retention: Latest snapshot only                                         │
+│  用途: Pod/Node のリアルタイムクエリ        ◀── Web API クエリ            │
+│  保持: 最新のスナップショットのみ                                          │
 │                                                                          │
-│  [2. Command Dispatch — Message Queue]                                   │
+│  [2. コマンドディスパッチ — メッセージキュー]                               │
 │  ─────────────────────────────────────────────────────────────────────── │
-│  User/AI ──▶ API ──▶ CommandBus ──▶ Agent executes                      │
+│  ユーザー/AI ──▶ API ──▶ CommandBus ──▶ Agent 実行                       │
 │                          │                                               │
-│  Purpose: Remote ops     Agent ──▶ Result ──▶ CommandBus ──▶ API        │
-│  Retention: Transient                                                    │
+│  用途: リモート操作      Agent ──▶ 結果 ──▶ CommandBus ──▶ API           │
+│  保持: 一時的                                                             │
 │                                                                          │
-│  [3. Persistent Data — Database]                                         │
+│  [3. 永続化データ — データベース]                                          │
 │  ─────────────────────────────────────────────────────────────────────── │
-│  Agent ──▶ Processor ──┬──▶ Events ──▶ DB (event_history)               │
-│                        ├──▶ SLO Metrics ──▶ DB (slo_* tables)           │
-│                        └──▶ Node Metrics ──▶ DB (node_metrics_history)  │
+│  Agent ──▶ Processor ──┬──▶ イベント ──▶ DB (event_history)              │
+│                        ├──▶ SLO メトリクス ──▶ DB (slo_* テーブル)        │
+│                        └──▶ ノードメトリクス ──▶ DB (node_metrics_history)│
 │                                    │                                     │
-│  Purpose: Historical analysis      ◀── Trend/SLO API queries            │
-│  Retention: 30-180 days (configurable)                                   │
+│  用途: 履歴分析                    ◀── トレンド/SLO API クエリ            │
+│  保持: 30-180日（設定可能）                                               │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4. Web Frontend Data Flow
+### 4. Web フロントエンドデータフロー
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         Web Frontend Flow                                │
+│                       Web フロントエンドフロー                             │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
-│  │   Browser   │    │  Next.js    │    │   Master    │                   │
-│  │             │───▶│  Middleware │───▶│   Gateway   │                   │
-│  │             │◀───│  (Proxy)    │◀───│   (API)     │                   │
+│  │  ブラウザ   │    │  Next.js    │    │   Master    │                   │
+│  │             │───▶│ ミドルウェア │───▶│   Gateway   │                   │
+│  │             │◀───│  (プロキシ)  │◀───│   (API)     │                   │
 │  └─────────────┘    └─────────────┘    └─────────────┘                   │
 │                                                                          │
-│  • Authentication: JWT token in localStorage                             │
-│  • API Proxy: /api/v2/* → Master:8080 (runtime configured)              │
-│  • State: Zustand for global state management                            │
-│  • Real-time: Polling with configurable intervals                        │
+│  • 認証: JWT トークンを localStorage に保存                               │
+│  • API プロキシ: /api/v2/* → Master:8080 (ランタイム設定)                 │
+│  • 状態: Zustand でグローバル状態管理                                     │
+│  • リアルタイム: 設定可能な間隔でポーリング                                 │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Screenshots
+## スクリーンショット
 
-### Cluster Overview
-Real-time cluster health, resource usage, and recent alerts at a glance.
+### クラスター概要
+クラスターの健全性、リソース使用状況、最近のアラートをリアルタイムで表示。
 
-![Cluster Overview](docs/img/overview.png)
+![クラスター概要](img/overview.png)
 
-### Pod Management
-List, filter, and manage pods across namespaces with detailed status.
+### Pod 管理
+ネームスペース横断で Pod を一覧、フィルタ、管理。詳細なステータスを表示。
 
-![Pod Management](docs/img/cluster_pod.png)
+![Pod 管理](img/cluster_pod.png)
 
-### Alert Dashboard
-View and analyze cluster alerts with filtering and AI-powered analysis.
+### アラートダッシュボード
+クラスターアラートの表示と分析。フィルタリングと AI 分析をサポート。
 
-![Alert Dashboard](docs/img/cluster_alert.png)
+![アラートダッシュボード](img/cluster_alert.png)
 
-### Node Metrics
-Detailed node-level metrics with historical trends.
+### ノードメトリクス
+ノードレベルの詳細なメトリクスと履歴トレンドグラフ。
 
-![Node Metrics](docs/img/system_metrics.png)
+![ノードメトリクス](img/system_metrics.png)
 
-### SLO Monitoring
-Track service level objectives based on Ingress metrics.
+### SLO 監視
+Ingress メトリクスに基づくサービスレベル目標の追跡。
 
-![SLO Overview](docs/img/workbench_slo_overview.png)
+![SLO 概要](img/workbench_slo_overview.png)
 
-![SLO Details](docs/img/workbench_slo.png)
+![SLO 詳細](img/workbench_slo.png)
 
 ---
 
-## Deployment
+## デプロイ
 
-### Prerequisites
+### 前提条件
 
 - Go 1.21+
 - Node.js 18+
-- Kubernetes cluster(s) for Agent deployment
-- Docker (for containerized deployment)
+- Kubernetes クラスター（Agent デプロイ用）
+- Docker（コンテナ化デプロイ）
 
-### Quick Start (Development)
+### クイックスタート（開発環境）
 
-**1. Start Master**
+**1. Master 起動**
 ```bash
 export MASTER_ADMIN_USERNAME=admin
 export MASTER_ADMIN_PASSWORD=$(openssl rand -base64 16)
@@ -257,7 +256,7 @@ go run main.go
 # Gateway: :8080, AgentSDK: :8081
 ```
 
-**2. Start Agent (in K8s cluster)**
+**2. Agent 起動（K8s クラスター内）**
 ```bash
 cd cmd/atlhyper_agent_v2
 go run main.go \
@@ -265,160 +264,160 @@ go run main.go \
   --master=http://<MASTER_IP>:8081
 ```
 
-**3. Start Web**
+**3. Web 起動**
 ```bash
 cd atlhyper_web
 npm install && npm run dev
-# Access: http://localhost:3000
+# アクセス: http://localhost:3000
 ```
 
-### Kubernetes Deployment (Helm)
+### Kubernetes デプロイ（Helm）
 
 ```bash
-# Add Helm repo (if published)
+# Helm リポジトリ追加（公開済みの場合）
 helm repo add atlhyper https://charts.atlhyper.io
 
-# Install Master
+# Master インストール
 helm install atlhyper-master atlhyper/atlhyper \
   --set master.admin.username=admin \
   --set master.admin.password=<YOUR_PASSWORD> \
   --set master.jwt.secret=<YOUR_SECRET>
 
-# Install Agent (per cluster)
+# Agent インストール（各クラスター）
 helm install atlhyper-agent atlhyper/atlhyper-agent \
   --set agent.clusterId=production \
   --set agent.masterUrl=http://atlhyper-master:8081
 ```
 
-### Kubernetes Deployment (Manifests)
+### Kubernetes デプロイ（YAML）
 
-Deploy order: **Master → Agent → Metrics → Web**
+デプロイ順序: **Master → Agent → Metrics → Web**
 
 ```bash
 cd deploy/k8s
 
-# 1. Create namespace and config
+# 1. ネームスペースと設定を作成
 kubectl apply -f atlhyper-config.yaml
 
-# 2. Deploy Master
+# 2. Master デプロイ
 kubectl apply -f atlhyper-Master.yaml
 
-# 3. Deploy Agent
+# 3. Agent デプロイ
 kubectl apply -f atlhyper-agent.yaml
 
-# 4. Deploy Metrics (DaemonSet)
+# 4. Metrics デプロイ (DaemonSet)
 kubectl apply -f atlhyper-metrics.yaml
 
-# 5. Deploy Web
+# 5. Web デプロイ
 kubectl apply -f atlhyper-web.yaml
 
-# 6. (Optional) Traefik IngressRoute
+# 6. (オプション) Traefik IngressRoute
 kubectl apply -f atlhyper-traefik.yaml
 ```
 
-### Configuration Reference
+### 設定リファレンス
 
-#### Master Environment Variables
+#### Master 環境変数
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `MASTER_ADMIN_USERNAME` | Yes | - | Admin username |
-| `MASTER_ADMIN_PASSWORD` | Yes | - | Admin password |
-| `MASTER_JWT_SECRET` | Yes | - | JWT signing key |
-| `MASTER_GATEWAY_PORT` | No | `8080` | Web/API port |
-| `MASTER_AGENTSDK_PORT` | No | `8081` | Agent data port |
-| `MASTER_DB_TYPE` | No | `sqlite` | Database type |
-| `MASTER_DB_DSN` | No | - | MySQL/PostgreSQL DSN |
-| `MASTER_LOG_LEVEL` | No | `info` | Log level |
+| 変数 | 必須 | デフォルト | 説明 |
+|------|------|-----------|------|
+| `MASTER_ADMIN_USERNAME` | はい | - | 管理者ユーザー名 |
+| `MASTER_ADMIN_PASSWORD` | はい | - | 管理者パスワード |
+| `MASTER_JWT_SECRET` | はい | - | JWT 署名キー |
+| `MASTER_GATEWAY_PORT` | いいえ | `8080` | Web/API ポート |
+| `MASTER_AGENTSDK_PORT` | いいえ | `8081` | Agent データポート |
+| `MASTER_DB_TYPE` | いいえ | `sqlite` | データベースタイプ |
+| `MASTER_DB_DSN` | いいえ | - | MySQL/PostgreSQL DSN |
+| `MASTER_LOG_LEVEL` | いいえ | `info` | ログレベル |
 
-#### Agent Configuration
+#### Agent 設定
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--cluster-id` | Yes | Unique cluster identifier |
-| `--master` | Yes | Master AgentSDK URL |
+| フラグ | 必須 | 説明 |
+|--------|------|------|
+| `--cluster-id` | はい | クラスター固有識別子 |
+| `--master` | はい | Master AgentSDK URL |
 
 #### Metrics DaemonSet
 
-The Metrics collector is automatically deployed as a DaemonSet and reports to the local Agent. Configuration via ConfigMap:
+Metrics コレクターは自動的に DaemonSet としてデプロイされ、ローカル Agent に報告します。ConfigMap で設定：
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `METRICS_AGENT_URL` | `http://atlhyper-agent:8082` | Agent metrics endpoint |
-| `METRICS_PUSH_INTERVAL` | `15s` | Push interval |
+| 変数 | デフォルト | 説明 |
+|------|-----------|------|
+| `METRICS_AGENT_URL` | `http://atlhyper-agent:8082` | Agent メトリクスエンドポイント |
+| `METRICS_PUSH_INTERVAL` | `15s` | プッシュ間隔 |
 
 ---
 
-## Project Structure
+## プロジェクト構造
 
 ```
 atlhyper/
-├── atlhyper_master_v2/       # Master (Central Control)
+├── atlhyper_master_v2/       # Master（中央制御）
 │   ├── gateway/              # HTTP API (Web + AgentSDK)
-│   ├── datahub/              # In-memory data store
-│   ├── database/             # Persistent storage (SQLite/MySQL)
-│   ├── service/              # Business logic (SLO, Alert)
-│   ├── ai/                   # AI assistant integration
-│   └── config/               # Configuration management
+│   ├── datahub/              # メモリデータストア
+│   ├── database/             # 永続化ストレージ (SQLite/MySQL)
+│   ├── service/              # ビジネスロジック (SLO, アラート)
+│   ├── ai/                   # AI アシスタント統合
+│   └── config/               # 設定管理
 │
-├── atlhyper_agent_v2/        # Agent (Cluster Proxy)
-│   ├── source/               # Data sources
-│   │   ├── event/            # K8s event watcher
-│   │   ├── snapshot/         # Resource snapshots
-│   │   └── metrics/          # Metrics receiver
-│   ├── executor/             # Command execution
-│   ├── sdk/                  # K8s operations
-│   └── pusher/               # Data push scheduler
+├── atlhyper_agent_v2/        # Agent（クラスタープロキシ）
+│   ├── source/               # データソース
+│   │   ├── event/            # K8s イベントウォッチャー
+│   │   ├── snapshot/         # リソーススナップショット
+│   │   └── metrics/          # メトリクスレシーバー
+│   ├── executor/             # コマンド実行
+│   ├── sdk/                  # K8s 操作
+│   └── pusher/               # データプッシュスケジューラー
 │
-├── atlhyper_metrics_v2/      # Metrics Collector (DaemonSet)
-│   ├── collector/            # CPU, Memory, Disk, Network
-│   └── pusher/               # Push to Agent
+├── atlhyper_metrics_v2/      # メトリクスコレクター (DaemonSet)
+│   ├── collector/            # CPU、メモリ、ディスク、ネットワーク
+│   └── pusher/               # Agent へプッシュ
 │
-├── atlhyper_web/             # Web Frontend
-│   ├── src/app/              # Next.js pages
-│   ├── src/components/       # React components
-│   ├── src/api/              # API client
-│   └── src/i18n/             # Internationalization
+├── atlhyper_web/             # Web フロントエンド
+│   ├── src/app/              # Next.js ページ
+│   ├── src/components/       # React コンポーネント
+│   ├── src/api/              # API クライアント
+│   └── src/i18n/             # 国際化
 │
-├── model_v2/                 # Shared data models
-├── cmd/                      # Entry points
-└── deploy/                   # Deployment configs
-    ├── helm/                 # Helm charts
-    └── k8s/                  # K8s manifests
+├── model_v2/                 # 共有データモデル
+├── cmd/                      # エントリーポイント
+└── deploy/                   # デプロイ設定
+    ├── helm/                 # Helm チャート
+    └── k8s/                  # K8s マニフェスト
 ```
 
 ---
 
-## Security
+## セキュリティ
 
-### Sensitive Information
+### 機密情報
 
-- **Never hardcode** API keys, passwords, or secrets in code
-- Use environment variables for all credentials
-- AI API keys are stored encrypted in database (configured via Web UI)
+- API キー、パスワード、シークレットをコードに**ハードコードしない**
+- すべての認証情報は環境変数を使用
+- AI API キーはデータベースに暗号化して保存（Web UI で設定）
 
-### Pre-commit Check
+### コミット前チェック
 
 ```bash
-# Scan for potential API key leaks
+# 潜在的な API キー漏洩をスキャン
 grep -rE "sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9]{30,}" \
   --include="*.go" --include="*.ts" --include="*.tsx" .
 ```
 
-### Files Ignored by .gitignore
+### .gitignore で除外されるファイル
 
-- `atlhyper_master_v2/database/sqlite/data/` — Database files
-- `atlhyper_web/.env.local` — Local environment
-- `*.db` — All SQLite databases
+- `atlhyper_master_v2/database/sqlite/data/` — データベースファイル
+- `atlhyper_web/.env.local` — ローカル環境
+- `*.db` — すべての SQLite データベース
 
 ---
 
-## License
+## ライセンス
 
 MIT
 
 ---
 
-## Links
+## リンク
 
-- [GitHub Repository](https://github.com/bukahou/atlhyper)
+- [GitHub リポジトリ](https://github.com/bukahou/atlhyper)

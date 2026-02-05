@@ -1,45 +1,45 @@
 # AtlHyper
 
-**Lightweight Kubernetes Multi-Cluster Monitoring & Operations Platform**
+**轻量级 Kubernetes 多集群监控与运维平台**
 
-English | [中文](docs/README_zh.md) | [日本語](docs/README_ja.md)
-
----
-
-AtlHyper is a monitoring and management platform designed for lightweight Kubernetes environments. It adopts a Master-Agent architecture, supporting unified multi-cluster management, real-time resource monitoring, anomaly detection, SLO tracking, and remote operations.
+[English](../README.md) | 中文 | [日本語](README_ja.md)
 
 ---
 
-## Features
-
-- **Multi-Cluster Management** — Manage multiple Kubernetes clusters from a single dashboard
-- **Real-Time Monitoring** — Live Pod, Node, Deployment status with metrics visualization
-- **Anomaly Detection** — Automatic detection of CrashLoopBackOff, OOMKilled, ImagePullBackOff, etc.
-- **SLO Monitoring** — Track service availability, latency, and error rates based on Ingress metrics
-- **Alert Notifications** — Email (SMTP) and Slack (Webhook) integrations
-- **Remote Operations** — Execute kubectl commands, restart pods, scale deployments remotely
-- **AI Assistant** — Natural language interface for cluster operations (optional)
-- **Audit Logging** — Complete operation history with user tracking
-- **Multi-Language** — English, Chinese, Japanese support
+AtlHyper 是一个面向轻量级 Kubernetes 环境的监控与管理平台，采用 Master-Agent 架构，支持多集群统一管理、实时资源监控、异常检测、SLO 追踪和远程运维操作。
 
 ---
 
-## Tech Stack
+## 功能特性
 
-| Component | Technology | Description |
-|-----------|------------|-------------|
-| **Master** | Go + Gin + SQLite/MySQL | Central control, data aggregation, API server |
-| **Agent** | Go + controller-runtime | Cluster data collection, command execution |
-| **Metrics** | Go (DaemonSet) | Node-level metrics collection (CPU, Memory, Disk, Network) |
-| **Web** | Next.js 15 + TypeScript + Tailwind CSS | Modern responsive dashboard |
+- **多集群管理** — 单一控制台管理多个 Kubernetes 集群
+- **实时监控** — Pod、Node、Deployment 状态实时展示与指标可视化
+- **异常检测** — 自动检测 CrashLoopBackOff、OOMKilled、ImagePullBackOff 等异常
+- **SLO 监控** — 基于 Ingress 指标追踪服务可用性、延迟和错误率
+- **告警通知** — 支持邮件 (SMTP) 和 Slack (Webhook) 通知
+- **远程运维** — 远程执行 kubectl 命令、重启 Pod、调整副本数
+- **AI 助手** — 自然语言交互进行集群运维（可选）
+- **审计日志** — 完整的操作历史记录与用户追踪
+- **多语言支持** — 中文、英文、日语
 
 ---
 
-## Architecture
+## 技术栈
+
+| 组件 | 技术 | 说明 |
+|------|------|------|
+| **Master** | Go + Gin + SQLite/MySQL | 中央管控、数据聚合、API 服务 |
+| **Agent** | Go + controller-runtime | 集群数据采集、命令执行 |
+| **Metrics** | Go (DaemonSet) | 节点级指标采集 (CPU/内存/磁盘/网络) |
+| **Web** | Next.js 15 + TypeScript + Tailwind CSS | 现代响应式管理界面 |
+
+---
+
+## 系统架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              AtlHyper Platform                              │
+│                              AtlHyper 平台                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌─────────────┐     ┌─────────────────────────────────────────────────┐   │
@@ -47,11 +47,11 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 │   │  (Next.js)  │◀────│                                                 │   │
 │   └─────────────┘     │  ┌─────────┐  ┌──────────┐  ┌───────────────┐   │   │
 │                       │  │ Gateway │  │ DataHub  │  │   Services    │   │   │
-│                       │  │  (API)  │  │ (Memory) │  │ (SLO/Alert)   │   │   │
+│                       │  │  (API)  │  │ (内存)   │  │ (SLO/告警)    │   │   │
 │                       │  └─────────┘  └──────────┘  └───────────────┘   │   │
 │                       │                     │                           │   │
 │                       │              ┌──────┴──────┐                    │   │
-│                       │              │   Database  │                    │   │
+│                       │              │   数据库    │                    │   │
 │                       │              │(SQLite/MySQL)│                   │   │
 │                       └──────────────┴──────────────┴───────────────────┘   │
 │                                          │                                  │
@@ -59,13 +59,13 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 │            │                             │                             │    │
 │            ▼                             ▼                             ▼    │
 │   ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│   │  Agent (K8s A)  │         │  Agent (K8s B)  │         │  Agent (K8s N)  │
+│   │  Agent (集群A)  │         │  Agent (集群B)  │         │  Agent (集群N)  │
 │   │                 │         │                 │         │                 │
 │   │  ┌───────────┐  │         │  ┌───────────┐  │         │  ┌───────────┐  │
 │   │  │  Source   │  │         │  │  Source   │  │         │  │  Source   │  │
-│   │  │ ├─ Event  │  │         │  │ ├─ Event  │  │         │  │ ├─ Event  │  │
-│   │  │ ├─ Snapshot│ │         │  │ ├─ Snapshot│ │         │  │ ├─ Snapshot│ │
-│   │  │ └─ Metrics│  │         │  │ └─ Metrics│  │         │  │ └─ Metrics│  │
+│   │  │ ├─ 事件   │  │         │  │ ├─ 事件   │  │         │  │ ├─ 事件   │  │
+│   │  │ ├─ 快照   │  │         │  │ ├─ 快照   │  │         │  │ ├─ 快照   │  │
+│   │  │ └─ 指标   │  │         │  │ └─ 指标   │  │         │  │ └─ 指标   │  │
 │   │  ├───────────┤  │         │  ├───────────┤  │         │  ├───────────┤  │
 │   │  │  Executor │  │         │  │  Executor │  │         │  │  Executor │  │
 │   │  └───────────┘  │         │  └───────────┘  │         │  └───────────┘  │
@@ -74,8 +74,7 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 │            ▼                           ▼                           ▼        │
 │   ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
 │   │   Kubernetes    │         │   Kubernetes    │         │   Kubernetes    │
-│   │    Cluster A    │         │    Cluster B    │         │    Cluster N    │
-│   │                 │         │                 │         │                 │
+│   │     集群 A      │         │     集群 B      │         │     集群 N      │
 │   │ ┌─────────────┐ │         │ ┌─────────────┐ │         │ ┌─────────────┐ │
 │   │ │   Metrics   │ │         │ │   Metrics   │ │         │ │   Metrics   │ │
 │   │ │ (DaemonSet) │ │         │ │ (DaemonSet) │ │         │ │ (DaemonSet) │ │
@@ -86,55 +85,55 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 
 ---
 
-## Data Flow
+## 数据流
 
-AtlHyper consists of four modules with distinct data flows:
+AtlHyper 由四个模块组成，各有独立的数据流：
 
-### 1. Agent Data Flow (4 Streams)
+### 1. Agent 数据流（4 条流）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                        Agent → Master Data Flows                         │
+│                        Agent → Master 数据流                              │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  [Event Stream]                                                          │
-│  K8s Watch ──▶ Abnormal Filter ──▶ DataHub ──▶ Pusher ──▶ Master        │
-│  • Detects: CrashLoop, OOM, ImagePull, NodeNotReady, etc.               │
+│  [事件流]                                                                │
+│  K8s Watch ──▶ 异常过滤 ──▶ DataHub ──▶ Pusher ──▶ Master               │
+│  • 检测: CrashLoop、OOM、ImagePull、NodeNotReady 等                      │
 │                                                                          │
-│  [Snapshot Stream]                                                       │
+│  [快照流]                                                                │
 │  SDK.List() ──▶ Snapshot ──▶ Pusher ──▶ Master                          │
-│  • Resources: Pods, Nodes, Deployments, Services, Ingresses, etc.       │
+│  • 资源: Pod、Node、Deployment、Service、Ingress 等                      │
 │                                                                          │
-│  [Metrics Stream]                                                        │
+│  [指标流]                                                                │
 │  Metrics DaemonSet ──▶ Agent Gateway ──▶ Receiver ──▶ Pusher ──▶ Master │
-│  • Node metrics: CPU, Memory, Disk, Network per node                    │
+│  • 节点指标: 每个节点的 CPU、内存、磁盘、网络                              │
 │                                                                          │
-│  [Command Stream]                                                        │
-│  Master ──▶ Agent Gateway ──▶ Executor ──▶ K8s SDK ──▶ Result ──▶ Master│
-│  • Operations: Restart Pod, Scale Deployment, Cordon Node, etc.         │
+│  [命令流]                                                                │
+│  Master ──▶ Agent Gateway ──▶ Executor ──▶ K8s SDK ──▶ 结果 ──▶ Master  │
+│  • 操作: 重启 Pod、调整副本、隔离节点等                                    │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Metrics DaemonSet Data Flow
+### 2. Metrics DaemonSet 数据流
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                     Metrics Collector (Per Node)                         │
+│                     指标采集器（每个节点）                                  │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
-│  │ /proc/stat  │    │ /proc/meminfo│   │/proc/diskstats│                 │
+│  │ /proc/stat  │    │/proc/meminfo│    │/proc/diskstats│                 │
 │  │ /proc/net   │    │   syscall   │    │/proc/mounts │                   │
 │  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘                   │
 │         │                  │                  │                          │
 │         ▼                  ▼                  ▼                          │
 │  ┌─────────────────────────────────────────────────────┐                 │
-│  │              Metrics Collector (Go)                 │                 │
-│  │  • CPU: usage%, per-core, load average              │                 │
-│  │  • Memory: used, available, cached, buffers         │                 │
-│  │  • Disk: space, IO rate, IOPS, utilization          │                 │
-│  │  • Network: bytes/packets in/out per interface      │                 │
+│  │              指标采集器 (Go)                         │                 │
+│  │  • CPU: 使用率、每核心、负载均值                      │                 │
+│  │  • 内存: 已用、可用、缓存、缓冲区                     │                 │
+│  │  • 磁盘: 空间、IO 速率、IOPS、利用率                  │                 │
+│  │  • 网络: 每接口的字节数/包数（入/出）                  │                 │
 │  └──────────────────────────┬──────────────────────────┘                 │
 │                             │                                            │
 │                             ▼                                            │
@@ -148,105 +147,105 @@ AtlHyper consists of four modules with distinct data flows:
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Master Data Flow (3 Streams)
+### 3. Master 数据流（3 条流）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         Master Data Streams                              │
+│                         Master 数据流                                     │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  [1. Cluster Snapshot — In-Memory (DataHub)]                             │
+│  [1. 集群快照 — 内存存储 (DataHub)]                                       │
 │  ─────────────────────────────────────────────────────────────────────── │
-│  Agent ──▶ AgentSDK ──▶ Processor ──▶ DataHub (Memory)                  │
+│  Agent ──▶ AgentSDK ──▶ Processor ──▶ DataHub (内存)                     │
 │                                            │                             │
-│  Purpose: Real-time query of Pods/Nodes    ◀── Web API queries          │
-│  Retention: Latest snapshot only                                         │
+│  用途: Pod/Node 实时查询                    ◀── Web API 查询              │
+│  保留: 仅最新快照                                                         │
 │                                                                          │
-│  [2. Command Dispatch — Message Queue]                                   │
+│  [2. 命令下发 — 消息队列]                                                 │
 │  ─────────────────────────────────────────────────────────────────────── │
-│  User/AI ──▶ API ──▶ CommandBus ──▶ Agent executes                      │
+│  用户/AI ──▶ API ──▶ CommandBus ──▶ Agent 执行                           │
 │                          │                                               │
-│  Purpose: Remote ops     Agent ──▶ Result ──▶ CommandBus ──▶ API        │
-│  Retention: Transient                                                    │
+│  用途: 远程操作          Agent ──▶ 结果 ──▶ CommandBus ──▶ API           │
+│  保留: 临时                                                               │
 │                                                                          │
-│  [3. Persistent Data — Database]                                         │
+│  [3. 持久化数据 — 数据库]                                                 │
 │  ─────────────────────────────────────────────────────────────────────── │
-│  Agent ──▶ Processor ──┬──▶ Events ──▶ DB (event_history)               │
-│                        ├──▶ SLO Metrics ──▶ DB (slo_* tables)           │
-│                        └──▶ Node Metrics ──▶ DB (node_metrics_history)  │
+│  Agent ──▶ Processor ──┬──▶ 事件 ──▶ DB (event_history)                  │
+│                        ├──▶ SLO 指标 ──▶ DB (slo_* 表)                   │
+│                        └──▶ 节点指标 ──▶ DB (node_metrics_history)       │
 │                                    │                                     │
-│  Purpose: Historical analysis      ◀── Trend/SLO API queries            │
-│  Retention: 30-180 days (configurable)                                   │
+│  用途: 历史分析                    ◀── 趋势/SLO API 查询                  │
+│  保留: 30-180 天（可配置）                                                │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4. Web Frontend Data Flow
+### 4. Web 前端数据流
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         Web Frontend Flow                                │
+│                         Web 前端流程                                      │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
-│  │   Browser   │    │  Next.js    │    │   Master    │                   │
-│  │             │───▶│  Middleware │───▶│   Gateway   │                   │
-│  │             │◀───│  (Proxy)    │◀───│   (API)     │                   │
+│  │   浏览器    │    │  Next.js    │    │   Master    │                   │
+│  │             │───▶│  中间件     │───▶│   Gateway   │                   │
+│  │             │◀───│  (代理)     │◀───│   (API)     │                   │
 │  └─────────────┘    └─────────────┘    └─────────────┘                   │
 │                                                                          │
-│  • Authentication: JWT token in localStorage                             │
-│  • API Proxy: /api/v2/* → Master:8080 (runtime configured)              │
-│  • State: Zustand for global state management                            │
-│  • Real-time: Polling with configurable intervals                        │
+│  • 认证: JWT token 存储在 localStorage                                   │
+│  • API 代理: /api/v2/* → Master:8080 (运行时配置)                        │
+│  • 状态: Zustand 全局状态管理                                             │
+│  • 实时: 可配置间隔的轮询                                                 │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Screenshots
+## 界面截图
 
-### Cluster Overview
-Real-time cluster health, resource usage, and recent alerts at a glance.
+### 集群总览
+实时展示集群健康状态、资源使用情况和最近告警。
 
-![Cluster Overview](docs/img/overview.png)
+![集群总览](img/overview.png)
 
-### Pod Management
-List, filter, and manage pods across namespaces with detailed status.
+### Pod 管理
+跨命名空间列表、过滤和管理 Pod，展示详细状态。
 
-![Pod Management](docs/img/cluster_pod.png)
+![Pod 管理](img/cluster_pod.png)
 
-### Alert Dashboard
-View and analyze cluster alerts with filtering and AI-powered analysis.
+### 告警面板
+查看和分析集群告警，支持过滤和 AI 智能分析。
 
-![Alert Dashboard](docs/img/cluster_alert.png)
+![告警面板](img/cluster_alert.png)
 
-### Node Metrics
-Detailed node-level metrics with historical trends.
+### 节点指标
+详细的节点级指标与历史趋势图表。
 
-![Node Metrics](docs/img/system_metrics.png)
+![节点指标](img/system_metrics.png)
 
-### SLO Monitoring
-Track service level objectives based on Ingress metrics.
+### SLO 监控
+基于 Ingress 指标追踪服务水平目标。
 
-![SLO Overview](docs/img/workbench_slo_overview.png)
+![SLO 总览](img/workbench_slo_overview.png)
 
-![SLO Details](docs/img/workbench_slo.png)
+![SLO 详情](img/workbench_slo.png)
 
 ---
 
-## Deployment
+## 部署
 
-### Prerequisites
+### 环境要求
 
 - Go 1.21+
 - Node.js 18+
-- Kubernetes cluster(s) for Agent deployment
-- Docker (for containerized deployment)
+- Kubernetes 集群（用于 Agent 部署）
+- Docker（容器化部署）
 
-### Quick Start (Development)
+### 快速开始（开发环境）
 
-**1. Start Master**
+**1. 启动 Master**
 ```bash
 export MASTER_ADMIN_USERNAME=admin
 export MASTER_ADMIN_PASSWORD=$(openssl rand -base64 16)
@@ -257,7 +256,7 @@ go run main.go
 # Gateway: :8080, AgentSDK: :8081
 ```
 
-**2. Start Agent (in K8s cluster)**
+**2. 启动 Agent（在 K8s 集群中）**
 ```bash
 cd cmd/atlhyper_agent_v2
 go run main.go \
@@ -265,160 +264,160 @@ go run main.go \
   --master=http://<MASTER_IP>:8081
 ```
 
-**3. Start Web**
+**3. 启动 Web**
 ```bash
 cd atlhyper_web
 npm install && npm run dev
-# Access: http://localhost:3000
+# 访问: http://localhost:3000
 ```
 
-### Kubernetes Deployment (Helm)
+### Kubernetes 部署（Helm）
 
 ```bash
-# Add Helm repo (if published)
+# 添加 Helm 仓库（如已发布）
 helm repo add atlhyper https://charts.atlhyper.io
 
-# Install Master
+# 安装 Master
 helm install atlhyper-master atlhyper/atlhyper \
   --set master.admin.username=admin \
   --set master.admin.password=<YOUR_PASSWORD> \
   --set master.jwt.secret=<YOUR_SECRET>
 
-# Install Agent (per cluster)
+# 安装 Agent（每个集群）
 helm install atlhyper-agent atlhyper/atlhyper-agent \
   --set agent.clusterId=production \
   --set agent.masterUrl=http://atlhyper-master:8081
 ```
 
-### Kubernetes Deployment (Manifests)
+### Kubernetes 部署（YAML）
 
-Deploy order: **Master → Agent → Metrics → Web**
+部署顺序: **Master → Agent → Metrics → Web**
 
 ```bash
 cd deploy/k8s
 
-# 1. Create namespace and config
+# 1. 创建命名空间和配置
 kubectl apply -f atlhyper-config.yaml
 
-# 2. Deploy Master
+# 2. 部署 Master
 kubectl apply -f atlhyper-Master.yaml
 
-# 3. Deploy Agent
+# 3. 部署 Agent
 kubectl apply -f atlhyper-agent.yaml
 
-# 4. Deploy Metrics (DaemonSet)
+# 4. 部署 Metrics (DaemonSet)
 kubectl apply -f atlhyper-metrics.yaml
 
-# 5. Deploy Web
+# 5. 部署 Web
 kubectl apply -f atlhyper-web.yaml
 
-# 6. (Optional) Traefik IngressRoute
+# 6. (可选) Traefik IngressRoute
 kubectl apply -f atlhyper-traefik.yaml
 ```
 
-### Configuration Reference
+### 配置参考
 
-#### Master Environment Variables
+#### Master 环境变量
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `MASTER_ADMIN_USERNAME` | Yes | - | Admin username |
-| `MASTER_ADMIN_PASSWORD` | Yes | - | Admin password |
-| `MASTER_JWT_SECRET` | Yes | - | JWT signing key |
-| `MASTER_GATEWAY_PORT` | No | `8080` | Web/API port |
-| `MASTER_AGENTSDK_PORT` | No | `8081` | Agent data port |
-| `MASTER_DB_TYPE` | No | `sqlite` | Database type |
-| `MASTER_DB_DSN` | No | - | MySQL/PostgreSQL DSN |
-| `MASTER_LOG_LEVEL` | No | `info` | Log level |
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `MASTER_ADMIN_USERNAME` | 是 | - | 管理员用户名 |
+| `MASTER_ADMIN_PASSWORD` | 是 | - | 管理员密码 |
+| `MASTER_JWT_SECRET` | 是 | - | JWT 签名密钥 |
+| `MASTER_GATEWAY_PORT` | 否 | `8080` | Web/API 端口 |
+| `MASTER_AGENTSDK_PORT` | 否 | `8081` | Agent 数据端口 |
+| `MASTER_DB_TYPE` | 否 | `sqlite` | 数据库类型 |
+| `MASTER_DB_DSN` | 否 | - | MySQL/PostgreSQL 连接串 |
+| `MASTER_LOG_LEVEL` | 否 | `info` | 日志级别 |
 
-#### Agent Configuration
+#### Agent 配置
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--cluster-id` | Yes | Unique cluster identifier |
-| `--master` | Yes | Master AgentSDK URL |
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `--cluster-id` | 是 | 集群唯一标识 |
+| `--master` | 是 | Master AgentSDK 地址 |
 
 #### Metrics DaemonSet
 
-The Metrics collector is automatically deployed as a DaemonSet and reports to the local Agent. Configuration via ConfigMap:
+Metrics 采集器自动部署为 DaemonSet 并上报到本地 Agent。通过 ConfigMap 配置：
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `METRICS_AGENT_URL` | `http://atlhyper-agent:8082` | Agent metrics endpoint |
-| `METRICS_PUSH_INTERVAL` | `15s` | Push interval |
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `METRICS_AGENT_URL` | `http://atlhyper-agent:8082` | Agent 指标端点 |
+| `METRICS_PUSH_INTERVAL` | `15s` | 推送间隔 |
 
 ---
 
-## Project Structure
+## 项目结构
 
 ```
 atlhyper/
-├── atlhyper_master_v2/       # Master (Central Control)
+├── atlhyper_master_v2/       # Master（中央控制）
 │   ├── gateway/              # HTTP API (Web + AgentSDK)
-│   ├── datahub/              # In-memory data store
-│   ├── database/             # Persistent storage (SQLite/MySQL)
-│   ├── service/              # Business logic (SLO, Alert)
-│   ├── ai/                   # AI assistant integration
-│   └── config/               # Configuration management
+│   ├── datahub/              # 内存数据存储
+│   ├── database/             # 持久化存储 (SQLite/MySQL)
+│   ├── service/              # 业务逻辑 (SLO, 告警)
+│   ├── ai/                   # AI 助手集成
+│   └── config/               # 配置管理
 │
-├── atlhyper_agent_v2/        # Agent (Cluster Proxy)
-│   ├── source/               # Data sources
-│   │   ├── event/            # K8s event watcher
-│   │   ├── snapshot/         # Resource snapshots
-│   │   └── metrics/          # Metrics receiver
-│   ├── executor/             # Command execution
-│   ├── sdk/                  # K8s operations
-│   └── pusher/               # Data push scheduler
+├── atlhyper_agent_v2/        # Agent（集群代理）
+│   ├── source/               # 数据源
+│   │   ├── event/            # K8s 事件监听
+│   │   ├── snapshot/         # 资源快照
+│   │   └── metrics/          # 指标接收
+│   ├── executor/             # 命令执行
+│   ├── sdk/                  # K8s 操作
+│   └── pusher/               # 数据推送调度
 │
-├── atlhyper_metrics_v2/      # Metrics Collector (DaemonSet)
-│   ├── collector/            # CPU, Memory, Disk, Network
-│   └── pusher/               # Push to Agent
+├── atlhyper_metrics_v2/      # 指标采集器 (DaemonSet)
+│   ├── collector/            # CPU、内存、磁盘、网络
+│   └── pusher/               # 推送到 Agent
 │
-├── atlhyper_web/             # Web Frontend
-│   ├── src/app/              # Next.js pages
-│   ├── src/components/       # React components
-│   ├── src/api/              # API client
-│   └── src/i18n/             # Internationalization
+├── atlhyper_web/             # Web 前端
+│   ├── src/app/              # Next.js 页面
+│   ├── src/components/       # React 组件
+│   ├── src/api/              # API 客户端
+│   └── src/i18n/             # 国际化
 │
-├── model_v2/                 # Shared data models
-├── cmd/                      # Entry points
-└── deploy/                   # Deployment configs
+├── model_v2/                 # 共享数据模型
+├── cmd/                      # 入口程序
+└── deploy/                   # 部署配置
     ├── helm/                 # Helm charts
     └── k8s/                  # K8s manifests
 ```
 
 ---
 
-## Security
+## 安全
 
-### Sensitive Information
+### 敏感信息
 
-- **Never hardcode** API keys, passwords, or secrets in code
-- Use environment variables for all credentials
-- AI API keys are stored encrypted in database (configured via Web UI)
+- **禁止硬编码** API 密钥、密码或密钥到代码中
+- 所有凭证使用环境变量
+- AI API 密钥加密存储在数据库中（通过 Web UI 配置）
 
-### Pre-commit Check
+### 提交前检查
 
 ```bash
-# Scan for potential API key leaks
+# 扫描可能的 API 密钥泄漏
 grep -rE "sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9]{30,}" \
   --include="*.go" --include="*.ts" --include="*.tsx" .
 ```
 
-### Files Ignored by .gitignore
+### .gitignore 忽略的文件
 
-- `atlhyper_master_v2/database/sqlite/data/` — Database files
-- `atlhyper_web/.env.local` — Local environment
-- `*.db` — All SQLite databases
+- `atlhyper_master_v2/database/sqlite/data/` — 数据库文件
+- `atlhyper_web/.env.local` — 本地环境
+- `*.db` — 所有 SQLite 数据库
 
 ---
 
-## License
+## 许可证
 
 MIT
 
 ---
 
-## Links
+## 链接
 
-- [GitHub Repository](https://github.com/bukahou/atlhyper)
+- [GitHub 仓库](https://github.com/bukahou/atlhyper)
