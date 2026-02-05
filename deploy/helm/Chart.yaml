@@ -1,0 +1,14 @@
+apiVersion: v2
+name: atlhyper
+description: AtlHyper - Kubernetes Multi-Cluster Management Platform
+type: application
+version: 1.0.0
+appVersion: "latest"
+keywords:
+  - kubernetes
+  - multi-cluster
+  - management
+  - monitoring
+maintainers:
+  - name: bukahou
+    email: bukahou@example.com

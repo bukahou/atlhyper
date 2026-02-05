@@ -1,7 +1,9 @@
 # ============================================
 # AtlHyper Ingress 配置
-# Web:        your-domain.com
-# Controller: api.your-domain.com
+# Web: your-domain.com
+#
+# 注意：API 请求由 Web 的 middleware 代理到 Controller
+#       无需单独暴露 API 端点
 # ============================================
 
 apiVersion: networking.k8s.io/v1
@@ -20,10 +22,9 @@ spec:
   tls:
     - hosts:
         - your-domain.com
-        - api.your-domain.com
       secretName: atlhyper-tls
   rules:
-    # Web Frontend
+    # Web Frontend（包含 API 代理）
     - host: your-domain.com
       http:
         paths:
@@ -34,14 +35,3 @@ spec:
                 name: atlhyper-web
                 port:
                   number: 3000
-    # API Backend
-    - host: api.your-domain.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: atlhyper-controller
-                port:
-                  number: 8081

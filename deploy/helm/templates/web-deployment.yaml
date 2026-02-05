@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlhyper-web
+  namespace: {{ include "atlhyper.namespace" . }}
+  labels:
+    {{- include "atlhyper.labels" . | nindent 4 }}
+    {{- include "atlhyper.web.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "atlhyper.web.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "atlhyper.web.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: web
+          image: "bukahou/atlhyper-web:{{ include "atlhyper.imageTag" . }}"
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: atlhyper-config
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

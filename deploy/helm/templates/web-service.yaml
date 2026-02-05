@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlhyper-web
+  namespace: {{ include "atlhyper.namespace" . }}
+  labels:
+    {{- include "atlhyper.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "atlhyper.web.selectorLabels" . | nindent 4 }}
+  type: {{ .Values.web.service.type | default "ClusterIP" }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      {{- if and (eq .Values.web.service.type "NodePort") .Values.web.service.nodePort }}
+      nodePort: {{ .Values.web.service.nodePort }}
+      {{- end }}

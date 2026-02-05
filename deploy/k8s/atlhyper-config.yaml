@@ -19,28 +19,22 @@ metadata:
   name: atlhyper-config
   namespace: atlhyper
 data:
-  # === 集群配置 ===
-  CLUSTER_ID: "your-cluster-id"
+  # === Controller 配置 ===
+  MASTER_DB_PATH: "/app/data/master.db"
 
-  # === 服务发现 ===
-  AGENT_API_BASE_URL: "http://atlhyper-controller:8081"
-  AGENT_SVC_NAME: "atlhyper-agent-service"
-  NEXT_PUBLIC_API_URL: "https://your-api-domain.com"
+  # === Agent 配置 ===
+  AGENT_CLUSTER_ID: "my-cluster"
+  AGENT_MASTER_URL: "http://atlhyper-controller:8081"
 
-  # === Metrics 路径配置 ===
-  PROC_ROOT: "/hostproc"
-  SYS_ROOT: "/hostsys"
-  ROOT_PATH: "/host_root"
+  # === Web 配置 ===
+  # Web 通过 middleware 代理 API 请求到 Controller
+  API_URL: "http://atlhyper-controller:8080"
 
-  # === 功能开关 ===
-  ENABLE_EMAIL_ALERT: "false"
-  ENABLE_SLACK_ALERT: "false"
-  ENABLE_WEBHOOK_SERVER: "false"
-
-  # === 邮件配置（非敏感） ===
-  MAIL_USERNAME: "your-email@example.com"
-  MAIL_FROM: "your-email@example.com"
-  MAIL_TO: "admin@example.com"
+  # === Metrics 配置 ===
+  METRICS_PROC_ROOT: "/hostproc"
+  METRICS_SYS_ROOT: "/hostsys"
+  METRICS_HOST_ROOT: "/host_root"
+  METRICS_AGENT_ADDR: "http://atlhyper-agent-service:8082"
 
   # === 管理员配置（非敏感） ===
   DEFAULT_ADMIN_USERNAME: "admin"
@@ -64,15 +58,9 @@ type: Opaque
 stringData:
   # === 管理员密码 ===
   # 必须修改！建议使用 16+ 字符的强密码
-  DEFAULT_ADMIN_PASSWORD: "<CHANGE_THIS_SECURE_PASSWORD>"
-
-  # === 邮件密码（如不使用可保留占位符） ===
-  MAIL_PASSWORD: "<YOUR_MAIL_APP_PASSWORD>"
-
-  # === Slack Webhook（如不使用可保留占位符） ===
-  SLACK_WEBHOOK_URL: "<YOUR_SLACK_WEBHOOK_URL>"
+  DEFAULT_ADMIN_PASSWORD: "admin123"
 
   # === JWT 密钥 ===
   # 必须修改！建议使用 32+ 字符的随机字符串
   # 生成命令: openssl rand -base64 32
-  JWT_SECRET: "<CHANGE_THIS_RANDOM_JWT_SECRET_MIN_32_CHARS>"
+  JWT_SECRET: "CHANGE_THIS_RANDOM_JWT_SECRET_MIN_32_CHARS"

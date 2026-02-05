@@ -82,7 +82,6 @@ export function UserRow({ user, isAdmin, onEditRole, onToggleStatus, onDelete, t
         {/* 中部：时间信息 */}
         <div className="flex items-center gap-4 text-xs text-muted mb-2">
           <span>{t.users.createdAt}: {formatShortDate(user.createdAt)}</span>
-          <span>{t.users.lastLogin}: {formatShortDate(user.lastLogin)}</span>
         </div>
 
         {/* 底部：操作按钮 */}
@@ -167,12 +166,6 @@ export function UserRow({ user, isAdmin, onEditRole, onToggleStatus, onDelete, t
       </td>
       <td className="px-4 py-3 text-sm text-secondary">
         {formatDate(user.createdAt)}
-      </td>
-      <td className="px-4 py-3 text-sm text-secondary">
-        <div>{formatDate(user.lastLogin)}</div>
-        {user.lastLoginIP && (
-          <div className="text-xs text-muted">{user.lastLoginIP}</div>
-        )}
       </td>
       {isAdmin && (
         <td className="px-4 py-3">

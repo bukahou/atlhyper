@@ -24,7 +24,9 @@ atlhyper_web/npm-debug.log*
 atlhyper_web/yarn-debug.log*
 atlhyper_web/yarn-error.log*
 
-# Local env files (保留 .env.development 和 .env.production)
+# Local env files
+# .env.development 和 .env.production 保留（仅含非敏感配置如 NEXT_PUBLIC_REFRESH_INTERVAL）
+# 敏感配置（API_URL）通过运行时 middleware 注入，不写在这些文件中
 atlhyper_web/.env
 atlhyper_web/.env.local
 atlhyper_web/.env.*.local

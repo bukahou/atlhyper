@@ -22,7 +22,7 @@ COPY . .
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 
-RUN go build -ldflags="-s -w" -o atlhyper-metrics ./cmd/atlhyper_metrics/main.go
+RUN go build -ldflags="-s -w" -o atlhyper-metrics ./cmd/atlhyper_metrics_v2/main.go
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime

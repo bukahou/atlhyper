@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: atlhyper-agent-cluster-admin
+  labels:
+    {{- include "atlhyper.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: {{ include "atlhyper.namespace" . }}
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io

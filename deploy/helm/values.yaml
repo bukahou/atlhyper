@@ -1,0 +1,42 @@
+# ============================================
+# AtlHyper Helm Chart - 用户配置
+# 安装: helm install atlhyper ./deploy/helm
+# ============================================
+
+# 全局配置
+global:
+  namespace: atlhyper
+  imageTag: "latest"
+
+# ============================================
+# 必须修改的配置
+# ============================================
+secret:
+  admin:
+    username: "admin"
+    password: "changeme"        # ← 请修改
+    displayName: "Administrator"
+  jwt:
+    secret: "change-me-in-production"  # ← 请修改
+
+# 集群标识
+config:
+  clusterId: "my-cluster"       # ← 请修改为你的集群 ID
+
+# ============================================
+# 组件配置（通常不需要修改）
+# ============================================
+controller:
+  replicaCount: 1
+
+agent:
+  replicaCount: 1
+
+web:
+  replicaCount: 1
+  service:
+    type: NodePort      # ClusterIP / NodePort / LoadBalancer
+    nodePort: 30080     # NodePort 时使用的端口
+
+metrics:
+  enabled: true

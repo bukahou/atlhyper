@@ -109,18 +109,30 @@ func Audit(repo AuditRepository, config AuditConfig) func(http.HandlerFunc) http
 	}
 }
 
+// sensitiveFields 需要脱敏的敏感字段
+var sensitiveFields = []string{
+	"password",
+	"api_key",
+	"apiKey",
+	"secret",
+	"token",
+	"authorization",
+	"credential",
+}
+
 // sanitizeRequestBody 脱敏请求体
-// 移除敏感字段如 password
+// 移除敏感字段如 password, api_key, secret 等
 func sanitizeRequestBody(body string) string {
 	if len(body) == 0 {
 		return ""
 	}
 
-	// 简单脱敏：替换 password 字段
-	// 可以使用更复杂的 JSON 解析和替换，但这里保持简单
-	if strings.Contains(body, "password") {
-		// 简单处理：截断包含密码的请求体
-		body = strings.ReplaceAll(body, `"password"`, `"password":"***"`)
+	// 脱敏所有敏感字段
+	for _, field := range sensitiveFields {
+		// 处理 "field":"value" 格式
+		if strings.Contains(strings.ToLower(body), strings.ToLower(field)) {
+			body = sanitizeField(body, field)
+		}
 	}
 
 	// 限制长度
@@ -129,6 +141,58 @@ func sanitizeRequestBody(body string) string {
 	}
 
 	return body
+}
+
+// sanitizeField 脱敏单个字段
+func sanitizeField(body, field string) string {
+	// 尝试多种格式的匹配和替换
+	// 格式1: "field":"value"
+	// 格式2: "field": "value"
+	lowerBody := strings.ToLower(body)
+	lowerField := strings.ToLower(field)
+
+	idx := strings.Index(lowerBody, `"`+lowerField+`"`)
+	if idx == -1 {
+		return body
+	}
+
+	// 找到字段后，定位到值的位置并替换
+	// 简单处理：替换整个字段区域
+	result := body[:idx] + `"` + field + `":"***"`
+
+	// 找到值的结束位置（下一个逗号或 }）
+	rest := body[idx:]
+	colonIdx := strings.Index(rest, ":")
+	if colonIdx == -1 {
+		return body
+	}
+
+	afterColon := rest[colonIdx+1:]
+	// 跳过空格
+	afterColon = strings.TrimLeft(afterColon, " ")
+
+	// 找值的结束位置
+	var endIdx int
+	if strings.HasPrefix(afterColon, `"`) {
+		// 字符串值：找下一个未转义的引号
+		endIdx = 1
+		for endIdx < len(afterColon) {
+			if afterColon[endIdx] == '"' && afterColon[endIdx-1] != '\\' {
+				endIdx++
+				break
+			}
+			endIdx++
+		}
+	} else {
+		// 非字符串值：找逗号或 }
+		endIdx = strings.IndexAny(afterColon, ",}")
+		if endIdx == -1 {
+			endIdx = len(afterColon)
+		}
+	}
+
+	result += afterColon[endIdx:]
+	return result
 }
 
 // AuditAction 审计操作常量

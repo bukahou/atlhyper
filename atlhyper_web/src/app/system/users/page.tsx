@@ -138,7 +138,6 @@ export default function UsersPage() {
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.role}</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.status}</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.createdAt}</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.lastLogin}</th>
                     {isAdmin && (
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.common.action}</th>
                     )}
@@ -158,7 +157,7 @@ export default function UsersPage() {
                   ))}
                   {users.length === 0 && (
                     <tr>
-                      <td colSpan={isAdmin ? 7 : 6} className="px-4 py-12 text-center text-muted">
+                      <td colSpan={isAdmin ? 6 : 5} className="px-4 py-12 text-center text-muted">
                         {t.common.noData}
                       </td>
                     </tr>

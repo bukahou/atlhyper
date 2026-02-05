@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: atlhyper-config
+  namespace: {{ include "atlhyper.namespace" . }}
+  labels:
+    {{- include "atlhyper.labels" . | nindent 4 }}
+data:
+  # Controller 配置
+  MASTER_DB_PATH: "/app/data/master.db"
+  # Web → Controller
+  API_URL: {{ include "atlhyper.controllerGatewayUrl" . | quote }}
+  # Agent → Controller
+  AGENT_CLUSTER_ID: {{ .Values.config.clusterId | default "default-cluster" | quote }}
+  AGENT_MASTER_URL: {{ include "atlhyper.controllerAgentSdkUrl" . | quote }}
+  # Metrics → Agent
+  METRICS_PROC_ROOT: "/hostproc"
+  METRICS_SYS_ROOT: "/hostsys"
+  METRICS_HOST_ROOT: "/host_root"
+  METRICS_AGENT_ADDR: {{ include "atlhyper.agentServiceUrl" . | quote }}

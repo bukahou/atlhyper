@@ -46,17 +46,15 @@ type UserInfo struct {
 	Role        int    `json:"role"`
 }
 
-// UserDTO 用户详情（用于列表，包含完整信息）
+// UserDTO 用户详情（用于列表）
 type UserDTO struct {
-	ID          int64   `json:"id"`
-	Username    string  `json:"username"`
-	DisplayName string  `json:"displayName"`
-	Email       string  `json:"email"`
-	Role        int     `json:"role"`
-	Status      int     `json:"status"` // 1=Active, 0=Disabled
-	CreatedAt   string  `json:"createdAt"`
-	LastLogin   *string `json:"lastLogin"`
-	LastLoginIP string  `json:"lastLoginIP"`
+	ID          int64  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+	Email       string `json:"email"`
+	Role        int    `json:"role"`
+	Status      int    `json:"status"` // 1=Active, 0=Disabled
+	CreatedAt   string `json:"createdAt"`
 }
 
 // RegisterRequest 注册请求（仅 Admin 可调用）
@@ -243,7 +241,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 转换为 UserDTO（包含完整信息）
+	// 转换为 UserDTO
 	result := make([]UserDTO, 0, len(users))
 	for _, u := range users {
 		dto := UserDTO{
@@ -254,11 +252,6 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 			Role:        u.Role,
 			Status:      u.Status,
 			CreatedAt:   u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			LastLoginIP: u.LastLoginIP,
-		}
-		if u.LastLoginAt != nil {
-			lastLogin := u.LastLoginAt.Format("2006-01-02T15:04:05Z07:00")
-			dto.LastLogin = &lastLogin
 		}
 		result = append(result, dto)
 	}

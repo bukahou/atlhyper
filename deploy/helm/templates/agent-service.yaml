@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlhyper-agent-service
+  namespace: {{ include "atlhyper.namespace" . }}
+  labels:
+    {{- include "atlhyper.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "atlhyper.agent.selectorLabels" . | nindent 4 }}
+  type: ClusterIP
+  ports:
+    - name: agent-api
+      port: 8082
+      targetPort: 8082

@@ -5,30 +5,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // 开发环境代理配置，解决 CORS 跨域问题
-  async rewrites() {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-    return [
-      // Master V2 API
-      {
-        source: "/api/v2/:path*",
-        destination: `${apiBase}/api/v2/:path*`,
-      },
-      // 旧 API（兼容）
-      {
-        source: "/uiapi/:path*",
-        destination: `${apiBase}/uiapi/:path*`,
-      },
-      {
-        source: "/ingest/:path*",
-        destination: `${apiBase}/ingest/:path*`,
-      },
-      {
-        source: "/ai/:path*",
-        destination: `${apiBase}/ai/:path*`,
-      },
-    ];
-  },
+  // API 代理通过 middleware.ts 实现（运行时读取 API_URL 环境变量）
 };
 
 export default nextConfig;

@@ -28,7 +28,7 @@ ENV CGO_ENABLED=1
 ENV GOOS=linux
 
 # 编译优化: 去除调试信息减小体积
-RUN go build -ldflags="-s -w" -o atlhyper-controller ./cmd/atlhyper_master/main.go
+RUN go build -ldflags="-s -w" -o atlhyper-controller ./cmd/atlhyper_master_v2/main.go
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime

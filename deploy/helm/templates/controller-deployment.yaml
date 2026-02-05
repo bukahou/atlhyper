@@ -1,31 +1,29 @@
-# ============================================
-# AtlHyper Controller
-# ============================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: atlhyper-controller
-  namespace: atlhyper
+  namespace: {{ include "atlhyper.namespace" . }}
   labels:
-    app: atlhyper-controller
+    {{- include "atlhyper.labels" . | nindent 4 }}
+    {{- include "atlhyper.controller.selectorLabels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.controller.replicaCount | default 1 }}
   selector:
     matchLabels:
-      app: atlhyper-controller
+      {{- include "atlhyper.controller.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: atlhyper-controller
+        {{- include "atlhyper.controller.selectorLabels" . | nindent 8 }}
     spec:
       containers:
         - name: controller
-          image: bukahou/atlhyper-controller:latest
+          image: "bukahou/atlhyper-controller:{{ include "atlhyper.imageTag" . }}"
           imagePullPolicy: Always
           ports:
             - name: gateway
               containerPort: 8080
-            - name: agent-sdk
+            - name: agentsdk
               containerPort: 8081
           envFrom:
             - configMapRef:
@@ -38,13 +36,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 8081
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /health
-              port: 8081
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -57,22 +55,3 @@ spec:
       volumes:
         - name: data
           emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: atlhyper-controller
-  namespace: atlhyper
-spec:
-  selector:
-    app: atlhyper-controller
-  type: ClusterIP
-  ports:
-    - name: gateway
-      protocol: TCP
-      port: 8080
-      targetPort: 8080
-    - name: agent-sdk
-      protocol: TCP
-      port: 8081
-      targetPort: 8081

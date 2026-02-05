@@ -22,7 +22,7 @@ COPY . .
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 
-RUN go build -ldflags="-s -w" -o atlhyper-agent ./cmd/atlhyper_agent/main.go
+RUN go build -ldflags="-s -w" -o atlhyper-agent ./cmd/atlhyper_agent_v2/main.go
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime (使用 scratch 最小镜像)

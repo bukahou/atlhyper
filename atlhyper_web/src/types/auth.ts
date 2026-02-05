@@ -33,8 +33,6 @@ export interface UserListItem {
   role: number;
   status: number; // 1=Active, 0=Disabled
   createdAt: string;
-  lastLogin: string | null;
-  lastLoginIP: string;
 }
 
 // 审计日志项（匹配后端 AuditLogResponse JSON 格式）

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlhyper-agent
+  namespace: {{ include "atlhyper.namespace" . }}
+  labels:
+    {{- include "atlhyper.labels" . | nindent 4 }}
+    {{- include "atlhyper.agent.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.agent.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "atlhyper.agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "atlhyper.agent.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: default
+      containers:
+        - name: atlhyper-agent
+          image: "bukahou/atlhyper-agent:{{ include "atlhyper.imageTag" . }}"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - configMapRef:
+                name: atlhyper-config
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
