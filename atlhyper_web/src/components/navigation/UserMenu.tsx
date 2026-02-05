@@ -50,6 +50,11 @@ export function UserMenu() {
           <p className="text-sm font-medium text-default">
             {user?.displayName || user?.username}
           </p>
+          {user?.email && (
+            <p className="text-xs text-secondary truncate">
+              {user.email}
+            </p>
+          )}
           <p className="text-xs text-muted">
             {user ? getRoleName(user.role) : ""}
           </p>

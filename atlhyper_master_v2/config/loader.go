@@ -86,6 +86,12 @@ func LoadConfig() {
 		StatusRetention:   getDuration("MASTER_SLO_STATUS_RETENTION"),
 	}
 
+	GlobalConfig.MetricsPersist = MetricsPersistConfig{
+		SampleInterval:  getDuration("MASTER_METRICS_SAMPLE_INTERVAL"),
+		RetentionDays:   getInt("MASTER_METRICS_RETENTION_DAYS"),
+		CleanupInterval: getDuration("MASTER_METRICS_CLEANUP_INTERVAL"),
+	}
+
 	log.Printf("[config] Master 配置加载完成: GatewayPort=%d, AgentSDKPort=%d, TesterPort=%d, DBType=%s, Admin=%s",
 		GlobalConfig.Server.GatewayPort, GlobalConfig.Server.AgentSDKPort, GlobalConfig.Server.TesterPort, GlobalConfig.Database.Type, GlobalConfig.Admin.Username)
 }

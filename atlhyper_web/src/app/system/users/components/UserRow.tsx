@@ -59,7 +59,10 @@ export function UserRow({ user, isAdmin, onEditRole, onToggleStatus, onDelete, t
               <RoleIcon className="w-4 h-4 text-primary" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-default text-sm truncate">{user.username}</div>
+              <div className="font-medium text-default text-sm truncate">
+                {user.username}
+                {user.displayName && <span className="text-muted font-normal ml-1">({user.displayName})</span>}
+              </div>
               {user.email && (
                 <div className="text-xs text-muted truncate">{user.email}</div>
               )}
@@ -131,11 +134,21 @@ export function UserRow({ user, isAdmin, onEditRole, onToggleStatus, onDelete, t
     );
   }
 
+  // 构建用户信息 tooltip
+  const userTooltip = [
+    `${t.users.username}: ${user.username}`,
+    user.displayName ? `${t.users.displayName}: ${user.displayName}` : null,
+    user.email ? `${t.users.email}: ${user.email}` : null,
+    `${t.users.role}: ${config.label}`,
+    `${t.users.status}: ${user.status === 1 ? t.users.statusActive : t.users.statusDisabled}`,
+    `${t.users.createdAt}: ${formatDate(user.createdAt)}`,
+  ].filter(Boolean).join('\n');
+
   // 桌面端表格行
   return (
     <tr className="hover:bg-[var(--background)]">
       <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3" title={userTooltip}>
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
             <RoleIcon className="w-4 h-4 text-primary" />
           </div>

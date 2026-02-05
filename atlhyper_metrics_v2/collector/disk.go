@@ -111,8 +111,8 @@ func (c *diskCollector) Collect() error {
 			FSType:     mount.fsType,
 		}
 
-		// 获取空间使用
-		c.getSpaceUsage(&disk)
+		// 获取空间使用（使用实际路径）
+		c.getSpaceUsage(&disk, mount.actualPath)
 
 		// 计算 I/O 速率
 		if c.prevSample != nil && c.currSample != nil {
@@ -134,8 +134,9 @@ func (c *diskCollector) Get() []model_v2.DiskMetrics {
 
 type mountInfo struct {
 	device     string
-	mountPoint string
+	mountPoint string // 显示路径（宿主机视角）
 	fsType     string
+	actualPath string // 实际路径（用于 statfs）
 }
 
 // readMounts 读取挂载点
@@ -149,6 +150,7 @@ func (c *diskCollector) readMounts() ([]mountInfo, error) {
 
 	var mounts []mountInfo
 	seen := make(map[string]bool)
+	hostRoot := c.cfg.Paths.HostRoot
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -171,16 +173,44 @@ func (c *diskCollector) readMounts() ([]mountInfo, error) {
 			continue
 		}
 
-		// 去重
-		if seen[mountPoint] {
+		// 过滤 kubelet 临时挂载（volume-subpaths、termination-log 等）
+		if strings.Contains(mountPoint, "/kubelet/pods/") ||
+			strings.Contains(mountPoint, "/termination-log") ||
+			strings.Contains(mountPoint, "/etc/hosts") ||
+			strings.Contains(mountPoint, "/etc/hostname") ||
+			strings.Contains(mountPoint, "/etc/resolv.conf") {
 			continue
 		}
-		seen[mountPoint] = true
+
+		// 计算实际路径和显示路径
+		actualPath := mountPoint
+		displayPath := mountPoint
+
+		// 在容器中，挂载点可能已经是 /host_root/... 形式
+		if hostRoot != "/" && strings.HasPrefix(mountPoint, hostRoot) {
+			// 挂载点已经包含 hostRoot，直接使用
+			actualPath = mountPoint
+			// 显示时去掉 hostRoot 前缀，还原为宿主机视角
+			displayPath = strings.TrimPrefix(mountPoint, hostRoot)
+			if displayPath == "" {
+				displayPath = "/"
+			}
+		} else if hostRoot != "/" {
+			// 挂载点是宿主机视角，需要拼接 hostRoot
+			actualPath = hostRoot + mountPoint
+		}
+
+		// 去重（基于显示路径）
+		if seen[displayPath] {
+			continue
+		}
+		seen[displayPath] = true
 
 		mounts = append(mounts, mountInfo{
 			device:     device,
-			mountPoint: mountPoint,
+			mountPoint: displayPath,  // 显示路径
 			fsType:     fsType,
+			actualPath: actualPath,   // 实际路径（用于 statfs）
 		})
 	}
 
@@ -188,15 +218,9 @@ func (c *diskCollector) readMounts() ([]mountInfo, error) {
 }
 
 // getSpaceUsage 获取空间使用
-func (c *diskCollector) getSpaceUsage(disk *model_v2.DiskMetrics) {
-	// 在容器中需要使用宿主机路径
-	path := disk.MountPoint
-	if c.cfg.Paths.HostRoot != "/" {
-		path = c.cfg.Paths.HostRoot + disk.MountPoint
-	}
-
+func (c *diskCollector) getSpaceUsage(disk *model_v2.DiskMetrics, actualPath string) {
 	var stat syscall.Statfs_t
-	if err := syscall.Statfs(path, &stat); err != nil {
+	if err := syscall.Statfs(actualPath, &stat); err != nil {
 		return
 	}
 

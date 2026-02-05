@@ -14,6 +14,7 @@ export interface UserInfo {
   id: number;
   username: string;
   displayName: string;
+  email: string;
   role: number; // 1=viewer, 2=operator, 3=admin
 }
 

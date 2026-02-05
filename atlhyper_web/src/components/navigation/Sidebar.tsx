@@ -32,6 +32,7 @@ import {
   Moon,
   Monitor,
   Check,
+  Github,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useI18n } from "@/i18n/context";
@@ -245,7 +246,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed && (
           <>
             <span className="flex-1 text-center text-lg font-bold text-primary tracking-tight">AtlHyper</span>
-            <div className="w-8" />
+            <a
+              href="https://github.com/bukahou/atlhyper"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
+              title="GitHub"
+            >
+              <Github className="w-5 h-5 text-muted hover:text-default" />
+            </a>
           </>
         )}
       </div>
@@ -488,6 +497,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       <p className="text-sm font-medium text-default">
                         {user?.displayName || user?.username}
                       </p>
+                      {user?.email && (
+                        <p className="text-xs text-secondary truncate">
+                          {user.email}
+                        </p>
+                      )}
                       <p className="text-xs text-muted">
                         {user ? getRoleName(user.role) : ""}
                       </p>

@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
@@ -138,9 +137,9 @@ func New() (*Master, error) {
 		store,
 		db.NodeMetrics,
 		sync.MetricsPersistConfig{
-			SampleInterval:  5 * time.Minute,
-			RetentionDays:   30,
-			CleanupInterval: 1 * time.Hour,
+			SampleInterval:  config.GlobalConfig.MetricsPersist.SampleInterval,
+			RetentionDays:   config.GlobalConfig.MetricsPersist.RetentionDays,
+			CleanupInterval: config.GlobalConfig.MetricsPersist.CleanupInterval,
 		},
 	)
 	log.Info("节点指标持久化服务初始化完成")

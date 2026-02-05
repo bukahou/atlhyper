@@ -91,20 +91,28 @@ type SLOConfig struct {
 	StatusRetention   time.Duration // 状态历史保留时间（默认 180d）
 }
 
+// MetricsPersistConfig 节点指标持久化配置
+type MetricsPersistConfig struct {
+	SampleInterval  time.Duration // 历史数据采样间隔（默认 30s）
+	RetentionDays   int           // 历史数据保留天数（默认 30 天）
+	CleanupInterval time.Duration // 清理检查间隔（默认 1h）
+}
+
 // AppConfig Master 顶层配置结构体
 type AppConfig struct {
-	Log        LogConfig
-	Server     ServerConfig
-	DataHub    DataHubConfig
-	Database   DatabaseConfig
-	Redis      RedisConfig
-	Event      EventConfig
-	EventAlert EventAlertConfig
-	Timeout    TimeoutConfig
-	JWT        JWTConfig
-	Admin      AdminConfig
-	AI         AIConfig
-	SLO        SLOConfig
+	Log            LogConfig
+	Server         ServerConfig
+	DataHub        DataHubConfig
+	Database       DatabaseConfig
+	Redis          RedisConfig
+	Event          EventConfig
+	EventAlert     EventAlertConfig
+	Timeout        TimeoutConfig
+	JWT            JWTConfig
+	Admin          AdminConfig
+	AI             AIConfig
+	SLO            SLOConfig
+	MetricsPersist MetricsPersistConfig
 }
 
 // GlobalConfig 全局配置实例

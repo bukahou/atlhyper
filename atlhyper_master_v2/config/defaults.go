@@ -33,6 +33,10 @@ var defaultDurations = map[string]string{
 	"MASTER_SLO_RAW_RETENTION":      "48h",    // raw 数据保留时间
 	"MASTER_SLO_HOURLY_RETENTION":   "2160h",  // hourly 数据保留时间 (90 天)
 	"MASTER_SLO_STATUS_RETENTION":   "4320h",  // 状态历史保留时间 (180 天)
+
+	// -------------------- 节点指标持久化配置 --------------------
+	"MASTER_METRICS_SAMPLE_INTERVAL":  "30s", // 历史数据采样间隔
+	"MASTER_METRICS_CLEANUP_INTERVAL": "1h",  // 清理检查间隔
 }
 
 // ============================================================
@@ -56,6 +60,9 @@ var defaultInts = map[string]int{
 	// -------------------- Event 持久化 --------------------
 	"MASTER_EVENT_RETENTION_DAYS": 30,     // 保留天数
 	"MASTER_EVENT_MAX_COUNT":      100000, // 单集群最大事件数
+
+	// -------------------- 节点指标持久化 --------------------
+	"MASTER_METRICS_RETENTION_DAYS": 30, // 历史数据保留天数
 }
 
 // ============================================================
