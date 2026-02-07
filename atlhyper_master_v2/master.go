@@ -145,7 +145,7 @@ func New() (*Master, error) {
 	log.Info("节点指标持久化服务初始化完成")
 
 	// 4.2 初始化 SLO 组件（始终启用，无需配置开关）
-	sloProcessor := slo.NewProcessor(db.SLO)
+	sloProcessor := slo.NewProcessor(db.SLO, db.SLOService, db.SLOEdge)
 	sloAggregator := slo.NewAggregator(db.SLO, cfg.SLO.AggregateInterval)
 	sloCleaner := slo.NewCleaner(db.SLO, slo.CleanerConfig{
 		RawRetention:    cfg.SLO.RawRetention,
