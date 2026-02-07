@@ -33,13 +33,17 @@ Master P1 ────→ Master P2 ────→ Master P3 ────→ Ma
 - **P3 Repository 层**: SLO 采集编排（filter→delta→aggregate→routes）完成
 - **P4 集成**: Config + agent.go 依赖注入 + interfaces 适配完成
 
-#### P5: 端到端验证（待办）
+#### P5: 端到端验证 — ✅ 完成
 
 | 状态 | 任务 |
 |:---:|------|
-| [ ] | 对接真实 OTel Collector (已部署)，验证 Linkerd/Traefik 指标采集 |
-| [ ] | 验证 ClusterSnapshot.SLOData 上报 Master |
-| [ ] | 验证 delta 计算正确性（重启后重置） |
+| [x] | 对接真实 OTel Collector (已部署)，验证 Linkerd/Traefik 指标采集 |
+| [x] | 验证 ClusterSnapshot.SLOData 上报 Master |
+| [x] | 验证 delta 计算正确性（重启后重置） |
+
+**E2E 过程中修复的 Bug:**
+- `snapshot.go`: delta 计算需先按 key 聚合再做 delta（OTel 同一 pod+status 有多条不同 client_id 的行）
+- `route_collector.go`: ServiceKey 去除 `@kubernetes` 后缀，与 parser.go 归一化一致
 
 ---
 
@@ -52,14 +56,14 @@ Master P1 ────→ Master P2 ────→ Master P3 ────→ Ma
 
 ---
 
-### 全链路 E2E（待办）
+### 全链路 E2E — ✅ 核心验证完成
 
 | 状态 | 任务 | 验证内容 |
 |:---:|------|----------|
-| [ ] | Agent → Master 数据写入 | Agent 上报 SLOSnapshot → Master processor 正确写入 3 张 raw 表 |
-| [ ] | Aggregator 聚合 | raw 数据正确聚合为 hourly; 刚部署时 raw 回退可用 |
-| [ ] | 服务网格 API | /mesh/topology 返回正确的节点+边+黄金指标 |
-| [ ] | 域名 SLO API | /domains/v2 返回延迟分布+请求分布+关联服务 |
+| [x] | Agent → Master 数据写入 | Agent 上报 SLOSnapshot → Master processor 正确写入 3 张 raw 表 |
+| [-] | Aggregator 聚合 | hourly 需等 1 小时触发，raw 回退查询已验证可用 |
+| [x] | 服务网格 API | /mesh/topology 返回 18 节点+13 边+黄金指标 |
+| [x] | 域名 SLO API | /domains/v2 返回 6 个域名+正确关联 domain |
 | [ ] | 前端对接 | style-preview 两层展示数据正确渲染 |
 
 ---
@@ -69,6 +73,6 @@ Master P1 ────→ Master P2 ────→ Master P3 ────→ Ma
 | 侧 | Phase | 状态 |
 |-----|-------|------|
 | Agent | P1~P4 | ✅ 完成 |
-| Agent | P5 E2E | 待办 |
+| Agent | P5 E2E | ✅ 完成 |
 | Master | P1~P4 | ✅ 完成 |
-| 全链路 | E2E | 待办 |
+| 全链路 | E2E | ✅ 核心完成（待前端对接） |
