@@ -41,6 +41,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/query"
 	"AtlHyper/atlhyper_master_v2/service/sync"
 	"AtlHyper/atlhyper_master_v2/slo"
+	"AtlHyper/model_v2"
 	"AtlHyper/atlhyper_master_v2/tester"
 	"AtlHyper/common/logger"
 )
@@ -166,6 +167,19 @@ func New() (*Master, error) {
 			// 同步节点指标到数据库
 			if err := metricsPersist.Sync(clusterID); err != nil {
 				log.Error("节点指标同步失败", "cluster", clusterID, "err", err)
+			}
+		},
+		OnSLODataReceived: func(clusterID string, snapshot *model_v2.ClusterSnapshot) {
+			ctx := context.Background()
+			// 处理 SLO 指标
+			if err := sloProcessor.ProcessIngressMetrics(ctx, clusterID, &snapshot.SLOData.Metrics); err != nil {
+				log.Error("SLO 指标处理失败", "cluster", clusterID, "err", err)
+			}
+			// 处理路由映射
+			if len(snapshot.SLOData.Routes) > 0 {
+				if err := sloProcessor.ProcessIngressRoutes(ctx, clusterID, snapshot.SLOData.Routes); err != nil {
+					log.Error("SLO 路由映射处理失败", "cluster", clusterID, "err", err)
+				}
 			}
 		},
 	})
