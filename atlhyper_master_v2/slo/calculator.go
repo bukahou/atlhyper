@@ -3,20 +3,11 @@
 package slo
 
 import (
+	"encoding/json"
 	"math"
 	"sort"
+	"strconv"
 )
-
-// CalculateDelta 计算 Counter 增量（处理 reset）
-// 当 Pod 重启时，Counter 会重置为 0，需要检测并正确计算增量
-func CalculateDelta(newValue, prevValue int64) int64 {
-	if newValue >= prevValue {
-		// 正常情况：Counter 递增
-		return newValue - prevValue
-	}
-	// Counter 重置：新值小于旧值，增量 = 新值
-	return newValue
-}
 
 // CalculateQuantile 计算 Histogram 分位数（线性插值）
 // buckets: map[le]count，le 为 bucket 上界（秒）
@@ -193,12 +184,32 @@ func MergeBuckets(bucketsList ...map[float64]int64) map[float64]int64 {
 }
 
 // ParseJSONBuckets 解析 JSON bucket 字符串为 map[float64]int64
-// JSON 格式: {"100":10, "500":50, ...}（key 为毫秒字符串）
+// JSON 格式: {"100":10, "500":50, "+Inf":200}（key 为毫秒字符串）
 // 返回 map key 为秒值（兼容 CalculateQuantile）
 func ParseJSONBuckets(jsonStr string) map[float64]int64 {
 	if jsonStr == "" {
 		return nil
 	}
-	// TODO(Master P3): 实现 JSON 解析
-	return nil
+
+	var raw map[string]int64
+	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
+		return nil
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+
+	result := make(map[float64]int64, len(raw))
+	for k, v := range raw {
+		if k == "+Inf" || k == "Inf" {
+			result[math.Inf(1)] = v
+			continue
+		}
+		ms, err := strconv.ParseFloat(k, 64)
+		if err != nil {
+			continue
+		}
+		result[ms/1000] = v // 毫秒 → 秒
+	}
+	return result
 }

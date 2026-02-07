@@ -1,6 +1,6 @@
 // atlhyper_master_v2/slo/cleaner.go
 // SLO 数据清理器
-// 定期清理过期数据
+// 定期清理过期数据（三层 raw + hourly + 状态历史）
 package slo
 
 import (
@@ -31,19 +31,23 @@ func DefaultCleanerConfig() CleanerConfig {
 
 // Cleaner 数据清理器
 type Cleaner struct {
-	repo   database.SLORepository
-	cfg    CleanerConfig
-	stopCh chan struct{}
-	doneCh chan struct{}
+	repo        database.SLORepository
+	serviceRepo database.SLOServiceRepository
+	edgeRepo    database.SLOEdgeRepository
+	cfg         CleanerConfig
+	stopCh      chan struct{}
+	doneCh      chan struct{}
 }
 
 // NewCleaner 创建清理器
-func NewCleaner(repo database.SLORepository, cfg CleanerConfig) *Cleaner {
+func NewCleaner(repo database.SLORepository, serviceRepo database.SLOServiceRepository, edgeRepo database.SLOEdgeRepository, cfg CleanerConfig) *Cleaner {
 	return &Cleaner{
-		repo:   repo,
-		cfg:    cfg,
-		stopCh: make(chan struct{}),
-		doneCh: make(chan struct{}),
+		repo:        repo,
+		serviceRepo: serviceRepo,
+		edgeRepo:    edgeRepo,
+		cfg:         cfg,
+		stopCh:      make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 }
 
@@ -85,21 +89,49 @@ func (c *Cleaner) cleanup() {
 	defer cancel()
 
 	now := time.Now()
-
-	// 清理 raw 数据
 	rawBefore := now.Add(-c.cfg.RawRetention)
+	hourlyBefore := now.Add(-c.cfg.HourlyRetention)
+
+	// 清理入口 raw 数据
 	if count, err := c.repo.DeleteRawMetricsBefore(ctx, rawBefore); err != nil {
-		log.Printf("[SLO Cleaner] 清理 raw 数据失败: %v", err)
+		log.Printf("[SLO Cleaner] 清理 ingress raw 失败: %v", err)
 	} else if count > 0 {
-		log.Printf("[SLO Cleaner] 已清理 %d 条 raw 数据", count)
+		log.Printf("[SLO Cleaner] 已清理 %d 条 ingress raw 数据", count)
 	}
 
-	// 清理 hourly 数据
-	hourlyBefore := now.Add(-c.cfg.HourlyRetention)
+	// 清理入口 hourly 数据
 	if count, err := c.repo.DeleteHourlyMetricsBefore(ctx, hourlyBefore); err != nil {
-		log.Printf("[SLO Cleaner] 清理 hourly 数据失败: %v", err)
+		log.Printf("[SLO Cleaner] 清理 ingress hourly 失败: %v", err)
 	} else if count > 0 {
-		log.Printf("[SLO Cleaner] 已清理 %d 条 hourly 数据", count)
+		log.Printf("[SLO Cleaner] 已清理 %d 条 ingress hourly 数据", count)
+	}
+
+	// 清理 service raw 数据
+	if count, err := c.serviceRepo.DeleteServiceRawBefore(ctx, rawBefore); err != nil {
+		log.Printf("[SLO Cleaner] 清理 service raw 失败: %v", err)
+	} else if count > 0 {
+		log.Printf("[SLO Cleaner] 已清理 %d 条 service raw 数据", count)
+	}
+
+	// 清理 service hourly 数据
+	if count, err := c.serviceRepo.DeleteServiceHourlyBefore(ctx, hourlyBefore); err != nil {
+		log.Printf("[SLO Cleaner] 清理 service hourly 失败: %v", err)
+	} else if count > 0 {
+		log.Printf("[SLO Cleaner] 已清理 %d 条 service hourly 数据", count)
+	}
+
+	// 清理 edge raw 数据
+	if count, err := c.edgeRepo.DeleteEdgeRawBefore(ctx, rawBefore); err != nil {
+		log.Printf("[SLO Cleaner] 清理 edge raw 失败: %v", err)
+	} else if count > 0 {
+		log.Printf("[SLO Cleaner] 已清理 %d 条 edge raw 数据", count)
+	}
+
+	// 清理 edge hourly 数据
+	if count, err := c.edgeRepo.DeleteEdgeHourlyBefore(ctx, hourlyBefore); err != nil {
+		log.Printf("[SLO Cleaner] 清理 edge hourly 失败: %v", err)
+	} else if count > 0 {
+		log.Printf("[SLO Cleaner] 已清理 %d 条 edge hourly 数据", count)
 	}
 
 	// 清理状态历史
@@ -109,32 +141,4 @@ func (c *Cleaner) cleanup() {
 	} else if count > 0 {
 		log.Printf("[SLO Cleaner] 已清理 %d 条状态历史", count)
 	}
-}
-
-// Cleanup 手动执行一次清理
-func (c *Cleaner) Cleanup() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	now := time.Now()
-
-	// 清理 raw 数据
-	rawBefore := now.Add(-c.cfg.RawRetention)
-	if _, err := c.repo.DeleteRawMetricsBefore(ctx, rawBefore); err != nil {
-		return err
-	}
-
-	// 清理 hourly 数据
-	hourlyBefore := now.Add(-c.cfg.HourlyRetention)
-	if _, err := c.repo.DeleteHourlyMetricsBefore(ctx, hourlyBefore); err != nil {
-		return err
-	}
-
-	// 清理状态历史
-	statusBefore := now.Add(-c.cfg.StatusRetention)
-	if _, err := c.repo.DeleteStatusHistoryBefore(ctx, statusBefore); err != nil {
-		return err
-	}
-
-	return nil
 }
