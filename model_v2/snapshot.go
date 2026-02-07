@@ -53,7 +53,8 @@ type ClusterSnapshot struct {
 	NodeMetrics map[string]*NodeMetricsSnapshot `json:"node_metrics,omitempty"`
 
 	// ========== SLO 指标 ==========
-	// SLOData Ingress Controller 的 SLO 指标数据（可选）
+	// SLOData OTel Collector 采集的 SLO 指标数据（可选）
+	// 包含服务网格(Linkerd) + 入口(Ingress Controller) + 拓扑(Edge) 三层数据
 	SLOData *SLOSnapshot `json:"slo_data,omitempty"`
 
 	// ========== 摘要 ==========

@@ -7,10 +7,11 @@ import "AtlHyper/model_v2"
 
 // 类型别名，方便 Agent 内部使用
 type (
-	IngressMetrics         = model_v2.IngressMetrics
-	IngressCounterMetric   = model_v2.IngressCounterMetric
-	IngressHistogramMetric = model_v2.IngressHistogramMetric
-	SLOPushRequest         = model_v2.SLOPushRequest
-	IngressRouteInfo       = model_v2.IngressRouteInfo
-	SLOSnapshot            = model_v2.SLOSnapshot
+	SLOSnapshot        = model_v2.SLOSnapshot
+	ServiceMetrics     = model_v2.ServiceMetrics
+	RequestDelta       = model_v2.RequestDelta
+	ServiceEdge        = model_v2.ServiceEdge
+	IngressMetrics     = model_v2.IngressMetrics
+	IngressRequestDelta = model_v2.IngressRequestDelta
+	IngressRouteInfo   = model_v2.IngressRouteInfo
 )
