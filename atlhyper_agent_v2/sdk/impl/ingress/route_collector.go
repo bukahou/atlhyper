@@ -106,7 +106,7 @@ func parseIngressRoute(ir ingressRoute) []sdk.IngressRouteInfo {
 				port = 80
 			}
 
-			serviceKey := fmt.Sprintf("%s-%s-%d@kubernetes",
+			serviceKey := fmt.Sprintf("%s-%s-%d",
 				ir.Metadata.Namespace, svc.Name, port)
 
 			routes = append(routes, sdk.IngressRouteInfo{
@@ -159,7 +159,7 @@ func parseK8sIngress(ing k8sIngress) []sdk.IngressRouteInfo {
 				servicePort = path.Backend.Service.Port.Number
 			}
 
-			serviceKey := fmt.Sprintf("%s-%s-%d@kubernetes",
+			serviceKey := fmt.Sprintf("%s-%s-%d",
 				ing.Metadata.Namespace, serviceName, servicePort)
 
 			routes = append(routes, sdk.IngressRouteInfo{
