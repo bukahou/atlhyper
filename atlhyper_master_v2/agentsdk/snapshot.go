@@ -4,11 +4,10 @@
 package agentsdk
 
 import (
-	"compress/gzip"
 	"encoding/json"
-	"io"
 	"net/http"
 
+	"AtlHyper/common"
 	"AtlHyper/model_v2"
 )
 
@@ -23,17 +22,13 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 解压 Gzip（如果有）
-	var reader io.Reader = r.Body
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		gr, err := gzip.NewReader(r.Body)
-		if err != nil {
-			log.Error("创建 gzip 解码器失败", "err", err)
-			http.Error(w, "Invalid gzip", http.StatusBadRequest)
-			return
-		}
-		defer gr.Close()
-		reader = gr
+	reader, err := common.MaybeGunzipReaderAuto(r.Body, r.Header.Get("Content-Encoding"))
+	if err != nil {
+		log.Error("解压请求体失败", "err", err)
+		http.Error(w, "Invalid gzip", http.StatusBadRequest)
+		return
 	}
+	defer reader.Close()
 
 	// 直接解析为 model_v2.ClusterSnapshot
 	var snapshot model_v2.ClusterSnapshot

@@ -6,13 +6,9 @@
 // 上层代码只依赖本包接口，完全隔离底层实现细节。
 //
 // 客户端:
-//   - K8sClient: 封装 client-go，与 K8s API Server 交互
-//   - IngressClient: 封装 HTTP，与 Ingress Controller Prometheus 端点交互
-//
-// 设计原则:
-//   - 接口返回原生类型，由 Repository 层做业务转换
-//   - 所有方法接受 context，支持超时和取消
-//   - 错误直接透传，不做额外包装
+//   - K8sClient:      封装 client-go，主动拉取 K8s API Server
+//   - IngressClient:  封装 HTTP，主动拉取 Ingress Controller Prometheus 端点
+//   - ReceiverClient: HTTP Server，被动接收外部推送的数据
 //
 // 架构位置:
 //
@@ -22,11 +18,13 @@
 //	    ↓ 使用
 //	client-go / net/http
 //	    ↓
-//	K8s API Server / Ingress Controller
+//	K8s API Server / Ingress Controller / 外部推送
 package sdk
 
 import (
 	"context"
+
+	"AtlHyper/model_v2"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -273,4 +271,27 @@ type IngressClient interface {
 	// 建立 Traefik service 名称与实际域名/路径的映射关系。
 	// 优先采集 IngressRoute CRD，如果不存在则 fallback 到标准 Ingress。
 	CollectRoutes(ctx context.Context) ([]IngressRouteInfo, error)
+}
+
+// =============================================================================
+// 数据接收服务器
+// =============================================================================
+
+// ReceiverClient 数据接收服务器接口
+//
+// HTTP Server，被动接收外部组件推送的数据并暂存于内存。
+// Repository 层通过 Get 方法拉取数据，与主动拉取型 SDK 调用姿势一致。
+//
+// 数据流:
+//
+//	外部进程 → HTTP POST → ReceiverClient (内存暂存)
+//	                            ↑
+//	                       Repository 拉取
+type ReceiverClient interface {
+	// Start 启动 HTTP 服务器
+	Start() error
+	// Stop 停止 HTTP 服务器
+	Stop() error
+	// GetAllNodeMetrics 获取所有节点指标（覆盖式暂存，每次返回最新快照）
+	GetAllNodeMetrics() map[string]*model_v2.NodeMetricsSnapshot
 }

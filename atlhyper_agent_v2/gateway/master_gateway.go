@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/model"
+	"AtlHyper/common"
 	"AtlHyper/model_v2"
 )
 
@@ -51,7 +51,7 @@ func (g *masterGateway) PushSnapshot(ctx context.Context, snapshot *model_v2.Clu
 	}
 
 	// 2. Gzip 压缩 (快照数据较大，压缩可显著减少带宽)
-	compressed, err := g.gzipCompress(data)
+	compressed, err := common.GzipBytes(data)
 	if err != nil {
 		return fmt.Errorf("failed to compress snapshot: %w", err)
 	}
@@ -224,15 +224,3 @@ func (g *masterGateway) PushSLOMetrics(ctx context.Context, metrics *model.Ingre
 	return nil
 }
 
-// gzipCompress 压缩数据
-func (g *masterGateway) gzipCompress(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	writer := gzip.NewWriter(&buf)
-	if _, err := writer.Write(data); err != nil {
-		return nil, err
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}

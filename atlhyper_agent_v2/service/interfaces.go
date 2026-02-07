@@ -16,7 +16,7 @@
 // 主要服务:
 //   - SnapshotService: 集群快照采集
 //   - CommandService: 指令执行
-//   - SLOService: SLO 指标采集
+//   - (SLO 数据已合入 SnapshotService，随快照一起采集)
 package service
 
 import (
@@ -74,19 +74,4 @@ type CommandService interface {
 	Execute(ctx context.Context, cmd *model_v2.Command) *model.Result
 }
 
-// =============================================================================
-// SLO 服务
-// =============================================================================
-
-// SLOService SLO 指标采集服务接口
-//
-// 负责协调 SLO 数据的采集。
-// 内部依赖 SLORepository 进行数据访问。
-type SLOService interface {
-	// Collect 采集 SLO 指标数据
-	//
-	// 委托给 SLORepository.Collect() 进行采集和增量计算。
-	// 返回包含指标和路由映射的 SLOSnapshot。
-	Collect(ctx context.Context) (*model_v2.SLOSnapshot, error)
-}
 

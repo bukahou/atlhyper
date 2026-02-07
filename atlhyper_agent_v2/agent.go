@@ -21,13 +21,17 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/config"
 	"AtlHyper/atlhyper_agent_v2/gateway"
-	"AtlHyper/atlhyper_agent_v2/metricsdk"
+	"AtlHyper/atlhyper_agent_v2/sdk/impl/receiver"
 	"AtlHyper/atlhyper_agent_v2/repository"
+	k8srepo "AtlHyper/atlhyper_agent_v2/repository/k8s"
+	metricsrepo "AtlHyper/atlhyper_agent_v2/repository/metrics"
+	slorepo "AtlHyper/atlhyper_agent_v2/repository/slo"
 	"AtlHyper/atlhyper_agent_v2/scheduler"
 	sdkpkg "AtlHyper/atlhyper_agent_v2/sdk"
-	"AtlHyper/atlhyper_agent_v2/sdk/impl"
 	"AtlHyper/atlhyper_agent_v2/sdk/impl/ingress"
-	"AtlHyper/atlhyper_agent_v2/service"
+	k8spkg "AtlHyper/atlhyper_agent_v2/sdk/impl/k8s"
+	commandsvc "AtlHyper/atlhyper_agent_v2/service/command"
+	snapshotsvc "AtlHyper/atlhyper_agent_v2/service/snapshot"
 	"AtlHyper/common/logger"
 )
 
@@ -36,8 +40,8 @@ var log = logger.Module("Agent")
 // Agent 是 Agent V2 的主结构体
 // 封装调度器，提供启动/运行/停止接口
 type Agent struct {
-	scheduler  *scheduler.Scheduler
-	metricsSDK *metricsdk.Server
+	scheduler   *scheduler.Scheduler
+	receiverSvr sdkpkg.ReceiverClient
 }
 
 // New 创建并初始化 Agent 实例
@@ -59,7 +63,7 @@ func New() (*Agent, error) {
 	cfg := &config.GlobalConfig
 
 	// 1. 初始化 SDK (连接 K8s)
-	k8sClient, err := impl.NewClient(cfg.Kubernetes.KubeConfig)
+	k8sClient, err := k8spkg.NewClient(cfg.Kubernetes.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -81,28 +85,25 @@ func New() (*Agent, error) {
 	// 3. 初始化 Repository (数据访问层)
 	repos := initRepositories(k8sClient)
 
-	// 3.1 初始化 MetricsRepository (节点指标)
+	// 3.1 初始化 Receiver SDK + MetricsRepository (节点指标)
 	var metricsRepo repository.MetricsRepository
-	var metricsSvr *metricsdk.Server
+	var receiverClient sdkpkg.ReceiverClient
 	if cfg.MetricsSDK.Enabled {
-		metricsRepo = repository.NewMetricsRepository()
-		metricsSvr = metricsdk.NewServer(metricsdk.Config{
-			Port:        cfg.MetricsSDK.Port,
-			MetricsRepo: metricsRepo,
-		})
-		log.Info("Metrics Repository 初始化完成")
+		receiverClient = receiver.NewServer(cfg.MetricsSDK.Port)
+		metricsRepo = metricsrepo.NewMetricsRepository(receiverClient)
+		log.Info("Receiver SDK + Metrics Repository 初始化完成")
 	}
 
 	// 3.2 初始化 SLORepository (可选)
 	var sloRepo repository.SLORepository
 	if cfg.SLO.Enabled {
 		ingressClient := ingress.NewClient(k8sClient, cfg.SLO.ScrapeTimeout)
-		sloRepo = repository.NewSLORepository(ingressClient, cfg.SLO.IngressURL, cfg.SLO.AutoDiscover)
+		sloRepo = slorepo.NewSLORepository(ingressClient, cfg.SLO.IngressURL, cfg.SLO.AutoDiscover)
 		log.Info("SLO Repository 初始化完成")
 	}
 
 	// 4. 初始化 Service (业务逻辑层)
-	snapshotSvc := service.NewSnapshotService(
+	snapshotSvc := snapshotsvc.NewSnapshotService(
 		cfg.Agent.ClusterID,
 		repos.pod, repos.node, repos.deployment,
 		repos.statefulSet, repos.daemonSet, repos.replicaSet,
@@ -115,7 +116,7 @@ func New() (*Agent, error) {
 		sloRepo,
 	)
 
-	commandSvc := service.NewCommandService(repos.pod, repos.generic)
+	commandSvc := commandsvc.NewCommandService(repos.pod, repos.generic)
 
 	// 5. 初始化 Scheduler (调度层)
 	schedCfg := scheduler.Config{
@@ -129,8 +130,8 @@ func New() (*Agent, error) {
 	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw)
 
 	return &Agent{
-		scheduler:  sched,
-		metricsSDK: metricsSvr,
+		scheduler:   sched,
+		receiverSvr: receiverClient,
 	}, nil
 }
 
@@ -145,9 +146,9 @@ func New() (*Agent, error) {
 // 返回:
 //   - error: 调度器停止时的错误
 func (a *Agent) Run(ctx context.Context) error {
-	// 启动 Metrics SDK (如果启用)
-	if a.metricsSDK != nil {
-		if err := a.metricsSDK.Start(); err != nil {
+	// 启动 Receiver SDK (如果启用)
+	if a.receiverSvr != nil {
+		if err := a.receiverSvr.Start(); err != nil {
 			return err
 		}
 	}
@@ -167,9 +168,9 @@ func (a *Agent) Run(ctx context.Context) error {
 	// 优雅停止
 	log.Info("正在关闭...")
 
-	// 停止 Metrics SDK
-	if a.metricsSDK != nil {
-		if err := a.metricsSDK.Stop(); err != nil {
+	// 停止 Receiver SDK
+	if a.receiverSvr != nil {
+		if err := a.receiverSvr.Stop(); err != nil {
 			log.Error("停止 Metrics SDK 失败", "err", err)
 		}
 	}
@@ -211,26 +212,26 @@ type repositories struct {
 // 每个 Repository 封装对应 K8s 资源的 CRUD 操作
 func initRepositories(client sdkpkg.K8sClient) *repositories {
 	return &repositories{
-		pod:            repository.NewPodRepository(client),
-		node:           repository.NewNodeRepository(client),
-		deployment:     repository.NewDeploymentRepository(client),
-		statefulSet:    repository.NewStatefulSetRepository(client),
-		daemonSet:      repository.NewDaemonSetRepository(client),
-		replicaSet:     repository.NewReplicaSetRepository(client),
-		service:        repository.NewServiceRepository(client),
-		ingress:        repository.NewIngressRepository(client),
-		configMap:      repository.NewConfigMapRepository(client),
-		secret:         repository.NewSecretRepository(client),
-		namespace:      repository.NewNamespaceRepository(client),
-		event:          repository.NewEventRepository(client),
-		job:            repository.NewJobRepository(client),
-		cronJob:        repository.NewCronJobRepository(client),
-		pv:             repository.NewPersistentVolumeRepository(client),
-		pvc:            repository.NewPersistentVolumeClaimRepository(client),
-		resourceQuota:  repository.NewResourceQuotaRepository(client),
-		limitRange:     repository.NewLimitRangeRepository(client),
-		networkPolicy:  repository.NewNetworkPolicyRepository(client),
-		serviceAccount: repository.NewServiceAccountRepository(client),
-		generic:        repository.NewGenericRepository(client),
+		pod:            k8srepo.NewPodRepository(client),
+		node:           k8srepo.NewNodeRepository(client),
+		deployment:     k8srepo.NewDeploymentRepository(client),
+		statefulSet:    k8srepo.NewStatefulSetRepository(client),
+		daemonSet:      k8srepo.NewDaemonSetRepository(client),
+		replicaSet:     k8srepo.NewReplicaSetRepository(client),
+		service:        k8srepo.NewServiceRepository(client),
+		ingress:        k8srepo.NewIngressRepository(client),
+		configMap:      k8srepo.NewConfigMapRepository(client),
+		secret:         k8srepo.NewSecretRepository(client),
+		namespace:      k8srepo.NewNamespaceRepository(client),
+		event:          k8srepo.NewEventRepository(client),
+		job:            k8srepo.NewJobRepository(client),
+		cronJob:        k8srepo.NewCronJobRepository(client),
+		pv:             k8srepo.NewPersistentVolumeRepository(client),
+		pvc:            k8srepo.NewPersistentVolumeClaimRepository(client),
+		resourceQuota:  k8srepo.NewResourceQuotaRepository(client),
+		limitRange:     k8srepo.NewLimitRangeRepository(client),
+		networkPolicy:  k8srepo.NewNetworkPolicyRepository(client),
+		serviceAccount: k8srepo.NewServiceAccountRepository(client),
+		generic:        k8srepo.NewGenericRepository(client),
 	}
 }
