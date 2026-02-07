@@ -98,8 +98,9 @@ func New() (*Agent, error) {
 	var sloRepo repository.SLORepository
 	if cfg.SLO.Enabled {
 		ingressClient := ingress.NewIngressClient(k8sClient)
-		// TODO(P4): 初始化 OTelClient，完整依赖注入
-		sloRepo = slorepo.NewSLORepository(nil, ingressClient)
+		// TODO(P4): 从 config 读取 OTel URL 并创建 OTelClient
+		defaultExcludeNS := []string{"linkerd", "linkerd-viz", "kube-system", "otel"}
+		sloRepo = slorepo.NewSLORepository(nil, ingressClient, defaultExcludeNS)
 		log.Info("SLO Repository 初始化完成")
 	}
 
