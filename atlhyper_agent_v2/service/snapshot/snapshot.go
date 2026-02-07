@@ -394,12 +394,16 @@ func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapsho
 	}()
 
 	// SLO 数据 (可选，含路由映射)
+	// SLO 失败不阻断 K8s 快照上报，只记录警告
 	if s.sloRepo != nil {
 		go func() {
 			defer wg.Done()
 			sloData, err := s.sloRepo.Collect(ctx)
-			recordErr(err)
-			if err == nil && sloData != nil {
+			if err != nil {
+				// SLO 是可选功能，不传入 recordErr 以免阻断快照
+				return
+			}
+			if sloData != nil {
 				mu.Lock()
 				snapshot.SLOData = sloData
 				mu.Unlock()
