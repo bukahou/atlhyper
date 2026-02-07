@@ -192,54 +192,13 @@ func MergeBuckets(bucketsList ...map[float64]int64) map[float64]int64 {
 	return result
 }
 
-// BucketsFromRaw 从 SLOMetricsRaw 构建 bucket map
-func BucketsFromRaw(m *RawBuckets) map[float64]int64 {
-	return map[float64]int64{
-		0.005:           m.Bucket5ms,
-		0.01:            m.Bucket10ms,
-		0.025:           m.Bucket25ms,
-		0.05:            m.Bucket50ms,
-		0.1:             m.Bucket100ms,
-		0.25:            m.Bucket250ms,
-		0.5:             m.Bucket500ms,
-		1.0:             m.Bucket1s,
-		2.5:             m.Bucket2500ms,
-		5.0:             m.Bucket5s,
-		10.0:            m.Bucket10s,
-		math.Inf(1):     m.BucketInf,
+// ParseJSONBuckets 解析 JSON bucket 字符串为 map[float64]int64
+// JSON 格式: {"100":10, "500":50, ...}（key 为毫秒字符串）
+// 返回 map key 为秒值（兼容 CalculateQuantile）
+func ParseJSONBuckets(jsonStr string) map[float64]int64 {
+	if jsonStr == "" {
+		return nil
 	}
-}
-
-// RawBuckets 用于传递 bucket 数据的结构体
-type RawBuckets struct {
-	Bucket5ms    int64
-	Bucket10ms   int64
-	Bucket25ms   int64
-	Bucket50ms   int64
-	Bucket100ms  int64
-	Bucket250ms  int64
-	Bucket500ms  int64
-	Bucket1s     int64
-	Bucket2500ms int64
-	Bucket5s     int64
-	Bucket10s    int64
-	BucketInf    int64
-}
-
-// BucketsToRaw 从 bucket map 转换为 RawBuckets
-func BucketsToRaw(buckets map[float64]int64) RawBuckets {
-	return RawBuckets{
-		Bucket5ms:    buckets[0.005],
-		Bucket10ms:   buckets[0.01],
-		Bucket25ms:   buckets[0.025],
-		Bucket50ms:   buckets[0.05],
-		Bucket100ms:  buckets[0.1],
-		Bucket250ms:  buckets[0.25],
-		Bucket500ms:  buckets[0.5],
-		Bucket1s:     buckets[1.0],
-		Bucket2500ms: buckets[2.5],
-		Bucket5s:     buckets[5.0],
-		Bucket10s:    buckets[10.0],
-		BucketInf:    buckets[math.Inf(1)],
-	}
+	// TODO(Master P3): 实现 JSON 解析
+	return nil
 }

@@ -1,5 +1,5 @@
 // atlhyper_master_v2/database/repo/slo.go
-// SLORepository 实现
+// SLORepository 实现（入口指标 + 目标 + 状态 + 路由映射）
 package repo
 
 import (
@@ -17,74 +17,6 @@ type sloRepo struct {
 
 func newSLORepo(db *sql.DB, dialect database.SLODialect) *sloRepo {
 	return &sloRepo{db: db, dialect: dialect}
-}
-
-// ==================== Counter Snapshot ====================
-
-func (r *sloRepo) GetCounterSnapshot(ctx context.Context, clusterID, host string) ([]*database.IngressCounterSnapshot, error) {
-	query, args := r.dialect.SelectCounterSnapshot(clusterID, host)
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var snapshots []*database.IngressCounterSnapshot
-	for rows.Next() {
-		s, err := r.dialect.ScanCounterSnapshot(rows)
-		if err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, s)
-	}
-	return snapshots, rows.Err()
-}
-
-func (r *sloRepo) UpsertCounterSnapshot(ctx context.Context, s *database.IngressCounterSnapshot) error {
-	query, args := r.dialect.UpsertCounterSnapshot(s)
-	result, err := r.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-	if s.ID == 0 {
-		id, _ := result.LastInsertId()
-		s.ID = id
-	}
-	return nil
-}
-
-// ==================== Histogram Snapshot ====================
-
-func (r *sloRepo) GetHistogramSnapshot(ctx context.Context, clusterID, host string) ([]*database.IngressHistogramSnapshot, error) {
-	query, args := r.dialect.SelectHistogramSnapshot(clusterID, host)
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var snapshots []*database.IngressHistogramSnapshot
-	for rows.Next() {
-		s, err := r.dialect.ScanHistogramSnapshot(rows)
-		if err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, s)
-	}
-	return snapshots, rows.Err()
-}
-
-func (r *sloRepo) UpsertHistogramSnapshot(ctx context.Context, s *database.IngressHistogramSnapshot) error {
-	query, args := r.dialect.UpsertHistogramSnapshot(s)
-	result, err := r.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-	if s.ID == 0 {
-		id, _ := result.LastInsertId()
-		s.ID = id
-	}
-	return nil
 }
 
 // ==================== Raw Metrics ====================
@@ -117,12 +49,6 @@ func (r *sloRepo) GetRawMetrics(ctx context.Context, clusterID, host string, sta
 		metrics = append(metrics, m)
 	}
 	return metrics, rows.Err()
-}
-
-func (r *sloRepo) UpdateRawMetricsBuckets(ctx context.Context, m *database.SLOMetricsRaw) error {
-	query, args := r.dialect.UpdateRawMetricsBuckets(m)
-	_, err := r.db.ExecContext(ctx, query, args...)
-	return err
 }
 
 func (r *sloRepo) DeleteRawMetricsBefore(ctx context.Context, before time.Time) (int64, error) {

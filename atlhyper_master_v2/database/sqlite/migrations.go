@@ -211,103 +211,150 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_ai_models_provider ON ai_provider_models(provider, sort_order)`,
 
-		// ==================== SLO: Ingress Counter 快照表 ====================
-		// 存储最新一次采集的 Counter 值，用于计算增量
-		`CREATE TABLE IF NOT EXISTS ingress_counter_snapshot (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			cluster_id TEXT NOT NULL,
-			host TEXT NOT NULL,
-			ingress_name TEXT NOT NULL,
-			ingress_class TEXT NOT NULL DEFAULT 'nginx',
-			namespace TEXT NOT NULL,
-			service TEXT NOT NULL,
-			tls INTEGER NOT NULL DEFAULT 1,
-			method TEXT NOT NULL,
-			status TEXT NOT NULL,
-			counter_value INTEGER NOT NULL,
-			prev_value INTEGER NOT NULL DEFAULT 0,
-			updated_at TEXT NOT NULL,
-			UNIQUE(cluster_id, host, method, status)
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_counter_snapshot_cluster_host ON ingress_counter_snapshot(cluster_id, host)`,
-
-		// ==================== SLO: Ingress Histogram 快照表 ====================
-		// 存储最新一次采集的 Histogram Bucket 值
-		`CREATE TABLE IF NOT EXISTS ingress_histogram_snapshot (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			cluster_id TEXT NOT NULL,
-			host TEXT NOT NULL,
-			ingress_name TEXT NOT NULL,
-			namespace TEXT NOT NULL,
-			le REAL NOT NULL,
-			bucket_value INTEGER NOT NULL,
-			prev_value INTEGER NOT NULL DEFAULT 0,
-			sum_value REAL,
-			count_value INTEGER,
-			updated_at TEXT NOT NULL,
-			UNIQUE(cluster_id, host, le)
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_histogram_snapshot_cluster_host ON ingress_histogram_snapshot(cluster_id, host)`,
-
-		// ==================== SLO: 原始增量数据表 ====================
-		// 每次采集计算出的增量数据，保留 48 小时
+		// ==================== SLO: 入口原始增量数据表 ====================
+		// JSON bucket 格式，保留 48 小时
 		`CREATE TABLE IF NOT EXISTS slo_metrics_raw (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			cluster_id TEXT NOT NULL,
 			host TEXT NOT NULL,
+			domain TEXT,
+			path_prefix TEXT DEFAULT '/',
 			timestamp TEXT NOT NULL,
 			total_requests INTEGER NOT NULL DEFAULT 0,
 			error_requests INTEGER NOT NULL DEFAULT 0,
-			sum_latency_ms INTEGER NOT NULL DEFAULT 0,
-			bucket_5ms INTEGER NOT NULL DEFAULT 0,
-			bucket_10ms INTEGER NOT NULL DEFAULT 0,
-			bucket_25ms INTEGER NOT NULL DEFAULT 0,
-			bucket_50ms INTEGER NOT NULL DEFAULT 0,
-			bucket_100ms INTEGER NOT NULL DEFAULT 0,
-			bucket_250ms INTEGER NOT NULL DEFAULT 0,
-			bucket_500ms INTEGER NOT NULL DEFAULT 0,
-			bucket_1s INTEGER NOT NULL DEFAULT 0,
-			bucket_2500ms INTEGER NOT NULL DEFAULT 0,
-			bucket_5s INTEGER NOT NULL DEFAULT 0,
-			bucket_10s INTEGER NOT NULL DEFAULT 0,
-			bucket_inf INTEGER NOT NULL DEFAULT 0,
+			latency_sum REAL NOT NULL DEFAULT 0,
+			latency_count INTEGER NOT NULL DEFAULT 0,
+			latency_buckets TEXT,
+			method_get INTEGER NOT NULL DEFAULT 0,
+			method_post INTEGER NOT NULL DEFAULT 0,
+			method_put INTEGER NOT NULL DEFAULT 0,
+			method_delete INTEGER NOT NULL DEFAULT 0,
+			method_other INTEGER NOT NULL DEFAULT 0,
 			is_missing INTEGER NOT NULL DEFAULT 0
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_slo_raw_cluster_host_ts ON slo_metrics_raw(cluster_id, host, timestamp)`,
 		`CREATE INDEX IF NOT EXISTS idx_slo_raw_timestamp ON slo_metrics_raw(timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_slo_raw_domain ON slo_metrics_raw(cluster_id, domain, path_prefix, timestamp)`,
 
-		// ==================== SLO: 小时聚合数据表 ====================
-		// 每小时聚合一次，用于天/周/月查询，保留 90 天
+		// ==================== SLO: 入口小时聚合数据表 ====================
+		// JSON bucket 格式，保留 90 天
 		`CREATE TABLE IF NOT EXISTS slo_metrics_hourly (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			cluster_id TEXT NOT NULL,
 			host TEXT NOT NULL,
+			domain TEXT,
+			path_prefix TEXT DEFAULT '/',
 			hour_start TEXT NOT NULL,
 			total_requests INTEGER NOT NULL DEFAULT 0,
 			error_requests INTEGER NOT NULL DEFAULT 0,
-			availability REAL NOT NULL,
+			availability REAL,
 			p50_latency_ms INTEGER NOT NULL DEFAULT 0,
 			p95_latency_ms INTEGER NOT NULL DEFAULT 0,
 			p99_latency_ms INTEGER NOT NULL DEFAULT 0,
 			avg_latency_ms INTEGER NOT NULL DEFAULT 0,
-			avg_rps REAL NOT NULL,
-			bucket_5ms INTEGER NOT NULL DEFAULT 0,
-			bucket_10ms INTEGER NOT NULL DEFAULT 0,
-			bucket_25ms INTEGER NOT NULL DEFAULT 0,
-			bucket_50ms INTEGER NOT NULL DEFAULT 0,
-			bucket_100ms INTEGER NOT NULL DEFAULT 0,
-			bucket_250ms INTEGER NOT NULL DEFAULT 0,
-			bucket_500ms INTEGER NOT NULL DEFAULT 0,
-			bucket_1s INTEGER NOT NULL DEFAULT 0,
-			bucket_2500ms INTEGER NOT NULL DEFAULT 0,
-			bucket_5s INTEGER NOT NULL DEFAULT 0,
-			bucket_10s INTEGER NOT NULL DEFAULT 0,
-			bucket_inf INTEGER NOT NULL DEFAULT 0,
+			avg_rps REAL NOT NULL DEFAULT 0,
+			latency_buckets TEXT,
+			method_get INTEGER NOT NULL DEFAULT 0,
+			method_post INTEGER NOT NULL DEFAULT 0,
+			method_put INTEGER NOT NULL DEFAULT 0,
+			method_delete INTEGER NOT NULL DEFAULT 0,
+			method_other INTEGER NOT NULL DEFAULT 0,
 			sample_count INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT NOT NULL,
 			UNIQUE(cluster_id, host, hour_start)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_slo_hourly_hour ON slo_metrics_hourly(hour_start)`,
+		`CREATE INDEX IF NOT EXISTS idx_slo_hourly_domain ON slo_metrics_hourly(cluster_id, domain, path_prefix, hour_start)`,
+
+		// ==================== SLO: 服务网格原始数据表 ====================
+		// Linkerd inbound 数据，保留 48 小时
+		`CREATE TABLE IF NOT EXISTS slo_service_raw (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			cluster_id TEXT NOT NULL,
+			namespace TEXT NOT NULL,
+			name TEXT NOT NULL,
+			timestamp TEXT NOT NULL,
+			total_requests INTEGER NOT NULL DEFAULT 0,
+			error_requests INTEGER NOT NULL DEFAULT 0,
+			status_2xx INTEGER NOT NULL DEFAULT 0,
+			status_3xx INTEGER NOT NULL DEFAULT 0,
+			status_4xx INTEGER NOT NULL DEFAULT 0,
+			status_5xx INTEGER NOT NULL DEFAULT 0,
+			latency_sum REAL NOT NULL DEFAULT 0,
+			latency_count INTEGER NOT NULL DEFAULT 0,
+			latency_buckets TEXT,
+			tls_request_delta INTEGER NOT NULL DEFAULT 0,
+			total_request_delta INTEGER NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_slo_service_raw_cluster ON slo_service_raw(cluster_id, namespace, name, timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_slo_service_raw_ts ON slo_service_raw(timestamp)`,
+
+		// ==================== SLO: 服务网格小时聚合表 ====================
+		// Linkerd inbound 聚合，保留 90 天
+		`CREATE TABLE IF NOT EXISTS slo_service_hourly (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			cluster_id TEXT NOT NULL,
+			namespace TEXT NOT NULL,
+			name TEXT NOT NULL,
+			hour_start TEXT NOT NULL,
+			total_requests INTEGER NOT NULL DEFAULT 0,
+			error_requests INTEGER NOT NULL DEFAULT 0,
+			availability REAL,
+			p50_latency_ms INTEGER NOT NULL DEFAULT 0,
+			p95_latency_ms INTEGER NOT NULL DEFAULT 0,
+			p99_latency_ms INTEGER NOT NULL DEFAULT 0,
+			avg_latency_ms INTEGER NOT NULL DEFAULT 0,
+			avg_rps REAL NOT NULL DEFAULT 0,
+			status_2xx INTEGER NOT NULL DEFAULT 0,
+			status_3xx INTEGER NOT NULL DEFAULT 0,
+			status_4xx INTEGER NOT NULL DEFAULT 0,
+			status_5xx INTEGER NOT NULL DEFAULT 0,
+			latency_buckets TEXT,
+			mtls_percent REAL,
+			sample_count INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL,
+			UNIQUE(cluster_id, namespace, name, hour_start)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_slo_service_hourly_hour ON slo_service_hourly(hour_start)`,
+
+		// ==================== SLO: 拓扑边原始数据表 ====================
+		// Linkerd outbound 数据，保留 48 小时
+		`CREATE TABLE IF NOT EXISTS slo_edge_raw (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			cluster_id TEXT NOT NULL,
+			src_namespace TEXT NOT NULL,
+			src_name TEXT NOT NULL,
+			dst_namespace TEXT NOT NULL,
+			dst_name TEXT NOT NULL,
+			timestamp TEXT NOT NULL,
+			request_delta INTEGER NOT NULL DEFAULT 0,
+			failure_delta INTEGER NOT NULL DEFAULT 0,
+			latency_sum REAL NOT NULL DEFAULT 0,
+			latency_count INTEGER NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_slo_edge_raw_cluster ON slo_edge_raw(cluster_id, timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_slo_edge_raw_ts ON slo_edge_raw(timestamp)`,
+
+		// ==================== SLO: 拓扑边小时聚合表 ====================
+		// Linkerd outbound 聚合，保留 90 天
+		`CREATE TABLE IF NOT EXISTS slo_edge_hourly (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			cluster_id TEXT NOT NULL,
+			src_namespace TEXT NOT NULL,
+			src_name TEXT NOT NULL,
+			dst_namespace TEXT NOT NULL,
+			dst_name TEXT NOT NULL,
+			hour_start TEXT NOT NULL,
+			total_requests INTEGER NOT NULL DEFAULT 0,
+			error_requests INTEGER NOT NULL DEFAULT 0,
+			avg_latency_ms INTEGER,
+			avg_rps REAL,
+			error_rate REAL,
+			sample_count INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL,
+			UNIQUE(cluster_id, src_namespace, src_name, dst_namespace, dst_name, hour_start)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_slo_edge_hourly_hour ON slo_edge_hourly(hour_start)`,
 
 		// ==================== SLO: 目标配置表 ====================
 		// SLO 目标配置，用户可配置不同周期的可用性和延迟目标
@@ -409,26 +456,16 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE ai_conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0`,
 		`ALTER TABLE ai_conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0`,
 		`ALTER TABLE ai_conversations ADD COLUMN total_tool_calls INTEGER DEFAULT 0`,
-
-		// SLO: slo_metrics_raw 添加 domain/path 字段
-		`ALTER TABLE slo_metrics_raw ADD COLUMN domain TEXT`,
-		`ALTER TABLE slo_metrics_raw ADD COLUMN path_prefix TEXT DEFAULT '/'`,
-
-		// SLO: slo_metrics_hourly 添加 domain/path 字段
-		`ALTER TABLE slo_metrics_hourly ADD COLUMN domain TEXT`,
-		`ALTER TABLE slo_metrics_hourly ADD COLUMN path_prefix TEXT DEFAULT '/'`,
 	}
 
-	// 增量索引迁移
-	indexMigrations := []string{
-		`CREATE INDEX IF NOT EXISTS idx_slo_raw_domain ON slo_metrics_raw(cluster_id, domain, path_prefix, timestamp)`,
-		`CREATE INDEX IF NOT EXISTS idx_slo_hourly_domain ON slo_metrics_hourly(cluster_id, domain, path_prefix, hour_start)`,
+	// 删除旧的 snapshot 表（OTel 迁移后不再需要）
+	dropMigrations := []string{
+		`DROP TABLE IF EXISTS ingress_counter_snapshot`,
+		`DROP TABLE IF EXISTS ingress_histogram_snapshot`,
 	}
 
-	// 重建 slo_route_mapping 表（修复唯一约束）
-	// 旧约束: UNIQUE(cluster_id, service_key) - 同一 service 只能存一条
-	// 新约束: UNIQUE(cluster_id, domain, path_prefix) - 同一路径只存一条，同 service 可多条
-	rebuildRouteMappingTable(db)
+	// 删除旧的 SLO 表（OTel 迁移重建）
+	rebuildSLOTables(db)
 
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
@@ -445,10 +482,10 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
-	// 执行增量索引迁移（忽略错误，可能索引已存在）
-	for _, m := range indexMigrations {
+	// 删除旧 snapshot 表
+	for _, m := range dropMigrations {
 		if _, err := db.Exec(m); err != nil {
-			log.Printf("[SQLiteDB] 索引迁移跳过（可能索引已存在）: %v", err)
+			log.Printf("[SQLiteDB] 删除旧表跳过: %v", err)
 		}
 	}
 
@@ -465,12 +502,6 @@ func migrate(db *sql.DB) error {
 	// 清理无效的 entrypoint 级别数据
 	if err := cleanupEntrypointData(db); err != nil {
 		log.Printf("[SQLiteDB] 清理 entrypoint 数据失败: %v", err)
-		// 不中断启动，只记录警告
-	}
-
-	// 为已有数据补填 domain/path_prefix（基于 route_mapping 表）
-	if err := backfillDomainPath(db); err != nil {
-		log.Printf("[SQLiteDB] 补填 domain/path 失败: %v", err)
 		// 不中断启动，只记录警告
 	}
 
@@ -577,43 +608,15 @@ func initDefaultAIModels(db *sql.DB) error {
 }
 
 // cleanupEntrypointData 清理无效的 entrypoint 级别 SLO 数据
-// Traefik entrypoint 指标（如 traefik_entrypoint_requests_total）不包含服务级别信息
-// 这些数据的 host 字段通常包含 "@entrypoint" 后缀，无法关联到具体服务
 func cleanupEntrypointData(db *sql.DB) error {
 	cleanupQueries := []struct {
 		table string
 		query string
 	}{
-		// 清理 raw 表中的 entrypoint 数据
-		{
-			"slo_metrics_raw",
-			`DELETE FROM slo_metrics_raw WHERE host LIKE '%@entrypoint%'`,
-		},
-		// 清理 hourly 表中的 entrypoint 数据
-		{
-			"slo_metrics_hourly",
-			`DELETE FROM slo_metrics_hourly WHERE host LIKE '%@entrypoint%'`,
-		},
-		// 清理 counter snapshot 中的 entrypoint 数据
-		{
-			"ingress_counter_snapshot",
-			`DELETE FROM ingress_counter_snapshot WHERE host LIKE '%@entrypoint%'`,
-		},
-		// 清理 histogram snapshot 中的 entrypoint 数据
-		{
-			"ingress_histogram_snapshot",
-			`DELETE FROM ingress_histogram_snapshot WHERE host LIKE '%@entrypoint%'`,
-		},
-		// 清理 targets 中的 entrypoint 数据
-		{
-			"slo_targets",
-			`DELETE FROM slo_targets WHERE host LIKE '%@entrypoint%'`,
-		},
-		// 清理 status history 中的 entrypoint 数据
-		{
-			"slo_status_history",
-			`DELETE FROM slo_status_history WHERE host LIKE '%@entrypoint%'`,
-		},
+		{"slo_metrics_raw", `DELETE FROM slo_metrics_raw WHERE host LIKE '%@entrypoint%'`},
+		{"slo_metrics_hourly", `DELETE FROM slo_metrics_hourly WHERE host LIKE '%@entrypoint%'`},
+		{"slo_targets", `DELETE FROM slo_targets WHERE host LIKE '%@entrypoint%'`},
+		{"slo_status_history", `DELETE FROM slo_status_history WHERE host LIKE '%@entrypoint%'`},
 	}
 
 	totalDeleted := int64(0)
@@ -636,141 +639,32 @@ func cleanupEntrypointData(db *sql.DB) error {
 	return nil
 }
 
-// rebuildRouteMappingTable 重建路由映射表以修复唯一约束
-// 旧约束: UNIQUE(cluster_id, service_key)
-// 新约束: UNIQUE(cluster_id, domain, path_prefix)
-func rebuildRouteMappingTable(db *sql.DB) {
-	// 检查是否需要重建（通过检查旧约束是否存在）
-	// 简单方法：直接尝试重建，如果新表结构已存在则跳过
+// rebuildSLOTables OTel 迁移：重建旧格式的 SLO 表
+// 旧表使用 12 列固定 bucket，新表使用 JSON bucket + method 分类
+func rebuildSLOTables(db *sql.DB) {
+	tablesToRebuild := []string{"slo_metrics_raw", "slo_metrics_hourly", "slo_route_mapping"}
 
-	// 检查表是否存在
-	var count int
-	err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='slo_route_mapping'`).Scan(&count)
-	if err != nil || count == 0 {
-		return // 表不存在，会由主迁移创建
-	}
+	for _, table := range tablesToRebuild {
+		var count int
+		err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&count)
+		if err != nil || count == 0 {
+			continue // 表不存在，会由主迁移创建
+		}
 
-	// 尝试插入测试数据来检查约束
-	// 如果能插入相同 service_key 但不同 path 的数据，说明约束已更新
-	tx, err := db.Begin()
-	if err != nil {
-		return
-	}
-	defer tx.Rollback()
+		// 检查是否已迁移过（新表有 latency_buckets 列）
+		if table == "slo_metrics_raw" || table == "slo_metrics_hourly" {
+			var colCount int
+			db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name='latency_buckets'`, table).Scan(&colCount)
+			if colCount > 0 {
+				continue // 已经是新格式
+			}
+		}
 
-	// 简单方案：直接删除旧表数据，让 Agent 重新采集
-	// 路由映射数据会在下次采集时自动恢复
-	result, err := tx.Exec(`DELETE FROM slo_route_mapping WHERE 1=1`)
-	if err != nil {
-		log.Printf("[SQLiteDB] 清空路由映射表失败: %v", err)
-		return
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected > 0 {
-		log.Printf("[SQLiteDB] 已清空 %d 条路由映射（将由 Agent 重新采集）", rowsAffected)
-	}
-
-	// 重建表结构（需要先删除旧表，再创建新表）
-	// SQLite 不支持直接修改 UNIQUE 约束
-	_, err = tx.Exec(`DROP TABLE IF EXISTS slo_route_mapping`)
-	if err != nil {
-		log.Printf("[SQLiteDB] 删除旧路由映射表失败: %v", err)
-		return
-	}
-
-	_, err = tx.Exec(`CREATE TABLE slo_route_mapping (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		cluster_id TEXT NOT NULL,
-		domain TEXT NOT NULL,
-		path_prefix TEXT NOT NULL DEFAULT '/',
-		ingress_name TEXT NOT NULL,
-		namespace TEXT NOT NULL,
-		tls INTEGER NOT NULL DEFAULT 1,
-		service_key TEXT NOT NULL,
-		service_name TEXT NOT NULL,
-		service_port INTEGER NOT NULL,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL,
-		UNIQUE(cluster_id, domain, path_prefix)
-	)`)
-	if err != nil {
-		log.Printf("[SQLiteDB] 创建新路由映射表失败: %v", err)
-		return
-	}
-
-	// 重建索引
-	tx.Exec(`CREATE INDEX IF NOT EXISTS idx_route_mapping_domain ON slo_route_mapping(cluster_id, domain)`)
-	tx.Exec(`CREATE INDEX IF NOT EXISTS idx_route_mapping_service ON slo_route_mapping(cluster_id, service_key)`)
-
-	if err := tx.Commit(); err != nil {
-		log.Printf("[SQLiteDB] 提交路由映射表重建失败: %v", err)
-		return
-	}
-
-	log.Println("[SQLiteDB] 已重建路由映射表（修复唯一约束）")
-}
-
-// backfillDomainPath 为已有数据补填 domain/path_prefix
-// 基于 slo_route_mapping 表，将 host（service_key）映射到 domain/path_prefix
-func backfillDomainPath(db *sql.DB) error {
-	// 更新 slo_metrics_raw 表
-	rawResult, err := db.Exec(`
-		UPDATE slo_metrics_raw
-		SET domain = (
-			SELECT m.domain FROM slo_route_mapping m
-			WHERE m.cluster_id = slo_metrics_raw.cluster_id
-			  AND m.service_key = slo_metrics_raw.host
-		),
-		path_prefix = COALESCE((
-			SELECT m.path_prefix FROM slo_route_mapping m
-			WHERE m.cluster_id = slo_metrics_raw.cluster_id
-			  AND m.service_key = slo_metrics_raw.host
-		), '/')
-		WHERE (domain IS NULL OR domain = '')
-		  AND EXISTS (
-			SELECT 1 FROM slo_route_mapping m
-			WHERE m.cluster_id = slo_metrics_raw.cluster_id
-			  AND m.service_key = slo_metrics_raw.host
-		)
-	`)
-	if err != nil {
-		log.Printf("[SQLiteDB] 补填 slo_metrics_raw domain 失败: %v", err)
-	} else {
-		rowsAffected, _ := rawResult.RowsAffected()
-		if rowsAffected > 0 {
-			log.Printf("[SQLiteDB] 已补填 slo_metrics_raw 表 %d 条记录的 domain/path", rowsAffected)
+		// 删除旧表，由主迁移重建
+		if _, err := db.Exec(`DROP TABLE IF EXISTS ` + table); err != nil {
+			log.Printf("[SQLiteDB] 删除旧 %s 表失败: %v", table, err)
+		} else {
+			log.Printf("[SQLiteDB] 已删除旧 %s 表（将重建为新格式）", table)
 		}
 	}
-
-	// 更新 slo_metrics_hourly 表
-	hourlyResult, err := db.Exec(`
-		UPDATE slo_metrics_hourly
-		SET domain = (
-			SELECT m.domain FROM slo_route_mapping m
-			WHERE m.cluster_id = slo_metrics_hourly.cluster_id
-			  AND m.service_key = slo_metrics_hourly.host
-		),
-		path_prefix = COALESCE((
-			SELECT m.path_prefix FROM slo_route_mapping m
-			WHERE m.cluster_id = slo_metrics_hourly.cluster_id
-			  AND m.service_key = slo_metrics_hourly.host
-		), '/')
-		WHERE (domain IS NULL OR domain = '')
-		  AND EXISTS (
-			SELECT 1 FROM slo_route_mapping m
-			WHERE m.cluster_id = slo_metrics_hourly.cluster_id
-			  AND m.service_key = slo_metrics_hourly.host
-		)
-	`)
-	if err != nil {
-		log.Printf("[SQLiteDB] 补填 slo_metrics_hourly domain 失败: %v", err)
-	} else {
-		rowsAffected, _ := hourlyResult.RowsAffected()
-		if rowsAffected > 0 {
-			log.Printf("[SQLiteDB] 已补填 slo_metrics_hourly 表 %d 条记录的 domain/path", rowsAffected)
-		}
-	}
-
-	return nil
 }

@@ -23,6 +23,8 @@ type Dialect struct {
 	aiActiveConfig  *aiActiveConfigDialect
 	aiProviderModel *aiProviderModelDialect
 	slo             *sloDialect
+	sloService      *sloServiceDialect
+	sloEdge         *sloEdgeDialect
 	nodeMetrics     *nodeMetricsDialect
 }
 
@@ -42,6 +44,8 @@ func NewDialect() *Dialect {
 		aiActiveConfig:  &aiActiveConfigDialect{},
 		aiProviderModel: &aiProviderModelDialect{},
 		slo:             &sloDialect{},
+		sloService:      &sloServiceDialect{},
+		sloEdge:         &sloEdgeDialect{},
 		nodeMetrics:     &nodeMetricsDialect{},
 	}
 }
@@ -59,6 +63,8 @@ func (d *Dialect) AIProvider() database.AIProviderDialect         { return d.aiP
 func (d *Dialect) AIActiveConfig() database.AIActiveConfigDialect { return d.aiActiveConfig }
 func (d *Dialect) AIProviderModel() database.AIProviderModelDialect { return d.aiProviderModel }
 func (d *Dialect) SLO() database.SLODialect                         { return d.slo }
+func (d *Dialect) SLOService() database.SLOServiceDialect           { return d.sloService }
+func (d *Dialect) SLOEdge() database.SLOEdgeDialect                 { return d.sloEdge }
 func (d *Dialect) NodeMetrics() database.NodeMetricsDialect         { return d.nodeMetrics }
 
 func (d *Dialect) Migrate(db *sql.DB) error {

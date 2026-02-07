@@ -196,7 +196,6 @@ func New() (*Master, error) {
 		CommandTimeout: cfg.Timeout.CommandPoll,
 		Bus:            bus,
 		Processor:      proc,
-		SLOProcessor:   sloProcessor,
 		CmdRepo:        db.Command,
 	})
 	log.Info("AgentSDK 初始化完成", "port", cfg.Server.AgentSDKPort)

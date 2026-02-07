@@ -13,7 +13,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/processor"
-	"AtlHyper/atlhyper_master_v2/slo"
 	"AtlHyper/common/logger"
 )
 
@@ -21,13 +20,12 @@ var log = logger.Module("AgentSDK")
 
 // Server AgentSDK HTTP Server
 type Server struct {
-	port         int
-	timeout      time.Duration
-	bus          mq.Consumer
-	processor    processor.Processor
-	sloProcessor *slo.Processor
-	cmdRepo      database.CommandHistoryRepository
-	httpServer   *http.Server
+	port       int
+	timeout    time.Duration
+	bus        mq.Consumer
+	processor  processor.Processor
+	cmdRepo    database.CommandHistoryRepository
+	httpServer *http.Server
 }
 
 // Config Server 配置
@@ -36,19 +34,17 @@ type Config struct {
 	CommandTimeout time.Duration
 	Bus            mq.Consumer
 	Processor      processor.Processor
-	SLOProcessor   *slo.Processor // 可为 nil (SLO 未启用时)
 	CmdRepo        database.CommandHistoryRepository
 }
 
 // NewServer 创建 Server
 func NewServer(cfg Config) *Server {
 	return &Server{
-		port:         cfg.Port,
-		timeout:      cfg.CommandTimeout,
-		bus:          cfg.Bus,
-		processor:    cfg.Processor,
-		sloProcessor: cfg.SLOProcessor,
-		cmdRepo:      cfg.CmdRepo,
+		port:      cfg.Port,
+		timeout:   cfg.CommandTimeout,
+		bus:       cfg.Bus,
+		processor: cfg.Processor,
+		cmdRepo:   cfg.CmdRepo,
 	}
 }
 
@@ -61,7 +57,6 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/agent/heartbeat", s.handleHeartbeat)
 	mux.HandleFunc("/agent/commands", s.handleCommands)
 	mux.HandleFunc("/agent/result", s.handleResult)
-	mux.HandleFunc("/agent/slo", s.handleSLO)
 
 	// 健康检查
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

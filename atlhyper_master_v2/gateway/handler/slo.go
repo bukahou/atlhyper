@@ -5,7 +5,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -137,13 +136,12 @@ func (h *SLOHandler) buildDomainSLO(ctx context.Context, clusterID, host string,
 		Trend:   "stable",
 	}
 
-	// 获取元信息
-	counters, _ := h.repo.GetCounterSnapshot(ctx, clusterID, host)
-	if len(counters) > 0 {
-		domain.IngressName = counters[0].IngressName
-		domain.IngressClass = counters[0].IngressClass
-		domain.Namespace = counters[0].Namespace
-		domain.TLS = counters[0].TLS
+	// 获取元信息（从路由映射表）
+	mapping, _ := h.repo.GetRouteMappingByServiceKey(ctx, clusterID, host)
+	if mapping != nil {
+		domain.IngressName = mapping.IngressName
+		domain.Namespace = mapping.Namespace
+		domain.TLS = mapping.TLS
 	}
 
 	// 获取当前周期的 hourly 数据
@@ -358,44 +356,8 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 			serviceCount++
 		}
 
-		// 累加 bucket 数据用于计算域名级别的 P95/P99
-		host := serviceKey
-		hourlyMetrics, err := h.repo.GetHourlyMetrics(ctx, clusterID, host, start, end)
-		if err == nil && len(hourlyMetrics) > 0 {
-			for _, m := range hourlyMetrics {
-				buckets[0.005] += m.Bucket5ms
-				buckets[0.01] += m.Bucket10ms
-				buckets[0.025] += m.Bucket25ms
-				buckets[0.05] += m.Bucket50ms
-				buckets[0.1] += m.Bucket100ms
-				buckets[0.25] += m.Bucket250ms
-				buckets[0.5] += m.Bucket500ms
-				buckets[1.0] += m.Bucket1s
-				buckets[2.5] += m.Bucket2500ms
-				buckets[5.0] += m.Bucket5s
-				buckets[10.0] += m.Bucket10s
-				buckets[math.Inf(1)] += m.BucketInf
-			}
-		} else {
-			// 回退到 raw 数据
-			rawMetrics, err := h.repo.GetRawMetrics(ctx, clusterID, host, start, end)
-			if err == nil && len(rawMetrics) > 0 {
-				for _, m := range rawMetrics {
-					buckets[0.005] += m.Bucket5ms
-					buckets[0.01] += m.Bucket10ms
-					buckets[0.025] += m.Bucket25ms
-					buckets[0.05] += m.Bucket50ms
-					buckets[0.1] += m.Bucket100ms
-					buckets[0.25] += m.Bucket250ms
-					buckets[0.5] += m.Bucket500ms
-					buckets[1.0] += m.Bucket1s
-					buckets[2.5] += m.Bucket2500ms
-					buckets[5.0] += m.Bucket5s
-					buckets[10.0] += m.Bucket10s
-					buckets[math.Inf(1)] += m.BucketInf
-				}
-			}
-		}
+		// TODO(Master P4): 使用 JSON bucket 累加域名级别分位数
+		// 当前使用 service 级别的 AvgLatencyMs 近似
 
 		// 统计最差状态
 		if serviceSLO.Status == "critical" && resp.Status != "critical" {
@@ -751,32 +713,27 @@ func aggregateHourlyMetrics(metrics []*database.SLOMetricsHourly) *model.SLOMetr
 
 	var totalRequests, errorRequests int64
 	var totalRPS float64
-	buckets := make(map[float64]int64)
+	var weightedP95, weightedP99 float64
 
 	for _, m := range metrics {
 		totalRequests += m.TotalRequests
 		errorRequests += m.ErrorRequests
 		totalRPS += m.AvgRPS
+		// 加权平均分位数（按请求量加权）
+		weightedP95 += float64(m.P95LatencyMs) * float64(m.TotalRequests)
+		weightedP99 += float64(m.P99LatencyMs) * float64(m.TotalRequests)
+	}
 
-		// 累加 buckets
-		buckets[0.005] += m.Bucket5ms
-		buckets[0.01] += m.Bucket10ms
-		buckets[0.025] += m.Bucket25ms
-		buckets[0.05] += m.Bucket50ms
-		buckets[0.1] += m.Bucket100ms
-		buckets[0.25] += m.Bucket250ms
-		buckets[0.5] += m.Bucket500ms
-		buckets[1.0] += m.Bucket1s
-		buckets[2.5] += m.Bucket2500ms
-		buckets[5.0] += m.Bucket5s
-		buckets[10.0] += m.Bucket10s
-		buckets[math.Inf(1)] += m.BucketInf
+	var p95, p99 int
+	if totalRequests > 0 {
+		p95 = int(weightedP95 / float64(totalRequests))
+		p99 = int(weightedP99 / float64(totalRequests))
 	}
 
 	return &model.SLOMetrics{
 		Availability:   slo.CalculateAvailability(totalRequests, errorRequests),
-		P95Latency:     slo.CalculateQuantileMs(buckets, 0.95),
-		P99Latency:     slo.CalculateQuantileMs(buckets, 0.99),
+		P95Latency:     p95,
+		P99Latency:     p99,
 		ErrorRate:      slo.CalculateErrorRate(totalRequests, errorRequests),
 		RequestsPerSec: totalRPS / float64(len(metrics)),
 		TotalRequests:  totalRequests,
@@ -790,35 +747,30 @@ func aggregateRawMetrics(metrics []*database.SLOMetricsRaw) *model.SLOMetrics {
 	}
 
 	var totalRequests, errorRequests int64
-	buckets := make(map[float64]int64)
+	var totalLatencySum float64
+	var totalLatencyCount int64
 
 	for _, m := range metrics {
 		totalRequests += m.TotalRequests
 		errorRequests += m.ErrorRequests
-
-		// 累加 buckets
-		buckets[0.005] += m.Bucket5ms
-		buckets[0.01] += m.Bucket10ms
-		buckets[0.025] += m.Bucket25ms
-		buckets[0.05] += m.Bucket50ms
-		buckets[0.1] += m.Bucket100ms
-		buckets[0.25] += m.Bucket250ms
-		buckets[0.5] += m.Bucket500ms
-		buckets[1.0] += m.Bucket1s
-		buckets[2.5] += m.Bucket2500ms
-		buckets[5.0] += m.Bucket5s
-		buckets[10.0] += m.Bucket10s
-		buckets[math.Inf(1)] += m.BucketInf
+		totalLatencySum += m.LatencySum
+		totalLatencyCount += m.LatencyCount
 	}
 
 	// 计算 RPS（假设每条 raw 是 10 秒间隔）
 	durationSeconds := float64(len(metrics)) * 10.0
 	avgRPS := float64(totalRequests) / durationSeconds
 
+	// 使用平均延迟近似 P95/P99（JSON bucket 解析在 Master P4 实现）
+	var avgLatency int
+	if totalLatencyCount > 0 {
+		avgLatency = int(totalLatencySum / float64(totalLatencyCount))
+	}
+
 	return &model.SLOMetrics{
 		Availability:   slo.CalculateAvailability(totalRequests, errorRequests),
-		P95Latency:     slo.CalculateQuantileMs(buckets, 0.95),
-		P99Latency:     slo.CalculateQuantileMs(buckets, 0.99),
+		P95Latency:     avgLatency, // TODO(Master P4): JSON bucket 解析实现精确分位数
+		P99Latency:     avgLatency,
 		ErrorRate:      slo.CalculateErrorRate(totalRequests, errorRequests),
 		RequestsPerSec: avgRPS,
 		TotalRequests:  totalRequests,

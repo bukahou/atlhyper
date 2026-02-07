@@ -1,5 +1,6 @@
 // atlhyper_master_v2/database/sqlite/slo.go
 // SQLite SLO Dialect 实现
+// 入口指标表 SQL: slo_metrics_raw + slo_metrics_hourly + targets + status + route_mapping
 package sqlite
 
 import (
@@ -11,144 +12,30 @@ import (
 
 type sloDialect struct{}
 
-// ==================== Counter Snapshot ====================
-
-func (d *sloDialect) SelectCounterSnapshot(clusterID, host string) (string, []any) {
-	if host == "" {
-		return `SELECT id, cluster_id, host, ingress_name, ingress_class, namespace, service, tls, method, status, counter_value, prev_value, updated_at
-			FROM ingress_counter_snapshot WHERE cluster_id = ?`, []any{clusterID}
-	}
-	return `SELECT id, cluster_id, host, ingress_name, ingress_class, namespace, service, tls, method, status, counter_value, prev_value, updated_at
-		FROM ingress_counter_snapshot WHERE cluster_id = ? AND host = ?`, []any{clusterID, host}
-}
-
-func (d *sloDialect) UpsertCounterSnapshot(s *database.IngressCounterSnapshot) (string, []any) {
-	query := `INSERT INTO ingress_counter_snapshot (cluster_id, host, ingress_name, ingress_class, namespace, service, tls, method, status, counter_value, prev_value, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(cluster_id, host, method, status) DO UPDATE SET
-		ingress_name = excluded.ingress_name,
-		ingress_class = excluded.ingress_class,
-		namespace = excluded.namespace,
-		service = excluded.service,
-		tls = excluded.tls,
-		prev_value = ingress_counter_snapshot.counter_value,
-		counter_value = excluded.counter_value,
-		updated_at = excluded.updated_at`
-	args := []any{
-		s.ClusterID, s.Host, s.IngressName, s.IngressClass, s.Namespace, s.Service,
-		boolToInt(s.TLS), s.Method, s.Status, s.CounterValue, s.PrevValue,
-		s.UpdatedAt.Format(time.RFC3339),
-	}
-	return query, args
-}
-
-func (d *sloDialect) ScanCounterSnapshot(rows *sql.Rows) (*database.IngressCounterSnapshot, error) {
-	s := &database.IngressCounterSnapshot{}
-	var tls int
-	var updatedAt string
-	err := rows.Scan(&s.ID, &s.ClusterID, &s.Host, &s.IngressName, &s.IngressClass,
-		&s.Namespace, &s.Service, &tls, &s.Method, &s.Status,
-		&s.CounterValue, &s.PrevValue, &updatedAt)
-	if err != nil {
-		return nil, err
-	}
-	s.TLS = tls == 1
-	s.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
-	return s, nil
-}
-
-// ==================== Histogram Snapshot ====================
-
-func (d *sloDialect) SelectHistogramSnapshot(clusterID, host string) (string, []any) {
-	if host == "" {
-		return `SELECT id, cluster_id, host, ingress_name, namespace, le, bucket_value, prev_value, sum_value, count_value, updated_at
-			FROM ingress_histogram_snapshot WHERE cluster_id = ?`, []any{clusterID}
-	}
-	return `SELECT id, cluster_id, host, ingress_name, namespace, le, bucket_value, prev_value, sum_value, count_value, updated_at
-		FROM ingress_histogram_snapshot WHERE cluster_id = ? AND host = ?`, []any{clusterID, host}
-}
-
-func (d *sloDialect) UpsertHistogramSnapshot(s *database.IngressHistogramSnapshot) (string, []any) {
-	query := `INSERT INTO ingress_histogram_snapshot (cluster_id, host, ingress_name, namespace, le, bucket_value, prev_value, sum_value, count_value, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(cluster_id, host, le) DO UPDATE SET
-		ingress_name = excluded.ingress_name,
-		namespace = excluded.namespace,
-		prev_value = ingress_histogram_snapshot.bucket_value,
-		bucket_value = excluded.bucket_value,
-		sum_value = excluded.sum_value,
-		count_value = excluded.count_value,
-		updated_at = excluded.updated_at`
-	args := []any{
-		s.ClusterID, s.Host, s.IngressName, s.Namespace, s.LE,
-		s.BucketValue, s.PrevValue, s.SumValue, s.CountValue,
-		s.UpdatedAt.Format(time.RFC3339),
-	}
-	return query, args
-}
-
-func (d *sloDialect) ScanHistogramSnapshot(rows *sql.Rows) (*database.IngressHistogramSnapshot, error) {
-	s := &database.IngressHistogramSnapshot{}
-	var updatedAt string
-	var sumValue sql.NullFloat64
-	var countValueInt sql.NullInt64
-	err := rows.Scan(&s.ID, &s.ClusterID, &s.Host, &s.IngressName, &s.Namespace,
-		&s.LE, &s.BucketValue, &s.PrevValue, &sumValue, &countValueInt, &updatedAt)
-	if err != nil {
-		return nil, err
-	}
-	if sumValue.Valid {
-		s.SumValue = &sumValue.Float64
-	}
-	if countValueInt.Valid {
-		cv := countValueInt.Int64
-		s.CountValue = &cv
-	}
-	s.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
-	return s, nil
-}
-
-// ==================== Raw Metrics ====================
+// ==================== Raw Metrics (入口) ====================
 
 func (d *sloDialect) InsertRawMetrics(m *database.SLOMetricsRaw) (string, []any) {
-	query := `INSERT INTO slo_metrics_raw (cluster_id, host, domain, path_prefix, timestamp, total_requests, error_requests, sum_latency_ms,
-		bucket_5ms, bucket_10ms, bucket_25ms, bucket_50ms, bucket_100ms, bucket_250ms, bucket_500ms,
-		bucket_1s, bucket_2500ms, bucket_5s, bucket_10s, bucket_inf, is_missing)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO slo_metrics_raw (cluster_id, host, domain, path_prefix, timestamp,
+		total_requests, error_requests, latency_sum, latency_count, latency_buckets,
+		method_get, method_post, method_put, method_delete, method_other, is_missing)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	args := []any{
 		m.ClusterID, m.Host, m.Domain, m.PathPrefix, m.Timestamp.Format(time.RFC3339),
-		m.TotalRequests, m.ErrorRequests, m.SumLatencyMs,
-		m.Bucket5ms, m.Bucket10ms, m.Bucket25ms, m.Bucket50ms,
-		m.Bucket100ms, m.Bucket250ms, m.Bucket500ms, m.Bucket1s,
-		m.Bucket2500ms, m.Bucket5s, m.Bucket10s, m.BucketInf,
+		m.TotalRequests, m.ErrorRequests, m.LatencySum, m.LatencyCount, m.LatencyBuckets,
+		m.MethodGet, m.MethodPost, m.MethodPut, m.MethodDelete, m.MethodOther,
 		boolToInt(m.IsMissing),
 	}
 	return query, args
 }
 
 func (d *sloDialect) SelectRawMetrics(clusterID, host string, start, end time.Time) (string, []any) {
-	return `SELECT id, cluster_id, host, domain, path_prefix, timestamp, total_requests, error_requests, sum_latency_ms,
-		bucket_5ms, bucket_10ms, bucket_25ms, bucket_50ms, bucket_100ms, bucket_250ms, bucket_500ms,
-		bucket_1s, bucket_2500ms, bucket_5s, bucket_10s, bucket_inf, is_missing
+	return `SELECT id, cluster_id, host, domain, path_prefix, timestamp,
+		total_requests, error_requests, latency_sum, latency_count, latency_buckets,
+		method_get, method_post, method_put, method_delete, method_other, is_missing
 		FROM slo_metrics_raw
 		WHERE cluster_id = ? AND host = ? AND timestamp >= ? AND timestamp < ?
 		ORDER BY timestamp ASC`,
 		[]any{clusterID, host, start.Format(time.RFC3339), end.Format(time.RFC3339)}
-}
-
-func (d *sloDialect) UpdateRawMetricsBuckets(m *database.SLOMetricsRaw) (string, []any) {
-	query := `UPDATE slo_metrics_raw SET
-		bucket_5ms = ?, bucket_10ms = ?, bucket_25ms = ?, bucket_50ms = ?,
-		bucket_100ms = ?, bucket_250ms = ?, bucket_500ms = ?, bucket_1s = ?,
-		bucket_2500ms = ?, bucket_5s = ?, bucket_10s = ?, bucket_inf = ?
-		WHERE id = ?`
-	args := []any{
-		m.Bucket5ms, m.Bucket10ms, m.Bucket25ms, m.Bucket50ms,
-		m.Bucket100ms, m.Bucket250ms, m.Bucket500ms, m.Bucket1s,
-		m.Bucket2500ms, m.Bucket5s, m.Bucket10s, m.BucketInf,
-		m.ID,
-	}
-	return query, args
 }
 
 func (d *sloDialect) DeleteRawMetricsBefore(before time.Time) (string, []any) {
@@ -159,12 +46,10 @@ func (d *sloDialect) ScanRawMetrics(rows *sql.Rows) (*database.SLOMetricsRaw, er
 	m := &database.SLOMetricsRaw{}
 	var timestamp string
 	var isMissing int
-	var domain, pathPrefix sql.NullString
+	var domain, pathPrefix, latencyBuckets sql.NullString
 	err := rows.Scan(&m.ID, &m.ClusterID, &m.Host, &domain, &pathPrefix, &timestamp,
-		&m.TotalRequests, &m.ErrorRequests, &m.SumLatencyMs,
-		&m.Bucket5ms, &m.Bucket10ms, &m.Bucket25ms, &m.Bucket50ms,
-		&m.Bucket100ms, &m.Bucket250ms, &m.Bucket500ms, &m.Bucket1s,
-		&m.Bucket2500ms, &m.Bucket5s, &m.Bucket10s, &m.BucketInf,
+		&m.TotalRequests, &m.ErrorRequests, &m.LatencySum, &m.LatencyCount, &latencyBuckets,
+		&m.MethodGet, &m.MethodPost, &m.MethodPut, &m.MethodDelete, &m.MethodOther,
 		&isMissing)
 	if err != nil {
 		return nil, err
@@ -175,18 +60,20 @@ func (d *sloDialect) ScanRawMetrics(rows *sql.Rows) (*database.SLOMetricsRaw, er
 		m.PathPrefix = "/"
 	}
 	m.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
+	m.LatencyBuckets = latencyBuckets.String
 	m.IsMissing = isMissing == 1
 	return m, nil
 }
 
-// ==================== Hourly Metrics ====================
+// ==================== Hourly Metrics (入口) ====================
 
 func (d *sloDialect) UpsertHourlyMetrics(m *database.SLOMetricsHourly) (string, []any) {
-	query := `INSERT INTO slo_metrics_hourly (cluster_id, host, domain, path_prefix, hour_start, total_requests, error_requests, availability,
+	query := `INSERT INTO slo_metrics_hourly (cluster_id, host, domain, path_prefix, hour_start,
+		total_requests, error_requests, availability,
 		p50_latency_ms, p95_latency_ms, p99_latency_ms, avg_latency_ms, avg_rps,
-		bucket_5ms, bucket_10ms, bucket_25ms, bucket_50ms, bucket_100ms, bucket_250ms, bucket_500ms,
-		bucket_1s, bucket_2500ms, bucket_5s, bucket_10s, bucket_inf, sample_count, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		latency_buckets, method_get, method_post, method_put, method_delete, method_other,
+		sample_count, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(cluster_id, host, hour_start) DO UPDATE SET
 		domain = excluded.domain,
 		path_prefix = excluded.path_prefix,
@@ -198,36 +85,29 @@ func (d *sloDialect) UpsertHourlyMetrics(m *database.SLOMetricsHourly) (string, 
 		p99_latency_ms = excluded.p99_latency_ms,
 		avg_latency_ms = excluded.avg_latency_ms,
 		avg_rps = excluded.avg_rps,
-		bucket_5ms = excluded.bucket_5ms,
-		bucket_10ms = excluded.bucket_10ms,
-		bucket_25ms = excluded.bucket_25ms,
-		bucket_50ms = excluded.bucket_50ms,
-		bucket_100ms = excluded.bucket_100ms,
-		bucket_250ms = excluded.bucket_250ms,
-		bucket_500ms = excluded.bucket_500ms,
-		bucket_1s = excluded.bucket_1s,
-		bucket_2500ms = excluded.bucket_2500ms,
-		bucket_5s = excluded.bucket_5s,
-		bucket_10s = excluded.bucket_10s,
-		bucket_inf = excluded.bucket_inf,
+		latency_buckets = excluded.latency_buckets,
+		method_get = excluded.method_get,
+		method_post = excluded.method_post,
+		method_put = excluded.method_put,
+		method_delete = excluded.method_delete,
+		method_other = excluded.method_other,
 		sample_count = excluded.sample_count`
 	args := []any{
 		m.ClusterID, m.Host, m.Domain, m.PathPrefix, m.HourStart.Format(time.RFC3339),
 		m.TotalRequests, m.ErrorRequests, m.Availability,
 		m.P50LatencyMs, m.P95LatencyMs, m.P99LatencyMs, m.AvgLatencyMs, m.AvgRPS,
-		m.Bucket5ms, m.Bucket10ms, m.Bucket25ms, m.Bucket50ms,
-		m.Bucket100ms, m.Bucket250ms, m.Bucket500ms, m.Bucket1s,
-		m.Bucket2500ms, m.Bucket5s, m.Bucket10s, m.BucketInf,
+		m.LatencyBuckets, m.MethodGet, m.MethodPost, m.MethodPut, m.MethodDelete, m.MethodOther,
 		m.SampleCount, m.CreatedAt.Format(time.RFC3339),
 	}
 	return query, args
 }
 
 func (d *sloDialect) SelectHourlyMetrics(clusterID, host string, start, end time.Time) (string, []any) {
-	return `SELECT id, cluster_id, host, domain, path_prefix, hour_start, total_requests, error_requests, availability,
+	return `SELECT id, cluster_id, host, domain, path_prefix, hour_start,
+		total_requests, error_requests, availability,
 		p50_latency_ms, p95_latency_ms, p99_latency_ms, avg_latency_ms, avg_rps,
-		bucket_5ms, bucket_10ms, bucket_25ms, bucket_50ms, bucket_100ms, bucket_250ms, bucket_500ms,
-		bucket_1s, bucket_2500ms, bucket_5s, bucket_10s, bucket_inf, sample_count, created_at
+		latency_buckets, method_get, method_post, method_put, method_delete, method_other,
+		sample_count, created_at
 		FROM slo_metrics_hourly
 		WHERE cluster_id = ? AND host = ? AND hour_start >= ? AND hour_start < ?
 		ORDER BY hour_start ASC`,
@@ -241,13 +121,11 @@ func (d *sloDialect) DeleteHourlyMetricsBefore(before time.Time) (string, []any)
 func (d *sloDialect) ScanHourlyMetrics(rows *sql.Rows) (*database.SLOMetricsHourly, error) {
 	m := &database.SLOMetricsHourly{}
 	var hourStart, createdAt string
-	var domain, pathPrefix sql.NullString
+	var domain, pathPrefix, latencyBuckets sql.NullString
 	err := rows.Scan(&m.ID, &m.ClusterID, &m.Host, &domain, &pathPrefix, &hourStart,
 		&m.TotalRequests, &m.ErrorRequests, &m.Availability,
 		&m.P50LatencyMs, &m.P95LatencyMs, &m.P99LatencyMs, &m.AvgLatencyMs, &m.AvgRPS,
-		&m.Bucket5ms, &m.Bucket10ms, &m.Bucket25ms, &m.Bucket50ms,
-		&m.Bucket100ms, &m.Bucket250ms, &m.Bucket500ms, &m.Bucket1s,
-		&m.Bucket2500ms, &m.Bucket5s, &m.Bucket10s, &m.BucketInf,
+		&latencyBuckets, &m.MethodGet, &m.MethodPost, &m.MethodPut, &m.MethodDelete, &m.MethodOther,
 		&m.SampleCount, &createdAt)
 	if err != nil {
 		return nil, err
@@ -259,6 +137,7 @@ func (d *sloDialect) ScanHourlyMetrics(rows *sql.Rows) (*database.SLOMetricsHour
 	}
 	m.HourStart, _ = time.Parse(time.RFC3339, hourStart)
 	m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	m.LatencyBuckets = latencyBuckets.String
 	return m, nil
 }
 
@@ -358,7 +237,7 @@ func (d *sloDialect) ScanStatusHistory(rows *sql.Rows) (*database.SLOStatusHisto
 // ==================== Domain List ====================
 
 func (d *sloDialect) SelectAllHosts(clusterID string) (string, []any) {
-	return `SELECT DISTINCT host FROM ingress_counter_snapshot WHERE cluster_id = ? ORDER BY host`,
+	return `SELECT DISTINCT host FROM slo_metrics_raw WHERE cluster_id = ? ORDER BY host`,
 		[]any{clusterID}
 }
 
@@ -369,8 +248,6 @@ func (d *sloDialect) SelectAllClusterIDs() (string, []any) {
 // ==================== Route Mapping ====================
 
 func (d *sloDialect) UpsertRouteMapping(m *database.SLORouteMapping) (string, []any) {
-	// 唯一约束基于 cluster_id + domain + path_prefix
-	// 同一个 service 可能服务于多个路径
 	query := `INSERT INTO slo_route_mapping (cluster_id, domain, path_prefix, ingress_name, namespace, tls, service_key, service_name, service_port, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(cluster_id, domain, path_prefix) DO UPDATE SET
@@ -431,15 +308,6 @@ func (d *sloDialect) ScanRouteMapping(rows *sql.Rows) (*database.SLORouteMapping
 	m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	m.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 	return m, nil
-}
-
-// ==================== Helper ====================
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }
 
 var _ database.SLODialect = (*sloDialect)(nil)

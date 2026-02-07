@@ -27,6 +27,8 @@ type DB struct {
 	AIActive       AIActiveConfigRepository
 	AIModel        AIProviderModelRepository
 	SLO            SLORepository
+	SLOService     SLOServiceRepository
+	SLOEdge        SLOEdgeRepository
 	NodeMetrics    NodeMetricsRepository
 
 	Conn *sql.DB // 导出供 repo 包使用
@@ -288,94 +290,129 @@ type AIProviderModel struct {
 
 // ==================== SLO 模型定义 ====================
 
-// IngressCounterSnapshot Ingress Counter 快照
-type IngressCounterSnapshot struct {
+// SLOServiceRaw 服务网格原始数据（每次采集一行，保留 48h）
+type SLOServiceRaw struct {
+	ID                int64
+	ClusterID         string
+	Namespace         string
+	Name              string // workload name
+	Timestamp         time.Time
+	TotalRequests     int64
+	ErrorRequests     int64 // classification=failure
+	Status2xx         int64
+	Status3xx         int64
+	Status4xx         int64
+	Status5xx         int64
+	LatencySum        float64 // ms
+	LatencyCount      int64
+	LatencyBuckets    string // JSON: {"1":10, "5":50, ...}
+	TLSRequestDelta   int64
+	TotalRequestDelta int64
+}
+
+// SLOServiceHourly 服务网格小时聚合（保留 90d）
+type SLOServiceHourly struct {
+	ID             int64
+	ClusterID      string
+	Namespace      string
+	Name           string
+	HourStart      time.Time
+	TotalRequests  int64
+	ErrorRequests  int64
+	Availability   float64 // (total - error) / total * 100
+	P50LatencyMs   int
+	P95LatencyMs   int
+	P99LatencyMs   int
+	AvgLatencyMs   int
+	AvgRPS         float64
+	Status2xx      int64
+	Status3xx      int64
+	Status4xx      int64
+	Status5xx      int64
+	LatencyBuckets string  // JSON
+	MtlsPercent    float64 // tls / total * 100
+	SampleCount    int
+	CreatedAt      time.Time
+}
+
+// SLOEdgeRaw 拓扑边原始数据（每次采集一行，保留 48h）
+type SLOEdgeRaw struct {
 	ID           int64
 	ClusterID    string
-	Host         string
-	IngressName  string
-	IngressClass string
-	Namespace    string
-	Service      string
-	TLS          bool
-	Method       string
-	Status       string
-	CounterValue int64
-	PrevValue    int64
-	UpdatedAt    time.Time
+	SrcNamespace string
+	SrcName      string
+	DstNamespace string
+	DstName      string
+	Timestamp    time.Time
+	RequestDelta int64
+	FailureDelta int64
+	LatencySum   float64 // ms
+	LatencyCount int64
 }
 
-// IngressHistogramSnapshot Ingress Histogram 快照
-type IngressHistogramSnapshot struct {
-	ID          int64
-	ClusterID   string
-	Host        string
-	IngressName string
-	Namespace   string
-	LE          float64 // Bucket 上界（秒）
-	BucketValue int64
-	PrevValue   int64
-	SumValue    *float64
-	CountValue  *int64
-	UpdatedAt   time.Time
-}
-
-// SLOMetricsRaw 原始增量数据
-type SLOMetricsRaw struct {
+// SLOEdgeHourly 拓扑边小时聚合（保留 90d）
+type SLOEdgeHourly struct {
 	ID            int64
 	ClusterID     string
-	Host          string
-	Domain        string // 域名（从 IngressRoute 映射获取）
-	PathPrefix    string // 路径前缀（从 IngressRoute 映射获取）
-	Timestamp     time.Time
-	TotalRequests int64
-	ErrorRequests int64
-	SumLatencyMs  int64
-	Bucket5ms     int64
-	Bucket10ms    int64
-	Bucket25ms    int64
-	Bucket50ms    int64
-	Bucket100ms   int64
-	Bucket250ms   int64
-	Bucket500ms   int64
-	Bucket1s      int64
-	Bucket2500ms  int64
-	Bucket5s      int64
-	Bucket10s     int64
-	BucketInf     int64
-	IsMissing     bool
-}
-
-// SLOMetricsHourly 小时聚合数据
-type SLOMetricsHourly struct {
-	ID            int64
-	ClusterID     string
-	Host          string
-	Domain        string // 域名（从 IngressRoute 映射获取）
-	PathPrefix    string // 路径前缀（从 IngressRoute 映射获取）
+	SrcNamespace  string
+	SrcName       string
+	DstNamespace  string
+	DstName       string
 	HourStart     time.Time
 	TotalRequests int64
 	ErrorRequests int64
-	Availability  float64
-	P50LatencyMs  int
-	P95LatencyMs  int
-	P99LatencyMs  int
 	AvgLatencyMs  int
 	AvgRPS        float64
-	Bucket5ms     int64
-	Bucket10ms    int64
-	Bucket25ms    int64
-	Bucket50ms    int64
-	Bucket100ms   int64
-	Bucket250ms   int64
-	Bucket500ms   int64
-	Bucket1s      int64
-	Bucket2500ms  int64
-	Bucket5s      int64
-	Bucket10s     int64
-	BucketInf     int64
+	ErrorRate     float64 // error / total * 100
 	SampleCount   int
 	CreatedAt     time.Time
+}
+
+// SLOMetricsRaw 入口原始增量数据（JSON bucket，保留 48h）
+type SLOMetricsRaw struct {
+	ID             int64
+	ClusterID      string
+	Host           string    // ServiceKey
+	Domain         string    // 域名（从 route_mapping 映射）
+	PathPrefix     string    // 路径前缀
+	Timestamp      time.Time
+	TotalRequests  int64
+	ErrorRequests  int64
+	LatencySum     float64 // ms
+	LatencyCount   int64
+	LatencyBuckets string  // JSON: {"100":10, "500":50, ...}
+	MethodGet      int64
+	MethodPost     int64
+	MethodPut      int64
+	MethodDelete   int64
+	MethodOther    int64
+	IsMissing      bool
+}
+
+// SLOMetricsHourly 入口小时聚合（JSON bucket，保留 90d）
+type SLOMetricsHourly struct {
+	ID             int64
+	ClusterID      string
+	Host           string
+	Domain         string
+	PathPrefix     string
+	HourStart      time.Time
+	TotalRequests  int64
+	ErrorRequests  int64
+	Availability   float64
+	P50LatencyMs   int
+	P95LatencyMs   int
+	P99LatencyMs   int
+	AvgLatencyMs   int
+	AvgRPS         float64
+	LatencyBuckets string // JSON
+	MethodGet      int64
+	MethodPost     int64
+	MethodPut      int64
+	MethodDelete   int64
+	MethodOther    int64
+	SampleCount    int
+	CreatedAt      time.Time
 }
 
 // SLOTarget SLO 目标配置
@@ -614,23 +651,14 @@ type AIProviderModelRepository interface {
 	GetDefaultModel(ctx context.Context, provider string) (*AIProviderModel, error)
 }
 
-// SLORepository SLO 数据访问接口
+// SLORepository SLO 入口指标数据访问接口
 type SLORepository interface {
-	// Counter Snapshot
-	GetCounterSnapshot(ctx context.Context, clusterID, host string) ([]*IngressCounterSnapshot, error)
-	UpsertCounterSnapshot(ctx context.Context, s *IngressCounterSnapshot) error
-
-	// Histogram Snapshot
-	GetHistogramSnapshot(ctx context.Context, clusterID, host string) ([]*IngressHistogramSnapshot, error)
-	UpsertHistogramSnapshot(ctx context.Context, s *IngressHistogramSnapshot) error
-
-	// Raw Metrics
+	// Raw Metrics (入口)
 	InsertRawMetrics(ctx context.Context, m *SLOMetricsRaw) error
 	GetRawMetrics(ctx context.Context, clusterID, host string, start, end time.Time) ([]*SLOMetricsRaw, error)
-	UpdateRawMetricsBuckets(ctx context.Context, m *SLOMetricsRaw) error
 	DeleteRawMetricsBefore(ctx context.Context, before time.Time) (int64, error)
 
-	// Hourly Metrics
+	// Hourly Metrics (入口)
 	UpsertHourlyMetrics(ctx context.Context, m *SLOMetricsHourly) error
 	GetHourlyMetrics(ctx context.Context, clusterID, host string, start, end time.Time) ([]*SLOMetricsHourly, error)
 	DeleteHourlyMetricsBefore(ctx context.Context, before time.Time) (int64, error)
@@ -657,6 +685,28 @@ type SLORepository interface {
 	GetAllRouteMappings(ctx context.Context, clusterID string) ([]*SLORouteMapping, error)
 	GetAllDomains(ctx context.Context, clusterID string) ([]string, error)
 	DeleteRouteMapping(ctx context.Context, clusterID, serviceKey string) error
+}
+
+// SLOServiceRepository 服务网格数据访问接口
+type SLOServiceRepository interface {
+	InsertServiceRaw(ctx context.Context, m *SLOServiceRaw) error
+	GetServiceRaw(ctx context.Context, clusterID, namespace, name string, start, end time.Time) ([]*SLOServiceRaw, error)
+	DeleteServiceRawBefore(ctx context.Context, before time.Time) (int64, error)
+
+	UpsertServiceHourly(ctx context.Context, m *SLOServiceHourly) error
+	GetServiceHourly(ctx context.Context, clusterID, namespace, name string, start, end time.Time) ([]*SLOServiceHourly, error)
+	DeleteServiceHourlyBefore(ctx context.Context, before time.Time) (int64, error)
+}
+
+// SLOEdgeRepository 拓扑边数据访问接口
+type SLOEdgeRepository interface {
+	InsertEdgeRaw(ctx context.Context, m *SLOEdgeRaw) error
+	GetEdgeRaw(ctx context.Context, clusterID string, start, end time.Time) ([]*SLOEdgeRaw, error)
+	DeleteEdgeRawBefore(ctx context.Context, before time.Time) (int64, error)
+
+	UpsertEdgeHourly(ctx context.Context, m *SLOEdgeHourly) error
+	GetEdgeHourly(ctx context.Context, clusterID string, start, end time.Time) ([]*SLOEdgeHourly, error)
+	DeleteEdgeHourlyBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 // NodeMetricsRepository 节点指标数据访问接口
@@ -695,6 +745,8 @@ type Dialect interface {
 	AIActiveConfig() AIActiveConfigDialect
 	AIProviderModel() AIProviderModelDialect
 	SLO() SLODialect
+	SLOService() SLOServiceDialect
+	SLOEdge() SLOEdgeDialect
 	NodeMetrics() NodeMetricsDialect
 	Migrate(db *sql.DB) error
 }
@@ -830,26 +882,15 @@ type AIProviderModelDialect interface {
 	ScanRow(rows *sql.Rows) (*AIProviderModel, error)
 }
 
-// SLODialect SLO SQL 方言
+// SLODialect SLO 入口指标 SQL 方言
 type SLODialect interface {
-	// Counter Snapshot
-	SelectCounterSnapshot(clusterID, host string) (query string, args []any)
-	UpsertCounterSnapshot(s *IngressCounterSnapshot) (query string, args []any)
-	ScanCounterSnapshot(rows *sql.Rows) (*IngressCounterSnapshot, error)
-
-	// Histogram Snapshot
-	SelectHistogramSnapshot(clusterID, host string) (query string, args []any)
-	UpsertHistogramSnapshot(s *IngressHistogramSnapshot) (query string, args []any)
-	ScanHistogramSnapshot(rows *sql.Rows) (*IngressHistogramSnapshot, error)
-
-	// Raw Metrics
+	// Raw Metrics (入口)
 	InsertRawMetrics(m *SLOMetricsRaw) (query string, args []any)
 	SelectRawMetrics(clusterID, host string, start, end time.Time) (query string, args []any)
-	UpdateRawMetricsBuckets(m *SLOMetricsRaw) (query string, args []any)
 	DeleteRawMetricsBefore(before time.Time) (query string, args []any)
 	ScanRawMetrics(rows *sql.Rows) (*SLOMetricsRaw, error)
 
-	// Hourly Metrics
+	// Hourly Metrics (入口)
 	UpsertHourlyMetrics(m *SLOMetricsHourly) (query string, args []any)
 	SelectHourlyMetrics(clusterID, host string, start, end time.Time) (query string, args []any)
 	DeleteHourlyMetricsBefore(before time.Time) (query string, args []any)
@@ -880,6 +921,32 @@ type SLODialect interface {
 	SelectAllDomains(clusterID string) (query string, args []any)
 	DeleteRouteMapping(clusterID, serviceKey string) (query string, args []any)
 	ScanRouteMapping(rows *sql.Rows) (*SLORouteMapping, error)
+}
+
+// SLOServiceDialect 服务网格 SQL 方言
+type SLOServiceDialect interface {
+	InsertServiceRaw(m *SLOServiceRaw) (query string, args []any)
+	SelectServiceRaw(clusterID, namespace, name string, start, end time.Time) (query string, args []any)
+	DeleteServiceRawBefore(before time.Time) (query string, args []any)
+	ScanServiceRaw(rows *sql.Rows) (*SLOServiceRaw, error)
+
+	UpsertServiceHourly(m *SLOServiceHourly) (query string, args []any)
+	SelectServiceHourly(clusterID, namespace, name string, start, end time.Time) (query string, args []any)
+	DeleteServiceHourlyBefore(before time.Time) (query string, args []any)
+	ScanServiceHourly(rows *sql.Rows) (*SLOServiceHourly, error)
+}
+
+// SLOEdgeDialect 拓扑边 SQL 方言
+type SLOEdgeDialect interface {
+	InsertEdgeRaw(m *SLOEdgeRaw) (query string, args []any)
+	SelectEdgeRaw(clusterID string, start, end time.Time) (query string, args []any)
+	DeleteEdgeRawBefore(before time.Time) (query string, args []any)
+	ScanEdgeRaw(rows *sql.Rows) (*SLOEdgeRaw, error)
+
+	UpsertEdgeHourly(m *SLOEdgeHourly) (query string, args []any)
+	SelectEdgeHourly(clusterID string, start, end time.Time) (query string, args []any)
+	DeleteEdgeHourlyBefore(before time.Time) (query string, args []any)
+	ScanEdgeHourly(rows *sql.Rows) (*SLOEdgeHourly, error)
 }
 
 // NodeMetricsDialect 节点指标 SQL 方言
