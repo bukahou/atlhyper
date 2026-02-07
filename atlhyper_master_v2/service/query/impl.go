@@ -15,9 +15,12 @@ import (
 
 // QueryService Query 层实现
 type QueryService struct {
-	store     datahub.Store
-	bus       mq.Producer
-	eventRepo database.ClusterEventRepository
+	store       datahub.Store
+	bus         mq.Producer
+	eventRepo   database.ClusterEventRepository
+	sloRepo     database.SLORepository
+	serviceRepo database.SLOServiceRepository
+	edgeRepo    database.SLOEdgeRepository
 }
 
 // New 创建 QueryService 实例
@@ -34,6 +37,18 @@ func NewWithEventRepo(store datahub.Store, bus mq.Producer, eventRepo database.C
 		store:     store,
 		bus:       bus,
 		eventRepo: eventRepo,
+	}
+}
+
+// NewWithSLORepos 创建带 SLO 仓库的 QueryService 实例
+func NewWithSLORepos(store datahub.Store, bus mq.Producer, eventRepo database.ClusterEventRepository, sloRepo database.SLORepository, serviceRepo database.SLOServiceRepository, edgeRepo database.SLOEdgeRepository) *QueryService {
+	return &QueryService{
+		store:       store,
+		bus:         bus,
+		eventRepo:   eventRepo,
+		sloRepo:     sloRepo,
+		serviceRepo: serviceRepo,
+		edgeRepo:    edgeRepo,
 	}
 }
 

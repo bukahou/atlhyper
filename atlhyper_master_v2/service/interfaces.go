@@ -53,6 +53,11 @@ type Query interface {
 	GetNode(ctx context.Context, clusterID, name string) (*model_v2.Node, error)
 	GetDeployment(ctx context.Context, clusterID, namespace, name string) (*model_v2.Deployment, error)
 	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*model_v2.Deployment, error)
+
+	// ==================== SLO 服务网格查询 ====================
+
+	GetMeshTopology(ctx context.Context, clusterID, timeRange string) (*model.ServiceMeshTopologyResponse, error)
+	GetServiceDetail(ctx context.Context, clusterID, namespace, name, timeRange string) (*model.ServiceDetailResponse, error)
 }
 
 // Ops 写入操作接口

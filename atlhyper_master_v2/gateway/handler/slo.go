@@ -749,28 +749,38 @@ func aggregateRawMetrics(metrics []*database.SLOMetricsRaw) *model.SLOMetrics {
 	var totalRequests, errorRequests int64
 	var totalLatencySum float64
 	var totalLatencyCount int64
+	var allBuckets []map[float64]int64
 
 	for _, m := range metrics {
 		totalRequests += m.TotalRequests
 		errorRequests += m.ErrorRequests
 		totalLatencySum += m.LatencySum
 		totalLatencyCount += m.LatencyCount
+		if b := slo.ParseJSONBuckets(m.LatencyBuckets); b != nil {
+			allBuckets = append(allBuckets, b)
+		}
 	}
 
 	// 计算 RPS（假设每条 raw 是 10 秒间隔）
 	durationSeconds := float64(len(metrics)) * 10.0
 	avgRPS := float64(totalRequests) / durationSeconds
 
-	// 使用平均延迟近似 P95/P99（JSON bucket 解析在 Master P4 实现）
-	var avgLatency int
-	if totalLatencyCount > 0 {
-		avgLatency = int(totalLatencySum / float64(totalLatencyCount))
+	// 使用合并 bucket 计算精确分位数
+	merged := slo.MergeBuckets(allBuckets...)
+	p95 := slo.CalculateQuantileMs(merged, 0.95)
+	p99 := slo.CalculateQuantileMs(merged, 0.99)
+
+	// bucket 为空时回退到平均延迟
+	if p95 == 0 && totalLatencyCount > 0 {
+		avg := int(totalLatencySum / float64(totalLatencyCount))
+		p95 = avg
+		p99 = avg
 	}
 
 	return &model.SLOMetrics{
 		Availability:   slo.CalculateAvailability(totalRequests, errorRequests),
-		P95Latency:     avgLatency, // TODO(Master P4): JSON bucket 解析实现精确分位数
-		P99Latency:     avgLatency,
+		P95Latency:     p95,
+		P99Latency:     p99,
 		ErrorRate:      slo.CalculateErrorRate(totalRequests, errorRequests),
 		RequestsPerSec: avgRPS,
 		TotalRequests:  totalRequests,

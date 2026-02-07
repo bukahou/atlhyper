@@ -179,8 +179,8 @@ func New() (*Master, error) {
 	})
 	log.Info("数据处理器初始化完成")
 
-	// 6. 初始化 Query（读取路径）
-	q := query.NewWithEventRepo(store, bus, db.Event)
+	// 6. 初始化 Query（读取路径，注入 SLO 仓库）
+	q := query.NewWithSLORepos(store, bus, db.Event, db.SLO, db.SLOService, db.SLOEdge)
 	log.Info("查询层初始化完成")
 
 	// 7. 初始化 Operations（写入路径）

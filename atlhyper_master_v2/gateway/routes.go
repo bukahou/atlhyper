@@ -64,7 +64,8 @@ func (r *Router) registerRoutes() {
 	userHandler := handler.NewUserHandler(r.database.User)
 	clusterHandler := handler.NewClusterHandler(r.service)
 	overviewHandler := handler.NewOverviewHandler(r.service)
-	sloHandler := handler.NewSLOHandler(r.database.SLO, nil) // Aggregator 在 master.go 中注入
+	sloHandler := handler.NewSLOHandler(r.database.SLO, nil)
+	sloMeshHandler := handler.NewSLOMeshHandler(r.service)
 	podHandler := handler.NewPodHandler(r.service)
 	nodeHandler := handler.NewNodeHandler(r.service)
 	deploymentHandler := handler.NewDeploymentHandler(r.service)
@@ -155,6 +156,10 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/slo/domains/history", sloHandler.DomainHistory)
 		register("/api/v2/slo/targets", sloHandler.Targets)
 		register("/api/v2/slo/status-history", sloHandler.StatusHistory)
+
+		// ---------- SLO 服务网格查询（只读） ----------
+		register("/api/v2/slo/mesh/topology", sloMeshHandler.MeshTopology)
+		register("/api/v2/slo/mesh/service/detail", sloMeshHandler.ServiceDetail)
 
 		// ---------- 节点指标查询（只读） ----------
 		register("/api/v2/node-metrics", nodeMetricsHandler.Route)

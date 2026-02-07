@@ -133,3 +133,55 @@ type SLOQueryParams struct {
 	Limit     int    `form:"limit"`
 	Offset    int    `form:"offset"`
 }
+
+// ==================== 服务网格 API 响应类型 ====================
+
+// ServiceMeshTopologyResponse 服务拓扑响应
+type ServiceMeshTopologyResponse struct {
+	Nodes []ServiceNodeResponse `json:"nodes"`
+	Edges []ServiceEdgeResponse `json:"edges"`
+}
+
+// ServiceNodeResponse 服务节点响应
+type ServiceNodeResponse struct {
+	ID            string  `json:"id"`             // "namespace/name"
+	Name          string  `json:"name"`
+	Namespace     string  `json:"namespace"`
+	RPS           float64 `json:"rps"`
+	AvgLatencyMs  int     `json:"avg_latency"`
+	P50LatencyMs  int     `json:"p50_latency"`
+	P95LatencyMs  int     `json:"p95_latency"`
+	P99LatencyMs  int     `json:"p99_latency"`
+	ErrorRate     float64 `json:"error_rate"`
+	Availability  float64 `json:"availability"`
+	Status        string  `json:"status"`         // healthy/warning/critical
+	MtlsPercent   float64 `json:"mtls_percent"`
+	TotalRequests int64   `json:"total_requests"`
+}
+
+// ServiceEdgeResponse 服务拓扑边响应
+type ServiceEdgeResponse struct {
+	Source       string  `json:"source"`      // "namespace/name"
+	Target       string  `json:"target"`
+	RPS          float64 `json:"rps"`
+	AvgLatencyMs int     `json:"avg_latency"`
+	ErrorRate    float64 `json:"error_rate"`
+}
+
+// ServiceDetailResponse 服务详情响应
+type ServiceDetailResponse struct {
+	ServiceNodeResponse
+	History     []ServiceHistoryPoint `json:"history"`
+	Upstreams   []ServiceEdgeResponse `json:"upstreams"`
+	Downstreams []ServiceEdgeResponse `json:"downstreams"`
+}
+
+// ServiceHistoryPoint 服务历史数据点
+type ServiceHistoryPoint struct {
+	Timestamp    string  `json:"timestamp"`
+	RPS          float64 `json:"rps"`
+	P95LatencyMs int     `json:"p95_latency"`
+	ErrorRate    float64 `json:"error_rate"`
+	Availability float64 `json:"availability"`
+	MtlsPercent  float64 `json:"mtls_percent"`
+}
