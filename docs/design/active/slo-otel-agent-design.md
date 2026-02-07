@@ -2,1247 +2,1098 @@
 
 ## 概要
 
-本文档描述 AtlHyper Agent 的 SLO 数据采集设计方案。**设计遵循现有 Agent 架构模式：SDK → Repository → Service**，将 SLO 采集无缝集成到现有的 SnapshotService 中，与其他 K8s 资源一起并发采集和上报。
+将 Agent SLO 数据源从 Ingress Controller 直连改为 OTel Collector，采集 Linkerd 服务网格指标 + Ingress Controller 入口指标。
 
-### 旧架构重构说明
+**核心变化**：
 
-旧的 Traefik 直连采集存在以下架构问题，已在本次重构中修复：
+| 特性 | 说明 |
+|---|---|
+| 数据源 | OTel Collector `:8889/metrics` |
+| 指标维度 | namespace/deployment（服务）+ serviceKey（入口） |
+| 指标来源 | 双源: Linkerd (服务网格) + Ingress Controller (入口) |
+| 额外能力 | 服务拓扑发现、mTLS 覆盖率 |
+| 计算位置 | Agent 端 per-pod delta → service 聚合 |
 
-| 问题 | 旧架构 | 新架构 |
-|------|--------|--------|
-| SDK 接口分散 | 单独的 `interfaces_metrics.go` | 统一到 `interfaces.go` |
-| SDK 实现无隔离 | `scraper.go` 混在 `impl/` 下 | 独立 `impl/ingress/` 子目录 |
-| 跳过 Repository | Service 直接调用 SDK | Service → Repository → SDK |
-| Service 接口未注册 | 接口定义在实现文件中 | 统一到 `service/interfaces.go` |
-| 独立调度循环 | `runSLOLoop()` 独立推送 | 合入 `runSnapshotLoop()` 统一推送 |
-
-### 数据源规划
-
-| 阶段 | 数据源 | 说明 |
-|------|--------|------|
-| 当前 | Traefik Pod 直连 (`:9100/metrics`) | IngressClient → SLORepository |
-| 下一步 | OTel Collector (`:8889/metrics`) | 扩展 IngressClient 或新增 OTelClient |
-
-两种数据源共享相同的 Repository → Service → Scheduler 链路，仅 SDK 层实现不同。
+**设计约束**：
+- 必须经过 OTel Collector（统一数据入口，后续接入更多数据源）
+- OTel 无 TSDB，输出裸累积值，Agent 端计算增量
+- **先 per-pod delta，再聚合到 service**（避免 Pod 重启导致聚合值错误）
 
 ---
 
-## 1. 设计目标
+## 1. 文件夹结构
 
-### 1.1 功能目标
-
-| 目标 | 说明 |
-|------|------|
-| OTel 数据源 | 从 OTel Collector 8889 端口采集 Prometheus 格式指标 |
-| 服务发现 | 自动发现服务和服务间调用关系 |
-| 黄金指标 | 采集 RPS、成功率、延迟分布 |
-| 架构一致 | 遵循现有 SDK → Repository → Service 架构 |
-| 统一上报 | SLO 数据随 ClusterSnapshot 一起上报 Master |
-
-### 1.2 数据来源
-
-| 数据源 | 端点 | 指标类型 |
-|--------|------|----------|
-| OTel Collector | `otel-collector.otel:8889/metrics` | Prometheus 格式 |
-| 原始来源 | Linkerd Prometheus (federate) | 服务网格指标 |
-| 原始来源 | Traefik metrics | 入口网关指标 |
-
----
-
-## 2. 架构设计
-
-### 2.1 架构位置
-
-遵循现有 Agent 架构模式：
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              AtlHyper Agent 架构                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌───────────────────────────────────────────────────────────────────┐    │
-│   │                        Service Layer                              │    │
-│   │                                                                   │    │
-│   │   snapshot_service.go                                             │    │
-│   │   ├── podRepo.List()                                              │    │
-│   │   ├── nodeRepo.List()                                             │    │
-│   │   ├── deploymentRepo.List()                                       │    │
-│   │   ├── ...（20 个 K8s Repository）                                 │    │
-│   │   └── sloRepo.Collect()        ← 新增：SLO 数据采集               │    │
-│   │                                                                   │    │
-│   └───────────────────────────────────────────────────────────────────┘    │
-│                               ↓ 调用                                        │
-│   ┌───────────────────────────────────────────────────────────────────┐    │
-│   │                       Repository Layer                            │    │
-│   │                                                                   │    │
-│   │   pod_repository.go       → 使用 K8sClient                        │    │
-│   │   node_repository.go      → 使用 K8sClient                        │    │
-│   │   ...                                                             │    │
-│   │   slo_repository.go       → 使用 OTelClient   ← 新增              │    │
-│   │                                                                   │    │
-│   └───────────────────────────────────────────────────────────────────┘    │
-│                               ↓ 调用                                        │
-│   ┌───────────────────────────────────────────────────────────────────┐    │
-│   │                          SDK Layer                                │    │
-│   │                                                                   │    │
-│   │   interfaces.go                                                   │    │
-│   │   ├── K8sClient interface   → client-go → K8s API Server         │    │
-│   │   └── OTelClient interface  → HTTP → OTel Collector   ← 新增     │    │
-│   │                                                                   │    │
-│   │   impl/                                                           │    │
-│   │   ├── k8s_client.go         → K8sClient 实现                      │    │
-│   │   └── otel_client.go        → OTelClient 实现        ← 新增       │    │
-│   │                                                                   │    │
-│   └───────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 2.2 文件夹结构
+现有文件标 `(现有)`，新增/修改标 `← NEW` 或 `← 修改`。
 
 ```
 atlhyper_agent_v2/
+├── agent.go                          (现有)  ← 修改: OTel 模式依赖注入
+│
+├── config/
+│   ├── types.go                      (现有)  ← 修改: SLOConfig 新增 OTel 字段
+│   ├── loader.go                     (现有)
+│   └── defaults.go                   (现有)  ← 修改: OTel 默认值
+│
 ├── sdk/
-│   ├── interfaces.go             # 统一接口 (K8sClient + IngressClient)
-│   ├── types.go                  # 统一类型 (含 IngressMetrics 等)
+│   ├── interfaces.go                 (现有)  ← 修改: 新增 OTelClient 接口
+│   ├── types.go                      (现有)  ← 修改: 新增 OTelRawMetrics 等内部类型
 │   └── impl/
-│       ├── client.go             # K8sClient 实现入口
-│       ├── core.go               # corev1 操作
-│       ├── apps.go               # appsv1 操作
-│       ├── batch.go              # batchv1 操作
-│       ├── networking.go         # networkingv1 操作
-│       ├── metrics.go            # metrics-server 操作
-│       ├── generic.go            # 通用操作
-│       └── ingress/              # IngressClient 实现（独立子目录）
-│           ├── client.go         # 实现入口 + ScrapeMetrics
-│           ├── discover.go       # DiscoverURL 自动发现
-│           ├── parser.go         # Prometheus 文本解析
-│           └── route_collector.go # IngressRoute CRD 采集
+│       ├── k8s/                      (现有)  不动
+│       │   ├── client.go
+│       │   ├── core.go
+│       │   ├── apps.go
+│       │   ├── batch.go
+│       │   ├── networking.go
+│       │   ├── metrics.go
+│       │   └── generic.go
+│       │
+│       ├── ingress/                  (现有)
+│       │   ├── client.go                      ← 删除: 旧 Ingress 直连逻辑
+│       │   ├── discover.go                    ← 删除: 旧自动发现
+│       │   ├── parser.go                      ← 删除: 旧 Ingress 解析
+│       │   └── route_collector.go             (现有) 复用: 路由采集被新 SLORepository 内部调用
+│       │
+│       ├── otel/                     ← NEW 整个目录
+│       │   ├── client.go                      OTelClient 实现: HTTP 采集 + 健康检查
+│       │   └── parser.go                      Prometheus 文本解析 → OTelRawMetrics
+│       │
+│       └── receiver/                 (现有)  不动
+│           └── server.go
 │
 ├── repository/
-│   ├── interfaces.go             # 统一接口（含 SLORepository）
-│   ├── pod_repository.go         # 现有
-│   ├── ...                       # 其他 K8s Repository
-│   ├── slo_repository.go         # SLO 数据仓库（调用 IngressClient）
-│   └── slo_snapshot.go           # Counter 快照管理（增量计算）
+│   ├── interfaces.go                 (现有)  ← 修改: SLORepository 去掉 CollectRoutes()
+│   │
+│   ├── k8s/                          (现有)  不动
+│   │   ├── converter.go
+│   │   ├── pod.go
+│   │   ├── node.go
+│   │   ├── deployment.go
+│   │   ├── statefulset.go
+│   │   ├── daemonset.go
+│   │   ├── replicaset.go
+│   │   ├── service.go
+│   │   ├── ingress.go
+│   │   ├── configmap.go
+│   │   ├── secret.go
+│   │   ├── namespace.go
+│   │   ├── event.go
+│   │   ├── job.go
+│   │   ├── cronjob.go
+│   │   ├── pv.go
+│   │   ├── pvc.go
+│   │   ├── policy.go
+│   │   └── generic.go
+│   │
+│   ├── slo/                          (现有目录)
+│   │   ├── slo.go                    (现有)  ← 重写: SLORepository 主入口，编排 5 个 stage
+│   │   ├── types.go                  ← NEW   内部增量类型定义 (delta 中间结构体)
+│   │   ├── filter.go                 ← NEW   Stage 1: 过滤 probe/admin/系统ns
+│   │   ├── snapshot.go               ← NEW   Stage 2: snapshotManager per-pod delta
+│   │   ├── aggregate.go              ← NEW   Stage 3: Pod→Service 聚合 + Edge + Ingress
+│   │   └── (不再需要 legacy.go)
+│   │
+│   └── metrics/                      (现有)  不动
+│       └── metrics.go
 │
 ├── service/
-│   ├── interfaces.go             # 统一接口（含 SLOService）
-│   ├── snapshot_service.go       # 快照服务（含 sloRepo 并发采集）
-│   └── slo_service.go            # SLO 服务（依赖 SLORepository）
+│   ├── interfaces.go                 (现有)  不动
+│   ├── snapshot/
+│   │   └── snapshot.go               (现有)  ← 修改: 删除 CollectRoutes 单独调用
+│   └── command/                      (现有)  不动
+│       ├── command.go
+│       └── summary.go
 │
-├── scheduler/
-│   └── scheduler.go              # 调度器（SLO 随 Snapshot 统一推送）
+├── gateway/                          (现有)  不动
+│   ├── interfaces.go
+│   └── master_gateway.go
 │
-├── model/
-│   └── slo.go                    # SLO 类型别名
+├── scheduler/                        (现有)  不动
+│   └── scheduler.go
 │
-└── agent.go                      # 初始化和依赖注入
+└── model/                            (现有)  不动
+    ├── options.go
+    ├── command.go
+    └── slo.go
 ```
 
-### 2.3 数据流
+**共享模型（Agent ↔ Master 合约）**:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              数据采集流程                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
+model_v2/
+├── slo.go                            (现有)  ← 重写: SLOSnapshot + ServiceMetrics
+│                                              + ServiceEdge + IngressMetrics
+│                                              旧类型删除
+└── snapshot.go                       (现有)  不动: SLOData *SLOSnapshot 字段已存在
+```
 
-                              OTel Collector
-                                   │
-                                   │ Prometheus format (:8889/metrics)
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  SDK Layer: OTelClient                                                      │
-│                                                                             │
-│  otel_client.go                                                             │
-│  ├── ScrapeMetrics(ctx) ([]RawMetric, error)                               │
-│  │   └── HTTP GET → 解析 Prometheus 文本 → 返回原始指标                     │
-│  │                                                                          │
-│  └── 返回原始 Prometheus 指标列表                                            │
-└──────────────────────────────────┬──────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Repository Layer: SLORepository                                            │
-│                                                                             │
-│  slo_repository.go                                                          │
-│  ├── Collect(ctx) (*SLOData, error)                                        │
-│  │   ├── 调用 otelClient.ScrapeMetrics()                                   │
-│  │   ├── 过滤 SLO 相关指标 (response_total, traefik_*)                     │
-│  │   ├── 调用 snapshotManager.CalculateDelta() 计算增量                    │
-│  │   ├── 服务发现：从标签提取服务和拓扑                                      │
-│  │   ├── 黄金指标：计算 RPS、成功率、延迟分布                                │
-│  │   └── 返回 SLOData                                                       │
-│  │                                                                          │
-│  slo_snapshot.go                                                            │
-│  └── snapshotManager                                                        │
-│      ├── prev map[string]float64   # 上一次快照                             │
-│      └── CalculateDelta(cur) []MetricDelta                                 │
-└──────────────────────────────────┬──────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Service Layer: SnapshotService                                             │
-│                                                                             │
-│  snapshot_service.go                                                        │
-│  ├── Collect(ctx) (*ClusterSnapshot, error)                                │
-│  │   ├── 并发采集 20 种 K8s 资源                                            │
-│  │   ├── 并发采集 SLO 数据 (sloRepo.Collect)                               │
-│  │   └── 组装 ClusterSnapshot（含 SLOData）                                │
-│  │                                                                          │
-│  └── ClusterSnapshot 通过 DataHub 上报 Master                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 变更统计
+
+| 操作 | 文件数 | 文件 |
+|------|--------|------|
+| **新建** | 6 | `sdk/impl/otel/client.go`, `sdk/impl/otel/parser.go`, `repository/slo/types.go`, `repository/slo/filter.go`, `repository/slo/snapshot.go`, `repository/slo/aggregate.go` |
+| **重写** | 2 | `model_v2/slo.go`, `repository/slo/slo.go` |
+| **删除** | 3 | `sdk/impl/ingress/client.go`, `sdk/impl/ingress/discover.go`, `sdk/impl/ingress/parser.go`（旧 Ingress 直连） |
+| **修改** | 5 | `sdk/interfaces.go`, `sdk/types.go`, `repository/interfaces.go`, `config/types.go`, `agent.go` |
+| **小改** | 2 | `config/defaults.go`, `service/snapshot/snapshot.go` |
+| 不动 | ~35 | 其余所有文件 |
+
+---
+
+## 2. 数据流总览
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        数据源                                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Linkerd sidecar (per-pod)     Ingress Controller (Traefik/Nginx/...)  │
+│       │                              │                          │
+│       ▼                              │                          │
+│  Linkerd Prometheus (:9090)          │                          │
+│       │  /federate                   │                          │
+│       ▼                              ▼                          │
+│  ┌──────────────────────────────────────┐                      │
+│  │      OTel Collector (:8889)          │                      │
+│  │      输出: otel_ 前缀的 Prometheus   │                      │
+│  └──────────────────┬───────────────────┘                      │
+│                     │                                           │
+└─────────────────────┼───────────────────────────────────────────┘
+                      │ HTTP GET (Prometheus text format)
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Agent                                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  SDK: OTelClient.ScrapeMetrics()                                │
+│       │  解析 Prometheus 文本 → OTelRawMetrics                   │
+│       ▼                                                          │
+│  Repository: SLORepository.Collect()                            │
+│       ├── 1. filter     排除 probe/admin/系统ns                  │
+│       ├── 2. per-pod delta   snapshotManager 算增量              │
+│       ├── 3. aggregate  Pod → Service 聚合 (sum deltas)         │
+│       ├── 4. topology   outbound → ServiceEdge                  │
+│       └── 5. routes     IngressRoute CRD → RouteInfo            │
+│       │                                                          │
+│       ▼  SLOSnapshot (service 维度增量)                          │
+│  Service: SnapshotService.Collect()                             │
+│       │  嵌入 ClusterSnapshot.SLOData                           │
+│       ▼                                                          │
+│  Scheduler → HTTP POST → Master                                 │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. SDK 层设计
+## 3. 数据模型 (model_v2/slo.go)
 
-### 3.1 OTelClient 接口
-
-**文件**: `sdk/interfaces_otel.go`
+Agent 与 Master 的共享合约。Agent 发送，Master 接收并存储。
 
 ```go
-// Package sdk 封装外部客户端
+package model_v2
+
+// ============================================================
+// SLO 快照 — Agent 从 OTel Collector 采集后上报
+// ============================================================
+
+// SLOSnapshot SLO 快照数据
+// 嵌入 ClusterSnapshot.SLOData，随集群快照统一上报
+type SLOSnapshot struct {
+    Timestamp int64 `json:"timestamp"` // Unix 时间戳（秒）
+
+    // 服务级黄金指标（Linkerd inbound，增量，已 per-pod delta + service 聚合）
+    Services []ServiceMetrics `json:"services,omitempty"`
+
+    // 服务调用拓扑（Linkerd outbound，增量）
+    Edges []ServiceEdge `json:"edges,omitempty"`
+
+    // 入口指标（增量，Agent 已将秒转为毫秒，Controller 无关）
+    Ingress []IngressMetrics `json:"ingress,omitempty"`
+
+    // 路由映射（K8s IngressRoute CRD / 标准 Ingress，不变）
+    Routes []IngressRouteInfo `json:"routes,omitempty"`
+}
+
+// ============================================================
+// 服务级黄金指标
+// ============================================================
+
+// ServiceMetrics 单个服务的黄金指标（增量）
+// 维度: namespace + name (deployment/daemonset/statefulset)
+// 来源: Linkerd inbound otel_response_total + otel_response_latency_ms_*
+type ServiceMetrics struct {
+    Namespace string `json:"namespace"`
+    Name      string `json:"name"` // workload name (deployment 等)
+
+    // 请求计数增量（按 status_code 分组）
+    Requests []RequestDelta `json:"requests"`
+
+    // 延迟直方图增量（毫秒，已跨 Pod 聚合）
+    LatencyBuckets map[string]int64 `json:"latency_buckets,omitempty"` // le(ms string) → delta count
+    LatencySum     float64          `json:"latency_sum"`               // 总和（毫秒）
+    LatencyCount   int64            `json:"latency_count"`
+
+    // mTLS 覆盖率（从 inbound otel_response_total 的 tls 标签聚合）
+    TLSRequestDelta   int64 `json:"tls_request_delta"`   // tls="true" 的请求增量
+    TotalRequestDelta int64 `json:"total_request_delta"` // 总请求增量（tls=true + tls=false）
+    // Master 计算: mtlsPercent = TLSRequestDelta / TotalRequestDelta * 100
+}
+
+// RequestDelta 按状态码分组的请求增量
+type RequestDelta struct {
+    StatusCode     string `json:"status_code"`     // "200", "404", "503"
+    Classification string `json:"classification"`  // "success" / "failure" (来自 Linkerd)
+    Delta          int64  `json:"delta"`
+}
+
+// ============================================================
+// 服务拓扑
+// ============================================================
+
+// ServiceEdge 服务调用边（增量）
+// 来源: Linkerd outbound otel_response_total + otel_response_latency_ms_*
+type ServiceEdge struct {
+    SrcNamespace string  `json:"src_ns"`
+    SrcName      string  `json:"src_name"`
+    DstNamespace string  `json:"dst_ns"`
+    DstName      string  `json:"dst_name"`
+    RequestDelta int64   `json:"request_delta"`  // 增量请求数
+    FailureDelta int64   `json:"failure_delta"`  // 失败请求增量（classification=failure）
+    LatencySum   float64 `json:"latency_sum"`    // 延迟总和 (ms)
+    LatencyCount int64   `json:"latency_count"`  // 延迟请求数
+    // Master 计算:
+    //   errorRate = FailureDelta / RequestDelta * 100
+    //   avgLatency = LatencySum / LatencyCount
+}
+
+// ============================================================
+// 入口指标（Ingress Controller 无关）
+// ============================================================
+
+// IngressMetrics 入口服务级指标（增量，Controller 无关）
+// 维度: service_key（标准化格式: "namespace-service-port"）
 //
-// interfaces_otel.go - OTelClient 接口定义
+// 支持的 Ingress Controller:
+//   - Traefik: 从 otel_traefik_service_* 指标解析
+//   - Nginx:   从 otel_nginx_ingress_controller_* 指标解析
+//   - Kong:    从 otel_kong_* 指标解析（预留）
 //
-// OTelClient 封装与 OTel Collector Prometheus 端点的交互。
-// 与 K8sClient 类似，Repository 层只依赖此接口。
+// Parser 负责将不同 Controller 的指标归一化到此结构
+type IngressMetrics struct {
+    ServiceKey string `json:"service_key"` // 标准化: "namespace-service-port"
+
+    // 请求计数增量（按 code + method 分组）
+    Requests []IngressRequestDelta `json:"requests"`
+
+    // 延迟直方图增量（毫秒，Agent 已将秒转为毫秒）
+    LatencyBuckets map[string]int64 `json:"latency_buckets,omitempty"` // le(ms string) → delta count
+    LatencySum     float64          `json:"latency_sum"`               // 毫秒
+    LatencyCount   int64            `json:"latency_count"`
+}
+
+// IngressRequestDelta 入口请求增量（Controller 无关）
+type IngressRequestDelta struct {
+    Code   string `json:"code"`   // HTTP 状态码
+    Method string `json:"method"` // HTTP 方法
+    Delta  int64  `json:"delta"`
+}
+
+// ============================================================
+// 路由映射（保持现有结构不变）
+// ============================================================
+
+// IngressRouteInfo 保持不变
+// ...
+```
+
+### 模型设计要点
+
+1. **延迟统一为毫秒** — Linkerd 原生 ms，Ingress Controller 秒→ms（Agent 端转换）
+2. **所有数值都是增量** — Agent 算好 delta 再上报，Master 不维护 counter snapshot
+3. **Service 维度** — 不再有 host 维度，改为 namespace/name
+4. **入口层 Controller 无关** — `IngressMetrics` / `IngressRequestDelta` 不绑定特定 Controller，Parser 负责归一化
+5. **ServiceKey 标准化** — 统一为 `"namespace-service-port"` 格式，无论底层是 Traefik 还是 Nginx
+6. **旧类型删除** — 旧 IngressMetrics、IngressCounterMetric、IngressHistogramMetric 直接删除，不再兼容
+
+---
+
+## 4. SDK 层
+
+### 4.1 OTelClient 接口
+
+**文件**: `sdk/interfaces.go`（在现有 IngressClient 下方新增）
+
+```go
+// OTelClient OTel Collector 采集客户端
+//
+// 从 OTel Collector 的 Prometheus 端点采集原始指标。
+// 只做 HTTP 采集和文本解析，不做业务过滤/聚合。
 //
 // 架构位置:
 //
 //	SLORepository
 //	    ↓ 调用
-//	SDK (OTelClient) ← OTel 客户端封装
+//	SDK (OTelClient)
 //	    ↓ 使用
-//	net/http         ← Go 标准库
+//	net/http
 //	    ↓
 //	OTel Collector (:8889/metrics)
-package sdk
-
-import (
-	"context"
-)
-
-// OTelClient OTel Collector 客户端接口
-//
-// 封装从 OTel Collector Prometheus 端点采集指标的操作。
-// Repository 层只依赖此接口，不直接使用 HTTP。
 type OTelClient interface {
-	// ScrapeMetrics 从 OTel Collector 采集原始指标
-	//
-	// 返回 Prometheus 格式的原始指标列表。
-	// 调用方（Repository）负责过滤和处理。
-	ScrapeMetrics(ctx context.Context) ([]RawMetric, error)
+    // ScrapeMetrics 从 OTel Collector 采集原始指标
+    // 返回分类后的原始指标（per-pod 级别，累积值）
+    ScrapeMetrics(ctx context.Context) (*OTelRawMetrics, error)
 
-	// IsHealthy 检查 OTel Collector 是否健康
-	IsHealthy(ctx context.Context) bool
+    // IsHealthy 检查 Collector 健康状态
+    IsHealthy(ctx context.Context) bool
 }
 ```
 
-### 3.2 OTel 类型定义
+### 4.2 SDK 内部类型
 
-**文件**: `sdk/types_otel.go`
+**文件**: `sdk/types.go`（新增 OTel 相关类型）
 
 ```go
-package sdk
+// ============================================================
+// OTel Collector 原始指标（SDK 内部，不暴露给 Master）
+// ============================================================
 
-// RawMetric Prometheus 原始指标
+// OTelRawMetrics OTel 采集的原始指标（per-pod 级别）
+type OTelRawMetrics struct {
+    // Linkerd 请求计数 (otel_response_total)
+    LinkerdResponses []LinkerdResponseMetric
+
+    // Linkerd 延迟 (otel_response_latency_ms_bucket/sum/count)
+    LinkerdLatencyBuckets []LinkerdLatencyBucketMetric
+    LinkerdLatencySums    []LinkerdLatencySumMetric
+    LinkerdLatencyCounts  []LinkerdLatencyCountMetric
+
+    // 入口请求计数（Controller 无关，Parser 归一化后）
+    IngressRequests []IngressRequestMetric
+
+    // 入口延迟（Controller 无关，Parser 归一化后，单位: 秒）
+    IngressLatencyBuckets []IngressLatencyBucketMetric
+    IngressLatencySums    []IngressLatencySumMetric
+    IngressLatencyCounts  []IngressLatencyCountMetric
+}
+
+// ---- Linkerd 类型 ----
+
+// LinkerdResponseMetric otel_response_total 单条指标
+type LinkerdResponseMetric struct {
+    Namespace      string  // 源 pod 所在 namespace
+    Deployment     string  // 源 deployment
+    Pod            string  // 源 pod name
+    Direction      string  // "inbound" / "outbound"
+    StatusCode     string  // "200", "503"
+    Classification string  // "success" / "failure"
+    RouteName      string  // "default" / "probe"
+    SrvPort        string  // 业务端口 "8200" / admin "4191"
+    DstNamespace   string  // outbound: 目标 namespace
+    DstDeployment  string  // outbound: 目标 deployment
+    TLS            string  // "true" / "false"（inbound 的 mTLS 状态）
+    Value          float64 // 累积值
+}
+
+// LinkerdLatencyBucketMetric otel_response_latency_ms_bucket 单条
+type LinkerdLatencyBucketMetric struct {
+    Namespace  string
+    Deployment string
+    Pod        string
+    Direction  string
+    Le         string  // bucket 边界 (ms): "1", "5", "100", "+Inf"
+    Value      float64
+}
+
+// LinkerdLatencySumMetric otel_response_latency_ms_sum 单条
+type LinkerdLatencySumMetric struct {
+    Namespace  string
+    Deployment string
+    Pod        string
+    Direction  string
+    Value      float64 // 毫秒
+}
+
+// LinkerdLatencyCountMetric otel_response_latency_ms_count 单条
+type LinkerdLatencyCountMetric struct {
+    Namespace  string
+    Deployment string
+    Pod        string
+    Direction  string
+    Value      float64
+}
+
+// ---- 入口类型（Controller 无关） ----
 //
-// 从 Prometheus 文本格式解析出的单个指标。
-// 包含指标名、标签和值，不做业务处理。
-type RawMetric struct {
-	// Name 指标名称
-	// 例如: response_total, response_latency_ms_bucket
-	Name string
+// Parser 将不同 Controller 的原始指标归一化到以下通用结构。
+// ServiceKey 统一为 "namespace-service-port" 格式。
+//
+// 归一化映射:
+//   Traefik: service="ns-svc-port@kubernetes"  → ServiceKey="ns-svc-port"（去 @kubernetes 后缀）
+//   Nginx:   namespace="ns", ingress="name", service="svc", service_port="port"
+//            → ServiceKey="ns-svc-port"
 
-	// Labels 标签 map
-	// 例如: {"namespace": "default", "deployment": "nginx", "status_code": "200"}
-	Labels map[string]string
-
-	// Value 指标值
-	Value float64
+// IngressRequestMetric 入口请求计数指标（归一化后）
+type IngressRequestMetric struct {
+    ServiceKey string  // 标准化: "namespace-service-port"
+    Code       string  // "200"
+    Method     string  // "GET"
+    Value      float64 // 累积值
 }
 
-// OTelConfig OTel 客户端配置
-type OTelConfig struct {
-	// Endpoint OTel Collector Prometheus 端点
-	// 例如: http://otel-collector.otel.svc:8889/metrics
-	Endpoint string
+// IngressLatencyBucketMetric 入口延迟桶指标（归一化后）
+type IngressLatencyBucketMetric struct {
+    ServiceKey string
+    Le         string  // bucket 边界 (秒): "0.1", "0.3", "5", "+Inf"
+    Value      float64
+}
 
-	// Timeout HTTP 请求超时
-	Timeout string // "5s"
+// IngressLatencySumMetric 入口延迟总和指标（归一化后）
+type IngressLatencySumMetric struct {
+    ServiceKey string
+    Value      float64 // 秒
+}
 
-	// Enabled 是否启用
-	Enabled bool
+// IngressLatencyCountMetric 入口延迟计数指标（归一化后）
+type IngressLatencyCountMetric struct {
+    ServiceKey string
+    Value      float64
 }
 ```
 
-### 3.3 OTelClient 实现
+### 4.3 OTelClient 实现
 
-**文件**: `sdk/impl/otel_client.go`
+**文件**: `sdk/impl/otel/client.go`
 
 ```go
-package impl
+package otel
 
-import (
-	"bufio"
-	"context"
-	"fmt"
-	"io"
-	"net/http"
-	"regexp"
-	"strconv"
-	"strings"
-	"time"
-
-	"AtlHyper/atlhyper_agent_v2/sdk"
-)
-
-// otelClient OTelClient 实现
-type otelClient struct {
-	endpoint   string
-	httpClient *http.Client
+// client OTelClient 实现
+type client struct {
+    metricsURL string       // http://otel-collector.otel.svc:8889/metrics
+    healthURL  string       // http://otel-collector.otel.svc:13133
+    httpClient *http.Client
 }
 
-// NewOTelClient 创建 OTel 客户端
-func NewOTelClient(cfg sdk.OTelConfig) (sdk.OTelClient, error) {
-	timeout, err := time.ParseDuration(cfg.Timeout)
-	if err != nil {
-		timeout = 5 * time.Second
-	}
+// NewClient 创建 OTelClient
+func NewOTelClient(metricsURL, healthURL string, timeout time.Duration) sdk.OTelClient
 
-	return &otelClient{
-		endpoint: cfg.Endpoint,
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-	}, nil
-}
+// ScrapeMetrics HTTP GET → 解析 Prometheus 文本 → 分类为 OTelRawMetrics
+func (c *client) ScrapeMetrics(ctx context.Context) (*sdk.OTelRawMetrics, error)
 
-// ScrapeMetrics 采集原始指标
-func (c *otelClient) ScrapeMetrics(ctx context.Context) ([]sdk.RawMetric, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
+// IsHealthy 检查 /healthz
+func (c *client) IsHealthy(ctx context.Context) bool
+```
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求 OTel Collector 失败: %w", err)
-	}
-	defer resp.Body.Close()
+**文件**: `sdk/impl/otel/parser.go`
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OTel Collector 返回 %d", resp.StatusCode)
-	}
-
-	return c.parsePrometheus(resp.Body)
-}
-
-// IsHealthy 检查健康状态
-func (c *otelClient) IsHealthy(ctx context.Context) bool {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", c.endpoint, nil)
-	if err != nil {
-		return false
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
-}
+```go
+package otel
 
 // parsePrometheus 解析 Prometheus 文本格式
+// 逐行扫描，按指标名分发到对应结构体
 //
-// 格式示例:
-// response_total{namespace="default",deployment="nginx",status_code="200"} 1234
-func (c *otelClient) parsePrometheus(r io.Reader) ([]sdk.RawMetric, error) {
-	var metrics []sdk.RawMetric
+// 处理逻辑:
+// 1. 跳过 # 注释和空行
+// 2. 正则提取: metric_name{labels} value
+// 3. 按 metric_name 前缀分类:
+//    - otel_response_total          → LinkerdResponseMetric
+//    - otel_response_latency_ms_*   → LinkerdLatency*Metric
+//    - 入口 Controller 指标（见下方前缀表）→ Ingress*Metric（归一化）
+//    其他指标丢弃
+// 4. 解析标签为 map，提取所需字段
+// 5. 入口指标归一化: 不同 Controller 的标签映射到统一的 IngressRequestMetric 等
+func parsePrometheus(r io.Reader) (*sdk.OTelRawMetrics, error)
 
-	// 正则: 指标名{标签} 值
-	metricRegex := regexp.MustCompile(`^([a-zA-Z_:][a-zA-Z0-9_:]*)\{([^}]*)\}\s+(.+)$`)
-	// 无标签: 指标名 值
-	simpleRegex := regexp.MustCompile(`^([a-zA-Z_:][a-zA-Z0-9_:]*)\s+(.+)$`)
+// parseLabels 解析 key="value",key="value" 格式
+func parseLabels(s string) map[string]string
 
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+// normalizeServiceKey 将不同 Controller 的 service 标识归一化
+// Traefik: "atlantis-atlantis-web-3000@kubernetes" → "atlantis-atlantis-web-3000"
+// Nginx:   namespace="atlantis", service="atlantis-web", service_port="3000"
+//          → "atlantis-atlantis-web-3000"
+func normalizeServiceKey(labels map[string]string, controllerType string) string
+```
 
-		// 跳过注释和空行
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
+**Parser 指标名映射表**：
 
-		var metric sdk.RawMetric
+| OTel 输出指标名 | 解析目标 | 来源 |
+|---|---|---|
+| `otel_response_total` | `LinkerdResponseMetric` | Linkerd |
+| `otel_response_latency_ms_bucket` | `LinkerdLatencyBucketMetric` | Linkerd |
+| `otel_response_latency_ms_sum` | `LinkerdLatencySumMetric` | Linkerd |
+| `otel_response_latency_ms_count` | `LinkerdLatencyCountMetric` | Linkerd |
+| `otel_traefik_service_requests_total` | `IngressRequestMetric` (归一化) | Traefik |
+| `otel_traefik_service_request_duration_seconds_bucket` | `IngressLatencyBucketMetric` (归一化) | Traefik |
+| `otel_traefik_service_request_duration_seconds_sum` | `IngressLatencySumMetric` (归一化) | Traefik |
+| `otel_traefik_service_request_duration_seconds_count` | `IngressLatencyCountMetric` (归一化) | Traefik |
+| `otel_nginx_ingress_controller_requests` | `IngressRequestMetric` (归一化) | Nginx |
+| `otel_nginx_ingress_controller_request_duration_seconds_bucket` | `IngressLatencyBucketMetric` (归一化) | Nginx |
+| `otel_nginx_ingress_controller_request_duration_seconds_sum` | `IngressLatencySumMetric` (归一化) | Nginx |
+| `otel_nginx_ingress_controller_request_duration_seconds_count` | `IngressLatencyCountMetric` (归一化) | Nginx |
 
-		if matches := metricRegex.FindStringSubmatch(line); matches != nil {
-			metric.Name = matches[1]
-			metric.Labels = parseLabels(matches[2])
-			if v, err := strconv.ParseFloat(matches[3], 64); err == nil {
-				metric.Value = v
-			}
-			metrics = append(metrics, metric)
-		} else if matches := simpleRegex.FindStringSubmatch(line); matches != nil {
-			metric.Name = matches[1]
-			metric.Labels = make(map[string]string)
-			if v, err := strconv.ParseFloat(matches[2], 64); err == nil {
-				metric.Value = v
-			}
-			metrics = append(metrics, metric)
-		}
-	}
+**入口指标前缀检测**：Parser 按前缀自动识别 Controller 类型，无需配置：
 
-	return metrics, scanner.Err()
-}
-
-// parseLabels 解析标签字符串
-// 输入: namespace="default",deployment="nginx"
-// 输出: map[namespace:default deployment:nginx]
-func parseLabels(s string) map[string]string {
-	labels := make(map[string]string)
-	pairs := strings.Split(s, ",")
-	for _, pair := range pairs {
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			val := strings.Trim(strings.TrimSpace(parts[1]), `"`)
-			labels[key] = val
-		}
-	}
-	return labels
+```go
+switch {
+case strings.HasPrefix(name, "otel_traefik_"):
+    // → 解析 Traefik 标签 → normalizeServiceKey → IngressRequestMetric
+case strings.HasPrefix(name, "otel_nginx_ingress_"):
+    // → 解析 Nginx 标签 → normalizeServiceKey → IngressRequestMetric
+default:
+    // 丢弃未知入口指标
 }
 ```
+
+**标签差异与归一化**：
+
+| 字段 | Traefik 标签 | Nginx 标签 | 归一化结果 |
+|---|---|---|---|
+| ServiceKey | `service="ns-svc-port@kubernetes"` | `namespace`+`service`+`service_port` | `"ns-svc-port"` |
+| Code | `code="200"` | `status="200"` | `"200"` |
+| Method | `method="GET"` | `method="GET"` | `"GET"` |
+| Le (bucket) | `le="0.1"` | `le="0.1"` | `"0.1"` (秒) |
 
 ---
 
-## 4. Repository 层设计
+## 5. Repository 层
 
-### 4.1 SLO 数据模型
+### 5.1 处理管线
 
-**文件**: `model/slo.go`
+Repository 是 Agent 的核心处理层。按职责拆分为 4 个文件：
+
+```
+repository/slo/
+├── slo.go         主入口: Collect() 编排各 stage
+├── types.go       内部增量类型定义 (linkerdResponseDelta 等)
+├── filter.go      Stage 1: 过滤
+├── snapshot.go    Stage 2: per-pod delta
+└── aggregate.go   Stage 3: 聚合 + 拓扑 + Ingress
+```
+
+处理管线：
+
+```
+OTelRawMetrics (per-pod 累积值)
+      │
+      │ Stage 1: Filter                          ← filter.go
+      ▼
+过滤后的 per-pod 数据
+      │
+      │ Stage 2: Per-pod Delta                   ← snapshot.go
+      ▼
+per-pod 增量值
+      │
+      ├── Linkerd inbound ── Stage 3a: Aggregate → ServiceMetrics[]        ┐
+      │                                                                     │
+      ├── Linkerd outbound ─ Stage 3b: Extract   → ServiceEdge[]           ├─ aggregate.go
+      │                                                                     │
+      └── Ingress ────────── Stage 3c: Aggregate → IngressMetrics[]        ┘
+      │
+      │ Stage 4: Collect Routes (IngressClient, 在 slo.go 中调用)
+      ▼
+SLOSnapshot
+```
+
+### 5.2 Stage 1: Filter（过滤）
 
 ```go
-package model
-
-import "time"
-
-// SLOData SLO 采集数据
-//
-// 包含服务发现、黄金指标、Traefik 指标。
-// 随 ClusterSnapshot 一起上报 Master。
-type SLOData struct {
-	// 采集时间
-	Timestamp time.Time
-
-	// 服务发现
-	Services []ServiceInfo
-	Edges    []ServiceEdge
-
-	// Linkerd 黄金指标（增量）
-	GoldenMetrics []GoldenMetric
-
-	// Traefik 入口指标（增量）
-	TraefikMetrics []TraefikMetric
-}
-
-// ServiceInfo 发现的服务
-type ServiceInfo struct {
-	Namespace   string
-	Name        string
-	ServiceType string // gateway / service / database / cache
-}
-
-// ServiceEdge 服务调用边
-type ServiceEdge struct {
-	SourceNs   string
-	SourceName string
-	TargetNs   string
-	TargetName string
-	Protocol   string
-}
-
-// GoldenMetric Linkerd 黄金指标
-type GoldenMetric struct {
-	TargetNs   string
-	TargetName string
-	SourceNs   string // 调用方（可为空）
-	SourceName string
-
-	// 请求统计（增量）
-	TotalReq   int64
-	SuccessReq int64
-	ErrorReq   int64
-
-	// 延迟分布（增量）- Histogram buckets
-	Buckets      map[string]int64 // "1ms", "2ms", ..., "inf"
-	LatencySum   float64
-	LatencyCount int64
-}
-
-// TraefikMetric Traefik 入口指标
-type TraefikMetric struct {
-	Service string
-	Method  string
-	Code    string
-
-	// 请求统计（增量）
-	TotalReq int64
-
-	// 延迟分布（增量）
-	Buckets map[string]int64
+// 排除规则（按优先级）:
+func (r *sloRepository) filter(raw *sdk.OTelRawMetrics) *sdk.OTelRawMetrics {
+    // 1. route_name="probe" → K8s 健康检查流量，排除
+    // 2. srv_port="4191"    → Linkerd proxy admin 端口，排除
+    // 3. namespace ∈ excludeNamespaces → 系统 namespace，排除
+    //    默认排除: linkerd, linkerd-viz, kube-system, otel
+    // 4. direction: inbound 用于 ServiceMetrics, outbound 用于 Edge
 }
 ```
 
-### 4.2 SLO Repository 接口
+### 5.3 Stage 2: Per-pod Delta（关键）
 
-**文件**: `repository/interfaces.go` (新增接口)
+**为什么必须 per-pod delta？**
+
+```
+场景: 3 个 Pod，其中 Pod-C 重启
+
+        Pod-A    Pod-B    Pod-C    聚合值
+t=0     100      200      300      600
+t=1     110      210      0(重启)  320
+
+错误方式 (先聚合再 delta):
+  delta = 320 - 600 = -280 → 当作重置 → 报 320 (错!)
+
+正确方式 (先 delta 再聚合):
+  Pod-A: 110-100 = 10
+  Pod-B: 210-200 = 10
+  Pod-C: 0 < 300, 重置, delta = 0 (首次采集跳过)
+  聚合 = 20 (对!)
+```
+
+**SnapshotManager 设计**：
 
 ```go
-// SLORepository SLO 数据仓库接口
+// snapshotManager 维护 per-pod 级别的 prev 值
+type snapshotManager struct {
+    mu sync.RWMutex
+
+    // Linkerd response per-pod
+    // key: "pod|status_code|classification" → prev value
+    linkerdResponsePrev map[string]float64
+
+    // Linkerd latency per-pod
+    // key: "pod|le" → prev bucket value
+    linkerdBucketPrev map[string]float64
+    // key: "pod" → prev sum
+    linkerdSumPrev    map[string]float64
+    // key: "pod" → prev count
+    linkerdCountPrev  map[string]float64
+
+    // Ingress per-service-key（Controller 无关，归一化后）
+    // key: "service_key|code|method" → prev value
+    ingressRequestPrev map[string]float64
+
+    // Ingress latency per-service-key
+    // key: "service_key|le" → prev bucket
+    ingressBucketPrev map[string]float64
+    // key: "service_key" → prev sum
+    ingressSumPrev    map[string]float64
+    // key: "service_key" → prev count
+    ingressCountPrev  map[string]float64
+
+    // Edge (outbound per-pod)
+    // key: "pod|dst_ns|dst_name|status_code|classification" → prev total
+    edgePrev map[string]float64
+    // key: "pod|dst_ns|dst_name" → prev latency sum (ms)
+    edgeSumPrev map[string]float64
+    // key: "pod|dst_ns|dst_name" → prev latency count
+    edgeCountPrev map[string]float64
+}
+
+// calcDelta 通用增量计算
+// delta = current - prev; if delta < 0 → counter 重置, delta = 0 (跳过本周期)
+func calcDelta(current, prev float64) float64 {
+    delta := current - prev
+    if delta < 0 {
+        return 0 // Pod 重启，跳过本周期
+    }
+    return delta
+}
+```
+
+**注意**: Agent 重启时 prev 为空，首次采集所有 Pod 的 delta 都为 0（因为无 prev），不会产生异常数据。第二次采集开始正常。
+
+### 5.4 Stage 3a: Aggregate to Service
+
+```go
+// aggregateServices 将 per-pod delta 聚合为 service 级别
 //
-// 负责从 OTel Collector 采集 SLO 数据，处理后返回。
-// 与其他 Repository 一样，被 SnapshotService 调用。
+// 聚合 key: namespace + deployment
+// 聚合方式: 直接 sum 各 pod 的 delta 值
+func (r *sloRepository) aggregateServices(
+    responseDelta []linkerdResponseDelta,
+    bucketDelta   []linkerdBucketDelta,
+    sumDelta      []linkerdSumDelta,
+    countDelta    []linkerdCountDelta,
+) []model_v2.ServiceMetrics {
+    // 按 namespace+deployment 分组
+    // 每组内:
+    //   Requests: 按 status_code+classification 分组 sum delta
+    //   LatencyBuckets: 按 le 分组 sum delta
+    //   LatencySum: sum
+    //   LatencyCount: sum
+    //
+    // mTLS 聚合（新增）:
+    //   遍历 inbound responseDelta:
+    //     TotalRequestDelta += delta        （所有请求）
+    //     if tls == "true":
+    //       TLSRequestDelta += delta        （mTLS 请求）
+    //   Master 侧计算: mtlsPercent = TLSRequestDelta / TotalRequestDelta * 100
+}
+```
+
+### 5.5 Stage 3b: Extract Edges
+
+```go
+// extractEdges 从 outbound per-pod delta 提取拓扑（含延迟 + 错误率）
+//
+// 聚合 key: src_ns+src_name → dst_ns+dst_name
+//
+// 数据来源:
+//   - RequestDelta: outbound otel_response_total delta（sum 所有 pod）
+//   - FailureDelta: outbound otel_response_total delta（classification=failure）
+//   - LatencySum:   outbound otel_response_latency_ms_sum delta（按 dst 分组）
+//   - LatencyCount: outbound otel_response_latency_ms_count delta（按 dst 分组）
+//
+// 实现:
+//   1. 遍历 outboundDelta:
+//      - 按 src_ns+src_name+dst_ns+dst_name 分组
+//      - RequestDelta += delta
+//      - if classification == "failure": FailureDelta += delta
+//   2. 遍历 outboundLatencySumDelta / outboundLatencyCountDelta:
+//      - 按 src_ns+src_name+dst_ns+dst_name 分组
+//      - LatencySum += delta
+//      - LatencyCount += delta
+func (r *sloRepository) extractEdges(
+    outboundDelta       []linkerdResponseDelta,
+    outboundSumDelta    []linkerdSumDelta,
+    outboundCountDelta  []linkerdCountDelta,
+) []model_v2.ServiceEdge
+```
+
+### 5.6 Stage 3c: Aggregate Ingress
+
+```go
+// aggregateIngress 聚合入口指标（Controller 无关）
+//
+// 入口指标已经是 service-key 级别（不是 per-pod），
+// 但仍需要 delta 计算（counter 是累积的）
+// 同时将延迟单位从秒转为毫秒
+//
+// 注意: 此函数接收的是 Parser 已归一化的通用类型，
+// 不关心底层是 Traefik 还是 Nginx
+func (r *sloRepository) aggregateIngress(
+    requestDelta []ingressRequestDelta,
+    bucketDelta  []ingressBucketDelta,
+    sumDelta     []ingressSumDelta,
+    countDelta   []ingressCountDelta,
+) []model_v2.IngressMetrics {
+    // 秒→毫秒转换:
+    //   bucket le: "0.1" → "100", "0.3" → "300", "5" → "5000"
+    //   sum: value * 1000
+}
+```
+
+### 5.7 SLORepository 完整接口
+
+```go
+// SLORepository SLO 数据仓库（重写）
 type SLORepository interface {
-	// Collect 采集 SLO 数据
-	//
-	// 从 OTel Collector 采集指标，计算增量，返回处理后的 SLO 数据。
-	// 如果 OTel Collector 不可用，返回空数据和 error。
-	Collect(ctx context.Context) (*model.SLOData, error)
+    // Collect 采集并处理 SLO 数据
+    // 完成: scrape → filter → per-pod delta → aggregate → 返回 SLOSnapshot
+    Collect(ctx context.Context) (*model_v2.SLOSnapshot, error)
 }
 ```
 
-### 4.3 SLO Repository 实现
-
-**文件**: `repository/slo_repository.go`
-
-```go
-package repository
-
-import (
-	"context"
-	"strings"
-	"time"
-
-	"AtlHyper/atlhyper_agent_v2/model"
-	"AtlHyper/atlhyper_agent_v2/sdk"
-)
-
-// sloRepository SLO 数据仓库实现
-type sloRepository struct {
-	otelClient      sdk.OTelClient
-	snapshotManager *SLOSnapshotManager
-	ignoreNS        map[string]bool // 忽略的 namespace
-}
-
-// NewSLORepository 创建 SLO 仓库
-func NewSLORepository(otelClient sdk.OTelClient, ignoreNS []string) SLORepository {
-	ignore := make(map[string]bool)
-	for _, ns := range ignoreNS {
-		ignore[ns] = true
-	}
-
-	return &sloRepository{
-		otelClient:      otelClient,
-		snapshotManager: NewSLOSnapshotManager(),
-		ignoreNS:        ignore,
-	}
-}
-
-// Collect 采集 SLO 数据
-func (r *sloRepository) Collect(ctx context.Context) (*model.SLOData, error) {
-	// 1. 从 OTel Collector 采集原始指标
-	rawMetrics, err := r.otelClient.ScrapeMetrics(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// 2. 过滤 SLO 相关指标
-	filtered := r.filterSLOMetrics(rawMetrics)
-
-	// 3. 计算增量
-	deltas := r.snapshotManager.CalculateDelta(filtered)
-
-	// 4. 处理数据
-	data := &model.SLOData{
-		Timestamp: time.Now(),
-	}
-
-	// 服务发现
-	data.Services = r.discoverServices(filtered)
-	data.Edges = r.discoverEdges(filtered)
-
-	// 黄金指标（基于增量）
-	data.GoldenMetrics = r.calculateGoldenMetrics(deltas)
-
-	// Traefik 指标（基于增量）
-	data.TraefikMetrics = r.calculateTraefikMetrics(deltas)
-
-	return data, nil
-}
-
-// filterSLOMetrics 过滤 SLO 相关指标
-func (r *sloRepository) filterSLOMetrics(metrics []sdk.RawMetric) []sdk.RawMetric {
-	var result []sdk.RawMetric
-	for _, m := range metrics {
-		// 只保留 response_* 和 traefik_* 指标
-		if !strings.HasPrefix(m.Name, "response_") &&
-			!strings.HasPrefix(m.Name, "traefik_") {
-			continue
-		}
-
-		// 过滤忽略的 namespace
-		if ns := m.Labels["namespace"]; ns != "" && r.ignoreNS[ns] {
-			continue
-		}
-
-		result = append(result, m)
-	}
-	return result
-}
-
-// discoverServices 服务发现
-func (r *sloRepository) discoverServices(metrics []sdk.RawMetric) []model.ServiceInfo {
-	seen := make(map[string]model.ServiceInfo)
-
-	for _, m := range metrics {
-		if m.Name != "response_total" {
-			continue
-		}
-
-		// inbound: 被调用方
-		ns := m.Labels["namespace"]
-		deploy := m.Labels["deployment"]
-		if ns != "" && deploy != "" {
-			key := ns + "/" + deploy
-			seen[key] = model.ServiceInfo{
-				Namespace:   ns,
-				Name:        deploy,
-				ServiceType: inferServiceType(deploy),
-			}
-		}
-
-		// outbound: 调用目标
-		if m.Labels["direction"] == "outbound" {
-			dstNs := m.Labels["dst_namespace"]
-			dstSvc := m.Labels["dst_service"]
-			if dstNs != "" && dstSvc != "" {
-				key := dstNs + "/" + dstSvc
-				seen[key] = model.ServiceInfo{
-					Namespace:   dstNs,
-					Name:        dstSvc,
-					ServiceType: inferServiceType(dstSvc),
-				}
-			}
-		}
-	}
-
-	result := make([]model.ServiceInfo, 0, len(seen))
-	for _, svc := range seen {
-		result = append(result, svc)
-	}
-	return result
-}
-
-// discoverEdges 拓扑边发现
-func (r *sloRepository) discoverEdges(metrics []sdk.RawMetric) []model.ServiceEdge {
-	seen := make(map[string]model.ServiceEdge)
-
-	for _, m := range metrics {
-		if m.Name != "response_total" || m.Labels["direction"] != "outbound" {
-			continue
-		}
-
-		sourceNs := m.Labels["namespace"]
-		sourceName := m.Labels["deployment"]
-		targetNs := m.Labels["dst_namespace"]
-		targetName := m.Labels["dst_service"]
-
-		if sourceNs == "" || sourceName == "" || targetNs == "" || targetName == "" {
-			continue
-		}
-
-		key := sourceNs + "/" + sourceName + "->" + targetNs + "/" + targetName
-		seen[key] = model.ServiceEdge{
-			SourceNs:   sourceNs,
-			SourceName: sourceName,
-			TargetNs:   targetNs,
-			TargetName: targetName,
-			Protocol:   "http",
-		}
-	}
-
-	result := make([]model.ServiceEdge, 0, len(seen))
-	for _, edge := range seen {
-		result = append(result, edge)
-	}
-	return result
-}
-
-// calculateGoldenMetrics 计算黄金指标
-func (r *sloRepository) calculateGoldenMetrics(deltas []MetricDelta) []model.GoldenMetric {
-	// 按 (target_ns, target_name, source_ns, source_name) 分组
-	type key struct {
-		TargetNs, TargetName, SourceNs, SourceName string
-	}
-	groups := make(map[key]*model.GoldenMetric)
-
-	for _, d := range deltas {
-		if !strings.HasPrefix(d.Name, "response_") {
-			continue
-		}
-
-		k := key{
-			TargetNs:   d.Labels["namespace"],
-			TargetName: d.Labels["deployment"],
-		}
-		if d.Labels["direction"] == "outbound" {
-			k.SourceNs = d.Labels["namespace"]
-			k.SourceName = d.Labels["deployment"]
-			k.TargetNs = d.Labels["dst_namespace"]
-			k.TargetName = d.Labels["dst_service"]
-		}
-
-		gm, ok := groups[k]
-		if !ok {
-			gm = &model.GoldenMetric{
-				TargetNs:   k.TargetNs,
-				TargetName: k.TargetName,
-				SourceNs:   k.SourceNs,
-				SourceName: k.SourceName,
-				Buckets:    make(map[string]int64),
-			}
-			groups[k] = gm
-		}
-
-		switch {
-		case d.Name == "response_total":
-			gm.TotalReq += int64(d.Delta)
-			if isSuccess(d.Labels["status_code"]) {
-				gm.SuccessReq += int64(d.Delta)
-			} else {
-				gm.ErrorReq += int64(d.Delta)
-			}
-
-		case strings.HasPrefix(d.Name, "response_latency_ms_bucket"):
-			bucket := leToBucketName(d.Labels["le"])
-			gm.Buckets[bucket] += int64(d.Delta)
-
-		case d.Name == "response_latency_ms_sum":
-			gm.LatencySum += d.Delta
-
-		case d.Name == "response_latency_ms_count":
-			gm.LatencyCount += int64(d.Delta)
-		}
-	}
-
-	result := make([]model.GoldenMetric, 0, len(groups))
-	for _, gm := range groups {
-		result = append(result, *gm)
-	}
-	return result
-}
-
-// calculateTraefikMetrics 计算 Traefik 指标
-func (r *sloRepository) calculateTraefikMetrics(deltas []MetricDelta) []model.TraefikMetric {
-	type key struct {
-		Service, Method, Code string
-	}
-	groups := make(map[key]*model.TraefikMetric)
-
-	for _, d := range deltas {
-		if !strings.HasPrefix(d.Name, "traefik_") {
-			continue
-		}
-
-		k := key{
-			Service: d.Labels["service"],
-			Method:  d.Labels["method"],
-			Code:    d.Labels["code"],
-		}
-
-		tm, ok := groups[k]
-		if !ok {
-			tm = &model.TraefikMetric{
-				Service: k.Service,
-				Method:  k.Method,
-				Code:    k.Code,
-				Buckets: make(map[string]int64),
-			}
-			groups[k] = tm
-		}
-
-		switch {
-		case d.Name == "traefik_service_requests_total":
-			tm.TotalReq += int64(d.Delta)
-
-		case strings.HasPrefix(d.Name, "traefik_service_request_duration_seconds_bucket"):
-			bucket := secondsToBucketName(d.Labels["le"])
-			tm.Buckets[bucket] += int64(d.Delta)
-		}
-	}
-
-	result := make([]model.TraefikMetric, 0, len(groups))
-	for _, tm := range groups {
-		result = append(result, *tm)
-	}
-	return result
-}
-
-// 辅助函数
-
-func inferServiceType(name string) string {
-	switch {
-	case strings.Contains(name, "traefik"):
-		return "gateway"
-	case strings.Contains(name, "mysql"), strings.Contains(name, "postgres"), strings.Contains(name, "mongo"):
-		return "database"
-	case strings.Contains(name, "redis"), strings.Contains(name, "memcache"):
-		return "cache"
-	default:
-		return "service"
-	}
-}
-
-func isSuccess(code string) bool {
-	return strings.HasPrefix(code, "2") || strings.HasPrefix(code, "3")
-}
-
-func leToBucketName(le string) string {
-	// "0.001" -> "1ms", "0.1" -> "100ms", "+Inf" -> "inf"
-	if le == "+Inf" {
-		return "inf"
-	}
-	// 简化处理
-	return le + "s"
-}
-
-func secondsToBucketName(le string) string {
-	if le == "+Inf" {
-		return "inf"
-	}
-	return le + "s"
-}
-```
-
-### 4.4 快照管理器
-
-**文件**: `repository/slo_snapshot.go`
-
-```go
-package repository
-
-import (
-	"sync"
-
-	"AtlHyper/atlhyper_agent_v2/sdk"
-)
-
-// MetricDelta 指标增量
-type MetricDelta struct {
-	Name   string
-	Labels map[string]string
-	Delta  float64 // current - previous
-}
-
-// SLOSnapshotManager 快照管理器
-//
-// 维护上一次采集的 Counter 值，用于计算增量。
-// Counter 类型指标（如 response_total）是累计值，需要计算增量才有意义。
-type SLOSnapshotManager struct {
-	mu   sync.RWMutex
-	prev map[string]float64 // key: metric_name + sorted_labels
-}
-
-// NewSLOSnapshotManager 创建快照管理器
-func NewSLOSnapshotManager() *SLOSnapshotManager {
-	return &SLOSnapshotManager{
-		prev: make(map[string]float64),
-	}
-}
-
-// CalculateDelta 计算增量
-//
-// 对于 Counter 类型指标，计算 current - previous。
-// 对于 Gauge 类型指标，直接返回当前值。
-// 更新 prev 快照为当前值。
-func (m *SLOSnapshotManager) CalculateDelta(current []sdk.RawMetric) []MetricDelta {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	var deltas []MetricDelta
-	newPrev := make(map[string]float64)
-
-	for _, metric := range current {
-		key := m.metricKey(metric)
-		newPrev[key] = metric.Value
-
-		// 计算增量
-		prevVal, hasPrev := m.prev[key]
-		delta := metric.Value
-		if hasPrev {
-			delta = metric.Value - prevVal
-			// Counter 重置检测：如果 delta < 0，说明 Counter 被重置
-			if delta < 0 {
-				delta = metric.Value // 使用当前值作为增量
-			}
-		}
-
-		deltas = append(deltas, MetricDelta{
-			Name:   metric.Name,
-			Labels: metric.Labels,
-			Delta:  delta,
-		})
-	}
-
-	m.prev = newPrev
-	return deltas
-}
-
-// metricKey 生成指标唯一键
-func (m *SLOSnapshotManager) metricKey(metric sdk.RawMetric) string {
-	// 简单实现：name + 排序后的 labels
-	key := metric.Name
-	for k, v := range metric.Labels {
-		key += "|" + k + "=" + v
-	}
-	return key
-}
-```
+**注意**: 去掉旧的 `CollectRoutes()` 方法。路由采集合并到 `Collect()` 内部，由 Repository 内部调用 IngressClient.CollectRoutes()。
 
 ---
 
-## 5. Service 层修改
+## 6. Config 变更
 
-### 5.1 修改 ClusterSnapshot 模型
-
-**文件**: `model_v2/cluster_snapshot.go` (修改)
+**文件**: `config/types.go`
 
 ```go
-// ClusterSnapshot 集群快照
-type ClusterSnapshot struct {
-	ClusterID string
-	FetchedAt time.Time
-
-	// 现有 K8s 资源
-	Pods        []Pod
-	Nodes       []Node
-	Deployments []Deployment
-	// ... 其他资源
-
-	// 新增：SLO 数据
-	SLOData *model.SLOData
-}
-```
-
-### 5.2 修改 SnapshotService
-
-**文件**: `service/snapshot_service.go` (修改)
-
-```go
-// snapshotService 快照采集服务实现
-type snapshotService struct {
-	clusterID string
-
-	// 现有 20 个 K8s Repository
-	podRepo        repository.PodRepository
-	nodeRepo       repository.NodeRepository
-	deploymentRepo repository.DeploymentRepository
-	// ...
-
-	// 新增：SLO Repository（可选）
-	sloRepo repository.SLORepository
-}
-
-// NewSnapshotService 创建快照服务
-func NewSnapshotService(
-	clusterID string,
-	podRepo repository.PodRepository,
-	// ... 现有参数
-	sloRepo repository.SLORepository, // 新增，可为 nil
-) SnapshotService {
-	return &snapshotService{
-		clusterID: clusterID,
-		podRepo:   podRepo,
-		// ...
-		sloRepo: sloRepo,
-	}
-}
-
-// Collect 采集集群快照
-func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapshot, error) {
-	snapshot := &model_v2.ClusterSnapshot{
-		ClusterID: s.clusterID,
-		FetchedAt: time.Now(),
-	}
-
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var firstErr error
-
-	recordErr := func(err error) {
-		if err != nil {
-			mu.Lock()
-			if firstErr == nil {
-				firstErr = err
-			}
-			mu.Unlock()
-		}
-	}
-
-	// 并发采集 K8s 资源（现有逻辑）
-	wg.Add(20)
-	// ... 现有的 20 个 goroutine
-
-	// 新增：并发采集 SLO 数据
-	if s.sloRepo != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sloData, err := s.sloRepo.Collect(ctx)
-			recordErr(err)
-			if err == nil {
-				mu.Lock()
-				snapshot.SLOData = sloData
-				mu.Unlock()
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	// 生成摘要
-	snapshot.Summary = s.generateSummary(snapshot)
-
-	return snapshot, firstErr
-}
-```
-
----
-
-## 6. 初始化和依赖注入
-
-### 6.1 配置扩展
-
-**文件**: `config/config.go` (修改)
-
-```go
-type Config struct {
-	// 现有配置
-	ClusterID string
-	K8s       K8sConfig
-
-	// 新增：SLO 配置
-	SLO SLOConfig
-}
-
+// SLOConfig SLO 指标采集配置
 type SLOConfig struct {
-	// 是否启用
-	Enabled bool `yaml:"enabled"`
+    Enabled       bool          `yaml:"enabled"`
+    ScrapeTimeout time.Duration `yaml:"scrapeTimeout"` // 默认 5s
 
-	// OTel Collector 端点
-	Endpoint string `yaml:"endpoint"`
-
-	// 采集超时
-	Timeout string `yaml:"timeout"`
-
-	// 忽略的 namespace
-	IgnoreNamespaces []string `yaml:"ignore_namespaces"`
+    // OTel Collector
+    OTelMetricsURL string   `yaml:"otelMetricsURL"` // http://otel-collector.otel.svc:8889/metrics
+    OTelHealthURL  string   `yaml:"otelHealthURL"`  // http://otel-collector.otel.svc:13133
+    ExcludeNamespaces []string `yaml:"excludeNamespaces"` // 默认 [linkerd, linkerd-viz, kube-system, otel]
 }
 ```
 
-**配置文件示例**: `config.yaml`
+**配置示例**:
 
 ```yaml
-cluster_id: zgmf-x10a
-
-k8s:
-  kubeconfig: ""  # 使用 in-cluster
-
 slo:
   enabled: true
-  endpoint: "http://otel-collector.otel.svc:8889/metrics"
-  timeout: "5s"
-  ignore_namespaces:
-    - kube-system
+  scrapeTimeout: 5s
+  otelMetricsURL: "http://otel-collector.otel.svc:8889/metrics"
+  otelHealthURL: "http://otel-collector.otel.svc:13133"
+  excludeNamespaces:
     - linkerd
     - linkerd-viz
+    - kube-system
     - otel
 ```
 
-### 6.2 依赖注入
+---
 
-**文件**: `main.go` 或 `wire.go`
+## 7. Service 层集成
+
+**不需要修改** `service/snapshot/snapshot.go` 的结构。
+
+现有代码已经在并发采集中调用 `sloRepo.Collect()`，返回 `*model_v2.SLOSnapshot`。只要新的 SLORepository 实现同一接口，Service 层无感切换。
+
+唯一变化: `SLORepository` 接口去掉 `CollectRoutes()`（合并到 `Collect()` 内部），Service 层对应删除 CollectRoutes 调用。
+
+---
+
+## 8. 初始化（agent.go 依赖注入）
 
 ```go
-func initSnapshotService(cfg *config.Config, k8sClient sdk.K8sClient) service.SnapshotService {
-	// 创建 K8s Repository（现有）
-	podRepo := repository.NewPodRepository(k8sClient)
-	nodeRepo := repository.NewNodeRepository(k8sClient)
-	// ...
+// 创建 SLO Repository
+var sloRepo repository.SLORepository
 
-	// 创建 SLO Repository（新增）
-	var sloRepo repository.SLORepository
-	if cfg.SLO.Enabled {
-		otelClient, err := impl.NewOTelClient(sdk.OTelConfig{
-			Endpoint: cfg.SLO.Endpoint,
-			Timeout:  cfg.SLO.Timeout,
-			Enabled:  true,
-		})
-		if err != nil {
-			log.Printf("[SLO] OTel 客户端初始化失败: %v", err)
-		} else {
-			sloRepo = repository.NewSLORepository(otelClient, cfg.SLO.IgnoreNamespaces)
-			log.Printf("[SLO] 已启用，端点: %s", cfg.SLO.Endpoint)
-		}
-	}
-
-	return service.NewSnapshotService(
-		cfg.ClusterID,
-		podRepo,
-		nodeRepo,
-		// ...
-		sloRepo, // 可为 nil
-	)
+if cfg.SLO.Enabled {
+    otelClient := otel.NewOTelClient(
+        cfg.SLO.OTelMetricsURL,
+        cfg.SLO.OTelHealthURL,
+        cfg.SLO.ScrapeTimeout,
+    )
+    sloRepo = slo.NewSLORepository(otelClient, ingressClient, cfg.SLO.ExcludeNamespaces)
+    //                              ↑ OTel 采指标  ↑ 采路由(IngressRoute CRD)
 }
 ```
 
 ---
 
-## 7. 目标指标参考
+## 9. OTel 实际指标参考
 
-### 7.1 Linkerd 指标
+### 9.1 Linkerd 指标
 
-| 指标名 | 类型 | 用途 |
-|--------|------|------|
-| `response_total` | Counter | 请求总数、成功/失败计数 |
-| `response_latency_ms_bucket` | Histogram | 延迟分布 |
-| `response_latency_ms_sum` | Counter | 延迟总和 |
-| `response_latency_ms_count` | Counter | 请求计数 |
+从 OTel Collector `:8889` 实际输出（都加了 `otel_` 前缀）：
 
-**关键标签:**
+**otel_response_total** (gauge，值为累积):
+
 ```
-response_total{
-  namespace="atlantis",
-  deployment="atlantis",
-  direction="inbound",           # inbound=被调用，outbound=调用他人
-  authority="atlantis.atlantis", # 请求的 Host
-  status_code="200",
+# inbound（被调用方视角，用于 ServiceMetrics）
+otel_response_total{
+  namespace="elastic", deployment="apm-server",
+  pod="apm-server-55c66d695f-rpk7x",
+  direction="inbound",
+  status_code="202", classification="success",
+  route_name="default",    # "probe" = K8s 健康检查
+  srv_port="8200",         # "4191" = Linkerd admin
   tls="true",
-  dst_namespace="...",           # outbound 时的目标
-  dst_service="...",
+} 1234
+
+# outbound（调用方视角，用于 ServiceEdge）
+otel_response_total{
+  namespace="atlhyper", deployment="atlhyper-agent",
+  pod="atlhyper-agent-xxx",
+  direction="outbound",
+  dst_namespace="kube-system", dst_deployment="traefik",
+  status_code="200",
+} 5678
+```
+
+**otel_response_latency_ms_bucket** (gauge):
+
+```
+otel_response_latency_ms_bucket{
+  namespace="elastic", deployment="apm-server",
+  pod="apm-server-xxx",
+  direction="inbound",
+  le="100",     # 单位: 毫秒
+} 456
+```
+
+Bucket 边界 (毫秒): `1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000, 2000, 3000, 4000, 5000, 10000, 20000, 30000, +Inf`
+
+### 9.2 入口指标（多 Controller）
+
+#### Traefik 示例
+
+**otel_traefik_service_requests_total** (counter):
+
+```
+otel_traefik_service_requests_total{
+  service="atlantis-atlantis-web-3000@kubernetes",
+  code="200", method="GET", protocol="http",
+} 789
+```
+
+**otel_traefik_service_request_duration_seconds_bucket** (histogram):
+
+```
+otel_traefik_service_request_duration_seconds_bucket{
+  service="atlantis-atlantis-web-3000@kubernetes",
+  code="200", method="GET",
+  le="0.1",    # 单位: 秒 → Agent 转为 "100" (毫秒)
+} 123
+```
+
+Bucket 边界 (秒): `0.1, 0.3, 1.2, 5, +Inf`
+
+ServiceKey 归一化: `"atlantis-atlantis-web-3000@kubernetes"` → `"atlantis-atlantis-web-3000"`
+
+#### Nginx Ingress 示例
+
+**otel_nginx_ingress_controller_requests** (counter):
+
+```
+otel_nginx_ingress_controller_requests{
+  namespace="atlantis", ingress="atlantis-web",
+  service="atlantis-web", service_port="3000",
+  status="200", method="GET",
+} 789
+```
+
+**otel_nginx_ingress_controller_request_duration_seconds_bucket** (histogram):
+
+```
+otel_nginx_ingress_controller_request_duration_seconds_bucket{
+  namespace="atlantis", ingress="atlantis-web",
+  service="atlantis-web", service_port="3000",
+  status="200", method="GET",
+  le="0.1",
+} 123
+```
+
+Bucket 边界 (秒): `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, +Inf`
+
+ServiceKey 归一化: namespace=`"atlantis"` + service=`"atlantis-web"` + port=`"3000"` → `"atlantis-atlantis-web-3000"`
+
+#### 归一化结果对比
+
+两种 Controller 归一化后产生相同的 `IngressRequestMetric`:
+
+```go
+IngressRequestMetric{
+    ServiceKey: "atlantis-atlantis-web-3000",
+    Code:       "200",
+    Method:     "GET",
+    Value:      789,
 }
 ```
 
-### 7.2 Traefik 指标
+### 9.3 集群已发现服务
 
-| 指标名 | 类型 | 用途 |
-|--------|------|------|
-| `traefik_service_requests_total` | Counter | 服务请求总数 |
-| `traefik_service_request_duration_seconds_bucket` | Histogram | 延迟分布 |
+| Namespace | Services |
+|---|---|
+| atlhyper | atlhyper-agent, atlhyper-controller, atlhyper-web |
+| atlantis | atlantis-web |
+| elastic | apm-server, elasticsearch, filebeat, kibana |
+| geass | geass-auth, geass-favorites, geass-gateway, geass-history, geass-media, geass-user, geass-web |
+| nginx | nginx-static |
 
-**关键标签:**
-```
-traefik_service_requests_total{
-  service="atlantis-atlantis-http@kubernetes",
-  method="GET",
-  protocol="http",
-  code="200",
-}
-```
+---
 
-### 7.3 Histogram Buckets
+## 10. 过滤规则
 
-**Linkerd (ms):**
-```
-le="0.001" → 1ms
-le="0.002" → 2ms
-le="0.005" → 5ms
-le="0.01"  → 10ms
-le="0.02"  → 20ms
-le="0.05"  → 50ms
-le="0.1"   → 100ms
-le="0.2"   → 200ms
-le="0.5"   → 500ms
-le="1"     → 1s
-le="2"     → 2s
-le="5"     → 5s
-le="10"    → 10s
-le="+Inf"  → inf
-```
+| 规则 | 字段 | 值 | 说明 |
+|------|------|----|----|
+| 排除健康检查 | `route_name` | `"probe"` | K8s liveness/readiness 探针 |
+| 排除 Linkerd admin | `srv_port` | `"4191"` | Linkerd proxy 管理端口 |
+| 排除系统 namespace | `namespace` | 可配置列表 | 默认: linkerd, linkerd-viz, kube-system, otel |
+| 只用 inbound 算 SLO | `direction` | `"inbound"` | outbound 仅用于拓扑发现 |
 
-**Traefik (seconds):**
+---
+
+## 11. 文件清单
+
+### 新建
+
+| 文件 | 说明 |
+|------|------|
+| `sdk/impl/otel/client.go` | OTelClient 实现：HTTP 采集 + 健康检查 |
+| `sdk/impl/otel/parser.go` | Prometheus 文本解析 → OTelRawMetrics 分类 |
+| `repository/slo/types.go` | 内部增量类型定义（linkerdResponseDelta, ingressRequestDelta 等） |
+| `repository/slo/filter.go` | Stage 1: 过滤 probe、admin 端口、系统 namespace |
+| `repository/slo/snapshot.go` | Stage 2: snapshotManager，per-pod delta 计算 |
+| `repository/slo/aggregate.go` | Stage 3: Pod→Service 聚合 + Edge 提取 + Ingress 聚合(秒→ms) |
+
+### 重写
+
+| 文件 | 说明 |
+|------|------|
+| `model_v2/slo.go` | 新数据模型（SLOSnapshot + ServiceMetrics + ServiceEdge + IngressMetrics） |
+| `repository/slo/slo.go` | SLORepository 主入口：编排 filter → delta → aggregate → routes |
+
+### 修改
+
+| 文件 | 变更 |
+|------|------|
+| `sdk/interfaces.go` | 新增 OTelClient 接口 |
+| `sdk/types.go` | 新增 OTel 内部类型（OTelRawMetrics + 子类型） |
+| `repository/interfaces.go` | SLORepository 去掉 CollectRoutes()，只保留 Collect() |
+| `config/types.go` | SLOConfig 新增 OTelMetricsURL、OTelHealthURL、ExcludeNamespaces |
+| `agent.go` (初始化) | 依赖注入 OTelClient + SLORepository |
+| `service/snapshot/snapshot.go` | 删除 CollectRoutes 单独调用（已合入 Collect） |
+
+### 保留不动
+
+| 文件 | 说明 |
+|------|------|
+| `sdk/impl/ingress/route_collector.go` | 路由采集不变，被新 SLORepository 内部调用 |
+| `service/snapshot/snapshot.go` (主体) | Service 层结构不变 |
+| `scheduler/` | 调度层不变 |
+
+---
+
+## 12. 实现阶段
+
 ```
-le="0.005" → 5ms
-le="0.01"  → 10ms
-le="0.025" → 25ms
-le="0.05"  → 50ms
-le="0.1"   → 100ms
-le="0.25"  → 250ms
-le="0.5"   → 500ms
-le="1"     → 1s
-le="2.5"   → 2.5s
-le="5"     → 5s
-le="10"    → 10s
-le="+Inf"  → inf
+Phase 1: 数据模型
+  - 重写 model_v2/slo.go
+  - 验证 JSON 序列化
+
+Phase 2: SDK 层
+  - sdk/interfaces.go 新增 OTelClient
+  - sdk/types.go 新增内部类型
+  - sdk/impl/otel/client.go + parser.go
+  - 单元测试: mock OTel 输出 → 验证解析结果
+
+Phase 3: Repository 层
+  - repository/slo/slo.go 重写主入口 (Collect 编排)
+  - repository/slo/filter.go 过滤逻辑
+  - repository/slo/snapshot.go snapshotManager per-pod delta
+  - repository/slo/aggregate.go Pod→Service 聚合 + Edge + Ingress
+  - 删除旧 Ingress 直连代码 (sdk/impl/ingress/client.go, discover.go, parser.go)
+  - 单元测试: mock OTelRawMetrics → 验证 filter/delta/aggregate 各阶段
+
+Phase 4: 集成
+  - config 新增字段
+  - agent.go 依赖注入
+  - repository/interfaces.go 简化
+  - service 层适配
+
+Phase 5: 端到端验证
+  - 对接真实 OTel Collector (已部署)
+  - 验证指标采集 + 增量计算正确性
+  - 验证 ClusterSnapshot 上报 Master
 ```
 
 ---
 
-## 8. 实现计划
+## 13. 前端数据映射
 
-### 阶段一：SDK 层
+前端展示两层数据，本节说明 Agent 上报字段到前端展示字段的完整映射关系，以及哪些计算在 Agent 侧完成、哪些留给 Master。
 
-- [ ] 创建 `sdk/interfaces_otel.go` - OTelClient 接口
-- [ ] 创建 `sdk/types_otel.go` - OTel 类型定义
-- [ ] 创建 `sdk/impl/otel_client.go` - OTelClient 实现
-- [ ] 编写单元测试
+### 13.1 服务网格层（ServiceNode → ServiceMetrics）
 
-### 阶段二：Repository 层
+| 前端字段 | 含义 | Agent 上报字段 | OTel 原始指标 | 计算方式 |
+|---|---|---|---|---|
+| `rps` | 请求/秒 | `ServiceMetrics.LatencyCount` ÷ 采集间隔 | `otel_response_latency_ms_count` (inbound) | **Master 计算**: delta_count / interval_seconds |
+| `avgLatency` | 平均延迟 ms | `LatencySum` / `LatencyCount` | `otel_response_latency_ms_sum` / `_count` | **Master 计算**: sum / count |
+| `p50Latency` | P50 ms | `LatencyBuckets` | `otel_response_latency_ms_bucket` (inbound) | **Master 计算**: histogram 插值 |
+| `p95Latency` | P95 ms | `LatencyBuckets` | 同上 | **Master 计算**: histogram 插值 |
+| `p99Latency` | P99 ms | `LatencyBuckets` | 同上 | **Master 计算**: histogram 插值 |
+| `errorRate` | 错误率 % | `Requests[].Classification=="failure"` | `otel_response_total` (inbound, classification=failure) | **Master 计算**: failure_delta / total_delta * 100 |
+| `mtlsPercent` | mTLS 覆盖率 | `TLSRequestDelta` / `TotalRequestDelta` | `otel_response_total` (inbound, `tls` 标签) | **Agent 聚合**: tls=true 请求 / 总请求 |
+| `latencyDistribution` | 24桶直方图 | `LatencyBuckets` | `otel_response_latency_ms_bucket` | **Master**: 存储 bucket delta |
+| `requestBreakdown` | 按HTTP方法分布 | **不可用** | Linkerd inbound 无 `method` 标签 | **仅入口层提供** |
+| `statusCodeBreakdown` | 状态码分布 | `Requests[]` 按 StatusCode 聚合 | `otel_response_total` (status_code) | **Master 聚合**: 按 status_code 前缀分组 |
+| `totalRequests` | 总请求数 | `LatencyCount` 累积 | `otel_response_latency_ms_count` | **Master 累积** |
 
-- [ ] 创建 `model/slo.go` - SLO 数据模型
-- [ ] 创建 `repository/slo_snapshot.go` - 快照管理器
-- [ ] 创建 `repository/slo_repository.go` - SLO 仓库
-- [ ] 编写单元测试
+### 13.2 拓扑层（ServiceEdge）
 
-### 阶段三：Service 层集成
+| 前端字段 | 含义 | Agent 上报字段 | OTel 原始指标 |
+|---|---|---|---|
+| `source` / `target` | 调用方/被调方 | `SrcNamespace+SrcName` / `DstNamespace+DstName` | `otel_response_total` (outbound, `dst_deployment`+`dst_namespace`) |
+| `rps` | 边的 RPS | `RequestDelta` ÷ 间隔 | 同上 |
+| `avgLatency` | 边的平均延迟 | `LatencySum` / `LatencyCount` | `otel_response_latency_ms_sum/count` (outbound, 按 dst 分组) |
+| `errorRate` | 边的错误率 | `FailureDelta` / `RequestDelta` | `otel_response_total` (outbound, classification=failure) |
 
-- [ ] 修改 `model_v2/cluster_snapshot.go` - 添加 SLOData 字段
-- [ ] 修改 `service/snapshot_service.go` - 添加 sloRepo 依赖
-- [ ] 修改 `config/config.go` - 添加 SLO 配置
-- [ ] 修改 `main.go` - 依赖注入
+### 13.3 入口层（DomainSLO → IngressMetrics + IngressRouteInfo）
 
-### 阶段四：测试验证
+| 前端字段 | Agent 上报字段 | OTel 原始指标（Controller 无关） |
+|---|---|---|
+| `host` | `IngressRouteInfo.Domain` | IngressRoute CRD / 标准 Ingress |
+| `current.requestsPerSec` | `IngressMetrics.LatencyCount` ÷ 间隔 | 入口延迟 count 指标 |
+| `current.p50/p95/p99Latency` | `IngressMetrics.LatencyBuckets` | 入口延迟 bucket 指标 |
+| `current.errorRate` | `IngressMetrics.Requests` (code 5xx) | 入口请求计数指标 |
+| `latencyDistribution` | `IngressMetrics.LatencyBuckets` | 同上 (Agent 已转 ms) |
+| `requestBreakdown` | `IngressMetrics.Requests` (按 method) | 入口请求计数指标 (Traefik/Nginx 均有 method) |
+| `statusCodeBreakdown` | `IngressMetrics.Requests` (按 code) | 同上 |
+| `backendServices` | `IngressRouteInfo.ServiceKey` → 匹配 | IngressRoute CRD / 标准 Ingress → ServiceKey |
 
-- [ ] 部署 OTel Collector 到测试集群
-- [ ] 验证指标采集和增量计算
-- [ ] 验证数据随 ClusterSnapshot 上报
-- [ ] Master 端接收和存储验证
+### 13.4 数据不可用说明
 
----
-
-## 9. 附录
-
-### 9.1 与 K8sClient 架构对比
-
-| 层次 | K8s 数据采集 | SLO 数据采集 |
-|------|-------------|-------------|
-| SDK | K8sClient 接口 | OTelClient 接口 |
-| SDK 实现 | client-go → K8s API Server | net/http → OTel Prometheus |
-| Repository | PodRepository, NodeRepository... | SLORepository |
-| Service | snapshotService.Collect() | 同上，并发采集 |
-| 模型 | Pod, Node, Deployment... | SLOData |
-| 上报 | ClusterSnapshot | ClusterSnapshot.SLOData |
-
-### 9.2 可选扩展
-
-1. **Trace 采集**: 扩展 OTelClient 支持 OTLP Trace 接收
-2. **多 Collector 支持**: 支持配置多个 OTel Collector 端点
-3. **指标聚合**: 在 Agent 本地做更多预聚合，减少上报数据量
+| 场景 | 原因 | 前端处理 |
+|---|---|---|
+| 服务网格层无 `requestBreakdown` | Linkerd `otel_response_total` 无 `method` 标签 | 服务详情传空数组，不展示该区块 |
+| 入口层有 `requestBreakdown` | Traefik 和 Nginx 均提供 `method` 标签 | 正常展示 GET/POST/PUT/DELETE 分布 |
