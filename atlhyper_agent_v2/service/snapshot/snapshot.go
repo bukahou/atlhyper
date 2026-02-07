@@ -393,18 +393,13 @@ func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapsho
 		}
 	}()
 
-	// SLO 数据 (可选)
+	// SLO 数据 (可选，含路由映射)
 	if s.sloRepo != nil {
 		go func() {
 			defer wg.Done()
 			sloData, err := s.sloRepo.Collect(ctx)
 			recordErr(err)
 			if err == nil && sloData != nil {
-				// 采集路由映射
-				routes, routeErr := s.sloRepo.CollectRoutes(ctx)
-				if routeErr == nil {
-					sloData.Routes = routes
-				}
 				mu.Lock()
 				snapshot.SLOData = sloData
 				mu.Unlock()

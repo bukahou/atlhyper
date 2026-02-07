@@ -42,11 +42,12 @@ type LogConfig struct {
 
 // SLOConfig SLO 指标采集配置
 type SLOConfig struct {
-	Enabled        bool          // 是否启用 SLO 采集
-	ScrapeInterval time.Duration // 采集间隔 (默认 10s)
-	ScrapeTimeout  time.Duration // 采集超时 (默认 5s)
-	IngressURL     string        // Ingress Controller 指标 URL (手动配置，优先级高于自动发现)
-	AutoDiscover   bool          // 是否启用自动发现 (扫描所有命名空间)
+	Enabled           bool          // 是否启用 SLO 采集
+	ScrapeInterval    time.Duration // 采集间隔 (默认 10s)
+	ScrapeTimeout     time.Duration // 采集超时 (默认 5s)
+	OTelMetricsURL    string        // OTel Collector 指标端点 (默认 http://otel-collector.otel.svc:8889/metrics)
+	OTelHealthURL     string        // OTel Collector 健康检查端点 (默认 http://otel-collector.otel.svc:13133)
+	ExcludeNamespaces []string      // 排除的 namespace 列表 (默认 [linkerd, linkerd-viz, kube-system, otel])
 }
 
 // MetricsSDKConfig 节点指标 SDK 配置

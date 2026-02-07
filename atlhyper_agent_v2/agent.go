@@ -30,6 +30,7 @@ import (
 	sdkpkg "AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/sdk/impl/ingress"
 	k8spkg "AtlHyper/atlhyper_agent_v2/sdk/impl/k8s"
+	otelpkg "AtlHyper/atlhyper_agent_v2/sdk/impl/otel"
 	commandsvc "AtlHyper/atlhyper_agent_v2/service/command"
 	snapshotsvc "AtlHyper/atlhyper_agent_v2/service/snapshot"
 	"AtlHyper/common/logger"
@@ -97,11 +98,14 @@ func New() (*Agent, error) {
 	// 3.2 初始化 SLORepository (可选)
 	var sloRepo repository.SLORepository
 	if cfg.SLO.Enabled {
+		otelClient := otelpkg.NewOTelClient(cfg.SLO.OTelMetricsURL, cfg.SLO.OTelHealthURL, cfg.SLO.ScrapeTimeout)
 		ingressClient := ingress.NewIngressClient(k8sClient)
-		// TODO(P4): 从 config 读取 OTel URL 并创建 OTelClient
-		defaultExcludeNS := []string{"linkerd", "linkerd-viz", "kube-system", "otel"}
-		sloRepo = slorepo.NewSLORepository(nil, ingressClient, defaultExcludeNS)
-		log.Info("SLO Repository 初始化完成")
+		excludeNS := cfg.SLO.ExcludeNamespaces
+		if len(excludeNS) == 0 {
+			excludeNS = []string{"linkerd", "linkerd-viz", "kube-system", "otel"}
+		}
+		sloRepo = slorepo.NewSLORepository(otelClient, ingressClient, excludeNS)
+		log.Info("SLO Repository 初始化完成", "otel_url", cfg.SLO.OTelMetricsURL)
 	}
 
 	// 4. 初始化 Service (业务逻辑层)

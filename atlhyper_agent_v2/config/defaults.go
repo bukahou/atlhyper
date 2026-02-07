@@ -41,7 +41,9 @@ var defaultStrings = map[string]string{
 	"AGENT_KUBECONFIG": "", // kubeconfig 文件路径，空则使用 InCluster 模式
 
 	// -------------------- SLO 配置 --------------------
-	"AGENT_SLO_INGRESS_URL": "", // Ingress Controller 指标 URL (空则自动发现，类型自动检测)
+	"AGENT_SLO_OTEL_METRICS_URL":    "http://otel-collector.otel.svc:8889/metrics", // OTel Collector 指标端点
+	"AGENT_SLO_OTEL_HEALTH_URL":     "http://otel-collector.otel.svc:13133",        // OTel Collector 健康检查
+	"AGENT_SLO_EXCLUDE_NAMESPACES":  "linkerd,linkerd-viz,kube-system,otel",        // SLO 排除的 namespace (逗号分隔)
 }
 
 // ============================================================
@@ -49,8 +51,7 @@ var defaultStrings = map[string]string{
 // ============================================================
 var defaultBools = map[string]bool{
 	// -------------------- SLO 配置 --------------------
-	"AGENT_SLO_ENABLED":       true, // 是否启用 SLO 采集
-	"AGENT_SLO_AUTO_DISCOVER": true, // 是否启用自动发现
+	"AGENT_SLO_ENABLED": true, // 是否启用 SLO 采集
 
 	// -------------------- Metrics SDK 配置 --------------------
 	"AGENT_METRICS_SDK_ENABLED": true, // 是否启用 Metrics SDK

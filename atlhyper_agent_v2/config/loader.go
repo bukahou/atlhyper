@@ -46,11 +46,12 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.SLO = SLOConfig{
-		Enabled:        getBool("AGENT_SLO_ENABLED"),
-		ScrapeInterval: getDuration("AGENT_SLO_SCRAPE_INTERVAL"),
-		ScrapeTimeout:  getDuration("AGENT_SLO_SCRAPE_TIMEOUT"),
-		IngressURL:     getString("AGENT_SLO_INGRESS_URL"),
-		AutoDiscover:   getBool("AGENT_SLO_AUTO_DISCOVER"),
+		Enabled:           getBool("AGENT_SLO_ENABLED"),
+		ScrapeInterval:    getDuration("AGENT_SLO_SCRAPE_INTERVAL"),
+		ScrapeTimeout:     getDuration("AGENT_SLO_SCRAPE_TIMEOUT"),
+		OTelMetricsURL:    getString("AGENT_SLO_OTEL_METRICS_URL"),
+		OTelHealthURL:     getString("AGENT_SLO_OTEL_HEALTH_URL"),
+		ExcludeNamespaces: getStringSlice("AGENT_SLO_EXCLUDE_NAMESPACES"),
 	}
 
 	GlobalConfig.MetricsSDK = MetricsSDKConfig{
@@ -118,6 +119,23 @@ func getInt(envKey string) int {
 		log.Fatalf("[config] 未定义默认整数配置项: %s", envKey)
 	}
 	return def
+}
+
+// getStringSlice 获取逗号分隔的字符串列表配置
+func getStringSlice(envKey string) []string {
+	raw := getString(envKey)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 // getKubeConfig 获取 kubeconfig 路径

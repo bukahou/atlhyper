@@ -164,8 +164,8 @@ type MetricsRepository interface {
 
 // SLORepository SLO 指标仓库接口
 //
-// 从 Ingress Controller 采集 SLO 指标，计算增量后返回。
+// 从 OTel Collector 采集 SLO 指标，计算 per-pod delta 后聚合返回。
+// 路由映射也在 Collect 内部一并采集。
 type SLORepository interface {
 	Collect(ctx context.Context) (*model_v2.SLOSnapshot, error)
-	CollectRoutes(ctx context.Context) ([]model_v2.IngressRouteInfo, error)
 }

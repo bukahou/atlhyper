@@ -144,29 +144,3 @@ func (r *sloRepository) Collect(ctx context.Context) (*model_v2.SLOSnapshot, err
 	return result, nil
 }
 
-// CollectRoutes 采集 IngressRoute 配置（独立调用）
-func (r *sloRepository) CollectRoutes(ctx context.Context) ([]model_v2.IngressRouteInfo, error) {
-	if r.ingressClient == nil {
-		return nil, nil
-	}
-
-	sdkRoutes, err := r.ingressClient.CollectRoutes(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	routes := make([]model_v2.IngressRouteInfo, 0, len(sdkRoutes))
-	for _, rt := range sdkRoutes {
-		routes = append(routes, model_v2.IngressRouteInfo{
-			Name:        rt.Name,
-			Namespace:   rt.Namespace,
-			Domain:      rt.Domain,
-			PathPrefix:  rt.PathPrefix,
-			ServiceKey:  rt.ServiceKey,
-			ServiceName: rt.ServiceName,
-			ServicePort: rt.ServicePort,
-			TLS:         rt.TLS,
-		})
-	}
-	return routes, nil
-}
