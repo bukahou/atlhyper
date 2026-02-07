@@ -27,8 +27,7 @@ type Processor interface {
 // processorImpl Processor 实现
 type processorImpl struct {
 	store              datahub.Store
-	onSnapshotReceived func(clusterID string)                                          // 快照接收回调（触发 Event/Metrics 持久化）
-	onSLODataReceived  func(clusterID string, snapshot *model_v2.ClusterSnapshot) // SLO 数据回调
+	onSnapshotReceived func(clusterID string) // 快照接收回调（触发 Event/Metrics/SLO 持久化）
 
 	// 状态追踪（用于变化检测）
 	mu         sync.RWMutex
@@ -45,7 +44,6 @@ type snapshotCounts struct {
 type Config struct {
 	Store              datahub.Store
 	OnSnapshotReceived func(clusterID string)
-	OnSLODataReceived  func(clusterID string, snapshot *model_v2.ClusterSnapshot)
 }
 
 // New 创建 Processor
@@ -53,7 +51,6 @@ func New(cfg Config) Processor {
 	return &processorImpl{
 		store:              cfg.Store,
 		onSnapshotReceived: cfg.OnSnapshotReceived,
-		onSLODataReceived:  cfg.OnSLODataReceived,
 		lastCounts:         make(map[string]snapshotCounts),
 	}
 }
@@ -102,14 +99,9 @@ func (p *processorImpl) ProcessSnapshot(clusterID string, snapshot *model_v2.Clu
 		)
 	}
 
-	// 4. 触发回调（Event/Metrics 持久化）
+	// 4. 触发回调（Event/Metrics/SLO 持久化）
 	if p.onSnapshotReceived != nil {
 		p.onSnapshotReceived(clusterID)
-	}
-
-	// 5. 处理 SLO 数据（如果有）
-	if snapshot.SLOData != nil && p.onSLODataReceived != nil {
-		p.onSLODataReceived(clusterID, snapshot)
 	}
 
 	return nil

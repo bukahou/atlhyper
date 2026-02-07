@@ -41,7 +41,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/query"
 	"AtlHyper/atlhyper_master_v2/service/sync"
 	"AtlHyper/atlhyper_master_v2/slo"
-	"AtlHyper/model_v2"
 	"AtlHyper/atlhyper_master_v2/tester"
 	"AtlHyper/common/logger"
 )
@@ -156,6 +155,10 @@ func New() (*Master, error) {
 	})
 	log.Info("SLO 组件初始化完成")
 
+	// 4.3 初始化 SLO 持久化服务
+	sloPersist := sync.NewSLOPersistService(store, sloProcessor)
+	log.Info("SLO 持久化服务初始化完成")
+
 	// 5. 初始化 Processor（写入路径）
 	proc := processor.New(processor.Config{
 		Store: store,
@@ -168,18 +171,9 @@ func New() (*Master, error) {
 			if err := metricsPersist.Sync(clusterID); err != nil {
 				log.Error("节点指标同步失败", "cluster", clusterID, "err", err)
 			}
-		},
-		OnSLODataReceived: func(clusterID string, snapshot *model_v2.ClusterSnapshot) {
-			ctx := context.Background()
-			// 处理 SLO 指标
-			if err := sloProcessor.ProcessIngressMetrics(ctx, clusterID, &snapshot.SLOData.Metrics); err != nil {
-				log.Error("SLO 指标处理失败", "cluster", clusterID, "err", err)
-			}
-			// 处理路由映射
-			if len(snapshot.SLOData.Routes) > 0 {
-				if err := sloProcessor.ProcessIngressRoutes(ctx, clusterID, snapshot.SLOData.Routes); err != nil {
-					log.Error("SLO 路由映射处理失败", "cluster", clusterID, "err", err)
-				}
+			// 同步 SLO 指标到数据库
+			if err := sloPersist.Sync(clusterID); err != nil {
+				log.Error("SLO 同步失败", "cluster", clusterID, "err", err)
 			}
 		},
 	})
