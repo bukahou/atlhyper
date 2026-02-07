@@ -10,81 +10,85 @@ import {
   Minus,
   ChevronDown,
   ChevronRight,
-  ChevronLeft,
   RefreshCw,
   Settings2,
   Globe,
   Zap,
   Gauge,
   X,
-  Download,
   ArrowUpRight,
   ArrowDownRight,
   Calendar,
-  FileText,
   Target,
   Network,
   Clock,
   ArrowRight,
   Server,
-  Database,
+  BarChart3,
+  Layers,
   Shield,
-  Box,
 } from "lucide-react";
 
 // ==================== Types ====================
 
-// 服务调用节点
+// ---- 延迟分布（来自 Linkerd/Traefik histogram buckets）----
+interface LatencyBucket {
+  le: number;             // upper bound (ms)
+  count: number;          // requests in this bucket
+}
+
+interface RequestBreakdown {
+  method: string;         // GET, POST, PUT, DELETE
+  count: number;
+  errorCount: number;
+}
+
+interface StatusCodeBreakdown {
+  code: string;           // "2xx", "3xx", "4xx", "5xx"
+  count: number;
+}
+
+// ---- 服务拓扑（来自 Linkerd） ----
 interface ServiceNode {
   id: string;
-  name: string;
+  name: string;           // deployment name
   namespace: string;
-  type: "gateway" | "service" | "database" | "cache" | "external";
-  avgLatency: number;
-  requestCount: number;
-  errorRate: number;
+  rps: number;            // requests per second
+  avgLatency: number;     // ms (latency_sum / latency_count)
+  p50Latency: number;     // ms
+  p95Latency: number;     // ms (histogram interpolation)
+  p99Latency: number;     // ms
+  errorRate: number;      // % (failure / total * 100)
   status: "healthy" | "warning" | "critical";
+  mtlsPercent: number;           // mTLS 覆盖率 (0-100)
+  latencyDistribution: LatencyBucket[];      // Linkerd 24桶
+  requestBreakdown: RequestBreakdown[];
+  statusCodeBreakdown: StatusCodeBreakdown[];
+  totalRequests: number;
 }
 
-// 服务调用边
 interface ServiceEdge {
-  source: string;
-  target: string;
-  requestCount: number;
-  avgLatency: number;
-  errorRate: number;
+  source: string;         // node id
+  target: string;         // node id
+  rps: number;            // requests/s
+  avgLatency: number;     // ms
+  errorRate: number;      // %
 }
 
-// 服务调用拓扑
 interface ServiceTopology {
   nodes: ServiceNode[];
   edges: ServiceEdge[];
 }
 
-// 调用链路追踪
-interface TraceSpan {
-  id: string;
-  serviceName: string;
-  operationName: string;
-  startTime: number; // 相对于 trace 开始的毫秒数
-  duration: number;  // 持续时间毫秒
-  status: "success" | "error";
-  children?: TraceSpan[];
+// ---- 域名 SLO（来自 Traefik + Routes）----
+type TimeRange = "1d" | "7d" | "30d";
+
+interface SLOTargets {
+  availability: number;
+  p95Latency: number;
+  errorRate: number;
 }
 
-// Trace 摘要（列表用）
-interface TraceSummary {
-  traceId: string;
-  method: string;
-  path: string;
-  duration: number;
-  timestamp: string;
-  status: "success" | "error";
-  spanCount: number;
-  spans: TraceSpan[];
-}
-
-// 历史数据点
 interface HistoryPoint {
   timestamp: string;
   availability: number;
@@ -95,32 +99,17 @@ interface HistoryPoint {
   errorBudgetRemaining: number;
 }
 
-// SLO 目标
-interface SLOTargets {
-  availability: number;
-  p95Latency: number;
-  errorRate: number;
-}
-
-// 时间周期类型
-type TimeRange = "1d" | "7d" | "30d";
-
-// 域名级别的 SLO 数据
 interface DomainSLO {
   id: string;
   host: string;
   ingressName: string;
-  ingressClass: string;
   namespace: string;
   tls: boolean;
-  targets: {
-    "1d": SLOTargets;
-    "7d": SLOTargets;
-    "30d": SLOTargets;
-  };
+  targets: Record<TimeRange, SLOTargets>;
   current: {
     availability: number;
     p95Latency: number;
+    p50Latency: number;
     p99Latency: number;
     errorRate: number;
     requestsPerSec: number;
@@ -135,11 +124,69 @@ interface DomainSLO {
   status: "healthy" | "warning" | "critical";
   trend: "up" | "down" | "stable";
   history: HistoryPoint[];
-  topology: ServiceTopology;
-  traces: TraceSummary[];
+  latencyDistribution: LatencyBucket[];
+  requestBreakdown: RequestBreakdown[];
+  statusCodeBreakdown: StatusCodeBreakdown[];
+  backendServices: string[];              // 关联的服务 node ID 列表
+}
+
+// ==================== Namespace Colors ====================
+
+const namespaceColors: Record<string, { fill: string; stroke: string; light: string }> = {
+  "kube-system": { fill: "#7c3aed", stroke: "#6d28d9", light: "#a78bfa" },
+  "geass":       { fill: "#0891b2", stroke: "#0e7490", light: "#22d3ee" },
+  "elastic":     { fill: "#d97706", stroke: "#b45309", light: "#fbbf24" },
+  "atlhyper":    { fill: "#059669", stroke: "#047857", light: "#34d399" },
+  "default":     { fill: "#4b5563", stroke: "#374151", light: "#9ca3af" },
+};
+
+function getNamespaceColor(ns: string) {
+  return namespaceColors[ns] || namespaceColors["default"];
 }
 
 // ==================== Mock Data ====================
+
+// Linkerd 24 桶边界 (ms)
+const linkerdBucketBounds = [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000, 2000, 3000, 4000, 5000, 10000, 20000, 30000];
+
+// 生成延迟分布 mock（正态偏右分布）
+function generateLatencyDistribution(peakMs: number): LatencyBucket[] {
+  return linkerdBucketBounds.map((le) => {
+    const ratio = le / peakMs;
+    let count: number;
+    if (ratio < 0.3) count = Math.floor(Math.random() * 50 + 10);
+    else if (ratio < 0.7) count = Math.floor(Math.random() * 200 + 150);
+    else if (ratio < 1.0) count = Math.floor(Math.random() * 500 + 400);
+    else if (ratio < 1.5) count = Math.floor(Math.random() * 400 + 200);
+    else if (ratio < 2.5) count = Math.floor(Math.random() * 150 + 50);
+    else if (ratio < 5.0) count = Math.floor(Math.random() * 40 + 5);
+    else count = Math.floor(Math.random() * 10);
+    return { le, count };
+  });
+}
+
+// 全局拓扑
+const mockGlobalTopology: ServiceTopology = {
+  nodes: [
+    { id: "traefik",        name: "traefik",        namespace: "kube-system", rps: 5200, avgLatency: 3,   p50Latency: 2,   p95Latency: 8,   p99Latency: 15,  errorRate: 0.02, status: "healthy",  mtlsPercent: 98,  latencyDistribution: generateLatencyDistribution(5),   requestBreakdown: [{ method: "GET", count: 38000, errorCount: 8 }, { method: "POST", count: 12000, errorCount: 3 }], statusCodeBreakdown: [{ code: "2xx", count: 48500 }, { code: "3xx", count: 800 }, { code: "4xx", count: 600 }, { code: "5xx", count: 100 }], totalRequests: 50000 },
+    { id: "geass-gateway",  name: "geass-gateway",  namespace: "geass",       rps: 1240, avgLatency: 18,  p50Latency: 12,  p95Latency: 45,  p99Latency: 88,  errorRate: 0.12, status: "healthy",  mtlsPercent: 100, latencyDistribution: generateLatencyDistribution(25),  requestBreakdown: [{ method: "GET", count: 8200, errorCount: 5 }, { method: "POST", count: 3100, errorCount: 4 }, { method: "PUT", count: 680, errorCount: 1 }], statusCodeBreakdown: [{ code: "2xx", count: 11200 }, { code: "3xx", count: 280 }, { code: "4xx", count: 420 }, { code: "5xx", count: 80 }], totalRequests: 11980 },
+    { id: "geass-auth",     name: "geass-auth",     namespace: "geass",       rps: 890,  avgLatency: 8,   p50Latency: 5,   p95Latency: 12,  p99Latency: 25,  errorRate: 0.05, status: "healthy",  mtlsPercent: 100, latencyDistribution: generateLatencyDistribution(10),  requestBreakdown: [{ method: "POST", count: 7500, errorCount: 4 }, { method: "GET", count: 1200, errorCount: 0 }], statusCodeBreakdown: [{ code: "2xx", count: 8300 }, { code: "4xx", count: 350 }, { code: "5xx", count: 50 }], totalRequests: 8700 },
+    { id: "geass-user",     name: "geass-user",     namespace: "geass",       rps: 560,  avgLatency: 85,  p50Latency: 60,  p95Latency: 180, p99Latency: 350, errorRate: 1.2,  status: "warning",  mtlsPercent: 72,  latencyDistribution: generateLatencyDistribution(100), requestBreakdown: [{ method: "GET", count: 3500, errorCount: 25 }, { method: "POST", count: 1200, errorCount: 18 }, { method: "PUT", count: 400, errorCount: 5 }, { method: "DELETE", count: 100, errorCount: 2 }], statusCodeBreakdown: [{ code: "2xx", count: 4900 }, { code: "3xx", count: 80 }, { code: "4xx", count: 160 }, { code: "5xx", count: 60 }], totalRequests: 5200 },
+    { id: "geass-web",      name: "geass-web",      namespace: "geass",       rps: 3200, avgLatency: 12,  p50Latency: 8,   p95Latency: 35,  p99Latency: 65,  errorRate: 0.03, status: "healthy",  mtlsPercent: 100, latencyDistribution: generateLatencyDistribution(15),  requestBreakdown: [{ method: "GET", count: 28000, errorCount: 5 }, { method: "POST", count: 2800, errorCount: 3 }], statusCodeBreakdown: [{ code: "2xx", count: 29800 }, { code: "3xx", count: 600 }, { code: "4xx", count: 350 }, { code: "5xx", count: 50 }], totalRequests: 30800 },
+    { id: "geass-media",    name: "geass-media",    namespace: "geass",       rps: 420,  avgLatency: 45,  p50Latency: 30,  p95Latency: 120, p99Latency: 230, errorRate: 0.15, status: "healthy",  mtlsPercent: 95,  latencyDistribution: generateLatencyDistribution(60),  requestBreakdown: [{ method: "GET", count: 3200, errorCount: 3 }, { method: "POST", count: 850, errorCount: 2 }], statusCodeBreakdown: [{ code: "2xx", count: 3800 }, { code: "3xx", count: 120 }, { code: "4xx", count: 100 }, { code: "5xx", count: 30 }], totalRequests: 4050 },
+    { id: "elasticsearch",  name: "elasticsearch",  namespace: "elastic",     rps: 340,  avgLatency: 22,  p50Latency: 15,  p95Latency: 35,  p99Latency: 72,  errorRate: 0.02, status: "healthy",  mtlsPercent: 85,  latencyDistribution: generateLatencyDistribution(28),  requestBreakdown: [{ method: "GET", count: 2400, errorCount: 1 }, { method: "POST", count: 800, errorCount: 0 }], statusCodeBreakdown: [{ code: "2xx", count: 3100 }, { code: "4xx", count: 80 }, { code: "5xx", count: 20 }], totalRequests: 3200 },
+    { id: "atlhyper-web",   name: "atlhyper-web",   namespace: "atlhyper",    rps: 150,  avgLatency: 15,  p50Latency: 10,  p95Latency: 42,  p99Latency: 80,  errorRate: 0.01, status: "healthy",  mtlsPercent: 100, latencyDistribution: generateLatencyDistribution(20),  requestBreakdown: [{ method: "GET", count: 1200, errorCount: 0 }, { method: "POST", count: 250, errorCount: 1 }], statusCodeBreakdown: [{ code: "2xx", count: 1380 }, { code: "3xx", count: 40 }, { code: "4xx", count: 25 }, { code: "5xx", count: 5 }], totalRequests: 1450 },
+  ],
+  edges: [
+    { source: "traefik",       target: "geass-gateway", rps: 1240, avgLatency: 3,  errorRate: 0.02 },
+    { source: "traefik",       target: "geass-web",     rps: 3200, avgLatency: 2,  errorRate: 0.01 },
+    { source: "traefik",       target: "atlhyper-web",  rps: 150,  avgLatency: 3,  errorRate: 0.01 },
+    { source: "geass-gateway", target: "geass-auth",    rps: 890,  avgLatency: 8,  errorRate: 0.05 },
+    { source: "geass-gateway", target: "geass-user",    rps: 560,  avgLatency: 18, errorRate: 0.12 },
+    { source: "geass-gateway", target: "geass-media",   rps: 420,  avgLatency: 15, errorRate: 0.08 },
+    { source: "geass-user",    target: "elasticsearch", rps: 340,  avgLatency: 22, errorRate: 0.02 },
+  ],
+};
 
 // 生成历史数据
 function generateHistory(days: number, baseAvail: number, baseLatency: number): HistoryPoint[] {
@@ -162,424 +209,104 @@ function generateHistory(days: number, baseAvail: number, baseLatency: number): 
   return points;
 }
 
-// Mock 服务拓扑数据
-const mockTopologies: Record<string, ServiceTopology> = {
-  "api.example.com": {
-    nodes: [
-      { id: "traefik", name: "Traefik", namespace: "kube-system", type: "gateway", avgLatency: 2, requestCount: 50000, errorRate: 0.01, status: "healthy" },
-      { id: "api-gateway", name: "api-gateway", namespace: "production", type: "service", avgLatency: 15, requestCount: 50000, errorRate: 0.05, status: "healthy" },
-      { id: "user-service", name: "user-service", namespace: "production", type: "service", avgLatency: 25, requestCount: 20000, errorRate: 0.1, status: "healthy" },
-      { id: "order-service", name: "order-service", namespace: "production", type: "service", avgLatency: 45, requestCount: 15000, errorRate: 0.2, status: "warning" },
-      { id: "payment-service", name: "payment-service", namespace: "production", type: "service", avgLatency: 120, requestCount: 8000, errorRate: 0.05, status: "healthy" },
-      { id: "postgres", name: "PostgreSQL", namespace: "database", type: "database", avgLatency: 5, requestCount: 30000, errorRate: 0.01, status: "healthy" },
-      { id: "redis", name: "Redis", namespace: "cache", type: "cache", avgLatency: 1, requestCount: 80000, errorRate: 0, status: "healthy" },
-    ],
-    edges: [
-      { source: "traefik", target: "api-gateway", requestCount: 50000, avgLatency: 2, errorRate: 0.01 },
-      { source: "api-gateway", target: "user-service", requestCount: 20000, avgLatency: 15, errorRate: 0.05 },
-      { source: "api-gateway", target: "order-service", requestCount: 15000, avgLatency: 20, errorRate: 0.1 },
-      { source: "order-service", target: "payment-service", requestCount: 8000, avgLatency: 25, errorRate: 0.05 },
-      { source: "user-service", target: "postgres", requestCount: 15000, avgLatency: 5, errorRate: 0.01 },
-      { source: "order-service", target: "postgres", requestCount: 12000, avgLatency: 5, errorRate: 0.02 },
-      { source: "user-service", target: "redis", requestCount: 40000, avgLatency: 1, errorRate: 0 },
-      { source: "order-service", target: "redis", requestCount: 30000, avgLatency: 1, errorRate: 0 },
-    ],
-  },
-  "pay.example.com": {
-    nodes: [
-      { id: "traefik", name: "Traefik", namespace: "kube-system", type: "gateway", avgLatency: 2, requestCount: 10000, errorRate: 0.01, status: "healthy" },
-      { id: "payment-gateway", name: "payment-gateway", namespace: "finance", type: "service", avgLatency: 20, requestCount: 10000, errorRate: 0.02, status: "healthy" },
-      { id: "payment-core", name: "payment-core", namespace: "finance", type: "service", avgLatency: 80, requestCount: 10000, errorRate: 0.05, status: "warning" },
-      { id: "risk-engine", name: "risk-engine", namespace: "finance", type: "service", avgLatency: 30, requestCount: 10000, errorRate: 0.01, status: "healthy" },
-      { id: "mysql", name: "MySQL", namespace: "database", type: "database", avgLatency: 8, requestCount: 25000, errorRate: 0.01, status: "healthy" },
-    ],
-    edges: [
-      { source: "traefik", target: "payment-gateway", requestCount: 10000, avgLatency: 2, errorRate: 0.01 },
-      { source: "payment-gateway", target: "payment-core", requestCount: 10000, avgLatency: 20, errorRate: 0.02 },
-      { source: "payment-gateway", target: "risk-engine", requestCount: 10000, avgLatency: 15, errorRate: 0.01 },
-      { source: "payment-core", target: "mysql", requestCount: 20000, avgLatency: 8, errorRate: 0.01 },
-      { source: "risk-engine", target: "mysql", requestCount: 5000, avgLatency: 5, errorRate: 0.01 },
-    ],
-  },
-};
-
-// Mock 调用链路数据（多个 trace）
-const mockTraces: Record<string, TraceSummary[]> = {
-  "api.example.com": [
-    {
-      traceId: "trace-001",
-      method: "GET",
-      path: "/api/users/123",
-      duration: 226,
-      timestamp: "2026-02-06T10:32:15Z",
-      status: "success",
-      spanCount: 8,
-      spans: [
-        {
-          id: "span-1",
-          serviceName: "Traefik",
-          operationName: "HTTP GET /api/users/123",
-          startTime: 0,
-          duration: 226,
-          status: "success",
-          children: [
-            {
-              id: "span-2",
-              serviceName: "api-gateway",
-              operationName: "handleRequest",
-              startTime: 2,
-              duration: 220,
-              status: "success",
-              children: [
-                {
-                  id: "span-3",
-                  serviceName: "user-service",
-                  operationName: "getUser",
-                  startTime: 5,
-                  duration: 180,
-                  status: "success",
-                  children: [
-                    { id: "span-4", serviceName: "Redis", operationName: "GET user:123", startTime: 8, duration: 2, status: "success" },
-                    { id: "span-5", serviceName: "PostgreSQL", operationName: "SELECT * FROM users", startTime: 15, duration: 45, status: "success" },
-                    { id: "span-6", serviceName: "Redis", operationName: "SET user:123", startTime: 65, duration: 1, status: "success" },
-                  ],
-                },
-                {
-                  id: "span-7",
-                  serviceName: "order-service",
-                  operationName: "getRecentOrders",
-                  startTime: 190,
-                  duration: 25,
-                  status: "success",
-                  children: [
-                    { id: "span-8", serviceName: "Redis", operationName: "GET orders:user:123", startTime: 192, duration: 1, status: "success" },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    {
-      traceId: "trace-002",
-      method: "POST",
-      path: "/api/orders",
-      duration: 380,
-      timestamp: "2026-02-06T10:31:42Z",
-      status: "success",
-      spanCount: 6,
-      spans: [
-        {
-          id: "span-1",
-          serviceName: "Traefik",
-          operationName: "HTTP POST /api/orders",
-          startTime: 0,
-          duration: 380,
-          status: "success",
-          children: [
-            {
-              id: "span-2",
-              serviceName: "api-gateway",
-              operationName: "handleRequest",
-              startTime: 2,
-              duration: 375,
-              status: "success",
-              children: [
-                {
-                  id: "span-3",
-                  serviceName: "order-service",
-                  operationName: "createOrder",
-                  startTime: 5,
-                  duration: 365,
-                  status: "success",
-                  children: [
-                    { id: "span-4", serviceName: "PostgreSQL", operationName: "INSERT INTO orders", startTime: 10, duration: 35, status: "success" },
-                    { id: "span-5", serviceName: "Redis", operationName: "DEL orders:user:*", startTime: 50, duration: 2, status: "success" },
-                    { id: "span-6", serviceName: "payment-service", operationName: "reservePayment", startTime: 55, duration: 280, status: "success" },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    {
-      traceId: "trace-003",
-      method: "GET",
-      path: "/api/products/456",
-      duration: 95,
-      timestamp: "2026-02-06T10:30:58Z",
-      status: "success",
-      spanCount: 4,
-      spans: [
-        {
-          id: "span-1",
-          serviceName: "Traefik",
-          operationName: "HTTP GET /api/products/456",
-          startTime: 0,
-          duration: 95,
-          status: "success",
-          children: [
-            {
-              id: "span-2",
-              serviceName: "api-gateway",
-              operationName: "handleRequest",
-              startTime: 2,
-              duration: 90,
-              status: "success",
-              children: [
-                {
-                  id: "span-3",
-                  serviceName: "product-service",
-                  operationName: "getProduct",
-                  startTime: 5,
-                  duration: 82,
-                  status: "success",
-                  children: [
-                    { id: "span-4", serviceName: "Redis", operationName: "GET product:456", startTime: 8, duration: 1, status: "success" },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    {
-      traceId: "trace-004",
-      method: "DELETE",
-      path: "/api/users/789",
-      duration: 520,
-      timestamp: "2026-02-06T10:29:30Z",
-      status: "error",
-      spanCount: 5,
-      spans: [
-        {
-          id: "span-1",
-          serviceName: "Traefik",
-          operationName: "HTTP DELETE /api/users/789",
-          startTime: 0,
-          duration: 520,
-          status: "error",
-          children: [
-            {
-              id: "span-2",
-              serviceName: "api-gateway",
-              operationName: "handleRequest",
-              startTime: 2,
-              duration: 515,
-              status: "error",
-              children: [
-                {
-                  id: "span-3",
-                  serviceName: "user-service",
-                  operationName: "deleteUser",
-                  startTime: 5,
-                  duration: 505,
-                  status: "error",
-                  children: [
-                    { id: "span-4", serviceName: "PostgreSQL", operationName: "DELETE FROM users", startTime: 10, duration: 480, status: "error" },
-                    { id: "span-5", serviceName: "Redis", operationName: "DEL user:789", startTime: 495, duration: 2, status: "success" },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-  "pay.example.com": [
-    {
-      traceId: "trace-101",
-      method: "POST",
-      path: "/api/pay",
-      duration: 125,
-      timestamp: "2026-02-06T10:32:00Z",
-      status: "success",
-      spanCount: 7,
-      spans: [
-        {
-          id: "span-1",
-          serviceName: "Traefik",
-          operationName: "HTTP POST /api/pay",
-          startTime: 0,
-          duration: 125,
-          status: "success",
-          children: [
-            {
-              id: "span-2",
-              serviceName: "payment-gateway",
-              operationName: "processPayment",
-              startTime: 2,
-              duration: 120,
-              status: "success",
-              children: [
-                {
-                  id: "span-3",
-                  serviceName: "risk-engine",
-                  operationName: "checkRisk",
-                  startTime: 5,
-                  duration: 28,
-                  status: "success",
-                  children: [
-                    { id: "span-4", serviceName: "MySQL", operationName: "SELECT risk_rules", startTime: 8, duration: 5, status: "success" },
-                  ],
-                },
-                {
-                  id: "span-5",
-                  serviceName: "payment-core",
-                  operationName: "executePayment",
-                  startTime: 38,
-                  duration: 80,
-                  status: "success",
-                  children: [
-                    { id: "span-6", serviceName: "MySQL", operationName: "INSERT transaction", startTime: 42, duration: 12, status: "success" },
-                    { id: "span-7", serviceName: "MySQL", operationName: "UPDATE account", startTime: 58, duration: 8, status: "success" },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    {
-      traceId: "trace-102",
-      method: "POST",
-      path: "/api/refund",
-      duration: 340,
-      timestamp: "2026-02-06T10:28:15Z",
-      status: "error",
-      spanCount: 5,
-      spans: [
-        {
-          id: "span-1",
-          serviceName: "Traefik",
-          operationName: "HTTP POST /api/refund",
-          startTime: 0,
-          duration: 340,
-          status: "error",
-          children: [
-            {
-              id: "span-2",
-              serviceName: "payment-gateway",
-              operationName: "processRefund",
-              startTime: 2,
-              duration: 335,
-              status: "error",
-              children: [
-                {
-                  id: "span-3",
-                  serviceName: "payment-core",
-                  operationName: "executeRefund",
-                  startTime: 5,
-                  duration: 325,
-                  status: "error",
-                  children: [
-                    { id: "span-4", serviceName: "MySQL", operationName: "SELECT transaction", startTime: 10, duration: 8, status: "success" },
-                    { id: "span-5", serviceName: "MySQL", operationName: "UPDATE balance", startTime: 25, duration: 295, status: "error" },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-};
-
 const mockDomainSLOs: DomainSLO[] = [
   {
     id: "1",
-    host: "api.example.com",
-    ingressName: "api-gateway",
-    ingressClass: "traefik",
-    namespace: "production",
+    host: "geass.example.com",
+    ingressName: "geass-gateway-ingress",
+    namespace: "geass",
     tls: true,
     targets: {
       "1d": { availability: 95, p95Latency: 300, errorRate: 5 },
       "7d": { availability: 96, p95Latency: 280, errorRate: 4 },
       "30d": { availability: 97, p95Latency: 250, errorRate: 3 },
     },
-    current: { availability: 99.74, p95Latency: 226, p99Latency: 520, errorRate: 0.26, requestsPerSec: 1790, totalRequests: 77600000 },
+    current: { availability: 99.74, p50Latency: 85, p95Latency: 226, p99Latency: 520, errorRate: 0.26, requestsPerSec: 1240, totalRequests: 53700000 },
     previous: { availability: 99.82, p95Latency: 198, errorRate: 0.18 },
     errorBudgetRemaining: 65,
     status: "warning",
     trend: "stable",
     history: generateHistory(7, 99.74, 226),
-    topology: mockTopologies["api.example.com"],
-    traces: mockTraces["api.example.com"],
+    latencyDistribution: generateLatencyDistribution(200),
+    requestBreakdown: [
+      { method: "GET",    count: 12340, errorCount: 15 },
+      { method: "POST",   count: 2150,  errorCount: 8 },
+      { method: "PUT",    count: 890,   errorCount: 3 },
+      { method: "DELETE", count: 320,   errorCount: 6 },
+    ],
+    statusCodeBreakdown: [
+      { code: "2xx", count: 14820 },
+      { code: "3xx", count: 330 },
+      { code: "4xx", count: 488 },
+      { code: "5xx", count: 94 },
+    ],
+    backendServices: ["geass-gateway", "geass-auth", "geass-user", "geass-media"],
   },
   {
     id: "2",
-    host: "pay.example.com",
-    ingressName: "payment-gateway",
-    ingressClass: "traefik",
-    namespace: "finance",
+    host: "monitor.example.com",
+    ingressName: "atlhyper-web-ingress",
+    namespace: "atlhyper",
     tls: true,
     targets: {
       "1d": { availability: 99, p95Latency: 100, errorRate: 1 },
       "7d": { availability: 99.5, p95Latency: 100, errorRate: 0.5 },
       "30d": { availability: 99.9, p95Latency: 100, errorRate: 0.1 },
     },
-    current: { availability: 99.92, p95Latency: 125, p99Latency: 245, errorRate: 0.08, requestsPerSec: 95, totalRequests: 4120000 },
-    previous: { availability: 99.96, p95Latency: 95, errorRate: 0.04 },
+    current: { availability: 99.92, p50Latency: 18, p95Latency: 42, p99Latency: 85, errorRate: 0.08, requestsPerSec: 150, totalRequests: 6500000 },
+    previous: { availability: 99.96, p95Latency: 38, errorRate: 0.04 },
     errorBudgetRemaining: 12,
     status: "critical",
     trend: "down",
-    history: generateHistory(7, 99.92, 125),
-    topology: mockTopologies["pay.example.com"],
-    traces: mockTraces["pay.example.com"],
+    history: generateHistory(7, 99.92, 42),
+    latencyDistribution: generateLatencyDistribution(30),
+    requestBreakdown: [
+      { method: "GET",  count: 5800, errorCount: 3 },
+      { method: "POST", count: 450,  errorCount: 2 },
+    ],
+    statusCodeBreakdown: [
+      { code: "2xx", count: 5920 },
+      { code: "3xx", count: 180 },
+      { code: "4xx", count: 120 },
+      { code: "5xx", count: 30 },
+    ],
+    backendServices: ["atlhyper-web"],
   },
   {
     id: "3",
-    host: "www.example.com",
-    ingressName: "frontend",
-    ingressClass: "traefik",
-    namespace: "production",
+    host: "media.example.com",
+    ingressName: "geass-media-ingress",
+    namespace: "geass",
     tls: true,
     targets: {
       "1d": { availability: 95, p95Latency: 500, errorRate: 5 },
       "7d": { availability: 96, p95Latency: 450, errorRate: 4 },
       "30d": { availability: 97, p95Latency: 400, errorRate: 3 },
     },
-    current: { availability: 99.95, p95Latency: 292, p99Latency: 546, errorRate: 0.05, requestsPerSec: 4250, totalRequests: 184200000 },
+    current: { availability: 99.95, p50Latency: 110, p95Latency: 292, p99Latency: 546, errorRate: 0.05, requestsPerSec: 3620, totalRequests: 156800000 },
     previous: { availability: 99.91, p95Latency: 310, errorRate: 0.09 },
     errorBudgetRemaining: 85,
     status: "healthy",
     trend: "up",
     history: generateHistory(7, 99.95, 292),
-    topology: mockTopologies["api.example.com"],
-    traces: mockTraces["api.example.com"],
+    latencyDistribution: generateLatencyDistribution(250),
+    requestBreakdown: [
+      { method: "GET",    count: 28500, errorCount: 8 },
+      { method: "POST",   count: 4200,  errorCount: 5 },
+      { method: "PUT",    count: 1100,  errorCount: 1 },
+      { method: "DELETE", count: 200,   errorCount: 0 },
+    ],
+    statusCodeBreakdown: [
+      { code: "2xx", count: 32100 },
+      { code: "3xx", count: 850 },
+      { code: "4xx", count: 920 },
+      { code: "5xx", count: 130 },
+    ],
+    backendServices: ["geass-web", "geass-media"],
   },
 ];
 
 // ==================== Components ====================
-
-// 服务节点图标
-function ServiceIcon({ type }: { type: ServiceNode["type"] }) {
-  const iconClass = "w-4 h-4";
-  switch (type) {
-    case "gateway": return <Shield className={iconClass} />;
-    case "service": return <Box className={iconClass} />;
-    case "database": return <Database className={iconClass} />;
-    case "cache": return <Zap className={iconClass} />;
-    case "external": return <Globe className={iconClass} />;
-  }
-}
-
-// 服务节点颜色
-function getNodeColor(status: ServiceNode["status"]) {
-  switch (status) {
-    case "healthy": return { bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-600 dark:text-emerald-400" };
-    case "warning": return { bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-600 dark:text-amber-400" };
-    case "critical": return { bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-600 dark:text-red-400" };
-  }
-}
 
 // 节点位置状态
 interface NodePosition {
@@ -589,22 +316,20 @@ interface NodePosition {
   node: ServiceNode;
 }
 
-// 服务拓扑图组件（圆形节点 + 可拖拽）
+// 服务拓扑图组件（namespace 着色 + 统一 Server 图标）
 function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopology; onSelectNode?: (node: ServiceNode) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [hoveredEdge, setHoveredEdge] = useState<number | null>(null);
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [containerWidth, setContainerWidth] = useState(1000);
-  const [timeRange, setTimeRange] = useState<"15m" | "1h" | "1d">("15m");
 
-  // 节点半径
   const nodeRadius = 32;
   const svgHeight = 500;
 
-  // 监听容器宽度
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
@@ -616,37 +341,27 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
     return () => window.removeEventListener("resize", updateWidth);
   }, []);
 
-  // 根据调用链拓扑排序计算节点层级
+  // 拓扑排序计算节点层级
   const nodeLayers = useMemo(() => {
     const nodeIds = topology.nodes.map(n => n.id);
     const inDegree: Record<string, number> = {};
-    const outDegree: Record<string, number> = {};
     const outEdges: Record<string, string[]> = {};
-    const inEdges: Record<string, string[]> = {};
 
-    // 初始化
     nodeIds.forEach(id => {
       inDegree[id] = 0;
-      outDegree[id] = 0;
       outEdges[id] = [];
-      inEdges[id] = [];
     });
 
-    // 计算入度和出度
     topology.edges.forEach(edge => {
       if (nodeIds.includes(edge.source) && nodeIds.includes(edge.target)) {
         inDegree[edge.target]++;
-        outDegree[edge.source]++;
         outEdges[edge.source].push(edge.target);
-        inEdges[edge.target].push(edge.source);
       }
     });
 
-    // BFS 拓扑排序计算层级
     const level: Record<string, number> = {};
     const queue: string[] = [];
 
-    // 入口节点（入度为0）从第0层开始
     nodeIds.forEach(id => {
       if (inDegree[id] === 0) {
         level[id] = 0;
@@ -654,7 +369,6 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
       }
     });
 
-    // BFS
     while (queue.length > 0) {
       const current = queue.shift()!;
       outEdges[current].forEach(next => {
@@ -669,14 +383,10 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
       });
     }
 
-    // 处理没有入边的孤立节点
     nodeIds.forEach(id => {
-      if (level[id] === undefined) {
-        level[id] = 0;
-      }
+      if (level[id] === undefined) level[id] = 0;
     });
 
-    // 按层级分组
     const maxLevel = Math.max(...Object.values(level));
     const layers: string[][] = Array.from({ length: maxLevel + 1 }, () => []);
     nodeIds.forEach(id => {
@@ -686,11 +396,9 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
     return layers;
   }, [topology]);
 
-  // 初始化节点位置
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [initialized, setInitialized] = useState(false);
 
-  // 根据拓扑层级计算初始位置
   useEffect(() => {
     if (initialized || containerWidth < 100) return;
 
@@ -716,49 +424,7 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
     setInitialized(true);
   }, [containerWidth, nodeLayers, initialized]);
 
-  // 节点颜色 - 深色扁平风格
-  const getNodeColors = (type: ServiceNode["type"]) => {
-    const colors: Record<ServiceNode["type"], {
-      fill: string;
-      stroke: string;
-      icon: string;
-      light: string;
-    }> = {
-      gateway: {
-        fill: "#7c3aed",
-        stroke: "#6d28d9",
-        icon: "#ffffff",
-        light: "#a78bfa"
-      },
-      service: {
-        fill: "#0891b2",
-        stroke: "#0e7490",
-        icon: "#ffffff",
-        light: "#22d3ee"
-      },
-      database: {
-        fill: "#d97706",
-        stroke: "#b45309",
-        icon: "#ffffff",
-        light: "#fbbf24"
-      },
-      cache: {
-        fill: "#dc2626",
-        stroke: "#b91c1c",
-        icon: "#ffffff",
-        light: "#f87171"
-      },
-      external: {
-        fill: "#4b5563",
-        stroke: "#374151",
-        icon: "#ffffff",
-        light: "#9ca3af"
-      },
-    };
-    return colors[type];
-  };
-
-  // 计算贝塞尔曲线
+  // 贝塞尔曲线
   const getEdgePath = (sourceId: string, targetId: string) => {
     const source = positions[sourceId];
     const target = positions[targetId];
@@ -773,30 +439,23 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
     return `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
   };
 
-  // 边标签位置
   const getEdgeLabelPos = (sourceId: string, targetId: string) => {
     const source = positions[sourceId];
     const target = positions[targetId];
     if (!source || !target) return { x: 0, y: 0 };
-    return {
-      x: (source.x + target.x) / 2,
-      y: (source.y + target.y) / 2,
-    };
+    return { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 };
   };
 
-  // 拖拽处理
+  // 拖拽
   const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
-    if (e.button !== 0) return; // 只响应左键
+    if (e.button !== 0) return;
     e.stopPropagation();
-
     const svg = svgRef.current;
     if (!svg) return;
-
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
     const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-
     const pos = positions[nodeId];
     setDragOffset({ x: svgP.x - pos.x, y: svgP.y - pos.y });
     setDraggingNode(nodeId);
@@ -804,22 +463,15 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!draggingNode) return;
-
     const svg = svgRef.current;
     if (!svg) return;
-
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
     const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-
     const newX = Math.max(nodeRadius + 10, Math.min(containerWidth - nodeRadius - 10, svgP.x - dragOffset.x));
     const newY = Math.max(nodeRadius + 30, Math.min(svgHeight - nodeRadius - 40, svgP.y - dragOffset.y));
-
-    setPositions(prev => ({
-      ...prev,
-      [draggingNode]: { x: newX, y: newY },
-    }));
+    setPositions(prev => ({ ...prev, [draggingNode]: { x: newX, y: newY } }));
   };
 
   const handleMouseUp = () => {
@@ -827,6 +479,12 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
   };
 
   const selectedNodeData = selectedNode ? topology.nodes.find(n => n.id === selectedNode) : null;
+
+  // 收集所有出现的 namespace 用于图例
+  const namespacesInTopology = useMemo(() => {
+    const nsSet = new Set(topology.nodes.map(n => n.namespace));
+    return Array.from(nsSet);
+  }, [topology]);
 
   return (
     <div className="p-4 bg-[var(--hover-bg)] rounded-lg">
@@ -836,44 +494,20 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
             <Network className="w-4 h-4 text-primary" />
             <span className="text-sm font-medium text-default">服务调用拓扑</span>
           </div>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
-            P95 数据
-          </span>
-          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-200/50 dark:bg-slate-700/50">
-            {[
-              { value: "15m", label: "15分钟" },
-              { value: "1h", label: "1小时" },
-              { value: "1d", label: "1天" },
-            ].map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => setTimeRange(opt.value as typeof timeRange)}
-                className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
-                  timeRange === opt.value
-                    ? "bg-white dark:bg-slate-600 text-default shadow-sm"
-                    : "text-muted hover:text-default"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
         </div>
         <div className="flex items-center gap-4 text-[11px]">
-          {[
-            { label: "Gateway", color: "#7c3aed" },
-            { label: "Service", color: "#0891b2" },
-            { label: "Database", color: "#d97706" },
-            { label: "Cache", color: "#dc2626" },
-          ].map(item => (
-            <div key={item.label} className="flex items-center gap-1.5">
-              <span
-                className="w-3 h-3 rounded-full border-2"
-                style={{ backgroundColor: item.color, borderColor: item.color }}
-              />
-              <span className="text-muted">{item.label}</span>
-            </div>
-          ))}
+          {namespacesInTopology.map(ns => {
+            const colors = getNamespaceColor(ns);
+            return (
+              <div key={ns} className="flex items-center gap-1.5">
+                <span
+                  className="w-3 h-3 rounded-full border-2"
+                  style={{ backgroundColor: colors.fill, borderColor: colors.fill }}
+                />
+                <span className="text-muted">{ns}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -892,7 +526,6 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
           onMouseLeave={handleMouseUp}
         >
           <defs>
-            {/* 箭头 */}
             <marker id="arrow-gray" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
               <path d="M0,0 L10,4 L0,8 L3,4 Z" fill="#94a3b8" />
             </marker>
@@ -905,8 +538,6 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
             <marker id="arrow-red" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
               <path d="M0,0 L10,4 L0,8 L3,4 Z" fill="#dc2626" />
             </marker>
-
-            {/* 扁平阴影 */}
             <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.2" />
             </filter>
@@ -922,7 +553,8 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
           <g className="edges">
             {topology.edges.map((edge, idx) => {
               const isHighlighted = hoveredNode === edge.source || hoveredNode === edge.target ||
-                                    selectedNode === edge.source || selectedNode === edge.target;
+                                    selectedNode === edge.source || selectedNode === edge.target ||
+                                    hoveredEdge === idx;
               const markerId = isHighlighted
                 ? (edge.errorRate > 1 ? "arrow-red" : edge.errorRate > 0.1 ? "arrow-amber" : "arrow-blue")
                 : "arrow-gray";
@@ -935,7 +567,19 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
               const labelPos = getEdgeLabelPos(edge.source, edge.target);
 
               return (
-                <g key={idx}>
+                <g
+                  key={idx}
+                  onMouseEnter={() => setHoveredEdge(idx)}
+                  onMouseLeave={() => setHoveredEdge(null)}
+                >
+                  {/* 宽透明命中区 */}
+                  <path
+                    d={getEdgePath(edge.source, edge.target)}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={12}
+                    style={{ cursor: "pointer" }}
+                  />
                   <path
                     d={getEdgePath(edge.source, edge.target)}
                     fill="none"
@@ -946,9 +590,9 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
                   />
                   {isHighlighted && (
                     <g transform={`translate(${labelPos.x}, ${labelPos.y})`}>
-                      <rect x="-28" y="-10" width="56" height="20" rx="4" fill="white" className="dark:fill-slate-800" />
+                      <rect x="-42" y="-12" width="84" height="24" rx="4" fill="white" className="dark:fill-slate-800" stroke="#e2e8f0" strokeWidth="1" />
                       <text textAnchor="middle" y="4" className="text-[10px] font-medium fill-slate-600 dark:fill-slate-300">
-                        {edge.avgLatency}ms
+                        {edge.rps}/s · {edge.avgLatency}ms
                       </text>
                     </g>
                   )}
@@ -963,7 +607,7 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
               const pos = positions[node.id];
               if (!pos) return null;
 
-              const colors = getNodeColors(node.type);
+              const colors = getNamespaceColor(node.namespace);
               const isSelected = selectedNode === node.id;
               const isHovered = hoveredNode === node.id;
               const isDragging = draggingNode === node.id;
@@ -994,7 +638,7 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
                     />
                   )}
 
-                  {/* 主圆 - 深色扁平 */}
+                  {/* 主圆 - namespace 着色 */}
                   <circle
                     r={nodeRadius}
                     fill={colors.fill}
@@ -1003,30 +647,14 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
                     filter="url(#shadow)"
                   />
 
-                  {/* 图标 */}
-                  <g className="text-white" style={{ transform: "translate(-10px, -10px)" }}>
-                    {node.type === "gateway" && (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>
-                      </svg>
-                    )}
-                    {node.type === "service" && (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                      </svg>
-                    )}
-                    {node.type === "database" && (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <ellipse cx="12" cy="5" rx="9" ry="3"/>
-                        <path d="M3 5V19a9 3 0 0 0 18 0V5"/>
-                        <path d="M3 12a9 3 0 0 0 18 0"/>
-                      </svg>
-                    )}
-                    {node.type === "cache" && (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                      </svg>
-                    )}
+                  {/* 统一 Server 图标 */}
+                  <g style={{ transform: "translate(-10px, -10px)" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+                      <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+                      <line x1="6" x2="6.01" y1="6" y2="6"/>
+                      <line x1="6" x2="6.01" y1="18" y2="18"/>
+                    </svg>
                   </g>
 
                   {/* 服务名 */}
@@ -1035,16 +663,16 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
                     textAnchor="middle"
                     className="text-[11px] font-semibold fill-slate-700 dark:fill-slate-200 pointer-events-none"
                   >
-                    {node.name.length > 12 ? node.name.slice(0, 12) + "…" : node.name}
+                    {node.name.length > 14 ? node.name.slice(0, 14) + "…" : node.name}
                   </text>
 
-                  {/* 指标 */}
+                  {/* p95 · errorRate */}
                   <text
                     y={nodeRadius + 28}
                     textAnchor="middle"
                     className="text-[9px] fill-slate-500 dark:fill-slate-400 pointer-events-none"
                   >
-                    {node.avgLatency}ms · {node.errorRate.toFixed(1)}%
+                    {node.p95Latency}ms · {node.errorRate.toFixed(1)}%
                   </text>
 
                   {/* 状态点 */}
@@ -1070,9 +698,9 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
             <div className="flex items-center gap-3">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-md"
-                style={{ backgroundColor: getNodeColors(selectedNodeData.type).fill }}
+                style={{ backgroundColor: getNamespaceColor(selectedNodeData.namespace).fill }}
               >
-                <ServiceIcon type={selectedNodeData.type} />
+                <Server className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -1085,23 +713,27 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
                     {selectedNodeData.status === "healthy" ? "健康" : selectedNodeData.status === "warning" ? "告警" : "严重"}
                   </span>
                 </div>
-                <div className="text-xs text-muted mt-0.5">{selectedNodeData.namespace} · {selectedNodeData.type}</div>
+                <div className="text-xs text-muted mt-0.5">{selectedNodeData.namespace}</div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-6 text-center">
+            <div className="grid grid-cols-4 gap-6 text-center">
               <div>
-                <div className="text-xl font-bold text-default">{selectedNodeData.avgLatency}<span className="text-xs font-normal text-muted">ms</span></div>
-                <div className="text-[10px] text-muted">延迟</div>
+                <div className="text-xl font-bold text-default">{selectedNodeData.rps}<span className="text-xs font-normal text-muted">/s</span></div>
+                <div className="text-[10px] text-muted">RPS</div>
               </div>
               <div>
-                <div className="text-xl font-bold text-default">{(selectedNodeData.requestCount / 1000).toFixed(1)}<span className="text-xs font-normal text-muted">k</span></div>
-                <div className="text-[10px] text-muted">请求</div>
+                <div className="text-xl font-bold text-default">{selectedNodeData.avgLatency}<span className="text-xs font-normal text-muted">ms</span></div>
+                <div className="text-[10px] text-muted">Avg延迟</div>
+              </div>
+              <div>
+                <div className="text-xl font-bold text-default">{selectedNodeData.p95Latency}<span className="text-xs font-normal text-muted">ms</span></div>
+                <div className="text-[10px] text-muted">P95</div>
               </div>
               <div>
                 <div className={`text-xl font-bold ${selectedNodeData.errorRate > 0.1 ? "text-red-500" : "text-emerald-500"}`}>
                   {selectedNodeData.errorRate.toFixed(2)}<span className="text-xs font-normal">%</span>
                 </div>
-                <div className="text-[10px] text-muted">错误</div>
+                <div className="text-[10px] text-muted">错误率</div>
               </div>
             </div>
           </div>
@@ -1116,30 +748,24 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
                   const isOutgoing = edge.source === selectedNodeData.id;
                   const otherNode = topology.nodes.find(n => n.id === (isOutgoing ? edge.target : edge.source));
                   if (!otherNode) return null;
-                  const colors = getNodeColors(otherNode.type);
+                  const colors = getNamespaceColor(otherNode.namespace);
 
                   return (
                     <div key={idx} className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-xs">
                       {!isOutgoing && (
                         <>
-                          <span
-                            className="w-2.5 h-2.5 rounded-full"
-                            style={{ backgroundColor: colors.fill }}
-                          />
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors.fill }} />
                           <span className="font-medium text-default">{otherNode.name}</span>
                         </>
                       )}
                       <ArrowRight className={`w-3 h-3 ${isOutgoing ? "text-cyan-600" : "text-slate-400"}`} />
                       {isOutgoing && (
                         <>
-                          <span
-                            className="w-2.5 h-2.5 rounded-full"
-                            style={{ backgroundColor: colors.fill }}
-                          />
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors.fill }} />
                           <span className="font-medium text-default">{otherNode.name}</span>
                         </>
                       )}
-                      <span className="text-muted">{edge.avgLatency}ms</span>
+                      <span className="text-muted">{edge.rps}/s · {edge.avgLatency}ms</span>
                     </div>
                   );
                 })}
@@ -1151,118 +777,35 @@ function ServiceTopologyView({ topology, onSelectNode }: { topology: ServiceTopo
   );
 }
 
-// 调用链路时序图组件（Kibana 风格 - 时间柱状图 + 拖拽选择）
-type TimeRangeOption = "15m" | "1h" | "1d";
-const timeRangeLabels: Record<TimeRangeOption, string> = { "15m": "15 分钟", "1h": "1 小时", "1d": "1 天" };
-const timeRangeDurations: Record<TimeRangeOption, number> = {
-  "15m": 15 * 60 * 1000,
-  "1h": 60 * 60 * 1000,
-  "1d": 24 * 60 * 60 * 1000,
-};
-
-function CallTimelineView({ traces }: { traces: TraceSummary[] }) {
+// 延迟分布直方图组件
+function LatencyDistributionView({ buckets, p50, p95, p99, requestBreakdown, sourceLabel }: {
+  buckets: LatencyBucket[];
+  p50: number;
+  p95: number;
+  p99: number;
+  requestBreakdown: RequestBreakdown[];
+  sourceLabel?: string;
+}) {
   const chartRef = useRef<HTMLDivElement>(null);
-  const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set(["span-1", "span-2", "span-3"]));
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<number | null>(null);
-  const [page, setPage] = useState(1);
-  const pageSize = 1; // 每次显示1个链路
-  const [timeRange, setTimeRange] = useState<TimeRangeOption>("15m");
 
-  // 生成延迟分布直方图数据（按延迟分桶，X轴=延迟，Y轴=数量）
-  const { buckets, maxCount, minLatency, maxLatency, p95, allRequests } = useMemo(() => {
-    const now = Date.now();
-    const duration = timeRangeDurations[timeRange];
-    const start = now - duration;
+  const maxCount = Math.max(...buckets.map(b => b.count), 1);
+  const totalRequests = requestBreakdown.reduce((sum, r) => sum + r.count, 0);
+  const maxMethodCount = Math.max(...requestBreakdown.map(r => r.count), 1);
 
-    // 模拟请求数据
-    const requests: { time: number; latency: number; trace: TraceSummary }[] = [];
-    traces.forEach(trace => {
-      for (let i = 0; i < 15 + Math.floor(Math.random() * 20); i++) {
-        // 延迟分布：大部分在基础值附近，少数高延迟
-        const baseLatency = trace.duration;
-        const rand = Math.random();
-        let latency: number;
-        if (rand < 0.7) {
-          latency = baseLatency * (0.5 + Math.random() * 0.5); // 70% 在 50%-100%
-        } else if (rand < 0.95) {
-          latency = baseLatency * (1 + Math.random() * 0.8); // 25% 在 100%-180%
-        } else {
-          latency = baseLatency * (2 + Math.random() * 2); // 5% 高延迟 200%-400%
-        }
-        requests.push({
-          time: start + Math.random() * duration,
-          latency: Math.round(latency),
-          trace,
-        });
-      }
-    });
+  // 筛选有数据的桶
+  const activeBuckets = buckets.filter(b => b.count > 0);
+  const minLe = activeBuckets.length > 0 ? activeBuckets[0].le : 0;
+  const maxLe = activeBuckets.length > 0 ? activeBuckets[activeBuckets.length - 1].le : 1000;
 
-    // 计算 P95
-    const sortedLatencies = requests.map(r => r.latency).sort((a, b) => a - b);
-    const p95Index = Math.floor(sortedLatencies.length * 0.95);
-    const p95Value = sortedLatencies[p95Index] || 0;
-
-    // 按延迟分桶
-    const minLat = Math.min(...requests.map(r => r.latency));
-    const maxLat = Math.max(...requests.map(r => r.latency));
-    const bucketCount = 50;
-    const latencyRange = maxLat - minLat || 100;
-    const bucketSize = latencyRange / bucketCount;
-
-    const bucketData: { latencyStart: number; latencyEnd: number; count: number; requests: typeof requests }[] = [];
-    for (let i = 0; i < bucketCount; i++) {
-      const bucketStart = minLat + i * bucketSize;
-      const bucketEnd = bucketStart + bucketSize;
-      const inBucket = requests.filter(r => r.latency >= bucketStart && r.latency < bucketEnd);
-      bucketData.push({
-        latencyStart: Math.round(bucketStart),
-        latencyEnd: Math.round(bucketEnd),
-        count: inBucket.length,
-        requests: inBucket,
-      });
-    }
-
-    return {
-      buckets: bucketData,
-      maxCount: Math.max(...bucketData.map(b => b.count), 1),
-      minLatency: Math.round(minLat),
-      maxLatency: Math.round(maxLat),
-      p95: Math.round(p95Value),
-      allRequests: requests,
-    };
-  }, [traces, timeRange]);
-
-  // 显示的请求列表：有选择范围时显示范围内的，否则显示全部（按时间排序，最新在前）
-  const displayRequests = useMemo(() => {
-    if (selection) {
-      return buckets
-        .filter(b => b.latencyEnd >= selection.start && b.latencyStart <= selection.end)
-        .flatMap(b => b.requests)
-        .filter(r => r.latency >= selection.start && r.latency <= selection.end)
-        .sort((a, b) => b.time - a.time);
-    }
-    // 默认显示全部请求，按时间排序（最新在前）
-    return [...allRequests].sort((a, b) => b.time - a.time);
-  }, [buckets, selection, allRequests]);
-
-  // 分页后的请求
-  const totalPages = Math.max(1, Math.ceil(displayRequests.length / pageSize));
-  const paginatedRequests = displayRequests.slice((page - 1) * pageSize, page * pageSize);
-
-  // 选择变化时重置页码
-  useEffect(() => {
-    setPage(1);
-  }, [selection]);
-
-  // 处理拖拽选择
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!chartRef.current) return;
     const rect = chartRef.current.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
-    const latency = minLatency + x * (maxLatency - minLatency);
-    setDragStart(latency);
+    const le = minLe + x * (maxLe - minLe);
+    setDragStart(le);
     setIsDragging(true);
   };
 
@@ -1270,10 +813,10 @@ function CallTimelineView({ traces }: { traces: TraceSummary[] }) {
     if (!isDragging || dragStart === null || !chartRef.current) return;
     const rect = chartRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const latency = minLatency + x * (maxLatency - minLatency);
+    const le = minLe + x * (maxLe - minLe);
     setSelection({
-      start: Math.min(dragStart, latency),
-      end: Math.max(dragStart, latency),
+      start: Math.min(dragStart, le),
+      end: Math.max(dragStart, le),
     });
   };
 
@@ -1282,98 +825,25 @@ function CallTimelineView({ traces }: { traces: TraceSummary[] }) {
     setDragStart(null);
   };
 
-  // 服务颜色
-  const getServiceColor = (name: string, status: "success" | "error") => {
-    if (status === "error") return "bg-red-500";
-    if (name.includes("Traefik")) return "bg-violet-500";
-    if (name.includes("gateway")) return "bg-blue-500";
-    if (name.includes("service") || name.includes("engine") || name.includes("core")) return "bg-cyan-600";
-    if (name.includes("Redis")) return "bg-rose-500";
-    if (name.includes("Postgres") || name.includes("MySQL")) return "bg-amber-500";
-    return "bg-slate-500";
-  };
-
-  // 格式化时间
-  // 递归渲染 span (接收 traceDuration 用于计算宽度)
-  const renderSpan = (span: TraceSpan, traceDuration: number, depth: number = 0) => {
-    const isExpanded = expandedSpans.has(span.id);
-    const hasChildren = span.children && span.children.length > 0;
-    const widthPercent = (span.duration / traceDuration) * 100;
-    const leftPercent = (span.startTime / traceDuration) * 100;
-
-    return (
-      <div key={span.id}>
-        <div
-          className="flex items-center gap-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-          style={{ paddingLeft: depth * 16 + 4 }}
-        >
-          <button
-            onClick={() => {
-              const newSet = new Set(expandedSpans);
-              if (isExpanded) newSet.delete(span.id);
-              else newSet.add(span.id);
-              setExpandedSpans(newSet);
-            }}
-            className="w-4 h-4 flex items-center justify-center flex-shrink-0"
-            disabled={!hasChildren}
-          >
-            {hasChildren ? (
-              isExpanded ? <ChevronDown className="w-3 h-3 text-muted" /> : <ChevronRight className="w-3 h-3 text-muted" />
-            ) : (
-              <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-            )}
-          </button>
-
-          <div className="w-28 flex-shrink-0 flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getServiceColor(span.serviceName, span.status)}`} />
-            <span className="text-[11px] font-medium text-default truncate">{span.serviceName}</span>
-          </div>
-
-          <div className="flex-1 h-5 relative bg-slate-100 dark:bg-slate-800 rounded-sm overflow-hidden">
-            <div
-              className={`absolute h-full ${getServiceColor(span.serviceName, span.status)} rounded-sm flex items-center px-1.5`}
-              style={{ left: `${leftPercent}%`, width: `${Math.max(widthPercent, 2)}%`, opacity: 0.9 }}
-            >
-              {widthPercent > 8 && <span className="text-[9px] text-white font-medium">{span.duration}ms</span>}
-            </div>
-          </div>
-
-          <div className="w-16 flex-shrink-0 text-right">
-            <span className="text-[10px] text-muted">{span.duration}ms</span>
-          </div>
-        </div>
-        {hasChildren && isExpanded && span.children?.map(child => renderSpan(child, traceDuration, depth + 1))}
-      </div>
-    );
+  // HTTP 方法颜色
+  const methodColors: Record<string, string> = {
+    GET: "bg-blue-500",
+    POST: "bg-emerald-500",
+    PUT: "bg-amber-500",
+    DELETE: "bg-red-500",
+    PATCH: "bg-violet-500",
   };
 
   return (
     <div className="space-y-4">
-      {/* 时间序列柱状图 */}
+      {/* 延迟分布直方图 */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Clock className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium text-default">Traefik 延迟分布</span>
-            {/* 时间范围选择器 */}
-            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-md p-0.5">
-              {(["15m", "1h", "1d"] as TimeRangeOption[]).map(opt => (
-                <button
-                  key={opt}
-                  onClick={() => { setTimeRange(opt); setSelection(null); }}
-                  className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
-                    timeRange === opt
-                      ? "bg-white dark:bg-slate-700 text-default shadow-sm font-medium"
-                      : "text-muted hover:text-default"
-                  }`}
-                >
-                  {timeRangeLabels[opt]}
-                </button>
-              ))}
-            </div>
-            {/* 总请求数 */}
+            <BarChart3 className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium text-default">延迟分布</span>
             <span className="text-[10px] text-muted">
-              共 <span className="font-medium text-default">{allRequests.length}</span> 个请求
+              {sourceLabel || "Linkerd 24 桶直方图"}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -1386,28 +856,37 @@ function CallTimelineView({ traces }: { traces: TraceSummary[] }) {
                 清除选择
               </button>
             )}
-            {/* P95 标签 */}
-            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-[10px] text-amber-700 dark:text-amber-400 font-medium">
-              <span>P95</span>
-              <span>{p95}ms</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-[10px] text-blue-700 dark:text-blue-400 font-medium">
+                <span>P50</span>
+                <span>{p50}ms</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                <span>P95</span>
+                <span>{p95}ms</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-[10px] text-red-700 dark:text-red-400 font-medium">
+                <span>P99</span>
+                <span>{p99}ms</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 柱状图区域 */}
+        {/* 直方图区域 */}
         <div className="px-4 pt-4 pb-6">
           <div className="flex gap-2">
             {/* Y轴刻度 */}
-            <div className="flex flex-col justify-between h-32 text-[9px] text-muted text-right w-8 flex-shrink-0">
+            <div className="flex flex-col justify-between h-36 text-[9px] text-muted text-right w-8 flex-shrink-0">
               <span>{maxCount}</span>
               <span>{Math.round(maxCount / 2)}</span>
               <span>0</span>
             </div>
 
-            {/* 柱状图主体 */}
+            {/* 直方图主体 */}
             <div
               ref={chartRef}
-              className="relative h-32 cursor-crosshair select-none flex-1"
+              className="relative h-36 cursor-crosshair select-none flex-1"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -1420,35 +899,63 @@ function CallTimelineView({ traces }: { traces: TraceSummary[] }) {
                 <div className="absolute bottom-0 left-0 right-0 border-t border-slate-200 dark:border-slate-700" />
               </div>
 
-              {/* 选择区域高亮 - 只显示边框 */}
+              {/* 选择区域高亮 */}
               {selection && (
                 <div
-                  className="absolute top-0 bottom-0 border-l-2 border-r-2 border-blue-500 pointer-events-none"
+                  className="absolute top-0 bottom-0 border-l-2 border-r-2 border-blue-500 bg-blue-500/5 pointer-events-none"
                   style={{
-                    left: `${((selection.start - minLatency) / (maxLatency - minLatency)) * 100}%`,
-                    width: `${((selection.end - selection.start) / (maxLatency - minLatency)) * 100}%`,
+                    left: `${((selection.start - minLe) / (maxLe - minLe)) * 100}%`,
+                    width: `${((selection.end - selection.start) / (maxLe - minLe)) * 100}%`,
                   }}
                 />
               )}
 
-              {/* P95 垂直线 */}
-              <div
-                className="absolute top-0 bottom-0 w-px bg-amber-500/70 z-20 pointer-events-none"
-                style={{ left: `${((p95 - minLatency) / (maxLatency - minLatency)) * 100}%` }}
-              >
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-amber-500 text-white text-[8px] font-medium whitespace-nowrap rounded">
-                  P95
+              {/* P50 垂直线 */}
+              {p50 >= minLe && p50 <= maxLe && (
+                <div
+                  className="absolute top-0 bottom-0 w-px bg-blue-500/70 z-20 pointer-events-none"
+                  style={{ left: `${((p50 - minLe) / (maxLe - minLe)) * 100}%` }}
+                >
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-blue-500 text-white text-[8px] font-medium whitespace-nowrap rounded">
+                    P50
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* 柱状图 - 延迟分布 */}
-              <div className="flex items-end h-full gap-[1px] relative z-10">
+              {/* P95 垂直线 */}
+              {p95 >= minLe && p95 <= maxLe && (
+                <div
+                  className="absolute top-0 bottom-0 w-px bg-amber-500/70 z-20 pointer-events-none"
+                  style={{ left: `${((p95 - minLe) / (maxLe - minLe)) * 100}%` }}
+                >
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-amber-500 text-white text-[8px] font-medium whitespace-nowrap rounded">
+                    P95
+                  </div>
+                </div>
+              )}
+
+              {/* P99 垂直线 */}
+              {p99 >= minLe && p99 <= maxLe && (
+                <div
+                  className="absolute top-0 bottom-0 w-px bg-red-500/70 z-20 pointer-events-none"
+                  style={{ left: `${((p99 - minLe) / (maxLe - minLe)) * 100}%` }}
+                >
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-red-500 text-white text-[8px] font-medium whitespace-nowrap rounded">
+                    P99
+                  </div>
+                </div>
+              )}
+
+              {/* 条形图 */}
+              <div className="flex items-end h-full gap-[2px] relative z-10">
                 {buckets.map((bucket, idx) => {
                   const heightPercent = (bucket.count / maxCount) * 100;
                   const isInSelection = selection &&
-                    bucket.latencyEnd >= selection.start &&
-                    bucket.latencyStart <= selection.end;
-                  const isNearP95 = bucket.latencyStart <= p95 && bucket.latencyEnd >= p95;
+                    bucket.le >= selection.start &&
+                    bucket.le <= selection.end;
+                  const isNearP50 = Math.abs(bucket.le - p50) < (maxLe - minLe) * 0.05;
+                  const isNearP95 = Math.abs(bucket.le - p95) < (maxLe - minLe) * 0.05;
+                  const isNearP99 = Math.abs(bucket.le - p99) < (maxLe - minLe) * 0.05;
 
                   return (
                     <div
@@ -1457,25 +964,28 @@ function CallTimelineView({ traces }: { traces: TraceSummary[] }) {
                       style={{ height: "100%" }}
                     >
                       <div
-                        className={`w-full max-w-[6px] rounded-t-sm transition-all duration-150 ${
+                        className={`w-full rounded-t-sm transition-all duration-150 ${
                           isInSelection
                             ? "bg-blue-500"
-                            : isNearP95
-                              ? "bg-amber-400/90 group-hover:bg-amber-500"
-                              : bucket.count > 0
-                                ? "bg-teal-400/80 group-hover:bg-teal-500 dark:bg-teal-500/70 dark:group-hover:bg-teal-400"
-                                : "bg-transparent"
+                            : isNearP99
+                              ? "bg-red-400/80 group-hover:bg-red-500"
+                              : isNearP95
+                                ? "bg-amber-400/90 group-hover:bg-amber-500"
+                                : isNearP50
+                                  ? "bg-blue-400/80 group-hover:bg-blue-500"
+                                  : bucket.count > 0
+                                    ? "bg-teal-400/80 group-hover:bg-teal-500 dark:bg-teal-500/70 dark:group-hover:bg-teal-400"
+                                    : "bg-transparent"
                         }`}
                         style={{
                           height: bucket.count > 0 ? `${Math.max(heightPercent, 3)}%` : "0",
-                          zIndex: isInSelection ? 30 : undefined,
                         }}
                       />
                       {/* Tooltip */}
                       {bucket.count > 0 && (
-                        <div className="absolute bottom-full mb-2 hidden group-hover:block z-20 pointer-events-none">
+                        <div className="absolute bottom-full mb-2 hidden group-hover:block z-30 pointer-events-none">
                           <div className="bg-slate-900 text-white text-[10px] px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap border border-slate-700">
-                            <div className="font-medium">{bucket.latencyStart}-{bucket.latencyEnd}ms</div>
+                            <div className="font-medium">≤ {bucket.le}ms</div>
                             <div className="text-slate-300">{bucket.count} 请求</div>
                           </div>
                         </div>
@@ -1487,103 +997,944 @@ function CallTimelineView({ traces }: { traces: TraceSummary[] }) {
 
               {/* X轴延迟标签 */}
               <div className="absolute -bottom-5 left-0 right-0 flex justify-between text-[9px] text-muted">
-                <span>{minLatency}ms</span>
-                <span>{Math.round(minLatency + (maxLatency - minLatency) * 0.25)}ms</span>
-                <span>{Math.round(minLatency + (maxLatency - minLatency) * 0.5)}ms</span>
-                <span>{Math.round(minLatency + (maxLatency - minLatency) * 0.75)}ms</span>
-                <span>{maxLatency}ms</span>
+                <span>{minLe}ms</span>
+                <span>{Math.round(minLe + (maxLe - minLe) * 0.25)}ms</span>
+                <span>{Math.round(minLe + (maxLe - minLe) * 0.5)}ms</span>
+                <span>{Math.round(minLe + (maxLe - minLe) * 0.75)}ms</span>
+                <span>{maxLe}ms</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 链路图 */}
-      {paginatedRequests.length > 0 && (() => {
-        const currentReq = paginatedRequests[0];
-        const currentTrace = currentReq.trace;
-        const currentDuration = currentTrace.duration;
-        return (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-            {/* 头部：分页控制 + 请求信息 */}
-            <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-default">跟踪样例</span>
-                {selection ? (
-                  <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
-                    {Math.round(selection.start)}-{Math.round(selection.end)}ms
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-muted">最新</span>
+      {/* HTTP 方法请求分布 */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+          <Layers className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium text-default">请求方法分布</span>
+          <span className="text-[10px] text-muted">
+            共 {totalRequests.toLocaleString()} 请求
+          </span>
+        </div>
+        <div className="p-4 space-y-2.5">
+          {requestBreakdown.map((rb) => {
+            const percent = totalRequests > 0 ? (rb.count / totalRequests) * 100 : 0;
+            const barWidth = (rb.count / maxMethodCount) * 100;
+            const errorPercent = rb.count > 0 ? (rb.errorCount / rb.count) * 100 : 0;
+            return (
+              <div key={rb.method} className="flex items-center gap-3">
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-medium w-14 text-center text-white ${methodColors[rb.method] || "bg-slate-500"}`}>
+                  {rb.method}
+                </span>
+                <div className="flex-1 h-5 bg-slate-100 dark:bg-slate-800 rounded-sm overflow-hidden relative">
+                  <div
+                    className={`h-full rounded-sm ${methodColors[rb.method] || "bg-slate-500"} opacity-80`}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                <div className="w-28 text-right flex items-center gap-2 justify-end">
+                  <span className="text-xs font-medium text-default">{rb.count.toLocaleString()}</span>
+                  <span className="text-[10px] text-muted">({percent.toFixed(0)}%)</span>
+                </div>
+                {errorPercent > 0 && (
+                  <span className="text-[10px] text-red-500">{errorPercent.toFixed(2)}% err</span>
                 )}
-                <span className={`w-1.5 h-1.5 rounded-full ${currentTrace.status === "success" ? "bg-emerald-500" : "bg-red-500"}`} />
-                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                  currentTrace.method === "GET" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
-                  currentTrace.method === "POST" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 后端服务 golden metrics 网格
+function BackendServicesView({ serviceIds, topology }: {
+  serviceIds: string[];
+  topology: ServiceTopology;
+}) {
+  const services = serviceIds
+    .map(id => topology.nodes.find(n => n.id === id))
+    .filter((n): n is ServiceNode => n !== undefined);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-xs text-muted">
+        <Server className="w-4 h-4" />
+        <span>后端服务 ({services.length})</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {services.map((svc) => {
+          const colors = getNamespaceColor(svc.namespace);
+          return (
+            <div key={svc.id} className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white"
+                    style={{ backgroundColor: colors.fill }}
+                  >
+                    <Server className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-default">{svc.name}</div>
+                    <div className="text-[10px] text-muted">{svc.namespace}</div>
+                  </div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                  svc.status === "healthy" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                  svc.status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                   "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                 }`}>
-                  {currentTrace.method}
+                  {svc.status === "healthy" ? "健康" : svc.status === "warning" ? "告警" : "严重"}
                 </span>
-                <span className="text-xs text-default">{currentTrace.path}</span>
-                <span className="text-xs font-semibold text-default">{currentTrace.duration}ms</span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="w-4 h-4 text-muted" />
-                </button>
-                <span className="text-xs text-default min-w-[80px] text-center">
-                  {page} / {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4 text-muted" />
-                </button>
-              </div>
-            </div>
-
-            {/* 时间刻度 */}
-            <div className="flex items-center gap-2 px-4 py-2 text-[9px] text-muted border-b border-slate-50 dark:border-slate-800/50 bg-slate-50/50 dark:bg-slate-800/30">
-              <div className="w-4" />
-              <div className="w-28 flex-shrink-0 font-medium">服务</div>
-              <div className="flex-1 flex justify-between">
-                {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
-                  <span key={i}>{Math.round(currentDuration * ratio)}ms</span>
-                ))}
-              </div>
-              <div className="w-16" />
-            </div>
-
-            {/* Span 时间线 */}
-            <div className="p-2 max-h-[280px] overflow-y-auto">
-              {currentTrace.spans.map(span => renderSpan(span, currentDuration))}
-            </div>
-
-            {/* 底部图例 */}
-            <div className="flex items-center gap-4 px-4 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              {[
-                { name: "Gateway", color: "bg-violet-500" },
-                { name: "API", color: "bg-blue-500" },
-                { name: "Service", color: "bg-cyan-600" },
-                { name: "Cache", color: "bg-rose-500" },
-                { name: "DB", color: "bg-amber-500" },
-              ].map(item => (
-                <div key={item.name} className="flex items-center gap-1">
-                  <span className={`w-2 h-2 rounded ${item.color}`} />
-                  <span className="text-[10px] text-muted">{item.name}</span>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800">
+                  <div className="text-sm font-bold text-default">{svc.rps.toLocaleString()}<span className="text-[10px] font-normal text-muted">/s</span></div>
+                  <div className="text-[10px] text-muted">RPS</div>
                 </div>
-              ))}
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800">
+                  <div className="text-sm font-bold text-default">{svc.p95Latency}<span className="text-[10px] font-normal text-muted">ms</span></div>
+                  <div className="text-[10px] text-muted">P95</div>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800">
+                  <div className={`text-sm font-bold ${svc.errorRate > 0.5 ? "text-red-500" : "text-emerald-500"}`}>
+                    {svc.errorRate.toFixed(2)}<span className="text-[10px] font-normal">%</span>
+                  </div>
+                  <div className="text-[10px] text-muted">错误率</div>
+                </div>
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
+// SLO 趋势图（SVG 面积图）
+function HistoryChartView({ history, targets }: {
+  history: HistoryPoint[];
+  targets: SLOTargets;
+}) {
+  const [activeMetric, setActiveMetric] = useState<"p95Latency" | "errorRate">("p95Latency");
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const metrics = [
+    { id: "p95Latency" as const, label: "P95 延迟", unit: "ms", color: "#0891b2", targetKey: "p95Latency" as const },
+    { id: "errorRate" as const, label: "错误率", unit: "%", color: "#ef4444", targetKey: null },
+  ];
+
+  const currentMetric = metrics.find(m => m.id === activeMetric)!;
+
+  const values = history.map(p => {
+    switch (activeMetric) {
+      case "p95Latency": return p.p95Latency;
+      case "errorRate": return p.errorRate;
+    }
+  });
+
+  // SLO 目标值（P95 延迟有目标线）
+  let targetVal: number | null = null;
+  if (activeMetric === "p95Latency") targetVal = targets.p95Latency;
+
+  // Y 轴范围需包含 SLO 目标值，否则目标线会超出图表
+  let rawMin = Math.min(...values);
+  let rawMax = Math.max(...values);
+  if (targetVal !== null) {
+    rawMin = Math.min(rawMin, targetVal);
+    rawMax = Math.max(rawMax, targetVal);
+  }
+  const minVal = rawMin - (rawMax - rawMin) * 0.05;
+  const maxVal = rawMax + (rawMax - rawMin) * 0.05;
+  const range = maxVal - minVal || 1;
+
+  const width = 660;
+  const height = 180;
+  const padLeft = 55;
+  const padRight = 5;
+  const padTop = 10;
+  const padBottom = 25;
+  const chartH = height - padTop - padBottom;
+  const chartW = width - padLeft - padRight;
+
+  const points = values.map((v, i) => ({
+    x: padLeft + (i / Math.max(values.length - 1, 1)) * chartW,
+    y: padTop + (1 - (v - minVal) / range) * chartH,
+    value: v,
+    timestamp: history[i].timestamp,
+  }));
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const areaPath = `${linePath} L ${points[points.length - 1]?.x ?? 0} ${padTop + chartH} L ${points[0]?.x ?? 0} ${padTop + chartH} Z`;
+
+  const targetY = targetVal !== null ? padTop + (1 - (targetVal - minVal) / range) * chartH : null;
+
+  // X 轴标签
+  const xLabels: { x: number; label: string }[] = [];
+  if (history.length > 0) {
+    const step = Math.max(1, Math.floor(history.length / 6));
+    for (let i = 0; i < history.length; i += step) {
+      const d = new Date(history[i].timestamp);
+      xLabels.push({
+        x: padLeft + (i / Math.max(history.length - 1, 1)) * chartW,
+        label: `${d.getMonth() + 1}/${d.getDate()}`,
+      });
+    }
+  }
+
+  const formatValue = (v: number) => {
+    if (activeMetric === "p95Latency") return Math.round(v) + "ms";
+    return v.toFixed(3) + "%";
+  };
+
+  const gradientId = `history-grad-${activeMetric}`;
+
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium text-default">SLO 趋势</span>
+        </div>
+        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+          {metrics.map(m => (
+            <button
+              key={m.id}
+              onClick={() => setActiveMetric(m.id)}
+              className={`px-2.5 py-1 text-[10px] rounded-md transition-colors ${
+                activeMetric === m.id
+                  ? "bg-white dark:bg-slate-700 text-default shadow-sm font-medium"
+                  : "text-muted hover:text-default"
+              }`}
+            >{m.label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="p-4">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full h-auto"
+          onMouseLeave={() => setHoveredIndex(null)}
+          onMouseMove={(e) => {
+            const svg = svgRef.current;
+            if (!svg) return;
+            const rect = svg.getBoundingClientRect();
+            const mouseX = ((e.clientX - rect.left) / rect.width) * width;
+            let closest = 0;
+            let minDist = Infinity;
+            points.forEach((p, i) => {
+              const dist = Math.abs(p.x - mouseX);
+              if (dist < minDist) { minDist = dist; closest = i; }
+            });
+            setHoveredIndex(closest);
+          }}
+        >
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={currentMetric.color} stopOpacity="0.3" />
+              <stop offset="100%" stopColor={currentMetric.color} stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+
+          {/* Y 轴网格 + 左侧刻度标签 */}
+          {[0, 0.25, 0.5, 0.75, 1].map((r, i) => {
+            const y = padTop + r * chartH;
+            const val = maxVal - r * range;
+            return (
+              <g key={i}>
+                <line x1={padLeft} y1={y} x2={padLeft + chartW} y2={y} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray={i === 0 || i === 4 ? "0" : "3 3"} className="dark:stroke-slate-700" />
+                <text x={padLeft - 6} y={y + 3} textAnchor="end" className="text-[9px] fill-slate-400">{formatValue(val)}</text>
+              </g>
+            );
+          })}
+
+          {/* SLO 目标线 */}
+          {targetY !== null && targetY >= padTop && targetY <= padTop + chartH && (
+            <g>
+              <line x1={padLeft} y1={targetY} x2={padLeft + chartW} y2={targetY} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6 3" />
+              <text x={padLeft + 4} y={targetY - 4} className="text-[9px] fill-amber-500 font-medium">SLO 目标: {targetVal}{currentMetric.unit}</text>
+            </g>
+          )}
+
+          {/* 面积填充 */}
+          {points.length > 1 && (
+            <path d={areaPath} fill={`url(#${gradientId})`} />
+          )}
+
+          {/* 趋势线 */}
+          {points.length > 1 && (
+            <path d={linePath} fill="none" stroke={currentMetric.color} strokeWidth="2" strokeLinejoin="round" />
+          )}
+
+          {/* 数据点 */}
+          {points.map((p, i) => (
+            <circle
+              key={i}
+              cx={p.x}
+              cy={p.y}
+              r={hoveredIndex === i ? 4 : 0}
+              fill={currentMetric.color}
+              stroke="white"
+              strokeWidth="2"
+            />
+          ))}
+
+          {/* X 轴标签 */}
+          {xLabels.map((l, i) => (
+            <text key={i} x={l.x} y={height - 4} textAnchor="middle" className="text-[9px] fill-slate-400">{l.label}</text>
+          ))}
+
+          {/* Hover tooltip */}
+          {hoveredIndex !== null && points[hoveredIndex] && (
+            <g>
+              <line x1={points[hoveredIndex].x} y1={padTop} x2={points[hoveredIndex].x} y2={padTop + chartH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3 3" />
+              <rect
+                x={Math.min(points[hoveredIndex].x - 50, width - 105)}
+                y={Math.max(points[hoveredIndex].y - 38, padTop)}
+                width="100"
+                height="30"
+                rx="4"
+                fill="#1e293b"
+                opacity="0.95"
+              />
+              <text
+                x={Math.min(points[hoveredIndex].x - 50, width - 105) + 50}
+                y={Math.max(points[hoveredIndex].y - 38, padTop) + 13}
+                textAnchor="middle"
+                className="text-[9px] fill-white font-medium"
+              >
+                {formatValue(points[hoveredIndex].value)}
+              </text>
+              <text
+                x={Math.min(points[hoveredIndex].x - 50, width - 105) + 50}
+                y={Math.max(points[hoveredIndex].y - 38, padTop) + 24}
+                textAnchor="middle"
+                className="text-[8px] fill-slate-400"
+              >
+                {new Date(points[hoveredIndex].timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </text>
+            </g>
+          )}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// 错误预算消耗图
+function ErrorBudgetBurnView({ history }: { history: HistoryPoint[] }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const values = history.map(p => p.errorBudgetRemaining);
+  const width = 600;
+  const height = 160;
+  const padX = 0;
+  const padTop = 10;
+  const padBottom = 25;
+  const chartH = height - padTop - padBottom;
+  const chartW = width - padX * 2;
+
+  const points = values.map((v, i) => ({
+    x: padX + (i / Math.max(values.length - 1, 1)) * chartW,
+    y: padTop + (1 - v / 100) * chartH,
+    value: v,
+    timestamp: history[i].timestamp,
+  }));
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+  // 预测耗尽：线性回归
+  const n = values.length;
+  let exhaustDate = "";
+  if (n > 2) {
+    const first = values[0];
+    const last = values[n - 1];
+    const rate = (first - last) / n; // 每点消耗
+    if (rate > 0) {
+      const pointsToZero = last / rate;
+      const hoursPerPoint = 4;
+      const hoursLeft = pointsToZero * hoursPerPoint;
+      const d = new Date(history[n - 1].timestamp);
+      d.setHours(d.getHours() + hoursLeft);
+      exhaustDate = `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+  }
+
+  // 当前值
+  const currentBudget = values[values.length - 1] ?? 0;
+  const budgetColor = currentBudget > 50 ? "#10b981" : currentBudget > 20 ? "#f59e0b" : "#ef4444";
+
+  // X 轴标签
+  const xLabels: { x: number; label: string }[] = [];
+  if (history.length > 0) {
+    const step = Math.max(1, Math.floor(history.length / 6));
+    for (let i = 0; i < history.length; i += step) {
+      const d = new Date(history[i].timestamp);
+      xLabels.push({
+        x: padX + (i / Math.max(history.length - 1, 1)) * chartW,
+        label: `${d.getMonth() + 1}/${d.getDate()}`,
+      });
+    }
+  }
+
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Target className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium text-default">错误预算消耗</span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px]">
+          <span className="text-muted">当前</span>
+          <span className="font-semibold" style={{ color: budgetColor }}>{currentBudget.toFixed(1)}%</span>
+          {exhaustDate && (
+            <>
+              <span className="text-muted">预计耗尽</span>
+              <span className="font-semibold text-red-500">~{exhaustDate}</span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="p-4">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full h-auto"
+          onMouseLeave={() => setHoveredIndex(null)}
+          onMouseMove={(e) => {
+            const svg = svgRef.current;
+            if (!svg) return;
+            const rect = svg.getBoundingClientRect();
+            const mouseX = ((e.clientX - rect.left) / rect.width) * width;
+            let closest = 0;
+            let minDist = Infinity;
+            points.forEach((p, i) => {
+              const dist = Math.abs(p.x - mouseX);
+              if (dist < minDist) { minDist = dist; closest = i; }
+            });
+            setHoveredIndex(closest);
+          }}
+        >
+          <defs>
+            <linearGradient id="budget-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.15" />
+              <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity="0.15" />
+            </linearGradient>
+          </defs>
+
+          {/* 背景渐变 */}
+          <rect x={padX} y={padTop} width={chartW} height={chartH} fill="url(#budget-grad)" rx="4" />
+
+          {/* 网格线 */}
+          {[0, 25, 50, 75, 100].map((v, i) => {
+            const y = padTop + (1 - v / 100) * chartH;
+            return (
+              <g key={i}>
+                <line x1={padX} y1={y} x2={padX + chartW} y2={y} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="3 3" className="dark:stroke-slate-700" />
+                <text x={padX + chartW + 4} y={y + 3} className="text-[9px] fill-slate-400">{v}%</text>
+              </g>
+            );
+          })}
+
+          {/* 消耗线 */}
+          {points.length > 1 && (
+            <path d={linePath} fill="none" stroke={budgetColor} strokeWidth="2.5" strokeLinejoin="round" />
+          )}
+
+          {/* 预测虚线延伸 */}
+          {exhaustDate && points.length > 1 && (
+            <line
+              x1={points[points.length - 1].x}
+              y1={points[points.length - 1].y}
+              x2={padX + chartW}
+              y2={padTop + chartH}
+              stroke="#ef4444"
+              strokeWidth="1.5"
+              strokeDasharray="6 4"
+              opacity="0.6"
+            />
+          )}
+
+          {/* 数据点 */}
+          {points.map((p, i) => (
+            <circle
+              key={i}
+              cx={p.x}
+              cy={p.y}
+              r={hoveredIndex === i ? 4 : 0}
+              fill={budgetColor}
+              stroke="white"
+              strokeWidth="2"
+            />
+          ))}
+
+          {/* X 轴标签 */}
+          {xLabels.map((l, i) => (
+            <text key={i} x={l.x} y={height - 4} textAnchor="middle" className="text-[9px] fill-slate-400">{l.label}</text>
+          ))}
+
+          {/* Hover tooltip */}
+          {hoveredIndex !== null && points[hoveredIndex] && (
+            <g>
+              <line x1={points[hoveredIndex].x} y1={padTop} x2={points[hoveredIndex].x} y2={padTop + chartH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3 3" />
+              <rect
+                x={Math.min(points[hoveredIndex].x - 40, width - 85)}
+                y={Math.max(points[hoveredIndex].y - 38, padTop)}
+                width="80"
+                height="30"
+                rx="4"
+                fill="#1e293b"
+                opacity="0.95"
+              />
+              <text
+                x={Math.min(points[hoveredIndex].x - 40, width - 85) + 40}
+                y={Math.max(points[hoveredIndex].y - 38, padTop) + 13}
+                textAnchor="middle"
+                className="text-[9px] fill-white font-medium"
+              >
+                {points[hoveredIndex].value.toFixed(1)}%
+              </text>
+              <text
+                x={Math.min(points[hoveredIndex].x - 40, width - 85) + 40}
+                y={Math.max(points[hoveredIndex].y - 38, padTop) + 24}
+                textAnchor="middle"
+                className="text-[8px] fill-slate-400"
+              >
+                {new Date(points[hoveredIndex].timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </text>
+            </g>
+          )}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// 状态码分布横条图
+function StatusCodeBreakdownView({ breakdown = [] }: { breakdown: StatusCodeBreakdown[] }) {
+  if (breakdown.length === 0) return null;
+  const total = breakdown.reduce((sum, b) => sum + b.count, 0);
+  const maxCount = Math.max(...breakdown.map(b => b.count), 1);
+
+  const codeColors: Record<string, { bar: string; bg: string; text: string }> = {
+    "2xx": { bar: "bg-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-700 dark:text-emerald-400" },
+    "3xx": { bar: "bg-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-700 dark:text-blue-400" },
+    "4xx": { bar: "bg-amber-500", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-700 dark:text-amber-400" },
+    "5xx": { bar: "bg-red-500", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400" },
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+        <BarChart3 className="w-4 h-4 text-primary" />
+        <span className="text-sm font-medium text-default">状态码分布</span>
+        <span className="text-[10px] text-muted">共 {total.toLocaleString()} 请求</span>
+      </div>
+      <div className="p-4 space-y-2.5">
+        {breakdown.map((b) => {
+          const percent = total > 0 ? (b.count / total) * 100 : 0;
+          const barWidth = (b.count / maxCount) * 100;
+          const colors = codeColors[b.code] || codeColors["2xx"];
+          return (
+            <div key={b.code} className="flex items-center gap-3">
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold w-10 text-center ${colors.text} ${colors.bg}`}>
+                {b.code}
+              </span>
+              <div className="flex-1 h-5 bg-slate-100 dark:bg-slate-800 rounded-sm overflow-hidden relative">
+                <div
+                  className={`h-full rounded-sm ${colors.bar} opacity-80`}
+                  style={{ width: `${barWidth}%` }}
+                />
+              </div>
+              <div className="w-32 text-right flex items-center gap-2 justify-end">
+                <span className="text-xs font-medium text-default">{percent.toFixed(1)}%</span>
+                <span className="text-[10px] text-muted">{b.count.toLocaleString()}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 服务列表表格（可排序）
+function ServiceListTable({ nodes, selectedId, onSelect }: {
+  nodes: ServiceNode[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const [sortKey, setSortKey] = useState<"name" | "rps" | "p95Latency" | "errorRate" | "mtlsPercent">("rps");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
+
+  const sorted = useMemo(() => {
+    const arr = [...nodes];
+    arr.sort((a, b) => {
+      const aVal = sortKey === "name" ? a.name : a[sortKey];
+      const bVal = sortKey === "name" ? b.name : b[sortKey];
+      if (typeof aVal === "string" && typeof bVal === "string") {
+        return sortDir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return sortDir === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    });
+    return arr;
+  }, [nodes, sortKey, sortDir]);
+
+  const getMtlsColor = (pct: number) => {
+    if (pct >= 100) return "text-emerald-600 dark:text-emerald-400";
+    if (pct >= 80) return "text-amber-600 dark:text-amber-400";
+    return "text-red-600 dark:text-red-400";
+  };
+
+  const SortHeader = ({ label, field }: { label: string; field: typeof sortKey }) => (
+    <button
+      onClick={() => toggleSort(field)}
+      className={`flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider ${
+        sortKey === field ? "text-primary" : "text-muted hover:text-default"
+      }`}
+    >
+      {label}
+      {sortKey === field && (
+        <span className="text-[8px]">{sortDir === "asc" ? "▲" : "▼"}</span>
+      )}
+    </button>
+  );
+
+  return (
+    <div className="overflow-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-[var(--border-color)]">
+            <th className="text-left py-2 px-2"><SortHeader label="服务" field="name" /></th>
+            <th className="text-right py-2 px-2"><SortHeader label="RPS" field="rps" /></th>
+            <th className="text-right py-2 px-2"><SortHeader label="P95" field="p95Latency" /></th>
+            <th className="text-right py-2 px-2"><SortHeader label="错误率" field="errorRate" /></th>
+            <th className="text-right py-2 px-2"><SortHeader label="mTLS" field="mtlsPercent" /></th>
+            <th className="text-center py-2 px-2"><span className="text-[10px] font-medium uppercase tracking-wider text-muted">状态</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((node) => {
+            const nsColor = getNamespaceColor(node.namespace);
+            const isSelected = selectedId === node.id;
+            return (
+              <tr
+                key={node.id}
+                onClick={() => onSelect(node.id)}
+                className={`cursor-pointer transition-colors border-b border-[var(--border-color)] ${
+                  isSelected
+                    ? "bg-primary/5 dark:bg-primary/10"
+                    : "hover:bg-[var(--hover-bg)]"
+                }`}
+              >
+                <td className="py-2.5 px-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: nsColor.fill }} />
+                    <div>
+                      <div className="font-medium text-default">{node.name}</div>
+                      <div className="text-[10px] text-muted">{node.namespace}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="text-right py-2.5 px-2 font-medium text-default">{node.rps.toLocaleString()}<span className="text-muted">/s</span></td>
+                <td className="text-right py-2.5 px-2 font-medium text-default">{node.p95Latency}<span className="text-muted">ms</span></td>
+                <td className="text-right py-2.5 px-2">
+                  <span className={node.errorRate > 0.5 ? "text-red-500 font-semibold" : "text-default font-medium"}>
+                    {node.errorRate.toFixed(2)}%
+                  </span>
+                </td>
+                <td className="text-right py-2.5 px-2">
+                  <span className={`font-semibold ${getMtlsColor(node.mtlsPercent)}`}>
+                    {node.mtlsPercent}%
+                  </span>
+                </td>
+                <td className="text-center py-2.5 px-2">
+                  <span className={`inline-block w-2 h-2 rounded-full ${
+                    node.status === "healthy" ? "bg-emerald-500" :
+                    node.status === "warning" ? "bg-amber-500" : "bg-red-500"
+                  }`} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// 服务详情面板
+function ServiceDetailPanel({ node, topology }: {
+  node: ServiceNode;
+  topology: ServiceTopology;
+}) {
+  const nsColor = getNamespaceColor(node.namespace);
+
+  // 调用关系
+  const inbound = topology.edges.filter(e => e.target === node.id);
+  const outbound = topology.edges.filter(e => e.source === node.id);
+
+  return (
+    <div className="space-y-4">
+      {/* 标题 */}
+      <div className="flex items-center gap-3">
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-md"
+          style={{ backgroundColor: nsColor.fill }}
+        >
+          <Server className="w-4 h-4" />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-default">{node.name}</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+              node.status === "healthy" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+              node.status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+              "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+            }`}>
+              {node.status === "healthy" ? "健康" : node.status === "warning" ? "告警" : "严重"}
+            </span>
+          </div>
+          <div className="text-xs text-muted mt-0.5">{node.namespace}</div>
+        </div>
+      </div>
+
+      {/* Golden Metrics 网格 */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
+          <div className="text-[10px] text-muted mb-1">RPS</div>
+          <div className="text-lg font-bold text-default">{node.rps.toLocaleString()}<span className="text-xs font-normal text-muted">/s</span></div>
+        </div>
+        <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
+          <div className="text-[10px] text-muted mb-1">P50 延迟</div>
+          <div className="text-lg font-bold text-default">{node.p50Latency}<span className="text-xs font-normal text-muted">ms</span></div>
+        </div>
+        <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
+          <div className="text-[10px] text-muted mb-1">P95 延迟</div>
+          <div className="text-lg font-bold text-default">{node.p95Latency}<span className="text-xs font-normal text-muted">ms</span></div>
+        </div>
+        <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
+          <div className="text-[10px] text-muted mb-1">P99 延迟</div>
+          <div className="text-lg font-bold text-default">{node.p99Latency}<span className="text-xs font-normal text-muted">ms</span></div>
+        </div>
+        <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
+          <div className="text-[10px] text-muted mb-1">错误率</div>
+          <div className={`text-lg font-bold ${node.errorRate > 0.5 ? "text-red-500" : "text-emerald-500"}`}>
+            {node.errorRate.toFixed(2)}<span className="text-xs font-normal">%</span>
+          </div>
+        </div>
+        <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
+          <div className="text-[10px] text-muted mb-1">总请求</div>
+          <div className="text-lg font-bold text-default">{node.totalRequests.toLocaleString()}</div>
+        </div>
+      </div>
+
+      {/* Linkerd 服务延迟分布 */}
+      <LatencyDistributionView
+        buckets={node.latencyDistribution}
+        p50={node.p50Latency}
+        p95={node.p95Latency}
+        p99={node.p99Latency}
+        requestBreakdown={node.requestBreakdown}
+        sourceLabel="Linkerd 服务延迟分布"
+      />
+
+      {/* 调用关系 */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+          <Network className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium text-default">调用关系</span>
+        </div>
+        <div className="p-4 space-y-3">
+          {inbound.length > 0 && (
+            <div>
+              <div className="text-[10px] text-muted font-medium uppercase tracking-wider mb-2">Inbound ({inbound.length})</div>
+              <div className="flex flex-wrap gap-2">
+                {inbound.map((edge, idx) => {
+                  const srcNode = topology.nodes.find(n => n.id === edge.source);
+                  if (!srcNode) return null;
+                  const srcColor = getNamespaceColor(srcNode.namespace);
+                  return (
+                    <div key={idx} className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-xs">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: srcColor.fill }} />
+                      <span className="font-medium text-default">{srcNode.name}</span>
+                      <ArrowRight className="w-3 h-3 text-slate-400" />
+                      <span className="text-muted">{edge.rps}/s · {edge.avgLatency}ms</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {outbound.length > 0 && (
+            <div>
+              <div className="text-[10px] text-muted font-medium uppercase tracking-wider mb-2">Outbound ({outbound.length})</div>
+              <div className="flex flex-wrap gap-2">
+                {outbound.map((edge, idx) => {
+                  const tgtNode = topology.nodes.find(n => n.id === edge.target);
+                  if (!tgtNode) return null;
+                  const tgtColor = getNamespaceColor(tgtNode.namespace);
+                  return (
+                    <div key={idx} className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-xs">
+                      <ArrowRight className="w-3 h-3 text-cyan-600" />
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tgtColor.fill }} />
+                      <span className="font-medium text-default">{tgtNode.name}</span>
+                      <span className="text-muted">{edge.rps}/s · {edge.avgLatency}ms</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {inbound.length === 0 && outbound.length === 0 && (
+            <div className="text-xs text-muted text-center py-4">暂无调用关系数据</div>
+          )}
+        </div>
+      </div>
+
+      {/* 状态码分布 */}
+      <StatusCodeBreakdownView breakdown={node.statusCodeBreakdown} />
+    </div>
+  );
+}
+
+// 服务网格概览（双栏容器）
+function ServiceMeshOverview({ topology, selectedServiceId, onSelectService }: {
+  topology: ServiceTopology;
+  selectedServiceId: string | null;
+  onSelectService: (id: string) => void;
+}) {
+  const selectedNode = selectedServiceId
+    ? topology.nodes.find(n => n.id === selectedServiceId)
+    : null;
+
+  // mTLS 加权覆盖率
+  const totalRps = topology.nodes.reduce((sum, n) => sum + n.rps, 0);
+  const overallMtls = totalRps > 0
+    ? topology.nodes.reduce((sum, n) => sum + n.mtlsPercent * n.rps, 0) / totalRps
+    : 0;
+  const mtlsFull = topology.nodes.filter(n => n.mtlsPercent >= 100).length;
+  const mtlsLow = topology.nodes.filter(n => n.mtlsPercent < 80).length;
+  const mtlsBarColor = overallMtls >= 95 ? "bg-emerald-500" : overallMtls >= 80 ? "bg-amber-500" : "bg-red-500";
+  const mtlsTextColor = overallMtls >= 95 ? "text-emerald-600 dark:text-emerald-400" : overallMtls >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+
+  return (
+    <div className="rounded-xl border border-[var(--border-color)] bg-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Layers className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold text-default">服务网格概览</span>
+          <span className="text-[10px] text-muted">Linkerd mesh · {topology.nodes.length} 个服务</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Shield className="w-3.5 h-3.5 text-muted" />
+            <span className="text-[10px] text-muted">mTLS</span>
+            <div className="w-20 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${mtlsBarColor}`} style={{ width: `${Math.min(100, overallMtls)}%` }} />
+            </div>
+            <span className={`text-xs font-semibold ${mtlsTextColor}`}>{overallMtls.toFixed(1)}%</span>
+          </div>
+          <span className="text-[10px] text-muted">{mtlsFull}/{topology.nodes.length} 全覆盖{mtlsLow > 0 ? ` · ${mtlsLow} 低于80%` : ""}</span>
+        </div>
+      </div>
+      <div className="flex flex-col lg:flex-row">
+        {/* 左栏：服务列表 */}
+        <div className={`${selectedNode ? "lg:w-[400px] lg:border-r border-[var(--border-color)]" : "w-full"} p-4`}>
+          <ServiceListTable
+            nodes={topology.nodes}
+            selectedId={selectedServiceId}
+            onSelect={onSelectService}
+          />
+        </div>
+        {/* 右栏：服务详情（条件渲染） */}
+        {selectedNode && (
+          <div className="flex-1 p-4 bg-[var(--background)]">
+            <ServiceDetailPanel node={selectedNode} topology={topology} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// mTLS 覆盖率卡片
+function MtlsCoverageView({ topology }: { topology: ServiceTopology }) {
+  const nodes = topology.nodes;
+
+  // RPS 加权平均 mTLS 覆盖率
+  const totalRps = nodes.reduce((sum, n) => sum + n.rps, 0);
+  const overallMtls = totalRps > 0
+    ? nodes.reduce((sum, n) => sum + n.mtlsPercent * n.rps, 0) / totalRps
+    : 0;
+
+  // 按 mtlsPercent 升序（最低的在前）
+  const sorted = [...nodes].sort((a, b) => a.mtlsPercent - b.mtlsPercent);
+
+  const getMtlsColor = (pct: number) => {
+    if (pct >= 100) return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
+    if (pct >= 80) return { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-400", dot: "bg-amber-500" };
+    return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
+  };
+
+  const barColor = overallMtls >= 95 ? "bg-emerald-500" : overallMtls >= 80 ? "bg-amber-500" : "bg-red-500";
+
+  return (
+    <div className="rounded-xl border border-[var(--border-color)] bg-card overflow-hidden">
+      <div className="px-4 py-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium text-default">mTLS 覆盖率</span>
+          </div>
+          <span className="text-sm font-bold text-default">{overallMtls.toFixed(1)}%</span>
+        </div>
+
+        {/* 整体进度条 */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-1 h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${barColor}`}
+              style={{ width: `${Math.min(100, overallMtls)}%` }}
+            />
+          </div>
+          <span className="text-xs font-medium text-muted w-12 text-right">{overallMtls.toFixed(1)}%</span>
+        </div>
+
+        {/* Per-service 药丸 */}
+        <div className="flex flex-wrap gap-1.5">
+          {sorted.map((node) => {
+            const colors = getMtlsColor(node.mtlsPercent);
+            const nsColor = getNamespaceColor(node.namespace);
+            return (
+              <div
+                key={node.id}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium ${colors.bg} ${colors.text}`}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: nsColor.fill }} />
+                <span>{node.name}</span>
+                <span className="font-bold">{node.mtlsPercent}%</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1668,15 +2019,25 @@ function formatNumber(num: number): string {
 }
 
 // 域名卡片
-function DomainCard({ domain, expanded, onToggle, timeRange, onEditTargets }: {
+function DomainCard({ domain, expanded, onToggle, timeRange, onEditTargets, globalTopology }: {
   domain: DomainSLO;
   expanded: boolean;
   onToggle: () => void;
   timeRange: TimeRange;
   onEditTargets: () => void;
+  globalTopology: ServiceTopology;
 }) {
-  const [activeTab, setActiveTab] = useState<"overview" | "topology" | "trace" | "compare">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "mesh" | "latency" | "compare">("overview");
+  const [meshSelectedServiceId, setMeshSelectedServiceId] = useState<string | null>(null);
   const targets = domain.targets[timeRange];
+
+  // 从全局拓扑提取该域名关联的子拓扑
+  const subTopology = useMemo((): ServiceTopology => {
+    const nodeSet = new Set(domain.backendServices);
+    const nodes = globalTopology.nodes.filter(n => nodeSet.has(n.id));
+    const edges = globalTopology.edges.filter(e => nodeSet.has(e.source) && nodeSet.has(e.target));
+    return { nodes, edges };
+  }, [domain.backendServices, globalTopology]);
 
   return (
     <div className="border border-[var(--border-color)] rounded-xl overflow-hidden bg-card">
@@ -1703,8 +2064,6 @@ function DomainCard({ domain, expanded, onToggle, timeRange, onEditTargets }: {
             </div>
             <div className="text-xs text-muted flex items-center gap-2 mt-0.5">
               <span>{domain.namespace}/{domain.ingressName}</span>
-              <span className="text-gray-400">·</span>
-              <span>{domain.ingressClass}</span>
             </div>
           </div>
         </div>
@@ -1760,9 +2119,9 @@ function DomainCard({ domain, expanded, onToggle, timeRange, onEditTargets }: {
           <div className="flex items-center gap-1 px-4 pt-3 pb-2 border-b border-[var(--border-color)]">
             {[
               { id: "overview", label: "SLO 概览", icon: Activity },
-              { id: "topology", label: "服务拓扑", icon: Network },
-              { id: "trace", label: "链路追踪", icon: Clock },
-              { id: "compare", label: "周期对比", icon: Calendar },
+              { id: "latency",  label: "入口延迟分布", icon: BarChart3 },
+              { id: "mesh",     label: "服务网格", icon: Network },
+              { id: "compare",  label: "周期对比", icon: Calendar },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1821,17 +2180,46 @@ function DomainCard({ domain, expanded, onToggle, timeRange, onEditTargets }: {
                     <div className="mt-1"><ErrorBudgetBar percent={domain.errorBudgetRemaining} /></div>
                   </div>
                 </div>
+                {/* SLO 趋势图 + 错误预算消耗图 */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <HistoryChartView history={domain.history} targets={targets} />
+                  <ErrorBudgetBurnView history={domain.history} />
+                </div>
               </div>
             )}
 
-            {/* 服务拓扑 Tab */}
-            {activeTab === "topology" && (
-              <ServiceTopologyView topology={domain.topology} />
+            {/* 服务网格 Tab */}
+            {activeTab === "mesh" && (
+              <div className="space-y-4">
+                {/* 该域名的服务拓扑 */}
+                {subTopology.nodes.length > 1 && (
+                  <ServiceTopologyView
+                    topology={subTopology}
+                    onSelectNode={(node) => setMeshSelectedServiceId(node.id)}
+                  />
+                )}
+                {/* 服务列表 + 详情双栏 */}
+                <ServiceMeshOverview
+                  topology={subTopology}
+                  selectedServiceId={meshSelectedServiceId}
+                  onSelectService={setMeshSelectedServiceId}
+                />
+              </div>
             )}
 
-            {/* 链路追踪 Tab */}
-            {activeTab === "trace" && (
-              <CallTimelineView traces={domain.traces} />
+            {/* 入口延迟分布 Tab */}
+            {activeTab === "latency" && (
+              <div className="space-y-4">
+              <LatencyDistributionView
+                buckets={domain.latencyDistribution}
+                p50={domain.current.p50Latency}
+                p95={domain.current.p95Latency}
+                p99={domain.current.p99Latency}
+                requestBreakdown={domain.requestBreakdown}
+                sourceLabel="Traefik 入口延迟分布"
+              />
+              <StatusCodeBreakdownView breakdown={domain.statusCodeBreakdown} />
+              </div>
             )}
 
             {/* 周期对比 Tab */}
@@ -1976,14 +2364,15 @@ export default function StylePreviewPage() {
 
   const summary = useMemo(() => {
     const totalDomains = domains.length;
+    const totalServices = mockGlobalTopology.nodes.length;
     const healthyCount = domains.filter(d => d.status === "healthy").length;
     const warningCount = domains.filter(d => d.status === "warning").length;
     const criticalCount = domains.filter(d => d.status === "critical").length;
     const totalRPS = domains.reduce((sum, d) => sum + d.current.requestsPerSec, 0);
     const avgAvailability = domains.reduce((sum, d) => sum + d.current.availability, 0) / totalDomains;
-    const avgErrorBudget = domains.reduce((sum, d) => sum + d.errorBudgetRemaining, 0) / totalDomains;
+    const avgP95 = domains.reduce((sum, d) => sum + d.current.p95Latency, 0) / totalDomains;
 
-    return { totalDomains, healthyCount, warningCount, criticalCount, totalRPS, avgAvailability, avgErrorBudget };
+    return { totalDomains, totalServices, healthyCount, warningCount, criticalCount, totalRPS, avgAvailability, avgP95 };
   }, [domains]);
 
   const handleSaveConfig = (domainId: string, range: TimeRange, newTargets: SLOTargets) => {
@@ -2005,7 +2394,7 @@ export default function StylePreviewPage() {
               </div>
               <div>
                 <h1 className="text-lg font-semibold text-default">SLO 服务监控</h1>
-                <p className="text-xs text-muted">域名级 SLO 监控 · 服务拓扑 · 链路追踪</p>
+                <p className="text-xs text-muted">服务网格拓扑 · per-service 延迟分布 · 域名 SLO</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -2030,12 +2419,12 @@ export default function StylePreviewPage() {
         <div className="p-6 space-y-6">
           {/* 汇总卡片 */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <SummaryCard icon={Globe} label="监控域名" value={summary.totalDomains.toString()} subValue={`${summary.healthyCount} 健康`} color="bg-blue-500/10 text-blue-500" />
+            <SummaryCard icon={Server} label="服务总数" value={summary.totalServices.toString()} subValue="Linkerd mesh" color="bg-blue-500/10 text-blue-500" />
+            <SummaryCard icon={Globe} label="域名数" value={summary.totalDomains.toString()} subValue={`${summary.healthyCount} 健康`} color="bg-violet-500/10 text-violet-500" />
             <SummaryCard icon={Activity} label="平均可用性" value={`${summary.avgAvailability.toFixed(2)}%`} color="bg-emerald-500/10 text-emerald-500" />
-            <SummaryCard icon={Gauge} label="错误预算剩余" value={`${summary.avgErrorBudget.toFixed(0)}%`} subValue="平均剩余" color={summary.avgErrorBudget > 50 ? "bg-emerald-500/10 text-emerald-500" : summary.avgErrorBudget > 20 ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-500"} />
-            <SummaryCard icon={Zap} label="总吞吐量" value={formatNumber(summary.totalRPS)} subValue="req/s" color="bg-violet-500/10 text-violet-500" />
-            <SummaryCard icon={AlertTriangle} label="告警中" value={summary.warningCount.toString()} subValue="需要关注" color="bg-amber-500/10 text-amber-500" />
-            <SummaryCard icon={AlertTriangle} label="严重问题" value={summary.criticalCount.toString()} subValue="需立即处理" color="bg-red-500/10 text-red-500" />
+            <SummaryCard icon={Gauge} label="平均 P95" value={`${Math.round(summary.avgP95)}ms`} color="bg-cyan-500/10 text-cyan-500" />
+            <SummaryCard icon={Zap} label="总 RPS" value={formatNumber(summary.totalRPS)} subValue="req/s" color="bg-amber-500/10 text-amber-500" />
+            <SummaryCard icon={AlertTriangle} label="告警数" value={(summary.warningCount + summary.criticalCount).toString()} subValue={`${summary.criticalCount} 严重`} color={summary.criticalCount > 0 ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"} />
           </div>
 
           {/* 域名 SLO 列表 */}
@@ -2056,12 +2445,13 @@ export default function StylePreviewPage() {
                   onToggle={() => setExpandedId(expandedId === domain.id ? null : domain.id)}
                   timeRange={timeRange}
                   onEditTargets={() => setShowConfigModal(domain)}
+                  globalTopology={mockGlobalTopology}
                 />
               ))}
             </div>
           </div>
 
-          {/* 说明 */}
+          {/* 数据来源说明 */}
           <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
             <div className="flex items-start gap-3">
               <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/50">
@@ -2070,9 +2460,15 @@ export default function StylePreviewPage() {
               <div className="text-sm">
                 <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">数据来源说明</p>
                 <p className="text-blue-700 dark:text-blue-300 text-xs leading-relaxed">
-                  SLO 指标来源于 Traefik Ingress 流量统计，服务拓扑和链路追踪数据来源于 Linkerd 服务网格。
-                  系统采集 <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded">request_total</code>、
-                  <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded ml-1">response_latency_ms</code> 等指标计算 SLI/SLO。
+                  <strong>服务网格层（Linkerd）：</strong>服务调用拓扑、per-service golden metrics（RPS / 延迟百分位 / 错误率）和 24 桶延迟直方图来源于
+                  <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded ml-1">otel_response_total</code> +
+                  <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded ml-1">otel_response_latency_ms</code>。
+                  mTLS 覆盖率通过 <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded">response_total</code> 的
+                  <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded ml-1">tls</code> 标签计算。
+                </p>
+                <p className="text-blue-700 dark:text-blue-300 text-xs leading-relaxed mt-1">
+                  <strong>入口层（Traefik）：</strong>域名级 SLO（可用性 / 延迟 / 错误预算）来源于 Traefik 入口指标。
+                  所有数据经 OTel Collector 统一采集，Agent 端完成 per-pod delta 计算与 service 聚合。
                 </p>
               </div>
             </div>

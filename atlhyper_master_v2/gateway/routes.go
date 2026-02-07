@@ -64,7 +64,7 @@ func (r *Router) registerRoutes() {
 	userHandler := handler.NewUserHandler(r.database.User)
 	clusterHandler := handler.NewClusterHandler(r.service)
 	overviewHandler := handler.NewOverviewHandler(r.service)
-	sloHandler := handler.NewSLOHandler(r.database.SLO, nil)
+	sloHandler := handler.NewSLOHandler(r.database.SLO, r.database.SLOService, nil)
 	sloMeshHandler := handler.NewSLOMeshHandler(r.service)
 	podHandler := handler.NewPodHandler(r.service)
 	nodeHandler := handler.NewNodeHandler(r.service)

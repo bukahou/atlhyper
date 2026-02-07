@@ -696,6 +696,8 @@ type SLOServiceRepository interface {
 	UpsertServiceHourly(ctx context.Context, m *SLOServiceHourly) error
 	GetServiceHourly(ctx context.Context, clusterID, namespace, name string, start, end time.Time) ([]*SLOServiceHourly, error)
 	DeleteServiceHourlyBefore(ctx context.Context, before time.Time) (int64, error)
+
+	CountDistinctServices(ctx context.Context, clusterID string, start, end time.Time) (int, error)
 }
 
 // SLOEdgeRepository 拓扑边数据访问接口

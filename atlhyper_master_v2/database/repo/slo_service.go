@@ -103,4 +103,25 @@ func (r *sloServiceRepo) DeleteServiceHourlyBefore(ctx context.Context, before t
 	return result.RowsAffected()
 }
 
+func (r *sloServiceRepo) CountDistinctServices(ctx context.Context, clusterID string, start, end time.Time) (int, error) {
+	// 优先查 hourly 表，无数据回退 raw 表
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT namespace || '/' || name) FROM slo_service_metrics_hourly WHERE cluster_id = ? AND hour_start >= ? AND hour_start < ?`,
+		clusterID, start, end,
+	).Scan(&count)
+	if err == nil && count > 0 {
+		return count, nil
+	}
+
+	err = r.db.QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT namespace || '/' || name) FROM slo_service_metrics_raw WHERE cluster_id = ? AND timestamp >= ? AND timestamp < ?`,
+		clusterID, start, end,
+	).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 var _ database.SLOServiceRepository = (*sloServiceRepo)(nil)

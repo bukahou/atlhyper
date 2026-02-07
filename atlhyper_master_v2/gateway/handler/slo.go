@@ -19,15 +19,17 @@ var sloLog = logger.Module("SLO-Handler")
 
 // SLOHandler SLO API Handler
 type SLOHandler struct {
-	repo       database.SLORepository
-	aggregator *slo.Aggregator
+	repo        database.SLORepository
+	serviceRepo database.SLOServiceRepository
+	aggregator  *slo.Aggregator
 }
 
 // NewSLOHandler 创建 SLOHandler
-func NewSLOHandler(repo database.SLORepository, aggregator *slo.Aggregator) *SLOHandler {
+func NewSLOHandler(repo database.SLORepository, serviceRepo database.SLOServiceRepository, aggregator *slo.Aggregator) *SLOHandler {
 	return &SLOHandler{
-		repo:       repo,
-		aggregator: aggregator,
+		repo:        repo,
+		serviceRepo: serviceRepo,
+		aggregator:  aggregator,
 	}
 }
 
@@ -284,9 +286,16 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 		avgBudget = totalBudget / float64(len(domainResponses))
 	}
 
+	// 查询 Linkerd meshed 服务总数
+	var totalServices int
+	if h.serviceRepo != nil {
+		totalServices, _ = h.serviceRepo.CountDistinctServices(ctx, clusterID, start, end)
+	}
+
 	resp := model.SLODomainsResponseV2{
 		Domains: domainResponses,
 		Summary: model.SLOSummary{
+			TotalServices:   totalServices,
 			TotalDomains:    len(domainResponses),
 			HealthyCount:    healthyCount,
 			WarningCount:    warningCount,

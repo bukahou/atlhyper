@@ -950,6 +950,23 @@ export const ja: Translations = {
     tabSloStatus: "SLO 状態",
     tabServices: "サービス詳細",
     tabCompare: "期間比較",
+    tabOverview: "SLO 概要",
+    tabMesh: "サービスメッシュ",
+    // サービスメッシュ
+    serviceTopology: "サービス呼び出しトポロジー",
+    meshOverview: "サービスメッシュ概要",
+    mtls: "mTLS",
+    inbound: "Inbound",
+    outbound: "Outbound",
+    noCallData: "呼び出し関係データなし",
+    callRelation: "呼び出し関係",
+    p50Latency: "P50 レイテンシー",
+    avgLatency: "平均レイテンシー",
+    // トレンドチャート
+    sloTrend: "SLO トレンド",
+    errorBudgetBurn: "エラーバジェット消費",
+    current: "現在",
+    estimatedExhaust: "枯渇予測",
     // サービス関連
     services: "サービス",
     servicesCount: "{count} 個のサービス",
@@ -957,15 +974,14 @@ export const ja: Translations = {
     noServiceData: "サービスデータがありません",
     totalBackendServices: "合計 {count} 個のバックエンドサービス",
     // サマリーカード
-    monitoredDomains: "監視ドメイン",
+    totalServices: "サービス総数",
+    linkerdMesh: "Linkerd mesh",
+    monitoredDomains: "ドメイン数",
     avgAvailability: "平均可用性",
-    errorBudgetRemaining: "エラーバジェット残り",
-    avgRemaining: "平均残り",
-    totalThroughput: "総スループット",
-    inWarning: "警告中",
-    needsAttention: "要注意",
-    criticalIssues: "重大な問題",
-    needsImmediate: "要緊急対応",
+    avgP95: "平均 P95",
+    totalRPS: "総 RPS",
+    alertCount: "アラート数",
+    severe: "重大",
     domainSloStatus: "ドメイン SLO 状態",
     // チャート
     hourlyTrend: "時間別トレンド",
@@ -982,7 +998,7 @@ export const ja: Translations = {
     saveFailed: "SLO 目標の保存に失敗しました",
     // 説明
     dataSourceTitle: "データソース説明",
-    dataSourceDesc: "すべての指標は Ingress Controller のトラフィックデータに基づいて計算され、ドメイン（Host）ごとに集計されます。システムは Traefik/Nginx/Kong の Prometheus メトリクスを収集し、可用性、レイテンシパーセンタイル、エラー率を計算します。",
+    dataSourceDesc: "サービスメッシュ層（Linkerd）：サービスメッシュトポロジーとゴールデンメトリクスは OTel Collector 経由の Linkerd メトリクスから取得。入口層（Traefik）：ドメインレベル SLO は Traefik メトリクスから取得。すべてのデータは OTel Collector で統一収集され、Agent で per-pod delta 計算とサービス集約を実行。",
   },
   aiSettingsPage: {
     // ページタイトル

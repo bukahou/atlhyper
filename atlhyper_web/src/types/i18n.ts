@@ -967,6 +967,23 @@ export interface SLOTranslations {
   tabSloStatus: string;
   tabServices: string;
   tabCompare: string;
+  tabOverview: string;
+  tabMesh: string;
+  // 服务网格
+  serviceTopology: string;
+  meshOverview: string;
+  mtls: string;
+  inbound: string;
+  outbound: string;
+  noCallData: string;
+  callRelation: string;
+  p50Latency: string;
+  avgLatency: string;
+  // 趋势图
+  sloTrend: string;
+  errorBudgetBurn: string;
+  current: string;
+  estimatedExhaust: string;
   // 服务相关
   services: string;
   servicesCount: string;
@@ -974,15 +991,14 @@ export interface SLOTranslations {
   noServiceData: string;
   totalBackendServices: string;
   // 汇总卡片
+  totalServices: string;
+  linkerdMesh: string;
   monitoredDomains: string;
   avgAvailability: string;
-  errorBudgetRemaining: string;
-  avgRemaining: string;
-  totalThroughput: string;
-  inWarning: string;
-  needsAttention: string;
-  criticalIssues: string;
-  needsImmediate: string;
+  avgP95: string;
+  totalRPS: string;
+  alertCount: string;
+  severe: string;
   domainSloStatus: string;
   // 图表
   hourlyTrend: string;

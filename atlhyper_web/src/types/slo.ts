@@ -42,6 +42,7 @@ export interface DomainSLO {
 
 // SLO 汇总（对应 model.SLOSummary）
 export interface SLOSummary {
+  total_services: number;
   total_domains: number;
   healthy_count: number;
   warning_count: number;

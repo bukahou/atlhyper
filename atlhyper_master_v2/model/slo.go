@@ -37,6 +37,7 @@ type SLOMetrics struct {
 
 // SLOSummary SLO 汇总信息
 type SLOSummary struct {
+	TotalServices   int     `json:"total_services"`
 	TotalDomains    int     `json:"total_domains"`
 	HealthyCount    int     `json:"healthy_count"`
 	WarningCount    int     `json:"warning_count"`
