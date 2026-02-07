@@ -2,9 +2,13 @@
 //
 // slo_persist.go - SLO 指标持久化服务
 //
-// 本文件实现 SLOPersistService，负责:
-//   - 从 DataHub 读取 ClusterSnapshot 中的 SLOData
-//   - 调用 slo.Processor 写入 SQLite（指标 + 路由映射）
+// 从 DataHub 读取 ClusterSnapshot 中的 SLOData (SLOSnapshot)，
+// 调用 slo.Processor 写入 SQLite。
+//
+// Master P2 阶段将重写为完整的三层数据处理:
+//   - ServiceMetrics (服务级黄金指标)
+//   - ServiceEdge (服务拓扑)
+//   - IngressMetrics (入口指标)
 package sync
 
 import (
@@ -44,8 +48,8 @@ func (s *SLOPersistService) Sync(clusterID string) error {
 
 	ctx := context.Background()
 
-	// 处理 SLO 指标
-	if err := s.sloProcessor.ProcessIngressMetrics(ctx, clusterID, &snapshot.SLOData.Metrics); err != nil {
+	// 处理 SLO 指标（Services + Edges + Ingress）
+	if err := s.sloProcessor.ProcessSLOSnapshot(ctx, clusterID, snapshot.SLOData); err != nil {
 		sloLog.Error("SLO 指标处理失败", "cluster", clusterID, "err", err)
 		return err
 	}
@@ -54,7 +58,6 @@ func (s *SLOPersistService) Sync(clusterID string) error {
 	if len(snapshot.SLOData.Routes) > 0 {
 		if err := s.sloProcessor.ProcessIngressRoutes(ctx, clusterID, snapshot.SLOData.Routes); err != nil {
 			sloLog.Error("SLO 路由映射处理失败", "cluster", clusterID, "err", err)
-			// 不返回错误，继续处理
 		}
 	}
 

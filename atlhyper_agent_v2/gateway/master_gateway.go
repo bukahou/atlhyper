@@ -187,40 +187,5 @@ func (g *masterGateway) Heartbeat(ctx context.Context) error {
 	return nil
 }
 
-// PushSLOMetrics 推送 SLO 指标
-func (g *masterGateway) PushSLOMetrics(ctx context.Context, metrics *model.IngressMetrics, routes []model.IngressRouteInfo) error {
-	// 构建请求体
-	req := model.SLOPushRequest{
-		ClusterID:     g.clusterID,
-		Metrics:       *metrics,
-		IngressRoutes: routes,
-	}
-
-	data, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("failed to marshal metrics: %w", err)
-	}
-
-	url := fmt.Sprintf("%s/agent/slo", g.masterURL)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("X-Cluster-ID", g.clusterID)
-
-	resp, err := g.httpClient.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
-}
+// SLO 数据通过 ClusterSnapshot.SLOData 随快照推送，不再有独立端点。
 

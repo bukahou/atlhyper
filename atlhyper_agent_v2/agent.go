@@ -97,8 +97,9 @@ func New() (*Agent, error) {
 	// 3.2 初始化 SLORepository (可选)
 	var sloRepo repository.SLORepository
 	if cfg.SLO.Enabled {
-		ingressClient := ingress.NewClient(k8sClient, cfg.SLO.ScrapeTimeout)
-		sloRepo = slorepo.NewSLORepository(ingressClient, cfg.SLO.IngressURL, cfg.SLO.AutoDiscover)
+		ingressClient := ingress.NewIngressClient(k8sClient)
+		// TODO(P4): 初始化 OTelClient，完整依赖注入
+		sloRepo = slorepo.NewSLORepository(nil, ingressClient)
 		log.Info("SLO Repository 初始化完成")
 	}
 

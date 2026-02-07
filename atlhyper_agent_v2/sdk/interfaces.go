@@ -221,56 +221,56 @@ type K8sClient interface {
 // Ingress Controller 客户端
 // =============================================================================
 
-// IngressClient Ingress Controller 客户端接口
+// IngressClient Ingress 路由采集客户端接口
 //
-// 封装从 Ingress Controller Prometheus 端点采集指标的操作，
-// 以及从 K8s API 采集 IngressRoute CRD 配置信息。
-// Repository 层只依赖此接口，不直接使用 HTTP。
+// 从 K8s API 采集 IngressRoute CRD / 标准 Ingress 配置信息。
+// 用于建立 service 标识与域名/路径的映射关系。
+//
+// 注意: 指标采集已迁移到 OTelClient，本接口仅保留路由配置采集。
 //
 // 架构位置:
 //
 //	SLORepository
 //	    ↓ 调用
-//	SDK (IngressClient) ← Ingress 客户端封装
+//	SDK (IngressClient) ← 路由采集
 //	    ↓ 使用
-//	net/http + K8s Dynamic API
+//	K8s Dynamic API
 //	    ↓
-//	Ingress Controller (:9100/metrics) / K8s API Server
+//	K8s API Server (IngressRoute CRD / Ingress)
 type IngressClient interface {
-	// =========================================================================
-	// 指标采集
-	// =========================================================================
-
-	// ScrapeMetrics 从 Ingress Controller 采集 Prometheus 指标
-	//
-	// 从指定 URL 采集 Prometheus 格式指标文本，解析后返回。
-	// 支持 Traefik / Nginx / Kong 三种 Ingress Controller。
-	ScrapeMetrics(ctx context.Context, url string) (*IngressMetrics, error)
-
-	// =========================================================================
-	// 自动发现
-	// =========================================================================
-
-	// DiscoverURL 自动发现 Ingress Controller 的指标端点
-	//
-	// 扫描所有命名空间的 Pod，通过标签识别 Ingress Controller。
-	// 返回指标 URL 和 Ingress 类型 (nginx/traefik/kong)。
-	DiscoverURL(ctx context.Context) (url string, ingressType string, err error)
-
-	// SetIngressType 设置 Ingress 类型
-	// 用于自动发现后更新解析器类型
-	SetIngressType(ingressType string)
-
-	// =========================================================================
-	// 路由配置采集
-	// =========================================================================
-
 	// CollectRoutes 采集 IngressRoute / Ingress 配置
 	//
 	// 采集 Traefik IngressRoute CRD 或标准 K8s Ingress，
 	// 建立 Traefik service 名称与实际域名/路径的映射关系。
 	// 优先采集 IngressRoute CRD，如果不存在则 fallback 到标准 Ingress。
 	CollectRoutes(ctx context.Context) ([]IngressRouteInfo, error)
+}
+
+// =============================================================================
+// OTel Collector 客户端
+// =============================================================================
+
+// OTelClient OTel Collector 采集客户端
+//
+// 从 OTel Collector 的 Prometheus 端点采集原始指标。
+// 只做 HTTP 采集和文本解析，不做业务过滤/聚合。
+//
+// 架构位置:
+//
+//	SLORepository
+//	    ↓ 调用
+//	SDK (OTelClient)
+//	    ↓ 使用
+//	net/http
+//	    ↓
+//	OTel Collector (:8889/metrics)
+type OTelClient interface {
+	// ScrapeMetrics 从 OTel Collector 采集原始指标
+	// 返回分类后的原始指标（per-pod 级别，累积值）
+	ScrapeMetrics(ctx context.Context) (*OTelRawMetrics, error)
+
+	// IsHealthy 检查 Collector 健康状态
+	IsHealthy(ctx context.Context) bool
 }
 
 // =============================================================================
