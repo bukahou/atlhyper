@@ -228,6 +228,29 @@ type ServiceAccountRepository interface {
 }
 
 // =============================================================================
+// SLO 仓库
+// =============================================================================
+
+// SLORepository SLO 数据仓库接口
+//
+// 负责从 Ingress Controller 采集 SLO 指标数据。
+// 内部调用 sdk.IngressClient 采集原始指标，进行增量计算后返回。
+//
+// 与其他 Repository 一样，被 SnapshotService 注入和调用。
+type SLORepository interface {
+	// Collect 采集 SLO 指标数据
+	//
+	// 从 Ingress Controller 采集指标，计算增量，返回处理后的数据。
+	// 如果 Ingress Controller 不可用或未发现，返回 nil 和 error。
+	Collect(ctx context.Context) (*model_v2.SLOSnapshot, error)
+
+	// CollectRoutes 采集 IngressRoute 配置
+	//
+	// 返回 Traefik service 名称到域名/路径的映射信息。
+	CollectRoutes(ctx context.Context) ([]model_v2.IngressRouteInfo, error)
+}
+
+// =============================================================================
 // 通用仓库
 // =============================================================================
 

@@ -34,27 +34,20 @@ type Config struct {
 
 	// HeartbeatTimeout 心跳操作超时
 	HeartbeatTimeout time.Duration
-
-	// SLO 配置
-	SLOEnabled       bool          // 是否启用 SLO 采集
-	SLOScrapeInterval time.Duration // SLO 采集间隔
-	SLOScrapeTimeout  time.Duration // SLO 采集超时
 }
 
 // Scheduler 调度器
 //
 // 管理 Agent 各项后台任务的生命周期:
-//   - 快照采集循环 - 定时采集集群资源，推送给 Master
+//   - 快照采集循环 - 定时采集集群资源（含 SLO 数据），推送给 Master
 //   - 指令轮询循环 - 长轮询获取 Master 指令，执行后上报结果
 //   - 心跳循环 - 定时向 Master 发送心跳，维持连接状态
-//   - SLO 采集循环 - 定时采集 Ingress 指标，推送给 Master
 type Scheduler struct {
 	config Config
 
 	// 依赖的服务
 	snapshotSvc service.SnapshotService
 	commandSvc  service.CommandService
-	sloSvc      service.SLOService
 	masterGw    gateway.MasterGateway
 
 	// 生命周期控制
@@ -72,22 +65,19 @@ type Scheduler struct {
 //
 // 参数:
 //   - config: 调度器配置
-//   - snapshotSvc: 快照服务，用于采集集群资源
+//   - snapshotSvc: 快照服务，用于采集集群资源（含 SLO 数据）
 //   - commandSvc: 指令服务，用于执行 Master 下发的指令
-//   - sloSvc: SLO 服务，用于采集 Ingress 指标（可为 nil）
 //   - masterGw: Master 网关，用于与 Master 通信
 func New(
 	config Config,
 	snapshotSvc service.SnapshotService,
 	commandSvc service.CommandService,
-	sloSvc service.SLOService,
 	masterGw gateway.MasterGateway,
 ) *Scheduler {
 	return &Scheduler{
 		config:      config,
 		snapshotSvc: snapshotSvc,
 		commandSvc:  commandSvc,
-		sloSvc:      sloSvc,
 		masterGw:    masterGw,
 	}
 }
@@ -96,24 +86,12 @@ func New(
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 
-	// 计算后台任务数量
-	taskCount := 4 // 快照 + ops轮询 + ai轮询 + 心跳
-	if s.config.SLOEnabled && s.sloSvc != nil {
-		taskCount++ // SLO 采集
-	}
-
-	// 启动后台任务
-	s.wg.Add(taskCount)
-	go s.runSnapshotLoop()     // 快照采集
+	// 启动后台任务: 快照 + ops轮询 + ai轮询 + 心跳
+	s.wg.Add(4)
+	go s.runSnapshotLoop()     // 快照采集（含 SLO 数据）
 	go s.runCommandLoop("ops") // 系统操作指令轮询
 	go s.runCommandLoop("ai")  // AI 查询指令轮询
 	go s.runHeartbeatLoop()    // 心跳
-
-	// SLO 采集（可选）
-	if s.config.SLOEnabled && s.sloSvc != nil {
-		go s.runSLOLoop()
-		log.Info("SLO 采集已启用", "interval", s.config.SLOScrapeInterval)
-	}
 
 	log.Info("调度器已启动")
 	return nil
@@ -296,64 +274,5 @@ func (s *Scheduler) runHeartbeatLoop() {
 	}
 }
 
-// =============================================================================
-// SLO 采集循环
-// =============================================================================
-
-// runSLOLoop SLO 指标采集循环
-//
-// 工作流程:
-//  1. 启动时等待一个采集周期（避免与快照采集冲突）
-//  2. 之后每隔 SLOScrapeInterval 采集一次
-//  3. 采集失败只记录日志，不中断循环
-func (s *Scheduler) runSLOLoop() {
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(s.config.SLOScrapeInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-ticker.C:
-			s.collectAndPushSLO()
-		}
-	}
-}
-
-// collectAndPushSLO 采集并推送 SLO 指标
-func (s *Scheduler) collectAndPushSLO() {
-	ctx, cancel := context.WithTimeout(s.ctx, s.config.SLOScrapeTimeout)
-	defer cancel()
-
-	// 采集指标
-	metrics, err := s.sloSvc.Collect(ctx)
-	if err != nil {
-		log.Warn("SLO 指标采集失败", "err", err)
-		return
-	}
-
-	if metrics == nil {
-		return // 没有配置指标 URL
-	}
-
-	// 采集 IngressRoute 映射
-	routes, err := s.sloSvc.CollectRoutes(ctx)
-	if err != nil {
-		log.Warn("IngressRoute 采集失败", "err", err)
-		// 继续推送 metrics，routes 可以为空
-	}
-
-	// 推送到 Master
-	if err := s.masterGw.PushSLOMetrics(ctx, metrics, routes); err != nil {
-		log.Warn("SLO 指标推送失败", "err", err)
-		return
-	}
-
-	log.Debug("SLO 指标已推送",
-		"counters", len(metrics.Counters),
-		"histograms", len(metrics.Histograms),
-		"routes", len(routes),
-	)
-}
+// SLO 数据已合入 SnapshotService.Collect()，随快照一起采集和推送。
+// 不再需要独立的 SLO 采集循环。

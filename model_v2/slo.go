@@ -51,6 +51,18 @@ type SLOPushRequest struct {
 }
 
 // ============================================================
+// SLO 快照数据
+// Agent 采集后嵌入 ClusterSnapshot 一起上报
+// ============================================================
+
+// SLOSnapshot SLO 快照数据
+// 包含 Ingress 指标和路由映射，嵌入 ClusterSnapshot 统一推送
+type SLOSnapshot struct {
+	Metrics IngressMetrics   `json:"metrics"`               // 指标数据
+	Routes  []IngressRouteInfo `json:"routes,omitempty"`    // 路由映射
+}
+
+// ============================================================
 // IngressRoute 映射信息
 // 用于将 Traefik service 名称映射到实际的域名和路径
 // ============================================================

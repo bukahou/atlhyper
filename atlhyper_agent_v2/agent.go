@@ -26,6 +26,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/scheduler"
 	sdkpkg "AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/sdk/impl"
+	"AtlHyper/atlhyper_agent_v2/sdk/impl/ingress"
 	"AtlHyper/atlhyper_agent_v2/service"
 	"AtlHyper/common/logger"
 )
@@ -92,6 +93,14 @@ func New() (*Agent, error) {
 		log.Info("Metrics Repository 初始化完成")
 	}
 
+	// 3.2 初始化 SLORepository (可选)
+	var sloRepo repository.SLORepository
+	if cfg.SLO.Enabled {
+		ingressClient := ingress.NewClient(k8sClient, cfg.SLO.ScrapeTimeout)
+		sloRepo = repository.NewSLORepository(ingressClient, cfg.SLO.IngressURL, cfg.SLO.AutoDiscover)
+		log.Info("SLO Repository 初始化完成")
+	}
+
 	// 4. 初始化 Service (业务逻辑层)
 	snapshotSvc := service.NewSnapshotService(
 		cfg.Agent.ClusterID,
@@ -103,21 +112,10 @@ func New() (*Agent, error) {
 		repos.resourceQuota, repos.limitRange,
 		repos.networkPolicy, repos.serviceAccount,
 		metricsRepo,
+		sloRepo,
 	)
 
 	commandSvc := service.NewCommandService(repos.pod, repos.generic)
-
-	// 4.1 初始化 SLO Service (可选)
-	var sloSvc service.SLOService
-	if cfg.SLO.Enabled {
-		scraper := impl.NewMetricsScraper(k8sClient, cfg.SLO.ScrapeTimeout)
-		routeCollector := impl.NewIngressRouteCollector(k8sClient)
-		sloSvc = service.NewSLOService(scraper, routeCollector, service.SLOServiceConfig{
-			MetricsURL:   cfg.SLO.IngressURL,
-			AutoDiscover: cfg.SLO.AutoDiscover,
-		})
-		log.Info("SLO 服务初始化完成")
-	}
 
 	// 5. 初始化 Scheduler (调度层)
 	schedCfg := scheduler.Config{
@@ -127,11 +125,8 @@ func New() (*Agent, error) {
 		SnapshotTimeout:     cfg.Timeout.SnapshotCollect,
 		CommandPollTimeout:  cfg.Timeout.CommandPoll,
 		HeartbeatTimeout:    cfg.Timeout.Heartbeat,
-		SLOEnabled:          cfg.SLO.Enabled,
-		SLOScrapeInterval:   cfg.SLO.ScrapeInterval,
-		SLOScrapeTimeout:    cfg.SLO.ScrapeTimeout,
 	}
-	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, sloSvc, masterGw)
+	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw)
 
 	return &Agent{
 		scheduler:  sched,

@@ -25,7 +25,7 @@ import (
 
 // snapshotService 快照采集服务实现
 //
-// 依赖 20 个 Repository 分别采集各类资源。
+// 依赖 20 个 K8s Repository + 可选的 SLO Repository。
 // 所有 Repository 在创建时注入，支持测试时 mock。
 type snapshotService struct {
 	clusterID string
@@ -53,6 +53,9 @@ type snapshotService struct {
 
 	// 节点指标仓库 (可选)
 	metricsRepo repository.MetricsRepository
+
+	// SLO 数据仓库 (可选)
+	sloRepo repository.SLORepository
 }
 
 // NewSnapshotService 创建快照服务
@@ -79,6 +82,7 @@ func NewSnapshotService(
 	networkPolicyRepo repository.NetworkPolicyRepository,
 	serviceAccountRepo repository.ServiceAccountRepository,
 	metricsRepo repository.MetricsRepository,
+	sloRepo repository.SLORepository,
 ) SnapshotService {
 	return &snapshotService{
 		clusterID:          clusterID,
@@ -103,6 +107,7 @@ func NewSnapshotService(
 		networkPolicyRepo:  networkPolicyRepo,
 		serviceAccountRepo: serviceAccountRepo,
 		metricsRepo:        metricsRepo,
+		sloRepo:            sloRepo,
 	}
 }
 
@@ -142,8 +147,12 @@ func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapsho
 
 	opts := model.ListOptions{}
 
-	// 并发采集所有资源
-	wg.Add(20)
+	// 计算并发任务数: 20 个 K8s 资源 + 可选的 SLO
+	taskCount := 20
+	if s.sloRepo != nil {
+		taskCount++
+	}
+	wg.Add(taskCount)
 
 	// Pods
 	go func() {
@@ -384,6 +393,25 @@ func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapsho
 			mu.Unlock()
 		}
 	}()
+
+	// SLO 数据 (可选)
+	if s.sloRepo != nil {
+		go func() {
+			defer wg.Done()
+			sloData, err := s.sloRepo.Collect(ctx)
+			recordErr(err)
+			if err == nil && sloData != nil {
+				// 采集路由映射
+				routes, routeErr := s.sloRepo.CollectRoutes(ctx)
+				if routeErr == nil {
+					sloData.Routes = routes
+				}
+				mu.Lock()
+				snapshot.SLOData = sloData
+				mu.Unlock()
+			}
+		}()
+	}
 
 	wg.Wait()
 

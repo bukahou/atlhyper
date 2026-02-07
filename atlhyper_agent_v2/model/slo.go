@@ -12,4 +12,5 @@ type (
 	IngressHistogramMetric = model_v2.IngressHistogramMetric
 	SLOPushRequest         = model_v2.SLOPushRequest
 	IngressRouteInfo       = model_v2.IngressRouteInfo
+	SLOSnapshot            = model_v2.SLOSnapshot
 )

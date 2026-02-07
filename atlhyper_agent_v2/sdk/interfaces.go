@@ -1,12 +1,16 @@
-// Package sdk 封装 K8s 客户端
+// Package sdk 封装外部客户端
 //
-// interfaces.go - K8sClient 接口定义
+// interfaces.go - 统一接口定义
 //
-// SDK 层是 Agent 与 K8s API Server 交互的唯一入口。
-// 上层代码只依赖 K8sClient 接口，完全隔离 client-go 细节。
+// SDK 层是 Agent 与外部系统交互的唯一入口。
+// 上层代码只依赖本包接口，完全隔离底层实现细节。
+//
+// 客户端:
+//   - K8sClient: 封装 client-go，与 K8s API Server 交互
+//   - IngressClient: 封装 HTTP，与 Ingress Controller Prometheus 端点交互
 //
 // 设计原则:
-//   - 接口返回原生 K8s 类型 (corev1.Pod 等)，由 Repository 层转换
+//   - 接口返回原生类型，由 Repository 层做业务转换
 //   - 所有方法接受 context，支持超时和取消
 //   - 错误直接透传，不做额外包装
 //
@@ -14,11 +18,11 @@
 //
 //	Repository
 //	    ↓ 调用
-//	SDK (本包) ← K8s 客户端封装
+//	SDK (本包) ← 外部客户端封装
 //	    ↓ 使用
-//	client-go  ← K8s 官方库
+//	client-go / net/http
 //	    ↓
-//	K8s API Server
+//	K8s API Server / Ingress Controller
 package sdk
 
 import (
@@ -213,4 +217,60 @@ type K8sClient interface {
 
 	// Dynamic 执行动态 API 查询 (仅 GET)
 	Dynamic(ctx context.Context, req DynamicRequest) (*DynamicResponse, error)
+}
+
+// =============================================================================
+// Ingress Controller 客户端
+// =============================================================================
+
+// IngressClient Ingress Controller 客户端接口
+//
+// 封装从 Ingress Controller Prometheus 端点采集指标的操作，
+// 以及从 K8s API 采集 IngressRoute CRD 配置信息。
+// Repository 层只依赖此接口，不直接使用 HTTP。
+//
+// 架构位置:
+//
+//	SLORepository
+//	    ↓ 调用
+//	SDK (IngressClient) ← Ingress 客户端封装
+//	    ↓ 使用
+//	net/http + K8s Dynamic API
+//	    ↓
+//	Ingress Controller (:9100/metrics) / K8s API Server
+type IngressClient interface {
+	// =========================================================================
+	// 指标采集
+	// =========================================================================
+
+	// ScrapeMetrics 从 Ingress Controller 采集 Prometheus 指标
+	//
+	// 从指定 URL 采集 Prometheus 格式指标文本，解析后返回。
+	// 支持 Traefik / Nginx / Kong 三种 Ingress Controller。
+	ScrapeMetrics(ctx context.Context, url string) (*IngressMetrics, error)
+
+	// =========================================================================
+	// 自动发现
+	// =========================================================================
+
+	// DiscoverURL 自动发现 Ingress Controller 的指标端点
+	//
+	// 扫描所有命名空间的 Pod，通过标签识别 Ingress Controller。
+	// 返回指标 URL 和 Ingress 类型 (nginx/traefik/kong)。
+	DiscoverURL(ctx context.Context) (url string, ingressType string, err error)
+
+	// SetIngressType 设置 Ingress 类型
+	// 用于自动发现后更新解析器类型
+	SetIngressType(ingressType string)
+
+	// =========================================================================
+	// 路由配置采集
+	// =========================================================================
+
+	// CollectRoutes 采集 IngressRoute / Ingress 配置
+	//
+	// 采集 Traefik IngressRoute CRD 或标准 K8s Ingress，
+	// 建立 Traefik service 名称与实际域名/路径的映射关系。
+	// 优先采集 IngressRoute CRD，如果不存在则 fallback 到标准 Ingress。
+	CollectRoutes(ctx context.Context) ([]IngressRouteInfo, error)
 }
