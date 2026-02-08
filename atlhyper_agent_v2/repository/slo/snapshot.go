@@ -141,6 +141,10 @@ func (sm *snapshotManager) calcDeltas(raw *sdk.OTelRawMetrics) *deltaResult {
 	responseAggs := make(map[string]*responseAgg)
 	for _, m := range raw.LinkerdResponses {
 		key := m.Pod + "|" + m.StatusCode + "|" + m.Classification + "|" + m.Direction
+		// outbound 必须按目标区分，否则所有 dst 被合并为一条边
+		if m.Direction == "outbound" {
+			key += "|" + m.DstNamespace + "|" + m.DstDeployment
+		}
 		agg, ok := responseAggs[key]
 		if !ok {
 			responseAggs[key] = &responseAgg{
