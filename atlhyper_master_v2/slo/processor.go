@@ -141,6 +141,7 @@ func (p *Processor) processEdge(ctx context.Context, clusterID string, ts time.T
 func (p *Processor) processIngressMetrics(ctx context.Context, clusterID string, ts time.Time, ing *model_v2.IngressMetrics) error {
 	// 从 Requests[] 聚合
 	var totalReqs, errorReqs int64
+	var s2xx, s3xx, s4xx, s5xx int64
 	methodCounts := map[string]int64{}
 	for _, r := range ing.Requests {
 		totalReqs += r.Delta
@@ -149,6 +150,17 @@ func (p *Processor) processIngressMetrics(ctx context.Context, clusterID string,
 			errorReqs += r.Delta
 		}
 		methodCounts[strings.ToUpper(r.Method)] += r.Delta
+		// 按状态码前缀分类
+		switch {
+		case code >= 200 && code < 300:
+			s2xx += r.Delta
+		case code >= 300 && code < 400:
+			s3xx += r.Delta
+		case code >= 400 && code < 500:
+			s4xx += r.Delta
+		case code >= 500:
+			s5xx += r.Delta
+		}
 	}
 
 	raw := &database.SLOMetricsRaw{
@@ -165,6 +177,10 @@ func (p *Processor) processIngressMetrics(ctx context.Context, clusterID string,
 		MethodPut:      methodCounts["PUT"],
 		MethodDelete:   methodCounts["DELETE"],
 		MethodOther:    methodCounts["OTHER"] + methodCounts["PATCH"] + methodCounts["HEAD"],
+		Status2xx:      s2xx,
+		Status3xx:      s3xx,
+		Status4xx:      s4xx,
+		Status5xx:      s5xx,
 	}
 
 	// 关联域名（从 route_mapping 查）

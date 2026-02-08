@@ -903,7 +903,7 @@ export const zh: Translations = {
     remaining: "剩余",
     consumed: "已消耗",
     actual: "实际",
-    target: "目标:",
+    target: "目标",
     threshold: "阈值:",
     achieved: "达标",
     notAchieved: "未达标",
@@ -914,6 +914,7 @@ export const zh: Translations = {
     tabCompare: "周期对比",
     tabOverview: "SLO 概览",
     tabMesh: "服务网格",
+    tabLatency: "延迟分布",
     // 服务网格
     serviceTopology: "服务调用拓扑",
     meshOverview: "服务网格概览",
@@ -958,6 +959,11 @@ export const zh: Translations = {
     saving: "保存中...",
     cancel: "取消",
     saveFailed: "保存 SLO 目标失败",
+    // 延迟分布
+    latencyDistribution: "延迟分布",
+    methodBreakdown: "请求方法分布",
+    statusCodeBreakdown: "状态码分布",
+    clearSelection: "清除选择",
     // 说明
     dataSourceTitle: "数据来源说明",
     dataSourceDesc: "服务网格层（Linkerd）：服务调用拓扑、per-service golden metrics 和延迟直方图来源于 OTel Collector 采集的 Linkerd 指标。入口层（Traefik）：域名级 SLO 来源于 Traefik 入口指标。所有数据经 OTel Collector 统一采集，Agent 端完成 per-pod delta 计算与 service 聚合。",

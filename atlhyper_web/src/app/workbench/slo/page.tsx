@@ -119,6 +119,7 @@ export default function SLOPage() {
     tabOverview: sloT.tabOverview,
     tabMesh: sloT.tabMesh,
     tabCompare: sloT.tabCompare,
+    tabLatency: sloT.tabLatency,
     configTarget: sloT.configTarget,
     totalRequests: sloT.totalRequests,
     target: sloT.target,
@@ -159,6 +160,10 @@ export default function SLOPage() {
     save: sloT.save,
     saving: sloT.saving,
     estimatedExhaust: sloT.estimatedExhaust,
+    latencyDistribution: sloT.latencyDistribution,
+    methodBreakdown: sloT.methodBreakdown,
+    statusCodeBreakdown: sloT.statusCodeBreakdown,
+    clearSelection: sloT.clearSelection,
   }), [sloT]);
 
   if (loading) {
@@ -216,7 +221,22 @@ export default function SLOPage() {
           )}
 
           {/* Empty */}
-          {!error && domains.length === 0 && (
+          {/* Summary Cards — 始终显示 */}
+          {!loading && !error && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+              <SummaryCard icon={Server} label={sloT.totalServices} value={summaryData.totalServices.toString()} subValue={sloT.linkerdMesh} color="bg-blue-500/10 text-blue-500" />
+              <SummaryCard icon={Globe} label={sloT.monitoredDomains} value={summaryData.totalDomains.toString()} subValue={`${summaryData.healthyCount} ${sloT.healthy}`} color="bg-violet-500/10 text-violet-500" />
+              <SummaryCard icon={Activity} label={sloT.avgAvailability} value={`${summaryData.avgAvailability.toFixed(2)}%`} color="bg-emerald-500/10 text-emerald-500" />
+              <SummaryCard icon={Gauge} label={sloT.avgP95} value={`${Math.round(summaryData.avgP95)}ms`} color="bg-cyan-500/10 text-cyan-500" />
+              <SummaryCard icon={Zap} label={sloT.totalRPS} value={formatNumber(summaryData.totalRPS)} subValue={sloT.reqPerSec} color="bg-amber-500/10 text-amber-500" />
+              <SummaryCard icon={AlertTriangle} label={sloT.alertCount} value={(summaryData.warningCount + summaryData.criticalCount).toString()}
+                subValue={`${summaryData.criticalCount} ${sloT.severe}`}
+                color={summaryData.criticalCount > 0 ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"} />
+            </div>
+          )}
+
+          {/* Empty — 无域名数据 */}
+          {!error && !loading && domains.length === 0 && (
             <div className="text-center py-12 bg-card rounded-xl border border-[var(--border-color)]">
               <Server className="w-12 h-12 mx-auto mb-3 text-muted opacity-50" />
               <p className="text-default font-medium mb-2">{sloT.noData}</p>
@@ -226,17 +246,6 @@ export default function SLOPage() {
 
           {domains.length > 0 && (
             <>
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-                <SummaryCard icon={Server} label={sloT.totalServices} value={summaryData.totalServices.toString()} subValue={sloT.linkerdMesh} color="bg-blue-500/10 text-blue-500" />
-                <SummaryCard icon={Globe} label={sloT.monitoredDomains} value={summaryData.totalDomains.toString()} subValue={`${summaryData.healthyCount} ${sloT.healthy}`} color="bg-violet-500/10 text-violet-500" />
-                <SummaryCard icon={Activity} label={sloT.avgAvailability} value={`${summaryData.avgAvailability.toFixed(2)}%`} color="bg-emerald-500/10 text-emerald-500" />
-                <SummaryCard icon={Gauge} label={sloT.avgP95} value={`${Math.round(summaryData.avgP95)}ms`} color="bg-cyan-500/10 text-cyan-500" />
-                <SummaryCard icon={Zap} label={sloT.totalRPS} value={formatNumber(summaryData.totalRPS)} subValue={sloT.reqPerSec} color="bg-amber-500/10 text-amber-500" />
-                <SummaryCard icon={AlertTriangle} label={sloT.alertCount} value={(summaryData.warningCount + summaryData.criticalCount).toString()}
-                  subValue={`${summaryData.criticalCount} ${sloT.severe}`}
-                  color={summaryData.criticalCount > 0 ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"} />
-              </div>
 
               {/* Domain SLO List */}
               <div>

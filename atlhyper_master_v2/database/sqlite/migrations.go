@@ -456,6 +456,15 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE ai_conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0`,
 		`ALTER TABLE ai_conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0`,
 		`ALTER TABLE ai_conversations ADD COLUMN total_tool_calls INTEGER DEFAULT 0`,
+		// 入口指标表添加状态码列
+		`ALTER TABLE slo_metrics_raw ADD COLUMN status_2xx INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE slo_metrics_raw ADD COLUMN status_3xx INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE slo_metrics_raw ADD COLUMN status_4xx INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE slo_metrics_raw ADD COLUMN status_5xx INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE slo_metrics_hourly ADD COLUMN status_2xx INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE slo_metrics_hourly ADD COLUMN status_3xx INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE slo_metrics_hourly ADD COLUMN status_4xx INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE slo_metrics_hourly ADD COLUMN status_5xx INTEGER NOT NULL DEFAULT 0`,
 	}
 
 	// 删除旧的 snapshot 表（OTel 迁移后不再需要）

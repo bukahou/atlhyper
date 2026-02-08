@@ -9,15 +9,17 @@ import {
   Activity,
   Network,
   Calendar,
+  BarChart3,
 } from "lucide-react";
 import { StatusBadge, ErrorBudgetBar, TrendIcon, formatNumber } from "./common";
 import { SLOTargetModal } from "./SLOTargetModal";
 import { OverviewTab } from "./OverviewTab";
 import { MeshTab } from "./MeshTab";
 import { CompareTab } from "./CompareTab";
-import { getSLODomainHistory } from "@/api/slo";
+import { LatencyTab } from "./LatencyTab";
+import { getSLODomainHistory, getSLOLatencyDistribution } from "@/api/slo";
 import { getMeshTopology } from "@/api/mesh";
-import type { DomainSLOV2 } from "@/types/slo";
+import type { DomainSLOV2, LatencyDistributionResponse } from "@/types/slo";
 import type { MeshTopologyResponse } from "@/types/mesh";
 
 type TimeRange = "1d" | "7d" | "30d";
@@ -34,6 +36,7 @@ export interface DomainCardTranslations {
   tabOverview: string;
   tabMesh: string;
   tabCompare: string;
+  tabLatency: string;
   configTarget: string;
   // Overview tab
   totalRequests: string;
@@ -78,6 +81,11 @@ export interface DomainCardTranslations {
   save: string;
   saving: string;
   estimatedExhaust: string;
+  // Latency tab
+  latencyDistribution: string;
+  methodBreakdown: string;
+  statusCodeBreakdown: string;
+  clearSelection: string;
 }
 
 export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, onRefresh, t }: {
@@ -89,10 +97,11 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
   onRefresh: () => void;
   t: DomainCardTranslations;
 }) {
-  const [activeTab, setActiveTab] = useState<"overview" | "mesh" | "compare">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "mesh" | "compare" | "latency">("overview");
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [meshTopology, setMeshTopology] = useState<MeshTopologyResponse | null>(null);
   const [history, setHistory] = useState<{ timestamp: string; p95_latency: number; p99_latency: number; error_rate: number; availability: number; rps: number }[]>([]);
+  const [latencyData, setLatencyData] = useState<LatencyDistributionResponse | null>(null);
 
   const availability = domain.summary?.availability ?? 0;
   const p95Latency = domain.summary?.p95_latency ?? 0;
@@ -111,20 +120,43 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
     : errorRate;
 
   const trend = availability > prevAvailability ? "up" : availability < prevAvailability ? "down" : "stable";
-  const targets = { availability: 95, p95_latency: 300 };
+  const domainTargets = domain.targets?.[timeRange] || domain.targets?.["1d"] || { availability: 95, p95_latency: 300 };
+  const targets = { availability: domainTargets.availability, p95_latency: domainTargets.p95_latency };
 
   const statusLabels = { healthy: t.healthy, warning: t.warning, critical: t.critical, unknown: t.unknown };
 
-  // Lazy-load mesh topology when mesh tab is opened
+  // Lazy-load mesh topology when mesh tab is opened, filtered to this domain's namespaces
   const loadMeshData = useCallback(async () => {
     if (meshTopology) return;
     try {
       const res = await getMeshTopology({ clusterId, timeRange });
-      if (res.data) setMeshTopology(res.data);
+      if (res.data) {
+        // Filter to only show services in this domain's namespaces
+        const domainNamespaces = new Set(domain.services.map(s => s.namespace));
+        if (domainNamespaces.size > 0) {
+          const filteredNodes = res.data.nodes.filter(n => domainNamespaces.has(n.namespace));
+          const nodeIds = new Set(filteredNodes.map(n => n.id));
+          const filteredEdges = res.data.edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
+          setMeshTopology({ nodes: filteredNodes, edges: filteredEdges });
+        } else {
+          setMeshTopology(res.data);
+        }
+      }
     } catch (err) {
       console.warn("[SLO] Mesh topology load failed:", err);
     }
-  }, [clusterId, timeRange, meshTopology]);
+  }, [clusterId, timeRange, meshTopology, domain.services]);
+
+  // Lazy-load latency data when latency tab is opened
+  const loadLatencyData = useCallback(async () => {
+    if (latencyData) return;
+    try {
+      const res = await getSLOLatencyDistribution({ clusterId, domain: domain.domain, timeRange });
+      if (res.data) setLatencyData(res.data);
+    } catch {
+      // Latency data may not be available yet
+    }
+  }, [clusterId, domain.domain, timeRange, latencyData]);
 
   // Lazy-load history when overview tab is opened
   const loadHistory = useCallback(async () => {
@@ -132,8 +164,8 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
     try {
       const res = await getSLODomainHistory({ clusterId, host: domain.domain, timeRange });
       if (res.data?.history) setHistory(res.data.history);
-    } catch {
-      // History may not be available yet
+    } catch (err) {
+      console.warn("[SLO] History fetch error:", err);
     }
   }, [clusterId, domain.domain, timeRange, history.length]);
 
@@ -141,7 +173,8 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
     if (!expanded) return;
     if (activeTab === "mesh") loadMeshData();
     if (activeTab === "overview") loadHistory();
-  }, [expanded, activeTab, loadMeshData, loadHistory]);
+    if (activeTab === "latency") loadLatencyData();
+  }, [expanded, activeTab, loadMeshData, loadHistory, loadLatencyData]);
 
   return (
     <div className="border border-[var(--border-color)] rounded-xl overflow-hidden bg-card">
@@ -233,6 +266,7 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
             <div className="flex items-center gap-1 overflow-x-auto">
               {[
                 { id: "overview" as const, label: t.tabOverview, icon: Activity },
+                { id: "latency" as const, label: t.tabLatency, icon: BarChart3 },
                 { id: "mesh" as const, label: t.tabMesh, icon: Network },
                 { id: "compare" as const, label: t.tabCompare, icon: Calendar },
               ].map((tab) => (
@@ -263,6 +297,7 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
                 <OverviewTab
                   summary={domain.summary}
                   errorBudgetRemaining={domain.error_budget_remaining}
+                  targets={targets}
                   history={history.length > 0 ? history : undefined}
                   t={{
                     availability: t.availability,
@@ -277,6 +312,7 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
                     errorBudgetBurn: t.errorBudgetBurn,
                     current: t.current,
                     estimatedExhaust: t.estimatedExhaust,
+                    noData: t.noCallData,
                   }}
                 />
               </div>
@@ -306,6 +342,22 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
                     p99Latency: t.p99Latency,
                     totalRequests: t.totalRequests,
                     avgLatency: t.avgLatency,
+                  }}
+                />
+              </div>
+            )}
+
+            {activeTab === "latency" && (
+              <div className="p-3 sm:p-4">
+                <LatencyTab
+                  data={latencyData}
+                  t={{
+                    latencyDistribution: t.latencyDistribution,
+                    methodBreakdown: t.methodBreakdown,
+                    statusCodeBreakdown: t.statusCodeBreakdown,
+                    requests: t.totalRequests,
+                    clearSelection: t.clearSelection,
+                    noData: t.tabLatency,
                   }}
                 />
               </div>

@@ -17,12 +17,14 @@ type sloDialect struct{}
 func (d *sloDialect) InsertRawMetrics(m *database.SLOMetricsRaw) (string, []any) {
 	query := `INSERT INTO slo_metrics_raw (cluster_id, host, domain, path_prefix, timestamp,
 		total_requests, error_requests, latency_sum, latency_count, latency_buckets,
-		method_get, method_post, method_put, method_delete, method_other, is_missing)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		method_get, method_post, method_put, method_delete, method_other,
+		status_2xx, status_3xx, status_4xx, status_5xx, is_missing)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	args := []any{
 		m.ClusterID, m.Host, m.Domain, m.PathPrefix, m.Timestamp.Format(time.RFC3339),
 		m.TotalRequests, m.ErrorRequests, m.LatencySum, m.LatencyCount, m.LatencyBuckets,
 		m.MethodGet, m.MethodPost, m.MethodPut, m.MethodDelete, m.MethodOther,
+		m.Status2xx, m.Status3xx, m.Status4xx, m.Status5xx,
 		boolToInt(m.IsMissing),
 	}
 	return query, args
@@ -31,7 +33,8 @@ func (d *sloDialect) InsertRawMetrics(m *database.SLOMetricsRaw) (string, []any)
 func (d *sloDialect) SelectRawMetrics(clusterID, host string, start, end time.Time) (string, []any) {
 	return `SELECT id, cluster_id, host, domain, path_prefix, timestamp,
 		total_requests, error_requests, latency_sum, latency_count, latency_buckets,
-		method_get, method_post, method_put, method_delete, method_other, is_missing
+		method_get, method_post, method_put, method_delete, method_other,
+		status_2xx, status_3xx, status_4xx, status_5xx, is_missing
 		FROM slo_metrics_raw
 		WHERE cluster_id = ? AND host = ? AND timestamp >= ? AND timestamp < ?
 		ORDER BY timestamp ASC`,
@@ -50,6 +53,7 @@ func (d *sloDialect) ScanRawMetrics(rows *sql.Rows) (*database.SLOMetricsRaw, er
 	err := rows.Scan(&m.ID, &m.ClusterID, &m.Host, &domain, &pathPrefix, &timestamp,
 		&m.TotalRequests, &m.ErrorRequests, &m.LatencySum, &m.LatencyCount, &latencyBuckets,
 		&m.MethodGet, &m.MethodPost, &m.MethodPut, &m.MethodDelete, &m.MethodOther,
+		&m.Status2xx, &m.Status3xx, &m.Status4xx, &m.Status5xx,
 		&isMissing)
 	if err != nil {
 		return nil, err
@@ -72,8 +76,9 @@ func (d *sloDialect) UpsertHourlyMetrics(m *database.SLOMetricsHourly) (string, 
 		total_requests, error_requests, availability,
 		p50_latency_ms, p95_latency_ms, p99_latency_ms, avg_latency_ms, avg_rps,
 		latency_buckets, method_get, method_post, method_put, method_delete, method_other,
+		status_2xx, status_3xx, status_4xx, status_5xx,
 		sample_count, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(cluster_id, host, hour_start) DO UPDATE SET
 		domain = excluded.domain,
 		path_prefix = excluded.path_prefix,
@@ -91,12 +96,17 @@ func (d *sloDialect) UpsertHourlyMetrics(m *database.SLOMetricsHourly) (string, 
 		method_put = excluded.method_put,
 		method_delete = excluded.method_delete,
 		method_other = excluded.method_other,
+		status_2xx = excluded.status_2xx,
+		status_3xx = excluded.status_3xx,
+		status_4xx = excluded.status_4xx,
+		status_5xx = excluded.status_5xx,
 		sample_count = excluded.sample_count`
 	args := []any{
 		m.ClusterID, m.Host, m.Domain, m.PathPrefix, m.HourStart.Format(time.RFC3339),
 		m.TotalRequests, m.ErrorRequests, m.Availability,
 		m.P50LatencyMs, m.P95LatencyMs, m.P99LatencyMs, m.AvgLatencyMs, m.AvgRPS,
 		m.LatencyBuckets, m.MethodGet, m.MethodPost, m.MethodPut, m.MethodDelete, m.MethodOther,
+		m.Status2xx, m.Status3xx, m.Status4xx, m.Status5xx,
 		m.SampleCount, m.CreatedAt.Format(time.RFC3339),
 	}
 	return query, args
@@ -107,6 +117,7 @@ func (d *sloDialect) SelectHourlyMetrics(clusterID, host string, start, end time
 		total_requests, error_requests, availability,
 		p50_latency_ms, p95_latency_ms, p99_latency_ms, avg_latency_ms, avg_rps,
 		latency_buckets, method_get, method_post, method_put, method_delete, method_other,
+		status_2xx, status_3xx, status_4xx, status_5xx,
 		sample_count, created_at
 		FROM slo_metrics_hourly
 		WHERE cluster_id = ? AND host = ? AND hour_start >= ? AND hour_start < ?
@@ -126,6 +137,7 @@ func (d *sloDialect) ScanHourlyMetrics(rows *sql.Rows) (*database.SLOMetricsHour
 		&m.TotalRequests, &m.ErrorRequests, &m.Availability,
 		&m.P50LatencyMs, &m.P95LatencyMs, &m.P99LatencyMs, &m.AvgLatencyMs, &m.AvgRPS,
 		&latencyBuckets, &m.MethodGet, &m.MethodPost, &m.MethodPut, &m.MethodDelete, &m.MethodOther,
+		&m.Status2xx, &m.Status3xx, &m.Status4xx, &m.Status5xx,
 		&m.SampleCount, &createdAt)
 	if err != nil {
 		return nil, err

@@ -333,6 +333,7 @@ func (a *Aggregator) aggregateIngressRows(clusterID, host string, hourStart time
 	var latencySum float64
 	var latencyCount int64
 	var mGet, mPost, mPut, mDelete, mOther int64
+	var s2xx, s3xx, s4xx, s5xx int64
 
 	var allBuckets []map[float64]int64
 	var domain, pathPrefix string
@@ -347,6 +348,10 @@ func (a *Aggregator) aggregateIngressRows(clusterID, host string, hourStart time
 		mPut += r.MethodPut
 		mDelete += r.MethodDelete
 		mOther += r.MethodOther
+		s2xx += r.Status2xx
+		s3xx += r.Status3xx
+		s4xx += r.Status4xx
+		s5xx += r.Status5xx
 
 		if b := ParseJSONBuckets(r.LatencyBuckets); b != nil {
 			allBuckets = append(allBuckets, b)
@@ -397,6 +402,10 @@ func (a *Aggregator) aggregateIngressRows(clusterID, host string, hourStart time
 		MethodPut:      mPut,
 		MethodDelete:   mDelete,
 		MethodOther:    mOther,
+		Status2xx:      s2xx,
+		Status3xx:      s3xx,
+		Status4xx:      s4xx,
+		Status5xx:      s5xx,
 		SampleCount:    len(rows),
 		CreatedAt:      time.Now(),
 	}

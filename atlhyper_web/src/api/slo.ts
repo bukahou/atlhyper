@@ -8,11 +8,13 @@ import type {
   DomainSLOListResponseV2,
   DomainSLODetail,
   DomainSLOHistoryResponse,
+  LatencyDistributionResponse,
   SLOTarget,
   SLOStatusHistoryResponse,
   SLODomainsParams,
   SLODomainDetailParams,
   SLODomainHistoryParams,
+  SLOLatencyParams,
   SLOTargetCreateParams,
   SLOStatusHistoryParams,
 } from "@/types/slo";
@@ -56,6 +58,17 @@ export const getSLODomainHistory = (params: SLODomainHistoryParams) => {
   return get<DomainSLOHistoryResponse>("/api/v2/slo/domains/history", {
     cluster_id: params.clusterId,
     host: params.host,
+    time_range: params.timeRange,
+  });
+};
+
+/**
+ * 获取域名延迟分布（bucket + 方法分布 + 状态码分布）
+ */
+export const getSLOLatencyDistribution = (params: SLOLatencyParams) => {
+  return get<LatencyDistributionResponse>("/api/v2/slo/domains/latency", {
+    cluster_id: params.clusterId,
+    domain: params.domain,
     time_range: params.timeRange,
   });
 };

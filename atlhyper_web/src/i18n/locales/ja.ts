@@ -941,7 +941,7 @@ export const ja: Translations = {
     remaining: "残り",
     consumed: "消費済み",
     actual: "実際",
-    target: "目標:",
+    target: "目標",
     threshold: "閾値:",
     achieved: "達成",
     notAchieved: "未達成",
@@ -952,6 +952,7 @@ export const ja: Translations = {
     tabCompare: "期間比較",
     tabOverview: "SLO 概要",
     tabMesh: "サービスメッシュ",
+    tabLatency: "レイテンシ分布",
     // サービスメッシュ
     serviceTopology: "サービス呼び出しトポロジー",
     meshOverview: "サービスメッシュ概要",
@@ -996,6 +997,11 @@ export const ja: Translations = {
     saving: "保存中...",
     cancel: "キャンセル",
     saveFailed: "SLO 目標の保存に失敗しました",
+    // レイテンシ分布
+    latencyDistribution: "レイテンシ分布",
+    methodBreakdown: "リクエストメソッド分布",
+    statusCodeBreakdown: "ステータスコード分布",
+    clearSelection: "選択をクリア",
     // 説明
     dataSourceTitle: "データソース説明",
     dataSourceDesc: "サービスメッシュ層（Linkerd）：サービスメッシュトポロジーとゴールデンメトリクスは OTel Collector 経由の Linkerd メトリクスから取得。入口層（Traefik）：ドメインレベル SLO は Traefik メトリクスから取得。すべてのデータは OTel Collector で統一収集され、Agent で per-pod delta 計算とサービス集約を実行。",

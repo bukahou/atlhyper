@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Network, Server, ArrowRight, Layers, Shield } from "lucide-react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { Network, Server, ArrowRight, Layers, Shield, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { getNamespaceColor } from "./common";
 import type { MeshServiceNode, MeshServiceEdge, MeshTopologyResponse } from "@/types/mesh";
 
@@ -27,7 +27,7 @@ interface MeshTabTranslations {
   avgLatency: string;
 }
 
-// Service Topology View (SVG)
+// Service Topology View (SVG) with zoom & pan
 function ServiceTopologyView({ topology, onSelectNode, t }: {
   topology: MeshTopologyResponse;
   onSelectNode?: (node: MeshServiceNode) => void;
@@ -44,8 +44,29 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [initialized, setInitialized] = useState(false);
 
+  // Zoom & pan
+  const [zoom, setZoom] = useState(1);
+  const [viewOrigin, setViewOrigin] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({ x: 0, y: 0 });
+  const panOriginRef = useRef({ x: 0, y: 0 });
+
   const nodeRadius = 32;
   const svgHeight = 500;
+  const MIN_ZOOM = 0.2;
+  const MAX_ZOOM = 4;
+
+  // Group nodes by namespace for swim-lane layout
+  const nsGroups = useMemo(() => {
+    const groups: Record<string, string[]> = {};
+    topology.nodes.forEach(n => {
+      if (!groups[n.namespace]) groups[n.namespace] = [];
+      groups[n.namespace].push(n.id);
+    });
+    return groups;
+  }, [topology]);
+  const sortedNamespaces = useMemo(() => Object.keys(nsGroups).sort(), [nsGroups]);
+  const [nsLaneBounds, setNsLaneBounds] = useState<Record<string, { minX: number; minY: number; maxX: number; maxY: number }>>({});
 
   useEffect(() => {
     const updateWidth = () => { if (containerRef.current) setContainerWidth(containerRef.current.offsetWidth); };
@@ -85,22 +106,70 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
     return layers;
   }, [topology]);
 
+  // Namespace swim-lane layout: each namespace gets a horizontal band,
+  // nodes within each band are placed by topological layer (left→right)
   useEffect(() => {
     if (initialized || containerWidth < 100) return;
-    const paddingX = 100, usableWidth = containerWidth - paddingX * 2;
+    const paddingX = 80, paddingY = 50, lanePadding = 35, laneGap = 20, nodeGapY = 85;
+    const usableWidth = containerWidth - paddingX * 2;
     const layerCount = nodeLayers.length;
-    const layerGap = layerCount > 1 ? usableWidth / (layerCount - 1) : 0;
-    const nodeGap = 95;
+    const layerGapX = layerCount > 1 ? usableWidth / (layerCount - 1) : 0;
+
     const pos: Record<string, { x: number; y: number }> = {};
-    nodeLayers.forEach((layer, layerIndex) => {
-      const layerX = layerCount > 1 ? paddingX + layerIndex * layerGap : containerWidth / 2;
-      const layerHeight = (layer.length - 1) * nodeGap;
-      const startY = (svgHeight - layerHeight) / 2;
-      layer.forEach((nodeId, nodeIndex) => { pos[nodeId] = { x: layerX, y: startY + nodeIndex * nodeGap }; });
+    const bounds: Record<string, { minX: number; minY: number; maxX: number; maxY: number }> = {};
+    let currentY = paddingY;
+
+    sortedNamespaces.forEach(ns => {
+      const nsNodeIds = nsGroups[ns];
+      // Map each node to its topological layer
+      const nodesPerLayer: Record<number, string[]> = {};
+      nsNodeIds.forEach(nodeId => {
+        const layerIdx = nodeLayers.findIndex(layer => layer.includes(nodeId));
+        if (layerIdx >= 0) {
+          if (!nodesPerLayer[layerIdx]) nodesPerLayer[layerIdx] = [];
+          nodesPerLayer[layerIdx].push(nodeId);
+        }
+      });
+      const maxNodesInAnyLayer = Math.max(...Object.values(nodesPerLayer).map(a => a.length), 1);
+      const laneHeight = (maxNodesInAnyLayer - 1) * nodeGapY + lanePadding * 2;
+      const laneCenterY = currentY + laneHeight / 2;
+
+      Object.entries(nodesPerLayer).forEach(([li, nodeIds]) => {
+        const layerIdx = parseInt(li);
+        const x = layerCount > 1 ? paddingX + layerIdx * layerGapX : containerWidth / 2;
+        const startY = laneCenterY - ((nodeIds.length - 1) * nodeGapY) / 2;
+        nodeIds.forEach((nodeId, idx) => { pos[nodeId] = { x, y: startY + idx * nodeGapY }; });
+      });
+
+      bounds[ns] = { minX: paddingX - lanePadding, minY: currentY, maxX: containerWidth - paddingX + lanePadding, maxY: currentY + laneHeight };
+      currentY += laneHeight + laneGap;
     });
+
     setPositions(pos);
+    setNsLaneBounds(bounds);
+
+    // Auto-fit zoom to show all content
+    const posValues = Object.values(pos);
+    if (posValues.length > 0) {
+      const pad = nodeRadius + 40;
+      const minX = Math.min(...posValues.map(p => p.x)) - pad;
+      const maxX = Math.max(...posValues.map(p => p.x)) + pad;
+      const minY = Math.min(...posValues.map(p => p.y)) - pad;
+      const maxY = Math.max(...posValues.map(p => p.y)) + pad;
+      const contentW = maxX - minX;
+      const contentH = maxY - minY;
+      const fitZoom = Math.min(containerWidth / contentW, svgHeight / contentH, MAX_ZOOM);
+      setZoom(fitZoom);
+      setViewOrigin({
+        x: minX - (containerWidth / fitZoom - contentW) / 2,
+        y: minY - (svgHeight / fitZoom - contentH) / 2,
+      });
+    }
     setInitialized(true);
-  }, [containerWidth, nodeLayers, initialized]);
+  }, [containerWidth, nodeLayers, nsGroups, sortedNamespaces, initialized]);
+
+  // viewBox computed from zoom and pan origin
+  const viewBox = `${viewOrigin.x} ${viewOrigin.y} ${containerWidth / zoom} ${svgHeight / zoom}`;
 
   const getEdgePath = (sourceId: string, targetId: string) => {
     const source = positions[sourceId], target = positions[targetId];
@@ -116,7 +185,34 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
     return { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 };
   };
 
-  const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
+  // Wheel zoom (centered on cursor)
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const factor = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(prev => {
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * factor));
+      setViewOrigin(vo => ({
+        x: vo.x + mouseX * (1 / prev - 1 / newZoom),
+        y: vo.y + mouseY * (1 / prev - 1 / newZoom),
+      }));
+      return newZoom;
+    });
+  }, []);
+
+  // Attach wheel as non-passive (needed for preventDefault)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
+
+  // Node drag start
+  const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     const svg = svgRef.current;
@@ -129,7 +225,24 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
     setDraggingNode(nodeId);
   };
 
+  // Pan start (background click)
+  const handleSvgMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setIsPanning(true);
+    panStartRef.current = { x: e.clientX, y: e.clientY };
+    panOriginRef.current = { ...viewOrigin };
+  };
+
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      setViewOrigin({
+        x: panOriginRef.current.x - dx / zoom,
+        y: panOriginRef.current.y - dy / zoom,
+      });
+      return;
+    }
     if (!draggingNode) return;
     const svg = svgRef.current;
     if (!svg) return;
@@ -137,9 +250,46 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
     pt.x = e.clientX; pt.y = e.clientY;
     const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
     setPositions(prev => ({ ...prev, [draggingNode]: {
-      x: Math.max(nodeRadius + 10, Math.min(containerWidth - nodeRadius - 10, svgP.x - dragOffset.x)),
-      y: Math.max(nodeRadius + 30, Math.min(svgHeight - nodeRadius - 40, svgP.y - dragOffset.y)),
+      x: svgP.x - dragOffset.x,
+      y: svgP.y - dragOffset.y,
     }}));
+  };
+
+  const handleMouseUp = () => {
+    setDraggingNode(null);
+    setIsPanning(false);
+  };
+
+  // Zoom controls
+  const zoomBy = (factor: number) => {
+    setZoom(prev => {
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * factor));
+      const cx = containerWidth / 2;
+      const cy = svgHeight / 2;
+      setViewOrigin(vo => ({
+        x: vo.x + cx * (1 / prev - 1 / newZoom),
+        y: vo.y + cy * (1 / prev - 1 / newZoom),
+      }));
+      return newZoom;
+    });
+  };
+
+  const fitToContent = () => {
+    const posValues = Object.values(positions);
+    if (posValues.length === 0) { setZoom(1); setViewOrigin({ x: 0, y: 0 }); return; }
+    const pad = nodeRadius + 40;
+    const minX = Math.min(...posValues.map(p => p.x)) - pad;
+    const maxX = Math.max(...posValues.map(p => p.x)) + pad;
+    const minY = Math.min(...posValues.map(p => p.y)) - pad;
+    const maxY = Math.max(...posValues.map(p => p.y)) + pad;
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    const fitZoom = Math.min(containerWidth / contentW, svgHeight / contentH, MAX_ZOOM);
+    setZoom(fitZoom);
+    setViewOrigin({
+      x: minX - (containerWidth / fitZoom - contentW) / 2,
+      y: minY - (svgHeight / fitZoom - contentH) / 2,
+    });
   };
 
   const namespacesInTopology = useMemo(() => Array.from(new Set(topology.nodes.map(n => n.namespace))), [topology]);
@@ -164,15 +314,51 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
         </div>
       </div>
       <div ref={containerRef} className="relative rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <svg ref={svgRef} width={containerWidth} height={svgHeight} className="select-none"
-          onMouseMove={handleMouseMove} onMouseUp={() => setDraggingNode(null)} onMouseLeave={() => setDraggingNode(null)}>
+        {/* Zoom controls */}
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-white/90 dark:bg-slate-800/90 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 px-1 py-0.5">
+          <button onClick={() => zoomBy(1.3)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="Zoom in">
+            <ZoomIn className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+          </button>
+          <span className="text-[10px] text-muted font-medium w-10 text-center select-none">{Math.round(zoom * 100)}%</span>
+          <button onClick={() => zoomBy(0.77)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="Zoom out">
+            <ZoomOut className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+          </button>
+          <div className="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-0.5" />
+          <button onClick={fitToContent} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="Fit to content">
+            <Maximize2 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+          </button>
+        </div>
+
+        <svg ref={svgRef} width={containerWidth} height={svgHeight} viewBox={viewBox}
+          className={`select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+          onMouseDown={handleSvgMouseDown} onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
           <defs>
             <marker id="arrow-gray" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 L3,4 Z" fill="#94a3b8" /></marker>
             <marker id="arrow-blue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 L3,4 Z" fill="#0891b2" /></marker>
             <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.2" /></filter>
           </defs>
           <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e2e8f0" strokeWidth="0.5" className="dark:stroke-slate-700" /></pattern>
-          <rect width="100%" height="100%" fill="url(#grid)" opacity="0.5" />
+          <rect x={viewOrigin.x} y={viewOrigin.y} width={containerWidth / zoom} height={svgHeight / zoom} fill="url(#grid)" opacity="0.5" />
+
+          {/* Namespace swim lanes */}
+          {sortedNamespaces.map(ns => {
+            const b = nsLaneBounds[ns];
+            if (!b) return null;
+            const colors = getNamespaceColor(ns);
+            return (
+              <g key={`ns-${ns}`}>
+                <rect x={b.minX} y={b.minY} width={b.maxX - b.minX} height={b.maxY - b.minY}
+                  rx="12" fill={colors.fill} fillOpacity={0.08}
+                  stroke={colors.stroke} strokeWidth={1} strokeOpacity={0.25}
+                  strokeDasharray="6 3" />
+                <text x={b.minX + 14} y={b.minY + 18}
+                  fontSize="12" fontWeight="700" fill={colors.stroke} fillOpacity={0.7}>
+                  {ns}
+                </text>
+              </g>
+            );
+          })}
 
           {/* Edges */}
           <g>{topology.edges.map((edge, idx) => {
@@ -206,7 +392,7 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
             const isDragging = draggingNode === node.id;
             return (
               <g key={node.id} transform={`translate(${pos.x}, ${pos.y})`}
-                onMouseDown={(e) => handleMouseDown(e, node.id)}
+                onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                 onMouseEnter={() => !draggingNode && setHoveredNode(node.id)}
                 onMouseLeave={() => !draggingNode && setHoveredNode(null)}
                 onClick={() => { if (!isDragging) { setSelectedNode(isSelected ? null : node.id); onSelectNode?.(node); } }}

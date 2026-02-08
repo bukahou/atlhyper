@@ -154,6 +154,7 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/slo/domains/v2", sloHandler.DomainsV2)  // V2: 按真实域名
 		register("/api/v2/slo/domains/detail", sloHandler.DomainDetail)
 		register("/api/v2/slo/domains/history", sloHandler.DomainHistory)
+		register("/api/v2/slo/domains/latency", sloHandler.LatencyDistribution)
 		register("/api/v2/slo/targets", sloHandler.Targets)
 		register("/api/v2/slo/status-history", sloHandler.StatusHistory)
 

@@ -18,11 +18,13 @@ interface OverviewTabTranslations {
   errorBudgetBurn: string;
   current: string;
   estimatedExhaust: string;
+  noData: string;
 }
 
-// SLO Trend Chart (SVG area chart)
-function HistoryChart({ history, t }: {
+// SLO Trend Chart — always renders axes/grid/target; data fills in when available
+function HistoryChart({ history, targets, t }: {
   history: { timestamp: string; p95_latency: number; error_rate: number }[];
+  targets?: { availability: number; p95_latency: number };
   t: OverviewTabTranslations;
 }) {
   const [activeMetric, setActiveMetric] = useState<"p95" | "error">("p95");
@@ -36,10 +38,33 @@ function HistoryChart({ history, t }: {
   const currentMetric = metrics.find(m => m.id === activeMetric)!;
 
   const values = history.map(p => activeMetric === "p95" ? p.p95_latency : p.error_rate);
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
-  const minVal = rawMin - (rawMax - rawMin) * 0.05;
-  const maxVal = rawMax + (rawMax - rawMin) * 0.05;
+  const hasData = values.length > 0;
+
+  // SLO target value (P95 latency has target line)
+  let targetVal: number | null = null;
+  if (activeMetric === "p95" && targets) targetVal = targets.p95_latency;
+
+  // Y axis range — use defaults when no data
+  let minVal: number, maxVal: number;
+  if (hasData) {
+    let rawMin = Math.min(...values);
+    let rawMax = Math.max(...values);
+    if (targetVal !== null) {
+      rawMin = Math.min(rawMin, targetVal);
+      rawMax = Math.max(rawMax, targetVal);
+    }
+    const pad = (rawMax - rawMin) * 0.05 || 1;
+    minVal = rawMin - pad;
+    maxVal = rawMax + pad;
+  } else if (targetVal !== null) {
+    // No data, but has target — center around target
+    minVal = 0;
+    maxVal = targetVal * 2 || 1;
+  } else {
+    // No data, no target — default range
+    minVal = activeMetric === "p95" ? 0 : 0;
+    maxVal = activeMetric === "p95" ? 500 : 1;
+  }
   const range = maxVal - minVal || 1;
 
   const width = 660, height = 180;
@@ -60,22 +85,37 @@ function HistoryChart({ history, t }: {
     : "";
   const gradientId = `hist-grad-${activeMetric}`;
 
+  const targetY = targetVal !== null ? padTop + (1 - (targetVal - minVal) / range) * chartH : null;
+
   const formatVal = (v: number) => activeMetric === "p95" ? Math.round(v) + "ms" : v.toFixed(3) + "%";
 
+  // X axis labels
+  const xLabels: { x: number; label: string }[] = [];
+  if (history.length > 0) {
+    const step = Math.max(1, Math.floor(history.length / 6));
+    for (let i = 0; i < history.length; i += step) {
+      const d = new Date(history[i].timestamp);
+      xLabels.push({
+        x: padLeft + (i / Math.max(history.length - 1, 1)) * chartW,
+        label: `${d.getMonth() + 1}/${d.getDate()}`,
+      });
+    }
+  }
+
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+    <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-primary" />
           <span className="text-sm font-medium text-default">{t.sloTrend}</span>
         </div>
-        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--hover-bg)]">
           {metrics.map(m => (
             <button
               key={m.id}
               onClick={() => setActiveMetric(m.id)}
               className={`px-2.5 py-1 text-[10px] rounded-md transition-colors ${
-                activeMetric === m.id ? "bg-white dark:bg-slate-700 text-default shadow-sm font-medium" : "text-muted hover:text-default"
+                activeMetric === m.id ? "bg-card text-default shadow-sm font-medium" : "text-muted hover:text-default"
               }`}
             >{m.label}</button>
           ))}
@@ -88,6 +128,7 @@ function HistoryChart({ history, t }: {
           className="w-full h-auto"
           onMouseLeave={() => setHoveredIndex(null)}
           onMouseMove={(e) => {
+            if (!hasData) return;
             const svg = svgRef.current;
             if (!svg) return;
             const rect = svg.getBoundingClientRect();
@@ -103,6 +144,7 @@ function HistoryChart({ history, t }: {
               <stop offset="100%" stopColor={currentMetric.color} stopOpacity="0.02" />
             </linearGradient>
           </defs>
+          {/* Y axis grid + labels */}
           {[0, 0.25, 0.5, 0.75, 1].map((r, i) => {
             const y = padTop + r * chartH;
             const val = maxVal - r * range;
@@ -113,11 +155,28 @@ function HistoryChart({ history, t }: {
               </g>
             );
           })}
+          {/* SLO target line — always visible when targets set */}
+          {targetY !== null && targetY >= padTop && targetY <= padTop + chartH && (
+            <g>
+              <line x1={padLeft} y1={targetY} x2={padLeft + chartW} y2={targetY} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6 3" />
+              <text x={padLeft + 4} y={targetY - 4} className="text-[9px] fill-amber-500 font-medium">SLO {t.target}: {targetVal}{currentMetric.unit}</text>
+            </g>
+          )}
+          {/* Data: area + line + points */}
           {points.length > 1 && <path d={areaPath} fill={`url(#${gradientId})`} />}
           {points.length > 1 && <path d={linePath} fill="none" stroke={currentMetric.color} strokeWidth="2" strokeLinejoin="round" />}
           {points.map((p, i) => (
             <circle key={i} cx={p.x} cy={p.y} r={hoveredIndex === i ? 4 : 0} fill={currentMetric.color} stroke="white" strokeWidth="2" />
           ))}
+          {/* No data hint */}
+          {!hasData && (
+            <text x={padLeft + chartW / 2} y={padTop + chartH / 2} textAnchor="middle" className="text-[11px] fill-slate-400">{t.noData}</text>
+          )}
+          {/* X axis labels */}
+          {xLabels.map((l, i) => (
+            <text key={i} x={l.x} y={height - 4} textAnchor="middle" className="text-[9px] fill-slate-400">{l.label}</text>
+          ))}
+          {/* Hover tooltip */}
           {hoveredIndex !== null && points[hoveredIndex] && (
             <g>
               <line x1={points[hoveredIndex].x} y1={padTop} x2={points[hoveredIndex].x} y2={padTop + chartH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3 3" />
@@ -136,14 +195,16 @@ function HistoryChart({ history, t }: {
   );
 }
 
-// Error Budget Burn Chart
-function ErrorBudgetBurnChart({ history, t }: {
+// Error Budget Burn Chart — always renders framework
+function ErrorBudgetBurnChart({ history, errorBudgetRemaining, t }: {
   history: { timestamp: string; error_budget: number }[];
+  errorBudgetRemaining: number;
   t: OverviewTabTranslations;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const values = history.map(p => p.error_budget);
+  const hasData = values.length > 0;
   const width = 600, height = 160;
   const padX = 0, padTop = 10, padBottom = 25;
   const chartH = height - padTop - padBottom;
@@ -157,12 +218,43 @@ function ErrorBudgetBurnChart({ history, t }: {
   }));
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
-  const currentBudget = values[values.length - 1] ?? 0;
+  // Use actual errorBudgetRemaining from props for header display (always available)
+  const currentBudget = hasData ? (values[values.length - 1] ?? errorBudgetRemaining) : errorBudgetRemaining;
   const budgetColor = currentBudget > 50 ? "#10b981" : currentBudget > 20 ? "#f59e0b" : "#ef4444";
 
+  // Predict exhaust date via linear regression
+  const n = values.length;
+  let exhaustDate = "";
+  if (n > 2) {
+    const first = values[0];
+    const last = values[n - 1];
+    const rate = (first - last) / n;
+    if (rate > 0) {
+      const pointsToZero = last / rate;
+      const hoursPerPoint = 4;
+      const hoursLeft = pointsToZero * hoursPerPoint;
+      const d = new Date(history[n - 1].timestamp);
+      d.setHours(d.getHours() + hoursLeft);
+      exhaustDate = `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+  }
+
+  // X axis labels
+  const xLabels: { x: number; label: string }[] = [];
+  if (history.length > 0) {
+    const step = Math.max(1, Math.floor(history.length / 6));
+    for (let i = 0; i < history.length; i += step) {
+      const d = new Date(history[i].timestamp);
+      xLabels.push({
+        x: padX + (i / Math.max(history.length - 1, 1)) * chartW,
+        label: `${d.getMonth() + 1}/${d.getDate()}`,
+      });
+    }
+  }
+
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+    <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-primary" />
           <span className="text-sm font-medium text-default">{t.errorBudgetBurn}</span>
@@ -170,6 +262,12 @@ function ErrorBudgetBurnChart({ history, t }: {
         <div className="flex items-center gap-3 text-[11px]">
           <span className="text-muted">{t.current}</span>
           <span className="font-semibold" style={{ color: budgetColor }}>{currentBudget.toFixed(1)}%</span>
+          {exhaustDate && (
+            <>
+              <span className="text-muted">{t.estimatedExhaust}</span>
+              <span className="font-semibold text-red-500">~{exhaustDate}</span>
+            </>
+          )}
         </div>
       </div>
       <div className="p-4">
@@ -179,6 +277,7 @@ function ErrorBudgetBurnChart({ history, t }: {
           className="w-full h-auto"
           onMouseLeave={() => setHoveredIndex(null)}
           onMouseMove={(e) => {
+            if (!hasData) return;
             const svg = svgRef.current;
             if (!svg) return;
             const rect = svg.getBoundingClientRect();
@@ -195,7 +294,9 @@ function ErrorBudgetBurnChart({ history, t }: {
               <stop offset="100%" stopColor="#ef4444" stopOpacity="0.15" />
             </linearGradient>
           </defs>
+          {/* Background gradient */}
           <rect x={padX} y={padTop} width={chartW} height={chartH} fill="url(#budget-grad)" rx="4" />
+          {/* Y axis grid */}
           {[0, 25, 50, 75, 100].map((v, i) => {
             const y = padTop + (1 - v / 100) * chartH;
             return (
@@ -205,16 +306,43 @@ function ErrorBudgetBurnChart({ history, t }: {
               </g>
             );
           })}
+          {/* Data line */}
           {points.length > 1 && <path d={linePath} fill="none" stroke={budgetColor} strokeWidth="2.5" strokeLinejoin="round" />}
+          {/* Prediction dashed line */}
+          {exhaustDate && points.length > 1 && (
+            <line
+              x1={points[points.length - 1].x}
+              y1={points[points.length - 1].y}
+              x2={padX + chartW}
+              y2={padTop + chartH}
+              stroke="#ef4444"
+              strokeWidth="1.5"
+              strokeDasharray="6 4"
+              opacity="0.6"
+            />
+          )}
+          {/* Data points */}
           {points.map((p, i) => (
             <circle key={i} cx={p.x} cy={p.y} r={hoveredIndex === i ? 4 : 0} fill={budgetColor} stroke="white" strokeWidth="2" />
           ))}
+          {/* No data hint */}
+          {!hasData && (
+            <text x={padX + chartW / 2} y={padTop + chartH / 2} textAnchor="middle" className="text-[11px] fill-slate-400">{t.noData}</text>
+          )}
+          {/* X axis labels */}
+          {xLabels.map((l, i) => (
+            <text key={i} x={l.x} y={height - 4} textAnchor="middle" className="text-[9px] fill-slate-400">{l.label}</text>
+          ))}
+          {/* Hover tooltip */}
           {hoveredIndex !== null && points[hoveredIndex] && (
             <g>
               <line x1={points[hoveredIndex].x} y1={padTop} x2={points[hoveredIndex].x} y2={padTop + chartH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3 3" />
               <rect x={Math.min(points[hoveredIndex].x - 40, width - 85)} y={Math.max(points[hoveredIndex].y - 38, padTop)} width="80" height="30" rx="4" fill="#1e293b" opacity="0.95" />
               <text x={Math.min(points[hoveredIndex].x - 40, width - 85) + 40} y={Math.max(points[hoveredIndex].y - 38, padTop) + 13} textAnchor="middle" className="text-[9px] fill-white font-medium">
                 {points[hoveredIndex].value.toFixed(1)}%
+              </text>
+              <text x={Math.min(points[hoveredIndex].x - 40, width - 85) + 40} y={Math.max(points[hoveredIndex].y - 38, padTop) + 24} textAnchor="middle" className="text-[8px] fill-slate-400">
+                {new Date(points[hoveredIndex].timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
               </text>
             </g>
           )}
@@ -225,9 +353,10 @@ function ErrorBudgetBurnChart({ history, t }: {
 }
 
 // Main Overview Tab
-export function OverviewTab({ summary, errorBudgetRemaining, history, t }: {
+export function OverviewTab({ summary, errorBudgetRemaining, targets, history, t }: {
   summary: SLOMetrics | null;
   errorBudgetRemaining: number;
+  targets?: { availability: number; p95_latency: number };
   history?: { timestamp: string; p95_latency: number; p99_latency: number; error_rate: number; availability: number; rps: number }[];
   t: OverviewTabTranslations;
 }) {
@@ -238,7 +367,6 @@ export function OverviewTab({ summary, errorBudgetRemaining, history, t }: {
   const rps = summary?.requests_per_sec ?? 0;
   const totalRequests = summary?.total_requests ?? 0;
 
-  // Simulate error budget history from domain history if available
   const budgetHistory = useMemo(() => {
     if (!history || history.length === 0) return [];
     return history.map(h => ({
@@ -254,19 +382,22 @@ export function OverviewTab({ summary, errorBudgetRemaining, history, t }: {
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.availability}</div>
           <div className="text-lg font-bold text-default">{availability.toFixed(3)}%</div>
+          {targets && <div className="text-xs text-muted mt-1">{t.target}: {targets.availability}%</div>}
         </div>
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.p95Latency} / {t.p99Latency}</div>
           <div className="text-lg font-bold text-default">{p95Latency}ms / {p99Latency}ms</div>
+          {targets && <div className="text-xs text-muted mt-1">{t.target} P95: {targets.p95_latency}ms</div>}
         </div>
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.errorRate}</div>
           <div className="text-lg font-bold text-default">{errorRate.toFixed(3)}%</div>
+          {targets && <div className="text-xs text-muted mt-1">{t.target}: {(100 - targets.availability).toFixed(1)}%</div>}
         </div>
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.totalRequests}</div>
           <div className="text-lg font-bold text-default">{formatNumber(totalRequests)}</div>
-          <div className="text-xs text-muted mt-1">{rps.toFixed(2)} {t.throughput}</div>
+          <div className="text-xs text-muted mt-1">{formatNumber(rps)} req/s</div>
         </div>
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.errorBudget}</div>
@@ -278,15 +409,11 @@ export function OverviewTab({ summary, errorBudgetRemaining, history, t }: {
         </div>
       </div>
 
-      {/* Charts */}
-      {history && history.length > 2 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <HistoryChart history={history} t={t} />
-          {budgetHistory.length > 2 && (
-            <ErrorBudgetBurnChart history={budgetHistory} t={t} />
-          )}
-        </div>
-      )}
+      {/* Charts — always visible */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <HistoryChart history={history || []} targets={targets} t={t} />
+        <ErrorBudgetBurnChart history={budgetHistory} errorBudgetRemaining={errorBudgetRemaining} t={t} />
+      </div>
     </div>
   );
 }

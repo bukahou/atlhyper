@@ -386,6 +386,10 @@ type SLOMetricsRaw struct {
 	MethodPut      int64
 	MethodDelete   int64
 	MethodOther    int64
+	Status2xx      int64
+	Status3xx      int64
+	Status4xx      int64
+	Status5xx      int64
 	IsMissing      bool
 }
 
@@ -411,6 +415,10 @@ type SLOMetricsHourly struct {
 	MethodPut      int64
 	MethodDelete   int64
 	MethodOther    int64
+	Status2xx      int64
+	Status3xx      int64
+	Status4xx      int64
+	Status5xx      int64
 	SampleCount    int
 	CreatedAt      time.Time
 }

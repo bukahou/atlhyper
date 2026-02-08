@@ -969,6 +969,7 @@ export interface SLOTranslations {
   tabCompare: string;
   tabOverview: string;
   tabMesh: string;
+  tabLatency: string;
   // 服务网格
   serviceTopology: string;
   meshOverview: string;
@@ -1013,6 +1014,11 @@ export interface SLOTranslations {
   saving: string;
   cancel: string;
   saveFailed: string;
+  // 延迟分布
+  latencyDistribution: string;
+  methodBreakdown: string;
+  statusCodeBreakdown: string;
+  clearSelection: string;
   // 说明
   dataSourceTitle: string;
   dataSourceDesc: string;

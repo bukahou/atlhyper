@@ -378,6 +378,22 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 		}
 	}
 
+	// 域名级别目标：使用 domain 自身的目标配置，回退到默认值
+	if domainTargets, ok := targetMap[domain]; ok {
+		resp.Targets = make(map[string]*model.SLOTargetSpec)
+		for tr, t := range domainTargets {
+			resp.Targets[tr] = &model.SLOTargetSpec{
+				Availability: t.AvailabilityTarget,
+				P95Latency:   t.P95LatencyTarget,
+			}
+		}
+	}
+	if len(resp.Targets) == 0 {
+		resp.Targets = map[string]*model.SLOTargetSpec{
+			"1d": {Availability: 95.0, P95Latency: 300},
+		}
+	}
+
 	// 计算域名级别汇总
 	if serviceCount > 0 {
 		resp.Summary = &model.SLOMetrics{
@@ -389,9 +405,16 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 			TotalRequests:  totalRequests,
 		}
 
-		// 使用默认目标计算错误预算
-		defaultTarget := 95.0 // 默认 95% 可用性
-		resp.ErrorBudgetRemaining = slo.CalculateErrorBudgetRemaining(resp.Summary.Availability, defaultTarget)
+		// 使用当前时间范围的目标计算错误预算
+		target := resp.Targets[timeRange]
+		if target == nil {
+			target = resp.Targets["1d"]
+		}
+		availTarget := 95.0
+		if target != nil {
+			availTarget = target.Availability
+		}
+		resp.ErrorBudgetRemaining = slo.CalculateErrorBudgetRemaining(resp.Summary.Availability, availTarget)
 	}
 
 	return resp

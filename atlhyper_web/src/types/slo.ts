@@ -128,6 +128,7 @@ export interface DomainSLOV2 {
   tls: boolean;                    // 是否启用 TLS
   services: ServiceSLO[];          // 该域名下的所有后端服务
   summary: SLOMetrics | null;      // 域名级别汇总指标
+  targets?: Record<string, SLOTargetSpec>;  // 目标配置 ("1d"/"7d"/"30d")
   status: SLOStatus;               // 域名状态
   error_budget_remaining: number;  // 域名剩余错误预算
 }
@@ -136,6 +137,46 @@ export interface DomainSLOV2 {
 export interface DomainSLOListResponseV2 {
   domains: DomainSLOV2[];
   summary: SLOSummary;
+}
+
+// ==================== 延迟分布 API 类型 ====================
+
+// 延迟分布桶
+export interface LatencyBucket {
+  le: number;       // 上界 (ms)
+  count: number;    // 该桶内的请求数
+}
+
+// HTTP 方法分布
+export interface MethodBreakdown {
+  method: string;   // GET, POST, PUT, DELETE, OTHER
+  count: number;
+}
+
+// 状态码分布
+export interface StatusCodeBreakdown {
+  code: string;     // "2xx", "3xx", "4xx", "5xx"
+  count: number;
+}
+
+// 延迟分布响应
+export interface LatencyDistributionResponse {
+  domain: string;
+  total_requests: number;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+  p99_latency_ms: number;
+  avg_latency_ms: number;
+  buckets: LatencyBucket[];
+  methods: MethodBreakdown[];
+  status_codes: StatusCodeBreakdown[];
+}
+
+// 延迟分布请求参数
+export interface SLOLatencyParams {
+  clusterId: string;
+  domain: string;
+  timeRange?: string;
 }
 
 // API 请求参数

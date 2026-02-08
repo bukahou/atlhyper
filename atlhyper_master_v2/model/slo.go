@@ -58,12 +58,13 @@ type SLODomainsResponse struct {
 // DomainSLOResponseV2 域名级别的 SLO 响应 (V2)
 // 以真实域名为单位，包含该域名下的所有后端服务
 type DomainSLOResponseV2 struct {
-	Domain               string        `json:"domain"`                 // 真实域名（如 example.com）
-	TLS                  bool          `json:"tls"`                    // 是否启用 TLS
-	Services             []ServiceSLO  `json:"services"`               // 该域名下的所有后端服务
-	Summary              *SLOMetrics   `json:"summary"`                // 域名级别汇总指标
-	Status               string        `json:"status"`                 // healthy / warning / critical
-	ErrorBudgetRemaining float64       `json:"error_budget_remaining"` // 剩余错误预算
+	Domain               string                    `json:"domain"`                 // 真实域名（如 example.com）
+	TLS                  bool                      `json:"tls"`                    // 是否启用 TLS
+	Services             []ServiceSLO              `json:"services"`               // 该域名下的所有后端服务
+	Summary              *SLOMetrics               `json:"summary"`                // 域名级别汇总指标
+	Targets              map[string]*SLOTargetSpec  `json:"targets,omitempty"`      // 目标配置 ("1d"/"7d"/"30d")
+	Status               string                    `json:"status"`                 // healthy / warning / critical
+	ErrorBudgetRemaining float64                   `json:"error_budget_remaining"` // 剩余错误预算
 }
 
 // ServiceSLO 后端服务级别的 SLO 数据（Metrics 的实际数据来源）
@@ -113,6 +114,39 @@ type SLOStatusHistoryItem struct {
 	P95Latency           int     `json:"p95_latency"`
 	ErrorBudgetRemaining float64 `json:"error_budget_remaining"`
 	ChangedAt            string  `json:"changed_at"`
+}
+
+// ==================== 延迟分布 API 类型 ====================
+
+// LatencyBucket 延迟分布桶
+type LatencyBucket struct {
+	LE    float64 `json:"le"`    // 上界 (ms)
+	Count int64   `json:"count"` // 该桶内的请求数
+}
+
+// MethodBreakdown HTTP 方法分布
+type MethodBreakdown struct {
+	Method string `json:"method"` // GET, POST, PUT, DELETE, OTHER
+	Count  int64  `json:"count"`
+}
+
+// StatusCodeBreakdown 状态码分布
+type StatusCodeBreakdown struct {
+	Code  string `json:"code"`  // "2xx", "3xx", "4xx", "5xx"
+	Count int64  `json:"count"`
+}
+
+// LatencyDistributionResponse 延迟分布响应
+type LatencyDistributionResponse struct {
+	Domain        string                `json:"domain"`
+	TotalRequests int64                 `json:"total_requests"`
+	P50LatencyMs  int                   `json:"p50_latency_ms"`
+	P95LatencyMs  int                   `json:"p95_latency_ms"`
+	P99LatencyMs  int                   `json:"p99_latency_ms"`
+	AvgLatencyMs  int                   `json:"avg_latency_ms"`
+	Buckets       []LatencyBucket       `json:"buckets"`
+	Methods       []MethodBreakdown     `json:"methods"`
+	StatusCodes   []StatusCodeBreakdown `json:"status_codes"`
 }
 
 // ==================== API 请求类型 ====================
