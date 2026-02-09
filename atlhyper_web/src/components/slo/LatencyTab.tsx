@@ -107,7 +107,7 @@ function visibleTicks(lo: number, hi: number): number[] {
   return STANDARD_TICKS.filter(t => t >= lo && t <= hi);
 }
 
-function tickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}`; }
+function tickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}ms`; }
 
 function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
   buckets: { le: number; count: number }[];

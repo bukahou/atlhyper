@@ -121,76 +121,78 @@ function HistoryChart({ history, targets, t }: {
           ))}
         </div>
       </div>
-      <div className="p-4">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto"
-          onMouseLeave={() => setHoveredIndex(null)}
-          onMouseMove={(e) => {
-            if (!hasData) return;
-            const svg = svgRef.current;
-            if (!svg) return;
-            const rect = svg.getBoundingClientRect();
-            const mouseX = ((e.clientX - rect.left) / rect.width) * width;
-            let closest = 0, minDist = Infinity;
-            points.forEach((p, i) => { const d = Math.abs(p.x - mouseX); if (d < minDist) { minDist = d; closest = i; } });
-            setHoveredIndex(closest);
-          }}
-        >
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={currentMetric.color} stopOpacity="0.3" />
-              <stop offset="100%" stopColor={currentMetric.color} stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
-          {/* Y axis grid + labels */}
-          {[0, 0.25, 0.5, 0.75, 1].map((r, i) => {
-            const y = padTop + r * chartH;
-            const val = maxVal - r * range;
-            return (
-              <g key={i}>
-                <line x1={padLeft} y1={y} x2={padLeft + chartW} y2={y} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray={i === 0 || i === 4 ? "0" : "3 3"} className="dark:stroke-slate-700" />
-                <text x={padLeft - 6} y={y + 3} textAnchor="end" className="text-[9px] fill-slate-400">{formatVal(val)}</text>
+      {hasData ? (
+        <div className="p-4">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${width} ${height}`}
+            className="w-full h-auto"
+            onMouseLeave={() => setHoveredIndex(null)}
+            onMouseMove={(e) => {
+              const svg = svgRef.current;
+              if (!svg) return;
+              const rect = svg.getBoundingClientRect();
+              const mouseX = ((e.clientX - rect.left) / rect.width) * width;
+              let closest = 0, minDist = Infinity;
+              points.forEach((p, i) => { const d = Math.abs(p.x - mouseX); if (d < minDist) { minDist = d; closest = i; } });
+              setHoveredIndex(closest);
+            }}
+          >
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={currentMetric.color} stopOpacity="0.3" />
+                <stop offset="100%" stopColor={currentMetric.color} stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            {/* Y axis grid + labels */}
+            {[0, 0.25, 0.5, 0.75, 1].map((r, i) => {
+              const y = padTop + r * chartH;
+              const val = maxVal - r * range;
+              return (
+                <g key={i}>
+                  <line x1={padLeft} y1={y} x2={padLeft + chartW} y2={y} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray={i === 0 || i === 4 ? "0" : "3 3"} className="dark:stroke-slate-700" />
+                  <text x={padLeft - 6} y={y + 3} textAnchor="end" className="text-[9px] fill-slate-400">{formatVal(val)}</text>
+                </g>
+              );
+            })}
+            {/* SLO target line */}
+            {targetY !== null && targetY >= padTop && targetY <= padTop + chartH && (
+              <g>
+                <line x1={padLeft} y1={targetY} x2={padLeft + chartW} y2={targetY} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6 3" />
+                <text x={padLeft + 4} y={targetY - 4} className="text-[9px] fill-amber-500 font-medium">SLO {t.target}: {targetVal}{currentMetric.unit}</text>
               </g>
-            );
-          })}
-          {/* SLO target line — always visible when targets set */}
-          {targetY !== null && targetY >= padTop && targetY <= padTop + chartH && (
-            <g>
-              <line x1={padLeft} y1={targetY} x2={padLeft + chartW} y2={targetY} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6 3" />
-              <text x={padLeft + 4} y={targetY - 4} className="text-[9px] fill-amber-500 font-medium">SLO {t.target}: {targetVal}{currentMetric.unit}</text>
-            </g>
-          )}
-          {/* Data: area + line + points */}
-          {points.length > 1 && <path d={areaPath} fill={`url(#${gradientId})`} />}
-          {points.length > 1 && <path d={linePath} fill="none" stroke={currentMetric.color} strokeWidth="2" strokeLinejoin="round" />}
-          {points.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={hoveredIndex === i ? 4 : 0} fill={currentMetric.color} stroke="white" strokeWidth="2" />
-          ))}
-          {/* No data hint */}
-          {!hasData && (
-            <text x={padLeft + chartW / 2} y={padTop + chartH / 2} textAnchor="middle" className="text-[11px] fill-slate-400">{t.noData}</text>
-          )}
-          {/* X axis labels */}
-          {xLabels.map((l, i) => (
-            <text key={i} x={l.x} y={height - 4} textAnchor="middle" className="text-[9px] fill-slate-400">{l.label}</text>
-          ))}
-          {/* Hover tooltip */}
-          {hoveredIndex !== null && points[hoveredIndex] && (
-            <g>
-              <line x1={points[hoveredIndex].x} y1={padTop} x2={points[hoveredIndex].x} y2={padTop + chartH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3 3" />
-              <rect x={Math.min(points[hoveredIndex].x - 50, width - 105)} y={Math.max(points[hoveredIndex].y - 38, padTop)} width="100" height="30" rx="4" fill="#1e293b" opacity="0.95" />
-              <text x={Math.min(points[hoveredIndex].x - 50, width - 105) + 50} y={Math.max(points[hoveredIndex].y - 38, padTop) + 13} textAnchor="middle" className="text-[9px] fill-white font-medium">
-                {formatVal(points[hoveredIndex].value)}
-              </text>
-              <text x={Math.min(points[hoveredIndex].x - 50, width - 105) + 50} y={Math.max(points[hoveredIndex].y - 38, padTop) + 24} textAnchor="middle" className="text-[8px] fill-slate-400">
-                {new Date(points[hoveredIndex].timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-              </text>
-            </g>
-          )}
-        </svg>
-      </div>
+            )}
+            {/* Data: area + line + points */}
+            {points.length > 1 && <path d={areaPath} fill={`url(#${gradientId})`} />}
+            {points.length > 1 && <path d={linePath} fill="none" stroke={currentMetric.color} strokeWidth="2" strokeLinejoin="round" />}
+            {points.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={hoveredIndex === i ? 4 : 0} fill={currentMetric.color} stroke="white" strokeWidth="2" />
+            ))}
+            {/* X axis labels */}
+            {xLabels.map((l, i) => (
+              <text key={i} x={l.x} y={height - 4} textAnchor="middle" className="text-[9px] fill-slate-400">{l.label}</text>
+            ))}
+            {/* Hover tooltip */}
+            {hoveredIndex !== null && points[hoveredIndex] && (
+              <g>
+                <line x1={points[hoveredIndex].x} y1={padTop} x2={points[hoveredIndex].x} y2={padTop + chartH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3 3" />
+                <rect x={Math.min(points[hoveredIndex].x - 50, width - 105)} y={Math.max(points[hoveredIndex].y - 38, padTop)} width="100" height="30" rx="4" fill="#1e293b" opacity="0.95" />
+                <text x={Math.min(points[hoveredIndex].x - 50, width - 105) + 50} y={Math.max(points[hoveredIndex].y - 38, padTop) + 13} textAnchor="middle" className="text-[9px] fill-white font-medium">
+                  {formatVal(points[hoveredIndex].value)}
+                </text>
+                <text x={Math.min(points[hoveredIndex].x - 50, width - 105) + 50} y={Math.max(points[hoveredIndex].y - 38, padTop) + 24} textAnchor="middle" className="text-[8px] fill-slate-400">
+                  {new Date(points[hoveredIndex].timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </text>
+              </g>
+            )}
+          </svg>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center py-10 text-sm text-muted">
+          <TrendingUp className="w-5 h-5 mr-2 opacity-40" />
+          {t.noData}
+        </div>
+      )}
     </div>
   );
 }
@@ -270,84 +272,86 @@ function ErrorBudgetBurnChart({ history, errorBudgetRemaining, t }: {
           )}
         </div>
       </div>
-      <div className="p-4">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto"
-          onMouseLeave={() => setHoveredIndex(null)}
-          onMouseMove={(e) => {
-            if (!hasData) return;
-            const svg = svgRef.current;
-            if (!svg) return;
-            const rect = svg.getBoundingClientRect();
-            const mouseX = ((e.clientX - rect.left) / rect.width) * width;
-            let closest = 0, minDist = Infinity;
-            points.forEach((p, i) => { const d = Math.abs(p.x - mouseX); if (d < minDist) { minDist = d; closest = i; } });
-            setHoveredIndex(closest);
-          }}
-        >
-          <defs>
-            <linearGradient id="budget-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.15" />
-              <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="#ef4444" stopOpacity="0.15" />
-            </linearGradient>
-          </defs>
-          {/* Background gradient */}
-          <rect x={padX} y={padTop} width={chartW} height={chartH} fill="url(#budget-grad)" rx="4" />
-          {/* Y axis grid */}
-          {[0, 25, 50, 75, 100].map((v, i) => {
-            const y = padTop + (1 - v / 100) * chartH;
-            return (
-              <g key={i}>
-                <line x1={padX} y1={y} x2={padX + chartW} y2={y} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="3 3" className="dark:stroke-slate-700" />
-                <text x={padX + chartW + 4} y={y + 3} className="text-[9px] fill-slate-400">{v}%</text>
+      {hasData ? (
+        <div className="p-4">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${width} ${height}`}
+            className="w-full h-auto"
+            onMouseLeave={() => setHoveredIndex(null)}
+            onMouseMove={(e) => {
+              const svg = svgRef.current;
+              if (!svg) return;
+              const rect = svg.getBoundingClientRect();
+              const mouseX = ((e.clientX - rect.left) / rect.width) * width;
+              let closest = 0, minDist = Infinity;
+              points.forEach((p, i) => { const d = Math.abs(p.x - mouseX); if (d < minDist) { minDist = d; closest = i; } });
+              setHoveredIndex(closest);
+            }}
+          >
+            <defs>
+              <linearGradient id="budget-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity="0.15" />
+                <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.15" />
+                <stop offset="100%" stopColor="#ef4444" stopOpacity="0.15" />
+              </linearGradient>
+            </defs>
+            {/* Background gradient */}
+            <rect x={padX} y={padTop} width={chartW} height={chartH} fill="url(#budget-grad)" rx="4" />
+            {/* Y axis grid */}
+            {[0, 25, 50, 75, 100].map((v, i) => {
+              const y = padTop + (1 - v / 100) * chartH;
+              return (
+                <g key={i}>
+                  <line x1={padX} y1={y} x2={padX + chartW} y2={y} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="3 3" className="dark:stroke-slate-700" />
+                  <text x={padX + chartW + 4} y={y + 3} className="text-[9px] fill-slate-400">{v}%</text>
+                </g>
+              );
+            })}
+            {/* Data line */}
+            {points.length > 1 && <path d={linePath} fill="none" stroke={budgetColor} strokeWidth="2.5" strokeLinejoin="round" />}
+            {/* Prediction dashed line */}
+            {exhaustDate && points.length > 1 && (
+              <line
+                x1={points[points.length - 1].x}
+                y1={points[points.length - 1].y}
+                x2={padX + chartW}
+                y2={padTop + chartH}
+                stroke="#ef4444"
+                strokeWidth="1.5"
+                strokeDasharray="6 4"
+                opacity="0.6"
+              />
+            )}
+            {/* Data points */}
+            {points.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={hoveredIndex === i ? 4 : 0} fill={budgetColor} stroke="white" strokeWidth="2" />
+            ))}
+            {/* X axis labels */}
+            {xLabels.map((l, i) => (
+              <text key={i} x={l.x} y={height - 4} textAnchor="middle" className="text-[9px] fill-slate-400">{l.label}</text>
+            ))}
+            {/* Hover tooltip */}
+            {hoveredIndex !== null && points[hoveredIndex] && (
+              <g>
+                <line x1={points[hoveredIndex].x} y1={padTop} x2={points[hoveredIndex].x} y2={padTop + chartH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3 3" />
+                <rect x={Math.min(points[hoveredIndex].x - 40, width - 85)} y={Math.max(points[hoveredIndex].y - 38, padTop)} width="80" height="30" rx="4" fill="#1e293b" opacity="0.95" />
+                <text x={Math.min(points[hoveredIndex].x - 40, width - 85) + 40} y={Math.max(points[hoveredIndex].y - 38, padTop) + 13} textAnchor="middle" className="text-[9px] fill-white font-medium">
+                  {points[hoveredIndex].value.toFixed(1)}%
+                </text>
+                <text x={Math.min(points[hoveredIndex].x - 40, width - 85) + 40} y={Math.max(points[hoveredIndex].y - 38, padTop) + 24} textAnchor="middle" className="text-[8px] fill-slate-400">
+                  {new Date(points[hoveredIndex].timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </text>
               </g>
-            );
-          })}
-          {/* Data line */}
-          {points.length > 1 && <path d={linePath} fill="none" stroke={budgetColor} strokeWidth="2.5" strokeLinejoin="round" />}
-          {/* Prediction dashed line */}
-          {exhaustDate && points.length > 1 && (
-            <line
-              x1={points[points.length - 1].x}
-              y1={points[points.length - 1].y}
-              x2={padX + chartW}
-              y2={padTop + chartH}
-              stroke="#ef4444"
-              strokeWidth="1.5"
-              strokeDasharray="6 4"
-              opacity="0.6"
-            />
-          )}
-          {/* Data points */}
-          {points.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={hoveredIndex === i ? 4 : 0} fill={budgetColor} stroke="white" strokeWidth="2" />
-          ))}
-          {/* No data hint */}
-          {!hasData && (
-            <text x={padX + chartW / 2} y={padTop + chartH / 2} textAnchor="middle" className="text-[11px] fill-slate-400">{t.noData}</text>
-          )}
-          {/* X axis labels */}
-          {xLabels.map((l, i) => (
-            <text key={i} x={l.x} y={height - 4} textAnchor="middle" className="text-[9px] fill-slate-400">{l.label}</text>
-          ))}
-          {/* Hover tooltip */}
-          {hoveredIndex !== null && points[hoveredIndex] && (
-            <g>
-              <line x1={points[hoveredIndex].x} y1={padTop} x2={points[hoveredIndex].x} y2={padTop + chartH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3 3" />
-              <rect x={Math.min(points[hoveredIndex].x - 40, width - 85)} y={Math.max(points[hoveredIndex].y - 38, padTop)} width="80" height="30" rx="4" fill="#1e293b" opacity="0.95" />
-              <text x={Math.min(points[hoveredIndex].x - 40, width - 85) + 40} y={Math.max(points[hoveredIndex].y - 38, padTop) + 13} textAnchor="middle" className="text-[9px] fill-white font-medium">
-                {points[hoveredIndex].value.toFixed(1)}%
-              </text>
-              <text x={Math.min(points[hoveredIndex].x - 40, width - 85) + 40} y={Math.max(points[hoveredIndex].y - 38, padTop) + 24} textAnchor="middle" className="text-[8px] fill-slate-400">
-                {new Date(points[hoveredIndex].timestamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-              </text>
-            </g>
-          )}
-        </svg>
-      </div>
+            )}
+          </svg>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center py-10 text-sm text-muted">
+          <Target className="w-5 h-5 mr-2 opacity-40" />
+          {t.noData}
+        </div>
+      )}
     </div>
   );
 }

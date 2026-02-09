@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Network, Server, ArrowRight, Layers, Shield, ZoomIn, ZoomOut, Maximize2, BarChart3, Loader2 } from "lucide-react";
+import { Network, Server, ArrowRight, Layers, Shield, ZoomIn, ZoomOut, Shrink, BarChart3, Loader2 } from "lucide-react";
 import { getNamespaceColor } from "./common";
 import { getMeshServiceDetail } from "@/api/mesh";
 import type { MeshServiceNode, MeshServiceEdge, MeshTopologyResponse, MeshServiceDetailResponse } from "@/types/mesh";
@@ -33,9 +33,10 @@ interface MeshTabTranslations {
 }
 
 // Service Topology View (SVG) with zoom & pan
-function ServiceTopologyView({ topology, onSelectNode, t }: {
+function ServiceTopologyView({ topology, onSelectNode, timeRange, t }: {
   topology: MeshTopologyResponse;
   onSelectNode?: (node: MeshServiceNode) => void;
+  timeRange: string;
   t: MeshTabTranslations;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -190,31 +191,7 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
     return { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 };
   };
 
-  // Wheel zoom (centered on cursor)
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const factor = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prev => {
-      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * factor));
-      setViewOrigin(vo => ({
-        x: vo.x + mouseX * (1 / prev - 1 / newZoom),
-        y: vo.y + mouseY * (1 / prev - 1 / newZoom),
-      }));
-      return newZoom;
-    });
-  }, []);
-
-  // Attach wheel as non-passive (needed for preventDefault)
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.addEventListener("wheel", handleWheel, { passive: false });
-    return () => el.removeEventListener("wheel", handleWheel);
-  }, [handleWheel]);
+  // Wheel zoom disabled — only use button controls to avoid scroll hijacking
 
   // Node drag start
   const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
@@ -305,6 +282,8 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
         <div className="flex items-center gap-2">
           <Network className="w-4 h-4 text-primary" />
           <span className="text-sm font-medium text-default">{t.serviceTopology}</span>
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">Linkerd</span>
+          <span className="text-[10px] text-muted">{topology.nodes.length} services · {timeRangeLabel(timeRange)}</span>
         </div>
         <div className="flex items-center gap-4 text-[11px]">
           {namespacesInTopology.map(ns => {
@@ -330,7 +309,7 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
           </button>
           <div className="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-0.5" />
           <button onClick={fitToContent} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="Fit to content">
-            <Maximize2 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+            <Shrink className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
           </button>
         </div>
 
@@ -528,14 +507,13 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
   const [detail, setDetail] = useState<MeshServiceDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // Lazy-load detail data when node changes
+  // Lazy-load detail data when node changes (保留旧数据避免闪烁)
   useEffect(() => {
     let cancelled = false;
     setDetailLoading(true);
-    setDetail(null);
     getMeshServiceDetail({ clusterId, namespace: node.namespace, name: node.name, timeRange })
       .then(res => { if (!cancelled) setDetail(res.data); })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setDetail(null); })
       .finally(() => { if (!cancelled) setDetailLoading(false); });
     return () => { cancelled = true; };
   }, [node.id, clusterId, node.namespace, node.name, timeRange]);
@@ -641,70 +619,79 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
         </div>
       )}
 
-      {/* Status Code Distribution */}
-      {statusCodes.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-            <BarChart3 className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium text-default">{t.statusCodeBreakdown}</span>
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">Linkerd · {timeRangeLabel(timeRange)}</span>
-            <span className="text-[10px] text-muted">{totalStatusRequests.toLocaleString()} {t.requests}</span>
+      {/* Status Code + Latency Distribution — side by side */}
+      <div className="flex flex-col lg:flex-row gap-4">
+          {/* Status Code Distribution */}
+          <div className={`bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden lg:w-[40%]`}>
+            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="text-sm font-medium text-default truncate">{t.statusCodeBreakdown}</span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 flex-shrink-0">Linkerd</span>
+            </div>
+            {statusCodes.length > 0 ? (
+              <div className="p-4 space-y-2">
+                <div className="text-[10px] text-muted mb-2">{totalStatusRequests.toLocaleString()} {t.requests} · {timeRangeLabel(timeRange)}</div>
+                {statusCodes.map((s) => {
+                  const percent = totalStatusRequests > 0 ? (s.count / totalStatusRequests) * 100 : 0;
+                  const maxCount = Math.max(...statusCodes.map(sc => sc.count), 1);
+                  const barWidth = (s.count / maxCount) * 100;
+                  const colors = statusColors[s.code] || statusColors["2xx"];
+                  return (
+                    <div key={s.code} className="flex items-center gap-2">
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold w-10 text-center ${colors.text} ${colors.bg}`}>{s.code}</span>
+                      <div className="flex-1 h-4 bg-[var(--hover-bg)] rounded-sm overflow-hidden">
+                        <div className={`h-full rounded-sm ${colors.bar} opacity-80`} style={{ width: `${barWidth}%` }} />
+                      </div>
+                      <div className="text-right flex items-center gap-1 justify-end flex-shrink-0">
+                        <span className="text-xs font-medium text-default">{percent.toFixed(1)}%</span>
+                        <span className="text-[10px] text-muted">({s.count.toLocaleString()})</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-xs text-muted py-8">{t.noCallData}</div>
+            )}
           </div>
-          <div className="p-4 space-y-2">
-            {statusCodes.map((s) => {
-              const percent = totalStatusRequests > 0 ? (s.count / totalStatusRequests) * 100 : 0;
-              const maxCount = Math.max(...statusCodes.map(sc => sc.count), 1);
-              const barWidth = (s.count / maxCount) * 100;
-              const colors = statusColors[s.code] || statusColors["2xx"];
-              return (
-                <div key={s.code} className="flex items-center gap-3">
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold w-10 text-center ${colors.text} ${colors.bg}`}>{s.code}</span>
-                  <div className="flex-1 h-4 bg-[var(--hover-bg)] rounded-sm overflow-hidden">
-                    <div className={`h-full rounded-sm ${colors.bar} opacity-80`} style={{ width: `${barWidth}%` }} />
-                  </div>
-                  <div className="w-24 text-right flex items-center gap-1.5 justify-end">
-                    <span className="text-xs font-medium text-default">{percent.toFixed(1)}%</span>
-                    <span className="text-[10px] text-muted">{s.count.toLocaleString()}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
-      {/* Latency Distribution Histogram */}
-      {latencyBuckets.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <BarChart3 className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-default">{t.latencyDistribution}</span>
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">Linkerd · {timeRangeLabel(timeRange)}</span>
+          {/* Latency Distribution Histogram */}
+          <div className={`bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden lg:w-[60%]`}>
+            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-primary flex-shrink-0" />
+                <span className="text-sm font-medium text-default truncate">{t.latencyDistribution}</span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 flex-shrink-0">Linkerd</span>
+              </div>
+              {latencyBuckets.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-[9px] text-blue-700 dark:text-blue-400 font-medium">
+                    P50 {node.p50_latency}ms
+                  </span>
+                  <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-[9px] text-amber-700 dark:text-amber-400 font-medium">
+                    P95 {node.p95_latency}ms
+                  </span>
+                  <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-[9px] text-red-700 dark:text-red-400 font-medium">
+                    P99 {node.p99_latency}ms
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-[10px] text-blue-700 dark:text-blue-400 font-medium">
-                P50 {node.p50_latency}ms
-              </span>
-              <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-[10px] text-amber-700 dark:text-amber-400 font-medium">
-                P95 {node.p95_latency}ms
-              </span>
-              <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-[10px] text-red-700 dark:text-red-400 font-medium">
-                P99 {node.p99_latency}ms
-              </span>
-            </div>
-          </div>
-          <div className="px-4 pt-3 pb-10">
-            <MiniLatencyHistogram
-              buckets={latencyBuckets}
-              p50={node.p50_latency}
-              p95={node.p95_latency}
-              p99={node.p99_latency}
-              t={t}
-            />
+            {latencyBuckets.length > 0 ? (
+              <div className="px-4 pt-3 pb-10">
+                <MiniLatencyHistogram
+                  buckets={latencyBuckets}
+                  p50={node.p50_latency}
+                  p95={node.p95_latency}
+                  p99={node.p99_latency}
+                  t={t}
+                />
+              </div>
+            ) : (
+              <div className="p-4 text-center text-xs text-muted py-8">{t.noCallData}</div>
+            )}
           </div>
         </div>
-      )}
     </div>
   );
 }
@@ -731,7 +718,7 @@ function meshAxisRange(les: number[]): [number, number] {
 function meshVisibleTicks(lo: number, hi: number): number[] {
   return MESH_TICKS.filter(t => t >= lo && t <= hi);
 }
-function meshTickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}`; }
+function meshTickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}ms`; }
 
 // Mini Latency Histogram for service detail (Kibana-style)
 function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
@@ -851,7 +838,9 @@ export function MeshTab({ topology, clusterId, timeRange, t }: {
     );
   }
 
-  const selectedNode = selectedServiceId ? topology.nodes.find(n => n.id === selectedServiceId) : null;
+  // 默认选中第一个节点
+  const effectiveId = selectedServiceId ?? topology.nodes[0]?.id ?? null;
+  const selectedNode = effectiveId ? topology.nodes.find(n => n.id === effectiveId) : null;
 
   // mTLS coverage
   const totalRps = topology.nodes.reduce((sum, n) => sum + n.rps, 0);
@@ -863,7 +852,7 @@ export function MeshTab({ topology, clusterId, timeRange, t }: {
     <div className="space-y-4">
       {/* Topology Graph */}
       {topology.nodes.length > 1 && (
-        <ServiceTopologyView topology={topology} onSelectNode={(node) => setSelectedServiceId(node.id)} t={t} />
+        <ServiceTopologyView topology={topology} onSelectNode={(node) => setSelectedServiceId(node.id)} timeRange={timeRange} t={t} />
       )}
 
       {/* Service Mesh Overview (table + detail) */}
@@ -888,7 +877,7 @@ export function MeshTab({ topology, clusterId, timeRange, t }: {
         </div>
         <div className="flex flex-col lg:flex-row">
           <div className={`${selectedNode ? "lg:w-[400px] lg:border-r border-[var(--border-color)]" : "w-full"} p-4`}>
-            <ServiceListTable nodes={topology.nodes} selectedId={selectedServiceId} onSelect={setSelectedServiceId} t={t} />
+            <ServiceListTable nodes={topology.nodes} selectedId={effectiveId} onSelect={setSelectedServiceId} t={t} />
           </div>
           {selectedNode && (
             <div className="flex-1 p-4 bg-[var(--background)]">
