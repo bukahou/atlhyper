@@ -34,31 +34,43 @@ export function LatencyTab({ data, timeRange, t }: {
     );
   }
 
+  const badgeLabel = `Ingress · ${timeRangeLabel(timeRange)}`;
+  const hasMethods = data.methods && data.methods.length > 0;
+  const hasStatusCodes = data.status_codes && data.status_codes.length > 0;
+
   return (
-    <div className="space-y-4">
-      <LatencyHistogram
-        buckets={data.buckets}
-        p50={data.p50_latency_ms}
-        p95={data.p95_latency_ms}
-        p99={data.p99_latency_ms}
-        badgeLabel={`Ingress · ${timeRangeLabel(timeRange)}`}
-        t={t}
-      />
-      {data.methods && data.methods.length > 0 && (
-        <MethodChart
-          methods={data.methods}
-          totalRequests={data.total_requests}
-          badgeLabel={`Ingress · ${timeRangeLabel(timeRange)}`}
+    <div className="flex flex-col lg:flex-row gap-4">
+      {/* Left: Histogram (60%) */}
+      <div className="lg:w-[60%] flex-shrink-0">
+        <LatencyHistogram
+          buckets={data.buckets}
+          p50={data.p50_latency_ms}
+          p95={data.p95_latency_ms}
+          p99={data.p99_latency_ms}
+          badgeLabel={badgeLabel}
           t={t}
         />
-      )}
-      {data.status_codes && data.status_codes.length > 0 && (
-        <StatusCodeChart
-          statusCodes={data.status_codes}
-          totalRequests={data.total_requests}
-          badgeLabel={`Ingress · ${timeRangeLabel(timeRange)}`}
-          t={t}
-        />
+      </div>
+      {/* Right: Method + StatusCode (40%) */}
+      {(hasMethods || hasStatusCodes) && (
+        <div className="flex-1 min-w-0 space-y-4">
+          {hasMethods && (
+            <MethodChart
+              methods={data.methods}
+              totalRequests={data.total_requests}
+              badgeLabel={badgeLabel}
+              t={t}
+            />
+          )}
+          {hasStatusCodes && (
+            <StatusCodeChart
+              statusCodes={data.status_codes}
+              totalRequests={data.total_requests}
+              badgeLabel={badgeLabel}
+              t={t}
+            />
+          )}
+        </div>
       )}
     </div>
   );
