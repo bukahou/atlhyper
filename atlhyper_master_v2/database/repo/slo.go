@@ -51,6 +51,25 @@ func (r *sloRepo) GetRawMetrics(ctx context.Context, clusterID, host string, sta
 	return metrics, rows.Err()
 }
 
+func (r *sloRepo) GetRawMetricsByDomain(ctx context.Context, clusterID, domain string, start, end time.Time) ([]*database.SLOMetricsRaw, error) {
+	query, args := r.dialect.SelectRawMetricsByDomain(clusterID, domain, start, end)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var metrics []*database.SLOMetricsRaw
+	for rows.Next() {
+		m, err := r.dialect.ScanRawMetrics(rows)
+		if err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, m)
+	}
+	return metrics, rows.Err()
+}
+
 func (r *sloRepo) DeleteRawMetricsBefore(ctx context.Context, before time.Time) (int64, error) {
 	query, args := r.dialect.DeleteRawMetricsBefore(before)
 	result, err := r.db.ExecContext(ctx, query, args...)
@@ -77,6 +96,25 @@ func (r *sloRepo) UpsertHourlyMetrics(ctx context.Context, m *database.SLOMetric
 
 func (r *sloRepo) GetHourlyMetrics(ctx context.Context, clusterID, host string, start, end time.Time) ([]*database.SLOMetricsHourly, error) {
 	query, args := r.dialect.SelectHourlyMetrics(clusterID, host, start, end)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var metrics []*database.SLOMetricsHourly
+	for rows.Next() {
+		m, err := r.dialect.ScanHourlyMetrics(rows)
+		if err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, m)
+	}
+	return metrics, rows.Err()
+}
+
+func (r *sloRepo) GetHourlyMetricsByDomain(ctx context.Context, clusterID, domain string, start, end time.Time) ([]*database.SLOMetricsHourly, error) {
+	query, args := r.dialect.SelectHourlyMetricsByDomain(clusterID, domain, start, end)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

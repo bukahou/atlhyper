@@ -664,11 +664,13 @@ type SLORepository interface {
 	// Raw Metrics (入口)
 	InsertRawMetrics(ctx context.Context, m *SLOMetricsRaw) error
 	GetRawMetrics(ctx context.Context, clusterID, host string, start, end time.Time) ([]*SLOMetricsRaw, error)
+	GetRawMetricsByDomain(ctx context.Context, clusterID, domain string, start, end time.Time) ([]*SLOMetricsRaw, error)
 	DeleteRawMetricsBefore(ctx context.Context, before time.Time) (int64, error)
 
 	// Hourly Metrics (入口)
 	UpsertHourlyMetrics(ctx context.Context, m *SLOMetricsHourly) error
 	GetHourlyMetrics(ctx context.Context, clusterID, host string, start, end time.Time) ([]*SLOMetricsHourly, error)
+	GetHourlyMetricsByDomain(ctx context.Context, clusterID, domain string, start, end time.Time) ([]*SLOMetricsHourly, error)
 	DeleteHourlyMetricsBefore(ctx context.Context, before time.Time) (int64, error)
 
 	// Targets
@@ -897,12 +899,14 @@ type SLODialect interface {
 	// Raw Metrics (入口)
 	InsertRawMetrics(m *SLOMetricsRaw) (query string, args []any)
 	SelectRawMetrics(clusterID, host string, start, end time.Time) (query string, args []any)
+	SelectRawMetricsByDomain(clusterID, domain string, start, end time.Time) (query string, args []any)
 	DeleteRawMetricsBefore(before time.Time) (query string, args []any)
 	ScanRawMetrics(rows *sql.Rows) (*SLOMetricsRaw, error)
 
 	// Hourly Metrics (入口)
 	UpsertHourlyMetrics(m *SLOMetricsHourly) (query string, args []any)
 	SelectHourlyMetrics(clusterID, host string, start, end time.Time) (query string, args []any)
+	SelectHourlyMetricsByDomain(clusterID, domain string, start, end time.Time) (query string, args []any)
 	DeleteHourlyMetricsBefore(before time.Time) (query string, args []any)
 	ScanHourlyMetrics(rows *sql.Rows) (*SLOMetricsHourly, error)
 

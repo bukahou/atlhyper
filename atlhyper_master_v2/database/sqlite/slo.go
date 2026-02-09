@@ -41,6 +41,17 @@ func (d *sloDialect) SelectRawMetrics(clusterID, host string, start, end time.Ti
 		[]any{clusterID, host, start.Format(time.RFC3339), end.Format(time.RFC3339)}
 }
 
+func (d *sloDialect) SelectRawMetricsByDomain(clusterID, domain string, start, end time.Time) (string, []any) {
+	return `SELECT id, cluster_id, host, domain, path_prefix, timestamp,
+		total_requests, error_requests, latency_sum, latency_count, latency_buckets,
+		method_get, method_post, method_put, method_delete, method_other,
+		status_2xx, status_3xx, status_4xx, status_5xx, is_missing
+		FROM slo_metrics_raw
+		WHERE cluster_id = ? AND domain = ? AND timestamp >= ? AND timestamp < ?
+		ORDER BY timestamp ASC`,
+		[]any{clusterID, domain, start.Format(time.RFC3339), end.Format(time.RFC3339)}
+}
+
 func (d *sloDialect) DeleteRawMetricsBefore(before time.Time) (string, []any) {
 	return `DELETE FROM slo_metrics_raw WHERE timestamp < ?`, []any{before.Format(time.RFC3339)}
 }
@@ -123,6 +134,19 @@ func (d *sloDialect) SelectHourlyMetrics(clusterID, host string, start, end time
 		WHERE cluster_id = ? AND host = ? AND hour_start >= ? AND hour_start < ?
 		ORDER BY hour_start ASC`,
 		[]any{clusterID, host, start.Format(time.RFC3339), end.Format(time.RFC3339)}
+}
+
+func (d *sloDialect) SelectHourlyMetricsByDomain(clusterID, domain string, start, end time.Time) (string, []any) {
+	return `SELECT id, cluster_id, host, domain, path_prefix, hour_start,
+		total_requests, error_requests, availability,
+		p50_latency_ms, p95_latency_ms, p99_latency_ms, avg_latency_ms, avg_rps,
+		latency_buckets, method_get, method_post, method_put, method_delete, method_other,
+		status_2xx, status_3xx, status_4xx, status_5xx,
+		sample_count, created_at
+		FROM slo_metrics_hourly
+		WHERE cluster_id = ? AND domain = ? AND hour_start >= ? AND hour_start < ?
+		ORDER BY hour_start ASC`,
+		[]any{clusterID, domain, start.Format(time.RFC3339), end.Format(time.RFC3339)}
 }
 
 func (d *sloDialect) DeleteHourlyMetricsBefore(before time.Time) (string, []any) {

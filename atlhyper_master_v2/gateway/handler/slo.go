@@ -564,23 +564,55 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	start, end := getTimeRange(now, timeRange)
 
-	hourlyMetrics, err := h.repo.GetHourlyMetrics(ctx, clusterID, host, start, end)
+	hourlyMetrics, err := h.repo.GetHourlyMetricsByDomain(ctx, clusterID, host, start, end)
 	if err != nil {
 		sloLog.Error("获取历史数据失败", "err", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	history := make([]model.SLODomainHistoryItem, 0, len(hourlyMetrics))
-	for _, m := range hourlyMetrics {
-		history = append(history, model.SLODomainHistoryItem{
-			Timestamp:    m.HourStart.Format(time.RFC3339),
-			Availability: m.Availability,
-			P95Latency:   m.P95LatencyMs,
-			P99Latency:   m.P99LatencyMs,
-			RPS:          m.AvgRPS,
-			ErrorRate:    slo.CalculateErrorRate(m.TotalRequests, m.ErrorRequests),
-		})
+	var history []model.SLODomainHistoryItem
+
+	if len(hourlyMetrics) > 0 {
+		history = make([]model.SLODomainHistoryItem, 0, len(hourlyMetrics))
+		for _, m := range hourlyMetrics {
+			history = append(history, model.SLODomainHistoryItem{
+				Timestamp:    m.HourStart.Format(time.RFC3339),
+				Availability: m.Availability,
+				P95Latency:   m.P95LatencyMs,
+				P99Latency:   m.P99LatencyMs,
+				RPS:          m.AvgRPS,
+				ErrorRate:    slo.CalculateErrorRate(m.TotalRequests, m.ErrorRequests),
+			})
+		}
+	} else {
+		// hourly 无数据，回退 raw 按采样点聚合
+		rawMetrics, rawErr := h.repo.GetRawMetricsByDomain(ctx, clusterID, host, start, end)
+		if rawErr == nil && len(rawMetrics) > 0 {
+			history = make([]model.SLODomainHistoryItem, 0, len(rawMetrics))
+			for _, r := range rawMetrics {
+				var avgLatency int
+				if r.LatencyCount > 0 {
+					avgLatency = int(r.LatencySum / float64(r.LatencyCount))
+				}
+				var rpsVal float64
+				if r.TotalRequests > 0 {
+					rpsVal = float64(r.TotalRequests) / 10.0 // 10s 采样间隔
+				}
+				history = append(history, model.SLODomainHistoryItem{
+					Timestamp:    r.Timestamp.Format(time.RFC3339),
+					Availability: slo.CalculateAvailability(r.TotalRequests, r.ErrorRequests),
+					P95Latency:   avgLatency, // raw 无精确 P95，用 avg 近似
+					P99Latency:   avgLatency,
+					RPS:          rpsVal,
+					ErrorRate:    slo.CalculateErrorRate(r.TotalRequests, r.ErrorRequests),
+				})
+			}
+		}
+	}
+
+	if history == nil {
+		history = []model.SLODomainHistoryItem{}
 	}
 
 	resp := model.SLODomainHistoryResponse{
