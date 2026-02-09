@@ -239,21 +239,25 @@ func parseLinkerdLatencyBucket(labels map[string]string, value float64) sdk.Link
 
 func parseLinkerdLatencySum(labels map[string]string, value float64) sdk.LinkerdLatencySumMetric {
 	return sdk.LinkerdLatencySumMetric{
-		Namespace:  labels["namespace"],
-		Deployment: labels["deployment"],
-		Pod:        labels["pod"],
-		Direction:  labels["direction"],
-		Value:      value,
+		Namespace:     labels["namespace"],
+		Deployment:    labels["deployment"],
+		Pod:           labels["pod"],
+		Direction:     labels["direction"],
+		DstNamespace:  labels["dst_namespace"],
+		DstDeployment: labels["dst_deployment"],
+		Value:         value,
 	}
 }
 
 func parseLinkerdLatencyCount(labels map[string]string, value float64) sdk.LinkerdLatencyCountMetric {
 	return sdk.LinkerdLatencyCountMetric{
-		Namespace:  labels["namespace"],
-		Deployment: labels["deployment"],
-		Pod:        labels["pod"],
-		Direction:  labels["direction"],
-		Value:      value,
+		Namespace:     labels["namespace"],
+		Deployment:    labels["deployment"],
+		Pod:           labels["pod"],
+		Direction:     labels["direction"],
+		DstNamespace:  labels["dst_namespace"],
+		DstDeployment: labels["dst_deployment"],
+		Value:         value,
 	}
 }
 

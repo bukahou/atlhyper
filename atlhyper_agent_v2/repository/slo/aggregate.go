@@ -197,15 +197,23 @@ func extractEdges(
 		}
 	}
 
-	// 聚合 outbound latency sums
-	// Note: outbound sums don't carry dst info in the metric labels directly.
-	// They are per-pod level. We need to distribute them proportionally
-	// or match by pod. For simplicity, we skip outbound latency per-edge
-	// when dst labels are not available.
-	// In practice, Linkerd outbound latency metrics do carry dst_* labels
-	// in the response_total but not in latency_ms_sum/count.
-	// We'll aggregate outbound latency at pod→dst level from response counts.
-	// TODO: If OTel Collector exports dst labels on latency metrics, add here.
+	// 聚合 outbound latency sums（OTel Collector 导出的 dst_* 标签可用）
+	for _, d := range sums {
+		if d.DstNamespace == "" || d.DstDeployment == "" {
+			continue
+		}
+		acc := getAcc(d.Namespace, d.Deployment, d.DstNamespace, d.DstDeployment)
+		acc.latencySum += d.Delta
+	}
+
+	// 聚合 outbound latency counts
+	for _, d := range counts {
+		if d.DstNamespace == "" || d.DstDeployment == "" {
+			continue
+		}
+		acc := getAcc(d.Namespace, d.Deployment, d.DstNamespace, d.DstDeployment)
+		acc.latencyCount += int64(d.Delta)
+	}
 
 	// 转换为 model_v2.ServiceEdge
 	result := make([]model_v2.ServiceEdge, 0, len(accs))

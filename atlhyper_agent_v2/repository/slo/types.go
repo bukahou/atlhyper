@@ -38,20 +38,24 @@ type linkerdBucketDelta struct {
 
 // linkerdSumDelta otel_response_latency_ms_sum 的 per-pod 增量
 type linkerdSumDelta struct {
-	Namespace  string
-	Deployment string
-	Pod        string
-	Direction  string
-	Delta      float64 // 毫秒
+	Namespace     string
+	Deployment    string
+	Pod           string
+	Direction     string
+	DstNamespace  string // outbound 时的目标 namespace
+	DstDeployment string // outbound 时的目标 deployment
+	Delta         float64 // 毫秒
 }
 
 // linkerdCountDelta otel_response_latency_ms_count 的 per-pod 增量
 type linkerdCountDelta struct {
-	Namespace  string
-	Deployment string
-	Pod        string
-	Direction  string
-	Delta      float64
+	Namespace     string
+	Deployment    string
+	Pod           string
+	Direction     string
+	DstNamespace  string // outbound 时的目标 namespace
+	DstDeployment string // outbound 时的目标 deployment
+	Delta         float64
 }
 
 // =============================================================================

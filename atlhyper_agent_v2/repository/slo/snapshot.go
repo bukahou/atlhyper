@@ -113,11 +113,13 @@ type responseAggKey struct {
 
 // latencyAggKey Linkerd latency 的聚合元数据
 type latencyAggKey struct {
-	Namespace  string
-	Deployment string
-	Pod        string
-	Direction  string
-	Le         string // bucket only
+	Namespace     string
+	Deployment    string
+	Pod           string
+	Direction     string
+	Le            string // bucket only
+	DstNamespace  string // outbound sum/count only
+	DstDeployment string // outbound sum/count only
 }
 
 // calcDeltas 计算所有指标的 per-pod delta
@@ -256,11 +258,19 @@ func (sm *snapshotManager) calcDeltas(raw *sdk.OTelRawMetrics) *deltaResult {
 	sumAggs := make(map[string]*sumAgg)
 	for _, m := range raw.LinkerdLatencySums {
 		key := m.Pod + "|" + m.Direction
+		// outbound 必须按目标区分，否则所有 dst 的 latency 被合并
+		if m.Direction == "outbound" {
+			key += "|" + m.DstNamespace + "|" + m.DstDeployment
+		}
 		agg, ok := sumAggs[key]
 		if !ok {
 			sumAggs[key] = &sumAgg{
 				value: m.Value,
-				meta:  latencyAggKey{Namespace: m.Namespace, Deployment: m.Deployment, Pod: m.Pod, Direction: m.Direction},
+				meta: latencyAggKey{
+					Namespace: m.Namespace, Deployment: m.Deployment,
+					Pod: m.Pod, Direction: m.Direction,
+					DstNamespace: m.DstNamespace, DstDeployment: m.DstDeployment,
+				},
 			}
 		} else {
 			agg.value += m.Value
@@ -281,11 +291,13 @@ func (sm *snapshotManager) calcDeltas(raw *sdk.OTelRawMetrics) *deltaResult {
 		}
 
 		d := linkerdSumDelta{
-			Namespace:  agg.meta.Namespace,
-			Deployment: agg.meta.Deployment,
-			Pod:        agg.meta.Pod,
-			Direction:  agg.meta.Direction,
-			Delta:      delta,
+			Namespace:     agg.meta.Namespace,
+			Deployment:    agg.meta.Deployment,
+			Pod:           agg.meta.Pod,
+			Direction:     agg.meta.Direction,
+			DstNamespace:  agg.meta.DstNamespace,
+			DstDeployment: agg.meta.DstDeployment,
+			Delta:         delta,
 		}
 		if agg.meta.Direction == "inbound" {
 			result.inboundSums = append(result.inboundSums, d)
@@ -303,11 +315,19 @@ func (sm *snapshotManager) calcDeltas(raw *sdk.OTelRawMetrics) *deltaResult {
 	countAggs := make(map[string]*countAgg)
 	for _, m := range raw.LinkerdLatencyCounts {
 		key := m.Pod + "|" + m.Direction
+		// outbound 必须按目标区分
+		if m.Direction == "outbound" {
+			key += "|" + m.DstNamespace + "|" + m.DstDeployment
+		}
 		agg, ok := countAggs[key]
 		if !ok {
 			countAggs[key] = &countAgg{
 				value: m.Value,
-				meta:  latencyAggKey{Namespace: m.Namespace, Deployment: m.Deployment, Pod: m.Pod, Direction: m.Direction},
+				meta: latencyAggKey{
+					Namespace: m.Namespace, Deployment: m.Deployment,
+					Pod: m.Pod, Direction: m.Direction,
+					DstNamespace: m.DstNamespace, DstDeployment: m.DstDeployment,
+				},
 			}
 		} else {
 			agg.value += m.Value
@@ -328,11 +348,13 @@ func (sm *snapshotManager) calcDeltas(raw *sdk.OTelRawMetrics) *deltaResult {
 		}
 
 		d := linkerdCountDelta{
-			Namespace:  agg.meta.Namespace,
-			Deployment: agg.meta.Deployment,
-			Pod:        agg.meta.Pod,
-			Direction:  agg.meta.Direction,
-			Delta:      delta,
+			Namespace:     agg.meta.Namespace,
+			Deployment:    agg.meta.Deployment,
+			Pod:           agg.meta.Pod,
+			Direction:     agg.meta.Direction,
+			DstNamespace:  agg.meta.DstNamespace,
+			DstDeployment: agg.meta.DstDeployment,
+			Delta:         delta,
 		}
 		if agg.meta.Direction == "inbound" {
 			result.inboundCounts = append(result.inboundCounts, d)

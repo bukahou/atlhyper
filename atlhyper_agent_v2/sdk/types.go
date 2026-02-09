@@ -140,20 +140,24 @@ type LinkerdLatencyBucketMetric struct {
 
 // LinkerdLatencySumMetric otel_response_latency_ms_sum 单条
 type LinkerdLatencySumMetric struct {
-	Namespace  string
-	Deployment string
-	Pod        string
-	Direction  string
-	Value      float64 // 毫秒
+	Namespace      string
+	Deployment     string
+	Pod            string
+	Direction      string
+	DstNamespace   string // outbound 时的目标 namespace
+	DstDeployment  string // outbound 时的目标 deployment
+	Value          float64 // 毫秒
 }
 
 // LinkerdLatencyCountMetric otel_response_latency_ms_count 单条
 type LinkerdLatencyCountMetric struct {
-	Namespace  string
-	Deployment string
-	Pod        string
-	Direction  string
-	Value      float64
+	Namespace      string
+	Deployment     string
+	Pod            string
+	Direction      string
+	DstNamespace   string // outbound 时的目标 namespace
+	DstDeployment  string // outbound 时的目标 deployment
+	Value          float64
 }
 
 // ---- 入口类型（Controller 无关） ----
