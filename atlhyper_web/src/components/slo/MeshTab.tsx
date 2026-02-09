@@ -716,11 +716,8 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
 }
 
 // Histogram utilities (Kibana-style fixed axis, log scale)
-const MESH_TICKS = [
-  1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100,
-  150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000,
-  1500, 2000, 3000, 5000, 10000,
-];
+// 1-2-5 log-scale tick series
+const MESH_TICKS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
 function meshLogPos(ms: number, lo: number, hi: number): number {
   const v = Math.log10(Math.max(ms, 0.1));
   const a = Math.log10(Math.max(lo, 0.1));
@@ -738,12 +735,7 @@ function meshAxisRange(les: number[]): [number, number] {
   return [Math.min(lo, minLe * 0.5), Math.max(hi, maxLe * 1.5)];
 }
 function meshVisibleTicks(lo: number, hi: number): number[] {
-  const ticks = MESH_TICKS.filter(t => t >= lo && t <= hi);
-  if (ticks.length <= 10) return ticks;
-  const step = Math.ceil(ticks.length / 8);
-  const result = ticks.filter((_, i) => i % step === 0);
-  if (!result.includes(ticks[ticks.length - 1])) result.push(ticks[ticks.length - 1]);
-  return result;
+  return MESH_TICKS.filter(t => t >= lo && t <= hi);
 }
 function meshTickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}`; }
 

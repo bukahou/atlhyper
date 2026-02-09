@@ -78,12 +78,8 @@ export function LatencyTab({ data, timeRange, t }: {
 
 // ==================== Histogram (Kibana-style fixed axis) ====================
 
-// Standard tick marks covering common latency ranges
-const STANDARD_TICKS = [
-  1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100,
-  150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000,
-  1500, 2000, 3000, 5000, 10000,
-];
+// 1-2-5 log-scale tick series (evenly spaced on log axis)
+const STANDARD_TICKS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
 
 // Log-scale mapping: ms value → 0–100% position within [lo, hi]
 function logPos(ms: number, lo: number, hi: number): number {
@@ -106,14 +102,9 @@ function axisRange(les: number[]): [number, number] {
   return [Math.min(lo, minLe * 0.5), Math.max(hi, maxLe * 1.5)];
 }
 
-// Select visible tick labels (max ~10)
+// Select visible tick labels within axis range
 function visibleTicks(lo: number, hi: number): number[] {
-  const ticks = STANDARD_TICKS.filter(t => t >= lo && t <= hi);
-  if (ticks.length <= 12) return ticks;
-  const step = Math.ceil(ticks.length / 10);
-  const result = ticks.filter((_, i) => i % step === 0);
-  if (!result.includes(ticks[ticks.length - 1])) result.push(ticks[ticks.length - 1]);
-  return result;
+  return STANDARD_TICKS.filter(t => t >= lo && t <= hi);
 }
 
 function tickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}`; }
