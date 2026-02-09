@@ -997,11 +997,13 @@ export const ja: Translations = {
     saving: "保存中...",
     cancel: "キャンセル",
     saveFailed: "SLO 目標の保存に失敗しました",
-    // レイテンシ分布
+    // レイテンシ分布 / サービス詳細
     latencyDistribution: "レイテンシ分布",
     methodBreakdown: "リクエストメソッド分布",
     statusCodeBreakdown: "ステータスコード分布",
     clearSelection: "選択をクリア",
+    requests: "リクエスト",
+    loading: "読み込み中...",
     // 説明
     dataSourceTitle: "データソース説明",
     dataSourceDesc: "サービスメッシュ層（Linkerd）：サービスメッシュトポロジーとゴールデンメトリクスは OTel Collector 経由の Linkerd メトリクスから取得。入口層（Traefik）：ドメインレベル SLO は Traefik メトリクスから取得。すべてのデータは OTel Collector で統一収集され、Agent で per-pod delta 計算とサービス集約を実行。",

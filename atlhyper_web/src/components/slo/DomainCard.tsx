@@ -81,10 +81,12 @@ export interface DomainCardTranslations {
   save: string;
   saving: string;
   estimatedExhaust: string;
-  // Latency tab
-  latencyDistribution: string;
-  methodBreakdown: string;
+  // Mesh detail + Latency tab (shared)
   statusCodeBreakdown: string;
+  latencyDistribution: string;
+  requests: string;
+  loading: string;
+  methodBreakdown: string;
   clearSelection: string;
 }
 
@@ -124,6 +126,13 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
   const targets = { availability: domainTargets.availability, p95_latency: domainTargets.p95_latency };
 
   const statusLabels = { healthy: t.healthy, warning: t.warning, critical: t.critical, unknown: t.unknown };
+
+  // Reset cached data when timeRange changes
+  useEffect(() => {
+    setMeshTopology(null);
+    setLatencyData(null);
+    setHistory([]);
+  }, [timeRange]);
 
   // Lazy-load mesh topology when mesh tab is opened, filtered to this domain's namespaces
   const loadMeshData = useCallback(async () => {
@@ -322,6 +331,8 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
               <div className="p-3 sm:p-4">
                 <MeshTab
                   topology={meshTopology}
+                  clusterId={clusterId}
+                  timeRange={timeRange}
                   t={{
                     serviceTopology: t.serviceTopology,
                     meshOverview: t.meshOverview,
@@ -342,6 +353,10 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
                     p99Latency: t.p99Latency,
                     totalRequests: t.totalRequests,
                     avgLatency: t.avgLatency,
+                    statusCodeBreakdown: t.statusCodeBreakdown,
+                    latencyDistribution: t.latencyDistribution,
+                    requests: t.requests,
+                    loading: t.loading,
                   }}
                 />
               </div>
@@ -351,6 +366,7 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
               <div className="p-3 sm:p-4">
                 <LatencyTab
                   data={latencyData}
+                  timeRange={timeRange}
                   t={{
                     latencyDistribution: t.latencyDistribution,
                     methodBreakdown: t.methodBreakdown,

@@ -45,11 +45,25 @@ export interface MeshServiceHistoryPoint {
   mtls_percent: number;
 }
 
+// 状态码分布
+export interface MeshStatusCodeBreakdown {
+  code: string;  // "2xx", "3xx", "4xx", "5xx"
+  count: number;
+}
+
+// 延迟分布桶
+export interface MeshLatencyBucket {
+  le: number;    // 上界 (ms)
+  count: number; // 该桶内的请求数
+}
+
 // 服务详情响应
 export interface MeshServiceDetailResponse extends MeshServiceNode {
   history: MeshServiceHistoryPoint[];
   upstreams: MeshServiceEdge[];
   downstreams: MeshServiceEdge[];
+  status_codes: MeshStatusCodeBreakdown[];
+  latency_buckets: MeshLatencyBucket[];
 }
 
 // API 参数

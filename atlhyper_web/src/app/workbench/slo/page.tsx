@@ -164,6 +164,8 @@ export default function SLOPage() {
     methodBreakdown: sloT.methodBreakdown,
     statusCodeBreakdown: sloT.statusCodeBreakdown,
     clearSelection: sloT.clearSelection,
+    requests: sloT.requests,
+    loading: sloT.loading,
   }), [sloT]);
 
   if (loading) {

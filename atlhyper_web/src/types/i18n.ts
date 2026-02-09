@@ -1014,11 +1014,13 @@ export interface SLOTranslations {
   saving: string;
   cancel: string;
   saveFailed: string;
-  // 延迟分布
+  // 延迟分布 / 服务详情
   latencyDistribution: string;
   methodBreakdown: string;
   statusCodeBreakdown: string;
   clearSelection: string;
+  requests: string;
+  loading: string;
   // 说明
   dataSourceTitle: string;
   dataSourceDesc: string;
