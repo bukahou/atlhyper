@@ -1,7 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { BarChart3, Layers, X } from "lucide-react";
+import { BarChart3, Layers } from "lucide-react";
 import type { LatencyDistributionResponse } from "@/types/slo";
 
 export interface LatencyTabTranslations {
@@ -65,27 +64,47 @@ export function LatencyTab({ data, timeRange, t }: {
   );
 }
 
-// ==================== Histogram ====================
+// ==================== Histogram (Kibana-style fixed axis) ====================
 
-// Compute P-line position aligned to bar index coordinate system
-// Interpolates between bar indices based on le values
-function pLinePosition(value: number, barLes: number[]): number | null {
-  if (barLes.length === 0) return null;
-  if (barLes.length === 1) return 50;
-  if (value <= barLes[0]) return 0;
-  if (value >= barLes[barLes.length - 1]) return 100;
-  // Find which two bars the value falls between
-  for (let i = 0; i < barLes.length - 1; i++) {
-    if (value >= barLes[i] && value <= barLes[i + 1]) {
-      const frac = (value - barLes[i]) / (barLes[i + 1] - barLes[i]);
-      // Each bar center is at (i + 0.5) / barLes.length * 100%
-      const posA = (i + 0.5) / barLes.length * 100;
-      const posB = (i + 1.5) / barLes.length * 100;
-      return posA + frac * (posB - posA);
-    }
-  }
-  return null;
+// Standard tick marks covering common latency ranges
+const STANDARD_TICKS = [
+  1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100,
+  150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000,
+  1500, 2000, 3000, 5000, 10000,
+];
+
+// Log-scale mapping: ms value → 0–100% position within [lo, hi]
+function logPos(ms: number, lo: number, hi: number): number {
+  const v = Math.log10(Math.max(ms, 0.1));
+  const a = Math.log10(Math.max(lo, 0.1));
+  const b = Math.log10(Math.max(hi, 1));
+  if (b <= a) return 50;
+  return Math.min(100, Math.max(0, ((v - a) / (b - a)) * 100));
 }
+
+// Determine visible axis range, snapped to standard ticks with padding
+function axisRange(les: number[]): [number, number] {
+  if (les.length === 0) return [1, 1000];
+  const minLe = Math.min(...les);
+  const maxLe = Math.max(...les);
+  let lo = STANDARD_TICKS[0];
+  for (const t of STANDARD_TICKS) { if (t <= minLe * 0.6) lo = t; else break; }
+  let hi = STANDARD_TICKS[STANDARD_TICKS.length - 1];
+  for (let i = STANDARD_TICKS.length - 1; i >= 0; i--) { if (STANDARD_TICKS[i] >= maxLe * 1.4) hi = STANDARD_TICKS[i]; else break; }
+  return [Math.min(lo, minLe * 0.5), Math.max(hi, maxLe * 1.5)];
+}
+
+// Select visible tick labels (max ~10)
+function visibleTicks(lo: number, hi: number): number[] {
+  const ticks = STANDARD_TICKS.filter(t => t >= lo && t <= hi);
+  if (ticks.length <= 12) return ticks;
+  const step = Math.ceil(ticks.length / 10);
+  const result = ticks.filter((_, i) => i % step === 0);
+  if (!result.includes(ticks[ticks.length - 1])) result.push(ticks[ticks.length - 1]);
+  return result;
+}
+
+function tickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}`; }
 
 function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
   buckets: { le: number; count: number }[];
@@ -95,10 +114,27 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
   badgeLabel: string;
   t: LatencyTabTranslations;
 }) {
-  // Only render non-zero buckets
-  const activeBuckets = buckets.filter(b => b.count > 0);
-  const maxCount = Math.max(...activeBuckets.map(b => b.count), 1);
-  const barLes = activeBuckets.map(b => b.le);
+  const active = buckets.filter(b => b.count > 0);
+  if (active.length === 0) return null;
+
+  const maxCount = Math.max(...active.map(b => b.count), 1);
+  const [lo, hi] = axisRange(active.map(b => b.le));
+  const ticks = visibleTicks(lo, hi);
+
+  // Each bar covers [prevLe, le] on log axis
+  const bars = active.map((b, i) => {
+    const prev = i === 0 ? lo : active[i - 1].le;
+    const left = logPos(prev, lo, hi);
+    const right = logPos(b.le, lo, hi);
+    const color = b.le > p99
+      ? "bg-red-400/80 hover:bg-red-500"
+      : b.le > p95
+        ? "bg-amber-400/90 hover:bg-amber-500"
+        : b.le > p50
+          ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
+          : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
+    return { ...b, left, width: Math.max(right - left, 0.5), color };
+  });
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
@@ -109,15 +145,9 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
           <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">{badgeLabel}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-[10px] text-blue-700 dark:text-blue-400 font-medium">
-            P50 {p50}ms
-          </span>
-          <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-[10px] text-amber-700 dark:text-amber-400 font-medium">
-            P95 {p95}ms
-          </span>
-          <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-[10px] text-red-700 dark:text-red-400 font-medium">
-            P99 {p99}ms
-          </span>
+          <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-[10px] text-blue-700 dark:text-blue-400 font-medium">P50 {p50}ms</span>
+          <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-[10px] text-amber-700 dark:text-amber-400 font-medium">P95 {p95}ms</span>
+          <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-[10px] text-red-700 dark:text-red-400 font-medium">P99 {p99}ms</span>
         </div>
       </div>
 
@@ -125,95 +155,68 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
         <div className="flex gap-2">
           {/* Y axis */}
           <div className="flex flex-col justify-between h-36 text-[9px] text-muted text-right w-8 flex-shrink-0">
-            <span>{maxCount}</span>
-            <span>{Math.round(maxCount / 2)}</span>
+            <span>{maxCount.toLocaleString()}</span>
+            <span>{Math.round(maxCount / 2).toLocaleString()}</span>
             <span>0</span>
           </div>
 
           {/* Chart */}
           <div className="relative h-36 flex-1">
-            {/* Grid */}
+            {/* Horizontal grid */}
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute top-0 left-0 right-0 border-t border-[var(--border-color)]" />
               <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-[var(--border-color)]" />
               <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--border-color)]" />
             </div>
 
-            {/* P50/P95/P99 lines — aligned to bar positions */}
+            {/* Vertical tick grid */}
+            {ticks.map(tick => (
+              <div key={tick} className="absolute top-0 bottom-0 w-px bg-[var(--border-color)] opacity-30 pointer-events-none"
+                style={{ left: `${logPos(tick, lo, hi)}%` }} />
+            ))}
+
+            {/* P50/P95/P99 lines */}
             {[
-              { value: p50, color: "blue", label: "P50" },
-              { value: p95, color: "amber", label: "P95" },
-              { value: p99, color: "red", label: "P99" },
-            ].map(({ value, color, label }) => {
-              const pos = pLinePosition(value, barLes);
-              return pos !== null ? (
-                <div
-                  key={label}
-                  className={`absolute top-0 bottom-0 w-px bg-${color}-500/70 z-20 pointer-events-none`}
-                  style={{ left: `${pos}%` }}
-                >
-                  <div className={`absolute -top-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-${color}-500 text-white text-[8px] font-medium whitespace-nowrap rounded`}>
-                    {label}
-                  </div>
+              { value: p50, c: "blue", label: "P50" },
+              { value: p95, c: "amber", label: "P95" },
+              { value: p99, c: "red", label: "P99" },
+            ].map(({ value, c, label }) => (
+              <div key={label} className={`absolute top-0 bottom-0 w-px bg-${c}-500/70 z-20 pointer-events-none`}
+                style={{ left: `${logPos(value, lo, hi)}%` }}>
+                <div className={`absolute -top-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-${c}-500 text-white text-[8px] font-medium whitespace-nowrap rounded`}>
+                  {label}
                 </div>
-              ) : null;
-            })}
+              </div>
+            ))}
 
-            {/* Bars — only active (count > 0) */}
-            <div className="flex items-end h-full gap-[2px] relative z-10">
-              {activeBuckets.map((bucket, idx) => {
-                const heightPercent = (bucket.count / maxCount) * 100;
-                const threshold = barLes.length > 1 ? (barLes[barLes.length - 1] - barLes[0]) * 0.05 : 50;
-                const isNearP50 = Math.abs(bucket.le - p50) < threshold;
-                const isNearP95 = Math.abs(bucket.le - p95) < threshold;
-                const isNearP99 = Math.abs(bucket.le - p99) < threshold;
-
-                return (
-                  <div
-                    key={idx}
-                    className="flex-1 flex flex-col items-center justify-end group relative"
-                    style={{ height: "100%" }}
-                  >
-                    <div
-                      className={`w-full rounded-t-sm transition-all duration-150 ${
-                        isNearP99
-                          ? "bg-red-400/80 group-hover:bg-red-500"
-                          : isNearP95
-                            ? "bg-amber-400/90 group-hover:bg-amber-500"
-                            : isNearP50
-                              ? "bg-blue-400/80 group-hover:bg-blue-500"
-                              : "bg-teal-400/80 group-hover:bg-teal-500 dark:bg-teal-500/70 dark:group-hover:bg-teal-400"
-                      }`}
-                      style={{ height: `${Math.max(heightPercent, 3)}%` }}
-                    />
-                    <div className="absolute bottom-full mb-2 hidden group-hover:block z-30 pointer-events-none">
-                      <div className="bg-slate-900 text-white text-[10px] px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap border border-slate-700">
-                        <div className="font-medium">&le; {bucket.le}ms</div>
-                        <div className="text-slate-300">{bucket.count.toLocaleString()} {t.requests}</div>
-                      </div>
+            {/* Bars — positioned by log scale */}
+            {bars.map((bar, idx) => {
+              const hPct = (bar.count / maxCount) * 100;
+              return (
+                <div key={idx} className="absolute bottom-0 group z-10"
+                  style={{ left: `${bar.left}%`, width: `${bar.width}%`, height: "100%" }}>
+                  <div className="h-full flex items-end px-[0.5px]">
+                    <div className={`w-full rounded-t-sm transition-all duration-150 ${bar.color}`}
+                      style={{ height: `${Math.max(hPct, 2)}%` }} />
+                  </div>
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-30 pointer-events-none">
+                    <div className="bg-slate-900 text-white text-[10px] px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap border border-slate-700">
+                      <div className="font-medium">&le; {bar.le}ms</div>
+                      <div className="text-slate-300">{bar.count.toLocaleString()} {t.requests}</div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
 
-            {/* X axis — show actual bucket le values */}
-            <div className="absolute -bottom-5 left-0 right-0 flex justify-between text-[9px] text-muted">
-              {activeBuckets.length <= 6
-                ? activeBuckets.map((b, i) => (
-                    <span key={i} className="text-center" style={{ width: `${100 / activeBuckets.length}%` }}>
-                      {b.le}ms
-                    </span>
-                  ))
-                : [0, Math.floor(activeBuckets.length / 2), activeBuckets.length - 1].map(i => {
-                    const b = activeBuckets[i];
-                    return (
-                      <span key={i} style={{ position: "absolute", left: `${((i + 0.5) / activeBuckets.length) * 100}%`, transform: "translateX(-50%)" }}>
-                        {b.le}ms
-                      </span>
-                    );
-                  })
-              }
+            {/* X axis — fixed tick labels */}
+            <div className="absolute -bottom-5 left-0 right-0 text-[9px] text-muted">
+              {ticks.map(tick => (
+                <span key={tick} className="absolute -translate-x-1/2 whitespace-nowrap"
+                  style={{ left: `${logPos(tick, lo, hi)}%` }}>
+                  {tickLabel(tick)}
+                </span>
+              ))}
             </div>
           </div>
         </div>

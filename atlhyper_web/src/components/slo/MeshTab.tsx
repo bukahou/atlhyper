@@ -715,24 +715,39 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
   );
 }
 
-// Compute P-line position aligned to bar index coordinate system
-function meshPLinePosition(value: number, barLes: number[]): number | null {
-  if (barLes.length === 0) return null;
-  if (barLes.length === 1) return 50;
-  if (value <= barLes[0]) return 0;
-  if (value >= barLes[barLes.length - 1]) return 100;
-  for (let i = 0; i < barLes.length - 1; i++) {
-    if (value >= barLes[i] && value <= barLes[i + 1]) {
-      const frac = (value - barLes[i]) / (barLes[i + 1] - barLes[i]);
-      const posA = (i + 0.5) / barLes.length * 100;
-      const posB = (i + 1.5) / barLes.length * 100;
-      return posA + frac * (posB - posA);
-    }
-  }
-  return null;
+// Histogram utilities (Kibana-style fixed axis, log scale)
+const MESH_TICKS = [
+  1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100,
+  150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000,
+  1500, 2000, 3000, 5000, 10000,
+];
+function meshLogPos(ms: number, lo: number, hi: number): number {
+  const v = Math.log10(Math.max(ms, 0.1));
+  const a = Math.log10(Math.max(lo, 0.1));
+  const b = Math.log10(Math.max(hi, 1));
+  if (b <= a) return 50;
+  return Math.min(100, Math.max(0, ((v - a) / (b - a)) * 100));
 }
+function meshAxisRange(les: number[]): [number, number] {
+  if (les.length === 0) return [1, 1000];
+  const minLe = Math.min(...les), maxLe = Math.max(...les);
+  let lo = MESH_TICKS[0];
+  for (const t of MESH_TICKS) { if (t <= minLe * 0.6) lo = t; else break; }
+  let hi = MESH_TICKS[MESH_TICKS.length - 1];
+  for (let i = MESH_TICKS.length - 1; i >= 0; i--) { if (MESH_TICKS[i] >= maxLe * 1.4) hi = MESH_TICKS[i]; else break; }
+  return [Math.min(lo, minLe * 0.5), Math.max(hi, maxLe * 1.5)];
+}
+function meshVisibleTicks(lo: number, hi: number): number[] {
+  const ticks = MESH_TICKS.filter(t => t >= lo && t <= hi);
+  if (ticks.length <= 10) return ticks;
+  const step = Math.ceil(ticks.length / 8);
+  const result = ticks.filter((_, i) => i % step === 0);
+  if (!result.includes(ticks[ticks.length - 1])) result.push(ticks[ticks.length - 1]);
+  return result;
+}
+function meshTickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}`; }
 
-// Mini Latency Histogram for service detail
+// Mini Latency Histogram for service detail (Kibana-style)
 function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
   buckets: { le: number; count: number }[];
   p50: number;
@@ -740,15 +755,28 @@ function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
   p99: number;
   t: MeshTabTranslations;
 }) {
-  // buckets already filtered (count > 0) by caller
+  if (buckets.length === 0) return null;
   const maxCount = Math.max(...buckets.map(b => b.count), 1);
-  const barLes = buckets.map(b => b.le);
+  const [lo, hi] = meshAxisRange(buckets.map(b => b.le));
+  const ticks = meshVisibleTicks(lo, hi);
+
+  const bars = buckets.map((b, i) => {
+    const prev = i === 0 ? lo : buckets[i - 1].le;
+    const left = meshLogPos(prev, lo, hi);
+    const right = meshLogPos(b.le, lo, hi);
+    const color = b.le > p99
+      ? "bg-red-400/80 hover:bg-red-500"
+      : b.le > p95 ? "bg-amber-400/90 hover:bg-amber-500"
+      : b.le > p50 ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
+      : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
+    return { ...b, left, width: Math.max(right - left, 0.5), color };
+  });
 
   return (
     <div className="flex gap-2">
       <div className="flex flex-col justify-between h-28 text-[9px] text-muted text-right w-8 flex-shrink-0">
-        <span>{maxCount}</span>
-        <span>{Math.round(maxCount / 2)}</span>
+        <span>{maxCount.toLocaleString()}</span>
+        <span>{Math.round(maxCount / 2).toLocaleString()}</span>
         <span>0</span>
       </div>
       <div className="relative h-28 flex-1">
@@ -757,53 +785,49 @@ function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
           <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-[var(--border-color)]" />
           <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--border-color)]" />
         </div>
-        {/* P50/P95/P99 lines — aligned to bar positions */}
+        {/* Vertical tick grid */}
+        {ticks.map(tick => (
+          <div key={tick} className="absolute top-0 bottom-0 w-px bg-[var(--border-color)] opacity-30 pointer-events-none"
+            style={{ left: `${meshLogPos(tick, lo, hi)}%` }} />
+        ))}
+        {/* P50/P95/P99 lines */}
         {[
-          { value: p50, color: "blue", label: "P50" },
-          { value: p95, color: "amber", label: "P95" },
-          { value: p99, color: "red", label: "P99" },
-        ].map(({ value, color, label }) => {
-          const pos = meshPLinePosition(value, barLes);
-          return pos !== null ? (
-            <div key={label} className={`absolute top-0 bottom-0 w-px bg-${color}-500/70 z-20 pointer-events-none`}
-              style={{ left: `${pos}%` }}>
-              <div className={`absolute -top-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-${color}-500 text-white text-[8px] font-medium whitespace-nowrap rounded`}>
-                {label}
-              </div>
+          { value: p50, c: "blue", label: "P50" },
+          { value: p95, c: "amber", label: "P95" },
+          { value: p99, c: "red", label: "P99" },
+        ].map(({ value, c, label }) => (
+          <div key={label} className={`absolute top-0 bottom-0 w-px bg-${c}-500/70 z-20 pointer-events-none`}
+            style={{ left: `${meshLogPos(value, lo, hi)}%` }}>
+            <div className={`absolute -top-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-${c}-500 text-white text-[8px] font-medium whitespace-nowrap rounded`}>
+              {label}
             </div>
-          ) : null;
-        })}
-        {/* Bars */}
-        <div className="flex items-end h-full gap-[2px] relative z-10">
-          {buckets.map((bucket, idx) => {
-            const heightPercent = (bucket.count / maxCount) * 100;
-            const threshold = barLes.length > 1 ? (barLes[barLes.length - 1] - barLes[0]) * 0.05 : 50;
-            const isNearP99 = Math.abs(bucket.le - p99) < threshold;
-            const isNearP95 = !isNearP99 && Math.abs(bucket.le - p95) < threshold;
-            const isNearP50 = !isNearP99 && !isNearP95 && Math.abs(bucket.le - p50) < threshold;
-            return (
-              <div key={idx} className="flex-1 flex flex-col items-center justify-end group relative" style={{ height: "100%" }}>
-                <div className={`w-full rounded-t-sm transition-all duration-150 ${
-                  isNearP99 ? "bg-red-400/80 group-hover:bg-red-500" :
-                  isNearP95 ? "bg-amber-400/90 group-hover:bg-amber-500" :
-                  isNearP50 ? "bg-blue-400/80 group-hover:bg-blue-500" :
-                  "bg-teal-400/80 group-hover:bg-teal-500 dark:bg-teal-500/70 dark:group-hover:bg-teal-400"
-                }`} style={{ height: `${Math.max(heightPercent, 3)}%` }} />
-                <div className="absolute bottom-full mb-2 hidden group-hover:block z-30 pointer-events-none">
-                  <div className="bg-slate-900 text-white text-[10px] px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap border border-slate-700">
-                    <div className="font-medium">&le; {bucket.le}ms</div>
-                    <div className="text-slate-300">{bucket.count.toLocaleString()} {t.requests}</div>
-                  </div>
+          </div>
+        ))}
+        {/* Bars — log scale positioning */}
+        {bars.map((bar, idx) => {
+          const hPct = (bar.count / maxCount) * 100;
+          return (
+            <div key={idx} className="absolute bottom-0 group z-10"
+              style={{ left: `${bar.left}%`, width: `${bar.width}%`, height: "100%" }}>
+              <div className="h-full flex items-end px-[0.5px]">
+                <div className={`w-full rounded-t-sm transition-all duration-150 ${bar.color}`}
+                  style={{ height: `${Math.max(hPct, 2)}%` }} />
+              </div>
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-30 pointer-events-none">
+                <div className="bg-slate-900 text-white text-[10px] px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap border border-slate-700">
+                  <div className="font-medium">&le; {bar.le}ms</div>
+                  <div className="text-slate-300">{bar.count.toLocaleString()} {t.requests}</div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-        {/* X axis — actual bucket values */}
-        <div className="absolute -bottom-4 left-0 right-0 flex justify-between text-[9px] text-muted">
-          {buckets.map((b, i) => (
-            <span key={i} className="text-center" style={{ width: `${100 / buckets.length}%` }}>
-              {b.le}ms
+            </div>
+          );
+        })}
+        {/* X axis — fixed tick labels */}
+        <div className="absolute -bottom-4 left-0 right-0 text-[9px] text-muted">
+          {ticks.map(tick => (
+            <span key={tick} className="absolute -translate-x-1/2 whitespace-nowrap"
+              style={{ left: `${meshLogPos(tick, lo, hi)}%` }}>
+              {meshTickLabel(tick)}
             </span>
           ))}
         </div>
