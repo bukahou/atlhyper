@@ -346,22 +346,16 @@ function ServiceTopologyView({ topology, onSelectNode, t }: {
           <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e2e8f0" strokeWidth="0.5" className="dark:stroke-slate-700" /></pattern>
           <rect x={viewOrigin.x} y={viewOrigin.y} width={containerWidth / zoom} height={svgHeight / zoom} fill="url(#grid)" opacity="0.5" />
 
-          {/* Namespace swim lanes */}
+          {/* Namespace labels (layout preserved, no bounding box) */}
           {sortedNamespaces.map(ns => {
             const b = nsLaneBounds[ns];
             if (!b) return null;
             const colors = getNamespaceColor(ns);
             return (
-              <g key={`ns-${ns}`}>
-                <rect x={b.minX} y={b.minY} width={b.maxX - b.minX} height={b.maxY - b.minY}
-                  rx="12" fill={colors.fill} fillOpacity={0.08}
-                  stroke={colors.stroke} strokeWidth={1} strokeOpacity={0.25}
-                  strokeDasharray="6 3" />
-                <text x={b.minX + 14} y={b.minY + 18}
-                  fontSize="12" fontWeight="700" fill={colors.stroke} fillOpacity={0.7}>
-                  {ns}
-                </text>
-              </g>
+              <text key={`ns-${ns}`} x={b.minX + 14} y={b.minY + 16}
+                fontSize="11" fontWeight="600" fill={colors.stroke} fillOpacity={0.5}>
+                {ns}
+              </text>
             );
           })}
 
