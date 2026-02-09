@@ -79,7 +79,7 @@ func CalculateQuantile(buckets map[float64]int64, quantile float64) float64 {
 // CalculateQuantileMs 计算分位数并返回毫秒值
 func CalculateQuantileMs(buckets map[float64]int64, quantile float64) int {
 	seconds := CalculateQuantile(buckets, quantile)
-	return int(seconds * 1000)
+	return int(math.Round(seconds * 1000))
 }
 
 // CalculateAvailability 计算可用性
@@ -169,6 +169,38 @@ func CalculateRPS(totalRequests int64, durationSeconds float64) float64 {
 		return 0
 	}
 	return float64(totalRequests) / durationSeconds
+}
+
+// AdjustBucketsForProbes 从累积直方图中减去探针流量
+// Linkerd 的 response_latency_ms_bucket 没有 route_name 标签，无法在采集层过滤探针请求。
+// 假设探针流量延迟最低，集中在最低 bucket，从每个累积 bucket 减去 probeCount（cap at 0）。
+//
+// probeCount = buckets[+Inf] - filteredTotal
+// adjusted[le] = max(0, original[le] - probeCount)
+func AdjustBucketsForProbes(buckets map[float64]int64, filteredTotal int64) map[float64]int64 {
+	if len(buckets) == 0 {
+		return buckets
+	}
+
+	unfilteredTotal := buckets[math.Inf(1)]
+	if unfilteredTotal == 0 {
+		return buckets
+	}
+
+	probeCount := unfilteredTotal - filteredTotal
+	if probeCount <= 0 {
+		return buckets
+	}
+
+	adjusted := make(map[float64]int64, len(buckets))
+	for le, count := range buckets {
+		adj := count - probeCount
+		if adj < 0 {
+			adj = 0
+		}
+		adjusted[le] = adj
+	}
+	return adjusted
 }
 
 // MergeBuckets 合并多个 histogram bucket

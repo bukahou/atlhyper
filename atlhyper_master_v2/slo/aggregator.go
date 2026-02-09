@@ -168,8 +168,9 @@ func (a *Aggregator) aggregateServiceRows(clusterID, namespace, name string, hou
 		}
 	}
 
-	// 合并 bucket 并计算分位数
+	// 合并 bucket，补偿探针流量后计算分位数
 	merged := MergeBuckets(allBuckets...)
+	merged = AdjustBucketsForProbes(merged, totalReqs)
 	p50 := CalculateQuantileMs(merged, 0.50)
 	p95 := CalculateQuantileMs(merged, 0.95)
 	p99 := CalculateQuantileMs(merged, 0.99)

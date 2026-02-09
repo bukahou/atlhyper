@@ -93,6 +93,7 @@ func (q *QueryService) GetServiceDetail(ctx context.Context, clusterID, namespac
 			}
 		}
 		resp.StatusCodes = buildStatusCodes(s2xx, s3xx, s4xx, s5xx)
+		mergedBuckets = slo.AdjustBucketsForProbes(mergedBuckets, node.TotalRequests)
 		resp.LatencyBuckets = buildBuckets(mergedBuckets)
 	}
 
@@ -114,6 +115,7 @@ func (q *QueryService) GetServiceDetail(ctx context.Context, clusterID, namespac
 				}
 			}
 			resp.StatusCodes = buildStatusCodes(s2xx, s3xx, s4xx, s5xx)
+			mergedBuckets = slo.AdjustBucketsForProbes(mergedBuckets, node.TotalRequests)
 			resp.LatencyBuckets = buildBuckets(mergedBuckets)
 		}
 	}
@@ -146,20 +148,13 @@ func (q *QueryService) getServiceNodes(ctx context.Context, clusterID string, st
 	if len(hourlies) > 0 {
 		// 按 (namespace, name) 聚合多个小时
 		type key struct{ NS, Name string }
-		groups := map[key][]struct {
-			TotalReqs, ErrorReqs int64
-			RPS                  float64
-			P95, P99, Avg        int
-			MtlsPercent          float64
-		}{}
 		totals := map[key]struct {
 			TotalReqs, ErrorReqs int64
-			LatencyWeight        float64
-			P95Sum, P99Sum       float64
 			AvgSum               float64
 			RPSSum               float64
 			MtlsSum              float64
 			Count                int
+			Buckets              []map[float64]int64
 		}{}
 
 		for _, h := range hourlies {
@@ -167,22 +162,25 @@ func (q *QueryService) getServiceNodes(ctx context.Context, clusterID string, st
 			t := totals[k]
 			t.TotalReqs += h.TotalRequests
 			t.ErrorReqs += h.ErrorRequests
-			t.P95Sum += float64(h.P95LatencyMs) * float64(h.TotalRequests)
-			t.P99Sum += float64(h.P99LatencyMs) * float64(h.TotalRequests)
 			t.AvgSum += float64(h.AvgLatencyMs) * float64(h.TotalRequests)
 			t.RPSSum += h.AvgRPS
 			t.MtlsSum += h.MtlsPercent
 			t.Count++
+			if b := slo.ParseJSONBuckets(h.LatencyBuckets); b != nil {
+				t.Buckets = append(t.Buckets, b)
+			}
 			totals[k] = t
-			_ = groups // unused
 		}
 
 		var nodes []model.ServiceNodeResponse
 		for k, t := range totals {
-			var p95, p99, avg int
+			merged := slo.MergeBuckets(t.Buckets...)
+			merged = slo.AdjustBucketsForProbes(merged, t.TotalReqs)
+			p50 := slo.CalculateQuantileMs(merged, 0.50)
+			p95 := slo.CalculateQuantileMs(merged, 0.95)
+			p99 := slo.CalculateQuantileMs(merged, 0.99)
+			var avg int
 			if t.TotalReqs > 0 {
-				p95 = int(t.P95Sum / float64(t.TotalReqs))
-				p99 = int(t.P99Sum / float64(t.TotalReqs))
 				avg = int(t.AvgSum / float64(t.TotalReqs))
 			}
 			avail := slo.CalculateAvailability(t.TotalReqs, t.ErrorReqs)
@@ -203,7 +201,7 @@ func (q *QueryService) getServiceNodes(ctx context.Context, clusterID string, st
 				Namespace:     k.NS,
 				RPS:           rps,
 				AvgLatencyMs:  avg,
-				P50LatencyMs:  0, // hourly 聚合中可用
+				P50LatencyMs:  p50,
 				P95LatencyMs:  p95,
 				P99LatencyMs:  p99,
 				ErrorRate:     errRate,
@@ -251,6 +249,8 @@ func (q *QueryService) getServiceNodes(ctx context.Context, clusterID string, st
 	var nodes []model.ServiceNodeResponse
 	for k, g := range groups {
 		merged := slo.MergeBuckets(g.Buckets...)
+		merged = slo.AdjustBucketsForProbes(merged, g.TotalReqs)
+		p50 := slo.CalculateQuantileMs(merged, 0.50)
 		p95 := slo.CalculateQuantileMs(merged, 0.95)
 		p99 := slo.CalculateQuantileMs(merged, 0.99)
 		var avg int
@@ -280,6 +280,7 @@ func (q *QueryService) getServiceNodes(ctx context.Context, clusterID string, st
 			Namespace:     k.NS,
 			RPS:           rps,
 			AvgLatencyMs:  avg,
+			P50LatencyMs:  p50,
 			P95LatencyMs:  p95,
 			P99LatencyMs:  p99,
 			ErrorRate:     errRate,
@@ -302,23 +303,28 @@ func (q *QueryService) getServiceNodeDetail(ctx context.Context, clusterID, name
 
 	if len(hourlies) > 0 {
 		var totalReqs, errorReqs int64
-		var p95Sum, p99Sum, avgSum float64
+		var avgSum float64
 		var rpsSum, mtlsSum float64
+		var allBuckets []map[float64]int64
 
 		for _, h := range hourlies {
 			totalReqs += h.TotalRequests
 			errorReqs += h.ErrorRequests
-			p95Sum += float64(h.P95LatencyMs) * float64(h.TotalRequests)
-			p99Sum += float64(h.P99LatencyMs) * float64(h.TotalRequests)
 			avgSum += float64(h.AvgLatencyMs) * float64(h.TotalRequests)
 			rpsSum += h.AvgRPS
 			mtlsSum += h.MtlsPercent
+			if b := slo.ParseJSONBuckets(h.LatencyBuckets); b != nil {
+				allBuckets = append(allBuckets, b)
+			}
 		}
 
-		var p95, p99, avg int
+		merged := slo.MergeBuckets(allBuckets...)
+		merged = slo.AdjustBucketsForProbes(merged, totalReqs)
+		p50 := slo.CalculateQuantileMs(merged, 0.50)
+		p95 := slo.CalculateQuantileMs(merged, 0.95)
+		p99 := slo.CalculateQuantileMs(merged, 0.99)
+		var avg int
 		if totalReqs > 0 {
-			p95 = int(p95Sum / float64(totalReqs))
-			p99 = int(p99Sum / float64(totalReqs))
 			avg = int(avgSum / float64(totalReqs))
 		}
 
@@ -340,6 +346,7 @@ func (q *QueryService) getServiceNodeDetail(ctx context.Context, clusterID, name
 			Namespace:     namespace,
 			RPS:           rps,
 			AvgLatencyMs:  avg,
+			P50LatencyMs:  p50,
 			P95LatencyMs:  p95,
 			P99LatencyMs:  p99,
 			ErrorRate:     errRate,
@@ -375,6 +382,8 @@ func (q *QueryService) getServiceNodeDetail(ctx context.Context, clusterID, name
 	}
 
 	merged := slo.MergeBuckets(allBuckets...)
+	merged = slo.AdjustBucketsForProbes(merged, totalReqs)
+	p50 := slo.CalculateQuantileMs(merged, 0.50)
 	p95 := slo.CalculateQuantileMs(merged, 0.95)
 	p99 := slo.CalculateQuantileMs(merged, 0.99)
 	var avg int
@@ -405,6 +414,7 @@ func (q *QueryService) getServiceNodeDetail(ctx context.Context, clusterID, name
 		Namespace:     namespace,
 		RPS:           rps,
 		AvgLatencyMs:  avg,
+		P50LatencyMs:  p50,
 		P95LatencyMs:  p95,
 		P99LatencyMs:  p99,
 		ErrorRate:     errRate,
