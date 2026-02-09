@@ -769,7 +769,8 @@ function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
       : b.le > p95 ? "bg-amber-400/90 hover:bg-amber-500"
       : b.le > p50 ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
       : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
-    return { ...b, left, width: Math.max(right - left, 0.5), color };
+    const prevLe = i === 0 ? 0 : buckets[i - 1].le;
+    return { ...b, prevLe, left, width: Math.max(right - left, 0.5), color };
   });
 
   return (
@@ -815,7 +816,7 @@ function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
               </div>
               <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-30 pointer-events-none">
                 <div className="bg-slate-900 text-white text-[10px] px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap border border-slate-700">
-                  <div className="font-medium">&le; {bar.le}ms</div>
+                  <div className="font-medium">{bar.prevLe > 0 ? `${bar.prevLe}–${bar.le}ms` : `0–${bar.le}ms`}</div>
                   <div className="text-slate-300">{bar.count.toLocaleString()} {t.requests}</div>
                 </div>
               </div>
