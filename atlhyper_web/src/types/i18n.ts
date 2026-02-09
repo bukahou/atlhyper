@@ -6,6 +6,7 @@ import type { Language } from "./common";
 
 // 导航菜单翻译
 export interface NavTranslations {
+  about: string;
   overview: string;
   stylePreview: string;
   slo: string;
@@ -1225,6 +1226,129 @@ export interface AIChatPageTranslations {
   };
 }
 
+// About 介绍页翻译
+export interface AboutTranslations {
+  // Hero
+  subtitle: string;
+  description: string;
+  heroStatComponents: string;
+  heroStatLayers: string;
+  heroStatLanguages: string;
+  heroStatLicense: string;
+  // 状态徽章
+  statusDone: string;
+  statusPlanned: string;
+  // 五层可观测性架构
+  sectionArchitecture: string;
+  sectionArchitectureDesc: string;
+  layer1Title: string;
+  layer1Desc: string;
+  layer1Source: string;
+  layer1Metrics: string;
+  layer2Title: string;
+  layer2Desc: string;
+  layer2Source: string;
+  layer2Metrics: string;
+  layer3Title: string;
+  layer3Desc: string;
+  layer3Source: string;
+  layer3Metrics: string;
+  layer4Title: string;
+  layer4Desc: string;
+  layer4Source: string;
+  layer4Metrics: string;
+  layer5Title: string;
+  layer5Desc: string;
+  layer5Source: string;
+  layer5Metrics: string;
+  // Drill-down 层间关联
+  drilldownLabel: string;
+  drilldown12: string;
+  drilldown23: string;
+  drilldown34: string;
+  drilldown45: string;
+  // AI 贯穿
+  aiTitle: string;
+  aiDesc: string;
+  aiScenarioTitle: string;
+  aiScenarioStep1: string;
+  aiScenarioStep2: string;
+  aiScenarioStep3: string;
+  aiScenarioStep4: string;
+  aiScenarioStep5: string;
+  aiFullStack: string;
+  // 功能模块
+  sectionFeatures: string;
+  featureClusterTitle: string;
+  featureClusterDesc: string;
+  featureSloTitle: string;
+  featureSloDesc: string;
+  featureTopologyTitle: string;
+  featureTopologyDesc: string;
+  featureAiTitle: string;
+  featureAiDesc: string;
+  featureCommandTitle: string;
+  featureCommandDesc: string;
+  featureAlertTitle: string;
+  featureAlertDesc: string;
+  featureMetricsTitle: string;
+  featureMetricsDesc: string;
+  featureApmTitle: string;
+  featureApmDesc: string;
+  featureLogsTitle: string;
+  featureLogsDesc: string;
+  // 技术栈
+  sectionTechStack: string;
+  techMasterTitle: string;
+  techMasterStack: string;
+  techMasterDesc: string;
+  techAgentTitle: string;
+  techAgentStack: string;
+  techAgentDesc: string;
+  techMetricsTitle: string;
+  techMetricsStack: string;
+  techMetricsDesc: string;
+  techWebTitle: string;
+  techWebStack: string;
+  techWebDesc: string;
+  // 开源信息
+  sectionOpenSource: string;
+  openSourceDesc: string;
+  openSourceRequirements: string;
+  // 层级详情弹窗
+  detailSectionWhat: string;
+  detailSectionRole: string;
+  detailSectionIndustry: string;
+  detailSectionTools: string;
+  detailSectionAtlhyper: string;
+  detailClickHint: string;
+  layer1DetailWhat: string;
+  layer1DetailRole: string;
+  layer1DetailIndustry: string;
+  layer1DetailTools: string;
+  layer1DetailAtlhyper: string;
+  layer2DetailWhat: string;
+  layer2DetailRole: string;
+  layer2DetailIndustry: string;
+  layer2DetailTools: string;
+  layer2DetailAtlhyper: string;
+  layer3DetailWhat: string;
+  layer3DetailRole: string;
+  layer3DetailIndustry: string;
+  layer3DetailTools: string;
+  layer3DetailAtlhyper: string;
+  layer4DetailWhat: string;
+  layer4DetailRole: string;
+  layer4DetailIndustry: string;
+  layer4DetailTools: string;
+  layer4DetailAtlhyper: string;
+  layer5DetailWhat: string;
+  layer5DetailRole: string;
+  layer5DetailIndustry: string;
+  layer5DetailTools: string;
+  layer5DetailAtlhyper: string;
+}
+
 // 完整翻译结构
 export interface Translations {
   locale: "zh" | "ja";  // 语言标识符，用于日期格式化等
@@ -1256,6 +1380,7 @@ export interface Translations {
   slo: SLOTranslations;
   aiSettingsPage: AISettingsPageTranslations;
   aiChatPage: AIChatPageTranslations;
+  aboutPage: AboutTranslations;
 }
 
 // 国际化上下文

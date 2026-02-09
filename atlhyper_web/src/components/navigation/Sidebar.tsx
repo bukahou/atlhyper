@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  Info,
   Bot,
   Box,
   Server,
@@ -84,6 +85,7 @@ interface NavGroup {
 }
 
 const navGroups: NavGroup[] = [
+  { key: "about", href: "/about", icon: Info },
   { key: "overview", href: "/overview", icon: LayoutDashboard },
   { key: "stylePreview", href: "/style-preview", icon: Activity },
   {
