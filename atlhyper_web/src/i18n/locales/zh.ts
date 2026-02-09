@@ -1172,38 +1172,32 @@ export const zh: Translations = {
     // 层级详情弹窗
     detailSectionWhat: "概念",
     detailSectionRole: "在可观测性体系中的作用",
-    detailSectionIndustry: "行业现状",
     detailSectionTools: "主流方案",
     detailSectionAtlhyper: "AtlHyper 实现",
     detailClickHint: "点击查看详情",
     // L1 入口层
     layer1DetailWhat: "入口层可观测性是指对进入集群的外部流量进行监控。通过 Ingress Controller（如 Traefik、Nginx）暴露的指标，追踪每个域名/路由的请求量、成功率、延迟分布，并基于这些指标定义和追踪 SLO。",
     layer1DetailRole: "作为用户请求进入系统的第一道关口，入口层 SLO 直接反映终端用户的体验。一旦入口层指标异常，意味着用户已经感知到问题。它是可观测性体系的「最外层防线」，也是从宏观到微观下钻的起点。",
-    layer1DetailIndustry: "入口层监控已成为云原生可观测性的基础标配。大多数团队通过 Prometheus + Grafana 实现基础指标可视化，但缺乏与下游服务层的自动关联。SLO/Error Budget 理念正在从 SRE 先锋团队向更广泛的工程组织扩散。",
     layer1DetailTools: "Traefik Metrics · Nginx Ingress Metrics · Envoy Gateway · HAProxy · OTel Collector · Prometheus · Grafana",
     layer1DetailAtlhyper: "已完成。通过 OTel Collector 采集 Traefik 指标，Agent 端完成 per-pod delta 计算和服务聚合。提供域名级 SLO 仪表盘，包括可用性、P50/P95/P99 延迟、错误率和 Error Budget 追踪。支持 SLO 目标配置和历史趋势分析。",
     // L2 服务网格层
     layer2DetailWhat: "服务网格层可观测性利用 Sidecar Proxy 拦截所有服务间通信，无需修改应用代码即可获得完整的服务级指标。每个服务的入站（Inbound）和出站（Outbound）流量都被透明地度量，形成完整的服务调用拓扑。",
     layer2DetailRole: "当入口层发现异常后，需要定位到具体哪个后端服务出了问题。服务网格层提供服务间的 Golden Signals（延迟、流量、错误率、饱和度）和调用拓扑图，让你一眼看出「是谁调谁出了问题」。它是从域名级到服务级的关键桥梁。",
-    layer2DetailIndustry: "Linkerd 和 Istio 是两大主流方案。Linkerd 以轻量（Rust Proxy）和低延迟著称，Istio 功能更丰富（流量管理、安全策略）但复杂度更高。Cilium 正在以 eBPF 技术挑战传统 Sidecar 模式。服务网格正在成为微服务架构的标准基础设施。",
     layer2DetailTools: "Linkerd · Istio · Cilium Service Mesh · Consul Connect · OTel Collector · Kiali · Grafana",
     layer2DetailAtlhyper: "已完成。通过 OTel Collector 采集 Linkerd 指标（Inbound + Outbound），提供服务级 Golden Signals、延迟直方图（P50/P95/P99）和交互式服务调用拓扑图。支持 mTLS 状态监控和边缘流量分析。",
     // L3 应用追踪层
     layer3DetailWhat: "分布式追踪为每个请求分配唯一的 TraceID，记录请求在各服务间传播的完整路径。每个服务处理环节称为一个 Span，包含开始/结束时间、状态码、错误信息和自定义元数据。Trace 是 Span 的有序集合，完整还原一次请求的生命周期。",
     layer3DetailRole: "当服务网格层定位到某个服务异常后，需要进一步确认是哪个具体的请求模式、哪段代码路径导致了问题。Trace 提供了请求级的精确诊断能力 — 你可以看到一次请求在 10 个服务间的完整旅程，精确到每个 Span 的耗时和错误。",
-    layer3DetailIndustry: "OpenTelemetry 已成为分布式追踪的事实标准，统一了 OpenTracing 和 OpenCensus 两大阵营。云厂商（AWS X-Ray、GCP Cloud Trace）和开源方案（Jaeger、Tempo）都支持 OTel 协议。APM 正在从独立工具演变为可观测性平台的核心组件，与 Metrics 和 Logs 实现 「三支柱」关联。",
     layer3DetailTools: "Jaeger · Grafana Tempo · Zipkin · AWS X-Ray · Datadog APM · New Relic · OpenTelemetry SDK",
     layer3DetailAtlhyper: "计划中。将通过 OTel SDK 埋点 + Tempo 存储，实现 SLO 异常到具体 Span 的一键下钻。计划支持 TraceID 跨层关联 — 从入口层域名 SLO → 服务网格拓扑 → 具体 Trace/Span 的完整链路可视化。",
     // L4 日志层
     layer4DetailWhat: "日志层收集和聚合来自所有容器、应用和系统组件的日志。现代可观测性强调结构化日志 — 携带 TraceID、SpanID、Service Name 等上下文字段，使日志能与追踪数据自动关联，而不仅仅是纯文本搜索。",
     layer4DetailRole: "追踪层告诉你「哪个 Span 出了错」，日志层告诉你「具体错误是什么」。日志是最终确认根因的关键证据，包含错误堆栈、业务逻辑信息和运行时状态。通过 TraceID 关联，你可以从异常 Span 直接跳转到对应的日志上下文。",
-    layer4DetailIndustry: "ELK Stack（Elasticsearch + Logstash + Kibana）曾长期主导日志市场，但 Grafana Loki 以其轻量架构（只索引标签不索引全文）和与 Grafana 生态的深度集成正在快速崛起。OTel Collector 统一日志采集管道是明确的行业趋势，逐渐取代 Fluentd/Filebeat 等专用 Agent。",
     layer4DetailTools: "Grafana Loki · Elasticsearch (ELK) · Fluentd · Fluent Bit · Vector · OTel Collector · Datadog Logs",
     layer4DetailAtlhyper: "计划中。将通过 OTel Collector 统一日志采集管道，支持 TraceID 关联查询和上下文聚合。计划接入 Loki 作为存储后端，实现「从 Span 点击直达日志」的无缝体验，与 L3 追踪层深度集成。",
     // L5 基础设施层
     layer5DetailWhat: "基础设施层监控底层计算资源（CPU、内存、磁盘、网络）和 Kubernetes 平台状态（Node 健康、Pod 事件、资源配额）。这是所有上层可观测性的物理基础 — 无论应用层发生什么问题，最终都可能关联到资源瓶颈。",
     layer5DetailRole: "上层所有异常的根因可能都源自基础设施层 — 节点内存不足导致 OOM、磁盘满导致日志写入失败、CPU 饱和导致延迟飙升。基础设施层是排查链路的终点，也是容量规划和成本优化的数据基础。",
-    layer5DetailIndustry: "Prometheus + node_exporter 是 Kubernetes 基础设施监控的事实标准。kube-state-metrics 提供 K8s 对象级指标。自定义 DaemonSet 采集器用于更细粒度的节点指标。eBPF 技术正在开辟无侵入式内核级监控的新可能。",
     layer5DetailTools: "Prometheus · node_exporter · kube-state-metrics · Grafana · Datadog Infrastructure · Pixie (eBPF)",
     layer5DetailAtlhyper: "已完成。自研 Metrics DaemonSet 采集节点级 CPU/内存/磁盘/网络指标（读取 /proc 文件系统）。K8s API 实时监控 Pod 事件和自动异常检测（CrashLoopBackOff、OOMKilled、ImagePullBackOff、NodeNotReady）。支持节点资源趋势图和告警通知。",
   },

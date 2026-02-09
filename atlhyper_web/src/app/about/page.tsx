@@ -42,17 +42,16 @@ interface LayerDef {
   color: string;
   detailWhatKey: keyof AboutTranslations;
   detailRoleKey: keyof AboutTranslations;
-  detailIndustryKey: keyof AboutTranslations;
   detailToolsKey: keyof AboutTranslations;
   detailAtlhyperKey: keyof AboutTranslations;
 }
 
 const layers: LayerDef[] = [
-  { level: "L1", titleKey: "layer1Title", descKey: "layer1Desc", sourceKey: "layer1Source", metricsKey: "layer1Metrics", icon: Globe, status: "done", color: "blue", detailWhatKey: "layer1DetailWhat", detailRoleKey: "layer1DetailRole", detailIndustryKey: "layer1DetailIndustry", detailToolsKey: "layer1DetailTools", detailAtlhyperKey: "layer1DetailAtlhyper" },
-  { level: "L2", titleKey: "layer2Title", descKey: "layer2Desc", sourceKey: "layer2Source", metricsKey: "layer2Metrics", icon: Network, status: "done", color: "violet", detailWhatKey: "layer2DetailWhat", detailRoleKey: "layer2DetailRole", detailIndustryKey: "layer2DetailIndustry", detailToolsKey: "layer2DetailTools", detailAtlhyperKey: "layer2DetailAtlhyper" },
-  { level: "L3", titleKey: "layer3Title", descKey: "layer3Desc", sourceKey: "layer3Source", metricsKey: "layer3Metrics", icon: Search, status: "planned", color: "amber", detailWhatKey: "layer3DetailWhat", detailRoleKey: "layer3DetailRole", detailIndustryKey: "layer3DetailIndustry", detailToolsKey: "layer3DetailTools", detailAtlhyperKey: "layer3DetailAtlhyper" },
-  { level: "L4", titleKey: "layer4Title", descKey: "layer4Desc", sourceKey: "layer4Source", metricsKey: "layer4Metrics", icon: FileText, status: "planned", color: "emerald", detailWhatKey: "layer4DetailWhat", detailRoleKey: "layer4DetailRole", detailIndustryKey: "layer4DetailIndustry", detailToolsKey: "layer4DetailTools", detailAtlhyperKey: "layer4DetailAtlhyper" },
-  { level: "L5", titleKey: "layer5Title", descKey: "layer5Desc", sourceKey: "layer5Source", metricsKey: "layer5Metrics", icon: Cpu, status: "done", color: "rose", detailWhatKey: "layer5DetailWhat", detailRoleKey: "layer5DetailRole", detailIndustryKey: "layer5DetailIndustry", detailToolsKey: "layer5DetailTools", detailAtlhyperKey: "layer5DetailAtlhyper" },
+  { level: "L1", titleKey: "layer1Title", descKey: "layer1Desc", sourceKey: "layer1Source", metricsKey: "layer1Metrics", icon: Globe, status: "done", color: "blue", detailWhatKey: "layer1DetailWhat", detailRoleKey: "layer1DetailRole", detailToolsKey: "layer1DetailTools", detailAtlhyperKey: "layer1DetailAtlhyper" },
+  { level: "L2", titleKey: "layer2Title", descKey: "layer2Desc", sourceKey: "layer2Source", metricsKey: "layer2Metrics", icon: Network, status: "done", color: "violet", detailWhatKey: "layer2DetailWhat", detailRoleKey: "layer2DetailRole", detailToolsKey: "layer2DetailTools", detailAtlhyperKey: "layer2DetailAtlhyper" },
+  { level: "L3", titleKey: "layer3Title", descKey: "layer3Desc", sourceKey: "layer3Source", metricsKey: "layer3Metrics", icon: Search, status: "planned", color: "amber", detailWhatKey: "layer3DetailWhat", detailRoleKey: "layer3DetailRole", detailToolsKey: "layer3DetailTools", detailAtlhyperKey: "layer3DetailAtlhyper" },
+  { level: "L4", titleKey: "layer4Title", descKey: "layer4Desc", sourceKey: "layer4Source", metricsKey: "layer4Metrics", icon: FileText, status: "planned", color: "emerald", detailWhatKey: "layer4DetailWhat", detailRoleKey: "layer4DetailRole", detailToolsKey: "layer4DetailTools", detailAtlhyperKey: "layer4DetailAtlhyper" },
+  { level: "L5", titleKey: "layer5Title", descKey: "layer5Desc", sourceKey: "layer5Source", metricsKey: "layer5Metrics", icon: Cpu, status: "done", color: "rose", detailWhatKey: "layer5DetailWhat", detailRoleKey: "layer5DetailRole", detailToolsKey: "layer5DetailTools", detailAtlhyperKey: "layer5DetailAtlhyper" },
 ];
 
 const drilldowns: { key: keyof AboutTranslations }[] = [

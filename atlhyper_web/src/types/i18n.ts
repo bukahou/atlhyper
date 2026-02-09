@@ -1318,33 +1318,27 @@ export interface AboutTranslations {
   // 层级详情弹窗
   detailSectionWhat: string;
   detailSectionRole: string;
-  detailSectionIndustry: string;
   detailSectionTools: string;
   detailSectionAtlhyper: string;
   detailClickHint: string;
   layer1DetailWhat: string;
   layer1DetailRole: string;
-  layer1DetailIndustry: string;
   layer1DetailTools: string;
   layer1DetailAtlhyper: string;
   layer2DetailWhat: string;
   layer2DetailRole: string;
-  layer2DetailIndustry: string;
   layer2DetailTools: string;
   layer2DetailAtlhyper: string;
   layer3DetailWhat: string;
   layer3DetailRole: string;
-  layer3DetailIndustry: string;
   layer3DetailTools: string;
   layer3DetailAtlhyper: string;
   layer4DetailWhat: string;
   layer4DetailRole: string;
-  layer4DetailIndustry: string;
   layer4DetailTools: string;
   layer4DetailAtlhyper: string;
   layer5DetailWhat: string;
   layer5DetailRole: string;
-  layer5DetailIndustry: string;
   layer5DetailTools: string;
   layer5DetailAtlhyper: string;
 }

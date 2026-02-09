@@ -20,7 +20,6 @@ interface LayerDetailModalProps {
     color: string;
     detailWhatKey: keyof AboutTranslations;
     detailRoleKey: keyof AboutTranslations;
-    detailIndustryKey: keyof AboutTranslations;
     detailToolsKey: keyof AboutTranslations;
     detailAtlhyperKey: keyof AboutTranslations;
   };
@@ -86,11 +85,6 @@ export function LayerDetailModal({ isOpen, onClose, a, layer, colorStyle: c }: L
         {/* 作用 */}
         <Section title={a.detailSectionRole}>
           {a[layer.detailRoleKey]}
-        </Section>
-
-        {/* 行业现状 */}
-        <Section title={a.detailSectionIndustry}>
-          {a[layer.detailIndustryKey]}
         </Section>
 
         {/* 主流方案 */}
