@@ -339,7 +339,7 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 	// 用于汇总域名级别数据
 	var totalRequests, errorRequests int64
 	var totalRPS float64
-	buckets := make(map[float64]int64)
+	var weightedP95Sum, weightedP99Sum float64
 	serviceCount := 0
 
 	// 按 service_key 构建 ServiceSLO
@@ -362,11 +362,11 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 			totalRequests += serviceSLO.Current.TotalRequests
 			errorRequests += int64(serviceSLO.Current.ErrorRate * float64(serviceSLO.Current.TotalRequests) / 100)
 			totalRPS += serviceSLO.Current.RequestsPerSec
+			// 按请求量加权累加 P95/P99
+			weightedP95Sum += float64(serviceSLO.Current.P95Latency) * float64(serviceSLO.Current.TotalRequests)
+			weightedP99Sum += float64(serviceSLO.Current.P99Latency) * float64(serviceSLO.Current.TotalRequests)
 			serviceCount++
 		}
-
-		// TODO(Master P4): 使用 JSON bucket 累加域名级别分位数
-		// 当前使用 service 级别的 AvgLatencyMs 近似
 
 		// 统计最差状态
 		if serviceSLO.Status == "critical" && resp.Status != "critical" {
@@ -396,10 +396,15 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 
 	// 计算域名级别汇总
 	if serviceCount > 0 {
+		var p95, p99 int
+		if totalRequests > 0 {
+			p95 = int(weightedP95Sum / float64(totalRequests))
+			p99 = int(weightedP99Sum / float64(totalRequests))
+		}
 		resp.Summary = &model.SLOMetrics{
 			Availability:   slo.CalculateAvailability(totalRequests, errorRequests),
-			P95Latency:     slo.CalculateQuantileMs(buckets, 0.95),
-			P99Latency:     slo.CalculateQuantileMs(buckets, 0.99),
+			P95Latency:     p95,
+			P99Latency:     p99,
 			ErrorRate:      slo.CalculateErrorRate(totalRequests, errorRequests),
 			RequestsPerSec: totalRPS,
 			TotalRequests:  totalRequests,

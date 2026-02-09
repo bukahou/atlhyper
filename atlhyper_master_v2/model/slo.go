@@ -206,9 +206,11 @@ type ServiceEdgeResponse struct {
 // ServiceDetailResponse 服务详情响应
 type ServiceDetailResponse struct {
 	ServiceNodeResponse
-	History     []ServiceHistoryPoint `json:"history"`
-	Upstreams   []ServiceEdgeResponse `json:"upstreams"`
-	Downstreams []ServiceEdgeResponse `json:"downstreams"`
+	History        []ServiceHistoryPoint `json:"history"`
+	Upstreams      []ServiceEdgeResponse `json:"upstreams"`
+	Downstreams    []ServiceEdgeResponse `json:"downstreams"`
+	StatusCodes    []StatusCodeBreakdown `json:"status_codes"`
+	LatencyBuckets []LatencyBucket       `json:"latency_buckets"`
 }
 
 // ServiceHistoryPoint 服务历史数据点

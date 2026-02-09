@@ -8,6 +8,8 @@ package query
 import (
 	"context"
 	"fmt"
+	"math"
+	"sort"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/model"
@@ -65,9 +67,12 @@ func (q *QueryService) GetServiceDetail(ctx context.Context, clusterID, namespac
 		ServiceNodeResponse: *node,
 	}
 
-	// 2. 获取历史数据点（从 hourly）
+	// 2. 获取历史数据点（从 hourly）+ 聚合状态码和 bucket
 	hourlies, err := q.serviceRepo.GetServiceHourly(ctx, clusterID, namespace, name, start, end)
-	if err == nil {
+	if err == nil && len(hourlies) > 0 {
+		var s2xx, s3xx, s4xx, s5xx int64
+		mergedBuckets := make(map[float64]int64)
+
 		for _, h := range hourlies {
 			resp.History = append(resp.History, model.ServiceHistoryPoint{
 				Timestamp:    h.HourStart.Format(time.RFC3339),
@@ -77,6 +82,39 @@ func (q *QueryService) GetServiceDetail(ctx context.Context, clusterID, namespac
 				Availability: h.Availability,
 				MtlsPercent:  h.MtlsPercent,
 			})
+			s2xx += h.Status2xx
+			s3xx += h.Status3xx
+			s4xx += h.Status4xx
+			s5xx += h.Status5xx
+			if b := slo.ParseJSONBuckets(h.LatencyBuckets); b != nil {
+				for le, count := range b {
+					mergedBuckets[le] += count
+				}
+			}
+		}
+		resp.StatusCodes = buildStatusCodes(s2xx, s3xx, s4xx, s5xx)
+		resp.LatencyBuckets = buildBuckets(mergedBuckets)
+	}
+
+	// 回退 raw（如果 hourly 没有状态码/bucket 数据）
+	if len(resp.StatusCodes) == 0 {
+		raws, rawErr := q.serviceRepo.GetServiceRaw(ctx, clusterID, namespace, name, start, end)
+		if rawErr == nil && len(raws) > 0 {
+			var s2xx, s3xx, s4xx, s5xx int64
+			mergedBuckets := make(map[float64]int64)
+			for _, r := range raws {
+				s2xx += r.Status2xx
+				s3xx += r.Status3xx
+				s4xx += r.Status4xx
+				s5xx += r.Status5xx
+				if b := slo.ParseJSONBuckets(r.LatencyBuckets); b != nil {
+					for le, count := range b {
+						mergedBuckets[le] += count
+					}
+				}
+			}
+			resp.StatusCodes = buildStatusCodes(s2xx, s3xx, s4xx, s5xx)
+			resp.LatencyBuckets = buildBuckets(mergedBuckets)
 		}
 	}
 
@@ -472,6 +510,54 @@ func (q *QueryService) getServiceEdges(ctx context.Context, clusterID string, st
 }
 
 // getTimeStart 根据时间范围计算起始时间
+// buildStatusCodes 构建状态码分布
+func buildStatusCodes(s2xx, s3xx, s4xx, s5xx int64) []model.StatusCodeBreakdown {
+	var result []model.StatusCodeBreakdown
+	if s2xx > 0 {
+		result = append(result, model.StatusCodeBreakdown{Code: "2xx", Count: s2xx})
+	}
+	if s3xx > 0 {
+		result = append(result, model.StatusCodeBreakdown{Code: "3xx", Count: s3xx})
+	}
+	if s4xx > 0 {
+		result = append(result, model.StatusCodeBreakdown{Code: "4xx", Count: s4xx})
+	}
+	if s5xx > 0 {
+		result = append(result, model.StatusCodeBreakdown{Code: "5xx", Count: s5xx})
+	}
+	return result
+}
+
+// buildBuckets 将 map[float64]int64 转换为非累积 LatencyBucket 切片
+func buildBuckets(buckets map[float64]int64) []model.LatencyBucket {
+	if len(buckets) == 0 {
+		return nil
+	}
+	les := make([]float64, 0, len(buckets))
+	for le := range buckets {
+		if !math.IsInf(le, 1) {
+			les = append(les, le)
+		}
+	}
+	sort.Float64s(les)
+
+	result := make([]model.LatencyBucket, 0, len(les))
+	var prevCount int64
+	for _, le := range les {
+		cumulative := buckets[le]
+		count := cumulative - prevCount
+		if count < 0 {
+			count = 0
+		}
+		result = append(result, model.LatencyBucket{
+			LE:    le * 1000, // 秒→毫秒
+			Count: count,
+		})
+		prevCount = cumulative
+	}
+	return result
+}
+
 func getTimeStart(now time.Time, timeRange string) time.Time {
 	switch timeRange {
 	case "1h":
