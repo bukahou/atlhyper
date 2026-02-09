@@ -152,7 +152,7 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
         </div>
       </div>
 
-      <div className="px-4 pt-4 pb-6">
+      <div className="px-4 pt-4 pb-10">
         <div className="flex gap-2">
           {/* Y axis */}
           <div className="flex flex-col justify-between h-36 text-[9px] text-muted text-right w-8 flex-shrink-0">

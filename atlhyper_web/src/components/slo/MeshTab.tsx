@@ -700,7 +700,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
               </span>
             </div>
           </div>
-          <div className="px-4 pt-3 pb-6">
+          <div className="px-4 pt-3 pb-10">
             <MiniLatencyHistogram
               buckets={latencyBuckets}
               p50={node.p50_latency}
