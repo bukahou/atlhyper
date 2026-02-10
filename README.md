@@ -2,7 +2,7 @@
 
 **Lightweight Kubernetes Multi-Cluster Monitoring & Operations Platform**
 
-English | [中文](docs/README_zh.md) | [日本語](docs/README_ja.md)
+English | [中文](docs/static/readme/README_zh.md) | [日本語](docs/static/readme/README_ja.md)
 
 ---
 
