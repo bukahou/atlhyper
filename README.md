@@ -209,29 +209,29 @@ AtlHyper consists of four modules with distinct data flows:
 ### Cluster Overview
 Real-time cluster health, resource usage, and recent alerts at a glance.
 
-![Cluster Overview](docs/img/overview.png)
+![Cluster Overview](docs/static/img/overview.png)
 
 ### Pod Management
 List, filter, and manage pods across namespaces with detailed status.
 
-![Pod Management](docs/img/cluster_pod.png)
+![Pod Management](docs/static/img/cluster_pod.png)
 
 ### Alert Dashboard
 View and analyze cluster alerts with filtering and AI-powered analysis.
 
-![Alert Dashboard](docs/img/cluster_alert.png)
+![Alert Dashboard](docs/static/img/cluster_alert.png)
 
 ### Node Metrics
 Detailed node-level metrics with historical trends.
 
-![Node Metrics](docs/img/system_metrics.png)
+![Node Metrics](docs/static/img/system_metrics.png)
 
 ### SLO Monitoring
 Track service level objectives based on Ingress metrics.
 
-![SLO Overview](docs/img/workbench_slo_overview.png)
+![SLO Overview](docs/static/img/workbench_slo_overview.png)
 
-![SLO Details](docs/img/workbench_slo.png)
+![SLO Details](docs/static/img/workbench_slo.png)
 
 ---
 
