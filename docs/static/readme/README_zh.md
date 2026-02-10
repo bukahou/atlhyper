@@ -208,29 +208,29 @@ AtlHyper 由四个模块组成，各有独立的数据流：
 ### 集群总览
 实时展示集群健康状态、资源使用情况和最近告警。
 
-![集群总览](img/overview.png)
+![集群总览](../img/overview.png)
 
 ### Pod 管理
 跨命名空间列表、过滤和管理 Pod，展示详细状态。
 
-![Pod 管理](img/cluster_pod.png)
+![Pod 管理](../img/cluster_pod.png)
 
 ### 告警面板
 查看和分析集群告警，支持过滤和 AI 智能分析。
 
-![告警面板](img/cluster_alert.png)
+![告警面板](../img/cluster_alert.png)
 
 ### 节点指标
 详细的节点级指标与历史趋势图表。
 
-![节点指标](img/system_metrics.png)
+![节点指标](../img/system_metrics.png)
 
 ### SLO 监控
 基于 Ingress 指标追踪服务水平目标。
 
-![SLO 总览](img/workbench_slo_overview.png)
+![SLO 总览](../img/workbench_slo_overview.png)
 
-![SLO 详情](img/workbench_slo.png)
+![SLO 详情](../img/workbench_slo.png)
 
 ---
 

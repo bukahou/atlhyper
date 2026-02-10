@@ -208,29 +208,29 @@ AtlHyper は4つのモジュールで構成され、それぞれ独立したデ�
 ### クラスター概要
 クラスターの健全性、リソース使用状況、最近のアラートをリアルタイムで表示。
 
-![クラスター概要](img/overview.png)
+![クラスター概要](../img/overview.png)
 
 ### Pod 管理
 ネームスペース横断で Pod を一覧、フィルタ、管理。詳細なステータスを表示。
 
-![Pod 管理](img/cluster_pod.png)
+![Pod 管理](../img/cluster_pod.png)
 
 ### アラートダッシュボード
 クラスターアラートの表示と分析。フィルタリングと AI 分析をサポート。
 
-![アラートダッシュボード](img/cluster_alert.png)
+![アラートダッシュボード](../img/cluster_alert.png)
 
 ### ノードメトリクス
 ノードレベルの詳細なメトリクスと履歴トレンドグラフ。
 
-![ノードメトリクス](img/system_metrics.png)
+![ノードメトリクス](../img/system_metrics.png)
 
 ### SLO 監視
 Ingress メトリクスに基づくサービスレベル目標の追跡。
 
-![SLO 概要](img/workbench_slo_overview.png)
+![SLO 概要](../img/workbench_slo_overview.png)
 
-![SLO 詳細](img/workbench_slo.png)
+![SLO 詳細](../img/workbench_slo.png)
 
 ---
 
