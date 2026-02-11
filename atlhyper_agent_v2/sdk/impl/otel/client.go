@@ -19,6 +19,7 @@ package otel
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -78,6 +79,38 @@ func (c *client) ScrapeMetrics(ctx context.Context) (*sdk.OTelRawMetrics, error)
 	)
 
 	return metrics, nil
+}
+
+// ScrapeNodeMetrics 从 OTel Collector 采集节点硬件指标
+//
+// HTTP GET → 解析 node_exporter Prometheus 文本 → 按 instance 分组
+// 返回 map[nodeName]*OTelNodeRawMetrics，保存原始累积值
+func (c *client) ScrapeNodeMetrics(ctx context.Context) (map[string]*sdk.OTelNodeRawMetrics, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.metricsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("scrape otel collector: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("otel collector returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", err)
+	}
+
+	result := parseNodeMetrics(string(body))
+
+	log.Debug("scraped node metrics: nodes=%d", len(result))
+
+	return result, nil
 }
 
 // IsHealthy 检查 OTel Collector 健康状态

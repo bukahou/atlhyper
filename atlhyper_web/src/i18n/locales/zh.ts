@@ -6,6 +6,8 @@ export const zh: Translations = {
     about: "AtlHyper",
     overview: "概览",
     stylePreview: "样式设计",
+    stylePreviewSLO: "SLO 预览",
+    stylePreviewMetrics: "指标预览",
     slo: "SLO 监控",
     workbench: "工作台",
     workbenchHome: "工作台首页",

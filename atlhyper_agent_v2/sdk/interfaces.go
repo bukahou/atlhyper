@@ -269,6 +269,10 @@ type OTelClient interface {
 	// 返回分类后的原始指标（per-pod 级别，累积值）
 	ScrapeMetrics(ctx context.Context) (*OTelRawMetrics, error)
 
+	// ScrapeNodeMetrics 从 OTel Collector 采集节点硬件指标
+	// 返回 map[nodeName]*OTelNodeRawMetrics，按 instance label 分组
+	ScrapeNodeMetrics(ctx context.Context) (map[string]*OTelNodeRawMetrics, error)
+
 	// IsHealthy 检查 Collector 健康状态
 	IsHealthy(ctx context.Context) bool
 }

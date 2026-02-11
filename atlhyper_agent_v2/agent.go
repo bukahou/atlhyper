@@ -86,26 +86,38 @@ func New() (*Agent, error) {
 	// 3. 初始化 Repository (数据访问层)
 	repos := initRepositories(k8sClient)
 
-	// 3.1 初始化 Receiver SDK + MetricsRepository (节点指标)
+	// 3.1 初始化 OTel 客户端（SLO + 节点指标共用）
+	var otelClient sdkpkg.OTelClient
+	if cfg.SLO.Enabled {
+		otelClient = otelpkg.NewOTelClient(cfg.SLO.OTelMetricsURL, cfg.SLO.OTelHealthURL, cfg.SLO.ScrapeTimeout)
+		log.Info("OTel 客户端初始化完成", "url", cfg.SLO.OTelMetricsURL)
+	}
+
+	// 3.2 初始化 MetricsRepository (节点指标)
+	// 优先用 OTel 拉取 node_exporter 指标，降级到 Receiver 被动接收
 	var metricsRepo repository.MetricsRepository
 	var receiverClient sdkpkg.ReceiverClient
 	if cfg.MetricsSDK.Enabled {
 		receiverClient = receiver.NewServer(cfg.MetricsSDK.Port)
-		metricsRepo = metricsrepo.NewMetricsRepository(receiverClient)
-		log.Info("Receiver SDK + Metrics Repository 初始化完成")
+	}
+	if otelClient != nil {
+		metricsRepo = metricsrepo.NewMetricsRepository(otelClient, receiverClient)
+		log.Info("MetricsRepository 初始化完成 (OTel 模式)")
+	} else if receiverClient != nil {
+		metricsRepo = metricsrepo.NewLegacyMetricsRepository(receiverClient)
+		log.Info("MetricsRepository 初始化完成 (Receiver 降级模式)")
 	}
 
-	// 3.2 初始化 SLORepository (可选)
+	// 3.3 初始化 SLORepository (可选)
 	var sloRepo repository.SLORepository
-	if cfg.SLO.Enabled {
-		otelClient := otelpkg.NewOTelClient(cfg.SLO.OTelMetricsURL, cfg.SLO.OTelHealthURL, cfg.SLO.ScrapeTimeout)
+	if cfg.SLO.Enabled && otelClient != nil {
 		ingressClient := ingress.NewIngressClient(k8sClient)
 		excludeNS := cfg.SLO.ExcludeNamespaces
 		if len(excludeNS) == 0 {
 			excludeNS = []string{"linkerd", "linkerd-viz", "kube-system", "otel"}
 		}
 		sloRepo = slorepo.NewSLORepository(otelClient, ingressClient, excludeNS)
-		log.Info("SLO Repository 初始化完成", "otel_url", cfg.SLO.OTelMetricsURL)
+		log.Info("SLO Repository 初始化完成")
 	}
 
 	// 4. 初始化 Service (业务逻辑层)
@@ -133,7 +145,7 @@ func New() (*Agent, error) {
 		CommandPollTimeout:  cfg.Timeout.CommandPoll,
 		HeartbeatTimeout:    cfg.Timeout.Heartbeat,
 	}
-	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw)
+	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw, metricsRepo)
 
 	return &Agent{
 		scheduler:   sched,

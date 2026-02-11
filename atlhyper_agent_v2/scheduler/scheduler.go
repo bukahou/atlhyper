@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/gateway"
+	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/atlhyper_agent_v2/service"
 	"AtlHyper/common/logger"
 )
@@ -34,6 +35,12 @@ type Config struct {
 
 	// HeartbeatTimeout 心跳操作超时
 	HeartbeatTimeout time.Duration
+
+	// MetricsSyncInterval 节点指标同步间隔 (默认 15s)
+	MetricsSyncInterval time.Duration
+
+	// MetricsSyncTimeout 节点指标同步超时 (默认 10s)
+	MetricsSyncTimeout time.Duration
 }
 
 // Scheduler 调度器
@@ -49,6 +56,7 @@ type Scheduler struct {
 	snapshotSvc service.SnapshotService
 	commandSvc  service.CommandService
 	masterGw    gateway.MasterGateway
+	metricsRepo repository.MetricsRepository // 可选，nil 时不启动 MetricsSync
 
 	// 生命周期控制
 	ctx    context.Context
@@ -73,12 +81,14 @@ func New(
 	snapshotSvc service.SnapshotService,
 	commandSvc service.CommandService,
 	masterGw gateway.MasterGateway,
+	metricsRepo repository.MetricsRepository,
 ) *Scheduler {
 	return &Scheduler{
 		config:      config,
 		snapshotSvc: snapshotSvc,
 		commandSvc:  commandSvc,
 		masterGw:    masterGw,
+		metricsRepo: metricsRepo,
 	}
 }
 
@@ -86,12 +96,20 @@ func New(
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 
-	// 启动后台任务: 快照 + ops轮询 + ai轮询 + 心跳
-	s.wg.Add(4)
+	// 启动后台任务: 快照 + ops轮询 + ai轮询 + 心跳 + (可选)指标同步
+	goroutines := 4
+	if s.metricsRepo != nil {
+		goroutines++
+	}
+	s.wg.Add(goroutines)
 	go s.runSnapshotLoop()     // 快照采集（含 SLO 数据）
 	go s.runCommandLoop("ops") // 系统操作指令轮询
 	go s.runCommandLoop("ai")  // AI 查询指令轮询
 	go s.runHeartbeatLoop()    // 心跳
+
+	if s.metricsRepo != nil {
+		go s.runMetricsSyncLoop() // 节点指标同步（OTel 拉取）
+	}
 
 	log.Info("调度器已启动")
 	return nil
@@ -276,3 +294,49 @@ func (s *Scheduler) runHeartbeatLoop() {
 
 // SLO 数据已合入 SnapshotService.Collect()，随快照一起采集和推送。
 // 不再需要独立的 SLO 采集循环。
+
+// =============================================================================
+// 节点指标同步循环
+// =============================================================================
+
+// runMetricsSyncLoop 节点指标同步循环
+//
+// 独立 15s 循环（与快照循环 10s 解耦），从 OTel Collector 拉取 node_exporter 指标。
+// 首次立即执行（存首次原始值，第二次才输出快照）。
+func (s *Scheduler) runMetricsSyncLoop() {
+	defer s.wg.Done()
+
+	interval := s.config.MetricsSyncInterval
+	if interval <= 0 {
+		interval = 15 * time.Second
+	}
+	timeout := s.config.MetricsSyncTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// 立即执行一次（存首次原始值）
+	s.syncMetrics(timeout)
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.syncMetrics(timeout)
+		}
+	}
+}
+
+// syncMetrics 执行一次节点指标同步
+func (s *Scheduler) syncMetrics(timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(s.ctx, timeout)
+	defer cancel()
+
+	if err := s.metricsRepo.Sync(ctx); err != nil {
+		log.Warn("节点指标同步失败", "err", err)
+	}
+}

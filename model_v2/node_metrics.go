@@ -8,8 +8,8 @@ import "time"
 
 // NodeMetricsSnapshot 节点硬件指标快照
 //
-// 由 atlhyper_metrics_v2 采集器采集，通过 Agent 聚合到 ClusterSnapshot。
-// 包含 CPU、内存、磁盘、网络、温度、进程等详细硬件指标。
+// 由 Agent 从 OTel Collector (node_exporter) 采集并转换，聚合到 ClusterSnapshot。
+// 包含 CPU、内存、磁盘、网络、温度、PSI、TCP、系统资源等指标。
 type NodeMetricsSnapshot struct {
 	// 标识
 	NodeName  string    `json:"node_name"`  // 节点名称
@@ -25,7 +25,15 @@ type NodeMetricsSnapshot struct {
 	Disks       []DiskMetrics      `json:"disks"`
 	Networks    []NetworkMetrics   `json:"networks"`
 	Temperature TemperatureMetrics `json:"temperature"`
-	Processes   []ProcessMetrics   `json:"processes"` // Top N 进程
+	Processes   []ProcessMetrics   `json:"processes"` // Top N 进程（OTel 模式下为 nil）
+
+	// 扩展指标（OTel node_exporter 采集）
+	PSI     PSIMetrics     `json:"psi"`     // 压力信息
+	TCP     TCPMetrics     `json:"tcp"`     // TCP 连接状态
+	System  SystemMetrics  `json:"system"`  // 系统资源
+	VMStat  VMStatMetrics  `json:"vmstat"`  // 虚拟内存统计
+	NTP     NTPMetrics     `json:"ntp"`     // 时间同步
+	Softnet SoftnetMetrics `json:"softnet"` // 软中断统计
 }
 
 // ============================================================
@@ -232,6 +240,80 @@ type ClusterMetricsSummary struct {
 	UsedDisk        int64 `json:"used_disk"`        // 已用磁盘空间 (bytes)
 	TotalNetworkRx  int64 `json:"total_network_rx"` // 总网络接收速率 (bytes/s)
 	TotalNetworkTx  int64 `json:"total_network_tx"` // 总网络发送速率 (bytes/s)
+}
+
+// ============================================================
+// PSIMetrics 压力信息
+// ============================================================
+
+// PSIMetrics 压力信息 (Pressure Stall Information)
+// 值为 rate 计算得到的近似百分比 (0-100)
+// 表示在上一个采集间隔内，任务因资源不足而等待的时间占比
+type PSIMetrics struct {
+	CPUSomePercent    float64 `json:"cpu_some_percent"`    // CPU 部分阻塞 %
+	MemorySomePercent float64 `json:"memory_some_percent"` // 内存部分阻塞 %
+	MemoryFullPercent float64 `json:"memory_full_percent"` // 内存完全阻塞 %
+	IOSomePercent     float64 `json:"io_some_percent"`     // IO 部分阻塞 %
+	IOFullPercent     float64 `json:"io_full_percent"`     // IO 完全阻塞 %
+}
+
+// ============================================================
+// TCPMetrics TCP 连接状态
+// ============================================================
+
+// TCPMetrics TCP 连接状态
+type TCPMetrics struct {
+	CurrEstab   int64 `json:"curr_estab"`   // 当前 ESTABLISHED 连接数
+	TimeWait    int64 `json:"time_wait"`    // TIME_WAIT 数
+	Orphan      int64 `json:"orphan"`       // 孤儿连接数
+	Alloc       int64 `json:"alloc"`        // 已分配 TCP socket 数
+	InUse       int64 `json:"in_use"`       // 正在使用的 TCP socket 数
+	SocketsUsed int64 `json:"sockets_used"` // 全局 socket 使用数
+}
+
+// ============================================================
+// SystemMetrics 系统资源指标
+// ============================================================
+
+// SystemMetrics 系统资源指标
+type SystemMetrics struct {
+	ConntrackEntries int64 `json:"conntrack_entries"` // 连接跟踪条目数
+	ConntrackLimit   int64 `json:"conntrack_limit"`   // 连接跟踪上限
+	FilefdAllocated  int64 `json:"filefd_allocated"`  // 已分配文件描述符数
+	FilefdMaximum    int64 `json:"filefd_maximum"`    // 文件描述符上限
+	EntropyAvailable int64 `json:"entropy_available"` // 可用熵 (bits)
+}
+
+// ============================================================
+// VMStatMetrics 虚拟内存统计
+// ============================================================
+
+// VMStatMetrics 虚拟内存统计 (rate, 每秒)
+type VMStatMetrics struct {
+	PgFaultPS    float64 `json:"pgfault_ps"`    // 页错误/秒
+	PgMajFaultPS float64 `json:"pgmajfault_ps"` // 主页错误/秒
+	PswpInPS     float64 `json:"pswpin_ps"`     // Swap 换入/秒
+	PswpOutPS    float64 `json:"pswpout_ps"`    // Swap 换出/秒
+}
+
+// ============================================================
+// NTPMetrics 时间同步指标
+// ============================================================
+
+// NTPMetrics 时间同步指标
+type NTPMetrics struct {
+	OffsetSeconds float64 `json:"offset_seconds"` // 时间偏移 (秒)
+	Synced        bool    `json:"synced"`         // 是否已同步
+}
+
+// ============================================================
+// SoftnetMetrics 软中断统计
+// ============================================================
+
+// SoftnetMetrics 软中断统计 (累积值, 所有 CPU 求和)
+type SoftnetMetrics struct {
+	Dropped  int64 `json:"dropped"`  // 丢弃的包总数
+	Squeezed int64 `json:"squeezed"` // 被挤压次数总数
 }
 
 // ============================================================

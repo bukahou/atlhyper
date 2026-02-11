@@ -4,75 +4,80 @@
 
 ---
 
-## SLO OTel 改造
+## SLO OTel 改造 — ✅ 核心完成
 
 > 设计文档: [Agent](../../design/active/slo-otel-agent-design.md) | [Master](../../design/active/slo-otel-master-design.md)
+
+| 侧 | Phase | 状态 |
+|-----|-------|------|
+| Agent | P1~P5 | ✅ 完成 |
+| Master | P1~P4 | ✅ 完成 |
+| 全链路 | E2E | ✅ 核心完成（待前端对接） |
+
+---
+
+## 节点指标 OTel 迁移 — 🔧 进行中
+
+> 设计文档: [Phase 1](../../design/active/node-metrics-phase1-infra.md) | [Phase 2](../../design/active/node-metrics-phase2-agent.md) | [Phase 3](../../design/active/node-metrics-phase3-master.md)
+> TDD 规范: [node-metrics-tdd.md](../../design/active/node-metrics-tdd.md)（**权威文档**）
+> Mock 数据: [node-metrics-mock-data.md](../../design/active/node-metrics-mock-data.md)
 
 ### 依赖关系
 
 ```
-Agent P1 ─────→ Agent P2 ─────→ Agent P3 ─────→ Agent P4 ─────→ Agent P5
-(数据模型)       (SDK)           (Repository)     (集成)          (E2E)
-    │                                                               │
-    │ 共享 model_v2/slo.go                                          │
-    ▼                                                               ▼
-Master P1 ────→ Master P2 ────→ Master P3 ────→ Master P4 ────→ 全链路 E2E
-(数据库)         (Processor)     (Aggregator)     (Service+API)
+Phase 1 (基础设施) ─→ Phase 2 (Agent) ─→ Phase 3 (Master/前端)
+  ✅ 已完成              ✅ 已完成             待开始
 ```
 
-- Agent P1 和 Master P1 共享 `model_v2/slo.go`，Agent P1 先行
-- Agent P2~P4 和 Master P1~P3 可并行
-- 全链路 E2E 需要 Agent P5 + Master P4 都完成
-
----
-
-### Agent 侧 — ✅ 全部完成
-
-- **P1 数据模型**: model_v2/slo.go 重写完成
-- **P2 SDK 层**: OTelClient 接口 + 实现 + Prometheus 解析器完成
-- **P3 Repository 层**: SLO 采集编排（filter→delta→aggregate→routes）完成
-- **P4 集成**: Config + agent.go 依赖注入 + interfaces 适配完成
-
-#### P5: 端到端验证 — ✅ 完成
+### Phase 1: 基础设施部署 — ✅ 完成
 
 | 状态 | 任务 |
 |:---:|------|
-| [x] | 对接真实 OTel Collector (已部署)，验证 Linkerd/Traefik 指标采集 |
-| [x] | 验证 ClusterSnapshot.SLOData 上报 Master |
-| [x] | 验证 delta 计算正确性（重启后重置） |
+| [x] | node_exporter DaemonSet 部署（6 节点全部 Running） |
+| [x] | OTel Collector ConfigMap 更新（node-exporter 抓取 job） |
+| [x] | 白名单验证（57 个指标名，1613 条数据） |
+| [x] | 白名单修订（补充 crit_celsius、TCP_inuse，移除不存在的 cpu_info、tcp_connection_states） |
+| [x] | 真实数据抓取和分析（发现 6 个设计假设差异） |
 
-**E2E 过程中修复的 Bug:**
-- `snapshot.go`: delta 计算需先按 key 聚合再做 delta（OTel 同一 pod+status 有多条不同 client_id 的行）
-- `route_collector.go`: ServiceKey 去除 `@kubernetes` 后缀，与 parser.go 归一化一致
+### Phase 2: Agent 改造 — ✅ 完成
+
+| 状态 | 任务 | 文件 |
+|:---:|------|------|
+| [x] | TDD 主文档编写 | `node-metrics-tdd.md` |
+| [x] | Agent Phase 2 设计修订 | `node-metrics-phase2-agent.md` |
+| [x] | Master Phase 3 设计修订 | `node-metrics-phase3-master.md` |
+| [x] | 扩展 NodeMetricsSnapshot（新增 PSI/TCP/System/VMStat/NTP/Softnet） | `model_v2/node_metrics.go` |
+| [x] | 创建测试数据文件 | `testdata/otel_*.txt` |
+| [x] | 新增 OTelNodeRawMetrics 类型 | `sdk/types.go` |
+| [x] | OTelClient 接口扩展 | `sdk/interfaces.go` |
+| [x] | node_parser 测试 → 实现 (TDD) — 5 测试通过 | `sdk/impl/otel/node_parser*.go` |
+| [x] | ScrapeNodeMetrics 实现 | `sdk/impl/otel/client.go` |
+| [x] | 过滤规则 + 测试 — 12 测试通过 | `repository/metrics/filter*.go` |
+| [x] | rate 计算器测试 → 实现 (TDD) — 7 测试通过 | `repository/metrics/rate*.go` |
+| [x] | converter 测试 → 实现 (TDD) — 11 测试通过 | `repository/metrics/converter*.go` |
+| [x] | metrics.go 重写 (OTel 拉取 + Receiver 降级) | `repository/metrics/metrics.go` |
+| [x] | Scheduler MetricsSync 循环 | `scheduler/scheduler.go` |
+| [x] | agent.go 初始化调整 | `agent.go` |
+| [x] | go build 编译验证 — 全项目编译通过 | |
+| [x] | go test 自动化验证 — 35 测试全部通过 | |
+| [x] | 真实数据端到端验证 — 6 节点全部通过（E2E 测试） | `repository/metrics/e2e_test.go` |
+
+### Phase 3: Master 适配 — 待 Phase 2 完成
+
+| 状态 | 任务 |
+|:---:|------|
+| [ ] | 前端 PSI 卡片简化（三窗口 → 单数字） |
+| [ ] | 前端 TCP 卡片调整（移除不存在的状态字段） |
+| [ ] | style-preview mock 数据对齐真实格式 |
+| [ ] | 下线 atlhyper-metrics DaemonSet |
 
 ---
 
-### Master 侧 — ✅ P1~P4 全部完成
+### 关键设计决策（节点指标）
 
-- **P1 数据库层**: 4 新表 + 2 重建表 + 2 DROP snapshot + 新 Dialect + interfaces + repo
-- **P2 Processor + Sync**: 三层数据写入（service/edge/ingress raw）+ slo_persist 简化
-- **P3 Aggregator + Cleaner**: 三层聚合（raw→hourly）+ ParseJSONBuckets + 6 表清理
-- **P4 Service 层 + API**: Query 接口扩展 + mesh 拓扑/详情 API + aggregateRawMetrics bucket 精确计算
-
----
-
-### 全链路 E2E — ✅ 核心验证完成
-
-| 状态 | 任务 | 验证内容 |
-|:---:|------|----------|
-| [x] | Agent → Master 数据写入 | Agent 上报 SLOSnapshot → Master processor 正确写入 3 张 raw 表 |
-| [-] | Aggregator 聚合 | hourly 需等 1 小时触发，raw 回退查询已验证可用 |
-| [x] | 服务网格 API | /mesh/topology 返回 18 节点+13 边+黄金指标 |
-| [x] | 域名 SLO API | /domains/v2 返回 6 个域名+正确关联 domain |
-| [ ] | 前端对接 | style-preview 两层展示数据正确渲染 |
-
----
-
-### 进度统计
-
-| 侧 | Phase | 状态 |
-|-----|-------|------|
-| Agent | P1~P4 | ✅ 完成 |
-| Agent | P5 E2E | ✅ 完成 |
-| Master | P1~P4 | ✅ 完成 |
-| 全链路 | E2E | ✅ 核心完成（待前端对接） |
+1. **数据来源**：node_exporter → OTel Collector → Agent 拉取（替代 atlhyper_metrics_v2 推送）
+2. **模型扩展**：NodeMetricsSnapshot 新增 PSI/TCP/System/VMStat/NTP/Softnet（向后兼容）
+3. **过滤规则**：文件系统只保留 /dev/、网络排除虚拟接口、磁盘排除 dm-*
+4. **PSI 计算**：从累积 counter 做 rate 得近似百分比（非 10s/60s/300s 窗口）
+5. **CPU 型号**：node_exporter 不提供，留空
+6. **TDD 驱动**：先写测试数据和期望 → 写测试 → 实现代码

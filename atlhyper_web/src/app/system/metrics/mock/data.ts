@@ -130,6 +130,12 @@ export const mockNodeMetrics: Record<string, NodeMetricsSnapshot> = {
       { pid: 4567, name: "calico-node", user: "root", state: "S", cpuPercent: 2.1, memPercent: 1.5, memBytes: 515396075, threads: 24, startTime: "2024-01-15 08:00:10", command: "/bin/calico-node -felix" },
     ],
     gpus: undefined,
+    psi: { cpuSomePercent: 0.42, memorySomePercent: 0.05, memoryFullPercent: 0.0, ioSomePercent: 1.08, ioFullPercent: 0.18 },
+    tcp: { currEstab: 285, timeWait: 42, orphan: 0, alloc: 412, inUse: 325, socketsUsed: 370 },
+    system: { conntrackEntries: 12580, conntrackLimit: 131072, filefdAllocated: 8432, filefdMaximum: 9223372036854776000, entropyAvailable: 256 },
+    vmstat: { pgfaultPS: 125000, pgmajfaultPS: 12, pswpinPS: 0, pswpoutPS: 0 },
+    ntp: { offsetSeconds: 0.000125, synced: true },
+    softnet: { dropped: 0, squeezed: 15 },
   },
   "k8s-worker-01": {
     nodeName: "k8s-worker-01",
@@ -225,6 +231,12 @@ export const mockNodeMetrics: Record<string, NodeMetricsSnapshot> = {
         ],
       },
     ],
+    psi: { cpuSomePercent: 5.18, memorySomePercent: 1.92, memoryFullPercent: 0.22, ioSomePercent: 8.42, ioFullPercent: 2.15 },
+    tcp: { currEstab: 1850, timeWait: 385, orphan: 3, alloc: 2580, inUse: 2150, socketsUsed: 2400 },
+    system: { conntrackEntries: 85420, conntrackLimit: 131072, filefdAllocated: 24856, filefdMaximum: 9223372036854776000, entropyAvailable: 256 },
+    vmstat: { pgfaultPS: 485000, pgmajfaultPS: 128, pswpinPS: 45, pswpoutPS: 680 },
+    ntp: { offsetSeconds: -0.000032, synced: true },
+    softnet: { dropped: 0, squeezed: 285 },
   },
   "k8s-worker-02": {
     nodeName: "k8s-worker-02",
@@ -298,6 +310,12 @@ export const mockNodeMetrics: Record<string, NodeMetricsSnapshot> = {
       { pid: 2001, name: "containerd", user: "root", state: "S", cpuPercent: 4.2, memPercent: 2.8, memBytes: 966367641, threads: 45, startTime: "2024-01-15 07:59:58", command: "/usr/bin/containerd" },
       { pid: 2345, name: "kubelet", user: "root", state: "S", cpuPercent: 3.5, memPercent: 2.1, memBytes: 721554432, threads: 32, startTime: "2024-01-15 08:00:05", command: "/usr/bin/kubelet --config=/var/lib/kubelet/config.yaml" },
     ],
+    psi: { cpuSomePercent: 0.08, memorySomePercent: 0.0, memoryFullPercent: 0.0, ioSomePercent: 0.18, ioFullPercent: 0.02 },
+    tcp: { currEstab: 125, timeWait: 18, orphan: 0, alloc: 185, inUse: 152, socketsUsed: 170 },
+    system: { conntrackEntries: 5280, conntrackLimit: 131072, filefdAllocated: 4256, filefdMaximum: 9223372036854776000, entropyAvailable: 256 },
+    vmstat: { pgfaultPS: 62000, pgmajfaultPS: 2, pswpinPS: 0, pswpoutPS: 0 },
+    ntp: { offsetSeconds: 0.000008, synced: true },
+    softnet: { dropped: 0, squeezed: 5 },
   },
 };
 

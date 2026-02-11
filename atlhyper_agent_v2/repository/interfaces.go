@@ -152,10 +152,15 @@ type GenericRepository interface {
 
 // MetricsRepository 节点硬件指标仓库接口
 //
-// 从 SDK ReceiverClient 拉取节点指标数据。
-// 数据由 ReceiverClient 接收并暂存，本仓库负责按需拉取。
+// OTel 模式: 调用 Sync() 从 OTel Collector 拉取 node_exporter 指标，
+// 计算 rate 后转换为 NodeMetricsSnapshot。GetAll() 返回最新快照。
+// Receiver 模式: 降级到 ReceiverClient 被动接收数据。
 type MetricsRepository interface {
+	// GetAll 获取所有节点的最新指标快照
 	GetAll() map[string]*model_v2.NodeMetricsSnapshot
+	// Sync 从 OTel Collector 拉取最新节点指标并更新内部状态
+	// 首次调用只存原始值（需要两次采样才能计算 rate）
+	Sync(ctx context.Context) error
 }
 
 // =============================================================================

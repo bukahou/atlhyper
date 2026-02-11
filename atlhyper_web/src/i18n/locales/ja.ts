@@ -6,6 +6,8 @@ export const ja: Translations = {
     about: "AtlHyper",
     overview: "概要",
     stylePreview: "スタイルプレビュー",
+    stylePreviewSLO: "SLO プレビュー",
+    stylePreviewMetrics: "メトリクスプレビュー",
     slo: "SLO モニタリング",
     workbench: "ワークベンチ",
     workbenchHome: "ワークベンチホーム",

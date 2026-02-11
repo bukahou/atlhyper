@@ -15,6 +15,12 @@ import type {
   TemperatureMetrics,
   ProcessMetrics,
   SensorReading,
+  PSIMetrics,
+  TCPMetrics,
+  SystemMetrics,
+  VMStatMetrics,
+  NTPMetrics,
+  SoftnetMetrics,
 } from "@/types/node-metrics";
 
 // ============================================================================
@@ -133,6 +139,42 @@ interface BackendNodeMetricsSnapshot {
     threads: number;
     start_time: number;
   }>;
+  psi: {
+    cpu_some_percent: number;
+    memory_some_percent: number;
+    memory_full_percent: number;
+    io_some_percent: number;
+    io_full_percent: number;
+  };
+  tcp: {
+    curr_estab: number;
+    time_wait: number;
+    orphan: number;
+    alloc: number;
+    in_use: number;
+    sockets_used: number;
+  };
+  system: {
+    conntrack_entries: number;
+    conntrack_limit: number;
+    filefd_allocated: number;
+    filefd_maximum: number;
+    entropy_available: number;
+  };
+  vmstat: {
+    pgfault_ps: number;
+    pgmajfault_ps: number;
+    pswpin_ps: number;
+    pswpout_ps: number;
+  };
+  ntp: {
+    offset_seconds: number;
+    synced: boolean;
+  };
+  softnet: {
+    dropped: number;
+    squeezed: number;
+  };
 }
 
 interface BackendMetricsDataPoint {
@@ -318,6 +360,66 @@ function transformProcess(proc: BackendNodeMetricsSnapshot["processes"][0]): Pro
   };
 }
 
+function transformPSI(p: BackendNodeMetricsSnapshot["psi"]): PSIMetrics {
+  const d = p || {} as BackendNodeMetricsSnapshot["psi"];
+  return {
+    cpuSomePercent: d.cpu_some_percent || 0,
+    memorySomePercent: d.memory_some_percent || 0,
+    memoryFullPercent: d.memory_full_percent || 0,
+    ioSomePercent: d.io_some_percent || 0,
+    ioFullPercent: d.io_full_percent || 0,
+  };
+}
+
+function transformTCP(t: BackendNodeMetricsSnapshot["tcp"]): TCPMetrics {
+  const d = t || {} as BackendNodeMetricsSnapshot["tcp"];
+  return {
+    currEstab: d.curr_estab || 0,
+    timeWait: d.time_wait || 0,
+    orphan: d.orphan || 0,
+    alloc: d.alloc || 0,
+    inUse: d.in_use || 0,
+    socketsUsed: d.sockets_used || 0,
+  };
+}
+
+function transformSystem(s: BackendNodeMetricsSnapshot["system"]): SystemMetrics {
+  const d = s || {} as BackendNodeMetricsSnapshot["system"];
+  return {
+    conntrackEntries: d.conntrack_entries || 0,
+    conntrackLimit: d.conntrack_limit || 0,
+    filefdAllocated: d.filefd_allocated || 0,
+    filefdMaximum: d.filefd_maximum || 0,
+    entropyAvailable: d.entropy_available || 0,
+  };
+}
+
+function transformVMStat(v: BackendNodeMetricsSnapshot["vmstat"]): VMStatMetrics {
+  const d = v || {} as BackendNodeMetricsSnapshot["vmstat"];
+  return {
+    pgfaultPS: d.pgfault_ps || 0,
+    pgmajfaultPS: d.pgmajfault_ps || 0,
+    pswpinPS: d.pswpin_ps || 0,
+    pswpoutPS: d.pswpout_ps || 0,
+  };
+}
+
+function transformNTP(n: BackendNodeMetricsSnapshot["ntp"]): NTPMetrics {
+  const d = n || {} as BackendNodeMetricsSnapshot["ntp"];
+  return {
+    offsetSeconds: d.offset_seconds || 0,
+    synced: d.synced ?? false,
+  };
+}
+
+function transformSoftnet(s: BackendNodeMetricsSnapshot["softnet"]): SoftnetMetrics {
+  const d = s || {} as BackendNodeMetricsSnapshot["softnet"];
+  return {
+    dropped: d.dropped || 0,
+    squeezed: d.squeezed || 0,
+  };
+}
+
 function transformSnapshot(snapshot: BackendNodeMetricsSnapshot): NodeMetricsSnapshot {
   return {
     nodeName: snapshot.node_name,
@@ -328,7 +430,13 @@ function transformSnapshot(snapshot: BackendNodeMetricsSnapshot): NodeMetricsSna
     networks: (snapshot.networks || []).map(transformNetwork),
     temperature: transformTemperature(snapshot.temperature),
     topProcesses: (snapshot.processes || []).map(transformProcess),
-    gpus: undefined, // 后端暂不提供 GPU 指标
+    gpus: undefined,
+    psi: transformPSI(snapshot.psi),
+    tcp: transformTCP(snapshot.tcp),
+    system: transformSystem(snapshot.system),
+    vmstat: transformVMStat(snapshot.vmstat),
+    ntp: transformNTP(snapshot.ntp),
+    softnet: transformSoftnet(snapshot.softnet),
   };
 }
 

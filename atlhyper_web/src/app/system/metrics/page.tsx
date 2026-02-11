@@ -29,6 +29,10 @@ import {
   ProcessTable,
   ResourceChart,
   GPUCard,
+  PSICard,
+  TCPCard,
+  SystemResourcesCard,
+  VMStatCard,
 } from "./components";
 
 // API
@@ -222,15 +226,31 @@ function NodeCard({
           </div>
 
           {/* 第三行：Temperature + GPU (如果有) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-            <TemperatureCard data={metrics.temperature} />
-            {metrics.gpus && metrics.gpus.length > 0 && (
+          {metrics.gpus && metrics.gpus.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
+              <TemperatureCard data={metrics.temperature} />
               <GPUCard data={metrics.gpus} />
-            )}
+            </div>
+          ) : (
+            <TemperatureCard data={metrics.temperature} />
+          )}
+
+          {/* 第四行：PSI + TCP */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
+            <PSICard data={metrics.psi} />
+            <TCPCard tcp={metrics.tcp} softnet={metrics.softnet} />
+          </div>
+
+          {/* 第五行：System Resources + VMStat */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
+            <SystemResourcesCard system={metrics.system} ntp={metrics.ntp} />
+            <VMStatCard data={metrics.vmstat} />
           </div>
 
           {/* 进程列表 */}
-          <ProcessTable data={metrics.topProcesses} />
+          {metrics.topProcesses.length > 0 && (
+            <ProcessTable data={metrics.topProcesses} />
+          )}
         </div>
       )}
     </div>
@@ -491,8 +511,8 @@ export default function MetricsPage() {
               <div className="text-sm">
                 <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">Data Source</p>
                 <p className="text-blue-700 dark:text-blue-300 text-xs leading-relaxed">
-                  Hardware metrics are collected by the atlhyper-metrics DaemonSet running on each node.
-                  Data includes CPU, memory, disk I/O, network traffic, temperature sensors, and top processes.
+                  Hardware metrics are collected from OTel Collector (node_exporter) on each node.
+                  Data includes CPU, memory, disk I/O, network traffic, temperature, PSI, TCP stack, system resources, and virtual memory stats.
                   Metrics are pushed to the Agent every 5 seconds.
                 </p>
               </div>

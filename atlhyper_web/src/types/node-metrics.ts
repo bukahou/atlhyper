@@ -126,6 +126,66 @@ export interface GPUProcess {
 }
 
 // ============================================================================
+// PSI 压力信息
+// ============================================================================
+export interface PSIMetrics {
+  cpuSomePercent: number;
+  memorySomePercent: number;
+  memoryFullPercent: number;
+  ioSomePercent: number;
+  ioFullPercent: number;
+}
+
+// ============================================================================
+// TCP 连接状态
+// ============================================================================
+export interface TCPMetrics {
+  currEstab: number;
+  timeWait: number;
+  orphan: number;
+  alloc: number;
+  inUse: number;
+  socketsUsed: number;
+}
+
+// ============================================================================
+// 系统资源指标
+// ============================================================================
+export interface SystemMetrics {
+  conntrackEntries: number;
+  conntrackLimit: number;
+  filefdAllocated: number;
+  filefdMaximum: number;
+  entropyAvailable: number;
+}
+
+// ============================================================================
+// 虚拟内存统计
+// ============================================================================
+export interface VMStatMetrics {
+  pgfaultPS: number;
+  pgmajfaultPS: number;
+  pswpinPS: number;
+  pswpoutPS: number;
+}
+
+// ============================================================================
+// NTP 时间同步
+// ============================================================================
+export interface NTPMetrics {
+  offsetSeconds: number;
+  synced: boolean;
+}
+
+// ============================================================================
+// 软中断统计
+// ============================================================================
+export interface SoftnetMetrics {
+  dropped: number;
+  squeezed: number;
+}
+
+// ============================================================================
 // 节点指标快照 (聚合)
 // ============================================================================
 export interface NodeMetricsSnapshot {
@@ -138,6 +198,12 @@ export interface NodeMetricsSnapshot {
   temperature: TemperatureMetrics;
   topProcesses: ProcessMetrics[];
   gpus?: GPUMetrics[];
+  psi: PSIMetrics;
+  tcp: TCPMetrics;
+  system: SystemMetrics;
+  vmstat: VMStatMetrics;
+  ntp: NTPMetrics;
+  softnet: SoftnetMetrics;
 }
 
 // ============================================================================

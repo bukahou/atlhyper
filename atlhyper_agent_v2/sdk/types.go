@@ -198,6 +198,135 @@ type IngressLatencyCountMetric struct {
 }
 
 // =============================================================================
+// OTel Collector 节点指标（node_exporter 原始数据）
+// =============================================================================
+
+// OTelNodeRawMetrics 节点硬件原始指标（node_exporter 经 OTel Collector 采集）
+//
+// 按 instance label 分组，每个节点一个实例。
+// counter 类型保存原始累积值，rate 计算在 Repository 层完成。
+type OTelNodeRawMetrics struct {
+	NodeName string // 从 uname_info nodename label 提取
+	Instance string // OTel instance label (IP:port)
+
+	// CPU (counter: cpu×mode → seconds)
+	CPUSecondsTotal map[string]float64 // key: "0:idle", "0:user", "1:system"...
+	CPUCoreCount    int                // 从 cpu label 去重计数
+
+	// CPU 频率 (gauge: cpu → Hz)
+	CPUFreqHertz    map[string]float64 // key: cpu label
+	CPUFreqMaxHertz float64            // 所有核最大频率
+
+	// Load (gauge)
+	Load1, Load5, Load15 float64
+
+	// Memory (gauge, bytes)
+	MemTotal, MemAvailable, MemFree int64
+	MemCached, MemBuffers           int64
+	SwapTotal, SwapFree             int64
+
+	// Filesystem (gauge)
+	Filesystems []FSRawMetrics
+
+	// Disk I/O (counter)
+	DiskIO []DiskIORawMetrics
+
+	// Network (counter/gauge)
+	Networks []NetRawMetrics
+
+	// Temperature (gauge)
+	HWMonTemps []HWMonRawTemp
+
+	// PSI (counter, seconds)
+	PSICPUWaiting    float64
+	PSIMemoryWaiting float64
+	PSIMemoryStalled float64
+	PSIIOWaiting     float64
+	PSIIOStalled     float64
+
+	// TCP/Socket (gauge)
+	TCPCurrEstab int64
+	TCPTimeWait  int64
+	TCPOrphan    int64
+	TCPAlloc     int64
+	TCPInUse     int64
+	SocketsUsed  int64
+
+	// System (gauge)
+	ConntrackEntries int64
+	ConntrackLimit   int64
+	FilefdAllocated  int64
+	FilefdMaximum    int64
+	EntropyBits      int64
+
+	// VMStat (counter)
+	PgFault    float64
+	PgMajFault float64
+	PswpIn     float64
+	PswpOut    float64
+
+	// NTP (gauge)
+	TimexOffsetSeconds float64
+	TimexSyncStatus    float64 // 1=synced, 0=not
+
+	// Softnet (counter, 所有 CPU 已求和)
+	SoftnetDropped  int64
+	SoftnetSqueezed int64
+
+	// System info (from uname_info)
+	Machine  string  // "x86_64" | "aarch64"
+	Hostname string  // nodename label
+	Kernel   string  // release label
+	BootTime float64 // unix timestamp
+}
+
+// FSRawMetrics 文件系统原始指标
+type FSRawMetrics struct {
+	Device     string // 设备名 (/dev/sda1, /dev/mapper/ubuntu--vg-ubuntu--lv)
+	MountPoint string // 挂载点 (/, /boot)
+	FSType     string // 文件系统类型 (ext4, vfat)
+	SizeBytes  int64  // 总空间 (bytes)
+	AvailBytes int64  // 可用空间 (bytes)
+}
+
+// DiskIORawMetrics 磁盘 I/O 原始指标 (counter)
+type DiskIORawMetrics struct {
+	Device              string  // 设备名 (sda, nvme0n1)
+	ReadBytesTotal      float64 // 累计读取 (bytes)
+	WrittenBytesTotal   float64 // 累计写入 (bytes)
+	ReadsCompletedTotal float64 // 累计读操作数
+	WritesCompletedTotal float64 // 累计写操作数
+	IOTimeSecondsTotal  float64 // 累计 I/O 时间 (seconds)
+}
+
+// NetRawMetrics 网络接口原始指标
+type NetRawMetrics struct {
+	Device string // 接口名 (eno1, eth0)
+	Up     bool   // 是否 up
+	Speed  int64  // 链路速度 (bytes/s)
+	MTU    int    // MTU (bytes)
+
+	// 流量统计 (counter)
+	RxBytesTotal   float64
+	TxBytesTotal   float64
+	RxPacketsTotal float64
+	TxPacketsTotal float64
+	RxErrsTotal    float64
+	TxErrsTotal    float64
+	RxDropTotal    float64
+	TxDropTotal    float64
+}
+
+// HWMonRawTemp 温度传感器原始数据
+type HWMonRawTemp struct {
+	Chip     string  // 芯片标识 (platform_coretemp_0, thermal_thermal_zone0)
+	Sensor   string  // 传感器标识 (temp1, temp2)
+	Current  float64 // 当前温度 (°C)
+	Max      float64 // 最高阈值 (°C)，无数据时为 0
+	Critical float64 // 临界阈值 (°C)，无数据时为 0
+}
+
+// =============================================================================
 // IngressRoute 路由信息（保留，用于路由映射采集）
 // =============================================================================
 
