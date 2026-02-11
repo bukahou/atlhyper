@@ -8,7 +8,7 @@ set -e
 # - v1.x.x: 正式发布版本
 # ============================================
 # TAG="latest"
-TAG="v0.2.1"
+TAG="v0.2.2"
 # TAG="test"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
