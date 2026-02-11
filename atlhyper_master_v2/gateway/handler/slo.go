@@ -783,18 +783,29 @@ func aggregateHourlyMetrics(metrics []*database.SLOMetricsHourly) *model.SLOMetr
 	var totalRequests, errorRequests int64
 	var totalRPS float64
 	var weightedP95, weightedP99 float64
+	var allBuckets []map[float64]int64
 
 	for _, m := range metrics {
 		totalRequests += m.TotalRequests
 		errorRequests += m.ErrorRequests
 		totalRPS += m.AvgRPS
-		// 加权平均分位数（按请求量加权）
 		weightedP95 += float64(m.P95LatencyMs) * float64(m.TotalRequests)
 		weightedP99 += float64(m.P99LatencyMs) * float64(m.TotalRequests)
+		if b := slo.ParseJSONBuckets(m.LatencyBuckets); b != nil {
+			allBuckets = append(allBuckets, b)
+		}
 	}
 
+	// 优先使用合并 bucket 计算精确分位数
 	var p95, p99 int
-	if totalRequests > 0 {
+	if len(allBuckets) > 0 {
+		merged := slo.MergeBuckets(allBuckets...)
+		p95 = slo.CalculateQuantileMs(merged, 0.95)
+		p99 = slo.CalculateQuantileMs(merged, 0.99)
+	}
+
+	// bucket 为空时回退到加权平均（兼容无 bucket 的旧数据）
+	if p95 == 0 && totalRequests > 0 {
 		p95 = int(weightedP95 / float64(totalRequests))
 		p99 = int(weightedP99 / float64(totalRequests))
 	}
