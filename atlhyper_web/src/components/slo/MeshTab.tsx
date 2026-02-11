@@ -519,7 +519,8 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
   }, [node.id, clusterId, node.namespace, node.name, timeRange]);
 
   const statusCodes = detail?.status_codes?.filter(s => s.count > 0) ?? [];
-  const latencyBuckets = detail?.latency_buckets?.filter(b => b.count > 0) ?? [];
+  const allLatencyBuckets = detail?.latency_buckets ?? [];
+  const latencyBuckets = allLatencyBuckets.filter(b => b.count > 0);
   const totalStatusRequests = statusCodes.reduce((sum, s) => sum + s.count, 0);
 
   return (
@@ -681,6 +682,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
               <div className="px-4 pt-3 pb-10">
                 <MiniLatencyHistogram
                   buckets={latencyBuckets}
+                  allBuckets={allLatencyBuckets}
                   p50={node.p50_latency}
                   p95={node.p95_latency}
                   p99={node.p99_latency}
@@ -721,8 +723,9 @@ function meshVisibleTicks(lo: number, hi: number): number[] {
 function meshTickLabel(ms: number): string { return ms >= 1000 ? `${ms / 1000}s` : `${ms}ms`; }
 
 // Mini Latency Histogram for service detail (Kibana-style)
-function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
+function MiniLatencyHistogram({ buckets, allBuckets, p50, p95, p99, t }: {
   buckets: { le: number; count: number }[];
+  allBuckets: { le: number; count: number }[];
   p50: number;
   p95: number;
   p99: number;
@@ -733,8 +736,9 @@ function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
   const [lo, hi] = meshAxisRange(buckets.map(b => b.le));
   const ticks = meshVisibleTicks(lo, hi);
 
-  const bars = buckets.map((b, i) => {
-    const prev = i === 0 ? lo : buckets[i - 1].le;
+  const bars = buckets.map((b) => {
+    const idx = allBuckets.indexOf(b);
+    const prev = idx > 0 ? allBuckets[idx - 1].le : lo;
     const left = meshLogPos(prev, lo, hi);
     const right = meshLogPos(b.le, lo, hi);
     const color = b.le > p99
@@ -742,8 +746,12 @@ function MiniLatencyHistogram({ buckets, p50, p95, p99, t }: {
       : b.le > p95 ? "bg-amber-400/90 hover:bg-amber-500"
       : b.le > p50 ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
       : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
-    const prevLe = i === 0 ? 0 : buckets[i - 1].le;
-    return { ...b, prevLe, left, width: Math.max(right - left, 0.5), color };
+    const prevLe = idx > 0 ? allBuckets[idx - 1].le : 0;
+    const rawWidth = right - left;
+    const cappedWidth = Math.min(Math.max(rawWidth, 0.5), 5);
+    const center = (left + right) / 2;
+    const barLeft = center - cappedWidth / 2;
+    return { ...b, prevLe, left: barLeft, width: cappedWidth, color };
   });
 
   return (
