@@ -124,9 +124,10 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
   const [lo, hi] = axisRange(active.map(b => b.le));
   const ticks = visibleTicks(lo, hi);
 
-  // Each bar covers [prevLe, le] on log axis
+  // Each bar covers [prevLe, le] using full bucket list for correct boundaries
   const bars = active.map((b, i) => {
-    const prev = i === 0 ? lo : active[i - 1].le;
+    const idx = buckets.indexOf(b);
+    const prev = idx > 0 ? buckets[idx - 1].le : lo;
     const left = logPos(prev, lo, hi);
     const right = logPos(b.le, lo, hi);
     const color = b.le > p99
@@ -136,7 +137,7 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
         : b.le > p50
           ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
           : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
-    const prevLe = i === 0 ? 0 : active[i - 1].le;
+    const prevLe = idx > 0 ? buckets[idx - 1].le : 0;
     return { ...b, prevLe, left, width: Math.max(right - left, 0.5), color };
   });
 
