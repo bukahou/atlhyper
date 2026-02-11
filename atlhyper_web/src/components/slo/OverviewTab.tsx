@@ -54,7 +54,7 @@ function HistoryChart({ history, targets, t }: {
       rawMax = Math.max(rawMax, targetVal);
     }
     const pad = (rawMax - rawMin) * 0.05 || 1;
-    minVal = rawMin - pad;
+    minVal = Math.max(0, rawMin - pad);
     maxVal = rawMax + pad;
   } else if (targetVal !== null) {
     // No data, but has target — center around target
@@ -89,15 +89,22 @@ function HistoryChart({ history, targets, t }: {
 
   const formatVal = (v: number) => activeMetric === "p95" ? Math.round(v) + "ms" : v.toFixed(3) + "%";
 
-  // X axis labels
+  // X axis labels — show hour:minute when all data is within the same day
   const xLabels: { x: number; label: string }[] = [];
   if (history.length > 0) {
+    const firstDate = new Date(history[0].timestamp);
+    const lastDate = new Date(history[history.length - 1].timestamp);
+    const sameDay = firstDate.getFullYear() === lastDate.getFullYear()
+      && firstDate.getMonth() === lastDate.getMonth()
+      && firstDate.getDate() === lastDate.getDate();
     const step = Math.max(1, Math.floor(history.length / 6));
     for (let i = 0; i < history.length; i += step) {
       const d = new Date(history[i].timestamp);
       xLabels.push({
         x: padLeft + (i / Math.max(history.length - 1, 1)) * chartW,
-        label: `${d.getMonth() + 1}/${d.getDate()}`,
+        label: sameDay
+          ? `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`
+          : `${d.getMonth() + 1}/${d.getDate()}`,
       });
     }
   }
@@ -241,15 +248,22 @@ function ErrorBudgetBurnChart({ history, errorBudgetRemaining, t }: {
     }
   }
 
-  // X axis labels
+  // X axis labels — show hour:minute when all data is within the same day
   const xLabels: { x: number; label: string }[] = [];
   if (history.length > 0) {
+    const firstDate = new Date(history[0].timestamp);
+    const lastDate = new Date(history[history.length - 1].timestamp);
+    const sameDay = firstDate.getFullYear() === lastDate.getFullYear()
+      && firstDate.getMonth() === lastDate.getMonth()
+      && firstDate.getDate() === lastDate.getDate();
     const step = Math.max(1, Math.floor(history.length / 6));
     for (let i = 0; i < history.length; i += step) {
       const d = new Date(history[i].timestamp);
       xLabels.push({
         x: padX + (i / Math.max(history.length - 1, 1)) * chartW,
-        label: `${d.getMonth() + 1}/${d.getDate()}`,
+        label: sameDay
+          ? `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`
+          : `${d.getMonth() + 1}/${d.getDate()}`,
       });
     }
   }
