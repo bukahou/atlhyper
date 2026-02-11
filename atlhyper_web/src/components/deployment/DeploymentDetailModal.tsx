@@ -88,6 +88,7 @@ export function DeploymentDetailModal({
         Namespace: namespace,
         Name: deploymentName,
         Kind: "Deployment",
+        ContainerName: editingImage.containerName,
         NewImage: editingImage.newImage,
         OldImage: editingImage.oldImage,
       });

@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
@@ -59,9 +60,15 @@ func aggregateContainerMetrics(containers []sdk.ContainerMetrics) (string, strin
 	if len(containers) == 1 {
 		return containers[0].CPU, containers[0].Memory
 	}
-	// 多容器时，返回第一个容器的值（简化处理）
-	// TODO: 可以汇总多个容器的使用量
-	return containers[0].CPU, containers[0].Memory
+	var totalCPU int64 // 毫核
+	var totalMem int64 // 字节
+	for _, c := range containers {
+		totalCPU += model_v2.ParseCPU(c.CPU)
+		totalMem += model_v2.ParseMemory(c.Memory)
+	}
+	cpuStr := fmt.Sprintf("%dm", totalCPU)
+	memStr := fmt.Sprintf("%dKi", totalMem/1024)
+	return cpuStr, memStr
 }
 
 // Get 获取单个 Pod

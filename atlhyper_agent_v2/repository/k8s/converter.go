@@ -74,18 +74,29 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 		}
 	}
 	// 如果 Pod 处于 Pending/Failed，尝试从 ContainerStatuses 获取原因
+	// 优先取业务容器的异常原因，只有找不到时才回退到 sidecar
 	if k8sPod.Status.Phase == corev1.PodPending || k8sPod.Status.Phase == corev1.PodFailed {
+		var sidecarReason, sidecarMessage string
 		for _, cs := range k8sPod.Status.ContainerStatuses {
+			r, m := "", ""
 			if cs.State.Waiting != nil && cs.State.Waiting.Reason != "" {
-				reason = cs.State.Waiting.Reason
-				message = cs.State.Waiting.Message
+				r, m = cs.State.Waiting.Reason, cs.State.Waiting.Message
+			} else if cs.State.Terminated != nil && cs.State.Terminated.Reason != "" {
+				r, m = cs.State.Terminated.Reason, cs.State.Terminated.Message
+			}
+			if r == "" {
+				continue
+			}
+			if !model_v2.IsSidecarContainer(cs.Name) {
+				reason, message = r, m
 				break
 			}
-			if cs.State.Terminated != nil && cs.State.Terminated.Reason != "" {
-				reason = cs.State.Terminated.Reason
-				message = cs.State.Terminated.Message
-				break
+			if sidecarReason == "" {
+				sidecarReason, sidecarMessage = r, m
 			}
+		}
+		if reason == "" && sidecarReason != "" {
+			reason, message = sidecarReason, sidecarMessage
 		}
 	}
 

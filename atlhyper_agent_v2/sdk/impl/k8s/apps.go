@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/sdk"
+	"AtlHyper/model_v2"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -91,6 +92,14 @@ func (c *Client) UpdateDeploymentImage(ctx context.Context, namespace, name, con
 		}
 		if !found {
 			return fmt.Errorf("container %s not found in deployment %s", container, name)
+		}
+	} else {
+		// 自动选第一个非 sidecar 容器
+		for i, cont := range containers {
+			if !model_v2.IsSidecarContainer(cont.Name) {
+				targetIndex = i
+				break
+			}
 		}
 	}
 

@@ -163,3 +163,12 @@ func ParseMemory(s string) int64 {
 	val, _ := strconv.ParseInt(s, 10, 64)
 	return val
 }
+
+// IsSidecarContainer 判断是否为服务网格注入的 sidecar 容器
+func IsSidecarContainer(name string) bool {
+	switch name {
+	case "linkerd-proxy", "linkerd-init":
+		return true
+	}
+	return false
+}

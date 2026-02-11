@@ -224,12 +224,12 @@ export function restartDeployment(data: { ClusterID: string; Namespace: string; 
  * Deployment 更新镜像（需要 Operator 权限）
  * POST /api/v2/ops/deployments/image
  */
-export function updateDeploymentImage(data: { ClusterID: string; Namespace: string; Name: string; Kind?: string; NewImage: string; OldImage?: string }) {
+export function updateDeploymentImage(data: { ClusterID: string; Namespace: string; Name: string; Kind?: string; ContainerName?: string; NewImage: string; OldImage?: string }) {
   return post<CommandResponse>("/api/v2/ops/deployments/image", {
     cluster_id: data.ClusterID,
     namespace: data.Namespace,
     name: data.Name,
-    container: "main", // 默认容器名
+    container: data.ContainerName || "",
     image: data.NewImage,
   });
 }

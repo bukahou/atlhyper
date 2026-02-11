@@ -184,6 +184,22 @@ func (s *commandService) handleGetLogs(ctx context.Context, cmd *model_v2.Comman
 		params.TailLines = maxTailLines
 	}
 
+	// Container 为空时自动选择主容器（避免多容器 Pod 报错）
+	if params.Container == "" {
+		pod, err := s.podRepo.Get(ctx, cmd.Namespace, cmd.Name)
+		if err == nil && len(pod.Containers) > 0 {
+			for _, c := range pod.Containers {
+				if !model_v2.IsSidecarContainer(c.Name) {
+					params.Container = c.Name
+					break
+				}
+			}
+			if params.Container == "" {
+				params.Container = pod.Containers[0].Name
+			}
+		}
+	}
+
 	return s.podRepo.GetLogs(ctx, cmd.Namespace, cmd.Name, model.LogOptions{
 		Container:    params.Container,
 		TailLines:    params.TailLines,
