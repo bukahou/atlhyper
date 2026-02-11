@@ -14,6 +14,8 @@ import {
   Globe,
   AlertTriangle,
   Activity,
+  Gauge,
+  Palette,
   FileText,
   Users,
   ClipboardList,
@@ -82,12 +84,12 @@ interface NavGroup {
   icon: typeof LayoutDashboard;
   href?: string;
   children?: NavChild[];
+  authOnly?: boolean;
 }
 
 const navGroups: NavGroup[] = [
   { key: "about", href: "/about", icon: Info },
   { key: "overview", href: "/overview", icon: LayoutDashboard },
-  { key: "stylePreview", href: "/style-preview", icon: Activity },
   {
     key: "workbench",
     icon: Bot,
@@ -134,6 +136,15 @@ const navGroups: NavGroup[] = [
       { key: "users", href: "/system/users", icon: Users, adminOnly: true },
       { key: "roles", href: "/system/roles", icon: ShieldCheck },
       { key: "audit", href: "/system/audit", icon: ClipboardList },
+    ],
+  },
+  {
+    key: "stylePreview",
+    icon: Palette,
+    authOnly: true,
+    children: [
+      { key: "stylePreviewSLO", href: "/style-preview", icon: Activity },
+      { key: "stylePreviewMetrics", href: "/style-preview/metrics", icon: Gauge },
     ],
   },
 ];
@@ -335,7 +346,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         className={`flex-1 min-h-0 py-3 ${collapsed ? "px-2 overflow-visible" : "px-3 overflow-y-auto"}`}
         style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--border-color) transparent' }}
       >
-        {navGroups.map((group) => {
+        {navGroups.filter((g) => !g.authOnly || isAuthenticated).map((group) => {
           const Icon = group.icon;
           const active = isGroupActive(group);
           const hasChildren = !!group.children;
