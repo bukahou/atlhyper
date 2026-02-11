@@ -587,6 +587,9 @@ export const zh: Translations = {
     run: "运行",
     done: "完成",
     fail: "失败",
+    // SLO 概览卡片
+    sloOverview: "SLO 概览",
+    viewSloDetail: "查看 SLO 详情",
   },
   workbench: {
     pageDescription: "工作台概览与快捷操作",

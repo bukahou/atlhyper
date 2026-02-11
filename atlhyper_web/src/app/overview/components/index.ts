@@ -4,4 +4,5 @@ export { NodeResourceCard } from "./NodeResourceCard";
 export { RecentAlertsCard } from "./RecentAlertsCard";
 export type { AlertItem } from "./RecentAlertsCard";
 export { WorkloadSummaryCard } from "./WorkloadSummaryCard";
+export { SloOverviewCard } from "./SloOverviewCard";
 export { AlertDetailModal } from "./AlertDetailModal";

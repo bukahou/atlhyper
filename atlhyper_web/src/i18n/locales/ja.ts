@@ -587,6 +587,9 @@ export const ja: Translations = {
     run: "実行中",
     done: "完了",
     fail: "失敗",
+    // SLO 概要カード
+    sloOverview: "SLO 概要",
+    viewSloDetail: "SLO 詳細を表示",
   },
   workbench: {
     pageDescription: "ワークベンチ概要とクイック操作",

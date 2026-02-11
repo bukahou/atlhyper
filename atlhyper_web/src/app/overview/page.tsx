@@ -5,10 +5,11 @@ import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getClusterOverview } from "@/api/overview";
 import { getClusterList } from "@/api/cluster";
+import { getSLODomainsV2 } from "@/api/slo";
 import { LoadingSpinner, PageHeader } from "@/components/common";
-import { AlertTrendsChart } from "@/components/charts";
 import { Server, Cpu, HardDrive, AlertTriangle } from "lucide-react";
 import type { TransformedOverview } from "@/types/overview";
+import type { DomainSLOListResponseV2 } from "@/types/slo";
 
 // 组件
 import {
@@ -17,6 +18,7 @@ import {
   NodeResourceCard,
   RecentAlertsCard,
   WorkloadSummaryCard,
+  SloOverviewCard,
   AlertDetailModal,
 } from "./components";
 import type { AlertItem } from "./components";
@@ -31,6 +33,7 @@ export default function OverviewPage() {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TransformedOverview>(emptyData);
+  const [sloData, setSloData] = useState<DomainSLOListResponseV2 | null>(null);
   const [error, setError] = useState("");
   const isMountedRef = useRef(true);
   const isFirstLoadRef = useRef(true);
@@ -55,9 +58,13 @@ export default function OverviewPage() {
         }
 
         const clusterId = clusters[0].cluster_id;
-        const res = await getClusterOverview({ cluster_id: clusterId });
+        const [res, sloRes] = await Promise.all([
+          getClusterOverview({ cluster_id: clusterId }),
+          getSLODomainsV2({ clusterId }).catch(() => null),
+        ]);
         if (isMountedRef.current) {
           setData(transformOverview(res.data?.data));
+          setSloData(sloRes?.data ?? null);
           setError("");
         }
       } catch (err) {
@@ -147,7 +154,7 @@ export default function OverviewPage() {
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <WorkloadSummaryCard workloads={data.workloads} podStatus={data.podStatus} peakStats={data.peakStats} t={t} />
-          <AlertTrendsChart series={data.alertTrends} />
+          <SloOverviewCard data={sloData} t={t} />
         </div>
 
         {/* Bottom Section */}

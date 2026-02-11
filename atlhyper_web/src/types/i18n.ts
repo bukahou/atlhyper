@@ -616,6 +616,9 @@ export interface OverviewTranslations {
   run: string;
   done: string;
   fail: string;
+  // SLO 概览卡片
+  sloOverview: string;
+  viewSloDetail: string;
 }
 
 // Workbench 页面翻译
