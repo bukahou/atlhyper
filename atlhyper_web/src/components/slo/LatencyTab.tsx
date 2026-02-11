@@ -138,7 +138,11 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
           ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
           : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
     const prevLe = idx > 0 ? buckets[idx - 1].le : 0;
-    return { ...b, prevLe, left, width: Math.max(right - left, 0.5), color };
+    const rawWidth = right - left;
+    const cappedWidth = Math.min(Math.max(rawWidth, 0.5), 5);
+    const center = (left + right) / 2;
+    const barLeft = center - cappedWidth / 2;
+    return { ...b, prevLe, left: barLeft, width: cappedWidth, color };
   });
 
   return (
