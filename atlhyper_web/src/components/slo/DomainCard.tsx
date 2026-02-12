@@ -11,7 +11,7 @@ import {
   Calendar,
   BarChart3,
 } from "lucide-react";
-import { StatusBadge, ErrorBudgetBar, TrendIcon, formatNumber } from "./common";
+import { StatusBadge, ErrorBudgetBar, TrendIcon, formatNumber, formatLatency } from "./common";
 import { SLOTargetModal } from "./SLOTargetModal";
 import { OverviewTab } from "./OverviewTab";
 import { MeshTab } from "./MeshTab";
@@ -242,8 +242,8 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
           <div className="w-32">
             <div className="text-[10px] text-muted mb-0.5">{t.p95Latency}</div>
             <div className="flex items-center gap-1">
-              <span className={`text-sm font-semibold ${p95Latency <= targets.p95_latency ? "text-emerald-500" : "text-amber-500"}`}>{p95Latency}ms</span>
-              <span className="text-xs text-muted">/ {targets.p95_latency}ms</span>
+              <span className={`text-sm font-semibold ${p95Latency <= targets.p95_latency ? "text-emerald-500" : "text-amber-500"}`}>{formatLatency(p95Latency)}</span>
+              <span className="text-xs text-muted">/ {formatLatency(targets.p95_latency)}</span>
             </div>
           </div>
           <div className="w-28">

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Network, Server, ArrowRight, Layers, Shield, ZoomIn, ZoomOut, Shrink, BarChart3, Loader2 } from "lucide-react";
-import { getNamespaceColor } from "./common";
+import { getNamespaceColor, formatLatency } from "./common";
 import { getMeshServiceDetail } from "@/api/mesh";
 import type { MeshServiceNode, MeshServiceEdge, MeshTopologyResponse, MeshServiceDetailResponse } from "@/types/mesh";
 
@@ -353,7 +353,7 @@ function ServiceTopologyView({ topology, onSelectNode, timeRange, t }: {
                 {isHighlighted && (
                   <g transform={`translate(${labelPos.x}, ${labelPos.y})`}>
                     <rect x="-42" y="-12" width="84" height="24" rx="4" fill="white" className="dark:fill-slate-800" stroke="#e2e8f0" strokeWidth="1" />
-                    <text textAnchor="middle" y="4" className="text-[10px] font-medium fill-slate-600 dark:fill-slate-300">{edge.rps.toFixed(0)}/s · {edge.avg_latency}ms</text>
+                    <text textAnchor="middle" y="4" className="text-[10px] font-medium fill-slate-600 dark:fill-slate-300">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avg_latency)}</text>
                   </g>
                 )}
               </g>
@@ -387,7 +387,7 @@ function ServiceTopologyView({ topology, onSelectNode, timeRange, t }: {
                   {node.name.length > 14 ? node.name.slice(0, 14) + "\u2026" : node.name}
                 </text>
                 <text y={nodeRadius + 28} textAnchor="middle" className="text-[9px] fill-slate-500 dark:fill-slate-400 pointer-events-none">
-                  {node.p95_latency}ms · {node.error_rate.toFixed(1)}%
+                  P95 {formatLatency(node.p95_latency)} · {node.error_rate.toFixed(1)}%
                 </text>
                 <circle cx={nodeRadius - 4} cy={-nodeRadius + 4} r={5}
                   fill={node.status === "healthy" ? "#10b981" : node.status === "warning" ? "#f59e0b" : "#ef4444"}
@@ -464,7 +464,7 @@ function ServiceListTable({ nodes, selectedId, onSelect, t }: {
                   </div>
                 </td>
                 <td className="text-right py-2.5 px-2 font-medium text-default">{node.rps.toFixed(0)}<span className="text-muted">/s</span></td>
-                <td className="text-right py-2.5 px-2 font-medium text-default">{node.p95_latency}<span className="text-muted">ms</span></td>
+                <td className="text-right py-2.5 px-2 font-medium text-default">{formatLatency(node.p95_latency)}</td>
                 <td className="text-right py-2.5 px-2">
                   <span className={node.error_rate > 0.5 ? "text-red-500 font-semibold" : "text-default font-medium"}>{node.error_rate.toFixed(2)}%</span>
                 </td>
@@ -548,9 +548,9 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {[
           { label: t.rps, value: `${node.rps.toFixed(0)}`, unit: "/s" },
-          { label: t.p50Latency, value: `${node.p50_latency}`, unit: "ms" },
-          { label: t.p95Latency, value: `${node.p95_latency}`, unit: "ms" },
-          { label: t.p99Latency, value: `${node.p99_latency}`, unit: "ms" },
+          { label: t.p50Latency, value: formatLatency(node.p50_latency), unit: "" },
+          { label: t.p95Latency, value: formatLatency(node.p95_latency), unit: "" },
+          { label: t.p99Latency, value: formatLatency(node.p99_latency), unit: "" },
           { label: t.errorRate, value: node.error_rate.toFixed(2), unit: "%", color: node.error_rate > 0.5 ? "text-red-500" : "text-emerald-500" },
           { label: t.totalRequests, value: node.total_requests.toLocaleString(), unit: "" },
         ].map((m, i) => (
@@ -580,7 +580,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getNamespaceColor(srcNode.namespace).fill }} />
                       <span className="font-medium text-default">{srcNode.name}</span>
                       <ArrowRight className="w-3 h-3 text-slate-400" />
-                      <span className="text-muted">{edge.rps.toFixed(0)}/s · {edge.avg_latency}ms</span>
+                      <span className="text-muted">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avg_latency)}</span>
                     </div>
                   );
                 })}
@@ -599,7 +599,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
                       <ArrowRight className="w-3 h-3 text-cyan-600" />
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getNamespaceColor(tgtNode.namespace).fill }} />
                       <span className="font-medium text-default">{tgtNode.name}</span>
-                      <span className="text-muted">{edge.rps.toFixed(0)}/s · {edge.avg_latency}ms</span>
+                      <span className="text-muted">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avg_latency)}</span>
                     </div>
                   );
                 })}
@@ -667,13 +667,13 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
               {latencyBuckets.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-[9px] text-blue-700 dark:text-blue-400 font-medium">
-                    P50 {node.p50_latency}ms
+                    P50 {formatLatency(node.p50_latency)}
                   </span>
                   <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-[9px] text-amber-700 dark:text-amber-400 font-medium">
-                    P95 {node.p95_latency}ms
+                    P95 {formatLatency(node.p95_latency)}
                   </span>
                   <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-[9px] text-red-700 dark:text-red-400 font-medium">
-                    P99 {node.p99_latency}ms
+                    P99 {formatLatency(node.p99_latency)}
                   </span>
                 </div>
               )}

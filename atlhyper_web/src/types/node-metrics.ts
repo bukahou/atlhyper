@@ -191,6 +191,9 @@ export interface SoftnetMetrics {
 export interface NodeMetricsSnapshot {
   nodeName: string;
   timestamp: string;
+  uptime: number;
+  os: string;
+  kernel: string;
   cpu: CPUMetrics;
   memory: MemoryMetrics;
   disks: DiskMetrics[];

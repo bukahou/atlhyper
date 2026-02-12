@@ -23,10 +23,11 @@ const getTempBgColor = (temp: number, high?: number, critical?: number) => {
 };
 
 export const TemperatureCard = memo(function TemperatureCard({ data }: TemperatureCardProps) {
-  // 当没有有效温度数据时不触发警告
-  const hasValidData = data.cpuTemp > 0 && data.cpuTempMax > 0;
-  const isWarning = hasValidData && data.cpuTemp >= (data.cpuTempMax * 0.85);
-  const isCritical = hasValidData && data.cpuTemp >= (data.cpuTempMax * 0.95);
+  // cpuTempMax 为 0 时（如树莓派不上报 max），fallback 100°C
+  const effectiveMax = data.cpuTempMax > 0 ? data.cpuTempMax : 100;
+  const hasValidData = data.cpuTemp > 0;
+  const isWarning = hasValidData && data.cpuTemp >= (effectiveMax * 0.85);
+  const isCritical = hasValidData && data.cpuTemp >= (effectiveMax * 0.95);
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
@@ -43,7 +44,7 @@ export const TemperatureCard = memo(function TemperatureCard({ data }: Temperatu
         </div>
         {/* CPU 温度 */}
         <div className="text-right">
-          <div className={`text-xl sm:text-2xl font-bold ${getTempColor(data.cpuTemp, data.cpuTempMax * 0.85, data.cpuTempMax)}`}>
+          <div className={`text-xl sm:text-2xl font-bold ${getTempColor(data.cpuTemp, effectiveMax * 0.85, effectiveMax)}`}>
             {data.cpuTemp.toFixed(1)}°C
           </div>
           <div className="text-[10px] sm:text-xs text-muted">CPU Temp</div>
@@ -61,15 +62,15 @@ export const TemperatureCard = memo(function TemperatureCard({ data }: Temperatu
           </div>
           {/* 当前温度指示 */}
           <div
-            className={`h-full rounded-full transition-all duration-300 ${getTempBgColor(data.cpuTemp, data.cpuTempMax * 0.85, data.cpuTempMax)}`}
-            style={{ width: `${data.cpuTempMax > 0 ? Math.min(100, (data.cpuTemp / data.cpuTempMax) * 100) : 0}%`, opacity: 0.8 }}
+            className={`h-full rounded-full transition-all duration-300 ${getTempBgColor(data.cpuTemp, effectiveMax * 0.85, effectiveMax)}`}
+            style={{ width: `${Math.min(100, (data.cpuTemp / effectiveMax) * 100)}%`, opacity: 0.8 }}
           />
         </div>
         {/* 刻度 */}
         <div className="flex justify-between text-[10px] sm:text-xs text-muted mt-1">
           <span>0°C</span>
-          <span>{Math.round(data.cpuTempMax * 0.5)}°C</span>
-          <span>{data.cpuTempMax}°C</span>
+          <span>{Math.round(effectiveMax * 0.5)}°C</span>
+          <span>{effectiveMax}°C</span>
         </div>
       </div>
 

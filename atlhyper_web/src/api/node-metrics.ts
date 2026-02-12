@@ -424,6 +424,9 @@ function transformSnapshot(snapshot: BackendNodeMetricsSnapshot): NodeMetricsSna
   return {
     nodeName: snapshot.node_name,
     timestamp: snapshot.timestamp,
+    uptime: snapshot.uptime || 0,
+    os: snapshot.os || "",
+    kernel: snapshot.kernel || "",
     cpu: transformCPU(snapshot.cpu),
     memory: transformMemory(snapshot.memory),
     disks: (snapshot.disks || []).map(transformDisk),

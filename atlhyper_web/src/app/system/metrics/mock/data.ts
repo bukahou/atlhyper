@@ -24,6 +24,9 @@ export const mockNodeMetrics: Record<string, NodeMetricsSnapshot> = {
   "k8s-master-01": {
     nodeName: "k8s-master-01",
     timestamp: new Date().toISOString(),
+    uptime: 1123200,
+    os: "linux",
+    kernel: "6.17.0-14-generic",
     cpu: {
       usagePercent: 45.2,
       coreCount: 8,
@@ -140,6 +143,9 @@ export const mockNodeMetrics: Record<string, NodeMetricsSnapshot> = {
   "k8s-worker-01": {
     nodeName: "k8s-worker-01",
     timestamp: new Date().toISOString(),
+    uptime: 864000,
+    os: "linux",
+    kernel: "6.17.0-14-generic",
     cpu: {
       usagePercent: 72.8,
       coreCount: 16,
@@ -241,6 +247,9 @@ export const mockNodeMetrics: Record<string, NodeMetricsSnapshot> = {
   "k8s-worker-02": {
     nodeName: "k8s-worker-02",
     timestamp: new Date().toISOString(),
+    uptime: 432000,
+    os: "linux",
+    kernel: "6.17.0-14-generic",
     cpu: {
       usagePercent: 35.6,
       coreCount: 8,
