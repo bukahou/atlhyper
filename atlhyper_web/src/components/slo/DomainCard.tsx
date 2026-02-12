@@ -134,21 +134,45 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
     setHistory([]);
   }, [timeRange]);
 
-  // Lazy-load mesh topology when mesh tab is opened, filtered to this domain's namespaces
+  // Lazy-load mesh topology when mesh tab is opened, filtered by call-chain connectivity
   const loadMeshData = useCallback(async () => {
     if (meshTopology) return;
     try {
       const res = await getMeshTopology({ clusterId, timeRange });
       if (res.data) {
-        // Filter to only show services in this domain's namespaces
-        const domainNamespaces = new Set(domain.services.map(s => s.namespace));
-        if (domainNamespaces.size > 0) {
-          const filteredNodes = res.data.nodes.filter(n => domainNamespaces.has(n.namespace));
-          const nodeIds = new Set(filteredNodes.map(n => n.id));
-          const filteredEdges = res.data.edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
-          setMeshTopology({ nodes: filteredNodes, edges: filteredEdges });
-        } else {
+        // Seed nodes: all services belonging to this domain (id format: "namespace/name")
+        const seedIds = new Set(domain.services.map(s => `${s.namespace}/${s.service_name}`));
+
+        // Build bidirectional adjacency list from edges
+        const adjacency: Record<string, Set<string>> = {};
+        res.data.edges.forEach(e => {
+          if (!adjacency[e.source]) adjacency[e.source] = new Set();
+          if (!adjacency[e.target]) adjacency[e.target] = new Set();
+          adjacency[e.source].add(e.target);
+          adjacency[e.target].add(e.source);
+        });
+
+        // BFS to find all reachable nodes from seed set
+        const visited = new Set<string>();
+        const queue = [...seedIds].filter(id => res.data!.nodes.some(n => n.id === id));
+        queue.forEach(id => visited.add(id));
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          adjacency[current]?.forEach(neighbor => {
+            if (!visited.has(neighbor)) {
+              visited.add(neighbor);
+              queue.push(neighbor);
+            }
+          });
+        }
+
+        // Fallback: if no seed matched any node, show full topology
+        if (visited.size === 0) {
           setMeshTopology(res.data);
+        } else {
+          const filteredNodes = res.data.nodes.filter(n => visited.has(n.id));
+          const filteredEdges = res.data.edges.filter(e => visited.has(e.source) && visited.has(e.target));
+          setMeshTopology({ nodes: filteredNodes, edges: filteredEdges });
         }
       }
     } catch (err) {
