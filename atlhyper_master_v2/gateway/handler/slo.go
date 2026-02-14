@@ -342,6 +342,12 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 	var weightedP95Sum, weightedP99Sum float64
 	serviceCount := 0
 
+	// Previous 聚合变量
+	var prevTotalRequests, prevErrorRequests int64
+	var prevTotalRPS float64
+	var prevWeightedP95Sum, prevWeightedP99Sum float64
+	var prevServiceCount int
+
 	// 按 service_key 构建 ServiceSLO
 	for serviceKey, groupMappings := range serviceKeyGroups {
 		// 使用第一个映射作为基础
@@ -366,6 +372,16 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 			weightedP95Sum += float64(serviceSLO.Current.P95Latency) * float64(serviceSLO.Current.TotalRequests)
 			weightedP99Sum += float64(serviceSLO.Current.P99Latency) * float64(serviceSLO.Current.TotalRequests)
 			serviceCount++
+		}
+
+		// 汇总 Previous 数据
+		if serviceSLO.Previous != nil {
+			prevTotalRequests += serviceSLO.Previous.TotalRequests
+			prevErrorRequests += int64(serviceSLO.Previous.ErrorRate * float64(serviceSLO.Previous.TotalRequests) / 100)
+			prevTotalRPS += serviceSLO.Previous.RequestsPerSec
+			prevWeightedP95Sum += float64(serviceSLO.Previous.P95Latency) * float64(serviceSLO.Previous.TotalRequests)
+			prevWeightedP99Sum += float64(serviceSLO.Previous.P99Latency) * float64(serviceSLO.Previous.TotalRequests)
+			prevServiceCount++
 		}
 
 		// 统计最差状态
@@ -420,6 +436,23 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 			availTarget = target.Availability
 		}
 		resp.ErrorBudgetRemaining = slo.CalculateErrorBudgetRemaining(resp.Summary.Availability, availTarget)
+	}
+
+	// 聚合 Previous
+	if prevServiceCount > 0 {
+		var prevP95, prevP99 int
+		if prevTotalRequests > 0 {
+			prevP95 = int(prevWeightedP95Sum / float64(prevTotalRequests))
+			prevP99 = int(prevWeightedP99Sum / float64(prevTotalRequests))
+		}
+		resp.Previous = &model.SLOMetrics{
+			Availability:   slo.CalculateAvailability(prevTotalRequests, prevErrorRequests),
+			P95Latency:     prevP95,
+			P99Latency:     prevP99,
+			ErrorRate:      slo.CalculateErrorRate(prevTotalRequests, prevErrorRequests),
+			RequestsPerSec: prevTotalRPS,
+			TotalRequests:  prevTotalRequests,
+		}
 	}
 
 	return resp
@@ -564,6 +597,18 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	start, end := getTimeRange(now, timeRange)
 
+	// 加载 targets 用于计算 error budget
+	targets, _ := h.repo.GetTargets(ctx, clusterID)
+	targetMap := buildTargetMap(targets)
+	availTarget := 95.0 // 默认
+	if hostTargets, ok := targetMap[host]; ok {
+		if t, ok := hostTargets[timeRange]; ok {
+			availTarget = t.AvailabilityTarget
+		} else if t, ok := hostTargets["1d"]; ok {
+			availTarget = t.AvailabilityTarget
+		}
+	}
+
 	hourlyMetrics, err := h.repo.GetHourlyMetricsByDomain(ctx, clusterID, host, start, end)
 	if err != nil {
 		sloLog.Error("获取历史数据失败", "err", err)
@@ -583,6 +628,7 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 				P99Latency:   m.P99LatencyMs,
 				RPS:          m.AvgRPS,
 				ErrorRate:    slo.CalculateErrorRate(m.TotalRequests, m.ErrorRequests),
+				ErrorBudget:  slo.CalculateErrorBudgetRemaining(m.Availability, availTarget),
 			})
 		}
 	} else {
@@ -599,13 +645,15 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 				if r.TotalRequests > 0 {
 					rpsVal = float64(r.TotalRequests) / 10.0 // 10s 采样间隔
 				}
+				avail := slo.CalculateAvailability(r.TotalRequests, r.ErrorRequests)
 				history = append(history, model.SLODomainHistoryItem{
 					Timestamp:    r.Timestamp.Format(time.RFC3339),
-					Availability: slo.CalculateAvailability(r.TotalRequests, r.ErrorRequests),
+					Availability: avail,
 					P95Latency:   avgLatency, // raw 无精确 P95，用 avg 近似
 					P99Latency:   avgLatency,
 					RPS:          rpsVal,
 					ErrorRate:    slo.CalculateErrorRate(r.TotalRequests, r.ErrorRequests),
+					ErrorBudget:  slo.CalculateErrorBudgetRemaining(avail, availTarget),
 				})
 			}
 		}

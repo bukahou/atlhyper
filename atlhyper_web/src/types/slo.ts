@@ -69,6 +69,7 @@ export interface SLOHistoryPoint {
   p99Latency: number;
   rps: number;
   errorRate: number;
+  errorBudget: number;
 }
 
 // 域名历史数据响应（对应 model.SLODomainHistoryResponse）
@@ -128,6 +129,7 @@ export interface DomainSLOV2 {
   tls: boolean;                    // 是否启用 TLS
   services: ServiceSLO[];          // 该域名下的所有后端服务
   summary: SLOMetrics | null;      // 域名级别汇总指标
+  previous?: SLOMetrics | null;    // 上一周期汇总指标
   targets?: Record<string, SLOTargetSpec>;  // 目标配置 ("1d"/"7d"/"30d")
   status: SLOStatus;               // 域名状态
   errorBudgetRemaining: number;    // 域名剩余错误预算

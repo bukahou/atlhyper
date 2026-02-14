@@ -19,7 +19,7 @@ import { CompareTab } from "./CompareTab";
 import { LatencyTab } from "./LatencyTab";
 import { getSLODomainHistory, getSLOLatencyDistribution } from "@/api/slo";
 import { getMeshTopology } from "@/api/mesh";
-import type { DomainSLOV2, LatencyDistributionResponse } from "@/types/slo";
+import type { DomainSLOV2, LatencyDistributionResponse, SLOHistoryPoint } from "@/types/slo";
 import type { MeshTopologyResponse } from "@/types/mesh";
 
 type TimeRange = "1d" | "7d" | "30d";
@@ -102,7 +102,7 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
   const [activeTab, setActiveTab] = useState<"overview" | "mesh" | "compare" | "latency">("overview");
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [meshTopology, setMeshTopology] = useState<MeshTopologyResponse | null>(null);
-  const [history, setHistory] = useState<{ timestamp: string; p95Latency: number; p99Latency: number; errorRate: number; availability: number; rps: number }[]>([]);
+  const [history, setHistory] = useState<SLOHistoryPoint[]>([]);
   const [latencyData, setLatencyData] = useState<LatencyDistributionResponse | null>(null);
 
   const availability = domain.summary?.availability ?? 0;
@@ -110,16 +110,10 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
   const errorRate = domain.summary?.errorRate ?? 0;
   const rps = domain.summary?.requestsPerSec ?? 0;
 
-  // Compute previous period from services
-  const prevAvailability = domain.services.length > 0
-    ? domain.services.reduce((sum, s) => sum + (s.previous?.availability ?? s.current?.availability ?? 0), 0) / domain.services.length
-    : availability;
-  const prevP95Latency = domain.services.length > 0
-    ? domain.services.reduce((sum, s) => sum + (s.previous?.p95Latency ?? s.current?.p95Latency ?? 0), 0) / domain.services.length
-    : p95Latency;
-  const prevErrorRate = domain.services.length > 0
-    ? domain.services.reduce((sum, s) => sum + (s.previous?.errorRate ?? s.current?.errorRate ?? 0), 0) / domain.services.length
-    : errorRate;
+  // 使用后端聚合的 previous 数据
+  const prevAvailability = domain.previous?.availability ?? availability;
+  const prevP95Latency = domain.previous?.p95Latency ?? p95Latency;
+  const prevErrorRate = domain.previous?.errorRate ?? errorRate;
 
   const trend = availability > prevAvailability ? "up" : availability < prevAvailability ? "down" : "stable";
   const domainTargets = domain.targets?.[timeRange] || domain.targets?.["1d"] || { availability: 95, p95Latency: 300 };

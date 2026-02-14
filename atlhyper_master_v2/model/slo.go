@@ -62,6 +62,7 @@ type DomainSLOResponseV2 struct {
 	TLS                  bool                      `json:"tls"`                    // 是否启用 TLS
 	Services             []ServiceSLO              `json:"services"`               // 该域名下的所有后端服务
 	Summary              *SLOMetrics               `json:"summary"`                // 域名级别汇总指标
+	Previous             *SLOMetrics               `json:"previous,omitempty"`     // 上一周期汇总指标
 	Targets              map[string]*SLOTargetSpec  `json:"targets,omitempty"`      // 目标配置 ("1d"/"7d"/"30d")
 	Status               string                    `json:"status"`                 // healthy / warning / critical
 	ErrorBudgetRemaining float64                   `json:"errorBudgetRemaining"` // 剩余错误预算
@@ -96,6 +97,7 @@ type SLODomainHistoryItem struct {
 	P99Latency   int     `json:"p99Latency"`
 	RPS          float64 `json:"rps"`
 	ErrorRate    float64 `json:"errorRate"`
+	ErrorBudget  float64 `json:"errorBudget"`
 }
 
 // SLODomainHistoryResponse 域名历史响应

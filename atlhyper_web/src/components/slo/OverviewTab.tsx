@@ -206,13 +206,13 @@ function HistoryChart({ history, targets, t }: {
 
 // Error Budget Burn Chart — always renders framework
 function ErrorBudgetBurnChart({ history, errorBudgetRemaining, t }: {
-  history: { timestamp: string; error_budget: number }[];
+  history: { timestamp: string; errorBudget: number }[];
   errorBudgetRemaining: number;
   t: OverviewTabTranslations;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const values = history.map(p => p.error_budget);
+  const values = history.map(p => p.errorBudget);
   const hasData = values.length > 0;
   const width = 600, height = 160;
   const padX = 0, padTop = 10, padBottom = 25;
@@ -375,7 +375,7 @@ export function OverviewTab({ summary, errorBudgetRemaining, targets, history, t
   summary: SLOMetrics | null;
   errorBudgetRemaining: number;
   targets?: { availability: number; p95Latency: number };
-  history?: { timestamp: string; p95Latency: number; p99Latency: number; errorRate: number; availability: number; rps: number }[];
+  history?: { timestamp: string; p95Latency: number; p99Latency: number; errorRate: number; availability: number; rps: number; errorBudget: number }[];
   t: OverviewTabTranslations;
 }) {
   const availability = summary?.availability ?? 0;
@@ -389,7 +389,7 @@ export function OverviewTab({ summary, errorBudgetRemaining, targets, history, t
     if (!history || history.length === 0) return [];
     return history.map(h => ({
       timestamp: h.timestamp,
-      error_budget: Math.max(0, Math.min(100, 100 - h.errorRate * 20)),
+      errorBudget: h.errorBudget,
     }));
   }, [history]);
 
