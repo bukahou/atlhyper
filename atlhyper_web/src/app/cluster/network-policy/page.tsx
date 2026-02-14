@@ -7,7 +7,8 @@ import { getNetworkPolicyList, type NetworkPolicyItem } from "@/api/cluster-reso
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Eye } from "lucide-react";
+import { NetworkPolicyDetailModal } from "@/components/network-policy";
 
 // 筛选输入框
 function FilterInput({
@@ -159,6 +160,10 @@ export default function NetworkPolicyPage() {
     search: "",
   });
 
+  // 详情弹窗状态
+  const [selectedItem, setSelectedItem] = useState<NetworkPolicyItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const fetchData = useCallback(async () => {
     setError("");
     try {
@@ -211,6 +216,11 @@ export default function NetworkPolicyPage() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleViewDetail = (item: NetworkPolicyItem) => {
+    setSelectedItem(item);
+    setDetailOpen(true);
+  };
+
   const columns: TableColumn<NetworkPolicyItem>[] = [
     {
       key: "name",
@@ -247,6 +257,23 @@ export default function NetworkPolicyPage() {
       mobileVisible: false,
       render: (d) => d.age || "-",
     },
+    {
+      key: "action",
+      header: t.common.action,
+      mobileVisible: false,
+      render: (d) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewDetail(d);
+          }}
+          className="p-2 hover-bg rounded-lg"
+          title={t.common.details}
+        >
+          <Eye className="w-4 h-4 text-muted" />
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -280,10 +307,20 @@ export default function NetworkPolicyPage() {
             loading={loading}
             error={error}
             keyExtractor={(d, index) => `${index}-${d.namespace}/${d.name}`}
+            onRowClick={handleViewDetail}
             pageSize={10}
           />
         </div>
       </div>
+
+      {selectedItem && (
+        <NetworkPolicyDetailModal
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          namespace={selectedItem.namespace}
+          name={selectedItem.name}
+        />
+      )}
     </Layout>
   );
 }

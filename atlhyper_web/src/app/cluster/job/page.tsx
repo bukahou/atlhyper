@@ -7,7 +7,8 @@ import { getJobList, type JobItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Eye } from "lucide-react";
+import { JobDetailModal } from "@/components/job";
 
 // 筛选输入框
 function FilterInput({
@@ -159,6 +160,10 @@ export default function JobPage() {
     search: "",
   });
 
+  // 详情弹窗状态
+  const [selectedItem, setSelectedItem] = useState<JobItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const fetchData = useCallback(async () => {
     setError("");
     try {
@@ -210,6 +215,11 @@ export default function JobPage() {
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleViewDetail = (item: JobItem) => {
+    setSelectedItem(item);
+    setDetailOpen(true);
   };
 
   // 确定 Job 状态
@@ -271,6 +281,23 @@ export default function JobPage() {
       mobileVisible: false,
       render: (d) => d.age || "-",
     },
+    {
+      key: "action",
+      header: t.common.action,
+      mobileVisible: false,
+      render: (d) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewDetail(d);
+          }}
+          className="p-2 hover-bg rounded-lg"
+          title={t.common.details}
+        >
+          <Eye className="w-4 h-4 text-muted" />
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -304,10 +331,20 @@ export default function JobPage() {
             loading={loading}
             error={error}
             keyExtractor={(d, index) => `${index}-${d.namespace}/${d.name}`}
+            onRowClick={handleViewDetail}
             pageSize={10}
           />
         </div>
       </div>
+
+      {selectedItem && (
+        <JobDetailModal
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          namespace={selectedItem.namespace}
+          name={selectedItem.name}
+        />
+      )}
     </Layout>
   );
 }

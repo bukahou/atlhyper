@@ -34,3 +34,41 @@ func JobItems(src []model_v2.Job) []model.JobItem {
 	}
 	return result
 }
+
+// JobDetail 转换为详情
+func JobDetail(src *model_v2.Job) model.JobDetail {
+	return model.JobDetail{
+		Name:      src.Name,
+		Namespace: src.Namespace,
+		UID:       src.UID,
+		OwnerKind: src.OwnerKind,
+		OwnerName: src.OwnerName,
+		CreatedAt: src.CreatedAt.Format(timeFormat),
+		Age:       formatAge(src.CreatedAt),
+
+		Status:    jobStatus(src),
+		Active:    src.Active,
+		Succeeded: src.Succeeded,
+		Failed:    src.Failed,
+
+		StartTime:  formatTimePtr(src.StartTime),
+		FinishTime: formatTimePtr(src.FinishTime),
+		Duration:   formatDuration(src.StartTime, src.FinishTime),
+
+		Labels: src.Labels,
+	}
+}
+
+// jobStatus 计算 Job 状态文本
+func jobStatus(src *model_v2.Job) string {
+	if src.Complete {
+		return "Complete"
+	}
+	if src.Active > 0 {
+		return "Running"
+	}
+	if src.Failed > 0 {
+		return "Failed"
+	}
+	return "Complete"
+}

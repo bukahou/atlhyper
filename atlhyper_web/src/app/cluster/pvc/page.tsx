@@ -7,7 +7,8 @@ import { getPVCList, type PVCItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Eye } from "lucide-react";
+import { PVCDetailModal } from "@/components/pvc";
 
 // 筛选输入框
 function FilterInput({
@@ -159,6 +160,10 @@ export default function PVCPage() {
     search: "",
   });
 
+  // 详情弹窗状态
+  const [selectedItem, setSelectedItem] = useState<PVCItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const fetchData = useCallback(async () => {
     setError("");
     try {
@@ -210,6 +215,11 @@ export default function PVCPage() {
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleViewDetail = (item: PVCItem) => {
+    setSelectedItem(item);
+    setDetailOpen(true);
   };
 
   const columns: TableColumn<PVCItem>[] = [
@@ -267,6 +277,23 @@ export default function PVCPage() {
       mobileVisible: false,
       render: (pvc) => pvc.age || "-",
     },
+    {
+      key: "action",
+      header: t.common.action,
+      mobileVisible: false,
+      render: (pvc) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewDetail(pvc);
+          }}
+          className="p-2 hover-bg rounded-lg"
+          title={t.common.details}
+        >
+          <Eye className="w-4 h-4 text-muted" />
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -296,10 +323,20 @@ export default function PVCPage() {
             loading={loading}
             error={error}
             keyExtractor={(pvc, index) => `${index}-${pvc.namespace}/${pvc.name}`}
+            onRowClick={handleViewDetail}
             pageSize={10}
           />
         </div>
       </div>
+
+      {selectedItem && (
+        <PVCDetailModal
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          namespace={selectedItem.namespace}
+          name={selectedItem.name}
+        />
+      )}
     </Layout>
   );
 }

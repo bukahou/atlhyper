@@ -13,3 +13,18 @@ type PVItem struct {
 	CreatedAt     string   `json:"createdAt"`
 	Age           string   `json:"age"`
 }
+
+// PVDetail PersistentVolume 详情
+type PVDetail struct {
+	Name          string   `json:"name"`
+	UID           string   `json:"uid"`
+	Capacity      string   `json:"capacity"`
+	Phase         string   `json:"phase"`
+	StorageClass  string   `json:"storageClass"`
+	AccessModes   []string `json:"accessModes"`
+	ReclaimPolicy string   `json:"reclaimPolicy"`
+	CreatedAt     string   `json:"createdAt"`
+	Age           string   `json:"age"`
+
+	Labels map[string]string `json:"labels,omitempty"`
+}

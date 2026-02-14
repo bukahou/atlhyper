@@ -7,7 +7,8 @@ import { getLimitRangeList, type LimitRangeItem } from "@/api/cluster-resources"
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Eye } from "lucide-react";
+import { LimitRangeDetailModal } from "@/components/limit-range";
 
 // 筛选输入框
 function FilterInput({
@@ -159,6 +160,10 @@ export default function LimitRangePage() {
     search: "",
   });
 
+  // 详情弹窗状态
+  const [selectedItem, setSelectedItem] = useState<LimitRangeItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const fetchData = useCallback(async () => {
     setError("");
     try {
@@ -209,6 +214,11 @@ export default function LimitRangePage() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleViewDetail = (item: LimitRangeItem) => {
+    setSelectedItem(item);
+    setDetailOpen(true);
+  };
+
   const columns: TableColumn<LimitRangeItem>[] = [
     {
       key: "name",
@@ -242,6 +252,23 @@ export default function LimitRangePage() {
       mobileVisible: false,
       render: (item) => item.age || "-",
     },
+    {
+      key: "action",
+      header: t.common.action,
+      mobileVisible: false,
+      render: (item) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewDetail(item);
+          }}
+          className="p-2 hover-bg rounded-lg"
+          title={t.common.details}
+        >
+          <Eye className="w-4 h-4 text-muted" />
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -274,10 +301,20 @@ export default function LimitRangePage() {
             loading={loading}
             error={error}
             keyExtractor={(item, index) => `${index}-${item.namespace}/${item.name}`}
+            onRowClick={handleViewDetail}
             pageSize={10}
           />
         </div>
       </div>
+
+      {selectedItem && (
+        <LimitRangeDetailModal
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          namespace={selectedItem.namespace}
+          name={selectedItem.name}
+        />
+      )}
     </Layout>
   );
 }

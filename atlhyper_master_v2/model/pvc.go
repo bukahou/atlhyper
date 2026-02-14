@@ -15,3 +15,20 @@ type PVCItem struct {
 	CreatedAt         string   `json:"createdAt"`
 	Age               string   `json:"age"`
 }
+
+// PVCDetail PersistentVolumeClaim 详情
+type PVCDetail struct {
+	Name              string   `json:"name"`
+	Namespace         string   `json:"namespace"`
+	UID               string   `json:"uid"`
+	Phase             string   `json:"phase"`
+	VolumeName        string   `json:"volumeName"`
+	StorageClass      string   `json:"storageClass"`
+	AccessModes       []string `json:"accessModes"`
+	RequestedCapacity string   `json:"requestedCapacity"`
+	ActualCapacity    string   `json:"actualCapacity"`
+	CreatedAt         string   `json:"createdAt"`
+	Age               string   `json:"age"`
+
+	Labels map[string]string `json:"labels,omitempty"`
+}

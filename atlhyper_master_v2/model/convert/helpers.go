@@ -34,3 +34,39 @@ func formatAge(created time.Time) string {
 	}
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
+
+// formatDuration 计算两个时间之间的持续时间（如 "5m32s", "2h30m"）
+func formatDuration(start, end *time.Time) string {
+	if start == nil || end == nil {
+		return ""
+	}
+	d := end.Sub(*start)
+	if d < 0 {
+		return ""
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		mins := int(d.Minutes())
+		secs := int(d.Seconds()) % 60
+		if secs == 0 {
+			return fmt.Sprintf("%dm", mins)
+		}
+		return fmt.Sprintf("%dm%ds", mins, secs)
+	}
+	hours := int(d.Hours())
+	mins := int(d.Minutes()) % 60
+	if mins == 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dh%dm", hours, mins)
+}
+
+// formatTimeAgo 计算距今的相对时间（如 "10m", "3h", "2d"），复用 formatAge 逻辑
+func formatTimeAgo(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return formatAge(*t)
+}

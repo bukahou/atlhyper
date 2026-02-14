@@ -1,0 +1,1 @@
+export { NetworkPolicyDetailModal } from "./NetworkPolicyDetailModal";

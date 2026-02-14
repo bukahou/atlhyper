@@ -145,29 +145,37 @@ func (r *Router) registerRoutes() {
 		// ---------- 批处理工作负载查询 ----------
 		// Job
 		register("/api/v2/jobs", jobHandler.List)
+		register("/api/v2/jobs/", jobHandler.Get)
 
 		// CronJob
 		register("/api/v2/cronjobs", cronjobHandler.List)
+		register("/api/v2/cronjobs/", cronjobHandler.Get)
 
 		// ---------- 存储查询 ----------
 		// PersistentVolume
 		register("/api/v2/pvs", pvHandler.List)
+		register("/api/v2/pvs/", pvHandler.Get)
 
 		// PersistentVolumeClaim
 		register("/api/v2/pvcs", pvcHandler.List)
+		register("/api/v2/pvcs/", pvcHandler.Get)
 
 		// ---------- 策略与配额查询 ----------
 		// NetworkPolicy
 		register("/api/v2/network-policies", networkPolicyHandler.List)
+		register("/api/v2/network-policies/", networkPolicyHandler.Get)
 
 		// ResourceQuota
 		register("/api/v2/resource-quotas", resourceQuotaHandler.List)
+		register("/api/v2/resource-quotas/", resourceQuotaHandler.Get)
 
 		// LimitRange
 		register("/api/v2/limit-ranges", limitRangeHandler.List)
+		register("/api/v2/limit-ranges/", limitRangeHandler.Get)
 
 		// ServiceAccount
 		register("/api/v2/service-accounts", serviceAccountHandler.List)
+		register("/api/v2/service-accounts/", serviceAccountHandler.Get)
 
 		// ---------- 配置查询（仅列表，详情需要权限） ----------
 		register("/api/v2/configmaps", configmapHandler.List)

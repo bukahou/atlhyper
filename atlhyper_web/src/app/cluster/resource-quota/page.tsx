@@ -7,7 +7,8 @@ import { getResourceQuotaList, type ResourceQuotaItem } from "@/api/cluster-reso
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Eye } from "lucide-react";
+import { ResourceQuotaDetailModal } from "@/components/resource-quota";
 
 // 筛选输入框
 function FilterInput({
@@ -176,6 +177,10 @@ export default function ResourceQuotaPage() {
     search: "",
   });
 
+  // 详情弹窗状态
+  const [selectedItem, setSelectedItem] = useState<ResourceQuotaItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const fetchData = useCallback(async () => {
     setError("");
     try {
@@ -231,6 +236,11 @@ export default function ResourceQuotaPage() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleViewDetail = (item: ResourceQuotaItem) => {
+    setSelectedItem(item);
+    setDetailOpen(true);
+  };
+
   const columns: TableColumn<ResourceQuotaItem>[] = [
     {
       key: "name",
@@ -258,6 +268,23 @@ export default function ResourceQuotaPage() {
       header: t.policyPage.age,
       mobileVisible: false,
       render: (d) => d.age || "-",
+    },
+    {
+      key: "action",
+      header: t.common.action,
+      mobileVisible: false,
+      render: (d) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewDetail(d);
+          }}
+          className="p-2 hover-bg rounded-lg"
+          title={t.common.details}
+        >
+          <Eye className="w-4 h-4 text-muted" />
+        </button>
+      ),
     },
   ];
 
@@ -291,10 +318,20 @@ export default function ResourceQuotaPage() {
             loading={loading}
             error={error}
             keyExtractor={(d, index) => `${index}-${d.namespace}/${d.name}`}
+            onRowClick={handleViewDetail}
             pageSize={10}
           />
         </div>
       </div>
+
+      {selectedItem && (
+        <ResourceQuotaDetailModal
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          namespace={selectedItem.namespace}
+          name={selectedItem.name}
+        />
+      )}
     </Layout>
   );
 }

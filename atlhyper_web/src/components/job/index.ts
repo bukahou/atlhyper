@@ -1,0 +1,1 @@
+export { JobDetailModal } from "./JobDetailModal";

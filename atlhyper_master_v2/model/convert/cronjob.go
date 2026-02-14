@@ -33,3 +33,27 @@ func CronJobItems(src []model_v2.CronJob) []model.CronJobItem {
 	}
 	return result
 }
+
+// CronJobDetail 转换为详情
+func CronJobDetail(src *model_v2.CronJob) model.CronJobDetail {
+	return model.CronJobDetail{
+		Name:      src.Name,
+		Namespace: src.Namespace,
+		UID:       src.UID,
+		OwnerKind: src.OwnerKind,
+		OwnerName: src.OwnerName,
+		CreatedAt: src.CreatedAt.Format(timeFormat),
+		Age:       formatAge(src.CreatedAt),
+
+		Schedule:   src.Schedule,
+		Suspend:    src.Suspend,
+		ActiveJobs: src.ActiveJobs,
+
+		LastScheduleTime:   formatTimePtr(src.LastScheduleTime),
+		LastSuccessfulTime: formatTimePtr(src.LastSuccessfulTime),
+		LastScheduleAgo:    formatTimeAgo(src.LastScheduleTime),
+		LastSuccessAgo:     formatTimeAgo(src.LastSuccessfulTime),
+
+		Labels: src.Labels,
+	}
+}

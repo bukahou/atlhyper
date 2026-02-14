@@ -92,3 +92,110 @@ func TestCronJobItems_EmptyInput(t *testing.T) {
 		t.Errorf("len = %d, want 0", len(result))
 	}
 }
+
+// ============================================================
+// CronJobDetail 测试
+// ============================================================
+
+func TestCronJobDetail_FieldMapping(t *testing.T) {
+	lastSchedule := time.Date(2026, 2, 14, 2, 0, 0, 0, time.UTC)
+	lastSuccess := time.Date(2026, 2, 14, 2, 5, 0, 0, time.UTC)
+	src := &model_v2.CronJob{
+		CommonMeta: model_v2.CommonMeta{
+			UID:       "cron-456",
+			Name:      "backup-daily",
+			Namespace: "default",
+			OwnerKind: "",
+			OwnerName: "",
+			Labels:    map[string]string{"tier": "infra"},
+			CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		Schedule:           "0 2 * * *",
+		Suspend:            false,
+		ActiveJobs:         1,
+		LastScheduleTime:   &lastSchedule,
+		LastSuccessfulTime: &lastSuccess,
+	}
+
+	detail := CronJobDetail(src)
+
+	if detail.UID != "cron-456" {
+		t.Errorf("UID = %q, want %q", detail.UID, "cron-456")
+	}
+	if detail.Name != "backup-daily" {
+		t.Errorf("Name = %q, want %q", detail.Name, "backup-daily")
+	}
+	if detail.Schedule != "0 2 * * *" {
+		t.Errorf("Schedule = %q, want %q", detail.Schedule, "0 2 * * *")
+	}
+	if detail.Suspend {
+		t.Error("Suspend = true, want false")
+	}
+	if detail.ActiveJobs != 1 {
+		t.Errorf("ActiveJobs = %d, want 1", detail.ActiveJobs)
+	}
+	if detail.LastScheduleTime != "2026-02-14T02:00:00Z" {
+		t.Errorf("LastScheduleTime = %q, want %q", detail.LastScheduleTime, "2026-02-14T02:00:00Z")
+	}
+	if detail.LastSuccessfulTime != "2026-02-14T02:05:00Z" {
+		t.Errorf("LastSuccessfulTime = %q, want %q", detail.LastSuccessfulTime, "2026-02-14T02:05:00Z")
+	}
+	if detail.Labels["tier"] != "infra" {
+		t.Errorf("Labels[tier] = %q, want %q", detail.Labels["tier"], "infra")
+	}
+}
+
+func TestCronJobDetail_AgoFields(t *testing.T) {
+	// 10 分钟前
+	tenMinsAgo := time.Now().Add(-10 * time.Minute)
+	// 3 小时前
+	threeHoursAgo := time.Now().Add(-3 * time.Hour)
+
+	src := &model_v2.CronJob{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "test-cron",
+			Namespace: "default",
+			CreatedAt: time.Now().Add(-24 * time.Hour),
+		},
+		Schedule:           "*/5 * * * *",
+		LastScheduleTime:   &tenMinsAgo,
+		LastSuccessfulTime: &threeHoursAgo,
+	}
+
+	detail := CronJobDetail(src)
+
+	if detail.LastScheduleAgo != "10m" {
+		t.Errorf("LastScheduleAgo = %q, want %q", detail.LastScheduleAgo, "10m")
+	}
+	if detail.LastSuccessAgo != "3h" {
+		t.Errorf("LastSuccessAgo = %q, want %q", detail.LastSuccessAgo, "3h")
+	}
+}
+
+func TestCronJobDetail_NilTimes(t *testing.T) {
+	src := &model_v2.CronJob{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "new-cron",
+			Namespace: "default",
+			CreatedAt: time.Now(),
+		},
+		Schedule:           "*/5 * * * *",
+		LastScheduleTime:   nil,
+		LastSuccessfulTime: nil,
+	}
+
+	detail := CronJobDetail(src)
+
+	if detail.LastScheduleTime != "" {
+		t.Errorf("LastScheduleTime = %q, want empty", detail.LastScheduleTime)
+	}
+	if detail.LastSuccessfulTime != "" {
+		t.Errorf("LastSuccessfulTime = %q, want empty", detail.LastSuccessfulTime)
+	}
+	if detail.LastScheduleAgo != "" {
+		t.Errorf("LastScheduleAgo = %q, want empty", detail.LastScheduleAgo)
+	}
+	if detail.LastSuccessAgo != "" {
+		t.Errorf("LastSuccessAgo = %q, want empty", detail.LastSuccessAgo)
+	}
+}

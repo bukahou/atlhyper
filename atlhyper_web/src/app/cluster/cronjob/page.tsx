@@ -7,7 +7,8 @@ import { getCronJobList, type CronJobItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Eye } from "lucide-react";
+import { CronJobDetailModal } from "@/components/cronjob";
 
 // 筛选输入框
 function FilterInput({
@@ -159,6 +160,10 @@ export default function CronJobPage() {
     search: "",
   });
 
+  // 详情弹窗状态
+  const [selectedItem, setSelectedItem] = useState<CronJobItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const fetchData = useCallback(async () => {
     setError("");
     try {
@@ -211,18 +216,9 @@ export default function CronJobPage() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  // 格式化时间显示
-  const formatLastSchedule = (time: string) => {
-    if (!time) return "-";
-    const date = new Date(time);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+  const handleViewDetail = (item: CronJobItem) => {
+    setSelectedItem(item);
+    setDetailOpen(true);
   };
 
   const columns: TableColumn<CronJobItem>[] = [
@@ -263,13 +259,30 @@ export default function CronJobPage() {
       key: "lastSchedule",
       header: t.cronjob.lastSchedule,
       mobileVisible: false,
-      render: (d) => formatLastSchedule(d.lastScheduleTime),
+      render: (d) => d.lastScheduleTime ? new Date(d.lastScheduleTime).toLocaleString() : "-",
     },
     {
       key: "age",
       header: t.cronjob.age,
       mobileVisible: false,
       render: (d) => d.age || "-",
+    },
+    {
+      key: "action",
+      header: t.common.action,
+      mobileVisible: false,
+      render: (d) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewDetail(d);
+          }}
+          className="p-2 hover-bg rounded-lg"
+          title={t.common.details}
+        >
+          <Eye className="w-4 h-4 text-muted" />
+        </button>
+      ),
     },
   ];
 
@@ -304,10 +317,20 @@ export default function CronJobPage() {
             loading={loading}
             error={error}
             keyExtractor={(d, index) => `${index}-${d.namespace}/${d.name}`}
+            onRowClick={handleViewDetail}
             pageSize={10}
           />
         </div>
       </div>
+
+      {selectedItem && (
+        <CronJobDetailModal
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          namespace={selectedItem.namespace}
+          name={selectedItem.name}
+        />
+      )}
     </Layout>
   );
 }

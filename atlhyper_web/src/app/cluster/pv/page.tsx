@@ -7,7 +7,8 @@ import { getPVList, type PVItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Eye } from "lucide-react";
+import { PVDetailModal } from "@/components/pv";
 
 // 筛选输入框
 function FilterInput({
@@ -94,6 +95,10 @@ export default function PVPage() {
     search: "",
   });
 
+  // 详情弹窗状态
+  const [selectedItem, setSelectedItem] = useState<PVItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const fetchData = useCallback(async () => {
     setError("");
     try {
@@ -133,6 +138,11 @@ export default function PVPage() {
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleViewDetail = (item: PVItem) => {
+    setSelectedItem(item);
+    setDetailOpen(true);
   };
 
   const columns: TableColumn<PVItem>[] = [
@@ -189,6 +199,23 @@ export default function PVPage() {
       mobileVisible: false,
       render: (pv) => pv.age || "-",
     },
+    {
+      key: "action",
+      header: t.common.action,
+      mobileVisible: false,
+      render: (pv) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewDetail(pv);
+          }}
+          className="p-2 hover-bg rounded-lg"
+          title={t.common.details}
+        >
+          <Eye className="w-4 h-4 text-muted" />
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -218,10 +245,19 @@ export default function PVPage() {
             loading={loading}
             error={error}
             keyExtractor={(pv, index) => `${index}-${pv.name}`}
+            onRowClick={handleViewDetail}
             pageSize={10}
           />
         </div>
       </div>
+
+      {selectedItem && (
+        <PVDetailModal
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          name={selectedItem.name}
+        />
+      )}
     </Layout>
   );
 }
