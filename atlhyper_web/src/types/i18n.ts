@@ -37,6 +37,8 @@ export interface NavTranslations {
   settings: string;
   notifications: string;
   aiSettings: string;
+  daemonset: string;
+  statefulset: string;
 }
 
 // 通用翻译

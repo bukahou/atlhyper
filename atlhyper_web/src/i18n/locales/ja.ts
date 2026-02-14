@@ -34,6 +34,8 @@ export const ja: Translations = {
     settings: "設定",
     notifications: "通知設定",
     aiSettings: "AI 設定",
+    daemonset: "DaemonSet",
+    statefulset: "StatefulSet",
   },
   common: {
     loading: "読み込み中...",

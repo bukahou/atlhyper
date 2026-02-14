@@ -36,6 +36,8 @@ import {
   Monitor,
   Check,
   Github,
+  Copy,
+  Database,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useI18n } from "@/i18n/context";
@@ -110,6 +112,8 @@ const navGroups: NavGroup[] = [
       { key: "service", href: "/cluster/service", icon: Network },
       { key: "namespace", href: "/cluster/namespace", icon: FolderTree },
       { key: "ingress", href: "/cluster/ingress", icon: Globe },
+      { key: "daemonset", href: "/cluster/daemonset", icon: Copy },
+      { key: "statefulset", href: "/cluster/statefulset", icon: Database },
       { key: "alert", href: "/cluster/alert", icon: AlertTriangle },
     ],
   },

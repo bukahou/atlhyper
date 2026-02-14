@@ -34,6 +34,8 @@ export const zh: Translations = {
     settings: "设置",
     notifications: "通知配置",
     aiSettings: "AI 配置",
+    daemonset: "DaemonSet",
+    statefulset: "StatefulSet",
   },
   common: {
     loading: "加载中...",

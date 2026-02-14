@@ -170,6 +170,35 @@ export interface DaemonSetDetail {
 }
 
 // ============================================================
+// 列表项类型（从 API 嵌套结构中提取 summary 字段）
+// ============================================================
+
+export interface DaemonSetListItem {
+  name: string;
+  namespace: string;
+  desired: number;
+  current: number;
+  ready: number;
+  available: number;
+  misscheduled: number;
+  createdAt: string;
+  age: string;
+}
+
+export interface StatefulSetListItem {
+  name: string;
+  namespace: string;
+  replicas: number;
+  ready: number;
+  current: number;
+  updated: number;
+  available: number;
+  createdAt: string;
+  age: string;
+  serviceName: string;
+}
+
+// ============================================================
 // 响应类型
 // ============================================================
 
@@ -237,4 +266,48 @@ export async function getDaemonSetDetail(data: { ClusterID: string; Namespace: s
       namespace: data.Namespace,
     }
   );
+}
+
+// ============================================================
+// 列表解析函数（从嵌套 model_v2 结构提取 summary 为扁平列表项）
+// ============================================================
+
+interface RawItem {
+  summary?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export function parseDaemonSetList(raw: unknown[]): DaemonSetListItem[] {
+  return (raw as RawItem[]).map((item) => {
+    const s = item.summary || item;
+    return {
+      name: String(s.name || ""),
+      namespace: String(s.namespace || ""),
+      desired: Number(s.desiredNumberScheduled || 0),
+      current: Number(s.currentNumberScheduled || 0),
+      ready: Number(s.numberReady || 0),
+      available: Number(s.numberAvailable || 0),
+      misscheduled: Number(s.numberMisscheduled || 0),
+      createdAt: String(s.createdAt || ""),
+      age: String(s.age || ""),
+    };
+  });
+}
+
+export function parseStatefulSetList(raw: unknown[]): StatefulSetListItem[] {
+  return (raw as RawItem[]).map((item) => {
+    const s = item.summary || item;
+    return {
+      name: String(s.name || ""),
+      namespace: String(s.namespace || ""),
+      replicas: Number(s.replicas || 0),
+      ready: Number(s.ready || 0),
+      current: Number(s.current || 0),
+      updated: Number(s.updated || 0),
+      available: Number(s.available || 0),
+      createdAt: String(s.createdAt || ""),
+      age: String(s.age || ""),
+      serviceName: String(s.serviceName || ""),
+    };
+  });
 }
