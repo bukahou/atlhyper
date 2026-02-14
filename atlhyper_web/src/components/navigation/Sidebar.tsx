@@ -38,6 +38,13 @@ import {
   Github,
   Copy,
   Database,
+  Play,
+  Clock,
+  HardDrive,
+  HardDriveDownload,
+  Shield,
+  SlidersHorizontal,
+  UserCheck,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useI18n } from "@/i18n/context";
@@ -115,6 +122,32 @@ const navGroups: NavGroup[] = [
       { key: "daemonset", href: "/cluster/daemonset", icon: Copy },
       { key: "statefulset", href: "/cluster/statefulset", icon: Database },
       { key: "alert", href: "/cluster/alert", icon: AlertTriangle },
+    ],
+  },
+  {
+    key: "workload",
+    icon: Play,
+    children: [
+      { key: "job", href: "/cluster/job", icon: Play },
+      { key: "cronjob", href: "/cluster/cronjob", icon: Clock },
+    ],
+  },
+  {
+    key: "storage",
+    icon: HardDrive,
+    children: [
+      { key: "pv", href: "/cluster/pv", icon: HardDrive },
+      { key: "pvc", href: "/cluster/pvc", icon: HardDriveDownload },
+    ],
+  },
+  {
+    key: "policy",
+    icon: Shield,
+    children: [
+      { key: "networkPolicy", href: "/cluster/network-policy", icon: Shield },
+      { key: "resourceQuota", href: "/cluster/resource-quota", icon: Gauge },
+      { key: "limitRange", href: "/cluster/limit-range", icon: SlidersHorizontal },
+      { key: "serviceAccount", href: "/cluster/service-account", icon: UserCheck },
     ],
   },
   {

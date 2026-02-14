@@ -39,6 +39,18 @@ export interface NavTranslations {
   aiSettings: string;
   daemonset: string;
   statefulset: string;
+  // 新增 8 个资源
+  workload: string;
+  job: string;
+  cronjob: string;
+  storage: string;
+  pv: string;
+  pvc: string;
+  policy: string;
+  networkPolicy: string;
+  resourceQuota: string;
+  limitRange: string;
+  serviceAccount: string;
 }
 
 // 通用翻译
@@ -894,6 +906,76 @@ export interface PlaceholderTranslations {
   developingMessage: string;
 }
 
+// Job 页面翻译
+export interface JobTranslations {
+  pageDescription: string;
+  searchPlaceholder: string;
+  active: string;
+  succeeded: string;
+  failed: string;
+  completions: string;
+  parallelism: string;
+  duration: string;
+  age: string;
+  statusComplete: string;
+  statusRunning: string;
+  statusFailed: string;
+}
+
+// CronJob 页面翻译
+export interface CronJobTranslations {
+  pageDescription: string;
+  searchPlaceholder: string;
+  schedule: string;
+  suspend: string;
+  suspended: string;
+  activeJobs: string;
+  lastSchedule: string;
+  age: string;
+}
+
+// Storage (PV/PVC) 页面翻译
+export interface StorageTranslations {
+  pvDescription: string;
+  pvcDescription: string;
+  searchPlaceholder: string;
+  capacity: string;
+  phase: string;
+  storageClass: string;
+  reclaimPolicy: string;
+  accessModes: string;
+  volumeName: string;
+  requested: string;
+  bound: string;
+  available: string;
+  released: string;
+  pending: string;
+  lost: string;
+  age: string;
+}
+
+// Policy (NetworkPolicy, ResourceQuota, LimitRange, ServiceAccount) 页面翻译
+export interface PolicyTranslations {
+  networkPolicyDescription: string;
+  resourceQuotaDescription: string;
+  limitRangeDescription: string;
+  serviceAccountDescription: string;
+  searchPlaceholder: string;
+  policyTypes: string;
+  ingressRules: string;
+  egressRules: string;
+  hardUsed: string;
+  resourceTypes: string;
+  itemsCount: string;
+  types: string;
+  secrets: string;
+  imagePullSecrets: string;
+  automountToken: string;
+  withSecrets: string;
+  rulesCount: string;
+  age: string;
+}
+
 // SLO 页面翻译
 export interface SLOTranslations {
   // 页面标题
@@ -1382,6 +1464,10 @@ export interface Translations {
   aiSettingsPage: AISettingsPageTranslations;
   aiChatPage: AIChatPageTranslations;
   aboutPage: AboutTranslations;
+  job: JobTranslations;
+  cronjob: CronJobTranslations;
+  storagePage: StorageTranslations;
+  policyPage: PolicyTranslations;
 }
 
 // 国际化上下文
