@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Network, ArrowDownToLine, ArrowUpFromLine, Wifi, WifiOff } from "lucide-react";
 import type { NetworkMetrics } from "@/types/node-metrics";
-import { formatBytesPS, formatNumber } from "../mock/data";
+import { formatBytesPS, formatNumber } from "@/lib/format";
 
 interface NetworkCardProps {
   data: NetworkMetrics[];

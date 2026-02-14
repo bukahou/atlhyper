@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Zap, Thermometer, Fan, Cpu } from "lucide-react";
 import type { GPUMetrics } from "@/types/node-metrics";
-import { formatBytes } from "../mock/data";
+import { formatBytes } from "@/lib/format";
 
 interface GPUCardProps {
   data: GPUMetrics[];

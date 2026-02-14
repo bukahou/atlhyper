@@ -43,7 +43,7 @@ import {
 } from "@/api/node-metrics";
 
 // 工具函数
-import { formatBytes } from "./mock/data";
+import { formatBytes } from "@/lib/format";
 
 import type { NodeMetricsSnapshot, MetricsDataPoint } from "@/types/node-metrics";
 

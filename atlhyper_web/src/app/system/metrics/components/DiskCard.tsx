@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Database, ArrowDown, ArrowUp, Activity } from "lucide-react";
 import type { DiskMetrics } from "@/types/node-metrics";
-import { formatBytes, formatBytesPS } from "../mock/data";
+import { formatBytes, formatBytesPS } from "@/lib/format";
 
 interface DiskCardProps {
   data: DiskMetrics[];

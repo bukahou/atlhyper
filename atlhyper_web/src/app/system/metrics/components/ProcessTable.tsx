@@ -3,7 +3,7 @@
 import { memo, useState } from "react";
 import { ListTree, ChevronDown, ChevronUp, Search } from "lucide-react";
 import type { ProcessMetrics } from "@/types/node-metrics";
-import { formatBytes } from "../mock/data";
+import { formatBytes } from "@/lib/format";
 
 interface ProcessTableProps {
   data: ProcessMetrics[];

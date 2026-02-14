@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { HardDrive, RefreshCw } from "lucide-react";
 import type { MemoryMetrics } from "@/types/node-metrics";
-import { formatBytes } from "../mock/data";
+import { formatBytes } from "@/lib/format";
 
 interface MemoryCardProps {
   data: MemoryMetrics;
