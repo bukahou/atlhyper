@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/model_v2"
 )
 
@@ -87,12 +89,12 @@ func (h *NodeMetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 		nodes = append(nodes, &snapshot)
 	}
 
-	// 计算汇总统计
+	// 计算汇总统计并转换为 API 响应
 	summary := h.calculateSummary(nodes)
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"summary": summary,
-		"nodes":   nodes,
+	writeJSON(w, http.StatusOK, model.ClusterNodeMetricsResponse{
+		Summary: convert.ClusterMetricsSummary(summary),
+		Nodes:   convert.NodeMetricsSnapshots(nodes),
 	})
 }
 
@@ -120,7 +122,7 @@ func (h *NodeMetricsHandler) getDetail(w http.ResponseWriter, r *http.Request, n
 		return
 	}
 
-	writeJSON(w, http.StatusOK, snapshot)
+	writeJSON(w, http.StatusOK, convert.NodeMetricsSnapshot(&snapshot))
 }
 
 // getHistory 获取节点历史数据
@@ -148,7 +150,7 @@ func (h *NodeMetricsHandler) getHistory(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// 转换为 MetricsDataPoint
+	// 转换为 API 响应
 	dataPoints := make([]model_v2.MetricsDataPoint, 0, len(history))
 	for _, h := range history {
 		dataPoints = append(dataPoints, model_v2.MetricsDataPoint{
@@ -166,11 +168,11 @@ func (h *NodeMetricsHandler) getHistory(w http.ResponseWriter, r *http.Request, 
 		})
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"node_name": nodeName,
-		"start":     start,
-		"end":       end,
-		"data":      dataPoints,
+	writeJSON(w, http.StatusOK, model.NodeMetricsHistoryResponse{
+		NodeName: nodeName,
+		Start:    start,
+		End:      end,
+		Data:     convert.MetricsDataPoints(dataPoints),
 	})
 }
 

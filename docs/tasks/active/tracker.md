@@ -8,16 +8,15 @@
 
 > 设计文档: [big-backend-small-frontend.md](../../design/active/big-backend-small-frontend.md)
 
-### Phase 1: NodeMetrics camelCase（消除 ~284 行前端代码）
+### Phase 1: NodeMetrics camelCase（消除 ~411 行前端代码）— ✅ 完成
 
 | 状态 | 任务 | 文件 |
 |:---:|------|------|
-| [ ] | 新建 NodeMetrics 响应类型（camelCase） | `model/node_metrics.go` |
-| [ ] | 新建 NodeMetrics 转换函数 + 单元测试 | `model/convert/node_metrics.go` |
-| [ ] | Handler 返回前调用 convert | `gateway/handler/node_metrics.go` |
-| [ ] | 前端删除 16 个 transform | `api/node-metrics.ts` |
-| [ ] | 前端删除 transformOverview | `app/overview/utils.ts` |
-| [ ] | 编译验证（go build + next build） | |
+| [x] | 新建 NodeMetrics 响应类型（camelCase） | `model/node_metrics.go` |
+| [x] | 新建 NodeMetrics 转换函数 + 单元测试（8 测试通过） | `model/convert/node_metrics.go` |
+| [x] | Handler 返回前调用 convert（3 个返回点） | `gateway/handler/node_metrics.go` |
+| [x] | 前端删除 16 个 Backend 接口 + 16 个 transform（516→105 行） | `api/node-metrics.ts` |
+| [x] | 编译验证（go build + next build 全通过） | |
 
 ### Phase 2: Overview camelCase（消除 ~81 行前端代码）
 
