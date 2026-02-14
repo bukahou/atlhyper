@@ -5,6 +5,7 @@ package handler
 import (
 	"net/http"
 
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -49,5 +50,5 @@ func (h *OverviewHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, overview)
+	writeJSON(w, http.StatusOK, convert.Overview(overview))
 }

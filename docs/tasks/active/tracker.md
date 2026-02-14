@@ -18,15 +18,15 @@
 | [x] | 前端删除 16 个 Backend 接口 + 16 个 transform（516→105 行） | `api/node-metrics.ts` |
 | [x] | 编译验证（go build + next build 全通过） | |
 
-### Phase 2: Overview camelCase（消除 ~81 行前端代码）
+### Phase 2: Overview camelCase（消除 ~180 行前端代码）— ✅ 完成
 
 | 状态 | 任务 | 文件 |
 |:---:|------|------|
-| [ ] | 新建 Overview 响应类型 | `model/overview.go` |
-| [ ] | 新建 Overview 转换函数 + 测试 | `model/convert/overview.go` |
-| [ ] | Handler 返回前调用 convert | `gateway/handler/overview.go` |
-| [ ] | 前端删除 transformResponse | `api/overview.ts` |
-| [ ] | 编译验证 | |
+| [x] | 新建 Overview 响应类型（17 个 camelCase 类型） | `model/overview.go` |
+| [x] | 新建 Overview 转换函数 + 单元测试（3 测试通过） | `model/convert/overview.go` |
+| [x] | Handler 返回前调用 convert | `gateway/handler/overview.go` |
+| [x] | 前端删除 OverviewApiResponse + transformResponse（218→34 行） | `api/overview.ts` |
+| [x] | 编译验证（go build + next build 全通过） | |
 
 ### Phase 3: K8s 资源扁平化（9 种资源，消除 ~963 行）
 
