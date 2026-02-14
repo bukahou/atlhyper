@@ -300,6 +300,161 @@ func (q *QueryService) GetStatefulSets(ctx context.Context, clusterID string, na
 	return result, nil
 }
 
+// ==================== Job / CronJob 查询 ====================
+
+// GetJobs 获取 Job 列表
+func (q *QueryService) GetJobs(ctx context.Context, clusterID string, namespace string) ([]model_v2.Job, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	if namespace == "" {
+		return snapshot.Jobs, nil
+	}
+
+	result := make([]model_v2.Job, 0)
+	for _, j := range snapshot.Jobs {
+		if j.Namespace == namespace {
+			result = append(result, j)
+		}
+	}
+	return result, nil
+}
+
+// GetCronJobs 获取 CronJob 列表
+func (q *QueryService) GetCronJobs(ctx context.Context, clusterID string, namespace string) ([]model_v2.CronJob, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	if namespace == "" {
+		return snapshot.CronJobs, nil
+	}
+
+	result := make([]model_v2.CronJob, 0)
+	for _, c := range snapshot.CronJobs {
+		if c.Namespace == namespace {
+			result = append(result, c)
+		}
+	}
+	return result, nil
+}
+
+// ==================== 存储查询 ====================
+
+// GetPersistentVolumes 获取 PV 列表（集群级，无 namespace）
+func (q *QueryService) GetPersistentVolumes(ctx context.Context, clusterID string) ([]model_v2.PersistentVolume, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+	return snapshot.PersistentVolumes, nil
+}
+
+// GetPersistentVolumeClaims 获取 PVC 列表
+func (q *QueryService) GetPersistentVolumeClaims(ctx context.Context, clusterID string, namespace string) ([]model_v2.PersistentVolumeClaim, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	if namespace == "" {
+		return snapshot.PersistentVolumeClaims, nil
+	}
+
+	result := make([]model_v2.PersistentVolumeClaim, 0)
+	for _, p := range snapshot.PersistentVolumeClaims {
+		if p.Namespace == namespace {
+			result = append(result, p)
+		}
+	}
+	return result, nil
+}
+
+// ==================== 策略与配额查询 ====================
+
+// GetNetworkPolicies 获取 NetworkPolicy 列表
+func (q *QueryService) GetNetworkPolicies(ctx context.Context, clusterID string, namespace string) ([]model_v2.NetworkPolicy, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	if namespace == "" {
+		return snapshot.NetworkPolicies, nil
+	}
+
+	result := make([]model_v2.NetworkPolicy, 0)
+	for _, np := range snapshot.NetworkPolicies {
+		if np.Namespace == namespace {
+			result = append(result, np)
+		}
+	}
+	return result, nil
+}
+
+// GetResourceQuotas 获取 ResourceQuota 列表
+func (q *QueryService) GetResourceQuotas(ctx context.Context, clusterID string, namespace string) ([]model_v2.ResourceQuota, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	if namespace == "" {
+		return snapshot.ResourceQuotas, nil
+	}
+
+	result := make([]model_v2.ResourceQuota, 0)
+	for _, rq := range snapshot.ResourceQuotas {
+		if rq.Namespace == namespace {
+			result = append(result, rq)
+		}
+	}
+	return result, nil
+}
+
+// GetLimitRanges 获取 LimitRange 列表
+func (q *QueryService) GetLimitRanges(ctx context.Context, clusterID string, namespace string) ([]model_v2.LimitRange, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	if namespace == "" {
+		return snapshot.LimitRanges, nil
+	}
+
+	result := make([]model_v2.LimitRange, 0)
+	for _, lr := range snapshot.LimitRanges {
+		if lr.Namespace == namespace {
+			result = append(result, lr)
+		}
+	}
+	return result, nil
+}
+
+// GetServiceAccounts 获取 ServiceAccount 列表
+func (q *QueryService) GetServiceAccounts(ctx context.Context, clusterID string, namespace string) ([]model_v2.ServiceAccount, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+
+	if namespace == "" {
+		return snapshot.ServiceAccounts, nil
+	}
+
+	result := make([]model_v2.ServiceAccount, 0)
+	for _, sa := range snapshot.ServiceAccounts {
+		if sa.Namespace == namespace {
+			result = append(result, sa)
+		}
+	}
+	return result, nil
+}
+
 // ==================== Event 查询 ====================
 
 // GetEvents 获取实时 Events

@@ -4,7 +4,9 @@ import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getNetworkPolicyList, type NetworkPolicyItem } from "@/api/cluster-resources";
-import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
+import { getCurrentClusterId } from "@/config/cluster";
 import { Filter, X } from "lucide-react";
 
 // 筛选输入框
@@ -147,15 +149,29 @@ function FilterBar({
 
 export default function NetworkPolicyPage() {
   const { t } = useI18n();
-  const [items] = useState<NetworkPolicyItem[]>(() => getNetworkPolicyList());
-  const loading = false;
-  const error = "";
+  const [items, setItems] = useState<NetworkPolicyItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // 筛选状态
   const [filters, setFilters] = useState({
     namespace: "",
     search: "",
   });
+
+  const fetchData = useCallback(async () => {
+    setError("");
+    try {
+      const res = await getNetworkPolicyList({ cluster_id: getCurrentClusterId() });
+      setItems(res.data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 提取唯一的 namespaces
   const namespaces = useMemo(() => {
@@ -168,8 +184,8 @@ export default function NetworkPolicyPage() {
 
   // StatsCards 统计
   const stats = useMemo(() => {
-    const totalIngressRules = items.reduce((sum, d) => sum + d.ingressRules, 0);
-    const totalEgressRules = items.reduce((sum, d) => sum + d.egressRules, 0);
+    const totalIngressRules = items.reduce((sum, d) => sum + d.ingressRuleCount, 0);
+    const totalEgressRules = items.reduce((sum, d) => sum + d.egressRuleCount, 0);
     return {
       total: items.length,
       namespaces: namespaces.length,
@@ -211,19 +227,19 @@ export default function NetworkPolicyPage() {
     {
       key: "policyTypes",
       header: t.policyPage.policyTypes,
-      render: (d) => d.policyTypes.join(", ") || "-",
+      render: (d) => (d.policyTypes ? d.policyTypes.join(", ") : "-"),
     },
     {
-      key: "ingressRules",
+      key: "ingressRuleCount",
       header: t.policyPage.ingressRules,
       mobileVisible: false,
-      render: (d) => String(d.ingressRules),
+      render: (d) => String(d.ingressRuleCount),
     },
     {
-      key: "egressRules",
+      key: "egressRuleCount",
       header: t.policyPage.egressRules,
       mobileVisible: false,
-      render: (d) => String(d.egressRules),
+      render: (d) => String(d.egressRuleCount),
     },
     {
       key: "age",
@@ -239,6 +255,7 @@ export default function NetworkPolicyPage() {
         <PageHeader
           title={t.nav.networkPolicy}
           description={t.policyPage.networkPolicyDescription}
+          autoRefreshSeconds={intervalSeconds}
         />
 
         {items.length > 0 && (

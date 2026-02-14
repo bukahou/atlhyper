@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getServiceAccountList, type ServiceAccountItem } from "@/api/cluster-resources";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { getCurrentClusterId } from "@/config/cluster";
 import { Filter, X } from "lucide-react";
 
 // 筛选输入框
@@ -147,15 +149,29 @@ function FilterBar({
 
 export default function ServiceAccountPage() {
   const { t } = useI18n();
-  const [items] = useState<ServiceAccountItem[]>(() => getServiceAccountList());
-  const loading = false;
-  const error = "";
+  const [items, setItems] = useState<ServiceAccountItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // 筛选状态
   const [filters, setFilters] = useState({
     namespace: "",
     search: "",
   });
+
+  const fetchData = useCallback(async () => {
+    setError("");
+    try {
+      const res = await getServiceAccountList({ cluster_id: getCurrentClusterId() });
+      setItems(res.data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 提取唯一的 namespaces
   const namespaces = useMemo(() => {
@@ -168,7 +184,7 @@ export default function ServiceAccountPage() {
 
   // StatsCards 统计
   const stats = useMemo(() => {
-    const withSecrets = items.filter((item) => item.secrets > 0).length;
+    const withSecrets = items.filter((item) => item.secretsCount > 0).length;
     return {
       total: items.length,
       namespaces: namespaces.length,
@@ -207,18 +223,15 @@ export default function ServiceAccountPage() {
     },
     { key: "namespace", header: t.common.namespace },
     {
-      key: "secrets",
+      key: "secretsCount",
       header: t.policyPage.secrets,
-      render: (item) => String(item.secrets),
+      render: (item) => String(item.secretsCount),
     },
     {
-      key: "imagePullSecrets",
+      key: "imagePullSecretsCount",
       header: t.policyPage.imagePullSecrets,
       mobileVisible: false,
-      render: (item) => {
-        if (item.imagePullSecrets.length === 0) return "-";
-        return item.imagePullSecrets.join(", ");
-      },
+      render: (item) => String(item.imagePullSecretsCount),
     },
     {
       key: "automountToken",
@@ -226,8 +239,8 @@ export default function ServiceAccountPage() {
       mobileVisible: false,
       render: (item) => (
         <StatusBadge
-          status={item.automountToken ? t.common.yes : t.common.no}
-          type={item.automountToken ? "success" : "default"}
+          status={item.automountServiceAccountToken ? t.common.yes : t.common.no}
+          type={item.automountServiceAccountToken ? "success" : "default"}
         />
       ),
     },
@@ -245,6 +258,7 @@ export default function ServiceAccountPage() {
         <PageHeader
           title={t.nav.serviceAccount}
           description={t.policyPage.serviceAccountDescription}
+          autoRefreshSeconds={intervalSeconds}
         />
 
         {items.length > 0 && (

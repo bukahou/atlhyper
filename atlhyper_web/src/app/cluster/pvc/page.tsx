@@ -4,7 +4,9 @@ import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getPVCList, type PVCItem } from "@/api/cluster-resources";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { getCurrentClusterId } from "@/config/cluster";
 import { Filter, X } from "lucide-react";
 
 // 筛选输入框
@@ -147,15 +149,29 @@ function FilterBar({
 
 export default function PVCPage() {
   const { t } = useI18n();
-  const [items] = useState<PVCItem[]>(() => getPVCList());
-  const loading = false;
-  const error = "";
+  const [items, setItems] = useState<PVCItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // 筛选状态
   const [filters, setFilters] = useState({
     namespace: "",
     search: "",
   });
+
+  const fetchData = useCallback(async () => {
+    setError("");
+    try {
+      const res = await getPVCList({ cluster_id: getCurrentClusterId() });
+      setItems(res.data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 提取唯一的 namespaces
   const namespaces = useMemo(() => {
@@ -168,9 +184,9 @@ export default function PVCPage() {
 
   // StatsCards 统计
   const stats = useMemo(() => {
-    const bound = items.filter((pvc) => pvc.status === "Bound").length;
-    const pending = items.filter((pvc) => pvc.status === "Pending").length;
-    const lost = items.filter((pvc) => pvc.status === "Lost").length;
+    const bound = items.filter((pvc) => pvc.phase === "Bound").length;
+    const pending = items.filter((pvc) => pvc.phase === "Pending").length;
+    const lost = items.filter((pvc) => pvc.phase === "Lost").length;
     return {
       total: items.length,
       bound,
@@ -210,7 +226,7 @@ export default function PVCPage() {
     },
     { key: "namespace", header: t.common.namespace },
     {
-      key: "status",
+      key: "phase",
       header: t.storagePage.phase,
       render: (pvc) => {
         const typeMap: Record<string, "success" | "warning" | "error"> = {
@@ -218,17 +234,17 @@ export default function PVCPage() {
           Pending: "warning",
           Lost: "error",
         };
-        return <StatusBadge status={pvc.status} type={typeMap[pvc.status] || "info"} />;
+        return <StatusBadge status={pvc.phase} type={typeMap[pvc.phase] || "info"} />;
       },
     },
     {
       key: "capacity",
       header: t.storagePage.capacity,
       render: (pvc) => {
-        if (pvc.status === "Bound" && pvc.capacity) {
-          return pvc.requestedCapacity !== pvc.capacity
-            ? `${pvc.requestedCapacity} → ${pvc.capacity}`
-            : pvc.capacity;
+        if (pvc.phase === "Bound" && pvc.actualCapacity) {
+          return pvc.requestedCapacity !== pvc.actualCapacity
+            ? `${pvc.requestedCapacity} → ${pvc.actualCapacity}`
+            : pvc.actualCapacity;
         }
         return pvc.requestedCapacity || "-";
       },
@@ -240,10 +256,10 @@ export default function PVCPage() {
       render: (pvc) => pvc.storageClass || "-",
     },
     {
-      key: "volume",
+      key: "volumeName",
       header: t.storagePage.volumeName,
       mobileVisible: false,
-      render: (pvc) => pvc.volume || "-",
+      render: (pvc) => pvc.volumeName || "-",
     },
     {
       key: "age",
@@ -256,7 +272,7 @@ export default function PVCPage() {
   return (
     <Layout>
       <div className="space-y-4">
-        <PageHeader title={t.nav.pvc} description={t.storagePage.pvcDescription} />
+        <PageHeader title={t.nav.pvc} description={t.storagePage.pvcDescription} autoRefreshSeconds={intervalSeconds} />
 
         {items.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

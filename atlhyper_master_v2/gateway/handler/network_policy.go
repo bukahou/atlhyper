@@ -1,0 +1,50 @@
+// atlhyper_master_v2/gateway/handler/network_policy.go
+// NetworkPolicy 查询 Handler
+package handler
+
+import (
+	"net/http"
+
+	"AtlHyper/atlhyper_master_v2/model/convert"
+	"AtlHyper/atlhyper_master_v2/service"
+)
+
+// NetworkPolicyHandler NetworkPolicy Handler
+type NetworkPolicyHandler struct {
+	svc service.Query
+}
+
+// NewNetworkPolicyHandler 创建 NetworkPolicyHandler
+func NewNetworkPolicyHandler(svc service.Query) *NetworkPolicyHandler {
+	return &NetworkPolicyHandler{svc: svc}
+}
+
+// List 获取 NetworkPolicy 列表
+// GET /api/v2/network-policies?cluster_id=xxx&namespace=xxx
+func (h *NetworkPolicyHandler) List(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	clusterID := r.URL.Query().Get("cluster_id")
+	if clusterID == "" {
+		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	namespace := r.URL.Query().Get("namespace")
+
+	policies, err := h.svc.GetNetworkPolicies(r.Context(), clusterID, namespace)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "查询 NetworkPolicy 失败")
+		return
+	}
+
+	items := convert.NetworkPolicyItems(policies)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data":    items,
+		"total":   len(items),
+	})
+}

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getPVList, type PVItem } from "@/api/cluster-resources";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { getCurrentClusterId } from "@/config/cluster";
 import { Filter, X } from "lucide-react";
 
 // 筛选输入框
@@ -83,19 +85,33 @@ function FilterBar({
 
 export default function PVPage() {
   const { t } = useI18n();
-  const [items] = useState<PVItem[]>(() => getPVList());
-  const loading = false;
-  const error = "";
+  const [items, setItems] = useState<PVItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // 筛选状态
   const [filters, setFilters] = useState({
     search: "",
   });
 
+  const fetchData = useCallback(async () => {
+    setError("");
+    try {
+      const res = await getPVList({ cluster_id: getCurrentClusterId() });
+      setItems(res.data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const { intervalSeconds } = useAutoRefresh(fetchData);
+
   // StatsCards 统计
   const stats = useMemo(() => {
-    const bound = items.filter((pv) => pv.status === "Bound").length;
-    const available = items.filter((pv) => pv.status === "Available").length;
+    const bound = items.filter((pv) => pv.phase === "Bound").length;
+    const available = items.filter((pv) => pv.phase === "Available").length;
     const other = items.length - bound - available;
     return {
       total: items.length,
@@ -137,7 +153,7 @@ export default function PVPage() {
       render: (pv) => pv.capacity || "-",
     },
     {
-      key: "status",
+      key: "phase",
       header: t.storagePage.phase,
       render: (pv) => {
         const typeMap: Record<string, "success" | "info" | "warning" | "error"> = {
@@ -146,7 +162,7 @@ export default function PVPage() {
           Released: "warning",
           Failed: "error",
         };
-        return <StatusBadge status={pv.status} type={typeMap[pv.status] || "info"} />;
+        return <StatusBadge status={pv.phase} type={typeMap[pv.phase] || "info"} />;
       },
     },
     {
@@ -178,7 +194,7 @@ export default function PVPage() {
   return (
     <Layout>
       <div className="space-y-4">
-        <PageHeader title={t.nav.pv} description={t.storagePage.pvDescription} />
+        <PageHeader title={t.nav.pv} description={t.storagePage.pvDescription} autoRefreshSeconds={intervalSeconds} />
 
         {items.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getLimitRangeList, type LimitRangeItem } from "@/api/cluster-resources";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
+import { getCurrentClusterId } from "@/config/cluster";
 import { Filter, X } from "lucide-react";
 
 // 筛选输入框
@@ -147,15 +149,29 @@ function FilterBar({
 
 export default function LimitRangePage() {
   const { t } = useI18n();
-  const [items] = useState<LimitRangeItem[]>(() => getLimitRangeList());
-  const loading = false;
-  const error = "";
+  const [items, setItems] = useState<LimitRangeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // 筛选状态
   const [filters, setFilters] = useState({
     namespace: "",
     search: "",
   });
+
+  const fetchData = useCallback(async () => {
+    setError("");
+    try {
+      const res = await getLimitRangeList({ cluster_id: getCurrentClusterId() });
+      setItems(res.data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 提取唯一的 namespaces
   const namespaces = useMemo(() => {
@@ -168,7 +184,7 @@ export default function LimitRangePage() {
 
   // StatsCards 统计
   const stats = useMemo(() => {
-    const totalRules = items.reduce((sum, item) => sum + item.limits.length, 0);
+    const totalRules = items.reduce((sum, item) => sum + item.items.length, 0);
     return {
       total: items.length,
       namespaces: namespaces.length,
@@ -209,14 +225,14 @@ export default function LimitRangePage() {
     {
       key: "itemsCount",
       header: t.policyPage.itemsCount,
-      render: (item) => String(item.limits.length),
+      render: (item) => String(item.items.length),
     },
     {
       key: "types",
       header: t.policyPage.types,
       mobileVisible: false,
       render: (item) => {
-        const types = Array.from(new Set(item.limits.map((limit) => limit.type)));
+        const types = Array.from(new Set(item.items.map((entry) => entry.type)));
         return types.join(", ") || "-";
       },
     },
@@ -234,6 +250,7 @@ export default function LimitRangePage() {
         <PageHeader
           title={t.nav.limitRange}
           description={t.policyPage.limitRangeDescription}
+          autoRefreshSeconds={intervalSeconds}
         />
 
         {items.length > 0 && (

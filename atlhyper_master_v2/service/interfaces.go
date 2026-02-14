@@ -32,6 +32,14 @@ type Query interface {
 	GetNamespaces(ctx context.Context, clusterID string) ([]model_v2.Namespace, error)
 	GetDaemonSets(ctx context.Context, clusterID string, namespace string) ([]model_v2.DaemonSet, error)
 	GetStatefulSets(ctx context.Context, clusterID string, namespace string) ([]model_v2.StatefulSet, error)
+	GetJobs(ctx context.Context, clusterID string, namespace string) ([]model_v2.Job, error)
+	GetCronJobs(ctx context.Context, clusterID string, namespace string) ([]model_v2.CronJob, error)
+	GetPersistentVolumes(ctx context.Context, clusterID string) ([]model_v2.PersistentVolume, error)
+	GetPersistentVolumeClaims(ctx context.Context, clusterID string, namespace string) ([]model_v2.PersistentVolumeClaim, error)
+	GetNetworkPolicies(ctx context.Context, clusterID string, namespace string) ([]model_v2.NetworkPolicy, error)
+	GetResourceQuotas(ctx context.Context, clusterID string, namespace string) ([]model_v2.ResourceQuota, error)
+	GetLimitRanges(ctx context.Context, clusterID string, namespace string) ([]model_v2.LimitRange, error)
+	GetServiceAccounts(ctx context.Context, clusterID string, namespace string) ([]model_v2.ServiceAccount, error)
 
 	// ==================== Event 查询 ====================
 

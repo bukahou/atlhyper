@@ -5,7 +5,6 @@ package convert
 
 import (
 	"strconv"
-	"time"
 
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/model_v2"
@@ -96,8 +95,8 @@ func NodeDetail(src *model_v2.Node) model.NodeDetail {
 			Status:    c.Status,
 			Reason:    c.Reason,
 			Message:   c.Message,
-			Heartbeat: formatTimePtr(c.LastHeartbeatTime),
-			ChangedAt: formatTimePtr(c.LastTransitionTime),
+			Heartbeat: formatTime(c.LastHeartbeatTime),
+			ChangedAt: formatTime(c.LastTransitionTime),
 		})
 	}
 
@@ -135,10 +134,3 @@ func parseInt(s string) int {
 	return v
 }
 
-// formatTimePtr 格式化 time.Time（非 zero 时返回 RFC3339）
-func formatTimePtr(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return t.UTC().Format(time.RFC3339)
-}

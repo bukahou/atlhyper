@@ -83,6 +83,14 @@ func (r *Router) registerRoutes() {
 	aiProviderHandler := handler.NewAIProviderHandler(r.database)
 	opsHandler := handler.NewOpsHandler(r.service, r.bus)
 	auditHandler := handler.NewAuditHandler(r.database)
+	jobHandler := handler.NewJobHandler(r.service)
+	cronjobHandler := handler.NewCronJobHandler(r.service)
+	pvHandler := handler.NewPVHandler(r.service)
+	pvcHandler := handler.NewPVCHandler(r.service)
+	networkPolicyHandler := handler.NewNetworkPolicyHandler(r.service)
+	resourceQuotaHandler := handler.NewResourceQuotaHandler(r.service)
+	limitRangeHandler := handler.NewLimitRangeHandler(r.service)
+	serviceAccountHandler := handler.NewServiceAccountHandler(r.service)
 	nodeMetricsHandler := handler.NewNodeMetricsHandler(r.database.NodeMetrics)
 
 	// ================================================================
@@ -133,6 +141,33 @@ func (r *Router) registerRoutes() {
 		// Ingress
 		register("/api/v2/ingresses", ingressHandler.List)
 		register("/api/v2/ingresses/", ingressHandler.Get)
+
+		// ---------- 批处理工作负载查询 ----------
+		// Job
+		register("/api/v2/jobs", jobHandler.List)
+
+		// CronJob
+		register("/api/v2/cronjobs", cronjobHandler.List)
+
+		// ---------- 存储查询 ----------
+		// PersistentVolume
+		register("/api/v2/pvs", pvHandler.List)
+
+		// PersistentVolumeClaim
+		register("/api/v2/pvcs", pvcHandler.List)
+
+		// ---------- 策略与配额查询 ----------
+		// NetworkPolicy
+		register("/api/v2/network-policies", networkPolicyHandler.List)
+
+		// ResourceQuota
+		register("/api/v2/resource-quotas", resourceQuotaHandler.List)
+
+		// LimitRange
+		register("/api/v2/limit-ranges", limitRangeHandler.List)
+
+		// ServiceAccount
+		register("/api/v2/service-accounts", serviceAccountHandler.List)
 
 		// ---------- 配置查询（仅列表，详情需要权限） ----------
 		register("/api/v2/configmaps", configmapHandler.List)

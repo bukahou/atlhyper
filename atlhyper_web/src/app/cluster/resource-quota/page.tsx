@@ -4,7 +4,9 @@ import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getResourceQuotaList, type ResourceQuotaItem } from "@/api/cluster-resources";
-import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
+import { getCurrentClusterId } from "@/config/cluster";
 import { Filter, X } from "lucide-react";
 
 // 筛选输入框
@@ -151,8 +153,8 @@ function formatHardUsed(item: ResourceQuotaItem): string {
   const parts: string[] = [];
 
   keyResources.forEach((key) => {
-    const hard = item.hard[key];
-    const used = item.used[key];
+    const hard = item.hard?.[key];
+    const used = item.used?.[key];
     if (hard || used) {
       const displayKey = key.replace("requests.", "").replace("limits.", "");
       parts.push(`${displayKey}: ${used || "0"}/${hard || "-"}`);
@@ -164,15 +166,29 @@ function formatHardUsed(item: ResourceQuotaItem): string {
 
 export default function ResourceQuotaPage() {
   const { t } = useI18n();
-  const [items] = useState<ResourceQuotaItem[]>(() => getResourceQuotaList());
-  const loading = false;
-  const error = "";
+  const [items, setItems] = useState<ResourceQuotaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // 筛选状态
   const [filters, setFilters] = useState({
     namespace: "",
     search: "",
   });
+
+  const fetchData = useCallback(async () => {
+    setError("");
+    try {
+      const res = await getResourceQuotaList({ cluster_id: getCurrentClusterId() });
+      setItems(res.data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 提取唯一的 namespaces
   const namespaces = useMemo(() => {
@@ -187,7 +203,9 @@ export default function ResourceQuotaPage() {
   const stats = useMemo(() => {
     const resourceTypesSet = new Set<string>();
     items.forEach((item) => {
-      Object.keys(item.hard).forEach((key) => resourceTypesSet.add(key));
+      if (item.hard) {
+        Object.keys(item.hard).forEach((key) => resourceTypesSet.add(key));
+      }
     });
     return {
       total: items.length,
@@ -249,6 +267,7 @@ export default function ResourceQuotaPage() {
         <PageHeader
           title={t.nav.resourceQuota}
           description={t.policyPage.resourceQuotaDescription}
+          autoRefreshSeconds={intervalSeconds}
         />
 
         {items.length > 0 && (

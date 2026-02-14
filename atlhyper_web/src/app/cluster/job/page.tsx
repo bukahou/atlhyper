@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getJobList, type JobItem } from "@/api/cluster-resources";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { getCurrentClusterId } from "@/config/cluster";
 import { Filter, X } from "lucide-react";
 
 // 筛选输入框
@@ -147,15 +149,29 @@ function FilterBar({
 
 export default function JobPage() {
   const { t } = useI18n();
-  const [items] = useState<JobItem[]>(() => getJobList());
-  const loading = false;
-  const error = "";
+  const [items, setItems] = useState<JobItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // 筛选状态
   const [filters, setFilters] = useState({
     namespace: "",
     search: "",
   });
+
+  const fetchData = useCallback(async () => {
+    setError("");
+    try {
+      const res = await getJobList({ cluster_id: getCurrentClusterId() });
+      setItems(res.data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.common.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 提取唯一的 namespaces
   const namespaces = useMemo(() => {
@@ -198,7 +214,7 @@ export default function JobPage() {
 
   // 确定 Job 状态
   const getJobStatus = (job: JobItem) => {
-    if (job.succeeded > 0 && job.active === 0) {
+    if (job.complete) {
       return { label: t.job.statusComplete, type: "success" as const };
     }
     if (job.active > 0) {
@@ -250,12 +266,6 @@ export default function JobPage() {
       render: (d) => String(d.failed),
     },
     {
-      key: "duration",
-      header: t.job.duration,
-      mobileVisible: false,
-      render: (d) => d.duration || "-",
-    },
-    {
       key: "age",
       header: t.job.age,
       mobileVisible: false,
@@ -269,6 +279,7 @@ export default function JobPage() {
         <PageHeader
           title={t.nav.job}
           description={t.job.pageDescription}
+          autoRefreshSeconds={intervalSeconds}
         />
 
         {items.length > 0 && (
