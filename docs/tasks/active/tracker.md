@@ -4,6 +4,68 @@
 
 ---
 
+## 大后端小前端重构 — 🔧 进行中
+
+> 设计文档: [big-backend-small-frontend.md](../../design/active/big-backend-small-frontend.md)
+
+### Phase 1: NodeMetrics camelCase（消除 ~284 行前端代码）
+
+| 状态 | 任务 | 文件 |
+|:---:|------|------|
+| [ ] | 新建 NodeMetrics 响应类型（camelCase） | `model/node_metrics.go` |
+| [ ] | 新建 NodeMetrics 转换函数 + 单元测试 | `model/convert/node_metrics.go` |
+| [ ] | Handler 返回前调用 convert | `gateway/handler/node_metrics.go` |
+| [ ] | 前端删除 16 个 transform | `api/node-metrics.ts` |
+| [ ] | 前端删除 transformOverview | `app/overview/utils.ts` |
+| [ ] | 编译验证（go build + next build） | |
+
+### Phase 2: Overview camelCase（消除 ~81 行前端代码）
+
+| 状态 | 任务 | 文件 |
+|:---:|------|------|
+| [ ] | 新建 Overview 响应类型 | `model/overview.go` |
+| [ ] | 新建 Overview 转换函数 + 测试 | `model/convert/overview.go` |
+| [ ] | Handler 返回前调用 convert | `gateway/handler/overview.go` |
+| [ ] | 前端删除 transformResponse | `api/overview.ts` |
+| [ ] | 编译验证 | |
+
+### Phase 3: K8s 资源扁平化（9 种资源，消除 ~963 行）
+
+| 状态 | 任务 |
+|:---:|------|
+| [ ] | Pod: model + convert + handler + 前端删 transform |
+| [ ] | Node: model + convert（含单位转换）+ handler + 前端删 transform |
+| [ ] | Deployment: model + convert + handler + 前端删 transform |
+| [ ] | StatefulSet: model + convert + handler + 前端删 transform |
+| [ ] | DaemonSet: model + convert + handler + 前端删 transform |
+| [ ] | Service: model + convert + handler + 前端删 transform |
+| [ ] | Namespace: model + convert + handler + 前端删 transform |
+| [ ] | Ingress: model + convert + handler + 前端删 transform |
+| [ ] | Event: model + convert + handler + 前端删 transform |
+| [ ] | Cluster: model + convert + handler |
+
+### Phase 4: SLO/Mesh camelCase + 业务逻辑后端化
+
+| 状态 | 任务 |
+|:---:|------|
+| [ ] | model/slo.go JSON tags -> camelCase |
+| [ ] | model/command.go JSON tags -> camelCase |
+| [ ] | 前端 types/slo.ts + types/mesh.ts -> camelCase |
+| [ ] | 前端 SLO/Mesh 组件属性名同步修改 |
+| [ ] | (可选) Error budget 后端计算 |
+| [ ] | (可选) 拓扑 BFS 过滤后端化 |
+
+### Phase 5: 废弃文件清理
+
+| 状态 | 任务 |
+|:---:|------|
+| [ ] | 删除 api/metrics.ts |
+| [ ] | 删除 api/config.ts |
+| [ ] | 删除 api/test.ts |
+| [ ] | 审查 utils/safeData.ts |
+
+---
+
 ## SLO OTel 改造 — ✅ 核心完成
 
 > 设计文档: [Agent](../../design/active/slo-otel-agent-design.md) | [Master](../../design/active/slo-otel-master-design.md)
