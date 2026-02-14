@@ -81,10 +81,10 @@ func (h *ResourceQuotaHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for i := range quotas {
 		if quotas[i].Name == name {
-			item := convert.ResourceQuotaItem(&quotas[i])
+			detail := convert.ResourceQuotaDetail(&quotas[i])
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    item,
+				"data":    detail,
 			})
 			return
 		}

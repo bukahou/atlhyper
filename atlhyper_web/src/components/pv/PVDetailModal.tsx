@@ -112,6 +112,8 @@ function OverviewTab({ detail }: { detail: PVDetail }) {
             { label: t.storagePage.storageClass, value: detail.storageClass || "-" },
             { label: t.storagePage.reclaimPolicy, value: detail.reclaimPolicy || "-" },
             { label: t.storagePage.accessModes, value: detail.accessModes?.join(", ") || "-" },
+            { label: t.storagePage.detailVolumeSourceType, value: detail.volumeSourceType || "-" },
+            { label: t.storagePage.detailClaimRef, value: detail.claimRefName ? `${detail.claimRefNamespace}/${detail.claimRefName}` : "-" },
           ].map((item, i) => (
             <div key={i} className="bg-[var(--background)] rounded-lg p-3">
               <div className="text-xs text-muted mb-1">{item.label}</div>
@@ -154,6 +156,22 @@ function LabelsTab({ detail }: { detail: PVDetail }) {
         ) : (
           <div className="space-y-2">
             {labels.map(([key, value]) => (
+              <div key={key} className="bg-[var(--background)] rounded-lg p-3 flex items-start gap-2">
+                <span className="text-sm font-mono text-primary break-all">{key}</span>
+                <span className="text-muted">=</span>
+                <span className="text-sm font-mono text-default break-all">{value || '""'}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold text-default mb-3">Annotations ({Object.keys(detail.annotations || {}).length})</h3>
+        {Object.keys(detail.annotations || {}).length === 0 ? (
+          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">{t.storagePage.detailNoAnnotations}</div>
+        ) : (
+          <div className="space-y-2">
+            {Object.entries(detail.annotations || {}).map(([key, value]) => (
               <div key={key} className="bg-[var(--background)] rounded-lg p-3 flex items-start gap-2">
                 <span className="text-sm font-mono text-primary break-all">{key}</span>
                 <span className="text-muted">=</span>

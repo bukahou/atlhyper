@@ -67,3 +67,34 @@ func TestPVItems_EmptyInput(t *testing.T) {
 		t.Errorf("len = %d, want 0", len(result))
 	}
 }
+
+func TestPVDetail_VolumeSourceAndClaimRef(t *testing.T) {
+	src := &model_v2.PersistentVolume{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "pv-nfs-001",
+			UID:       "pv-uid-123",
+			Labels:    map[string]string{"tier": "storage"},
+			CreatedAt: time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC),
+		},
+		Capacity:         "100Gi",
+		Phase:            "Bound",
+		StorageClass:     "nfs-client",
+		AccessModes:      []string{"ReadWriteMany"},
+		ReclaimPolicy:    "Retain",
+		VolumeSourceType: "NFS",
+		ClaimRefName:     "data-pvc",
+		ClaimRefNS:       "production",
+	}
+
+	detail := PVDetail(src)
+
+	if detail.VolumeSourceType != "NFS" {
+		t.Errorf("VolumeSourceType = %q, want %q", detail.VolumeSourceType, "NFS")
+	}
+	if detail.ClaimRefName != "data-pvc" {
+		t.Errorf("ClaimRefName = %q, want %q", detail.ClaimRefName, "data-pvc")
+	}
+	if detail.ClaimRefNS != "production" {
+		t.Errorf("ClaimRefNS = %q, want %q", detail.ClaimRefNS, "production")
+	}
+}

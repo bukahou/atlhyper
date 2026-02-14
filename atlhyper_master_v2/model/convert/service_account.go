@@ -31,3 +31,20 @@ func ServiceAccountItems(src []model_v2.ServiceAccount) []model.ServiceAccountIt
 	}
 	return result
 }
+
+// ServiceAccountDetail 转换为详情
+func ServiceAccountDetail(src *model_v2.ServiceAccount) model.ServiceAccountDetail {
+	return model.ServiceAccountDetail{
+		Name:                         src.Name,
+		Namespace:                    src.Namespace,
+		SecretsCount:                 src.SecretsCount,
+		ImagePullSecretsCount:        src.ImagePullSecretsCount,
+		AutomountServiceAccountToken: src.AutomountServiceAccountToken,
+		SecretNames:                  src.SecretNames,
+		ImagePullSecretNames:         src.ImagePullSecretNames,
+		CreatedAt:                    src.CreatedAt,
+		Age:                          src.Age,
+		Labels:                       src.Labels,
+		Annotations:                  src.Annotations,
+	}
+}

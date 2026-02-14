@@ -81,10 +81,10 @@ func (h *NetworkPolicyHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for i := range policies {
 		if policies[i].Name == name {
-			item := convert.NetworkPolicyItem(&policies[i])
+			detail := convert.NetworkPolicyDetail(&policies[i])
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    item,
+				"data":    detail,
 			})
 			return
 		}

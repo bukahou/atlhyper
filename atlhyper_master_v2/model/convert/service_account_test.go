@@ -78,3 +78,41 @@ func TestServiceAccountItems_EmptyInput(t *testing.T) {
 		t.Errorf("len = %d, want 0", len(result))
 	}
 }
+
+func TestServiceAccountDetail_SecretNames(t *testing.T) {
+	automount := true
+	src := &model_v2.ServiceAccount{
+		Name:                         "app-deployer",
+		Namespace:                    "production",
+		SecretsCount:                 2,
+		ImagePullSecretsCount:        1,
+		AutomountServiceAccountToken: &automount,
+		SecretNames:                  []string{"token-abc", "tls-cert"},
+		ImagePullSecretNames:         []string{"registry-creds"},
+		CreatedAt:                    "2025-12-01T00:00:00Z",
+		Age:                          "75d",
+		Labels:                       map[string]string{"team": "platform"},
+		Annotations:                  map[string]string{"managed-by": "helm"},
+	}
+
+	detail := ServiceAccountDetail(src)
+
+	if detail.Name != "app-deployer" {
+		t.Errorf("Name = %q, want %q", detail.Name, "app-deployer")
+	}
+	if len(detail.SecretNames) != 2 {
+		t.Errorf("SecretNames length = %d, want 2", len(detail.SecretNames))
+	}
+	if detail.SecretNames[0] != "token-abc" {
+		t.Errorf("SecretNames[0] = %q, want %q", detail.SecretNames[0], "token-abc")
+	}
+	if len(detail.ImagePullSecretNames) != 1 || detail.ImagePullSecretNames[0] != "registry-creds" {
+		t.Errorf("ImagePullSecretNames = %v, want [registry-creds]", detail.ImagePullSecretNames)
+	}
+	if detail.Labels["team"] != "platform" {
+		t.Errorf("Labels[team] = %q, want %q", detail.Labels["team"], "platform")
+	}
+	if detail.Annotations["managed-by"] != "helm" {
+		t.Errorf("Annotations[managed-by] = %q, want %q", detail.Annotations["managed-by"], "helm")
+	}
+}

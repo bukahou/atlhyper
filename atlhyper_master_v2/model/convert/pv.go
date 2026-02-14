@@ -24,16 +24,19 @@ func PVItem(src *model_v2.PersistentVolume) model.PVItem {
 // PVDetail 转换为详情
 func PVDetail(src *model_v2.PersistentVolume) model.PVDetail {
 	return model.PVDetail{
-		Name:          src.Name,
-		UID:           src.UID,
-		Capacity:      src.Capacity,
-		Phase:         src.Phase,
-		StorageClass:  src.StorageClass,
-		AccessModes:   src.AccessModes,
-		ReclaimPolicy: src.ReclaimPolicy,
-		CreatedAt:     src.CreatedAt.Format(timeFormat),
-		Age:           formatAge(src.CreatedAt),
-		Labels:        src.Labels,
+		Name:             src.Name,
+		UID:              src.UID,
+		Capacity:         src.Capacity,
+		Phase:            src.Phase,
+		StorageClass:     src.StorageClass,
+		AccessModes:      src.AccessModes,
+		ReclaimPolicy:    src.ReclaimPolicy,
+		VolumeSourceType: src.VolumeSourceType,
+		ClaimRefName:     src.ClaimRefName,
+		ClaimRefNS:       src.ClaimRefNS,
+		CreatedAt:        src.CreatedAt.Format(timeFormat),
+		Age:              formatAge(src.CreatedAt),
+		Labels:           src.Labels,
 	}
 }
 

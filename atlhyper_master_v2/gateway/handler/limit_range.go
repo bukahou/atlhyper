@@ -81,10 +81,10 @@ func (h *LimitRangeHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for i := range ranges {
 		if ranges[i].Name == name {
-			item := convert.LimitRangeItem(&ranges[i])
+			detail := convert.LimitRangeDetail(&ranges[i])
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    item,
+				"data":    detail,
 			})
 			return
 		}

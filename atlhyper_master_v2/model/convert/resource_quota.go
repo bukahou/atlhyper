@@ -31,3 +31,18 @@ func ResourceQuotaItems(src []model_v2.ResourceQuota) []model.ResourceQuotaItem 
 	}
 	return result
 }
+
+// ResourceQuotaDetail 转换为详情
+func ResourceQuotaDetail(src *model_v2.ResourceQuota) model.ResourceQuotaDetail {
+	return model.ResourceQuotaDetail{
+		Name:        src.Name,
+		Namespace:   src.Namespace,
+		Scopes:      src.Scopes,
+		Hard:        src.Hard,
+		Used:        src.Used,
+		CreatedAt:   src.CreatedAt,
+		Age:         src.Age,
+		Labels:      src.Labels,
+		Annotations: src.Annotations,
+	}
+}

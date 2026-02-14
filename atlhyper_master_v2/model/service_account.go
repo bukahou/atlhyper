@@ -12,3 +12,19 @@ type ServiceAccountItem struct {
 	CreatedAt                    string `json:"createdAt"`
 	Age                          string `json:"age"`
 }
+
+// ServiceAccountDetail ServiceAccount 详情
+type ServiceAccountDetail struct {
+	Name                         string   `json:"name"`
+	Namespace                    string   `json:"namespace"`
+	SecretsCount                 int      `json:"secretsCount"`
+	ImagePullSecretsCount        int      `json:"imagePullSecretsCount"`
+	AutomountServiceAccountToken *bool    `json:"automountServiceAccountToken,omitempty"`
+	SecretNames                  []string `json:"secretNames,omitempty"`
+	ImagePullSecretNames         []string `json:"imagePullSecretNames,omitempty"`
+	CreatedAt                    string   `json:"createdAt"`
+	Age                          string   `json:"age"`
+
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}

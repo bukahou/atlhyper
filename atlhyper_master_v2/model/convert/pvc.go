@@ -35,6 +35,7 @@ func PVCDetail(src *model_v2.PersistentVolumeClaim) model.PVCDetail {
 		AccessModes:       src.AccessModes,
 		RequestedCapacity: src.RequestedCapacity,
 		ActualCapacity:    src.ActualCapacity,
+		VolumeMode:        src.VolumeMode,
 		CreatedAt:         src.CreatedAt.Format(timeFormat),
 		Age:               formatAge(src.CreatedAt),
 		Labels:            src.Labels,

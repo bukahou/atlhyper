@@ -65,3 +65,71 @@ func TestNetworkPolicyItems_EmptyInput(t *testing.T) {
 		t.Errorf("len = %d, want 0", len(result))
 	}
 }
+
+func TestNetworkPolicyDetail_Rules(t *testing.T) {
+	src := &model_v2.NetworkPolicy{
+		Name:             "allow-web",
+		Namespace:        "production",
+		PodSelector:      `{"matchLabels":{"app":"web"}}`,
+		PolicyTypes:      []string{"Ingress", "Egress"},
+		IngressRuleCount: 1,
+		EgressRuleCount:  1,
+		IngressRules: []model_v2.NetworkPolicyRule{
+			{
+				Peers: []model_v2.NetworkPolicyPeer{
+					{Type: "podSelector", Selector: `{"matchLabels":{"role":"frontend"}}`},
+				},
+				Ports: []model_v2.NetworkPolicyPort{
+					{Protocol: "TCP", Port: "80"},
+				},
+			},
+		},
+		EgressRules: []model_v2.NetworkPolicyRule{
+			{
+				Peers: []model_v2.NetworkPolicyPeer{
+					{Type: "ipBlock", CIDR: "10.0.0.0/8", Except: []string{"10.0.1.0/24"}},
+				},
+			},
+		},
+		CreatedAt:   "2025-12-01T00:00:00Z",
+		Age:         "75d",
+		Labels:      map[string]string{"env": "prod"},
+		Annotations: map[string]string{"note": "test"},
+	}
+
+	detail := NetworkPolicyDetail(src)
+
+	if detail.Name != "allow-web" {
+		t.Errorf("Name = %q, want %q", detail.Name, "allow-web")
+	}
+	if detail.IngressRules == nil {
+		t.Error("IngressRules should not be nil")
+	}
+	if detail.EgressRules == nil {
+		t.Error("EgressRules should not be nil")
+	}
+	if detail.Labels["env"] != "prod" {
+		t.Errorf("Labels[env] = %q, want %q", detail.Labels["env"], "prod")
+	}
+	if detail.Annotations["note"] != "test" {
+		t.Errorf("Annotations[note] = %q, want %q", detail.Annotations["note"], "test")
+	}
+}
+
+func TestNetworkPolicyDetail_EmptyRules(t *testing.T) {
+	src := &model_v2.NetworkPolicy{
+		Name:      "deny-all",
+		Namespace: "default",
+		CreatedAt: "2025-12-01T00:00:00Z",
+		Age:       "75d",
+	}
+
+	detail := NetworkPolicyDetail(src)
+
+	if detail.IngressRules != nil {
+		t.Error("IngressRules should be nil when no rules")
+	}
+	if detail.EgressRules != nil {
+		t.Error("EgressRules should be nil when no rules")
+	}
+}

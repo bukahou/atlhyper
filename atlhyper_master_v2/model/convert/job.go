@@ -37,7 +37,7 @@ func JobItems(src []model_v2.Job) []model.JobItem {
 
 // JobDetail 转换为详情
 func JobDetail(src *model_v2.Job) model.JobDetail {
-	return model.JobDetail{
+	detail := model.JobDetail{
 		Name:      src.Name,
 		Namespace: src.Namespace,
 		UID:       src.UID,
@@ -51,12 +51,28 @@ func JobDetail(src *model_v2.Job) model.JobDetail {
 		Succeeded: src.Succeeded,
 		Failed:    src.Failed,
 
+		Completions:  src.Completions,
+		Parallelism:  src.Parallelism,
+		BackoffLimit: src.BackoffLimit,
+
 		StartTime:  formatTimePtr(src.StartTime),
 		FinishTime: formatTimePtr(src.FinishTime),
 		Duration:   formatDuration(src.StartTime, src.FinishTime),
 
 		Labels: src.Labels,
 	}
+
+	// Pod 模板
+	if len(src.Template.Containers) > 0 {
+		detail.Template = src.Template
+	}
+
+	// Conditions
+	if len(src.Conditions) > 0 {
+		detail.Conditions = src.Conditions
+	}
+
+	return detail
 }
 
 // jobStatus 计算 Job 状态文本

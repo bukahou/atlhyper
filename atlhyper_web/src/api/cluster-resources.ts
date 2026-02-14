@@ -35,6 +35,36 @@ export interface CronJobItem {
   age: string;
 }
 
+// 容器详情（Job/CronJob 的 PodTemplate 使用）
+export interface ContainerSpec {
+  name: string;
+  image: string;
+  imagePullPolicy?: string;
+  ports?: { name?: string; containerPort: number; protocol?: string }[];
+  requests?: Record<string, string>;
+  limits?: Record<string, string>;
+  livenessProbe?: { type: string; path?: string; port?: number; command?: string };
+  readinessProbe?: { type: string; path?: string; port?: number; command?: string };
+  startupProbe?: { type: string; path?: string; port?: number; command?: string };
+  command?: string[];
+  args?: string[];
+}
+
+export interface JobPodTemplate {
+  containers: ContainerSpec[];
+  volumes?: { name: string; type: string; source?: string }[];
+  serviceAccountName?: string;
+  nodeSelector?: Record<string, string>;
+}
+
+export interface WorkloadCondition {
+  type: string;
+  status: string;
+  reason?: string;
+  message?: string;
+  lastTransitionTime?: string;
+}
+
 export interface JobDetail {
   name: string;
   namespace: string;
@@ -47,10 +77,16 @@ export interface JobDetail {
   active: number;
   succeeded: number;
   failed: number;
+  completions?: number;
+  parallelism?: number;
+  backoffLimit?: number;
   startTime: string;
   finishTime: string;
   duration: string;
+  template?: JobPodTemplate;
+  conditions?: WorkloadCondition[];
   labels?: Record<string, string>;
+  annotations?: Record<string, string>;
 }
 
 export interface CronJobDetail {
@@ -63,12 +99,17 @@ export interface CronJobDetail {
   age: string;
   schedule: string;
   suspend: boolean;
+  concurrencyPolicy?: string;
   activeJobs: number;
+  successfulJobsHistoryLimit?: number;
+  failedJobsHistoryLimit?: number;
   lastScheduleTime: string;
   lastSuccessfulTime: string;
   lastScheduleAgo: string;
   lastSuccessAgo: string;
+  template?: JobPodTemplate;
   labels?: Record<string, string>;
+  annotations?: Record<string, string>;
 }
 
 export interface PVDetail {
@@ -79,9 +120,13 @@ export interface PVDetail {
   storageClass: string;
   accessModes: string[];
   reclaimPolicy: string;
+  volumeSourceType?: string;
+  claimRefName?: string;
+  claimRefNamespace?: string;
   createdAt: string;
   age: string;
   labels?: Record<string, string>;
+  annotations?: Record<string, string>;
 }
 
 export interface PVCDetail {
@@ -94,9 +139,11 @@ export interface PVCDetail {
   accessModes: string[];
   requestedCapacity: string;
   actualCapacity: string;
+  volumeMode?: string;
   createdAt: string;
   age: string;
   labels?: Record<string, string>;
+  annotations?: Record<string, string>;
 }
 
 export interface PVItem {
@@ -134,6 +181,39 @@ export interface NetworkPolicyItem {
   age: string;
 }
 
+export interface NetworkPolicyPeer {
+  type: string;
+  selector?: string;
+  cidr?: string;
+  except?: string[];
+}
+
+export interface NetworkPolicyPort {
+  protocol: string;
+  port: string;
+  endPort?: number;
+}
+
+export interface NetworkPolicyRule {
+  peers?: NetworkPolicyPeer[];
+  ports?: NetworkPolicyPort[];
+}
+
+export interface NetworkPolicyDetail {
+  name: string;
+  namespace: string;
+  podSelector: string;
+  policyTypes: string[];
+  ingressRuleCount: number;
+  egressRuleCount: number;
+  ingressRules?: NetworkPolicyRule[];
+  egressRules?: NetworkPolicyRule[];
+  createdAt: string;
+  age: string;
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
+}
+
 export interface ResourceQuotaItem {
   name: string;
   namespace: string;
@@ -169,6 +249,42 @@ export interface ServiceAccountItem {
   automountServiceAccountToken?: boolean;
   createdAt: string;
   age: string;
+}
+
+export interface ServiceAccountDetail {
+  name: string;
+  namespace: string;
+  secretsCount: number;
+  imagePullSecretsCount: number;
+  automountServiceAccountToken?: boolean;
+  secretNames?: string[];
+  imagePullSecretNames?: string[];
+  createdAt: string;
+  age: string;
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
+}
+
+export interface ResourceQuotaDetail {
+  name: string;
+  namespace: string;
+  scopes?: string[];
+  hard: Record<string, string>;
+  used: Record<string, string>;
+  createdAt: string;
+  age: string;
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
+}
+
+export interface LimitRangeDetail {
+  name: string;
+  namespace: string;
+  items: LimitRangeItemEntry[];
+  createdAt: string;
+  age: string;
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
 }
 
 // ============================================================
@@ -248,7 +364,7 @@ export function getNetworkPolicyList(params: ClusterResourceParams) {
 }
 
 export function getNetworkPolicyDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  return get<DetailResponse<NetworkPolicyItem>>(
+  return get<DetailResponse<NetworkPolicyDetail>>(
     `/api/v2/network-policies/${encodeURIComponent(params.Name)}`,
     { cluster_id: params.ClusterID, namespace: params.Namespace }
   );
@@ -259,7 +375,7 @@ export function getResourceQuotaList(params: ClusterResourceParams) {
 }
 
 export function getResourceQuotaDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  return get<DetailResponse<ResourceQuotaItem>>(
+  return get<DetailResponse<ResourceQuotaDetail>>(
     `/api/v2/resource-quotas/${encodeURIComponent(params.Name)}`,
     { cluster_id: params.ClusterID, namespace: params.Namespace }
   );
@@ -270,7 +386,7 @@ export function getLimitRangeList(params: ClusterResourceParams) {
 }
 
 export function getLimitRangeDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  return get<DetailResponse<LimitRangeItem>>(
+  return get<DetailResponse<LimitRangeDetail>>(
     `/api/v2/limit-ranges/${encodeURIComponent(params.Name)}`,
     { cluster_id: params.ClusterID, namespace: params.Namespace }
   );
@@ -281,7 +397,7 @@ export function getServiceAccountList(params: ClusterResourceParams) {
 }
 
 export function getServiceAccountDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  return get<DetailResponse<ServiceAccountItem>>(
+  return get<DetailResponse<ServiceAccountDetail>>(
     `/api/v2/service-accounts/${encodeURIComponent(params.Name)}`,
     { cluster_id: params.ClusterID, namespace: params.Namespace }
   );

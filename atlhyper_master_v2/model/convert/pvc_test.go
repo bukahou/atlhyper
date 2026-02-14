@@ -72,3 +72,22 @@ func TestPVCItems_EmptyInput(t *testing.T) {
 		t.Errorf("len = %d, want 0", len(result))
 	}
 }
+
+func TestPVCDetail_VolumeMode(t *testing.T) {
+	src := &model_v2.PersistentVolumeClaim{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "block-pvc",
+			Namespace: "default",
+			UID:       "pvc-uid-123",
+			CreatedAt: time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC),
+		},
+		Phase:      "Bound",
+		VolumeMode: "Block",
+	}
+
+	detail := PVCDetail(src)
+
+	if detail.VolumeMode != "Block" {
+		t.Errorf("VolumeMode = %q, want %q", detail.VolumeMode, "Block")
+	}
+}

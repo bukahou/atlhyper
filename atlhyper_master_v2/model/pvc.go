@@ -27,8 +27,10 @@ type PVCDetail struct {
 	AccessModes       []string `json:"accessModes"`
 	RequestedCapacity string   `json:"requestedCapacity"`
 	ActualCapacity    string   `json:"actualCapacity"`
+	VolumeMode        string   `json:"volumeMode,omitempty"`
 	CreatedAt         string   `json:"createdAt"`
 	Age               string   `json:"age"`
 
-	Labels map[string]string `json:"labels,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }

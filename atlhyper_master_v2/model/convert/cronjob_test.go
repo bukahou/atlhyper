@@ -199,3 +199,39 @@ func TestCronJobDetail_NilTimes(t *testing.T) {
 		t.Errorf("LastSuccessAgo = %q, want empty", detail.LastSuccessAgo)
 	}
 }
+
+func TestCronJobDetail_SpecFields(t *testing.T) {
+	successLimit := int32(3)
+	failedLimit := int32(1)
+	src := &model_v2.CronJob{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "test-cron",
+			Namespace: "default",
+			CreatedAt: time.Now(),
+		},
+		Schedule:                   "*/5 * * * *",
+		ConcurrencyPolicy:         "Forbid",
+		SuccessfulJobsHistoryLimit: &successLimit,
+		FailedJobsHistoryLimit:     &failedLimit,
+		Template: model_v2.PodTemplate{
+			Containers: []model_v2.ContainerDetail{
+				{Name: "worker", Image: "busybox:latest"},
+			},
+		},
+	}
+
+	detail := CronJobDetail(src)
+
+	if detail.ConcurrencyPolicy != "Forbid" {
+		t.Errorf("ConcurrencyPolicy = %q, want %q", detail.ConcurrencyPolicy, "Forbid")
+	}
+	if detail.SuccessfulJobsHistoryLimit == nil || *detail.SuccessfulJobsHistoryLimit != 3 {
+		t.Errorf("SuccessfulJobsHistoryLimit = %v, want 3", detail.SuccessfulJobsHistoryLimit)
+	}
+	if detail.FailedJobsHistoryLimit == nil || *detail.FailedJobsHistoryLimit != 1 {
+		t.Errorf("FailedJobsHistoryLimit = %v, want 1", detail.FailedJobsHistoryLimit)
+	}
+	if detail.Template == nil {
+		t.Error("Template should not be nil when containers exist")
+	}
+}

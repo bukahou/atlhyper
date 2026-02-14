@@ -41,3 +41,28 @@ func LimitRangeItems(src []model_v2.LimitRange) []model.LimitRangeItem {
 	}
 	return result
 }
+
+// LimitRangeDetail 转换为详情
+func LimitRangeDetail(src *model_v2.LimitRange) model.LimitRangeDetail {
+	items := make([]model.LimitRangeItemEntry, len(src.Items))
+	for i, entry := range src.Items {
+		items[i] = model.LimitRangeItemEntry{
+			Type:                 entry.Type,
+			Default:              entry.Default,
+			DefaultRequest:       entry.DefaultRequest,
+			Max:                  entry.Max,
+			Min:                  entry.Min,
+			MaxLimitRequestRatio: entry.MaxLimitRequestRatio,
+		}
+	}
+
+	return model.LimitRangeDetail{
+		Name:        src.Name,
+		Namespace:   src.Namespace,
+		Items:       items,
+		CreatedAt:   src.CreatedAt,
+		Age:         src.Age,
+		Labels:      src.Labels,
+		Annotations: src.Annotations,
+	}
+}

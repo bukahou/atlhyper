@@ -264,6 +264,92 @@ func TestJobDetail_Status(t *testing.T) {
 	}
 }
 
+func TestJobDetail_PodTemplate(t *testing.T) {
+	src := &model_v2.Job{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "test-job",
+			Namespace: "default",
+			CreatedAt: time.Now(),
+		},
+		Template: model_v2.PodTemplate{
+			Containers: []model_v2.ContainerDetail{
+				{Name: "worker", Image: "busybox:latest"},
+			},
+		},
+	}
+
+	detail := JobDetail(src)
+
+	if detail.Template == nil {
+		t.Error("Template should not be nil when containers exist")
+	}
+}
+
+func TestJobDetail_PodTemplate_Empty(t *testing.T) {
+	src := &model_v2.Job{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "test-job",
+			Namespace: "default",
+			CreatedAt: time.Now(),
+		},
+	}
+
+	detail := JobDetail(src)
+
+	if detail.Template != nil {
+		t.Error("Template should be nil when no containers")
+	}
+}
+
+func TestJobDetail_Conditions(t *testing.T) {
+	src := &model_v2.Job{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "test-job",
+			Namespace: "default",
+			CreatedAt: time.Now(),
+		},
+		Complete: true,
+		Conditions: []model_v2.WorkloadCondition{
+			{Type: "Complete", Status: "True", Reason: "BackoffLimitExceeded"},
+		},
+	}
+
+	detail := JobDetail(src)
+
+	if detail.Conditions == nil {
+		t.Error("Conditions should not be nil when conditions exist")
+	}
+}
+
+func TestJobDetail_SpecFields(t *testing.T) {
+	completions := int32(3)
+	parallelism := int32(2)
+	backoff := int32(6)
+
+	src := &model_v2.Job{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      "test-job",
+			Namespace: "default",
+			CreatedAt: time.Now(),
+		},
+		Completions:  &completions,
+		Parallelism:  &parallelism,
+		BackoffLimit: &backoff,
+	}
+
+	detail := JobDetail(src)
+
+	if detail.Completions == nil || *detail.Completions != 3 {
+		t.Errorf("Completions = %v, want 3", detail.Completions)
+	}
+	if detail.Parallelism == nil || *detail.Parallelism != 2 {
+		t.Errorf("Parallelism = %v, want 2", detail.Parallelism)
+	}
+	if detail.BackoffLimit == nil || *detail.BackoffLimit != 6 {
+		t.Errorf("BackoffLimit = %v, want 6", detail.BackoffLimit)
+	}
+}
+
 // 辅助函数
 func timePtr(t time.Time) *time.Time {
 	return &t

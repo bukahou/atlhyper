@@ -32,3 +32,28 @@ func NetworkPolicyItems(src []model_v2.NetworkPolicy) []model.NetworkPolicyItem 
 	}
 	return result
 }
+
+// NetworkPolicyDetail 转换为详情
+func NetworkPolicyDetail(src *model_v2.NetworkPolicy) model.NetworkPolicyDetail {
+	detail := model.NetworkPolicyDetail{
+		Name:             src.Name,
+		Namespace:        src.Namespace,
+		PodSelector:      src.PodSelector,
+		PolicyTypes:      src.PolicyTypes,
+		IngressRuleCount: src.IngressRuleCount,
+		EgressRuleCount:  src.EgressRuleCount,
+		CreatedAt:        src.CreatedAt,
+		Age:              src.Age,
+		Labels:           src.Labels,
+		Annotations:      src.Annotations,
+	}
+
+	if len(src.IngressRules) > 0 {
+		detail.IngressRules = src.IngressRules
+	}
+	if len(src.EgressRules) > 0 {
+		detail.EgressRules = src.EgressRules
+	}
+
+	return detail
+}

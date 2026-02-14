@@ -18,6 +18,15 @@ type Job struct {
 	Failed    int32 `json:"failed"`    // 失败的 Pod 数
 	Complete  bool  `json:"complete"`  // 是否完成
 
+	// 规格
+	Completions  *int32 `json:"completions,omitempty"`  // 期望完成数
+	Parallelism  *int32 `json:"parallelism,omitempty"`  // 并行数
+	BackoffLimit *int32 `json:"backoff_limit,omitempty"` // 重试次数上限
+
+	// Pod 模板与条件
+	Template   PodTemplate         `json:"template"`             // Pod 模板
+	Conditions []WorkloadCondition `json:"conditions,omitempty"` // 状态条件
+
 	// 时间
 	StartTime  *time.Time `json:"start_time,omitempty"`  // 开始时间
 	FinishTime *time.Time `json:"finish_time,omitempty"` // 完成时间
@@ -49,8 +58,16 @@ type CronJob struct {
 	CommonMeta
 
 	// 调度配置
-	Schedule string `json:"schedule"` // Cron 表达式
-	Suspend  bool   `json:"suspend"`  // 是否暂停
+	Schedule          string `json:"schedule"`                        // Cron 表达式
+	Suspend           bool   `json:"suspend"`                         // 是否暂停
+	ConcurrencyPolicy string `json:"concurrency_policy,omitempty"`    // Allow, Forbid, Replace
+
+	// 历史保留
+	SuccessfulJobsHistoryLimit *int32 `json:"successful_jobs_history_limit,omitempty"`
+	FailedJobsHistoryLimit     *int32 `json:"failed_jobs_history_limit,omitempty"`
+
+	// Pod 模板
+	Template PodTemplate `json:"template"` // 从 JobTemplate.Spec.Template 提取
 
 	// 状态
 	ActiveJobs int32 `json:"active_jobs"` // 当前活跃的 Job 数

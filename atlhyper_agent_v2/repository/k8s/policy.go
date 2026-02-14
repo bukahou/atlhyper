@@ -164,10 +164,12 @@ func formatAge(t time.Time) string {
 // ConvertResourceQuota 转换 K8s ResourceQuota 到 model_v2
 func ConvertResourceQuota(k8sRQ *corev1.ResourceQuota) model_v2.ResourceQuota {
 	rq := model_v2.ResourceQuota{
-		Name:      k8sRQ.Name,
-		Namespace: k8sRQ.Namespace,
-		CreatedAt: k8sRQ.CreationTimestamp.Format(time.RFC3339),
-		Age:       formatAge(k8sRQ.CreationTimestamp.Time),
+		Name:        k8sRQ.Name,
+		Namespace:   k8sRQ.Namespace,
+		CreatedAt:   k8sRQ.CreationTimestamp.Format(time.RFC3339),
+		Age:         formatAge(k8sRQ.CreationTimestamp.Time),
+		Labels:      k8sRQ.Labels,
+		Annotations: k8sRQ.Annotations,
 	}
 
 	// 转换 Scopes
@@ -197,10 +199,12 @@ func ConvertResourceQuota(k8sRQ *corev1.ResourceQuota) model_v2.ResourceQuota {
 // ConvertLimitRange 转换 K8s LimitRange 到 model_v2
 func ConvertLimitRange(k8sLR *corev1.LimitRange) model_v2.LimitRange {
 	lr := model_v2.LimitRange{
-		Name:      k8sLR.Name,
-		Namespace: k8sLR.Namespace,
-		CreatedAt: k8sLR.CreationTimestamp.Format(time.RFC3339),
-		Age:       formatAge(k8sLR.CreationTimestamp.Time),
+		Name:        k8sLR.Name,
+		Namespace:   k8sLR.Namespace,
+		CreatedAt:   k8sLR.CreationTimestamp.Format(time.RFC3339),
+		Age:         formatAge(k8sLR.CreationTimestamp.Time),
+		Labels:      k8sLR.Labels,
+		Annotations: k8sLR.Annotations,
 	}
 
 	// 转换 Items
@@ -264,6 +268,8 @@ func ConvertNetworkPolicy(k8sNP *networkingv1.NetworkPolicy) model_v2.NetworkPol
 		Age:              formatAge(k8sNP.CreationTimestamp.Time),
 		IngressRuleCount: len(k8sNP.Spec.Ingress),
 		EgressRuleCount:  len(k8sNP.Spec.Egress),
+		Labels:           k8sNP.Labels,
+		Annotations:      k8sNP.Annotations,
 	}
 
 	// Pod Selector - 转换为 JSON 字符串
@@ -278,7 +284,87 @@ func ConvertNetworkPolicy(k8sNP *networkingv1.NetworkPolicy) model_v2.NetworkPol
 		np.PolicyTypes = append(np.PolicyTypes, string(pt))
 	}
 
+	// Ingress Rules
+	for _, rule := range k8sNP.Spec.Ingress {
+		np.IngressRules = append(np.IngressRules, convertNetworkPolicyIngressRule(rule))
+	}
+
+	// Egress Rules
+	for _, rule := range k8sNP.Spec.Egress {
+		np.EgressRules = append(np.EgressRules, convertNetworkPolicyEgressRule(rule))
+	}
+
 	return np
+}
+
+// convertNetworkPolicyIngressRule 转换入站规则
+func convertNetworkPolicyIngressRule(rule networkingv1.NetworkPolicyIngressRule) model_v2.NetworkPolicyRule {
+	r := model_v2.NetworkPolicyRule{}
+
+	for _, from := range rule.From {
+		r.Peers = append(r.Peers, convertNetworkPolicyPeer(from))
+	}
+	for _, port := range rule.Ports {
+		r.Ports = append(r.Ports, convertNetworkPolicyPort(port))
+	}
+
+	return r
+}
+
+// convertNetworkPolicyEgressRule 转换出站规则
+func convertNetworkPolicyEgressRule(rule networkingv1.NetworkPolicyEgressRule) model_v2.NetworkPolicyRule {
+	r := model_v2.NetworkPolicyRule{}
+
+	for _, to := range rule.To {
+		r.Peers = append(r.Peers, convertNetworkPolicyPeer(to))
+	}
+	for _, port := range rule.Ports {
+		r.Ports = append(r.Ports, convertNetworkPolicyPort(port))
+	}
+
+	return r
+}
+
+// convertNetworkPolicyPeer 转换网络策略对端
+func convertNetworkPolicyPeer(peer networkingv1.NetworkPolicyPeer) model_v2.NetworkPolicyPeer {
+	p := model_v2.NetworkPolicyPeer{}
+
+	if peer.PodSelector != nil {
+		p.Type = "podSelector"
+		if b, err := json.Marshal(peer.PodSelector); err == nil {
+			p.Selector = string(b)
+		}
+	} else if peer.NamespaceSelector != nil {
+		p.Type = "namespaceSelector"
+		if b, err := json.Marshal(peer.NamespaceSelector); err == nil {
+			p.Selector = string(b)
+		}
+	} else if peer.IPBlock != nil {
+		p.Type = "ipBlock"
+		p.CIDR = peer.IPBlock.CIDR
+		p.Except = peer.IPBlock.Except
+	}
+
+	return p
+}
+
+// convertNetworkPolicyPort 转换网络策略端口
+func convertNetworkPolicyPort(port networkingv1.NetworkPolicyPort) model_v2.NetworkPolicyPort {
+	p := model_v2.NetworkPolicyPort{
+		Protocol: "TCP",
+	}
+
+	if port.Protocol != nil {
+		p.Protocol = string(*port.Protocol)
+	}
+	if port.Port != nil {
+		p.Port = port.Port.String()
+	}
+	if port.EndPort != nil {
+		p.EndPort = port.EndPort
+	}
+
+	return p
 }
 
 // ConvertServiceAccount 转换 K8s ServiceAccount 到 model_v2
@@ -291,6 +377,17 @@ func ConvertServiceAccount(k8sSA *corev1.ServiceAccount) model_v2.ServiceAccount
 		SecretsCount:                 len(k8sSA.Secrets),
 		ImagePullSecretsCount:        len(k8sSA.ImagePullSecrets),
 		AutomountServiceAccountToken: k8sSA.AutomountServiceAccountToken,
+		Labels:                       k8sSA.Labels,
+		Annotations:                  k8sSA.Annotations,
+	}
+
+	// Secret 名称列表
+	for _, s := range k8sSA.Secrets {
+		sa.SecretNames = append(sa.SecretNames, s.Name)
+	}
+	// ImagePullSecret 名称列表
+	for _, s := range k8sSA.ImagePullSecrets {
+		sa.ImagePullSecretNames = append(sa.ImagePullSecretNames, s.Name)
 	}
 
 	return sa

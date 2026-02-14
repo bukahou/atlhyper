@@ -1600,6 +1600,32 @@ func ConvertJob(k8sJob *batchv1.Job) model_v2.Job {
 		Failed:    k8sJob.Status.Failed,
 	}
 
+	// 规格
+	job.Completions = k8sJob.Spec.Completions
+	job.Parallelism = k8sJob.Spec.Parallelism
+	job.BackoffLimit = k8sJob.Spec.BackoffLimit
+
+	// Pod 模板
+	job.Template = convertPodTemplate(&k8sJob.Spec.Template.Spec)
+
+	// Conditions
+	for _, c := range k8sJob.Status.Conditions {
+		job.Conditions = append(job.Conditions, model_v2.WorkloadCondition{
+			Type:               string(c.Type),
+			Status:             string(c.Status),
+			Reason:             c.Reason,
+			Message:            c.Message,
+			LastTransitionTime: c.LastTransitionTime.Format(time.RFC3339),
+		})
+	}
+
+	// Owner
+	if len(k8sJob.OwnerReferences) > 0 {
+		owner := k8sJob.OwnerReferences[0]
+		job.OwnerKind = owner.Kind
+		job.OwnerName = owner.Name
+	}
+
 	if k8sJob.Status.StartTime != nil {
 		t := k8sJob.Status.StartTime.Time
 		job.StartTime = &t
@@ -1628,10 +1654,18 @@ func ConvertCronJob(k8sCj *batchv1.CronJob) model_v2.CronJob {
 			k8sCj.Labels,
 			k8sCj.CreationTimestamp.Time,
 		),
-		Schedule:   k8sCj.Spec.Schedule,
-		Suspend:    k8sCj.Spec.Suspend != nil && *k8sCj.Spec.Suspend,
-		ActiveJobs: int32(len(k8sCj.Status.Active)),
+		Schedule:          k8sCj.Spec.Schedule,
+		Suspend:           k8sCj.Spec.Suspend != nil && *k8sCj.Spec.Suspend,
+		ConcurrencyPolicy: string(k8sCj.Spec.ConcurrencyPolicy),
+		ActiveJobs:        int32(len(k8sCj.Status.Active)),
 	}
+
+	// 历史保留限制
+	cj.SuccessfulJobsHistoryLimit = k8sCj.Spec.SuccessfulJobsHistoryLimit
+	cj.FailedJobsHistoryLimit = k8sCj.Spec.FailedJobsHistoryLimit
+
+	// Pod 模板（从 JobTemplate.Spec.Template 提取）
+	cj.Template = convertPodTemplate(&k8sCj.Spec.JobTemplate.Spec.Template.Spec)
 
 	if k8sCj.Status.LastScheduleTime != nil {
 		t := k8sCj.Status.LastScheduleTime.Time
@@ -1660,10 +1694,17 @@ func ConvertPersistentVolume(k8sPv *corev1.PersistentVolume) model_v2.Persistent
 			k8sPv.Labels,
 			k8sPv.CreationTimestamp.Time,
 		),
-		Capacity:      k8sPv.Spec.Capacity.Storage().String(),
-		Phase:         string(k8sPv.Status.Phase),
-		StorageClass:  k8sPv.Spec.StorageClassName,
-		ReclaimPolicy: string(k8sPv.Spec.PersistentVolumeReclaimPolicy),
+		Capacity:         k8sPv.Spec.Capacity.Storage().String(),
+		Phase:            string(k8sPv.Status.Phase),
+		StorageClass:     k8sPv.Spec.StorageClassName,
+		ReclaimPolicy:    string(k8sPv.Spec.PersistentVolumeReclaimPolicy),
+		VolumeSourceType: detectVolumeSourceType(k8sPv.Spec.PersistentVolumeSource),
+	}
+
+	// ClaimRef
+	if k8sPv.Spec.ClaimRef != nil {
+		pv.ClaimRefName = k8sPv.Spec.ClaimRef.Name
+		pv.ClaimRefNS = k8sPv.Spec.ClaimRef.Namespace
 	}
 
 	for _, mode := range k8sPv.Spec.AccessModes {
@@ -1671,6 +1712,38 @@ func ConvertPersistentVolume(k8sPv *corev1.PersistentVolume) model_v2.Persistent
 	}
 
 	return pv
+}
+
+// detectVolumeSourceType 检测 PV 卷来源类型
+func detectVolumeSourceType(src corev1.PersistentVolumeSource) string {
+	switch {
+	case src.HostPath != nil:
+		return "HostPath"
+	case src.NFS != nil:
+		return "NFS"
+	case src.CSI != nil:
+		return "CSI"
+	case src.Local != nil:
+		return "Local"
+	case src.AWSElasticBlockStore != nil:
+		return "AWSElasticBlockStore"
+	case src.GCEPersistentDisk != nil:
+		return "GCEPersistentDisk"
+	case src.AzureDisk != nil:
+		return "AzureDisk"
+	case src.AzureFile != nil:
+		return "AzureFile"
+	case src.CephFS != nil:
+		return "CephFS"
+	case src.FC != nil:
+		return "FC"
+	case src.ISCSI != nil:
+		return "iSCSI"
+	case src.RBD != nil:
+		return "RBD"
+	default:
+		return "Unknown"
+	}
 }
 
 // ConvertPersistentVolumeClaim 转换 K8s PVC 到 model_v2
@@ -1697,6 +1770,11 @@ func ConvertPersistentVolumeClaim(k8sPvc *corev1.PersistentVolumeClaim) model_v2
 	}
 	if cap, ok := k8sPvc.Status.Capacity[corev1.ResourceStorage]; ok {
 		pvc.ActualCapacity = cap.String()
+	}
+
+	// VolumeMode
+	if k8sPvc.Spec.VolumeMode != nil {
+		pvc.VolumeMode = string(*k8sPvc.Spec.VolumeMode)
 	}
 
 	for _, mode := range k8sPvc.Spec.AccessModes {

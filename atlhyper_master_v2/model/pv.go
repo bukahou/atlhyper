@@ -26,5 +26,11 @@ type PVDetail struct {
 	CreatedAt     string   `json:"createdAt"`
 	Age           string   `json:"age"`
 
-	Labels map[string]string `json:"labels,omitempty"`
+	// 卷来源与绑定
+	VolumeSourceType string `json:"volumeSourceType,omitempty"`
+	ClaimRefName     string `json:"claimRefName,omitempty"`
+	ClaimRefNS       string `json:"claimRefNamespace,omitempty"`
+
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }

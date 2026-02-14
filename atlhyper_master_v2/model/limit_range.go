@@ -20,3 +20,15 @@ type LimitRangeItemEntry struct {
 	Min                  map[string]string `json:"min,omitempty"`
 	MaxLimitRequestRatio map[string]string `json:"maxLimitRequestRatio,omitempty"`
 }
+
+// LimitRangeDetail LimitRange 详情
+type LimitRangeDetail struct {
+	Name      string                `json:"name"`
+	Namespace string                `json:"namespace"`
+	Items     []LimitRangeItemEntry `json:"items"`
+	CreatedAt string                `json:"createdAt"`
+	Age       string                `json:"age"`
+
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}

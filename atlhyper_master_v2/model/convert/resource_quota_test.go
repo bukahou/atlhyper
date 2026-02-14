@@ -58,3 +58,32 @@ func TestResourceQuotaItems_EmptyInput(t *testing.T) {
 		t.Errorf("len = %d, want 0", len(result))
 	}
 }
+
+func TestResourceQuotaDetail_FieldMapping(t *testing.T) {
+	src := &model_v2.ResourceQuota{
+		Name:        "compute-quota",
+		Namespace:   "production",
+		Scopes:      []string{"NotTerminating"},
+		Hard:        map[string]string{"requests.cpu": "10"},
+		Used:        map[string]string{"requests.cpu": "6.5"},
+		CreatedAt:   "2025-12-01T00:00:00Z",
+		Age:         "75d",
+		Labels:      map[string]string{"team": "ops"},
+		Annotations: map[string]string{"managed": "terraform"},
+	}
+
+	detail := ResourceQuotaDetail(src)
+
+	if detail.Name != "compute-quota" {
+		t.Errorf("Name = %q, want %q", detail.Name, "compute-quota")
+	}
+	if detail.Hard["requests.cpu"] != "10" {
+		t.Errorf("Hard[requests.cpu] = %q, want %q", detail.Hard["requests.cpu"], "10")
+	}
+	if detail.Labels["team"] != "ops" {
+		t.Errorf("Labels[team] = %q, want %q", detail.Labels["team"], "ops")
+	}
+	if detail.Annotations["managed"] != "terraform" {
+		t.Errorf("Annotations[managed] = %q, want %q", detail.Annotations["managed"], "terraform")
+	}
+}

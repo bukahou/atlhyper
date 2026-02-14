@@ -81,10 +81,10 @@ func (h *ServiceAccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for i := range accounts {
 		if accounts[i].Name == name {
-			item := convert.ServiceAccountItem(&accounts[i])
+			detail := convert.ServiceAccountDetail(&accounts[i])
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    item,
+				"data":    detail,
 			})
 			return
 		}

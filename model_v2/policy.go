@@ -22,6 +22,10 @@ type ResourceQuota struct {
 
 	// 已使用量
 	Used map[string]string `json:"used,omitempty"`
+
+	// 元数据
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // ============================================================
@@ -40,6 +44,10 @@ type LimitRange struct {
 
 	// 限制项
 	Items []LimitRangeItem `json:"items"`
+
+	// 元数据
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // LimitRangeItem 限制范围项
@@ -88,6 +96,35 @@ type NetworkPolicy struct {
 
 	// 出站规则数量
 	EgressRuleCount int `json:"egressRuleCount"`
+
+	// 完整规则
+	IngressRules []NetworkPolicyRule `json:"ingressRules,omitempty"`
+	EgressRules  []NetworkPolicyRule `json:"egressRules,omitempty"`
+
+	// 元数据
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// NetworkPolicyRule 网络策略规则
+type NetworkPolicyRule struct {
+	Peers []NetworkPolicyPeer `json:"peers,omitempty"`
+	Ports []NetworkPolicyPort `json:"ports,omitempty"`
+}
+
+// NetworkPolicyPeer 网络策略对端
+type NetworkPolicyPeer struct {
+	Type     string   `json:"type"`               // podSelector / namespaceSelector / ipBlock
+	Selector string   `json:"selector,omitempty"`  // JSON 字符串
+	CIDR     string   `json:"cidr,omitempty"`
+	Except   []string `json:"except,omitempty"`
+}
+
+// NetworkPolicyPort 网络策略端口
+type NetworkPolicyPort struct {
+	Protocol string `json:"protocol"`
+	Port     string `json:"port"`
+	EndPort  *int32 `json:"endPort,omitempty"`
 }
 
 // ============================================================
@@ -112,4 +149,12 @@ type ServiceAccount struct {
 
 	// 是否自动挂载 token
 	AutomountServiceAccountToken *bool `json:"automountServiceAccountToken,omitempty"`
+
+	// 详细名称列表
+	SecretNames          []string `json:"secretNames,omitempty"`
+	ImagePullSecretNames []string `json:"imagePullSecretNames,omitempty"`
+
+	// 元数据
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }

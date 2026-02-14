@@ -19,13 +19,13 @@ type JobItem struct {
 // JobDetail Job 详情
 type JobDetail struct {
 	// 基本信息
-	Name       string `json:"name"`
-	Namespace  string `json:"namespace"`
-	UID        string `json:"uid"`
-	OwnerKind  string `json:"ownerKind,omitempty"`
-	OwnerName  string `json:"ownerName,omitempty"`
-	CreatedAt  string `json:"createdAt"`
-	Age        string `json:"age"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	UID       string `json:"uid"`
+	OwnerKind string `json:"ownerKind,omitempty"`
+	OwnerName string `json:"ownerName,omitempty"`
+	CreatedAt string `json:"createdAt"`
+	Age       string `json:"age"`
 
 	// 状态
 	Status    string `json:"status"`
@@ -33,11 +33,21 @@ type JobDetail struct {
 	Succeeded int32  `json:"succeeded"`
 	Failed    int32  `json:"failed"`
 
+	// 规格
+	Completions  *int32 `json:"completions,omitempty"`
+	Parallelism  *int32 `json:"parallelism,omitempty"`
+	BackoffLimit *int32 `json:"backoffLimit,omitempty"`
+
 	// 时间
 	StartTime  string `json:"startTime"`
 	FinishTime string `json:"finishTime"`
 	Duration   string `json:"duration"`
 
+	// Pod 模板与条件
+	Template   interface{} `json:"template,omitempty"`
+	Conditions interface{} `json:"conditions,omitempty"`
+
 	// 元数据
-	Labels map[string]string `json:"labels,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }

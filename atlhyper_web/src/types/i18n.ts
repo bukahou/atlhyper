@@ -929,6 +929,17 @@ export interface JobTranslations {
   detailOwner: string;
   detailCreatedAt: string;
   detailNoLabels: string;
+  detailContainers: string;
+  detailNoContainers: string;
+  detailImage: string;
+  detailPorts: string;
+  detailProbes: string;
+  detailConfig: string;
+  detailCompletions: string;
+  detailParallelism: string;
+  detailBackoffLimit: string;
+  detailConditions: string;
+  detailNoAnnotations: string;
 }
 
 // CronJob 页面翻译
@@ -949,6 +960,16 @@ export interface CronJobTranslations {
   detailOwner: string;
   detailCreatedAt: string;
   detailNoLabels: string;
+  detailContainers: string;
+  detailNoContainers: string;
+  detailImage: string;
+  detailPorts: string;
+  detailProbes: string;
+  detailConfig: string;
+  detailConcurrencyPolicy: string;
+  detailSuccessHistoryLimit: string;
+  detailFailedHistoryLimit: string;
+  detailNoAnnotations: string;
 }
 
 // Storage (PV/PVC) 页面翻译
@@ -976,6 +997,10 @@ export interface StorageTranslations {
   detailBasicInfo: string;
   detailCreatedAt: string;
   detailNoLabels: string;
+  detailVolumeSourceType: string;
+  detailClaimRef: string;
+  detailVolumeMode: string;
+  detailNoAnnotations: string;
 }
 
 // Policy (NetworkPolicy, ResourceQuota, LimitRange, ServiceAccount) 页面翻译
@@ -1009,6 +1034,17 @@ export interface PolicyTranslations {
   detailLimitEntries: string;
   detailNoEntries: string;
   detailSecretStats: string;
+  detailOverview: string;
+  detailLabels: string;
+  detailRules: string;
+  detailNoLabels: string;
+  detailNoAnnotations: string;
+  detailPeers: string;
+  detailPorts: string;
+  detailNoRules: string;
+  detailSecretNames: string;
+  detailImagePullSecretNames: string;
+  detailNoSecrets: string;
 }
 
 // SLO 页面翻译

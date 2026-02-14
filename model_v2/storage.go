@@ -20,6 +20,11 @@ type PersistentVolume struct {
 	StorageClass  string   `json:"storage_class,omitempty"` // 存储类
 	AccessModes   []string `json:"access_modes,omitempty"`  // ReadWriteOnce, ReadOnlyMany, ReadWriteMany
 	ReclaimPolicy string   `json:"reclaim_policy,omitempty"` // Retain, Recycle, Delete
+
+	// 卷来源与绑定
+	VolumeSourceType string `json:"volume_source_type,omitempty"` // NFS, HostPath, CSI, Local 等
+	ClaimRefName     string `json:"claim_ref_name,omitempty"`     // 绑定的 PVC 名
+	ClaimRefNS       string `json:"claim_ref_namespace,omitempty"` // 绑定的 PVC namespace
 }
 
 // IsBound 判断是否已绑定
@@ -51,6 +56,7 @@ type PersistentVolumeClaim struct {
 	AccessModes       []string `json:"access_modes,omitempty"`       // 访问模式
 	RequestedCapacity string   `json:"requested_capacity,omitempty"` // 请求容量
 	ActualCapacity    string   `json:"actual_capacity,omitempty"`    // 实际容量（绑定后）
+	VolumeMode        string   `json:"volume_mode,omitempty"`        // Filesystem, Block
 }
 
 // IsBound 判断是否已绑定

@@ -27,9 +27,14 @@ type CronJobDetail struct {
 	Age       string `json:"age"`
 
 	// 调度配置
-	Schedule   string `json:"schedule"`
-	Suspend    bool   `json:"suspend"`
-	ActiveJobs int32  `json:"activeJobs"`
+	Schedule          string `json:"schedule"`
+	Suspend           bool   `json:"suspend"`
+	ConcurrencyPolicy string `json:"concurrencyPolicy,omitempty"`
+	ActiveJobs        int32  `json:"activeJobs"`
+
+	// 历史保留
+	SuccessfulJobsHistoryLimit *int32 `json:"successfulJobsHistoryLimit,omitempty"`
+	FailedJobsHistoryLimit     *int32 `json:"failedJobsHistoryLimit,omitempty"`
 
 	// 时间
 	LastScheduleTime   string `json:"lastScheduleTime"`
@@ -37,6 +42,10 @@ type CronJobDetail struct {
 	LastScheduleAgo    string `json:"lastScheduleAgo"`
 	LastSuccessAgo     string `json:"lastSuccessAgo"`
 
+	// Pod 模板
+	Template interface{} `json:"template,omitempty"`
+
 	// 元数据
-	Labels map[string]string `json:"labels,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }

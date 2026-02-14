@@ -36,7 +36,7 @@ func CronJobItems(src []model_v2.CronJob) []model.CronJobItem {
 
 // CronJobDetail 转换为详情
 func CronJobDetail(src *model_v2.CronJob) model.CronJobDetail {
-	return model.CronJobDetail{
+	detail := model.CronJobDetail{
 		Name:      src.Name,
 		Namespace: src.Namespace,
 		UID:       src.UID,
@@ -45,9 +45,13 @@ func CronJobDetail(src *model_v2.CronJob) model.CronJobDetail {
 		CreatedAt: src.CreatedAt.Format(timeFormat),
 		Age:       formatAge(src.CreatedAt),
 
-		Schedule:   src.Schedule,
-		Suspend:    src.Suspend,
-		ActiveJobs: src.ActiveJobs,
+		Schedule:          src.Schedule,
+		Suspend:           src.Suspend,
+		ConcurrencyPolicy: src.ConcurrencyPolicy,
+		ActiveJobs:        src.ActiveJobs,
+
+		SuccessfulJobsHistoryLimit: src.SuccessfulJobsHistoryLimit,
+		FailedJobsHistoryLimit:     src.FailedJobsHistoryLimit,
 
 		LastScheduleTime:   formatTimePtr(src.LastScheduleTime),
 		LastSuccessfulTime: formatTimePtr(src.LastSuccessfulTime),
@@ -56,4 +60,11 @@ func CronJobDetail(src *model_v2.CronJob) model.CronJobDetail {
 
 		Labels: src.Labels,
 	}
+
+	// Pod 模板
+	if len(src.Template.Containers) > 0 {
+		detail.Template = src.Template
+	}
+
+	return detail
 }
