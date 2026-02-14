@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Layout } from "@/components/layout/Layout";
-import { PageHeader, StatusPage } from "@/components/common";
+import { PageHeader, StatusPage, Modal } from "@/components/common";
 import { useI18n } from "@/i18n/context";
 import { useClusterStore } from "@/store/clusterStore";
 import { getClusterOverview } from "@/api/overview";
@@ -15,6 +15,7 @@ import {
   Bot,
   RefreshCw,
   Inbox,
+  Eye,
 } from "lucide-react";
 
 // 告警唯一标识
@@ -56,6 +57,7 @@ export default function AlertsPage() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detailAlert, setDetailAlert] = useState<RecentAlert | null>(null);
 
   // 加载告警数据
   const loadAlerts = useCallback(async () => {
@@ -229,7 +231,7 @@ export default function AlertsPage() {
                           />
 
                           {/* 告警内容 */}
-                          <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex-1 min-w-0 space-y-2" onClick={(e) => { e.stopPropagation(); setDetailAlert(alert); }}>
                             {/* 第一行：严重性 + 时间 */}
                             <div className="flex items-center justify-between gap-2">
                               <span
@@ -307,6 +309,7 @@ export default function AlertsPage() {
                     <th className="p-3 text-left text-sm font-medium text-muted">
                       {alertT.message}
                     </th>
+                    <th className="p-3 w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -359,6 +362,18 @@ export default function AlertsPage() {
                         <td className="p-3 text-sm text-muted max-w-[300px] truncate">
                           {alert.message}
                         </td>
+                        <td className="p-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailAlert(alert);
+                            }}
+                            className="p-2 hover-bg rounded-lg"
+                            title={alertT.viewDetails}
+                          >
+                            <Eye className="w-4 h-4 text-muted hover:text-primary" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -379,6 +394,53 @@ export default function AlertsPage() {
           </p>
         )}
       </div>
+
+      {/* 告警详情弹窗 */}
+      {detailAlert && (
+        <Modal
+          isOpen={!!detailAlert}
+          onClose={() => setDetailAlert(null)}
+          title={`${detailAlert.kind}: ${detailAlert.name}`}
+          size="md"
+        >
+          <div className="p-6 space-y-4">
+            {/* 严重性 + 时间 */}
+            <div className="flex items-center justify-between">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${severityColor(detailAlert.severity)}`}>
+                <SeverityIcon severity={detailAlert.severity} />
+                {detailAlert.severity === "critical" ? alertT.critical : detailAlert.severity === "warning" ? alertT.warning : alertT.info}
+              </span>
+              <span className="text-sm text-muted">{formatTime(detailAlert.timestamp)}</span>
+            </div>
+
+            {/* 详情字段 */}
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <span className="text-sm text-muted w-24 shrink-0">{alertT.resourceType}</span>
+                <span className="text-sm text-default font-mono">{detailAlert.kind}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-sm text-muted w-24 shrink-0">{alertT.namespace}</span>
+                <span className="text-sm text-default font-mono">{detailAlert.namespace || "-"}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-sm text-muted w-24 shrink-0">{alertT.resourceName}</span>
+                <span className="text-sm text-default font-mono break-all">{detailAlert.name}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-sm text-muted w-24 shrink-0">{alertT.reason}</span>
+                <span className="text-sm text-default font-medium">{detailAlert.reason}</span>
+              </div>
+              <div className="pt-2 border-t border-[var(--border-color)]">
+                <span className="text-sm text-muted block mb-1.5">{alertT.message}</span>
+                <div className="text-sm text-default bg-[var(--hover-bg)] rounded-lg p-3 font-mono whitespace-pre-wrap break-all">
+                  {detailAlert.message}
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </Layout>
   );
 }
