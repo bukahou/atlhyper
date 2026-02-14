@@ -88,7 +88,10 @@ export default function IngressPage() {
       mobileVisible: false,
       render: (ing) => (
         <button
-          onClick={() => handleViewDetail(ing)}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewDetail(ing);
+          }}
           className="p-2 hover-bg rounded-lg"
           title={t.ingress.viewDetails}
         >
@@ -130,6 +133,7 @@ export default function IngressPage() {
             loading={loading}
             error={error}
             keyExtractor={(ing, index) => `${index}-${ing.namespace}/${ing.name}/${ing.host}${ing.path}`}
+            onRowClick={handleViewDetail}
           />
         </div>
       </div>

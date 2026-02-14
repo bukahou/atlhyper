@@ -25,7 +25,10 @@ function NodeCard({
   t: ReturnType<typeof useI18n>["t"];
 }) {
   return (
-    <div className="bg-card rounded-xl border border-[var(--border-color)] p-6">
+    <div
+      className="bg-card rounded-xl border border-[var(--border-color)] p-6 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+      onClick={onViewDetail}
+    >
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold text-default">{node.name}</h3>
@@ -39,11 +42,21 @@ function NodeCard({
           </div>
         </div>
         <div className="flex gap-1">
-          <button onClick={onViewDetail} className="p-2 hover-bg rounded-lg" title={t.node.viewDetails}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetail();
+            }}
+            className="p-2 hover-bg rounded-lg"
+            title={t.node.viewDetails}
+          >
             <Eye className="w-4 h-4 text-muted" />
           </button>
           <button
-            onClick={onToggleSchedulable}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSchedulable();
+            }}
             className="p-2 hover-bg rounded-lg"
             title={node.schedulable ? t.node.cordon : t.node.uncordon}
           >
