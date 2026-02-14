@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -79,9 +80,10 @@ func (h *StatefulSetHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for _, s := range statefulsets {
 		if s.GetName() == name {
+			detail := convert.StatefulSetDetail(&s)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    s,
+				"data":    detail,
 			})
 			return
 		}

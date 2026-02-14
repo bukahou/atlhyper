@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -41,10 +42,11 @@ func (h *DeploymentHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	items := convert.DeploymentItems(deployments)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    deployments,
-		"total":   len(deployments),
+		"data":    items,
+		"total":   len(items),
 	})
 }
 
@@ -80,9 +82,10 @@ func (h *DeploymentHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for _, d := range deployments {
 		if d.GetName() == name {
+			detail := convert.DeploymentDetail(&d)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    d,
+				"data":    detail,
 			})
 			return
 		}

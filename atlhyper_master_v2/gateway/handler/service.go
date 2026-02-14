@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -41,10 +42,11 @@ func (h *ServiceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	items := convert.ServiceItems(services)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    services,
-		"total":   len(services),
+		"data":    items,
+		"total":   len(items),
 	})
 }
 
@@ -80,9 +82,10 @@ func (h *ServiceHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for _, s := range services {
 		if s.GetName() == name {
+			detail := convert.ServiceDetail(&s)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    s,
+				"data":    detail,
 			})
 			return
 		}

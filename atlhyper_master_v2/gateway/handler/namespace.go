@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -39,10 +40,11 @@ func (h *NamespaceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	items := convert.NamespaceItems(namespaces)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    namespaces,
-		"total":   len(namespaces),
+		"data":    items,
+		"total":   len(items),
 	})
 }
 
@@ -75,9 +77,10 @@ func (h *NamespaceHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for _, ns := range namespaces {
 		if ns.GetName() == name {
+			detail := convert.NamespaceDetail(&ns)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    ns,
+				"data":    detail,
 			})
 			return
 		}

@@ -73,7 +73,7 @@ export default function IngressPage() {
     {
       key: "tls",
       header: t.ingress.tls,
-      render: (ing) => ing.tls && ing.tls !== "-" ? (
+      render: (ing) => ing.tls ? (
         <div className="flex items-center gap-1 text-green-600">
           <Lock className="w-3 h-3" />
           <span className="text-xs">{t.common.yes}</span>

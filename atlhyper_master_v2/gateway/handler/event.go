@@ -12,6 +12,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -95,10 +96,10 @@ func (h *EventHandler) listFromQuery(w http.ResponseWriter, r *http.Request, clu
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"events": events,
-		"total":  len(events),
-		"source": "realtime",
+	writeJSON(w, http.StatusOK, model.EventListResponse{
+		Events: convert.EventLogs(events, clusterID),
+		Total:  len(events),
+		Source: "realtime",
 	})
 }
 
@@ -147,36 +148,12 @@ func (h *EventHandler) listFromDatabase(w http.ResponseWriter, r *http.Request, 
 
 	total, _ := h.db.Event.CountByCluster(ctx, clusterID)
 
-	// 转换为前端期望的格式
-	events := make([]map[string]interface{}, 0, len(dbEvents))
-	for _, e := range dbEvents {
-		events = append(events, map[string]interface{}{
-			"uid":             e.DedupKey,
-			"name":            e.Name,
-			"namespace":       e.Namespace,
-			"kind":            "Event",
-			"created_at":      e.CreatedAt.Format(time.RFC3339),
-			"type":            e.Type,
-			"reason":          e.Reason,
-			"message":         e.Message,
-			"source":          e.SourceComponent,
-			"involved_object": map[string]string{
-				"kind":      e.InvolvedKind,
-				"namespace": e.InvolvedNamespace,
-				"name":      e.InvolvedName,
-			},
-			"count":           e.Count,
-			"first_timestamp": e.FirstTimestamp.Format(time.RFC3339),
-			"last_timestamp":  e.LastTimestamp.Format(time.RFC3339),
-		})
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"events": events,
-		"total":  total,
-		"source": "history",
-		"limit":  opts.Limit,
-		"offset": opts.Offset,
+	writeJSON(w, http.StatusOK, model.EventListResponse{
+		Events: convert.EventLogsFromDB(dbEvents, clusterID),
+		Total:  int(total),
+		Source: "history",
+		Limit:  opts.Limit,
+		Offset: opts.Offset,
 	})
 }
 
@@ -205,8 +182,8 @@ func (h *EventHandler) ListByResource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"events": events,
-		"total":  len(events),
+	writeJSON(w, http.StatusOK, model.EventListResponse{
+		Events: convert.EventLogs(events, clusterID),
+		Total:  len(events),
 	})
 }

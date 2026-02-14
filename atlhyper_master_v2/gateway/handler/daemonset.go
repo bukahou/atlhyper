@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -79,9 +80,10 @@ func (h *DaemonSetHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for _, d := range daemonsets {
 		if d.GetName() == name {
+			detail := convert.DaemonSetDetail(&d)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    d,
+				"data":    detail,
 			})
 			return
 		}

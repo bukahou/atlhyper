@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -59,10 +60,11 @@ func (h *PodHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	items := convert.PodItems(pods)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    pods,
-		"total":   len(pods),
+		"data":    items,
+		"total":   len(items),
 	})
 }
 
@@ -101,9 +103,10 @@ func (h *PodHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for _, pod := range pods {
 		if pod.GetName() == name {
+			detail := convert.PodDetail(&pod)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    pod,
+				"data":    detail,
 			})
 			return
 		}

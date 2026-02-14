@@ -1,7 +1,7 @@
 /**
  * Namespace API
  *
- * 适配 Master V2 API（嵌套结构）
+ * 后端已完成 model_v2 → model 扁平化转换，前端直接使用
  */
 
 import { get, post } from "./request";
@@ -25,87 +25,13 @@ interface ConfigMapListParams {
 }
 
 // ============================================================
-// 后端返回类型（Master V2 API 嵌套结构）
+// 响应类型（后端返回扁平结构）
 // ============================================================
-
-// 后端 ResourceQuota
-interface ResourceQuotaApi {
-  name: string;
-  namespace: string;
-  createdAt: string;
-  age: string;
-  scopes?: string[];
-  hard?: Record<string, string>;
-  used?: Record<string, string>;
-}
-
-// 后端 LimitRangeItem
-interface LimitRangeItemApi {
-  type: string;
-  default?: Record<string, string>;
-  defaultRequest?: Record<string, string>;
-  max?: Record<string, string>;
-  min?: Record<string, string>;
-  maxLimitRequestRatio?: Record<string, string>;
-}
-
-// 后端 LimitRange
-interface LimitRangeApi {
-  name: string;
-  namespace: string;
-  createdAt: string;
-  age: string;
-  items: LimitRangeItemApi[];
-}
-
-// 后端 Namespace 资源统计
-interface NamespaceResourcesApi {
-  pods: number;
-  podsRunning: number;
-  podsPending: number;
-  podsFailed: number;
-  podsSucceeded: number;
-  deployments: number;
-  statefulSets: number;
-  daemonSets: number;
-  replicaSets: number;
-  jobs: number;
-  cronJobs: number;
-  services: number;
-  ingresses: number;
-  networkPolicies: number;
-  configMaps: number;
-  secrets: number;
-  serviceAccounts: number;
-  pvcs: number;
-}
-
-// 后端 Namespace 结构（嵌套）
-interface NamespaceApiItem {
-  summary: {
-    name: string;
-    createdAt: string;
-    age: string;
-  };
-  status: {
-    phase: string;
-  };
-  resources: NamespaceResourcesApi;
-  quotas?: ResourceQuotaApi[];
-  limitRanges?: LimitRangeApi[];
-  labels?: Record<string, string>;
-  annotations?: Record<string, string>;
-}
 
 interface NamespaceListResponse {
   message: string;
-  data: NamespaceApiItem[];
+  data: NamespaceItem[];
   total: number;
-}
-
-interface NamespaceDetailResponse {
-  message: string;
-  data: NamespaceDetail;
 }
 
 interface ConfigMapListResponse {
@@ -131,26 +57,10 @@ export function getNamespaceList(params: NamespaceListParams) {
  * GET /api/v2/namespaces/{name}?cluster_id=xxx
  */
 export async function getNamespaceDetail(data: { ClusterID: string; Namespace: string }) {
-  const response = await getNamespaceList({
-    cluster_id: data.ClusterID,
-  });
-
-  const apiNamespaces = response.data.data || [];
-  const target = apiNamespaces.find((ns) => ns.summary.name === data.Namespace);
-
-  if (!target) {
-    throw new Error("Namespace not found");
-  }
-
-  // 转换为前端格式
-  const detail = transformNamespaceToDetail(target);
-
-  return {
-    ...response,
-    data: {
-      data: detail,
-    },
-  };
+  return get<{ message: string; data: NamespaceDetail }>(
+    `/api/v2/namespaces/${encodeURIComponent(data.Namespace)}`,
+    { cluster_id: data.ClusterID }
+  );
 }
 
 /**
@@ -162,118 +72,7 @@ export function getConfigMapList(params: ConfigMapListParams) {
 }
 
 // ============================================================
-// 数据转换
-// ============================================================
-
-/**
- * 将后端 Namespace 转换为前端 NamespaceItem 格式（列表用）
- */
-function transformNamespaceItem(apiItem: NamespaceApiItem): NamespaceItem {
-  const labelCount = apiItem.labels ? Object.keys(apiItem.labels).length : 0;
-  const annotationCount = apiItem.annotations ? Object.keys(apiItem.annotations).length : 0;
-
-  return {
-    name: apiItem.summary.name || "",
-    status: apiItem.status.phase || "Unknown",
-    podCount: apiItem.resources?.pods ?? 0,
-    labelCount,
-    annotationCount,
-    createdAt: apiItem.summary.createdAt || "",
-  };
-}
-
-/**
- * 将后端 Namespace 转换为前端 NamespaceDetail 格式（详情用）
- */
-function transformNamespaceToDetail(apiItem: NamespaceApiItem): NamespaceDetail {
-  const labelCount = apiItem.labels ? Object.keys(apiItem.labels).length : 0;
-  const annotationCount = apiItem.annotations ? Object.keys(apiItem.annotations).length : 0;
-  const res = apiItem.resources || {} as NamespaceResourcesApi;
-
-  return {
-    // 基本信息
-    name: apiItem.summary.name,
-    phase: apiItem.status.phase,
-    createdAt: apiItem.summary.createdAt,
-    age: apiItem.summary.age,
-
-    // 标签和注解
-    labels: apiItem.labels,
-    annotations: apiItem.annotations,
-    labelCount,
-    annotationCount,
-
-    // 资源计数
-    pods: res.pods ?? 0,
-    podsRunning: res.podsRunning ?? 0,
-    podsPending: res.podsPending ?? 0,
-    podsFailed: res.podsFailed ?? 0,
-    podsSucceeded: res.podsSucceeded ?? 0,
-    deployments: res.deployments ?? 0,
-    statefulSets: res.statefulSets ?? 0,
-    daemonSets: res.daemonSets ?? 0,
-    jobs: res.jobs ?? 0,
-    cronJobs: res.cronJobs ?? 0,
-    services: res.services ?? 0,
-    ingresses: res.ingresses ?? 0,
-    configMaps: res.configMaps ?? 0,
-    secrets: res.secrets ?? 0,
-    persistentVolumeClaims: res.pvcs ?? 0,
-    networkPolicies: res.networkPolicies ?? 0,
-    serviceAccounts: res.serviceAccounts ?? 0,
-
-    // 配额和限制
-    quotas: apiItem.quotas?.map((q) => ({
-      name: q.name,
-      scopes: q.scopes,
-      hard: q.hard,
-      used: q.used,
-    })),
-    limitRanges: apiItem.limitRanges?.map((lr) => ({
-      name: lr.name,
-      items: lr.items.map((item) => ({
-        type: item.type,
-        default: item.default,
-        defaultRequest: item.defaultRequest,
-        max: item.max,
-        min: item.min,
-        maxLimitRequestRatio: item.maxLimitRequestRatio,
-      })),
-    })),
-  };
-}
-
-/**
- * 将 Namespace 列表转换为 NamespaceOverview 格式
- */
-function transformToNamespaceOverview(apiNamespaces: NamespaceApiItem[]): NamespaceOverview {
-  const namespaces = apiNamespaces.map(transformNamespaceItem);
-  let activeCount = 0;
-  let terminating = 0;
-  let totalPods = 0;
-
-  for (const apiNs of apiNamespaces) {
-    if (apiNs.status.phase === "Active") {
-      activeCount++;
-    } else if (apiNs.status.phase === "Terminating") {
-      terminating++;
-    }
-    totalPods += apiNs.resources?.pods ?? 0;
-  }
-
-  return {
-    cards: {
-      totalNamespaces: namespaces.length,
-      activeCount,
-      terminating,
-      totalPods,
-    },
-    rows: namespaces,
-  };
-}
-
-// ============================================================
-// 兼容旧接口
+// 概览聚合（前端从扁平列表计算统计卡片）
 // ============================================================
 
 /**
@@ -281,14 +80,31 @@ function transformToNamespaceOverview(apiNamespaces: NamespaceApiItem[]): Namesp
  */
 export async function getNamespaceOverview(data: { ClusterID: string }) {
   const response = await getNamespaceList({ cluster_id: data.ClusterID });
-  const namespaces = response.data.data || [];
-  const overview = transformToNamespaceOverview(namespaces);
+  const items = response.data.data || [];
+
+  let activeCount = 0;
+  let terminating = 0;
+  let totalPods = 0;
+
+  for (const item of items) {
+    if (item.status === "Active") activeCount++;
+    else if (item.status === "Terminating") terminating++;
+    totalPods += item.podCount ?? 0;
+  }
+
+  const overview: NamespaceOverview = {
+    cards: {
+      totalNamespaces: items.length,
+      activeCount,
+      terminating,
+      totalPods,
+    },
+    rows: items,
+  };
 
   return {
     ...response,
-    data: {
-      data: overview,
-    },
+    data: { data: overview },
   };
 }
 
@@ -352,7 +168,6 @@ export async function getConfigMapData(data: {
     namespace: data.Namespace,
     name: data.Name,
   });
-  // 解析 JSON 字符串
   try {
     return JSON.parse(res.data.data || "{}");
   } catch {
@@ -375,7 +190,6 @@ export async function getSecretData(data: {
     namespace: data.Namespace,
     name: data.Name,
   });
-  // 解析 JSON 字符串
   try {
     return JSON.parse(res.data.data || "{}");
   } catch {

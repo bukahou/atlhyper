@@ -30,7 +30,7 @@ export interface PodOverview {
   pods: PodItem[];
 }
 
-// Pod 列表项 - 匹配后端 API 返回格式
+// Pod 列表项 - 匹配后端 model.PodItem
 export interface PodItem {
   name: string;
   namespace: string;
@@ -38,14 +38,8 @@ export interface PodItem {
   ready: string;
   phase: string; // Running, Pending, Failed, Unknown
   restarts: number;
-  cpu: number;
-  cpuPercent: number;
-  memory: number;
-  memPercent: number;
   cpuText: string;
-  cpuPercentText: string;
   memoryText: string;
-  memPercentText: string;
   startTime: string;
   node: string;
   age?: string;
@@ -783,7 +777,7 @@ export interface IngressOverview {
   rows: IngressItem[];
 }
 
-// Ingress 列表项 - 匹配后端 API 返回格式
+// Ingress 列表项 - 匹配后端 model.IngressItem
 export interface IngressItem {
   name: string;
   namespace: string;
@@ -791,7 +785,7 @@ export interface IngressItem {
   path: string;
   serviceName: string;
   servicePort: string;
-  tls: string;
+  tls: boolean;
   createdAt: string;
 }
 
@@ -861,19 +855,19 @@ export interface IngressStatusDTO {
   loadBalancer?: string[];
 }
 
-// 事件日志 - 匹配后端 EventLog 结构
+// 事件日志 - 后端已返回 camelCase
 export interface EventLog {
-  ClusterID: string;
-  Category: string;
-  EventTime: string;
-  Kind: string;
-  Message: string;
-  Name: string;
-  Namespace: string;
-  Node: string;
-  Reason: string;
-  Severity: string;
-  Time: string;
+  clusterId: string;
+  category: string;
+  eventTime: string;
+  kind: string;
+  message: string;
+  name: string;
+  namespace: string;
+  node: string;
+  reason: string;
+  severity: string;
+  time: string;
 }
 
 // 事件日志请求

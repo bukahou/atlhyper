@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -41,10 +42,11 @@ func (h *IngressHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	items := convert.IngressItems(ingresses)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    ingresses,
-		"total":   len(ingresses),
+		"data":    items,
+		"total":   len(items),
 	})
 }
 
@@ -79,9 +81,10 @@ func (h *IngressHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for _, i := range ingresses {
 		if i.GetName() == name {
+			detail := convert.IngressDetail(&i)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    i,
+				"data":    detail,
 			})
 			return
 		}

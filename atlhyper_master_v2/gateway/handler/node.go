@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -39,10 +40,11 @@ func (h *NodeHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	items := convert.NodeItems(nodes)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    nodes,
-		"total":   len(nodes),
+		"data":    items,
+		"total":   len(items),
 	})
 }
 
@@ -76,9 +78,10 @@ func (h *NodeHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	for _, node := range nodes {
 		if node.GetName() == name {
+			detail := convert.NodeDetail(&node)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
-				"data":    node,
+				"data":    detail,
 			})
 			return
 		}

@@ -338,10 +338,7 @@ export default function PodPage() {
       header: "CPU",
       mobileVisible: false,
       render: (pod) => (
-        <div className="text-sm">
-          <span>{pod.cpuText || "-"}</span>
-          <span className="text-muted ml-1">({pod.cpuPercentText || "-"})</span>
-        </div>
+        <span className="text-sm">{pod.cpuText || "-"}</span>
       ),
     },
     {
@@ -349,10 +346,7 @@ export default function PodPage() {
       header: "Memory",
       mobileVisible: false,
       render: (pod) => (
-        <div className="text-sm">
-          <span>{pod.memoryText || "-"}</span>
-          <span className="text-muted ml-1">({pod.memPercentText || "-"})</span>
-        </div>
+        <span className="text-sm">{pod.memoryText || "-"}</span>
       ),
     },
     {

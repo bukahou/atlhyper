@@ -62,20 +62,20 @@ export function StrategyTab({ detail }: StrategyTabProps) {
       </div>
 
       {/* PVC 保留策略 */}
-      {detail.spec.pvcRetentionPolicy && (
+      {detail.spec.persistentVolumeClaimRetentionPolicy && (
         <div>
           <h3 className="text-sm font-semibold text-default mb-3">PVC 保留策略</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-[var(--background)] rounded-lg p-3">
               <div className="text-xs text-muted mb-1">删除时</div>
               <div className="text-sm font-medium text-default">
-                {detail.spec.pvcRetentionPolicy.whenDeleted || "Retain"}
+                {detail.spec.persistentVolumeClaimRetentionPolicy.whenDeleted || "Retain"}
               </div>
             </div>
             <div className="bg-[var(--background)] rounded-lg p-3">
               <div className="text-xs text-muted mb-1">缩容时</div>
               <div className="text-sm font-medium text-default">
-                {detail.spec.pvcRetentionPolicy.whenScaled || "Retain"}
+                {detail.spec.persistentVolumeClaimRetentionPolicy.whenScaled || "Retain"}
               </div>
             </div>
           </div>
