@@ -36,7 +36,7 @@ export function LatencyTab({ data, timeRange, t }: {
 
   const badgeLabel = `Ingress · ${timeRangeLabel(timeRange)}`;
   const hasMethods = data.methods && data.methods.length > 0;
-  const hasStatusCodes = data.status_codes && data.status_codes.length > 0;
+  const hasStatusCodes = data.statusCodes && data.statusCodes.length > 0;
 
   return (
     <div className="flex flex-col lg:flex-row gap-4">
@@ -44,9 +44,9 @@ export function LatencyTab({ data, timeRange, t }: {
       <div className="lg:w-[60%] flex-shrink-0">
         <LatencyHistogram
           buckets={data.buckets}
-          p50={data.p50_latency_ms}
-          p95={data.p95_latency_ms}
-          p99={data.p99_latency_ms}
+          p50={data.p50LatencyMs}
+          p95={data.p95LatencyMs}
+          p99={data.p99LatencyMs}
           badgeLabel={badgeLabel}
           t={t}
         />
@@ -57,15 +57,15 @@ export function LatencyTab({ data, timeRange, t }: {
           {hasMethods && (
             <MethodChart
               methods={data.methods}
-              totalRequests={data.total_requests}
+              totalRequests={data.totalRequests}
               badgeLabel={badgeLabel}
               t={t}
             />
           )}
           {hasStatusCodes && (
             <StatusCodeChart
-              statusCodes={data.status_codes}
-              totalRequests={data.total_requests}
+              statusCodes={data.statusCodes}
+              totalRequests={data.totalRequests}
               badgeLabel={badgeLabel}
               t={t}
             />

@@ -102,28 +102,28 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
   const [activeTab, setActiveTab] = useState<"overview" | "mesh" | "compare" | "latency">("overview");
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [meshTopology, setMeshTopology] = useState<MeshTopologyResponse | null>(null);
-  const [history, setHistory] = useState<{ timestamp: string; p95_latency: number; p99_latency: number; error_rate: number; availability: number; rps: number }[]>([]);
+  const [history, setHistory] = useState<{ timestamp: string; p95Latency: number; p99Latency: number; errorRate: number; availability: number; rps: number }[]>([]);
   const [latencyData, setLatencyData] = useState<LatencyDistributionResponse | null>(null);
 
   const availability = domain.summary?.availability ?? 0;
-  const p95Latency = domain.summary?.p95_latency ?? 0;
-  const errorRate = domain.summary?.error_rate ?? 0;
-  const rps = domain.summary?.requests_per_sec ?? 0;
+  const p95Latency = domain.summary?.p95Latency ?? 0;
+  const errorRate = domain.summary?.errorRate ?? 0;
+  const rps = domain.summary?.requestsPerSec ?? 0;
 
   // Compute previous period from services
   const prevAvailability = domain.services.length > 0
     ? domain.services.reduce((sum, s) => sum + (s.previous?.availability ?? s.current?.availability ?? 0), 0) / domain.services.length
     : availability;
   const prevP95Latency = domain.services.length > 0
-    ? domain.services.reduce((sum, s) => sum + (s.previous?.p95_latency ?? s.current?.p95_latency ?? 0), 0) / domain.services.length
+    ? domain.services.reduce((sum, s) => sum + (s.previous?.p95Latency ?? s.current?.p95Latency ?? 0), 0) / domain.services.length
     : p95Latency;
   const prevErrorRate = domain.services.length > 0
-    ? domain.services.reduce((sum, s) => sum + (s.previous?.error_rate ?? s.current?.error_rate ?? 0), 0) / domain.services.length
+    ? domain.services.reduce((sum, s) => sum + (s.previous?.errorRate ?? s.current?.errorRate ?? 0), 0) / domain.services.length
     : errorRate;
 
   const trend = availability > prevAvailability ? "up" : availability < prevAvailability ? "down" : "stable";
-  const domainTargets = domain.targets?.[timeRange] || domain.targets?.["1d"] || { availability: 95, p95_latency: 300 };
-  const targets = { availability: domainTargets.availability, p95_latency: domainTargets.p95_latency };
+  const domainTargets = domain.targets?.[timeRange] || domain.targets?.["1d"] || { availability: 95, p95Latency: 300 };
+  const targets = { availability: domainTargets.availability, p95Latency: domainTargets.p95Latency };
 
   const statusLabels = { healthy: t.healthy, warning: t.warning, critical: t.critical, unknown: t.unknown };
 
@@ -242,8 +242,8 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
           <div className="w-32">
             <div className="text-[10px] text-muted mb-0.5">{t.p95Latency}</div>
             <div className="flex items-center gap-1">
-              <span className={`text-sm font-semibold ${p95Latency <= targets.p95_latency ? "text-emerald-500" : "text-amber-500"}`}>{formatLatency(p95Latency)}</span>
-              <span className="text-xs text-muted">/ {formatLatency(targets.p95_latency)}</span>
+              <span className={`text-sm font-semibold ${p95Latency <= targets.p95Latency ? "text-emerald-500" : "text-amber-500"}`}>{formatLatency(p95Latency)}</span>
+              <span className="text-xs text-muted">/ {formatLatency(targets.p95Latency)}</span>
             </div>
           </div>
           <div className="w-28">
@@ -252,7 +252,7 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
           </div>
           <div className="w-32">
             <div className="text-[10px] text-muted mb-0.5">{t.errorBudget}</div>
-            <ErrorBudgetBar percent={domain.error_budget_remaining} />
+            <ErrorBudgetBar percent={domain.errorBudgetRemaining} />
           </div>
           <div className="w-24">
             <div className="text-[10px] text-muted mb-0.5">{t.throughput}</div>
@@ -305,7 +305,7 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
               <div className="p-3 sm:p-4">
                 <OverviewTab
                   summary={domain.summary}
-                  errorBudgetRemaining={domain.error_budget_remaining}
+                  errorBudgetRemaining={domain.errorBudgetRemaining}
                   targets={targets}
                   history={history.length > 0 ? history : undefined}
                   t={{
@@ -381,8 +381,8 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
 
             {activeTab === "compare" && (
               <CompareTab
-                current={{ availability, p95_latency: p95Latency, error_rate: errorRate }}
-                previous={{ availability: prevAvailability, p95_latency: prevP95Latency, error_rate: prevErrorRate }}
+                current={{ availability, p95Latency, errorRate }}
+                previous={{ availability: prevAvailability, p95Latency: prevP95Latency, errorRate: prevErrorRate }}
                 t={{
                   currentVsPrevious: t.currentVsPrevious,
                   previousPeriod: t.previousPeriod,

@@ -12,44 +12,44 @@ export type SLOTrend = "up" | "down" | "stable";
 // SLO 指标（对应 model.SLOMetrics）
 export interface SLOMetrics {
   availability: number;       // 可用性 (0-100)
-  p95_latency: number;        // P95 延迟 (ms)
-  p99_latency: number;        // P99 延迟 (ms)
-  error_rate: number;         // 错误率 (0-100)
-  requests_per_sec: number;   // 每秒请求数
-  total_requests: number;     // 总请求数
+  p95Latency: number;         // P95 延迟 (ms)
+  p99Latency: number;         // P99 延迟 (ms)
+  errorRate: number;           // 错误率 (0-100)
+  requestsPerSec: number;     // 每秒请求数
+  totalRequests: number;       // 总请求数
 }
 
 // SLO 目标规格（对应 model.SLOTargetSpec）
 export interface SLOTargetSpec {
   availability: number;       // 目标可用性
-  p95_latency: number;        // 目标 P95 延迟 (ms)
+  p95Latency: number;         // 目标 P95 延迟 (ms)
 }
 
 // 域名 SLO（对应 model.DomainSLO）
 export interface DomainSLO {
   host: string;
-  ingress_name: string;
-  ingress_class: string;
+  ingressName: string;
+  ingressClass: string;
   namespace: string;
   tls: boolean;
   targets: Record<string, SLOTargetSpec>;  // "1d", "7d", "30d"
   current: SLOMetrics | null;
   previous?: SLOMetrics | null;
-  error_budget_remaining: number;
+  errorBudgetRemaining: number;
   status: SLOStatus;
   trend: SLOTrend;
 }
 
 // SLO 汇总（对应 model.SLOSummary）
 export interface SLOSummary {
-  total_services: number;
-  total_domains: number;
-  healthy_count: number;
-  warning_count: number;
-  critical_count: number;
-  avg_availability: number;
-  avg_error_budget: number;
-  total_rps: number;
+  totalServices: number;
+  totalDomains: number;
+  healthyCount: number;
+  warningCount: number;
+  criticalCount: number;
+  avgAvailability: number;
+  avgErrorBudget: number;
+  totalRps: number;
 }
 
 // 域名 SLO 列表响应（对应 model.SLODomainsResponse）
@@ -65,10 +65,10 @@ export type DomainSLODetail = DomainSLO;
 export interface SLOHistoryPoint {
   timestamp: string;
   availability: number;
-  p95_latency: number;
-  p99_latency: number;
+  p95Latency: number;
+  p99Latency: number;
   rps: number;
-  error_rate: number;
+  errorRate: number;
 }
 
 // 域名历史数据响应（对应 model.SLODomainHistoryResponse）
@@ -77,7 +77,7 @@ export interface DomainSLOHistoryResponse {
   history: SLOHistoryPoint[];
 }
 
-// SLO 目标配置
+// SLO 目标配置（数据库模型，JSON tags 暂保持 snake_case）
 export interface SLOTarget {
   id?: number;
   cluster_id: string;
@@ -92,13 +92,13 @@ export interface SLOTarget {
 // 状态变更历史项
 export interface SLOStatusHistoryItem {
   host: string;
-  time_range: string;
-  old_status: SLOStatus;
-  new_status: SLOStatus;
+  timeRange: string;
+  oldStatus: SLOStatus;
+  newStatus: SLOStatus;
   availability: number;
-  p95_latency: number;
-  error_budget_remaining: number;
-  changed_at: string;
+  p95Latency: number;
+  errorBudgetRemaining: number;
+  changedAt: string;
 }
 
 // 状态历史响应
@@ -109,17 +109,17 @@ export type SLOStatusHistoryResponse = SLOStatusHistoryItem[];
 // 后端服务级别 SLO（对应 model.ServiceSLO）
 // 注意：Metrics 数据是按 service 级别聚合的，不是按 path 级别
 export interface ServiceSLO {
-  service_key: string;             // Traefik service key (namespace-name-port@kubernetes)
-  service_name: string;            // 服务名称
-  service_port: number;            // 服务端口
+  serviceKey: string;              // Traefik service key (namespace-name-port@kubernetes)
+  serviceName: string;             // 服务名称
+  servicePort: number;             // 服务端口
   namespace: string;               // 命名空间
   paths: string[];                 // 使用该服务的路径列表（仅展示用，共享同一份 metrics）
-  ingress_name: string;            // IngressRoute/Ingress 名称
+  ingressName: string;             // IngressRoute/Ingress 名称
   current: SLOMetrics | null;      // 当前周期指标
   previous?: SLOMetrics | null;    // 上一周期指标
   targets?: Record<string, SLOTargetSpec>;  // 目标配置
   status: SLOStatus;               // 状态
-  error_budget_remaining: number;  // 剩余错误预算
+  errorBudgetRemaining: number;    // 剩余错误预算
 }
 
 // 域名级别 SLO（对应 model.DomainSLOResponseV2）
@@ -130,7 +130,7 @@ export interface DomainSLOV2 {
   summary: SLOMetrics | null;      // 域名级别汇总指标
   targets?: Record<string, SLOTargetSpec>;  // 目标配置 ("1d"/"7d"/"30d")
   status: SLOStatus;               // 域名状态
-  error_budget_remaining: number;  // 域名剩余错误预算
+  errorBudgetRemaining: number;    // 域名剩余错误预算
 }
 
 // V2 域名列表响应（对应 model.SLODomainsResponseV2）
@@ -162,14 +162,14 @@ export interface StatusCodeBreakdown {
 // 延迟分布响应
 export interface LatencyDistributionResponse {
   domain: string;
-  total_requests: number;
-  p50_latency_ms: number;
-  p95_latency_ms: number;
-  p99_latency_ms: number;
-  avg_latency_ms: number;
+  totalRequests: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  avgLatencyMs: number;
   buckets: LatencyBucket[];
   methods: MethodBreakdown[];
-  status_codes: StatusCodeBreakdown[];
+  statusCodes: StatusCodeBreakdown[];
 }
 
 // 延迟分布请求参数

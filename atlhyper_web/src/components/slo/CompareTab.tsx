@@ -12,8 +12,8 @@ interface CompareTabTranslations {
 }
 
 export function CompareTab({ current, previous, t }: {
-  current: { availability: number; p95_latency: number; error_rate: number };
-  previous: { availability: number; p95_latency: number; error_rate: number };
+  current: { availability: number; p95Latency: number; errorRate: number };
+  previous: { availability: number; p95Latency: number; errorRate: number };
   t: CompareTabTranslations;
 }) {
   return (
@@ -33,16 +33,16 @@ export function CompareTab({ current, previous, t }: {
         />
         <CompareMetric
           label={t.p95Latency}
-          current={current.p95_latency}
-          previous={previous.p95_latency}
+          current={current.p95Latency}
+          previous={previous.p95Latency}
           unit="ms"
           inverse={true}
           previousPeriodLabel={t.previousPeriod}
         />
         <CompareMetric
           label={t.errorRate}
-          current={current.error_rate}
-          previous={previous.error_rate}
+          current={current.errorRate}
+          previous={previous.errorRate}
           unit="%"
           inverse={true}
           previousPeriodLabel={t.previousPeriod}

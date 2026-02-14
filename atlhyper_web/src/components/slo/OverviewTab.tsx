@@ -23,8 +23,8 @@ interface OverviewTabTranslations {
 
 // SLO Trend Chart — always renders axes/grid/target; data fills in when available
 function HistoryChart({ history, targets, t }: {
-  history: { timestamp: string; p95_latency: number; error_rate: number }[];
-  targets?: { availability: number; p95_latency: number };
+  history: { timestamp: string; p95Latency: number; errorRate: number }[];
+  targets?: { availability: number; p95Latency: number };
   t: OverviewTabTranslations;
 }) {
   const [activeMetric, setActiveMetric] = useState<"p95" | "error">("p95");
@@ -37,12 +37,12 @@ function HistoryChart({ history, targets, t }: {
   ];
   const currentMetric = metrics.find(m => m.id === activeMetric)!;
 
-  const values = history.map(p => activeMetric === "p95" ? p.p95_latency : p.error_rate);
+  const values = history.map(p => activeMetric === "p95" ? p.p95Latency : p.errorRate);
   const hasData = values.length > 0;
 
   // SLO target value (P95 latency has target line)
   let targetVal: number | null = null;
-  if (activeMetric === "p95" && targets) targetVal = targets.p95_latency;
+  if (activeMetric === "p95" && targets) targetVal = targets.p95Latency;
 
   // Y axis range — use defaults when no data
   let minVal: number, maxVal: number;
@@ -374,22 +374,22 @@ function ErrorBudgetBurnChart({ history, errorBudgetRemaining, t }: {
 export function OverviewTab({ summary, errorBudgetRemaining, targets, history, t }: {
   summary: SLOMetrics | null;
   errorBudgetRemaining: number;
-  targets?: { availability: number; p95_latency: number };
-  history?: { timestamp: string; p95_latency: number; p99_latency: number; error_rate: number; availability: number; rps: number }[];
+  targets?: { availability: number; p95Latency: number };
+  history?: { timestamp: string; p95Latency: number; p99Latency: number; errorRate: number; availability: number; rps: number }[];
   t: OverviewTabTranslations;
 }) {
   const availability = summary?.availability ?? 0;
-  const p95Latency = summary?.p95_latency ?? 0;
-  const p99Latency = summary?.p99_latency ?? 0;
-  const errorRate = summary?.error_rate ?? 0;
-  const rps = summary?.requests_per_sec ?? 0;
-  const totalRequests = summary?.total_requests ?? 0;
+  const p95Latency = summary?.p95Latency ?? 0;
+  const p99Latency = summary?.p99Latency ?? 0;
+  const errorRate = summary?.errorRate ?? 0;
+  const rps = summary?.requestsPerSec ?? 0;
+  const totalRequests = summary?.totalRequests ?? 0;
 
   const budgetHistory = useMemo(() => {
     if (!history || history.length === 0) return [];
     return history.map(h => ({
       timestamp: h.timestamp,
-      error_budget: Math.max(0, Math.min(100, 100 - h.error_rate * 20)),
+      error_budget: Math.max(0, Math.min(100, 100 - h.errorRate * 20)),
     }));
   }, [history]);
 
@@ -405,7 +405,7 @@ export function OverviewTab({ summary, errorBudgetRemaining, targets, history, t
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.p95Latency} / {t.p99Latency}</div>
           <div className="text-lg font-bold text-default">{p95Latency}ms / {p99Latency}ms</div>
-          {targets && <div className="text-xs text-muted mt-1">{t.target} P95: {targets.p95_latency}ms</div>}
+          {targets && <div className="text-xs text-muted mt-1">{t.target} P95: {targets.p95Latency}ms</div>}
         </div>
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.errorRate}</div>

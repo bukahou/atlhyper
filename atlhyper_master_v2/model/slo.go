@@ -7,14 +7,14 @@ package model
 // DomainSLO 域名 SLO 信息
 type DomainSLO struct {
 	Host         string                    `json:"host"`
-	IngressName  string                    `json:"ingress_name"`
-	IngressClass string                    `json:"ingress_class"`
+	IngressName  string                    `json:"ingressName"`
+	IngressClass string                    `json:"ingressClass"`
 	Namespace    string                    `json:"namespace"`
 	TLS          bool                      `json:"tls"`
 	Targets      map[string]*SLOTargetSpec `json:"targets"` // "1d", "7d", "30d"
 	Current      *SLOMetrics               `json:"current"`
 	Previous     *SLOMetrics               `json:"previous,omitempty"`
-	ErrorBudget  float64                   `json:"error_budget_remaining"`
+	ErrorBudget  float64                   `json:"errorBudgetRemaining"`
 	Status       string                    `json:"status"` // healthy / warning / critical
 	Trend        string                    `json:"trend"`  // up / down / stable
 }
@@ -22,29 +22,29 @@ type DomainSLO struct {
 // SLOTargetSpec SLO 目标规格
 type SLOTargetSpec struct {
 	Availability float64 `json:"availability"`
-	P95Latency   int     `json:"p95_latency"`
+	P95Latency   int     `json:"p95Latency"`
 }
 
 // SLOMetrics SLO 指标
 type SLOMetrics struct {
 	Availability   float64 `json:"availability"`
-	P95Latency     int     `json:"p95_latency"`
-	P99Latency     int     `json:"p99_latency"`
-	ErrorRate      float64 `json:"error_rate"`
-	RequestsPerSec float64 `json:"requests_per_sec"`
-	TotalRequests  int64   `json:"total_requests"`
+	P95Latency     int     `json:"p95Latency"`
+	P99Latency     int     `json:"p99Latency"`
+	ErrorRate      float64 `json:"errorRate"`
+	RequestsPerSec float64 `json:"requestsPerSec"`
+	TotalRequests  int64   `json:"totalRequests"`
 }
 
 // SLOSummary SLO 汇总信息
 type SLOSummary struct {
-	TotalServices   int     `json:"total_services"`
-	TotalDomains    int     `json:"total_domains"`
-	HealthyCount    int     `json:"healthy_count"`
-	WarningCount    int     `json:"warning_count"`
-	CriticalCount   int     `json:"critical_count"`
-	AvgAvailability float64 `json:"avg_availability"`
-	AvgErrorBudget  float64 `json:"avg_error_budget"`
-	TotalRPS        float64 `json:"total_rps"`
+	TotalServices   int     `json:"totalServices"`
+	TotalDomains    int     `json:"totalDomains"`
+	HealthyCount    int     `json:"healthyCount"`
+	WarningCount    int     `json:"warningCount"`
+	CriticalCount   int     `json:"criticalCount"`
+	AvgAvailability float64 `json:"avgAvailability"`
+	AvgErrorBudget  float64 `json:"avgErrorBudget"`
+	TotalRPS        float64 `json:"totalRps"`
 }
 
 // SLODomainsResponse 域名列表响应 (V1 兼容，使用 host/service key)
@@ -64,22 +64,22 @@ type DomainSLOResponseV2 struct {
 	Summary              *SLOMetrics               `json:"summary"`                // 域名级别汇总指标
 	Targets              map[string]*SLOTargetSpec  `json:"targets,omitempty"`      // 目标配置 ("1d"/"7d"/"30d")
 	Status               string                    `json:"status"`                 // healthy / warning / critical
-	ErrorBudgetRemaining float64                   `json:"error_budget_remaining"` // 剩余错误预算
+	ErrorBudgetRemaining float64                   `json:"errorBudgetRemaining"` // 剩余错误预算
 }
 
 // ServiceSLO 后端服务级别的 SLO 数据（Metrics 的实际数据来源）
 type ServiceSLO struct {
-	ServiceKey   string                    `json:"service_key"`            // Traefik service key (namespace-name-port@kubernetes)
-	ServiceName  string                    `json:"service_name"`           // 服务名称
-	ServicePort  int                       `json:"service_port"`           // 服务端口
+	ServiceKey   string                    `json:"serviceKey"`            // Traefik service key (namespace-name-port@kubernetes)
+	ServiceName  string                    `json:"serviceName"`           // 服务名称
+	ServicePort  int                       `json:"servicePort"`           // 服务端口
 	Namespace    string                    `json:"namespace"`              // 命名空间
 	Paths        []string                  `json:"paths"`                  // 使用该服务的路径列表
-	IngressName  string                    `json:"ingress_name"`           // IngressRoute/Ingress 名称
+	IngressName  string                    `json:"ingressName"`           // IngressRoute/Ingress 名称
 	Current      *SLOMetrics               `json:"current"`                // 当前周期指标
 	Previous     *SLOMetrics               `json:"previous,omitempty"`     // 上一周期指标（用于对比）
 	Targets      map[string]*SLOTargetSpec `json:"targets,omitempty"`      // 目标配置
 	Status       string                    `json:"status"`                 // healthy / warning / critical
-	ErrorBudget  float64                   `json:"error_budget_remaining"` // 剩余错误预算
+	ErrorBudget  float64                   `json:"errorBudgetRemaining"` // 剩余错误预算
 }
 
 // SLODomainsResponseV2 域名列表响应 (V2)
@@ -92,10 +92,10 @@ type SLODomainsResponseV2 struct {
 type SLODomainHistoryItem struct {
 	Timestamp    string  `json:"timestamp"`
 	Availability float64 `json:"availability"`
-	P95Latency   int     `json:"p95_latency"`
-	P99Latency   int     `json:"p99_latency"`
+	P95Latency   int     `json:"p95Latency"`
+	P99Latency   int     `json:"p99Latency"`
 	RPS          float64 `json:"rps"`
-	ErrorRate    float64 `json:"error_rate"`
+	ErrorRate    float64 `json:"errorRate"`
 }
 
 // SLODomainHistoryResponse 域名历史响应
@@ -107,13 +107,13 @@ type SLODomainHistoryResponse struct {
 // SLOStatusHistoryItem 状态变更历史项
 type SLOStatusHistoryItem struct {
 	Host                 string  `json:"host"`
-	TimeRange            string  `json:"time_range"`
-	OldStatus            string  `json:"old_status"`
-	NewStatus            string  `json:"new_status"`
+	TimeRange            string  `json:"timeRange"`
+	OldStatus            string  `json:"oldStatus"`
+	NewStatus            string  `json:"newStatus"`
 	Availability         float64 `json:"availability"`
-	P95Latency           int     `json:"p95_latency"`
-	ErrorBudgetRemaining float64 `json:"error_budget_remaining"`
-	ChangedAt            string  `json:"changed_at"`
+	P95Latency           int     `json:"p95Latency"`
+	ErrorBudgetRemaining float64 `json:"errorBudgetRemaining"`
+	ChangedAt            string  `json:"changedAt"`
 }
 
 // ==================== 延迟分布 API 类型 ====================
@@ -139,25 +139,25 @@ type StatusCodeBreakdown struct {
 // LatencyDistributionResponse 延迟分布响应
 type LatencyDistributionResponse struct {
 	Domain        string                `json:"domain"`
-	TotalRequests int64                 `json:"total_requests"`
-	P50LatencyMs  int                   `json:"p50_latency_ms"`
-	P95LatencyMs  int                   `json:"p95_latency_ms"`
-	P99LatencyMs  int                   `json:"p99_latency_ms"`
-	AvgLatencyMs  int                   `json:"avg_latency_ms"`
+	TotalRequests int64                 `json:"totalRequests"`
+	P50LatencyMs  int                   `json:"p50LatencyMs"`
+	P95LatencyMs  int                   `json:"p95LatencyMs"`
+	P99LatencyMs  int                   `json:"p99LatencyMs"`
+	AvgLatencyMs  int                   `json:"avgLatencyMs"`
 	Buckets       []LatencyBucket       `json:"buckets"`
 	Methods       []MethodBreakdown     `json:"methods"`
-	StatusCodes   []StatusCodeBreakdown `json:"status_codes"`
+	StatusCodes   []StatusCodeBreakdown `json:"statusCodes"`
 }
 
 // ==================== API 请求类型 ====================
 
 // UpdateSLOTargetRequest 更新 SLO 目标请求
 type UpdateSLOTargetRequest struct {
-	ClusterID          string  `json:"cluster_id"`
+	ClusterID          string  `json:"clusterId"`
 	Host               string  `json:"host"`
-	TimeRange          string  `json:"time_range"` // "1d", "7d", "30d"
-	AvailabilityTarget float64 `json:"availability_target"`
-	P95LatencyTarget   int     `json:"p95_latency_target"`
+	TimeRange          string  `json:"timeRange"` // "1d", "7d", "30d"
+	AvailabilityTarget float64 `json:"availabilityTarget"`
+	P95LatencyTarget   int     `json:"p95LatencyTarget"`
 }
 
 // SLOQueryParams SLO 查询参数
@@ -183,15 +183,15 @@ type ServiceNodeResponse struct {
 	Name          string  `json:"name"`
 	Namespace     string  `json:"namespace"`
 	RPS           float64 `json:"rps"`
-	AvgLatencyMs  int     `json:"avg_latency"`
-	P50LatencyMs  int     `json:"p50_latency"`
-	P95LatencyMs  int     `json:"p95_latency"`
-	P99LatencyMs  int     `json:"p99_latency"`
-	ErrorRate     float64 `json:"error_rate"`
+	AvgLatencyMs  int     `json:"avgLatency"`
+	P50LatencyMs  int     `json:"p50Latency"`
+	P95LatencyMs  int     `json:"p95Latency"`
+	P99LatencyMs  int     `json:"p99Latency"`
+	ErrorRate     float64 `json:"errorRate"`
 	Availability  float64 `json:"availability"`
 	Status        string  `json:"status"`         // healthy/warning/critical
-	MtlsPercent   float64 `json:"mtls_percent"`
-	TotalRequests int64   `json:"total_requests"`
+	MtlsPercent   float64 `json:"mtlsPercent"`
+	TotalRequests int64   `json:"totalRequests"`
 }
 
 // ServiceEdgeResponse 服务拓扑边响应
@@ -199,8 +199,8 @@ type ServiceEdgeResponse struct {
 	Source       string  `json:"source"`      // "namespace/name"
 	Target       string  `json:"target"`
 	RPS          float64 `json:"rps"`
-	AvgLatencyMs int     `json:"avg_latency"`
-	ErrorRate    float64 `json:"error_rate"`
+	AvgLatencyMs int     `json:"avgLatency"`
+	ErrorRate    float64 `json:"errorRate"`
 }
 
 // ServiceDetailResponse 服务详情响应
@@ -209,16 +209,16 @@ type ServiceDetailResponse struct {
 	History        []ServiceHistoryPoint `json:"history"`
 	Upstreams      []ServiceEdgeResponse `json:"upstreams"`
 	Downstreams    []ServiceEdgeResponse `json:"downstreams"`
-	StatusCodes    []StatusCodeBreakdown `json:"status_codes"`
-	LatencyBuckets []LatencyBucket       `json:"latency_buckets"`
+	StatusCodes    []StatusCodeBreakdown `json:"statusCodes"`
+	LatencyBuckets []LatencyBucket       `json:"latencyBuckets"`
 }
 
 // ServiceHistoryPoint 服务历史数据点
 type ServiceHistoryPoint struct {
 	Timestamp    string  `json:"timestamp"`
 	RPS          float64 `json:"rps"`
-	P95LatencyMs int     `json:"p95_latency"`
-	ErrorRate    float64 `json:"error_rate"`
+	P95LatencyMs int     `json:"p95Latency"`
+	ErrorRate    float64 `json:"errorRate"`
 	Availability float64 `json:"availability"`
-	MtlsPercent  float64 `json:"mtls_percent"`
+	MtlsPercent  float64 `json:"mtlsPercent"`
 }

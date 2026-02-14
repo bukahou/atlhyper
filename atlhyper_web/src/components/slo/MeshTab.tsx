@@ -342,8 +342,8 @@ function ServiceTopologyView({ topology, onSelectNode, timeRange, t }: {
           <g>{topology.edges.map((edge, idx) => {
             const isHighlighted = hoveredNode === edge.source || hoveredNode === edge.target || selectedNode === edge.source || selectedNode === edge.target || hoveredEdge === idx;
             let strokeColor = "#cbd5e1";
-            if (edge.error_rate > 1) strokeColor = isHighlighted ? "#ef4444" : "#fca5a5";
-            else if (edge.error_rate > 0.1) strokeColor = isHighlighted ? "#f59e0b" : "#fcd34d";
+            if (edge.errorRate > 1) strokeColor = isHighlighted ? "#ef4444" : "#fca5a5";
+            else if (edge.errorRate > 0.1) strokeColor = isHighlighted ? "#f59e0b" : "#fcd34d";
             else if (isHighlighted) strokeColor = "#0ea5e9";
             const labelPos = getEdgeLabelPos(edge.source, edge.target);
             return (
@@ -353,7 +353,7 @@ function ServiceTopologyView({ topology, onSelectNode, timeRange, t }: {
                 {isHighlighted && (
                   <g transform={`translate(${labelPos.x}, ${labelPos.y})`}>
                     <rect x="-42" y="-12" width="84" height="24" rx="4" fill="white" className="dark:fill-slate-800" stroke="#e2e8f0" strokeWidth="1" />
-                    <text textAnchor="middle" y="4" className="text-[10px] font-medium fill-slate-600 dark:fill-slate-300">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avg_latency)}</text>
+                    <text textAnchor="middle" y="4" className="text-[10px] font-medium fill-slate-600 dark:fill-slate-300">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avgLatency)}</text>
                   </g>
                 )}
               </g>
@@ -387,7 +387,7 @@ function ServiceTopologyView({ topology, onSelectNode, timeRange, t }: {
                   {node.name.length > 14 ? node.name.slice(0, 14) + "\u2026" : node.name}
                 </text>
                 <text y={nodeRadius + 28} textAnchor="middle" className="text-[9px] fill-slate-500 dark:fill-slate-400 pointer-events-none">
-                  P95 {formatLatency(node.p95_latency)} · {node.error_rate.toFixed(1)}%
+                  P95 {formatLatency(node.p95Latency)} · {node.errorRate.toFixed(1)}%
                 </text>
                 <circle cx={nodeRadius - 4} cy={-nodeRadius + 4} r={5}
                   fill={node.status === "healthy" ? "#10b981" : node.status === "warning" ? "#f59e0b" : "#ef4444"}
@@ -408,7 +408,7 @@ function ServiceListTable({ nodes, selectedId, onSelect, t }: {
   onSelect: (id: string) => void;
   t: MeshTabTranslations;
 }) {
-  const [sortKey, setSortKey] = useState<"name" | "rps" | "p95_latency" | "error_rate" | "mtls_percent">("rps");
+  const [sortKey, setSortKey] = useState<"name" | "rps" | "p95Latency" | "errorRate" | "mtlsPercent">("rps");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const toggleSort = (key: typeof sortKey) => {
@@ -442,9 +442,9 @@ function ServiceListTable({ nodes, selectedId, onSelect, t }: {
           <tr className="border-b border-[var(--border-color)]">
             <th className="text-left py-2 px-2"><SortHeader label={t.service} field="name" /></th>
             <th className="text-right py-2 px-2"><SortHeader label={t.rps} field="rps" /></th>
-            <th className="text-right py-2 px-2"><SortHeader label="P95" field="p95_latency" /></th>
-            <th className="text-right py-2 px-2"><SortHeader label={t.errorRate} field="error_rate" /></th>
-            <th className="text-right py-2 px-2"><SortHeader label={t.mtls} field="mtls_percent" /></th>
+            <th className="text-right py-2 px-2"><SortHeader label="P95" field="p95Latency" /></th>
+            <th className="text-right py-2 px-2"><SortHeader label={t.errorRate} field="errorRate" /></th>
+            <th className="text-right py-2 px-2"><SortHeader label={t.mtls} field="mtlsPercent" /></th>
             <th className="text-center py-2 px-2"><span className="text-[10px] font-medium uppercase tracking-wider text-muted">{t.status}</span></th>
           </tr>
         </thead>
@@ -464,13 +464,13 @@ function ServiceListTable({ nodes, selectedId, onSelect, t }: {
                   </div>
                 </td>
                 <td className="text-right py-2.5 px-2 font-medium text-default">{node.rps.toFixed(0)}<span className="text-muted">/s</span></td>
-                <td className="text-right py-2.5 px-2 font-medium text-default">{formatLatency(node.p95_latency)}</td>
+                <td className="text-right py-2.5 px-2 font-medium text-default">{formatLatency(node.p95Latency)}</td>
                 <td className="text-right py-2.5 px-2">
-                  <span className={node.error_rate > 0.5 ? "text-red-500 font-semibold" : "text-default font-medium"}>{node.error_rate.toFixed(2)}%</span>
+                  <span className={node.errorRate > 0.5 ? "text-red-500 font-semibold" : "text-default font-medium"}>{node.errorRate.toFixed(2)}%</span>
                 </td>
                 <td className="text-right py-2.5 px-2">
-                  <span className={`font-semibold ${node.mtls_percent >= 100 ? "text-emerald-600 dark:text-emerald-400" : node.mtls_percent >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
-                    {node.mtls_percent.toFixed(0)}%
+                  <span className={`font-semibold ${node.mtlsPercent >= 100 ? "text-emerald-600 dark:text-emerald-400" : node.mtlsPercent >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
+                    {node.mtlsPercent.toFixed(0)}%
                   </span>
                 </td>
                 <td className="text-center py-2.5 px-2">
@@ -518,8 +518,8 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
     return () => { cancelled = true; };
   }, [node.id, clusterId, node.namespace, node.name, timeRange]);
 
-  const statusCodes = detail?.status_codes?.filter(s => s.count > 0) ?? [];
-  const allLatencyBuckets = detail?.latency_buckets ?? [];
+  const statusCodes = detail?.statusCodes?.filter(s => s.count > 0) ?? [];
+  const allLatencyBuckets = detail?.latencyBuckets ?? [];
   const latencyBuckets = allLatencyBuckets.filter(b => b.count > 0);
   const totalStatusRequests = statusCodes.reduce((sum, s) => sum + s.count, 0);
 
@@ -548,11 +548,11 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {[
           { label: t.rps, value: `${node.rps.toFixed(0)}`, unit: "/s" },
-          { label: t.p50Latency, value: formatLatency(node.p50_latency), unit: "" },
-          { label: t.p95Latency, value: formatLatency(node.p95_latency), unit: "" },
-          { label: t.p99Latency, value: formatLatency(node.p99_latency), unit: "" },
-          { label: t.errorRate, value: node.error_rate.toFixed(2), unit: "%", color: node.error_rate > 0.5 ? "text-red-500" : "text-emerald-500" },
-          { label: t.totalRequests, value: node.total_requests.toLocaleString(), unit: "" },
+          { label: t.p50Latency, value: formatLatency(node.p50Latency), unit: "" },
+          { label: t.p95Latency, value: formatLatency(node.p95Latency), unit: "" },
+          { label: t.p99Latency, value: formatLatency(node.p99Latency), unit: "" },
+          { label: t.errorRate, value: node.errorRate.toFixed(2), unit: "%", color: node.errorRate > 0.5 ? "text-red-500" : "text-emerald-500" },
+          { label: t.totalRequests, value: node.totalRequests.toLocaleString(), unit: "" },
         ].map((m, i) => (
           <div key={i} className="p-3 rounded-lg bg-[var(--hover-bg)]">
             <div className="text-[10px] text-muted mb-1">{m.label}</div>
@@ -580,7 +580,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getNamespaceColor(srcNode.namespace).fill }} />
                       <span className="font-medium text-default">{srcNode.name}</span>
                       <ArrowRight className="w-3 h-3 text-slate-400" />
-                      <span className="text-muted">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avg_latency)}</span>
+                      <span className="text-muted">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avgLatency)}</span>
                     </div>
                   );
                 })}
@@ -599,7 +599,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
                       <ArrowRight className="w-3 h-3 text-cyan-600" />
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getNamespaceColor(tgtNode.namespace).fill }} />
                       <span className="font-medium text-default">{tgtNode.name}</span>
-                      <span className="text-muted">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avg_latency)}</span>
+                      <span className="text-muted">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avgLatency)}</span>
                     </div>
                   );
                 })}
@@ -667,13 +667,13 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
               {latencyBuckets.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-[9px] text-blue-700 dark:text-blue-400 font-medium">
-                    P50 {formatLatency(node.p50_latency)}
+                    P50 {formatLatency(node.p50Latency)}
                   </span>
                   <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-[9px] text-amber-700 dark:text-amber-400 font-medium">
-                    P95 {formatLatency(node.p95_latency)}
+                    P95 {formatLatency(node.p95Latency)}
                   </span>
                   <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded text-[9px] text-red-700 dark:text-red-400 font-medium">
-                    P99 {formatLatency(node.p99_latency)}
+                    P99 {formatLatency(node.p99Latency)}
                   </span>
                 </div>
               )}
@@ -683,9 +683,9 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
                 <MiniLatencyHistogram
                   buckets={latencyBuckets}
                   allBuckets={allLatencyBuckets}
-                  p50={node.p50_latency}
-                  p95={node.p95_latency}
-                  p99={node.p99_latency}
+                  p50={node.p50Latency}
+                  p95={node.p95Latency}
+                  p99={node.p99Latency}
                   t={t}
                 />
               </div>
@@ -852,7 +852,7 @@ export function MeshTab({ topology, clusterId, timeRange, t }: {
 
   // mTLS coverage
   const totalRps = topology.nodes.reduce((sum, n) => sum + n.rps, 0);
-  const overallMtls = totalRps > 0 ? topology.nodes.reduce((sum, n) => sum + n.mtls_percent * n.rps, 0) / totalRps : 0;
+  const overallMtls = totalRps > 0 ? topology.nodes.reduce((sum, n) => sum + n.mtlsPercent * n.rps, 0) / totalRps : 0;
   const mtlsBarColor = overallMtls >= 95 ? "bg-emerald-500" : overallMtls >= 80 ? "bg-amber-500" : "bg-red-500";
   const mtlsTextColor = overallMtls >= 95 ? "text-emerald-600 dark:text-emerald-400" : overallMtls >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
 

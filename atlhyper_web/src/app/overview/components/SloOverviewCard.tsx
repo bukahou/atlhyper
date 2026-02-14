@@ -45,10 +45,10 @@ export const SloOverviewCard = memo(function SloOverviewCard({ data, t }: SloOve
     (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3)
   );
 
-  const total = summary.total_domains;
-  const healthyPct = total > 0 ? (summary.healthy_count / total) * 100 : 0;
-  const warningPct = total > 0 ? (summary.warning_count / total) * 100 : 0;
-  const criticalPct = total > 0 ? (summary.critical_count / total) * 100 : 0;
+  const total = summary.totalDomains;
+  const healthyPct = total > 0 ? (summary.healthyCount / total) * 100 : 0;
+  const warningPct = total > 0 ? (summary.warningCount / total) * 100 : 0;
+  const criticalPct = total > 0 ? (summary.criticalCount / total) * 100 : 0;
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-4 h-[290px] flex flex-col">
@@ -69,15 +69,15 @@ export const SloOverviewCard = memo(function SloOverviewCard({ data, t }: SloOve
 
           <div className="bg-[var(--background)] rounded-lg p-2">
             <div className="text-xs text-muted mb-1">{t.slo.avgAvailability}</div>
-            <div className={`text-base font-bold ${getValueColor(summary.avg_availability, 99, 95)}`}>
-              {summary.avg_availability.toFixed(2)}%
+            <div className={`text-base font-bold ${getValueColor(summary.avgAvailability, 99, 95)}`}>
+              {summary.avgAvailability.toFixed(2)}%
             </div>
           </div>
 
           <div className="bg-[var(--background)] rounded-lg p-2">
             <div className="text-xs text-muted mb-1">{t.slo.errorBudget}</div>
-            <div className={`text-base font-bold ${getValueColor(summary.avg_error_budget, 50, 20)}`}>
-              {summary.avg_error_budget.toFixed(1)}%
+            <div className={`text-base font-bold ${getValueColor(summary.avgErrorBudget, 50, 20)}`}>
+              {summary.avgErrorBudget.toFixed(1)}%
             </div>
           </div>
         </div>
@@ -109,15 +109,15 @@ export const SloOverviewCard = memo(function SloOverviewCard({ data, t }: SloOve
                   </span>
                   <span>
                     <span className="text-muted">P95 </span>
-                    <span className="font-medium text-default">{m?.p95_latency ?? "-"}{t.slo.ms}</span>
+                    <span className="font-medium text-default">{m?.p95Latency ?? "-"}{t.slo.ms}</span>
                   </span>
                   <span>
                     <span className="text-muted">{t.slo.errorRate} </span>
-                    <span className="font-medium text-default">{m?.error_rate != null ? `${m.error_rate.toFixed(2)}%` : "-"}</span>
+                    <span className="font-medium text-default">{m?.errorRate != null ? `${m.errorRate.toFixed(2)}%` : "-"}</span>
                   </span>
                   <span>
                     <span className="text-muted">{t.slo.rps} </span>
-                    <span className="font-medium text-default">{m?.requests_per_sec != null ? m.requests_per_sec.toFixed(1) : "-"}</span>
+                    <span className="font-medium text-default">{m?.requestsPerSec != null ? m.requestsPerSec.toFixed(1) : "-"}</span>
                   </span>
                 </div>
               </div>

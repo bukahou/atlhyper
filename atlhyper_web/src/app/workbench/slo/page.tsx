@@ -83,17 +83,17 @@ export default function SLOPage() {
 
   const summaryData = useMemo(() => {
     const avgP95 = domains.length > 0
-      ? domains.reduce((sum, d) => sum + (d.summary?.p95_latency || 0), 0) / domains.length
+      ? domains.reduce((sum, d) => sum + (d.summary?.p95Latency || 0), 0) / domains.length
       : 0;
     if (summary) {
       return {
-        totalServices: summary.total_services || 0,
-        totalDomains: summary.total_domains,
-        healthyCount: summary.healthy_count,
-        warningCount: summary.warning_count,
-        criticalCount: summary.critical_count,
-        totalRPS: summary.total_rps,
-        avgAvailability: summary.avg_availability,
+        totalServices: summary.totalServices || 0,
+        totalDomains: summary.totalDomains,
+        healthyCount: summary.healthyCount,
+        warningCount: summary.warningCount,
+        criticalCount: summary.criticalCount,
+        totalRPS: summary.totalRps,
+        avgAvailability: summary.avgAvailability,
         avgP95,
       };
     }
@@ -101,7 +101,7 @@ export default function SLOPage() {
     const healthyCount = domains.filter(d => d.status === "healthy").length;
     const warningCount = domains.filter(d => d.status === "warning").length;
     const criticalCount = domains.filter(d => d.status === "critical").length;
-    const totalRPS = domains.reduce((sum, d) => sum + (d.summary?.requests_per_sec || 0), 0);
+    const totalRPS = domains.reduce((sum, d) => sum + (d.summary?.requestsPerSec || 0), 0);
     const avgAvailability = totalDomains > 0 ? domains.reduce((sum, d) => sum + (d.summary?.availability || 0), 0) / totalDomains : 0;
     const totalServices = domains.reduce((sum, d) => sum + d.services.length, 0);
     return { totalServices, totalDomains, healthyCount, warningCount, criticalCount, totalRPS, avgAvailability, avgP95 };
