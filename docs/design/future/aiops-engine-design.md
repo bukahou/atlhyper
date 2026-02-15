@@ -1,7 +1,7 @@
 # AtlHyper AIOps 引擎 — 中心设计文档
 
 > **状态**: 规划中（中心文档，后续需拆分为多个子设计文档）
-> **前置依赖**: SLO OTel 改造（已设计完成，实现中）
+> **前置依赖**: SLO OTel 改造（✅ 已完成）
 > **目标定位**: 开源轻量 AIOps 平台 —— 算法驱动根因分析 + AI 辅助建议
 
 ---
@@ -190,8 +190,8 @@ Agent 上报 Snapshot
 | K8s Pod spec | Pod → Node（nodeName） | ✅ 已有 |
 | K8s Service spec | Service → Pod（selector） | ✅ 已有 |
 | K8s Ingress spec | Ingress → Service（rules） | ✅ 已有 |
-| Linkerd outbound (SLO Edge) | Service A → Service B（调用关系） | 🔄 SLO OTel 改造中 |
-| Ingress SLO 指标 | 外部域名 → 内部 Service | 🔄 SLO OTel 改造中 |
+| Linkerd outbound (SLO Edge) | Service A → Service B（调用关系） | ✅ 已有 |
+| Ingress SLO 指标 | 外部域名 → 内部 Service | ✅ 已有 |
 
 #### 数据模型
 
@@ -635,15 +635,15 @@ GET /api/v2/aiops/incidents/patterns?entity={key}&period=30d
 | K8s Event | Agent 快照 | 时间线事件补充 | ✅ 已有 |
 | Node CPU/Memory/Disk | OTel → Agent | Node 基线指标 | ✅ 已有 |
 | Node Network/PSI/TCP | OTel → Agent | Node 基线指标 | ✅ 已有 |
-| Service 错误率/延迟 | OTel Linkerd inbound | Service 基线 + SLO 烧尽率 | 🔄 SLO OTel 改造中 |
-| Edge 调用关系 | OTel Linkerd outbound | 依赖图 Service 间边 | 🔄 SLO OTel 改造中 |
-| Ingress 指标 | OTel Traefik/Nginx | Ingress 基线 + 入口映射 | 🔄 SLO OTel 改造中 |
+| Service 错误率/延迟 | OTel Linkerd inbound | Service 基线 + SLO 烧尽率 | ✅ 已有 |
+| Edge 调用关系 | OTel Linkerd outbound | 依赖图 Service 间边 | ✅ 已有 |
+| Ingress 指标 | OTel Traefik/Nginx | Ingress 基线 + 入口映射 | ✅ 已有 |
 
 ### 5.2 数据缺口
 
 | 缺口 | 影响 | 解决方案 |
 |------|------|---------|
-| SLO 指标未就绪 | 风险评分中 Service/Ingress 层无数据 | 等 SLO OTel 改造完成 |
+| ~~SLO 指标未就绪~~ | ~~风险评分中 Service/Ingress 层无数据~~ | ✅ SLO OTel 改造已完成 |
 | 无 APM/Trace 数据 | 无法做请求级别的溯源 | 当前不做请求级溯源，用指标级关联替代 |
 | 无日志结构化索引 | 前端钻取到 Pod 后无法直接看日志 | Phase 3 可考虑关联 Pod 日志 API |
 
@@ -733,11 +733,10 @@ Ingress (app.example.com)
 ### 前置依赖
 
 ```
-Phase 0: SLO OTel 改造 ← 当前进行中
-  ├── Agent: 数据模型 → SDK → Repository → 集成 → E2E
-  └── Master: 数据库 → Processor → Aggregator → API → E2E
-  状态: 已设计完成，58 个任务待实现
-  重要性: 这是所有 AIOps 功能的数据基础
+Phase 0: SLO OTel 改造 ← ✅ 已完成
+  ├── Agent: 数据模型 → SDK → Repository → 集成 → E2E  ✅
+  └── Master: 数据库 → Processor → Aggregator → API → E2E  ✅
+  设计文档: docs/design/archive/slo-otel-*.md
 ```
 
 ### AIOps 分阶段实施
@@ -813,14 +812,14 @@ Phase 4: AI 增强层
 ### 依赖关系
 
 ```
-Phase 0 (SLO OTel)
-  └─→ Phase 1 (依赖图 + 基线)  ← 需要 SLO 指标数据
+Phase 0 (SLO OTel) ✅ 已完成
+  └─→ Phase 1 (依赖图 + 基线)  ← 可立即开始，SLO 数据已就绪
        └─→ Phase 2 (风险评分 + 状态机 + 事件存储)  ← 需要基线输出
             ├─→ Phase 3 (前端)  ← 需要所有后端 API
             └─→ Phase 4 (AI)   ← 需要事件数据积累
 ```
 
-注意：Phase 1 可以在 SLO OTel 改造完成后立即开始。在 SLO 数据未就绪期间，可以先用 K8s 资源状态和 Node 指标进行基线学习和依赖图构建（覆盖 Pod/Node 层），SLO 就绪后再补充 Service/Ingress 层。
+SLO OTel 改造已完成，Phase 1 可以立即开始。K8s 快照、Node 指标、SLO 三层指标（Service/Edge/Ingress）全部就绪。
 
 ---
 
@@ -931,8 +930,8 @@ atlhyper_master_v2/aiops/
 
 | Phase | 子设计文档 | 状态 |
 |-------|-----------|------|
-| Phase 0 | SLO OTel Agent 设计 (`archive/slo-otel-agent-design.md`) | ✅ 已完成 |
-| Phase 0 | SLO OTel Master 设计 (`archive/slo-otel-master-design.md`) | ✅ 已完成 |
+| Phase 0 | SLO OTel Agent 设计 (`archive/slo-otel-agent-design.md`) | ✅ 设计+实现均完成 |
+| Phase 0 | SLO OTel Master 设计 (`archive/slo-otel-master-design.md`) | ✅ 设计+实现均完成 |
 | Phase 1 | 依赖图引擎设计 (待创建) | 📋 待规划 |
 | Phase 1 | 基线引擎设计 (待创建) | 📋 待规划 |
 | Phase 2 | 风险评分引擎设计 (待创建) | 📋 待规划 |
