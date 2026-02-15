@@ -42,10 +42,11 @@ func (h *StatefulSetHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	items := convert.StatefulSetItems(statefulsets)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    statefulsets,
-		"total":   len(statefulsets),
+		"data":    items,
+		"total":   len(items),
 	})
 }
 

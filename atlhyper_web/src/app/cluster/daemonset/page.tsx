@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getDaemonSetList, parseDaemonSetList, type DaemonSetListItem } from "@/api/workload";
+import { getDaemonSetList, type DaemonSetListItem } from "@/api/workload";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
@@ -168,7 +168,7 @@ export default function DaemonSetPage() {
     setError("");
     try {
       const res = await getDaemonSetList({ cluster_id: getCurrentClusterId() });
-      setItems(parseDaemonSetList(res.data.data || []));
+      setItems(res.data.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);
     } finally {

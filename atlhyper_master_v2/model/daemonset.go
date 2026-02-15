@@ -2,6 +2,19 @@
 // DaemonSet Web API 响应类型（camelCase JSON tag，扁平结构）
 package model
 
+// DaemonSetItem DaemonSet 列表项（扁平）
+type DaemonSetItem struct {
+	Name         string `json:"name"`
+	Namespace    string `json:"namespace"`
+	Desired      int32  `json:"desired"`
+	Current      int32  `json:"current"`
+	Ready        int32  `json:"ready"`
+	Available    int32  `json:"available"`
+	Misscheduled int32  `json:"misscheduled"`
+	CreatedAt    string `json:"createdAt"`
+	Age          string `json:"age"`
+}
+
 // DaemonSetDetail DaemonSet 详情（扁平顶层 + 嵌套子结构）
 type DaemonSetDetail struct {
 	// 基本信息（扁平）

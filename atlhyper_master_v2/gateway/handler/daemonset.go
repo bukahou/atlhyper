@@ -42,10 +42,11 @@ func (h *DaemonSetHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	items := convert.DaemonSetItems(daemonsets)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    daemonsets,
-		"total":   len(daemonsets),
+		"data":    items,
+		"total":   len(items),
 	})
 }
 
