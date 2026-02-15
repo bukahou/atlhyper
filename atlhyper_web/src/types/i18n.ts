@@ -51,6 +51,11 @@ export interface NavTranslations {
   resourceQuota: string;
   limitRange: string;
   serviceAccount: string;
+  // AIOps
+  aiops: string;
+  riskDashboard: string;
+  incidentsNav: string;
+  topologyNav: string;
 }
 
 // 通用翻译
@@ -1665,6 +1670,119 @@ interface NodeMetricsTranslations {
   };
 }
 
+// AIOps 翻译
+export interface AIOpsTranslations {
+  // 页面标题
+  riskDashboard: string;
+  incidents: string;
+  topology: string;
+  pageDescription: string;
+
+  // 风险等级
+  riskLevel: {
+    healthy: string;
+    low: string;
+    medium: string;
+    high: string;
+    critical: string;
+  };
+
+  // 风险仪表盘
+  clusterRisk: string;
+  riskScore: string;
+  riskTrend: string;
+  topRiskEntities: string;
+  anomalyCount: string;
+  totalEntities: string;
+
+  // 实体风险
+  entityKey: string;
+  entityType: string;
+  rLocal: string;
+  rFinal: string;
+  riskLevelLabel: string;
+  firstAnomaly: string;
+  noAnomaly: string;
+  metricName: string;
+  currentValue: string;
+  baseline: string;
+  deviation: string;
+  isAnomaly: string;
+
+  // 事件
+  incidentId: string;
+  incidentState: string;
+  severity: string;
+  rootCause: string;
+  peakRisk: string;
+  startedAt: string;
+  resolvedAt: string;
+  duration: string;
+  recurrence: string;
+  affectedEntities: string;
+  timeline: string;
+  role: string;
+
+  // 事件状态
+  state: {
+    warning: string;
+    incident: string;
+    recovery: string;
+    stable: string;
+  };
+
+  // 严重度
+  severityLevel: {
+    low: string;
+    medium: string;
+    high: string;
+    critical: string;
+  };
+
+  // 统计
+  stats: {
+    total: string;
+    active: string;
+    mttr: string;
+    recurrenceRate: string;
+    bySeverity: string;
+    topRootCauses: string;
+  };
+
+  // 时间线事件类型
+  timelineEvent: {
+    anomaly_detected: string;
+    state_change: string;
+    metric_spike: string;
+    root_cause_identified: string;
+    recovery_started: string;
+    recurrence: string;
+  };
+
+  // 拓扑图
+  dependencyGraph: string;
+  nodeDetail: string;
+  upstream: string;
+  downstream: string;
+  causalChain: string;
+  propagation: string;
+  selectNode: string;
+
+  // 通用
+  noData: string;
+  loading: string;
+  autoRefresh: string;
+  lastUpdate: string;
+  noCluster: string;
+  noClusterDesc: string;
+  loadFailed: string;
+  retry: string;
+  minutesAgo: string;
+  hoursAgo: string;
+  justNow: string;
+  minutes: string;
+}
+
 // 完整翻译结构
 export interface Translations {
   locale: "zh" | "ja";  // 语言标识符，用于日期格式化等
@@ -1702,6 +1820,7 @@ export interface Translations {
   storagePage: StorageTranslations;
   policyPage: PolicyTranslations;
   nodeMetrics: NodeMetricsTranslations;
+  aiops: AIOpsTranslations;
 }
 
 // 国际化上下文

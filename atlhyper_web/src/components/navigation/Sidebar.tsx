@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Activity,
   Gauge,
+  GitGraph,
   Palette,
   FileText,
   Users,
@@ -143,6 +144,10 @@ const navGroups: NavGroup[] = [
     children: [
       { key: "metrics", href: "/monitoring/metrics", icon: Activity },
       { key: "logs", href: "/monitoring/logs", icon: FileText },
+      // AIOps
+      { key: "riskDashboard", href: "/monitoring/risk", icon: Gauge, section: "aiops" },
+      { key: "incidentsNav", href: "/monitoring/incidents", icon: AlertTriangle },
+      { key: "topologyNav", href: "/monitoring/topology", icon: GitGraph },
     ],
   },
   {
