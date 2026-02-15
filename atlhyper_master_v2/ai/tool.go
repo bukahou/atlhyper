@@ -17,11 +17,15 @@ import (
 
 var toolLog = logger.Module("AI-Tool")
 
+// ToolHandler 自定义 Tool 处理函数
+type ToolHandler func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error)
+
 // toolExecutor 工具执行器
 type toolExecutor struct {
-	ops     *operations.CommandService
-	bus     mq.Producer
-	timeout time.Duration // 指令执行超时（默认 30s）
+	ops         *operations.CommandService
+	bus         mq.Producer
+	timeout     time.Duration              // 指令执行超时（默认 30s）
+	customTools map[string]ToolHandler      // 自定义 Tool 注册表
 }
 
 // newToolExecutor 创建工具执行器
@@ -29,9 +33,29 @@ func newToolExecutor(ops *operations.CommandService, bus mq.Producer, timeout ti
 	return &toolExecutor{ops: ops, bus: bus, timeout: timeout}
 }
 
+// RegisterTool 注册自定义 Tool（开闭原则，不修改 Execute 主逻辑）
+func (e *toolExecutor) RegisterTool(name string, handler ToolHandler) {
+	if e.customTools == nil {
+		e.customTools = make(map[string]ToolHandler)
+	}
+	e.customTools[name] = handler
+	toolLog.Debug("自定义 Tool 已注册", "name", name)
+}
+
 // Execute 执行 Tool Call
 // 1. 解析参数 → 2. 映射 action → 3. Blacklist 校验 → 4. 创建指令 → 5. 等待结果
 func (e *toolExecutor) Execute(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error) {
+	// 0. 先查自定义 Tool
+	if handler, ok := e.customTools[tc.Name]; ok {
+		var params map[string]interface{}
+		if tc.Params != "" {
+			if err := json.Unmarshal([]byte(tc.Params), &params); err != nil {
+				return "", fmt.Errorf("解析参数 JSON 失败: %w", err)
+			}
+		}
+		return handler(ctx, clusterID, params)
+	}
+
 	// 1. 解析参数
 	var params map[string]interface{}
 	if tc.Params != "" {

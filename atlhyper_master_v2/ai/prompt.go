@@ -51,3 +51,8 @@ func GetToolDefinitions() []llm.ToolDefinition {
 	}
 	return toolsCache
 }
+
+// ResetToolCache 重置 Tool 定义缓存（新增 Tool 后调用）
+func ResetToolCache() {
+	toolsCache = nil
+}

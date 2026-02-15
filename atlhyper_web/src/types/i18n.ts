@@ -1781,6 +1781,25 @@ export interface AIOpsTranslations {
   hoursAgo: string;
   justNow: string;
   minutes: string;
+
+  // AI 增强
+  ai: {
+    analyze: string;
+    analyzing: string;
+    analysisFailed: string;
+    summary: string;
+    rootCauseAnalysis: string;
+    recommendations: string;
+    similarIncidents: string;
+    priority: string;
+    action: string;
+    reason: string;
+    impact: string;
+    similarity: string;
+    noSimilar: string;
+    generatedAt: string;
+    regenerate: string;
+  };
 }
 
 // 完整翻译结构

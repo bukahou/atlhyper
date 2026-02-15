@@ -96,6 +96,7 @@ func (r *Router) registerRoutes() {
 	aiopsBaselineHandler := handler.NewAIOpsBaselineHandler(r.service)
 	aiopsRiskHandler := handler.NewAIOpsRiskHandler(r.service)
 	aiopsIncidentHandler := handler.NewAIOpsIncidentHandler(r.service)
+	aiopsAIHandler := handler.NewAIOpsAIHandler(r.service)
 
 	// ================================================================
 	// 公开路由（无需认证）
@@ -231,6 +232,12 @@ func (r *Router) registerRoutes() {
 	// 敏感信息查看、操作执行
 	// 所有敏感操作都需要审计（包括权限不足的失败尝试）
 	// ================================================================
+
+	// AIOps AI 增强 (Operator 权限，有 LLM API 调用成本)
+	r.operator(func(register func(pattern string, h http.HandlerFunc)) {
+		register("/api/v2/aiops/ai/summarize", aiopsAIHandler.Summarize)
+		register("/api/v2/aiops/ai/recommend", aiopsAIHandler.Recommend)
+	})
 
 	// ConfigMap 详情、通知渠道、审计日志、AI 配置查询（不审计，只是查看）
 	r.operator(func(register func(pattern string, h http.HandlerFunc)) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
+	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v2"
@@ -81,6 +82,10 @@ type Query interface {
 	GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error)
 	GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error)
 	GetAIOpsIncidentPatterns(ctx context.Context, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
+
+	// ==================== AIOps AI 增强 ====================
+
+	SummarizeIncident(ctx context.Context, incidentID string) (*aiopsai.SummarizeResponse, error)
 }
 
 // Ops 写入操作接口

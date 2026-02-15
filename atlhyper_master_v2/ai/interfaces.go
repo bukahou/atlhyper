@@ -24,6 +24,9 @@ type AIService interface {
 
 	// DeleteConversation 删除对话及其所有消息
 	DeleteConversation(ctx context.Context, conversationID int64) error
+
+	// RegisterTool 注册自定义 Tool（AIOps 等扩展模块使用）
+	RegisterTool(name string, handler ToolHandler)
 }
 
 // ChatRequest 发送消息请求

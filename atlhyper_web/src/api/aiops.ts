@@ -5,6 +5,7 @@
  * 当前使用 mock 数据，后端就绪后切换为真实 API 调用
  */
 
+import { post } from "./request";
 import {
   mockClusterRisk,
   mockClusterRiskTrend,
@@ -144,6 +145,31 @@ export interface IncidentStats {
   topRootCauses: { entityKey: string; count: number }[];
 }
 
+// AI 增强
+export interface SummarizeResponse {
+  incidentId: string;
+  summary: string;
+  rootCauseAnalysis: string;
+  recommendations: Recommendation[];
+  similarIncidents: SimilarMatch[];
+  generatedAt: number;
+}
+
+export interface Recommendation {
+  priority: number;
+  action: string;
+  reason: string;
+  impact: string;
+}
+
+export interface SimilarMatch {
+  incidentId: string;
+  similarity: number;
+  rootCause: string;
+  occurredAt: string;
+  durationS: number;
+}
+
 // 查询参数
 export interface IncidentListParams {
   cluster: string;
@@ -207,4 +233,13 @@ export async function getIncidentStats(cluster: string, period = "7d"): Promise<
   // TODO: 后端就绪后切换 → return (await get<IncidentStats>('/api/v2/aiops/incidents/stats', { cluster, period })).data
   void period;
   return mockIncidentStats(cluster);
+}
+
+// AI 增强
+export async function summarizeIncident(incidentId: string): Promise<SummarizeResponse> {
+  return (await post<SummarizeResponse>("/api/v2/aiops/ai/summarize", { incidentId })).data;
+}
+
+export async function recommendActions(incidentId: string): Promise<SummarizeResponse> {
+  return (await post<SummarizeResponse>("/api/v2/aiops/ai/recommend", { incidentId })).data;
 }

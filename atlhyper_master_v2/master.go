@@ -19,6 +19,7 @@ package atlhyper_master_v2
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -26,7 +27,9 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
+	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/aiops"
+	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
 	aiopscore "AtlHyper/atlhyper_master_v2/aiops/core"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
@@ -198,9 +201,32 @@ func New() (*Master, error) {
 	})
 	log.Info("数据处理器初始化完成")
 
+	// 5.1 初始化 AIOps AI 增强服务
+	llmFactory := func(ctx context.Context) (llm.LLMClient, error) {
+		active, err := db.AIActive.Get(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("获取 AI 配置失败: %w", err)
+		}
+		if active == nil || !active.Enabled || active.ProviderID == nil {
+			return nil, fmt.Errorf("AI 未配置或未启用")
+		}
+		provider, err := db.AIProvider.GetByID(ctx, *active.ProviderID)
+		if err != nil || provider == nil {
+			return nil, fmt.Errorf("AI 提供商不存在")
+		}
+		return llm.New(llm.Config{
+			Provider: provider.Provider,
+			APIKey:   provider.APIKey,
+			Model:    provider.Model,
+		})
+	}
+	aiopsEnhancer := aiopsai.NewEnhancer(db.AIOpsIncident, llmFactory)
+	log.Info("AIOps AI 增强服务初始化完成")
+
 	// 6. 初始化 Query（读取路径，注入 SLO 仓库）
 	q := query.NewWithSLORepos(store, bus, db.Event, db.SLO, db.SLOService, db.SLOEdge)
 	q.SetAIOpsEngine(aiopsEngine)
+	q.SetAIOpsAI(aiopsEnhancer)
 	log.Info("查询层初始化完成")
 
 	// 7. 初始化 Operations（写入路径）
@@ -232,6 +258,53 @@ func New() (*Master, error) {
 		db.AIConversation, db.AIMessage,
 	)
 	log.Info("AI 服务初始化完成 (动态配置)")
+
+	// 9.1 注册 AIOps Tool（AI Chat 中使用）
+	aiService.RegisterTool("analyze_incident", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		incidentID := getStringParam(params, "incident_id")
+		if incidentID == "" {
+			return "缺少参数 incident_id", nil
+		}
+		result, err := aiopsEnhancer.Summarize(ctx, incidentID)
+		if err != nil {
+			return fmt.Sprintf("分析事件失败: %v", err), nil
+		}
+		data, _ := json.Marshal(result)
+		return string(data), nil
+	})
+
+	aiService.RegisterTool("get_cluster_risk", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		topN := getIntParam(params, "top_n", 10)
+		risk := aiopsEngine.GetClusterRisk(clusterID)
+		entities := aiopsEngine.GetEntityRisks(clusterID, "r_final", topN)
+		data, _ := json.Marshal(map[string]interface{}{
+			"clusterRisk":   risk,
+			"topEntities":   entities,
+			"entityCount":   len(entities),
+		})
+		return string(data), nil
+	})
+
+	aiService.RegisterTool("get_recent_incidents", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		state := getStringParam(params, "state")
+		limit := getIntParam(params, "limit", 10)
+		opts := aiops.IncidentQueryOpts{
+			ClusterID: clusterID,
+			State:     state,
+			Limit:     limit,
+			Offset:    0,
+		}
+		incidents, total, err := aiopsEngine.GetIncidents(ctx, opts)
+		if err != nil {
+			return fmt.Sprintf("获取事件列表失败: %v", err), nil
+		}
+		data, _ := json.Marshal(map[string]interface{}{
+			"incidents": incidents,
+			"total":     total,
+		})
+		return string(data), nil
+	})
+	log.Info("AIOps Tool 注册完成 (3 个)")
 
 	// 10. 初始化 AlertManager（告警管理器）
 	alertMgr, err := notifier.NewManager(db.Notify)
@@ -457,6 +530,29 @@ func (m *Master) Stop() error {
 
 	log.Info("Master 已停止")
 	return nil
+}
+
+// getStringParam 从 map 中安全获取字符串
+func getStringParam(m map[string]interface{}, key string) string {
+	if v, ok := m[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// getIntParam 从 map 中安全获取整数（带默认值）
+func getIntParam(m map[string]interface{}, key string, defaultVal int) int {
+	if v, ok := m[key]; ok {
+		switch n := v.(type) {
+		case float64:
+			return int(n)
+		case int:
+			return n
+		}
+	}
+	return defaultVal
 }
 
 // Store 获取 Store 实例（供测试使用）

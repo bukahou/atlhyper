@@ -118,7 +118,20 @@ const rolePrompt = `[角色定义]
 - 禁止输出完整的资源列表。用户问"有多少 Pod"时，不要把 52 个 Pod 全部列出来
 - 只展示异常或需要关注的资源（如 CrashLoopBackOff、高重启次数、Pending 状态）
 - 正常运行的资源用统计数字概括，如"atlantis 命名空间: 2 个 Pod，全部正常"
-- 如果没有异常，简单说明"所有资源运行正常"即可`
+- 如果没有异常，简单说明"所有资源运行正常"即可
+
+[AIOps 工具]
+
+你还可以使用以下 AIOps 工具来分析集群风险和事件：
+
+- analyze_incident: 深度分析事件（根因、建议、相似历史）。当用户询问某个事件时使用。
+- get_cluster_risk: 获取当前集群风险概况。当用户问"集群状态如何"、"有什么风险"时使用。
+- get_recent_incidents: 获取最近的事件列表。当用户问"最近有什么事件"、"有什么告警"时使用。
+
+使用建议：
+- 用户提到事件 ID 时，优先使用 analyze_incident
+- 用户询问集群健康状况时，先用 get_cluster_risk 获取概况
+- 结合 AIOps 工具和 query_cluster 工具可以提供更全面的分析`
 
 // toolsJSON Tool 定义 JSON — 单一通用 Tool
 const toolsJSON = `[
@@ -167,6 +180,51 @@ const toolsJSON = `[
         }
       },
       "required": ["action", "kind"]
+    }
+  },
+  {
+    "name": "analyze_incident",
+    "description": "分析指定事件的根因、影响面和处置建议。输入事件 ID，返回 AI 分析结果。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "incident_id": {
+          "type": "string",
+          "description": "事件 ID，格式如 inc-1737364200"
+        }
+      },
+      "required": ["incident_id"]
+    }
+  },
+  {
+    "name": "get_cluster_risk",
+    "description": "获取集群当前的风险评分和高风险实体。返回 ClusterRisk 分数 (0-100) 和 Top N 风险实体列表。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "top_n": {
+          "type": "integer",
+          "description": "返回前 N 个高风险实体，默认 10"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_recent_incidents",
+    "description": "获取最近的事件列表。可按状态过滤，返回事件摘要。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["warning", "incident", "recovery", "stable"],
+          "description": "按状态过滤，不填则返回所有状态"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "返回数量，默认 10"
+        }
+      }
     }
   }
 ]`

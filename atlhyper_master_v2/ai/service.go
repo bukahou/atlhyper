@@ -110,6 +110,11 @@ func (s *aiServiceImpl) DeleteConversation(ctx context.Context, conversationID i
 	return s.convRepo.Delete(ctx, conversationID)
 }
 
+// RegisterTool 注册自定义 Tool
+func (s *aiServiceImpl) RegisterTool(name string, handler ToolHandler) {
+	s.executor.RegisterTool(name, handler)
+}
+
 // toConversation 转换 DB 模型为 API 类型
 func toConversation(c *database.AIConversation) *Conversation {
 	return &Conversation{
