@@ -86,6 +86,7 @@ interface NavChild {
   href: string;
   icon: typeof Box;
   adminOnly?: boolean;
+  section?: string; // 组内分隔线标签（i18n nav key）
 }
 
 interface NavGroup {
@@ -97,7 +98,6 @@ interface NavGroup {
 }
 
 const navGroups: NavGroup[] = [
-  { key: "about", href: "/about", icon: Info },
   { key: "overview", href: "/overview", icon: LayoutDashboard },
   {
     key: "workbench",
@@ -113,41 +113,28 @@ const navGroups: NavGroup[] = [
     key: "cluster",
     icon: Server,
     children: [
-      { key: "pod", href: "/cluster/pod", icon: Box },
+      // 核心
+      { key: "pod", href: "/cluster/pod", icon: Box, section: "core" },
       { key: "node", href: "/cluster/node", icon: Server },
       { key: "deployment", href: "/cluster/deployment", icon: Layers },
       { key: "service", href: "/cluster/service", icon: Network },
       { key: "namespace", href: "/cluster/namespace", icon: FolderTree },
       { key: "ingress", href: "/cluster/ingress", icon: Globe },
-      { key: "daemonset", href: "/cluster/daemonset", icon: Copy },
+      // 工作负载
+      { key: "daemonset", href: "/cluster/daemonset", icon: Copy, section: "workload" },
       { key: "statefulset", href: "/cluster/statefulset", icon: Database },
-      { key: "alert", href: "/cluster/alert", icon: AlertTriangle },
-    ],
-  },
-  {
-    key: "workload",
-    icon: Play,
-    children: [
       { key: "job", href: "/cluster/job", icon: Play },
       { key: "cronjob", href: "/cluster/cronjob", icon: Clock },
-    ],
-  },
-  {
-    key: "storage",
-    icon: HardDrive,
-    children: [
-      { key: "pv", href: "/cluster/pv", icon: HardDrive },
+      // 存储
+      { key: "pv", href: "/cluster/pv", icon: HardDrive, section: "storage" },
       { key: "pvc", href: "/cluster/pvc", icon: HardDriveDownload },
-    ],
-  },
-  {
-    key: "policy",
-    icon: Shield,
-    children: [
-      { key: "networkPolicy", href: "/cluster/network-policy", icon: Shield },
+      // 策略
+      { key: "networkPolicy", href: "/cluster/network-policy", icon: Shield, section: "policy" },
       { key: "resourceQuota", href: "/cluster/resource-quota", icon: Gauge },
       { key: "limitRange", href: "/cluster/limit-range", icon: SlidersHorizontal },
       { key: "serviceAccount", href: "/cluster/service-account", icon: UserCheck },
+      // 告警
+      { key: "alert", href: "/cluster/alert", icon: AlertTriangle, section: "alert" },
     ],
   },
   {
@@ -290,7 +277,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       {/* Logo */}
       <div className={`h-14 flex items-center border-b border-[var(--border-color)]/20 ${collapsed ? "justify-center" : "px-3"}`}>
-        <Link href="/" className="flex-shrink-0">
+        <Link href="/about" className="flex-shrink-0">
           <img src="/icon.png" alt="AtlHyper" className="w-8 h-8" />
         </Link>
         {!collapsed && (
@@ -428,21 +415,31 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       </div>
                       {group.children!
                         .filter((child) => !child.adminOnly || isAdmin)
-                        .map((child) => {
+                        .map((child, idx) => {
                           const ChildIcon = child.icon;
                           return (
-                            <Link
-                              key={child.key}
-                              href={child.href}
-                              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm whitespace-nowrap transition-all duration-150 ${
-                                isActive(child.href)
-                                  ? "bg-primary/15 text-primary font-medium shadow-sm"
-                                  : "text-secondary hover:bg-[var(--hover-bg)] hover:text-default hover:translate-x-0.5"
-                              }`}
-                            >
-                              <ChildIcon className="w-4 h-4" />
-                              {t.nav[child.key as keyof typeof t.nav]}
-                            </Link>
+                            <div key={child.key}>
+                              {child.section && idx > 0 && (
+                                <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+                                  <div className="flex-1 h-px bg-[var(--border-color)]/30" />
+                                  <span className="text-[10px] text-muted uppercase tracking-wider font-medium">
+                                    {t.nav[child.section as keyof typeof t.nav]}
+                                  </span>
+                                  <div className="flex-1 h-px bg-[var(--border-color)]/30" />
+                                </div>
+                              )}
+                              <Link
+                                href={child.href}
+                                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm whitespace-nowrap transition-all duration-150 ${
+                                  isActive(child.href)
+                                    ? "bg-primary/15 text-primary font-medium shadow-sm"
+                                    : "text-secondary hover:bg-[var(--hover-bg)] hover:text-default hover:translate-x-0.5"
+                                }`}
+                              >
+                                <ChildIcon className="w-4 h-4" />
+                                {t.nav[child.key as keyof typeof t.nav]}
+                              </Link>
+                            </div>
                           );
                         })}
                     </div>
@@ -467,24 +464,34 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-muted transition-transform" /> : <ChevronRight className="w-3.5 h-3.5 text-muted transition-transform" />}
                 </button>
                 {isExpanded && (
-                  <div className="mt-1 ml-2 space-y-0.5 pl-4 border-l-2 border-primary/20">
+                  <div className="mt-1 ml-2 pl-4 border-l-2 border-primary/20">
                     {group.children!
                       .filter((child) => !child.adminOnly || isAdmin)
-                      .map((child) => {
+                      .map((child, idx) => {
                         const ChildIcon = child.icon;
                         return (
-                          <Link
-                            key={child.key}
-                            href={child.href}
-                            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all duration-150 ${
-                              isActive(child.href)
-                                ? "bg-primary/15 text-primary font-medium shadow-sm"
-                                : "text-muted hover:bg-white/5 dark:hover:bg-white/5 hover:text-default hover:translate-x-0.5"
-                            }`}
-                          >
-                            <ChildIcon className="w-4 h-4" />
-                            {t.nav[child.key as keyof typeof t.nav]}
-                          </Link>
+                          <div key={child.key}>
+                            {child.section && idx > 0 && (
+                              <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
+                                <div className="flex-1 h-px bg-[var(--border-color)]/30" />
+                                <span className="text-[10px] text-muted uppercase tracking-wider font-medium">
+                                  {t.nav[child.section as keyof typeof t.nav]}
+                                </span>
+                                <div className="flex-1 h-px bg-[var(--border-color)]/30" />
+                              </div>
+                            )}
+                            <Link
+                              href={child.href}
+                              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all duration-150 ${
+                                isActive(child.href)
+                                  ? "bg-primary/15 text-primary font-medium shadow-sm"
+                                  : "text-muted hover:bg-white/5 dark:hover:bg-white/5 hover:text-default hover:translate-x-0.5"
+                              }`}
+                            >
+                              <ChildIcon className="w-4 h-4" />
+                              {t.nav[child.key as keyof typeof t.nav]}
+                            </Link>
+                          </div>
                         );
                       })}
                   </div>

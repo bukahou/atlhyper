@@ -36,6 +36,7 @@ export const zh: Translations = {
     aiSettings: "AI 配置",
     daemonset: "DaemonSet",
     statefulset: "StatefulSet",
+    core: "核心",
     workload: "工作负载",
     job: "Job",
     cronjob: "CronJob",

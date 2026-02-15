@@ -36,6 +36,7 @@ export const ja: Translations = {
     aiSettings: "AI 設定",
     daemonset: "DaemonSet",
     statefulset: "StatefulSet",
+    core: "コア",
     workload: "ワークロード",
     job: "Job",
     cronjob: "CronJob",

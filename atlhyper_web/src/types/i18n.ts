@@ -39,7 +39,7 @@ export interface NavTranslations {
   aiSettings: string;
   daemonset: string;
   statefulset: string;
-  // 新增 8 个资源
+  core: string;
   workload: string;
   job: string;
   cronjob: string;
