@@ -2,20 +2,9 @@
  * AIOps API
  *
  * 类型定义对齐设计文档: docs/design/active/aiops-phase3-frontend.md §2
- * 当前使用 mock 数据，后端就绪后切换为真实 API 调用
  */
 
-import { post } from "./request";
-import {
-  mockClusterRisk,
-  mockClusterRiskTrend,
-  mockEntityRisks,
-  mockEntityRiskDetail,
-  mockDependencyGraph,
-  mockIncidents,
-  mockIncidentDetail,
-  mockIncidentStats,
-} from "./aiops-mock";
+import { get, post } from "./request";
 
 // ==================== 类型定义 ====================
 
@@ -191,48 +180,37 @@ export interface RiskTrendPoint {
 
 // 风险
 export async function getClusterRisk(cluster: string): Promise<ClusterRisk> {
-  // TODO: 后端就绪后切换 → return (await get<ClusterRisk>('/api/v2/aiops/risk/cluster', { cluster })).data
-  return mockClusterRisk(cluster);
+  return (await get<ClusterRisk>("/api/v2/aiops/risk/cluster", { params: { cluster } })).data;
 }
 
 export async function getClusterRiskTrend(cluster: string, period = "24h"): Promise<RiskTrendPoint[]> {
-  // TODO: 后端就绪后切换 → return (await get<RiskTrendPoint[]>('/api/v2/aiops/risk/cluster/trend', { cluster, period })).data
-  void period;
-  return mockClusterRiskTrend(cluster);
+  return (await get<RiskTrendPoint[]>("/api/v2/aiops/risk/cluster/trend", { params: { cluster, period } })).data;
 }
 
 export async function getEntityRisks(cluster: string, sort = "r_final", limit = 20): Promise<EntityRisk[]> {
-  // TODO: 后端就绪后切换 → return (await get<EntityRisk[]>('/api/v2/aiops/risk/entities', { cluster, sort, limit })).data
-  void sort;
-  return mockEntityRisks(cluster, limit);
+  return (await get<EntityRisk[]>("/api/v2/aiops/risk/entities", { params: { cluster, sort, limit } })).data;
 }
 
 export async function getEntityRiskDetail(cluster: string, entityKey: string): Promise<EntityRiskDetail> {
-  // TODO: 后端就绪后切换 → return (await get<EntityRiskDetail>(`/api/v2/aiops/risk/entity/${encodeURIComponent(entityKey)}`, { cluster })).data
-  return mockEntityRiskDetail(cluster, entityKey);
+  return (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { params: { cluster, entity: entityKey } })).data;
 }
 
 // 依赖图
 export async function getGraph(cluster: string): Promise<DependencyGraph> {
-  // TODO: 后端就绪后切换 → return (await get<DependencyGraph>('/api/v2/aiops/graph', { cluster })).data
-  return mockDependencyGraph(cluster);
+  return (await get<DependencyGraph>("/api/v2/aiops/graph", { params: { cluster } })).data;
 }
 
 // 事件
 export async function getIncidents(params: IncidentListParams): Promise<Incident[]> {
-  // TODO: 后端就绪后切换 → return (await get<Incident[]>('/api/v2/aiops/incidents', params)).data
-  return mockIncidents(params);
+  return (await get<Incident[]>("/api/v2/aiops/incidents", { params })).data;
 }
 
 export async function getIncidentDetail(id: string): Promise<IncidentDetail> {
-  // TODO: 后端就绪后切换 → return (await get<IncidentDetail>(`/api/v2/aiops/incidents/${encodeURIComponent(id)}`)).data
-  return mockIncidentDetail(id);
+  return (await get<IncidentDetail>(`/api/v2/aiops/incidents/${encodeURIComponent(id)}`)).data;
 }
 
 export async function getIncidentStats(cluster: string, period = "7d"): Promise<IncidentStats> {
-  // TODO: 后端就绪后切换 → return (await get<IncidentStats>('/api/v2/aiops/incidents/stats', { cluster, period })).data
-  void period;
-  return mockIncidentStats(cluster);
+  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { params: { cluster, period } })).data;
 }
 
 // AI 增强
