@@ -7,11 +7,10 @@ import { useClusterStore } from "@/store/clusterStore";
 import { RefreshCw, Loader2, WifiOff, AlertTriangle } from "lucide-react";
 
 import { RiskGauge } from "./components/RiskGauge";
-import { RiskTrendChart } from "./components/RiskTrendChart";
 import { TopEntities } from "./components/TopEntities";
 
-import { getClusterRisk, getClusterRiskTrend, getEntityRisks } from "@/api/aiops";
-import type { ClusterRisk, EntityRisk, RiskTrendPoint } from "@/api/aiops";
+import { getClusterRisk, getEntityRisks } from "@/api/aiops";
+import type { ClusterRisk, EntityRisk } from "@/api/aiops";
 
 export default function RiskPage() {
   const { t } = useI18n();
@@ -23,7 +22,6 @@ export default function RiskPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const [clusterRisk, setClusterRisk] = useState<ClusterRisk | null>(null);
-  const [trendData, setTrendData] = useState<RiskTrendPoint[]>([]);
   const [entities, setEntities] = useState<EntityRisk[]>([]);
 
   const loadData = useCallback(
@@ -32,13 +30,11 @@ export default function RiskPage() {
       if (showLoading) setIsRefreshing(true);
 
       try {
-        const [risk, trend, entityList] = await Promise.all([
+        const [risk, entityList] = await Promise.all([
           getClusterRisk(currentClusterId),
-          getClusterRiskTrend(currentClusterId),
           getEntityRisks(currentClusterId, "r_final", 20),
         ]);
         setClusterRisk(risk);
-        setTrendData(trend);
         setEntities(entityList);
         setError(null);
         setLastUpdate(new Date());
@@ -126,17 +122,14 @@ export default function RiskPage() {
           </div>
         </div>
 
-        {/* 上方: RiskGauge + RiskTrendChart */}
+        {/* 上方: RiskGauge */}
         {clusterRisk && (
-          <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
-            <RiskGauge
-              risk={clusterRisk.risk}
-              level={clusterRisk.level}
-              anomalyCount={clusterRisk.anomalyCount}
-              totalEntities={clusterRisk.totalEntities}
-            />
-            <RiskTrendChart data={trendData} />
-          </div>
+          <RiskGauge
+            risk={clusterRisk.risk}
+            level={clusterRisk.level}
+            anomalyCount={clusterRisk.anomalyCount}
+            totalEntities={clusterRisk.totalEntities}
+          />
         )}
 
         {/* 下方: TopEntities */}

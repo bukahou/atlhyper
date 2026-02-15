@@ -169,40 +169,34 @@ export interface IncidentListParams {
   offset?: number;
 }
 
-// 风险趋势数据点
-export interface RiskTrendPoint {
-  timestamp: number;
-  risk: number;
-  level: string;
-}
-
 // ==================== API 方法 ====================
 
 // 风险
 export async function getClusterRisk(cluster: string): Promise<ClusterRisk> {
-  return (await get<ClusterRisk>("/api/v2/aiops/risk/cluster", { params: { cluster } })).data;
-}
-
-export async function getClusterRiskTrend(cluster: string, period = "24h"): Promise<RiskTrendPoint[]> {
-  return (await get<RiskTrendPoint[]>("/api/v2/aiops/risk/cluster/trend", { params: { cluster, period } })).data;
+  const data = (await get<ClusterRisk | null>("/api/v2/aiops/risk/cluster", { cluster })).data;
+  return data ?? {
+    clusterId: cluster, risk: 0, level: "healthy",
+    topEntities: [], totalEntities: 0, anomalyCount: 0, updatedAt: Date.now(),
+  };
 }
 
 export async function getEntityRisks(cluster: string, sort = "r_final", limit = 20): Promise<EntityRisk[]> {
-  return (await get<EntityRisk[]>("/api/v2/aiops/risk/entities", { params: { cluster, sort, limit } })).data;
+  return (await get<EntityRisk[] | null>("/api/v2/aiops/risk/entities", { cluster, sort, limit })).data ?? [];
 }
 
 export async function getEntityRiskDetail(cluster: string, entityKey: string): Promise<EntityRiskDetail> {
-  return (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { params: { cluster, entity: entityKey } })).data;
+  return (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster, entity: entityKey })).data;
 }
 
 // 依赖图
 export async function getGraph(cluster: string): Promise<DependencyGraph> {
-  return (await get<DependencyGraph>("/api/v2/aiops/graph", { params: { cluster } })).data;
+  return (await get<DependencyGraph>("/api/v2/aiops/graph", { cluster })).data;
 }
 
 // 事件
 export async function getIncidents(params: IncidentListParams): Promise<Incident[]> {
-  return (await get<Incident[]>("/api/v2/aiops/incidents", { params })).data;
+  const resp = (await get<{ data: Incident[]; total: number }>("/api/v2/aiops/incidents", params)).data;
+  return resp?.data ?? [];
 }
 
 export async function getIncidentDetail(id: string): Promise<IncidentDetail> {
@@ -210,7 +204,7 @@ export async function getIncidentDetail(id: string): Promise<IncidentDetail> {
 }
 
 export async function getIncidentStats(cluster: string, period = "7d"): Promise<IncidentStats> {
-  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { params: { cluster, period } })).data;
+  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { cluster, period })).data;
 }
 
 // AI 增强

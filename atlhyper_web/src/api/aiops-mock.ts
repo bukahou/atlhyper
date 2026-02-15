@@ -21,7 +21,6 @@ import type {
   IncidentTimeline,
   IncidentStats,
   IncidentListParams,
-  RiskTrendPoint,
 } from "./aiops";
 
 // ==================== 常量 ====================
@@ -109,26 +108,6 @@ export function mockClusterRisk(cluster: string): ClusterRisk {
     anomalyCount: entities.filter((e) => e.riskLevel !== "healthy").length,
     updatedAt: Date.now(),
   };
-}
-
-export function mockClusterRiskTrend(cluster: string): RiskTrendPoint[] {
-  const rand = seededRandom(cluster + "trend");
-  const now = Date.now();
-  const points: RiskTrendPoint[] = [];
-  let baseRisk = 30 + rand() * 20;
-
-  for (let i = 48; i >= 0; i--) {
-    baseRisk += (rand() - 0.5) * 8;
-    baseRisk = Math.max(5, Math.min(95, baseRisk));
-    const risk = Math.round(baseRisk * 10) / 10;
-    points.push({
-      timestamp: now - i * 30 * 60000, // 每30分钟一个点
-      risk,
-      level: riskLevelFromScore(risk),
-    });
-  }
-
-  return points;
 }
 
 function buildEntityRisks(cluster: string, limit: number): EntityRisk[] {
