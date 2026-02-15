@@ -739,13 +739,25 @@ atlhyper_web/src/
 
 ### 5.2 任务管理
 
+#### 单一权威源原则
+
+| 信息类型 | 唯一权威源 | 说明 |
+|---------|-----------|------|
+| **任务状态** | `docs/tasks/active/tracker.md` | 只保留待办和进行中，完成后归档 |
+| **设计文档状态** | `docs/design/` 目录位置 | active=执行中 / future=规划中 / archive=已完成 |
+| **开发规范** | `CLAUDE.md` | 自动加载 |
+
+> **禁止在 MEMORY.md 中复制任务状态或设计文档状态。** MEMORY.md 只存路径指针和开发经验。
+> 违反此规则会导致多源信息不一致（已踩坑）。
+
 #### 核心文件
 
 | 文件 | 用途 |
 |------|------|
-| `docs/tasks/active/tracker.md` | 当前所有待办和进行中的任务 |
+| `docs/tasks/active/tracker.md` | 当前所有待办和进行中的任务（唯一权威源） |
 | `docs/tasks/archive/{name}-tasks.md` | 已完成任务的归档记录 |
 | `docs/design/active/*.md` | 当前需要执行的设计文档 |
+| `docs/design/future/*.md` | 未来规划的设计文档 |
 | `docs/design/archive/*.md` | 已完成的设计文档归档 |
 
 #### 完整生命周期
@@ -761,7 +773,23 @@ atlhyper_web/src/
 | **任务拆分** | 从设计文档拆分可执行任务 | tracker.md 中新增任务组 |
 | **执行** | 逐个完成任务，每完成一个更新 tracker | 代码 + git commit |
 | **验证** | 构建通过 + 测试通过 | `go build` / `next build` |
-| **归档** | 设计文档 active → archive，任务标记 ✅ | 清理 tracker.md |
+| **归档** | 设计文档 active → archive，任务从 tracker 移除 | 清洁的 tracker.md |
+
+#### tracker.md 管理规则
+
+**tracker.md 只保留「待办」和「进行中」的任务，完成后必须移除。**
+
+```
+tracker.md 生命周期:
+
+新任务 → 写入 tracker.md（待办）
+开始执行 → 更新为进行中
+任务完成 → 从 tracker.md 移除 → 写入 docs/tasks/archive/{name}-tasks.md
+```
+
+- tracker.md 应始终保持精简，不允许已完成任务长期停留
+- 所有已完成任务的详细记录保存在 `docs/tasks/archive/` 中
+- 如果 tracker.md 为空，说明当前没有活跃任务——这是正常状态
 
 #### tracker.md 格式约定
 
@@ -797,7 +825,7 @@ Claude Code 对话有上下文限制，切换对话时所有内存丢失。**必
 
 - **设计文档自包含**：包含完整的接口定义、数据流、文件清单，不依赖对话记忆
 - **tracker 实时更新**：每完成一个子任务立即更新状态，新对话可以从 tracker 恢复进度
-- **MEMORY.md 记录关键决策**：跨对话共享的设计决策写入 `~/.claude/projects/*/memory/MEMORY.md`
+- **MEMORY.md 只存经验**：路径指针和开发经验写入 MEMORY.md，**禁止复制任务状态**（避免多源不一致）
 - **commit message 可溯源**：描述清楚做了什么，方便新对话通过 `git log` 理解历史
 
 ### 5.3 设计文档工作流
