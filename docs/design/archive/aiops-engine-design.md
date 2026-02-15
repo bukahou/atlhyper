@@ -1,6 +1,6 @@
 # AtlHyper AIOps 引擎 — 中心设计文档
 
-> **状态**: 规划中（中心文档，后续需拆分为多个子设计文档）
+> **状态**: ✅ 全部实现完成
 > **前置依赖**: SLO OTel 改造（✅ 已完成）
 > **目标定位**: 开源轻量 AIOps 平台 —— 算法驱动根因分析 + AI 辅助建议
 
@@ -932,8 +932,8 @@ atlhyper_master_v2/aiops/
 |-------|-----------|------|
 | Phase 0 | SLO OTel Agent 设计 (`archive/slo-otel-agent-design.md`) | ✅ 设计+实现均完成 |
 | Phase 0 | SLO OTel Master 设计 (`archive/slo-otel-master-design.md`) | ✅ 设计+实现均完成 |
-| Phase 1 | 依赖图 + 基线引擎设计 (`active/aiops-phase1-graph-baseline.md`) | 🔄 实施中 |
-| Phase 2a | 风险评分引擎设计 (`active/aiops-phase2-risk-scorer.md`) | 📝 设计完成 |
-| Phase 2b | 状态机 + 事件存储设计 (`active/aiops-phase2-statemachine-incident.md`) | 📝 设计完成 |
-| Phase 3 | 前端可视化设计 (`active/aiops-phase3-frontend.md`) | 📝 设计完成 |
-| Phase 4 | AI 增强层设计 (`active/aiops-phase4-ai-enhancement.md`) | 📝 设计完成 |
+| Phase 1 | 依赖图 + 基线引擎设计 (`archive/aiops-phase1-graph-baseline.md`) | ✅ 设计+实现均完成 |
+| Phase 2a | 风险评分引擎设计 (`archive/aiops-phase2-risk-scorer.md`) | ✅ 设计+实现均完成 |
+| Phase 2b | 状态机 + 事件存储设计 (`archive/aiops-phase2-statemachine-incident.md`) | ✅ 设计+实现均完成 |
+| Phase 3 | 前端可视化设计 (`archive/aiops-phase3-frontend.md`) | ✅ 设计+实现均完成 |
+| Phase 4 | AI 增强层设计 (`archive/aiops-phase4-ai-enhancement.md`) | ✅ 设计+实现均完成 |
