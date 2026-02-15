@@ -10,6 +10,13 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
+// 条目上限常量 — 防止超长 Prompt
+const (
+	MaxTimelineEntries   = 30 // 时间线最多 30 条
+	MaxHistoricalEntries = 10 // 历史事件最多 10 条
+	MaxEntityEntries     = 50 // 受影响实体最多 50 个
+)
+
 // IncidentContext LLM 输入上下文
 type IncidentContext struct {
 	IncidentSummary  string // 事件基本信息
@@ -76,30 +83,49 @@ func buildRootCause(entities []*database.AIOpsIncidentEntity) string {
 	return "根因实体: 未识别"
 }
 
-// buildEntities 构建受影响实体列表
+// buildEntities 构建受影响实体列表（上限 MaxEntityEntries）
 func buildEntities(entities []*database.AIOpsIncidentEntity) string {
 	if len(entities) == 0 {
 		return "受影响实体: 无"
 	}
 
+	total := len(entities)
+	truncated := entities
+	if len(truncated) > MaxEntityEntries {
+		truncated = truncated[:MaxEntityEntries]
+	}
+
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("受影响实体 (%d 个):\n", len(entities)))
-	for i, e := range entities {
+	b.WriteString(fmt.Sprintf("受影响实体 (%d 个):\n", total))
+	for i, e := range truncated {
 		b.WriteString(fmt.Sprintf("  %d. %-30s %-12s R=%.2f\n",
 			i+1, e.EntityKey, e.Role, e.RFinal))
+	}
+	if total > MaxEntityEntries {
+		b.WriteString(fmt.Sprintf("  ... 省略 %d 个实体\n", total-MaxEntityEntries))
 	}
 	return b.String()
 }
 
-// buildTimeline 构建时间线描述
+// buildTimeline 构建时间线描述（上限 MaxTimelineEntries，保留最新的）
 func buildTimeline(timeline []*database.AIOpsIncidentTimeline) string {
 	if len(timeline) == 0 {
 		return "时间线: 无记录"
 	}
 
+	total := len(timeline)
+	entries := timeline
+	if len(entries) > MaxTimelineEntries {
+		// 保留最新的条目（时间线按时间排序，尾部更新）
+		entries = entries[total-MaxTimelineEntries:]
+	}
+
 	var b strings.Builder
 	b.WriteString("时间线:\n")
-	for _, t := range timeline {
+	if total > MaxTimelineEntries {
+		b.WriteString(fmt.Sprintf("  ... 省略前 %d 条记录\n", total-MaxTimelineEntries))
+	}
+	for _, t := range entries {
 		ts := t.Timestamp.Format("15:04:05")
 		detail := t.Detail
 		if len(detail) > 200 {
@@ -111,18 +137,27 @@ func buildTimeline(timeline []*database.AIOpsIncidentTimeline) string {
 	return b.String()
 }
 
-// buildHistorical 构建历史事件描述
+// buildHistorical 构建历史事件描述（上限 MaxHistoricalEntries，保留最近的）
 func buildHistorical(incidents []*database.AIOpsIncident) string {
 	if len(incidents) == 0 {
 		return "历史相似事件: 无"
 	}
 
+	total := len(incidents)
+	entries := incidents
+	if len(entries) > MaxHistoricalEntries {
+		entries = entries[:MaxHistoricalEntries]
+	}
+
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("历史相似事件 (%d 个):\n", len(incidents)))
-	for i, inc := range incidents {
+	b.WriteString(fmt.Sprintf("历史相似事件 (%d 个):\n", total))
+	for i, inc := range entries {
 		duration := formatDuration(inc.DurationS)
 		b.WriteString(fmt.Sprintf("  %d. %s (%s) — %s, 持续 %s\n",
 			i+1, inc.ID, inc.StartedAt.Format("2006-01-02"), inc.RootCause, duration))
+	}
+	if total > MaxHistoricalEntries {
+		b.WriteString(fmt.Sprintf("  ... 省略 %d 个事件\n", total-MaxHistoricalEntries))
 	}
 	return b.String()
 }

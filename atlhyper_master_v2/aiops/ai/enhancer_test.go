@@ -5,6 +5,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -374,5 +375,397 @@ func TestFormatDuration(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("formatDuration(%d) = '%s', expected '%s'", tt.seconds, result, tt.expected)
 		}
+	}
+}
+
+// ==================== Rate Limit 测试 ====================
+
+// mockLLMFactory 创建计数 LLM 工厂
+func mockLLMFactory(callCount *int) LLMClientFactory {
+	return func(ctx context.Context) (llm.LLMClient, error) {
+		*callCount++
+		return &mockLLMClient{
+			response: `{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`,
+		}, nil
+	}
+}
+
+// TestRateLimit_Cooldown 同一事件在冷却期内被拒绝
+func TestRateLimit_Cooldown(t *testing.T) {
+	repo := &mockIncidentRepo{
+		incident: makeTestIncident(),
+		entities: makeTestEntities(),
+		timeline: makeTestTimeline(),
+	}
+
+	callCount := 0
+	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer.cooldown = 2 * time.Second // 测试用短冷却
+
+	// 第一次调用应成功
+	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("first call should succeed: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", callCount)
+	}
+
+	// 立即再次调用同一事件应被 rate limit 拒绝
+	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	if err == nil {
+		t.Fatal("second call should be rate limited")
+	}
+	if !strings.Contains(err.Error(), "请等待") {
+		t.Fatalf("expected rate limit error, got: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("LLM should not be called again, count=%d", callCount)
+	}
+
+	// 不同事件不受影响
+	_, err = enhancer.Summarize(context.Background(), "inc-test-002")
+	if err == nil || !strings.Contains(err.Error(), "事件不存在") {
+		// inc-test-002 不存在于 mock repo，但不应该被 rate limit 拒绝
+		// 应该先通过 rate limit，然后在查数据阶段失败
+		if err != nil && strings.Contains(err.Error(), "请等待") {
+			t.Fatal("different incident should not be rate limited")
+		}
+	}
+}
+
+// TestRateLimit_CooldownExpired 冷却期过后可以再次调用
+func TestRateLimit_CooldownExpired(t *testing.T) {
+	repo := &mockIncidentRepo{
+		incident: makeTestIncident(),
+		entities: makeTestEntities(),
+		timeline: makeTestTimeline(),
+	}
+
+	callCount := 0
+	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer.cooldown = 50 * time.Millisecond // 极短冷却
+
+	// 第一次调用
+	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+
+	// 等待冷却期过
+	time.Sleep(100 * time.Millisecond)
+
+	// 第二次调用应成功
+	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("call after cooldown should succeed: %v", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 LLM calls, got %d", callCount)
+	}
+}
+
+// ==================== 结果缓存测试 ====================
+
+// TestCache_StableIncident 已稳定事件的结果被缓存
+func TestCache_StableIncident(t *testing.T) {
+	inc := makeTestIncident()
+	inc.State = "stable" // 已完结
+
+	repo := &mockIncidentRepo{
+		incident: inc,
+		entities: makeTestEntities(),
+		timeline: makeTestTimeline(),
+	}
+
+	callCount := 0
+	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer.cooldown = 0 // 关闭 rate limit
+
+	// 第一次调用 → LLM
+	result1, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", callCount)
+	}
+
+	// 第二次调用 → 缓存命中，不调 LLM
+	result2, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("second call failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected still 1 LLM call (cached), got %d", callCount)
+	}
+
+	// 缓存返回同一结果
+	if result1.Summary != result2.Summary {
+		t.Fatalf("cached result mismatch: '%s' vs '%s'", result1.Summary, result2.Summary)
+	}
+}
+
+// TestCache_RecoveryIncident recovery 状态也被缓存
+func TestCache_RecoveryIncident(t *testing.T) {
+	inc := makeTestIncident()
+	inc.State = "recovery"
+
+	repo := &mockIncidentRepo{
+		incident: inc,
+		entities: makeTestEntities(),
+		timeline: makeTestTimeline(),
+	}
+
+	callCount := 0
+	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer.cooldown = 0
+
+	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+
+	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("second call failed: %v", err)
+	}
+
+	if callCount != 1 {
+		t.Fatalf("expected 1 LLM call for recovery state, got %d", callCount)
+	}
+}
+
+// TestCache_ActiveIncident_NoCache 进行中的事件不缓存
+func TestCache_ActiveIncident_NoCache(t *testing.T) {
+	inc := makeTestIncident()
+	inc.State = "incident" // 进行中
+
+	repo := &mockIncidentRepo{
+		incident: inc,
+		entities: makeTestEntities(),
+		timeline: makeTestTimeline(),
+	}
+
+	callCount := 0
+	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer.cooldown = 0 // 关闭 rate limit
+
+	// 第一次调用
+	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+
+	// 第二次调用 → 不应命中缓存，应该再次调 LLM
+	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("second call failed: %v", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 LLM calls (no cache for active), got %d", callCount)
+	}
+}
+
+// TestCache_WarningState_NoCache warning 状态不缓存
+func TestCache_WarningState_NoCache(t *testing.T) {
+	inc := makeTestIncident()
+	inc.State = "warning"
+
+	repo := &mockIncidentRepo{
+		incident: inc,
+		entities: makeTestEntities(),
+		timeline: makeTestTimeline(),
+	}
+
+	callCount := 0
+	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer.cooldown = 0
+
+	_, _ = enhancer.Summarize(context.Background(), "inc-test-001")
+	_, _ = enhancer.Summarize(context.Background(), "inc-test-001")
+
+	if callCount != 2 {
+		t.Fatalf("expected 2 LLM calls (no cache for warning), got %d", callCount)
+	}
+}
+
+// TestCache_SkipsRateLimit 缓存命中时不受 rate limit 限制
+func TestCache_SkipsRateLimit(t *testing.T) {
+	inc := makeTestIncident()
+	inc.State = "stable"
+
+	repo := &mockIncidentRepo{
+		incident: inc,
+		entities: makeTestEntities(),
+		timeline: makeTestTimeline(),
+	}
+
+	callCount := 0
+	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer.cooldown = 1 * time.Hour // 极长冷却期
+
+	// 第一次调用
+	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+
+	// 立即第二次 → 缓存命中，不受 rate limit 限制
+	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	if err != nil {
+		t.Fatalf("cached call should not be rate limited: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", callCount)
+	}
+}
+
+// ==================== Token 预估 / Prompt 截断测试 ====================
+
+// TestPromptTruncation_NormalPrompt 正常长度不截断
+func TestPromptTruncation_NormalPrompt(t *testing.T) {
+	inc := makeTestIncident()
+	entities := makeTestEntities()
+	timeline := makeTestTimeline()
+
+	enhancer := NewEnhancer(nil, nil)
+	prompt := enhancer.buildPromptWithTruncation(inc, entities, timeline, nil)
+
+	totalChars := len(prompt.System) + len(prompt.User)
+	if totalChars > MaxPromptChars {
+		t.Fatalf("normal prompt should be under limit, got %d", totalChars)
+	}
+	// 确认包含关键内容
+	if !strings.Contains(prompt.User, "node/worker-3") {
+		t.Fatal("prompt should contain root cause entity")
+	}
+}
+
+// TestPromptTruncation_LargePrompt 超长 Prompt 被截断
+func TestPromptTruncation_LargePrompt(t *testing.T) {
+	inc := makeTestIncident()
+
+	// 构造大量实体
+	entities := make([]*database.AIOpsIncidentEntity, 200)
+	for i := range entities {
+		entities[i] = &database.AIOpsIncidentEntity{
+			IncidentID: "inc-test-001",
+			EntityKey:  fmt.Sprintf("default/pod/very-long-name-pod-%d-with-extra-padding-text", i),
+			EntityType: "pod",
+			RLocal:     0.5,
+			RFinal:     0.6,
+			Role:       "affected",
+		}
+	}
+
+	// 构造大量时间线
+	now := time.Now()
+	timeline := make([]*database.AIOpsIncidentTimeline, 100)
+	for i := range timeline {
+		timeline[i] = &database.AIOpsIncidentTimeline{
+			ID:         int64(i + 1),
+			IncidentID: "inc-test-001",
+			Timestamp:  now.Add(-time.Duration(100-i) * time.Minute),
+			EventType:  "metric_anomaly",
+			EntityKey:  fmt.Sprintf("default/pod/pod-%d", i),
+			Detail:     strings.Repeat("这是一段很长的详情描述文本用于填充", 5),
+		}
+	}
+
+	// 构造大量历史事件
+	historical := make([]*database.AIOpsIncident, 50)
+	for i := range historical {
+		historical[i] = &database.AIOpsIncident{
+			ID:        fmt.Sprintf("inc-hist-%03d", i),
+			RootCause: fmt.Sprintf("node/worker-%d", i),
+			StartedAt: now.Add(-time.Duration(i+1) * 24 * time.Hour),
+			DurationS: int64(3600 + i*100),
+		}
+	}
+
+	enhancer := NewEnhancer(nil, nil)
+	prompt := enhancer.buildPromptWithTruncation(inc, entities, timeline, historical)
+
+	totalChars := len(prompt.System) + len(prompt.User)
+	if totalChars > MaxPromptChars {
+		t.Fatalf("truncated prompt should be under limit, got %d (max %d)", totalChars, MaxPromptChars)
+	}
+}
+
+// ==================== Context Builder 截断测试 ====================
+
+// TestBuildTimeline_Truncation 时间线超过上限时截断
+func TestBuildTimeline_Truncation(t *testing.T) {
+	now := time.Now()
+	timeline := make([]*database.AIOpsIncidentTimeline, 50)
+	for i := range timeline {
+		timeline[i] = &database.AIOpsIncidentTimeline{
+			ID:        int64(i + 1),
+			Timestamp: now.Add(-time.Duration(50-i) * time.Minute),
+			EventType: "test",
+			EntityKey: fmt.Sprintf("entity-%d", i),
+			Detail:    "detail",
+		}
+	}
+
+	result := buildTimeline(timeline)
+
+	// 应包含省略提示
+	if !strings.Contains(result, "省略前") {
+		t.Fatal("expected truncation notice for timeline")
+	}
+	// 应包含最后一条（最新的）
+	if !strings.Contains(result, "entity-49") {
+		t.Fatal("expected latest entry to be preserved")
+	}
+}
+
+// TestBuildHistorical_Truncation 历史事件超过上限时截断
+func TestBuildHistorical_Truncation(t *testing.T) {
+	now := time.Now()
+	incidents := make([]*database.AIOpsIncident, 20)
+	for i := range incidents {
+		incidents[i] = &database.AIOpsIncident{
+			ID:        fmt.Sprintf("inc-%03d", i),
+			RootCause: "node/worker-1",
+			StartedAt: now.Add(-time.Duration(i+1) * 24 * time.Hour),
+			DurationS: 3600,
+		}
+	}
+
+	result := buildHistorical(incidents)
+
+	// 应包含省略提示
+	if !strings.Contains(result, "省略") {
+		t.Fatal("expected truncation notice for historical")
+	}
+	// 总数应显示 20
+	if !strings.Contains(result, "20 个") {
+		t.Fatal("expected total count 20 in header")
+	}
+}
+
+// TestBuildEntities_Truncation 实体数超过上限时截断
+func TestBuildEntities_Truncation(t *testing.T) {
+	entities := make([]*database.AIOpsIncidentEntity, 60)
+	for i := range entities {
+		entities[i] = &database.AIOpsIncidentEntity{
+			EntityKey:  fmt.Sprintf("entity-%d", i),
+			EntityType: "pod",
+			RFinal:     0.5,
+			Role:       "affected",
+		}
+	}
+
+	result := buildEntities(entities)
+
+	// 应包含省略提示
+	if !strings.Contains(result, "省略") {
+		t.Fatal("expected truncation notice for entities")
+	}
+	// 总数应显示 60
+	if !strings.Contains(result, "60 个") {
+		t.Fatal("expected total count 60 in header")
 	}
 }
