@@ -99,7 +99,7 @@ export function getPodLogs(data: {
  */
 interface CommandResponse {
   message: string;
-  command_id: string;
+  commandId: string;
   status: string;
 }
 

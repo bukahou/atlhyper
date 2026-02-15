@@ -78,16 +78,16 @@ export interface DomainSLOHistoryResponse {
   history: SLOHistoryPoint[];
 }
 
-// SLO 目标配置（数据库模型，JSON tags 暂保持 snake_case）
+// SLO 目标配置（camelCase，匹配后端 model.SLOTargetResponse）
 export interface SLOTarget {
   id?: number;
-  cluster_id: string;
+  clusterId: string;
   host: string;
-  time_range: string;
-  availability_target: number;
-  p95_latency_target: number;
-  created_at?: string;
-  updated_at?: string;
+  timeRange: string;
+  availabilityTarget: number;
+  p95LatencyTarget: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // 状态变更历史项

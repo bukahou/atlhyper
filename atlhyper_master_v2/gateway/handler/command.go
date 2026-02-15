@@ -32,11 +32,11 @@ func NewCommandHandler(svc service.Service, db *database.DB) *CommandHandler {
 
 // CreateCommandRequest 创建指令请求
 type CreateCommandRequest struct {
-	ClusterID       string                 `json:"cluster_id"`
+	ClusterID       string                 `json:"clusterId"`
 	Action          string                 `json:"action"`
-	TargetKind      string                 `json:"target_kind,omitempty"`
-	TargetNamespace string                 `json:"target_namespace,omitempty"`
-	TargetName      string                 `json:"target_name,omitempty"`
+	TargetKind      string                 `json:"targetKind,omitempty"`
+	TargetNamespace string                 `json:"targetNamespace,omitempty"`
+	TargetName      string                 `json:"targetName,omitempty"`
 	Params          map[string]interface{} `json:"params,omitempty"`
 }
 
@@ -69,8 +69,8 @@ func (h *CommandHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"command_id": resp.CommandID,
-		"status":     resp.Status,
+		"commandId": resp.CommandID,
+		"status":    resp.Status,
 	})
 }
 
@@ -106,22 +106,22 @@ func (h *CommandHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 // CommandHistoryResponse 命令历史响应
 type CommandHistoryResponse struct {
 	ID              int64      `json:"id"`
-	CommandID       string     `json:"command_id"`
-	ClusterID       string     `json:"cluster_id"`
+	CommandID       string     `json:"commandId"`
+	ClusterID       string     `json:"clusterId"`
 	Source          string     `json:"source"`
-	UserID          int64      `json:"user_id"`
+	UserID          int64      `json:"userId"`
 	Action          string     `json:"action"`
-	TargetKind      string     `json:"target_kind"`
-	TargetNamespace string     `json:"target_namespace"`
-	TargetName      string     `json:"target_name"`
+	TargetKind      string     `json:"targetKind"`
+	TargetNamespace string     `json:"targetNamespace"`
+	TargetName      string     `json:"targetName"`
 	Params          string     `json:"params"`
 	Status          string     `json:"status"`
 	Result          string     `json:"result"`
-	ErrorMessage    string     `json:"error_message"`
-	CreatedAt       time.Time  `json:"created_at"`
-	StartedAt       *time.Time `json:"started_at"`
-	FinishedAt      *time.Time `json:"finished_at"`
-	DurationMs      int64      `json:"duration_ms"`
+	ErrorMessage    string     `json:"errorMessage"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	StartedAt       *time.Time `json:"startedAt"`
+	FinishedAt      *time.Time `json:"finishedAt"`
+	DurationMs      int64      `json:"durationMs"`
 }
 
 // ListHistory 获取命令历史列表

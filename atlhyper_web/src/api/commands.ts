@@ -9,25 +9,25 @@ import { get } from "./request";
 // 命令历史记录
 export interface CommandHistory {
   id: number;
-  command_id: string;
-  cluster_id: string;
+  commandId: string;
+  clusterId: string;
   source: string; // web / ai
-  user_id: number;
+  userId: number;
   action: string; // restart / scale / delete_pod / cordon / uncordon
-  target_kind: string;
-  target_namespace: string;
-  target_name: string;
+  targetKind: string;
+  targetNamespace: string;
+  targetName: string;
   params: string; // JSON
   status: string; // pending / running / success / failed / timeout
   result: string; // JSON
-  error_message: string;
-  created_at: string;
-  started_at: string | null;
-  finished_at: string | null;
-  duration_ms: number;
+  errorMessage: string;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number;
 }
 
-// 查询参数
+// 查询参数（query string 保持 snake_case，因为是 URL 参数由后端 r.URL.Query().Get 解析）
 export interface CommandQueryParams {
   cluster_id?: string;
   source?: string;

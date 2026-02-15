@@ -700,7 +700,21 @@ func (h *SLOHandler) getTargets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, targets)
+	// 转换为 camelCase 响应
+	resp := make([]model.SLOTargetResponse, 0, len(targets))
+	for _, t := range targets {
+		resp = append(resp, model.SLOTargetResponse{
+			ID:                 t.ID,
+			ClusterID:          t.ClusterID,
+			Host:               t.Host,
+			TimeRange:          t.TimeRange,
+			AvailabilityTarget: t.AvailabilityTarget,
+			P95LatencyTarget:   t.P95LatencyTarget,
+			CreatedAt:          t.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt:          t.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // updateTarget 更新目标配置

@@ -124,9 +124,9 @@ export default function CommandsPage() {
   // 格式化目标
   const formatTarget = (cmd: CommandHistory) => {
     const parts = [];
-    if (cmd.target_kind) parts.push(cmd.target_kind);
-    if (cmd.target_namespace) parts.push(cmd.target_namespace);
-    if (cmd.target_name) parts.push(cmd.target_name);
+    if (cmd.targetKind) parts.push(cmd.targetKind);
+    if (cmd.targetNamespace) parts.push(cmd.targetNamespace);
+    if (cmd.targetName) parts.push(cmd.targetName);
     return parts.join(" / ") || "-";
   };
 
@@ -137,7 +137,7 @@ export default function CommandsPage() {
       mobileVisible: false,
       render: (cmd) => (
         <span className="text-sm text-muted whitespace-nowrap">
-          {cmd.created_at ? new Date(cmd.created_at).toLocaleString() : "-"}
+          {cmd.createdAt ? new Date(cmd.createdAt).toLocaleString() : "-"}
         </span>
       ),
     },
@@ -192,7 +192,7 @@ export default function CommandsPage() {
       mobileVisible: false,
       render: (cmd) => (
         <span className="text-sm text-muted whitespace-nowrap">
-          {cmd.duration_ms > 0 ? formatDuration(cmd.duration_ms) : "-"}
+          {cmd.durationMs > 0 ? formatDuration(cmd.durationMs) : "-"}
         </span>
       ),
     },
@@ -304,7 +304,7 @@ export default function CommandsPage() {
               data={commands}
               loading={false}
               error=""
-              keyExtractor={(cmd) => cmd.command_id}
+              keyExtractor={(cmd) => cmd.commandId}
             />
           )}
         </div>

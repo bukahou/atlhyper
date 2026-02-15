@@ -151,6 +151,20 @@ type LatencyDistributionResponse struct {
 	StatusCodes   []StatusCodeBreakdown `json:"statusCodes"`
 }
 
+// ==================== SLOTarget API 响应类型 ====================
+
+// SLOTargetResponse SLO 目标（API 响应，camelCase）
+type SLOTargetResponse struct {
+	ID                 int64  `json:"id"`
+	ClusterID          string `json:"clusterId"`
+	Host               string `json:"host"`
+	TimeRange          string `json:"timeRange"`
+	AvailabilityTarget float64 `json:"availabilityTarget"`
+	P95LatencyTarget   int    `json:"p95LatencyTarget"`
+	CreatedAt          string `json:"createdAt"`
+	UpdatedAt          string `json:"updatedAt"`
+}
+
 // ==================== API 请求类型 ====================
 
 // UpdateSLOTargetRequest 更新 SLO 目标请求

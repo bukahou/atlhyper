@@ -36,17 +36,17 @@ export function CommandDetailModal({ command, onClose, t }: CommandDetailModalPr
   };
 
   const details = [
-    { label: t.commands.commandId, value: command.command_id },
+    { label: t.commands.commandId, value: command.commandId },
     { label: t.commands.source, value: sourceLabel },
     { label: t.common.action, value: actionLabel },
-    { label: t.common.type, value: command.target_kind },
-    { label: t.common.namespace, value: command.target_namespace },
-    { label: t.common.name, value: command.target_name },
+    { label: t.common.type, value: command.targetKind },
+    { label: t.common.namespace, value: command.targetNamespace },
+    { label: t.common.name, value: command.targetName },
     { label: t.common.status, value: statusLabel },
-    { label: t.commands.duration, value: command.duration_ms > 0 ? formatDuration(command.duration_ms) : "-" },
-    { label: t.commands.createdAt, value: command.created_at ? new Date(command.created_at).toLocaleString() : "-" },
-    { label: t.commands.startedAt, value: command.started_at ? new Date(command.started_at).toLocaleString() : "-" },
-    { label: t.commands.finishedAt, value: command.finished_at ? new Date(command.finished_at).toLocaleString() : "-" },
+    { label: t.commands.duration, value: command.durationMs > 0 ? formatDuration(command.durationMs) : "-" },
+    { label: t.commands.createdAt, value: command.createdAt ? new Date(command.createdAt).toLocaleString() : "-" },
+    { label: t.commands.startedAt, value: command.startedAt ? new Date(command.startedAt).toLocaleString() : "-" },
+    { label: t.commands.finishedAt, value: command.finishedAt ? new Date(command.finishedAt).toLocaleString() : "-" },
   ];
 
   return (
@@ -119,12 +119,12 @@ export function CommandDetailModal({ command, onClose, t }: CommandDetailModalPr
           )}
 
           {/* 错误信息 */}
-          {command.error_message && (
+          {command.errorMessage && (
             <div>
               <h3 className="text-sm font-semibold text-red-500 mb-2">{t.commands.errorMessage}</h3>
               <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
                 <p className="text-sm text-red-600 dark:text-red-400 whitespace-pre-wrap">
-                  {command.error_message}
+                  {command.errorMessage}
                 </p>
               </div>
             </div>
