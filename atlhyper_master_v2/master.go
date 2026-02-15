@@ -26,6 +26,8 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
+	"AtlHyper/atlhyper_master_v2/aiops"
+	aiopscore "AtlHyper/atlhyper_master_v2/aiops/core"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/database/repo"
@@ -66,6 +68,8 @@ type Master struct {
 	sloProcessor  *slo.Processor
 	sloAggregator *slo.Aggregator
 	sloCleaner    *slo.Cleaner
+	// AIOps 引擎
+	aiopsEngine aiops.Engine
 }
 
 // New 创建并初始化 Master 实例
@@ -159,6 +163,18 @@ func New() (*Master, error) {
 	sloPersist := sync.NewSLOPersistService(store, sloProcessor)
 	log.Info("SLO 持久化服务初始化完成")
 
+	// 4.4 初始化 AIOps 引擎
+	var aiopsEngine aiops.Engine
+	aiopsEngine = aiopscore.NewEngine(aiopscore.EngineConfig{
+		Store:          store,
+		GraphRepo:      db.AIOpsGraph,
+		BaselineRepo:   db.AIOpsBaseline,
+		SLOServiceRepo: db.SLOService,
+		SLORepo:        db.SLO,
+		FlushInterval:  cfg.AIOps.FlushInterval,
+	})
+	log.Info("AIOps 引擎初始化完成")
+
 	// 5. 初始化 Processor（写入路径）
 	proc := processor.New(processor.Config{
 		Store: store,
@@ -175,12 +191,15 @@ func New() (*Master, error) {
 			if err := sloPersist.Sync(clusterID); err != nil {
 				log.Error("SLO 同步失败", "cluster", clusterID, "err", err)
 			}
+			// AIOps 引擎处理
+			aiopsEngine.OnSnapshot(clusterID)
 		},
 	})
 	log.Info("数据处理器初始化完成")
 
 	// 6. 初始化 Query（读取路径，注入 SLO 仓库）
 	q := query.NewWithSLORepos(store, bus, db.Event, db.SLO, db.SLOService, db.SLOEdge)
+	q.SetAIOpsEngine(aiopsEngine)
 	log.Info("查询层初始化完成")
 
 	// 7. 初始化 Operations（写入路径）
@@ -275,6 +294,7 @@ func New() (*Master, error) {
 		sloProcessor:   sloProcessor,
 		sloAggregator:  sloAggregator,
 		sloCleaner:     sloCleaner,
+		aiopsEngine:    aiopsEngine,
 	}, nil
 }
 
@@ -314,6 +334,13 @@ func (m *Master) Run(ctx context.Context) error {
 	if m.eventTrigger != nil {
 		if err := m.eventTrigger.Start(); err != nil {
 			return fmt.Errorf("failed to start event trigger: %w", err)
+		}
+	}
+
+	// 启动 AIOps 引擎
+	if m.aiopsEngine != nil {
+		if err := m.aiopsEngine.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start aiops engine: %w", err)
 		}
 	}
 
@@ -381,6 +408,13 @@ func (m *Master) Stop() error {
 	if m.eventTrigger != nil {
 		if err := m.eventTrigger.Stop(); err != nil {
 			log.Error("停止事件告警触发器失败", "err", err)
+		}
+	}
+
+	// 停止 AIOps 引擎
+	if m.aiopsEngine != nil {
+		if err := m.aiopsEngine.Stop(); err != nil {
+			log.Error("停止 AIOps 引擎失败", "err", err)
 		}
 	}
 

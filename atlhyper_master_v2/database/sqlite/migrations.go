@@ -448,6 +448,26 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_node_metrics_history_cluster_node ON node_metrics_history(cluster_id, node_name)`,
 		`CREATE INDEX IF NOT EXISTS idx_node_metrics_history_timestamp ON node_metrics_history(timestamp)`,
+
+		// ==================== AIOps: 基线状态表 ====================
+		// 持久化 EMA 状态，用于重启恢复
+		`CREATE TABLE IF NOT EXISTS aiops_baseline_states (
+			entity_key  TEXT NOT NULL,
+			metric_name TEXT NOT NULL,
+			ema         REAL NOT NULL,
+			variance    REAL NOT NULL,
+			count       INTEGER NOT NULL,
+			updated_at  INTEGER NOT NULL,
+			PRIMARY KEY (entity_key, metric_name)
+		)`,
+
+		// ==================== AIOps: 依赖图快照表 ====================
+		// 定期持久化图快照，用于重启恢复（每集群一条，覆盖式更新）
+		`CREATE TABLE IF NOT EXISTS aiops_dependency_graph_snapshots (
+			cluster_id TEXT PRIMARY KEY,
+			snapshot   BLOB NOT NULL,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	// 增量迁移：为已存在的表添加新列（忽略错误，可能列已存在）

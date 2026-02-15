@@ -1,0 +1,40 @@
+// atlhyper_master_v2/aiops/core/factory.go
+// AIOps 引擎工厂函数
+package core
+
+import (
+	"time"
+
+	"AtlHyper/atlhyper_master_v2/aiops"
+	"AtlHyper/atlhyper_master_v2/aiops/baseline"
+	"AtlHyper/atlhyper_master_v2/aiops/correlator"
+	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/datahub"
+)
+
+// EngineConfig AIOps 引擎配置
+type EngineConfig struct {
+	Store          datahub.Store
+	GraphRepo      database.AIOpsGraphRepository
+	BaselineRepo   database.AIOpsBaselineRepository
+	SLOServiceRepo database.SLOServiceRepository
+	SLORepo        database.SLORepository
+	FlushInterval  time.Duration
+}
+
+// NewEngine 创建 AIOps 引擎
+func NewEngine(cfg EngineConfig) aiops.Engine {
+	if cfg.FlushInterval <= 0 {
+		cfg.FlushInterval = 5 * time.Minute
+	}
+
+	return &engine{
+		store:          cfg.Store,
+		corr:           correlator.NewCorrelator(),
+		stateManager:   baseline.NewStateManager(cfg.BaselineRepo),
+		graphRepo:      cfg.GraphRepo,
+		sloServiceRepo: cfg.SLOServiceRepo,
+		sloRepo:        cfg.SLORepo,
+		flushInterval:  cfg.FlushInterval,
+	}
+}

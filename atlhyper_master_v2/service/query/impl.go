@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/model"
@@ -21,6 +22,7 @@ type QueryService struct {
 	sloRepo     database.SLORepository
 	serviceRepo database.SLOServiceRepository
 	edgeRepo    database.SLOEdgeRepository
+	aiopsEngine aiops.Engine
 }
 
 // New 创建 QueryService 实例
@@ -50,6 +52,11 @@ func NewWithSLORepos(store datahub.Store, bus mq.Producer, eventRepo database.Cl
 		serviceRepo: serviceRepo,
 		edgeRepo:    edgeRepo,
 	}
+}
+
+// SetAIOpsEngine 注入 AIOps 引擎（可选）
+func (q *QueryService) SetAIOpsEngine(engine aiops.Engine) {
+	q.aiopsEngine = engine
 }
 
 // ==================== 集群查询 ====================

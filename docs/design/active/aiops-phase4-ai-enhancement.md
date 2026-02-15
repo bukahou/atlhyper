@@ -6,7 +6,7 @@
 
 **前置依赖**: Phase 2b（事件存储已就绪）+ Phase 3（前端页面已完成）
 
-**中心文档**: [`aiops-engine-design.md`](./aiops-engine-design.md) §7 (Phase 4)
+**中心文档**: [`aiops-engine-design.md`](../future/aiops-engine-design.md) §7 (Phase 4)
 
 **关联设计**:
 - [`aiops-phase2-statemachine-incident.md`](./aiops-phase2-statemachine-incident.md) — 事件数据来源
@@ -112,13 +112,18 @@ master.go 现有初始化流程中:
 
     aiopsEngine := aiops.NewAIOpsEngine(...)         ← Phase 1 已完成
     aiopsAI := aiopsai.NewEnhancer(                  ← NEW
-        aiopsEngine,
-        aiService,    // 复用现有 AI 模块的 LLM 配置
-        db,           // 事件查询
+        db.AIOpsIncident,    // 事件 Repository
+        aiopsEngine,         // AIOps 引擎接口（单向依赖）
+        aiLLMProvider,       // LLMProvider 接口实现
     )
 
-    // Tool 执行器追加 aiopsAI 引用
-    toolExecutor.SetAIOpsEnhancer(aiopsAI)            ← NEW
+    // Tool 注册（使用 RegisterTool，不侵入 tool.go Execute）
+    toolExecutor.RegisterTool("analyze_incident", ...)     ← NEW
+    toolExecutor.RegisterTool("get_cluster_risk", ...)     ← NEW
+    toolExecutor.RegisterTool("get_recent_incidents", ...) ← NEW
+
+    // Query Service 注入 enhancer（构造函数）
+    q := query.NewQueryService(..., aiopsEngine, aiopsAI)  ← 扩展构造函数
 ```
 
 ---
@@ -164,18 +169,27 @@ type SimilarMatch struct {
 }
 ```
 
-### 3.2 aiops/interfaces.go 新增方法
+### 3.2 架构说明：Enhancer 独立于 AIOpsEngine
 
-```go
-// aiops/interfaces.go — Phase 4 新增
+```
+⚠️ Enhancer 不是 AIOpsEngine 的方法，而是独立服务。
 
-type AIOpsEngine interface {
-    // ... Phase 1~2b 已有方法 ...
+原因: 如果在 aiops/interfaces.go 中添加 SummarizeIncident 方法：
+  - aiops/interfaces.go 需要导入 aiops/ai 包的返回类型
+  - aiops/ai/enhancer.go 需要导入 aiops.AIOpsEngine 接口
+  - 形成 aiops ↔ aiops/ai 的循环依赖
 
-    // Phase 4: AI 增强
-    // SummarizeIncident 生成事件的 AI 摘要、根因分析和处置建议
-    SummarizeIncident(ctx context.Context, incidentID string) (*ai.SummarizeResponse, error)
-}
+正确做法:
+  - Enhancer 独立持有 AIOpsEngine 接口（单向依赖: aiops/ai → aiops）
+  - Service 层分别持有 aiopsEngine 和 enhancer
+  - Gateway Handler 通过 service.Query 调用 enhancer
+```
+
+```
+依赖方向:
+  aiops/ai/enhancer.go → aiops.AIOpsEngine (单向引用)
+  service/query/aiops.go → enhancer (持有引用)
+  gateway/handler → service.Query (只依赖接口)
 ```
 
 ---
@@ -187,19 +201,25 @@ type AIOpsEngine interface {
 ```go
 package ai
 
+// LLMProvider LLM 客户端提供者接口
+// 独立接口便于测试（Mock 实现）和解耦具体 LLM 实现
+type LLMProvider interface {
+    // NewClient 创建新的 LLM 客户端（每次调用返回新实例，调用方负责 Close）
+    NewClient() (llm.LLMClient, error)
+}
+
 // Enhancer AIOps AI 增强服务
 type Enhancer struct {
     incidentRepo database.AIOpsIncidentRepository   // 事件查询
-    aiopsEngine  aiops.AIOpsEngine                  // 风险/图/基线查询
-    llmProvider  func() (llm.LLMClient, error)      // 动态获取 LLM 客户端
+    aiopsEngine  aiops.AIOpsEngine                  // 风险/图/基线查询（单向依赖）
+    llmProvider  LLMProvider                        // LLM 客户端提供者
 }
 
 // NewEnhancer 创建 AI 增强服务
-// llmProvider 复用现有 AI 模块的配置加载逻辑，每次调用动态创建 LLM 客户端
 func NewEnhancer(
     incidentRepo database.AIOpsIncidentRepository,
     aiopsEngine aiops.AIOpsEngine,
-    llmProvider func() (llm.LLMClient, error),
+    llmProvider LLMProvider,
 ) *Enhancer
 ```
 
@@ -222,7 +242,7 @@ func (e *Enhancer) Summarize(ctx context.Context, incidentID string) (*Summarize
     prompt := SummarizePrompt(context)
 
     // 5. 调用 LLM
-    client, _ := e.llmProvider()
+    client, _ := e.llmProvider.NewClient()
     defer client.Close()
 
     chunks, _ := client.ChatStream(ctx, &llm.Request{
@@ -410,49 +430,78 @@ type PromptPair struct {
 }
 ```
 
-#### 4.4.2 Tool 执行器扩展 (ai/tool.go)
+#### 4.4.2 Tool 注册机制 (ai/tool.go)
+
+**不直接修改 `tool.go` 的 `Execute()` 方法**，而是使用已有的 Tool 注册机制扩展。
 
 ```go
-// tool.go — Execute() 中新增分支
+// ai/tool.go — 新增自定义 Tool 注册支持
 
-func (e *toolExecutor) Execute(ctx context.Context, clusterID string, tc llm.ToolCall) (string, error) {
-    params := parseParams(tc.Arguments)
-    action := params["action"]
+// ToolHandler 自定义 Tool 处理函数
+type ToolHandler func(ctx context.Context, clusterID string, params map[string]string) (string, error)
 
-    // 现有 query_cluster tool 处理...
+// toolExecutor 新增字段
+type toolExecutor struct {
+    // ... 现有字段 ...
+    customTools map[string]ToolHandler  // ← 自定义 Tool 注册表
+}
 
-    switch tc.Name {
-    case "analyze_incident":
-        // 直接调用 AIOps AI Enhancer
-        incidentID := params["incident_id"]
-        result, err := e.aiopsEnhancer.Summarize(ctx, incidentID)
-        if err != nil {
-            return fmt.Sprintf("分析事件失败: %v", err), nil
-        }
-        return marshalJSON(result), nil
-
-    case "get_cluster_risk":
-        topN := getIntParam(params, "top_n", 10)
-        risk, err := e.aiopsEngine.GetClusterRisk(ctx, clusterID)
-        if err != nil {
-            return fmt.Sprintf("获取风险评分失败: %v", err), nil
-        }
-        entities, _ := e.aiopsEngine.GetEntityRisks(ctx, clusterID, "r_final", topN)
-        return formatRiskResult(risk, entities), nil
-
-    case "get_recent_incidents":
-        state := params["state"]
-        limit := getIntParam(params, "limit", 10)
-        incidents, err := e.aiopsEngine.GetIncidents(ctx, clusterID, state, limit)
-        if err != nil {
-            return fmt.Sprintf("获取事件列表失败: %v", err), nil
-        }
-        return formatIncidentList(incidents), nil
+// RegisterTool 注册自定义 Tool
+func (e *toolExecutor) RegisterTool(name string, handler ToolHandler) {
+    if e.customTools == nil {
+        e.customTools = make(map[string]ToolHandler)
     }
+    e.customTools[name] = handler
+}
 
-    // 原有 query_cluster 处理 ...
+// Execute 方法中优先查找 customTools（对现有代码零侵入）
+func (e *toolExecutor) Execute(ctx context.Context, clusterID string, tc llm.ToolCall) (string, error) {
+    // 1. 先查自定义 Tool
+    if handler, ok := e.customTools[tc.Name]; ok {
+        params := parseParams(tc.Arguments)
+        return handler(ctx, clusterID, params)
+    }
+    // 2. 原有 query_cluster 处理（不变）
+    // ...
 }
 ```
+
+**AIOps Tool 注册（master.go 初始化时）：**
+
+```go
+// master.go — AIOps Tool 注册
+toolExecutor.RegisterTool("analyze_incident", func(ctx context.Context, clusterID string, params map[string]string) (string, error) {
+    incidentID := params["incident_id"]
+    result, err := aiopsAI.Summarize(ctx, incidentID)
+    if err != nil {
+        return fmt.Sprintf("分析事件失败: %v", err), nil
+    }
+    return marshalJSON(result), nil
+})
+
+toolExecutor.RegisterTool("get_cluster_risk", func(ctx context.Context, clusterID string, params map[string]string) (string, error) {
+    topN := getIntParam(params, "top_n", 10)
+    risk, err := aiopsEngine.GetClusterRisk(ctx, clusterID)
+    if err != nil {
+        return fmt.Sprintf("获取风险评分失败: %v", err), nil
+    }
+    entities, _ := aiopsEngine.GetEntityRisks(ctx, clusterID, "r_final", topN)
+    return formatRiskResult(risk, entities), nil
+})
+
+toolExecutor.RegisterTool("get_recent_incidents", func(ctx context.Context, clusterID string, params map[string]string) (string, error) {
+    state := params["state"]
+    limit := getIntParam(params, "limit", 10)
+    incidents, err := aiopsEngine.GetIncidents(ctx, clusterID, state, limit)
+    if err != nil {
+        return fmt.Sprintf("获取事件列表失败: %v", err), nil
+    }
+    return formatIncidentList(incidents), nil
+})
+```
+
+> **优势**: `tool.go` 只新增 `RegisterTool` 方法和 `customTools` 字段（开闭原则），
+> AIOps 具体 Tool 逻辑在 `master.go` 初始化时注册，不侵入 `ai/` 包的现有逻辑。
 
 #### 4.4.3 角色提示词追加
 
@@ -650,8 +699,7 @@ func buildSimilarMatches(patterns []database.IncidentPattern) []SimilarMatch {
 type Query interface {
     // ... Phase 1~2b 已有方法 ...
 
-    // Phase 4: AI 增强
-    // SummarizeIncident 调用 AI 分析事件
+    // Phase 4: AI 增强（通过 Enhancer 而非 AIOpsEngine）
     SummarizeIncident(ctx context.Context, incidentID string) (*aiopsai.SummarizeResponse, error)
 }
 ```
@@ -660,9 +708,10 @@ type Query interface {
 
 ```go
 // query/aiops.go — Phase 4 新增
+// QueryService 持有 aiopsAI *aiopsai.Enhancer（通过构造函数注入）
 
 func (s *QueryService) SummarizeIncident(ctx context.Context, incidentID string) (*aiopsai.SummarizeResponse, error) {
-    return s.aiopsEngine.SummarizeIncident(ctx, incidentID)
+    return s.aiopsAI.Summarize(ctx, incidentID)
 }
 ```
 
@@ -980,9 +1029,9 @@ P5: 集成测试
 
 | 文件 | 变更 |
 |------|------|
-| `aiops/interfaces.go` | +`SummarizeIncident` 方法 |
 | `ai/prompts.go` | `toolsJSON` 追加 3 个 AIOps Tool 定义 + `rolePrompt` 追加使用说明 |
-| `ai/tool.go` | `Execute()` 追加 `analyze_incident` / `get_cluster_risk` / `get_recent_incidents` 分支 + `aiopsEnhancer` 字段 |
+| `ai/tool.go` | +`RegisterTool` 方法 + `customTools` 字段（开闭原则，不修改 Execute 主逻辑） |
+| `master.go` | 初始化时注册 3 个 AIOps Tool + 注入 Enhancer 到 QueryService |
 | `gateway/routes.go` | +2 路由 (`/aiops/ai/summarize`, `/aiops/ai/recommend`) |
 | `service/interfaces.go` | Query 接口 +`SummarizeIncident` 方法 |
 | `service/query/aiops.go` | +AI 摘要查询实现 |
@@ -1109,3 +1158,17 @@ npm run dev
 1. LLM API 调用有成本
 2. 与现有 AI Chat 权限一致
 3. 避免未授权用户大量触发 AI 分析
+
+---
+
+## 14. 阶段实施后评审规范
+
+> **本阶段是最后一个阶段（Phase 4），实施完成后无需评审后续文档。**
+> **但需要回顾中心文档 `aiops-engine-design.md`，确认整体实现与中心文档的设计目标一致。**
+
+### 完成后检查清单
+
+- [ ] 中心文档 `aiops-engine-design.md` §11 子设计文档索引全部更新为「✅ 已完成」
+- [ ] 5 个阶段的实际实现与中心文档的架构描述一致
+- [ ] 所有设计文档从 `docs/design/future/` 移至 `docs/design/archive/`
+- [ ] `docs/tasks/active/tracker.md` 中 AIOps 相关任务全部归档

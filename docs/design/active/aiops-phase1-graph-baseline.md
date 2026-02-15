@@ -6,7 +6,7 @@
 
 **前置依赖**: SLO OTel 改造（已完成）— Service/Edge/Ingress 三层 SLO 数据已就绪。
 
-**中心文档**: [`aiops-engine-design.md`](./aiops-engine-design.md) §4.1 (M1) + §4.2 (M2)
+**中心文档**: [`aiops-engine-design.md`](../future/aiops-engine-design.md) §4.1 (M1) + §4.2 (M2)
 
 ---
 
@@ -180,9 +180,8 @@ New() {
         },
     })
 
-    // 6. 初始化 Query（注入 AIOps 引擎）
-    q := query.NewWithSLORepos(store, bus, db.Event, db.SLO, db.SLOService, db.SLOEdge)
-    q.SetAIOpsEngine(aiopsEngine)  // ← 新增: 注入 AIOps 引擎供查询使用
+    // 6. 初始化 Query（构造函数注入 AIOps 引擎）
+    q := query.NewQueryService(store, bus, db.Event, db.SLO, db.SLOService, db.SLOEdge, aiopsEngine)
 
     // ... 后续初始化不变 ...
 }
@@ -290,7 +289,7 @@ const (
 ### 3.3 节点 Key 生成规则
 
 ```go
-// aiops/types.go
+// aiops/helpers.go
 
 // EntityKey 生成实体唯一标识
 // 格式: "namespace/type/name"
@@ -1015,24 +1014,17 @@ type Query interface {
 
 ```go
 // service/query/aiops.go — 查询实现
+// aiopsEngine 通过 NewQueryService() 构造函数注入，保证非 nil
+
 func (q *QueryService) GetAIOpsGraph(ctx context.Context, clusterID string) (*aiops.DependencyGraph, error) {
-    if q.aiopsEngine == nil {
-        return nil, fmt.Errorf("aiops engine not initialized")
-    }
     return q.aiopsEngine.GetGraph(clusterID), nil
 }
 
 func (q *QueryService) GetAIOpsGraphTrace(ctx context.Context, clusterID, fromKey, direction string, maxDepth int) (*aiops.TraceResult, error) {
-    if q.aiopsEngine == nil {
-        return nil, fmt.Errorf("aiops engine not initialized")
-    }
     return q.aiopsEngine.Trace(clusterID, fromKey, direction, maxDepth), nil
 }
 
 func (q *QueryService) GetAIOpsBaseline(ctx context.Context, clusterID, entityKey string) (*aiops.EntityBaseline, error) {
-    if q.aiopsEngine == nil {
-        return nil, fmt.Errorf("aiops engine not initialized")
-    }
     return q.aiopsEngine.GetBaseline(entityKey), nil
 }
 ```
@@ -1266,6 +1258,7 @@ P5: API 层
 | `aiops/factory.go` | NewAIOpsEngine() 工厂 |
 | `aiops/engine.go` | 引擎核心（OnSnapshot 编排） |
 | `aiops/types.go` | 共用类型（GraphNode, BaselineState, AnomalyResult 等） |
+| `aiops/helpers.go` | 工具函数（EntityKey 生成等） |
 | `aiops/correlator/builder.go` | 从 ClusterSnapshot 构建 DAG |
 | `aiops/correlator/updater.go` | diff 增量更新 |
 | `aiops/correlator/query.go` | BFS 上下游遍历 |
@@ -1332,3 +1325,35 @@ go test ./atlhyper_master_v2/database/repo/ -run AIOps -v
 # 集成测试（需要 SQLite）
 go test ./atlhyper_master_v2/aiops/ -run Integration -v
 ```
+
+---
+
+## 15. 阶段实施后评审规范
+
+> **本阶段实施完成后，必须对后续所有阶段的设计文档进行重新评审。**
+
+### 原因
+
+每个阶段的实施可能导致代码结构、接口签名、数据模型与设计文档中的预期产生偏差。提前编写的设计文档基于「假设的代码状态」，而实际实施后的代码才是唯一真实状态。不经过评审就直接实施下一阶段，可能导致：
+
+- 接口签名不匹配（设计文档引用的方法名/参数与实际实现不一致）
+- 文件路径变更（实施中因重构调整了目录结构）
+- 数据模型演变（字段增删或类型变更）
+- 新增的约束或依赖未在后续设计中体现
+
+### 本阶段实施后需评审的文档
+
+| 文档 | 重点评审内容 |
+|------|-------------|
+| `aiops-phase2-risk-scorer.md` | `AIOpsEngine` 接口实际签名、`DependencyGraph` 和 `AnomalyResult` 的实际字段、`correlator` 和 `baseline` 的实际 API |
+| `aiops-phase2-statemachine-incident.md` | `engine.go` 实际结构、`types.go` 实际类型定义、数据库 Repository 接口模式 |
+| `aiops-phase3-frontend.md` | Phase 1 API 端点的实际响应格式 |
+| `aiops-phase4-ai-enhancement.md` | `aiops/` 模块实际目录结构、`AIOpsEngine` 实际接口 |
+
+### 评审检查清单
+
+- [ ] 设计文档中引用的接口签名与实际代码一致
+- [ ] 设计文档中的文件路径与实际目录结构一致
+- [ ] 设计文档中的数据模型与实际 struct 定义一致
+- [ ] 设计文档中的初始化链路与 `master.go` 实际代码一致
+- [ ] 如有偏差，更新设计文档后再开始下一阶段实施

@@ -30,6 +30,8 @@ type DB struct {
 	SLOService     SLOServiceRepository
 	SLOEdge        SLOEdgeRepository
 	NodeMetrics    NodeMetricsRepository
+	AIOpsBaseline  AIOpsBaselineRepository
+	AIOpsGraph     AIOpsGraphRepository
 
 	Conn *sql.DB // 导出供 repo 包使用
 }
@@ -760,6 +762,8 @@ type Dialect interface {
 	SLOService() SLOServiceDialect
 	SLOEdge() SLOEdgeDialect
 	NodeMetrics() NodeMetricsDialect
+	AIOpsBaseline() AIOpsBaselineDialect
+	AIOpsGraph() AIOpsGraphDialect
 	Migrate(db *sql.DB) error
 }
 
@@ -980,4 +984,52 @@ type NodeMetricsDialect interface {
 
 	// 统计
 	SelectAllNodeNames(clusterID string) (query string, args []any)
+}
+
+// ==================== AIOps 模型定义 ====================
+
+// AIOpsBaselineState 基线状态数据库模型
+type AIOpsBaselineState struct {
+	EntityKey  string
+	MetricName string
+	EMA        float64
+	Variance   float64
+	Count      int64
+	UpdatedAt  int64
+}
+
+// ==================== AIOps Repository 接口 ====================
+
+// AIOpsBaselineRepository 基线状态数据访问接口
+type AIOpsBaselineRepository interface {
+	BatchUpsert(ctx context.Context, states []*AIOpsBaselineState) error
+	ListAll(ctx context.Context) ([]*AIOpsBaselineState, error)
+	ListByEntity(ctx context.Context, entityKey string) ([]*AIOpsBaselineState, error)
+	DeleteByEntity(ctx context.Context, entityKey string) error
+}
+
+// AIOpsGraphRepository 依赖图快照数据访问接口
+type AIOpsGraphRepository interface {
+	Save(ctx context.Context, clusterID string, snapshot []byte) error
+	Load(ctx context.Context, clusterID string) ([]byte, error)
+	ListClusterIDs(ctx context.Context) ([]string, error)
+}
+
+// ==================== AIOps Dialect 接口 ====================
+
+// AIOpsBaselineDialect 基线 SQL 方言
+type AIOpsBaselineDialect interface {
+	Upsert(state *AIOpsBaselineState) (query string, args []any)
+	SelectAll() (query string, args []any)
+	SelectByEntity(entityKey string) (query string, args []any)
+	DeleteByEntity(entityKey string) (query string, args []any)
+	ScanRow(rows *sql.Rows) (*AIOpsBaselineState, error)
+}
+
+// AIOpsGraphDialect 依赖图 SQL 方言
+type AIOpsGraphDialect interface {
+	Upsert(clusterID string, snapshot []byte) (query string, args []any)
+	SelectByCluster(clusterID string) (query string, args []any)
+	SelectAllClusterIDs() (query string, args []any)
+	ScanSnapshot(rows *sql.Rows) (clusterID string, data []byte, err error)
 }

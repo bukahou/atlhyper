@@ -92,6 +92,8 @@ func (r *Router) registerRoutes() {
 	limitRangeHandler := handler.NewLimitRangeHandler(r.service)
 	serviceAccountHandler := handler.NewServiceAccountHandler(r.service)
 	nodeMetricsHandler := handler.NewNodeMetricsHandler(r.database.NodeMetrics)
+	aiopsGraphHandler := handler.NewAIOpsGraphHandler(r.service)
+	aiopsBaselineHandler := handler.NewAIOpsBaselineHandler(r.service)
 
 	// ================================================================
 	// 公开路由（无需认证）
@@ -208,6 +210,11 @@ func (r *Router) registerRoutes() {
 		// ---------- 节点指标查询（只读） ----------
 		register("/api/v2/node-metrics", nodeMetricsHandler.Route)
 		register("/api/v2/node-metrics/", nodeMetricsHandler.Route)
+
+		// ---------- AIOps 查询（只读） ----------
+		register("/api/v2/aiops/graph", aiopsGraphHandler.Graph)
+		register("/api/v2/aiops/graph/trace", aiopsGraphHandler.Trace)
+		register("/api/v2/aiops/baseline", aiopsBaselineHandler.Baseline)
 	})
 
 	// ================================================================

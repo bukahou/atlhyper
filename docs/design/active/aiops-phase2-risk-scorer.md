@@ -6,7 +6,7 @@
 
 **前置依赖**: Phase 1（依赖图 + 基线引擎）— 需要 `DependencyGraph` 和 `AnomalyResult[]`
 
-**中心文档**: [`aiops-engine-design.md`](./aiops-engine-design.md) §4.3 (M3)
+**中心文档**: [`aiops-engine-design.md`](../future/aiops-engine-design.md) §4.3 (M3)
 
 **Phase 1 设计**: [`aiops-phase1-graph-baseline.md`](./aiops-phase1-graph-baseline.md)
 
@@ -1100,3 +1100,34 @@ go test ./atlhyper_master_v2/aiops/risk/... -v
 curl "http://localhost:8080/api/v2/aiops/risk/cluster?cluster=test-cluster"
 curl "http://localhost:8080/api/v2/aiops/risk/entities?cluster=test-cluster&limit=5"
 ```
+
+---
+
+## 13. 阶段实施后评审规范
+
+> **本阶段实施完成后，必须对后续所有阶段的设计文档进行重新评审。**
+
+### 原因
+
+每个阶段的实施可能导致代码结构、接口签名、数据模型与设计文档中的预期产生偏差。提前编写的设计文档基于「假设的代码状态」，而实际实施后的代码才是唯一真实状态。不经过评审就直接实施下一阶段，可能导致：
+
+- 接口签名不匹配（设计文档引用的方法名/参数与实际实现不一致）
+- 文件路径变更（实施中因重构调整了目录结构）
+- 数据模型演变（字段增删或类型变更）
+- 新增的约束或依赖未在后续设计中体现
+
+### 本阶段实施后需评审的文档
+
+| 文档 | 重点评审内容 |
+|------|-------------|
+| `aiops-phase2-statemachine-incident.md` | `EntityRisk` / `ClusterRisk` 实际字段、`scorer` 实际 API（`GetEntityRiskMap` / `GetClusterRisk`）、`engine.go` 中 scorer 调用方式 |
+| `aiops-phase3-frontend.md` | Phase 2a API 端点实际响应格式（ClusterRisk / EntityRisk JSON 结构） |
+| `aiops-phase4-ai-enhancement.md` | 风险评分数据获取方式、`AIOpsEngine` 接口中风险查询方法的实际签名 |
+
+### 评审检查清单
+
+- [ ] 设计文档中引用的接口签名与实际代码一致
+- [ ] 设计文档中的文件路径与实际目录结构一致
+- [ ] 设计文档中的数据模型与实际 struct 定义一致
+- [ ] 设计文档中的初始化链路与 `master.go` 实际代码一致
+- [ ] 如有偏差，更新设计文档后再开始下一阶段实施

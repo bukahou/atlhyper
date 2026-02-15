@@ -6,7 +6,7 @@
 
 **前置依赖**: Phase 2a（风险评分引擎）— 需要 `R_final` 和 `ClusterRisk`
 
-**中心文档**: [`aiops-engine-design.md`](./aiops-engine-design.md) §4.4 (M4) + §4.5 (M5)
+**中心文档**: [`aiops-engine-design.md`](../future/aiops-engine-design.md) §4.4 (M4) + §4.5 (M5)
 
 **关联设计**: [`aiops-phase2-risk-scorer.md`](./aiops-phase2-risk-scorer.md)
 
@@ -269,19 +269,34 @@ type IncidentQueryOpts struct {
 ### 4.1 状态转换规则 (statemachine/machine.go)
 
 ```go
+// TransitionCallback 状态转换回调接口
+// 解耦 StateMachine 和 incident.Store，由 Engine 实现此接口
+type TransitionCallback interface {
+    // OnWarningCreated 创建新 Incident (Healthy → Warning)
+    OnWarningCreated(ctx context.Context, clusterID, entityKey string, risk *EntityRisk, now time.Time) (incidentID string)
+    // OnStateEscalated 升级 Incident (Warning → Incident)
+    OnStateEscalated(ctx context.Context, incidentID string, state EntityState, risk *EntityRisk, now time.Time)
+    // OnRecoveryStarted 开始恢复 (Incident → Recovery)
+    OnRecoveryStarted(ctx context.Context, incidentID string, risk *EntityRisk, now time.Time)
+    // OnRecurrence 复发 (Recovery → Warning)
+    OnRecurrence(ctx context.Context, incidentID string, risk *EntityRisk, now time.Time)
+    // OnStable 已稳定 (Recovery → Stable)
+    OnStable(ctx context.Context, incidentID string, entityKey string, now time.Time)
+}
+
 // StateMachine 状态机管理器
 type StateMachine struct {
-    mu       sync.RWMutex
-    entries  map[string]*StateMachineEntry // entityKey -> entry
-    store    *incident.Store
+    mu         sync.RWMutex
+    entries    map[string]*StateMachineEntry // entityKey -> entry
+    callback   TransitionCallback
     conditions []TransitionCondition
 }
 
 // NewStateMachine 创建状态机
-func NewStateMachine(store *incident.Store) *StateMachine {
+func NewStateMachine(callback TransitionCallback) *StateMachine {
     sm := &StateMachine{
-        entries: make(map[string]*StateMachineEntry),
-        store:   store,
+        entries:  make(map[string]*StateMachineEntry),
+        callback: callback,
     }
     sm.conditions = []TransitionCondition{
         {
@@ -383,6 +398,7 @@ func (sm *StateMachine) evaluateEntity(
 }
 
 // transition 执行状态转换
+// 通过 TransitionCallback 通知 Engine 层处理副作用（创建/更新 Incident）
 func (sm *StateMachine) transition(
     ctx context.Context,
     clusterID string,
@@ -396,31 +412,21 @@ func (sm *StateMachine) transition(
 
     switch {
     case oldState == StateHealthy && cond.ToState == StateWarning:
-        // 创建新 Incident
-        inc := sm.store.Create(ctx, clusterID, entry.EntityKey, risk, now)
-        entry.IncidentID = inc.ID
-        sm.store.AddTimeline(ctx, inc.ID, now, TimelineStateChange, entry.EntityKey,
-            fmt.Sprintf(`{"from":"healthy","to":"warning","rFinal":%.2f}`, risk.RFinal))
+        // 通过回调创建新 Incident
+        incidentID := sm.callback.OnWarningCreated(ctx, clusterID, entry.EntityKey, risk, now)
+        entry.IncidentID = incidentID
 
     case oldState == StateWarning && cond.ToState == StateIncident:
-        // 升级 Incident severity
-        sm.store.UpdateState(ctx, entry.IncidentID, StateIncident, severityFromRisk(risk.RFinal))
-        sm.store.AddTimeline(ctx, entry.IncidentID, now, TimelineStateChange, entry.EntityKey,
-            fmt.Sprintf(`{"from":"warning","to":"incident","rFinal":%.2f}`, risk.RFinal))
-        // 记录受影响实体和根因
-        sm.store.UpdateRootCause(ctx, entry.IncidentID, risk)
+        // 通过回调升级 Incident
+        sm.callback.OnStateEscalated(ctx, entry.IncidentID, StateIncident, risk, now)
 
     case oldState == StateIncident && cond.ToState == StateRecovery:
-        sm.store.UpdateState(ctx, entry.IncidentID, StateRecovery, "")
-        sm.store.AddTimeline(ctx, entry.IncidentID, now, TimelineRecoveryStarted, entry.EntityKey,
-            fmt.Sprintf(`{"rFinal":%.2f}`, risk.RFinal))
+        // 通过回调开始恢复
+        sm.callback.OnRecoveryStarted(ctx, entry.IncidentID, risk, now)
 
     case oldState == StateRecovery && cond.ToState == StateWarning:
-        // 复发
-        sm.store.IncrementRecurrence(ctx, entry.IncidentID)
-        sm.store.UpdateState(ctx, entry.IncidentID, StateWarning, "")
-        sm.store.AddTimeline(ctx, entry.IncidentID, now, TimelineRecurrence, entry.EntityKey,
-            fmt.Sprintf(`{"rFinal":%.2f}`, risk.RFinal))
+        // 通过回调标记复发
+        sm.callback.OnRecurrence(ctx, entry.IncidentID, risk, now)
     }
 
     log.Info("AIOps 状态转换",
@@ -478,10 +484,7 @@ func (sm *StateMachine) CheckRecoveryToStable(ctx context.Context) {
 
         // 48h 内 R_final 始终 < 0.5 → 转为 Stable
         entry.CurrentState = StateStable
-        sm.store.UpdateState(ctx, entry.IncidentID, StateStable, "")
-        sm.store.Resolve(ctx, entry.IncidentID, now)
-        sm.store.AddTimeline(ctx, entry.IncidentID, now, TimelineStateChange, entityKey,
-            `{"from":"recovery","to":"stable"}`)
+        sm.callback.OnStable(ctx, entry.IncidentID, entityKey, now)
 
         log.Info("AIOps 事件已关闭", "entity", entityKey, "incident", entry.IncidentID)
 
@@ -614,41 +617,35 @@ func (s *Store) AddTimeline(
 
 ```go
 // GetStats 获取事件统计
+// 使用 Repository 的单一聚合查询 GetIncidentStats，避免多次 DB 调用
 func (s *Store) GetStats(ctx context.Context, clusterID string, period time.Duration) (*IncidentStats, error) {
     since := time.Now().Add(-period)
 
-    total, err := s.repo.CountIncidents(ctx, clusterID, since)
+    // 单次 Repository 调用获取所有统计原始数据
+    raw, err := s.repo.GetIncidentStats(ctx, clusterID, since)
     if err != nil {
         return nil, err
     }
 
-    active, err := s.repo.CountActiveIncidents(ctx, clusterID)
+    // 根因排行（独立查询，因为需要 LIMIT + ORDER BY）
+    topRootCauses, err := s.repo.TopRootCauses(ctx, clusterID, since, 5)
     if err != nil {
         return nil, err
     }
 
-    mttr, err := s.repo.GetMTTR(ctx, clusterID, since) // 平均恢复时间
-    if err != nil {
-        return nil, err
-    }
-
-    bySeverity, err := s.repo.CountBySeverity(ctx, clusterID, since)
-    byState, err2 := s.repo.CountByState(ctx, clusterID)
-    topRootCauses, err3 := s.repo.TopRootCauses(ctx, clusterID, since, 5)
-
+    // 业务层计算复发率
     recurrenceRate := 0.0
-    if total > 0 {
-        recurring, _ := s.repo.CountRecurring(ctx, clusterID, since)
-        recurrenceRate = float64(recurring) / float64(total) * 100
+    if raw.TotalIncidents > 0 {
+        recurrenceRate = float64(raw.RecurringCount) / float64(raw.TotalIncidents) * 100
     }
 
     return &IncidentStats{
-        TotalIncidents:  total,
-        ActiveIncidents: active,
-        MTTR:            mttr,
+        TotalIncidents:  raw.TotalIncidents,
+        ActiveIncidents: raw.ActiveIncidents,
+        MTTR:            raw.MTTR,
         RecurrenceRate:  recurrenceRate,
-        BySeverity:      bySeverity,
-        ByState:         byState,
+        BySeverity:      raw.BySeverity,
+        ByState:         raw.ByState,
         TopRootCauses:   topRootCauses,
     }, nil
 }
@@ -795,7 +792,7 @@ CREATE TABLE IF NOT EXISTS aiops_incident_entities (
     r_final     REAL,
     role        TEXT NOT NULL,             -- "root_cause" | "affected" | "symptom"
     PRIMARY KEY (incident_id, entity_key),
-    FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id)
+    FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_aiops_incident_entities_entity
@@ -812,7 +809,7 @@ CREATE TABLE IF NOT EXISTS aiops_incident_timeline (
     event_type  TEXT NOT NULL,
     entity_key  TEXT,
     detail      TEXT,                      -- JSON
-    FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id)
+    FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_aiops_incident_timeline_incident
@@ -1098,13 +1095,8 @@ type AIOpsIncidentRepository interface {
     AddTimeline(ctx context.Context, entry *AIOpsIncidentTimeline) error
     GetTimeline(ctx context.Context, incidentID string) ([]*AIOpsIncidentTimeline, error)
 
-    // 统计
-    CountIncidents(ctx context.Context, clusterID string, since time.Time) (int, error)
-    CountActiveIncidents(ctx context.Context, clusterID string) (int, error)
-    GetMTTR(ctx context.Context, clusterID string, since time.Time) (float64, error)
-    CountBySeverity(ctx context.Context, clusterID string, since time.Time) (map[string]int, error)
-    CountByState(ctx context.Context, clusterID string) (map[string]int, error)
-    CountRecurring(ctx context.Context, clusterID string, since time.Time) (int, error)
+    // 统计（单一聚合查询，避免 Repository 接口膨胀）
+    GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*AIOpsIncidentStatsRaw, error)
     TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]AIOpsRootCauseCount, error)
 
     // 模式
@@ -1156,6 +1148,16 @@ type AIOpsIncidentQueryOpts struct {
     To        time.Time
     Limit     int
     Offset    int
+}
+
+// AIOpsIncidentStatsRaw Repository 层返回的统计原始数据（单次查询）
+type AIOpsIncidentStatsRaw struct {
+    TotalIncidents  int
+    ActiveIncidents int
+    MTTR            float64        // 平均恢复时间 (分钟)
+    RecurringCount  int
+    BySeverity      map[string]int
+    ByState         map[string]int
 }
 
 // AIOpsRootCauseCount 根因统计
@@ -1279,3 +1281,34 @@ go test ./atlhyper_master_v2/database/repo/ -run AIOpsIncident -v
 curl "http://localhost:8080/api/v2/aiops/incidents?cluster=test-cluster"
 curl "http://localhost:8080/api/v2/aiops/incidents/stats?cluster=test-cluster&period=7d"
 ```
+
+---
+
+## 14. 阶段实施后评审规范
+
+> **本阶段实施完成后，必须对后续所有阶段的设计文档进行重新评审。**
+
+### 原因
+
+每个阶段的实施可能导致代码结构、接口签名、数据模型与设计文档中的预期产生偏差。提前编写的设计文档基于「假设的代码状态」，而实际实施后的代码才是唯一真实状态。不经过评审就直接实施下一阶段，可能导致：
+
+- 接口签名不匹配（设计文档引用的方法名/参数与实际实现不一致）
+- 文件路径变更（实施中因重构调整了目录结构）
+- 数据模型演变（字段增删或类型变更）
+- 新增的约束或依赖未在后续设计中体现
+
+### 本阶段实施后需评审的文档
+
+| 文档 | 重点评审内容 |
+|------|-------------|
+| `aiops-phase3-frontend.md` | Incident API 实际响应格式（`IncidentDetail` / `IncidentStats` / `IncidentPattern` 的实际 JSON 结构）、事件状态枚举值、`TransitionCallback` 实际实现方式 |
+| `aiops-phase4-ai-enhancement.md` | `incident.Store` 实际 API、`AIOpsIncidentRepository` 实际接口、事件数据的实际获取方式、`IncidentTimeline` 实际字段 |
+
+### 评审检查清单
+
+- [ ] 设计文档中引用的接口签名与实际代码一致
+- [ ] 设计文档中的文件路径与实际目录结构一致
+- [ ] 设计文档中的数据模型与实际 struct 定义一致
+- [ ] 设计文档中的数据库表结构与实际 migration 一致
+- [ ] 设计文档中的初始化链路与 `master.go` 实际代码一致
+- [ ] 如有偏差，更新设计文档后再开始下一阶段实施

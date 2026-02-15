@@ -7,6 +7,7 @@ package service
 import (
 	"context"
 
+	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v2"
@@ -66,6 +67,12 @@ type Query interface {
 
 	GetMeshTopology(ctx context.Context, clusterID, timeRange string) (*model.ServiceMeshTopologyResponse, error)
 	GetServiceDetail(ctx context.Context, clusterID, namespace, name, timeRange string) (*model.ServiceDetailResponse, error)
+
+	// ==================== AIOps 查询 ====================
+
+	GetAIOpsGraph(ctx context.Context, clusterID string) (*aiops.DependencyGraph, error)
+	GetAIOpsGraphTrace(ctx context.Context, clusterID, fromKey, direction string, maxDepth int) (*aiops.TraceResult, error)
+	GetAIOpsBaseline(ctx context.Context, clusterID, entityKey string) (*aiops.EntityBaseline, error)
 }
 
 // Ops 写入操作接口

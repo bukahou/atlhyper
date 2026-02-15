@@ -6,7 +6,7 @@
 
 **前置依赖**: Phase 2a + 2b（所有后端 API 已就绪）
 
-**中心文档**: [`aiops-engine-design.md`](./aiops-engine-design.md) §6
+**中心文档**: [`aiops-engine-design.md`](../future/aiops-engine-design.md) §6
 
 ---
 
@@ -226,6 +226,12 @@ export function getClusterRisk(cluster: string) {
   return request.get<ClusterRisk>(`/api/v2/aiops/risk/cluster`, { params: { cluster } })
 }
 
+export function getClusterRiskTrend(cluster: string, period = '24h') {
+  return request.get<{ timestamp: number; risk: number; level: string }[]>(
+    `/api/v2/aiops/risk/cluster/trend`, { params: { cluster, period } }
+  )
+}
+
 export function getEntityRisks(cluster: string, sort = 'r_final', limit = 20) {
   return request.get<EntityRisk[]>(`/api/v2/aiops/risk/entities`, {
     params: { cluster, sort, limit }
@@ -344,14 +350,20 @@ risk/page.tsx
 组件: RiskTrendChart
   Props: { clusterId: string }
   说明: 展示 ClusterRisk 的 24 小时趋势
+  数据流: getClusterRiskTrend(clusterId, '24h')
   实现:
-    - 前端缓存最近 24h 的 ClusterRisk 数据点
-    - 每次轮询时追加新数据点
+    - 调用后端趋势 API 获取历史数据点
     - 使用 SVG 或 Canvas 绘制简单折线图
     - Y 轴: [0, 100], 背景色分区 (healthy/warning/critical)
     - X 轴: 时间 (最近 24h)
-  注意: 趋势数据需要前端缓存（后端不存储历史 ClusterRisk）
+    - 30s 自动轮询刷新（与 page.tsx 共用轮询周期）
+  注意: 趋势数据由后端存储和返回，遵循「大后端小前端」原则
 ```
+
+> **后端支持**: 需要在 Phase 2a 的 `risk/cluster_risk.go` 中增加趋势数据存储
+> （每次 OnSnapshot 时将 ClusterRisk 值追加到环形缓冲区或 SQLite，保留 24h 数据点）。
+> API: `GET /api/v2/aiops/risk/cluster/trend?cluster={id}&period=24h`
+> 响应: `{ "data": [{"timestamp": 1737364200, "risk": 42.5, "level": "low"}, ...] }`
 
 ---
 
@@ -877,3 +889,32 @@ npm run dev
 # i18n 键一致性检查
 # 验证 zh.ts 和 ja.ts 的 aiops 部分键完全一致
 ```
+
+---
+
+## 13. 阶段实施后评审规范
+
+> **本阶段实施完成后，必须对后续阶段的设计文档进行重新评审。**
+
+### 原因
+
+每个阶段的实施可能导致代码结构、接口签名、数据模型与设计文档中的预期产生偏差。提前编写的设计文档基于「假设的代码状态」，而实际实施后的代码才是唯一真实状态。不经过评审就直接实施下一阶段，可能导致：
+
+- 前端组件 Props 与实际后端 API 响应不匹配
+- i18n 键结构或命名在实施中调整
+- 路由路径或组件目录结构变更
+- 后端 API 的实际响应格式与前端类型定义产生偏差
+
+### 本阶段实施后需评审的文档
+
+| 文档 | 重点评审内容 |
+|------|-------------|
+| `aiops-phase4-ai-enhancement.md` | `IncidentDetailModal.tsx` 实际组件结构（AI 分析按钮的集成位置）、`api/aiops.ts` 实际类型定义、`AIOpsTranslations` 实际 i18n 键结构 |
+
+### 评审检查清单
+
+- [ ] 设计文档中引用的组件 Props 与实际实现一致
+- [ ] 设计文档中的文件路径与实际目录结构一致
+- [ ] 设计文档中的 API 类型定义与实际 `api/aiops.ts` 一致
+- [ ] 设计文档中的 i18n 键结构与实际 `types/i18n.ts` 一致
+- [ ] 如有偏差，更新设计文档后再开始下一阶段实施

@@ -98,6 +98,12 @@ type MetricsPersistConfig struct {
 	CleanupInterval time.Duration // 清理检查间隔（默认 1h）
 }
 
+// AIOpsConfig AIOps 引擎配置
+type AIOpsConfig struct {
+	Enable        bool          // 是否启用 AIOps 引擎（默认 true）
+	FlushInterval time.Duration // 基线状态 flush 间隔（默认 5min）
+}
+
 // AppConfig Master 顶层配置结构体
 type AppConfig struct {
 	Log            LogConfig
@@ -113,6 +119,7 @@ type AppConfig struct {
 	AI             AIConfig
 	SLO            SLOConfig
 	MetricsPersist MetricsPersistConfig
+	AIOps          AIOpsConfig
 }
 
 // GlobalConfig 全局配置实例
