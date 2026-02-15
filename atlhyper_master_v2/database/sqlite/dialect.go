@@ -28,6 +28,7 @@ type Dialect struct {
 	nodeMetrics     *nodeMetricsDialect
 	aiopsBaseline   *aIOpsBaselineDialect
 	aiopsGraph      *aIOpsGraphDialect
+	aiopsIncident   *aIOpsIncidentDialect
 }
 
 // NewDialect 创建 SQLite 方言
@@ -51,6 +52,7 @@ func NewDialect() *Dialect {
 		nodeMetrics:     &nodeMetricsDialect{},
 		aiopsBaseline:   &aIOpsBaselineDialect{},
 		aiopsGraph:      &aIOpsGraphDialect{},
+		aiopsIncident:   &aIOpsIncidentDialect{},
 	}
 }
 
@@ -72,6 +74,7 @@ func (d *Dialect) SLOEdge() database.SLOEdgeDialect                 { return d.s
 func (d *Dialect) NodeMetrics() database.NodeMetricsDialect         { return d.nodeMetrics }
 func (d *Dialect) AIOpsBaseline() database.AIOpsBaselineDialect     { return d.aiopsBaseline }
 func (d *Dialect) AIOpsGraph() database.AIOpsGraphDialect           { return d.aiopsGraph }
+func (d *Dialect) AIOpsIncident() database.AIOpsIncidentDialect     { return d.aiopsIncident }
 
 func (d *Dialect) Migrate(db *sql.DB) error {
 	return migrate(db)

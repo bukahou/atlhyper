@@ -468,6 +468,52 @@ func migrate(db *sql.DB) error {
 			snapshot   BLOB NOT NULL,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP
 		)`,
+
+		// ==================== AIOps: 事件表 ====================
+		// 异常事件记录，关联集群和受影响实体
+		`CREATE TABLE IF NOT EXISTS aiops_incidents (
+			id TEXT PRIMARY KEY,
+			cluster_id TEXT NOT NULL,
+			state TEXT NOT NULL DEFAULT 'firing',
+			severity TEXT NOT NULL DEFAULT 'warning',
+			root_cause TEXT,
+			peak_risk REAL NOT NULL DEFAULT 0,
+			started_at TEXT NOT NULL,
+			resolved_at TEXT,
+			duration_s INTEGER NOT NULL DEFAULT 0,
+			recurrence INTEGER NOT NULL DEFAULT 0,
+			summary TEXT,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aiops_incidents_cluster ON aiops_incidents(cluster_id, started_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_aiops_incidents_state ON aiops_incidents(state)`,
+
+		// ==================== AIOps: 事件受影响实体表 ====================
+		// 事件关联的实体信息（风险分数、角色等）
+		`CREATE TABLE IF NOT EXISTS aiops_incident_entities (
+			incident_id TEXT NOT NULL,
+			entity_key TEXT NOT NULL,
+			entity_type TEXT NOT NULL,
+			r_local REAL NOT NULL DEFAULT 0,
+			r_final REAL NOT NULL DEFAULT 0,
+			role TEXT NOT NULL DEFAULT 'affected',
+			PRIMARY KEY (incident_id, entity_key),
+			FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_entities_entity ON aiops_incident_entities(entity_key)`,
+
+		// ==================== AIOps: 事件时间线表 ====================
+		// 事件生命周期中的关键事件记录
+		`CREATE TABLE IF NOT EXISTS aiops_incident_timeline (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			incident_id TEXT NOT NULL,
+			timestamp TEXT NOT NULL,
+			event_type TEXT NOT NULL,
+			entity_key TEXT,
+			detail TEXT,
+			FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_timeline_inc ON aiops_incident_timeline(incident_id, timestamp ASC)`,
 	}
 
 	// 增量迁移：为已存在的表添加新列（忽略错误，可能列已存在）

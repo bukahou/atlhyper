@@ -169,6 +169,7 @@ func New() (*Master, error) {
 		Store:          store,
 		GraphRepo:      db.AIOpsGraph,
 		BaselineRepo:   db.AIOpsBaseline,
+		IncidentRepo:   db.AIOpsIncident,
 		SLOServiceRepo: db.SLOService,
 		SLORepo:        db.SLO,
 		FlushInterval:  cfg.AIOps.FlushInterval,

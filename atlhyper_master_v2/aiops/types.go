@@ -257,3 +257,133 @@ const (
 	AnomalyThreshold  = 3.0   // 3σ 规则
 	SigmoidK          = 2.0   // sigmoid 斜率
 )
+
+// ==================== 状态机类型 ====================
+
+// EntityState 实体当前状态
+type EntityState string
+
+const (
+	StateHealthy  EntityState = "healthy"
+	StateWarning  EntityState = "warning"
+	StateIncident EntityState = "incident"
+	StateRecovery EntityState = "recovery"
+	StateStable   EntityState = "stable"
+)
+
+// StateMachineEntry 状态机条目（每个实体一个）
+type StateMachineEntry struct {
+	EntityKey         string      `json:"entityKey"`
+	CurrentState      EntityState `json:"currentState"`
+	IncidentID        string      `json:"incidentId"`
+	ConditionMetSince int64       `json:"conditionMetSince"`
+	LastRFinal        float64     `json:"lastRFinal"`
+	LastEvaluatedAt   int64       `json:"lastEvaluatedAt"`
+}
+
+// ==================== 事件类型 ====================
+
+// Incident 事件
+type Incident struct {
+	ID         string      `json:"id"`
+	ClusterID  string      `json:"clusterId"`
+	State      EntityState `json:"state"`
+	Severity   string      `json:"severity"`
+	RootCause  string      `json:"rootCause"`
+	PeakRisk   float64     `json:"peakRisk"`
+	StartedAt  time.Time   `json:"startedAt"`
+	ResolvedAt *time.Time  `json:"resolvedAt"`
+	DurationS  int64       `json:"durationS"`
+	Recurrence int         `json:"recurrence"`
+	Summary    string      `json:"summary"`
+	CreatedAt  time.Time   `json:"createdAt"`
+}
+
+// IncidentEntity 受影响实体
+type IncidentEntity struct {
+	IncidentID string  `json:"incidentId"`
+	EntityKey  string  `json:"entityKey"`
+	EntityType string  `json:"entityType"`
+	RLocal     float64 `json:"rLocal"`
+	RFinal     float64 `json:"rFinal"`
+	Role       string  `json:"role"`
+}
+
+// IncidentTimeline 事件时间线条目
+type IncidentTimeline struct {
+	ID         int64     `json:"id"`
+	IncidentID string    `json:"incidentId"`
+	Timestamp  time.Time `json:"timestamp"`
+	EventType  string    `json:"eventType"`
+	EntityKey  string    `json:"entityKey"`
+	Detail     string    `json:"detail"`
+}
+
+// 时间线事件类型常量
+const (
+	TimelineAnomalyDetected    = "anomaly_detected"
+	TimelineStateChange        = "state_change"
+	TimelineMetricSpike        = "metric_spike"
+	TimelineRootCauseIdentified = "root_cause_identified"
+	TimelineRecoveryStarted    = "recovery_started"
+	TimelineRecurrence         = "recurrence"
+)
+
+// IncidentDetail 事件详情（API 响应）
+type IncidentDetail struct {
+	Incident
+	Entities []*IncidentEntity  `json:"entities"`
+	Timeline []*IncidentTimeline `json:"timeline"`
+}
+
+// IncidentStats 事件统计
+type IncidentStats struct {
+	TotalIncidents  int              `json:"totalIncidents"`
+	ActiveIncidents int              `json:"activeIncidents"`
+	MTTR            float64          `json:"mttr"`
+	RecurrenceRate  float64          `json:"recurrenceRate"`
+	BySeverity      map[string]int   `json:"bySeverity"`
+	ByState         map[string]int   `json:"byState"`
+	TopRootCauses   []RootCauseCount `json:"topRootCauses"`
+}
+
+// RootCauseCount 根因统计
+type RootCauseCount struct {
+	EntityKey string `json:"entityKey"`
+	Count     int    `json:"count"`
+}
+
+// IncidentPattern 历史事件模式
+type IncidentPattern struct {
+	EntityKey      string      `json:"entityKey"`
+	PatternCount   int         `json:"patternCount"`
+	AvgDuration    float64     `json:"avgDuration"`
+	LastOccurrence time.Time   `json:"lastOccurrence"`
+	CommonMetrics  []string    `json:"commonMetrics"`
+	Incidents      []*Incident `json:"incidents"`
+}
+
+// IncidentQueryOpts 事件查询选项
+type IncidentQueryOpts struct {
+	ClusterID string
+	State     string
+	Severity  string
+	From      time.Time
+	To        time.Time
+	Limit     int
+	Offset    int
+}
+
+// SeverityFromRisk 从 R_final 映射严重度
+func SeverityFromRisk(rFinal float64) string {
+	switch {
+	case rFinal >= 0.9:
+		return "critical"
+	case rFinal >= 0.7:
+		return "high"
+	case rFinal >= 0.5:
+		return "medium"
+	default:
+		return "low"
+	}
+}

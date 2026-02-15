@@ -1,5 +1,5 @@
 // atlhyper_master_v2/aiops/core/engine.go
-// AIOps 引擎核心: OnSnapshot 编排图更新 + 基线检测
+// AIOps 引擎核心: OnSnapshot 编排图更新 + 基线检测 + 风险评分 + 状态机评估
 package core
 
 import (
@@ -11,7 +11,9 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/aiops/baseline"
 	"AtlHyper/atlhyper_master_v2/aiops/correlator"
+	"AtlHyper/atlhyper_master_v2/aiops/incident"
 	"AtlHyper/atlhyper_master_v2/aiops/risk"
+	"AtlHyper/atlhyper_master_v2/aiops/statemachine"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
@@ -20,11 +22,14 @@ import (
 var log = logger.Module("AIOps")
 
 // engine AIOps 引擎实现
+// 同时实现 statemachine.TransitionCallback 接口
 type engine struct {
 	store          datahub.Store
 	corr           *correlator.Correlator
 	stateManager   *baseline.StateManager
 	scorer         *risk.Scorer
+	sm             *statemachine.StateMachine
+	incidentStore  *incident.Store
 	graphRepo      database.AIOpsGraphRepository
 	sloServiceRepo database.SLOServiceRepository
 	sloRepo        database.SLORepository
@@ -92,8 +97,44 @@ func (e *engine) OnSnapshot(clusterID string) {
 				"risk", clusterRisk.Risk, "level", clusterRisk.Level,
 				"anomalies", clusterRisk.AnomalyCount)
 		}
+
+		// 4. 状态机评估
+		if e.sm != nil {
+			entityRisks := e.scorer.GetEntityRiskMap(clusterID)
+			e.sm.Evaluate(context.Background(), clusterID, entityRisks, clusterRisk)
+		}
 	}
 }
+
+// ==================== TransitionCallback 实现 ====================
+
+// OnWarningCreated 创建 Warning 事件
+func (e *engine) OnWarningCreated(ctx context.Context, clusterID, entityKey string, risk *aiops.EntityRisk, now time.Time) string {
+	return e.incidentStore.Create(ctx, clusterID, entityKey, risk, now)
+}
+
+// OnStateEscalated 事件升级
+func (e *engine) OnStateEscalated(ctx context.Context, incidentID string, state aiops.EntityState, risk *aiops.EntityRisk, now time.Time) {
+	e.incidentStore.UpdateState(ctx, incidentID, state, risk, now)
+}
+
+// OnRecoveryStarted 开始恢复
+func (e *engine) OnRecoveryStarted(ctx context.Context, incidentID string, risk *aiops.EntityRisk, now time.Time) {
+	e.incidentStore.UpdateState(ctx, incidentID, aiops.StateRecovery, risk, now)
+}
+
+// OnRecurrence 事件复发
+func (e *engine) OnRecurrence(ctx context.Context, incidentID string, risk *aiops.EntityRisk, now time.Time) {
+	e.incidentStore.IncrementRecurrence(ctx, incidentID, risk, now)
+	e.incidentStore.UpdateState(ctx, incidentID, aiops.StateWarning, risk, now)
+}
+
+// OnStable 事件稳定（关闭）
+func (e *engine) OnStable(ctx context.Context, incidentID string, entityKey string, now time.Time) {
+	e.incidentStore.Resolve(ctx, incidentID, entityKey, now)
+}
+
+// ==================== 查询方法 ====================
 
 // GetGraph 获取指定集群的依赖图
 func (e *engine) GetGraph(clusterID string) *aiops.DependencyGraph {
@@ -108,59 +149,6 @@ func (e *engine) GetGraphTrace(clusterID, fromKey, direction string, maxDepth in
 // GetBaseline 获取指定实体的基线状态
 func (e *engine) GetBaseline(entityKey string) *aiops.EntityBaseline {
 	return e.stateManager.GetStates(entityKey)
-}
-
-// Start 启动引擎
-func (e *engine) Start(ctx context.Context) error {
-	// 1. 从数据库恢复基线状态
-	if err := e.stateManager.LoadFromDB(ctx); err != nil {
-		log.Warn("加载基线状态失败", "err", err)
-	}
-
-	// 2. 从数据库恢复依赖图
-	clusterIDs, err := e.graphRepo.ListClusterIDs(ctx)
-	if err != nil {
-		log.Warn("加载依赖图集群列表失败", "err", err)
-	}
-	for _, cid := range clusterIDs {
-		data, err := e.graphRepo.Load(ctx, cid)
-		if err != nil || data == nil {
-			continue
-		}
-		graph, err := correlator.Deserialize(data)
-		if err != nil {
-			log.Warn("反序列化依赖图失败", "cluster", cid, "err", err)
-			continue
-		}
-		e.corr.Update(cid, graph)
-	}
-	log.Info("依赖图恢复完成", "clusters", len(clusterIDs))
-
-	// 3. 启动定期 flush goroutine
-	flushCtx, cancel := context.WithCancel(context.Background())
-	e.cancel = cancel
-	e.wg.Add(1)
-	go e.flushLoop(flushCtx)
-
-	log.Info("AIOps 引擎已启动", "flushInterval", e.flushInterval)
-	return nil
-}
-
-// Stop 停止引擎
-func (e *engine) Stop() error {
-	if e.cancel != nil {
-		e.cancel()
-	}
-	e.wg.Wait()
-
-	// 最终 flush
-	if err := e.stateManager.FlushToDB(context.Background()); err != nil {
-		log.Error("最终 flush 基线状态失败", "err", err)
-		return err
-	}
-
-	log.Info("AIOps 引擎已停止")
-	return nil
 }
 
 // GetClusterRisk 获取集群风险评分
@@ -218,6 +206,89 @@ func (e *engine) GetEntityRisk(clusterID, entityKey string) *aiops.EntityRiskDet
 		CausalChain: causalChain,
 	}
 }
+
+// GetIncidents 查询事件列表
+func (e *engine) GetIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) ([]*aiops.Incident, int, error) {
+	return e.incidentStore.GetIncidents(ctx, opts)
+}
+
+// GetIncidentDetail 获取事件详情
+func (e *engine) GetIncidentDetail(ctx context.Context, incidentID string) *aiops.IncidentDetail {
+	return e.incidentStore.GetIncident(ctx, incidentID)
+}
+
+// GetIncidentStats 获取事件统计
+func (e *engine) GetIncidentStats(ctx context.Context, clusterID string, since time.Time) *aiops.IncidentStats {
+	return e.incidentStore.GetStats(ctx, clusterID, since)
+}
+
+// GetIncidentPatterns 获取历史事件模式
+func (e *engine) GetIncidentPatterns(ctx context.Context, entityKey string, since time.Time) []*aiops.IncidentPattern {
+	return e.incidentStore.GetPatterns(ctx, entityKey, since)
+}
+
+// ==================== 生命周期 ====================
+
+// Start 启动引擎
+func (e *engine) Start(ctx context.Context) error {
+	// 1. 从数据库恢复基线状态
+	if err := e.stateManager.LoadFromDB(ctx); err != nil {
+		log.Warn("加载基线状态失败", "err", err)
+	}
+
+	// 2. 从数据库恢复依赖图
+	clusterIDs, err := e.graphRepo.ListClusterIDs(ctx)
+	if err != nil {
+		log.Warn("加载依赖图集群列表失败", "err", err)
+	}
+	for _, cid := range clusterIDs {
+		data, err := e.graphRepo.Load(ctx, cid)
+		if err != nil || data == nil {
+			continue
+		}
+		graph, err := correlator.Deserialize(data)
+		if err != nil {
+			log.Warn("反序列化依赖图失败", "cluster", cid, "err", err)
+			continue
+		}
+		e.corr.Update(cid, graph)
+	}
+	log.Info("依赖图恢复完成", "clusters", len(clusterIDs))
+
+	// 3. 启动定期 flush + Recovery→Stable 检查 goroutine
+	bgCtx, cancel := context.WithCancel(context.Background())
+	e.cancel = cancel
+
+	e.wg.Add(1)
+	go e.flushLoop(bgCtx)
+
+	if e.sm != nil {
+		e.wg.Add(1)
+		go e.recoveryCheckLoop(bgCtx)
+	}
+
+	log.Info("AIOps 引擎已启动", "flushInterval", e.flushInterval)
+	return nil
+}
+
+// Stop 停止引擎
+func (e *engine) Stop() error {
+	if e.cancel != nil {
+		e.cancel()
+	}
+	e.wg.Wait()
+
+	// 最终 flush
+	if err := e.stateManager.FlushToDB(context.Background()); err != nil {
+		log.Error("最终 flush 基线状态失败", "err", err)
+		return err
+	}
+
+	log.Info("AIOps 引擎已停止")
+	return nil
+}
+
+// ==================== 内部方法 ====================
 
 // buildSLOContext 从 SLO 仓库构建 SLO 上下文
 func (e *engine) buildSLOContext(clusterID string) *risk.SLOContext {
@@ -315,6 +386,22 @@ func (e *engine) flushLoop(ctx context.Context) {
 			if err := e.stateManager.FlushToDB(ctx); err != nil {
 				log.Error("定期 flush 基线状态失败", "err", err)
 			}
+		}
+	}
+}
+
+// recoveryCheckLoop 定期检查 Recovery 状态的实体是否可以转为 Stable
+func (e *engine) recoveryCheckLoop(ctx context.Context) {
+	defer e.wg.Done()
+	ticker := time.NewTicker(10 * time.Minute) // 每 10 分钟检查一次
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			e.sm.CheckRecoveryToStable(ctx)
 		}
 	}
 }

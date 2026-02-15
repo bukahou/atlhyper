@@ -32,6 +32,7 @@ type DB struct {
 	NodeMetrics    NodeMetricsRepository
 	AIOpsBaseline  AIOpsBaselineRepository
 	AIOpsGraph     AIOpsGraphRepository
+	AIOpsIncident  AIOpsIncidentRepository
 
 	Conn *sql.DB // 导出供 repo 包使用
 }
@@ -764,6 +765,7 @@ type Dialect interface {
 	NodeMetrics() NodeMetricsDialect
 	AIOpsBaseline() AIOpsBaselineDialect
 	AIOpsGraph() AIOpsGraphDialect
+	AIOpsIncident() AIOpsIncidentDialect
 	Migrate(db *sql.DB) error
 }
 
@@ -1032,4 +1034,111 @@ type AIOpsGraphDialect interface {
 	SelectByCluster(clusterID string) (query string, args []any)
 	SelectAllClusterIDs() (query string, args []any)
 	ScanSnapshot(rows *sql.Rows) (clusterID string, data []byte, err error)
+}
+
+// ==================== AIOps Incident 模型定义 ====================
+
+// AIOpsIncident 事件数据库模型
+type AIOpsIncident struct {
+	ID         string
+	ClusterID  string
+	State      string
+	Severity   string
+	RootCause  string
+	PeakRisk   float64
+	StartedAt  time.Time
+	ResolvedAt *time.Time
+	DurationS  int64
+	Recurrence int
+	Summary    string
+	CreatedAt  time.Time
+}
+
+// AIOpsIncidentEntity 受影响实体数据库模型
+type AIOpsIncidentEntity struct {
+	IncidentID string
+	EntityKey  string
+	EntityType string
+	RLocal     float64
+	RFinal     float64
+	Role       string
+}
+
+// AIOpsIncidentTimeline 事件时间线数据库模型
+type AIOpsIncidentTimeline struct {
+	ID         int64
+	IncidentID string
+	Timestamp  time.Time
+	EventType  string
+	EntityKey  string
+	Detail     string
+}
+
+// AIOpsIncidentQueryOpts 事件查询选项
+type AIOpsIncidentQueryOpts struct {
+	ClusterID string
+	State     string
+	Severity  string
+	From      time.Time
+	To        time.Time
+	Limit     int
+	Offset    int
+}
+
+// AIOpsIncidentStatsRaw Repository 层返回的统计原始数据
+type AIOpsIncidentStatsRaw struct {
+	TotalIncidents  int
+	ActiveIncidents int
+	MTTR            float64
+	RecurringCount  int
+	BySeverity      map[string]int
+	ByState         map[string]int
+}
+
+// AIOpsRootCauseCount 根因统计
+type AIOpsRootCauseCount struct {
+	EntityKey string
+	Count     int
+}
+
+// ==================== AIOps Incident Repository 接口 ====================
+
+// AIOpsIncidentRepository 事件数据访问接口
+type AIOpsIncidentRepository interface {
+	CreateIncident(ctx context.Context, inc *AIOpsIncident) error
+	GetByID(ctx context.Context, id string) (*AIOpsIncident, error)
+	UpdateState(ctx context.Context, id, state, severity string) error
+	Resolve(ctx context.Context, id string, resolvedAt time.Time) error
+	UpdateRootCause(ctx context.Context, id, rootCause string) error
+	UpdatePeakRisk(ctx context.Context, id string, peakRisk float64) error
+	IncrementRecurrence(ctx context.Context, id string) error
+	List(ctx context.Context, opts AIOpsIncidentQueryOpts) ([]*AIOpsIncident, error)
+	Count(ctx context.Context, opts AIOpsIncidentQueryOpts) (int, error)
+	AddEntity(ctx context.Context, entity *AIOpsIncidentEntity) error
+	GetEntities(ctx context.Context, incidentID string) ([]*AIOpsIncidentEntity, error)
+	AddTimeline(ctx context.Context, entry *AIOpsIncidentTimeline) error
+	GetTimeline(ctx context.Context, incidentID string) ([]*AIOpsIncidentTimeline, error)
+	GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*AIOpsIncidentStatsRaw, error)
+	TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]AIOpsRootCauseCount, error)
+	ListByEntity(ctx context.Context, entityKey string, since time.Time) ([]*AIOpsIncident, error)
+}
+
+// ==================== AIOps Incident Dialect 接口 ====================
+
+// AIOpsIncidentDialect 事件 SQL 方言
+type AIOpsIncidentDialect interface {
+	InsertIncident(inc *AIOpsIncident) (string, []any)
+	SelectByID(id string) (string, []any)
+	UpdateState(id, state, severity string) (string, []any)
+	Resolve(id string, resolvedAt time.Time) (string, []any)
+	UpdateRootCause(id, rootCause string) (string, []any)
+	UpdatePeakRisk(id string, peakRisk float64) (string, []any)
+	IncrementRecurrence(id string) (string, []any)
+	InsertEntity(entity *AIOpsIncidentEntity) (string, []any)
+	SelectEntities(incidentID string) (string, []any)
+	InsertTimeline(entry *AIOpsIncidentTimeline) (string, []any)
+	SelectTimeline(incidentID string) (string, []any)
+	ScanIncident(rows *sql.Rows) (*AIOpsIncident, error)
+	ScanEntity(rows *sql.Rows) (*AIOpsIncidentEntity, error)
+	ScanTimeline(rows *sql.Rows) (*AIOpsIncidentTimeline, error)
 }

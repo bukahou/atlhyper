@@ -130,6 +130,13 @@ func (s *Scorer) GetPropagationPaths(clusterID, entityKey string) []*aiops.Propa
 	return result
 }
 
+// GetEntityRiskMap 获取集群所有实体风险（供状态机评估）
+func (s *Scorer) GetEntityRiskMap(clusterID string) map[string]*aiops.EntityRisk {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.entityMap[clusterID]
+}
+
 // GetEntityCount 获取集群实体数量
 func (s *Scorer) GetEntityCount(clusterID string) int {
 	s.mu.RLock()

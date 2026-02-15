@@ -42,4 +42,5 @@ func Init(db *database.DB, dialect database.Dialect) {
 	db.NodeMetrics = newNodeMetricsRepo(db.Conn, dialect.NodeMetrics())
 	db.AIOpsBaseline = newAIOpsBaselineRepo(db.Conn, dialect.AIOpsBaseline())
 	db.AIOpsGraph = newAIOpsGraphRepo(db.Conn, dialect.AIOpsGraph())
+	db.AIOpsIncident = newAIOpsIncidentRepo(db.Conn, dialect.AIOpsIncident())
 }

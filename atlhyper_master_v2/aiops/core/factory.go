@@ -8,7 +8,9 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/aiops/baseline"
 	"AtlHyper/atlhyper_master_v2/aiops/correlator"
+	"AtlHyper/atlhyper_master_v2/aiops/incident"
 	"AtlHyper/atlhyper_master_v2/aiops/risk"
+	"AtlHyper/atlhyper_master_v2/aiops/statemachine"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 )
@@ -18,6 +20,7 @@ type EngineConfig struct {
 	Store          datahub.Store
 	GraphRepo      database.AIOpsGraphRepository
 	BaselineRepo   database.AIOpsBaselineRepository
+	IncidentRepo   database.AIOpsIncidentRepository
 	SLOServiceRepo database.SLOServiceRepository
 	SLORepo        database.SLORepository
 	FlushInterval  time.Duration
@@ -29,15 +32,23 @@ func NewEngine(cfg EngineConfig) aiops.Engine {
 		cfg.FlushInterval = 5 * time.Minute
 	}
 
-	return &engine{
+	incStore := incident.NewStore(cfg.IncidentRepo)
+
+	e := &engine{
 		store:          cfg.Store,
 		corr:           correlator.NewCorrelator(),
 		stateManager:   baseline.NewStateManager(cfg.BaselineRepo),
 		scorer:         risk.NewScorer(nil),
+		incidentStore:  incStore,
 		graphRepo:      cfg.GraphRepo,
 		sloServiceRepo: cfg.SLOServiceRepo,
 		sloRepo:        cfg.SLORepo,
 		anomalyCache:   make(map[string][]*aiops.AnomalyResult),
 		flushInterval:  cfg.FlushInterval,
 	}
+
+	// 创建状态机，engine 本身作为 TransitionCallback
+	e.sm = statemachine.NewStateMachine(e)
+
+	return e
 }

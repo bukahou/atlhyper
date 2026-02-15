@@ -95,6 +95,7 @@ func (r *Router) registerRoutes() {
 	aiopsGraphHandler := handler.NewAIOpsGraphHandler(r.service)
 	aiopsBaselineHandler := handler.NewAIOpsBaselineHandler(r.service)
 	aiopsRiskHandler := handler.NewAIOpsRiskHandler(r.service)
+	aiopsIncidentHandler := handler.NewAIOpsIncidentHandler(r.service)
 
 	// ================================================================
 	// 公开路由（无需认证）
@@ -219,6 +220,10 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/aiops/risk/cluster", aiopsRiskHandler.ClusterRisk)
 		register("/api/v2/aiops/risk/entities", aiopsRiskHandler.EntityRisks)
 		register("/api/v2/aiops/risk/entity", aiopsRiskHandler.EntityRisk)
+		register("/api/v2/aiops/incidents", aiopsIncidentHandler.List)
+		register("/api/v2/aiops/incidents/stats", aiopsIncidentHandler.Stats)
+		register("/api/v2/aiops/incidents/patterns", aiopsIncidentHandler.Patterns)
+		register("/api/v2/aiops/incidents/", aiopsIncidentHandler.Detail)
 	})
 
 	// ================================================================
