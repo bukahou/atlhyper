@@ -19,6 +19,7 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 - **Alert Notifications** — Email (SMTP) and Slack (Webhook) integrations
 - **Remote Operations** — Execute kubectl commands, restart pods, scale deployments remotely
 - **AI Assistant** — Natural language interface for cluster operations (optional)
+- **AIOps Engine** — Dependency graph, dynamic baseline, risk scoring, incident lifecycle management *(planned)*
 - **Audit Logging** — Complete operation history with user tracking
 - **Multi-Language** — English, Chinese, Japanese support
 
@@ -359,6 +360,7 @@ atlhyper/
 │   ├── database/             # Persistent storage (SQLite/MySQL)
 │   ├── service/              # Business logic (SLO, Alert)
 │   ├── ai/                   # AI assistant integration
+│   ├── aiops/                # AIOps engine (planned)
 │   └── config/               # Configuration management
 │
 ├── atlhyper_agent_v2/        # Agent (Cluster Proxy)
@@ -386,6 +388,28 @@ atlhyper/
     ├── helm/                 # Helm charts
     └── k8s/                  # K8s manifests
 ```
+
+---
+
+## Roadmap
+
+### AIOps Engine
+
+An algorithmic AIOps engine is planned to bring automated root cause analysis and incident management. The design documents are available in [`docs/design/future/`](docs/design/future/).
+
+| Phase | Module | Description | Status |
+|-------|--------|-------------|--------|
+| **Phase 1** | Dependency Graph + Baseline | Auto-build K8s topology DAG; EMA + 3σ anomaly detection per entity | Designed |
+| **Phase 2a** | Risk Scorer | 3-stage pipeline: local risk → temporal weight → graph propagation → ClusterRisk | Designed |
+| **Phase 2b** | State Machine + Incident Store | Entity lifecycle (Healthy → Warning → Incident → Recovery → Stable); structured incident storage | Designed |
+| **Phase 3** | Frontend Visualization | Risk dashboard, incident management, topology graph | Designed |
+| **Phase 4** | AI Enhancement | LLM-powered incident summary, recommendations, and Chat Tool integration | Designed |
+
+**Key differentiators:**
+- **Explainable algorithms** — every risk score traces back to specific formulas and input metrics, not an ML black box
+- **Single-binary, zero external dependencies** — no Kafka, Elasticsearch, or time-series DB required
+- **K8s-native topology** — dependency graph built directly from K8s API + Linkerd + OTel, zero extra configuration
+- **SLO-driven drill-down** — from user-facing SLO (domain error rate / latency) down to infrastructure root cause
 
 ---
 

@@ -932,9 +932,8 @@ atlhyper_master_v2/aiops/
 |-------|-----------|------|
 | Phase 0 | SLO OTel Agent 设计 (`archive/slo-otel-agent-design.md`) | ✅ 设计+实现均完成 |
 | Phase 0 | SLO OTel Master 设计 (`archive/slo-otel-master-design.md`) | ✅ 设计+实现均完成 |
-| Phase 1 | 依赖图引擎设计 (待创建) | 📋 待规划 |
-| Phase 1 | 基线引擎设计 (待创建) | 📋 待规划 |
-| Phase 2 | 风险评分引擎设计 (待创建) | 📋 待规划 |
-| Phase 2 | 状态机 + 事件存储设计 (待创建) | 📋 待规划 |
-| Phase 3 | 前端可视化设计 (待创建) | 📋 待规划 |
-| Phase 4 | AI 增强层设计 (待创建) | 📋 待规划 |
+| Phase 1 | 依赖图 + 基线引擎设计 (`future/aiops-phase1-graph-baseline.md`) | 📝 设计完成 |
+| Phase 2a | 风险评分引擎设计 (`future/aiops-phase2-risk-scorer.md`) | 📝 设计完成 |
+| Phase 2b | 状态机 + 事件存储设计 (`future/aiops-phase2-statemachine-incident.md`) | 📝 设计完成 |
+| Phase 3 | 前端可视化设计 (`future/aiops-phase3-frontend.md`) | 📝 设计完成 |
+| Phase 4 | AI 增强层设计 (`future/aiops-phase4-ai-enhancement.md`) | 📝 设计完成 |

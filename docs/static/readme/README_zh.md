@@ -19,6 +19,7 @@ AtlHyper 是一个面向轻量级 Kubernetes 环境的监控与管理平台，�
 - **告警通知** — 支持邮件 (SMTP) 和 Slack (Webhook) 通知
 - **远程运维** — 远程执行 kubectl 命令、重启 Pod、调整副本数
 - **AI 助手** — 自然语言交互进行集群运维（可选）
+- **AIOps 引擎** — 依赖图、动态基线、风险评分、事件生命周期管理 *（规划中）*
 - **审计日志** — 完整的操作历史记录与用户追踪
 - **多语言支持** — 中文、英文、日语
 
@@ -358,6 +359,7 @@ atlhyper/
 │   ├── database/             # 持久化存储 (SQLite/MySQL)
 │   ├── service/              # 业务逻辑 (SLO, 告警)
 │   ├── ai/                   # AI 助手集成
+│   ├── aiops/                # AIOps 引擎（规划中）
 │   └── config/               # 配置管理
 │
 ├── atlhyper_agent_v2/        # Agent（集群代理）
@@ -385,6 +387,28 @@ atlhyper/
     ├── helm/                 # Helm charts
     └── k8s/                  # K8s manifests
 ```
+
+---
+
+## 路线图
+
+### AIOps 引擎
+
+规划中的算法驱动 AIOps 引擎，将实现自动化根因分析和事件管理。设计文档见 [`docs/design/future/`](../../design/future/)。
+
+| 阶段 | 模块 | 说明 | 状态 |
+|------|------|------|------|
+| **Phase 1** | 依赖图 + 基线 | 自动构建 K8s 拓扑 DAG；EMA + 3σ 异常检测 | 设计完成 |
+| **Phase 2a** | 风险评分 | 三阶段流水线：局部风险 → 时序权重 → 图传播 → ClusterRisk | 设计完成 |
+| **Phase 2b** | 状态机 + 事件存储 | 实体生命周期（Healthy → Warning → Incident → Recovery → Stable）；结构化事件存储 | 设计完成 |
+| **Phase 3** | 前端可视化 | 风险仪表盘、事件管理、拓扑图 | 设计完成 |
+| **Phase 4** | AI 增强 | LLM 驱动的事件摘要、处置建议、Chat Tool 集成 | 设计完成 |
+
+**核心差异化：**
+- **算法可解释** — 每个风险评分都能追溯到具体公式和输入指标，不是 ML 黑盒
+- **单二进制零外部依赖** — 无需 Kafka、Elasticsearch 或时序数据库
+- **K8s 原生拓扑** — 依赖图直接从 K8s API + Linkerd + OTel 构建，零额外配置
+- **SLO 驱动溯源** — 从用户可感知的 SLO（域名错误率/延迟）向下钻取到基础设施根因
 
 ---
 
