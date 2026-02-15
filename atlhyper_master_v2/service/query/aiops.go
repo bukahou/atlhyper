@@ -31,3 +31,27 @@ func (q *QueryService) GetAIOpsBaseline(ctx context.Context, clusterID, entityKe
 	}
 	return q.aiopsEngine.GetBaseline(entityKey), nil
 }
+
+// GetAIOpsClusterRisk 获取集群风险评分
+func (q *QueryService) GetAIOpsClusterRisk(ctx context.Context, clusterID string) (*aiops.ClusterRisk, error) {
+	if q.aiopsEngine == nil {
+		return nil, nil
+	}
+	return q.aiopsEngine.GetClusterRisk(clusterID), nil
+}
+
+// GetAIOpsEntityRisks 获取实体风险列表
+func (q *QueryService) GetAIOpsEntityRisks(ctx context.Context, clusterID, sortBy string, limit int) ([]*aiops.EntityRisk, error) {
+	if q.aiopsEngine == nil {
+		return nil, nil
+	}
+	return q.aiopsEngine.GetEntityRisks(clusterID, sortBy, limit), nil
+}
+
+// GetAIOpsEntityRisk 获取单个实体的风险详情
+func (q *QueryService) GetAIOpsEntityRisk(ctx context.Context, clusterID, entityKey string) (*aiops.EntityRiskDetail, error) {
+	if q.aiopsEngine == nil {
+		return nil, nil
+	}
+	return q.aiopsEngine.GetEntityRisk(clusterID, entityKey), nil
+}

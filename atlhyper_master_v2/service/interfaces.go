@@ -73,6 +73,9 @@ type Query interface {
 	GetAIOpsGraph(ctx context.Context, clusterID string) (*aiops.DependencyGraph, error)
 	GetAIOpsGraphTrace(ctx context.Context, clusterID, fromKey, direction string, maxDepth int) (*aiops.TraceResult, error)
 	GetAIOpsBaseline(ctx context.Context, clusterID, entityKey string) (*aiops.EntityBaseline, error)
+	GetAIOpsClusterRisk(ctx context.Context, clusterID string) (*aiops.ClusterRisk, error)
+	GetAIOpsEntityRisks(ctx context.Context, clusterID, sortBy string, limit int) ([]*aiops.EntityRisk, error)
+	GetAIOpsEntityRisk(ctx context.Context, clusterID, entityKey string) (*aiops.EntityRiskDetail, error)
 }
 
 // Ops 写入操作接口

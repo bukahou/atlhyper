@@ -144,6 +144,111 @@ type MetricDataPoint struct {
 	Value      float64
 }
 
+// ==================== 风险评分类型 ====================
+
+// EntityRisk 实体风险评分
+type EntityRisk struct {
+	EntityKey    string  `json:"entityKey"`
+	EntityType   string  `json:"entityType"`   // "service" | "pod" | "node" | "ingress"
+	Namespace    string  `json:"namespace"`
+	Name         string  `json:"name"`
+	RLocal       float64 `json:"rLocal"`       // Stage 1: 局部风险 [0, 1]
+	WTime        float64 `json:"wTime"`        // Stage 2: 时序权重 [0, 1]
+	RWeighted    float64 `json:"rWeighted"`    // R_local × W_time
+	RFinal       float64 `json:"rFinal"`       // Stage 3: 传播后最终风险 [0, 1]
+	RiskLevel    string  `json:"riskLevel"`    // "healthy" | "low" | "medium" | "high" | "critical"
+	FirstAnomaly int64   `json:"firstAnomaly"` // 首次异常时间 (Unix, 0 = 无异常)
+}
+
+// ClusterRisk 集群整体风险
+type ClusterRisk struct {
+	ClusterID     string        `json:"clusterId"`
+	Risk          float64       `json:"risk"`          // [0, 100]
+	Level         string        `json:"level"`         // "healthy" | "low" | "warning" | "critical"
+	TopEntities   []*EntityRisk `json:"topEntities"`   // 风险最高的 Top 5 实体
+	TotalEntities int           `json:"totalEntities"` // 图中总实体数
+	AnomalyCount  int           `json:"anomalyCount"`  // 当前异常实体数
+	UpdatedAt     int64         `json:"updatedAt"`
+}
+
+// EntityRiskDetail 实体风险详情
+type EntityRiskDetail struct {
+	EntityRisk
+	Metrics     []*AnomalyResult  `json:"metrics"`     // 各指标异常详情
+	Propagation []*PropagationPath `json:"propagation"` // 传播路径
+	CausalChain []*CausalEntry     `json:"causalChain"` // 因果链（按时间排序）
+}
+
+// PropagationPath 风险传播路径
+type PropagationPath struct {
+	From         string  `json:"from"`
+	To           string  `json:"to"`
+	EdgeType     string  `json:"edgeType"`
+	Contribution float64 `json:"contribution"`
+}
+
+// CausalEntry 因果链条目
+type CausalEntry struct {
+	EntityKey  string  `json:"entityKey"`
+	MetricName string  `json:"metricName"`
+	Deviation  float64 `json:"deviation"`
+	DetectedAt int64   `json:"detectedAt"`
+}
+
+// RiskLevel 从 R_final 映射到风险等级
+func RiskLevel(rFinal float64) string {
+	switch {
+	case rFinal >= 0.8:
+		return "critical"
+	case rFinal >= 0.6:
+		return "high"
+	case rFinal >= 0.4:
+		return "medium"
+	case rFinal >= 0.2:
+		return "low"
+	default:
+		return "healthy"
+	}
+}
+
+// ClusterRiskLevel 从 ClusterRisk 映射到等级
+func ClusterRiskLevel(risk float64) string {
+	switch {
+	case risk >= 80:
+		return "critical"
+	case risk >= 50:
+		return "warning"
+	case risk >= 20:
+		return "low"
+	default:
+		return "healthy"
+	}
+}
+
+// ExtractEntityType 从 entityKey 提取实体类型
+// key 格式: "namespace/type/name"
+func ExtractEntityType(entityKey string) string {
+	parts := splitEntityKey(entityKey)
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+	return ""
+}
+
+// splitEntityKey 分割 entityKey
+func splitEntityKey(key string) []string {
+	var parts []string
+	start := 0
+	for i, c := range key {
+		if c == '/' {
+			parts = append(parts, key[start:i])
+			start = i + 1
+		}
+	}
+	parts = append(parts, key[start:])
+	return parts
+}
+
 // ==================== 常量 ====================
 
 const (

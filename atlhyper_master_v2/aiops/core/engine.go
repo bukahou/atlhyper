@@ -4,12 +4,14 @@ package core
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/aiops/baseline"
 	"AtlHyper/atlhyper_master_v2/aiops/correlator"
+	"AtlHyper/atlhyper_master_v2/aiops/risk"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
@@ -22,9 +24,14 @@ type engine struct {
 	store          datahub.Store
 	corr           *correlator.Correlator
 	stateManager   *baseline.StateManager
+	scorer         *risk.Scorer
 	graphRepo      database.AIOpsGraphRepository
 	sloServiceRepo database.SLOServiceRepository
 	sloRepo        database.SLORepository
+
+	// 异常结果缓存（供风险详情查询）
+	anomalyCache map[string][]*aiops.AnomalyResult // clusterID -> anomalies
+	anomalyMu    sync.RWMutex
 
 	flushInterval time.Duration
 	cancel        context.CancelFunc
@@ -61,6 +68,12 @@ func (e *engine) OnSnapshot(clusterID string) {
 	}
 
 	results := e.stateManager.Update(points)
+
+	// 缓存异常结果
+	e.anomalyMu.Lock()
+	e.anomalyCache[clusterID] = results
+	e.anomalyMu.Unlock()
+
 	if len(results) > 0 {
 		anomalyCount := 0
 		for _, r := range results {
@@ -70,6 +83,14 @@ func (e *engine) OnSnapshot(clusterID string) {
 		}
 		if anomalyCount > 0 {
 			log.Debug("检测到异常", "cluster", clusterID, "anomalies", anomalyCount)
+		}
+
+		// 3. 风险评分
+		clusterRisk := e.scorer.Calculate(clusterID, graph, results, e.buildSLOContext(clusterID))
+		if clusterRisk != nil {
+			log.Debug("集群风险评分", "cluster", clusterID,
+				"risk", clusterRisk.Risk, "level", clusterRisk.Level,
+				"anomalies", clusterRisk.AnomalyCount)
 		}
 	}
 }
@@ -140,6 +161,144 @@ func (e *engine) Stop() error {
 
 	log.Info("AIOps 引擎已停止")
 	return nil
+}
+
+// GetClusterRisk 获取集群风险评分
+func (e *engine) GetClusterRisk(clusterID string) *aiops.ClusterRisk {
+	return e.scorer.GetClusterRisk(clusterID)
+}
+
+// GetEntityRisks 获取实体风险列表
+func (e *engine) GetEntityRisks(clusterID, sortBy string, limit int) []*aiops.EntityRisk {
+	return e.scorer.GetEntityRisks(clusterID, sortBy, limit)
+}
+
+// GetEntityRisk 获取单个实体的风险详情
+func (e *engine) GetEntityRisk(clusterID, entityKey string) *aiops.EntityRiskDetail {
+	entityRisk := e.scorer.GetEntityRisk(clusterID, entityKey)
+	if entityRisk == nil {
+		return nil
+	}
+
+	// 获取该实体的异常指标
+	var metrics []*aiops.AnomalyResult
+	e.anomalyMu.RLock()
+	for _, a := range e.anomalyCache[clusterID] {
+		if a.EntityKey == entityKey {
+			metrics = append(metrics, a)
+		}
+	}
+	e.anomalyMu.RUnlock()
+
+	// 获取传播路径
+	propagation := e.scorer.GetPropagationPaths(clusterID, entityKey)
+
+	// 构建因果链（按时间排序）
+	var causalChain []*aiops.CausalEntry
+	e.anomalyMu.RLock()
+	for _, a := range e.anomalyCache[clusterID] {
+		if a.IsAnomaly {
+			causalChain = append(causalChain, &aiops.CausalEntry{
+				EntityKey:  a.EntityKey,
+				MetricName: a.MetricName,
+				Deviation:  a.Deviation,
+				DetectedAt: a.DetectedAt,
+			})
+		}
+	}
+	e.anomalyMu.RUnlock()
+	sort.Slice(causalChain, func(i, j int) bool {
+		return causalChain[i].DetectedAt < causalChain[j].DetectedAt
+	})
+
+	return &aiops.EntityRiskDetail{
+		EntityRisk:  *entityRisk,
+		Metrics:     metrics,
+		Propagation: propagation,
+		CausalChain: causalChain,
+	}
+}
+
+// buildSLOContext 从 SLO 仓库构建 SLO 上下文
+func (e *engine) buildSLOContext(clusterID string) *risk.SLOContext {
+	if e.sloRepo == nil {
+		return nil
+	}
+
+	ctx := context.Background()
+
+	// 获取集群所有 SLO 目标
+	targets, err := e.sloRepo.GetTargets(ctx, clusterID)
+	if err != nil || len(targets) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	var maxBurnRate float64
+	var latestErrorRate, previousErrorRate float64
+	hasData := false
+
+	for _, t := range targets {
+		// 获取最近 10 分钟的原始指标
+		recent, err := e.sloRepo.GetRawMetrics(ctx, clusterID, t.Host, now.Add(-10*time.Minute), now)
+		if err != nil || len(recent) == 0 {
+			continue
+		}
+
+		// 汇总最近指标
+		var totalReqs, errorReqs int64
+		for _, r := range recent {
+			totalReqs += r.TotalRequests
+			errorReqs += r.ErrorRequests
+		}
+		if totalReqs == 0 {
+			continue
+		}
+
+		actualErrorRate := float64(errorReqs) / float64(totalReqs)
+		errorBudget := 1.0 - t.AvailabilityTarget/100.0
+		if errorBudget <= 0 {
+			errorBudget = 0.001
+		}
+
+		burnRate := actualErrorRate / errorBudget
+		if burnRate > maxBurnRate {
+			maxBurnRate = burnRate
+		}
+
+		if !hasData {
+			latestErrorRate = actualErrorRate
+			hasData = true
+		}
+
+		// 获取前一个 10 分钟窗口的数据计算增长率
+		prev, err := e.sloRepo.GetRawMetrics(ctx, clusterID, t.Host, now.Add(-20*time.Minute), now.Add(-10*time.Minute))
+		if err != nil || len(prev) == 0 {
+			continue
+		}
+		var prevTotal, prevError int64
+		for _, r := range prev {
+			prevTotal += r.TotalRequests
+			prevError += r.ErrorRequests
+		}
+		if prevTotal > 0 {
+			previousErrorRate = float64(prevError) / float64(prevTotal)
+		}
+	}
+
+	if !hasData {
+		return nil
+	}
+
+	var errorGrowthRate float64
+	if previousErrorRate > 0 {
+		errorGrowthRate = (latestErrorRate - previousErrorRate) / previousErrorRate
+	}
+
+	return &risk.SLOContext{
+		MaxBurnRate:     maxBurnRate,
+		ErrorGrowthRate: errorGrowthRate,
+	}
 }
 
 // flushLoop 定期将脏状态写入数据库

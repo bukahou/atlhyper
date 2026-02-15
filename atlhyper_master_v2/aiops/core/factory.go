@@ -8,6 +8,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/aiops/baseline"
 	"AtlHyper/atlhyper_master_v2/aiops/correlator"
+	"AtlHyper/atlhyper_master_v2/aiops/risk"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 )
@@ -32,9 +33,11 @@ func NewEngine(cfg EngineConfig) aiops.Engine {
 		store:          cfg.Store,
 		corr:           correlator.NewCorrelator(),
 		stateManager:   baseline.NewStateManager(cfg.BaselineRepo),
+		scorer:         risk.NewScorer(nil),
 		graphRepo:      cfg.GraphRepo,
 		sloServiceRepo: cfg.SLOServiceRepo,
 		sloRepo:        cfg.SLORepo,
+		anomalyCache:   make(map[string][]*aiops.AnomalyResult),
 		flushInterval:  cfg.FlushInterval,
 	}
 }
