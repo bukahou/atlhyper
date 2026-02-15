@@ -20,6 +20,20 @@ const TYPE_SHAPE: Record<string, string> = {
   ingress: "diamond",
 };
 
+// 边样式按类型区分
+function edgeStyle(type: string, isAnomaly: boolean) {
+  if (isAnomaly) {
+    return { stroke: "#ef4444", lineWidth: 2, strokeOpacity: 0.8, lineDash: undefined as number[] | undefined };
+  }
+  switch (type) {
+    case "calls":     return { stroke: "#666", lineWidth: 1,   strokeOpacity: 0.5, lineDash: undefined as number[] | undefined };
+    case "routes_to": return { stroke: "#888", lineWidth: 0.8, strokeOpacity: 0.4, lineDash: [6, 3] };
+    case "selects":   return { stroke: "#888", lineWidth: 0.8, strokeOpacity: 0.3, lineDash: [3, 3] };
+    case "runs_on":   return { stroke: "#888", lineWidth: 0.6, strokeOpacity: 0.2, lineDash: [2, 4] };
+    default:          return { stroke: "#666", lineWidth: 0.8, strokeOpacity: 0.3, lineDash: undefined as number[] | undefined };
+  }
+}
+
 interface TopologyGraphProps {
   graph: DependencyGraph;
   entityRisks: Record<string, EntityRisk>;
@@ -36,12 +50,23 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
 
   // 构造 G6 数据
   const buildData = useCallback(() => {
+    // 预计算每个节点的度数
+    const degreeMap: Record<string, number> = {};
+    for (const e of graph.edges) {
+      degreeMap[e.from] = (degreeMap[e.from] ?? 0) + 1;
+      degreeMap[e.to] = (degreeMap[e.to] ?? 0) + 1;
+    }
+
     const nodes = Object.values(graph.nodes).map((n) => {
       const risk = entityRisks[n.key];
       const rFinal = risk?.rFinal ?? 0;
       const color = riskColor(rFinal);
-      const size = n.type === "node" ? 44 : n.type === "service" ? 36 : 28;
       const shape = TYPE_SHAPE[n.type] ?? "circle";
+
+      // 大小：基准按类型 + 度数动态加成
+      const degree = degreeMap[n.key] ?? 0;
+      const baseSize = n.type === "node" ? 40 : n.type === "service" ? 34 : 26;
+      const size = baseSize + Math.min(degree * 2, 14);
 
       return {
         id: n.key,
@@ -50,19 +75,19 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
           type: shape,
           size,
           fill: color,
-          fillOpacity: 0.15,
+          fillOpacity: 0.3,
           stroke: color,
-          lineWidth: 1,
+          lineWidth: 2,
           labelText: n.name.length > 18 ? n.name.slice(0, 16) + ".." : n.name,
           labelFontSize: 10,
-          labelFill: "#999",
+          labelFill: color,
           labelPlacement: "bottom" as const,
           labelOffsetY: 4,
           iconText: n.type[0].toUpperCase(),
           iconFontSize: 12,
           iconFontWeight: 700,
           iconFill: color,
-          badges: rFinal > 50
+          badges: rFinal > 0
             ? [{ text: rFinal.toFixed(0), placement: "right-top" as const, backgroundFill: color, fill: "#fff", fontSize: 8 }]
             : [],
         },
@@ -70,18 +95,21 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
     });
 
     const edges = graph.edges.map((e, i) => {
-      const isAnomaly = e.type === "calls" && (entityRisks[e.from]?.rFinal ?? 0) > 50;
+      // 异常判断：源或目标任一端风险 > 50
+      const isAnomaly =
+        (entityRisks[e.from]?.rFinal ?? 0) > 50 ||
+        (entityRisks[e.to]?.rFinal ?? 0) > 50;
+      const style = edgeStyle(e.type, isAnomaly);
+
       return {
         id: `edge-${i}`,
         source: e.from,
         target: e.to,
         style: {
-          stroke: isAnomaly ? "#ef4444" : "#666",
-          lineWidth: isAnomaly ? 2 : 0.8,
-          strokeOpacity: isAnomaly ? 0.8 : 0.3,
+          ...style,
           endArrow: true,
           endArrowSize: 6,
-          endArrowFill: isAnomaly ? "#ef4444" : "#666",
+          endArrowFill: style.stroke,
         },
       };
     });

@@ -1767,6 +1767,10 @@ export interface AIOpsTranslations {
   causalChain: string;
   propagation: string;
   selectNode: string;
+  viewService: string;
+  viewAnomaly: string;
+  viewFull: string;
+  noAnomalies: string;
 
   // 通用
   noData: string;
