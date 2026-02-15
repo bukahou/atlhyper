@@ -24,11 +24,11 @@ export interface NavTranslations {
   namespace: string;
   ingress: string;
   alert: string;
-  system: string;
+  monitoring: string;
   metrics: string;
   logs: string;
   alerts: string;
-  account: string;
+  admin: string;
   users: string;
   roles: string;
   audit: string;

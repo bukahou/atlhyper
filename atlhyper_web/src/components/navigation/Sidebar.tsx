@@ -151,28 +151,28 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    key: "system",
+    key: "monitoring",
     icon: Activity,
     children: [
-      { key: "metrics", href: "/system/metrics", icon: Activity },
-      { key: "logs", href: "/system/logs", icon: FileText },
+      { key: "metrics", href: "/monitoring/metrics", icon: Activity },
+      { key: "logs", href: "/monitoring/logs", icon: FileText },
     ],
   },
   {
     key: "settings",
     icon: Settings,
     children: [
-      { key: "aiSettings", href: "/system/settings/ai", icon: Bot },
-      { key: "notifications", href: "/system/notifications", icon: Bell },
+      { key: "aiSettings", href: "/settings/ai", icon: Bot },
+      { key: "notifications", href: "/settings/notifications", icon: Bell },
     ],
   },
   {
-    key: "account",
+    key: "admin",
     icon: UserCog,
     children: [
-      { key: "users", href: "/system/users", icon: Users, adminOnly: true },
-      { key: "roles", href: "/system/roles", icon: ShieldCheck },
-      { key: "audit", href: "/system/audit", icon: ClipboardList },
+      { key: "users", href: "/admin/users", icon: Users, adminOnly: true },
+      { key: "roles", href: "/admin/roles", icon: ShieldCheck },
+      { key: "audit", href: "/admin/audit", icon: ClipboardList },
     ],
   },
   {

@@ -431,7 +431,7 @@ export default function AIChatPage() {
 
   // 跳转到设置页
   const goToSettings = useCallback(() => {
-    router.push("/system/settings/ai");
+    router.push("/settings/ai");
   }, [router]);
 
   // 演示模式下的处理函数（禁用操作，显示登录提示）
