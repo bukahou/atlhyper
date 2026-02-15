@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { Server, CheckCircle, XCircle, Activity } from "lucide-react";
 import type { NodeListItem } from "@/types/node-metrics";
+import { useI18n } from "@/i18n/context";
 
 interface NodeSelectorProps {
   nodes: NodeListItem[];
@@ -15,11 +16,13 @@ export const NodeSelector = memo(function NodeSelector({
   selectedNode,
   onSelect,
 }: NodeSelectorProps) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
       <div className="flex items-center gap-2 mb-4">
         <Server className="w-5 h-5 text-blue-500" />
-        <h3 className="text-base font-semibold text-default">Nodes</h3>
+        <h3 className="text-base font-semibold text-default">{nm.summary.nodes}</h3>
         <span className="text-xs text-muted bg-[var(--background)] px-2 py-0.5 rounded-full">
           {nodes.length}
         </span>
@@ -67,7 +70,7 @@ export const NodeSelector = memo(function NodeSelector({
             {node.hasMetrics ? (
               <Activity className="w-4 h-4 text-green-500 flex-shrink-0" />
             ) : (
-              <span className="text-xs text-muted">No metrics</span>
+              <span className="text-xs text-muted">{nm.noMetricsData}</span>
             )}
           </button>
         ))}

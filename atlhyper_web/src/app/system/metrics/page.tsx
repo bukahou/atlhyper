@@ -105,6 +105,8 @@ function NodeCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
   const cpuUsage = metrics.cpu.usagePercent;
   const memUsage = metrics.memory.usagePercent;
   const temp = metrics.temperature.cpuTemp;
@@ -124,9 +126,9 @@ function NodeCard({
             <Server className="w-4 h-4 text-indigo-500" />
             <span className="text-sm font-semibold text-default">{metrics.nodeName}</span>
             {metrics.cpu.coreCount > 8 ? (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500">control-plane</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500">{nm.node.controlPlane}</span>
             ) : (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">worker</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">{nm.node.worker}</span>
             )}
             <span className="text-[10px] text-muted hidden sm:inline">{metrics.os || "linux"}</span>
           </div>
@@ -147,11 +149,11 @@ function NodeCard({
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted px-1">
             {metrics.os && <span>{metrics.os}</span>}
             {metrics.kernel && <span>{metrics.kernel}</span>}
-            <span>Uptime: {uptimeStr(metrics.uptime)}</span>
+            <span>{nm.node.uptime}: {uptimeStr(metrics.uptime)}</span>
           </div>
 
           {/* 资源趋势图 */}
-          <ResourceChart data={historyData} title="Resource Trends" />
+          <ResourceChart data={historyData} />
 
           {/* 第一行：CPU + Memory */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
@@ -200,6 +202,7 @@ function NodeCard({
 // ==================== 主页面 ====================
 export default function MetricsPage() {
   const { t } = useI18n();
+  const nm = t.nodeMetrics;
   const { currentClusterId } = useClusterStore();
 
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
@@ -230,7 +233,7 @@ export default function MetricsPage() {
       setLastUpdate(new Date());
     } catch (err) {
       console.error("Failed to load node metrics:", err);
-      setError("Failed to load metrics data");
+      setError(nm.loadFailed);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -305,8 +308,8 @@ export default function MetricsPage() {
       <Layout>
         <div className="flex flex-col items-center justify-center h-96 text-center">
           <WifiOff className="w-12 h-12 mb-4 text-muted" />
-          <p className="text-default font-medium mb-2">No Cluster Selected</p>
-          <p className="text-sm text-muted">Please select a cluster from the sidebar</p>
+          <p className="text-default font-medium mb-2">{nm.noCluster}</p>
+          <p className="text-sm text-muted">{nm.noClusterDesc}</p>
         </div>
       </Layout>
     );
@@ -323,7 +326,7 @@ export default function MetricsPage() {
             onClick={handleRefresh}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
-            Retry
+            {nm.retry}
           </button>
         </div>
       </Layout>
@@ -338,12 +341,12 @@ export default function MetricsPage() {
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-default">{t.nav.metrics}</h1>
             <p className="text-xs sm:text-sm text-muted mt-1">
-              Node hardware metrics - CPU, Memory, Disk, Network, Temperature
+              {nm.pageDescription}
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             <span className="text-[10px] sm:text-xs text-muted hidden sm:block">
-              Last: {lastUpdate.toLocaleTimeString()}
+              {nm.lastUpdate}: {lastUpdate.toLocaleTimeString()}
             </span>
             <button
               onClick={handleRefresh}
@@ -360,44 +363,44 @@ export default function MetricsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <SummaryCard
               icon={Server}
-              label="Nodes"
+              label={nm.summary.nodes}
               value={`${summary.onlineNodes}/${summary.totalNodes}`}
-              subValue={`${warningNodes} warnings`}
+              subValue={`${warningNodes} ${nm.summary.warnings}`}
               color="bg-indigo-500/10 text-indigo-500"
             />
             <SummaryCard
               icon={Cpu}
-              label="Avg CPU"
+              label={nm.summary.avgCpu}
               value={`${summary.avgCPUUsage.toFixed(1)}%`}
               subValue={`Max: ${summary.maxCPUUsage.toFixed(1)}%`}
               color={summary.avgCPUUsage >= 80 ? "bg-red-500/10 text-red-500" : summary.avgCPUUsage >= 60 ? "bg-yellow-500/10 text-yellow-500" : "bg-orange-500/10 text-orange-500"}
             />
             <SummaryCard
               icon={HardDrive}
-              label="Avg Memory"
+              label={nm.summary.avgMemory}
               value={`${summary.avgMemoryUsage.toFixed(1)}%`}
               subValue={`${formatBytes(summary.usedMemory)} / ${formatBytes(summary.totalMemory)}`}
               color={summary.avgMemoryUsage >= 80 ? "bg-red-500/10 text-red-500" : summary.avgMemoryUsage >= 60 ? "bg-yellow-500/10 text-yellow-500" : "bg-green-500/10 text-green-500"}
             />
             <SummaryCard
               icon={Thermometer}
-              label="Max Temp"
-              value={summary.maxCPUTemp > 0 ? `${summary.maxCPUTemp.toFixed(1)}°C` : "N/A"}
+              label={nm.summary.maxTemp}
+              value={summary.maxCPUTemp > 0 ? `${summary.maxCPUTemp.toFixed(1)}°C` : nm.temperature.na}
               subValue={summary.avgCPUTemp > 0 ? `Avg: ${summary.avgCPUTemp.toFixed(1)}°C` : ""}
               color={summary.maxCPUTemp >= 80 ? "bg-red-500/10 text-red-500" : summary.maxCPUTemp >= 65 ? "bg-yellow-500/10 text-yellow-500" : "bg-cyan-500/10 text-cyan-500"}
             />
             <SummaryCard
               icon={Database}
-              label="Avg Disk"
+              label={nm.summary.avgDisk}
               value={`${summary.avgDiskUsage.toFixed(1)}%`}
               subValue={`Max: ${summary.maxDiskUsage.toFixed(1)}%`}
               color={summary.maxDiskUsage >= 80 ? "bg-red-500/10 text-red-500" : summary.maxDiskUsage >= 60 ? "bg-yellow-500/10 text-yellow-500" : "bg-blue-500/10 text-blue-500"}
             />
             <SummaryCard
               icon={AlertTriangle}
-              label="Warnings"
+              label={nm.summary.warnings}
               value={warningNodes.toString()}
-              subValue="nodes need attention"
+              subValue={nm.summary.nodesNeedAttention}
               color={warningNodes > 0 ? "bg-yellow-500/10 text-yellow-500" : "bg-emerald-500/10 text-emerald-500"}
             />
           </div>
@@ -409,7 +412,7 @@ export default function MetricsPage() {
             className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${!selectedNode ? "bg-indigo-500 text-white border-indigo-500" : "bg-card text-muted border-[var(--border-color)] hover:text-default"}`}
             onClick={() => setSelectedNode(null)}
           >
-            All Nodes ({nodes.length})
+            {nm.allNodes} ({nodes.length})
           </button>
           {nodes.map(n => (
             <button
@@ -426,8 +429,8 @@ export default function MetricsPage() {
         {nodes.length === 0 ? (
           <div className="text-center py-12 bg-card rounded-xl border border-[var(--border-color)]">
             <Server className="w-12 h-12 mx-auto mb-3 text-muted opacity-50" />
-            <p className="text-default font-medium mb-2">No Metrics Data</p>
-            <p className="text-sm text-muted">No nodes are reporting metrics. Please ensure atlhyper-metrics is deployed.</p>
+            <p className="text-default font-medium mb-2">{nm.noMetricsData}</p>
+            <p className="text-sm text-muted">{nm.noMetricsDesc}</p>
           </div>
         ) : (
           <div className="space-y-3">

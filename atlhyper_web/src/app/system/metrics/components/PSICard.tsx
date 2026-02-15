@@ -1,5 +1,6 @@
 import { Cpu, HardDrive, MemoryStick, Timer } from "lucide-react";
 import type { PSIMetrics } from "@/types/node-metrics";
+import { useI18n } from "@/i18n/context";
 
 const psiColor = (v: number) =>
   v >= 25 ? "text-red-500" : v >= 10 ? "text-yellow-500" : v >= 1 ? "text-blue-500" : "text-emerald-500";
@@ -8,6 +9,8 @@ const psiBg = (v: number) =>
   v >= 25 ? "bg-red-500" : v >= 10 ? "bg-yellow-500" : v >= 1 ? "bg-blue-500" : "bg-emerald-500";
 
 export function PSICard({ data }: { data: PSIMetrics }) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
   const resources = [
     { name: "CPU", some: data.cpuSomePercent, full: undefined as number | undefined, icon: Cpu, color: "text-orange-500" },
     { name: "Memory", some: data.memorySomePercent, full: data.memoryFullPercent, icon: MemoryStick, color: "text-green-500" },
@@ -21,8 +24,8 @@ export function PSICard({ data }: { data: PSIMetrics }) {
           <Timer className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
         </div>
         <div>
-          <h3 className="text-sm sm:text-base font-semibold text-default">Pressure Stall Information</h3>
-          <p className="text-[10px] sm:text-xs text-muted">% of time tasks stalled waiting for resources</p>
+          <h3 className="text-sm sm:text-base font-semibold text-default">{nm.psi.title}</h3>
+          <p className="text-[10px] sm:text-xs text-muted">{nm.psi.description}</p>
         </div>
       </div>
 
@@ -40,11 +43,11 @@ export function PSICard({ data }: { data: PSIMetrics }) {
               <div className={`h-full rounded-full ${psiBg(r.some)}`} style={{ width: `${Math.min(100, r.some * 2)}%` }} />
             </div>
             <div className="flex items-center justify-between text-[10px] text-muted">
-              <span>some (at least one task stalled)</span>
+              <span>{nm.psi.someDesc}</span>
             </div>
             {r.full !== undefined && (
               <div className="mt-1.5 pt-1.5 border-t border-[var(--border-color)] flex items-center justify-between text-[10px]">
-                <span className="text-muted">full (all tasks stalled)</span>
+                <span className="text-muted">{nm.psi.fullDesc}</span>
                 <span className={psiColor(r.full)}>{r.full.toFixed(2)}%</span>
               </div>
             )}

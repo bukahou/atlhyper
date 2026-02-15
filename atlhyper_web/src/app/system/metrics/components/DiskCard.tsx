@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Database, ArrowDown, ArrowUp, Activity } from "lucide-react";
 import type { DiskMetrics } from "@/types/node-metrics";
 import { formatBytes, formatBytesPS } from "@/lib/format";
+import { useI18n } from "@/i18n/context";
 
 interface DiskCardProps {
   data: DiskMetrics[];
@@ -22,6 +23,8 @@ const getUsageTextColor = (usage: number) => {
 };
 
 export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
   // 计算总 I/O
   const totalReadPS = data.reduce((acc, d) => acc + d.readBytesPS, 0);
   const totalWritePS = data.reduce((acc, d) => acc + d.writeBytesPS, 0);
@@ -36,8 +39,8 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
             <Database className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500" />
           </div>
           <div>
-            <h3 className="text-sm sm:text-base font-semibold text-default">Disk</h3>
-            <p className="text-[10px] sm:text-xs text-muted">{data.length} mount(s)</p>
+            <h3 className="text-sm sm:text-base font-semibold text-default">{nm.disk.title}</h3>
+            <p className="text-[10px] sm:text-xs text-muted">{data.length} {nm.disk.mounts}</p>
           </div>
         </div>
         {/* 总 I/O 速率 */}
@@ -87,19 +90,19 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
             {/* I/O 详情 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] sm:text-xs">
               <div>
-                <div className="text-muted">Read</div>
+                <div className="text-muted">{nm.disk.read}</div>
                 <div className="text-default font-medium">{formatBytesPS(disk.readBytesPS)}</div>
               </div>
               <div>
-                <div className="text-muted">Write</div>
+                <div className="text-muted">{nm.disk.write}</div>
                 <div className="text-default font-medium">{formatBytesPS(disk.writeBytesPS)}</div>
               </div>
               <div className="hidden sm:block">
-                <div className="text-muted">IOPS</div>
+                <div className="text-muted">{nm.disk.iops}</div>
                 <div className="text-default font-medium">{disk.iops.toLocaleString()}</div>
               </div>
               <div className="hidden sm:block">
-                <div className="text-muted">IO Util</div>
+                <div className="text-muted">{nm.disk.ioUtil}</div>
                 <div className={`font-medium ${getUsageTextColor(disk.ioUtil)}`}>
                   {disk.ioUtil.toFixed(1)}%
                 </div>
@@ -113,7 +116,7 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
       <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted" />
-          <span className="text-[10px] sm:text-xs text-muted">Total IOPS</span>
+          <span className="text-[10px] sm:text-xs text-muted">{nm.disk.totalIops}</span>
         </div>
         <span className="text-xs sm:text-sm font-semibold text-default">{totalIOPS.toLocaleString()}</span>
       </div>

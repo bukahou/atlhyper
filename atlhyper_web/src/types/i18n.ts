@@ -1503,6 +1503,168 @@ export interface AboutTranslations {
   layer5DetailAtlhyper: string;
 }
 
+// 节点指标翻译
+interface NodeMetricsTranslations {
+  // 页面级
+  pageDescription: string;
+  lastUpdate: string;
+  retry: string;
+  noCluster: string;
+  noClusterDesc: string;
+  noMetricsData: string;
+  noMetricsDesc: string;
+  loadFailed: string;
+  allNodes: string;
+  // 汇总
+  summary: {
+    nodes: string;
+    warnings: string;
+    avgCpu: string;
+    avgMemory: string;
+    maxTemp: string;
+    avgDisk: string;
+    nodesNeedAttention: string;
+  };
+  // 节点
+  node: {
+    controlPlane: string;
+    worker: string;
+    uptime: string;
+  };
+  // CPU
+  cpu: {
+    title: string;
+    usage: string;
+    coreUsage: string;
+    threads: string;
+    load: string;
+  };
+  // Memory
+  memory: {
+    title: string;
+    total: string;
+    usage: string;
+    used: string;
+    available: string;
+    cached: string;
+    buffers: string;
+    swap: string;
+    swapUsed: string;
+  };
+  // Disk
+  disk: {
+    title: string;
+    mounts: string;
+    read: string;
+    write: string;
+    iops: string;
+    ioUtil: string;
+    totalIops: string;
+  };
+  // Network
+  network: {
+    title: string;
+    interfaces: string;
+    receive: string;
+    transmit: string;
+    rxShort: string;
+    txShort: string;
+    rxPackets: string;
+    txPackets: string;
+    errors: string;
+    dropped: string;
+    cumulativeStats: string;
+    sinceBootup: string;
+  };
+  // PSI
+  psi: {
+    title: string;
+    description: string;
+    someDesc: string;
+    fullDesc: string;
+  };
+  // TCP
+  tcp: {
+    title: string;
+    activeConnections: string;
+    alloc: string;
+    inUse: string;
+    socketsUsed: string;
+    softnetDropped: string;
+    softnetSqueezed: string;
+  };
+  // VMStat
+  vmstat: {
+    title: string;
+    description: string;
+    pageFaults: string;
+    majorFaults: string;
+    perSecond: string;
+    perSecondDisk: string;
+    swapIn: string;
+    swapOut: string;
+    pagesPerSec: string;
+    highMajorFaults: string;
+    activeSwapIO: string;
+  };
+  // System Resources
+  system: {
+    title: string;
+    fileDescriptors: string;
+    conntrackTable: string;
+    used: string;
+    entropyPool: string;
+    bits: string;
+    entropySufficient: string;
+    entropyLow: string;
+    ntpSync: string;
+    synced: string;
+    notSynced: string;
+    offset: string;
+  };
+  // Temperature
+  temperature: {
+    title: string;
+    cpuTemp: string;
+    gpuTemp: string;
+    sensors: string;
+    critical: string;
+    highWarning: string;
+    na: string;
+  };
+  // GPU
+  gpu: {
+    title: string;
+    devices: string;
+    utilization: string;
+    gpuCompute: string;
+    memory: string;
+    temp: string;
+    fan: string;
+    power: string;
+    vram: string;
+    processes: string;
+  };
+  // Process
+  process: {
+    title: string;
+    processCount: string;
+    filter: string;
+    moreProcesses: string;
+    noMatch: string;
+    stateRunning: string;
+    stateSleep: string;
+    stateDiskWait: string;
+    stateZombie: string;
+    stateStopped: string;
+  };
+  // Chart
+  chart: {
+    title: string;
+    noData: string;
+  };
+}
+
 // 完整翻译结构
 export interface Translations {
   locale: "zh" | "ja";  // 语言标识符，用于日期格式化等
@@ -1539,6 +1701,7 @@ export interface Translations {
   cronjob: CronJobTranslations;
   storagePage: StorageTranslations;
   policyPage: PolicyTranslations;
+  nodeMetrics: NodeMetricsTranslations;
 }
 
 // 国际化上下文

@@ -4,6 +4,7 @@ import { useEffect, useRef, memo, useState } from "react";
 import * as echarts from "echarts";
 import { TrendingUp, Clock } from "lucide-react";
 import type { MetricsDataPoint } from "@/types/node-metrics";
+import { useI18n } from "@/i18n/context";
 
 interface ResourceChartProps {
   data: MetricsDataPoint[];
@@ -14,8 +15,11 @@ type TimeRange = "1h" | "6h" | "24h";
 
 export const ResourceChart = memo(function ResourceChart({
   data,
-  title = "Resource Trends",
+  title,
 }: ResourceChartProps) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
+  const displayTitle = title || nm.chart.title;
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>("1h");
@@ -206,7 +210,7 @@ export const ResourceChart = memo(function ResourceChart({
           <div className="p-2 bg-teal-500/10 rounded-lg">
             <TrendingUp className="w-5 h-5 text-teal-500" />
           </div>
-          <h3 className="text-base font-semibold text-default">{title}</h3>
+          <h3 className="text-base font-semibold text-default">{displayTitle}</h3>
         </div>
 
         {/* 时间范围选择 */}
@@ -235,7 +239,7 @@ export const ResourceChart = memo(function ResourceChart({
         <div ref={chartRef} style={{ width: "100%", height: "300px" }} />
         {data.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center bg-card text-muted">
-            No historical data available
+            {nm.chart.noData}
           </div>
         )}
       </div>
@@ -245,19 +249,19 @@ export const ResourceChart = memo(function ResourceChart({
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-orange-500 rounded" />
-            <span className="text-muted">CPU</span>
+            <span className="text-muted">{nm.cpu.title}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-green-500 rounded" />
-            <span className="text-muted">内存</span>
+            <span className="text-muted">{nm.memory.title}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-purple-500 rounded" />
-            <span className="text-muted">磁盘</span>
+            <span className="text-muted">{nm.disk.title}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-red-500 rounded" />
-            <span className="text-muted">温度</span>
+            <span className="text-muted">{nm.temperature.title}</span>
           </div>
         </div>
       </div>

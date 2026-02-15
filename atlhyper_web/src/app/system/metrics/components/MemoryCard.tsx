@@ -4,6 +4,7 @@ import { memo } from "react";
 import { HardDrive, RefreshCw } from "lucide-react";
 import type { MemoryMetrics } from "@/types/node-metrics";
 import { formatBytes } from "@/lib/format";
+import { useI18n } from "@/i18n/context";
 
 interface MemoryCardProps {
   data: MemoryMetrics;
@@ -22,6 +23,8 @@ const getUsageTextColor = (usage: number) => {
 };
 
 export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
   const usedPercent = data.usagePercent;
   const cachedPercent = (data.cached / data.totalBytes) * 100;
   const buffersPercent = (data.buffers / data.totalBytes) * 100;
@@ -35,15 +38,15 @@ export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
             <HardDrive className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
           </div>
           <div>
-            <h3 className="text-sm sm:text-base font-semibold text-default">Memory</h3>
-            <p className="text-[10px] sm:text-xs text-muted">Total: {formatBytes(data.totalBytes)}</p>
+            <h3 className="text-sm sm:text-base font-semibold text-default">{nm.memory.title}</h3>
+            <p className="text-[10px] sm:text-xs text-muted">{nm.memory.total}: {formatBytes(data.totalBytes)}</p>
           </div>
         </div>
         <div className="text-right">
           <div className={`text-xl sm:text-2xl font-bold ${getUsageTextColor(usedPercent)}`}>
             {usedPercent.toFixed(1)}%
           </div>
-          <div className="text-[10px] sm:text-xs text-muted">Usage</div>
+          <div className="text-[10px] sm:text-xs text-muted">{nm.memory.usage}</div>
         </div>
       </div>
 
@@ -73,15 +76,15 @@ export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
         <div className="flex items-center gap-3 sm:gap-4 mt-2 text-[10px] sm:text-xs">
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-green-500" />
-            <span className="text-muted">Used</span>
+            <span className="text-muted">{nm.memory.used}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500" />
-            <span className="text-muted">Cached</span>
+            <span className="text-muted">{nm.memory.cached}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-500" />
-            <span className="text-muted">Buffers</span>
+            <span className="text-muted">{nm.memory.buffers}</span>
           </div>
         </div>
       </div>
@@ -89,19 +92,19 @@ export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
       {/* 详细数据 */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3 sm:mb-4">
         <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
-          <div className="text-[10px] sm:text-xs text-muted mb-0.5 sm:mb-1">Used</div>
+          <div className="text-[10px] sm:text-xs text-muted mb-0.5 sm:mb-1">{nm.memory.used}</div>
           <div className="text-xs sm:text-sm font-semibold text-default">{formatBytes(data.usedBytes)}</div>
         </div>
         <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
-          <div className="text-[10px] sm:text-xs text-muted mb-0.5 sm:mb-1">Available</div>
+          <div className="text-[10px] sm:text-xs text-muted mb-0.5 sm:mb-1">{nm.memory.available}</div>
           <div className="text-xs sm:text-sm font-semibold text-default">{formatBytes(data.availableBytes)}</div>
         </div>
         <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
-          <div className="text-[10px] sm:text-xs text-muted mb-0.5 sm:mb-1">Cached</div>
+          <div className="text-[10px] sm:text-xs text-muted mb-0.5 sm:mb-1">{nm.memory.cached}</div>
           <div className="text-xs sm:text-sm font-semibold text-blue-500">{formatBytes(data.cached)}</div>
         </div>
         <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
-          <div className="text-[10px] sm:text-xs text-muted mb-0.5 sm:mb-1">Buffers</div>
+          <div className="text-[10px] sm:text-xs text-muted mb-0.5 sm:mb-1">{nm.memory.buffers}</div>
           <div className="text-xs sm:text-sm font-semibold text-purple-500">{formatBytes(data.buffers)}</div>
         </div>
       </div>
@@ -111,7 +114,7 @@ export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
         <div className="pt-3 sm:pt-4 border-t border-[var(--border-color)]">
           <div className="flex items-center gap-2 mb-2">
             <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted" />
-            <span className="text-xs sm:text-sm font-medium text-default">Swap</span>
+            <span className="text-xs sm:text-sm font-medium text-default">{nm.memory.swap}</span>
             <span className="text-[10px] sm:text-xs text-muted ml-auto">
               {formatBytes(data.swapUsedBytes)} / {formatBytes(data.swapTotalBytes)}
             </span>
@@ -123,7 +126,7 @@ export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
             />
           </div>
           <div className="text-[10px] sm:text-xs text-muted mt-1 text-right">
-            {data.swapUsagePercent.toFixed(1)}% used
+            {data.swapUsagePercent.toFixed(1)}% {nm.memory.swapUsed}
           </div>
         </div>
       )}

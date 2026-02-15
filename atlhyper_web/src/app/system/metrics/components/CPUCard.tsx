@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { Cpu, Gauge } from "lucide-react";
 import type { CPUMetrics } from "@/types/node-metrics";
+import { useI18n } from "@/i18n/context";
 
 interface CPUCardProps {
   data: CPUMetrics;
@@ -21,6 +22,8 @@ const getUsageTextColor = (usage: number) => {
 };
 
 export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
       {/* 头部 */}
@@ -30,7 +33,7 @@ export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
             <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
           </div>
           <div>
-            <h3 className="text-sm sm:text-base font-semibold text-default">CPU</h3>
+            <h3 className="text-sm sm:text-base font-semibold text-default">{nm.cpu.title}</h3>
             <p className="text-[10px] sm:text-xs text-muted">{data.coreCount}C/{data.threadCount}T @ {data.frequency.toFixed(0)} MHz</p>
           </div>
         </div>
@@ -38,7 +41,7 @@ export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
           <div className={`text-xl sm:text-2xl font-bold ${getUsageTextColor(data.usagePercent)}`}>
             {data.usagePercent.toFixed(1)}%
           </div>
-          <div className="text-[10px] sm:text-xs text-muted">Usage</div>
+          <div className="text-[10px] sm:text-xs text-muted">{nm.cpu.usage}</div>
         </div>
       </div>
 
@@ -46,8 +49,8 @@ export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
       {data.coreUsages && data.coreUsages.length > 0 && (
         <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-[var(--background)] rounded-lg">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] sm:text-xs text-muted">核心使用率</span>
-            <span className="text-[10px] sm:text-xs text-muted">{data.coreUsages.length} 线程</span>
+            <span className="text-[10px] sm:text-xs text-muted">{nm.cpu.coreUsage}</span>
+            <span className="text-[10px] sm:text-xs text-muted">{data.coreUsages.length} {nm.cpu.threads}</span>
           </div>
           <div className="max-h-24 sm:max-h-32 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[var(--border-color)] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted/50">
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2 pr-1">
@@ -77,7 +80,7 @@ export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
       {/* 负载平均值 - 底部 */}
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 sm:pt-3 border-t border-[var(--border-color)]">
         <Gauge className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted" />
-        <span className="text-[10px] sm:text-xs text-muted">Load:</span>
+        <span className="text-[10px] sm:text-xs text-muted">{nm.cpu.load}:</span>
         <div className="flex gap-2 sm:gap-3 text-xs sm:text-sm">
           <span className="font-medium text-default">
             <span className="text-muted">1m:</span> {data.loadAvg1.toFixed(2)}

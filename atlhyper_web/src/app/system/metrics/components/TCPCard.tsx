@@ -1,7 +1,10 @@
 import { Network } from "lucide-react";
 import type { TCPMetrics, SoftnetMetrics } from "@/types/node-metrics";
+import { useI18n } from "@/i18n/context";
 
 export function TCPCard({ tcp, softnet }: { tcp: TCPMetrics; softnet: SoftnetMetrics }) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
   const states = [
     { label: "ESTABLISHED", value: tcp.currEstab, color: "text-green-500" },
     { label: "TIME_WAIT", value: tcp.timeWait, color: tcp.timeWait > 200 ? "text-yellow-500" : "text-default" },
@@ -18,8 +21,8 @@ export function TCPCard({ tcp, softnet }: { tcp: TCPMetrics; softnet: SoftnetMet
             <Network className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
           </div>
           <div>
-            <h3 className="text-sm sm:text-base font-semibold text-default">TCP / Network Stack</h3>
-            <p className="text-[10px] sm:text-xs text-muted">{total} active connections</p>
+            <h3 className="text-sm sm:text-base font-semibold text-default">{nm.tcp.title}</h3>
+            <p className="text-[10px] sm:text-xs text-muted">{total} {nm.tcp.activeConnections}</p>
           </div>
         </div>
       </div>
@@ -46,15 +49,15 @@ export function TCPCard({ tcp, softnet }: { tcp: TCPMetrics; softnet: SoftnetMet
       {/* Socket stats */}
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="p-2 bg-[var(--background)] rounded-lg">
-          <div className="text-muted text-[10px]">Alloc</div>
+          <div className="text-muted text-[10px]">{nm.tcp.alloc}</div>
           <div className="font-medium text-default">{tcp.alloc}</div>
         </div>
         <div className="p-2 bg-[var(--background)] rounded-lg">
-          <div className="text-muted text-[10px]">In Use</div>
+          <div className="text-muted text-[10px]">{nm.tcp.inUse}</div>
           <div className="font-medium text-default">{tcp.inUse}</div>
         </div>
         <div className="p-2 bg-[var(--background)] rounded-lg">
-          <div className="text-muted text-[10px]">Sockets Used</div>
+          <div className="text-muted text-[10px]">{nm.tcp.socketsUsed}</div>
           <div className="font-medium text-default">{tcp.socketsUsed}</div>
         </div>
       </div>
@@ -62,11 +65,11 @@ export function TCPCard({ tcp, softnet }: { tcp: TCPMetrics; softnet: SoftnetMet
       {/* Softnet */}
       <div className="mt-3 pt-3 border-t border-[var(--border-color)] grid grid-cols-2 gap-2 text-xs">
         <div className="flex items-center justify-between p-2 bg-[var(--background)] rounded-lg">
-          <span className="text-muted">Softnet Dropped</span>
+          <span className="text-muted">{nm.tcp.softnetDropped}</span>
           <span className={`font-medium ${softnet.dropped > 0 ? "text-red-500" : "text-green-500"}`}>{softnet.dropped}</span>
         </div>
         <div className="flex items-center justify-between p-2 bg-[var(--background)] rounded-lg">
-          <span className="text-muted">Softnet Squeezed</span>
+          <span className="text-muted">{nm.tcp.softnetSqueezed}</span>
           <span className={`font-medium ${softnet.squeezed > 50 ? "text-yellow-500" : "text-default"}`}>{softnet.squeezed}</span>
         </div>
       </div>

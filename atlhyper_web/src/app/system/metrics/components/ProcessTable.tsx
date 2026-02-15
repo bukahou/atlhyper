@@ -4,6 +4,7 @@ import { memo, useState } from "react";
 import { ListTree, ChevronDown, ChevronUp, Search } from "lucide-react";
 import type { ProcessMetrics } from "@/types/node-metrics";
 import { formatBytes } from "@/lib/format";
+import { useI18n } from "@/i18n/context";
 
 interface ProcessTableProps {
   data: ProcessMetrics[];
@@ -23,18 +24,21 @@ const getStateColor = (state: string) => {
   }
 };
 
-const getStateName = (state: string) => {
-  switch (state) {
-    case "R": return "Running";
-    case "S": return "Sleep";
-    case "D": return "D.Wait";
-    case "Z": return "Zombie";
-    case "T": return "Stop";
-    default: return state;
-  }
-};
-
 export const ProcessTable = memo(function ProcessTable({ data }: ProcessTableProps) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
+
+  const getStateName = (state: string) => {
+    switch (state) {
+      case "R": return nm.process.stateRunning;
+      case "S": return nm.process.stateSleep;
+      case "D": return nm.process.stateDiskWait;
+      case "Z": return nm.process.stateZombie;
+      case "T": return nm.process.stateStopped;
+      default: return state;
+    }
+  };
+
   const [sortKey, setSortKey] = useState<SortKey>("cpuPercent");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [filter, setFilter] = useState("");
@@ -78,8 +82,8 @@ export const ProcessTable = memo(function ProcessTable({ data }: ProcessTablePro
             <ListTree className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />
           </div>
           <div>
-            <h3 className="text-sm sm:text-base font-semibold text-default">Top Processes</h3>
-            <p className="text-xs text-muted">{data.length} processes</p>
+            <h3 className="text-sm sm:text-base font-semibold text-default">{nm.process.title}</h3>
+            <p className="text-xs text-muted">{data.length} {nm.process.processCount}</p>
           </div>
         </div>
 
@@ -88,7 +92,7 @@ export const ProcessTable = memo(function ProcessTable({ data }: ProcessTablePro
           <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted" />
           <input
             type="text"
-            placeholder="Filter..."
+            placeholder={nm.process.filter}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="w-full sm:w-auto pl-8 pr-3 py-2 sm:py-1.5 text-sm bg-[var(--background)] border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -150,7 +154,7 @@ export const ProcessTable = memo(function ProcessTable({ data }: ProcessTablePro
         ))}
         {sortedData.length > 10 && (
           <div className="text-center text-xs text-muted py-2">
-            +{sortedData.length - 10} more processes
+            +{sortedData.length - 10} {nm.process.moreProcesses}
           </div>
         )}
       </div>
@@ -261,7 +265,7 @@ export const ProcessTable = memo(function ProcessTable({ data }: ProcessTablePro
 
       {sortedData.length === 0 && (
         <div className="text-center py-8 text-muted">
-          No processes match the filter
+          {nm.process.noMatch}
         </div>
       )}
     </div>

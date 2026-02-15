@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Zap, Thermometer, Fan, Cpu } from "lucide-react";
 import type { GPUMetrics } from "@/types/node-metrics";
 import { formatBytes } from "@/lib/format";
+import { useI18n } from "@/i18n/context";
 
 interface GPUCardProps {
   data: GPUMetrics[];
@@ -22,6 +23,8 @@ const getUsageTextColor = (usage: number) => {
 };
 
 export const GPUCard = memo(function GPUCard({ data }: GPUCardProps) {
+  const { t } = useI18n();
+  const nm = t.nodeMetrics;
   if (!data || data.length === 0) {
     return null;
   }
@@ -34,8 +37,8 @@ export const GPUCard = memo(function GPUCard({ data }: GPUCardProps) {
           <Zap className="w-5 h-5 text-emerald-500" />
         </div>
         <div>
-          <h3 className="text-base font-semibold text-default">GPU</h3>
-          <p className="text-xs text-muted">{data.length} device(s)</p>
+          <h3 className="text-base font-semibold text-default">{nm.gpu.title}</h3>
+          <p className="text-xs text-muted">{data.length} {nm.gpu.devices}</p>
         </div>
       </div>
 
@@ -53,14 +56,14 @@ export const GPUCard = memo(function GPUCard({ data }: GPUCardProps) {
                 <div className={`text-xl font-bold ${getUsageTextColor(gpu.gpuUtilization)}`}>
                   {gpu.gpuUtilization}%
                 </div>
-                <div className="text-xs text-muted">Utilization</div>
+                <div className="text-xs text-muted">{nm.gpu.utilization}</div>
               </div>
             </div>
 
             {/* GPU 使用率进度条 */}
             <div className="mb-4">
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-muted">GPU Compute</span>
+                <span className="text-muted">{nm.gpu.gpuCompute}</span>
                 <span className="text-default">{gpu.gpuUtilization}%</span>
               </div>
               <div className="h-2 bg-[var(--background-secondary,#1f2937)] rounded-full overflow-hidden">
@@ -74,7 +77,7 @@ export const GPUCard = memo(function GPUCard({ data }: GPUCardProps) {
             {/* 显存 */}
             <div className="mb-4">
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-muted">Memory</span>
+                <span className="text-muted">{nm.gpu.memory}</span>
                 <span className="text-default">
                   {formatBytes(gpu.memoryUsed)} / {formatBytes(gpu.memoryTotal)}
                 </span>
@@ -94,29 +97,29 @@ export const GPUCard = memo(function GPUCard({ data }: GPUCardProps) {
                 <div className={`text-sm font-medium ${gpu.temperature >= 80 ? "text-red-500" : "text-default"}`}>
                   {gpu.temperature}°C
                 </div>
-                <div className="text-xs text-muted">Temp</div>
+                <div className="text-xs text-muted">{nm.gpu.temp}</div>
               </div>
               <div className="p-2 bg-[var(--background-secondary,#1f2937)] rounded-lg text-center">
                 <Fan className="w-4 h-4 mx-auto mb-1 text-blue-500" />
                 <div className="text-sm font-medium text-default">{gpu.fanSpeed}%</div>
-                <div className="text-xs text-muted">Fan</div>
+                <div className="text-xs text-muted">{nm.gpu.fan}</div>
               </div>
               <div className="p-2 bg-[var(--background-secondary,#1f2937)] rounded-lg text-center">
                 <Zap className="w-4 h-4 mx-auto mb-1 text-yellow-500" />
                 <div className="text-sm font-medium text-default">{gpu.powerUsage}W</div>
-                <div className="text-xs text-muted">Power</div>
+                <div className="text-xs text-muted">{nm.gpu.power}</div>
               </div>
               <div className="p-2 bg-[var(--background-secondary,#1f2937)] rounded-lg text-center">
                 <Cpu className="w-4 h-4 mx-auto mb-1 text-purple-500" />
                 <div className="text-sm font-medium text-default">{gpu.memUtilization}%</div>
-                <div className="text-xs text-muted">VRAM</div>
+                <div className="text-xs text-muted">{nm.gpu.vram}</div>
               </div>
             </div>
 
             {/* GPU 进程 */}
             {gpu.processes.length > 0 && (
               <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
-                <div className="text-xs text-muted mb-2">GPU Processes</div>
+                <div className="text-xs text-muted mb-2">{nm.gpu.processes}</div>
                 <div className="space-y-1">
                   {gpu.processes.map((proc) => (
                     <div
