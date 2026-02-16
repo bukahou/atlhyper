@@ -219,7 +219,7 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       await instance.render();
 
       if (destroyed) {
-        instance.destroy();
+        try { instance.destroy(); } catch { /* DOM already removed */ }
         return;
       }
 
