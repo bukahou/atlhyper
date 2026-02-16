@@ -122,14 +122,19 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
     const container = containerRef.current;
     if (!container) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let g6Graph: any = null;
+    // 销毁旧实例 + 清空容器（防止残留 canvas）
+    if (graphRef.current) {
+      try { graphRef.current.destroy(); } catch { /* ignore */ }
+      graphRef.current = null;
+    }
+    container.innerHTML = "";
+
     let destroyed = false;
 
     async function createGraph() {
       const { Graph } = await import("@antv/g6");
 
-      if (destroyed || !container) return null;
+      if (destroyed || !container) return;
 
       const data = buildData();
 
@@ -212,20 +217,22 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       });
 
       await instance.render();
-      return instance;
+
+      if (destroyed) {
+        instance.destroy();
+        return;
+      }
+
+      graphRef.current = instance;
     }
 
-    createGraph().then((instance) => {
-      if (instance && !destroyed) {
-        g6Graph = instance;
-      }
-    });
+    createGraph();
 
     return () => {
       destroyed = true;
-      if (g6Graph) {
-        g6Graph.destroy();
-        g6Graph = null;
+      if (graphRef.current) {
+        try { graphRef.current.destroy(); } catch { /* ignore */ }
+        graphRef.current = null;
       }
     };
   }, [buildData]);
