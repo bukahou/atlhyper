@@ -118,11 +118,8 @@ export default function TopologyPage() {
     loadData();
   }, [loadData]);
 
-  // 30s 自动刷新
-  useEffect(() => {
-    const interval = setInterval(() => loadData(false), 30000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+  // 拓扑图不自动刷新：力导向布局重建会导致节点位置变化，干扰用户查看
+  // 用户可通过刷新按钮手动更新
 
   if (loading) {
     return (
