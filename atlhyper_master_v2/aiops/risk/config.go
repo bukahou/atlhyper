@@ -29,8 +29,12 @@ func DefaultRiskConfig() *RiskConfig {
 				"request_rate": 0.20,
 			},
 			"pod": {
-				"restart_count": 0.50,
-				"is_running":    0.50,
+				"restart_count":          0.20,
+				"is_running":             0.10,
+				"not_ready_containers":   0.20,
+				"max_container_restarts": 0.10,
+				"container_anomaly":      0.25,
+				"critical_event":         0.15,
 			},
 			"node": {
 				"memory_usage": 0.25,

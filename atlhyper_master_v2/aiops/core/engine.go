@@ -66,13 +66,17 @@ func (e *engine) OnSnapshot(clusterID string) {
 		}
 	}()
 
-	// 2. 提取指标并进行基线检测
+	// 2. 提取指标并进行基线检测（路径 A: EMA+3σ）
 	points := baseline.ExtractMetrics(clusterID, snap, e.sloServiceRepo, e.sloRepo)
 	if len(points) == 0 {
 		return
 	}
 
 	results := e.stateManager.Update(points)
+
+	// 路径 B: 确定性异常直注（绕过冷启动）
+	deterministicResults := baseline.ExtractDeterministicAnomalies(snap)
+	results = mergeAnomalyResults(results, deterministicResults)
 
 	// 缓存异常结果
 	e.anomalyMu.Lock()
@@ -388,6 +392,36 @@ func (e *engine) flushLoop(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// mergeAnomalyResults 合并 EMA 路径和确定性路径的异常结果
+// 同一 EntityKey+MetricName 时取 Score 更高者
+func mergeAnomalyResults(emaResults []*aiops.AnomalyResult, deterministicResults []*aiops.AnomalyResult) []*aiops.AnomalyResult {
+	if len(deterministicResults) == 0 {
+		return emaResults
+	}
+
+	// 用 entityKey|metricName 做索引
+	index := make(map[string]int, len(emaResults))
+	for i, r := range emaResults {
+		key := r.EntityKey + "|" + r.MetricName
+		index[key] = i
+	}
+
+	for _, dr := range deterministicResults {
+		key := dr.EntityKey + "|" + dr.MetricName
+		if idx, exists := index[key]; exists {
+			// 同指标：取 Score 更高者
+			if dr.Score > emaResults[idx].Score {
+				emaResults[idx] = dr
+			}
+		} else {
+			emaResults = append(emaResults, dr)
+			index[key] = len(emaResults) - 1
+		}
+	}
+
+	return emaResults
 }
 
 // recoveryCheckLoop 定期检查 Recovery 状态的实体是否可以转为 Stable

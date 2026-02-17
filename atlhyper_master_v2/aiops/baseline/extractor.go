@@ -74,9 +74,25 @@ func extractPodMetrics(snap *model_v2.ClusterSnapshot) []aiops.MetricDataPoint {
 		if pod.Status.Phase == "Running" {
 			isRunning = 1.0
 		}
+
+		// 容器级指标
+		var notReady float64
+		var maxRestarts int32
+		for j := range pod.Containers {
+			c := &pod.Containers[j]
+			if !c.Ready {
+				notReady++
+			}
+			if c.RestartCount > maxRestarts {
+				maxRestarts = c.RestartCount
+			}
+		}
+
 		points = append(points,
 			aiops.MetricDataPoint{EntityKey: key, MetricName: "restart_count", Value: restarts},
 			aiops.MetricDataPoint{EntityKey: key, MetricName: "is_running", Value: isRunning},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "not_ready_containers", Value: notReady},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "max_container_restarts", Value: float64(maxRestarts)},
 		)
 	}
 	return points
@@ -127,6 +143,151 @@ func extractServiceMetrics(clusterID string, snap *model_v2.ClusterSnapshot, slo
 		}
 	}
 	return points
+}
+
+// ExtractDeterministicAnomalies 从快照中提取确定性异常（绕过 EMA 冷启动）
+// 扫描容器状态和关联 Event，对 CrashLoopBackOff/OOMKilled 等确定性异常直接生成 AnomalyResult
+func ExtractDeterministicAnomalies(snap *model_v2.ClusterSnapshot) []*aiops.AnomalyResult {
+	now := time.Now().Unix()
+	var results []*aiops.AnomalyResult
+
+	// 路径 B1: 容器状态异常
+	results = append(results, extractContainerAnomalies(snap, now)...)
+
+	// 路径 B2: Event 关联异常
+	results = append(results, extractEventAnomalies(snap, now)...)
+
+	return results
+}
+
+// extractContainerAnomalies 从容器状态提取确定性异常
+// 每个 Pod 只报告最严重的一个容器异常
+func extractContainerAnomalies(snap *model_v2.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
+	var results []*aiops.AnomalyResult
+	for i := range snap.Pods {
+		pod := &snap.Pods[i]
+		key := aiops.EntityKey(pod.Summary.Namespace, "pod", pod.Summary.Name)
+
+		var worstReason string
+		var worstScore float64
+		for j := range pod.Containers {
+			reason := classifyContainerAnomaly(&pod.Containers[j])
+			if reason == "" {
+				continue
+			}
+			score := deterministicScore(reason)
+			if score > worstScore {
+				worstScore = score
+				worstReason = reason
+			}
+		}
+
+		if worstReason != "" {
+			results = append(results, &aiops.AnomalyResult{
+				EntityKey:    key,
+				MetricName:   "container_anomaly",
+				CurrentValue: worstScore,
+				Baseline:     0,
+				Deviation:    worstScore * 10, // 高偏离度确保触发
+				Score:        worstScore,
+				IsAnomaly:    true,
+				DetectedAt:   now,
+			})
+		}
+	}
+	return results
+}
+
+// classifyContainerAnomaly 判断容器异常原因
+// 返回空字符串表示无异常
+func classifyContainerAnomaly(c *model_v2.PodContainerDetail) string {
+	// waiting 状态异常
+	if c.State == "waiting" {
+		switch c.StateReason {
+		case "CrashLoopBackOff", "OOMKilled",
+			"ImagePullBackOff", "ErrImagePull",
+			"CreateContainerConfigError":
+			return c.StateReason
+		}
+	}
+
+	// terminated 且上次因 OOMKilled 终止
+	if c.State == "terminated" && c.LastTerminationReason == "OOMKilled" {
+		return "OOMKilled"
+	}
+
+	// running 但上次因 OOMKilled 终止（已恢复但有历史）
+	if c.LastTerminationReason == "OOMKilled" && c.RestartCount > 0 {
+		return "OOMKilled"
+	}
+
+	return ""
+}
+
+// deterministicScore 异常原因 → 固定分数
+func deterministicScore(reason string) float64 {
+	switch reason {
+	case "OOMKilled":
+		return 0.95
+	case "CrashLoopBackOff":
+		return 0.90
+	case "CreateContainerConfigError":
+		return 0.80
+	case "ImagePullBackOff", "ErrImagePull":
+		return 0.70
+	default:
+		return 0.50
+	}
+}
+
+// extractEventAnomalies 从 K8s Event 提取关联异常信号
+// 筛选 5 分钟内的 Critical Event，关联到已有 Pod 实体
+func extractEventAnomalies(snap *model_v2.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
+	cutoff := time.Unix(now, 0).Add(-5 * time.Minute)
+
+	// 构建 Pod 存在性索引
+	podExists := make(map[string]bool, len(snap.Pods))
+	for i := range snap.Pods {
+		pod := &snap.Pods[i]
+		key := aiops.EntityKey(pod.Summary.Namespace, "pod", pod.Summary.Name)
+		podExists[key] = true
+	}
+
+	// 每个 Pod 只报一次
+	reported := make(map[string]bool)
+	var results []*aiops.AnomalyResult
+
+	for i := range snap.Events {
+		ev := &snap.Events[i]
+		if !ev.IsCritical() {
+			continue
+		}
+		if ev.InvolvedObject.Kind != "Pod" {
+			continue
+		}
+		if ev.LastTimestamp.Before(cutoff) {
+			continue
+		}
+
+		key := aiops.EntityKey(ev.InvolvedObject.Namespace, "pod", ev.InvolvedObject.Name)
+		if !podExists[key] || reported[key] {
+			continue
+		}
+		reported[key] = true
+
+		results = append(results, &aiops.AnomalyResult{
+			EntityKey:    key,
+			MetricName:   "critical_event",
+			CurrentValue: 0.85,
+			Baseline:     0,
+			Deviation:    8.5,
+			Score:        0.85,
+			IsAnomaly:    true,
+			DetectedAt:   now,
+		})
+	}
+
+	return results
 }
 
 func extractIngressMetrics(clusterID string, snap *model_v2.ClusterSnapshot, sloRepo database.SLORepository) []aiops.MetricDataPoint {

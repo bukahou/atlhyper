@@ -31,7 +31,7 @@ func TestComputeLocalRisks_SingleAnomaly(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	expected := 0.5 * 0.8 // pod restart_count weight=0.5, score=0.8
+	expected := 0.20 * 0.8 // pod restart_count weight=0.20, score=0.8
 	if diff := math.Abs(risks["default/pod/api-1"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/pod/api-1"])
 	}
