@@ -35,6 +35,7 @@ func DefaultRiskConfig() *RiskConfig {
 				"max_container_restarts": 0.10,
 				"container_anomaly":      0.25,
 				"critical_event":         0.15,
+				"deployment_impact":      0.25,
 			},
 			"node": {
 				"memory_usage": 0.25,

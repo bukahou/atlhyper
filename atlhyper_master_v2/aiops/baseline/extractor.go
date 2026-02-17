@@ -157,6 +157,9 @@ func ExtractDeterministicAnomalies(snap *model_v2.ClusterSnapshot) []*aiops.Anom
 	// 路径 B2: Event 关联异常
 	results = append(results, extractEventAnomalies(snap, now)...)
 
+	// 路径 B3: Deployment 影响比例异常
+	results = append(results, extractDeploymentImpact(snap, now)...)
+
 	return results
 }
 
@@ -315,6 +318,115 @@ func extractEventAnomalies(snap *model_v2.ClusterSnapshot, now int64) []*aiops.A
 	}
 
 	return results
+}
+
+// deploymentInfo Deployment 不可用比例信息
+type deploymentInfo struct {
+	namespace        string
+	name             string
+	unavailableRatio float64
+}
+
+// extractDeploymentImpact Deployment 影响比例异常
+// 当 Deployment 不可用比例 >= 50% 时，为该 Deployment 下的不健康 Pod 注入信号
+func extractDeploymentImpact(snap *model_v2.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
+	rsMap := buildRSToDeploymentMap(snap)
+	if len(rsMap) == 0 {
+		return nil
+	}
+
+	var results []*aiops.AnomalyResult
+	for i := range snap.Pods {
+		pod := &snap.Pods[i]
+		if pod.Summary.OwnerKind != "ReplicaSet" {
+			continue
+		}
+		if !isPodUnhealthy(pod) {
+			continue
+		}
+
+		lookupKey := pod.Summary.Namespace + "/" + pod.Summary.OwnerName
+		info, ok := rsMap[lookupKey]
+		if !ok {
+			continue
+		}
+
+		score := deploymentImpactScore(info.unavailableRatio)
+		if score == 0 {
+			continue
+		}
+
+		key := aiops.EntityKey(pod.Summary.Namespace, "pod", pod.Summary.Name)
+		results = append(results, &aiops.AnomalyResult{
+			EntityKey:    key,
+			MetricName:   "deployment_impact",
+			CurrentValue: info.unavailableRatio,
+			Baseline:     0,
+			Deviation:    info.unavailableRatio * 10,
+			Score:        score,
+			IsAnomaly:    true,
+			DetectedAt:   now,
+		})
+	}
+	return results
+}
+
+// buildRSToDeploymentMap 构建 "namespace/rsName" -> deploymentInfo 映射
+// 通过 snapshot.ReplicaSets 的 OwnerKind/OwnerName 反向关联 Deployment
+func buildRSToDeploymentMap(snap *model_v2.ClusterSnapshot) map[string]*deploymentInfo {
+	// Step 1: 索引 Deployment → deploymentInfo（按 namespace/name）
+	depMap := make(map[string]*deploymentInfo, len(snap.Deployments))
+	for i := range snap.Deployments {
+		dep := &snap.Deployments[i]
+		if dep.Summary.Replicas <= 0 {
+			continue
+		}
+		ratio := float64(dep.Summary.Replicas-dep.Summary.Ready) / float64(dep.Summary.Replicas)
+		depKey := dep.Summary.Namespace + "/" + dep.Summary.Name
+		depMap[depKey] = &deploymentInfo{
+			namespace:        dep.Summary.Namespace,
+			name:             dep.Summary.Name,
+			unavailableRatio: ratio,
+		}
+	}
+
+	// Step 2: 从 ReplicaSet 的 OwnerKind/OwnerName 反向关联 Deployment
+	rsMap := make(map[string]*deploymentInfo)
+	for i := range snap.ReplicaSets {
+		rs := &snap.ReplicaSets[i]
+		if rs.OwnerKind != "Deployment" {
+			continue
+		}
+		parentKey := rs.Namespace + "/" + rs.OwnerName
+		if info, ok := depMap[parentKey]; ok {
+			rsKey := rs.Namespace + "/" + rs.Name
+			rsMap[rsKey] = info
+		}
+	}
+	return rsMap
+}
+
+// isPodUnhealthy 至少一个容器 Ready=false
+func isPodUnhealthy(pod *model_v2.Pod) bool {
+	for j := range pod.Containers {
+		if !pod.Containers[j].Ready {
+			return true
+		}
+	}
+	return false
+}
+
+// deploymentImpactScore 不可用比例 → 风险分数
+// ratio >= 0.75 → 0.95, >= 0.50 → 0.80, < 0.50 → 0（不注入）
+func deploymentImpactScore(ratio float64) float64 {
+	switch {
+	case ratio >= 0.75:
+		return 0.95
+	case ratio >= 0.50:
+		return 0.80
+	default:
+		return 0
+	}
 }
 
 func extractIngressMetrics(clusterID string, snap *model_v2.ClusterSnapshot, sloRepo database.SLORepository) []aiops.MetricDataPoint {

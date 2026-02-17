@@ -546,3 +546,278 @@ func findResult(results []*aiops.AnomalyResult, entityKey, metricName string) *a
 	}
 	return nil
 }
+
+// findAllResults 查找所有匹配 metricName 的结果
+func findAllResults(results []*aiops.AnomalyResult, metricName string) []*aiops.AnomalyResult {
+	var matched []*aiops.AnomalyResult
+	for _, r := range results {
+		if r.MetricName == metricName {
+			matched = append(matched, r)
+		}
+	}
+	return matched
+}
+
+// makePodWithOwner 创建带 Owner 信息的 Pod
+func makePodWithOwner(namespace, name, phase string, restarts int32, ownerKind, ownerName string, containers ...model_v2.PodContainerDetail) model_v2.Pod {
+	return model_v2.Pod{
+		Summary: model_v2.PodSummary{
+			Name:      name,
+			Namespace: namespace,
+			OwnerKind: ownerKind,
+			OwnerName: ownerName,
+		},
+		Status: model_v2.PodStatus{
+			Phase:    phase,
+			Restarts: restarts,
+		},
+		Containers: containers,
+	}
+}
+
+// makeDeployment 创建 Deployment
+func makeDeployment(namespace, name string, replicas, ready int32) model_v2.Deployment {
+	return model_v2.Deployment{
+		Summary: model_v2.DeploymentSummary{
+			Name:      name,
+			Namespace: namespace,
+			Replicas:  replicas,
+			Ready:     ready,
+		},
+	}
+}
+
+// makeReplicaSet 创建 ReplicaSet（通过 OwnerKind/OwnerName 关联 Deployment）
+func makeReplicaSet(namespace, name, ownerName string) model_v2.ReplicaSet {
+	return model_v2.ReplicaSet{
+		CommonMeta: model_v2.CommonMeta{
+			Name:      name,
+			Namespace: namespace,
+			OwnerKind: "Deployment",
+			OwnerName: ownerName,
+		},
+	}
+}
+
+// ==================== Phase 4: Deployment 影响比例异常 ====================
+
+func TestExtractDeploymentImpact_75Percent(t *testing.T) {
+	// 4 个 Pod，3 个不健康 → 75% → score=0.95
+	snap := &model_v2.ClusterSnapshot{
+		Deployments: []model_v2.Deployment{
+			makeDeployment("default", "web", 4, 1),
+		},
+		ReplicaSets: []model_v2.ReplicaSet{
+			makeReplicaSet("default", "web-rs-abc", "web"),
+		},
+		Pods: []model_v2.Pod{
+			makePodWithOwner("default", "web-1", "Running", 5, "ReplicaSet", "web-rs-abc",
+				makeContainer("app", "waiting", "CrashLoopBackOff", false, 5, ""),
+			),
+			makePodWithOwner("default", "web-2", "Running", 3, "ReplicaSet", "web-rs-abc",
+				makeContainer("app", "waiting", "CrashLoopBackOff", false, 3, ""),
+			),
+			makePodWithOwner("default", "web-3", "Running", 2, "ReplicaSet", "web-rs-abc",
+				makeContainer("app", "waiting", "CrashLoopBackOff", false, 2, ""),
+			),
+			makePodWithOwner("default", "web-4", "Running", 0, "ReplicaSet", "web-rs-abc",
+				makeContainer("app", "running", "", true, 0, ""),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+	impacts := findAllResults(results, "deployment_impact")
+	if len(impacts) != 3 {
+		t.Fatalf("75%% 不健康应有 3 个 Pod 收到信号, got %d", len(impacts))
+	}
+	for _, r := range impacts {
+		if r.Score != 0.95 {
+			t.Errorf("75%% 不可用 score 应为 0.95, got %.2f (entity=%s)", r.Score, r.EntityKey)
+		}
+	}
+	// 健康 Pod 不应收到
+	healthy := findResult(results, "default/pod/web-4", "deployment_impact")
+	if healthy != nil {
+		t.Error("健康 Pod 不应收到 deployment_impact 信号")
+	}
+}
+
+func TestExtractDeploymentImpact_50Percent(t *testing.T) {
+	// 4 个 Pod，2 个不健康 → 50% → score=0.80
+	snap := &model_v2.ClusterSnapshot{
+		Deployments: []model_v2.Deployment{
+			makeDeployment("default", "api", 4, 2),
+		},
+		ReplicaSets: []model_v2.ReplicaSet{
+			makeReplicaSet("default", "api-rs-xyz", "api"),
+		},
+		Pods: []model_v2.Pod{
+			makePodWithOwner("default", "api-1", "Running", 3, "ReplicaSet", "api-rs-xyz",
+				makeContainer("app", "waiting", "CrashLoopBackOff", false, 3, ""),
+			),
+			makePodWithOwner("default", "api-2", "Running", 2, "ReplicaSet", "api-rs-xyz",
+				makeContainer("app", "running", "", false, 0, ""), // Ready=false
+			),
+			makePodWithOwner("default", "api-3", "Running", 0, "ReplicaSet", "api-rs-xyz",
+				makeContainer("app", "running", "", true, 0, ""),
+			),
+			makePodWithOwner("default", "api-4", "Running", 0, "ReplicaSet", "api-rs-xyz",
+				makeContainer("app", "running", "", true, 0, ""),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+	impacts := findAllResults(results, "deployment_impact")
+	if len(impacts) != 2 {
+		t.Fatalf("50%% 不健康应有 2 个 Pod 收到信号, got %d", len(impacts))
+	}
+	for _, r := range impacts {
+		if r.Score != 0.80 {
+			t.Errorf("50%% 不可用 score 应为 0.80, got %.2f (entity=%s)", r.Score, r.EntityKey)
+		}
+	}
+}
+
+func TestExtractDeploymentImpact_25Percent_NoInjection(t *testing.T) {
+	// 4 个 Pod，1 个不健康 → 25% → 不注入
+	snap := &model_v2.ClusterSnapshot{
+		Deployments: []model_v2.Deployment{
+			makeDeployment("default", "worker", 4, 3),
+		},
+		ReplicaSets: []model_v2.ReplicaSet{
+			makeReplicaSet("default", "worker-rs-def", "worker"),
+		},
+		Pods: []model_v2.Pod{
+			makePodWithOwner("default", "worker-1", "Running", 3, "ReplicaSet", "worker-rs-def",
+				makeContainer("app", "waiting", "CrashLoopBackOff", false, 3, ""),
+			),
+			makePodWithOwner("default", "worker-2", "Running", 0, "ReplicaSet", "worker-rs-def",
+				makeContainer("app", "running", "", true, 0, ""),
+			),
+			makePodWithOwner("default", "worker-3", "Running", 0, "ReplicaSet", "worker-rs-def",
+				makeContainer("app", "running", "", true, 0, ""),
+			),
+			makePodWithOwner("default", "worker-4", "Running", 0, "ReplicaSet", "worker-rs-def",
+				makeContainer("app", "running", "", true, 0, ""),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+	impacts := findAllResults(results, "deployment_impact")
+	if len(impacts) != 0 {
+		t.Errorf("25%% 不可用不应注入, got %d 个信号", len(impacts))
+	}
+}
+
+func TestExtractDeploymentImpact_HealthyPodNoSignal(t *testing.T) {
+	// 全部健康 Pod → 不注入
+	snap := &model_v2.ClusterSnapshot{
+		Deployments: []model_v2.Deployment{
+			makeDeployment("default", "healthy-app", 2, 2),
+		},
+		ReplicaSets: []model_v2.ReplicaSet{
+			makeReplicaSet("default", "healthy-rs", "healthy-app"),
+		},
+		Pods: []model_v2.Pod{
+			makePodWithOwner("default", "healthy-1", "Running", 0, "ReplicaSet", "healthy-rs",
+				makeContainer("app", "running", "", true, 0, ""),
+			),
+			makePodWithOwner("default", "healthy-2", "Running", 0, "ReplicaSet", "healthy-rs",
+				makeContainer("app", "running", "", true, 0, ""),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+	impacts := findAllResults(results, "deployment_impact")
+	if len(impacts) != 0 {
+		t.Errorf("全健康 Deployment 不应注入, got %d 个信号", len(impacts))
+	}
+}
+
+func TestExtractDeploymentImpact_NonRSPodSkipped(t *testing.T) {
+	// Pod 不属于 ReplicaSet（直接创建或属于 DaemonSet）→ 不参与
+	snap := &model_v2.ClusterSnapshot{
+		Deployments: []model_v2.Deployment{
+			makeDeployment("default", "web", 2, 0),
+		},
+		ReplicaSets: []model_v2.ReplicaSet{
+			makeReplicaSet("default", "web-rs", "web"),
+		},
+		Pods: []model_v2.Pod{
+			// DaemonSet Pod，不健康但 OwnerKind 不是 ReplicaSet
+			makePodWithOwner("default", "ds-pod", "Running", 5, "DaemonSet", "my-ds",
+				makeContainer("app", "waiting", "CrashLoopBackOff", false, 5, ""),
+			),
+			// 无 Owner 的 Pod
+			makePodWithOwner("default", "standalone", "Running", 3, "", "",
+				makeContainer("app", "waiting", "OOMKilled", false, 3, "OOMKilled"),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+	impacts := findAllResults(results, "deployment_impact")
+	if len(impacts) != 0 {
+		t.Errorf("非 RS 管理的 Pod 不应产生 deployment_impact, got %d", len(impacts))
+	}
+}
+
+func TestExtractDeploymentImpact_IntegrationWithContainerAnomaly(t *testing.T) {
+	// 集成测试：container_anomaly + deployment_impact 同时产生
+	snap := &model_v2.ClusterSnapshot{
+		Deployments: []model_v2.Deployment{
+			makeDeployment("default", "app", 4, 1),
+		},
+		ReplicaSets: []model_v2.ReplicaSet{
+			makeReplicaSet("default", "app-rs", "app"),
+		},
+		Pods: []model_v2.Pod{
+			makePodWithOwner("default", "app-1", "Running", 10, "ReplicaSet", "app-rs",
+				makeContainer("main", "waiting", "CrashLoopBackOff", false, 10, ""),
+			),
+			makePodWithOwner("default", "app-2", "Running", 5, "ReplicaSet", "app-rs",
+				makeContainer("main", "waiting", "OOMKilled", false, 5, "OOMKilled"),
+			),
+			makePodWithOwner("default", "app-3", "Running", 3, "ReplicaSet", "app-rs",
+				makeContainer("main", "running", "", false, 0, ""), // Ready=false
+			),
+			makePodWithOwner("default", "app-4", "Running", 0, "ReplicaSet", "app-rs",
+				makeContainer("main", "running", "", true, 0, ""),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+
+	// 验证 container_anomaly：3 个不健康 Pod 应各有一个
+	for _, podName := range []string{"app-1", "app-2", "app-3"} {
+		key := "default/pod/" + podName
+		ca := findResult(results, key, "container_anomaly")
+		if ca == nil {
+			t.Errorf("Pod %s 应有 container_anomaly", podName)
+		}
+	}
+
+	// 验证 deployment_impact：75% → score=0.95，3 个 Pod 收到
+	impacts := findAllResults(results, "deployment_impact")
+	if len(impacts) != 3 {
+		t.Fatalf("集成测试：应有 3 个 deployment_impact, got %d", len(impacts))
+	}
+	for _, r := range impacts {
+		if r.Score != 0.95 {
+			t.Errorf("集成测试 score 应为 0.95, got %.2f", r.Score)
+		}
+	}
+
+	// 健康 Pod 无信号
+	if findResult(results, "default/pod/app-4", "deployment_impact") != nil {
+		t.Error("健康 Pod app-4 不应有 deployment_impact")
+	}
+	if findResult(results, "default/pod/app-4", "container_anomaly") != nil {
+		t.Error("健康 Pod app-4 不应有 container_anomaly")
+	}
+}
