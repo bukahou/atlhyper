@@ -61,10 +61,10 @@ func Aggregate(
 	// 5. Top 5 实体
 	topEntities := topN(entityRisks, 5)
 
-	// 6. 异常计数
+	// 6. 异常计数（有局部风险的实体即为异常）
 	anomalyCount := 0
-	for _, r := range finalRisks {
-		if r > 0.2 {
+	for key := range finalRisks {
+		if entityRisks[key] != nil && entityRisks[key].RLocal > 0 {
 			anomalyCount++
 		}
 	}

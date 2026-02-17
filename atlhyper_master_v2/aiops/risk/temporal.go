@@ -5,8 +5,15 @@ package risk
 
 import "math"
 
+// TemporalFloor 时序权重下限（首次检测到异常时的初始权重）
+const TemporalFloor = 0.5
+
 // ApplyTemporalWeights 应用时序权重
-// 效果: 先出问题的实体权重更高（更可能是根因）
+// 效果: 持续异常的实体权重递增（确认是持续问题而非瞬态波动）
+// W_time = floor + (1-floor) × (1 - exp(-Δt / τ))
+//   - 首次检测 (Δt=0): W_time = floor (0.5)
+//   - 持续 5 分钟:       W_time ≈ 0.82
+//   - 持续 10 分钟:      W_time ≈ 0.93
 func ApplyTemporalWeights(
 	localRisks map[string]float64,
 	firstAnomalyTimes map[string]int64,
@@ -16,12 +23,15 @@ func ApplyTemporalWeights(
 	weighted := make(map[string]float64, len(localRisks))
 
 	for entityKey, rLocal := range localRisks {
-		wTime := 1.0 // 默认无衰减
+		wTime := 1.0
 
 		if firstTime, ok := firstAnomalyTimes[entityKey]; ok && firstTime > 0 {
 			deltaT := float64(now - firstTime)
 			if deltaT > 0 && halfLife > 0 {
-				wTime = math.Exp(-deltaT / halfLife)
+				// 增长公式：持续越久 → 权重越高
+				wTime = TemporalFloor + (1-TemporalFloor)*(1-math.Exp(-deltaT/halfLife))
+			} else {
+				wTime = TemporalFloor
 			}
 		}
 

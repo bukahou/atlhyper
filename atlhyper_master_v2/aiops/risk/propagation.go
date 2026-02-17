@@ -71,8 +71,14 @@ func Propagate(
 			}
 		}
 
-		// R_final = α × R_weighted + (1-α) × propagated
-		finalRisks[entityKey] = selfWeight*rWeighted + (1-selfWeight)*propagatedRisk
+		// R_final = max(R_weighted, α × R_weighted + (1-α) × propagated)
+		// max 确保传播不会稀释实体自身风险（健康依赖不应压低本体异常）
+		mixed := selfWeight*rWeighted + (1-selfWeight)*propagatedRisk
+		if rWeighted > mixed {
+			finalRisks[entityKey] = rWeighted
+		} else {
+			finalRisks[entityKey] = mixed
+		}
 		if finalRisks[entityKey] > 1.0 {
 			finalRisks[entityKey] = 1.0
 		}

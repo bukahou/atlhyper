@@ -49,25 +49,25 @@ func NewStateMachine(callback TransitionCallback) *StateMachine {
 		{
 			FromState:   aiops.StateHealthy,
 			ToState:     aiops.StateWarning,
-			RiskCheck:   func(r float64) bool { return r > 0.5 },
+			RiskCheck:   func(r float64) bool { return r > 0.2 },
 			MinDuration: 2 * time.Minute,
 		},
 		{
 			FromState:   aiops.StateWarning,
 			ToState:     aiops.StateIncident,
-			RiskCheck:   func(r float64) bool { return r > 0.8 },
+			RiskCheck:   func(r float64) bool { return r > 0.5 },
 			MinDuration: 5 * time.Minute,
 		},
 		{
 			FromState:   aiops.StateIncident,
 			ToState:     aiops.StateRecovery,
-			RiskCheck:   func(r float64) bool { return r < 0.3 },
+			RiskCheck:   func(r float64) bool { return r < 0.15 },
 			MinDuration: 10 * time.Minute,
 		},
 		{
 			FromState:   aiops.StateRecovery,
 			ToState:     aiops.StateWarning,
-			RiskCheck:   func(r float64) bool { return r > 0.5 },
+			RiskCheck:   func(r float64) bool { return r > 0.2 },
 			MinDuration: 0, // 复发立即触发
 		},
 	}

@@ -112,9 +112,10 @@ func TestApplyTemporalWeights_RecentAnomaly(t *testing.T) {
 
 	weighted := ApplyTemporalWeights(localRisks, firstAnomalyTimes, now, 300)
 
-	// Δt=0, exp(0)=1.0, so weighted = 0.5
-	if diff := math.Abs(weighted["default/pod/api-1"] - 0.5); diff > 0.001 {
-		t.Errorf("expected 0.5, got %.3f", weighted["default/pod/api-1"])
+	// Δt=0, WTime = floor = 0.5, weighted = 0.5 × 0.5 = 0.25
+	expected := 0.5 * TemporalFloor
+	if diff := math.Abs(weighted["default/pod/api-1"] - expected); diff > 0.001 {
+		t.Errorf("expected %.3f, got %.3f", expected, weighted["default/pod/api-1"])
 	}
 }
 
@@ -129,8 +130,9 @@ func TestApplyTemporalWeights_OldAnomaly(t *testing.T) {
 
 	weighted := ApplyTemporalWeights(localRisks, firstAnomalyTimes, now, 300)
 
-	// Δt=600, τ=300, W = exp(-600/300) = exp(-2) ≈ 0.1353
-	expectedW := math.Exp(-2.0)
+	// Δt=600, τ=300, W = floor + (1-floor) × (1-exp(-2))
+	// = 0.5 + 0.5 × 0.8647 = 0.932
+	expectedW := TemporalFloor + (1-TemporalFloor)*(1-math.Exp(-2.0))
 	expected := 0.5 * expectedW
 	if diff := math.Abs(weighted["default/pod/api-1"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, weighted["default/pod/api-1"])
@@ -149,8 +151,8 @@ func TestPropagate_NoEdges(t *testing.T) {
 
 	finalRisks, paths := Propagate(graph, weightedRisks, 0.6)
 
-	// 无依赖: R_final = α × R_weighted = 0.6 × 0.8 = 0.48
-	expected := 0.6 * 0.8
+	// 无依赖: max(R_weighted, α×R_weighted) = R_weighted = 0.8
+	expected := 0.8
 	if diff := math.Abs(finalRisks["default/node/node1"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, finalRisks["default/node/node1"])
 	}
@@ -168,23 +170,25 @@ func TestPropagate_SimpleChain(t *testing.T) {
 	graph.RebuildIndex()
 
 	weightedRisks := map[string]float64{
-		"_cluster/node/node1":  0.8,
-		"default/pod/api-1": 0.3,
+		"_cluster/node/node1": 0.8,
+		"default/pod/api-1":   0.3,
 	}
 
 	finalRisks, _ := Propagate(graph, weightedRisks, 0.6)
 
-	// Node (layer=0) 先计算: 无上游依赖
-	// R_final(node) = α × R_weighted = 0.6 × 0.8 = 0.48
-	nodeExpected := 0.6 * 0.8
+	// Node (layer=0) 先计算: 无依赖
+	// max(0.8, 0.6×0.8) = 0.8
+	nodeExpected := 0.8
 	if diff := math.Abs(finalRisks["_cluster/node/node1"] - nodeExpected); diff > 0.001 {
 		t.Errorf("node: expected %.3f, got %.3f", nodeExpected, finalRisks["_cluster/node/node1"])
 	}
 
 	// Pod (layer=1) 后计算: 有下游依赖 node
-	// R_final(pod) = α × R_weighted(pod) + (1-α) × R_final(node)
-	//              = 0.6 × 0.3 + 0.4 × 0.48 = 0.18 + 0.192 = 0.372
-	podExpected := 0.6*0.3 + 0.4*nodeExpected
+	// mixed = α × R_weighted(pod) + (1-α) × R_final(node)
+	//       = 0.6 × 0.3 + 0.4 × 0.8 = 0.18 + 0.32 = 0.50
+	// max(0.3, 0.50) = 0.50 (传播提升了 Pod 风险)
+	podMixed := 0.6*0.3 + 0.4*nodeExpected
+	podExpected := math.Max(0.3, podMixed)
 	if diff := math.Abs(finalRisks["default/pod/api-1"] - podExpected); diff > 0.001 {
 		t.Errorf("pod: expected %.3f, got %.3f", podExpected, finalRisks["default/pod/api-1"])
 	}
@@ -218,10 +222,12 @@ func TestAggregate_BasicClusterRisk(t *testing.T) {
 	entityRisks := map[string]*aiops.EntityRisk{
 		"default/service/api": {
 			EntityKey: "default/service/api",
+			RLocal:    0.5,
 			RFinal:    0.8,
 		},
 		"default/pod/api-1": {
 			EntityKey: "default/pod/api-1",
+			RLocal:    0.3,
 			RFinal:    0.3,
 		},
 	}
@@ -236,7 +242,6 @@ func TestAggregate_BasicClusterRisk(t *testing.T) {
 	clusterRisk := Aggregate("test", entityRisks, finalRisks, nil, config, now)
 
 	// Risk = w1 × max(R_final) × 100 = 0.5 × 0.8 × 100 = 40
-	// (no SLO context, so SLO and growth factors are 0)
 	expectedRisk := 40.0
 	if diff := math.Abs(clusterRisk.Risk - expectedRisk); diff > 0.2 {
 		t.Errorf("expected risk %.1f, got %.1f", expectedRisk, clusterRisk.Risk)
@@ -244,6 +249,7 @@ func TestAggregate_BasicClusterRisk(t *testing.T) {
 	if clusterRisk.Level != "low" {
 		t.Errorf("expected level 'low', got '%s'", clusterRisk.Level)
 	}
+	// anomalyCount 统计 rLocal > 0 的实体
 	if clusterRisk.AnomalyCount != 2 {
 		t.Errorf("expected 2 anomalies, got %d", clusterRisk.AnomalyCount)
 	}

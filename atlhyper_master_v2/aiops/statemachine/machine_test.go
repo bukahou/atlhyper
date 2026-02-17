@@ -52,14 +52,14 @@ func makeEntityRisks(key string, rFinal float64) map[string]*aiops.EntityRisk {
 }
 
 // TestHealthyToWarning 测试 Healthy → Warning 转换
-// 条件: R_final > 0.5 持续 > 2 分钟
+// 条件: R_final > 0.2 持续 > 2 分钟
 func TestHealthyToWarning(t *testing.T) {
 	cb := &mockCallback{}
 	sm := NewStateMachine(cb)
 	ctx := context.Background()
 
 	entity := "ns/service/svc-a"
-	risks := makeEntityRisks(entity, 0.6) // > 0.5
+	risks := makeEntityRisks(entity, 0.3) // > 0.2
 
 	// 第一次评估：条件满足，开始计时
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
@@ -88,7 +88,7 @@ func TestHealthyToWarning(t *testing.T) {
 }
 
 // TestWarningToIncident 测试 Warning → Incident 转换
-// 条件: R_final > 0.8 持续 > 5 分钟
+// 条件: R_final > 0.5 持续 > 5 分钟
 func TestWarningToIncident(t *testing.T) {
 	cb := &mockCallback{}
 	sm := NewStateMachine(cb)
@@ -105,7 +105,7 @@ func TestWarningToIncident(t *testing.T) {
 	}
 	sm.mu.Unlock()
 
-	risks := makeEntityRisks(entity, 0.9) // > 0.8
+	risks := makeEntityRisks(entity, 0.6) // > 0.5
 
 	// 第一次：开始计时
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
@@ -143,8 +143,8 @@ func TestWarningToIncident_ClusterRiskTrigger(t *testing.T) {
 	}
 	sm.mu.Unlock()
 
-	// R_final 不够 0.8，但 ClusterRisk > 80
-	risks := makeEntityRisks(entity, 0.6)
+	// R_final 不够 0.5，但 ClusterRisk > 80
+	risks := makeEntityRisks(entity, 0.3)
 	clusterRisk := &aiops.ClusterRisk{Risk: 85}
 
 	// 第一次：开始计时（条件由 ClusterRisk 满足）
@@ -162,7 +162,7 @@ func TestWarningToIncident_ClusterRiskTrigger(t *testing.T) {
 }
 
 // TestIncidentToRecovery 测试 Incident → Recovery 转换
-// 条件: R_final < 0.3 持续 > 10 分钟
+// 条件: R_final < 0.15 持续 > 10 分钟
 func TestIncidentToRecovery(t *testing.T) {
 	cb := &mockCallback{}
 	sm := NewStateMachine(cb)
@@ -178,7 +178,7 @@ func TestIncidentToRecovery(t *testing.T) {
 	}
 	sm.mu.Unlock()
 
-	risks := makeEntityRisks(entity, 0.1) // < 0.3
+	risks := makeEntityRisks(entity, 0.1) // < 0.15
 
 	// 第一次：开始计时
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
@@ -198,7 +198,7 @@ func TestIncidentToRecovery(t *testing.T) {
 }
 
 // TestRecoveryToWarning_Recurrence 测试 Recovery → Warning（复发）
-// 条件: R_final > 0.5（立即触发）
+// 条件: R_final > 0.2（立即触发）
 func TestRecoveryToWarning_Recurrence(t *testing.T) {
 	cb := &mockCallback{}
 	sm := NewStateMachine(cb)
@@ -214,7 +214,7 @@ func TestRecoveryToWarning_Recurrence(t *testing.T) {
 	}
 	sm.mu.Unlock()
 
-	risks := makeEntityRisks(entity, 0.7) // > 0.5
+	risks := makeEntityRisks(entity, 0.3) // > 0.2
 
 	// 立即触发（MinDuration = 0）
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
@@ -235,7 +235,7 @@ func TestDurationNotMet(t *testing.T) {
 	ctx := context.Background()
 
 	entity := "ns/service/svc-a"
-	risks := makeEntityRisks(entity, 0.6) // > 0.5
+	risks := makeEntityRisks(entity, 0.3) // > 0.2
 
 	// 连续评估 3 次（间隔很短），不应触发
 	for i := 0; i < 3; i++ {
@@ -260,14 +260,14 @@ func TestConditionResets(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	// 高风险
-	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.6), nil)
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
 	entry := sm.GetEntry(entity)
 	if entry.ConditionMetSince == 0 {
 		t.Fatal("ConditionMetSince should be set")
 	}
 
 	// 风险降低到阈值以下 → 计时重置
-	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.1), nil)
 	entry = sm.GetEntry(entity)
 	if entry.ConditionMetSince != 0 {
 		t.Fatal("ConditionMetSince should be reset")
@@ -376,27 +376,27 @@ func TestFullLifecycle(t *testing.T) {
 
 	entity := "ns/service/svc-a"
 
-	// 1. Healthy → Warning (R > 0.5, > 2min)
-	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.6), nil)
+	// 1. Healthy → Warning (R > 0.2, > 2min)
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
 	entry := sm.GetEntry(entity)
 	entry.ConditionMetSince = time.Now().Add(-3 * time.Minute).Unix()
-	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.6), nil)
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
 	entry = sm.GetEntry(entity)
 	if entry.CurrentState != aiops.StateWarning {
 		t.Fatalf("step 1: expected Warning, got %s", entry.CurrentState)
 	}
 
-	// 2. Warning → Incident (R > 0.8, > 5min)
-	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.9), nil)
+	// 2. Warning → Incident (R > 0.5, > 5min)
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.6), nil)
 	entry = sm.GetEntry(entity)
 	entry.ConditionMetSince = time.Now().Add(-6 * time.Minute).Unix()
-	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.9), nil)
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.6), nil)
 	entry = sm.GetEntry(entity)
 	if entry.CurrentState != aiops.StateIncident {
 		t.Fatalf("step 2: expected Incident, got %s", entry.CurrentState)
 	}
 
-	// 3. Incident → Recovery (R < 0.3, > 10min)
+	// 3. Incident → Recovery (R < 0.15, > 10min)
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.1), nil)
 	entry = sm.GetEntry(entity)
 	entry.ConditionMetSince = time.Now().Add(-11 * time.Minute).Unix()
