@@ -82,6 +82,10 @@ func (d *aIOpsIncidentDialect) ScanIncident(rows *sql.Rows) (*database.AIOpsInci
 		t, _ := time.Parse(time.RFC3339, resolvedAt.String)
 		inc.ResolvedAt = &t
 	}
+	// 活跃事件：动态计算持续时间（DB 中只有 Resolve 时才写入 duration_s）
+	if inc.ResolvedAt == nil {
+		inc.DurationS = int64(time.Since(inc.StartedAt).Seconds())
+	}
 	return inc, nil
 }
 
