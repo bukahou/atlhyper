@@ -1583,6 +1583,11 @@ export const ja: Translations = {
       title: "リソーストレンド",
       noData: "履歴データがありません",
     },
+    overview: {
+      title: "クラスターリソース傾向",
+      top5: "Top 5 ノード",
+      noData: "履歴データなし",
+    },
   },
   aiops: {
     riskDashboard: "リスクダッシュボード",

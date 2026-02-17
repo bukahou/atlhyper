@@ -1668,6 +1668,12 @@ interface NodeMetricsTranslations {
     title: string;
     noData: string;
   };
+  // Cluster Overview Chart
+  overview: {
+    title: string;
+    top5: string;
+    noData: string;
+  };
 }
 
 // AIOps 翻译

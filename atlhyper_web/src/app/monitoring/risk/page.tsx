@@ -23,6 +23,7 @@ export default function RiskPage() {
 
   const [clusterRisk, setClusterRisk] = useState<ClusterRisk | null>(null);
   const [entities, setEntities] = useState<EntityRisk[]>([]);
+  const [entityLimit, setEntityLimit] = useState(20);
 
   const loadData = useCallback(
     async (showLoading = true) => {
@@ -32,7 +33,7 @@ export default function RiskPage() {
       try {
         const [risk, entityList] = await Promise.all([
           getClusterRisk(currentClusterId),
-          getEntityRisks(currentClusterId, "r_final", 20),
+          getEntityRisks(currentClusterId, "r_final", entityLimit),
         ]);
         setClusterRisk(risk);
         setEntities(entityList);
@@ -46,7 +47,7 @@ export default function RiskPage() {
         setIsRefreshing(false);
       }
     },
-    [currentClusterId, t.aiops.loadFailed]
+    [currentClusterId, entityLimit, t.aiops.loadFailed]
   );
 
   // 初始加载
@@ -133,7 +134,7 @@ export default function RiskPage() {
         )}
 
         {/* 下方: TopEntities */}
-        <TopEntities entities={entities} clusterId={currentClusterId} />
+        <TopEntities entities={entities} clusterId={currentClusterId} limit={entityLimit} onLimitChange={setEntityLimit} />
       </div>
     </Layout>
   );

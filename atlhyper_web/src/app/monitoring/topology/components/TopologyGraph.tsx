@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useMemo } from "react";
 import type { DependencyGraph, EntityRisk } from "@/api/aiops";
 
 // 节点颜色按风险等级
@@ -34,23 +34,69 @@ function edgeStyle(type: string, isAnomaly: boolean) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function addState(g: any, id: string, state: string) {
+  const cur: string[] = g.getElementState(id);
+  if (!cur.includes(state)) {
+    g.setElementState(id, [...cur, state]);
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function removeState(g: any, id: string, state: string) {
+  const cur: string[] = g.getElementState(id);
+  if (cur.includes(state)) {
+    g.setElementState(id, cur.filter((s: string) => s !== state));
+  }
+}
+
+/** 清除所有元素的 "selected" 状态，再为选中节点 + 关联边添加 "selected" */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applySelection(g: any, nodeId: string | null) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const n of g.getNodeData()) removeState(g, (n as any).id, "selected");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const e of g.getEdgeData()) removeState(g, (e as any).id, "selected");
+
+  if (!nodeId) return;
+
+  addState(g, nodeId, "selected");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const e of g.getEdgeData()) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ed = e as any;
+    if (ed.source === nodeId || ed.target === nodeId) {
+      addState(g, ed.id, "selected");
+    }
+  }
+}
+
 interface TopologyGraphProps {
   graph: DependencyGraph;
   entityRisks: Record<string, EntityRisk>;
   selectedNode: string | null;
-  onNodeSelect: (key: string) => void;
+  onNodeSelect: (key: string | null) => void;
 }
 
 export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }: TopologyGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
+  const readyRef = useRef(false);
   const onNodeSelectRef = useRef(onNodeSelect);
   onNodeSelectRef.current = onNodeSelect;
+  const selectedNodeRef = useRef(selectedNode);
+  selectedNodeRef.current = selectedNode;
 
-  // 构造 G6 数据
+  // 拓扑结构指纹：仅节点集合 + 边集合变化时才重建图
+  const topologyKey = useMemo(() => {
+    const nk = Object.keys(graph.nodes).sort().join(",");
+    const ek = graph.edges.map((e) => `${e.from}>${e.to}:${e.type}`).sort().join(",");
+    return nk + "||" + ek;
+  }, [graph]);
+
+  // 构造 G6 数据（使用稳定的 edge ID）
   const buildData = useCallback(() => {
-    // 预计算每个节点的度数
     const degreeMap: Record<string, number> = {};
     for (const e of graph.edges) {
       degreeMap[e.from] = (degreeMap[e.from] ?? 0) + 1;
@@ -63,7 +109,6 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       const color = riskColor(rFinal);
       const shape = TYPE_SHAPE[n.type] ?? "circle";
 
-      // 大小：基准按类型 + 度数动态加成
       const degree = degreeMap[n.key] ?? 0;
       const baseSize = n.type === "node" ? 40 : n.type === "service" ? 34 : 26;
       const size = baseSize + Math.min(degree * 2, 14);
@@ -94,15 +139,20 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       };
     });
 
-    const edges = graph.edges.map((e, i) => {
-      // 异常判断：源或目标任一端风险 > 50
+    const edgeSeen = new Set<string>();
+    const edges: Array<{ id: string; source: string; target: string; style: Record<string, unknown> }> = [];
+    for (const e of graph.edges) {
+      const eid = `${e.from}>${e.to}:${e.type}`;
+      if (edgeSeen.has(eid)) continue;
+      edgeSeen.add(eid);
+
       const isAnomaly =
         (entityRisks[e.from]?.rFinal ?? 0) > 50 ||
         (entityRisks[e.to]?.rFinal ?? 0) > 50;
       const style = edgeStyle(e.type, isAnomaly);
 
-      return {
-        id: `edge-${i}`,
+      edges.push({
+        id: eid,
         source: e.from,
         target: e.to,
         style: {
@@ -111,18 +161,19 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
           endArrowSize: 6,
           endArrowFill: style.stroke,
         },
-      };
-    });
+      });
+    }
 
     return { nodes, edges };
   }, [graph, entityRisks]);
 
-  // 初始化 G6
+  // Effect 1: 拓扑结构变化时 → 销毁重建（含力导向布局）
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // 销毁旧实例 + 清空容器（防止残留 canvas）
+    readyRef.current = false;
+
     if (graphRef.current) {
       try { graphRef.current.destroy(); } catch { /* ignore */ }
       graphRef.current = null;
@@ -162,13 +213,16 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
           },
         },
         edge: {
-          style: {
-            type: "line",
-          },
+          style: { type: "line" },
           state: {
             active: {
               stroke: "#3b82f6",
               lineWidth: 2,
+            },
+            selected: {
+              stroke: "#3b82f6",
+              lineWidth: 2.5,
+              strokeOpacity: 1,
             },
           },
         },
@@ -182,10 +236,7 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
           "drag-canvas",
           "zoom-canvas",
           "drag-element",
-          {
-            type: "hover-activate",
-            degree: 1,
-          },
+          // hover-activate 替换为手动实现，避免 pointerout 恢复旧状态时清除 "selected"
         ],
         plugins: [
           {
@@ -202,18 +253,57 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
               </div>`;
             },
           },
-          {
-            type: "minimap",
-            size: [120, 80],
-          },
+          { type: "minimap", size: [120, 80] },
         ],
         animation: true,
       });
 
+      // ── 手动 hover 高亮（degree-1 邻居） ──
+      let hoveredIds: string[] = [];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      instance.on("node:pointerover", (evt: any) => {
+        const nodeId = evt?.target?.id;
+        if (!nodeId) return;
+        try {
+          hoveredIds = [];
+          const activate = (id: string) => {
+            addState(instance, id, "active");
+            hoveredIds.push(id);
+          };
+          activate(nodeId);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const e of instance.getEdgeData()) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const ed = e as any;
+            if (ed.source === nodeId || ed.target === nodeId) {
+              activate(ed.id);
+              activate(ed.source === nodeId ? ed.target : ed.source);
+            }
+          }
+        } catch { /* ignore */ }
+      });
+
+      instance.on("node:pointerout", () => {
+        try {
+          for (const id of hoveredIds) removeState(instance, id, "active");
+          hoveredIds = [];
+        } catch { /* ignore */ }
+      });
+
+      // ── 点击选中（持久高亮关联边） ──
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       instance.on("node:click", (evt: any) => {
         const nodeId = evt?.target?.id ?? evt?.targetId;
-        if (nodeId) onNodeSelectRef.current(nodeId);
+        if (!nodeId) return;
+        try { applySelection(instance, nodeId); } catch { /* ignore */ }
+        onNodeSelectRef.current(nodeId);
+      });
+
+      // 点击画布空白 → 取消选中
+      instance.on("canvas:click", () => {
+        try { applySelection(instance, null); } catch { /* ignore */ }
+        onNodeSelectRef.current(null);
       });
 
       await instance.render();
@@ -224,25 +314,53 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       }
 
       graphRef.current = instance;
+      readyRef.current = true;
+
+      // 如果创建时已有选中节点，立即应用选中状态
+      if (selectedNodeRef.current) {
+        try { applySelection(instance, selectedNodeRef.current); } catch { /* ignore */ }
+      }
     }
 
     createGraph();
 
     return () => {
       destroyed = true;
+      readyRef.current = false;
       if (graphRef.current) {
-        try { graphRef.current.destroy(); } catch { /* ignore */ }
+        try {
+          graphRef.current.destroy();
+        } catch { /* ignore */ }
         graphRef.current = null;
       }
     };
-  }, [buildData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topologyKey]);
 
-  // 选中状态同步
+  // Effect 2: 风险数据变化时 → 原地更新样式（不重建布局，节点位置不变）
   useEffect(() => {
     const g = graphRef.current;
-    if (!g || !selectedNode) return;
+    if (!g || !readyRef.current) return;
+
     try {
-      g.setElementState(selectedNode, "selected");
+      const data = buildData();
+      g.updateData(data);
+      g.draw();
+      // updateData 可能重置状态，重新应用选中高亮
+      if (selectedNodeRef.current) {
+        applySelection(g, selectedNodeRef.current);
+      }
+    } catch {
+      // G6 API 不支持或图未就绪，等待下次结构变化时重建
+    }
+  }, [buildData]);
+
+  // Effect 3: selectedNode 外部变化时同步（如切换视图导致清除选中）
+  useEffect(() => {
+    const g = graphRef.current;
+    if (!g || !readyRef.current) return;
+    try {
+      applySelection(g, selectedNode);
     } catch {
       // 节点可能尚未渲染
     }

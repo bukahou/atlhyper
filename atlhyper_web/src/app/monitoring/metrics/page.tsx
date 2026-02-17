@@ -33,6 +33,7 @@ import {
   TCPCard,
   SystemResourcesCard,
   VMStatCard,
+  ClusterOverviewChart,
 } from "./components";
 
 // API
@@ -404,6 +405,11 @@ export default function MetricsPage() {
               color={warningNodes > 0 ? "bg-yellow-500/10 text-yellow-500" : "bg-emerald-500/10 text-emerald-500"}
             />
           </div>
+        )}
+
+        {/* 集群概览趋势图 */}
+        {nodes.length > 1 && currentClusterId && (
+          <ClusterOverviewChart nodes={nodes} clusterId={currentClusterId} />
         )}
 
         {/* 节点过滤 chip */}

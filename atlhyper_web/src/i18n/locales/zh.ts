@@ -1583,6 +1583,11 @@ export const zh: Translations = {
       title: "资源趋势",
       noData: "暂无历史数据",
     },
+    overview: {
+      title: "集群资源趋势",
+      top5: "Top 5 节点",
+      noData: "暂无历史数据",
+    },
   },
   aiops: {
     riskDashboard: "风险仪表盘",

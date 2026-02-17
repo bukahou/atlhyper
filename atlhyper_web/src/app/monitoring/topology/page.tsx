@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { useClusterStore } from "@/store/clusterStore";
-import { RefreshCw, Loader2, WifiOff, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { RefreshCw, Loader2, WifiOff, AlertTriangle, CheckCircle2, Pause, Play } from "lucide-react";
 
 import { TopologyGraph } from "./components/TopologyGraph";
 import { NodeDetail } from "./components/NodeDetail";
@@ -35,6 +35,8 @@ export default function TopologyPage() {
   const [entityRisks, setEntityRisks] = useState<EntityRisk[]>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("service");
+  const [nsFilter, setNsFilter] = useState<Set<string>>(new Set());
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   // entityRisks 数组 → map
   const riskMap = useMemo(() => {
@@ -44,6 +46,42 @@ export default function TopologyPage() {
     }
     return map;
   }, [entityRisks]);
+
+  // 从图中提取所有 namespace（Full 视图筛选用）
+  const allNamespaces = useMemo(() => {
+    if (!graph) return [];
+    const nsSet = new Set<string>();
+    for (const node of Object.values(graph.nodes)) {
+      if (node.namespace && node.namespace !== "_cluster") {
+        nsSet.add(node.namespace);
+      }
+    }
+    return [...nsSet].sort();
+  }, [graph]);
+
+  const toggleNs = useCallback((ns: string) => {
+    setNsFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(ns)) next.delete(ns);
+      else next.add(ns);
+      return next;
+    });
+  }, []);
+
+  // Full 视图默认选中第一个 namespace，避免全量展示节点过多
+  // 仅在切换到 Full 视图时触发一次
+  const fullInitedRef = useRef(false);
+  useEffect(() => {
+    if (viewMode === "full") {
+      if (!fullInitedRef.current && allNamespaces.length > 0) {
+        fullInitedRef.current = true;
+        setNsFilter(new Set([allNamespaces[0]]));
+      }
+    } else {
+      fullInitedRef.current = false;
+      setNsFilter(new Set());
+    }
+  }, [viewMode, allNamespaces]);
 
   // 按视图模式过滤图数据
   const filteredGraph = useMemo(() => {
@@ -85,9 +123,38 @@ export default function TopologyPage() {
       return { ...graph, nodes: keepNodes, edges };
     }
 
-    // full
+    // full — 可选 namespace 筛选
+    if (nsFilter.size > 0) {
+      // 按选中 namespace 过滤节点
+      const keepNodes: Record<string, GraphNode> = {};
+      for (const [key, node] of Object.entries(graph.nodes)) {
+        if (nsFilter.has(node.namespace)) keepNodes[key] = node;
+      }
+      // 保留与选中节点相连的 _cluster 节点（物理 Node）
+      const keepKeys = new Set(Object.keys(keepNodes));
+      for (const e of graph.edges) {
+        if (keepKeys.has(e.from) && !keepKeys.has(e.to)) {
+          const n = graph.nodes[e.to];
+          if (n?.namespace === "_cluster") { keepNodes[e.to] = n; keepKeys.add(e.to); }
+        }
+        if (keepKeys.has(e.to) && !keepKeys.has(e.from)) {
+          const n = graph.nodes[e.from];
+          if (n?.namespace === "_cluster") { keepNodes[e.from] = n; keepKeys.add(e.from); }
+        }
+      }
+      const edges = graph.edges.filter((e) => keepKeys.has(e.from) && keepKeys.has(e.to));
+      return { ...graph, nodes: keepNodes, edges };
+    }
+
     return graph;
-  }, [graph, entityRisks, viewMode]);
+  }, [graph, entityRisks, viewMode, nsFilter]);
+
+  // 切换视图时，如果选中节点不在新视图中，清除选中
+  useEffect(() => {
+    if (selectedNode && filteredGraph && !filteredGraph.nodes[selectedNode]) {
+      setSelectedNode(null);
+    }
+  }, [filteredGraph, selectedNode]);
 
   const loadData = useCallback(
     async (showLoading = true) => {
@@ -118,8 +185,12 @@ export default function TopologyPage() {
     loadData();
   }, [loadData]);
 
-  // 拓扑图不自动刷新：力导向布局重建会导致节点位置变化，干扰用户查看
-  // 用户可通过刷新按钮手动更新
+  // 自动刷新：默认 10s 间隔，仅更新风险数据不重建布局
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => loadData(false), 10_000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, loadData]);
 
   if (loading) {
     return (
@@ -181,6 +252,15 @@ export default function TopologyPage() {
             <span className="text-[10px] sm:text-xs text-muted hidden sm:block">
               {t.aiops.lastUpdate}: {lastUpdate.toLocaleTimeString()}
             </span>
+            <button
+              onClick={() => setAutoRefresh((v) => !v)}
+              className={`p-2 rounded-lg hover:bg-[var(--hover-bg)] transition-colors ${
+                autoRefresh ? "text-emerald-500" : "text-muted hover:text-default"
+              }`}
+              title={autoRefresh ? "Pause auto-refresh" : "Resume auto-refresh"}
+            >
+              {autoRefresh ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            </button>
             <button
               onClick={() => loadData(true)}
               disabled={isRefreshing}
@@ -247,6 +327,40 @@ export default function TopologyPage() {
             </span>
           </div>
         </div>
+
+        {/* Full 视图: Namespace 筛选 */}
+        {viewMode === "full" && allNamespaces.length > 1 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted">{t.common.namespace}:</span>
+            {allNamespaces.map((ns) => {
+              const isActive = nsFilter.size > 0 && nsFilter.has(ns);
+              const isDimmed = nsFilter.size > 0 && !nsFilter.has(ns);
+              return (
+                <button
+                  key={ns}
+                  onClick={() => toggleNs(ns)}
+                  className={`px-2.5 py-1 rounded-full text-xs transition-colors border ${
+                    isActive
+                      ? "bg-blue-500/15 text-blue-500 border-blue-500/30"
+                      : isDimmed
+                        ? "bg-[var(--background)] text-muted/40 border-[var(--border-color)] hover:text-muted"
+                        : "bg-[var(--background)] text-muted border-[var(--border-color)] hover:text-default"
+                  }`}
+                >
+                  {ns}
+                </button>
+              );
+            })}
+            {nsFilter.size > 0 && (
+              <button
+                onClick={() => setNsFilter(new Set())}
+                className="px-2 py-1 text-xs text-muted hover:text-default transition-colors"
+              >
+                {t.common.reset}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Anomaly 空状态 */}
         {showEmptyAnomaly && (

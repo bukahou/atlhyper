@@ -75,7 +75,7 @@ export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
       </div>
 
       {/* 指标列表 */}
-      {detail.metrics.length > 0 && (
+      {detail.metrics?.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t.aiops.metricName}</h4>
           <div className="space-y-2">
@@ -94,7 +94,7 @@ export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
                     {t.aiops.currentValue}: <span className="text-default">{m.currentValue.toFixed(2)}</span>
                   </span>
                   <span>
-                    {t.aiops.deviation}: <span className="text-default">{m.deviation.toFixed(1)}\u03c3</span>
+                    {t.aiops.deviation}: <span className="text-default">{m.deviation.toFixed(1)}σ</span>
                   </span>
                 </div>
               </div>
@@ -104,7 +104,7 @@ export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
       )}
 
       {/* 因果链 */}
-      {detail.causalChain.length > 0 && (
+      {detail.causalChain?.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t.aiops.causalChain}</h4>
           <div className="space-y-1.5">
@@ -113,7 +113,7 @@ export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
                 <span className="text-muted w-4 text-right">{i + 1}.</span>
                 <EntityLink entityKey={c.entityKey} showType={false} />
                 <span className="font-mono text-muted">{c.metricName}</span>
-                <span className="text-default">{c.deviation.toFixed(1)}\u03c3</span>
+                <span className="text-default">{c.deviation.toFixed(1)}σ</span>
               </div>
             ))}
           </div>
@@ -121,14 +121,14 @@ export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
       )}
 
       {/* 传播路径 */}
-      {detail.propagation.length > 0 && (
+      {detail.propagation?.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t.aiops.propagation}</h4>
           <div className="space-y-1.5">
             {detail.propagation.map((p, i) => (
               <div key={i} className="flex items-center gap-2 text-xs">
                 <EntityLink entityKey={p.from} showType={false} />
-                <span className="text-muted">\u2192</span>
+                <span className="text-muted">→</span>
                 <EntityLink entityKey={p.to} showType={false} />
                 <span className="text-muted">({(p.contribution * 100).toFixed(0)}%)</span>
               </div>

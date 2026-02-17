@@ -8,21 +8,25 @@ import { EntityLink } from "@/components/aiops/EntityLink";
 import { getEntityRiskDetail } from "@/api/aiops";
 import type { EntityRisk, EntityRiskDetail } from "@/api/aiops";
 
+const LIMIT_OPTIONS = [20, 50, 100] as const;
+
 interface TopEntitiesProps {
   entities: EntityRisk[];
   clusterId: string;
+  limit: number;
+  onLimitChange: (limit: number) => void;
 }
 
 function formatTimeAgo(ts: number, t: { minutesAgo: string; hoursAgo: string; justNow: string; noAnomaly: string }): string {
   if (!ts) return t.noAnomaly;
-  const diffMs = Date.now() - ts;
+  const diffMs = Date.now() - ts * 1000; // ts 是 Unix 秒，转换为毫秒
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return t.justNow;
   if (diffMin < 60) return `${diffMin} ${t.minutesAgo}`;
   return `${Math.floor(diffMin / 60)} ${t.hoursAgo}`;
 }
 
-export function TopEntities({ entities, clusterId }: TopEntitiesProps) {
+export function TopEntities({ entities, clusterId, limit, onLimitChange }: TopEntitiesProps) {
   const { t } = useI18n();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [detailCache, setDetailCache] = useState<Record<string, EntityRiskDetail>>({});
@@ -53,8 +57,23 @@ export function TopEntities({ entities, clusterId }: TopEntitiesProps) {
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-      <div className="px-5 py-3 border-b border-[var(--border-color)]">
+      <div className="px-5 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
         <h3 className="text-sm font-semibold text-default">{t.aiops.topRiskEntities}</h3>
+        <div className="flex items-center gap-1">
+          {LIMIT_OPTIONS.map((n) => (
+            <button
+              key={n}
+              onClick={() => onLimitChange(n)}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                limit === n
+                  ? "bg-blue-500/15 text-blue-500 font-medium"
+                  : "text-muted hover:text-default"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 表头 */}
