@@ -6,7 +6,8 @@ package risk
 import "math"
 
 // TemporalFloor 时序权重下限（首次检测到异常时的初始权重）
-const TemporalFloor = 0.5
+// 0.7 确保 RLocal=0.315 的确定性异常首次即可跨过 0.2 状态机门槛
+const TemporalFloor = 0.7
 
 // ApplyTemporalWeights 应用时序权重
 // 效果: 持续异常的实体权重递增（确认是持续问题而非瞬态波动）

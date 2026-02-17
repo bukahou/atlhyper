@@ -112,7 +112,7 @@ func TestApplyTemporalWeights_RecentAnomaly(t *testing.T) {
 
 	weighted := ApplyTemporalWeights(localRisks, firstAnomalyTimes, now, 300)
 
-	// Δt=0, WTime = floor = 0.5, weighted = 0.5 × 0.5 = 0.25
+	// Δt=0, WTime = floor = 0.7, weighted = 0.5 × 0.7 = 0.35
 	expected := 0.5 * TemporalFloor
 	if diff := math.Abs(weighted["default/pod/api-1"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, weighted["default/pod/api-1"])
@@ -131,7 +131,7 @@ func TestApplyTemporalWeights_OldAnomaly(t *testing.T) {
 	weighted := ApplyTemporalWeights(localRisks, firstAnomalyTimes, now, 300)
 
 	// Δt=600, τ=300, W = floor + (1-floor) × (1-exp(-2))
-	// = 0.5 + 0.5 × 0.8647 = 0.932
+	// = 0.7 + 0.3 × 0.8647 = 0.959
 	expectedW := TemporalFloor + (1-TemporalFloor)*(1-math.Exp(-2.0))
 	expected := 0.5 * expectedW
 	if diff := math.Abs(weighted["default/pod/api-1"] - expected); diff > 0.001 {
