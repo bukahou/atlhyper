@@ -201,7 +201,7 @@ func extractContainerAnomalies(snap *model_v2.ClusterSnapshot, now int64) []*aio
 // classifyContainerAnomaly 判断容器异常原因
 // 返回空字符串表示无异常
 func classifyContainerAnomaly(c *model_v2.PodContainerDetail) string {
-	// waiting 状态异常
+	// waiting 状态异常（最明确的信号）
 	if c.State == "waiting" {
 		switch c.StateReason {
 		case "CrashLoopBackOff", "OOMKilled",
@@ -211,17 +211,40 @@ func classifyContainerAnomaly(c *model_v2.PodContainerDetail) string {
 		}
 	}
 
-	// terminated 且上次因 OOMKilled 终止
+	// terminated 且因 OOMKilled 终止
 	if c.State == "terminated" && c.LastTerminationReason == "OOMKilled" {
 		return "OOMKilled"
 	}
 
-	// running 但上次因 OOMKilled 终止（已恢复但有历史）
-	if c.LastTerminationReason == "OOMKilled" && c.RestartCount > 0 {
-		return "OOMKilled"
+	// running + 近期崩溃：容器刚重启回来，快照恰好抓到 running 瞬间
+	// 检查 LastTerminationTime 在 10 分钟内，避免对历史重启持续告警
+	if c.State == "running" && c.RestartCount > 0 && c.LastTerminationReason != "" {
+		if isRecentTermination(c.LastTerminationTime) {
+			if c.LastTerminationReason == "OOMKilled" {
+				return "OOMKilled"
+			}
+			return "RecentCrash"
+		}
+	}
+
+	// 就绪探针失败：容器 running 但 Ready=false
+	if c.State == "running" && !c.Ready {
+		return "NotReady"
 	}
 
 	return ""
+}
+
+// isRecentTermination 判断上次终止时间是否在 10 分钟内
+func isRecentTermination(lastTermTime string) bool {
+	if lastTermTime == "" {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, lastTermTime)
+	if err != nil {
+		return false
+	}
+	return time.Since(t) < 10*time.Minute
 }
 
 // deterministicScore 异常原因 → 固定分数
@@ -233,8 +256,12 @@ func deterministicScore(reason string) float64 {
 		return 0.90
 	case "CreateContainerConfigError":
 		return 0.80
+	case "RecentCrash":
+		return 0.75
 	case "ImagePullBackOff", "ErrImagePull":
 		return 0.70
+	case "NotReady":
+		return 0.60
 	default:
 		return 0.50
 	}

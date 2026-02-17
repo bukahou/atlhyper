@@ -110,12 +110,13 @@ type DiffResult struct {
 
 // BaselineState 基线状态（每个实体-指标对）
 type BaselineState struct {
-	EntityKey  string  `json:"entityKey"`
-	MetricName string  `json:"metricName"`
-	EMA        float64 `json:"ema"`
-	Variance   float64 `json:"variance"`
-	Count      int64   `json:"count"`
-	UpdatedAt  int64   `json:"updatedAt"`
+	EntityKey       string  `json:"entityKey"`
+	MetricName      string  `json:"metricName"`
+	EMA             float64 `json:"ema"`
+	Variance        float64 `json:"variance"`
+	Count           int64   `json:"count"`
+	ConsecutiveZero int64   `json:"consecutiveZero"` // 连续零值计数（快速冷启动用）
+	UpdatedAt       int64   `json:"updatedAt"`
 }
 
 // AnomalyResult 异常检测结果
@@ -252,10 +253,11 @@ func splitEntityKey(key string) []string {
 // ==================== 常量 ====================
 
 const (
-	ColdStartMinCount = 100   // 前 100 个数据点只学习不告警
-	DefaultAlpha      = 0.033 // α = 2/(60+1), 窗口 60 个采样点
-	AnomalyThreshold  = 3.0   // 3σ 规则
-	SigmoidK          = 2.0   // sigmoid 斜率
+	ColdStartMinCount      = 100   // 前 100 个数据点只学习不告警
+	ColdStartZeroFastTrack = 10    // 零值计数器快速通道：连续 10 个零值即可结束冷启动
+	DefaultAlpha           = 0.033 // α = 2/(60+1), 窗口 60 个采样点
+	AnomalyThreshold       = 3.0   // 3σ 规则
+	SigmoidK               = 2.0   // sigmoid 斜率
 )
 
 // ==================== 状态机类型 ====================

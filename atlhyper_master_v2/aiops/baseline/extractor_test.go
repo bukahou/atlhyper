@@ -170,7 +170,7 @@ func TestExtractDeterministic_TerminatedOOMKilled(t *testing.T) {
 	snap := &model_v2.ClusterSnapshot{
 		Pods: []model_v2.Pod{
 			makePod("default", "term-oom", "Running", 1,
-				makeContainer("app", "terminated", "", false, 1, "OOMKilled"),
+				makeContainerWithTime("app", "terminated", "", false, 1, "OOMKilled", ""),
 			),
 		},
 	}
@@ -182,6 +182,67 @@ func TestExtractDeterministic_TerminatedOOMKilled(t *testing.T) {
 	}
 	if found.Score != 0.95 {
 		t.Errorf("OOMKilled score 应为 0.95, got %.2f", found.Score)
+	}
+}
+
+func TestExtractDeterministic_RunningRecentCrash(t *testing.T) {
+	// 容器 running 但 2 分钟前崩溃过（快照恰好抓到重启后的 running 瞬间）
+	recentTime := time.Now().Add(-2 * time.Minute).Format(time.RFC3339)
+	snap := &model_v2.ClusterSnapshot{
+		Pods: []model_v2.Pod{
+			makePod("geass", "geass-user-abc", "Running", 3,
+				makeContainerWithTime("geass-user", "running", "", true, 3, "Error", recentTime),
+				makeContainer("linkerd-proxy", "running", "", true, 0, ""),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+	found := findResult(results, "geass/pod/geass-user-abc", "container_anomaly")
+	if found == nil {
+		t.Fatal("running + 近期崩溃 (Error, 2min ago) 应生成 container_anomaly")
+	}
+	if found.Score != 0.75 {
+		t.Errorf("RecentCrash score 应为 0.75, got %.2f", found.Score)
+	}
+}
+
+func TestExtractDeterministic_RunningOldCrash(t *testing.T) {
+	// 容器 running，崩溃是 1 小时前的 → 不应告警
+	oldTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
+	snap := &model_v2.ClusterSnapshot{
+		Pods: []model_v2.Pod{
+			makePod("default", "old-crash", "Running", 2,
+				makeContainerWithTime("app", "running", "", true, 2, "Error", oldTime),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+	found := findResult(results, "default/pod/old-crash", "container_anomaly")
+	if found != nil {
+		t.Errorf("超过 10 分钟的崩溃不应告警, got score=%.2f", found.Score)
+	}
+}
+
+func TestExtractDeterministic_NotReady(t *testing.T) {
+	// 容器 running 但 ready=false（readiness probe 失败）
+	snap := &model_v2.ClusterSnapshot{
+		Pods: []model_v2.Pod{
+			makePod("geass", "geass-media-xyz", "Running", 0,
+				makeContainer("geass-media", "running", "", false, 0, ""),
+				makeContainer("linkerd-proxy", "running", "", true, 0, ""),
+			),
+		},
+	}
+
+	results := ExtractDeterministicAnomalies(snap)
+	found := findResult(results, "geass/pod/geass-media-xyz", "container_anomaly")
+	if found == nil {
+		t.Fatal("running + ready=false 应生成 container_anomaly")
+	}
+	if found.Score != 0.60 {
+		t.Errorf("NotReady score 应为 0.60, got %.2f", found.Score)
 	}
 }
 
@@ -222,6 +283,38 @@ func TestClassifyContainerAnomaly(t *testing.T) {
 			"terminated_OOMKilled",
 			model_v2.PodContainerDetail{State: "terminated", LastTerminationReason: "OOMKilled"},
 			"OOMKilled",
+		},
+		{
+			"running_recent_crash",
+			model_v2.PodContainerDetail{
+				State: "running", Ready: true, RestartCount: 3,
+				LastTerminationReason: "Error",
+				LastTerminationTime:   time.Now().Add(-2 * time.Minute).Format(time.RFC3339),
+			},
+			"RecentCrash",
+		},
+		{
+			"running_recent_oom",
+			model_v2.PodContainerDetail{
+				State: "running", Ready: true, RestartCount: 1,
+				LastTerminationReason: "OOMKilled",
+				LastTerminationTime:   time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
+			},
+			"OOMKilled",
+		},
+		{
+			"running_old_crash_no_alert",
+			model_v2.PodContainerDetail{
+				State: "running", Ready: true, RestartCount: 2,
+				LastTerminationReason: "Error",
+				LastTerminationTime:   time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
+			},
+			"",
+		},
+		{
+			"running_not_ready",
+			model_v2.PodContainerDetail{State: "running", Ready: false},
+			"NotReady",
 		},
 		{
 			"running_normal",
@@ -393,6 +486,18 @@ func makeContainer(name, state, stateReason string, ready bool, restarts int32, 
 		Ready:                 ready,
 		RestartCount:          restarts,
 		LastTerminationReason: lastTermReason,
+	}
+}
+
+func makeContainerWithTime(name, state, stateReason string, ready bool, restarts int32, lastTermReason, lastTermTime string) model_v2.PodContainerDetail {
+	return model_v2.PodContainerDetail{
+		Name:                  name,
+		State:                 state,
+		StateReason:           stateReason,
+		Ready:                 ready,
+		RestartCount:          restarts,
+		LastTerminationReason: lastTermReason,
+		LastTerminationTime:   lastTermTime,
 	}
 }
 

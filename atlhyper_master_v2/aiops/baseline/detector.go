@@ -16,16 +16,31 @@ func Detect(state *aiops.BaselineState, value float64, now int64) (*aiops.Baseli
 
 	// 冷启动：只学习，不告警
 	if state.Count <= aiops.ColdStartMinCount {
-		if state.Count == 1 {
-			state.EMA = value
-			state.Variance = 0
+		// 零值计数器快速通道：
+		// restart_count / not_ready_containers 等指标正常值恒为 0，
+		// 连续 10 个零值建立基线后，首个非零值立即触发正常检测
+		// 注意：先检查快速通道条件，再更新 ConsecutiveZero
+		if state.ConsecutiveZero >= int64(aiops.ColdStartZeroFastTrack) && value > 0 {
+			// 快速通道：基线已确定为 0，跳到正常检测（不在此处更新 EMA，由下方统一处理）
+			state.Count = int64(aiops.ColdStartMinCount) + 1
 		} else {
-			state.EMA = alpha*value + (1-alpha)*state.EMA
-			diff := value - state.EMA
-			state.Variance = alpha*diff*diff + (1-alpha)*state.Variance
+			if value == 0 {
+				state.ConsecutiveZero++
+			} else {
+				state.ConsecutiveZero = 0
+			}
+			// 标准冷启动：更新 EMA 但不产出结果
+			if state.Count == 1 {
+				state.EMA = value
+				state.Variance = 0
+			} else {
+				state.EMA = alpha*value + (1-alpha)*state.EMA
+				diff := value - state.EMA
+				state.Variance = alpha*diff*diff + (1-alpha)*state.Variance
+			}
+			state.UpdatedAt = now
+			return state, nil
 		}
-		state.UpdatedAt = now
-		return state, nil
 	}
 
 	// 正常检测
