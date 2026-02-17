@@ -3,12 +3,12 @@
 import { useRef, useEffect, useCallback, useMemo } from "react";
 import type { DependencyGraph, EntityRisk } from "@/api/aiops";
 
-// 节点颜色按风险等级
+// 节点颜色按风险等级 (rFinal: 0-1)
 function riskColor(rFinal: number): string {
-  if (rFinal >= 80) return "#ef4444";
-  if (rFinal >= 50) return "#f97316";
-  if (rFinal >= 30) return "#eab308";
-  if (rFinal >= 10) return "#3b82f6";
+  if (rFinal >= 0.8) return "#ef4444";
+  if (rFinal >= 0.5) return "#f97316";
+  if (rFinal >= 0.3) return "#eab308";
+  if (rFinal >= 0.1) return "#3b82f6";
   return "#22c55e";
 }
 
@@ -133,7 +133,7 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
           iconFontWeight: 700,
           iconFill: color,
           badges: rFinal > 0
-            ? [{ text: rFinal.toFixed(0), placement: "right-top" as const, backgroundFill: color, fill: "#fff", fontSize: 8 }]
+            ? [{ text: (rFinal * 100).toFixed(0), placement: "right-top" as const, backgroundFill: color, fill: "#fff", fontSize: 8 }]
             : [],
         },
       };
@@ -147,8 +147,8 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       edgeSeen.add(eid);
 
       const isAnomaly =
-        (entityRisks[e.from]?.rFinal ?? 0) > 50 ||
-        (entityRisks[e.to]?.rFinal ?? 0) > 50;
+        (entityRisks[e.from]?.rFinal ?? 0) > 0.5 ||
+        (entityRisks[e.to]?.rFinal ?? 0) > 0.5;
       const style = edgeStyle(e.type, isAnomaly);
 
       edges.push({
@@ -246,7 +246,7 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
               const item = items[0];
               const d = item.data;
               if (!d) return item.id;
-              const riskLabel = d.rFinal !== undefined ? ` | R: ${d.rFinal.toFixed(1)}` : "";
+              const riskLabel = d.rFinal ? ` | R: ${(d.rFinal * 100).toFixed(0)}` : "";
               return `<div style="padding:6px 10px;font-size:12px;border-radius:6px;background:rgba(0,0,0,0.8);color:#fff">
                 <b>${item.id.split("/").pop()}</b><br/>
                 <span style="opacity:0.7">${d.type ?? ""}${d.namespace ? ` · ${d.namespace}` : ""}${riskLabel}</span>

@@ -27,7 +27,7 @@ export function RootCauseCard({ entity }: RootCauseCardProps) {
           <span>{t.aiops.rFinal}:</span>
           <span className="font-mono font-semibold text-default">{entity.rFinal.toFixed(1)}</span>
         </div>
-        <RiskBadge level={entity.rFinal >= 80 ? "critical" : entity.rFinal >= 50 ? "warning" : "low"} size="md" />
+        <RiskBadge level={entity.rFinal >= 0.8 ? "critical" : entity.rFinal >= 0.5 ? "warning" : "low"} size="md" />
       </div>
     </div>
   );
