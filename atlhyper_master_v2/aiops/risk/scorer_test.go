@@ -10,6 +10,27 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 )
 
+// ==================== breadthBoost 测试 ====================
+
+func TestBreadthBoost_Values(t *testing.T) {
+	tests := []struct {
+		n        int
+		expected float64
+	}{
+		{0, 0.0},
+		{1, 0.70},
+		{2, 0.85},
+		{3, 1.0},
+		{5, 1.0},
+	}
+	for _, tt := range tests {
+		got := breadthBoost(tt.n)
+		if math.Abs(got-tt.expected) > 0.001 {
+			t.Errorf("breadthBoost(%d) = %.3f, want %.3f", tt.n, got, tt.expected)
+		}
+	}
+}
+
 // ==================== Stage 1: 局部风险测试 ====================
 
 func TestComputeLocalRisks_NoAnomalies(t *testing.T) {
@@ -24,6 +45,7 @@ func TestComputeLocalRisks_NoAnomalies(t *testing.T) {
 	}
 }
 
+// Pod restart_count(both) score=0.8 → ch1=0.16, ch2=0.80×0.70=0.56 → max=0.56
 func TestComputeLocalRisks_SingleAnomaly(t *testing.T) {
 	anomalies := []*aiops.AnomalyResult{
 		{EntityKey: "default/pod/api-1", MetricName: "restart_count", IsAnomaly: true, Score: 0.8},
@@ -31,12 +53,13 @@ func TestComputeLocalRisks_SingleAnomaly(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	expected := 0.20 * 0.8 // pod restart_count weight=0.20, score=0.8
+	expected := 0.56 // both channel: max(0.20×0.8, 0.80×0.70) = max(0.16, 0.56)
 	if diff := math.Abs(risks["default/pod/api-1"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/pod/api-1"])
 	}
 }
 
+// Service: all statistical → 行为不变
 func TestComputeLocalRisks_MultipleMetrics(t *testing.T) {
 	anomalies := []*aiops.AnomalyResult{
 		{EntityKey: "default/service/api", MetricName: "error_rate", IsAnomaly: true, Score: 1.0},
@@ -55,6 +78,7 @@ func TestComputeLocalRisks_MultipleMetrics(t *testing.T) {
 	}
 }
 
+// Service: all statistical, clamped → 行为不变
 func TestComputeLocalRisks_Clamped(t *testing.T) {
 	anomalies := []*aiops.AnomalyResult{
 		{EntityKey: "default/service/api", MetricName: "error_rate", IsAnomaly: true, Score: 1.0},
@@ -71,6 +95,7 @@ func TestComputeLocalRisks_Clamped(t *testing.T) {
 	}
 }
 
+// Pod unknown_metric → 默认 statistical, weight=0.1 → ch1=0.1, ch2=0 → 0.1
 func TestComputeLocalRisks_UnknownMetric(t *testing.T) {
 	anomalies := []*aiops.AnomalyResult{
 		{EntityKey: "default/pod/api-1", MetricName: "unknown_metric", IsAnomaly: true, Score: 1.0},
@@ -78,8 +103,136 @@ func TestComputeLocalRisks_UnknownMetric(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	// 未配置指标默认权重 0.1
+	// 未配置指标默认 statistical, weight=0.1 → ch1=0.1, ch2=0 → 0.1
 	expected := 0.1
+	if diff := math.Abs(risks["default/pod/api-1"] - expected); diff > 0.001 {
+		t.Errorf("expected %.3f, got %.3f", expected, risks["default/pod/api-1"])
+	}
+}
+
+// ==================== 回归测试 (Node/Service/Ingress 行为不变) ====================
+
+func TestComputeLocalRisks_NodeStatistical_Unchanged(t *testing.T) {
+	anomalies := []*aiops.AnomalyResult{
+		{EntityKey: "_cluster/node/node1", MetricName: "cpu_usage", IsAnomaly: true, Score: 0.85},
+		{EntityKey: "_cluster/node/node1", MetricName: "memory_usage", IsAnomaly: true, Score: 0.70},
+	}
+	config := DefaultRiskConfig()
+
+	risks := ComputeLocalRisks(anomalies, config)
+	// 全 statistical → ch1 = 0.25×0.85 + 0.25×0.70 = 0.3875, ch2 = 0
+	expected := 0.3875
+	if diff := math.Abs(risks["_cluster/node/node1"] - expected); diff > 0.001 {
+		t.Errorf("expected %.4f, got %.4f", expected, risks["_cluster/node/node1"])
+	}
+}
+
+func TestComputeLocalRisks_ServiceStatistical_Unchanged(t *testing.T) {
+	anomalies := []*aiops.AnomalyResult{
+		{EntityKey: "default/service/api", MetricName: "error_rate", IsAnomaly: true, Score: 1.0},
+		{EntityKey: "default/service/api", MetricName: "avg_latency", IsAnomaly: true, Score: 0.5},
+	}
+	config := DefaultRiskConfig()
+
+	risks := ComputeLocalRisks(anomalies, config)
+	// 全 statistical → ch1 = 0.40×1.0 + 0.30×0.5 = 0.55
+	expected := 0.55
+	if diff := math.Abs(risks["default/service/api"] - expected); diff > 0.001 {
+		t.Errorf("expected %.3f, got %.3f", expected, risks["default/service/api"])
+	}
+}
+
+func TestComputeLocalRisks_IngressStatistical_Unchanged(t *testing.T) {
+	anomalies := []*aiops.AnomalyResult{
+		{EntityKey: "default/ingress/api", MetricName: "error_rate", IsAnomaly: true, Score: 0.9},
+		{EntityKey: "default/ingress/api", MetricName: "avg_latency", IsAnomaly: true, Score: 0.8},
+	}
+	config := DefaultRiskConfig()
+
+	risks := ComputeLocalRisks(anomalies, config)
+	// 全 statistical → ch1 = 0.50×0.9 + 0.50×0.8 = 0.85
+	expected := 0.85
+	if diff := math.Abs(risks["default/ingress/api"] - expected); diff > 0.001 {
+		t.Errorf("expected %.3f, got %.3f", expected, risks["default/ingress/api"])
+	}
+}
+
+// ==================== Pod 确定性通道测试 ====================
+
+func TestComputeLocalRisks_PodSingleDeterministic(t *testing.T) {
+	anomalies := []*aiops.AnomalyResult{
+		{EntityKey: "default/pod/api-1", MetricName: "container_anomaly", IsAnomaly: true, Score: 0.90},
+	}
+	config := DefaultRiskConfig()
+
+	risks := ComputeLocalRisks(anomalies, config)
+	// deterministic only → ch1=0 (det 不参与 ch1), ch2=0.90×0.70(n=1)=0.63
+	expected := 0.63
+	if diff := math.Abs(risks["default/pod/api-1"] - expected); diff > 0.001 {
+		t.Errorf("expected %.3f, got %.3f", expected, risks["default/pod/api-1"])
+	}
+}
+
+func TestComputeLocalRisks_PodTwoDeterministic(t *testing.T) {
+	anomalies := []*aiops.AnomalyResult{
+		{EntityKey: "default/pod/api-1", MetricName: "container_anomaly", IsAnomaly: true, Score: 0.90},
+		{EntityKey: "default/pod/api-1", MetricName: "critical_event", IsAnomaly: true, Score: 0.85},
+	}
+	config := DefaultRiskConfig()
+
+	risks := ComputeLocalRisks(anomalies, config)
+	// ch1=0, ch2=max(0.90,0.85)×0.85(n=2)=0.90×0.85=0.765
+	expected := 0.765
+	if diff := math.Abs(risks["default/pod/api-1"] - expected); diff > 0.001 {
+		t.Errorf("expected %.3f, got %.3f", expected, risks["default/pod/api-1"])
+	}
+}
+
+func TestComputeLocalRisks_PodThreeDeterministic(t *testing.T) {
+	anomalies := []*aiops.AnomalyResult{
+		{EntityKey: "default/pod/api-1", MetricName: "container_anomaly", IsAnomaly: true, Score: 0.90},
+		{EntityKey: "default/pod/api-1", MetricName: "critical_event", IsAnomaly: true, Score: 0.85},
+		{EntityKey: "default/pod/api-1", MetricName: "deployment_impact", IsAnomaly: true, Score: 0.80},
+	}
+	config := DefaultRiskConfig()
+
+	risks := ComputeLocalRisks(anomalies, config)
+	// ch1=0, ch2=max(0.90,0.85,0.80)×1.0(n=3)=0.90
+	expected := 0.90
+	if diff := math.Abs(risks["default/pod/api-1"] - expected); diff > 0.001 {
+		t.Errorf("expected %.3f, got %.3f", expected, risks["default/pod/api-1"])
+	}
+}
+
+// ==================== Pod 混合通道测试 ====================
+
+func TestComputeLocalRisks_PodMixed_Channel2Wins(t *testing.T) {
+	anomalies := []*aiops.AnomalyResult{
+		{EntityKey: "default/pod/api-1", MetricName: "restart_count", IsAnomaly: true, Score: 0.80},       // both
+		{EntityKey: "default/pod/api-1", MetricName: "container_anomaly", IsAnomaly: true, Score: 0.90},   // deterministic
+	}
+	config := DefaultRiskConfig()
+
+	risks := ComputeLocalRisks(anomalies, config)
+	// ch1 = 0.20×0.80 = 0.16 (only both participates in ch1)
+	// ch2: restart(both)+container(det) → n=2, max=0.90 → 0.90×0.85=0.765
+	expected := 0.765
+	if diff := math.Abs(risks["default/pod/api-1"] - expected); diff > 0.001 {
+		t.Errorf("expected %.3f, got %.3f", expected, risks["default/pod/api-1"])
+	}
+}
+
+func TestComputeLocalRisks_PodBothOnly(t *testing.T) {
+	anomalies := []*aiops.AnomalyResult{
+		{EntityKey: "default/pod/api-1", MetricName: "restart_count", IsAnomaly: true, Score: 0.80}, // both
+	}
+	config := DefaultRiskConfig()
+
+	risks := ComputeLocalRisks(anomalies, config)
+	// ch1 = 0.20×0.80 = 0.16
+	// ch2: n=1, max=0.80 → 0.80×0.70=0.56
+	// R_local = max(0.16, 0.56) = 0.56
+	expected := 0.56
 	if diff := math.Abs(risks["default/pod/api-1"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/pod/api-1"])
 	}
