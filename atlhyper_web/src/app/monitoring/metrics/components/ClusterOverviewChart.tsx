@@ -32,12 +32,20 @@ const INTERVALS_BY_WINDOW: Record<TimeWindow, { label: string; seconds: number }
   "7d":  [{ label: "1h", seconds: 3600 }, { label: "6h", seconds: 21600 }, { label: "1d", seconds: 86400 }],
 };
 
-const METRICS = [
-  { key: "cpu", unit: "%", extract: (d: MetricsDataPoint) => d.cpuUsage },
-  { key: "memory", unit: "%", extract: (d: MetricsDataPoint) => d.memUsage },
-  { key: "disk", unit: "%", extract: (d: MetricsDataPoint) => d.diskUsage },
-  { key: "temp", unit: "°C", extract: (d: MetricsDataPoint) => d.temperature },
-] as const;
+/** Sort function: extract the "current" value from a snapshot for ranking */
+type SnapshotSortFn = (n: NodeMetricsSnapshot) => number;
+
+const METRICS: {
+  key: string;
+  unit: string;
+  extract: (d: MetricsDataPoint) => number;
+  sortSnapshot: SnapshotSortFn;
+}[] = [
+  { key: "cpu", unit: "%", extract: (d) => d.cpuUsage, sortSnapshot: (n) => n.cpu.usagePercent },
+  { key: "memory", unit: "%", extract: (d) => d.memUsage, sortSnapshot: (n) => n.memory.usagePercent },
+  { key: "disk", unit: "%", extract: (d) => d.diskUsage, sortSnapshot: (n) => (n.disks.find((d) => d.mountPoint === "/") || n.disks[0])?.usagePercent || 0 },
+  { key: "temp", unit: "°C", extract: (d) => d.temperature, sortSnapshot: (n) => n.temperature.cpuTemp },
+];
 
 // ==================== Helpers ====================
 
@@ -275,6 +283,15 @@ const MetricChart = memo(function MetricChart({
           </div>
         )}
       </div>
+      {/* Per-chart legend */}
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+        {nodeNames.map((name, i) => (
+          <div key={name} className="flex items-center gap-1">
+            <div className="w-2.5 h-0.5 rounded" style={{ backgroundColor: PALETTE[i % PALETTE.length] }} />
+            <span className="text-[10px] text-muted">{name}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 });
@@ -297,26 +314,39 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
   const [loading, setLoading] = useState(false);
   const [historyMap, setHistoryMap] = useState<Record<string, MetricsDataPoint[]>>({});
 
-  // Top 5 nodes by CPU usage descending
-  const topNodeNames = useMemo(() => {
-    return [...nodes]
-      .sort((a, b) => b.cpu.usagePercent - a.cpu.usagePercent)
-      .slice(0, 5)
-      .map((n) => n.nodeName);
+  // Top 5 nodes per metric (each metric sorts independently)
+  const topNodesByMetric = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    for (const m of METRICS) {
+      result[m.key] = [...nodes]
+        .sort((a, b) => m.sortSnapshot(b) - m.sortSnapshot(a))
+        .slice(0, 5)
+        .map((n) => n.nodeName);
+    }
+    return result;
   }, [nodes]);
+
+  // Union of all top-5 lists for history fetching
+  const allTopNodeNames = useMemo(() => {
+    const set = new Set<string>();
+    for (const names of Object.values(topNodesByMetric)) {
+      for (const n of names) set.add(n);
+    }
+    return Array.from(set);
+  }, [topNodesByMetric]);
 
   // Fetch hours based on window
   const fetchHours = useMemo(() => {
     return TIME_WINDOWS.find((w) => w.key === timeWindow)!.hours;
   }, [timeWindow]);
 
-  // Fetch history for top 5 nodes
+  // Fetch history for all unique top-5 nodes across metrics
   const fetchHistory = useCallback(async () => {
-    if (!clusterId || topNodeNames.length === 0) return;
+    if (!clusterId || allTopNodeNames.length === 0) return;
     setLoading(true);
     try {
       const results = await Promise.all(
-        topNodeNames.map((name) => getNodeMetricsHistory(clusterId, name, fetchHours))
+        allTopNodeNames.map((name) => getNodeMetricsHistory(clusterId, name, fetchHours))
       );
       const map: Record<string, MetricsDataPoint[]> = {};
       results.forEach((r) => {
@@ -328,7 +358,7 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
     } finally {
       setLoading(false);
     }
-  }, [clusterId, topNodeNames, fetchHours]);
+  }, [clusterId, allTopNodeNames, fetchHours]);
 
   useEffect(() => {
     fetchHistory();
@@ -387,7 +417,7 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
               key={m.key}
               title={metricTitles[m.key]}
               unit={m.unit}
-              nodeNames={topNodeNames}
+              nodeNames={topNodesByMetric[m.key] || []}
               historyMap={historyMap}
               extractFn={m.extract}
               timeWindow={timeWindow}
@@ -396,20 +426,6 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="mt-3 pt-3 border-t border-[var(--border-color)]">
-        <div className="flex flex-wrap gap-4 text-xs">
-          {topNodeNames.map((name, i) => (
-            <div key={name} className="flex items-center gap-1.5">
-              <div
-                className="w-3 h-0.5 rounded"
-                style={{ backgroundColor: PALETTE[i % PALETTE.length] }}
-              />
-              <span className="text-muted">{name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 });
