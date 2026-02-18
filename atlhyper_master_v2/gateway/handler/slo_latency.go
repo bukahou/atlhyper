@@ -75,6 +75,7 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 		}
 
 		if len(hourlyRows) > 0 {
+			var latestHourStart time.Time
 			for _, m := range hourlyRows {
 				totalRequests += m.TotalRequests
 				errorRequests += m.ErrorRequests
@@ -97,6 +98,39 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 				// 用加权平均近似 latencySum/Count
 				latencySum += float64(m.AvgLatencyMs) * float64(m.TotalRequests)
 				latencyCount += m.TotalRequests
+
+				if m.HourStart.After(latestHourStart) {
+					latestHourStart = m.HourStart
+				}
+			}
+
+			// 补充未聚合的当前时段 raw 数据
+			rawStart := latestHourStart.Add(time.Hour)
+			if rawStart.Before(end) {
+				rawRows, rawErr := h.repo.GetRawMetrics(ctx, clusterID, serviceKey, rawStart, end)
+				if rawErr == nil {
+					for _, m := range rawRows {
+						totalRequests += m.TotalRequests
+						errorRequests += m.ErrorRequests
+						latencySum += m.LatencySum
+						latencyCount += m.LatencyCount
+						mGet += m.MethodGet
+						mPost += m.MethodPost
+						mPut += m.MethodPut
+						mDelete += m.MethodDelete
+						mOther += m.MethodOther
+						s2xx += m.Status2xx
+						s3xx += m.Status3xx
+						s4xx += m.Status4xx
+						s5xx += m.Status5xx
+
+						if b := slo.ParseJSONBuckets(m.LatencyBuckets); b != nil {
+							for le, count := range b {
+								allBuckets[le] += count
+							}
+						}
+					}
+				}
 			}
 		} else {
 			// 回退到 raw

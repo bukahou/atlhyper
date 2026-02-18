@@ -67,11 +67,13 @@ func (q *QueryService) GetServiceDetail(ctx context.Context, clusterID, namespac
 		ServiceNodeResponse: *node,
 	}
 
-	// 2. 获取历史数据点（从 hourly）+ 聚合状态码和 bucket
+	// 2. 获取历史数据点 + 聚合状态码和 bucket
+	// 策略: hourly 为主 + 当前时段 raw 补充（避免聚合间隔内的数据丢失）
 	hourlies, err := q.serviceRepo.GetServiceHourly(ctx, clusterID, namespace, name, start, end)
 	if err == nil && len(hourlies) > 0 {
 		var s2xx, s3xx, s4xx, s5xx int64
 		mergedBuckets := make(map[float64]int64)
+		var latestHourStart time.Time
 
 		for _, h := range hourlies {
 			resp.History = append(resp.History, model.ServiceHistoryPoint{
@@ -91,14 +93,35 @@ func (q *QueryService) GetServiceDetail(ctx context.Context, clusterID, namespac
 					mergedBuckets[le] += count
 				}
 			}
+			if h.HourStart.After(latestHourStart) {
+				latestHourStart = h.HourStart
+			}
 		}
+
+		// 补充未聚合的当前时段 raw 数据
+		rawStart := latestHourStart.Add(time.Hour)
+		if rawStart.Before(end) {
+			raws, rawErr := q.serviceRepo.GetServiceRaw(ctx, clusterID, namespace, name, rawStart, end)
+			if rawErr == nil {
+				for _, r := range raws {
+					s2xx += r.Status2xx
+					s3xx += r.Status3xx
+					s4xx += r.Status4xx
+					s5xx += r.Status5xx
+					if b := slo.ParseJSONBuckets(r.LatencyBuckets); b != nil {
+						for le, count := range b {
+							mergedBuckets[le] += count
+						}
+					}
+				}
+			}
+		}
+
 		resp.StatusCodes = buildStatusCodes(s2xx, s3xx, s4xx, s5xx)
 		mergedBuckets = slo.AdjustBucketsForProbes(mergedBuckets, node.TotalRequests)
 		resp.LatencyBuckets = buildBuckets(mergedBuckets)
-	}
-
-	// 回退 raw（如果 hourly 没有状态码/bucket 数据）
-	if len(resp.StatusCodes) == 0 {
+	} else {
+		// 完全回退到 raw（无 hourly 数据时）
 		raws, rawErr := q.serviceRepo.GetServiceRaw(ctx, clusterID, namespace, name, start, end)
 		if rawErr == nil && len(raws) > 0 {
 			var s2xx, s3xx, s4xx, s5xx int64

@@ -7,6 +7,21 @@
 
 ---
 
-（当前无活跃任务）
+## SLO 5xx 监控盲区修复 — 待办
+
+> 背景: geass-gateway 捕获后端 504/502 异常后以 HTTP 200 + error body 返回，
+> 导致 Linkerd/Traefik 所有层只看到 200，SLO 页面无法显示 5xx 错误。
+
+### 方案选项（待评估）
+
+1. **推荐：gateway 透传 HTTP 状态码** — geass-gateway 收到 5xx 时应返回 502/504 而非 200，使 Linkerd `response_total` 能正确记录错误
+2. **备选：采集 Linkerd proxy error 指标** — 采集 `outbound_http_errors_total` 等 proxy 级别指标，覆盖 TCP 连接失败和 proxy 超时场景
+3. **备选：应用层错误率指标** — 在 gateway 内部暴露 Prometheus 指标，按实际业务错误率统计（不依赖 HTTP 状态码）
+
+### 相关发现
+
+- Linkerd proxy 生成的合成 504（超时）不写入 `response_total`，仅记录在 proxy error 指标中
+- CrashLoopBackOff 服务的 inbound 5xx 全部来自 K8s 健康检查（`route_name="probe"`），被 SLO filter 正确过滤
+- 方案 1 需要修改 geass 项目（非 AtlHyper），方案 2/3 需要修改 AtlHyper Agent SLO 管线
 
 > 已完成的 AIOps 引擎任务已归档至 `docs/tasks/archive/aiops-tasks.md`
