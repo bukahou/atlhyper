@@ -5,12 +5,16 @@ package incident
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/common/logger"
 )
+
+// incidentSeq 自增序列号，避免同一毫秒内多个事件 ID 冲突
+var incidentSeq atomic.Int64
 
 var log = logger.Module("AIOps.Incident")
 
@@ -26,7 +30,8 @@ func NewStore(repo database.AIOpsIncidentRepository) *Store {
 
 // Create 创建事件
 func (s *Store) Create(ctx context.Context, clusterID, entityKey string, risk *aiops.EntityRisk, now time.Time) string {
-	id := fmt.Sprintf("inc-%d", now.UnixMilli())
+	seq := incidentSeq.Add(1)
+	id := fmt.Sprintf("inc-%d%04d", now.UnixMilli(), seq%10000)
 	severity := aiops.SeverityFromRisk(risk.RFinal)
 
 	inc := &database.AIOpsIncident{
