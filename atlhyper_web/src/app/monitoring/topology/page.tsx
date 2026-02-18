@@ -14,7 +14,7 @@ import type { DependencyGraph, EntityRisk, GraphNode } from "@/api/aiops";
 
 type ViewMode = "service" | "anomaly" | "full";
 
-const VIEW_MODES: ViewMode[] = ["service", "anomaly", "full"];
+const VIEW_MODES: ViewMode[] = ["anomaly", "service", "full"];
 
 const VIEW_LABEL_KEYS: Record<ViewMode, "viewService" | "viewAnomaly" | "viewFull"> = {
   service: "viewService",
@@ -34,7 +34,7 @@ export default function TopologyPage() {
   const [graph, setGraph] = useState<DependencyGraph | null>(null);
   const [entityRisks, setEntityRisks] = useState<EntityRisk[]>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("service");
+  const [viewMode, setViewMode] = useState<ViewMode>("anomaly");
   const [nsFilter, setNsFilter] = useState<Set<string>>(new Set());
   const [autoRefresh, setAutoRefresh] = useState(true);
 
