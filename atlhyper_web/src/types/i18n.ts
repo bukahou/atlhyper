@@ -1771,6 +1771,7 @@ export interface AIOpsTranslations {
   upstream: string;
   downstream: string;
   causalChain: string;
+  causalTree: string;
   propagation: string;
   selectNode: string;
   viewService: string;

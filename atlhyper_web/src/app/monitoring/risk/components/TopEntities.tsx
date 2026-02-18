@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/context";
 import { RiskBadge } from "@/components/aiops/RiskBadge";
 import { EntityLink } from "@/components/aiops/EntityLink";
 import { getEntityRiskDetail } from "@/api/aiops";
+import { CausalTreeNodeView } from "@/components/aiops/CausalTreeNodeView";
 import type { EntityRisk, EntityRiskDetail } from "@/api/aiops";
 
 const LIMIT_OPTIONS = [20, 50, 100] as const;
@@ -140,7 +141,7 @@ export function TopEntities({ entities, clusterId, limit, onLimitChange }: TopEn
                                   {t.aiops.baseline}: <span className="text-default">{m.baseline.toFixed(2)}</span>
                                 </span>
                                 <span className="text-muted">
-                                  {t.aiops.deviation}: <span className="text-default">{m.deviation.toFixed(1)}\u03c3</span>
+                                  {t.aiops.deviation}: <span className="text-default">{m.deviation.toFixed(1)}σ</span>
                                 </span>
                                 {m.isAnomaly && (
                                   <span className="text-red-500 text-[10px] font-medium">{t.aiops.isAnomaly}</span>
@@ -151,8 +152,17 @@ export function TopEntities({ entities, clusterId, limit, onLimitChange }: TopEn
                         </div>
                       )}
 
-                      {/* 因果链 */}
-                      {detail.causalChain.length > 0 && (
+                      {/* 因果树（优先）或因果链（降级） */}
+                      {detail.causalTree && detail.causalTree.length > 0 ? (
+                        <div>
+                          <h4 className="text-xs font-medium text-muted mb-2">{t.aiops.causalTree}</h4>
+                          <div className="space-y-1">
+                            {detail.causalTree.map((node, i) => (
+                              <CausalTreeNodeView key={i} node={node} depth={0} t={t.aiops} />
+                            ))}
+                          </div>
+                        </div>
+                      ) : detail.causalChain.length > 0 ? (
                         <div>
                           <h4 className="text-xs font-medium text-muted mb-2">{t.aiops.causalChain}</h4>
                           <div className="space-y-1">
@@ -161,12 +171,12 @@ export function TopEntities({ entities, clusterId, limit, onLimitChange }: TopEn
                                 <span className="text-muted">{i + 1}.</span>
                                 <EntityLink entityKey={c.entityKey} showType={false} />
                                 <span className="font-mono text-default">{c.metricName}</span>
-                                <span className="text-muted">{c.deviation.toFixed(1)}\u03c3</span>
+                                <span className="text-muted">{c.deviation.toFixed(1)}σ</span>
                               </div>
                             ))}
                           </div>
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

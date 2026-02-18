@@ -1664,6 +1664,7 @@ export const zh: Translations = {
     upstream: "上游",
     downstream: "下游",
     causalChain: "因果链",
+    causalTree: "因果树",
     propagation: "传播路径",
     selectNode: "点击节点查看详情",
     viewService: "服务视图",

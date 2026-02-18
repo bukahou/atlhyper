@@ -32,10 +32,21 @@ export interface EntityRisk {
   firstAnomaly: number;
 }
 
+export interface CausalTreeNode {
+  entityKey: string;
+  entityType: string;
+  rFinal: number;
+  edgeType?: string;
+  direction?: string;
+  metrics?: AnomalyResult[];
+  children?: CausalTreeNode[];
+}
+
 export interface EntityRiskDetail extends EntityRisk {
   metrics: AnomalyResult[];
   propagation: PropagationPath[];
   causalChain: CausalEntry[];
+  causalTree?: CausalTreeNode[];
 }
 
 export interface AnomalyResult {

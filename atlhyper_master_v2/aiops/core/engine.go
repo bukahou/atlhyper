@@ -203,12 +203,123 @@ func (e *engine) GetEntityRisk(clusterID, entityKey string) *aiops.EntityRiskDet
 		return causalChain[i].DetectedAt < causalChain[j].DetectedAt
 	})
 
+	// 构建因果树：以查询实体为中心，BFS 依赖图，收集关联异常实体
+	causalTree := e.buildCausalTree(clusterID, entityKey)
+
 	return &aiops.EntityRiskDetail{
 		EntityRisk:  *entityRisk,
 		Metrics:     metrics,
 		Propagation: propagation,
 		CausalChain: causalChain,
+		CausalTree:  causalTree,
 	}
+}
+
+// buildCausalTree 以查询实体为中心，利用依赖图构建因果树
+// 上游：谁指向我（reverse adjacency），下游：我指向谁（adjacency）
+// 总深度 ≤ 2（邻居 + 邻居的邻居），仅包含有异常指标的实体
+func (e *engine) buildCausalTree(clusterID, entityKey string) []*aiops.CausalTreeNode {
+	graph := e.corr.GetGraph(clusterID)
+	if graph == nil {
+		return nil
+	}
+
+	// 构建实体 → 异常指标索引
+	anomalyIndex := make(map[string][]*aiops.AnomalyResult)
+	e.anomalyMu.RLock()
+	for _, a := range e.anomalyCache[clusterID] {
+		if a.IsAnomaly {
+			anomalyIndex[a.EntityKey] = append(anomalyIndex[a.EntityKey], a)
+		}
+	}
+	e.anomalyMu.RUnlock()
+
+	// 获取边类型索引：from|to → edgeType
+	edgeTypeIndex := make(map[string]string)
+	for _, edge := range graph.Edges {
+		edgeTypeIndex[edge.From+"|"+edge.To] = edge.Type
+	}
+
+	entityRiskMap := e.scorer.GetEntityRiskMap(clusterID)
+	visited := map[string]bool{entityKey: true}
+
+	// 辅助函数：为邻居创建节点
+	buildNode := func(neighborKey, edgeType, direction string, depth int) *aiops.CausalTreeNode {
+		metrics := anomalyIndex[neighborKey]
+		if len(metrics) == 0 && depth > 0 {
+			return nil // 非直接邻居且无异常则跳过
+		}
+
+		node := &aiops.CausalTreeNode{
+			EntityKey:  neighborKey,
+			EntityType: aiops.ExtractEntityType(neighborKey),
+			EdgeType:   edgeType,
+			Direction:  direction,
+			Metrics:    metrics,
+		}
+		if r := entityRiskMap[neighborKey]; r != nil {
+			node.RFinal = r.RFinal
+		}
+		return node
+	}
+
+	var result []*aiops.CausalTreeNode
+
+	// 上游：谁指向我（reverse adjacency）
+	for _, upKey := range graph.Reverse()[entityKey] {
+		if visited[upKey] {
+			continue
+		}
+		visited[upKey] = true
+		edgeType := edgeTypeIndex[upKey+"|"+entityKey]
+		node := buildNode(upKey, edgeType, "upstream", 0)
+		if node == nil {
+			continue
+		}
+
+		// 上游的上游（depth=1）
+		for _, upUpKey := range graph.Reverse()[upKey] {
+			if visited[upUpKey] {
+				continue
+			}
+			visited[upUpKey] = true
+			et := edgeTypeIndex[upUpKey+"|"+upKey]
+			child := buildNode(upUpKey, et, "upstream", 1)
+			if child != nil {
+				node.Children = append(node.Children, child)
+			}
+		}
+		result = append(result, node)
+	}
+
+	// 下游：我指向谁（adjacency）
+	for _, downKey := range graph.Adjacency()[entityKey] {
+		if visited[downKey] {
+			continue
+		}
+		visited[downKey] = true
+		edgeType := edgeTypeIndex[entityKey+"|"+downKey]
+		node := buildNode(downKey, edgeType, "downstream", 0)
+		if node == nil {
+			continue
+		}
+
+		// 下游的下游（depth=1）
+		for _, downDownKey := range graph.Adjacency()[downKey] {
+			if visited[downDownKey] {
+				continue
+			}
+			visited[downDownKey] = true
+			et := edgeTypeIndex[downKey+"|"+downDownKey]
+			child := buildNode(downDownKey, et, "downstream", 1)
+			if child != nil {
+				node.Children = append(node.Children, child)
+			}
+		}
+		result = append(result, node)
+	}
+
+	return result
 }
 
 // GetIncidents 查询事件列表

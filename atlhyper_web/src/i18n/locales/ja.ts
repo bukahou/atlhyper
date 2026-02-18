@@ -1664,6 +1664,7 @@ export const ja: Translations = {
     upstream: "アップストリーム",
     downstream: "ダウンストリーム",
     causalChain: "因果チェーン",
+    causalTree: "因果ツリー",
     propagation: "伝播パス",
     selectNode: "ノードをクリックして詳細表示",
     viewService: "サービスビュー",

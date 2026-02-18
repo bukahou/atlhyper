@@ -175,9 +175,21 @@ type ClusterRisk struct {
 // EntityRiskDetail 实体风险详情
 type EntityRiskDetail struct {
 	EntityRisk
-	Metrics     []*AnomalyResult  `json:"metrics"`     // 各指标异常详情
-	Propagation []*PropagationPath `json:"propagation"` // 传播路径
-	CausalChain []*CausalEntry     `json:"causalChain"` // 因果链（按时间排序）
+	Metrics     []*AnomalyResult  `json:"metrics"`               // 各指标异常详情
+	Propagation []*PropagationPath `json:"propagation"`           // 传播路径
+	CausalChain []*CausalEntry     `json:"causalChain"`           // 因果链（按时间排序，向后兼容）
+	CausalTree  []*CausalTreeNode  `json:"causalTree,omitempty"`  // 因果树（依赖图驱动）
+}
+
+// CausalTreeNode 因果树节点（以查询实体为中心，按依赖图展开）
+type CausalTreeNode struct {
+	EntityKey  string            `json:"entityKey"`
+	EntityType string            `json:"entityType"`
+	RFinal     float64           `json:"rFinal"`
+	EdgeType   string            `json:"edgeType,omitempty"`
+	Direction  string            `json:"direction,omitempty"` // "upstream" | "downstream"
+	Metrics    []*AnomalyResult  `json:"metrics,omitempty"`
+	Children   []*CausalTreeNode `json:"children,omitempty"`
 }
 
 // PropagationPath 风险传播路径

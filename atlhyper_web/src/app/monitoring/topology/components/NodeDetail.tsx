@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { RiskBadge } from "@/components/aiops/RiskBadge";
 import { EntityLink } from "@/components/aiops/EntityLink";
+import { CausalTreeNodeView } from "@/components/aiops/CausalTreeNodeView";
 import { getEntityRiskDetail } from "@/api/aiops";
 import type { EntityRiskDetail } from "@/api/aiops";
 
@@ -103,8 +104,17 @@ export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
         </div>
       )}
 
-      {/* 因果链 */}
-      {detail.causalChain?.length > 0 && (
+      {/* 因果树（优先）或因果链（降级） */}
+      {detail.causalTree && detail.causalTree.length > 0 ? (
+        <div>
+          <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t.aiops.causalTree}</h4>
+          <div className="space-y-1.5">
+            {detail.causalTree.map((node, i) => (
+              <CausalTreeNodeView key={i} node={node} depth={0} t={t.aiops} />
+            ))}
+          </div>
+        </div>
+      ) : detail.causalChain?.length > 0 ? (
         <div>
           <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t.aiops.causalChain}</h4>
           <div className="space-y-1.5">
@@ -118,7 +128,7 @@ export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* 传播路径 */}
       {detail.propagation?.length > 0 && (
