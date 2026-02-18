@@ -31,6 +31,7 @@ func (sm *StateMachine) Evaluate(
 }
 
 // evaluateEntity 评估单个实体的状态转换
+// 对同一状态的多个出口条件，只匹配第一个满足的条件
 func (sm *StateMachine) evaluateEntity(
 	ctx context.Context,
 	clusterID string,
@@ -39,7 +40,10 @@ func (sm *StateMachine) evaluateEntity(
 	clusterRisk *aiops.ClusterRisk,
 	now time.Time,
 ) {
-	for _, cond := range sm.conditions {
+	// 查找当前状态下第一个满足的转换条件
+	var matched *transitionCondition
+	for i := range sm.conditions {
+		cond := &sm.conditions[i]
 		if entry.CurrentState != cond.FromState {
 			continue
 		}
@@ -54,18 +58,24 @@ func (sm *StateMachine) evaluateEntity(
 		}
 
 		if conditionMet {
-			if entry.ConditionMetSince == 0 {
-				entry.ConditionMetSince = now.Unix()
-			}
-
-			duration := time.Duration(now.Unix()-entry.ConditionMetSince) * time.Second
-			if duration >= cond.MinDuration {
-				sm.transition(ctx, clusterID, entry, risk, cond, now)
-				entry.ConditionMetSince = 0
-			}
-		} else {
-			entry.ConditionMetSince = 0
+			matched = cond
+			break
 		}
+	}
+
+	if matched == nil {
+		entry.ConditionMetSince = 0
+		return
+	}
+
+	if entry.ConditionMetSince == 0 {
+		entry.ConditionMetSince = now.Unix()
+	}
+
+	duration := time.Duration(now.Unix()-entry.ConditionMetSince) * time.Second
+	if duration >= matched.MinDuration {
+		sm.transition(ctx, clusterID, entry, risk, *matched, now)
+		entry.ConditionMetSince = 0
 	}
 }
 
@@ -85,6 +95,10 @@ func (sm *StateMachine) transition(
 	case oldState == aiops.StateHealthy && cond.ToState == aiops.StateWarning:
 		incidentID := sm.callback.OnWarningCreated(ctx, clusterID, entry.EntityKey, risk, now)
 		entry.IncidentID = incidentID
+
+	case oldState == aiops.StateWarning && cond.ToState == aiops.StateHealthy:
+		sm.callback.OnStable(ctx, entry.IncidentID, entry.EntityKey, now)
+		delete(sm.entries, entry.EntityKey)
 
 	case oldState == aiops.StateWarning && cond.ToState == aiops.StateIncident:
 		sm.callback.OnStateEscalated(ctx, entry.IncidentID, aiops.StateIncident, risk, now)

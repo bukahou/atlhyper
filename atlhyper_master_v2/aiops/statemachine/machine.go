@@ -52,6 +52,14 @@ func NewStateMachine(callback TransitionCallback) *StateMachine {
 			RiskCheck:   func(r float64) bool { return r > 0.2 },
 			MinDuration: 2 * time.Minute,
 		},
+		// Warning → Healthy（风险持续低于阈值 5 分钟 → 自动恢复）
+		// 顺序重要：放在 Warning→Incident 之前，低风险时先匹配 →Healthy
+		{
+			FromState:   aiops.StateWarning,
+			ToState:     aiops.StateHealthy,
+			RiskCheck:   func(r float64) bool { return r < 0.15 },
+			MinDuration: 5 * time.Minute,
+		},
 		{
 			FromState:   aiops.StateWarning,
 			ToState:     aiops.StateIncident,
@@ -79,6 +87,34 @@ func (sm *StateMachine) GetEntry(entityKey string) *aiops.StateMachineEntry {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.entries[entityKey]
+}
+
+// RestoreEntry 从外部注入状态机条目（启动恢复用）
+func (sm *StateMachine) RestoreEntry(entry *aiops.StateMachineEntry) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.entries[entry.EntityKey] = entry
+}
+
+// CleanupStaleEntries 清理长时间未评估的过期条目
+// 实体从集群消失（Pod 被删除）后 SM 条目永远不会被 Evaluate 触达，需要超时自动关闭
+func (sm *StateMachine) CleanupStaleEntries(ctx context.Context, staleThreshold time.Duration) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	now := time.Now()
+	for entityKey, entry := range sm.entries {
+		if entry.LastEvaluatedAt == 0 {
+			continue
+		}
+		age := time.Duration(now.Unix()-entry.LastEvaluatedAt) * time.Second
+		if age > staleThreshold {
+			entry.CurrentState = aiops.StateStable
+			sm.callback.OnStable(ctx, entry.IncidentID, entityKey, now)
+			delete(sm.entries, entityKey)
+			log.Info("自动关闭过期事件", "entity", entityKey, "incident", entry.IncidentID)
+		}
+	}
 }
 
 // getOrCreate 获取或创建状态机条目

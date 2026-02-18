@@ -259,7 +259,12 @@ func (e *engine) Start(ctx context.Context) error {
 	}
 	log.Info("依赖图恢复完成", "clusters", len(clusterIDs))
 
-	// 3. 启动定期 flush + Recovery→Stable 检查 goroutine
+	// 3. 从数据库恢复活跃事件到状态机
+	if e.sm != nil {
+		e.reloadActiveIncidents(ctx)
+	}
+
+	// 4. 启动定期 flush + Recovery→Stable 检查 goroutine
 	bgCtx, cancel := context.WithCancel(context.Background())
 	e.cancel = cancel
 
@@ -424,6 +429,35 @@ func mergeAnomalyResults(emaResults []*aiops.AnomalyResult, deterministicResults
 	return emaResults
 }
 
+// reloadActiveIncidents 从 DB 加载未关闭事件，恢复到状态机
+func (e *engine) reloadActiveIncidents(ctx context.Context) {
+	incidents, _, err := e.incidentStore.GetIncidents(ctx, aiops.IncidentQueryOpts{})
+	if err != nil {
+		log.Warn("加载活跃事件失败", "err", err)
+		return
+	}
+
+	count := 0
+	now := time.Now()
+	for _, inc := range incidents {
+		if inc.State == aiops.StateStable {
+			continue
+		}
+		if existing := e.sm.GetEntry(inc.RootCause); existing != nil {
+			continue
+		}
+		entry := &aiops.StateMachineEntry{
+			EntityKey:       inc.RootCause,
+			CurrentState:    inc.State,
+			IncidentID:      inc.ID,
+			LastEvaluatedAt: now.Unix(),
+		}
+		e.sm.RestoreEntry(entry)
+		count++
+	}
+	log.Info("活跃事件恢复到状态机", "count", count)
+}
+
 // recoveryCheckLoop 定期检查 Recovery 状态的实体是否可以转为 Stable
 func (e *engine) recoveryCheckLoop(ctx context.Context) {
 	defer e.wg.Done()
@@ -436,6 +470,7 @@ func (e *engine) recoveryCheckLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			e.sm.CheckRecoveryToStable(ctx)
+			e.sm.CleanupStaleEntries(ctx, 30*time.Minute)
 		}
 	}
 }
