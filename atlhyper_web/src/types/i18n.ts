@@ -56,6 +56,8 @@ export interface NavTranslations {
   riskDashboard: string;
   incidentsNav: string;
   topologyNav: string;
+  // APM
+  apm: string;
 }
 
 // 通用翻译
@@ -1813,6 +1815,80 @@ export interface AIOpsTranslations {
   };
 }
 
+// APM 翻译
+export interface ApmTranslations {
+  pageTitle: string;
+  pageDescription: string;
+  // services
+  services: string;
+  selectService: string;
+  allServices: string;
+  operations: string;
+  selectOperation: string;
+  allOperations: string;
+  // trace list
+  traces: string;
+  traceId: string;
+  rootService: string;
+  rootOperation: string;
+  duration: string;
+  spans: string;
+  serviceCount: string;
+  startTime: string;
+  noTraces: string;
+  // trace detail
+  traceDetail: string;
+  waterfall: string;
+  spanDetail: string;
+  operationName: string;
+  serviceName: string;
+  status: string;
+  tags: string;
+  noTags: string;
+  parentSpan: string;
+  childSpans: string;
+  // filters
+  minDuration: string;
+  maxDuration: string;
+  // service list (Kibana-style)
+  searchServices: string;
+  environment: string;
+  latencyAvg: string;
+  throughput: string;
+  errorRate: string;
+  tpm: string;
+  // service overview tabs
+  overview: string;
+  transactions: string;
+  dependencies: string;
+  errors: string;
+  // tables
+  impact: string;
+  searchTransactions: string;
+  viewAll: string;
+  // chart titles
+  latencyChartTitle: string;
+  throughputChartTitle: string;
+  errorRateChartTitle: string;
+  spanTypeChartTitle: string;
+  // trace waterfall
+  latencyDistribution: string;
+  traceSample: string;
+  timeline: string;
+  metadata: string;
+  logs: string;
+  traceOf: string;
+  // states
+  loading: string;
+  loadFailed: string;
+  noCluster: string;
+  noClusterDesc: string;
+  // units
+  us: string;
+  ms: string;
+  s: string;
+}
+
 // 完整翻译结构
 export interface Translations {
   locale: "zh" | "ja";  // 语言标识符，用于日期格式化等
@@ -1851,6 +1927,7 @@ export interface Translations {
   policyPage: PolicyTranslations;
   nodeMetrics: NodeMetricsTranslations;
   aiops: AIOpsTranslations;
+  apm: ApmTranslations;
 }
 
 // 国际化上下文
