@@ -1885,6 +1885,15 @@ export interface ApmTranslations {
   metadata: string;
   logs: string;
   traceOf: string;
+  // span detail drawer
+  selfTime: string;
+  childTime: string;
+  startOffset: string;
+  spanIds: string;
+  httpAttributes: string;
+  dbAttributes: string;
+  serverAttributes: string;
+  otherAttributes: string;
   // states
   loading: string;
   loadFailed: string;

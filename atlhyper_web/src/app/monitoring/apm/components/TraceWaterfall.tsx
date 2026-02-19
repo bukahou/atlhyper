@@ -9,6 +9,7 @@ import {
   ChevronsRight,
   Copy,
   Check,
+  X,
 } from "lucide-react";
 import type { TraceDetail, TraceSummary, Span, LatencyBucket } from "@/api/apm";
 import type { ApmTranslations } from "@/types/i18n";
@@ -305,10 +306,8 @@ export function TraceWaterfall({
           </div>
         </div>
 
-        {/* Waterfall + detail split */}
-        <div className="flex">
-          {/* Waterfall */}
-          <div className="flex-1 min-w-0 overflow-auto">
+        {/* Waterfall */}
+        <div className="overflow-auto">
             {flatSpans.map((node) => {
               const { span, depth } = node;
               const color = serviceColorMap.get(span.serviceName) ?? "#94a3b8";
@@ -413,79 +412,271 @@ export function TraceWaterfall({
                 </div>
               );
             })}
-          </div>
-
-          {/* Span detail panel */}
-          {selectedSpan && (
-            <div className="w-[320px] flex-shrink-0 border-l border-[var(--border-color)] overflow-auto bg-[var(--background)]">
-              <div className="p-4 space-y-4">
-                <h3 className="text-sm font-semibold text-default">
-                  {t.spanDetail}
-                </h3>
-
-                <div className="space-y-2">
-                  <InfoRow label={t.serviceName} value={selectedSpan.serviceName} />
-                  <InfoRow label={t.operationName} value={selectedSpan.operationName} />
-                  <InfoRow label={t.duration} value={formatDuration(selectedSpan.duration)} />
-                  <InfoRow
-                    label={t.status}
-                    value={
-                      <span className={selectedSpan.status === "error" ? "text-red-500" : "text-emerald-500"}>
-                        {selectedSpan.status}
-                      </span>
-                    }
-                  />
-                  <InfoRow
-                    label="Span ID"
-                    value={<span className="font-mono text-[11px]">{selectedSpan.spanId}</span>}
-                  />
-                  {selectedSpan.parentSpanId && (
-                    <InfoRow
-                      label={t.parentSpan}
-                      value={<span className="font-mono text-[11px]">{selectedSpan.parentSpanId}</span>}
-                    />
-                  )}
-                </div>
-
-                {/* Tags */}
-                <div>
-                  <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                    {t.tags}
-                  </h4>
-                  {selectedSpan.tags.length === 0 ? (
-                    <p className="text-xs text-muted">{t.noTags}</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {selectedSpan.tags.map((tag) => (
-                        <div
-                          key={tag.key}
-                          className="flex items-start gap-2 text-xs py-1 px-2 rounded-lg bg-[var(--hover-bg)]"
-                        >
-                          <span className="text-muted flex-shrink-0 min-w-[90px]">
-                            {tag.key}
-                          </span>
-                          <span className="text-default font-mono break-all">
-                            {tag.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Span detail drawer (overlay) */}
+      <SpanDrawer
+        t={t}
+        span={selectedSpan}
+        trace={trace}
+        serviceColorMap={serviceColorMap}
+        traceStart={traceStart}
+        onClose={() => setSelectedSpan(null)}
+      />
     </div>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+// ============================================================
+// Tag grouping helpers
+// ============================================================
+
+function groupTags(tags: { key: string; value: string }[]) {
+  const http: typeof tags = [];
+  const db: typeof tags = [];
+  const server: typeof tags = [];
+  const other: typeof tags = [];
+
+  for (const tag of tags) {
+    if (tag.key.startsWith("http.") || tag.key.startsWith("url.")) http.push(tag);
+    else if (tag.key.startsWith("db.")) db.push(tag);
+    else if (tag.key.startsWith("server.")) server.push(tag);
+    else other.push(tag);
+  }
+  return { http, db, server, other };
+}
+
+// ============================================================
+// SpanDrawer — right-side overlay drawer
+// ============================================================
+
+function SpanDrawer({
+  t,
+  span,
+  trace,
+  serviceColorMap,
+  traceStart,
+  onClose,
+}: {
+  t: ApmTranslations;
+  span: Span | null;
+  trace: TraceDetail;
+  serviceColorMap: Map<string, string>;
+  traceStart: number;
+  onClose: () => void;
+}) {
+  if (!span) return null;
+
+  const color = serviceColorMap.get(span.serviceName) ?? "#94a3b8";
+
+  // Compute self-time: span.duration minus direct children duration
+  const childDuration = trace.spans
+    .filter((s) => s.parentSpanId === span.spanId)
+    .reduce((sum, s) => sum + s.duration, 0);
+  const selfTime = span.duration - childDuration;
+  const startOffset = span.startTime - traceStart;
+
+  const { http, db, server, other } = groupTags(span.tags);
+
   return (
-    <div className="flex items-start gap-2 text-xs">
-      <span className="text-muted min-w-[80px] flex-shrink-0">{label}</span>
-      <span className="text-default">{value}</span>
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/30 z-40 transition-opacity"
+        onClick={onClose}
+      />
+      {/* Drawer */}
+      <div className="fixed right-0 top-0 h-full w-[520px] max-w-[90vw] z-50 bg-card border-l border-[var(--border-color)] shadow-2xl overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-card border-b border-[var(--border-color)] px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="w-3 h-3 rounded-full flex-shrink-0"
+              style={{ backgroundColor: color }}
+            />
+            <h3 className="text-sm font-semibold text-default truncate">
+              {t.spanDetail}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex-shrink-0"
+          >
+            <X className="w-4 h-4 text-muted" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Overview grid */}
+          <section>
+            <SectionHeader title={t.overview} />
+            <div className="grid grid-cols-2 gap-2.5">
+              <MetricCard label={t.serviceName}>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-sm font-medium text-default truncate">
+                    {span.serviceName}
+                  </span>
+                </div>
+              </MetricCard>
+              <MetricCard label={t.status}>
+                <span
+                  className={`text-sm font-medium ${
+                    span.status === "error" ? "text-red-400" : "text-emerald-400"
+                  }`}
+                >
+                  {span.status}
+                </span>
+              </MetricCard>
+              <MetricCard label={t.duration} fullWidth>
+                <span className="text-sm font-medium text-default">
+                  {formatDuration(span.duration)}
+                </span>
+              </MetricCard>
+              <MetricCard label={t.selfTime}>
+                <span className="text-sm font-medium text-default">
+                  {formatDuration(selfTime)}
+                </span>
+                <span className="text-[10px] text-muted ml-1">
+                  ({span.duration > 0 ? Math.round((selfTime / span.duration) * 100) : 0}%)
+                </span>
+              </MetricCard>
+              <MetricCard label={t.childTime}>
+                <span className="text-sm font-medium text-default">
+                  {formatDuration(childDuration)}
+                </span>
+              </MetricCard>
+              <MetricCard label={t.startOffset} fullWidth>
+                <span className="text-sm font-mono text-default">
+                  +{formatDuration(startOffset)}
+                </span>
+              </MetricCard>
+            </div>
+          </section>
+
+          {/* Operation */}
+          <section>
+            <SectionHeader title={t.operationName} />
+            <div className="px-3 py-2.5 rounded-lg bg-[var(--hover-bg)] text-sm font-mono text-default break-all">
+              {span.operationName}
+            </div>
+          </section>
+
+          {/* IDs */}
+          <section>
+            <SectionHeader title={t.spanIds} />
+            <div className="space-y-1.5">
+              <IdRow label="Span ID" value={span.spanId} />
+              {span.parentSpanId && (
+                <IdRow label={t.parentSpan} value={span.parentSpanId} />
+              )}
+              <IdRow label="Trace ID" value={trace.traceId} />
+            </div>
+          </section>
+
+          {/* Tag groups */}
+          {http.length > 0 && (
+            <section>
+              <SectionHeader title={t.httpAttributes} />
+              <TagTable tags={http} />
+            </section>
+          )}
+
+          {db.length > 0 && (
+            <section>
+              <SectionHeader title={t.dbAttributes} />
+              <TagTable tags={db} />
+            </section>
+          )}
+
+          {server.length > 0 && (
+            <section>
+              <SectionHeader title={t.serverAttributes} />
+              <TagTable tags={server} />
+            </section>
+          )}
+
+          {other.length > 0 && (
+            <section>
+              <SectionHeader title={t.otherAttributes} />
+              <TagTable tags={other} />
+            </section>
+          )}
+
+          {span.tags.length === 0 && (
+            <section>
+              <SectionHeader title={t.tags} />
+              <p className="text-xs text-muted">{t.noTags}</p>
+            </section>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================================
+// Drawer sub-components
+// ============================================================
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <h4 className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
+      {title}
+    </h4>
+  );
+}
+
+function MetricCard({
+  label,
+  children,
+  fullWidth,
+}: {
+  label: string;
+  children: React.ReactNode;
+  fullWidth?: boolean;
+}) {
+  return (
+    <div
+      className={`px-3 py-2 rounded-lg bg-[var(--hover-bg)] ${fullWidth ? "col-span-2" : ""}`}
+    >
+      <div className="text-[10px] text-muted mb-0.5">{label}</div>
+      <div className="flex items-center">{children}</div>
+    </div>
+  );
+}
+
+function IdRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--hover-bg)] text-xs">
+      <span className="text-muted flex-shrink-0 min-w-[80px]">{label}</span>
+      <code className="text-default font-mono text-[11px] truncate">{value}</code>
+    </div>
+  );
+}
+
+function TagTable({ tags }: { tags: { key: string; value: string }[] }) {
+  return (
+    <div className="border border-[var(--border-color)] rounded-lg overflow-hidden">
+      {tags.map((tag, i) => (
+        <div
+          key={tag.key}
+          className={`flex gap-3 px-3 py-2 text-xs ${
+            i < tags.length - 1 ? "border-b border-[var(--border-color)]" : ""
+          }`}
+        >
+          <span className="text-muted flex-shrink-0 min-w-[120px]">
+            {tag.key}
+          </span>
+          <span className="text-default font-mono break-all">
+            {tag.value}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
