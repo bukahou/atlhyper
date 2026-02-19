@@ -258,19 +258,19 @@ export function mockGetLatencyDistribution(
 ): LatencyBucket[] {
   // Kibana-style dense non-uniform boundaries in μs
   // ~10 steps per decade for smooth histogram appearance
+  // Kibana-style: start from 1ms, show full range to 50s
+  // This gives ~50 buckets so bars stay thin even when most are empty
   const boundaries = [
-    // sub-ms
-    0, 200, 400, 600, 800,
     // 1-10ms
-    1000, 1200, 1500, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9000,
+    1000, 1500, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9000,
     // 10-100ms
     10000, 12000, 15000, 18000, 20000, 25000, 30000, 35000, 40000, 50000, 60000, 70000, 80000, 90000,
     // 100ms-1s
     100000, 120000, 150000, 200000, 250000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
     // 1-10s
     1000000, 1200000, 1500000, 2000000, 3000000, 4000000, 5000000, 6000000, 8000000,
-    // 10-60s
-    10000000, 15000000, 20000000, 30000000, 40000000, 50000000, 60000000,
+    // 10-50s
+    10000000, 15000000, 20000000, 30000000, 40000000, 50000000,
   ];
 
   const buckets: LatencyBucket[] = boundaries.slice(0, -1).map((start, i) => ({
@@ -288,11 +288,6 @@ export function mockGetLatencyDistribution(
     }
   }
 
-  // Trim empty buckets at edges, but keep 1-2 empty ones for context
-  let start = 0;
-  let end = buckets.length - 1;
-  while (start < end - 1 && buckets[start].count === 0 && buckets[start + 1].count === 0) start++;
-  while (end > start + 1 && buckets[end].count === 0 && buckets[end - 1].count === 0) end--;
-
-  return buckets.slice(start, end + 1);
+  // No trimming — show full range like Kibana (empty buckets create thin-bar effect)
+  return buckets;
 }

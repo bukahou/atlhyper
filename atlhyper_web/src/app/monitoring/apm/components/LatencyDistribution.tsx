@@ -136,14 +136,16 @@ export function LatencyDistribution({
             fontSize: 10,
             rotate: 0,
             interval: (index: number) => {
-              // Show a label every ~4-5 ticks, or if it's a round number
-              if (buckets.length <= 12) return true;
               const us = buckets[index]?.rangeStart ?? 0;
-              // Show labels at: 1ms, 2ms, 5ms, 10ms, 20ms, 50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s, 10s, 20s, 50s
+              // Kibana-style: show labels at key round values across the full range
+              // 3ms,4ms,5ms,6ms,8ms,10ms,20ms,30ms,40ms,50ms,60ms,80ms,100ms,
+              // 200ms,300ms,400ms,500ms,600ms,800ms,1s,2s,3s,4s,5s,6s,8s,10s,20s,30s,40s,50s
               const roundValues = [
-                0, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000,
-                500000, 1000000, 2000000, 5000000, 10000000, 20000000,
-                50000000,
+                1000, 2000, 3000, 4000, 5000, 6000, 8000,
+                10000, 20000, 30000, 40000, 50000, 60000, 80000,
+                100000, 200000, 300000, 400000, 500000, 600000, 800000,
+                1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 8000000,
+                10000000, 20000000, 30000000, 40000000, 50000000,
               ];
               return roundValues.includes(us);
             },
