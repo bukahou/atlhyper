@@ -1850,6 +1850,13 @@ export interface ApmTranslations {
   // filters
   minDuration: string;
   maxDuration: string;
+  // time range
+  last15min: string;
+  last1h: string;
+  last24h: string;
+  last7d: string;
+  last15d: string;
+  last30d: string;
   // service list (Kibana-style)
   searchServices: string;
   environment: string;

@@ -10,6 +10,8 @@ import {
   WifiOff,
   AlertTriangle,
   ChevronRight,
+  Calendar,
+  ChevronDown,
 } from "lucide-react";
 
 import type { TraceService, TraceSummary, TraceDetail, ServiceStats } from "@/api/apm";
@@ -29,10 +31,28 @@ type ViewState =
   | { level: "service-detail"; serviceName: string }
   | { level: "trace-detail"; serviceName: string; traceId: string; traceIndex: number };
 
+const TIME_RANGE_KEYS = ["15min", "1h", "24h", "7d", "15d", "30d"] as const;
+
 export default function ApmPage() {
   const { t } = useI18n();
   const ta = t.apm;
   const { currentClusterId } = useClusterStore();
+
+  // Time range options with i18n labels
+  const TIME_RANGE_OPTIONS = useMemo(() => [
+    { value: "15min", label: ta.last15min },
+    { value: "1h", label: ta.last1h },
+    { value: "24h", label: ta.last24h },
+    { value: "7d", label: ta.last7d },
+    { value: "15d", label: ta.last15d },
+    { value: "30d", label: ta.last30d },
+  ], [ta]);
+
+  const timeRangeLabels = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const opt of TIME_RANGE_OPTIONS) map[opt.value] = opt.label;
+    return map;
+  }, [TIME_RANGE_OPTIONS]);
 
   // View navigation state
   const [view, setView] = useState<ViewState>({ level: "services" });
@@ -47,6 +67,8 @@ export default function ApmPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [timeRange, setTimeRange] = useState("15d");
+  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
   // Load data
   const loadData = useCallback(async (showLoading = true) => {
@@ -212,15 +234,52 @@ export default function ApmPage() {
             <p className="text-xs text-muted">{ta.pageDescription}</p>
           </div>
 
-          <button
-            onClick={() => loadData(true)}
-            disabled={isRefreshing}
-            className="p-2 rounded-lg hover:bg-[var(--hover-bg)] disabled:opacity-50 transition-colors"
-          >
-            <RefreshCw
-              className={`w-4 h-4 text-muted ${isRefreshing ? "animate-spin" : ""}`}
-            />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Time range selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowTimeDropdown((v) => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-[var(--border-color)] bg-card hover:bg-[var(--hover-bg)] transition-colors"
+              >
+                <Calendar className="w-3.5 h-3.5 text-muted" />
+                <span className="text-default">{timeRangeLabels[timeRange]}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-muted" />
+              </button>
+              {showTimeDropdown && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowTimeDropdown(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] py-1 rounded-lg border border-[var(--border-color)] bg-card shadow-lg">
+                    {TIME_RANGE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setTimeRange(opt.value);
+                          setShowTimeDropdown(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                          timeRange === opt.value
+                            ? "text-primary bg-primary/5"
+                            : "text-default hover:bg-[var(--hover-bg)]"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Refresh button */}
+            <button
+              onClick={() => loadData(true)}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+              {t.common.refresh}
+            </button>
+          </div>
         </div>
 
         {/* View content */}
