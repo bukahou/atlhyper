@@ -164,10 +164,10 @@ export function LatencyDistribution({
             data: values.map((v) => Math.max(v, 0)),
             itemStyle: {
               color: c.barColor,
-              borderRadius: [1, 1, 0, 0],
+              borderRadius: 0,
             },
-            barMinWidth: 4,
-            barCategoryGap: "20%",
+            barGap: "0%",
+            barCategoryGap: "1%",
             markLine:
               markLineData.length > 0
                 ? {

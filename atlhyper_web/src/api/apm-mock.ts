@@ -256,19 +256,21 @@ export function mockGetSpanTypeBreakdown(
 export function mockGetLatencyDistribution(
   traces: TraceSummary[]
 ): LatencyBucket[] {
-  // Kibana-style non-uniform boundaries in μs
-  // Pattern per decade: x1, x1.5, x2, x3, x4, x5, x6, x8 then next decade
+  // Kibana-style dense non-uniform boundaries in μs
+  // ~10 steps per decade for smooth histogram appearance
   const boundaries = [
-    // μs range
-    0, 500, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000,
-    // 10ms range
-    10000, 15000, 20000, 30000, 40000, 50000, 60000, 80000,
-    // 100ms range
-    100000, 150000, 200000, 300000, 400000, 500000, 600000, 800000,
-    // 1s range
-    1000000, 1500000, 2000000, 3000000, 4000000, 5000000, 6000000, 8000000,
-    // 10s range
-    10000000, 15000000, 20000000, 30000000, 40000000, 50000000,
+    // sub-ms
+    0, 200, 400, 600, 800,
+    // 1-10ms
+    1000, 1200, 1500, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9000,
+    // 10-100ms
+    10000, 12000, 15000, 18000, 20000, 25000, 30000, 35000, 40000, 50000, 60000, 70000, 80000, 90000,
+    // 100ms-1s
+    100000, 120000, 150000, 200000, 250000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
+    // 1-10s
+    1000000, 1200000, 1500000, 2000000, 3000000, 4000000, 5000000, 6000000, 8000000,
+    // 10-60s
+    10000000, 15000000, 20000000, 30000000, 40000000, 50000000, 60000000,
   ];
 
   const buckets: LatencyBucket[] = boundaries.slice(0, -1).map((start, i) => ({
