@@ -102,27 +102,17 @@ function countDescendants(node: SpanNode): number {
   return count;
 }
 
-function getSpanLabel(span: Span): { icon: string; text: string } {
-  const op = span.operationName;
+function getSpanLabel(span: Span): { badge: string; op: string; dur: string } {
   const dur = formatDuration(span.duration);
+  const op = span.operationName;
 
-  // HTTP span
   if (/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/.test(op)) {
-    const statusTag = span.tags.find((t) => t.key === "http.status_code");
-    const status = statusTag ? `${statusTag.value.startsWith("2") ? "2xx" : statusTag.value}` : "";
-    return {
-      icon: "HTTP",
-      text: `${status ? status + " " : ""}${op} ${dur}`,
-    };
+    return { badge: "HTTP", op, dur };
   }
-
-  // DB span
   if (/^(SELECT|INSERT|UPDATE|DELETE FROM)\b/i.test(op)) {
-    return { icon: "DB", text: `${op} ${dur}` };
+    return { badge: "DB", op, dur };
   }
-
-  // Default
-  return { icon: "", text: `${op} ${dur}` };
+  return { badge: "", op, dur };
 }
 
 export function TraceWaterfall({
@@ -343,9 +333,9 @@ export function TraceWaterfall({
               const hasChildren = node.children.length > 0;
               const isCollapsed = collapsedSpans.has(span.spanId);
 
-              const { icon, text } = getSpanLabel(span);
+              const { badge, op, dur } = getSpanLabel(span);
               // Determine if label fits inside bar
-              const barIsWide = width > 15; // if bar occupies >15% of width, label inside
+              const barIsWide = width > 15;
 
               return (
                 <div
@@ -386,7 +376,7 @@ export function TraceWaterfall({
                   {/* Timeline bar */}
                   <div className="flex-1 relative" style={{ height: 28 }}>
                     <div
-                      className="absolute top-0 rounded-sm overflow-hidden"
+                      className="absolute top-0 rounded overflow-hidden"
                       style={{
                         left: `${offset}%`,
                         width: `${Math.max(width, 0.3)}%`,
@@ -396,12 +386,17 @@ export function TraceWaterfall({
                     >
                       {/* Label inside bar */}
                       {barIsWide && (
-                        <div className="absolute inset-0 flex items-center px-2 overflow-hidden">
-                          <span className="text-[11px] text-white font-medium truncate whitespace-nowrap">
-                            {icon && (
-                              <span className="opacity-80 mr-1">{icon}</span>
-                            )}
-                            {text}
+                        <div className="absolute inset-0 flex items-center gap-1.5 px-2.5 overflow-hidden">
+                          {badge && (
+                            <span className="text-[9px] font-bold text-white/70 uppercase tracking-wider flex-shrink-0">
+                              {badge}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-white font-medium truncate">
+                            {op}
+                          </span>
+                          <span className="text-[10px] text-white/70 flex-shrink-0">
+                            {dur}
                           </span>
                         </div>
                       )}
@@ -409,17 +404,31 @@ export function TraceWaterfall({
                     {/* Label outside bar (when bar is narrow) */}
                     {!barIsWide && (
                       <div
-                        className="absolute flex items-center text-[11px] text-default whitespace-nowrap"
+                        className="absolute flex items-center gap-1.5 whitespace-nowrap"
                         style={{
                           left: `${offset + Math.max(width, 0.3) + 0.5}%`,
                           top: 0,
                           height: 28,
                         }}
                       >
-                        {icon && (
-                          <span className="text-muted mr-1">{icon}</span>
+                        {badge && (
+                          <span
+                            className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0"
+                            style={{
+                              color: color,
+                              backgroundColor: color + "18",
+                              border: `1px solid ${color}30`,
+                            }}
+                          >
+                            {badge}
+                          </span>
                         )}
-                        <span className="truncate">{text}</span>
+                        <span className="text-[11px] font-medium text-default truncate">
+                          {op}
+                        </span>
+                        <span className="text-[10px] text-muted flex-shrink-0">
+                          {dur}
+                        </span>
                       </div>
                     )}
                   </div>
