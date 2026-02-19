@@ -196,7 +196,12 @@ export async function getEntityRisks(cluster: string, sort = "r_final", limit = 
 }
 
 export async function getEntityRiskDetail(cluster: string, entityKey: string): Promise<EntityRiskDetail> {
-  return (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster, entity: entityKey })).data;
+  const detail = (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster, entity: entityKey })).data;
+  // Go nil slice → JSON null，兜底为空数组
+  detail.metrics = detail.metrics ?? [];
+  detail.propagation = detail.propagation ?? [];
+  detail.causalChain = detail.causalChain ?? [];
+  return detail;
 }
 
 // 依赖图
