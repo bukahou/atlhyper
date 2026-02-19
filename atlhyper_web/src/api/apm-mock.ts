@@ -80,7 +80,7 @@ export async function mockGetTraceDetail(
 // Kibana-style computed mock data
 // ============================================================
 
-/** Compute per-service stats from all trace and span data */
+/** Compute per-service stats from span-level data across all traces */
 export function mockGetAllServiceStats(): ServiceStats[] {
   const serviceMap = new Map<
     string,
@@ -92,12 +92,28 @@ export function mockGetAllServiceStats(): ServiceStats[] {
     serviceMap.set(svc.name, { durations: [], errors: [] });
   }
 
-  // Aggregate per-trace data grouped by rootService
-  for (const trace of mockData.traceList) {
-    const entry = serviceMap.get(trace.rootService);
-    if (entry) {
-      entry.durations.push(trace.duration);
-      entry.errors.push(trace.hasError ? 1 : 0);
+  // Aggregate from span-level data: for each trace, group spans by service
+  // and use the root span of each service as one "transaction" for that service
+  for (const detail of Object.values(mockData.traceDetails)) {
+    // Group spans by service
+    const byService = new Map<string, typeof detail.spans>();
+    for (const span of detail.spans) {
+      const list = byService.get(span.serviceName) ?? [];
+      list.push(span);
+      byService.set(span.serviceName, list);
+    }
+
+    // For each service in this trace, compute total duration and error status
+    for (const [svcName, spans] of byService) {
+      const entry = serviceMap.get(svcName);
+      if (!entry) continue;
+
+      // Use the service's total span duration in this trace
+      const totalSpanDuration = spans.reduce((sum, s) => sum + s.duration, 0);
+      const hasError = spans.some((s) => s.status === "error");
+
+      entry.durations.push(totalSpanDuration);
+      entry.errors.push(hasError ? 1 : 0);
     }
   }
 
