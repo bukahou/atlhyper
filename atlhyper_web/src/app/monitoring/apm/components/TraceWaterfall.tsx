@@ -205,6 +205,7 @@ export function TraceWaterfall({
       <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
         <LatencyDistribution
           title={t.latencyDistribution}
+          totalTraces={allTraces.length}
           buckets={latencyBuckets}
           highlightBucket={highlightBucket}
         />

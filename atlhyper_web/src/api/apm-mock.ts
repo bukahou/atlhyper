@@ -252,14 +252,23 @@ export function mockGetSpanTypeBreakdown(
   return result;
 }
 
-/** Compute latency distribution histogram buckets (log scale) */
+/** Compute latency distribution histogram buckets (Kibana-style fine-grained log scale) */
 export function mockGetLatencyDistribution(
   traces: TraceSummary[]
 ): LatencyBucket[] {
-  // Log-scale bucket boundaries in μs
+  // Kibana-style non-uniform boundaries in μs
+  // Pattern per decade: x1, x1.5, x2, x3, x4, x5, x6, x8 then next decade
   const boundaries = [
-    0, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000,
-    1000000, 2000000, 5000000,
+    // μs range
+    0, 500, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000,
+    // 10ms range
+    10000, 15000, 20000, 30000, 40000, 50000, 60000, 80000,
+    // 100ms range
+    100000, 150000, 200000, 300000, 400000, 500000, 600000, 800000,
+    // 1s range
+    1000000, 1500000, 2000000, 3000000, 4000000, 5000000, 6000000, 8000000,
+    // 10s range
+    10000000, 15000000, 20000000, 30000000, 40000000, 50000000,
   ];
 
   const buckets: LatencyBucket[] = boundaries.slice(0, -1).map((start, i) => ({
@@ -267,13 +276,6 @@ export function mockGetLatencyDistribution(
     rangeEnd: boundaries[i + 1],
     count: 0,
   }));
-
-  // Add overflow bucket
-  buckets.push({
-    rangeStart: boundaries[boundaries.length - 1],
-    rangeEnd: Infinity,
-    count: 0,
-  });
 
   for (const trace of traces) {
     for (let i = buckets.length - 1; i >= 0; i--) {
@@ -284,11 +286,11 @@ export function mockGetLatencyDistribution(
     }
   }
 
-  // Filter out empty buckets at the edges
+  // Trim empty buckets at edges, but keep 1-2 empty ones for context
   let start = 0;
   let end = buckets.length - 1;
-  while (start < end && buckets[start].count === 0) start++;
-  while (end > start && buckets[end].count === 0) end--;
+  while (start < end - 1 && buckets[start].count === 0 && buckets[start + 1].count === 0) start++;
+  while (end > start + 1 && buckets[end].count === 0 && buckets[end - 1].count === 0) end--;
 
   return buckets.slice(start, end + 1);
 }
