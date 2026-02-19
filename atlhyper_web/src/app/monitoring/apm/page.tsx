@@ -286,6 +286,7 @@ export default function ApmPage() {
         {view.level === "services" && (
           <ServiceList
             t={ta}
+            tt={t.table}
             serviceStats={serviceStats}
             traces={traces}
             onSelectService={goToService}
