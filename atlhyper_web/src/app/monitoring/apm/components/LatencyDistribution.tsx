@@ -169,7 +169,7 @@ export function LatencyDistribution({
               borderRadius: 0,
             },
             barGap: "0%",
-            barCategoryGap: "1%",
+            barCategoryGap: "30%",
             markLine:
               markLineData.length > 0
                 ? {
