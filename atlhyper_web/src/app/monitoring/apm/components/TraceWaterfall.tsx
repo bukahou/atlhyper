@@ -42,15 +42,16 @@ function formatTimeAgo(us: number): string {
   return "just now";
 }
 
+// Softer palette — Tailwind -400 shades for a cleaner, less garish look
 const SERVICE_COLORS = [
-  "#3b82f6", // blue
-  "#10b981", // emerald
-  "#f59e0b", // amber
-  "#8b5cf6", // purple
-  "#ef4444", // red
-  "#06b6d4", // cyan
-  "#f97316", // orange
-  "#6366f1", // indigo
+  "#60a5fa", // blue-400
+  "#34d399", // emerald-400
+  "#fbbf24", // amber-400
+  "#a78bfa", // violet-400
+  "#f87171", // red-400
+  "#22d3ee", // cyan-400
+  "#fb923c", // orange-400
+  "#818cf8", // indigo-400
 ];
 
 interface SpanNode {
@@ -102,17 +103,8 @@ function countDescendants(node: SpanNode): number {
   return count;
 }
 
-function getSpanLabel(span: Span): { badge: string; op: string; dur: string } {
-  const dur = formatDuration(span.duration);
-  const op = span.operationName;
-
-  if (/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/.test(op)) {
-    return { badge: "HTTP", op, dur };
-  }
-  if (/^(SELECT|INSERT|UPDATE|DELETE FROM)\b/i.test(op)) {
-    return { badge: "DB", op, dur };
-  }
-  return { badge: "", op, dur };
+function getSpanLabel(span: Span): { op: string; dur: string } {
+  return { op: span.operationName, dur: formatDuration(span.duration) };
 }
 
 export function TraceWaterfall({
@@ -333,9 +325,9 @@ export function TraceWaterfall({
               const hasChildren = node.children.length > 0;
               const isCollapsed = collapsedSpans.has(span.spanId);
 
-              const { badge, op, dur } = getSpanLabel(span);
-              // Determine if label fits inside bar
+              const { op, dur } = getSpanLabel(span);
               const barIsWide = width > 15;
+              const barH = 24;
 
               return (
                 <div
@@ -346,7 +338,7 @@ export function TraceWaterfall({
                       ? "bg-primary/5"
                       : "hover:bg-[var(--hover-bg)]"
                   }`}
-                  style={{ height: 36 }}
+                  style={{ height: 34 }}
                 >
                   {/* Left column: collapse toggle */}
                   <div
@@ -374,28 +366,26 @@ export function TraceWaterfall({
                   </div>
 
                   {/* Timeline bar */}
-                  <div className="flex-1 relative" style={{ height: 28 }}>
+                  <div className="flex-1 relative" style={{ height: barH }}>
+                    {/* Bar: translucent fill + solid left accent border */}
                     <div
-                      className="absolute top-0 rounded overflow-hidden"
+                      className="absolute top-0"
                       style={{
                         left: `${offset}%`,
                         width: `${Math.max(width, 0.3)}%`,
-                        height: 28,
-                        backgroundColor: color,
+                        height: barH,
+                        borderRadius: 4,
+                        borderLeft: `3px solid ${color}`,
+                        background: `${color}30`,
                       }}
                     >
                       {/* Label inside bar */}
                       {barIsWide && (
-                        <div className="absolute inset-0 flex items-center gap-1.5 px-2.5 overflow-hidden">
-                          {badge && (
-                            <span className="text-[9px] font-bold text-white/70 uppercase tracking-wider flex-shrink-0">
-                              {badge}
-                            </span>
-                          )}
-                          <span className="text-[11px] text-white font-medium truncate">
+                        <div className="absolute inset-0 flex items-center gap-1 px-2 overflow-hidden">
+                          <span className="text-[11px] font-medium truncate" style={{ color }}>
                             {op}
                           </span>
-                          <span className="text-[10px] text-white/70 flex-shrink-0">
+                          <span className="text-[10px] flex-shrink-0" style={{ color: `${color}99` }}>
                             {dur}
                           </span>
                         </div>
@@ -408,22 +398,10 @@ export function TraceWaterfall({
                         style={{
                           left: `${offset + Math.max(width, 0.3) + 0.5}%`,
                           top: 0,
-                          height: 28,
+                          height: barH,
                         }}
                       >
-                        {badge && (
-                          <span
-                            className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0"
-                            style={{
-                              color: color,
-                              backgroundColor: color + "18",
-                              border: `1px solid ${color}30`,
-                            }}
-                          >
-                            {badge}
-                          </span>
-                        )}
-                        <span className="text-[11px] font-medium text-default truncate">
+                        <span className="text-[11px] text-default truncate">
                           {op}
                         </span>
                         <span className="text-[10px] text-muted flex-shrink-0">
