@@ -46,6 +46,7 @@ import {
   Shield,
   SlidersHorizontal,
   UserCheck,
+  Waypoints,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useI18n } from "@/i18n/context";
@@ -143,6 +144,7 @@ const navGroups: NavGroup[] = [
     icon: Activity,
     children: [
       { key: "metrics", href: "/monitoring/metrics", icon: Activity },
+      { key: "apm", href: "/monitoring/apm", icon: Waypoints },
       { key: "logs", href: "/monitoring/logs", icon: FileText },
       // AIOps
       { key: "riskDashboard", href: "/monitoring/risk", icon: Gauge, section: "aiops" },
