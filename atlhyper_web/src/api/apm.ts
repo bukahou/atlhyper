@@ -86,6 +86,28 @@ export interface SpanTypeBreakdown {
   percentage: number;
 }
 
+export interface ServiceTopoNode {
+  id: string;           // 服务名
+  label: string;        // 显示名称
+  latencyAvg: number;   // μs
+  throughput: number;   // trace 参与次数
+  errorRate: number;    // 0-1
+}
+
+export interface ServiceTopoEdge {
+  id: string;           // "source>target"
+  source: string;
+  target: string;
+  callCount: number;
+  errorCount: number;
+  avgLatency: number;   // μs
+}
+
+export interface ServiceTopologyData {
+  nodes: ServiceTopoNode[];
+  edges: ServiceTopoEdge[];
+}
+
 // ============================================================
 // API responses
 // ============================================================

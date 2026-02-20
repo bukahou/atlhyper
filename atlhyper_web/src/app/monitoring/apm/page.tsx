@@ -14,17 +14,19 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-import type { TraceService, TraceSummary, TraceDetail, ServiceStats } from "@/api/apm";
+import type { TraceService, TraceSummary, TraceDetail, ServiceStats, ServiceTopologyData } from "@/api/apm";
 import {
   mockGetTraceServices,
   mockQueryTraces,
   mockGetTraceDetail,
   mockGetAllServiceStats,
+  mockGetServiceTopology,
 } from "@/api/apm-mock";
 
 import { ServiceList } from "./components/ServiceList";
 import { ServiceOverview } from "./components/ServiceOverview";
 import { TraceWaterfall } from "./components/TraceWaterfall";
+import { ServiceTopology } from "./components/ServiceTopology";
 
 type ViewState =
   | { level: "services" }
@@ -62,6 +64,7 @@ export default function ApmPage() {
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [traceDetail, setTraceDetail] = useState<TraceDetail | null>(null);
   const [serviceStats, setServiceStats] = useState<ServiceStats[]>([]);
+  const [topology, setTopology] = useState<ServiceTopologyData | null>(null);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -81,6 +84,7 @@ export default function ApmPage() {
       setServices(svcData);
       setTraces(traceResult.traces);
       setServiceStats(mockGetAllServiceStats());
+      setTopology(mockGetServiceTopology());
       setError(null);
     } catch {
       setError(ta.loadFailed);
@@ -284,13 +288,25 @@ export default function ApmPage() {
 
         {/* View content */}
         {view.level === "services" && (
-          <ServiceList
-            t={ta}
-            tt={t.table}
-            serviceStats={serviceStats}
-            traces={traces}
-            onSelectService={goToService}
-          />
+          <>
+            {topology && topology.nodes.length > 0 && (
+              <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-[var(--border-color)]">
+                  <h3 className="text-sm font-medium text-default">{ta.serviceTopology}</h3>
+                </div>
+                <div className="h-[300px]">
+                  <ServiceTopology t={ta} topology={topology} onSelectService={goToService} />
+                </div>
+              </div>
+            )}
+            <ServiceList
+              t={ta}
+              tt={t.table}
+              serviceStats={serviceStats}
+              traces={traces}
+              onSelectService={goToService}
+            />
+          </>
         )}
 
         {view.level === "service-detail" && currentService && (

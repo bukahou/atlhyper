@@ -1894,6 +1894,12 @@ export interface ApmTranslations {
   dbAttributes: string;
   serverAttributes: string;
   otherAttributes: string;
+  // topology
+  serviceTopology: string;
+  topoLatency: string;
+  topoThroughput: string;
+  topoErrorRate: string;
+  topoCalls: string;
   // states
   loading: string;
   loadFailed: string;

@@ -14,6 +14,9 @@ import type {
   Dependency,
   LatencyBucket,
   SpanTypeBreakdown,
+  ServiceTopologyData,
+  ServiceTopoNode,
+  ServiceTopoEdge,
 } from "./apm";
 
 import mockRaw from "./apm-mock-data.json";
@@ -250,6 +253,71 @@ export function mockGetSpanTypeBreakdown(
   if (dbTime > 0) result.push({ type: "DB", percentage: (dbTime / total) * 100 });
   if (otherTime > 0) result.push({ type: "other", percentage: (otherTime / total) * 100 });
   return result;
+}
+
+/** Compute service topology from cross-service span parent-child relationships */
+export function mockGetServiceTopology(): ServiceTopologyData {
+  // Aggregate per-service stats
+  const nodeMap = new Map<string, { durations: number[]; errorCount: number; traceSet: Set<string> }>();
+  // Aggregate per-edge stats (source>target)
+  const edgeMap = new Map<string, { source: string; target: string; durations: number[]; errorCount: number }>();
+
+  for (const [traceId, detail] of Object.entries(mockData.traceDetails)) {
+    const spanMap = new Map(detail.spans.map((s) => [s.spanId, s]));
+
+    // Ensure all services appear as nodes
+    for (const span of detail.spans) {
+      if (!nodeMap.has(span.serviceName)) {
+        nodeMap.set(span.serviceName, { durations: [], errorCount: 0, traceSet: new Set() });
+      }
+      const entry = nodeMap.get(span.serviceName)!;
+      entry.durations.push(span.duration);
+      if (span.status === "error") entry.errorCount++;
+      entry.traceSet.add(traceId);
+    }
+
+    // Find cross-service calls via parentSpanId
+    for (const span of detail.spans) {
+      if (!span.parentSpanId) continue;
+      const parent = spanMap.get(span.parentSpanId);
+      if (!parent || parent.serviceName === span.serviceName) continue;
+
+      const edgeKey = `${parent.serviceName}>${span.serviceName}`;
+      if (!edgeMap.has(edgeKey)) {
+        edgeMap.set(edgeKey, { source: parent.serviceName, target: span.serviceName, durations: [], errorCount: 0 });
+      }
+      const edge = edgeMap.get(edgeKey)!;
+      edge.durations.push(span.duration);
+      if (span.status === "error") edge.errorCount++;
+    }
+  }
+
+  const nodes: ServiceTopoNode[] = Array.from(nodeMap.entries()).map(([name, data]) => {
+    const count = data.durations.length;
+    const totalDuration = data.durations.reduce((a, b) => a + b, 0);
+    return {
+      id: name,
+      label: name,
+      latencyAvg: count > 0 ? totalDuration / count : 0,
+      throughput: data.traceSet.size,
+      errorRate: count > 0 ? data.errorCount / count : 0,
+    };
+  });
+
+  const edges: ServiceTopoEdge[] = Array.from(edgeMap.entries()).map(([key, data]) => {
+    const count = data.durations.length;
+    const totalDuration = data.durations.reduce((a, b) => a + b, 0);
+    return {
+      id: key,
+      source: data.source,
+      target: data.target,
+      callCount: count,
+      errorCount: data.errorCount,
+      avgLatency: count > 0 ? totalDuration / count : 0,
+    };
+  });
+
+  return { nodes, edges };
 }
 
 /** Compute latency distribution histogram buckets (Kibana-style fine-grained log scale) */
