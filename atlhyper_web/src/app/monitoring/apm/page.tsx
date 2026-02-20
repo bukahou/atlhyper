@@ -290,14 +290,7 @@ export default function ApmPage() {
         {view.level === "services" && (
           <>
             {topology && topology.nodes.length > 0 && (
-              <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-[var(--border-color)]">
-                  <h3 className="text-sm font-medium text-default">{ta.serviceTopology}</h3>
-                </div>
-                <div className="h-[300px]">
-                  <ServiceTopology t={ta} topology={topology} onSelectService={goToService} />
-                </div>
-              </div>
+              <ServiceTopology t={ta} topology={topology} onSelectService={goToService} />
             )}
             <ServiceList
               t={ta}
