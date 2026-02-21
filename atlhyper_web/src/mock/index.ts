@@ -4,3 +4,4 @@
 
 export * from "./apm";
 export * from "./aiops";
+export * from "./logs";

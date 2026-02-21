@@ -1812,6 +1812,44 @@ export interface AIOpsTranslations {
   };
 }
 
+// Log 翻译
+export interface LogTranslations {
+  pageTitle: string;
+  pageDescription: string;
+  searchPlaceholder: string;
+  // 分面
+  facetServices: string;
+  facetSeverities: string;
+  facetScopes: string;
+  // 列表 / 详情
+  timestamp: string;
+  service: string;
+  severity: string;
+  body: string;
+  scopeName: string;
+  traceId: string;
+  spanId: string;
+  attributes: string;
+  resourceInfo: string;
+  viewTrace: string;
+  // 分页
+  showMore: string;
+  showing: string;
+  // 状态
+  noLogs: string;
+  loading: string;
+  loadFailed: string;
+  noCluster: string;
+  noClusterDesc: string;
+  // 时间范围
+  last15min: string;
+  last1h: string;
+  last24h: string;
+  last7d: string;
+  last15d: string;
+  last30d: string;
+}
+
 // APM 翻译
 export interface ApmTranslations {
   pageTitle: string;
@@ -1962,6 +2000,7 @@ export interface Translations {
   nodeMetrics: NodeMetricsTranslations;
   aiops: AIOpsTranslations;
   apm: ApmTranslations;
+  logs: LogTranslations;
 }
 
 // 国际化上下文
