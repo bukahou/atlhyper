@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
-import type { LatencyBucket } from "@/api/apm";
+import type { LatencyBucket } from "@/types/model/apm";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -13,18 +13,17 @@ function getThemeColors() {
     tooltipBg: isDark ? "#1f2937" : "#fff",
     tooltipBorder: isDark ? "#374151" : "#e5e7eb",
     tooltipText: isDark ? "#e5e7eb" : "#111827",
-    barColor: isDark ? "#60a5fa" : "#93c5fd", // light blue like Kibana
-    highlightColor: "#22c55e", // green marker for current sample
+    barColor: isDark ? "#60a5fa" : "#93c5fd",
+    highlightColor: "#22c55e",
   };
 }
 
-function formatBucketLabel(us: number): string {
-  if (us < 1000) return `${us}μs`;
-  if (us < 1_000_000) {
-    const ms = us / 1000;
+function formatBucketLabel(ms: number): string {
+  if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`;
+  if (ms < 1000) {
     return ms % 1 === 0 ? `${ms}ms` : `${ms.toFixed(1)}ms`;
   }
-  const s = us / 1_000_000;
+  const s = ms / 1000;
   return s % 1 === 0 ? `${s}s` : `${s.toFixed(1)}s`;
 }
 
@@ -64,11 +63,9 @@ export function LatencyDistribution({
         xAxis: {
           axisLine: { lineStyle: { color: c.lineColor } },
           axisLabel: { color: c.textColor },
-          nameTextStyle: { color: c.textColor },
         },
         yAxis: {
           axisLabel: { color: c.textColor },
-          nameTextStyle: { color: c.textColor },
           splitLine: { lineStyle: { color: c.splitLineColor } },
         },
       });
@@ -92,7 +89,6 @@ export function LatencyDistribution({
     const labels = buckets.map((b) => formatBucketLabel(b.rangeStart));
     const values = buckets.map((b) => b.count);
 
-    // Build markLine for current sample highlight (green vertical line)
     const markLineData: { xAxis: number; label: { show: boolean; formatter: string; position: string; color: string; fontSize: number } }[] = [];
     if (highlightBucket !== undefined && highlightBucket >= 0 && highlightBucket < buckets.length) {
       markLineData.push({
@@ -128,7 +124,6 @@ export function LatencyDistribution({
         xAxis: {
           type: "category",
           data: labels,
-          name: "",
           axisLine: { lineStyle: { color: c.lineColor } },
           axisTick: { alignWithLabel: true },
           axisLabel: {
@@ -136,18 +131,16 @@ export function LatencyDistribution({
             fontSize: 10,
             rotate: 0,
             interval: (index: number) => {
-              const us = buckets[index]?.rangeStart ?? 0;
-              // Kibana-style: show labels at key round values across the full range
-              // 3ms,4ms,5ms,6ms,8ms,10ms,20ms,30ms,40ms,50ms,60ms,80ms,100ms,
-              // 200ms,300ms,400ms,500ms,600ms,800ms,1s,2s,3s,4s,5s,6s,8s,10s,20s,30s,40s,50s
+              const ms = buckets[index]?.rangeStart ?? 0;
+              // Kibana-style: show labels at key round values (ms)
               const roundValues = [
+                1, 2, 3, 4, 5, 6, 8,
+                10, 20, 30, 40, 50, 60, 80,
+                100, 200, 300, 400, 500, 600, 800,
                 1000, 2000, 3000, 4000, 5000, 6000, 8000,
-                10000, 20000, 30000, 40000, 50000, 60000, 80000,
-                100000, 200000, 300000, 400000, 500000, 600000, 800000,
-                1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 8000000,
-                10000000, 20000000, 30000000, 40000000, 50000000,
+                10000, 20000, 30000, 40000, 50000,
               ];
-              return roundValues.includes(us);
+              return roundValues.includes(ms);
             },
           },
           splitLine: { show: false },
@@ -155,8 +148,6 @@ export function LatencyDistribution({
         yAxis: {
           type: "log",
           min: 1,
-          name: "",
-          nameTextStyle: { color: c.textColor, fontSize: 10 },
           axisLabel: { color: c.textColor, fontSize: 10 },
           splitLine: { lineStyle: { color: c.splitLineColor } },
         },

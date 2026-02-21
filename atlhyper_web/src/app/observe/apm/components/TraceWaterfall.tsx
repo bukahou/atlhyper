@@ -11,48 +11,24 @@ import {
   Check,
   X,
 } from "lucide-react";
-import type { TraceDetail, TraceSummary, Span, LatencyBucket } from "@/api/apm";
+import type { TraceDetail, TraceSummary, Span } from "@/types/model/apm";
+import { isSpanError } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
-import { mockGetLatencyDistribution } from "@/api/apm-mock";
+import { formatDurationMs, formatTimeAgo } from "@/lib/format";
+import { mockGetLatencyDistribution } from "@/mock/apm";
 import { LatencyDistribution } from "./LatencyDistribution";
 
 interface TraceWaterfallProps {
   t: ApmTranslations;
   trace: TraceDetail;
-  allTraces: TraceSummary[]; // all traces for this service (for sampling navigation)
+  allTraces: TraceSummary[];
   currentTraceIndex: number;
   onNavigateTrace: (index: number) => void;
 }
 
-function formatDuration(us: number): string {
-  if (us < 1000) return `${us}μs`;
-  if (us < 1_000_000) return `${(us / 1000).toFixed(1)}ms`;
-  return `${(us / 1_000_000).toFixed(2)}s`;
-}
-
-function formatTimeAgo(us: number): string {
-  const now = Date.now() * 1000; // current time in μs
-  const diffMs = (now - us) / 1000;
-  const diffMin = diffMs / 60000;
-  const diffHour = diffMin / 60;
-  const diffDay = diffHour / 24;
-
-  if (diffDay >= 1) return `${Math.floor(diffDay)}d ago`;
-  if (diffHour >= 1) return `${Math.floor(diffHour)}h ago`;
-  if (diffMin >= 1) return `${Math.floor(diffMin)}m ago`;
-  return "just now";
-}
-
-// Softer palette — Tailwind -400 shades for a cleaner, less garish look
 const SERVICE_COLORS = [
-  "#60a5fa", // blue-400
-  "#34d399", // emerald-400
-  "#fbbf24", // amber-400
-  "#a78bfa", // violet-400
-  "#f87171", // red-400
-  "#22d3ee", // cyan-400
-  "#fb923c", // orange-400
-  "#818cf8", // indigo-400
+  "#60a5fa", "#34d399", "#fbbf24", "#a78bfa",
+  "#f87171", "#22d3ee", "#fb923c", "#818cf8",
 ];
 
 interface SpanNode {
@@ -104,10 +80,6 @@ function countDescendants(node: SpanNode): number {
   return count;
 }
 
-function getSpanLabel(span: Span): { op: string; dur: string } {
-  return { op: span.operationName, dur: formatDuration(span.duration) };
-}
-
 export function TraceWaterfall({
   t,
   trace,
@@ -134,26 +106,25 @@ export function TraceWaterfall({
     [tree, collapsedSpans]
   );
 
-  const traceStart = useMemo(
-    () => Math.min(...trace.spans.map((s) => s.startTime)),
-    [trace.spans]
-  );
-  const traceEnd = useMemo(
-    () => Math.max(...trace.spans.map((s) => s.startTime + s.duration)),
-    [trace.spans]
-  );
-  const traceDuration = traceEnd - traceStart;
+  // Convert ISO timestamps to ms for relative positioning
+  const spanTimesMs = useMemo(() => {
+    return trace.spans.map((s) => new Date(s.timestamp).getTime());
+  }, [trace.spans]);
 
-  // Latency distribution for all traces
+  const traceStartMs = useMemo(() => Math.min(...spanTimesMs), [spanTimesMs]);
+  const traceEndMs = useMemo(() => {
+    return Math.max(...trace.spans.map((s, i) => spanTimesMs[i] + s.durationMs));
+  }, [trace.spans, spanTimesMs]);
+  const traceDurationMs = traceEndMs - traceStartMs;
+
   const latencyBuckets = useMemo(
     () => mockGetLatencyDistribution(allTraces),
     [allTraces]
   );
 
-  // Find which bucket the current trace falls into
   const highlightBucket = useMemo(() => {
     if (allTraces.length === 0 || currentTraceIndex < 0) return undefined;
-    const currentDuration = allTraces[currentTraceIndex]?.duration ?? 0;
+    const currentDuration = allTraces[currentTraceIndex]?.durationMs ?? 0;
     for (let i = latencyBuckets.length - 1; i >= 0; i--) {
       if (currentDuration >= latencyBuckets[i].rangeStart) return i;
     }
@@ -175,12 +146,10 @@ export function TraceWaterfall({
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  // Current trace summary
   const currentTraceSummary = allTraces[currentTraceIndex];
 
-  // Timeline tick marks
   const tickCount = 6;
-  const ticks = Array.from({ length: tickCount }, (_, i) => (i / (tickCount - 1)) * traceDuration);
+  const ticks = Array.from({ length: tickCount }, (_, i) => (i / (tickCount - 1)) * traceDurationMs);
 
   return (
     <div className="space-y-4">
@@ -199,47 +168,31 @@ export function TraceWaterfall({
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-default">{t.traceSample}</span>
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => onNavigateTrace(0)}
-              disabled={currentTraceIndex <= 0}
-              className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors"
-            >
+            <button onClick={() => onNavigateTrace(0)} disabled={currentTraceIndex <= 0} className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors">
               <ChevronsLeft className="w-4 h-4 text-muted" />
             </button>
-            <button
-              onClick={() => onNavigateTrace(currentTraceIndex - 1)}
-              disabled={currentTraceIndex <= 0}
-              className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors"
-            >
+            <button onClick={() => onNavigateTrace(currentTraceIndex - 1)} disabled={currentTraceIndex <= 0} className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors">
               <ChevronLeft className="w-4 h-4 text-muted" />
             </button>
             <span className="text-sm text-default px-2 min-w-[60px] text-center">
               {currentTraceIndex + 1} / {allTraces.length}
             </span>
-            <button
-              onClick={() => onNavigateTrace(currentTraceIndex + 1)}
-              disabled={currentTraceIndex >= allTraces.length - 1}
-              className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors"
-            >
+            <button onClick={() => onNavigateTrace(currentTraceIndex + 1)} disabled={currentTraceIndex >= allTraces.length - 1} className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors">
               <ChevronRight className="w-4 h-4 text-muted" />
             </button>
-            <button
-              onClick={() => onNavigateTrace(allTraces.length - 1)}
-              disabled={currentTraceIndex >= allTraces.length - 1}
-              className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors"
-            >
+            <button onClick={() => onNavigateTrace(allTraces.length - 1)} disabled={currentTraceIndex >= allTraces.length - 1} className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors">
               <ChevronsRight className="w-4 h-4 text-muted" />
             </button>
           </div>
         </div>
         {currentTraceSummary && (
           <div className="text-xs text-muted">
-            {formatTimeAgo(currentTraceSummary.startTime)} | {formatDuration(currentTraceSummary.duration)}
+            {formatTimeAgo(currentTraceSummary.timestamp)} | {formatDurationMs(currentTraceSummary.durationMs)}
           </div>
         )}
       </div>
 
-      {/* Trace info + tabs */}
+      {/* Trace waterfall */}
       <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">
         {/* Trace ID header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-color)]">
@@ -248,32 +201,23 @@ export function TraceWaterfall({
             <code className="text-xs text-default font-mono bg-[var(--hover-bg)] px-2 py-0.5 rounded">
               {trace.traceId}
             </code>
-            <button
-              onClick={copyTraceId}
-              className="p-1 rounded hover:bg-[var(--hover-bg)] transition-colors"
-            >
-              {copiedId ? (
-                <Check className="w-3.5 h-3.5 text-emerald-500" />
-              ) : (
-                <Copy className="w-3.5 h-3.5 text-muted" />
-              )}
+            <button onClick={copyTraceId} className="p-1 rounded hover:bg-[var(--hover-bg)] transition-colors">
+              {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-muted" />}
             </button>
           </div>
           <span className="text-xs text-muted">
-            {trace.spans.length} {t.spans} | {formatDuration(traceDuration)}
+            {trace.spanCount} {t.spans} | {trace.serviceCount} {t.serviceCount} | {formatDurationMs(trace.durationMs)}
           </span>
         </div>
 
-        {/* Tabs — only timeline active */}
+        {/* Tabs */}
         <div className="flex border-b border-[var(--border-color)] px-4">
           {[t.timeline, t.metadata, t.logs].map((label, i) => (
             <button
               key={label}
               disabled={i > 0}
               className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
-                i === 0
-                  ? "text-primary border-primary"
-                  : "text-muted/50 border-transparent cursor-not-allowed"
+                i === 0 ? "text-primary border-primary" : "text-muted/50 border-transparent cursor-not-allowed"
               }`}
             >
               {label}
@@ -285,10 +229,7 @@ export function TraceWaterfall({
         <div className="flex flex-wrap gap-3 px-4 py-2 border-b border-[var(--border-color)]">
           {[...serviceColorMap.entries()].map(([svc, color]) => (
             <div key={svc} className="flex items-center gap-1.5 text-xs">
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: color }}
-              />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
               <span className="text-muted">{svc}</span>
             </div>
           ))}
@@ -300,128 +241,105 @@ export function TraceWaterfall({
             <div className="w-[80px] flex-shrink-0" />
             <div className="flex-1 flex justify-between text-[10px] text-muted">
               {ticks.map((tick, i) => (
-                <span key={i}>{formatDuration(tick)}</span>
+                <span key={i}>{formatDurationMs(tick)}</span>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Waterfall */}
+        {/* Waterfall rows */}
         <div className="overflow-auto">
-            {flatSpans.map((node) => {
-              const { span, depth } = node;
-              const color = serviceColorMap.get(span.serviceName) ?? "#94a3b8";
-              const offset =
-                traceDuration > 0
-                  ? ((span.startTime - traceStart) / traceDuration) * 100
-                  : 0;
-              const width =
-                traceDuration > 0
-                  ? (span.duration / traceDuration) * 100
-                  : 100;
-              const isSelected = selectedSpan?.spanId === span.spanId;
-              const childCount = countDescendants(node);
-              const hasChildren = node.children.length > 0;
-              const isCollapsed = collapsedSpans.has(span.spanId);
+          {flatSpans.map((node) => {
+            const { span, depth } = node;
+            const color = serviceColorMap.get(span.serviceName) ?? "#94a3b8";
+            const spanStartMs = new Date(span.timestamp).getTime();
+            const offset = traceDurationMs > 0
+              ? ((spanStartMs - traceStartMs) / traceDurationMs) * 100
+              : 0;
+            const width = traceDurationMs > 0
+              ? (span.durationMs / traceDurationMs) * 100
+              : 100;
+            const isSelected = selectedSpan?.spanId === span.spanId;
+            const childCount = countDescendants(node);
+            const hasChildren = node.children.length > 0;
+            const isCollapsed = collapsedSpans.has(span.spanId);
+            const isError = isSpanError(span);
 
-              const { op, dur } = getSpanLabel(span);
-              const barIsWide = width > 15;
-              const barH = 24;
+            const barIsWide = width > 15;
+            const barH = 24;
 
-              return (
+            return (
+              <div
+                key={span.spanId}
+                onClick={() => setSelectedSpan(span)}
+                className={`flex items-center cursor-pointer border-b border-[var(--border-color)]/20 transition-colors ${
+                  isSelected ? "bg-primary/5" : "hover:bg-[var(--hover-bg)]"
+                }`}
+                style={{ height: 34 }}
+              >
                 <div
-                  key={span.spanId}
-                  onClick={() => setSelectedSpan(span)}
-                  className={`flex items-center cursor-pointer border-b border-[var(--border-color)]/20 transition-colors ${
-                    isSelected
-                      ? "bg-primary/5"
-                      : "hover:bg-[var(--hover-bg)]"
-                  }`}
-                  style={{ height: 34 }}
+                  className="w-[80px] flex-shrink-0 flex items-center gap-1 text-xs px-2"
+                  style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 >
-                  {/* Left column: collapse toggle */}
-                  <div
-                    className="w-[80px] flex-shrink-0 flex items-center gap-1 text-xs px-2"
-                    style={{ paddingLeft: `${depth * 12 + 8}px` }}
-                  >
-                    {hasChildren ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleCollapse(span.spanId);
-                        }}
-                        className="flex items-center gap-0.5 p-0.5 rounded hover:bg-[var(--hover-bg)]"
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="w-3 h-3 text-muted" />
-                        ) : (
-                          <ChevronDown className="w-3 h-3 text-muted" />
-                        )}
-                        <span className="text-[10px] text-muted">{childCount}</span>
-                      </button>
-                    ) : (
-                      <span className="w-[18px]" />
-                    )}
-                  </div>
-
-                  {/* Timeline bar */}
-                  <div className="flex-1 relative" style={{ height: barH }}>
-                    {/* Bar: translucent fill + solid left accent border */}
-                    <div
-                      className="absolute top-0"
-                      style={{
-                        left: `${offset}%`,
-                        width: `${Math.max(width, 0.3)}%`,
-                        height: barH,
-                        borderRadius: 4,
-                        borderLeft: `3px solid ${color}`,
-                        background: `${color}30`,
-                      }}
+                  {hasChildren ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleCollapse(span.spanId); }}
+                      className="flex items-center gap-0.5 p-0.5 rounded hover:bg-[var(--hover-bg)]"
                     >
-                      {/* Label inside bar */}
-                      {barIsWide && (
-                        <div className="absolute inset-0 flex items-center gap-1 px-2 overflow-hidden">
-                          <span className="text-[11px] font-medium truncate" style={{ color }}>
-                            {op}
-                          </span>
-                          <span className="text-[10px] flex-shrink-0" style={{ color: `${color}99` }}>
-                            {dur}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Label outside bar (when bar is narrow) */}
-                    {!barIsWide && (
-                      <div
-                        className="absolute flex items-center gap-1.5 whitespace-nowrap"
-                        style={{
-                          left: `${offset + Math.max(width, 0.3) + 0.5}%`,
-                          top: 0,
-                          height: barH,
-                        }}
-                      >
-                        <span className="text-[11px] text-default truncate">
-                          {op}
+                      {isCollapsed ? <ChevronRight className="w-3 h-3 text-muted" /> : <ChevronDown className="w-3 h-3 text-muted" />}
+                      <span className="text-[10px] text-muted">{childCount}</span>
+                    </button>
+                  ) : (
+                    <span className="w-[18px]" />
+                  )}
+                </div>
+
+                <div className="flex-1 relative" style={{ height: barH }}>
+                  <div
+                    className="absolute top-0"
+                    style={{
+                      left: `${offset}%`,
+                      width: `${Math.max(width, 0.3)}%`,
+                      height: barH,
+                      borderRadius: 4,
+                      borderLeft: `3px solid ${isError ? "#ef4444" : color}`,
+                      background: isError ? "rgba(239,68,68,0.15)" : `${color}30`,
+                    }}
+                  >
+                    {barIsWide && (
+                      <div className="absolute inset-0 flex items-center gap-1 px-2 overflow-hidden">
+                        <span className="text-[11px] font-medium truncate" style={{ color: isError ? "#ef4444" : color }}>
+                          {span.spanName}
                         </span>
-                        <span className="text-[10px] text-muted flex-shrink-0">
-                          {dur}
+                        <span className="text-[10px] flex-shrink-0" style={{ color: `${isError ? "#ef4444" : color}99` }}>
+                          {formatDurationMs(span.durationMs)}
                         </span>
                       </div>
                     )}
                   </div>
+                  {!barIsWide && (
+                    <div
+                      className="absolute flex items-center gap-1.5 whitespace-nowrap"
+                      style={{ left: `${offset + Math.max(width, 0.3) + 0.5}%`, top: 0, height: barH }}
+                    >
+                      <span className="text-[11px] text-default truncate">{span.spanName}</span>
+                      <span className="text-[10px] text-muted flex-shrink-0">{formatDurationMs(span.durationMs)}</span>
+                    </div>
+                  )}
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Span detail drawer (overlay) */}
+      {/* Span detail drawer */}
       <SpanDrawer
         t={t}
         span={selectedSpan}
         trace={trace}
         serviceColorMap={serviceColorMap}
-        traceStart={traceStart}
+        traceStartMs={traceStartMs}
         onClose={() => setSelectedSpan(null)}
       />
     </div>
@@ -429,26 +347,7 @@ export function TraceWaterfall({
 }
 
 // ============================================================
-// Tag grouping helpers
-// ============================================================
-
-function groupTags(tags: { key: string; value: string }[]) {
-  const http: typeof tags = [];
-  const db: typeof tags = [];
-  const server: typeof tags = [];
-  const other: typeof tags = [];
-
-  for (const tag of tags) {
-    if (tag.key.startsWith("http.") || tag.key.startsWith("url.")) http.push(tag);
-    else if (tag.key.startsWith("db.")) db.push(tag);
-    else if (tag.key.startsWith("server.")) server.push(tag);
-    else other.push(tag);
-  }
-  return { http, db, server, other };
-}
-
-// ============================================================
-// SpanDrawer — right-side overlay drawer
+// SpanDrawer — structured attribute display
 // ============================================================
 
 function SpanDrawer({
@@ -456,163 +355,163 @@ function SpanDrawer({
   span,
   trace,
   serviceColorMap,
-  traceStart,
+  traceStartMs,
   onClose,
 }: {
   t: ApmTranslations;
   span: Span | null;
   trace: TraceDetail;
   serviceColorMap: Map<string, string>;
-  traceStart: number;
+  traceStartMs: number;
   onClose: () => void;
 }) {
   if (!span) return null;
 
   const color = serviceColorMap.get(span.serviceName) ?? "#94a3b8";
+  const spanStartMs = new Date(span.timestamp).getTime();
 
-  // Compute self-time: span.duration minus direct children duration
+  // Self-time = span duration minus direct children duration
   const childDuration = trace.spans
     .filter((s) => s.parentSpanId === span.spanId)
-    .reduce((sum, s) => sum + s.duration, 0);
-  const selfTime = span.duration - childDuration;
-  const startOffset = span.startTime - traceStart;
-
-  const { http, db, server, other } = groupTags(span.tags);
+    .reduce((sum, s) => sum + s.durationMs, 0);
+  const selfTime = span.durationMs - childDuration;
+  const startOffset = spanStartMs - traceStartMs;
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/30 z-40 transition-opacity"
-        onClick={onClose}
-      />
-      {/* Drawer */}
+      <div className="fixed inset-0 bg-black/30 z-40 transition-opacity" onClick={onClose} />
       <div className="fixed right-0 top-0 h-full w-[520px] max-w-[90vw] z-50 bg-card border-l border-[var(--border-color)] shadow-2xl overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-card border-b border-[var(--border-color)] px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <span
-              className="w-3 h-3 rounded-full flex-shrink-0"
-              style={{ backgroundColor: color }}
-            />
-            <h3 className="text-sm font-semibold text-default truncate">
-              {t.spanDetail}
-            </h3>
+            <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+            <h3 className="text-sm font-semibold text-default truncate">{t.spanDetail}</h3>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex-shrink-0"
-          >
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex-shrink-0">
             <X className="w-4 h-4 text-muted" />
           </button>
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Overview grid */}
+          {/* Overview */}
           <section>
             <SectionHeader title={t.overview} />
             <div className="grid grid-cols-2 gap-2.5">
               <MetricCard label={t.serviceName}>
                 <div className="flex items-center gap-1.5">
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: color }}
-                  />
-                  <span className="text-sm font-medium text-default truncate">
-                    {span.serviceName}
-                  </span>
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-sm font-medium text-default truncate">{span.serviceName}</span>
                 </div>
               </MetricCard>
-              <MetricCard label={t.status}>
-                <span
-                  className={`text-sm font-medium ${
-                    span.status === "error" ? "text-red-400" : "text-emerald-400"
-                  }`}
-                >
-                  {span.status}
+              <MetricCard label={t.spanKind}>
+                <span className="text-sm font-medium text-default">
+                  {span.spanKind.replace("SPAN_KIND_", "")}
                 </span>
               </MetricCard>
-              <MetricCard label={t.duration} fullWidth>
-                <span className="text-sm font-medium text-default">
-                  {formatDuration(span.duration)}
+              <MetricCard label={t.statusCode}>
+                <span className={`text-sm font-medium ${isSpanError(span) ? "text-red-400" : "text-emerald-400"}`}>
+                  {span.statusCode.replace("STATUS_CODE_", "")}
                 </span>
+              </MetricCard>
+              <MetricCard label={t.duration}>
+                <span className="text-sm font-medium text-default">{formatDurationMs(span.durationMs)}</span>
               </MetricCard>
               <MetricCard label={t.selfTime}>
-                <span className="text-sm font-medium text-default">
-                  {formatDuration(selfTime)}
-                </span>
+                <span className="text-sm font-medium text-default">{formatDurationMs(selfTime)}</span>
                 <span className="text-[10px] text-muted ml-1">
-                  ({span.duration > 0 ? Math.round((selfTime / span.duration) * 100) : 0}%)
+                  ({span.durationMs > 0 ? Math.round((selfTime / span.durationMs) * 100) : 0}%)
                 </span>
               </MetricCard>
               <MetricCard label={t.childTime}>
-                <span className="text-sm font-medium text-default">
-                  {formatDuration(childDuration)}
-                </span>
+                <span className="text-sm font-medium text-default">{formatDurationMs(childDuration)}</span>
               </MetricCard>
               <MetricCard label={t.startOffset} fullWidth>
-                <span className="text-sm font-mono text-default">
-                  +{formatDuration(startOffset)}
-                </span>
+                <span className="text-sm font-mono text-default">+{formatDurationMs(startOffset)}</span>
               </MetricCard>
             </div>
           </section>
 
-          {/* Operation */}
+          {/* SpanName */}
           <section>
             <SectionHeader title={t.operationName} />
             <div className="px-3 py-2.5 rounded-lg bg-[var(--hover-bg)] text-sm font-mono text-default break-all">
-              {span.operationName}
+              {span.spanName}
             </div>
           </section>
+
+          {/* Resource */}
+          {span.resource && (span.resource.podName || span.resource.clusterName || span.resource.serviceVersion) && (
+            <section>
+              <SectionHeader title={t.resourceInfo} />
+              <div className="space-y-1.5">
+                {span.resource.podName && <KVRow label={t.podName} value={span.resource.podName} />}
+                {span.resource.clusterName && <KVRow label={t.clusterName} value={span.resource.clusterName} />}
+                {span.resource.serviceVersion && <KVRow label={t.serviceVersion} value={span.resource.serviceVersion} />}
+                {span.resource.instanceId && <KVRow label="Instance ID" value={span.resource.instanceId} />}
+              </div>
+            </section>
+          )}
+
+          {/* HTTP */}
+          {span.http && (
+            <section>
+              <SectionHeader title={t.httpAttributes} />
+              <div className="border border-[var(--border-color)] rounded-lg overflow-hidden">
+                <KVTableRow label={t.httpMethod} value={span.http.method} />
+                {span.http.route && <KVTableRow label={t.httpRoute} value={span.http.route} border />}
+                {span.http.url && <KVTableRow label={t.httpUrl} value={span.http.url} border />}
+                {span.http.statusCode !== undefined && <KVTableRow label={t.httpStatusCode} value={String(span.http.statusCode)} border />}
+                {span.http.server && <KVTableRow label="Server" value={`${span.http.server}:${span.http.serverPort}`} border />}
+              </div>
+            </section>
+          )}
+
+          {/* DB */}
+          {span.db && (
+            <section>
+              <SectionHeader title={t.dbAttributes} />
+              <div className="border border-[var(--border-color)] rounded-lg overflow-hidden">
+                <KVTableRow label={t.dbSystem} value={span.db.system} />
+                {span.db.name && <KVTableRow label={t.dbName} value={span.db.name} border />}
+                {span.db.operation && <KVTableRow label={t.dbOperation} value={span.db.operation} border />}
+                {span.db.table && <KVTableRow label={t.dbTable} value={span.db.table} border />}
+                {span.db.statement && <KVTableRow label={t.dbStatement} value={span.db.statement} border mono />}
+              </div>
+            </section>
+          )}
+
+          {/* Events */}
+          {span.events.length > 0 && (
+            <section>
+              <SectionHeader title={`Events (${span.events.length})`} />
+              <div className="space-y-2">
+                {span.events.map((ev, i) => (
+                  <div key={i} className="border border-[var(--border-color)] rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-default">{ev.name}</span>
+                      <span className="text-[10px] text-muted">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    {ev.attributes && Object.entries(ev.attributes).map(([k, v]) => (
+                      <div key={k} className="text-xs text-muted mt-1">
+                        <span className="text-muted/70">{k}:</span>{" "}
+                        <span className="font-mono text-default break-all">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* IDs */}
           <section>
             <SectionHeader title={t.spanIds} />
             <div className="space-y-1.5">
               <IdRow label="Span ID" value={span.spanId} />
-              {span.parentSpanId && (
-                <IdRow label={t.parentSpan} value={span.parentSpanId} />
-              )}
+              {span.parentSpanId && <IdRow label={t.parentSpan} value={span.parentSpanId} />}
               <IdRow label="Trace ID" value={trace.traceId} />
             </div>
           </section>
-
-          {/* Tag groups */}
-          {http.length > 0 && (
-            <section>
-              <SectionHeader title={t.httpAttributes} />
-              <TagTable tags={http} />
-            </section>
-          )}
-
-          {db.length > 0 && (
-            <section>
-              <SectionHeader title={t.dbAttributes} />
-              <TagTable tags={db} />
-            </section>
-          )}
-
-          {server.length > 0 && (
-            <section>
-              <SectionHeader title={t.serverAttributes} />
-              <TagTable tags={server} />
-            </section>
-          )}
-
-          {other.length > 0 && (
-            <section>
-              <SectionHeader title={t.otherAttributes} />
-              <TagTable tags={other} />
-            </section>
-          )}
-
-          {span.tags.length === 0 && (
-            <section>
-              <SectionHeader title={t.tags} />
-              <p className="text-xs text-muted">{t.noTags}</p>
-            </section>
-          )}
         </div>
       </div>
     </>
@@ -624,26 +523,12 @@ function SpanDrawer({
 // ============================================================
 
 function SectionHeader({ title }: { title: string }) {
-  return (
-    <h4 className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-      {title}
-    </h4>
-  );
+  return <h4 className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">{title}</h4>;
 }
 
-function MetricCard({
-  label,
-  children,
-  fullWidth,
-}: {
-  label: string;
-  children: React.ReactNode;
-  fullWidth?: boolean;
-}) {
+function MetricCard({ label, children, fullWidth }: { label: string; children: React.ReactNode; fullWidth?: boolean }) {
   return (
-    <div
-      className={`px-3 py-2 rounded-lg bg-[var(--hover-bg)] ${fullWidth ? "col-span-2" : ""}`}
-    >
+    <div className={`px-3 py-2 rounded-lg bg-[var(--hover-bg)] ${fullWidth ? "col-span-2" : ""}`}>
       <div className="text-[10px] text-muted mb-0.5">{label}</div>
       <div className="flex items-center">{children}</div>
     </div>
@@ -659,24 +544,20 @@ function IdRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TagTable({ tags }: { tags: { key: string; value: string }[] }) {
+function KVRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-[var(--border-color)] rounded-lg overflow-hidden">
-      {tags.map((tag, i) => (
-        <div
-          key={tag.key}
-          className={`flex gap-3 px-3 py-2 text-xs ${
-            i < tags.length - 1 ? "border-b border-[var(--border-color)]" : ""
-          }`}
-        >
-          <span className="text-muted flex-shrink-0 min-w-[120px]">
-            {tag.key}
-          </span>
-          <span className="text-default font-mono break-all">
-            {tag.value}
-          </span>
-        </div>
-      ))}
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--hover-bg)] text-xs">
+      <span className="text-muted flex-shrink-0 min-w-[100px]">{label}</span>
+      <span className="text-default font-mono text-[11px] truncate">{value}</span>
+    </div>
+  );
+}
+
+function KVTableRow({ label, value, border, mono }: { label: string; value: string; border?: boolean; mono?: boolean }) {
+  return (
+    <div className={`flex gap-3 px-3 py-2 text-xs ${border ? "border-t border-[var(--border-color)]" : ""}`}>
+      <span className="text-muted flex-shrink-0 min-w-[100px]">{label}</span>
+      <span className={`text-default break-all ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>
     </div>
   );
 }

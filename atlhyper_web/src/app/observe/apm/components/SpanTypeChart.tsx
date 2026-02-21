@@ -2,14 +2,12 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
-import type { SpanTypeBreakdown } from "@/api/apm";
+import type { SpanTypeBreakdown } from "@/types/model/apm";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
   return {
     textColor: isDark ? "#9ca3af" : "#6b7280",
-    lineColor: isDark ? "#374151" : "#e5e7eb",
-    splitLineColor: isDark ? "#1f2937" : "#f3f4f6",
     tooltipBg: isDark ? "#1f2937" : "#fff",
     tooltipBorder: isDark ? "#374151" : "#e5e7eb",
     tooltipText: isDark ? "#e5e7eb" : "#111827",
@@ -19,7 +17,7 @@ function getThemeColors() {
 const TYPE_COLORS: Record<string, string> = {
   HTTP: "#6366f1",
   DB: "#f59e0b",
-  other: "#8b5cf6",
+  Other: "#8b5cf6",
 };
 
 interface SpanTypeChartProps {
@@ -60,7 +58,6 @@ export function SpanTypeChart({ title, breakdown }: SpanTypeChartProps) {
     if (!chartRef.current || breakdown.length === 0) return;
     const c = getThemeColors();
 
-    // Show as a horizontal stacked bar chart (single row)
     chartRef.current.setOption({
       tooltip: {
         trigger: "axis",

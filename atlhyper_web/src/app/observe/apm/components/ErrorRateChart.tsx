@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
-import type { TraceSummary } from "@/api/apm";
+import type { TraceSummary } from "@/types/model/apm";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -55,13 +55,15 @@ export function ErrorRateChart({ title, traces }: ErrorRateChartProps) {
     if (!chartRef.current || traces.length === 0) return;
     const c = getThemeColors();
 
-    // Compute error rate per trace as a running rate
-    const sorted = [...traces].sort((a, b) => a.startTime - b.startTime);
+    // Compute error rate as a running rate using ISO timestamps
+    const sorted = [...traces].sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
     let errorSum = 0;
     const data = sorted.map((t, i) => {
       if (t.hasError) errorSum++;
       const rate = ((errorSum / (i + 1)) * 100);
-      return [t.startTime / 1000, parseFloat(rate.toFixed(1))];
+      return [new Date(t.timestamp).getTime(), parseFloat(rate.toFixed(1))];
     });
 
     chartRef.current.setOption({

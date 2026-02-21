@@ -8,12 +8,11 @@ import type { Language } from "./common";
 export interface NavTranslations {
   about: string;
   overview: string;
+  observe: string;
   stylePreview: string;
   stylePreviewSLO: string;
   stylePreviewMetrics: string;
   slo: string;
-  workbench: string;
-  workbenchHome: string;
   ai: string;
   commands: string;
   cluster: string;
@@ -23,11 +22,9 @@ export interface NavTranslations {
   service: string;
   namespace: string;
   ingress: string;
-  alert: string;
-  monitoring: string;
+  event: string;
   metrics: string;
   logs: string;
-  alerts: string;
   admin: string;
   users: string;
   roles: string;
@@ -1843,8 +1840,6 @@ export interface ApmTranslations {
   operationName: string;
   serviceName: string;
   status: string;
-  tags: string;
-  noTags: string;
   parentSpan: string;
   childSpans: string;
   // filters
@@ -1859,7 +1854,8 @@ export interface ApmTranslations {
   last30d: string;
   // service list (Kibana-style)
   searchServices: string;
-  environment: string;
+  namespace: string;
+  successRate: string;
   latencyAvg: string;
   throughput: string;
   errorRate: string;
@@ -1886,20 +1882,36 @@ export interface ApmTranslations {
   logs: string;
   traceOf: string;
   // span detail drawer
+  spanKind: string;
+  statusCode: string;
   selfTime: string;
   childTime: string;
   startOffset: string;
+  resourceInfo: string;
+  podName: string;
+  clusterName: string;
+  serviceVersion: string;
+  httpMethod: string;
+  httpRoute: string;
+  httpUrl: string;
+  httpStatusCode: string;
+  dbSystem: string;
+  dbName: string;
+  dbOperation: string;
+  dbTable: string;
+  dbStatement: string;
   spanIds: string;
   httpAttributes: string;
   dbAttributes: string;
-  serverAttributes: string;
-  otherAttributes: string;
   // topology
   serviceTopology: string;
   topoLatency: string;
   topoThroughput: string;
   topoErrorRate: string;
   topoCalls: string;
+  nodeTypeService: string;
+  nodeTypeDatabase: string;
+  nodeTypeExternal: string;
   // states
   loading: string;
   loadFailed: string;

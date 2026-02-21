@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
-import type { TraceSummary } from "@/api/apm";
+import type { TraceSummary } from "@/types/model/apm";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -55,11 +55,13 @@ export function ThroughputChart({ title, traces }: ThroughputChartProps) {
     if (!chartRef.current || traces.length === 0) return;
     const c = getThemeColors();
 
-    // Group traces into time buckets
-    const sorted = [...traces].sort((a, b) => a.startTime - b.startTime);
+    // Group traces into time buckets using ISO timestamp
+    const sorted = [...traces].sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
     const bucketCount = Math.min(sorted.length, 20);
-    const minTime = sorted[0].startTime / 1000;
-    const maxTime = sorted[sorted.length - 1].startTime / 1000;
+    const minTime = new Date(sorted[0].timestamp).getTime();
+    const maxTime = new Date(sorted[sorted.length - 1].timestamp).getTime();
     const bucketSize = Math.max((maxTime - minTime) / bucketCount, 1);
 
     const buckets: { time: number; count: number }[] = [];
@@ -67,7 +69,8 @@ export function ThroughputChart({ title, traces }: ThroughputChartProps) {
       buckets.push({ time: minTime + i * bucketSize, count: 0 });
     }
     for (const t of sorted) {
-      const idx = Math.min(Math.floor((t.startTime / 1000 - minTime) / bucketSize), bucketCount - 1);
+      const ts = new Date(t.timestamp).getTime();
+      const idx = Math.min(Math.floor((ts - minTime) / bucketSize), bucketCount - 1);
       buckets[idx].count++;
     }
 

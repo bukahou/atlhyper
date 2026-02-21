@@ -1,19 +1,14 @@
 "use client";
 
-import type { Dependency } from "@/api/apm";
+import type { Dependency } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
+import { formatDurationMs } from "@/lib/format";
 import { ImpactBar } from "./ImpactBar";
 
 interface DependenciesTableProps {
   t: ApmTranslations;
   dependencies: Dependency[];
   onSelectDependency?: (name: string) => void;
-}
-
-function formatDuration(us: number): string {
-  if (us < 1000) return `${us.toFixed(0)}μs`;
-  if (us < 1_000_000) return `${(us / 1000).toFixed(1)}ms`;
-  return `${(us / 1_000_000).toFixed(2)}s`;
 }
 
 export function DependenciesTable({ t, dependencies, onSelectDependency }: DependenciesTableProps) {
@@ -54,10 +49,17 @@ export function DependenciesTable({ t, dependencies, onSelectDependency }: Depen
                 className="border-b border-[var(--border-color)] last:border-b-0 hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
               >
                 <td className="px-3 py-2">
-                  <span className="text-primary hover:underline">{dep.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`inline-block w-2 h-2 rounded-full ${
+                      dep.type === "database" ? "bg-amber-500" :
+                      dep.type === "external" ? "bg-purple-500" : "bg-blue-500"
+                    }`} />
+                    <span className="text-primary hover:underline">{dep.name}</span>
+                    <span className="text-[10px] text-muted px-1 py-0.5 rounded bg-[var(--hover-bg)]">{dep.type}</span>
+                  </div>
                 </td>
-                <td className="px-3 py-2 text-default">{formatDuration(dep.latencyAvg)}</td>
-                <td className="px-3 py-2 text-default">{dep.throughput}</td>
+                <td className="px-3 py-2 text-default">{formatDurationMs(dep.avgMs)}</td>
+                <td className="px-3 py-2 text-default">{dep.callCount}</td>
                 <td className="px-3 py-2">
                   <span className={dep.errorRate > 0 ? "text-orange-500" : "text-default"}>
                     {(dep.errorRate * 100).toFixed(1)}%

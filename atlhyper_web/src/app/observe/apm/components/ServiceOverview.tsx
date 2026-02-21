@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import type { TraceService, TraceSummary } from "@/api/apm";
+import type { TraceSummary } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import {
-  mockGetServiceDependencies,
+  mockGetDependencies,
   mockGetSpanTypeBreakdown,
-} from "@/api/apm-mock";
+} from "@/mock/apm";
 import { LatencyChart } from "./LatencyChart";
 import { ThroughputChart } from "./ThroughputChart";
 import { ErrorRateChart } from "./ErrorRateChart";
@@ -16,7 +16,7 @@ import { DependenciesTable } from "./DependenciesTable";
 
 interface ServiceOverviewProps {
   t: ApmTranslations;
-  service: TraceService;
+  serviceName: string;
   traces: TraceSummary[];
   onSelectTrace: (traceId: string) => void;
   onNavigateToService?: (serviceName: string) => void;
@@ -26,25 +26,24 @@ const TABS = ["overview", "transactions", "dependencies", "errors"] as const;
 
 export function ServiceOverview({
   t,
-  service,
+  serviceName,
   traces,
   onSelectTrace,
   onNavigateToService,
 }: ServiceOverviewProps) {
-  // Traces for this service
   const serviceTraces = useMemo(
-    () => traces.filter((tr) => tr.rootService === service.name),
-    [traces, service.name]
+    () => traces.filter((tr) => tr.rootService === serviceName),
+    [traces, serviceName]
   );
 
   const dependencies = useMemo(
-    () => mockGetServiceDependencies(service.name),
-    [service.name]
+    () => mockGetDependencies(serviceName),
+    [serviceName]
   );
 
   const spanBreakdown = useMemo(
-    () => mockGetSpanTypeBreakdown(service.name),
-    [service.name]
+    () => mockGetSpanTypeBreakdown(serviceName),
+    [serviceName]
   );
 
   const tabLabels: Record<(typeof TABS)[number], string> = {
@@ -99,7 +98,6 @@ export function ServiceOverview({
                 t={t}
                 traces={serviceTraces}
                 onSelectOperation={(op) => {
-                  // Find a trace matching this operation and navigate
                   const match = serviceTraces.find((tr) => tr.rootOperation === op);
                   if (match) onSelectTrace(match.traceId);
                 }}

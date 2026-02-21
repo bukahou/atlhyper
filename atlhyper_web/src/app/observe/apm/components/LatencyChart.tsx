@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
-import type { TraceSummary } from "@/api/apm";
+import type { TraceSummary } from "@/types/model/apm";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -55,7 +55,7 @@ export function LatencyChart({ title, traces }: LatencyChartProps) {
     if (!chartRef.current || traces.length === 0) return;
     const c = getThemeColors();
 
-    const data = traces.map((t) => [t.startTime / 1000, t.duration / 1000]); // ms
+    const data = traces.map((t) => [new Date(t.timestamp).getTime(), t.durationMs]);
 
     chartRef.current.setOption({
       tooltip: {

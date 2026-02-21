@@ -2,8 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
-import type { TraceSummary } from "@/api/apm";
+import type { TraceSummary } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
+import { formatDurationMs } from "@/lib/format";
 import { MiniSparkline } from "./MiniSparkline";
 import { ImpactBar } from "./ImpactBar";
 
@@ -13,15 +14,9 @@ interface TransactionsTableProps {
   onSelectOperation?: (operation: string) => void;
 }
 
-function formatDuration(us: number): string {
-  if (us < 1000) return `${us.toFixed(0)}μs`;
-  if (us < 1_000_000) return `${(us / 1000).toFixed(1)}ms`;
-  return `${(us / 1_000_000).toFixed(2)}s`;
-}
-
 interface OpStats {
   name: string;
-  latencyAvg: number;
+  avgMs: number;
   throughput: number;
   errorRate: number;
   impact: number;
@@ -35,7 +30,7 @@ export function TransactionsTable({ t, traces, onSelectOperation }: Transactions
     const map = new Map<string, { durations: number[]; errorCount: number }>();
     for (const tr of traces) {
       const entry = map.get(tr.rootOperation) ?? { durations: [], errorCount: 0 };
-      entry.durations.push(tr.duration);
+      entry.durations.push(tr.durationMs);
       if (tr.hasError) entry.errorCount++;
       map.set(tr.rootOperation, entry);
     }
@@ -49,7 +44,7 @@ export function TransactionsTable({ t, traces, onSelectOperation }: Transactions
       const total = data.durations.reduce((a, b) => a + b, 0);
       result.push({
         name,
-        latencyAvg: total / count,
+        avgMs: total / count,
         throughput: count,
         errorRate: data.errorCount / count,
         impact: total / maxTotal,
@@ -105,7 +100,7 @@ export function TransactionsTable({ t, traces, onSelectOperation }: Transactions
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-default">{formatDuration(op.latencyAvg)}</span>
+                    <span className="text-default">{formatDurationMs(op.avgMs)}</span>
                     <MiniSparkline data={op.latencyPoints} type="line" color="#6366f1" width={48} height={16} />
                   </div>
                 </td>
