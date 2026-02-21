@@ -1,120 +1,49 @@
 /**
  * APM (Application Performance Monitoring) API
  *
- * Trace data flows: Agent queries Jaeger -> Master forwards via Command system
- * Current implementation uses mock data (Agent/Master pipeline not yet built)
+ * 数据源: ClickHouse otel_traces 表
+ * 类型定义: @/types/model/apm
  */
 
 import { get, post } from "./request";
+import type {
+  APMService,
+  TraceSummary,
+  TraceDetail,
+  Topology,
+} from "@/types/model/apm";
 
 // ============================================================
-// Types
+// Query params
 // ============================================================
 
-export interface SpanTag {
-  key: string;
-  value: string;
-}
-
-export interface Span {
-  spanId: string;
-  parentSpanId: string;
-  operationName: string;
-  serviceName: string;
-  startTime: number; // microseconds
-  duration: number; // microseconds
-  status: string; // "ok" | "error"
-  tags: SpanTag[];
-}
-
-export interface TraceDetail {
-  traceId: string;
-  spans: Span[];
-}
-
-export interface TraceSummary {
-  traceId: string;
-  rootService: string;
-  rootOperation: string;
-  startTime: number; // microseconds
-  duration: number; // microseconds
-  spanCount: number;
-  serviceCount: number;
-  hasError: boolean;
-}
-
-export interface TraceService {
-  name: string;
-  operations: string[];
+export interface APMServiceParams {
+  cluster_id: string;
+  namespace?: string;
 }
 
 export interface TraceQueryParams {
   cluster_id: string;
   service?: string;
-  operation?: string;
-  minDuration?: number;
-  maxDuration?: number;
+  namespace?: string;
+  statusCode?: string;
+  minDurationMs?: number;
+  maxDurationMs?: number;
   limit?: number;
 }
 
-export interface ServiceStats {
-  name: string;
-  environment: string;
-  latencyAvg: number; // μs
-  throughput: number; // traces/min
-  errorRate: number; // 0-1
-  latencyPoints: number[]; // per-trace latency values for sparkline
-  errorRatePoints: number[]; // per-trace error flags (0 or 1) for sparkline
-}
-
-export interface Dependency {
-  name: string;
-  latencyAvg: number;
-  throughput: number;
-  errorRate: number;
-  impact: number; // 0-1
-}
-
-export interface LatencyBucket {
-  rangeStart: number; // μs
-  rangeEnd: number;
-  count: number;
-}
-
-export interface SpanTypeBreakdown {
-  type: string; // "HTTP" | "DB" | "other"
-  percentage: number;
-}
-
-export interface ServiceTopoNode {
-  id: string;           // 服务名
-  label: string;        // 显示名称
-  latencyAvg: number;   // μs
-  throughput: number;   // trace 参与次数
-  errorRate: number;    // 0-1
-}
-
-export interface ServiceTopoEdge {
-  id: string;           // "source>target"
-  source: string;
-  target: string;
-  callCount: number;
-  errorCount: number;
-  avgLatency: number;   // μs
-}
-
-export interface ServiceTopologyData {
-  nodes: ServiceTopoNode[];
-  edges: ServiceTopoEdge[];
+export interface TopologyParams {
+  cluster_id: string;
+  namespace?: string;
 }
 
 // ============================================================
 // API responses
 // ============================================================
 
-interface TraceServicesResponse {
+interface APMServicesResponse {
   message: string;
-  data: TraceService[];
+  data: APMService[];
 }
 
 interface TraceListResponse {
@@ -128,15 +57,20 @@ interface TraceDetailResponse {
   data: TraceDetail;
 }
 
+interface TopologyResponse {
+  message: string;
+  data: Topology;
+}
+
 // ============================================================
-// API methods (will connect to real backend later)
+// API methods
 // ============================================================
 
 /**
- * GET /api/v2/apm/services?cluster_id=xxx
+ * GET /api/v2/apm/services
  */
-export function getTraceServices(params: { cluster_id: string }) {
-  return get<TraceServicesResponse>("/api/v2/apm/services", params);
+export function getAPMServices(params: APMServiceParams) {
+  return get<APMServicesResponse>("/api/v2/apm/services", params);
 }
 
 /**
@@ -147,11 +81,18 @@ export function queryTraces(params: TraceQueryParams) {
 }
 
 /**
- * GET /api/v2/apm/traces/{traceId}?cluster_id=xxx
+ * GET /api/v2/apm/traces/{traceId}
  */
 export function getTraceDetail(params: { cluster_id: string; traceId: string }) {
   return get<TraceDetailResponse>(
     `/api/v2/apm/traces/${encodeURIComponent(params.traceId)}`,
     { cluster_id: params.cluster_id }
   );
+}
+
+/**
+ * GET /api/v2/apm/topology
+ */
+export function getTopology(params: TopologyParams) {
+  return get<TopologyResponse>("/api/v2/apm/topology", params);
 }
