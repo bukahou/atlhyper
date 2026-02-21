@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo, memo, useCallback } from "react";
 import * as echarts from "echarts";
 import { TrendingUp, Clock, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { getNodeMetricsHistory } from "@/api/node-metrics";
+import { getNodeMetricsHistory } from "@/datasource/metrics";
 import type { NodeMetricsSnapshot, MetricsDataPoint } from "@/types/node-metrics";
 
 // ==================== Types & Constants ====================
@@ -342,23 +342,16 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
 
   // Fetch history for all unique top-5 nodes across metrics
   const fetchHistory = useCallback(async () => {
-    if (!clusterId || allTopNodeNames.length === 0) return;
+    if (allTopNodeNames.length === 0) return;
     setLoading(true);
-    try {
-      const results = await Promise.all(
-        allTopNodeNames.map((name) => getNodeMetricsHistory(clusterId, name, fetchHours))
-      );
-      const map: Record<string, MetricsDataPoint[]> = {};
-      results.forEach((r) => {
-        map[r.nodeName] = r.data;
-      });
-      setHistoryMap(map);
-    } catch (err) {
-      console.error("Failed to load cluster overview history:", err);
-    } finally {
-      setLoading(false);
+    const map: Record<string, MetricsDataPoint[]> = {};
+    for (const name of allTopNodeNames) {
+      const result = await getNodeMetricsHistory(clusterId, name, fetchHours);
+      map[result.nodeName] = result.data;
     }
-  }, [clusterId, allTopNodeNames, fetchHours]);
+    setHistoryMap(map);
+    setLoading(false);
+  }, [allTopNodeNames, fetchHours, clusterId]);
 
   useEffect(() => {
     fetchHistory();

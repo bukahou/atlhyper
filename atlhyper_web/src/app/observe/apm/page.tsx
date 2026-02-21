@@ -16,11 +16,11 @@ import {
 
 import type { TraceSummary, TraceDetail, APMService, Topology } from "@/types/model/apm";
 import {
-  mockGetAPMServices,
-  mockQueryTraces,
-  mockGetTraceDetail,
-  mockGetTopology,
-} from "@/mock/apm";
+  getAPMServices,
+  queryTraces,
+  getTraceDetail,
+  getTopology,
+} from "@/datasource/apm";
 
 import { ServiceList } from "./components/ServiceList";
 import { ServiceOverview } from "./components/ServiceOverview";
@@ -67,10 +67,10 @@ export default function ApmPage() {
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
     try {
-      const traceResult = mockQueryTraces({ limit: 100 });
+      const traceResult = queryTraces({ limit: 100 });
       setTraces(traceResult.traces);
-      setServiceStats(mockGetAPMServices());
-      setTopology(mockGetTopology());
+      setServiceStats(getAPMServices());
+      setTopology(getTopology());
       setError(null);
     } catch {
       setError(ta.loadFailed);
@@ -89,7 +89,7 @@ export default function ApmPage() {
       setTraceDetail(null);
       return;
     }
-    const detail = mockGetTraceDetail(view.traceId);
+    const detail = getTraceDetail(view.traceId);
     setTraceDetail(detail);
   }, [view]);
 

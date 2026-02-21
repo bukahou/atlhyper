@@ -47,6 +47,7 @@ import {
   SlidersHorizontal,
   UserCheck,
   Waypoints,
+  ToggleLeft,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useI18n } from "@/i18n/context";
@@ -102,13 +103,23 @@ interface NavGroup {
 const navGroups: NavGroup[] = [
   { key: "overview", href: "/overview", icon: LayoutDashboard },
   {
-    key: "workbench",
+    key: "observe",
+    icon: Activity,
+    children: [
+      { key: "apm", href: "/observe/apm", icon: Waypoints },
+      { key: "logs", href: "/observe/logs", icon: FileText },
+      { key: "metrics", href: "/observe/metrics", icon: Activity },
+      { key: "slo", href: "/observe/slo", icon: Gauge },
+    ],
+  },
+  {
+    key: "aiops",
     icon: Bot,
     children: [
-      { key: "workbenchHome", href: "/workbench", icon: LayoutDashboard },
-      { key: "slo", href: "/workbench/slo", icon: Activity },
-      { key: "ai", href: "/workbench/ai", icon: Bot },
-      { key: "commands", href: "/workbench/commands", icon: ClipboardList },
+      { key: "riskDashboard", href: "/aiops/risk", icon: Gauge },
+      { key: "incidentsNav", href: "/aiops/incidents", icon: AlertTriangle },
+      { key: "topologyNav", href: "/aiops/topology", icon: GitGraph },
+      { key: "ai", href: "/aiops/chat", icon: Bot },
     ],
   },
   {
@@ -122,6 +133,7 @@ const navGroups: NavGroup[] = [
       { key: "service", href: "/cluster/service", icon: Network },
       { key: "namespace", href: "/cluster/namespace", icon: FolderTree },
       { key: "ingress", href: "/cluster/ingress", icon: Globe },
+      { key: "event", href: "/cluster/event", icon: AlertTriangle },
       // 工作负载
       { key: "daemonset", href: "/cluster/daemonset", icon: Copy, section: "workload" },
       { key: "statefulset", href: "/cluster/statefulset", icon: Database },
@@ -131,25 +143,10 @@ const navGroups: NavGroup[] = [
       { key: "pv", href: "/cluster/pv", icon: HardDrive, section: "storage" },
       { key: "pvc", href: "/cluster/pvc", icon: HardDriveDownload },
       // 策略
-      { key: "networkPolicy", href: "/cluster/network-policy", icon: Shield, section: "policy" },
-      { key: "resourceQuota", href: "/cluster/resource-quota", icon: Gauge },
-      { key: "limitRange", href: "/cluster/limit-range", icon: SlidersHorizontal },
-      { key: "serviceAccount", href: "/cluster/service-account", icon: UserCheck },
-      // 告警
-      { key: "alert", href: "/cluster/alert", icon: AlertTriangle, section: "alert" },
-    ],
-  },
-  {
-    key: "monitoring",
-    icon: Activity,
-    children: [
-      { key: "metrics", href: "/monitoring/metrics", icon: Activity },
-      { key: "apm", href: "/monitoring/apm", icon: Waypoints },
-      { key: "logs", href: "/monitoring/logs", icon: FileText },
-      // AIOps
-      { key: "riskDashboard", href: "/monitoring/risk", icon: Gauge, section: "aiops" },
-      { key: "incidentsNav", href: "/monitoring/incidents", icon: AlertTriangle },
-      { key: "topologyNav", href: "/monitoring/topology", icon: GitGraph },
+      { key: "networkPolicy", href: "/cluster/netpol", icon: Shield, section: "policy" },
+      { key: "resourceQuota", href: "/cluster/quota", icon: Gauge },
+      { key: "limitRange", href: "/cluster/limit", icon: SlidersHorizontal },
+      { key: "serviceAccount", href: "/cluster/sa", icon: UserCheck },
     ],
   },
   {
@@ -157,7 +154,7 @@ const navGroups: NavGroup[] = [
     icon: Settings,
     children: [
       { key: "aiSettings", href: "/settings/ai", icon: Bot },
-      { key: "notifications", href: "/settings/notifications", icon: Bell },
+      { key: "notifications", href: "/settings/notif", icon: Bell },
     ],
   },
   {
@@ -167,6 +164,8 @@ const navGroups: NavGroup[] = [
       { key: "users", href: "/admin/users", icon: Users, adminOnly: true },
       { key: "roles", href: "/admin/roles", icon: ShieldCheck },
       { key: "audit", href: "/admin/audit", icon: ClipboardList },
+      { key: "commands", href: "/admin/commands", icon: ClipboardList },
+      { key: "datasource", href: "/admin/datasource", icon: ToggleLeft },
     ],
   },
   {

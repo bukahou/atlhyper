@@ -36,12 +36,12 @@ import {
   ClusterOverviewChart,
 } from "./components";
 
-// API
+// 数据源代理层（自动切换 mock / api）
 import {
   getClusterNodeMetrics,
   getNodeMetricsHistory,
-  type ClusterMetricsSummary,
-} from "@/api/node-metrics";
+} from "@/datasource/metrics";
+import type { ClusterMetricsSummary } from "@/datasource/metrics";
 
 // 工具函数
 import { formatBytes } from "@/lib/format";
@@ -232,9 +232,6 @@ export default function MetricsPage() {
       setNodes(result.nodes);
       setError(null);
       setLastUpdate(new Date());
-    } catch (err) {
-      console.error("Failed to load node metrics:", err);
-      setError(nm.loadFailed);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -260,23 +257,20 @@ export default function MetricsPage() {
   };
 
   // 节点展开/收起
-  const handleNodeToggle = useCallback(async (nodeName: string) => {
+  const handleNodeToggle = useCallback((nodeName: string) => {
     const isExpanding = expandedNode !== nodeName;
     setExpandedNode(isExpanding ? nodeName : null);
 
     // 展开时加载历史数据（如果尚未缓存）
-    if (isExpanding && currentClusterId && !historyCache[nodeName]) {
-      try {
-        const historyResult = await getNodeMetricsHistory(currentClusterId, nodeName, 24);
+    if (isExpanding && !historyCache[nodeName] && currentClusterId) {
+      getNodeMetricsHistory(currentClusterId, nodeName, 24).then(historyResult => {
         setHistoryCache(prev => ({
           ...prev,
           [nodeName]: historyResult.data,
         }));
-      } catch (err) {
-        console.error("Failed to load history data:", err);
-      }
+      });
     }
-  }, [expandedNode, currentClusterId, historyCache]);
+  }, [expandedNode, historyCache, currentClusterId]);
 
   // 计算告警节点数
   const warningNodes = useMemo(() => {

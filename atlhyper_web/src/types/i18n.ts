@@ -55,6 +55,8 @@ export interface NavTranslations {
   topologyNav: string;
   // APM
   apm: string;
+  // Admin
+  datasource: string;
 }
 
 // 通用翻译
@@ -1841,6 +1843,9 @@ export interface LogTranslations {
   loadFailed: string;
   noCluster: string;
   noClusterDesc: string;
+  // 直方图 / 过滤器
+  logVolume: string;
+  clearFilters: string;
   // 时间范围
   last15min: string;
   last1h: string;
@@ -1961,6 +1966,26 @@ export interface ApmTranslations {
   s: string;
 }
 
+// 数据源管理页面翻译
+export interface DataSourceTranslations {
+  pageTitle: string;
+  pageDescription: string;
+  mock: string;
+  api: string;
+  apiOnly: string;
+  switchedToMock: string;
+  switchedToApi: string;
+  refreshHint: string;
+  totalModules: string;
+  mockCount: string;
+  apiCount: string;
+  groupObserve: string;
+  groupCluster: string;
+  groupAdmin: string;
+  groupSettings: string;
+  groupAiops: string;
+}
+
 // 完整翻译结构
 export interface Translations {
   locale: "zh" | "ja";  // 语言标识符，用于日期格式化等
@@ -2001,6 +2026,7 @@ export interface Translations {
   aiops: AIOpsTranslations;
   apm: ApmTranslations;
   logs: LogTranslations;
+  dataSource: DataSourceTranslations;
 }
 
 // 国际化上下文

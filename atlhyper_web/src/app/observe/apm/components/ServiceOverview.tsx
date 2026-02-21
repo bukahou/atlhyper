@@ -4,9 +4,9 @@ import { useMemo } from "react";
 import type { TraceSummary } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import {
-  mockGetDependencies,
-  mockGetSpanTypeBreakdown,
-} from "@/mock/apm";
+  getDependencies,
+  getSpanTypeBreakdown,
+} from "@/datasource/apm";
 import { LatencyChart } from "./LatencyChart";
 import { ThroughputChart } from "./ThroughputChart";
 import { ErrorRateChart } from "./ErrorRateChart";
@@ -37,12 +37,12 @@ export function ServiceOverview({
   );
 
   const dependencies = useMemo(
-    () => mockGetDependencies(serviceName),
+    () => getDependencies(serviceName),
     [serviceName]
   );
 
   const spanBreakdown = useMemo(
-    () => mockGetSpanTypeBreakdown(serviceName),
+    () => getSpanTypeBreakdown(serviceName),
     [serviceName]
   );
 

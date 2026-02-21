@@ -15,7 +15,7 @@ import type { TraceDetail, TraceSummary, Span } from "@/types/model/apm";
 import { isSpanError } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs, formatTimeAgo } from "@/lib/format";
-import { mockGetLatencyDistribution } from "@/mock/apm";
+import { getLatencyDistribution } from "@/datasource/apm";
 import { LatencyDistribution } from "./LatencyDistribution";
 
 interface TraceWaterfallProps {
@@ -118,7 +118,7 @@ export function TraceWaterfall({
   const traceDurationMs = traceEndMs - traceStartMs;
 
   const latencyBuckets = useMemo(
-    () => mockGetLatencyDistribution(allTraces),
+    () => getLatencyDistribution(allTraces),
     [allTraces]
   );
 
