@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Modal } from "@/components/common/Modal";
+import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { getNamespaceDetail, getConfigMaps, getSecrets } from "@/api/namespace";
+import { getNamespaceDetail } from "@/datasource/cluster";
+import { getConfigMaps, getSecrets } from "@/api/namespace";
 import { getCurrentClusterId } from "@/config/cluster";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useI18n } from "@/i18n/context";
@@ -128,7 +129,7 @@ export function NamespaceDetailModal({
   ];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Namespace: ${namespaceName}`} size="xl">
+    <Drawer isOpen={isOpen} onClose={onClose} title={`Namespace: ${namespaceName}`} size="xl">
       {loading ? (
         <div className="py-12">
           <LoadingSpinner />
@@ -136,7 +137,7 @@ export function NamespaceDetailModal({
       ) : error ? (
         <div className="p-6 text-center text-red-500">{error}</div>
       ) : detail ? (
-        <div className="flex flex-col h-[70vh]">
+        <div className="flex flex-col h-full">
           {/* Tabs */}
           <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
             {tabs.map((tab) => (
@@ -173,6 +174,6 @@ export function NamespaceDetailModal({
           </div>
         </div>
       ) : null}
-    </Modal>
+    </Drawer>
   );
 }

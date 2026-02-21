@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Modal } from "@/components/common/Modal";
+import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { getLimitRangeDetail, type LimitRangeDetail } from "@/api/cluster-resources";
+import { getLimitRangeDetail } from "@/datasource/cluster";
+import type { LimitRangeDetail } from "@/api/cluster-resources";
 import { getCurrentClusterId } from "@/config/cluster";
 import { useI18n } from "@/i18n/context";
 import { Server, Tag } from "lucide-react";
@@ -194,13 +195,13 @@ export function LimitRangeDetailModal({
   }, [isOpen, fetchDetail]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`LimitRange: ${name}`} size="xl">
+    <Drawer isOpen={isOpen} onClose={onClose} title={`LimitRange: ${name}`} size="xl">
       {loading ? (
         <div className="py-12"><LoadingSpinner /></div>
       ) : error ? (
         <div className="p-6 text-center text-red-500">{error}</div>
       ) : detail ? (
-        <div className="flex flex-col h-[70vh]">
+        <div className="flex flex-col h-full">
           <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
             {tabs.map((tab) => (
               <button
@@ -223,6 +224,6 @@ export function LimitRangeDetailModal({
           </div>
         </div>
       ) : null}
-    </Modal>
+    </Drawer>
   );
 }

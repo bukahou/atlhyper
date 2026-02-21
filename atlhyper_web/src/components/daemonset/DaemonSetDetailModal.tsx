@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Modal } from "@/components/common/Modal";
+import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
-import { getDaemonSetDetail, type DaemonSetDetail } from "@/api/workload";
+import { getDaemonSetDetail } from "@/datasource/cluster";
+import type { DaemonSetDetail } from "@/api/workload";
 import { getCurrentClusterId } from "@/config/cluster";
 import {
   Server,
@@ -70,7 +71,7 @@ export function DaemonSetDetailModal({
   ];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`DaemonSet: ${name}`} size="xl">
+    <Drawer isOpen={isOpen} onClose={onClose} title={`DaemonSet: ${name}`} size="xl">
       {loading ? (
         <div className="py-12">
           <LoadingSpinner />
@@ -78,7 +79,7 @@ export function DaemonSetDetailModal({
       ) : error ? (
         <div className="p-6 text-center text-red-500">{error}</div>
       ) : detail ? (
-        <div className="flex flex-col h-[70vh]">
+        <div className="flex flex-col h-full">
           {/* Tabs */}
           <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
             {tabs.map((tab) => (
@@ -106,7 +107,7 @@ export function DaemonSetDetailModal({
           </div>
         </div>
       ) : null}
-    </Modal>
+    </Drawer>
   );
 }
 
