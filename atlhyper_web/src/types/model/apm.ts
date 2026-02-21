@@ -1,0 +1,168 @@
+/**
+ * APM 数据模型 — 对齐 model_v3/apm/trace.go
+ *
+ * 数据源: ClickHouse otel_traces 表
+ * JSON tag 统一 camelCase，前端直接使用后端字段名。
+ */
+
+// ============================================================
+// Span — otel_traces 行的领域模型
+// ============================================================
+
+export interface SpanHTTP {
+  method: string;
+  route?: string;
+  url?: string;
+  statusCode?: number;
+  server?: string;
+  serverPort?: number;
+}
+
+export interface SpanDB {
+  system: string;
+  name?: string;
+  operation?: string;
+  table?: string;
+  statement?: string;
+}
+
+export interface SpanResource {
+  serviceVersion?: string;
+  instanceId?: string;
+  podName?: string;
+  clusterName?: string;
+}
+
+export interface SpanEvent {
+  timestamp: string; // ISO 8601
+  name: string;
+  attributes?: Record<string, string>;
+}
+
+export interface Span {
+  timestamp: string;      // ISO 8601
+  traceId: string;
+  spanId: string;
+  parentSpanId: string;
+  spanName: string;
+  spanKind: string;       // "SPAN_KIND_SERVER" | "SPAN_KIND_CLIENT" | ...
+  serviceName: string;
+  duration: number;       // nanoseconds
+  durationMs: number;     // milliseconds
+  statusCode: string;     // "STATUS_CODE_UNSET" | "STATUS_CODE_ERROR"
+  statusMessage: string;
+
+  http?: SpanHTTP;
+  db?: SpanDB;
+  resource: SpanResource;
+  events: SpanEvent[];
+}
+
+// ============================================================
+// TraceSummary — Trace 列表项
+// ============================================================
+
+export interface TraceSummary {
+  traceId: string;
+  rootService: string;
+  rootOperation: string;
+  durationMs: number;
+  spanCount: number;
+  serviceCount: number;
+  hasError: boolean;
+  timestamp: string; // ISO 8601
+}
+
+// ============================================================
+// TraceDetail — 完整 Trace（瀑布图）
+// ============================================================
+
+export interface TraceDetail {
+  traceId: string;
+  durationMs: number;
+  serviceCount: number;
+  spanCount: number;
+  spans: Span[];
+}
+
+// ============================================================
+// APMService — 服务级聚合统计
+// ============================================================
+
+export interface APMService {
+  name: string;
+  namespace: string;
+  spanCount: number;
+  errorCount: number;
+  successRate: number;    // 0-1
+  avgDurationMs: number;
+  p50Ms: number;
+  p99Ms: number;
+  rps: number;
+}
+
+// ============================================================
+// Topology — 服务拓扑
+// ============================================================
+
+export type HealthStatus = "healthy" | "warning" | "critical" | "unknown";
+
+export interface TopologyNode {
+  id: string;
+  name: string;
+  namespace: string;
+  type: string;           // "service" | "database" | "external"
+  rps: number;
+  successRate: number;    // 0-1
+  p99Ms: number;
+  status: HealthStatus;
+}
+
+export interface TopologyEdge {
+  source: string;
+  target: string;
+  callCount: number;
+  avgMs: number;
+  errorRate: number;      // 0-1
+}
+
+export interface Topology {
+  nodes: TopologyNode[];
+  edges: TopologyEdge[];
+}
+
+// ============================================================
+// Computed / Chart Types
+// ============================================================
+
+export interface LatencyBucket {
+  rangeStart: number;     // milliseconds
+  rangeEnd: number;
+  count: number;
+}
+
+export interface Dependency {
+  name: string;
+  type: string;           // "service" | "database" | "external"
+  callCount: number;
+  avgMs: number;
+  errorRate: number;
+  impact: number;         // 0-1
+}
+
+export interface SpanTypeBreakdown {
+  type: string;           // "HTTP" | "DB" | "Other"
+  percentage: number;
+}
+
+// ============================================================
+// Helper functions
+// ============================================================
+
+export function isSpanError(span: Span): boolean {
+  return span.statusCode === "STATUS_CODE_ERROR";
+}
+
+export function isServerSpan(span: Span): boolean {
+  return span.spanKind === "SPAN_KIND_SERVER";
+}
