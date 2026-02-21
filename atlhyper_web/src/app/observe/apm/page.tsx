@@ -14,14 +14,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-import type { TraceService, TraceSummary, TraceDetail, ServiceStats, ServiceTopologyData } from "@/api/apm";
+import type { TraceSummary, TraceDetail, APMService, Topology } from "@/types/model/apm";
 import {
-  mockGetTraceServices,
+  mockGetAPMServices,
   mockQueryTraces,
   mockGetTraceDetail,
-  mockGetAllServiceStats,
-  mockGetServiceTopology,
-} from "@/api/apm-mock";
+  mockGetTopology,
+} from "@/mock/apm";
 
 import { ServiceList } from "./components/ServiceList";
 import { ServiceOverview } from "./components/ServiceOverview";
@@ -33,14 +32,11 @@ type ViewState =
   | { level: "service-detail"; serviceName: string }
   | { level: "trace-detail"; serviceName: string; traceId: string; traceIndex: number };
 
-const TIME_RANGE_KEYS = ["15min", "1h", "24h", "7d", "15d", "30d"] as const;
-
 export default function ApmPage() {
   const { t } = useI18n();
   const ta = t.apm;
   const { currentClusterId } = useClusterStore();
 
-  // Time range options with i18n labels
   const TIME_RANGE_OPTIONS = useMemo(() => [
     { value: "15min", label: ta.last15min },
     { value: "1h", label: ta.last1h },
@@ -56,35 +52,25 @@ export default function ApmPage() {
     return map;
   }, [TIME_RANGE_OPTIONS]);
 
-  // View navigation state
   const [view, setView] = useState<ViewState>({ level: "services" });
-
-  // Data state
-  const [services, setServices] = useState<TraceService[]>([]);
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [traceDetail, setTraceDetail] = useState<TraceDetail | null>(null);
-  const [serviceStats, setServiceStats] = useState<ServiceStats[]>([]);
-  const [topology, setTopology] = useState<ServiceTopologyData | null>(null);
+  const [serviceStats, setServiceStats] = useState<APMService[]>([]);
+  const [topology, setTopology] = useState<Topology | null>(null);
 
-  // UI state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [timeRange, setTimeRange] = useState("15d");
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
-  // Load data
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
     try {
-      const [svcData, traceResult] = await Promise.all([
-        mockGetTraceServices(),
-        mockQueryTraces({ cluster_id: currentClusterId ?? "", limit: 100 }),
-      ]);
-      setServices(svcData);
+      const traceResult = mockQueryTraces({ limit: 100 });
       setTraces(traceResult.traces);
-      setServiceStats(mockGetAllServiceStats());
-      setTopology(mockGetServiceTopology());
+      setServiceStats(mockGetAPMServices());
+      setTopology(mockGetTopology());
       setError(null);
     } catch {
       setError(ta.loadFailed);
@@ -92,37 +78,26 @@ export default function ApmPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [currentClusterId, ta.loadFailed]);
+  }, [ta.loadFailed]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Load trace detail when navigating to Level 3
   useEffect(() => {
     if (view.level !== "trace-detail") {
       setTraceDetail(null);
       return;
     }
-    (async () => {
-      const detail = await mockGetTraceDetail(view.traceId);
-      setTraceDetail(detail);
-    })();
+    const detail = mockGetTraceDetail(view.traceId);
+    setTraceDetail(detail);
   }, [view]);
 
-  // Current service object
-  const currentService = useMemo(() => {
-    if (view.level === "services") return null;
-    return services.find((s) => s.name === view.serviceName) ?? null;
-  }, [view, services]);
-
-  // Traces for current service (for navigation in Level 3)
   const serviceTraces = useMemo(() => {
     if (view.level === "services") return [];
     return traces.filter((tr) => tr.rootService === view.serviceName);
   }, [view, traces]);
 
-  // Navigation handlers
   const goToServices = () => setView({ level: "services" });
   const goToService = (name: string) =>
     setView({ level: "service-detail", serviceName: name });
@@ -148,7 +123,6 @@ export default function ApmPage() {
     }
   };
 
-  // No cluster
   if (!currentClusterId) {
     return (
       <Layout>
@@ -161,7 +135,6 @@ export default function ApmPage() {
     );
   }
 
-  // Loading
   if (loading) {
     return (
       <Layout>
@@ -172,8 +145,7 @@ export default function ApmPage() {
     );
   }
 
-  // Error
-  if (error && services.length === 0) {
+  if (error && serviceStats.length === 0) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center h-96 text-center">
@@ -196,7 +168,6 @@ export default function ApmPage() {
         {/* Header with breadcrumb */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            {/* Breadcrumb */}
             <nav className="flex items-center gap-1 text-sm mb-1">
               <button
                 onClick={goToServices}
@@ -239,7 +210,6 @@ export default function ApmPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Time range selector */}
             <div className="relative">
               <button
                 onClick={() => setShowTimeDropdown((v) => !v)}
@@ -274,7 +244,6 @@ export default function ApmPage() {
               )}
             </div>
 
-            {/* Refresh button */}
             <button
               onClick={() => loadData(true)}
               disabled={isRefreshing}
@@ -296,16 +265,15 @@ export default function ApmPage() {
               t={ta}
               tt={t.table}
               serviceStats={serviceStats}
-              traces={traces}
               onSelectService={goToService}
             />
           </>
         )}
 
-        {view.level === "service-detail" && currentService && (
+        {view.level === "service-detail" && (
           <ServiceOverview
             t={ta}
-            service={currentService}
+            serviceName={view.serviceName}
             traces={traces}
             onSelectTrace={goToTrace}
             onNavigateToService={goToService}

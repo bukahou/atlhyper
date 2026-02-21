@@ -2,21 +2,22 @@
 
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
-import type { ServiceTopologyData } from "@/api/apm";
+import type { Topology, HealthStatus } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
+import { formatDurationMs } from "@/lib/format";
 
-// Error rate -> node color (soft palette)
-function errorColor(rate: number): string {
-  if (rate >= 0.1) return "#ef4444";   // red-400: >=10%
-  if (rate >= 0.01) return "#fbbf24";  // amber-400: >=1%
-  return "#4ade80";                     // green-400: <1%
+// Node color based on status + successRate
+function nodeColor(status: HealthStatus, successRate: number): string {
+  if (status === "critical" || successRate < 0.95) return "#ef4444";
+  if (status === "warning" || successRate < 0.99) return "#fbbf24";
+  return "#4ade80";
 }
 
-// Format duration for display
-function fmtDuration(us: number): string {
-  if (us >= 1_000_000) return `${(us / 1_000_000).toFixed(2)}s`;
-  if (us >= 1_000) return `${(us / 1_000).toFixed(1)}ms`;
-  return `${Math.round(us)}μs`;
+// Node shape icon by type
+function nodeIcon(type: string): string {
+  if (type === "database") return "D";
+  if (type === "external") return "E";
+  return "S";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,7 +36,6 @@ function removeState(g: any, id: string, state: string) {
   } catch { /* ignore */ }
 }
 
-/** Clear all "selected" state, then select a node + its edges */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applySelection(g: any, nodeId: string | null) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,7 +57,7 @@ function applySelection(g: any, nodeId: string | null) {
 
 interface ServiceTopologyProps {
   t: ApmTranslations;
-  topology: ServiceTopologyData;
+  topology: Topology;
   onSelectService: (name: string) => void;
 }
 
@@ -72,50 +72,38 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
   const [expanded, setExpanded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
-  // Computed stats for header pills
   const stats = useMemo(() => {
     const nodeCount = topology.nodes.length;
-    const edgeCount = topology.edges.length;
-    const errorNodes = topology.nodes.filter((n) => n.errorRate >= 0.01).length;
-    const totalLatency = topology.nodes.reduce((s, n) => s + n.latencyAvg, 0);
-    const avgLatency = nodeCount > 0 ? totalLatency / nodeCount : 0;
+    const errorNodes = topology.nodes.filter((n) => n.successRate < 0.99).length;
     const totalCalls = topology.edges.reduce((s, e) => s + e.callCount, 0);
-    return { nodeCount, edgeCount, errorNodes, avgLatency, totalCalls };
+    const avgP99 = nodeCount > 0
+      ? topology.nodes.reduce((s, n) => s + n.p99Ms, 0) / nodeCount
+      : 0;
+    return { nodeCount, errorNodes, totalCalls, avgP99 };
   }, [topology]);
 
-  // Structural fingerprint
   const topoKey = useMemo(() => {
     const nk = topology.nodes.map((n) => n.id).sort().join(",");
-    const ek = topology.edges.map((e) => e.id).sort().join(",");
+    const ek = topology.edges.map((e) => `${e.source}>${e.target}`).sort().join(",");
     return nk + "||" + ek;
   }, [topology]);
 
-  // Build G6 data
   const buildData = useCallback(() => {
-    // Degree map for node sizing
-    const degreeMap: Record<string, number> = {};
-    for (const e of topology.edges) {
-      degreeMap[e.source] = (degreeMap[e.source] ?? 0) + 1;
-      degreeMap[e.target] = (degreeMap[e.target] ?? 0) + 1;
-    }
-
-    // Throughput range for size scaling
-    const throughputs = topology.nodes.map((n) => n.throughput);
-    const minT = Math.min(...throughputs, 1);
-    const maxT = Math.max(...throughputs, 1);
-    const tRange = maxT - minT || 1;
+    // RPS range for node sizing
+    const rpsValues = topology.nodes.map((n) => n.rps);
+    const minRps = Math.min(...rpsValues, 0);
+    const maxRps = Math.max(...rpsValues, 0.001);
+    const rpsRange = maxRps - minRps || 1;
 
     const nodes = topology.nodes.map((n) => {
-      const color = errorColor(n.errorRate);
-      const degree = degreeMap[n.id] ?? 0;
-      const baseSize = 30 + ((n.throughput - minT) / tRange) * 16; // 30~46px base
-      const size = baseSize + Math.min(degree * 2, 10);             // +degree bonus
+      const color = nodeColor(n.status, n.successRate);
+      const baseSize = 30 + ((n.rps - minRps) / rpsRange) * 16;
 
-      const badges = n.errorRate >= 0.01
+      const badges = n.successRate < 0.99
         ? [{
-            text: `${(n.errorRate * 100).toFixed(0)}%`,
+            text: `${((1 - n.successRate) * 100).toFixed(1)}%`,
             placement: "right-top" as const,
-            backgroundFill: n.errorRate >= 0.1 ? "#ef4444" : "#fbbf24",
+            backgroundFill: n.successRate < 0.95 ? "#ef4444" : "#fbbf24",
             fill: "#fff",
             fontSize: 8,
           }]
@@ -123,15 +111,15 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
 
       return {
         id: n.id,
-        data: { latencyAvg: n.latencyAvg, throughput: n.throughput, errorRate: n.errorRate },
+        data: { rps: n.rps, successRate: n.successRate, p99Ms: n.p99Ms, namespace: n.namespace, type: n.type },
         style: {
-          type: "circle" as const,
-          size,
+          type: (n.type === "database" ? "diamond" : "circle") as "circle" | "diamond",
+          size: baseSize,
           fill: color,
           fillOpacity: 0.2,
           stroke: color,
           lineWidth: 2,
-          labelText: n.label.length > 22 ? n.label.slice(0, 20) + ".." : n.label,
+          labelText: n.name.length > 22 ? n.name.slice(0, 20) + ".." : n.name,
           labelFontSize: 10,
           labelFill: color,
           labelPlacement: "bottom" as const,
@@ -140,7 +128,7 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
           labelBackgroundFill: "rgba(0,0,0,0.55)",
           labelBackgroundRadius: 3,
           labelBackgroundPadding: [1, 4, 1, 4],
-          iconText: n.label[0]?.toUpperCase() ?? "S",
+          iconText: nodeIcon(n.type),
           iconFontSize: 13,
           iconFontWeight: 700,
           iconFill: color,
@@ -150,20 +138,20 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
       };
     });
 
-    // Edge width scaling
+    // Edge width by callCount
     const callCounts = topology.edges.map((e) => e.callCount);
     const minC = Math.min(...callCounts, 1);
     const maxC = Math.max(...callCounts, 1);
     const cRange = maxC - minC || 1;
 
     const edges = topology.edges.map((e) => {
-      const width = 1 + ((e.callCount - minC) / cRange) * 3; // 1~4px
-      const hasError = e.errorCount > 0;
+      const width = 1 + ((e.callCount - minC) / cRange) * 3;
+      const hasError = e.errorRate > 0;
       return {
-        id: e.id,
+        id: `${e.source}>${e.target}`,
         source: e.source,
         target: e.target,
-        data: { callCount: e.callCount, errorCount: e.errorCount, avgLatency: e.avgLatency },
+        data: { callCount: e.callCount, avgMs: e.avgMs, errorRate: e.errorRate },
         style: {
           stroke: hasError ? "#f87171" : "#666",
           lineWidth: width,
@@ -179,7 +167,6 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
     return { nodes, edges };
   }, [topology]);
 
-  // Effect 1: topology structure change -> destroy & rebuild
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -196,7 +183,6 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
 
     async function createGraph() {
       const { Graph } = await import("@antv/g6");
-
       if (destroyed || !container) return;
 
       const data = buildData();
@@ -207,33 +193,17 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         padding: [20, 20, 20, 20],
         data,
         node: {
-          style: {
-            cursor: "pointer" as const,
-          },
+          style: { cursor: "pointer" as const },
           state: {
-            active: {
-              lineWidth: 3,
-            },
-            selected: {
-              lineWidth: 3,
-              shadowBlur: 18,
-              shadowColor: "#3b82f6",
-            },
+            active: { lineWidth: 3 },
+            selected: { lineWidth: 3, shadowBlur: 18, shadowColor: "#3b82f6" },
           },
         },
         edge: {
           style: { type: "line" },
           state: {
-            active: {
-              stroke: "#3b82f6",
-              lineWidth: 2,
-              strokeOpacity: 0.8,
-            },
-            selected: {
-              stroke: "#3b82f6",
-              lineWidth: 2.5,
-              strokeOpacity: 1,
-            },
+            active: { stroke: "#3b82f6", lineWidth: 2, strokeOpacity: 0.8 },
+            selected: { stroke: "#3b82f6", lineWidth: 2.5, strokeOpacity: 1 },
           },
         },
         layout: {
@@ -251,12 +221,14 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
               items: Array<{
                 id: string;
                 data?: {
-                  latencyAvg?: number;
-                  throughput?: number;
-                  errorRate?: number;
+                  rps?: number;
+                  successRate?: number;
+                  p99Ms?: number;
+                  namespace?: string;
+                  type?: string;
                   callCount?: number;
-                  errorCount?: number;
-                  avgLatency?: number;
+                  avgMs?: number;
+                  errorRate?: number;
                 };
               }>
             ) => {
@@ -266,19 +238,22 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
               if (!d) return item.id;
 
               // Node tooltip
-              if (d.throughput !== undefined) {
-                const color = errorColor(d.errorRate ?? 0);
-                const errPct = ((d.errorRate ?? 0) * 100).toFixed(1);
+              if (d.rps !== undefined) {
+                const color = nodeColor(
+                  d.successRate !== undefined && d.successRate < 0.95 ? "critical" : "healthy",
+                  d.successRate ?? 1
+                );
                 return `<div style="padding:8px 12px;font-size:12px;border-radius:8px;background:rgba(0,0,0,0.88);color:#fff;min-width:140px;border-left:3px solid ${color}">
                   <div style="font-weight:600;margin-bottom:4px">${item.id}</div>
+                  ${d.namespace ? `<div style="opacity:0.6;margin-bottom:2px">${d.namespace}</div>` : ""}
                   <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>${t.topoLatency}</span><span>${fmtDuration(d.latencyAvg ?? 0)}</span>
+                    <span>RPS</span><span>${d.rps?.toFixed(3)}</span>
                   </div>
                   <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>${t.topoThroughput}</span><span>${d.throughput} traces</span>
+                    <span>${t.successRate}</span><span>${((d.successRate ?? 1) * 100).toFixed(1)}%</span>
                   </div>
                   <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>${t.topoErrorRate}</span><span style="color:${(d.errorRate ?? 0) >= 0.01 ? color : '#fff'}">${errPct}%</span>
+                    <span>P99</span><span>${formatDurationMs(d.p99Ms ?? 0)}</span>
                   </div>
                 </div>`;
               }
@@ -290,10 +265,10 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
                     <span>${t.topoCalls}</span><span>${d.callCount}</span>
                   </div>
                   <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>${t.topoLatency}</span><span>${fmtDuration(d.avgLatency ?? 0)}</span>
+                    <span>${t.topoLatency}</span><span>${formatDurationMs(d.avgMs ?? 0)}</span>
                   </div>
-                  ${d.errorCount ? `<div style="display:flex;justify-content:space-between;gap:12px;color:#f87171">
-                    <span>${t.topoErrorRate}</span><span>${d.errorCount}</span>
+                  ${(d.errorRate ?? 0) > 0 ? `<div style="display:flex;justify-content:space-between;gap:12px;color:#f87171">
+                    <span>${t.topoErrorRate}</span><span>${((d.errorRate ?? 0) * 100).toFixed(1)}%</span>
                   </div>` : ""}
                 </div>`;
               }
@@ -305,7 +280,6 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         animation: true,
       });
 
-      // ── Hover highlight (1-hop neighbors) ──
       let hoveredIds: string[] = [];
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -313,10 +287,7 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         const nodeId = evt?.target?.id;
         if (!nodeId) return;
         hoveredIds = [];
-        const activate = (id: string) => {
-          addState(instance, id, "active");
-          hoveredIds.push(id);
-        };
+        const activate = (id: string) => { addState(instance, id, "active"); hoveredIds.push(id); };
         activate(nodeId);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const e of instance.getEdgeData()) {
@@ -333,14 +304,17 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         hoveredIds = [];
       });
 
-      // ── Click: persistent selection + navigate ──
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       instance.on("node:click", (evt: any) => {
         const nodeId = evt?.target?.id;
         if (!nodeId) return;
+        // Only navigate if it's a service node (not database/external)
+        const nodeData = topology.nodes.find((n) => n.id === nodeId);
         try { applySelection(instance, nodeId); } catch { /* ignore */ }
         setSelectedNode(nodeId);
-        onSelectRef.current(nodeId);
+        if (nodeData?.type === "service") {
+          onSelectRef.current(nodeId);
+        }
       });
 
       instance.on("canvas:click", () => {
@@ -372,7 +346,6 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topoKey]);
 
-  // Effect 2: data changes -> update styles in place
   useEffect(() => {
     const g = graphRef.current;
     if (!g || !readyRef.current) return;
@@ -383,11 +356,9 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
     } catch { /* ignore */ }
   }, [buildData]);
 
-  // Resize graph when expanded changes
   useEffect(() => {
     const g = graphRef.current;
     if (!g || !readyRef.current) return;
-    // Small delay to let DOM update height
     const timer = setTimeout(() => {
       try {
         const container = containerRef.current;
@@ -402,14 +373,14 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
 
   return (
     <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">
-      {/* Header: title + stats pills + expand toggle */}
+      {/* Header */}
       <div className="px-4 py-2.5 border-b border-[var(--border-color)] flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h3 className="text-sm font-medium text-default">{t.serviceTopology}</h3>
           <div className="flex items-center gap-2">
             <StatPill label={t.services} value={String(stats.nodeCount)} />
             <StatPill label={t.topoCalls} value={String(stats.totalCalls)} />
-            <StatPill label={t.topoLatency} value={fmtDuration(stats.avgLatency)} />
+            <StatPill label="P99" value={formatDurationMs(stats.avgP99)} />
             {stats.errorNodes > 0 && (
               <StatPill label={t.topoErrorRate} value={String(stats.errorNodes)} variant="error" />
             )}
@@ -418,32 +389,31 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         <button
           onClick={() => setExpanded((v) => !v)}
           className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] transition-colors text-muted"
-          title={expanded ? "Collapse" : "Expand"}
         >
           {expanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
         </button>
       </div>
 
-      {/* Graph container */}
+      {/* Graph */}
       <div
         ref={containerRef}
         className="w-full transition-[height] duration-300 ease-in-out"
         style={{ height: expanded ? 480 : 320 }}
       />
 
-      {/* Footer: color legend */}
+      {/* Legend */}
       <div className="px-4 py-2 border-t border-[var(--border-color)] flex items-center gap-4 text-[10px] text-muted">
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-[#4ade80] inline-block" />
-          {"< 1%"}
+          {t.nodeTypeService}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#fbbf24] inline-block" />
-          {"1-10%"}
+          <span className="w-2.5 h-2.5 rotate-45 bg-[#60a5fa] inline-block" style={{ borderRadius: 2 }} />
+          {t.nodeTypeDatabase}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block" />
-          {"> 10%"}
+          <span className="w-2.5 h-2.5 rounded-full bg-[#a78bfa] inline-block" />
+          {t.nodeTypeExternal}
         </span>
         <span className="text-[var(--border-color)]">|</span>
         <span className="flex items-center gap-1.5">
@@ -459,7 +429,6 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
   );
 }
 
-/** Small stat pill for header */
 function StatPill({ label, value, variant }: { label: string; value: string; variant?: "error" }) {
   return (
     <span

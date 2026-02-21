@@ -2,40 +2,30 @@
 
 import { useState, useMemo } from "react";
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
-import type { TraceSummary } from "@/api/apm";
-import type { ServiceStats } from "@/api/apm";
-import type { ApmTranslations } from "@/types/i18n";
-import type { TableTranslations } from "@/types/i18n";
-import { MiniSparkline } from "./MiniSparkline";
+import type { APMService } from "@/types/model/apm";
+import type { ApmTranslations, TableTranslations } from "@/types/i18n";
+import { formatDurationMs } from "@/lib/format";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
 interface ServiceListProps {
   t: ApmTranslations;
   tt: TableTranslations;
-  serviceStats: ServiceStats[];
-  traces: TraceSummary[];
+  serviceStats: APMService[];
   onSelectService: (serviceName: string) => void;
 }
 
-function formatDuration(us: number): string {
-  if (us < 1000) return `${us.toFixed(0)}μs`;
-  if (us < 1_000_000) return `${(us / 1000).toFixed(1)}ms`;
-  return `${(us / 1_000_000).toFixed(2)}s`;
-}
-
-type SortKey = "name" | "latencyAvg" | "throughput" | "errorRate";
+type SortKey = "name" | "avgDurationMs" | "rps" | "successRate" | "p50Ms" | "p99Ms";
 type SortDir = "asc" | "desc";
 
 export function ServiceList({
   t,
   tt,
   serviceStats,
-  traces,
   onSelectService,
 }: ServiceListProps) {
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("throughput");
+  const [sortKey, setSortKey] = useState<SortKey>("rps");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,7 +35,7 @@ export function ServiceList({
     let list = serviceStats;
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter((s) => s.name.toLowerCase().includes(q));
+      list = list.filter((s) => s.name.toLowerCase().includes(q) || s.namespace.toLowerCase().includes(q));
     }
     list = [...list].sort((a, b) => {
       const av = a[sortKey] ?? 0;
@@ -64,7 +54,6 @@ export function ServiceList({
   const safePage = Math.min(currentPage, totalPages);
   const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // Reset to page 1 when search changes
   const handleSearch = (v: string) => { setSearch(v); setCurrentPage(1); };
 
   const toggleSort = (key: SortKey) => {
@@ -111,24 +100,36 @@ export function ServiceList({
                 </button>
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted w-24">
-                {t.environment}
+                {t.namespace}
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
-                <button onClick={() => toggleSort("latencyAvg")} className="flex items-center gap-1 hover:text-default transition-colors">
+                <button onClick={() => toggleSort("avgDurationMs")} className="flex items-center gap-1 hover:text-default transition-colors">
                   {t.latencyAvg}
-                  <SortIcon col="latencyAvg" />
+                  <SortIcon col="avgDurationMs" />
                 </button>
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
-                <button onClick={() => toggleSort("throughput")} className="flex items-center gap-1 hover:text-default transition-colors">
-                  {t.throughput}
-                  <SortIcon col="throughput" />
+                <button onClick={() => toggleSort("p50Ms")} className="flex items-center gap-1 hover:text-default transition-colors">
+                  P50
+                  <SortIcon col="p50Ms" />
                 </button>
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
-                <button onClick={() => toggleSort("errorRate")} className="flex items-center gap-1 hover:text-default transition-colors">
-                  {t.errorRate}
-                  <SortIcon col="errorRate" />
+                <button onClick={() => toggleSort("p99Ms")} className="flex items-center gap-1 hover:text-default transition-colors">
+                  P99
+                  <SortIcon col="p99Ms" />
+                </button>
+              </th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted">
+                <button onClick={() => toggleSort("rps")} className="flex items-center gap-1 hover:text-default transition-colors">
+                  RPS
+                  <SortIcon col="rps" />
+                </button>
+              </th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted">
+                <button onClick={() => toggleSort("successRate")} className="flex items-center gap-1 hover:text-default transition-colors">
+                  {t.successRate}
+                  <SortIcon col="successRate" />
                 </button>
               </th>
             </tr>
@@ -140,60 +141,36 @@ export function ServiceList({
                 onClick={() => onSelectService(svc.name)}
                 className="border-b border-[var(--border-color)] last:border-b-0 hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
               >
-                {/* Name */}
                 <td className="px-4 py-3">
                   <span className="text-primary hover:underline font-medium">
                     {svc.name}
                   </span>
                 </td>
-                {/* Environment */}
                 <td className="px-3 py-3">
                   <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-[var(--hover-bg)] text-muted border border-[var(--border-color)]">
-                    {svc.environment}
+                    {svc.namespace}
                   </span>
                 </td>
-                {/* Latency */}
-                <td className="px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-default whitespace-nowrap">
-                      {formatDuration(svc.latencyAvg)}
-                    </span>
-                    <MiniSparkline
-                      data={svc.latencyPoints}
-                      type="line"
-                      color="#6366f1"
-                    />
-                  </div>
+                <td className="px-3 py-3 text-default whitespace-nowrap">
+                  {formatDurationMs(svc.avgDurationMs)}
                 </td>
-                {/* Throughput */}
-                <td className="px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-default whitespace-nowrap">
-                      {svc.throughput.toFixed(1)} {t.tpm}
-                    </span>
-                    <MiniSparkline
-                      data={svc.latencyPoints.map(() => svc.throughput)}
-                      type="bar"
-                      color="#22c55e"
-                    />
-                  </div>
+                <td className="px-3 py-3 text-default whitespace-nowrap">
+                  {formatDurationMs(svc.p50Ms)}
                 </td>
-                {/* Error Rate */}
+                <td className="px-3 py-3 text-default whitespace-nowrap">
+                  {formatDurationMs(svc.p99Ms)}
+                </td>
+                <td className="px-3 py-3 text-default whitespace-nowrap">
+                  {svc.rps.toFixed(3)}
+                </td>
                 <td className="px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={
-                        svc.errorRate > 0 ? "text-orange-500" : "text-default"
-                      }
-                    >
-                      {(svc.errorRate * 100).toFixed(1)}%
-                    </span>
-                    <MiniSparkline
-                      data={svc.errorRatePoints}
-                      type="line"
-                      color={svc.errorRate > 0 ? "#f97316" : "#9ca3af"}
-                    />
-                  </div>
+                  <span
+                    className={
+                      svc.successRate < 0.99 ? "text-orange-500" : "text-emerald-500"
+                    }
+                  >
+                    {(svc.successRate * 100).toFixed(1)}%
+                  </span>
                 </td>
               </tr>
             ))}
@@ -209,7 +186,6 @@ export function ServiceList({
         {/* Pagination footer */}
         {filtered.length > 0 && (
           <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border-color)] text-xs text-muted">
-            {/* Rows per page */}
             <div className="relative flex items-center gap-1.5">
               <span>{tt.rowsPerPage}:</span>
               <button
@@ -239,7 +215,6 @@ export function ServiceList({
               )}
             </div>
 
-            {/* Page navigation */}
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
