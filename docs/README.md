@@ -11,7 +11,7 @@
 
 | 目录 | 内容 |
 |------|------|
-| `static/reference/` | API 参考、Master/Agent 设计决策文档 |
+| `static/reference/` | API 参考、Master/Agent 设计决策文档、ClickHouse OTel 数据参考 |
 | `static/readme/` | 项目介绍（中文、日文） |
 | `static/img/` | 项目截图 |
 
