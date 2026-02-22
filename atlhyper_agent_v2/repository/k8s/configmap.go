@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // configMapRepository ConfigMap 仓库实现
@@ -20,7 +20,7 @@ func NewConfigMapRepository(client sdk.K8sClient) repository.ConfigMapRepository
 }
 
 // List 列出 ConfigMap
-func (r *configMapRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.ConfigMap, error) {
+func (r *configMapRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.ConfigMap, error) {
 	k8sConfigMaps, err := r.client.ListConfigMaps(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *configMapRepository) List(ctx context.Context, namespace string, opts m
 		return nil, err
 	}
 
-	configMaps := make([]model_v2.ConfigMap, 0, len(k8sConfigMaps))
+	configMaps := make([]cluster.ConfigMap, 0, len(k8sConfigMaps))
 	for i := range k8sConfigMaps {
 		configMaps = append(configMaps, ConvertConfigMap(&k8sConfigMaps[i]))
 	}
@@ -38,7 +38,7 @@ func (r *configMapRepository) List(ctx context.Context, namespace string, opts m
 }
 
 // Get 获取单个 ConfigMap
-func (r *configMapRepository) Get(ctx context.Context, namespace, name string) (*model_v2.ConfigMap, error) {
+func (r *configMapRepository) Get(ctx context.Context, namespace, name string) (*cluster.ConfigMap, error) {
 	k8sConfigMap, err := r.client.GetConfigMap(ctx, namespace, name)
 	if err != nil {
 		return nil, err

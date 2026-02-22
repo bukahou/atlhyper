@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // daemonSetRepository DaemonSet 仓库实现
@@ -20,7 +20,7 @@ func NewDaemonSetRepository(client sdk.K8sClient) repository.DaemonSetRepository
 }
 
 // List 列出 DaemonSet
-func (r *daemonSetRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.DaemonSet, error) {
+func (r *daemonSetRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.DaemonSet, error) {
 	k8sDaemonSets, err := r.client.ListDaemonSets(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *daemonSetRepository) List(ctx context.Context, namespace string, opts m
 		return nil, err
 	}
 
-	daemonSets := make([]model_v2.DaemonSet, 0, len(k8sDaemonSets))
+	daemonSets := make([]cluster.DaemonSet, 0, len(k8sDaemonSets))
 	for i := range k8sDaemonSets {
 		daemonSets = append(daemonSets, ConvertDaemonSet(&k8sDaemonSets[i]))
 	}
@@ -38,7 +38,7 @@ func (r *daemonSetRepository) List(ctx context.Context, namespace string, opts m
 }
 
 // Get 获取单个 DaemonSet
-func (r *daemonSetRepository) Get(ctx context.Context, namespace, name string) (*model_v2.DaemonSet, error) {
+func (r *daemonSetRepository) Get(ctx context.Context, namespace, name string) (*cluster.DaemonSet, error) {
 	k8sDaemonSet, err := r.client.GetDaemonSet(ctx, namespace, name)
 	if err != nil {
 		return nil, err

@@ -5,3 +5,6 @@
 export * from "./apm";
 export * from "./aiops";
 export * from "./logs";
+export * from "./slo";
+export * from "./mesh";
+export * from "./overview";

@@ -1,14 +1,14 @@
 import { MemoryStick, AlertTriangle } from "lucide-react";
-import type { VMStatMetrics } from "@/types/node-metrics";
+import type { NodeVMStat } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
 
 const fmtN = (n: number) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : n.toFixed(1);
 
-export function VMStatCard({ data }: { data: VMStatMetrics }) {
+export function VMStatCard({ data }: { data: NodeVMStat }) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-  const swapActive = data.pswpinPS > 0 || data.pswpoutPS > 0;
-  const majorFaultWarn = data.pgmajfaultPS > 100;
+  const swapActive = data.pswpInPerSec > 0 || data.pswpOutPerSec > 0;
+  const majorFaultWarn = data.pgMajFaultPerSec > 100;
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
@@ -25,22 +25,22 @@ export function VMStatCard({ data }: { data: VMStatMetrics }) {
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
         <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
           <div className="text-[10px] sm:text-xs text-muted mb-1">{nm.vmstat.pageFaults}</div>
-          <div className="text-base sm:text-lg font-bold text-default">{fmtN(data.pgfaultPS)}</div>
+          <div className="text-base sm:text-lg font-bold text-default">{fmtN(data.pgFaultPerSec)}</div>
           <div className="text-[10px] text-muted">{nm.vmstat.perSecond}</div>
         </div>
         <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
           <div className="text-[10px] sm:text-xs text-muted mb-1">{nm.vmstat.majorFaults}</div>
-          <div className={`text-base sm:text-lg font-bold ${majorFaultWarn ? "text-red-500" : "text-default"}`}>{fmtN(data.pgmajfaultPS)}</div>
+          <div className={`text-base sm:text-lg font-bold ${majorFaultWarn ? "text-red-500" : "text-default"}`}>{fmtN(data.pgMajFaultPerSec)}</div>
           <div className="text-[10px] text-muted">{nm.vmstat.perSecondDisk}</div>
         </div>
         <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
           <div className="text-[10px] sm:text-xs text-muted mb-1">{nm.vmstat.swapIn}</div>
-          <div className={`text-base sm:text-lg font-bold ${data.pswpinPS > 0 ? "text-yellow-500" : "text-default"}`}>{fmtN(data.pswpinPS)}</div>
+          <div className={`text-base sm:text-lg font-bold ${data.pswpInPerSec > 0 ? "text-yellow-500" : "text-default"}`}>{fmtN(data.pswpInPerSec)}</div>
           <div className="text-[10px] text-muted">{nm.vmstat.pagesPerSec}</div>
         </div>
         <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
           <div className="text-[10px] sm:text-xs text-muted mb-1">{nm.vmstat.swapOut}</div>
-          <div className={`text-base sm:text-lg font-bold ${data.pswpoutPS > 0 ? "text-yellow-500" : "text-default"}`}>{fmtN(data.pswpoutPS)}</div>
+          <div className={`text-base sm:text-lg font-bold ${data.pswpOutPerSec > 0 ? "text-yellow-500" : "text-default"}`}>{fmtN(data.pswpOutPerSec)}</div>
           <div className="text-[10px] text-muted">{nm.vmstat.pagesPerSec}</div>
         </div>
       </div>

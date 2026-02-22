@@ -16,15 +16,19 @@ import (
 	"sync"
 	"time"
 
+	"AtlHyper/atlhyper_agent_v2/config"
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/atlhyper_agent_v2/service"
-	"AtlHyper/model_v2"
+	"AtlHyper/common/logger"
+	"AtlHyper/model_v3/cluster"
 )
+
+var log = logger.Module("Snapshot")
 
 // snapshotService 快照采集服务实现
 //
-// 依赖 20 个 K8s Repository + 可选的 SLO Repository。
+// 依赖 20 个 K8s Repository + 可选的 OTel 概览仓库。
 // 所有 Repository 在创建时注入，支持测试时 mock。
 type snapshotService struct {
 	clusterID string
@@ -50,11 +54,11 @@ type snapshotService struct {
 	networkPolicyRepo  repository.NetworkPolicyRepository
 	serviceAccountRepo repository.ServiceAccountRepository
 
-	// 节点指标仓库 (可选)
-	metricsRepo repository.MetricsRepository
-
-	// SLO 数据仓库 (可选)
-	sloRepo repository.SLORepository
+	// OTel 仓库 (可选，从 ClickHouse 聚合)
+	otelSummaryRepo repository.OTelSummaryRepository
+	dashboardRepo   repository.OTelDashboardRepository
+	otelCache       *cluster.OTelSnapshot
+	otelCacheTime   time.Time
 }
 
 // NewSnapshotService 创建快照服务
@@ -80,8 +84,8 @@ func NewSnapshotService(
 	limitRangeRepo repository.LimitRangeRepository,
 	networkPolicyRepo repository.NetworkPolicyRepository,
 	serviceAccountRepo repository.ServiceAccountRepository,
-	metricsRepo repository.MetricsRepository,
-	sloRepo repository.SLORepository,
+	otelSummaryRepo repository.OTelSummaryRepository,
+	dashboardRepo repository.OTelDashboardRepository,
 ) service.SnapshotService {
 	return &snapshotService{
 		clusterID:          clusterID,
@@ -105,8 +109,8 @@ func NewSnapshotService(
 		limitRangeRepo:     limitRangeRepo,
 		networkPolicyRepo:  networkPolicyRepo,
 		serviceAccountRepo: serviceAccountRepo,
-		metricsRepo:        metricsRepo,
-		sloRepo:            sloRepo,
+		otelSummaryRepo:    otelSummaryRepo,
+		dashboardRepo:      dashboardRepo,
 	}
 }
 
@@ -123,8 +127,8 @@ func NewSnapshotService(
 // 错误处理:
 //   - 记录第一个错误但不中断其他采集
 //   - 返回已成功采集的数据
-func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapshot, error) {
-	snapshot := &model_v2.ClusterSnapshot{
+func (s *snapshotService) Collect(ctx context.Context) (*cluster.ClusterSnapshot, error) {
+	snapshot := &cluster.ClusterSnapshot{
 		ClusterID: s.clusterID,
 		FetchedAt: time.Now(),
 	}
@@ -146,12 +150,8 @@ func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapsho
 
 	opts := model.ListOptions{}
 
-	// 计算并发任务数: 20 个 K8s 资源 + 可选的 SLO
-	taskCount := 20
-	if s.sloRepo != nil {
-		taskCount++
-	}
-	wg.Add(taskCount)
+	// 20 个 K8s 资源并发采集
+	wg.Add(20)
 
 	// Pods
 	go func() {
@@ -393,36 +393,21 @@ func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapsho
 		}
 	}()
 
-	// SLO 数据 (可选，含路由映射)
-	// SLO 失败不阻断 K8s 快照上报，只记录警告
-	if s.sloRepo != nil {
-		go func() {
-			defer wg.Done()
-			sloData, err := s.sloRepo.Collect(ctx)
-			if err != nil {
-				// SLO 是可选功能，不传入 recordErr 以免阻断快照
-				return
-			}
-			if sloData != nil {
-				mu.Lock()
-				snapshot.SLOData = sloData
-				mu.Unlock()
-			}
-		}()
-	}
-
 	wg.Wait()
 
-	// 聚合节点指标
-	if s.metricsRepo != nil {
-		snapshot.NodeMetrics = s.metricsRepo.GetAll()
+	// 聚合 OTel 快照（带缓存）
+	if s.otelSummaryRepo != nil || s.dashboardRepo != nil {
+		otelSnapshot := s.getOTelSnapshot(ctx)
+		if otelSnapshot != nil {
+			snapshot.OTel = otelSnapshot
+		}
 	}
 
 	// 统计每个 Namespace 的资源数量
 	s.calculateNamespaceResources(snapshot)
 
 	// 生成摘要
-	snapshot.Summary = s.generateSummary(snapshot)
+	snapshot.Summary = snapshot.GenerateSummary()
 
 	return snapshot, firstErr
 }
@@ -432,7 +417,7 @@ func (s *snapshotService) Collect(ctx context.Context) (*model_v2.ClusterSnapsho
 // 遍历快照中的所有资源，按 Namespace 分组统计，
 // 然后更新 Namespaces 列表中每个 Namespace 的 Resources 字段。
 // 同时关联 ResourceQuotas 和 LimitRanges 到对应的 Namespace。
-func (s *snapshotService) calculateNamespaceResources(snapshot *model_v2.ClusterSnapshot) {
+func (s *snapshotService) calculateNamespaceResources(snapshot *cluster.ClusterSnapshot) {
 	// 初始化统计 map
 	type nsStats struct {
 		pods, podsRunning, podsPending, podsFailed, podsSucceeded int
@@ -441,8 +426,8 @@ func (s *snapshotService) calculateNamespaceResources(snapshot *model_v2.Cluster
 		services, ingresses, networkPolicies                       int
 		configMaps, secrets, serviceAccounts                       int
 		pvcs                                                       int
-		quotas                                                     []model_v2.ResourceQuota
-		limitRanges                                                []model_v2.LimitRange
+		quotas                                                     []cluster.ResourceQuota
+		limitRanges                                                []cluster.LimitRange
 	}
 	statsByNs := make(map[string]*nsStats)
 
@@ -578,7 +563,7 @@ func (s *snapshotService) calculateNamespaceResources(snapshot *model_v2.Cluster
 	for i := range snapshot.Namespaces {
 		nsName := snapshot.Namespaces[i].GetName()
 		if stats, ok := statsByNs[nsName]; ok {
-			snapshot.Namespaces[i].Resources = model_v2.NamespaceResources{
+			snapshot.Namespaces[i].Resources = cluster.NamespaceResources{
 				Pods:            stats.pods,
 				PodsRunning:     stats.podsRunning,
 				PodsPending:     stats.podsPending,
@@ -604,61 +589,203 @@ func (s *snapshotService) calculateNamespaceResources(snapshot *model_v2.Cluster
 	}
 }
 
-// generateSummary 生成快照摘要
+// getOTelSnapshot 获取 OTel 快照（带缓存）
 //
-// 遍历快照中的资源，统计各类指标:
-//   - Node: 总数、Ready 数
-//   - Pod: 总数、Running/Pending/Failed 数
-//   - Deployment: 总数、健康 (ReadyReplicas == Replicas) 数
-//   - Event: 总数、Warning 类型数
-//   - Namespace: 总数
-//
-// 摘要用于仪表盘快速展示，避免前端遍历完整数据。
-func (s *snapshotService) generateSummary(snapshot *model_v2.ClusterSnapshot) model_v2.ClusterSummary {
-	summary := model_v2.ClusterSummary{
-		TotalNodes:        len(snapshot.Nodes),
-		TotalPods:         len(snapshot.Pods),
-		TotalDeployments:  len(snapshot.Deployments),
-		TotalStatefulSets: len(snapshot.StatefulSets),
-		TotalDaemonSets:   len(snapshot.DaemonSets),
-		TotalServices:     len(snapshot.Services),
-		TotalIngresses:    len(snapshot.Ingresses),
-		TotalNamespaces:   len(snapshot.Namespaces),
-		TotalEvents:       len(snapshot.Events),
+// 从 ClickHouse 聚合标量摘要 + Dashboard 列表数据。
+// 标量摘要（3 组）和 Dashboard 列表（8 个）全部并发查询。
+// 使用 TTL 缓存避免每次快照都查询 ClickHouse。
+func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnapshot {
+	ttl := config.GlobalConfig.Scheduler.OTelCacheTTL
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	if s.otelCache != nil && time.Since(s.otelCacheTime) < ttl {
+		return s.otelCache
 	}
 
-	// 统计 Node 状态
-	for _, node := range snapshot.Nodes {
-		if node.IsReady() {
-			summary.ReadyNodes++
-		}
+	snapshot := &cluster.OTelSnapshot{}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var hasError bool
+
+	setError := func() {
+		mu.Lock()
+		hasError = true
+		mu.Unlock()
 	}
 
-	// 统计 Pod 状态
-	for _, pod := range snapshot.Pods {
-		switch pod.Status.Phase {
-		case "Running":
-			summary.RunningPods++
-		case "Pending":
-			summary.PendingPods++
-		case "Failed":
-			summary.FailedPods++
-		}
+	// ===== 标量摘要查询（3 个并发，仅当 otelSummaryRepo 可用时）=====
+
+	if s.otelSummaryRepo != nil {
+		wg.Add(3)
+
+		// APM 摘要
+		go func() {
+			defer wg.Done()
+			totalSvc, healthySvc, totalRPS, avgSuccRate, avgP99, err := s.otelSummaryRepo.GetAPMSummary(ctx)
+			if err != nil {
+				log.Warn("OTel APM 概览查询失败", "err", err)
+				setError()
+				return
+			}
+			mu.Lock()
+			snapshot.TotalServices = totalSvc
+			snapshot.HealthyServices = healthySvc
+			snapshot.TotalRPS = totalRPS
+			snapshot.AvgSuccessRate = avgSuccRate
+			snapshot.AvgP99Ms = avgP99
+			mu.Unlock()
+		}()
+
+		// SLO 摘要
+		go func() {
+			defer wg.Done()
+			ingressSvc, ingressRPS, meshSvc, meshMTLS, err := s.otelSummaryRepo.GetSLOSummary(ctx)
+			if err != nil {
+				log.Warn("OTel SLO 概览查询失败", "err", err)
+				setError()
+				return
+			}
+			mu.Lock()
+			snapshot.IngressServices = ingressSvc
+			snapshot.IngressAvgRPS = ingressRPS
+			snapshot.MeshServices = meshSvc
+			snapshot.MeshAvgMTLS = meshMTLS
+			mu.Unlock()
+		}()
+
+		// Metrics 摘要
+		go func() {
+			defer wg.Done()
+			nodes, avgCPU, avgMem, maxCPU, maxMem, err := s.otelSummaryRepo.GetMetricsSummary(ctx)
+			if err != nil {
+				log.Warn("OTel Metrics 概览查询失败", "err", err)
+				setError()
+				return
+			}
+			mu.Lock()
+			snapshot.MonitoredNodes = nodes
+			snapshot.AvgCPUPct = avgCPU
+			snapshot.AvgMemPct = avgMem
+			snapshot.MaxCPUPct = maxCPU
+			snapshot.MaxMemPct = maxMem
+			mu.Unlock()
+		}()
 	}
 
-	// 统计 Deployment 状态
-	for _, deploy := range snapshot.Deployments {
-		if deploy.IsHealthy() {
-			summary.HealthyDeployments++
-		}
+	// ===== Dashboard 列表查询（8 个并发，仅当 dashboardRepo 可用时）=====
+
+	if s.dashboardRepo != nil {
+		defaultSince := 5 * time.Minute
+
+		wg.Add(8)
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.GetMetricsSummary(ctx)
+			if err != nil {
+				log.Warn("Dashboard MetricsSummary 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.MetricsSummary = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListAllNodeMetrics(ctx)
+			if err != nil {
+				log.Warn("Dashboard MetricsNodes 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.MetricsNodes = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListAPMServices(ctx)
+			if err != nil {
+				log.Warn("Dashboard APMServices 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.APMServices = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.GetAPMTopology(ctx)
+			if err != nil {
+				log.Warn("Dashboard APMTopology 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.APMTopology = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.GetSLOSummary(ctx)
+			if err != nil {
+				log.Warn("Dashboard SLOSummary 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.SLOSummary = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListIngressSLO(ctx, defaultSince)
+			if err != nil {
+				log.Warn("Dashboard SLOIngress 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.SLOIngress = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListServiceSLO(ctx, defaultSince)
+			if err != nil {
+				log.Warn("Dashboard SLOServices 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.SLOServices = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListServiceEdges(ctx, defaultSince)
+			if err != nil {
+				log.Warn("Dashboard SLOEdges 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.SLOEdges = result
+			mu.Unlock()
+		}()
 	}
 
-	// 统计 Event 状态
-	for _, event := range snapshot.Events {
-		if event.IsWarning() {
-			summary.WarningEvents++
-		}
+	wg.Wait()
+
+	// 全部失败时不更新缓存，继续使用旧数据
+	if hasError && s.otelCache != nil {
+		return s.otelCache
 	}
 
-	return summary
+	s.otelCache = snapshot
+	s.otelCacheTime = time.Now()
+	return snapshot
 }

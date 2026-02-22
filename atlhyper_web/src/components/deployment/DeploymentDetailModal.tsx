@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Modal } from "@/components/common/Modal";
+import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { ConfirmDialog } from "@/components/common";
-import { getDeploymentDetail, scaleDeployment, updateDeploymentImage } from "@/api/deployment";
+import { getDeploymentDetail, scaleDeployment, updateDeploymentImage } from "@/datasource/cluster";
 import { getCurrentClusterId } from "@/config/cluster";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useI18n } from "@/i18n/context";
@@ -141,7 +141,7 @@ export function DeploymentDetailModal({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title={`Deployment: ${deploymentName}`} size="xl">
+      <Drawer isOpen={isOpen} onClose={onClose} title={`Deployment: ${deploymentName}`} size="xl">
         {loading ? (
           <div className="py-12">
             <LoadingSpinner />
@@ -149,7 +149,7 @@ export function DeploymentDetailModal({
         ) : error ? (
           <div className="p-6 text-center text-red-500">{error}</div>
         ) : detail ? (
-          <div className="flex flex-col h-[70vh]">
+          <div className="flex flex-col h-full">
             {/* Tabs */}
             <div className="flex border-b border-[var(--border-color)] px-4 shrink-0 overflow-x-auto">
               {tabs.map((tab) => (
@@ -205,7 +205,7 @@ export function DeploymentDetailModal({
             </div>
           </div>
         ) : null}
-      </Modal>
+      </Drawer>
 
       {/* 镜像更新确认 */}
       <ConfirmDialog

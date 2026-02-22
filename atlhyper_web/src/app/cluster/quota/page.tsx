@@ -3,7 +3,8 @@
 import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getResourceQuotaList, type ResourceQuotaItem } from "@/api/cluster-resources";
+import { getResourceQuotaList } from "@/datasource/cluster";
+import type { ResourceQuotaItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";

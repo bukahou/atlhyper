@@ -17,8 +17,8 @@ import { OverviewTab } from "./OverviewTab";
 import { MeshTab } from "./MeshTab";
 import { CompareTab } from "./CompareTab";
 import { LatencyTab } from "./LatencyTab";
-import { getSLODomainHistory, getSLOLatencyDistribution } from "@/api/slo";
-import { getMeshTopology } from "@/api/mesh";
+import { getSLODomainHistory, getSLOLatencyDistribution } from "@/datasource/slo";
+import { getMeshTopology } from "@/datasource/mesh";
 import type { DomainSLOV2, LatencyDistributionResponse, SLOHistoryPoint } from "@/types/slo";
 import type { MeshTopologyResponse } from "@/types/mesh";
 

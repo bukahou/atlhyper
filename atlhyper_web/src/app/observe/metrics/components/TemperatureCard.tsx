@@ -1,12 +1,12 @@
 "use client";
 
 import { memo } from "react";
-import { Thermometer, AlertTriangle, Fan } from "lucide-react";
-import type { TemperatureMetrics } from "@/types/node-metrics";
+import { Thermometer, AlertTriangle } from "lucide-react";
+import type { NodeTemperature } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
 
 interface TemperatureCardProps {
-  data: TemperatureMetrics;
+  data: NodeTemperature;
 }
 
 const getTempColor = (temp: number, high?: number, critical?: number) => {
@@ -26,11 +26,12 @@ const getTempBgColor = (temp: number, high?: number, critical?: number) => {
 export const TemperatureCard = memo(function TemperatureCard({ data }: TemperatureCardProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-  // cpuTempMax 为 0 时（如树莓派不上报 max），fallback 100°C
-  const effectiveMax = data.cpuTempMax > 0 ? data.cpuTempMax : 100;
-  const hasValidData = data.cpuTemp > 0;
-  const isWarning = hasValidData && data.cpuTemp >= (effectiveMax * 0.85);
-  const isCritical = hasValidData && data.cpuTemp >= (effectiveMax * 0.95);
+  // cpuMaxC 为 0 时（如树莓派不上报 max），fallback 100°C
+  const effectiveMax = data.cpuMaxC > 0 ? data.cpuMaxC : 100;
+  const effectiveCrit = data.cpuCritC > 0 ? data.cpuCritC : effectiveMax;
+  const hasValidData = data.cpuTempC > 0;
+  const isWarning = hasValidData && data.cpuTempC >= (effectiveMax * 0.85);
+  const isCritical = hasValidData && data.cpuTempC >= (effectiveCrit * 0.95);
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
@@ -42,13 +43,13 @@ export const TemperatureCard = memo(function TemperatureCard({ data }: Temperatu
           </div>
           <div>
             <h3 className="text-sm sm:text-base font-semibold text-default">{nm.temperature.title}</h3>
-            <p className="text-[10px] sm:text-xs text-muted">Max: {data.cpuTempMax > 0 ? `${data.cpuTempMax}°C` : nm.temperature.na}</p>
+            <p className="text-[10px] sm:text-xs text-muted">Max: {data.cpuMaxC > 0 ? `${data.cpuMaxC}°C` : nm.temperature.na}</p>
           </div>
         </div>
         {/* CPU 温度 */}
         <div className="text-right">
-          <div className={`text-xl sm:text-2xl font-bold ${getTempColor(data.cpuTemp, effectiveMax * 0.85, effectiveMax)}`}>
-            {data.cpuTemp.toFixed(1)}°C
+          <div className={`text-xl sm:text-2xl font-bold ${getTempColor(data.cpuTempC, effectiveMax * 0.85, effectiveCrit)}`}>
+            {data.cpuTempC.toFixed(1)}°C
           </div>
           <div className="text-[10px] sm:text-xs text-muted">{nm.temperature.cpuTemp}</div>
         </div>
@@ -65,8 +66,8 @@ export const TemperatureCard = memo(function TemperatureCard({ data }: Temperatu
           </div>
           {/* 当前温度指示 */}
           <div
-            className={`h-full rounded-full transition-all duration-300 ${getTempBgColor(data.cpuTemp, effectiveMax * 0.85, effectiveMax)}`}
-            style={{ width: `${Math.min(100, (data.cpuTemp / effectiveMax) * 100)}%`, opacity: 0.8 }}
+            className={`h-full rounded-full transition-all duration-300 ${getTempBgColor(data.cpuTempC, effectiveMax * 0.85, effectiveCrit)}`}
+            style={{ width: `${Math.min(100, (data.cpuTempC / effectiveMax) * 100)}%`, opacity: 0.8 }}
           />
         </div>
         {/* 刻度 */}
@@ -77,21 +78,6 @@ export const TemperatureCard = memo(function TemperatureCard({ data }: Temperatu
         </div>
       </div>
 
-      {/* GPU 温度 (如果有) */}
-      {data.gpuTemp !== undefined && (
-        <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-[var(--background)] rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <Fan className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500" />
-              <span className="text-xs sm:text-sm text-default">{nm.temperature.gpuTemp}</span>
-            </div>
-            <span className={`text-base sm:text-lg font-bold ${getTempColor(data.gpuTemp, 75, 90)}`}>
-              {data.gpuTemp.toFixed(1)}°C
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* 传感器列表 */}
       <div>
         <div className="text-[10px] sm:text-xs text-muted mb-2">{nm.temperature.sensors}</div>
@@ -99,16 +85,16 @@ export const TemperatureCard = memo(function TemperatureCard({ data }: Temperatu
           {data.sensors.map((sensor, index) => (
             <div key={index} className="flex items-center justify-between p-1.5 sm:p-2 bg-[var(--background)] rounded-lg">
               <div className="flex-1 min-w-0">
-                <div className="text-xs sm:text-sm text-default truncate">{sensor.label}</div>
-                <div className="text-[10px] sm:text-xs text-muted hidden sm:block">{sensor.name}</div>
+                <div className="text-xs sm:text-sm text-default truncate">{sensor.sensor}</div>
+                <div className="text-[10px] sm:text-xs text-muted hidden sm:block">{sensor.chip}</div>
               </div>
               <div className="flex items-center gap-1 sm:gap-2">
-                <span className={`text-xs sm:text-sm font-medium ${getTempColor(sensor.temp, sensor.high, sensor.critical)}`}>
-                  {sensor.temp.toFixed(1)}°C
+                <span className={`text-xs sm:text-sm font-medium ${getTempColor(sensor.currentC, sensor.maxC, sensor.critC)}`}>
+                  {sensor.currentC.toFixed(1)}°C
                 </span>
-                {sensor.high && (
+                {sensor.maxC > 0 && (
                   <span className="text-[10px] sm:text-xs text-muted hidden sm:inline">
-                    (H:{sensor.high}°C)
+                    (H:{sensor.maxC}°C)
                   </span>
                 )}
               </div>

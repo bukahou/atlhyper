@@ -13,7 +13,6 @@ import {
   Activity,
   ChevronDown,
   ChevronRight,
-  Database,
   AlertTriangle,
   Loader2,
   WifiOff,
@@ -26,9 +25,7 @@ import {
   DiskCard,
   NetworkCard,
   TemperatureCard,
-  ProcessTable,
   ResourceChart,
-  GPUCard,
   PSICard,
   TCPCard,
   SystemResourcesCard,
@@ -41,12 +38,12 @@ import {
   getClusterNodeMetrics,
   getNodeMetricsHistory,
 } from "@/datasource/metrics";
-import type { ClusterMetricsSummary } from "@/datasource/metrics";
+import type { Summary } from "@/datasource/metrics";
 
 // 工具函数
 import { formatBytes } from "@/lib/format";
 
-import type { NodeMetricsSnapshot, MetricsDataPoint } from "@/types/node-metrics";
+import type { NodeMetrics, Point } from "@/types/node-metrics";
 
 // ==================== 工具函数 ====================
 const uptimeStr = (s: number) => {
@@ -101,18 +98,18 @@ function NodeCard({
   expanded,
   onToggle,
 }: {
-  metrics: NodeMetricsSnapshot;
-  historyData: MetricsDataPoint[];
+  metrics: NodeMetrics;
+  historyData: Record<string, Point[]>;
   expanded: boolean;
   onToggle: () => void;
 }) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-  const cpuUsage = metrics.cpu.usagePercent;
-  const memUsage = metrics.memory.usagePercent;
-  const temp = metrics.temperature.cpuTemp;
+  const cpuUsage = metrics.cpu.usagePct;
+  const memUsage = metrics.memory.usagePct;
+  const temp = metrics.temperature.cpuTempC;
   const rootDisk = metrics.disks.find(d => d.mountPoint === "/") || metrics.disks[0];
-  const diskPct = rootDisk?.usagePercent || 0;
+  const diskPct = rootDisk?.usagePct || 0;
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
@@ -126,12 +123,7 @@ function NodeCard({
           <div className="flex items-center gap-2">
             <Server className="w-4 h-4 text-indigo-500" />
             <span className="text-sm font-semibold text-default">{metrics.nodeName}</span>
-            {metrics.cpu.coreCount > 8 ? (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500">{nm.node.controlPlane}</span>
-            ) : (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">{nm.node.worker}</span>
-            )}
-            <span className="text-[10px] text-muted hidden sm:inline">{metrics.os || "linux"}</span>
+            <span className="text-[10px] text-muted hidden sm:inline">{metrics.nodeIP}</span>
           </div>
         </div>
         <div className="flex items-center gap-3 sm:gap-5 text-xs">
@@ -139,18 +131,19 @@ function NodeCard({
           <span><span className="text-muted">Mem </span><span className={getUsageColor(memUsage)}>{memUsage.toFixed(1)}%</span></span>
           <span className="hidden sm:inline"><span className="text-muted">Disk </span><span className={getUsageColor(diskPct)}>{diskPct.toFixed(1)}%</span><span className="text-muted"> ({rootDisk?.mountPoint || "/"})</span></span>
           <span className="hidden sm:inline"><span className="text-muted">Temp </span><span className={getTempColor(temp)}>{temp > 0 ? `${temp.toFixed(1)}°C` : "N/A"}</span></span>
-          <span className="hidden lg:inline text-muted">up {uptimeStr(metrics.uptime)}</span>
+          {metrics.uptime !== undefined && (
+            <span className="hidden lg:inline text-muted">up {uptimeStr(metrics.uptime)}</span>
+          )}
         </div>
       </button>
 
-      {/* 展开详情 - 无额外背景色，透明融合 */}
+      {/* 展开详情 */}
       {expanded && (
         <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-4 sm:space-y-6">
           {/* 系统信息条 */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted px-1">
-            {metrics.os && <span>{metrics.os}</span>}
             {metrics.kernel && <span>{metrics.kernel}</span>}
-            <span>{nm.node.uptime}: {uptimeStr(metrics.uptime)}</span>
+            {metrics.uptime !== undefined && <span>{nm.node.uptime}: {uptimeStr(metrics.uptime)}</span>}
           </div>
 
           {/* 资源趋势图 */}
@@ -168,15 +161,8 @@ function NodeCard({
             <NetworkCard data={metrics.networks} />
           </div>
 
-          {/* 第三行：Temperature + GPU (如果有) */}
-          {metrics.gpus && metrics.gpus.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-              <TemperatureCard data={metrics.temperature} />
-              <GPUCard data={metrics.gpus} />
-            </div>
-          ) : (
-            <TemperatureCard data={metrics.temperature} />
-          )}
+          {/* 第三行：Temperature */}
+          <TemperatureCard data={metrics.temperature} />
 
           {/* 第四行：PSI + TCP */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
@@ -186,14 +172,9 @@ function NodeCard({
 
           {/* 第五行：System Resources + VMStat */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-            <SystemResourcesCard system={metrics.system} ntp={metrics.ntp} />
+            <SystemResourcesCard system={metrics.system} />
             <VMStatCard data={metrics.vmstat} />
           </div>
-
-          {/* 进程列表 */}
-          {metrics.topProcesses.length > 0 && (
-            <ProcessTable data={metrics.topProcesses} />
-          )}
         </div>
       )}
     </div>
@@ -214,11 +195,11 @@ export default function MetricsPage() {
   // 数据状态
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<ClusterMetricsSummary | null>(null);
-  const [nodes, setNodes] = useState<NodeMetricsSnapshot[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [nodes, setNodes] = useState<NodeMetrics[]>([]);
 
-  // 历史数据缓存（每个节点）
-  const [historyCache, setHistoryCache] = useState<Record<string, MetricsDataPoint[]>>({});
+  // 历史数据缓存（每个节点，按 metric 分组）
+  const [historyCache, setHistoryCache] = useState<Record<string, Record<string, Point[]>>>({});
 
   // 加载数据
   const loadData = useCallback(async (showLoading = true) => {
@@ -276,9 +257,9 @@ export default function MetricsPage() {
   const warningNodes = useMemo(() => {
     return nodes.filter((node) => {
       return (
-        node.cpu.usagePercent >= 80 ||
-        node.memory.usagePercent >= 80 ||
-        node.temperature.cpuTemp >= 75
+        node.cpu.usagePct >= 80 ||
+        node.memory.usagePct >= 80 ||
+        node.temperature.cpuTempC >= 75
       );
     }).length;
   }, [nodes]);
@@ -355,7 +336,7 @@ export default function MetricsPage() {
 
         {/* 集群概览卡片 */}
         {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <SummaryCard
               icon={Server}
               label={nm.summary.nodes}
@@ -366,30 +347,22 @@ export default function MetricsPage() {
             <SummaryCard
               icon={Cpu}
               label={nm.summary.avgCpu}
-              value={`${summary.avgCPUUsage.toFixed(1)}%`}
-              subValue={`Max: ${summary.maxCPUUsage.toFixed(1)}%`}
-              color={summary.avgCPUUsage >= 80 ? "bg-red-500/10 text-red-500" : summary.avgCPUUsage >= 60 ? "bg-yellow-500/10 text-yellow-500" : "bg-orange-500/10 text-orange-500"}
+              value={`${summary.avgCpuPct.toFixed(1)}%`}
+              subValue={`Max: ${summary.maxCpuPct.toFixed(1)}%`}
+              color={summary.avgCpuPct >= 80 ? "bg-red-500/10 text-red-500" : summary.avgCpuPct >= 60 ? "bg-yellow-500/10 text-yellow-500" : "bg-orange-500/10 text-orange-500"}
             />
             <SummaryCard
               icon={HardDrive}
               label={nm.summary.avgMemory}
-              value={`${summary.avgMemoryUsage.toFixed(1)}%`}
-              subValue={`${formatBytes(summary.usedMemory)} / ${formatBytes(summary.totalMemory)}`}
-              color={summary.avgMemoryUsage >= 80 ? "bg-red-500/10 text-red-500" : summary.avgMemoryUsage >= 60 ? "bg-yellow-500/10 text-yellow-500" : "bg-green-500/10 text-green-500"}
+              value={`${summary.avgMemPct.toFixed(1)}%`}
+              subValue={`Max: ${summary.maxMemPct.toFixed(1)}%`}
+              color={summary.avgMemPct >= 80 ? "bg-red-500/10 text-red-500" : summary.avgMemPct >= 60 ? "bg-yellow-500/10 text-yellow-500" : "bg-green-500/10 text-green-500"}
             />
             <SummaryCard
               icon={Thermometer}
               label={nm.summary.maxTemp}
-              value={summary.maxCPUTemp > 0 ? `${summary.maxCPUTemp.toFixed(1)}°C` : nm.temperature.na}
-              subValue={summary.avgCPUTemp > 0 ? `Avg: ${summary.avgCPUTemp.toFixed(1)}°C` : ""}
-              color={summary.maxCPUTemp >= 80 ? "bg-red-500/10 text-red-500" : summary.maxCPUTemp >= 65 ? "bg-yellow-500/10 text-yellow-500" : "bg-cyan-500/10 text-cyan-500"}
-            />
-            <SummaryCard
-              icon={Database}
-              label={nm.summary.avgDisk}
-              value={`${summary.avgDiskUsage.toFixed(1)}%`}
-              subValue={`Max: ${summary.maxDiskUsage.toFixed(1)}%`}
-              color={summary.maxDiskUsage >= 80 ? "bg-red-500/10 text-red-500" : summary.maxDiskUsage >= 60 ? "bg-yellow-500/10 text-yellow-500" : "bg-blue-500/10 text-blue-500"}
+              value={summary.maxCpuTemp > 0 ? `${summary.maxCpuTemp.toFixed(1)}°C` : nm.temperature.na}
+              color={summary.maxCpuTemp >= 80 ? "bg-red-500/10 text-red-500" : summary.maxCpuTemp >= 65 ? "bg-yellow-500/10 text-yellow-500" : "bg-cyan-500/10 text-cyan-500"}
             />
             <SummaryCard
               icon={AlertTriangle}
@@ -438,7 +411,7 @@ export default function MetricsPage() {
               <NodeCard
                 key={node.nodeName}
                 metrics={node}
-                historyData={historyCache[node.nodeName] || []}
+                historyData={historyCache[node.nodeName] || {}}
                 expanded={expandedNode === node.nodeName}
                 onToggle={() => handleNodeToggle(node.nodeName)}
               />

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/model_v3/command"
 	"AtlHyper/common/logger"
 )
 
@@ -20,11 +20,11 @@ type MemoryBus struct {
 	queuesMu sync.RWMutex
 
 	// 指令状态（全局，用于查询）
-	commands   map[string]*model.CommandStatus
+	commands   map[string]*command.Status
 	commandsMu sync.RWMutex
 
 	// 指令结果等待者（用于同步等待）
-	commandWaiters   map[string]chan *model.CommandResult
+	commandWaiters   map[string]chan *command.Result
 	commandWaitersMu sync.Mutex
 
 	// 生命周期
@@ -33,7 +33,7 @@ type MemoryBus struct {
 
 // commandQueue 单个集群的指令队列
 type commandQueue struct {
-	commands []*model.Command
+	commands []*command.Command
 	waiting  chan struct{} // 通知等待者
 	mu       sync.Mutex
 }
@@ -42,8 +42,8 @@ type commandQueue struct {
 func New() *MemoryBus {
 	return &MemoryBus{
 		queues:         make(map[string]*commandQueue),
-		commands:       make(map[string]*model.CommandStatus),
-		commandWaiters: make(map[string]chan *model.CommandResult),
+		commands:       make(map[string]*command.Status),
+		commandWaiters: make(map[string]chan *command.Result),
 		stopCh:         make(chan struct{}),
 	}
 }
@@ -78,7 +78,7 @@ func (b *MemoryBus) getOrCreateQueue(clusterID, topic string) *commandQueue {
 		return q
 	}
 	q := &commandQueue{
-		commands: make([]*model.Command, 0),
+		commands: make([]*command.Command, 0),
 		waiting:  make(chan struct{}, 1),
 	}
 	b.queues[key] = q
@@ -86,7 +86,7 @@ func (b *MemoryBus) getOrCreateQueue(clusterID, topic string) *commandQueue {
 }
 
 // EnqueueCommand 入队指令到指定 topic
-func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *model.Command) error {
+func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *command.Command) error {
 	q := b.getOrCreateQueue(clusterID, topic)
 
 	q.mu.Lock()
@@ -95,9 +95,9 @@ func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *model.Command) 
 
 	// 记录指令状态
 	b.commandsMu.Lock()
-	b.commands[cmd.ID] = &model.CommandStatus{
+	b.commands[cmd.ID] = &command.Status{
 		CommandID: cmd.ID,
-		Status:    model.CommandStatusPending,
+		Status:    command.StatusPending,
 		CreatedAt: cmd.CreatedAt,
 	}
 	b.commandsMu.Unlock()
@@ -113,7 +113,7 @@ func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *model.Command) 
 }
 
 // WaitCommand 等待指定 topic 的指令（长轮询）
-func (b *MemoryBus) WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*model.Command, error) {
+func (b *MemoryBus) WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*command.Command, error) {
 	q := b.getOrCreateQueue(clusterID, topic)
 
 	// 先检查是否有待处理的指令
@@ -124,7 +124,7 @@ func (b *MemoryBus) WaitCommand(ctx context.Context, clusterID, topic string, ti
 		q.mu.Unlock()
 
 		// 更新状态
-		b.updateCommandStatus(cmd.ID, model.CommandStatusRunning)
+		b.updateCommandStatus(cmd.ID, command.StatusRunning)
 		return cmd, nil
 	}
 	q.mu.Unlock()
@@ -145,7 +145,7 @@ func (b *MemoryBus) WaitCommand(ctx context.Context, clusterID, topic string, ti
 			cmd := q.commands[0]
 			q.commands = q.commands[1:]
 			q.mu.Unlock()
-			b.updateCommandStatus(cmd.ID, model.CommandStatusRunning)
+			b.updateCommandStatus(cmd.ID, command.StatusRunning)
 			return cmd, nil
 		}
 		q.mu.Unlock()
@@ -160,7 +160,7 @@ func (b *MemoryBus) updateCommandStatus(cmdID, status string) {
 
 	if cs, ok := b.commands[cmdID]; ok {
 		cs.Status = status
-		if status == model.CommandStatusRunning {
+		if status == command.StatusRunning {
 			now := time.Now()
 			cs.StartedAt = &now
 		}
@@ -168,7 +168,7 @@ func (b *MemoryBus) updateCommandStatus(cmdID, status string) {
 }
 
 // AckCommand 确认指令完成
-func (b *MemoryBus) AckCommand(cmdID string, result *model.CommandResult) error {
+func (b *MemoryBus) AckCommand(cmdID string, result *command.Result) error {
 	b.commandsMu.Lock()
 
 	cs, ok := b.commands[cmdID]
@@ -182,9 +182,9 @@ func (b *MemoryBus) AckCommand(cmdID string, result *model.CommandResult) error 
 	cs.Result = result
 
 	if result.Success {
-		cs.Status = model.CommandStatusSuccess
+		cs.Status = command.StatusSuccess
 	} else {
-		cs.Status = model.CommandStatusFailed
+		cs.Status = command.StatusFailed
 	}
 
 	b.commandsMu.Unlock()
@@ -205,7 +205,7 @@ func (b *MemoryBus) AckCommand(cmdID string, result *model.CommandResult) error 
 }
 
 // GetCommandStatus 获取指令状态
-func (b *MemoryBus) GetCommandStatus(cmdID string) (*model.CommandStatus, error) {
+func (b *MemoryBus) GetCommandStatus(cmdID string) (*command.Status, error) {
 	b.commandsMu.RLock()
 	defer b.commandsMu.RUnlock()
 
@@ -218,7 +218,7 @@ func (b *MemoryBus) GetCommandStatus(cmdID string) (*model.CommandStatus, error)
 
 // WaitCommandResult 等待指令执行完成（同步等待）
 // 阻塞直到 Agent 上报结果、超时、或 ctx 取消
-func (b *MemoryBus) WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*model.CommandResult, error) {
+func (b *MemoryBus) WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*command.Result, error) {
 	// 先检查是否已完成
 	b.commandsMu.RLock()
 	if cs, ok := b.commands[cmdID]; ok && cs.Result != nil {
@@ -228,7 +228,7 @@ func (b *MemoryBus) WaitCommandResult(ctx context.Context, cmdID string, timeout
 	b.commandsMu.RUnlock()
 
 	// 创建等待 channel
-	ch := make(chan *model.CommandResult, 1)
+	ch := make(chan *command.Result, 1)
 
 	b.commandWaitersMu.Lock()
 	b.commandWaiters[cmdID] = ch

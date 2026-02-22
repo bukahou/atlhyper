@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // serviceRepository Service 仓库实现
@@ -20,7 +20,7 @@ func NewServiceRepository(client sdk.K8sClient) repository.ServiceRepository {
 }
 
 // List 列出 Service
-func (r *serviceRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Service, error) {
+func (r *serviceRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Service, error) {
 	k8sServices, err := r.client.ListServices(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *serviceRepository) List(ctx context.Context, namespace string, opts mod
 		return nil, err
 	}
 
-	services := make([]model_v2.Service, 0, len(k8sServices))
+	services := make([]cluster.Service, 0, len(k8sServices))
 	for i := range k8sServices {
 		services = append(services, ConvertService(&k8sServices[i]))
 	}
@@ -38,7 +38,7 @@ func (r *serviceRepository) List(ctx context.Context, namespace string, opts mod
 }
 
 // Get 获取单个 Service
-func (r *serviceRepository) Get(ctx context.Context, namespace, name string) (*model_v2.Service, error) {
+func (r *serviceRepository) Get(ctx context.Context, namespace, name string) (*cluster.Service, error) {
 	k8sService, err := r.client.GetService(ctx, namespace, name)
 	if err != nil {
 		return nil, err

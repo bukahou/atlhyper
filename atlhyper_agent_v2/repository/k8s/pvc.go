@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // persistentVolumeClaimRepository PVC 仓库实现
@@ -20,7 +20,7 @@ func NewPersistentVolumeClaimRepository(client sdk.K8sClient) repository.Persist
 }
 
 // List 列出 PersistentVolumeClaim
-func (r *persistentVolumeClaimRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.PersistentVolumeClaim, error) {
+func (r *persistentVolumeClaimRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.PersistentVolumeClaim, error) {
 	k8sPVCs, err := r.client.ListPersistentVolumeClaims(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *persistentVolumeClaimRepository) List(ctx context.Context, namespace st
 		return nil, err
 	}
 
-	pvcs := make([]model_v2.PersistentVolumeClaim, 0, len(k8sPVCs))
+	pvcs := make([]cluster.PersistentVolumeClaim, 0, len(k8sPVCs))
 	for i := range k8sPVCs {
 		pvcs = append(pvcs, ConvertPersistentVolumeClaim(&k8sPVCs[i]))
 	}

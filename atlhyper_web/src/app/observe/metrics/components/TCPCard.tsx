@@ -1,17 +1,16 @@
 import { Network } from "lucide-react";
-import type { TCPMetrics, SoftnetMetrics } from "@/types/node-metrics";
+import type { NodeTCP, NodeSoftnet } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
 
-export function TCPCard({ tcp, softnet }: { tcp: TCPMetrics; softnet: SoftnetMetrics }) {
+export function TCPCard({ tcp, softnet }: { tcp: NodeTCP; softnet: NodeSoftnet }) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
   const states = [
     { label: "ESTABLISHED", value: tcp.currEstab, color: "text-green-500" },
     { label: "TIME_WAIT", value: tcp.timeWait, color: tcp.timeWait > 200 ? "text-yellow-500" : "text-default" },
-    { label: "ORPHAN", value: tcp.orphan, color: tcp.orphan > 0 ? "text-yellow-500" : "text-default" },
   ];
 
-  const total = tcp.currEstab + tcp.timeWait + tcp.orphan;
+  const total = tcp.currEstab + tcp.timeWait;
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
@@ -28,7 +27,7 @@ export function TCPCard({ tcp, softnet }: { tcp: TCPMetrics; softnet: SoftnetMet
       </div>
 
       {/* TCP States */}
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      <div className="grid grid-cols-2 gap-2 mb-3">
         {states.map((s) => (
           <div key={s.label} className="p-2 bg-[var(--background)] rounded-lg text-center">
             <div className={`text-base sm:text-lg font-bold ${s.color}`}>{s.value}</div>
@@ -42,7 +41,6 @@ export function TCPCard({ tcp, softnet }: { tcp: TCPMetrics; softnet: SoftnetMet
         <div className="h-2.5 rounded-full overflow-hidden flex mb-3">
           {tcp.currEstab > 0 && <div className="h-full bg-green-500" style={{ width: `${(tcp.currEstab / total) * 100}%` }} />}
           {tcp.timeWait > 0 && <div className="h-full bg-yellow-500" style={{ width: `${(tcp.timeWait / total) * 100}%` }} />}
-          {tcp.orphan > 0 && <div className="h-full bg-red-500" style={{ width: `${(tcp.orphan / total) * 100}%` }} />}
         </div>
       )}
 
@@ -66,11 +64,11 @@ export function TCPCard({ tcp, softnet }: { tcp: TCPMetrics; softnet: SoftnetMet
       <div className="mt-3 pt-3 border-t border-[var(--border-color)] grid grid-cols-2 gap-2 text-xs">
         <div className="flex items-center justify-between p-2 bg-[var(--background)] rounded-lg">
           <span className="text-muted">{nm.tcp.softnetDropped}</span>
-          <span className={`font-medium ${softnet.dropped > 0 ? "text-red-500" : "text-green-500"}`}>{softnet.dropped}</span>
+          <span className={`font-medium ${softnet.droppedPerSec > 0 ? "text-red-500" : "text-green-500"}`}>{softnet.droppedPerSec.toFixed(1)}/s</span>
         </div>
         <div className="flex items-center justify-between p-2 bg-[var(--background)] rounded-lg">
           <span className="text-muted">{nm.tcp.softnetSqueezed}</span>
-          <span className={`font-medium ${softnet.squeezed > 50 ? "text-yellow-500" : "text-default"}`}>{softnet.squeezed}</span>
+          <span className={`font-medium ${softnet.squeezedPerSec > 5 ? "text-yellow-500" : "text-default"}`}>{softnet.squeezedPerSec.toFixed(1)}/s</span>
         </div>
       </div>
     </div>

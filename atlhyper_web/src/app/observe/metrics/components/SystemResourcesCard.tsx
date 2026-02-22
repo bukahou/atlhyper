@@ -1,20 +1,20 @@
-import { Activity, FileText, Shield, Zap, RefreshCw } from "lucide-react";
-import type { SystemMetrics, NTPMetrics } from "@/types/node-metrics";
+import { Activity, FileText, Shield, Zap } from "lucide-react";
+import type { NodeSystem } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
 
 const usageColor = (v: number) => v >= 80 ? "text-red-500" : v >= 60 ? "text-yellow-500" : "text-emerald-500";
 const usageBg = (v: number) => v >= 80 ? "bg-red-500" : v >= 60 ? "bg-yellow-500" : "bg-emerald-500";
 const fmtN = (n: number) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : n.toString();
 
-export function SystemResourcesCard({ system, ntp }: { system: SystemMetrics; ntp: NTPMetrics }) {
+export function SystemResourcesCard({ system }: { system: NodeSystem }) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-  const fdPct = system.filefdMaximum > 0 ? (system.filefdAllocated / system.filefdMaximum) * 100 : 0;
+  const fdPct = system.filefdMax > 0 ? (system.filefdAllocated / system.filefdMax) * 100 : 0;
   const ctPct = system.conntrackLimit > 0 ? (system.conntrackEntries / system.conntrackLimit) * 100 : 0;
-  const entropyOk = system.entropyAvailable >= 256;
+  const entropyOk = system.entropyBits >= 256;
 
   const items = [
-    { label: nm.system.fileDescriptors, value: fmtN(system.filefdAllocated), pct: fdPct, max: `Max: ${fmtN(system.filefdMaximum)}`, icon: FileText },
+    { label: nm.system.fileDescriptors, value: fmtN(system.filefdAllocated), pct: fdPct, max: `Max: ${fmtN(system.filefdMax)}`, icon: FileText },
     { label: nm.system.conntrackTable, value: fmtN(system.conntrackEntries), pct: ctPct, max: `Limit: ${fmtN(system.conntrackLimit)}`, icon: Shield },
   ];
 
@@ -55,29 +55,11 @@ export function SystemResourcesCard({ system, ntp }: { system: SystemMetrics; nt
               <span className="text-xs sm:text-sm text-default">{nm.system.entropyPool}</span>
             </div>
             <span className={`text-xs sm:text-sm font-bold ${entropyOk ? "text-green-500" : "text-red-500"}`}>
-              {system.entropyAvailable} {nm.system.bits}
+              {system.entropyBits} {nm.system.bits}
             </span>
           </div>
           <div className="text-[10px] text-muted mt-1">
             {entropyOk ? nm.system.entropySufficient : nm.system.entropyLow}
-          </div>
-        </div>
-
-        {/* NTP Sync */}
-        <div className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <RefreshCw className="w-3.5 h-3.5 text-muted" />
-              <span className="text-xs sm:text-sm text-default">{nm.system.ntpSync}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-medium ${ntp.synced ? "text-green-500" : "text-red-500"}`}>
-                {ntp.synced ? nm.system.synced : nm.system.notSynced}
-              </span>
-              <span className="text-[10px] text-muted">
-                {nm.system.offset}: {(ntp.offsetSeconds * 1000).toFixed(3)}ms
-              </span>
-            </div>
           </div>
         </div>
       </div>

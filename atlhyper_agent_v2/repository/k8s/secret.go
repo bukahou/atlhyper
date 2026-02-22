@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // secretRepository Secret 仓库实现
@@ -20,7 +20,7 @@ func NewSecretRepository(client sdk.K8sClient) repository.SecretRepository {
 }
 
 // List 列出 Secret
-func (r *secretRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Secret, error) {
+func (r *secretRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Secret, error) {
 	k8sSecrets, err := r.client.ListSecrets(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *secretRepository) List(ctx context.Context, namespace string, opts mode
 		return nil, err
 	}
 
-	secrets := make([]model_v2.Secret, 0, len(k8sSecrets))
+	secrets := make([]cluster.Secret, 0, len(k8sSecrets))
 	for i := range k8sSecrets {
 		secrets = append(secrets, ConvertSecret(&k8sSecrets[i]))
 	}
@@ -38,7 +38,7 @@ func (r *secretRepository) List(ctx context.Context, namespace string, opts mode
 }
 
 // Get 获取单个 Secret
-func (r *secretRepository) Get(ctx context.Context, namespace, name string) (*model_v2.Secret, error) {
+func (r *secretRepository) Get(ctx context.Context, namespace, name string) (*cluster.Secret, error) {
 	k8sSecret, err := r.client.GetSecret(ctx, namespace, name)
 	if err != nil {
 		return nil, err

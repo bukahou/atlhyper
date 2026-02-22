@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // replicaSetRepository ReplicaSet 仓库实现
@@ -20,7 +20,7 @@ func NewReplicaSetRepository(client sdk.K8sClient) repository.ReplicaSetReposito
 }
 
 // List 列出 ReplicaSet
-func (r *replicaSetRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.ReplicaSet, error) {
+func (r *replicaSetRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.ReplicaSet, error) {
 	k8sReplicaSets, err := r.client.ListReplicaSets(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *replicaSetRepository) List(ctx context.Context, namespace string, opts 
 		return nil, err
 	}
 
-	replicaSets := make([]model_v2.ReplicaSet, 0, len(k8sReplicaSets))
+	replicaSets := make([]cluster.ReplicaSet, 0, len(k8sReplicaSets))
 	for i := range k8sReplicaSets {
 		replicaSets = append(replicaSets, ConvertReplicaSet(&k8sReplicaSets[i]))
 	}

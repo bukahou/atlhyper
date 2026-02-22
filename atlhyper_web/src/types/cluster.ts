@@ -866,8 +866,13 @@ export interface EventLog {
   namespace: string;
   node: string;
   reason: string;
-  severity: string;
+  severity: string;  // "Normal" | "Warning" | "Critical"
   time: string;
+  // model_v3 新增字段
+  source?: string;          // kubelet, scheduler, deployment-controller 等
+  count?: number;           // 发生次数
+  firstTimestamp?: string;  // 首次发生
+  lastTimestamp?: string;   // 最后发生
 }
 
 // 事件日志请求

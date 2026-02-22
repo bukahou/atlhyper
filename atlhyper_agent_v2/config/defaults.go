@@ -9,8 +9,9 @@ package config
 var defaultDurations = map[string]string{
 	// -------------------- 调度器配置 --------------------
 	"AGENT_SNAPSHOT_INTERVAL":     "10s", // 快照采集间隔
-	"AGENT_COMMAND_POLL_INTERVAL": "1s",  // 指令轮询间隔
+	"AGENT_COMMAND_POLL_INTERVAL": "100ms", // 指令轮询间隔（Dashboard 端点走快照直读后，Command 仅用于 Detail 查询，缩短以降低延迟）
 	"AGENT_HEARTBEAT_INTERVAL":    "15s", // 心跳发送间隔
+	"AGENT_OTEL_CACHE_TTL":        "10s", // OTel 概览缓存 TTL（与快照间隔一致）
 
 	// -------------------- 超时配置 --------------------
 	"AGENT_TIMEOUT_HTTP_CLIENT":      "90s", // HTTP 客户端超时 (需 > Master 长轮询超时 60s + 网络开销)
@@ -18,9 +19,8 @@ var defaultDurations = map[string]string{
 	"AGENT_TIMEOUT_COMMAND_POLL":     "60s", // 指令轮询操作超时 (长轮询)
 	"AGENT_TIMEOUT_HEARTBEAT":        "10s", // 心跳操作超时
 
-	// -------------------- SLO 配置 --------------------
-	"AGENT_SLO_SCRAPE_INTERVAL": "10s", // SLO 指标采集间隔
-	"AGENT_SLO_SCRAPE_TIMEOUT":  "5s",  // SLO 指标采集超时
+	// -------------------- ClickHouse 配置 --------------------
+	"AGENT_CLICKHOUSE_TIMEOUT": "10s", // ClickHouse 查询超时
 }
 
 // ============================================================
@@ -40,27 +40,7 @@ var defaultStrings = map[string]string{
 	// -------------------- Kubernetes 配置 --------------------
 	"AGENT_KUBECONFIG": "", // kubeconfig 文件路径，空则使用 InCluster 模式
 
-	// -------------------- SLO 配置 --------------------
-	"AGENT_SLO_OTEL_METRICS_URL":    "http://otel-collector.otel.svc:8889/metrics", // OTel Collector 指标端点
-	"AGENT_SLO_OTEL_HEALTH_URL":     "http://otel-collector.otel.svc:13133",        // OTel Collector 健康检查
-	"AGENT_SLO_EXCLUDE_NAMESPACES":  "linkerd,linkerd-viz,kube-system,otel",        // SLO 排除的 namespace (逗号分隔)
-}
-
-// ============================================================
-// 布尔类型默认值
-// ============================================================
-var defaultBools = map[string]bool{
-	// -------------------- SLO 配置 --------------------
-	"AGENT_SLO_ENABLED": true, // 是否启用 SLO 采集
-
-	// -------------------- Metrics SDK 配置 --------------------
-	"AGENT_METRICS_SDK_ENABLED": true, // 是否启用 Metrics SDK
-}
-
-// ============================================================
-// 整数类型默认值
-// ============================================================
-var defaultInts = map[string]int{
-	// -------------------- Metrics SDK 配置 --------------------
-	"AGENT_METRICS_SDK_PORT": 8082, // Metrics SDK HTTP 端口
+	// -------------------- ClickHouse 配置 --------------------
+	"AGENT_CLICKHOUSE_ENDPOINT": "http://localhost:8123", // ClickHouse 地址 (HTTP 协议，兼容 Linkerd sidecar)
+	"AGENT_CLICKHOUSE_DATABASE": "atlhyper",              // ClickHouse 数据库名
 }

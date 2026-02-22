@@ -1,231 +1,187 @@
 // types/node-metrics.ts
-// 节点硬件指标类型定义
+// 节点硬件指标类型定义 — 1:1 对齐 model_v3/metrics/node_metrics.go JSON tag
 
 // ============================================================================
 // CPU 指标
 // ============================================================================
-export interface CPUMetrics {
-  usagePercent: number;       // 总使用率
-  coreCount: number;          // 物理核心数
-  threadCount: number;        // 逻辑线程数
-  coreUsages: number[];       // 每线程使用率
-  loadAvg1: number;           // 1分钟负载
-  loadAvg5: number;           // 5分钟负载
-  loadAvg15: number;          // 15分钟负载
-  model: string;              // CPU 型号
-  frequency: number;          // 主频 (MHz)
+export interface NodeCPU {
+  usagePct: number;
+  userPct: number;
+  systemPct: number;
+  iowaitPct: number;
+  load1: number;
+  load5: number;
+  load15: number;
+  cores: number;
+  freqHz?: number[];
 }
 
 // ============================================================================
 // 内存指标
 // ============================================================================
-export interface MemoryMetrics {
+export interface NodeMemory {
   totalBytes: number;
-  usedBytes: number;
   availableBytes: number;
-  usagePercent: number;
+  freeBytes: number;
+  cachedBytes: number;
+  buffersBytes: number;
+  usagePct: number;
   swapTotalBytes: number;
-  swapUsedBytes: number;
-  swapUsagePercent: number;
-  cached: number;
-  buffers: number;
+  swapFreeBytes: number;
+  swapUsagePct: number;
 }
 
 // ============================================================================
 // 磁盘指标
 // ============================================================================
-export interface DiskMetrics {
-  device: string;             // 设备名 (sda, nvme0n1)
-  mountPoint: string;         // 挂载点
-  fsType: string;             // 文件系统类型
+export interface NodeDisk {
+  device: string;
+  mountPoint: string;
+  fsType: string;
   totalBytes: number;
-  usedBytes: number;
-  availableBytes: number;
-  usagePercent: number;
-  readBytesPS: number;        // 读取速率 bytes/s
-  writeBytesPS: number;       // 写入速率 bytes/s
-  iops: number;               // IOPS
-  ioUtil: number;             // IO 利用率 %
+  availBytes: number;
+  usagePct: number;
+  readBytesPerSec: number;
+  writeBytesPerSec: number;
+  readIOPS: number;
+  writeIOPS: number;
+  ioUtilPct: number;
 }
 
 // ============================================================================
 // 网络指标
 // ============================================================================
-export interface NetworkMetrics {
-  interface: string;          // 接口名 (eth0, ens192)
-  ipAddress: string;          // IP 地址
-  macAddress: string;         // MAC 地址
-  status: "up" | "down";      // 状态
-  speed: number;              // 链路速度 (Mbps)
-  rxBytesPS: number;          // 接收速率 bytes/s
-  txBytesPS: number;          // 发送速率 bytes/s
-  rxPacketsPS: number;        // 接收包数/s
-  txPacketsPS: number;        // 发送包数/s
-  rxErrors: number;           // 接收错误
-  txErrors: number;           // 发送错误
-  rxDropped: number;          // 接收丢包
-  txDropped: number;          // 发送丢包
+export interface NodeNetwork {
+  interface: string;
+  up: boolean;
+  speedBps: number;
+  mtu: number;
+  rxBytesPerSec: number;
+  txBytesPerSec: number;
+  rxPktPerSec: number;
+  txPktPerSec: number;
+  rxErrPerSec: number;
+  txErrPerSec: number;
+  rxDropPerSec: number;
+  txDropPerSec: number;
 }
 
 // ============================================================================
 // 温度指标
 // ============================================================================
-export interface TemperatureMetrics {
-  cpuTemp: number;            // CPU 温度 (°C)
-  cpuTempMax: number;         // CPU 最高温度
-  gpuTemp?: number;           // GPU 温度 (可选)
-  sensors: SensorReading[];   // 其他传感器
+export interface NodeTemperature {
+  cpuTempC: number;
+  cpuMaxC: number;
+  cpuCritC: number;
+  sensors: TempSensor[];
 }
 
-export interface SensorReading {
-  name: string;
-  label: string;
-  temp: number;
-  high?: number;
-  critical?: number;
-}
-
-// ============================================================================
-// 进程指标
-// ============================================================================
-export interface ProcessMetrics {
-  pid: number;
-  name: string;
-  user: string;
-  state: string;              // R/S/D/Z/T
-  cpuPercent: number;
-  memPercent: number;
-  memBytes: number;
-  threads: number;
-  startTime: string;
-  command: string;
-}
-
-// ============================================================================
-// GPU 指标 (可选)
-// ============================================================================
-export interface GPUMetrics {
-  index: number;
-  name: string;
-  uuid: string;
-  temperature: number;
-  fanSpeed: number;           // %
-  powerUsage: number;         // W
-  powerLimit: number;         // W
-  memoryTotal: number;        // bytes
-  memoryUsed: number;
-  gpuUtilization: number;     // %
-  memUtilization: number;     // %
-  processes: GPUProcess[];
-}
-
-export interface GPUProcess {
-  pid: number;
-  name: string;
-  memoryUsed: number;
+export interface TempSensor {
+  chip: string;
+  sensor: string;
+  currentC: number;
+  maxC: number;
+  critC: number;
 }
 
 // ============================================================================
 // PSI 压力信息
 // ============================================================================
-export interface PSIMetrics {
-  cpuSomePercent: number;
-  memorySomePercent: number;
-  memoryFullPercent: number;
-  ioSomePercent: number;
-  ioFullPercent: number;
+export interface NodePSI {
+  cpuSomePct: number;
+  memSomePct: number;
+  memFullPct: number;
+  ioSomePct: number;
+  ioFullPct: number;
 }
 
 // ============================================================================
 // TCP 连接状态
 // ============================================================================
-export interface TCPMetrics {
+export interface NodeTCP {
   currEstab: number;
-  timeWait: number;
-  orphan: number;
   alloc: number;
   inUse: number;
+  timeWait: number;
   socketsUsed: number;
 }
 
 // ============================================================================
 // 系统资源指标
 // ============================================================================
-export interface SystemMetrics {
+export interface NodeSystem {
   conntrackEntries: number;
   conntrackLimit: number;
   filefdAllocated: number;
-  filefdMaximum: number;
-  entropyAvailable: number;
+  filefdMax: number;
+  entropyBits: number;
 }
 
 // ============================================================================
 // 虚拟内存统计
 // ============================================================================
-export interface VMStatMetrics {
-  pgfaultPS: number;
-  pgmajfaultPS: number;
-  pswpinPS: number;
-  pswpoutPS: number;
-}
-
-// ============================================================================
-// NTP 时间同步
-// ============================================================================
-export interface NTPMetrics {
-  offsetSeconds: number;
-  synced: boolean;
+export interface NodeVMStat {
+  pgFaultPerSec: number;
+  pgMajFaultPerSec: number;
+  pswpInPerSec: number;
+  pswpOutPerSec: number;
 }
 
 // ============================================================================
 // 软中断统计
 // ============================================================================
-export interface SoftnetMetrics {
-  dropped: number;
-  squeezed: number;
+export interface NodeSoftnet {
+  droppedPerSec: number;
+  squeezedPerSec: number;
 }
 
 // ============================================================================
-// 节点指标快照 (聚合)
+// 节点指标快照 (聚合) — 对齐 Go NodeMetrics
 // ============================================================================
-export interface NodeMetricsSnapshot {
+export interface NodeMetrics {
   nodeName: string;
+  nodeIP: string;
   timestamp: string;
-  uptime: number;
-  os: string;
-  kernel: string;
-  cpu: CPUMetrics;
-  memory: MemoryMetrics;
-  disks: DiskMetrics[];
-  networks: NetworkMetrics[];
-  temperature: TemperatureMetrics;
-  topProcesses: ProcessMetrics[];
-  gpus?: GPUMetrics[];
-  psi: PSIMetrics;
-  tcp: TCPMetrics;
-  system: SystemMetrics;
-  vmstat: VMStatMetrics;
-  ntp: NTPMetrics;
-  softnet: SoftnetMetrics;
+
+  cpu: NodeCPU;
+  memory: NodeMemory;
+  disks: NodeDisk[];
+  networks: NodeNetwork[];
+  temperature: NodeTemperature;
+
+  psi: NodePSI;
+  tcp: NodeTCP;
+  system: NodeSystem;
+  vmstat: NodeVMStat;
+  softnet: NodeSoftnet;
+
+  kernel?: string;
+  uptime?: number;
 }
 
 // ============================================================================
-// 历史数据点
+// 时序数据（趋势图用） — 对齐 Go Point / Series
 // ============================================================================
-export interface MetricsDataPoint {
-  timestamp: number;          // Unix timestamp
-  cpuUsage: number;
-  memUsage: number;
-  diskUsage: number;          // 磁盘使用率 %
-  temperature: number;        // CPU 温度
+export interface Point {
+  timestamp: string;   // ISO 8601
+  value: number;
+}
+
+export interface Series {
+  metric: string;
+  labels?: Record<string, string>;
+  points: Point[];
 }
 
 // ============================================================================
-// 节点列表项 (用于选择器)
+// 集群节点指标概览 — 对齐 Go Summary
 // ============================================================================
-export interface NodeListItem {
-  name: string;
-  status: "Ready" | "NotReady";
-  roles: string[];
-  hasMetrics: boolean;
+export interface Summary {
+  totalNodes: number;
+  onlineNodes: number;
+  avgCpuPct: number;
+  avgMemPct: number;
+  maxCpuPct: number;
+  maxMemPct: number;
+  maxCpuTemp: number;
 }

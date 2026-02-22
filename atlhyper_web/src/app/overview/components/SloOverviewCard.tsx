@@ -29,7 +29,7 @@ const getValueColor = (value: number, goodThreshold: number, warnThreshold: numb
 };
 
 export const SloOverviewCard = memo(function SloOverviewCard({ data, t }: SloOverviewCardProps) {
-  if (!data || data.domains.length === 0) {
+  if (!data || !data.domains || data.domains.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-[var(--border-color)] p-4 h-[290px] flex flex-col">
         <h3 className="text-base font-semibold text-default mb-2 flex-shrink-0">{t.overview.sloOverview}</h3>
@@ -128,7 +128,7 @@ export const SloOverviewCard = memo(function SloOverviewCard({ data, t }: SloOve
 
       {/* Link to SLO detail page */}
       <Link
-        href="/workbench/slo"
+        href="/observe/slo"
         className="flex items-center justify-center gap-1 text-xs text-blue-500 hover:text-blue-400 mt-2 flex-shrink-0"
       >
         {t.overview.viewSloDetail} <ArrowRight className="w-3 h-3" />

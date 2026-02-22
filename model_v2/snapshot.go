@@ -1,6 +1,10 @@
 package model_v2
 
-import "time"
+import (
+	"time"
+
+	"AtlHyper/model_v3/cluster"
+)
 
 // ============================================================
 // ClusterSnapshot 集群快照
@@ -56,6 +60,11 @@ type ClusterSnapshot struct {
 	// SLOData OTel Collector 采集的 SLO 指标数据（可选）
 	// 包含服务网格(Linkerd) + 入口(Ingress Controller) + 拓扑(Edge) 三层数据
 	SLOData *SLOSnapshot `json:"slo_data,omitempty"`
+
+	// ========== OTel 可观测性快照 ==========
+	// Agent 从 ClickHouse 定期聚合，随快照上报
+	// Master 内存直读，用于 Dashboard 页面
+	OTel *cluster.OTelSnapshot `json:"otel,omitempty"`
 
 	// ========== 摘要 ==========
 	Summary ClusterSummary `json:"summary"`

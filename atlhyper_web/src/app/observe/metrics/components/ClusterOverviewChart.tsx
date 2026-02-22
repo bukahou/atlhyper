@@ -5,7 +5,7 @@ import * as echarts from "echarts";
 import { TrendingUp, Clock, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { getNodeMetricsHistory } from "@/datasource/metrics";
-import type { NodeMetricsSnapshot, MetricsDataPoint } from "@/types/node-metrics";
+import type { NodeMetrics, Point } from "@/types/node-metrics";
 
 // ==================== Types & Constants ====================
 
@@ -33,18 +33,18 @@ const INTERVALS_BY_WINDOW: Record<TimeWindow, { label: string; seconds: number }
 };
 
 /** Sort function: extract the "current" value from a snapshot for ranking */
-type SnapshotSortFn = (n: NodeMetricsSnapshot) => number;
+type SnapshotSortFn = (n: NodeMetrics) => number;
 
+/** Metric key matching the keys returned by mock/api history */
 const METRICS: {
   key: string;
   unit: string;
-  extract: (d: MetricsDataPoint) => number;
   sortSnapshot: SnapshotSortFn;
 }[] = [
-  { key: "cpu", unit: "%", extract: (d) => d.cpuUsage, sortSnapshot: (n) => n.cpu.usagePercent },
-  { key: "memory", unit: "%", extract: (d) => d.memUsage, sortSnapshot: (n) => n.memory.usagePercent },
-  { key: "disk", unit: "%", extract: (d) => d.diskUsage, sortSnapshot: (n) => (n.disks.find((d) => d.mountPoint === "/") || n.disks[0])?.usagePercent || 0 },
-  { key: "temp", unit: "°C", extract: (d) => d.temperature, sortSnapshot: (n) => n.temperature.cpuTemp },
+  { key: "cpu", unit: "%", sortSnapshot: (n) => n.cpu.usagePct },
+  { key: "memory", unit: "%", sortSnapshot: (n) => n.memory.usagePct },
+  { key: "disk", unit: "%", sortSnapshot: (n) => (n.disks.find((d) => d.mountPoint === "/") || n.disks[0])?.usagePct || 0 },
+  { key: "temp", unit: "°C", sortSnapshot: (n) => n.temperature.cpuTempC },
 ];
 
 // ==================== Helpers ====================
@@ -61,30 +61,29 @@ function getThemeColors() {
   };
 }
 
-/** Downsample data by averaging within fixed-size time buckets */
-function aggregateData(
-  data: MetricsDataPoint[],
-  extractFn: (d: MetricsDataPoint) => number,
+/** Downsample Point[] by averaging within fixed-size time buckets */
+function aggregatePoints(
+  points: Point[],
   intervalSec: number,
 ): [number, number][] {
-  if (data.length === 0) return [];
+  if (points.length === 0) return [];
   // 30s raw = no aggregation needed
   if (intervalSec <= 30) {
-    return data.map((d) => [d.timestamp, extractFn(d)]);
+    return points.map((p) => [new Date(p.timestamp).getTime(), p.value]);
   }
 
   const intervalMs = intervalSec * 1000;
   const buckets = new Map<number, { sum: number; count: number }>();
 
-  for (const d of data) {
-    const bucketKey = Math.floor(d.timestamp / intervalMs) * intervalMs;
+  for (const p of points) {
+    const ts = new Date(p.timestamp).getTime();
+    const bucketKey = Math.floor(ts / intervalMs) * intervalMs;
     const existing = buckets.get(bucketKey);
-    const val = extractFn(d);
     if (existing) {
-      existing.sum += val;
+      existing.sum += p.value;
       existing.count += 1;
     } else {
-      buckets.set(bucketKey, { sum: val, count: 1 });
+      buckets.set(bucketKey, { sum: p.value, count: 1 });
     }
   }
 
@@ -101,18 +100,19 @@ function aggregateData(
 interface MetricChartProps {
   title: string;
   unit: string;
+  metricKey: string;
   nodeNames: string[];
-  historyMap: Record<string, MetricsDataPoint[]>;
-  extractFn: (d: MetricsDataPoint) => number;
+  /** Per-node history: { nodeName: { metricKey: Point[] } } */
+  historyMap: Record<string, Record<string, Point[]>>;
   timeWindow: TimeWindow;
 }
 
 const MetricChart = memo(function MetricChart({
   title,
   unit,
+  metricKey,
   nodeNames,
   historyMap,
-  extractFn,
   timeWindow,
 }: MetricChartProps) {
   const { t } = useI18n();
@@ -208,9 +208,10 @@ const MetricChart = memo(function MetricChart({
     const rangeMs = windowInfo.hours * 3600000;
 
     const series = nodeNames.map((name, i) => {
-      const raw = historyMap[name] || [];
-      const filtered = raw.filter((d) => d.timestamp > now - rangeMs);
-      const aggregated = aggregateData(filtered, extractFn, intervalSec);
+      const nodeHistory = historyMap[name] || {};
+      const raw = nodeHistory[metricKey] || [];
+      const filtered = raw.filter((p) => new Date(p.timestamp).getTime() > now - rangeMs);
+      const aggregated = aggregatePoints(filtered, intervalSec);
       return {
         name,
         type: "line" as const,
@@ -250,9 +251,12 @@ const MetricChart = memo(function MetricChart({
       yAxis: { max: yMax },
       series,
     });
-  }, [timeWindow, intervalSec, historyMap, nodeNames, extractFn, unit]);
+  }, [timeWindow, intervalSec, historyMap, nodeNames, metricKey, unit]);
 
-  const hasData = nodeNames.some((name) => (historyMap[name]?.length || 0) > 0);
+  const hasData = nodeNames.some((name) => {
+    const nodeHistory = historyMap[name] || {};
+    return (nodeHistory[metricKey]?.length || 0) > 0;
+  });
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3">
@@ -299,7 +303,7 @@ const MetricChart = memo(function MetricChart({
 // ==================== Main Container ====================
 
 interface ClusterOverviewChartProps {
-  nodes: NodeMetricsSnapshot[];
+  nodes: NodeMetrics[];
   clusterId: string;
 }
 
@@ -312,7 +316,8 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
 
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("1h");
   const [loading, setLoading] = useState(false);
-  const [historyMap, setHistoryMap] = useState<Record<string, MetricsDataPoint[]>>({});
+  /** Per-node history: { nodeName: { metricKey: Point[] } } */
+  const [historyMap, setHistoryMap] = useState<Record<string, Record<string, Point[]>>>({});
 
   // Top 5 nodes per metric (each metric sorts independently)
   const topNodesByMetric = useMemo(() => {
@@ -344,7 +349,7 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
   const fetchHistory = useCallback(async () => {
     if (allTopNodeNames.length === 0) return;
     setLoading(true);
-    const map: Record<string, MetricsDataPoint[]> = {};
+    const map: Record<string, Record<string, Point[]>> = {};
     for (const name of allTopNodeNames) {
       const result = await getNodeMetricsHistory(clusterId, name, fetchHours);
       map[result.nodeName] = result.data;
@@ -410,9 +415,9 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
               key={m.key}
               title={metricTitles[m.key]}
               unit={m.unit}
+              metricKey={m.key}
               nodeNames={topNodesByMetric[m.key] || []}
               historyMap={historyMap}
-              extractFn={m.extract}
               timeWindow={timeWindow}
             />
           ))}

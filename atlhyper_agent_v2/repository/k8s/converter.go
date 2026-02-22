@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -18,8 +19,8 @@ import (
 // Pod 转换
 // =============================================================================
 
-// ConvertPod 转换 K8s Pod 到 model_v2（嵌套结构）
-func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
+// ConvertPod 转换 K8s Pod 到 model_v3（嵌套结构）
+func ConvertPod(k8sPod *corev1.Pod) cluster.Pod {
 	now := time.Now()
 	createdAt := k8sPod.CreationTimestamp.Time
 	age := formatDuration(now.Sub(createdAt))
@@ -87,7 +88,7 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 			if r == "" {
 				continue
 			}
-			if !model_v2.IsSidecarContainer(cs.Name) {
+			if !model_v3.IsSidecarContainer(cs.Name) {
 				reason, message = r, m
 				break
 			}
@@ -100,9 +101,9 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 		}
 	}
 
-	pod := model_v2.Pod{
+	pod := cluster.Pod{
 		// Summary
-		Summary: model_v2.PodSummary{
+		Summary: cluster.PodSummary{
 			Name:      k8sPod.Name,
 			Namespace: k8sPod.Namespace,
 			NodeName:  k8sPod.Spec.NodeName,
@@ -113,7 +114,7 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 		},
 
 		// Spec
-		Spec: model_v2.PodSpec{
+		Spec: cluster.PodSpec{
 			RestartPolicy:      string(k8sPod.Spec.RestartPolicy),
 			ServiceAccountName: k8sPod.Spec.ServiceAccountName,
 			NodeSelector:       k8sPod.Spec.NodeSelector,
@@ -122,7 +123,7 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 		},
 
 		// Status
-		Status: model_v2.PodStatus{
+		Status: cluster.PodStatus{
 			Phase:    string(k8sPod.Status.Phase),
 			Ready:    readyStr,
 			Restarts: totalRestarts,
@@ -157,7 +158,7 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 
 	// Tolerations
 	for _, t := range k8sPod.Spec.Tolerations {
-		tol := model_v2.Toleration{
+		tol := cluster.Toleration{
 			Key:      t.Key,
 			Operator: string(t.Operator),
 			Value:    t.Value,
@@ -171,7 +172,7 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 
 	// Affinity
 	if k8sPod.Spec.Affinity != nil {
-		pod.Spec.Affinity = &model_v2.Affinity{}
+		pod.Spec.Affinity = &cluster.Affinity{}
 		if k8sPod.Spec.Affinity.NodeAffinity != nil {
 			pod.Spec.Affinity.NodeAffinity = "已配置"
 		}
@@ -185,7 +186,7 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 
 	// Conditions
 	for _, cond := range k8sPod.Status.Conditions {
-		pod.Status.Conditions = append(pod.Status.Conditions, model_v2.PodCondition{
+		pod.Status.Conditions = append(pod.Status.Conditions, cluster.PodCondition{
 			Type:               string(cond.Type),
 			Status:             string(cond.Status),
 			Reason:             cond.Reason,
@@ -196,7 +197,7 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 
 	// Volumes
 	for _, vol := range k8sPod.Spec.Volumes {
-		v := model_v2.VolumeSpec{Name: vol.Name}
+		v := cluster.VolumeSpec{Name: vol.Name}
 		switch {
 		case vol.ConfigMap != nil:
 			v.Type = "ConfigMap"
@@ -236,8 +237,8 @@ func ConvertPod(k8sPod *corev1.Pod) model_v2.Pod {
 }
 
 // convertPodContainer 转换 Pod 容器（合并 spec 和 status）
-func convertPodContainer(spec *corev1.Container, status corev1.ContainerStatus) model_v2.PodContainerDetail {
-	cd := model_v2.PodContainerDetail{
+func convertPodContainer(spec *corev1.Container, status corev1.ContainerStatus) cluster.PodContainerDetail {
+	cd := cluster.PodContainerDetail{
 		// 从 spec 获取
 		Name:            spec.Name,
 		Image:           spec.Image,
@@ -249,7 +250,7 @@ func convertPodContainer(spec *corev1.Container, status corev1.ContainerStatus) 
 
 	// Ports
 	for _, p := range spec.Ports {
-		cd.Ports = append(cd.Ports, model_v2.ContainerPort{
+		cd.Ports = append(cd.Ports, cluster.ContainerPort{
 			Name:          p.Name,
 			ContainerPort: p.ContainerPort,
 			Protocol:      string(p.Protocol),
@@ -259,7 +260,7 @@ func convertPodContainer(spec *corev1.Container, status corev1.ContainerStatus) 
 
 	// Env
 	for _, e := range spec.Env {
-		ev := model_v2.EnvVar{Name: e.Name, Value: e.Value}
+		ev := cluster.EnvVar{Name: e.Name, Value: e.Value}
 		if e.ValueFrom != nil {
 			if e.ValueFrom.ConfigMapKeyRef != nil {
 				ev.ValueFrom = "configmap:" + e.ValueFrom.ConfigMapKeyRef.Name
@@ -276,7 +277,7 @@ func convertPodContainer(spec *corev1.Container, status corev1.ContainerStatus) 
 
 	// VolumeMounts
 	for _, vm := range spec.VolumeMounts {
-		cd.VolumeMounts = append(cd.VolumeMounts, model_v2.VolumeMount{
+		cd.VolumeMounts = append(cd.VolumeMounts, cluster.VolumeMount{
 			Name:      vm.Name,
 			MountPath: vm.MountPath,
 			SubPath:   vm.SubPath,
@@ -339,8 +340,8 @@ func convertPodContainer(spec *corev1.Container, status corev1.ContainerStatus) 
 // Node 转换
 // =============================================================================
 
-// ConvertNode 转换 K8s Node 到 model_v2
-func ConvertNode(k8sNode *corev1.Node) model_v2.Node {
+// ConvertNode 转换 K8s Node 到 model_v3
+func ConvertNode(k8sNode *corev1.Node) cluster.Node {
 	// 解析角色
 	var roles []string
 	for label := range k8sNode.Labels {
@@ -366,8 +367,8 @@ func ConvertNode(k8sNode *corev1.Node) model_v2.Node {
 	age := time.Since(k8sNode.CreationTimestamp.Time)
 	ageStr := formatDuration(age)
 
-	node := model_v2.Node{
-		Summary: model_v2.NodeSummary{
+	node := cluster.Node{
+		Summary: cluster.NodeSummary{
 			Name:         k8sNode.Name,
 			Roles:        roles,
 			Ready:        readyStatus,
@@ -375,24 +376,24 @@ func ConvertNode(k8sNode *corev1.Node) model_v2.Node {
 			Age:          ageStr,
 			CreationTime: k8sNode.CreationTimestamp.Time,
 		},
-		Spec: model_v2.NodeSpec{
+		Spec: cluster.NodeSpec{
 			PodCIDRs:      k8sNode.Spec.PodCIDRs,
 			ProviderID:    k8sNode.Spec.ProviderID,
 			Unschedulable: k8sNode.Spec.Unschedulable,
 		},
-		Capacity: model_v2.NodeResources{
+		Capacity: cluster.NodeResources{
 			CPU:              k8sNode.Status.Capacity.Cpu().String(),
 			Memory:           k8sNode.Status.Capacity.Memory().String(),
 			Pods:             k8sNode.Status.Capacity.Pods().String(),
 			EphemeralStorage: k8sNode.Status.Capacity.StorageEphemeral().String(),
 		},
-		Allocatable: model_v2.NodeResources{
+		Allocatable: cluster.NodeResources{
 			CPU:              k8sNode.Status.Allocatable.Cpu().String(),
 			Memory:           k8sNode.Status.Allocatable.Memory().String(),
 			Pods:             k8sNode.Status.Allocatable.Pods().String(),
 			EphemeralStorage: k8sNode.Status.Allocatable.StorageEphemeral().String(),
 		},
-		Info: model_v2.NodeInfo{
+		Info: cluster.NodeInfo{
 			OSImage:                 k8sNode.Status.NodeInfo.OSImage,
 			OperatingSystem:         k8sNode.Status.NodeInfo.OperatingSystem,
 			Architecture:            k8sNode.Status.NodeInfo.Architecture,
@@ -420,7 +421,7 @@ func ConvertNode(k8sNode *corev1.Node) model_v2.Node {
 				node.Addresses.ExternalIP = addr.Address
 			}
 		}
-		node.Addresses.All = append(node.Addresses.All, model_v2.NodeAddr{
+		node.Addresses.All = append(node.Addresses.All, cluster.NodeAddr{
 			Type:    string(addr.Type),
 			Address: addr.Address,
 		})
@@ -428,7 +429,7 @@ func ConvertNode(k8sNode *corev1.Node) model_v2.Node {
 
 	// 转换 Conditions
 	for _, cond := range k8sNode.Status.Conditions {
-		node.Conditions = append(node.Conditions, model_v2.NodeCondition{
+		node.Conditions = append(node.Conditions, cluster.NodeCondition{
 			Type:               string(cond.Type),
 			Status:             string(cond.Status),
 			Reason:             cond.Reason,
@@ -440,7 +441,7 @@ func ConvertNode(k8sNode *corev1.Node) model_v2.Node {
 
 	// 转换 Taints
 	for _, taint := range k8sNode.Spec.Taints {
-		nt := model_v2.NodeTaint{
+		nt := cluster.NodeTaint{
 			Key:    taint.Key,
 			Value:  taint.Value,
 			Effect: string(taint.Effect),
@@ -476,8 +477,8 @@ func formatDuration(d time.Duration) string {
 // Deployment 转换
 // =============================================================================
 
-// ConvertDeployment 转换 K8s Deployment 到 model_v2
-func ConvertDeployment(k8sDeploy *appsv1.Deployment) model_v2.Deployment {
+// ConvertDeployment 转换 K8s Deployment 到 model_v3
+func ConvertDeployment(k8sDeploy *appsv1.Deployment) cluster.Deployment {
 	age := time.Since(k8sDeploy.CreationTimestamp.Time)
 	ageStr := formatDuration(age)
 
@@ -496,8 +497,8 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) model_v2.Deployment {
 		replicas = *k8sDeploy.Spec.Replicas
 	}
 
-	deploy := model_v2.Deployment{
-		Summary: model_v2.DeploymentSummary{
+	deploy := cluster.Deployment{
+		Summary: cluster.DeploymentSummary{
 			Name:        k8sDeploy.Name,
 			Namespace:   k8sDeploy.Namespace,
 			Strategy:    string(k8sDeploy.Spec.Strategy.Type),
@@ -516,7 +517,7 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) model_v2.Deployment {
 	}
 
 	// Spec
-	deploy.Spec = model_v2.DeploymentSpec{
+	deploy.Spec = cluster.DeploymentSpec{
 		Replicas:                k8sDeploy.Spec.Replicas,
 		MinReadySeconds:         k8sDeploy.Spec.MinReadySeconds,
 		RevisionHistoryLimit:    k8sDeploy.Spec.RevisionHistoryLimit,
@@ -525,11 +526,11 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) model_v2.Deployment {
 
 	// Selector
 	if k8sDeploy.Spec.Selector != nil {
-		deploy.Spec.Selector = &model_v2.LabelSelector{
+		deploy.Spec.Selector = &cluster.LabelSelector{
 			MatchLabels: k8sDeploy.Spec.Selector.MatchLabels,
 		}
 		for _, expr := range k8sDeploy.Spec.Selector.MatchExpressions {
-			deploy.Spec.Selector.MatchExpressions = append(deploy.Spec.Selector.MatchExpressions, model_v2.LabelExpr{
+			deploy.Spec.Selector.MatchExpressions = append(deploy.Spec.Selector.MatchExpressions, cluster.LabelExpr{
 				Key:      expr.Key,
 				Operator: string(expr.Operator),
 				Values:   expr.Values,
@@ -538,11 +539,11 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) model_v2.Deployment {
 	}
 
 	// Strategy
-	deploy.Spec.Strategy = &model_v2.DeploymentStrategy{
+	deploy.Spec.Strategy = &cluster.DeploymentStrategy{
 		Type: string(k8sDeploy.Spec.Strategy.Type),
 	}
 	if k8sDeploy.Spec.Strategy.RollingUpdate != nil {
-		deploy.Spec.Strategy.RollingUpdate = &model_v2.RollingUpdateStrategy{}
+		deploy.Spec.Strategy.RollingUpdate = &cluster.RollingUpdateStrategy{}
 		if k8sDeploy.Spec.Strategy.RollingUpdate.MaxUnavailable != nil {
 			deploy.Spec.Strategy.RollingUpdate.MaxUnavailable = k8sDeploy.Spec.Strategy.RollingUpdate.MaxUnavailable.String()
 		}
@@ -552,7 +553,7 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) model_v2.Deployment {
 	}
 
 	// Status
-	deploy.Status = model_v2.DeploymentStatus{
+	deploy.Status = cluster.DeploymentStatus{
 		ObservedGeneration:  k8sDeploy.Status.ObservedGeneration,
 		Replicas:            k8sDeploy.Status.Replicas,
 		UpdatedReplicas:     k8sDeploy.Status.UpdatedReplicas,
@@ -564,7 +565,7 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) model_v2.Deployment {
 
 	// Conditions
 	for _, cond := range k8sDeploy.Status.Conditions {
-		deploy.Status.Conditions = append(deploy.Status.Conditions, model_v2.DeploymentCondition{
+		deploy.Status.Conditions = append(deploy.Status.Conditions, cluster.DeploymentCondition{
 			Type:               string(cond.Type),
 			Status:             string(cond.Status),
 			Reason:             cond.Reason,
@@ -586,8 +587,8 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) model_v2.Deployment {
 }
 
 // convertPodTemplate 转换 Pod 模板
-func convertPodTemplate(spec *corev1.PodSpec) model_v2.PodTemplate {
-	tpl := model_v2.PodTemplate{
+func convertPodTemplate(spec *corev1.PodSpec) cluster.PodTemplate {
+	tpl := cluster.PodTemplate{
 		ServiceAccountName: spec.ServiceAccountName,
 		NodeSelector:       spec.NodeSelector,
 		RuntimeClassName:   "",
@@ -606,7 +607,7 @@ func convertPodTemplate(spec *corev1.PodSpec) model_v2.PodTemplate {
 
 	// Tolerations
 	for _, t := range spec.Tolerations {
-		tol := model_v2.Toleration{
+		tol := cluster.Toleration{
 			Key:      t.Key,
 			Operator: string(t.Operator),
 			Value:    t.Value,
@@ -620,7 +621,7 @@ func convertPodTemplate(spec *corev1.PodSpec) model_v2.PodTemplate {
 
 	// Affinity (简化描述)
 	if spec.Affinity != nil {
-		tpl.Affinity = &model_v2.Affinity{}
+		tpl.Affinity = &cluster.Affinity{}
 		if spec.Affinity.NodeAffinity != nil {
 			tpl.Affinity.NodeAffinity = "已配置"
 		}
@@ -634,7 +635,7 @@ func convertPodTemplate(spec *corev1.PodSpec) model_v2.PodTemplate {
 
 	// Volumes
 	for _, vol := range spec.Volumes {
-		v := model_v2.VolumeSpec{Name: vol.Name}
+		v := cluster.VolumeSpec{Name: vol.Name}
 		switch {
 		case vol.ConfigMap != nil:
 			v.Type = "ConfigMap"
@@ -669,8 +670,8 @@ func convertPodTemplate(spec *corev1.PodSpec) model_v2.PodTemplate {
 }
 
 // convertContainerDetail 转换容器详情
-func convertContainerDetail(c *corev1.Container) model_v2.ContainerDetail {
-	cd := model_v2.ContainerDetail{
+func convertContainerDetail(c *corev1.Container) cluster.ContainerDetail {
+	cd := cluster.ContainerDetail{
 		Name:            c.Name,
 		Image:           c.Image,
 		ImagePullPolicy: string(c.ImagePullPolicy),
@@ -681,7 +682,7 @@ func convertContainerDetail(c *corev1.Container) model_v2.ContainerDetail {
 
 	// Ports
 	for _, p := range c.Ports {
-		cd.Ports = append(cd.Ports, model_v2.ContainerPort{
+		cd.Ports = append(cd.Ports, cluster.ContainerPort{
 			Name:          p.Name,
 			ContainerPort: p.ContainerPort,
 			Protocol:      string(p.Protocol),
@@ -691,7 +692,7 @@ func convertContainerDetail(c *corev1.Container) model_v2.ContainerDetail {
 
 	// Env
 	for _, e := range c.Env {
-		ev := model_v2.EnvVar{Name: e.Name, Value: e.Value}
+		ev := cluster.EnvVar{Name: e.Name, Value: e.Value}
 		if e.ValueFrom != nil {
 			if e.ValueFrom.ConfigMapKeyRef != nil {
 				ev.ValueFrom = "configmap:" + e.ValueFrom.ConfigMapKeyRef.Name
@@ -708,7 +709,7 @@ func convertContainerDetail(c *corev1.Container) model_v2.ContainerDetail {
 
 	// VolumeMounts
 	for _, vm := range c.VolumeMounts {
-		cd.VolumeMounts = append(cd.VolumeMounts, model_v2.VolumeMount{
+		cd.VolumeMounts = append(cd.VolumeMounts, cluster.VolumeMount{
 			Name:      vm.Name,
 			MountPath: vm.MountPath,
 			SubPath:   vm.SubPath,
@@ -739,11 +740,11 @@ func convertContainerDetail(c *corev1.Container) model_v2.ContainerDetail {
 }
 
 // convertProbe 转换探针
-func convertProbe(probe *corev1.Probe) *model_v2.Probe {
+func convertProbe(probe *corev1.Probe) *cluster.Probe {
 	if probe == nil {
 		return nil
 	}
-	p := &model_v2.Probe{
+	p := &cluster.Probe{
 		InitialDelaySeconds: probe.InitialDelaySeconds,
 		PeriodSeconds:       probe.PeriodSeconds,
 		TimeoutSeconds:      probe.TimeoutSeconds,
@@ -765,8 +766,8 @@ func convertProbe(probe *corev1.Probe) *model_v2.Probe {
 }
 
 // determineRolloutPhase 判断 Rollout 阶段
-func determineRolloutPhase(deploy *appsv1.Deployment) *model_v2.DeploymentRollout {
-	rollout := &model_v2.DeploymentRollout{
+func determineRolloutPhase(deploy *appsv1.Deployment) *cluster.DeploymentRollout {
+	rollout := &cluster.DeploymentRollout{
 		Phase: "Unknown",
 	}
 
@@ -809,8 +810,8 @@ func determineRolloutPhase(deploy *appsv1.Deployment) *model_v2.DeploymentRollou
 // Service 转换
 // =============================================================================
 
-// ConvertService 转换 K8s Service 到 model_v2（嵌套结构）
-func ConvertService(k8sSvc *corev1.Service) model_v2.Service {
+// ConvertService 转换 K8s Service 到 model_v3（嵌套结构）
+func ConvertService(k8sSvc *corev1.Service) cluster.Service {
 	now := time.Now()
 	createdAt := k8sSvc.CreationTimestamp.Time
 	age := formatDuration(now.Sub(createdAt))
@@ -833,9 +834,9 @@ func ConvertService(k8sSvc *corev1.Service) model_v2.Service {
 		badges = append(badges, "ExternalName")
 	}
 
-	svc := model_v2.Service{
+	svc := cluster.Service{
 		// Summary
-		Summary: model_v2.ServiceSummary{
+		Summary: cluster.ServiceSummary{
 			Name:         k8sSvc.Name,
 			Namespace:    k8sSvc.Namespace,
 			Type:         svcType,
@@ -868,7 +869,7 @@ func ConvertService(k8sSvc *corev1.Service) model_v2.Service {
 		if p.AppProtocol != nil {
 			appProtocol = *p.AppProtocol
 		}
-		svc.Ports = append(svc.Ports, model_v2.ServicePort{
+		svc.Ports = append(svc.Ports, cluster.ServicePort{
 			Name:        p.Name,
 			Protocol:    string(p.Protocol),
 			Port:        p.Port,
@@ -882,8 +883,8 @@ func ConvertService(k8sSvc *corev1.Service) model_v2.Service {
 }
 
 // convertServiceSpec 转换 Service Spec
-func convertServiceSpec(k8sSvc *corev1.Service) model_v2.ServiceSpec {
-	spec := model_v2.ServiceSpec{
+func convertServiceSpec(k8sSvc *corev1.Service) cluster.ServiceSpec {
+	spec := cluster.ServiceSpec{
 		Type:            string(k8sSvc.Spec.Type),
 		SessionAffinity: string(k8sSvc.Spec.SessionAffinity),
 		ExternalName:    k8sSvc.Spec.ExternalName,
@@ -932,8 +933,8 @@ func convertServiceSpec(k8sSvc *corev1.Service) model_v2.ServiceSpec {
 }
 
 // convertServiceNetwork 转换 Service Network 信息
-func convertServiceNetwork(k8sSvc *corev1.Service) model_v2.ServiceNetwork {
-	network := model_v2.ServiceNetwork{
+func convertServiceNetwork(k8sSvc *corev1.Service) cluster.ServiceNetwork {
+	network := cluster.ServiceNetwork{
 		ClusterIPs:  k8sSvc.Spec.ClusterIPs,
 		ExternalIPs: k8sSvc.Spec.ExternalIPs,
 	}
@@ -970,9 +971,9 @@ func convertServiceNetwork(k8sSvc *corev1.Service) model_v2.ServiceNetwork {
 // Event 转换
 // =============================================================================
 
-// ConvertEvent 转换 K8s Event 到 model_v2
-func ConvertEvent(k8sEvent *corev1.Event) model_v2.Event {
-	event := model_v2.Event{
+// ConvertEvent 转换 K8s Event 到 model_v3
+func ConvertEvent(k8sEvent *corev1.Event) cluster.Event {
+	event := cluster.Event{
 		CommonMeta: buildCommonMeta(
 			string(k8sEvent.UID),
 			k8sEvent.Name,
@@ -986,7 +987,7 @@ func ConvertEvent(k8sEvent *corev1.Event) model_v2.Event {
 		Message: k8sEvent.Message,
 		Count:   k8sEvent.Count,
 		Source:  k8sEvent.Source.Component,
-		InvolvedObject: model_v2.ResourceRef{
+		InvolvedObject: model_v3.ResourceRef{
 			Kind:      k8sEvent.InvolvedObject.Kind,
 			Name:      k8sEvent.InvolvedObject.Name,
 			Namespace: k8sEvent.InvolvedObject.Namespace,
@@ -1009,22 +1010,22 @@ func ConvertEvent(k8sEvent *corev1.Event) model_v2.Event {
 // Namespace 转换
 // =============================================================================
 
-// ConvertNamespace 转换 K8s Namespace 到 model_v2
+// ConvertNamespace 转换 K8s Namespace 到 model_v3
 //
 // 转换基本信息和状态，Resources 字段将在
 // snapshotService.calculateNamespaceResources 中填充。
-func ConvertNamespace(k8sNs *corev1.Namespace) model_v2.Namespace {
+func ConvertNamespace(k8sNs *corev1.Namespace) cluster.Namespace {
 	now := time.Now()
 	createdAt := k8sNs.CreationTimestamp.Time
 	age := formatDuration(now.Sub(createdAt))
 
-	ns := model_v2.Namespace{
-		Summary: model_v2.NamespaceSummary{
+	ns := cluster.Namespace{
+		Summary: cluster.NamespaceSummary{
 			Name:      k8sNs.Name,
 			CreatedAt: k8sNs.CreationTimestamp.Format(time.RFC3339),
 			Age:       age,
 		},
-		Status: model_v2.NamespaceStatus{
+		Status: cluster.NamespaceStatus{
 			Phase: string(k8sNs.Status.Phase),
 		},
 		Labels:      k8sNs.Labels,
@@ -1038,9 +1039,9 @@ func ConvertNamespace(k8sNs *corev1.Namespace) model_v2.Namespace {
 // ConfigMap 转换
 // =============================================================================
 
-// ConvertConfigMap 转换 K8s ConfigMap 到 model_v2
-func ConvertConfigMap(k8sCm *corev1.ConfigMap) model_v2.ConfigMap {
-	cm := model_v2.ConfigMap{
+// ConvertConfigMap 转换 K8s ConfigMap 到 model_v3
+func ConvertConfigMap(k8sCm *corev1.ConfigMap) cluster.ConfigMap {
+	cm := cluster.ConfigMap{
 		CommonMeta: buildCommonMeta(
 			string(k8sCm.UID),
 			k8sCm.Name,
@@ -1063,9 +1064,9 @@ func ConvertConfigMap(k8sCm *corev1.ConfigMap) model_v2.ConfigMap {
 // Secret 转换
 // =============================================================================
 
-// ConvertSecret 转换 K8s Secret 到 model_v2
-func ConvertSecret(k8sSecret *corev1.Secret) model_v2.Secret {
-	secret := model_v2.Secret{
+// ConvertSecret 转换 K8s Secret 到 model_v3
+func ConvertSecret(k8sSecret *corev1.Secret) cluster.Secret {
+	secret := cluster.Secret{
 		CommonMeta: buildCommonMeta(
 			string(k8sSecret.UID),
 			k8sSecret.Name,
@@ -1089,8 +1090,8 @@ func ConvertSecret(k8sSecret *corev1.Secret) model_v2.Secret {
 // Ingress 转换
 // =============================================================================
 
-// ConvertIngress 转换 K8s Ingress 到 model_v2（嵌套结构）
-func ConvertIngress(k8sIng *networkingv1.Ingress) model_v2.Ingress {
+// ConvertIngress 转换 K8s Ingress 到 model_v3（嵌套结构）
+func ConvertIngress(k8sIng *networkingv1.Ingress) cluster.Ingress {
 	now := time.Now()
 	createdAt := k8sIng.CreationTimestamp.Time
 	age := formatDuration(now.Sub(createdAt))
@@ -1116,8 +1117,8 @@ func ConvertIngress(k8sIng *networkingv1.Ingress) model_v2.Ingress {
 	}
 
 	// 构建 Ingress
-	ing := model_v2.Ingress{
-		Summary: model_v2.IngressSummary{
+	ing := cluster.Ingress{
+		Summary: cluster.IngressSummary{
 			Name:         k8sIng.Name,
 			Namespace:    k8sIng.Namespace,
 			CreatedAt:    createdAt,
@@ -1128,7 +1129,7 @@ func ConvertIngress(k8sIng *networkingv1.Ingress) model_v2.Ingress {
 			TLSEnabled:   len(k8sIng.Spec.TLS) > 0,
 			Hosts:        hosts,
 		},
-		Spec: model_v2.IngressSpec{
+		Spec: cluster.IngressSpec{
 			IngressClassName: ingressClass,
 		},
 		Labels:      k8sIng.Labels,
@@ -1142,12 +1143,12 @@ func ConvertIngress(k8sIng *networkingv1.Ingress) model_v2.Ingress {
 
 	// 规则
 	for _, rule := range k8sIng.Spec.Rules {
-		r := model_v2.IngressRule{
+		r := cluster.IngressRule{
 			Host: rule.Host,
 		}
 		if rule.HTTP != nil {
 			for _, path := range rule.HTTP.Paths {
-				p := model_v2.IngressPath{
+				p := cluster.IngressPath{
 					Path:     path.Path,
 					PathType: string(*path.PathType),
 					Backend:  convertIngressBackend(&path.Backend),
@@ -1160,7 +1161,7 @@ func ConvertIngress(k8sIng *networkingv1.Ingress) model_v2.Ingress {
 
 	// TLS
 	for _, tls := range k8sIng.Spec.TLS {
-		ing.Spec.TLS = append(ing.Spec.TLS, model_v2.IngressTLS{
+		ing.Spec.TLS = append(ing.Spec.TLS, cluster.IngressTLS{
 			Hosts:      tls.Hosts,
 			SecretName: tls.SecretName,
 		})
@@ -1179,16 +1180,16 @@ func ConvertIngress(k8sIng *networkingv1.Ingress) model_v2.Ingress {
 }
 
 // convertIngressBackend 转换 Ingress Backend
-func convertIngressBackend(backend *networkingv1.IngressBackend) *model_v2.IngressBackend {
+func convertIngressBackend(backend *networkingv1.IngressBackend) *cluster.IngressBackend {
 	if backend == nil {
 		return nil
 	}
 
-	b := &model_v2.IngressBackend{}
+	b := &cluster.IngressBackend{}
 
 	if backend.Service != nil {
 		b.Type = "Service"
-		b.Service = &model_v2.IngressServiceBackend{
+		b.Service = &cluster.IngressServiceBackend{
 			Name: backend.Service.Name,
 		}
 		if backend.Service.Port.Name != "" {
@@ -1201,7 +1202,7 @@ func convertIngressBackend(backend *networkingv1.IngressBackend) *model_v2.Ingre
 
 	if backend.Resource != nil {
 		b.Type = "Resource"
-		b.Resource = &model_v2.IngressResourceRef{
+		b.Resource = &cluster.IngressResourceRef{
 			Kind: backend.Resource.Kind,
 			Name: backend.Resource.Name,
 		}
@@ -1217,8 +1218,8 @@ func convertIngressBackend(backend *networkingv1.IngressBackend) *model_v2.Ingre
 // StatefulSet 转换
 // =============================================================================
 
-// ConvertStatefulSet 转换 K8s StatefulSet 到 model_v2（嵌套结构）
-func ConvertStatefulSet(k8sSts *appsv1.StatefulSet) model_v2.StatefulSet {
+// ConvertStatefulSet 转换 K8s StatefulSet 到 model_v3（嵌套结构）
+func ConvertStatefulSet(k8sSts *appsv1.StatefulSet) cluster.StatefulSet {
 	now := time.Now()
 	createdAt := k8sSts.CreationTimestamp.Time
 	age := formatDuration(now.Sub(createdAt))
@@ -1238,9 +1239,9 @@ func ConvertStatefulSet(k8sSts *appsv1.StatefulSet) model_v2.StatefulSet {
 		selectorStr = strings.Join(pairs, ",")
 	}
 
-	sts := model_v2.StatefulSet{
+	sts := cluster.StatefulSet{
 		// Summary
-		Summary: model_v2.StatefulSetSummary{
+		Summary: cluster.StatefulSetSummary{
 			Name:        k8sSts.Name,
 			Namespace:   k8sSts.Namespace,
 			Replicas:    replicas,
@@ -1275,8 +1276,8 @@ func ConvertStatefulSet(k8sSts *appsv1.StatefulSet) model_v2.StatefulSet {
 }
 
 // convertStatefulSetSpec 转换 StatefulSet Spec
-func convertStatefulSetSpec(k8sSts *appsv1.StatefulSet) model_v2.StatefulSetSpec {
-	spec := model_v2.StatefulSetSpec{
+func convertStatefulSetSpec(k8sSts *appsv1.StatefulSet) cluster.StatefulSetSpec {
+	spec := cluster.StatefulSetSpec{
 		Replicas:             k8sSts.Spec.Replicas,
 		ServiceName:          k8sSts.Spec.ServiceName,
 		PodManagementPolicy:  string(k8sSts.Spec.PodManagementPolicy),
@@ -1286,7 +1287,7 @@ func convertStatefulSetSpec(k8sSts *appsv1.StatefulSet) model_v2.StatefulSetSpec
 
 	// Update Strategy
 	if k8sSts.Spec.UpdateStrategy.Type != "" {
-		spec.UpdateStrategy = &model_v2.UpdateStrategy{
+		spec.UpdateStrategy = &cluster.UpdateStrategy{
 			Type: string(k8sSts.Spec.UpdateStrategy.Type),
 		}
 		if k8sSts.Spec.UpdateStrategy.RollingUpdate != nil {
@@ -1299,14 +1300,14 @@ func convertStatefulSetSpec(k8sSts *appsv1.StatefulSet) model_v2.StatefulSetSpec
 
 	// Selector
 	if k8sSts.Spec.Selector != nil {
-		spec.Selector = &model_v2.LabelSelector{
+		spec.Selector = &cluster.LabelSelector{
 			MatchLabels: k8sSts.Spec.Selector.MatchLabels,
 		}
 	}
 
 	// PVC Retention Policy
 	if k8sSts.Spec.PersistentVolumeClaimRetentionPolicy != nil {
-		spec.PersistentVolumeClaimRetentionPolicy = &model_v2.PVCRetentionPolicy{
+		spec.PersistentVolumeClaimRetentionPolicy = &cluster.PVCRetentionPolicy{
 			WhenDeleted: string(k8sSts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted),
 			WhenScaled:  string(k8sSts.Spec.PersistentVolumeClaimRetentionPolicy.WhenScaled),
 		}
@@ -1314,7 +1315,7 @@ func convertStatefulSetSpec(k8sSts *appsv1.StatefulSet) model_v2.StatefulSetSpec
 
 	// Volume Claim Templates
 	for _, pvc := range k8sSts.Spec.VolumeClaimTemplates {
-		vct := model_v2.VolumeClaimTemplate{
+		vct := cluster.VolumeClaimTemplate{
 			Name: pvc.Name,
 		}
 		for _, am := range pvc.Spec.AccessModes {
@@ -1335,8 +1336,8 @@ func convertStatefulSetSpec(k8sSts *appsv1.StatefulSet) model_v2.StatefulSetSpec
 }
 
 // convertStatefulSetStatus 转换 StatefulSet Status
-func convertStatefulSetStatus(k8sSts *appsv1.StatefulSet) model_v2.StatefulSetStatus {
-	status := model_v2.StatefulSetStatus{
+func convertStatefulSetStatus(k8sSts *appsv1.StatefulSet) cluster.StatefulSetStatus {
+	status := cluster.StatefulSetStatus{
 		ObservedGeneration: k8sSts.Status.ObservedGeneration,
 		Replicas:           k8sSts.Status.Replicas,
 		ReadyReplicas:      k8sSts.Status.ReadyReplicas,
@@ -1350,7 +1351,7 @@ func convertStatefulSetStatus(k8sSts *appsv1.StatefulSet) model_v2.StatefulSetSt
 
 	// Conditions
 	for _, c := range k8sSts.Status.Conditions {
-		status.Conditions = append(status.Conditions, model_v2.WorkloadCondition{
+		status.Conditions = append(status.Conditions, cluster.WorkloadCondition{
 			Type:               string(c.Type),
 			Status:             string(c.Status),
 			Reason:             c.Reason,
@@ -1363,8 +1364,8 @@ func convertStatefulSetStatus(k8sSts *appsv1.StatefulSet) model_v2.StatefulSetSt
 }
 
 // determineStatefulSetRollout 判断 StatefulSet 发布状态
-func determineStatefulSetRollout(k8sSts *appsv1.StatefulSet) *model_v2.WorkloadRollout {
-	rollout := &model_v2.WorkloadRollout{
+func determineStatefulSetRollout(k8sSts *appsv1.StatefulSet) *cluster.WorkloadRollout {
+	rollout := &cluster.WorkloadRollout{
 		Phase:  "Complete",
 		Badges: make([]string, 0),
 	}
@@ -1399,8 +1400,8 @@ func determineStatefulSetRollout(k8sSts *appsv1.StatefulSet) *model_v2.WorkloadR
 // DaemonSet 转换
 // =============================================================================
 
-// ConvertDaemonSet 转换 K8s DaemonSet 到 model_v2（嵌套结构）
-func ConvertDaemonSet(k8sDs *appsv1.DaemonSet) model_v2.DaemonSet {
+// ConvertDaemonSet 转换 K8s DaemonSet 到 model_v3（嵌套结构）
+func ConvertDaemonSet(k8sDs *appsv1.DaemonSet) cluster.DaemonSet {
 	now := time.Now()
 	createdAt := k8sDs.CreationTimestamp.Time
 	age := formatDuration(now.Sub(createdAt))
@@ -1415,9 +1416,9 @@ func ConvertDaemonSet(k8sDs *appsv1.DaemonSet) model_v2.DaemonSet {
 		selectorStr = strings.Join(pairs, ",")
 	}
 
-	ds := model_v2.DaemonSet{
+	ds := cluster.DaemonSet{
 		// Summary
-		Summary: model_v2.DaemonSetSummary{
+		Summary: cluster.DaemonSetSummary{
 			Name:                   k8sDs.Name,
 			Namespace:              k8sDs.Namespace,
 			DesiredNumberScheduled: k8sDs.Status.DesiredNumberScheduled,
@@ -1453,15 +1454,15 @@ func ConvertDaemonSet(k8sDs *appsv1.DaemonSet) model_v2.DaemonSet {
 }
 
 // convertDaemonSetSpec 转换 DaemonSet Spec
-func convertDaemonSetSpec(k8sDs *appsv1.DaemonSet) model_v2.DaemonSetSpec {
-	spec := model_v2.DaemonSetSpec{
+func convertDaemonSetSpec(k8sDs *appsv1.DaemonSet) cluster.DaemonSetSpec {
+	spec := cluster.DaemonSetSpec{
 		MinReadySeconds:      k8sDs.Spec.MinReadySeconds,
 		RevisionHistoryLimit: k8sDs.Spec.RevisionHistoryLimit,
 	}
 
 	// Update Strategy
 	if k8sDs.Spec.UpdateStrategy.Type != "" {
-		spec.UpdateStrategy = &model_v2.UpdateStrategy{
+		spec.UpdateStrategy = &cluster.UpdateStrategy{
 			Type: string(k8sDs.Spec.UpdateStrategy.Type),
 		}
 		if k8sDs.Spec.UpdateStrategy.RollingUpdate != nil {
@@ -1476,7 +1477,7 @@ func convertDaemonSetSpec(k8sDs *appsv1.DaemonSet) model_v2.DaemonSetSpec {
 
 	// Selector
 	if k8sDs.Spec.Selector != nil {
-		spec.Selector = &model_v2.LabelSelector{
+		spec.Selector = &cluster.LabelSelector{
 			MatchLabels: k8sDs.Spec.Selector.MatchLabels,
 		}
 	}
@@ -1485,8 +1486,8 @@ func convertDaemonSetSpec(k8sDs *appsv1.DaemonSet) model_v2.DaemonSetSpec {
 }
 
 // convertDaemonSetStatus 转换 DaemonSet Status
-func convertDaemonSetStatus(k8sDs *appsv1.DaemonSet) model_v2.DaemonSetStatus {
-	status := model_v2.DaemonSetStatus{
+func convertDaemonSetStatus(k8sDs *appsv1.DaemonSet) cluster.DaemonSetStatus {
+	status := cluster.DaemonSetStatus{
 		ObservedGeneration:     k8sDs.Status.ObservedGeneration,
 		DesiredNumberScheduled: k8sDs.Status.DesiredNumberScheduled,
 		CurrentNumberScheduled: k8sDs.Status.CurrentNumberScheduled,
@@ -1500,7 +1501,7 @@ func convertDaemonSetStatus(k8sDs *appsv1.DaemonSet) model_v2.DaemonSetStatus {
 
 	// Conditions
 	for _, c := range k8sDs.Status.Conditions {
-		status.Conditions = append(status.Conditions, model_v2.WorkloadCondition{
+		status.Conditions = append(status.Conditions, cluster.WorkloadCondition{
 			Type:               string(c.Type),
 			Status:             string(c.Status),
 			Reason:             c.Reason,
@@ -1513,8 +1514,8 @@ func convertDaemonSetStatus(k8sDs *appsv1.DaemonSet) model_v2.DaemonSetStatus {
 }
 
 // determineDaemonSetRollout 判断 DaemonSet 发布状态
-func determineDaemonSetRollout(k8sDs *appsv1.DaemonSet) *model_v2.WorkloadRollout {
-	rollout := &model_v2.WorkloadRollout{
+func determineDaemonSetRollout(k8sDs *appsv1.DaemonSet) *cluster.WorkloadRollout {
+	rollout := &cluster.WorkloadRollout{
 		Phase:  "Complete",
 		Badges: make([]string, 0),
 	}
@@ -1550,9 +1551,9 @@ func determineDaemonSetRollout(k8sDs *appsv1.DaemonSet) *model_v2.WorkloadRollou
 // ReplicaSet 转换
 // =============================================================================
 
-// ConvertReplicaSet 转换 K8s ReplicaSet 到 model_v2
-func ConvertReplicaSet(k8sRs *appsv1.ReplicaSet) model_v2.ReplicaSet {
-	rs := model_v2.ReplicaSet{
+// ConvertReplicaSet 转换 K8s ReplicaSet 到 model_v3
+func ConvertReplicaSet(k8sRs *appsv1.ReplicaSet) cluster.ReplicaSet {
+	rs := cluster.ReplicaSet{
 		CommonMeta: buildCommonMeta(
 			string(k8sRs.UID),
 			k8sRs.Name,
@@ -1584,9 +1585,9 @@ func ConvertReplicaSet(k8sRs *appsv1.ReplicaSet) model_v2.ReplicaSet {
 // Job 转换
 // =============================================================================
 
-// ConvertJob 转换 K8s Job 到 model_v2
-func ConvertJob(k8sJob *batchv1.Job) model_v2.Job {
-	job := model_v2.Job{
+// ConvertJob 转换 K8s Job 到 model_v3
+func ConvertJob(k8sJob *batchv1.Job) cluster.Job {
+	job := cluster.Job{
 		CommonMeta: buildCommonMeta(
 			string(k8sJob.UID),
 			k8sJob.Name,
@@ -1610,7 +1611,7 @@ func ConvertJob(k8sJob *batchv1.Job) model_v2.Job {
 
 	// Conditions
 	for _, c := range k8sJob.Status.Conditions {
-		job.Conditions = append(job.Conditions, model_v2.WorkloadCondition{
+		job.Conditions = append(job.Conditions, cluster.WorkloadCondition{
 			Type:               string(c.Type),
 			Status:             string(c.Status),
 			Reason:             c.Reason,
@@ -1643,9 +1644,9 @@ func ConvertJob(k8sJob *batchv1.Job) model_v2.Job {
 // CronJob 转换
 // =============================================================================
 
-// ConvertCronJob 转换 K8s CronJob 到 model_v2
-func ConvertCronJob(k8sCj *batchv1.CronJob) model_v2.CronJob {
-	cj := model_v2.CronJob{
+// ConvertCronJob 转换 K8s CronJob 到 model_v3
+func ConvertCronJob(k8sCj *batchv1.CronJob) cluster.CronJob {
+	cj := cluster.CronJob{
 		CommonMeta: buildCommonMeta(
 			string(k8sCj.UID),
 			k8sCj.Name,
@@ -1683,9 +1684,9 @@ func ConvertCronJob(k8sCj *batchv1.CronJob) model_v2.CronJob {
 // PV/PVC 转换
 // =============================================================================
 
-// ConvertPersistentVolume 转换 K8s PV 到 model_v2
-func ConvertPersistentVolume(k8sPv *corev1.PersistentVolume) model_v2.PersistentVolume {
-	pv := model_v2.PersistentVolume{
+// ConvertPersistentVolume 转换 K8s PV 到 model_v3
+func ConvertPersistentVolume(k8sPv *corev1.PersistentVolume) cluster.PersistentVolume {
+	pv := cluster.PersistentVolume{
 		CommonMeta: buildCommonMeta(
 			string(k8sPv.UID),
 			k8sPv.Name,
@@ -1746,9 +1747,9 @@ func detectVolumeSourceType(src corev1.PersistentVolumeSource) string {
 	}
 }
 
-// ConvertPersistentVolumeClaim 转换 K8s PVC 到 model_v2
-func ConvertPersistentVolumeClaim(k8sPvc *corev1.PersistentVolumeClaim) model_v2.PersistentVolumeClaim {
-	pvc := model_v2.PersistentVolumeClaim{
+// ConvertPersistentVolumeClaim 转换 K8s PVC 到 model_v3
+func ConvertPersistentVolumeClaim(k8sPvc *corev1.PersistentVolumeClaim) cluster.PersistentVolumeClaim {
+	pvc := cluster.PersistentVolumeClaim{
 		CommonMeta: buildCommonMeta(
 			string(k8sPvc.UID),
 			k8sPvc.Name,
@@ -1794,8 +1795,8 @@ func ConvertPersistentVolumeClaim(k8sPvc *corev1.PersistentVolumeClaim) model_v2
 //
 // 注意: NodeName, OwnerKind, OwnerName 等关联字段
 // 需要在各资源的转换函数中单独设置。
-func buildCommonMeta(uid, name, namespace, kind string, labels map[string]string, createdAt interface{}) model_v2.CommonMeta {
-	meta := model_v2.CommonMeta{
+func buildCommonMeta(uid, name, namespace, kind string, labels map[string]string, createdAt interface{}) model_v3.CommonMeta {
+	meta := model_v3.CommonMeta{
 		UID:       uid,
 		Name:      name,
 		Namespace: namespace,

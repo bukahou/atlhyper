@@ -135,10 +135,18 @@ export interface DomainSLOV2 {
   errorBudgetRemaining: number;    // 域名剩余错误预算
 }
 
+// 数据提供者信息（Ingress 和 Mesh 解耦）
+export interface SLOProviders {
+  ingress: "traefik" | "nginx" | null;   // Ingress 控制器类型
+  mesh: "linkerd" | "istio" | null;       // 服务网格类型（null = 无网格）
+  traces: boolean;                         // 是否有 OTel Traces 数据
+}
+
 // V2 域名列表响应（对应 model.SLODomainsResponseV2）
 export interface DomainSLOListResponseV2 {
   domains: DomainSLOV2[];
   summary: SLOSummary;
+  providers: SLOProviders;                // 当前集群的数据提供者
 }
 
 // ==================== 延迟分布 API 类型 ====================

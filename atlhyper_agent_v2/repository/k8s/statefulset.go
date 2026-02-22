@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // statefulSetRepository StatefulSet 仓库实现
@@ -20,7 +20,7 @@ func NewStatefulSetRepository(client sdk.K8sClient) repository.StatefulSetReposi
 }
 
 // List 列出 StatefulSet
-func (r *statefulSetRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.StatefulSet, error) {
+func (r *statefulSetRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.StatefulSet, error) {
 	k8sStatefulSets, err := r.client.ListStatefulSets(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *statefulSetRepository) List(ctx context.Context, namespace string, opts
 		return nil, err
 	}
 
-	statefulSets := make([]model_v2.StatefulSet, 0, len(k8sStatefulSets))
+	statefulSets := make([]cluster.StatefulSet, 0, len(k8sStatefulSets))
 	for i := range k8sStatefulSets {
 		statefulSets = append(statefulSets, ConvertStatefulSet(&k8sStatefulSets[i]))
 	}
@@ -38,7 +38,7 @@ func (r *statefulSetRepository) List(ctx context.Context, namespace string, opts
 }
 
 // Get 获取单个 StatefulSet
-func (r *statefulSetRepository) Get(ctx context.Context, namespace, name string) (*model_v2.StatefulSet, error) {
+func (r *statefulSetRepository) Get(ctx context.Context, namespace, name string) (*cluster.StatefulSet, error) {
 	k8sStatefulSet, err := r.client.GetStatefulSet(ctx, namespace, name)
 	if err != nil {
 		return nil, err

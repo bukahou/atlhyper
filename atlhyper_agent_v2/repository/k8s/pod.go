@@ -7,7 +7,8 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 )
 
 // podRepository Pod 仓库实现
@@ -23,7 +24,7 @@ func NewPodRepository(client sdk.K8sClient) repository.PodRepository {
 }
 
 // List 列出 Pod
-func (r *podRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Pod, error) {
+func (r *podRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Pod, error) {
 	k8sPods, err := r.client.ListPods(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -36,7 +37,7 @@ func (r *podRepository) List(ctx context.Context, namespace string, opts model.L
 	// 获取 Pod Metrics
 	podMetrics, _ := r.client.ListPodMetrics(ctx)
 
-	pods := make([]model_v2.Pod, 0, len(k8sPods))
+	pods := make([]cluster.Pod, 0, len(k8sPods))
 	for i := range k8sPods {
 		pod := ConvertPod(&k8sPods[i])
 
@@ -63,8 +64,8 @@ func aggregateContainerMetrics(containers []sdk.ContainerMetrics) (string, strin
 	var totalCPU int64 // 毫核
 	var totalMem int64 // 字节
 	for _, c := range containers {
-		totalCPU += model_v2.ParseCPU(c.CPU)
-		totalMem += model_v2.ParseMemory(c.Memory)
+		totalCPU += model_v3.ParseCPU(c.CPU)
+		totalMem += model_v3.ParseMemory(c.Memory)
 	}
 	cpuStr := fmt.Sprintf("%dm", totalCPU)
 	memStr := fmt.Sprintf("%dKi", totalMem/1024)
@@ -72,7 +73,7 @@ func aggregateContainerMetrics(containers []sdk.ContainerMetrics) (string, strin
 }
 
 // Get 获取单个 Pod
-func (r *podRepository) Get(ctx context.Context, namespace, name string) (*model_v2.Pod, error) {
+func (r *podRepository) Get(ctx context.Context, namespace, name string) (*cluster.Pod, error) {
 	k8sPod, err := r.client.GetPod(ctx, namespace, name)
 	if err != nil {
 		return nil, err

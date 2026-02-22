@@ -13,6 +13,8 @@ import (
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/command"
 )
 
 // Query 只读查询接口
@@ -52,7 +54,7 @@ type Query interface {
 	// ==================== Agent / 指令状态查询 ====================
 
 	GetAgentStatus(ctx context.Context, clusterID string) (*model_v2.AgentStatus, error)
-	GetCommandStatus(ctx context.Context, commandID string) (*model.CommandStatus, error)
+	GetCommandStatus(ctx context.Context, commandID string) (*command.Status, error)
 
 	// ==================== 概览 ====================
 
@@ -82,6 +84,10 @@ type Query interface {
 	GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error)
 	GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error)
 	GetAIOpsIncidentPatterns(ctx context.Context, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
+
+	// ==================== OTel 快照直读 ====================
+
+	GetOTelSnapshot(ctx context.Context, clusterID string) (*cluster.OTelSnapshot, error)
 
 	// ==================== AIOps AI 增强 ====================
 

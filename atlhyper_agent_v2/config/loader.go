@@ -5,7 +5,6 @@ package config
 import (
 	"log"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -36,6 +35,7 @@ func LoadConfig() {
 		SnapshotInterval:    getDuration("AGENT_SNAPSHOT_INTERVAL"),
 		CommandPollInterval: getDuration("AGENT_COMMAND_POLL_INTERVAL"),
 		HeartbeatInterval:   getDuration("AGENT_HEARTBEAT_INTERVAL"),
+		OTelCacheTTL:        getDuration("AGENT_OTEL_CACHE_TTL"),
 	}
 
 	GlobalConfig.Timeout = TimeoutConfig{
@@ -45,22 +45,15 @@ func LoadConfig() {
 		Heartbeat:       getDuration("AGENT_TIMEOUT_HEARTBEAT"),
 	}
 
-	GlobalConfig.SLO = SLOConfig{
-		Enabled:           getBool("AGENT_SLO_ENABLED"),
-		ScrapeInterval:    getDuration("AGENT_SLO_SCRAPE_INTERVAL"),
-		ScrapeTimeout:     getDuration("AGENT_SLO_SCRAPE_TIMEOUT"),
-		OTelMetricsURL:    getString("AGENT_SLO_OTEL_METRICS_URL"),
-		OTelHealthURL:     getString("AGENT_SLO_OTEL_HEALTH_URL"),
-		ExcludeNamespaces: getStringSlice("AGENT_SLO_EXCLUDE_NAMESPACES"),
+	GlobalConfig.ClickHouse = ClickHouseConfig{
+		Endpoint: getString("AGENT_CLICKHOUSE_ENDPOINT"),
+		Database: getString("AGENT_CLICKHOUSE_DATABASE"),
+		Timeout:  getDuration("AGENT_CLICKHOUSE_TIMEOUT"),
 	}
 
-	GlobalConfig.MetricsSDK = MetricsSDKConfig{
-		Enabled: getBool("AGENT_METRICS_SDK_ENABLED"),
-		Port:    getInt("AGENT_METRICS_SDK_PORT"),
-	}
-
-	log.Printf("[config] Agent 配置加载完成: ClusterID=%s, MasterURL=%s, SLOEnabled=%v, MetricsSDK=%v",
-		GlobalConfig.Agent.ClusterID, GlobalConfig.Master.URL, GlobalConfig.SLO.Enabled, GlobalConfig.MetricsSDK.Enabled)
+	log.Printf("[config] Agent 配置加载完成: ClusterID=%s, MasterURL=%s, CH=%s/%s",
+		GlobalConfig.Agent.ClusterID, GlobalConfig.Master.URL,
+		GlobalConfig.ClickHouse.Endpoint, GlobalConfig.ClickHouse.Database)
 }
 
 // ==================== 工具函数 ====================
@@ -89,34 +82,6 @@ func getString(envKey string) string {
 	def, ok := defaultStrings[envKey]
 	if !ok {
 		log.Fatalf("[config] 未定义默认字符串配置项: %s", envKey)
-	}
-	return def
-}
-
-// getBool 获取布尔类型配置
-func getBool(envKey string) bool {
-	if val := os.Getenv(envKey); val != "" {
-		lower := strings.ToLower(val)
-		return lower == "true" || lower == "1" || lower == "yes" || lower == "on"
-	}
-	def, ok := defaultBools[envKey]
-	if !ok {
-		log.Fatalf("[config] 未定义默认布尔配置项: %s", envKey)
-	}
-	return def
-}
-
-// getInt 获取整数类型配置
-func getInt(envKey string) int {
-	if val := os.Getenv(envKey); val != "" {
-		if i, err := strconv.Atoi(val); err == nil {
-			return i
-		}
-		log.Printf("[config] 环境变量 %s 格式错误，使用默认值", envKey)
-	}
-	def, ok := defaultInts[envKey]
-	if !ok {
-		log.Fatalf("[config] 未定义默认整数配置项: %s", envKey)
 	}
 	return def
 }

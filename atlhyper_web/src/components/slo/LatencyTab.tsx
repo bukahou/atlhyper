@@ -91,15 +91,18 @@ function logPos(ms: number, lo: number, hi: number): number {
 }
 
 // Determine visible axis range, snapped to standard ticks with padding
-function axisRange(les: number[]): [number, number] {
+// p99Hint: 当有 P99 值时，用 P99 * 3 作为上界参考，避免轴太宽
+function axisRange(les: number[], p99Hint?: number): [number, number] {
   if (les.length === 0) return [1, 1000];
   const minLe = Math.min(...les);
   const maxLe = Math.max(...les);
+  // 用 P99 收紧上界: max(p99*3, maxLe 的较小值) 避免尾部稀疏数据把轴拉太宽
+  const effectiveMax = p99Hint ? Math.min(maxLe, Math.max(p99Hint * 3, maxLe * 0.3)) : maxLe;
   let lo = STANDARD_TICKS[0];
   for (const t of STANDARD_TICKS) { if (t <= minLe * 0.6) lo = t; else break; }
   let hi = STANDARD_TICKS[STANDARD_TICKS.length - 1];
-  for (let i = STANDARD_TICKS.length - 1; i >= 0; i--) { if (STANDARD_TICKS[i] >= maxLe * 1.4) hi = STANDARD_TICKS[i]; else break; }
-  return [Math.min(lo, minLe * 0.5), Math.max(hi, maxLe * 1.5)];
+  for (let i = STANDARD_TICKS.length - 1; i >= 0; i--) { if (STANDARD_TICKS[i] >= effectiveMax * 1.4) hi = STANDARD_TICKS[i]; else break; }
+  return [Math.min(lo, minLe * 0.5), Math.max(hi, effectiveMax * 1.5)];
 }
 
 // Select visible tick labels within axis range
@@ -121,11 +124,13 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
   if (active.length === 0) return null;
 
   const maxCount = Math.max(...active.map(b => b.count), 1);
-  const [lo, hi] = axisRange(active.map(b => b.le));
+  const [lo, hi] = axisRange(active.map(b => b.le), p99);
   const ticks = visibleTicks(lo, hi);
 
   // Each bar covers [prevLe, le] using full bucket list for correct boundaries
-  const bars = active.map((b, i) => {
+  // 过滤掉超出轴范围的桶，避免在不可见区域渲染
+  const visibleBuckets = active.filter(b => b.le <= hi * 1.1);
+  const bars = visibleBuckets.map((b, i) => {
     const idx = buckets.indexOf(b);
     const prev = idx > 0 ? buckets[idx - 1].le : lo;
     const left = logPos(prev, lo, hi);
@@ -292,12 +297,18 @@ function MethodChart({ methods, totalRequests, badgeLabel, t }: {
 
 // ==================== Status Code Chart ====================
 
-const statusColors: Record<string, { bar: string; bg: string; text: string }> = {
-  "2xx": { bar: "bg-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-700 dark:text-emerald-400" },
-  "3xx": { bar: "bg-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-700 dark:text-blue-400" },
-  "4xx": { bar: "bg-amber-500", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-700 dark:text-amber-400" },
-  "5xx": { bar: "bg-red-500", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400" },
+const statusColorMap: Record<string, { bar: string; bg: string; text: string }> = {
+  "2": { bar: "bg-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-700 dark:text-emerald-400" },
+  "3": { bar: "bg-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-700 dark:text-blue-400" },
+  "4": { bar: "bg-amber-500", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-700 dark:text-amber-400" },
+  "5": { bar: "bg-red-500", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400" },
 };
+const defaultStatusColor = statusColorMap["2"];
+
+/** 支持 "200"/"2xx" 等格式，按首字符匹配 */
+function getStatusColor(code: string) {
+  return statusColorMap[code[0]] || defaultStatusColor;
+}
 
 function StatusCodeChart({ statusCodes, totalRequests, badgeLabel, t }: {
   statusCodes: { code: string; count: number }[];
@@ -321,7 +332,7 @@ function StatusCodeChart({ statusCodes, totalRequests, badgeLabel, t }: {
         {statusCodes.map((s) => {
           const percent = totalRequests > 0 ? (s.count / totalRequests) * 100 : 0;
           const barWidth = (s.count / maxCount) * 100;
-          const colors = statusColors[s.code] || statusColors["2xx"];
+          const colors = getStatusColor(s.code);
           return (
             <div key={s.code} className="flex items-center gap-3">
               <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold w-10 text-center ${colors.text} ${colors.bg}`}>

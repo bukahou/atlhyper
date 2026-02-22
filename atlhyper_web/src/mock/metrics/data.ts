@@ -1,0 +1,359 @@
+/**
+ * 节点硬件指标 — Mock 数据
+ *
+ * 集群 zgmf-x10a: raspi-nfs (NFS/控制面), jegan-worker-01, jegan-worker-02
+ * 字段 1:1 对齐 model_v3/metrics/node_metrics.go
+ */
+
+import type { NodeMetrics } from "@/types/node-metrics";
+
+const now = new Date().toISOString();
+
+export const MOCK_NODES: NodeMetrics[] = [
+  // ========== raspi-nfs (Raspberry Pi 4B — NFS + 控制面) ==========
+  {
+    nodeName: "raspi-nfs",
+    nodeIP: "192.168.1.100",
+    timestamp: now,
+    kernel: "6.6.31+rpt-rpi-v8",
+    uptime: 864000, // 10 days
+    cpu: {
+      usagePct: 32.5,
+      userPct: 18.2,
+      systemPct: 10.8,
+      iowaitPct: 3.5,
+      load1: 1.82,
+      load5: 1.65,
+      load15: 1.52,
+      cores: 4,
+      freqHz: [1500000000, 1500000000, 1500000000, 1500000000],
+    },
+    memory: {
+      totalBytes: 8589934592,    // 8 GB
+      availableBytes: 5368709120,
+      freeBytes: 3221225472,
+      cachedBytes: 1610612736,
+      buffersBytes: 536870912,
+      usagePct: 37.5,
+      swapTotalBytes: 2147483648,
+      swapFreeBytes: 2040109465,
+      swapUsagePct: 5.0,
+    },
+    disks: [
+      {
+        device: "mmcblk0p2",
+        mountPoint: "/",
+        fsType: "ext4",
+        totalBytes: 62277025792,   // ~58 GB SD card
+        availBytes: 34359738368,
+        usagePct: 44.8,
+        readBytesPerSec: 524288,
+        writeBytesPerSec: 1048576,
+        readIOPS: 120,
+        writeIOPS: 85,
+        ioUtilPct: 8.5,
+      },
+      {
+        device: "sda1",
+        mountPoint: "/mnt/nfs",
+        fsType: "ext4",
+        totalBytes: 1099511627776, // 1 TB USB HDD
+        availBytes: 704374636544,
+        usagePct: 35.9,
+        readBytesPerSec: 2097152,
+        writeBytesPerSec: 3145728,
+        readIOPS: 180,
+        writeIOPS: 150,
+        ioUtilPct: 15.2,
+      },
+    ],
+    networks: [
+      {
+        interface: "eth0",
+        up: true,
+        speedBps: 1000000000, // 1 Gbps
+        mtu: 1500,
+        rxBytesPerSec: 5242880,
+        txBytesPerSec: 3145728,
+        rxPktPerSec: 4500,
+        txPktPerSec: 3200,
+        rxErrPerSec: 0,
+        txErrPerSec: 0,
+        rxDropPerSec: 0,
+        txDropPerSec: 0,
+      },
+    ],
+    temperature: {
+      cpuTempC: 52.0,
+      cpuMaxC: 85.0,
+      cpuCritC: 85.0,
+      sensors: [
+        { chip: "cpu_thermal", sensor: "cpu-thermal", currentC: 52.0, maxC: 85.0, critC: 85.0 },
+      ],
+    },
+    psi: {
+      cpuSomePct: 2.1,
+      memSomePct: 0.8,
+      memFullPct: 0.1,
+      ioSomePct: 1.5,
+      ioFullPct: 0.3,
+    },
+    tcp: {
+      currEstab: 42,
+      alloc: 68,
+      inUse: 55,
+      timeWait: 8,
+      socketsUsed: 85,
+    },
+    system: {
+      conntrackEntries: 1234,
+      conntrackLimit: 65536,
+      filefdAllocated: 2960,
+      filefdMax: 524288,
+      entropyBits: 3842,
+    },
+    vmstat: {
+      pgFaultPerSec: 3500,
+      pgMajFaultPerSec: 2,
+      pswpInPerSec: 0,
+      pswpOutPerSec: 0.5,
+    },
+    softnet: {
+      droppedPerSec: 0,
+      squeezedPerSec: 1.2,
+    },
+  },
+
+  // ========== jegan-worker-01 (高负载 worker) ==========
+  {
+    nodeName: "jegan-worker-01",
+    nodeIP: "192.168.1.101",
+    timestamp: now,
+    kernel: "6.8.0-45-generic",
+    uptime: 518400, // 6 days
+    cpu: {
+      usagePct: 72.8,
+      userPct: 52.3,
+      systemPct: 15.1,
+      iowaitPct: 5.4,
+      load1: 11.52,
+      load5: 10.38,
+      load15: 9.85,
+      cores: 8,
+      freqHz: [2800000000, 2800000000, 2800000000, 2800000000, 2800000000, 2800000000, 2800000000, 2800000000],
+    },
+    memory: {
+      totalBytes: 17179869184,  // 16 GB
+      availableBytes: 3024092365,
+      freeBytes: 1073741824,
+      cachedBytes: 2147483648,
+      buffersBytes: 536870912,
+      usagePct: 82.4,
+      swapTotalBytes: 4294967296,
+      swapFreeBytes: 3221225472,
+      swapUsagePct: 25.0,
+    },
+    disks: [
+      {
+        device: "nvme0n1p2",
+        mountPoint: "/",
+        fsType: "ext4",
+        totalBytes: 214748364800,
+        availBytes: 64424509440,
+        usagePct: 70.0,
+        readBytesPerSec: 8388608,
+        writeBytesPerSec: 12582912,
+        readIOPS: 1800,
+        writeIOPS: 1400,
+        ioUtilPct: 45.8,
+      },
+    ],
+    networks: [
+      {
+        interface: "eth0",
+        up: true,
+        speedBps: 10000000000, // 10 Gbps
+        mtu: 1500,
+        rxBytesPerSec: 83886080,
+        txBytesPerSec: 62914560,
+        rxPktPerSec: 72000,
+        txPktPerSec: 58000,
+        rxErrPerSec: 0.3,
+        txErrPerSec: 0,
+        rxDropPerSec: 1.5,
+        txDropPerSec: 0,
+      },
+      {
+        interface: "cni0",
+        up: true,
+        speedBps: 10000000000,
+        mtu: 1450,
+        rxBytesPerSec: 20971520,
+        txBytesPerSec: 15728640,
+        rxPktPerSec: 18000,
+        txPktPerSec: 14000,
+        rxErrPerSec: 0,
+        txErrPerSec: 0,
+        rxDropPerSec: 0,
+        txDropPerSec: 0,
+      },
+    ],
+    temperature: {
+      cpuTempC: 68.5,
+      cpuMaxC: 95.0,
+      cpuCritC: 105.0,
+      sensors: [
+        { chip: "k10temp", sensor: "Tctl", currentC: 68.5, maxC: 95.0, critC: 105.0 },
+        { chip: "k10temp", sensor: "CCD0", currentC: 66.0, maxC: 95.0, critC: 105.0 },
+        { chip: "k10temp", sensor: "CCD1", currentC: 67.0, maxC: 95.0, critC: 105.0 },
+      ],
+    },
+    psi: {
+      cpuSomePct: 8.5,
+      memSomePct: 4.2,
+      memFullPct: 1.8,
+      ioSomePct: 5.3,
+      ioFullPct: 2.1,
+    },
+    tcp: {
+      currEstab: 1258,
+      alloc: 1520,
+      inUse: 1380,
+      timeWait: 245,
+      socketsUsed: 1824,
+    },
+    system: {
+      conntrackEntries: 48762,
+      conntrackLimit: 131072,
+      filefdAllocated: 24320,
+      filefdMax: 1048576,
+      entropyBits: 2856,
+    },
+    vmstat: {
+      pgFaultPerSec: 45000,
+      pgMajFaultPerSec: 18,
+      pswpInPerSec: 5,
+      pswpOutPerSec: 12,
+    },
+    softnet: {
+      droppedPerSec: 0.5,
+      squeezedPerSec: 8.5,
+    },
+  },
+
+  // ========== jegan-worker-02 (中等负载 worker) ==========
+  {
+    nodeName: "jegan-worker-02",
+    nodeIP: "192.168.1.102",
+    timestamp: now,
+    kernel: "6.8.0-45-generic",
+    uptime: 1296000, // 15 days
+    cpu: {
+      usagePct: 41.2,
+      userPct: 28.5,
+      systemPct: 9.3,
+      iowaitPct: 3.4,
+      load1: 5.82,
+      load5: 5.15,
+      load15: 4.92,
+      cores: 8,
+      freqHz: [2800000000, 2800000000, 2800000000, 2800000000, 2800000000, 2800000000, 2800000000, 2800000000],
+    },
+    memory: {
+      totalBytes: 17179869184,
+      availableBytes: 6871947674,
+      freeBytes: 3435973837,
+      cachedBytes: 3221225472,
+      buffersBytes: 805306368,
+      usagePct: 60.0,
+      swapTotalBytes: 4294967296,
+      swapFreeBytes: 4080218931,
+      swapUsagePct: 5.0,
+    },
+    disks: [
+      {
+        device: "nvme0n1p2",
+        mountPoint: "/",
+        fsType: "ext4",
+        totalBytes: 214748364800,
+        availBytes: 107374182400,
+        usagePct: 50.0,
+        readBytesPerSec: 4194304,
+        writeBytesPerSec: 6291456,
+        readIOPS: 1000,
+        writeIOPS: 800,
+        ioUtilPct: 22.4,
+      },
+      {
+        device: "sdb1",
+        mountPoint: "/var/lib/containers",
+        fsType: "xfs",
+        totalBytes: 536870912000,  // 500 GB
+        availBytes: 214748364800,
+        usagePct: 60.0,
+        readBytesPerSec: 6291456,
+        writeBytesPerSec: 8388608,
+        readIOPS: 1200,
+        writeIOPS: 900,
+        ioUtilPct: 35.2,
+      },
+    ],
+    networks: [
+      {
+        interface: "eth0",
+        up: true,
+        speedBps: 10000000000,
+        mtu: 1500,
+        rxBytesPerSec: 41943040,
+        txBytesPerSec: 31457280,
+        rxPktPerSec: 36000,
+        txPktPerSec: 28000,
+        rxErrPerSec: 0,
+        txErrPerSec: 0,
+        rxDropPerSec: 0.1,
+        txDropPerSec: 0,
+      },
+    ],
+    temperature: {
+      cpuTempC: 55.0,
+      cpuMaxC: 95.0,
+      cpuCritC: 105.0,
+      sensors: [
+        { chip: "k10temp", sensor: "Tctl", currentC: 55.0, maxC: 95.0, critC: 105.0 },
+        { chip: "k10temp", sensor: "CCD0", currentC: 53.0, maxC: 95.0, critC: 105.0 },
+        { chip: "k10temp", sensor: "CCD1", currentC: 54.0, maxC: 95.0, critC: 105.0 },
+      ],
+    },
+    psi: {
+      cpuSomePct: 3.8,
+      memSomePct: 1.5,
+      memFullPct: 0.3,
+      ioSomePct: 2.8,
+      ioFullPct: 0.8,
+    },
+    tcp: {
+      currEstab: 685,
+      alloc: 820,
+      inUse: 750,
+      timeWait: 120,
+      socketsUsed: 980,
+    },
+    system: {
+      conntrackEntries: 28456,
+      conntrackLimit: 131072,
+      filefdAllocated: 15680,
+      filefdMax: 1048576,
+      entropyBits: 3156,
+    },
+    vmstat: {
+      pgFaultPerSec: 28000,
+      pgMajFaultPerSec: 8,
+      pswpInPerSec: 1,
+      pswpOutPerSec: 3,
+    },
+    softnet: {
+      droppedPerSec: 0,
+      squeezedPerSec: 3.5,
+    },
+  },
+];

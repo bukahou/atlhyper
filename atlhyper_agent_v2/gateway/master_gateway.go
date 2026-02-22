@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/common"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/command"
 )
 
 // masterGateway Master 通信实现
@@ -43,7 +43,7 @@ func NewMasterGateway(masterURL, clusterID string, httpTimeout time.Duration) Ma
 }
 
 // PushSnapshot 推送快照
-func (g *masterGateway) PushSnapshot(ctx context.Context, snapshot *model_v2.ClusterSnapshot) error {
+func (g *masterGateway) PushSnapshot(ctx context.Context, snapshot *cluster.ClusterSnapshot) error {
 	// 1. JSON 序列化
 	data, err := json.Marshal(snapshot)
 	if err != nil {
@@ -83,14 +83,15 @@ func (g *masterGateway) PushSnapshot(ctx context.Context, snapshot *model_v2.Clu
 }
 
 // commandResponse Master 返回的指令响应格式
-// 直接使用 model_v2.Command，无需中间类型转换
+// 直接使用 command.Command，无需中间类型转换
+// JSON tag 必须与 Master agentsdk/types.go 中的 CommandResponse 一致（camelCase）
 type commandResponse struct {
-	HasCommand bool              `json:"has_command"`
-	Command    *model_v2.Command `json:"command,omitempty"`
+	HasCommand bool             `json:"hasCommand"`
+	Command    *command.Command `json:"command,omitempty"`
 }
 
 // PollCommands 拉取指令 (长轮询)
-func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]model_v2.Command, error) {
+func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]command.Command, error) {
 	url := fmt.Sprintf("%s/agent/commands?cluster_id=%s&topic=%s", g.masterURL, g.clusterID, topic)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -119,7 +120,7 @@ func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]model
 		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	// 解析 Master 返回的格式，直接使用 model_v2.Command
+	// 解析 Master 返回的格式，直接使用 command.Command
 	var cmdResp commandResponse
 	if err := json.NewDecoder(resp.Body).Decode(&cmdResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
@@ -131,11 +132,11 @@ func (g *masterGateway) PollCommands(ctx context.Context, topic string) ([]model
 	}
 
 	// 直接返回，无需转换
-	return []model_v2.Command{*cmdResp.Command}, nil
+	return []command.Command{*cmdResp.Command}, nil
 }
 
 // ReportResult 上报执行结果
-func (g *masterGateway) ReportResult(ctx context.Context, result *model.Result) error {
+func (g *masterGateway) ReportResult(ctx context.Context, result *command.Result) error {
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal result: %w", err)
@@ -187,5 +188,4 @@ func (g *masterGateway) Heartbeat(ctx context.Context) error {
 	return nil
 }
 
-// SLO 数据通过 ClusterSnapshot.SLOData 随快照推送，不再有独立端点。
 

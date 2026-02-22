@@ -6,9 +6,8 @@
 // 上层代码只依赖本包接口，完全隔离底层实现细节。
 //
 // 客户端:
-//   - K8sClient:      封装 client-go，主动拉取 K8s API Server
-//   - IngressClient:  封装 HTTP，主动拉取 Ingress Controller Prometheus 端点
-//   - ReceiverClient: HTTP Server，被动接收外部推送的数据
+//   - K8sClient:        封装 client-go，主动拉取 K8s API Server
+//   - ClickHouseClient: 封装 clickhouse-go，查询 ClickHouse 时序数据
 //
 // 架构位置:
 //
@@ -16,15 +15,14 @@
 //	    ↓ 调用
 //	SDK (本包) ← 外部客户端封装
 //	    ↓ 使用
-//	client-go / net/http
+//	client-go / clickhouse-go
 //	    ↓
-//	K8s API Server / Ingress Controller / 外部推送
+//	K8s API Server / ClickHouse
 package sdk
 
 import (
 	"context"
-
-	"AtlHyper/model_v2"
+	"database/sql"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -41,63 +39,30 @@ type K8sClient interface {
 	// Pod 操作
 	// =========================================================================
 
-	// ListPods 列出 Pod
-	// namespace 为空则列出所有命名空间
 	ListPods(ctx context.Context, namespace string, opts ListOptions) ([]corev1.Pod, error)
-
-	// GetPod 获取单个 Pod
 	GetPod(ctx context.Context, namespace, name string) (*corev1.Pod, error)
-
-	// DeletePod 删除 Pod
 	DeletePod(ctx context.Context, namespace, name string, opts DeleteOptions) error
-
-	// GetPodLogs 获取 Pod 日志
 	GetPodLogs(ctx context.Context, namespace, name string, opts LogOptions) (string, error)
 
 	// =========================================================================
 	// Node 操作
 	// =========================================================================
 
-	// ListNodes 列出所有 Node
 	ListNodes(ctx context.Context, opts ListOptions) ([]corev1.Node, error)
-
-	// GetNode 获取单个 Node
 	GetNode(ctx context.Context, name string) (*corev1.Node, error)
-
-	// ListNodeMetrics 获取所有 Node 的资源使用量
-	// 需要集群安装 metrics-server，未安装时返回空 map
 	ListNodeMetrics(ctx context.Context) (map[string]NodeMetrics, error)
-
-	// ListPodMetrics 获取所有 Pod 的资源使用量
-	// 返回 map[namespace/name]PodMetrics
-	// 需要集群安装 metrics-server，未安装时返回空 map
 	ListPodMetrics(ctx context.Context) (map[string]PodMetrics, error)
-
-	// CordonNode 封锁节点 (设置 Unschedulable=true)
 	CordonNode(ctx context.Context, name string) error
-
-	// UncordonNode 解封节点 (设置 Unschedulable=false)
 	UncordonNode(ctx context.Context, name string) error
 
 	// =========================================================================
 	// Deployment 操作
 	// =========================================================================
 
-	// ListDeployments 列出 Deployment
 	ListDeployments(ctx context.Context, namespace string, opts ListOptions) ([]appsv1.Deployment, error)
-
-	// GetDeployment 获取单个 Deployment
 	GetDeployment(ctx context.Context, namespace, name string) (*appsv1.Deployment, error)
-
-	// UpdateDeploymentScale 更新 Deployment 副本数
 	UpdateDeploymentScale(ctx context.Context, namespace, name string, replicas int32) error
-
-	// RestartDeployment 重启 Deployment
-	// 通过更新 annotation 触发滚动重启
 	RestartDeployment(ctx context.Context, namespace, name string) error
-
-	// UpdateDeploymentImage 更新 Deployment 容器镜像
-	// container 为空时更新第一个容器
 	UpdateDeploymentImage(ctx context.Context, namespace, name, container, image string) error
 
 	// =========================================================================
@@ -210,92 +175,37 @@ type K8sClient interface {
 	// 通用操作
 	// =========================================================================
 
-	// Delete 删除资源
 	Delete(ctx context.Context, gvk GroupVersionKind, namespace, name string, opts DeleteOptions) error
-
-	// Dynamic 执行动态 API 查询 (仅 GET)
 	Dynamic(ctx context.Context, req DynamicRequest) (*DynamicResponse, error)
 }
 
 // =============================================================================
-// Ingress Controller 客户端
+// ClickHouse 客户端
 // =============================================================================
 
-// IngressClient Ingress 路由采集客户端接口
+// ClickHouseClient ClickHouse 查询客户端接口
 //
-// 从 K8s API 采集 IngressRoute CRD / 标准 Ingress 配置信息。
-// 用于建立 service 标识与域名/路径的映射关系。
-//
-// 注意: 指标采集已迁移到 OTelClient，本接口仅保留路由配置采集。
+// 封装 ClickHouse 数据库操作。用于查询 OTel 指标、日志、追踪等时序数据。
 //
 // 架构位置:
 //
-//	SLORepository
+//	CH Repository
 //	    ↓ 调用
-//	SDK (IngressClient) ← 路由采集
+//	SDK (ClickHouseClient)
 //	    ↓ 使用
-//	K8s Dynamic API
+//	clickhouse-go
 //	    ↓
-//	K8s API Server (IngressRoute CRD / Ingress)
-type IngressClient interface {
-	// CollectRoutes 采集 IngressRoute / Ingress 配置
-	//
-	// 采集 Traefik IngressRoute CRD 或标准 K8s Ingress，
-	// 建立 Traefik service 名称与实际域名/路径的映射关系。
-	// 优先采集 IngressRoute CRD，如果不存在则 fallback 到标准 Ingress。
-	CollectRoutes(ctx context.Context) ([]IngressRouteInfo, error)
-}
+//	ClickHouse Server
+type ClickHouseClient interface {
+	// Query 执行查询，返回多行结果
+	Query(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 
-// =============================================================================
-// OTel Collector 客户端
-// =============================================================================
+	// QueryRow 执行查询，返回单行结果
+	QueryRow(ctx context.Context, query string, args ...any) *sql.Row
 
-// OTelClient OTel Collector 采集客户端
-//
-// 从 OTel Collector 的 Prometheus 端点采集原始指标。
-// 只做 HTTP 采集和文本解析，不做业务过滤/聚合。
-//
-// 架构位置:
-//
-//	SLORepository
-//	    ↓ 调用
-//	SDK (OTelClient)
-//	    ↓ 使用
-//	net/http
-//	    ↓
-//	OTel Collector (:8889/metrics)
-type OTelClient interface {
-	// ScrapeMetrics 从 OTel Collector 采集原始指标
-	// 返回分类后的原始指标（per-pod 级别，累积值）
-	ScrapeMetrics(ctx context.Context) (*OTelRawMetrics, error)
+	// Ping 检查连接健康
+	Ping(ctx context.Context) error
 
-	// ScrapeNodeMetrics 从 OTel Collector 采集节点硬件指标
-	// 返回 map[nodeName]*OTelNodeRawMetrics，按 instance label 分组
-	ScrapeNodeMetrics(ctx context.Context) (map[string]*OTelNodeRawMetrics, error)
-
-	// IsHealthy 检查 Collector 健康状态
-	IsHealthy(ctx context.Context) bool
-}
-
-// =============================================================================
-// 数据接收服务器
-// =============================================================================
-
-// ReceiverClient 数据接收服务器接口
-//
-// HTTP Server，被动接收外部组件推送的数据并暂存于内存。
-// Repository 层通过 Get 方法拉取数据，与主动拉取型 SDK 调用姿势一致。
-//
-// 数据流:
-//
-//	外部进程 → HTTP POST → ReceiverClient (内存暂存)
-//	                            ↑
-//	                       Repository 拉取
-type ReceiverClient interface {
-	// Start 启动 HTTP 服务器
-	Start() error
-	// Stop 停止 HTTP 服务器
-	Stop() error
-	// GetAllNodeMetrics 获取所有节点指标（覆盖式暂存，每次返回最新快照）
-	GetAllNodeMetrics() map[string]*model_v2.NodeMetricsSnapshot
+	// Close 关闭连接
+	Close() error
 }

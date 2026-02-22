@@ -38,6 +38,15 @@ export interface LogFacets {
 }
 
 // ============================================================
+// Histogram — 直方图数据点
+// ============================================================
+
+export interface LogHistogramBucket {
+  timestamp: string;          // ISO 8601
+  severity: string;           // "INFO" | "DEBUG" | "WARN" | "ERROR"
+}
+
+// ============================================================
 // QueryResult — 日志搜索结果
 // ============================================================
 
@@ -45,6 +54,7 @@ export interface LogQueryResult {
   logs: LogEntry[];
   total: number;
   facets: LogFacets;
+  histogram: LogHistogramBucket[];  // 过滤后全量数据（非分页）
 }
 
 // ============================================================

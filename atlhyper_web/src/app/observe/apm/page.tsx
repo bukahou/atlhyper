@@ -67,10 +67,10 @@ export default function ApmPage() {
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
     try {
-      const traceResult = queryTraces({ limit: 100 });
+      const traceResult = await queryTraces(currentClusterId, { limit: 100 });
       setTraces(traceResult.traces);
-      setServiceStats(getAPMServices());
-      setTopology(getTopology());
+      setServiceStats(await getAPMServices(currentClusterId));
+      setTopology(await getTopology(currentClusterId));
       setError(null);
     } catch {
       setError(ta.loadFailed);
@@ -78,7 +78,7 @@ export default function ApmPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [ta.loadFailed]);
+  }, [currentClusterId, ta.loadFailed]);
 
   useEffect(() => {
     loadData();
@@ -89,9 +89,8 @@ export default function ApmPage() {
       setTraceDetail(null);
       return;
     }
-    const detail = getTraceDetail(view.traceId);
-    setTraceDetail(detail);
-  }, [view]);
+    getTraceDetail(view.traceId, currentClusterId).then(setTraceDetail);
+  }, [view, currentClusterId]);
 
   const serviceTraces = useMemo(() => {
     if (view.level === "services") return [];

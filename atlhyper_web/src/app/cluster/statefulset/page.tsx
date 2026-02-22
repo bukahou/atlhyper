@@ -3,7 +3,8 @@
 import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getStatefulSetList, type StatefulSetListItem } from "@/api/workload";
+import { getStatefulSetList } from "@/datasource/cluster";
+import type { StatefulSetListItem } from "@/api/workload";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";

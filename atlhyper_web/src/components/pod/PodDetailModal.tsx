@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Modal } from "@/components/common/Modal";
+import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
-import { getPodDetail } from "@/api/pod";
+import { getPodDetail } from "@/datasource/cluster";
 import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import type { PodDetail, PodContainerDetail, PodVolume } from "@/types/cluster";
@@ -76,7 +76,7 @@ export function PodDetailModal({
   ];
 
   return (
-    <Modal
+    <Drawer
       isOpen={isOpen}
       onClose={onClose}
       title={`Pod: ${podName}`}
@@ -89,7 +89,7 @@ export function PodDetailModal({
       ) : error ? (
         <div className="p-6 text-center text-red-500">{error}</div>
       ) : detail ? (
-        <div className="flex flex-col h-[70vh]">
+        <div className="flex flex-col h-full">
           {/* Tabs */}
           <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
             {tabs.map((tab) => (
@@ -120,7 +120,7 @@ export function PodDetailModal({
           </div>
         </div>
       ) : null}
-    </Modal>
+    </Drawer>
   );
 }
 

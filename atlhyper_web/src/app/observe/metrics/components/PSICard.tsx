@@ -1,5 +1,5 @@
 import { Cpu, HardDrive, MemoryStick, Timer } from "lucide-react";
-import type { PSIMetrics } from "@/types/node-metrics";
+import type { NodePSI } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
 
 const psiColor = (v: number) =>
@@ -8,13 +8,13 @@ const psiColor = (v: number) =>
 const psiBg = (v: number) =>
   v >= 25 ? "bg-red-500" : v >= 10 ? "bg-yellow-500" : v >= 1 ? "bg-blue-500" : "bg-emerald-500";
 
-export function PSICard({ data }: { data: PSIMetrics }) {
+export function PSICard({ data }: { data: NodePSI }) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
   const resources = [
-    { name: "CPU", some: data.cpuSomePercent, full: undefined as number | undefined, icon: Cpu, color: "text-orange-500" },
-    { name: "Memory", some: data.memorySomePercent, full: data.memoryFullPercent, icon: MemoryStick, color: "text-green-500" },
-    { name: "I/O", some: data.ioSomePercent, full: data.ioFullPercent, icon: HardDrive, color: "text-purple-500" },
+    { name: "CPU", some: data.cpuSomePct, full: undefined as number | undefined, icon: Cpu, color: "text-orange-500" },
+    { name: "Memory", some: data.memSomePct, full: data.memFullPct, icon: MemoryStick, color: "text-green-500" },
+    { name: "I/O", some: data.ioSomePct, full: data.ioFullPct, icon: HardDrive, color: "text-purple-500" },
   ];
 
   return (

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/sdk"
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -96,7 +96,7 @@ func (c *Client) UpdateDeploymentImage(ctx context.Context, namespace, name, con
 	} else {
 		// 自动选第一个非 sidecar 容器
 		for i, cont := range containers {
-			if !model_v2.IsSidecarContainer(cont.Name) {
+			if !model_v3.IsSidecarContainer(cont.Name) {
 				targetIndex = i
 				break
 			}

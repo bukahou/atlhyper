@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // ingressRepository Ingress 仓库实现
@@ -20,7 +20,7 @@ func NewIngressRepository(client sdk.K8sClient) repository.IngressRepository {
 }
 
 // List 列出 Ingress
-func (r *ingressRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Ingress, error) {
+func (r *ingressRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Ingress, error) {
 	k8sIngresses, err := r.client.ListIngresses(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *ingressRepository) List(ctx context.Context, namespace string, opts mod
 		return nil, err
 	}
 
-	ingresses := make([]model_v2.Ingress, 0, len(k8sIngresses))
+	ingresses := make([]cluster.Ingress, 0, len(k8sIngresses))
 	for i := range k8sIngresses {
 		ingresses = append(ingresses, ConvertIngress(&k8sIngresses[i]))
 	}
@@ -38,7 +38,7 @@ func (r *ingressRepository) List(ctx context.Context, namespace string, opts mod
 }
 
 // Get 获取单个 Ingress
-func (r *ingressRepository) Get(ctx context.Context, namespace, name string) (*model_v2.Ingress, error) {
+func (r *ingressRepository) Get(ctx context.Context, namespace, name string) (*cluster.Ingress, error) {
 	k8sIngress, err := r.client.GetIngress(ctx, namespace, name)
 	if err != nil {
 		return nil, err

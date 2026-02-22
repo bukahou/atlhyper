@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/model_v3/command"
 )
 
 // Topic 常量
@@ -20,24 +20,24 @@ const (
 // Producer 指令发送端 (上层: Gateway/Service 使用)
 type Producer interface {
 	// EnqueueCommand 入队指令到指定 topic
-	EnqueueCommand(clusterID, topic string, cmd *model.Command) error
+	EnqueueCommand(clusterID, topic string, cmd *command.Command) error
 
 	// GetCommandStatus 获取指令状态
-	GetCommandStatus(cmdID string) (*model.CommandStatus, error)
+	GetCommandStatus(cmdID string) (*command.Status, error)
 
 	// WaitCommandResult 等待指令执行完成（同步等待）
 	// 阻塞直到 Agent 上报结果、超时、或 ctx 取消
-	WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*model.CommandResult, error)
+	WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*command.Result, error)
 }
 
 // Consumer 指令消费端 (下层: AgentSDK 使用)
 type Consumer interface {
 	// WaitCommand 等待指定 topic 的指令（长轮询）
 	// Agent 为每个 topic 开独立 goroutine 轮询
-	WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*model.Command, error)
+	WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*command.Command, error)
 
 	// AckCommand 确认指令完成
-	AckCommand(cmdID string, result *model.CommandResult) error
+	AckCommand(cmdID string, result *command.Result) error
 }
 
 // CommandBus 完整接口 (工厂创建 + 生命周期管理)

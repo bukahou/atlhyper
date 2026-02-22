@@ -9,6 +9,7 @@ type SchedulerConfig struct {
 	SnapshotInterval    time.Duration // 快照采集间隔
 	CommandPollInterval time.Duration // 指令轮询间隔
 	HeartbeatInterval   time.Duration // 心跳间隔
+	OTelCacheTTL        time.Duration // OTel 概览缓存 TTL (默认 5m)
 }
 
 // TimeoutConfig 超时配置
@@ -40,20 +41,11 @@ type LogConfig struct {
 	Format string // 日志格式: text / json (默认 text)
 }
 
-// SLOConfig SLO 指标采集配置
-type SLOConfig struct {
-	Enabled           bool          // 是否启用 SLO 采集
-	ScrapeInterval    time.Duration // 采集间隔 (默认 10s)
-	ScrapeTimeout     time.Duration // 采集超时 (默认 5s)
-	OTelMetricsURL    string        // OTel Collector 指标端点 (默认 http://otel-collector.otel.svc:8889/metrics)
-	OTelHealthURL     string        // OTel Collector 健康检查端点 (默认 http://otel-collector.otel.svc:13133)
-	ExcludeNamespaces []string      // 排除的 namespace 列表 (默认 [linkerd, linkerd-viz, kube-system, otel])
-}
-
-// MetricsSDKConfig 节点指标 SDK 配置
-type MetricsSDKConfig struct {
-	Enabled bool // 是否启用 Metrics SDK (默认 true)
-	Port    int  // Metrics SDK HTTP 端口 (默认 8082)
+// ClickHouseConfig ClickHouse 连接配置
+type ClickHouseConfig struct {
+	Endpoint string        // ClickHouse 地址，如 "clickhouse://localhost:9000"
+	Database string        // 数据库名
+	Timeout  time.Duration // 连接/查询超时
 }
 
 // AppConfig Agent 顶层配置结构体
@@ -64,8 +56,7 @@ type AppConfig struct {
 	Kubernetes KubernetesConfig
 	Scheduler  SchedulerConfig
 	Timeout    TimeoutConfig
-	SLO        SLOConfig
-	MetricsSDK MetricsSDKConfig
+	ClickHouse ClickHouseConfig
 }
 
 // GlobalConfig 全局配置实例

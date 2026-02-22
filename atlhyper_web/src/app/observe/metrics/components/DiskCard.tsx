@@ -2,12 +2,12 @@
 
 import { memo } from "react";
 import { Database, ArrowDown, ArrowUp, Activity } from "lucide-react";
-import type { DiskMetrics } from "@/types/node-metrics";
+import type { NodeDisk } from "@/types/node-metrics";
 import { formatBytes, formatBytesPS } from "@/lib/format";
 import { useI18n } from "@/i18n/context";
 
 interface DiskCardProps {
-  data: DiskMetrics[];
+  data: NodeDisk[];
 }
 
 const getUsageColor = (usage: number) => {
@@ -26,9 +26,9 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
   // 计算总 I/O
-  const totalReadPS = data.reduce((acc, d) => acc + d.readBytesPS, 0);
-  const totalWritePS = data.reduce((acc, d) => acc + d.writeBytesPS, 0);
-  const totalIOPS = data.reduce((acc, d) => acc + d.iops, 0);
+  const totalReadPS = data.reduce((acc, d) => acc + d.readBytesPerSec, 0);
+  const totalWritePS = data.reduce((acc, d) => acc + d.writeBytesPerSec, 0);
+  const totalIOPS = data.reduce((acc, d) => acc + d.readIOPS + d.writeIOPS, 0);
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
@@ -58,58 +58,61 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
 
       {/* 磁盘列表 */}
       <div className="space-y-3 sm:space-y-4">
-        {data.map((disk) => (
-          <div key={disk.mountPoint} className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
-            {/* 设备 & 挂载点 */}
-            <div className="flex items-center justify-between mb-2">
-              <div className="min-w-0 flex-1">
-                <span className="text-xs sm:text-sm font-medium text-default">{disk.mountPoint}</span>
-                <span className="text-[10px] sm:text-xs text-muted ml-1 sm:ml-2 hidden sm:inline">({disk.device})</span>
+        {data.map((disk) => {
+          const usedBytes = disk.totalBytes - disk.availBytes;
+          return (
+            <div key={disk.mountPoint} className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
+              {/* 设备 & 挂载点 */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs sm:text-sm font-medium text-default">{disk.mountPoint}</span>
+                  <span className="text-[10px] sm:text-xs text-muted ml-1 sm:ml-2 hidden sm:inline">({disk.device})</span>
+                </div>
+                <span className="text-[10px] sm:text-xs text-muted flex-shrink-0">{disk.fsType}</span>
               </div>
-              <span className="text-[10px] sm:text-xs text-muted flex-shrink-0">{disk.fsType}</span>
-            </div>
 
-            {/* 使用率进度条 */}
-            <div className="mb-2">
-              <div className="flex justify-between text-[10px] sm:text-xs mb-1">
-                <span className="text-muted">
-                  {formatBytes(disk.usedBytes)} / {formatBytes(disk.totalBytes)}
-                </span>
-                <span className={getUsageTextColor(disk.usagePercent)}>
-                  {disk.usagePercent.toFixed(1)}%
-                </span>
+              {/* 使用率进度条 */}
+              <div className="mb-2">
+                <div className="flex justify-between text-[10px] sm:text-xs mb-1">
+                  <span className="text-muted">
+                    {formatBytes(usedBytes)} / {formatBytes(disk.totalBytes)}
+                  </span>
+                  <span className={getUsageTextColor(disk.usagePct)}>
+                    {disk.usagePct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-1.5 sm:h-2 bg-[var(--background-secondary,#1f2937)] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${getUsageColor(disk.usagePct)}`}
+                    style={{ width: `${Math.min(100, disk.usagePct)}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-1.5 sm:h-2 bg-[var(--background-secondary,#1f2937)] rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-300 ${getUsageColor(disk.usagePercent)}`}
-                  style={{ width: `${Math.min(100, disk.usagePercent)}%` }}
-                />
-              </div>
-            </div>
 
-            {/* I/O 详情 */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] sm:text-xs">
-              <div>
-                <div className="text-muted">{nm.disk.read}</div>
-                <div className="text-default font-medium">{formatBytesPS(disk.readBytesPS)}</div>
-              </div>
-              <div>
-                <div className="text-muted">{nm.disk.write}</div>
-                <div className="text-default font-medium">{formatBytesPS(disk.writeBytesPS)}</div>
-              </div>
-              <div className="hidden sm:block">
-                <div className="text-muted">{nm.disk.iops}</div>
-                <div className="text-default font-medium">{disk.iops.toLocaleString()}</div>
-              </div>
-              <div className="hidden sm:block">
-                <div className="text-muted">{nm.disk.ioUtil}</div>
-                <div className={`font-medium ${getUsageTextColor(disk.ioUtil)}`}>
-                  {disk.ioUtil.toFixed(1)}%
+              {/* I/O 详情 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] sm:text-xs">
+                <div>
+                  <div className="text-muted">{nm.disk.read}</div>
+                  <div className="text-default font-medium">{formatBytesPS(disk.readBytesPerSec)}</div>
+                </div>
+                <div>
+                  <div className="text-muted">{nm.disk.write}</div>
+                  <div className="text-default font-medium">{formatBytesPS(disk.writeBytesPerSec)}</div>
+                </div>
+                <div className="hidden sm:block">
+                  <div className="text-muted">{nm.disk.iops}</div>
+                  <div className="text-default font-medium">{(disk.readIOPS + disk.writeIOPS).toLocaleString()}</div>
+                </div>
+                <div className="hidden sm:block">
+                  <div className="text-muted">{nm.disk.ioUtil}</div>
+                  <div className={`font-medium ${getUsageTextColor(disk.ioUtilPct)}`}>
+                    {disk.ioUtilPct.toFixed(1)}%
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* 底部汇总 */}

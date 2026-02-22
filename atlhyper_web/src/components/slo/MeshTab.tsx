@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Network, Server, ArrowRight, Layers, Shield, ZoomIn, ZoomOut, Shrink, BarChart3, Loader2 } from "lucide-react";
 import { getNamespaceColor, formatLatency } from "./common";
-import { getMeshServiceDetail } from "@/api/mesh";
+import { getMeshServiceDetail } from "@/datasource/mesh";
 import type { MeshServiceNode, MeshServiceEdge, MeshTopologyResponse, MeshServiceDetailResponse } from "@/types/mesh";
 
 interface MeshTabTranslations {
@@ -485,13 +485,15 @@ function ServiceListTable({ nodes, selectedId, onSelect, t }: {
   );
 }
 
-// Status code colors
-const statusColors: Record<string, { bar: string; bg: string; text: string }> = {
-  "2xx": { bar: "bg-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-700 dark:text-emerald-400" },
-  "3xx": { bar: "bg-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-700 dark:text-blue-400" },
-  "4xx": { bar: "bg-amber-500", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-700 dark:text-amber-400" },
-  "5xx": { bar: "bg-red-500", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400" },
+// Status code colors — 按首字符匹配，支持 "200"/"2xx" 等格式
+const statusColorMap: Record<string, { bar: string; bg: string; text: string }> = {
+  "2": { bar: "bg-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-700 dark:text-emerald-400" },
+  "3": { bar: "bg-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-700 dark:text-blue-400" },
+  "4": { bar: "bg-amber-500", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-700 dark:text-amber-400" },
+  "5": { bar: "bg-red-500", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400" },
 };
+const defaultStatusColor = statusColorMap["2"];
+function getStatusColor(code: string) { return statusColorMap[code[0]] || defaultStatusColor; }
 
 // Service Detail Panel
 function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
@@ -636,7 +638,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
                   const percent = totalStatusRequests > 0 ? (s.count / totalStatusRequests) * 100 : 0;
                   const maxCount = Math.max(...statusCodes.map(sc => sc.count), 1);
                   const barWidth = (s.count / maxCount) * 100;
-                  const colors = statusColors[s.code] || statusColors["2xx"];
+                  const colors = getStatusColor(s.code);
                   return (
                     <div key={s.code} className="flex items-center gap-2">
                       <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold w-10 text-center ${colors.text} ${colors.bg}`}>{s.code}</span>

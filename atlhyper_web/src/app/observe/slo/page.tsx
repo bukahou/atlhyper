@@ -4,8 +4,9 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { LoadingSpinner } from "@/components/common";
 import { useI18n } from "@/i18n/context";
-import { getSLODomainsV2 } from "@/api/slo";
+import { getSLODomainsV2 } from "@/datasource/slo";
 import { getClusterList } from "@/api/cluster";
+import { getDataSourceMode } from "@/config/data-source";
 import {
   Activity,
   AlertTriangle,
@@ -42,7 +43,7 @@ export default function SLOPage() {
     if (showRefreshing) setRefreshing(true);
     try {
       let currentClusterId = clusterId;
-      if (!currentClusterId) {
+      if (!currentClusterId && getDataSourceMode("slo") !== "mock") {
         const clusterRes = await getClusterList();
         const clusters = clusterRes.data?.clusters || [];
         if (clusters.length === 0) {

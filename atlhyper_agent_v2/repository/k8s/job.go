@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // jobRepository Job 仓库实现
@@ -20,7 +20,7 @@ func NewJobRepository(client sdk.K8sClient) repository.JobRepository {
 }
 
 // List 列出 Job
-func (r *jobRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Job, error) {
+func (r *jobRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Job, error) {
 	k8sJobs, err := r.client.ListJobs(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *jobRepository) List(ctx context.Context, namespace string, opts model.L
 		return nil, err
 	}
 
-	jobs := make([]model_v2.Job, 0, len(k8sJobs))
+	jobs := make([]cluster.Job, 0, len(k8sJobs))
 	for i := range k8sJobs {
 		jobs = append(jobs, ConvertJob(&k8sJobs[i]))
 	}
@@ -38,7 +38,7 @@ func (r *jobRepository) List(ctx context.Context, namespace string, opts model.L
 }
 
 // Get 获取单个 Job
-func (r *jobRepository) Get(ctx context.Context, namespace, name string) (*model_v2.Job, error) {
+func (r *jobRepository) Get(ctx context.Context, namespace, name string) (*cluster.Job, error) {
 	k8sJob, err := r.client.GetJob(ctx, namespace, name)
 	if err != nil {
 		return nil, err

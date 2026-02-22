@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getClusterOverview } from "@/api/overview";
+import { getClusterOverview } from "@/datasource/overview";
 import { getClusterList } from "@/api/cluster";
-import { getSLODomainsV2 } from "@/api/slo";
+import { getSLODomainsV2 } from "@/datasource/slo";
+import { getDataSourceMode } from "@/config/data-source";
 import { LoadingSpinner, PageHeader } from "@/components/common";
 import { Server, Cpu, HardDrive, AlertTriangle } from "lucide-react";
 import type { TransformedOverview } from "@/types/overview";
@@ -47,17 +48,20 @@ export default function OverviewPage() {
 
     const fetchData = async () => {
       try {
-        // 先获取集群列表，使用第一个可用的集群
-        const clusterRes = await getClusterList();
-        const clusters = clusterRes.data?.clusters || [];
-        if (clusters.length === 0) {
-          if (isMountedRef.current && isFirstLoadRef.current) {
-            setError(t.common.noCluster);
+        // Mock 模式下跳过集群列表获取，直接用固定 ID
+        let clusterId = "zgmf-x10a";
+        if (getDataSourceMode("overview") !== "mock") {
+          const clusterRes = await getClusterList();
+          const clusters = clusterRes.data?.clusters || [];
+          if (clusters.length === 0) {
+            if (isMountedRef.current && isFirstLoadRef.current) {
+              setError(t.common.noCluster);
+            }
+            return;
           }
-          return;
+          clusterId = clusters[0].cluster_id;
         }
 
-        const clusterId = clusters[0].cluster_id;
         const [res, sloRes] = await Promise.all([
           getClusterOverview({ cluster_id: clusterId }),
           getSLODomainsV2({ clusterId }).catch(() => null),

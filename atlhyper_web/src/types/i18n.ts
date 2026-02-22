@@ -382,6 +382,8 @@ export interface NodeTranslations {
   noConditions: string;
   noTaints: string;
   noLabels: string;
+  allArchitectures: string;
+  allSchedulable: string;
 }
 
 // Deployment 页面翻译
@@ -1966,6 +1968,33 @@ export interface ApmTranslations {
   s: string;
 }
 
+// Event 页面翻译
+export interface EventTranslations {
+  pageDescription: string;
+  searchPlaceholder: string;
+  allSeverities: string;
+  allKinds: string;
+  allNamespaces: string;
+  totalEvents: string;
+  warningEvents: string;
+  criticalEvents: string;
+  normalEvents: string;
+  reason: string;
+  source: string;
+  count: string;
+  firstTime: string;
+  lastTime: string;
+  involvedObject: string;
+  noEvents: string;
+  noEventsDescription: string;
+  loadFailed: string;
+  // Drawer 详情
+  overview: string;
+  basicInfo: string;
+  eventInfo: string;
+  relatedResource: string;
+}
+
 // 数据源管理页面翻译
 export interface DataSourceTranslations {
   pageTitle: string;
@@ -2027,6 +2056,7 @@ export interface Translations {
   apm: ApmTranslations;
   logs: LogTranslations;
   dataSource: DataSourceTranslations;
+  event: EventTranslations;
 }
 
 // 国际化上下文

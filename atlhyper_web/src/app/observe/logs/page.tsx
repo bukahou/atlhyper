@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { useClusterStore } from "@/store/clusterStore";
@@ -16,7 +16,7 @@ import {
 
 import { queryLogs } from "@/datasource/logs";
 
-import type { LogEntry } from "@/types/model/log";
+import type { LogEntry, LogQueryResult } from "@/types/model/log";
 
 import { LogToolbar } from "./components/LogToolbar";
 import { LogFacets } from "./components/LogFacets";
@@ -105,15 +105,26 @@ export default function LogsPage() {
     setBrushTimeRange(null);
   }, [search, selectedServices, selectedSeverities, selectedScopes, timeRange]);
 
-  // Query logs
-  const result = useMemo(() => queryLogs({
-    search,
-    services: selectedServices,
-    severities: selectedSeverities,
-    scopes: selectedScopes,
-    timeRange,
-    limit: displayCount,
-  }), [search, selectedServices, selectedSeverities, selectedScopes, timeRange, displayCount]);
+  // Query logs (async — supports both mock and real API)
+  const emptyResult: LogQueryResult = { logs: [], total: 0, facets: { services: [], severities: [], scopes: [] }, histogram: [] };
+  const [result, setResult] = useState<LogQueryResult>(emptyResult);
+
+  const loadLogs = useCallback(async () => {
+    const data = await queryLogs({
+      clusterId: currentClusterId,
+      search,
+      services: selectedServices,
+      severities: selectedSeverities,
+      scopes: selectedScopes,
+      timeRange,
+      limit: displayCount,
+    });
+    setResult(data);
+  }, [currentClusterId, search, selectedServices, selectedSeverities, selectedScopes, timeRange, displayCount]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   // Filter logs by brush time range (client-side)
   const filteredLogs = useMemo(() => {

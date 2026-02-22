@@ -11,7 +11,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/model_v3/command"
 )
 
 // Key 前缀
@@ -71,7 +71,7 @@ func queueKey(clusterID, topic string) string {
 }
 
 // EnqueueCommand 入队指令到指定 topic
-func (b *RedisBus) EnqueueCommand(clusterID, topic string, cmd *model.Command) error {
+func (b *RedisBus) EnqueueCommand(clusterID, topic string, cmd *command.Command) error {
 	ctx := context.Background()
 
 	// 序列化指令
@@ -86,9 +86,9 @@ func (b *RedisBus) EnqueueCommand(clusterID, topic string, cmd *model.Command) e
 	}
 
 	// 记录指令状态
-	status := &model.CommandStatus{
+	status := &command.Status{
 		CommandID: cmd.ID,
-		Status:    model.CommandStatusPending,
+		Status:    command.StatusPending,
 		CreatedAt: cmd.CreatedAt,
 	}
 	statusData, _ := json.Marshal(status)
@@ -100,7 +100,7 @@ func (b *RedisBus) EnqueueCommand(clusterID, topic string, cmd *model.Command) e
 }
 
 // WaitCommand 等待指定 topic 的指令（阻塞等待）
-func (b *RedisBus) WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*model.Command, error) {
+func (b *RedisBus) WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*command.Command, error) {
 	// BRPOP 阻塞等待
 	result, err := b.client.BRPop(ctx, timeout, queueKey(clusterID, topic)).Result()
 	if err == redis.Nil {
@@ -115,13 +115,13 @@ func (b *RedisBus) WaitCommand(ctx context.Context, clusterID, topic string, tim
 	}
 
 	// result[0] = key, result[1] = value
-	var cmd model.Command
+	var cmd command.Command
 	if err := json.Unmarshal([]byte(result[1]), &cmd); err != nil {
 		return nil, fmt.Errorf("unmarshal command: %w", err)
 	}
 
 	// 更新状态为 running
-	b.updateCommandStatus(cmd.ID, model.CommandStatusRunning)
+	b.updateCommandStatus(cmd.ID, command.StatusRunning)
 
 	return &cmd, nil
 }
@@ -135,13 +135,13 @@ func (b *RedisBus) updateCommandStatus(cmdID, status string) {
 		return
 	}
 
-	var cs model.CommandStatus
+	var cs command.Status
 	if json.Unmarshal(data, &cs) != nil {
 		return
 	}
 
 	cs.Status = status
-	if status == model.CommandStatusRunning {
+	if status == command.StatusRunning {
 		now := time.Now()
 		cs.StartedAt = &now
 	}
@@ -151,7 +151,7 @@ func (b *RedisBus) updateCommandStatus(cmdID, status string) {
 }
 
 // AckCommand 确认指令完成
-func (b *RedisBus) AckCommand(cmdID string, result *model.CommandResult) error {
+func (b *RedisBus) AckCommand(cmdID string, result *command.Result) error {
 	ctx := context.Background()
 
 	data, err := b.client.Get(ctx, keyCmd+cmdID).Bytes()
@@ -159,7 +159,7 @@ func (b *RedisBus) AckCommand(cmdID string, result *model.CommandResult) error {
 		return nil // 指令不存在，忽略
 	}
 
-	var cs model.CommandStatus
+	var cs command.Status
 	if err := json.Unmarshal(data, &cs); err != nil {
 		return nil
 	}
@@ -168,9 +168,9 @@ func (b *RedisBus) AckCommand(cmdID string, result *model.CommandResult) error {
 	cs.FinishedAt = &now
 	cs.Result = result
 	if result.Success {
-		cs.Status = model.CommandStatusSuccess
+		cs.Status = command.StatusSuccess
 	} else {
-		cs.Status = model.CommandStatusFailed
+		cs.Status = command.StatusFailed
 	}
 
 	newData, _ := json.Marshal(&cs)
@@ -187,7 +187,7 @@ func (b *RedisBus) AckCommand(cmdID string, result *model.CommandResult) error {
 }
 
 // GetCommandStatus 获取指令状态
-func (b *RedisBus) GetCommandStatus(cmdID string) (*model.CommandStatus, error) {
+func (b *RedisBus) GetCommandStatus(cmdID string) (*command.Status, error) {
 	ctx := context.Background()
 
 	data, err := b.client.Get(ctx, keyCmd+cmdID).Bytes()
@@ -198,7 +198,7 @@ func (b *RedisBus) GetCommandStatus(cmdID string) (*model.CommandStatus, error) 
 		return nil, fmt.Errorf("get command status: %w", err)
 	}
 
-	var cs model.CommandStatus
+	var cs command.Status
 	if err := json.Unmarshal(data, &cs); err != nil {
 		return nil, fmt.Errorf("unmarshal status: %w", err)
 	}
@@ -207,11 +207,11 @@ func (b *RedisBus) GetCommandStatus(cmdID string) (*model.CommandStatus, error) 
 
 // WaitCommandResult 等待指令执行完成（阻塞等待）
 // 支持 ctx 取消，Chat 全局超时后立即释放
-func (b *RedisBus) WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*model.CommandResult, error) {
+func (b *RedisBus) WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*command.Result, error) {
 	// 先检查是否已完成
 	data, err := b.client.Get(ctx, keyCmd+cmdID).Bytes()
 	if err == nil {
-		var cs model.CommandStatus
+		var cs command.Status
 		if json.Unmarshal(data, &cs) == nil && cs.Result != nil {
 			return cs.Result, nil
 		}
@@ -232,7 +232,7 @@ func (b *RedisBus) WaitCommandResult(ctx context.Context, cmdID string, timeout 
 		return nil, fmt.Errorf("brpop result: %w", err)
 	}
 
-	var cmdResult model.CommandResult
+	var cmdResult command.Result
 	if err := json.Unmarshal([]byte(result[1]), &cmdResult); err != nil {
 		return nil, fmt.Errorf("unmarshal result: %w", err)
 	}

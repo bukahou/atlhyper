@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // eventRepository Event 仓库实现
@@ -20,7 +20,7 @@ func NewEventRepository(client sdk.K8sClient) repository.EventRepository {
 }
 
 // List 列出 Event
-func (r *eventRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Event, error) {
+func (r *eventRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Event, error) {
 	k8sEvents, err := r.client.ListEvents(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *eventRepository) List(ctx context.Context, namespace string, opts model
 		return nil, err
 	}
 
-	events := make([]model_v2.Event, 0, len(k8sEvents))
+	events := make([]cluster.Event, 0, len(k8sEvents))
 	for i := range k8sEvents {
 		events = append(events, ConvertEvent(&k8sEvents[i]))
 	}

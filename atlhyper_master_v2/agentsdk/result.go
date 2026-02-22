@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/model_v3/command"
 )
 
 // 使用 server.go 中定义的 log 变量
@@ -34,7 +34,7 @@ func (s *Server) handleResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 转换为 Model 格式
-	result := &model.CommandResult{
+	result := &command.Result{
 		CommandID: req.CommandID,
 		Success:   req.Success,
 		Output:    req.Output,
@@ -58,7 +58,7 @@ func (s *Server) handleResult(w http.ResponseWriter, r *http.Request) {
 }
 
 // persistResult 持久化指令执行结果
-func (s *Server) persistResult(cmdID string, result *model.CommandResult) {
+func (s *Server) persistResult(cmdID string, result *command.Result) {
 	if s.cmdRepo == nil {
 		return
 	}
@@ -76,9 +76,9 @@ func (s *Server) persistResult(cmdID string, result *model.CommandResult) {
 	now := time.Now()
 	history.FinishedAt = &now
 	if result.Success {
-		history.Status = model.CommandStatusSuccess
+		history.Status = command.StatusSuccess
 	} else {
-		history.Status = model.CommandStatusFailed
+		history.Status = command.StatusFailed
 		history.ErrorMessage = result.Error
 	}
 

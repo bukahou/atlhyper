@@ -2,7 +2,19 @@
 
 import { memo, useState } from "react";
 import { ListTree, ChevronDown, ChevronUp, Search } from "lucide-react";
-import type { ProcessMetrics } from "@/types/node-metrics";
+// ProcessMetrics — 本地类型（model_v3 未定义，未来可独立数据源）
+interface ProcessMetrics {
+  pid: number;
+  name: string;
+  user: string;
+  state: string;
+  cpuPercent: number;
+  memPercent: number;
+  memBytes: number;
+  threads: number;
+  startTime: string;
+  command: string;
+}
 import { formatBytes } from "@/lib/format";
 import { useI18n } from "@/i18n/context";
 

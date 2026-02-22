@@ -1,12 +1,12 @@
 "use client";
 
 import { memo } from "react";
-import { Server, CheckCircle, XCircle, Activity } from "lucide-react";
-import type { NodeListItem } from "@/types/node-metrics";
+import { Server, Activity } from "lucide-react";
+import type { NodeMetrics } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
 
 interface NodeSelectorProps {
-  nodes: NodeListItem[];
+  nodes: NodeMetrics[];
   selectedNode: string;
   onSelect: (nodeName: string) => void;
 }
@@ -31,47 +31,21 @@ export const NodeSelector = memo(function NodeSelector({
       <div className="space-y-2">
         {nodes.map((node) => (
           <button
-            key={node.name}
-            onClick={() => onSelect(node.name)}
-            disabled={!node.hasMetrics}
+            key={node.nodeName}
+            onClick={() => onSelect(node.nodeName)}
             className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-              selectedNode === node.name
+              selectedNode === node.nodeName
                 ? "bg-blue-500/10 border border-blue-500/50"
-                : node.hasMetrics
-                ? "bg-[var(--background)] border border-transparent hover:border-[var(--border-color)]"
-                : "bg-[var(--background)] border border-transparent opacity-50 cursor-not-allowed"
+                : "bg-[var(--background)] border border-transparent hover:border-[var(--border-color)]"
             }`}
           >
-            {/* 状态图标 */}
-            {node.status === "Ready" ? (
-              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-            ) : (
-              <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-            )}
-
-            {/* 节点信息 */}
             <div className="flex-1 text-left min-w-0">
               <div className="text-sm font-medium text-default truncate">
-                {node.name}
+                {node.nodeName}
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                {node.roles.map((role) => (
-                  <span
-                    key={role}
-                    className="text-xs text-muted bg-[var(--background)] px-1.5 py-0.5 rounded"
-                  >
-                    {role}
-                  </span>
-                ))}
-              </div>
+              <div className="text-xs text-muted mt-0.5">{node.nodeIP}</div>
             </div>
-
-            {/* Metrics 状态 */}
-            {node.hasMetrics ? (
-              <Activity className="w-4 h-4 text-green-500 flex-shrink-0" />
-            ) : (
-              <span className="text-xs text-muted">{nm.noMetricsData}</span>
-            )}
+            <Activity className="w-4 h-4 text-green-500 flex-shrink-0" />
           </button>
         ))}
       </div>

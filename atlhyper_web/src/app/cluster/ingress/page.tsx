@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getIngressOverview } from "@/api/ingress";
+import { getIngressOverview } from "@/datasource/cluster";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";

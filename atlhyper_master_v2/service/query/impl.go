@@ -13,6 +13,8 @@ import (
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/command"
 )
 
 // QueryService Query 层实现
@@ -531,7 +533,7 @@ func (q *QueryService) GetAgentStatus(ctx context.Context, clusterID string) (*m
 // ==================== 指令状态查询 ====================
 
 // GetCommandStatus 获取指令状态
-func (q *QueryService) GetCommandStatus(ctx context.Context, commandID string) (*model.CommandStatus, error) {
+func (q *QueryService) GetCommandStatus(ctx context.Context, commandID string) (*command.Status, error) {
 	return q.bus.GetCommandStatus(commandID)
 }
 
@@ -897,4 +899,15 @@ func (q *QueryService) GetDeploymentByReplicaSet(ctx context.Context, clusterID,
 		}
 	}
 	return nil, nil
+}
+
+// ==================== OTel 快照直读 ====================
+
+// GetOTelSnapshot 从内存快照中读取 OTel 数据
+func (q *QueryService) GetOTelSnapshot(ctx context.Context, clusterID string) (*cluster.OTelSnapshot, error) {
+	snapshot, err := q.store.GetSnapshot(clusterID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+	return snapshot.OTel, nil
 }

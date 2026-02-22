@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
+	"AtlHyper/model_v3/command"
 )
 
 // CommandService 指令服务
@@ -59,16 +59,16 @@ func (s *CommandService) CreateCommand(req *CreateCommandRequest) (*CreateComman
 	commandID := uuid.New().String()
 
 	// 3. 构建 Command
-	cmd := &model.Command{
-		ID:              commandID,
-		ClusterID:       req.ClusterID,
-		Action:          req.Action,
-		TargetKind:      req.TargetKind,
-		TargetNamespace: req.TargetNamespace,
-		TargetName:      req.TargetName,
-		Params:          req.Params,
-		Source:          req.Source,
-		CreatedAt:       time.Now(),
+	cmd := &command.Command{
+		ID:        commandID,
+		ClusterID: req.ClusterID,
+		Action:    req.Action,
+		Kind:      req.TargetKind,
+		Namespace: req.TargetNamespace,
+		Name:      req.TargetName,
+		Params:    req.Params,
+		Source:    req.Source,
+		CreatedAt: time.Now(),
 	}
 
 	// 4. 写入 MQ（按来源路由 topic）
@@ -91,7 +91,7 @@ func (s *CommandService) CreateCommand(req *CreateCommandRequest) (*CreateComman
 		TargetNamespace: req.TargetNamespace,
 		TargetName:      req.TargetName,
 		Params:          string(paramsJSON),
-		Status:          model.CommandStatusPending,
+		Status:          command.StatusPending,
 		CreatedAt:       cmd.CreatedAt,
 	}
 	if err := s.cmdRepo.Create(context.Background(), history); err != nil {
@@ -114,20 +114,20 @@ func (s *CommandService) validateRequest(req *CreateCommandRequest) error {
 	}
 
 	// 校验 Action 类型（使用 model 中定义的有效动作）
-	if !model.ValidActions[req.Action] {
+	if !command.ValidActions[req.Action] {
 		return fmt.Errorf("invalid action: %s", req.Action)
 	}
 
 	// 某些操作需要目标信息
 	needsTarget := map[string]bool{
-		model.ActionScale:       true,
-		model.ActionRestart:     true,
-		model.ActionDelete:      true,
-		model.ActionDeletePod:   true,
-		model.ActionCordon:      true,
-		model.ActionUncordon:    true,
-		model.ActionUpdateImage: true,
-		model.ActionGetLogs:     true,
+		command.ActionScale:       true,
+		command.ActionRestart:     true,
+		command.ActionDelete:      true,
+		command.ActionDeletePod:   true,
+		command.ActionCordon:      true,
+		command.ActionUncordon:    true,
+		command.ActionUpdateImage: true,
+		command.ActionGetLogs:     true,
 	}
 	if needsTarget[req.Action] {
 		if req.TargetKind == "" || req.TargetName == "" {

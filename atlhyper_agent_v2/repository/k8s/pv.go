@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // persistentVolumeRepository PV 仓库实现
@@ -20,7 +20,7 @@ func NewPersistentVolumeRepository(client sdk.K8sClient) repository.PersistentVo
 }
 
 // List 列出 PersistentVolume
-func (r *persistentVolumeRepository) List(ctx context.Context, opts model.ListOptions) ([]model_v2.PersistentVolume, error) {
+func (r *persistentVolumeRepository) List(ctx context.Context, opts model.ListOptions) ([]cluster.PersistentVolume, error) {
 	k8sPVs, err := r.client.ListPersistentVolumes(ctx, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *persistentVolumeRepository) List(ctx context.Context, opts model.ListOp
 		return nil, err
 	}
 
-	pvs := make([]model_v2.PersistentVolume, 0, len(k8sPVs))
+	pvs := make([]cluster.PersistentVolume, 0, len(k8sPVs))
 	for i := range k8sPVs {
 		pvs = append(pvs, ConvertPersistentVolume(&k8sPVs[i]))
 	}

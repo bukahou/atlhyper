@@ -8,3 +8,7 @@
 export * as metrics from "./metrics";
 export * as logs from "./logs";
 export * as apm from "./apm";
+export * as cluster from "./cluster";
+export * as slo from "./slo";
+export * as mesh from "./mesh";
+export * as overview from "./overview";

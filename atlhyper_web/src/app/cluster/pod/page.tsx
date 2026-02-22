@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getPodOverview, restartPod } from "@/api/pod";
+import { getPodOverview, restartPod } from "@/datasource/cluster";
 import { PageHeader, StatsCard, DataTable, StatusBadge, ConfirmDialog, type TableColumn } from "@/components/common";
 import { useClusterStore } from "@/store/clusterStore";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";

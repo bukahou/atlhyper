@@ -3,11 +3,12 @@
 import { useEffect, useRef, memo, useState } from "react";
 import * as echarts from "echarts";
 import { TrendingUp, Clock } from "lucide-react";
-import type { MetricsDataPoint } from "@/types/node-metrics";
+import type { Point } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
 
 interface ResourceChartProps {
-  data: MetricsDataPoint[];
+  /** Per-metric history: { cpu: Point[], memory: Point[], disk: Point[], temp: Point[] } */
+  data: Record<string, Point[]>;
   title?: string;
 }
 
@@ -166,25 +167,35 @@ export const ResourceChart = memo(function ResourceChart({
 
   // 数据更新
   useEffect(() => {
-    if (!chartInstance.current || !data.length) return;
+    if (!chartInstance.current) return;
 
-    // 根据时间范围过滤数据
+    const metricKeys = ["cpu", "memory", "disk", "temp"];
+    const hasAnyData = metricKeys.some(k => (data[k]?.length || 0) > 0);
+    if (!hasAnyData) return;
+
     const now = Date.now();
     const rangeMs = {
       "1h": 60 * 60 * 1000,
       "6h": 6 * 60 * 60 * 1000,
       "24h": 24 * 60 * 60 * 1000,
     }[timeRange];
-    const filteredData = data.filter((d) => d.timestamp > now - rangeMs);
+
+    // Convert Point[] to [timestamp_ms, value][] with time filtering
+    const toChartData = (points: Point[] | undefined): [number, number][] => {
+      if (!points) return [];
+      return points
+        .map(p => [new Date(p.timestamp).getTime(), p.value] as [number, number])
+        .filter(([ts]) => ts > now - rangeMs);
+    };
+
+    const seriesData = metricKeys.map(k => toChartData(data[k]));
 
     // 计算实际数据的时间范围
+    const allTimestamps = seriesData.flatMap(s => s.map(d => d[0]));
     let xAxisMin: number | undefined;
     let xAxisMax: number | undefined;
-    if (filteredData.length > 0) {
-      const timestamps = filteredData.map((d) => d.timestamp);
-      const dataMin = Math.min(...timestamps);
-      // X 轴从第一个数据点开始，到当前时间结束
-      xAxisMin = dataMin;
+    if (allTimestamps.length > 0) {
+      xAxisMin = Math.min(...allTimestamps);
       xAxisMax = now;
     }
 
@@ -193,14 +204,11 @@ export const ResourceChart = memo(function ResourceChart({
         min: xAxisMin,
         max: xAxisMax,
       },
-      series: [
-        { data: filteredData.map((d) => [d.timestamp, d.cpuUsage]) },
-        { data: filteredData.map((d) => [d.timestamp, d.memUsage]) },
-        { data: filteredData.map((d) => [d.timestamp, d.diskUsage]) },
-        { data: filteredData.map((d) => [d.timestamp, d.temperature]) },
-      ],
+      series: seriesData.map(d => ({ data: d })),
     });
   }, [data, timeRange]);
+
+  const hasData = Object.values(data).some(points => points && points.length > 0);
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-5">
@@ -237,7 +245,7 @@ export const ResourceChart = memo(function ResourceChart({
       {/* 图表 */}
       <div className="relative">
         <div ref={chartRef} style={{ width: "100%", height: "300px" }} />
-        {data.length === 0 && (
+        {!hasData && (
           <div className="absolute inset-0 flex items-center justify-center bg-card text-muted">
             {nm.chart.noData}
           </div>

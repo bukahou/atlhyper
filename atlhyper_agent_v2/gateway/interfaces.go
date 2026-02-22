@@ -22,8 +22,8 @@ package gateway
 import (
 	"context"
 
-	"AtlHyper/atlhyper_agent_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/command"
 )
 
 // MasterGateway Master 通信接口
@@ -41,7 +41,7 @@ type MasterGateway interface {
 	//
 	// HTTP: POST /agent/snapshot
 	// Header: X-Cluster-ID, Content-Encoding: gzip
-	PushSnapshot(ctx context.Context, snapshot *model_v2.ClusterSnapshot) error
+	PushSnapshot(ctx context.Context, snapshot *cluster.ClusterSnapshot) error
 
 	// PollCommands 从 Master 拉取待执行指令
 	//
@@ -50,14 +50,14 @@ type MasterGateway interface {
 	// topic: "ops" 或 "ai"，分别对应系统操作和 AI 查询队列。
 	//
 	// HTTP: GET /agent/commands?cluster_id=xxx&topic=yyy
-	PollCommands(ctx context.Context, topic string) ([]model_v2.Command, error)
+	PollCommands(ctx context.Context, topic string) ([]command.Command, error)
 
 	// ReportResult 上报指令执行结果到 Master
 	//
 	// 每执行完一个指令，立即上报结果。
 	//
 	// HTTP: POST /agent/result
-	ReportResult(ctx context.Context, result *model.Result) error
+	ReportResult(ctx context.Context, result *command.Result) error
 
 	// Heartbeat 心跳
 	//
@@ -65,7 +65,4 @@ type MasterGateway interface {
 	//
 	// HTTP: POST /agent/heartbeat
 	Heartbeat(ctx context.Context) error
-
-	// SLO 数据现在通过 ClusterSnapshot.SLOData 字段随快照统一推送，
-	// 不再有独立的 PushSLOMetrics 端点。
 }

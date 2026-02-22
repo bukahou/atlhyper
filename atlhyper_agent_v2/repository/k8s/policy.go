@@ -9,7 +9,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -28,7 +28,7 @@ func NewResourceQuotaRepository(client sdk.K8sClient) repository.ResourceQuotaRe
 	return &resourceQuotaRepository{client: client}
 }
 
-func (r *resourceQuotaRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.ResourceQuota, error) {
+func (r *resourceQuotaRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.ResourceQuota, error) {
 	k8sQuotas, err := r.client.ListResourceQuotas(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -38,7 +38,7 @@ func (r *resourceQuotaRepository) List(ctx context.Context, namespace string, op
 		return nil, err
 	}
 
-	quotas := make([]model_v2.ResourceQuota, 0, len(k8sQuotas))
+	quotas := make([]cluster.ResourceQuota, 0, len(k8sQuotas))
 	for i := range k8sQuotas {
 		quotas = append(quotas, ConvertResourceQuota(&k8sQuotas[i]))
 	}
@@ -58,7 +58,7 @@ func NewLimitRangeRepository(client sdk.K8sClient) repository.LimitRangeReposito
 	return &limitRangeRepository{client: client}
 }
 
-func (r *limitRangeRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.LimitRange, error) {
+func (r *limitRangeRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.LimitRange, error) {
 	k8sLRs, err := r.client.ListLimitRanges(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -68,7 +68,7 @@ func (r *limitRangeRepository) List(ctx context.Context, namespace string, opts 
 		return nil, err
 	}
 
-	lrs := make([]model_v2.LimitRange, 0, len(k8sLRs))
+	lrs := make([]cluster.LimitRange, 0, len(k8sLRs))
 	for i := range k8sLRs {
 		lrs = append(lrs, ConvertLimitRange(&k8sLRs[i]))
 	}
@@ -88,7 +88,7 @@ func NewNetworkPolicyRepository(client sdk.K8sClient) repository.NetworkPolicyRe
 	return &networkPolicyRepository{client: client}
 }
 
-func (r *networkPolicyRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.NetworkPolicy, error) {
+func (r *networkPolicyRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.NetworkPolicy, error) {
 	k8sNPs, err := r.client.ListNetworkPolicies(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -98,7 +98,7 @@ func (r *networkPolicyRepository) List(ctx context.Context, namespace string, op
 		return nil, err
 	}
 
-	nps := make([]model_v2.NetworkPolicy, 0, len(k8sNPs))
+	nps := make([]cluster.NetworkPolicy, 0, len(k8sNPs))
 	for i := range k8sNPs {
 		nps = append(nps, ConvertNetworkPolicy(&k8sNPs[i]))
 	}
@@ -118,7 +118,7 @@ func NewServiceAccountRepository(client sdk.K8sClient) repository.ServiceAccount
 	return &serviceAccountRepository{client: client}
 }
 
-func (r *serviceAccountRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.ServiceAccount, error) {
+func (r *serviceAccountRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.ServiceAccount, error) {
 	k8sSAs, err := r.client.ListServiceAccounts(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -128,7 +128,7 @@ func (r *serviceAccountRepository) List(ctx context.Context, namespace string, o
 		return nil, err
 	}
 
-	sas := make([]model_v2.ServiceAccount, 0, len(k8sSAs))
+	sas := make([]cluster.ServiceAccount, 0, len(k8sSAs))
 	for i := range k8sSAs {
 		sas = append(sas, ConvertServiceAccount(&k8sSAs[i]))
 	}
@@ -161,9 +161,9 @@ func formatAge(t time.Time) string {
 // 转换函数
 // =============================================================================
 
-// ConvertResourceQuota 转换 K8s ResourceQuota 到 model_v2
-func ConvertResourceQuota(k8sRQ *corev1.ResourceQuota) model_v2.ResourceQuota {
-	rq := model_v2.ResourceQuota{
+// ConvertResourceQuota 转换 K8s ResourceQuota 到 model_v3
+func ConvertResourceQuota(k8sRQ *corev1.ResourceQuota) cluster.ResourceQuota {
+	rq := cluster.ResourceQuota{
 		Name:        k8sRQ.Name,
 		Namespace:   k8sRQ.Namespace,
 		CreatedAt:   k8sRQ.CreationTimestamp.Format(time.RFC3339),
@@ -196,9 +196,9 @@ func ConvertResourceQuota(k8sRQ *corev1.ResourceQuota) model_v2.ResourceQuota {
 	return rq
 }
 
-// ConvertLimitRange 转换 K8s LimitRange 到 model_v2
-func ConvertLimitRange(k8sLR *corev1.LimitRange) model_v2.LimitRange {
-	lr := model_v2.LimitRange{
+// ConvertLimitRange 转换 K8s LimitRange 到 model_v3
+func ConvertLimitRange(k8sLR *corev1.LimitRange) cluster.LimitRange {
+	lr := cluster.LimitRange{
 		Name:        k8sLR.Name,
 		Namespace:   k8sLR.Namespace,
 		CreatedAt:   k8sLR.CreationTimestamp.Format(time.RFC3339),
@@ -209,7 +209,7 @@ func ConvertLimitRange(k8sLR *corev1.LimitRange) model_v2.LimitRange {
 
 	// 转换 Items
 	for _, item := range k8sLR.Spec.Limits {
-		lrItem := model_v2.LimitRangeItem{
+		lrItem := cluster.LimitRangeItem{
 			Type: string(item.Type),
 		}
 
@@ -259,9 +259,9 @@ func ConvertLimitRange(k8sLR *corev1.LimitRange) model_v2.LimitRange {
 	return lr
 }
 
-// ConvertNetworkPolicy 转换 K8s NetworkPolicy 到 model_v2
-func ConvertNetworkPolicy(k8sNP *networkingv1.NetworkPolicy) model_v2.NetworkPolicy {
-	np := model_v2.NetworkPolicy{
+// ConvertNetworkPolicy 转换 K8s NetworkPolicy 到 model_v3
+func ConvertNetworkPolicy(k8sNP *networkingv1.NetworkPolicy) cluster.NetworkPolicy {
+	np := cluster.NetworkPolicy{
 		Name:             k8sNP.Name,
 		Namespace:        k8sNP.Namespace,
 		CreatedAt:        k8sNP.CreationTimestamp.Format(time.RFC3339),
@@ -298,8 +298,8 @@ func ConvertNetworkPolicy(k8sNP *networkingv1.NetworkPolicy) model_v2.NetworkPol
 }
 
 // convertNetworkPolicyIngressRule 转换入站规则
-func convertNetworkPolicyIngressRule(rule networkingv1.NetworkPolicyIngressRule) model_v2.NetworkPolicyRule {
-	r := model_v2.NetworkPolicyRule{}
+func convertNetworkPolicyIngressRule(rule networkingv1.NetworkPolicyIngressRule) cluster.NetworkPolicyRule {
+	r := cluster.NetworkPolicyRule{}
 
 	for _, from := range rule.From {
 		r.Peers = append(r.Peers, convertNetworkPolicyPeer(from))
@@ -312,8 +312,8 @@ func convertNetworkPolicyIngressRule(rule networkingv1.NetworkPolicyIngressRule)
 }
 
 // convertNetworkPolicyEgressRule 转换出站规则
-func convertNetworkPolicyEgressRule(rule networkingv1.NetworkPolicyEgressRule) model_v2.NetworkPolicyRule {
-	r := model_v2.NetworkPolicyRule{}
+func convertNetworkPolicyEgressRule(rule networkingv1.NetworkPolicyEgressRule) cluster.NetworkPolicyRule {
+	r := cluster.NetworkPolicyRule{}
 
 	for _, to := range rule.To {
 		r.Peers = append(r.Peers, convertNetworkPolicyPeer(to))
@@ -326,8 +326,8 @@ func convertNetworkPolicyEgressRule(rule networkingv1.NetworkPolicyEgressRule) m
 }
 
 // convertNetworkPolicyPeer 转换网络策略对端
-func convertNetworkPolicyPeer(peer networkingv1.NetworkPolicyPeer) model_v2.NetworkPolicyPeer {
-	p := model_v2.NetworkPolicyPeer{}
+func convertNetworkPolicyPeer(peer networkingv1.NetworkPolicyPeer) cluster.NetworkPolicyPeer {
+	p := cluster.NetworkPolicyPeer{}
 
 	if peer.PodSelector != nil {
 		p.Type = "podSelector"
@@ -349,8 +349,8 @@ func convertNetworkPolicyPeer(peer networkingv1.NetworkPolicyPeer) model_v2.Netw
 }
 
 // convertNetworkPolicyPort 转换网络策略端口
-func convertNetworkPolicyPort(port networkingv1.NetworkPolicyPort) model_v2.NetworkPolicyPort {
-	p := model_v2.NetworkPolicyPort{
+func convertNetworkPolicyPort(port networkingv1.NetworkPolicyPort) cluster.NetworkPolicyPort {
+	p := cluster.NetworkPolicyPort{
 		Protocol: "TCP",
 	}
 
@@ -367,9 +367,9 @@ func convertNetworkPolicyPort(port networkingv1.NetworkPolicyPort) model_v2.Netw
 	return p
 }
 
-// ConvertServiceAccount 转换 K8s ServiceAccount 到 model_v2
-func ConvertServiceAccount(k8sSA *corev1.ServiceAccount) model_v2.ServiceAccount {
-	sa := model_v2.ServiceAccount{
+// ConvertServiceAccount 转换 K8s ServiceAccount 到 model_v3
+func ConvertServiceAccount(k8sSA *corev1.ServiceAccount) cluster.ServiceAccount {
+	sa := cluster.ServiceAccount{
 		Name:                         k8sSA.Name,
 		Namespace:                    k8sSA.Namespace,
 		CreatedAt:                    k8sSA.CreationTimestamp.Format(time.RFC3339),

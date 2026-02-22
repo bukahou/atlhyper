@@ -3,7 +3,8 @@
 import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getServiceAccountList, type ServiceAccountItem } from "@/api/cluster-resources";
+import { getServiceAccountList } from "@/datasource/cluster";
+import type { ServiceAccountItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";

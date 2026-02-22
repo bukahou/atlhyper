@@ -5,8 +5,6 @@ package agentsdk
 import (
 	"encoding/json"
 	"net/http"
-
-	"AtlHyper/model_v2"
 )
 
 // 使用 server.go 中定义的 log 变量
@@ -47,19 +45,7 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 	resp := CommandResponse{HasCommand: false}
 	if cmd != nil {
 		resp.HasCommand = true
-		// 从 model.Command 转换为 model_v2.Command
-		resp.Command = &model_v2.Command{
-			ID:        cmd.ID,
-			ClusterID: cmd.ClusterID,
-			Action:    cmd.Action,
-			Kind:      cmd.TargetKind,
-			Namespace: cmd.TargetNamespace,
-			Name:      cmd.TargetName,
-			Params:    cmd.Params,
-			Source:    cmd.Source,
-			CreatedBy: cmd.CreatedBy,
-			CreatedAt: cmd.CreatedAt,
-		}
+		resp.Command = cmd
 		log.Debug("指令已下发", "cmd", cmd.ID, "cluster", clusterID, "action", cmd.Action, "source", cmd.Source)
 	}
 

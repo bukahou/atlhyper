@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft } from "lucide-react";
 import type { LogFacet } from "@/types/model/log";
 import type { LogTranslations } from "@/types/i18n";
 import { shortScopeName } from "@/types/model/log";
@@ -16,6 +16,7 @@ interface LogFacetsProps {
   onServicesChange: (services: string[]) => void;
   onSeveritiesChange: (severities: string[]) => void;
   onScopesChange: (scopes: string[]) => void;
+  onCollapse?: () => void;
   t: LogTranslations;
 }
 
@@ -86,11 +87,24 @@ export function LogFacets({
   services, severities, scopes,
   selectedServices, selectedSeverities, selectedScopes,
   onServicesChange, onSeveritiesChange, onScopesChange,
+  onCollapse,
   t,
 }: LogFacetsProps) {
   return (
     <div className="w-56 flex-shrink-0">
       <div className="sticky top-4 space-y-1">
+        {/* Collapse button */}
+        {onCollapse && (
+          <div className="flex justify-end -mt-1 mb-1">
+            <button
+              onClick={onCollapse}
+              className="p-1 rounded hover:bg-[var(--hover-bg)] transition-colors"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 text-muted" />
+            </button>
+          </div>
+        )}
+
         <FacetGroup
           title={t.facetServices}
           items={services}

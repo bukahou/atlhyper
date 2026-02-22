@@ -6,7 +6,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // cronJobRepository CronJob 仓库实现
@@ -20,7 +20,7 @@ func NewCronJobRepository(client sdk.K8sClient) repository.CronJobRepository {
 }
 
 // List 列出 CronJob
-func (r *cronJobRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.CronJob, error) {
+func (r *cronJobRepository) List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.CronJob, error) {
 	k8sCronJobs, err := r.client.ListCronJobs(ctx, namespace, sdk.ListOptions{
 		LabelSelector: opts.LabelSelector,
 		FieldSelector: opts.FieldSelector,
@@ -30,7 +30,7 @@ func (r *cronJobRepository) List(ctx context.Context, namespace string, opts mod
 		return nil, err
 	}
 
-	cronJobs := make([]model_v2.CronJob, 0, len(k8sCronJobs))
+	cronJobs := make([]cluster.CronJob, 0, len(k8sCronJobs))
 	for i := range k8sCronJobs {
 		cronJobs = append(cronJobs, ConvertCronJob(&k8sCronJobs[i]))
 	}
@@ -38,7 +38,7 @@ func (r *cronJobRepository) List(ctx context.Context, namespace string, opts mod
 }
 
 // Get 获取单个 CronJob
-func (r *cronJobRepository) Get(ctx context.Context, namespace, name string) (*model_v2.CronJob, error) {
+func (r *cronJobRepository) Get(ctx context.Context, namespace, name string) (*cluster.CronJob, error) {
 	k8sCronJob, err := r.client.GetCronJob(ctx, namespace, name)
 	if err != nil {
 		return nil, err

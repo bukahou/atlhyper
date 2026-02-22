@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import React from "react";
 import type { LogEntry } from "@/types/model/log";
 import type { LogTranslations } from "@/types/i18n";
 import { severityColor, shortScopeName } from "@/types/model/log";
-import { LogDetail } from "./LogDetail";
 
 interface LogListProps {
   logs: LogEntry[];
   total: number;
   displayCount: number;
   onLoadMore: () => void;
+  onSelectEntry?: (entry: LogEntry, idx: number) => void;
+  selectedIdx?: number | null;
+  searchHighlight?: string;
   t: LogTranslations;
 }
 
@@ -24,13 +25,34 @@ function formatTime(iso: string): string {
   return `${hh}:${mm}:${ss}.${ms}`;
 }
 
-export function LogList({ logs, total, displayCount, onLoadMore, t }: LogListProps) {
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+/** Level → left bar color */
+function severityBarColor(severity: string): string {
+  switch (severity.toUpperCase()) {
+    case "ERROR": return "#ef4444";
+    case "WARN": return "#f59e0b";
+    case "INFO": return "#3b82f6";
+    case "DEBUG":
+    default: return "#6b7280";
+  }
+}
 
-  const toggleExpand = (idx: number) => {
-    setExpandedIdx(expandedIdx === idx ? null : idx);
-  };
+/** Highlight search keyword in text */
+function highlightText(text: string, keyword?: string): React.ReactNode {
+  if (!keyword) return text;
+  const lower = text.toLowerCase();
+  const kw = keyword.toLowerCase();
+  const idx = lower.indexOf(kw);
+  if (idx < 0) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-yellow-300/70 dark:bg-yellow-500/40 text-inherit rounded-sm px-0.5">{text.slice(idx, idx + keyword.length)}</mark>
+      {text.slice(idx + keyword.length)}
+    </>
+  );
+}
 
+export function LogList({ logs, total, displayCount, onLoadMore, onSelectEntry, selectedIdx, searchHighlight, t }: LogListProps) {
   if (logs.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-muted text-sm">
@@ -43,20 +65,21 @@ export function LogList({ logs, total, displayCount, onLoadMore, t }: LogListPro
     <div className="flex flex-col">
       <div className="divide-y divide-[var(--border-color)] border border-[var(--border-color)] rounded-lg overflow-hidden">
         {logs.map((entry, idx) => {
-          const isExpanded = expandedIdx === idx;
+          const isSelected = selectedIdx === idx;
           return (
-            <div key={idx}>
+            <div key={idx} className="flex">
+              {/* Severity color bar */}
+              <div
+                className="w-1 flex-shrink-0"
+                style={{ backgroundColor: severityBarColor(entry.severity) }}
+              />
+
               <button
-                onClick={() => toggleExpand(idx)}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--hover-bg)] transition-colors text-xs ${
-                  isExpanded ? "bg-[var(--hover-bg)]" : ""
+                onClick={() => onSelectEntry?.(entry, idx)}
+                className={`flex-1 min-w-0 flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--hover-bg)] transition-colors text-xs ${
+                  isSelected ? "bg-primary/5 border-l-2 border-l-primary" : ""
                 }`}
               >
-                {isExpanded
-                  ? <ChevronDown className="w-3.5 h-3.5 text-muted flex-shrink-0" />
-                  : <ChevronRight className="w-3.5 h-3.5 text-muted flex-shrink-0" />
-                }
-
                 {/* Time */}
                 <span className="font-mono text-muted w-[90px] flex-shrink-0">
                   {formatTime(entry.timestamp)}
@@ -77,14 +100,11 @@ export function LogList({ logs, total, displayCount, onLoadMore, t }: LogListPro
                   {shortScopeName(entry.scopeName)}
                 </span>
 
-                {/* Body preview */}
+                {/* Body preview with search highlight */}
                 <span className="text-default truncate flex-1 min-w-0">
-                  {entry.body}
+                  {highlightText(entry.body, searchHighlight)}
                 </span>
               </button>
-
-              {/* Expanded detail */}
-              {isExpanded && <LogDetail entry={entry} t={t} />}
             </div>
           );
         })}

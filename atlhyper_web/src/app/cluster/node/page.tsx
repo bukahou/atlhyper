@@ -1,119 +1,115 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getNodeOverview, cordonNode, uncordonNode } from "@/api/node";
+import { getNodeOverview } from "@/datasource/cluster";
+import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { PageHeader, StatsCard, StatusBadge, LoadingSpinner, ConfirmDialog } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Shield, ShieldOff, Cpu, HardDrive, Eye } from "lucide-react";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { Filter, X } from "lucide-react";
 import type { NodeItem, NodeOverview } from "@/types/cluster";
 import { NodeDetailModal } from "@/components/node";
 
-// Node 卡片组件
-function NodeCard({
-  node,
-  onViewDetail,
-  onToggleSchedulable,
-  t,
+// 带清除按钮的筛选输入框
+function FilterInput({
+  value,
+  onChange,
+  onClear,
+  placeholder,
 }: {
-  node: NodeItem;
-  onViewDetail: () => void;
-  onToggleSchedulable: () => void;
-  t: ReturnType<typeof useI18n>["t"];
+  value: string;
+  onChange: (value: string) => void;
+  onClear: () => void;
+  placeholder: string;
 }) {
   return (
-    <div
-      className="bg-card rounded-xl border border-[var(--border-color)] p-6 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
-      onClick={onViewDetail}
-    >
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold text-default">{node.name}</h3>
-          <div className="flex items-center gap-2 mt-1">
-            <StatusBadge status={node.ready ? "Ready" : "NotReady"} />
-            {node.architecture && <StatusBadge status={node.architecture} type="info" />}
-            <StatusBadge
-              status={node.schedulable !== false ? "Schedulable" : "Unschedulable"}
-              type={node.schedulable !== false ? "success" : "warning"}
-            />
-          </div>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewDetail();
-            }}
-            className="p-2 hover-bg rounded-lg"
-            title={t.node.viewDetails}
-          >
-            <Eye className="w-4 h-4 text-muted" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSchedulable();
-            }}
-            className="p-2 hover-bg rounded-lg"
-            title={node.schedulable ? t.node.cordon : t.node.uncordon}
-          >
-            {node.schedulable ? (
-              <Shield className="w-4 h-4 text-muted" />
-            ) : (
-              <ShieldOff className="w-4 h-4 text-yellow-500" />
-            )}
-          </button>
-        </div>
-      </div>
+    <div className="relative">
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2.5 sm:py-2 pr-8 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-sm text-default placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+      {value && (
+        <button
+          onClick={onClear}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted hover:text-default transition-colors"
+        >
+          <X className="w-4 h-4 sm:w-3 sm:h-3" />
+        </button>
+      )}
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <Cpu className="w-4 h-4 text-muted" />
-          <div>
-            <p className="text-sm text-muted">{t.node.cpuUsage}</p>
-            <p className="font-medium">{node.cpuCores ?? "-"}</p>
-          </div>
+// 带清除按钮的筛选下拉框
+function FilterSelect({
+  value,
+  onChange,
+  onClear,
+  placeholder,
+  options,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onClear: () => void;
+  placeholder: string;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2.5 sm:py-2 pr-8 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      {value ? (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            onClear();
+          }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted hover:text-default transition-colors z-10"
+        >
+          <X className="w-4 h-4 sm:w-3 sm:h-3" />
+        </button>
+      ) : (
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+          <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
-        <div className="flex items-center gap-2">
-          <HardDrive className="w-4 h-4 text-muted" />
-          <div>
-            <p className="text-sm text-muted">{t.node.memoryUsage}</p>
-            <p className="font-medium">{node.memoryGiB != null ? `${node.memoryGiB.toFixed(1)} GiB` : "-"}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted">IP</span>
-          <span className="font-mono text-xs">{node.internalIP || "-"}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted">OS</span>
-          <span>{node.osImage || "-"}</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
 export default function NodePage() {
   const { t } = useI18n();
-  const requireAuth = useRequireAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<NodeOverview | null>(null);
   const [error, setError] = useState("");
 
+  // 筛选状态
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "",
+    architecture: "",
+    schedulable: "",
+  });
+
   // 详情弹窗状态
   const [selectedNode, setSelectedNode] = useState<NodeItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  // 封锁/解封确认状态
-  const [blockTarget, setBlockTarget] = useState<NodeItem | null>(null);
-  const [blockLoading, setBlockLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     setError("");
@@ -130,39 +126,103 @@ export default function NodePage() {
   const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 查看详情
-  const handleViewDetail = (node: NodeItem) => {
+  const handleRowClick = (node: NodeItem) => {
     setSelectedNode(node);
     setDetailOpen(true);
   };
 
-  // 封锁/解封确认（需要先登录）
-  const handleToggleSchedulable = (node: NodeItem) => {
-    requireAuth(() => setBlockTarget(node));
+  // 动态提取架构选项
+  const architectureOptions = useMemo(() => {
+    const rows = data?.rows || [];
+    const archSet = new Set<string>();
+    rows.forEach((node) => {
+      if (node.architecture) archSet.add(node.architecture);
+    });
+    return Array.from(archSet).sort().map((a) => ({ value: a, label: a }));
+  }, [data?.rows]);
+
+  // 客户端筛选
+  const filteredNodes = useMemo(() => {
+    const rows = data?.rows || [];
+    return rows.filter((node) => {
+      if (filters.search && !node.name.toLowerCase().includes(filters.search.toLowerCase())) {
+        return false;
+      }
+      if (filters.status) {
+        const isReady = node.ready ? "Ready" : "NotReady";
+        if (isReady !== filters.status) return false;
+      }
+      if (filters.architecture && node.architecture !== filters.architecture) {
+        return false;
+      }
+      if (filters.schedulable) {
+        const sched = node.schedulable ? "Schedulable" : "Unschedulable";
+        if (sched !== filters.schedulable) return false;
+      }
+      return true;
+    });
+  }, [data?.rows, filters]);
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  // 执行封锁/解封
-  const handleBlockConfirm = async () => {
-    if (!blockTarget) return;
-    setBlockLoading(true);
-    try {
-      if (blockTarget.schedulable) {
-        await cordonNode({ ClusterID: getCurrentClusterId(), Node: blockTarget.name });
-      } else {
-        await uncordonNode({ ClusterID: getCurrentClusterId(), Node: blockTarget.name });
-      }
-      setBlockTarget(null);
-      // 延迟2秒后刷新，给后端处理时间
-      setTimeout(() => fetchData(), 2000);
-    } catch (err) {
-      console.error("Block/Unblock failed:", err);
-    } finally {
-      setBlockLoading(false);
-    }
-  };
+  const hasFilters = filters.search || filters.status || filters.architecture || filters.schedulable;
+  const activeCount = [filters.search, filters.status, filters.architecture, filters.schedulable].filter(Boolean).length;
+
+  const columns: TableColumn<NodeItem>[] = [
+    {
+      key: "name",
+      header: t.common.name,
+      mobileTitle: true,
+      render: (node) => <span className="font-medium text-default">{node.name}</span>,
+    },
+    {
+      key: "status",
+      header: t.common.status,
+      render: (node) => (
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={node.ready ? "Ready" : "NotReady"} />
+          <StatusBadge
+            status={node.schedulable !== false ? "Schedulable" : "Unschedulable"}
+            type={node.schedulable !== false ? "success" : "warning"}
+          />
+        </div>
+      ),
+    },
+    {
+      key: "architecture",
+      header: t.node.architecture,
+      mobileVisible: false,
+      render: (node) => node.architecture ? <StatusBadge status={node.architecture} type="info" /> : <span className="text-muted">-</span>,
+    },
+    {
+      key: "cpu",
+      header: "CPU",
+      render: (node) => <span className="text-sm">{node.cpuCores != null ? `${node.cpuCores} cores` : "-"}</span>,
+    },
+    {
+      key: "memory",
+      header: "Memory",
+      render: (node) => <span className="text-sm">{node.memoryGiB != null ? `${node.memoryGiB.toFixed(1)} GiB` : "-"}</span>,
+    },
+    {
+      key: "ip",
+      header: "IP",
+      mobileVisible: false,
+      render: (node) => <span className="font-mono text-xs">{node.internalIP || "-"}</span>,
+    },
+    {
+      key: "os",
+      header: "OS",
+      mobileVisible: false,
+      render: (node) => <span className="truncate max-w-[180px] block text-sm" title={node.osImage}>{node.osImage || "-"}</span>,
+    },
+  ];
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <PageHeader title={t.nav.node} description={t.node.pageDescription} autoRefreshSeconds={intervalSeconds} />
 
         {data && (
@@ -174,25 +234,75 @@ export default function NodePage() {
           </div>
         )}
 
-        {loading ? (
-          <LoadingSpinner />
-        ) : error ? (
-          <div className="text-center py-12 text-red-500">{error}</div>
-        ) : !data?.rows?.length ? (
-          <div className="text-center py-12 text-gray-500">{t.common.noData}</div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {data.rows.map((node) => (
-              <NodeCard
-                key={node.name}
-                node={node}
-                onViewDetail={() => handleViewDetail(node)}
-                onToggleSchedulable={() => handleToggleSchedulable(node)}
-                t={t}
-              />
-            ))}
+        {/* 筛选栏 */}
+        <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter className="w-4 h-4 text-muted" />
+            <span className="text-sm font-medium text-default">{t.common.filter}</span>
+            {activeCount > 0 && (
+              <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
+                {activeCount}
+              </span>
+            )}
+            {hasFilters && (
+              <button
+                onClick={() => setFilters({ search: "", status: "", architecture: "", schedulable: "" })}
+                className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-default transition-colors"
+              >
+                <X className="w-3 h-3" />
+                {t.common.clearAll}
+              </button>
+            )}
           </div>
-        )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <FilterInput
+              value={filters.search}
+              onChange={(v) => handleFilterChange("search", v)}
+              onClear={() => handleFilterChange("search", "")}
+              placeholder={t.node.searchPlaceholder}
+            />
+            <FilterSelect
+              value={filters.status}
+              onChange={(v) => handleFilterChange("status", v)}
+              onClear={() => handleFilterChange("status", "")}
+              placeholder={t.node.allStatus}
+              options={[
+                { value: "Ready", label: "Ready" },
+                { value: "NotReady", label: "NotReady" },
+              ]}
+            />
+            <FilterSelect
+              value={filters.architecture}
+              onChange={(v) => handleFilterChange("architecture", v)}
+              onClear={() => handleFilterChange("architecture", "")}
+              placeholder={t.node.allArchitectures}
+              options={architectureOptions}
+            />
+            <FilterSelect
+              value={filters.schedulable}
+              onChange={(v) => handleFilterChange("schedulable", v)}
+              onClear={() => handleFilterChange("schedulable", "")}
+              placeholder={t.node.allSchedulable}
+              options={[
+                { value: "Schedulable", label: t.node.schedulable },
+                { value: "Unschedulable", label: t.node.unschedulable },
+              ]}
+            />
+          </div>
+        </div>
+
+        {/* 数据表格 */}
+        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+          <DataTable
+            columns={columns}
+            data={filteredNodes}
+            loading={loading}
+            error={error}
+            keyExtractor={(node) => node.name}
+            onRowClick={handleRowClick}
+            pageSize={10}
+          />
+        </div>
       </div>
 
       {/* Node 详情弹窗 */}
@@ -201,25 +311,9 @@ export default function NodePage() {
           isOpen={detailOpen}
           onClose={() => setDetailOpen(false)}
           nodeName={selectedNode.name}
+          onNodeChanged={fetchData}
         />
       )}
-
-      {/* 封锁/解封确认对话框 */}
-      <ConfirmDialog
-        isOpen={!!blockTarget}
-        onClose={() => setBlockTarget(null)}
-        onConfirm={handleBlockConfirm}
-        title={blockTarget?.schedulable ? t.node.cordonConfirmTitle : t.node.uncordonConfirmTitle}
-        message={
-          blockTarget?.schedulable
-            ? t.node.cordonConfirmMessage.replace("{name}", blockTarget?.name || "")
-            : t.node.uncordonConfirmMessage.replace("{name}", blockTarget?.name || "")
-        }
-        confirmText={blockTarget?.schedulable ? t.node.cordon : t.node.uncordon}
-        cancelText={t.common.cancel}
-        loading={blockLoading}
-        variant={blockTarget?.schedulable ? "warning" : "info"}
-      />
     </Layout>
   );
 }

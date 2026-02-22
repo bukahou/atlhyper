@@ -29,7 +29,8 @@ import (
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/atlhyper_agent_v2/service"
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/command"
 )
 
 // commandService 指令执行服务实现
@@ -37,19 +38,37 @@ import (
 // 核心依赖:
 //   - podRepo: Pod 查询 (日志获取)
 //   - genericRepo: 所有写操作 + 动态查询
+//   - traceQueryRepo: Trace 按需查询 (ClickHouse, 可选)
+//   - logQueryRepo: Log 按需查询 (ClickHouse, 可选)
+//   - metricsQueryRepo: Metrics 按需查询 (ClickHouse, 可选)
+//   - sloQueryRepo: SLO 按需查询 (ClickHouse, 可选)
 type commandService struct {
 	podRepo     repository.PodRepository
 	genericRepo repository.GenericRepository
+
+	// ClickHouse 查询仓库 (可选)
+	traceQueryRepo   repository.TraceQueryRepository
+	logQueryRepo     repository.LogQueryRepository
+	metricsQueryRepo repository.MetricsQueryRepository
+	sloQueryRepo     repository.SLOQueryRepository
 }
 
 // NewCommandService 创建指令服务
 func NewCommandService(
 	podRepo repository.PodRepository,
 	genericRepo repository.GenericRepository,
+	traceQueryRepo repository.TraceQueryRepository,
+	logQueryRepo repository.LogQueryRepository,
+	metricsQueryRepo repository.MetricsQueryRepository,
+	sloQueryRepo repository.SLOQueryRepository,
 ) service.CommandService {
 	return &commandService{
-		podRepo:     podRepo,
-		genericRepo: genericRepo,
+		podRepo:          podRepo,
+		genericRepo:      genericRepo,
+		traceQueryRepo:   traceQueryRepo,
+		logQueryRepo:     logQueryRepo,
+		metricsQueryRepo: metricsQueryRepo,
+		sloQueryRepo:     sloQueryRepo,
 	}
 }
 
@@ -61,8 +80,10 @@ func NewCommandService(
 // 返回值:
 //   - Success=true: 执行成功，Data 包含返回数据 (如日志内容)
 //   - Success=false: 执行失败，Error 包含错误信息
-func (s *commandService) Execute(ctx context.Context, cmd *model_v2.Command) *model.Result {
-	result := &model.Result{
+func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *command.Result {
+	start := time.Now()
+
+	result := &command.Result{
 		CommandID:  cmd.ID,
 		ExecutedAt: time.Now(),
 	}
@@ -71,29 +92,41 @@ func (s *commandService) Execute(ctx context.Context, cmd *model_v2.Command) *mo
 	var data any
 
 	switch cmd.Action {
-	case model_v2.ActionScale:
+	case command.ActionScale:
 		err = s.handleScale(ctx, cmd)
-	case model_v2.ActionRestart:
+	case command.ActionRestart:
 		err = s.handleRestart(ctx, cmd)
-	case model_v2.ActionUpdateImage:
+	case command.ActionUpdateImage:
 		err = s.handleUpdateImage(ctx, cmd)
-	case model_v2.ActionGetLogs:
+	case command.ActionGetLogs:
 		data, err = s.handleGetLogs(ctx, cmd)
-	case model_v2.ActionGetConfigMap:
+	case command.ActionGetConfigMap:
 		data, err = s.handleGetConfigMap(ctx, cmd)
-	case model_v2.ActionGetSecret:
+	case command.ActionGetSecret:
 		data, err = s.handleGetSecret(ctx, cmd)
-	case model_v2.ActionDynamic:
+	case command.ActionDynamic:
 		data, err = s.handleDynamic(ctx, cmd)
-	case model_v2.ActionDelete:
+	case command.ActionDelete:
 		err = s.handleDelete(ctx, cmd)
-	case model_v2.ActionCordon:
+	case command.ActionCordon:
 		err = s.handleCordon(ctx, cmd)
-	case model_v2.ActionUncordon:
+	case command.ActionUncordon:
 		err = s.handleUncordon(ctx, cmd)
+	case command.ActionQueryTraces:
+		data, err = s.handleQueryTraces(ctx, cmd)
+	case command.ActionQueryTraceDetail:
+		data, err = s.handleQueryTraceDetail(ctx, cmd)
+	case command.ActionQueryLogs:
+		data, err = s.handleQueryLogs(ctx, cmd)
+	case command.ActionQueryMetrics:
+		data, err = s.handleQueryMetrics(ctx, cmd)
+	case command.ActionQuerySLO:
+		data, err = s.handleQuerySLO(ctx, cmd)
 	default:
 		err = fmt.Errorf("unknown action: %s", cmd.Action)
 	}
+
+	result.ExecTime = time.Since(start)
 
 	if err != nil {
 		result.Success = false
@@ -118,7 +151,7 @@ func (s *commandService) Execute(ctx context.Context, cmd *model_v2.Command) *mo
 }
 
 // handleScale 处理扩缩容指令
-func (s *commandService) handleScale(ctx context.Context, cmd *model_v2.Command) error {
+func (s *commandService) handleScale(ctx context.Context, cmd *command.Command) error {
 	var params struct {
 		Replicas int32 `json:"replicas"`
 	}
@@ -130,12 +163,12 @@ func (s *commandService) handleScale(ctx context.Context, cmd *model_v2.Command)
 }
 
 // handleRestart 处理重启指令
-func (s *commandService) handleRestart(ctx context.Context, cmd *model_v2.Command) error {
+func (s *commandService) handleRestart(ctx context.Context, cmd *command.Command) error {
 	return s.genericRepo.RestartDeployment(ctx, cmd.Namespace, cmd.Name)
 }
 
 // handleUpdateImage 处理更新镜像指令
-func (s *commandService) handleUpdateImage(ctx context.Context, cmd *model_v2.Command) error {
+func (s *commandService) handleUpdateImage(ctx context.Context, cmd *command.Command) error {
 	var params struct {
 		Container string `json:"container,omitempty"`
 		Image     string `json:"image"`
@@ -151,17 +184,17 @@ func (s *commandService) handleUpdateImage(ctx context.Context, cmd *model_v2.Co
 }
 
 // handleCordon 处理封锁节点指令
-func (s *commandService) handleCordon(ctx context.Context, cmd *model_v2.Command) error {
+func (s *commandService) handleCordon(ctx context.Context, cmd *command.Command) error {
 	return s.genericRepo.CordonNode(ctx, cmd.Name)
 }
 
 // handleUncordon 处理解封节点指令
-func (s *commandService) handleUncordon(ctx context.Context, cmd *model_v2.Command) error {
+func (s *commandService) handleUncordon(ctx context.Context, cmd *command.Command) error {
 	return s.genericRepo.UncordonNode(ctx, cmd.Name)
 }
 
 // handleGetLogs 处理获取日志指令
-func (s *commandService) handleGetLogs(ctx context.Context, cmd *model_v2.Command) (string, error) {
+func (s *commandService) handleGetLogs(ctx context.Context, cmd *command.Command) (string, error) {
 	var params struct {
 		Container    string `json:"container,omitempty"`
 		TailLines    int64  `json:"tailLines,omitempty"`
@@ -189,7 +222,7 @@ func (s *commandService) handleGetLogs(ctx context.Context, cmd *model_v2.Comman
 		pod, err := s.podRepo.Get(ctx, cmd.Namespace, cmd.Name)
 		if err == nil && len(pod.Containers) > 0 {
 			for _, c := range pod.Containers {
-				if !model_v2.IsSidecarContainer(c.Name) {
+				if !model_v3.IsSidecarContainer(c.Name) {
 					params.Container = c.Name
 					break
 				}
@@ -210,7 +243,7 @@ func (s *commandService) handleGetLogs(ctx context.Context, cmd *model_v2.Comman
 }
 
 // handleGetConfigMap 处理获取 ConfigMap 数据指令
-func (s *commandService) handleGetConfigMap(ctx context.Context, cmd *model_v2.Command) (map[string]string, error) {
+func (s *commandService) handleGetConfigMap(ctx context.Context, cmd *command.Command) (map[string]string, error) {
 	if cmd.Namespace == "" || cmd.Name == "" {
 		return nil, fmt.Errorf("namespace and name are required")
 	}
@@ -218,7 +251,7 @@ func (s *commandService) handleGetConfigMap(ctx context.Context, cmd *model_v2.C
 }
 
 // handleGetSecret 处理获取 Secret 数据指令
-func (s *commandService) handleGetSecret(ctx context.Context, cmd *model_v2.Command) (map[string]string, error) {
+func (s *commandService) handleGetSecret(ctx context.Context, cmd *command.Command) (map[string]string, error) {
 	if cmd.Namespace == "" || cmd.Name == "" {
 		return nil, fmt.Errorf("namespace and name are required")
 	}
@@ -236,7 +269,7 @@ func (s *commandService) handleGetSecret(ctx context.Context, cmd *model_v2.Comm
 //   - label_selector: 标签过滤 (list 时使用)
 //   - involved_kind: 事件关联资源类型 (get_events 时使用)
 //   - involved_name: 事件关联资源名称 (get_events 时使用)
-func (s *commandService) handleDynamic(ctx context.Context, cmd *model_v2.Command) (string, error) {
+func (s *commandService) handleDynamic(ctx context.Context, cmd *command.Command) (string, error) {
 	var params struct {
 		Command       string `json:"command"`
 		Kind          string `json:"kind"`
@@ -303,7 +336,7 @@ func (s *commandService) handleDynamic(ctx context.Context, cmd *model_v2.Comman
 }
 
 // handleDelete 处理通用删除指令
-func (s *commandService) handleDelete(ctx context.Context, cmd *model_v2.Command) error {
+func (s *commandService) handleDelete(ctx context.Context, cmd *command.Command) error {
 	var params struct {
 		GracePeriodSeconds *int64 `json:"gracePeriodSeconds,omitempty"`
 		Force              bool   `json:"force,omitempty"`

@@ -92,6 +92,7 @@ func (r *Router) registerRoutes() {
 	limitRangeHandler := handler.NewLimitRangeHandler(r.service)
 	serviceAccountHandler := handler.NewServiceAccountHandler(r.service)
 	nodeMetricsHandler := handler.NewNodeMetricsHandler(r.database.NodeMetrics)
+	observeHandler := handler.NewObserveHandler(r.service, r.service, r.bus)
 	aiopsGraphHandler := handler.NewAIOpsGraphHandler(r.service)
 	aiopsBaselineHandler := handler.NewAIOpsBaselineHandler(r.service)
 	aiopsRiskHandler := handler.NewAIOpsRiskHandler(r.service)
@@ -213,6 +214,21 @@ func (r *Router) registerRoutes() {
 		// ---------- 节点指标查询（只读） ----------
 		register("/api/v2/node-metrics", nodeMetricsHandler.Route)
 		register("/api/v2/node-metrics/", nodeMetricsHandler.Route)
+
+		// ---------- 可观测性查询（ClickHouse 按需） ----------
+		register("/api/v2/observe/metrics/summary", observeHandler.MetricsSummary)
+		register("/api/v2/observe/metrics/nodes", observeHandler.MetricsNodes)
+		register("/api/v2/observe/metrics/nodes/", observeHandler.MetricsNodeRoute)
+		register("/api/v2/observe/logs/query", observeHandler.LogsQuery)
+		register("/api/v2/observe/traces/services", observeHandler.TracesServices)
+		register("/api/v2/observe/traces/topology", observeHandler.TracesTopology)
+		register("/api/v2/observe/traces", observeHandler.TracesList)
+		register("/api/v2/observe/traces/", observeHandler.TracesDetail)
+		register("/api/v2/observe/slo/summary", observeHandler.SLOSummary)
+		register("/api/v2/observe/slo/ingress", observeHandler.SLOIngress)
+		register("/api/v2/observe/slo/services", observeHandler.SLOServices)
+		register("/api/v2/observe/slo/edges", observeHandler.SLOEdges)
+		register("/api/v2/observe/slo/timeseries", observeHandler.SLOTimeSeries)
 
 		// ---------- AIOps 查询（只读） ----------
 		register("/api/v2/aiops/graph", aiopsGraphHandler.Graph)

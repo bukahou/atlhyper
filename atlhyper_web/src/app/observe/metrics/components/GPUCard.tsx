@@ -2,7 +2,21 @@
 
 import { memo } from "react";
 import { Zap, Thermometer, Fan, Cpu } from "lucide-react";
-import type { GPUMetrics } from "@/types/node-metrics";
+// GPUMetrics — 本地类型（model_v3 未定义，未来可独立数据源）
+interface GPUMetrics {
+  index: number;
+  name: string;
+  uuid: string;
+  temperature: number;
+  fanSpeed: number;
+  powerUsage: number;
+  powerLimit: number;
+  memoryTotal: number;
+  memoryUsed: number;
+  gpuUtilization: number;
+  memUtilization: number;
+  processes: { pid: number; name: string; memoryUsed: number }[];
+}
 import { formatBytes } from "@/lib/format";
 import { useI18n } from "@/i18n/context";
 

@@ -21,16 +21,14 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/config"
 	"AtlHyper/atlhyper_agent_v2/gateway"
-	"AtlHyper/atlhyper_agent_v2/sdk/impl/receiver"
 	"AtlHyper/atlhyper_agent_v2/repository"
+	chrepo "AtlHyper/atlhyper_agent_v2/repository/ch"
+	chquery "AtlHyper/atlhyper_agent_v2/repository/ch/query"
 	k8srepo "AtlHyper/atlhyper_agent_v2/repository/k8s"
-	metricsrepo "AtlHyper/atlhyper_agent_v2/repository/metrics"
-	slorepo "AtlHyper/atlhyper_agent_v2/repository/slo"
 	"AtlHyper/atlhyper_agent_v2/scheduler"
 	sdkpkg "AtlHyper/atlhyper_agent_v2/sdk"
-	"AtlHyper/atlhyper_agent_v2/sdk/impl/ingress"
+	chpkg "AtlHyper/atlhyper_agent_v2/sdk/impl/clickhouse"
 	k8spkg "AtlHyper/atlhyper_agent_v2/sdk/impl/k8s"
-	otelpkg "AtlHyper/atlhyper_agent_v2/sdk/impl/otel"
 	commandsvc "AtlHyper/atlhyper_agent_v2/service/command"
 	snapshotsvc "AtlHyper/atlhyper_agent_v2/service/snapshot"
 	"AtlHyper/common/logger"
@@ -41,8 +39,8 @@ var log = logger.Module("Agent")
 // Agent 是 Agent V2 的主结构体
 // 封装调度器，提供启动/运行/停止接口
 type Agent struct {
-	scheduler   *scheduler.Scheduler
-	receiverSvr sdkpkg.ReceiverClient
+	scheduler *scheduler.Scheduler
+	chClient  sdkpkg.ClickHouseClient // 可选，nil 时不启动
 }
 
 // New 创建并初始化 Agent 实例
@@ -86,38 +84,27 @@ func New() (*Agent, error) {
 	// 3. 初始化 Repository (数据访问层)
 	repos := initRepositories(k8sClient)
 
-	// 3.1 初始化 OTel 客户端（SLO + 节点指标共用）
-	var otelClient sdkpkg.OTelClient
-	if cfg.SLO.Enabled {
-		otelClient = otelpkg.NewOTelClient(cfg.SLO.OTelMetricsURL, cfg.SLO.OTelHealthURL, cfg.SLO.ScrapeTimeout)
-		log.Info("OTel 客户端初始化完成", "url", cfg.SLO.OTelMetricsURL)
-	}
-
-	// 3.2 初始化 MetricsRepository (节点指标)
-	// 优先用 OTel 拉取 node_exporter 指标，降级到 Receiver 被动接收
-	var metricsRepo repository.MetricsRepository
-	var receiverClient sdkpkg.ReceiverClient
-	if cfg.MetricsSDK.Enabled {
-		receiverClient = receiver.NewServer(cfg.MetricsSDK.Port)
-	}
-	if otelClient != nil {
-		metricsRepo = metricsrepo.NewMetricsRepository(otelClient, receiverClient)
-		log.Info("MetricsRepository 初始化完成 (OTel 模式)")
-	} else if receiverClient != nil {
-		metricsRepo = metricsrepo.NewLegacyMetricsRepository(receiverClient)
-		log.Info("MetricsRepository 初始化完成 (Receiver 降级模式)")
-	}
-
-	// 3.3 初始化 SLORepository (可选)
-	var sloRepo repository.SLORepository
-	if cfg.SLO.Enabled && otelClient != nil {
-		ingressClient := ingress.NewIngressClient(k8sClient)
-		excludeNS := cfg.SLO.ExcludeNamespaces
-		if len(excludeNS) == 0 {
-			excludeNS = []string{"linkerd", "linkerd-viz", "kube-system", "otel"}
+	// 3.1 初始化 ClickHouse 客户端（可选）
+	var otelSummaryRepo repository.OTelSummaryRepository
+	var traceQueryRepo repository.TraceQueryRepository
+	var logQueryRepo repository.LogQueryRepository
+	var metricsQueryRepo repository.MetricsQueryRepository
+	var sloQueryRepo repository.SLOQueryRepository
+	var dashboardRepo repository.OTelDashboardRepository
+	var chClient sdkpkg.ClickHouseClient
+	if cfg.ClickHouse.Endpoint != "" {
+		chClient, err = chpkg.NewClient(cfg.ClickHouse.Endpoint, cfg.ClickHouse.Database, cfg.ClickHouse.Timeout)
+		if err != nil {
+			log.Warn("ClickHouse 客户端初始化失败，OTel 不可用", "err", err)
+		} else {
+			otelSummaryRepo = chrepo.NewOTelSummaryRepository(chClient)
+			traceQueryRepo = chquery.NewTraceQueryRepository(chClient)
+			logQueryRepo = chquery.NewLogQueryRepository(chClient)
+			metricsQueryRepo = chquery.NewMetricsQueryRepository(chClient, repos.node)
+			sloQueryRepo = chquery.NewSLOQueryRepository(chClient)
+			dashboardRepo = chrepo.NewDashboardRepository(metricsQueryRepo, traceQueryRepo, sloQueryRepo)
+			log.Info("ClickHouse 客户端初始化完成", "endpoint", cfg.ClickHouse.Endpoint)
 		}
-		sloRepo = slorepo.NewSLORepository(otelClient, ingressClient, excludeNS)
-		log.Info("SLO Repository 初始化完成")
 	}
 
 	// 4. 初始化 Service (业务逻辑层)
@@ -130,11 +117,14 @@ func New() (*Agent, error) {
 		repos.job, repos.cronJob, repos.pv, repos.pvc,
 		repos.resourceQuota, repos.limitRange,
 		repos.networkPolicy, repos.serviceAccount,
-		metricsRepo,
-		sloRepo,
+		otelSummaryRepo,
+		dashboardRepo,
 	)
 
-	commandSvc := commandsvc.NewCommandService(repos.pod, repos.generic)
+	commandSvc := commandsvc.NewCommandService(
+		repos.pod, repos.generic,
+		traceQueryRepo, logQueryRepo, metricsQueryRepo, sloQueryRepo,
+	)
 
 	// 5. 初始化 Scheduler (调度层)
 	schedCfg := scheduler.Config{
@@ -145,11 +135,11 @@ func New() (*Agent, error) {
 		CommandPollTimeout:  cfg.Timeout.CommandPoll,
 		HeartbeatTimeout:    cfg.Timeout.Heartbeat,
 	}
-	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw, metricsRepo)
+	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw)
 
 	return &Agent{
-		scheduler:   sched,
-		receiverSvr: receiverClient,
+		scheduler: sched,
+		chClient:  chClient,
 	}, nil
 }
 
@@ -164,32 +154,21 @@ func New() (*Agent, error) {
 // 返回:
 //   - error: 调度器停止时的错误
 func (a *Agent) Run(ctx context.Context) error {
-	// 启动 Receiver SDK (如果启用)
-	if a.receiverSvr != nil {
-		if err := a.receiverSvr.Start(); err != nil {
-			return err
-		}
-	}
-
-	// 启动调度器 (开始快照采集、指令轮询、心跳)
 	if err := a.scheduler.Start(ctx); err != nil {
 		return err
 	}
-
 	log.Info("Agent 启动成功")
 
-	// 等待退出信号
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 
-	// 优雅停止
 	log.Info("正在关闭...")
 
-	// 停止 Receiver SDK
-	if a.receiverSvr != nil {
-		if err := a.receiverSvr.Stop(); err != nil {
-			log.Error("停止 Metrics SDK 失败", "err", err)
+	// 关闭 ClickHouse 连接
+	if a.chClient != nil {
+		if err := a.chClient.Close(); err != nil {
+			log.Error("关闭 ClickHouse 连接失败", "err", err)
 		}
 	}
 

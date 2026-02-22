@@ -1,18 +1,22 @@
 // Package repository 定义数据访问接口
 //
 // 所有 Repository 接口统一在此文件定义，实现按职责分布在子包中:
-//   - k8s/       K8s 资源仓库 (通过 K8s API Server 采集)
-//   - metrics/   硬件指标仓库 (接收 atlhyper_metrics_v2 推送)
-//   - slo/       SLO 指标仓库 (通过 Ingress Controller 采集)
+//   - k8s/   K8s 资源仓库 (通过 K8s API Server 采集)
+//   - ch/    ClickHouse 仓库 (查询 OTel 时序数据)
 //
 // 上层 (Service) 只依赖本包接口，不感知具体实现。
 package repository
 
 import (
 	"context"
+	"time"
 
 	"AtlHyper/atlhyper_agent_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/apm"
+	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/log"
+	"AtlHyper/model_v3/metrics"
+	"AtlHyper/model_v3/slo"
 )
 
 // =============================================================================
@@ -21,115 +25,115 @@ import (
 
 // PodRepository Pod 数据访问接口
 type PodRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Pod, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.Pod, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Pod, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.Pod, error)
 	GetLogs(ctx context.Context, namespace, name string, opts model.LogOptions) (string, error)
 }
 
 // NodeRepository Node 数据访问接口
 type NodeRepository interface {
-	List(ctx context.Context, opts model.ListOptions) ([]model_v2.Node, error)
-	Get(ctx context.Context, name string) (*model_v2.Node, error)
+	List(ctx context.Context, opts model.ListOptions) ([]cluster.Node, error)
+	Get(ctx context.Context, name string) (*cluster.Node, error)
 }
 
 // DeploymentRepository Deployment 数据访问接口
 type DeploymentRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Deployment, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.Deployment, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Deployment, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.Deployment, error)
 }
 
 // StatefulSetRepository StatefulSet 数据访问接口
 type StatefulSetRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.StatefulSet, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.StatefulSet, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.StatefulSet, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.StatefulSet, error)
 }
 
 // DaemonSetRepository DaemonSet 数据访问接口
 type DaemonSetRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.DaemonSet, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.DaemonSet, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.DaemonSet, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.DaemonSet, error)
 }
 
 // ReplicaSetRepository ReplicaSet 数据访问接口
 type ReplicaSetRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.ReplicaSet, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.ReplicaSet, error)
 }
 
 // ServiceRepository Service 数据访问接口
 type ServiceRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Service, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.Service, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Service, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.Service, error)
 }
 
 // IngressRepository Ingress 数据访问接口
 type IngressRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Ingress, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.Ingress, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Ingress, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.Ingress, error)
 }
 
 // ConfigMapRepository ConfigMap 数据访问接口
 type ConfigMapRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.ConfigMap, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.ConfigMap, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.ConfigMap, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.ConfigMap, error)
 }
 
 // SecretRepository Secret 数据访问接口
 type SecretRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Secret, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.Secret, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Secret, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.Secret, error)
 }
 
 // NamespaceRepository Namespace 数据访问接口
 type NamespaceRepository interface {
-	List(ctx context.Context, opts model.ListOptions) ([]model_v2.Namespace, error)
-	Get(ctx context.Context, name string) (*model_v2.Namespace, error)
+	List(ctx context.Context, opts model.ListOptions) ([]cluster.Namespace, error)
+	Get(ctx context.Context, name string) (*cluster.Namespace, error)
 }
 
 // EventRepository Event 数据访问接口
 type EventRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Event, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Event, error)
 }
 
 // JobRepository Job 数据访问接口
 type JobRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.Job, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.Job, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.Job, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.Job, error)
 }
 
 // CronJobRepository CronJob 数据访问接口
 type CronJobRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.CronJob, error)
-	Get(ctx context.Context, namespace, name string) (*model_v2.CronJob, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.CronJob, error)
+	Get(ctx context.Context, namespace, name string) (*cluster.CronJob, error)
 }
 
 // PersistentVolumeRepository PV 数据访问接口
 type PersistentVolumeRepository interface {
-	List(ctx context.Context, opts model.ListOptions) ([]model_v2.PersistentVolume, error)
+	List(ctx context.Context, opts model.ListOptions) ([]cluster.PersistentVolume, error)
 }
 
 // PersistentVolumeClaimRepository PVC 数据访问接口
 type PersistentVolumeClaimRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.PersistentVolumeClaim, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.PersistentVolumeClaim, error)
 }
 
 // ResourceQuotaRepository ResourceQuota 数据访问接口
 type ResourceQuotaRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.ResourceQuota, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.ResourceQuota, error)
 }
 
 // LimitRangeRepository LimitRange 数据访问接口
 type LimitRangeRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.LimitRange, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.LimitRange, error)
 }
 
 // NetworkPolicyRepository NetworkPolicy 数据访问接口
 type NetworkPolicyRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.NetworkPolicy, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.NetworkPolicy, error)
 }
 
 // ServiceAccountRepository ServiceAccount 数据访问接口
 type ServiceAccountRepository interface {
-	List(ctx context.Context, namespace string, opts model.ListOptions) ([]model_v2.ServiceAccount, error)
+	List(ctx context.Context, namespace string, opts model.ListOptions) ([]cluster.ServiceAccount, error)
 }
 
 // GenericRepository 通用操作接口 (写操作 + 动态查询)
@@ -147,30 +151,71 @@ type GenericRepository interface {
 }
 
 // =============================================================================
-// Metrics 仓库 — 实现: repository/metrics/
+// ClickHouse 仓库 — 实现: repository/ch/
 // =============================================================================
 
-// MetricsRepository 节点硬件指标仓库接口
-//
-// OTel 模式: 调用 Sync() 从 OTel Collector 拉取 node_exporter 指标，
-// 计算 rate 后转换为 NodeMetricsSnapshot。GetAll() 返回最新快照。
-// Receiver 模式: 降级到 ReceiverClient 被动接收数据。
-type MetricsRepository interface {
-	// GetAll 获取所有节点的最新指标快照
-	GetAll() map[string]*model_v2.NodeMetricsSnapshot
-	// Sync 从 OTel Collector 拉取最新节点指标并更新内部状态
-	// 首次调用只存原始值（需要两次采样才能计算 rate）
-	Sync(ctx context.Context) error
+// OTelSummaryRepository OTel 概览仓库（定期聚合，随快照上报）
+type OTelSummaryRepository interface {
+	// APM 概览
+	GetAPMSummary(ctx context.Context) (totalServices, healthyServices int, totalRPS, avgSuccessRate, avgP99Ms float64, err error)
+	// SLO 概览
+	GetSLOSummary(ctx context.Context) (ingressServices int, ingressAvgRPS float64, meshServices int, meshAvgMTLS float64, err error)
+	// 基础设施指标概览
+	GetMetricsSummary(ctx context.Context) (monitoredNodes int, avgCPUPct, avgMemPct, maxCPUPct, maxMemPct float64, err error)
 }
 
-// =============================================================================
-// SLO 仓库 — 实现: repository/slo/
-// =============================================================================
+// TraceQueryRepository Trace 查询仓库（按需查询）
+type TraceQueryRepository interface {
+	ListTraces(ctx context.Context, service string, minDurationMs float64, limit int, since time.Duration) ([]apm.TraceSummary, error)
+	GetTraceDetail(ctx context.Context, traceID string) (*apm.TraceDetail, error)
+	ListServices(ctx context.Context) ([]apm.APMService, error)
+	GetTopology(ctx context.Context) (*apm.Topology, error)
+}
 
-// SLORepository SLO 指标仓库接口
+// LogQueryOptions 日志查询选项
+type LogQueryOptions struct {
+	Query   string        // Body 全文搜索
+	Service string        // ServiceName 过滤
+	Level   string        // SeverityText 过滤
+	Scope   string        // ScopeName 过滤
+	Limit   int           // 每页条数
+	Offset  int           // 分页偏移
+	Since   time.Duration // 时间范围
+}
+
+// LogQueryRepository Log 查询仓库（按需查询）
+type LogQueryRepository interface {
+	QueryLogs(ctx context.Context, opts LogQueryOptions) (*log.QueryResult, error)
+}
+
+// MetricsQueryRepository Metrics 查询仓库（按需查询）
+type MetricsQueryRepository interface {
+	ListAllNodeMetrics(ctx context.Context) ([]metrics.NodeMetrics, error)
+	GetNodeMetrics(ctx context.Context, nodeName string) (*metrics.NodeMetrics, error)
+	GetNodeMetricsSeries(ctx context.Context, nodeName string, metric string, since time.Duration) ([]metrics.Point, error)
+	GetMetricsSummary(ctx context.Context) (*metrics.Summary, error)
+}
+
+// OTelDashboardRepository Dashboard 数据采集（定期聚合，随快照上报）
 //
-// 从 OTel Collector 采集 SLO 指标，计算 per-pod delta 后聚合返回。
-// 路由映射也在 Collect 内部一并采集。
-type SLORepository interface {
-	Collect(ctx context.Context) (*model_v2.SLOSnapshot, error)
+// 组合委托 MetricsQueryRepository、TraceQueryRepository、SLOQueryRepository，
+// 不写新 SQL，仅复用已有查询方法。
+type OTelDashboardRepository interface {
+	GetMetricsSummary(ctx context.Context) (*metrics.Summary, error)
+	ListAllNodeMetrics(ctx context.Context) ([]metrics.NodeMetrics, error)
+	ListAPMServices(ctx context.Context) ([]apm.APMService, error)
+	GetAPMTopology(ctx context.Context) (*apm.Topology, error)
+	GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error)
+	ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
+	ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
+	ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
+}
+
+// SLOQueryRepository SLO 查询仓库（按需查询）
+type SLOQueryRepository interface {
+	ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
+	ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
+	ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
+	GetSLOTimeSeries(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error)
+	GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error)
 }
