@@ -10,8 +10,6 @@ import {
   WifiOff,
   AlertTriangle,
   ChevronRight,
-  Calendar,
-  ChevronDown,
 } from "lucide-react";
 
 import type { TraceSummary, TraceDetail, APMService, Topology, OperationStats } from "@/types/model/apm";
@@ -38,21 +36,6 @@ export default function ApmPage() {
   const ta = t.apm;
   const { currentClusterId } = useClusterStore();
 
-  const TIME_RANGE_OPTIONS = useMemo(() => [
-    { value: "15min", label: ta.last15min },
-    { value: "1h", label: ta.last1h },
-    { value: "24h", label: ta.last24h },
-    { value: "7d", label: ta.last7d },
-    { value: "15d", label: ta.last15d },
-    { value: "30d", label: ta.last30d },
-  ], [ta]);
-
-  const timeRangeLabels = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const opt of TIME_RANGE_OPTIONS) map[opt.value] = opt.label;
-    return map;
-  }, [TIME_RANGE_OPTIONS]);
-
   const [view, setView] = useState<ViewState>({ level: "services" });
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [traceDetail, setTraceDetail] = useState<TraceDetail | null>(null);
@@ -63,17 +46,15 @@ export default function ApmPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [timeRange, setTimeRange] = useState("15min");
-  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
     try {
       const [traceResult, svcStats, topo, ops] = await Promise.all([
-        queryTraces(currentClusterId, { limit: 500, timeRange }),
-        getAPMServices(currentClusterId, timeRange),
-        getTopology(currentClusterId, timeRange),
-        getOperations(currentClusterId, timeRange),
+        queryTraces(currentClusterId, { limit: 500 }),
+        getAPMServices(currentClusterId),
+        getTopology(currentClusterId),
+        getOperations(currentClusterId),
       ]);
       setTraces(traceResult.traces);
       setServiceStats(svcStats);
@@ -86,7 +67,7 @@ export default function ApmPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [currentClusterId, timeRange, ta.loadFailed]);
+  }, [currentClusterId, ta.loadFailed]);
 
   useEffect(() => {
     loadData();
@@ -216,50 +197,14 @@ export default function ApmPage() {
             <p className="text-xs text-muted">{ta.pageDescription}</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <button
-                onClick={() => setShowTimeDropdown((v) => !v)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-[var(--border-color)] bg-card hover:bg-[var(--hover-bg)] transition-colors"
-              >
-                <Calendar className="w-3.5 h-3.5 text-muted" />
-                <span className="text-default">{timeRangeLabels[timeRange]}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-muted" />
-              </button>
-              {showTimeDropdown && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowTimeDropdown(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] py-1 rounded-lg border border-[var(--border-color)] bg-card shadow-lg">
-                    {TIME_RANGE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          setTimeRange(opt.value);
-                          setShowTimeDropdown(false);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                          timeRange === opt.value
-                            ? "text-primary bg-primary/5"
-                            : "text-default hover:bg-[var(--hover-bg)]"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <button
-              onClick={() => loadData(true)}
-              disabled={isRefreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-              {t.common.refresh}
-            </button>
-          </div>
+          <button
+            onClick={() => loadData(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            {t.common.refresh}
+          </button>
         </div>
 
         {/* View content */}

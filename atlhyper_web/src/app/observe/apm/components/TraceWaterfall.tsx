@@ -481,7 +481,7 @@ function SpanDrawer({
           )}
 
           {/* Events */}
-          {span.events.length > 0 && (
+          {span.events && span.events.length > 0 && (
             <section>
               <SectionHeader title={`Events (${span.events.length})`} />
               <div className="space-y-2">
