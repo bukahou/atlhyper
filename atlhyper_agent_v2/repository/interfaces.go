@@ -170,6 +170,7 @@ type TraceQueryRepository interface {
 	GetTraceDetail(ctx context.Context, traceID string) (*apm.TraceDetail, error)
 	ListServices(ctx context.Context) ([]apm.APMService, error)
 	GetTopology(ctx context.Context) (*apm.Topology, error)
+	ListOperations(ctx context.Context) ([]apm.OperationStats, error)
 }
 
 // LogQueryOptions 日志查询选项
@@ -196,6 +197,9 @@ type MetricsQueryRepository interface {
 	GetNodeMetrics(ctx context.Context, nodeName string) (*metrics.NodeMetrics, error)
 	GetNodeMetricsSeries(ctx context.Context, nodeName string, metric string, since time.Duration) ([]metrics.Point, error)
 	GetMetricsSummary(ctx context.Context) (*metrics.Summary, error)
+	// GetNodeMetricsHistory 获取节点历史时序（按指标分组: cpu/memory/disk/temp）
+	// 返回格式与 NodeMetricsHistoryResponse.Data 一致
+	GetNodeMetricsHistory(ctx context.Context, nodeName string, since time.Duration) (map[string][]metrics.Point, error)
 }
 
 // OTelDashboardRepository Dashboard 数据采集（定期聚合，随快照上报）
@@ -212,6 +216,7 @@ type OTelDashboardRepository interface {
 	ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
 	ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
 	ListRecentTraces(ctx context.Context, limit int) ([]apm.TraceSummary, error)
+	ListAPMOperations(ctx context.Context) ([]apm.OperationStats, error)
 	GetLogsSummary(ctx context.Context) (*log.Summary, error)
 	ListRecentLogs(ctx context.Context, limit int) ([]log.Entry, error)
 }

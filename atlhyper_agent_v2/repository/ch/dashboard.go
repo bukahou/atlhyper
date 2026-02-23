@@ -62,11 +62,18 @@ func (r *dashboardRepository) ListServiceEdges(ctx context.Context, since time.D
 	return r.slo.ListServiceEdges(ctx, since)
 }
 
+func (r *dashboardRepository) ListAPMOperations(ctx context.Context) ([]apm.OperationStats, error) {
+	if r.trace == nil {
+		return nil, nil
+	}
+	return r.trace.ListOperations(ctx)
+}
+
 func (r *dashboardRepository) ListRecentTraces(ctx context.Context, limit int) ([]apm.TraceSummary, error) {
 	if r.trace == nil {
 		return nil, nil
 	}
-	return r.trace.ListTraces(ctx, "", 0, limit, 5*time.Minute)
+	return r.trace.ListTraces(ctx, "", 0, limit, 15*time.Minute)
 }
 
 func (r *dashboardRepository) GetLogsSummary(ctx context.Context) (*log.Summary, error) {

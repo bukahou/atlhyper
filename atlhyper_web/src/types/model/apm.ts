@@ -102,6 +102,22 @@ export interface APMService {
 }
 
 // ============================================================
+// OperationStats — 操作级聚合统计
+// ============================================================
+
+export interface OperationStats {
+  serviceName: string;
+  operationName: string;
+  spanCount: number;
+  errorCount: number;
+  successRate: number;  // 0-1
+  avgDurationMs: number;
+  p50Ms: number;
+  p99Ms: number;
+  rps: number;
+}
+
+// ============================================================
 // Topology — 服务拓扑
 // ============================================================
 

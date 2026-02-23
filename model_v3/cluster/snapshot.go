@@ -179,6 +179,8 @@ type OTelSnapshot struct {
 
 	// ===== 扩展数据（内存时间线 + Dashboard 首屏） =====
 
+	// APM 操作级聚合统计（GROUP BY ServiceName, SpanName，15 分钟窗口）
+	APMOperations []apm.OperationStats `json:"apmOperations,omitempty"`
 	// 最近 Traces（无过滤，Dashboard 首屏用）
 	RecentTraces []apm.TraceSummary `json:"recentTraces,omitempty"`
 	// 最近日志条目（5 分钟窗口，最多 500 条）

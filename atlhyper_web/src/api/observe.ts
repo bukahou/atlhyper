@@ -11,8 +11,8 @@
  */
 
 import { get, post } from "./request";
-import type { TraceSummary, TraceDetail, APMService, Topology } from "@/types/model/apm";
-import type { LogEntry, LogFacets } from "@/types/model/log";
+import type { TraceSummary, TraceDetail, APMService, Topology, OperationStats } from "@/types/model/apm";
+import type { LogEntry, LogFacets, LogHistogramBucket } from "@/types/model/log";
 import type { NodeMetrics, Summary, Point } from "@/types/node-metrics";
 
 // ============================================================================
@@ -102,6 +102,7 @@ export interface LogQueryResponse {
   logs: LogEntry[];
   total: number;
   facets: LogFacets;
+  histogram?: LogHistogramBucket[];
 }
 
 // ============================================================================
@@ -152,6 +153,8 @@ export function queryLogs(params: {
   limit?: number;
   offset?: number;
   since?: string;
+  start_time?: string;
+  end_time?: string;
 }) {
   return post<ObserveResponse<LogQueryResponse>>("/api/v2/observe/logs/query", params);
 }
@@ -189,6 +192,13 @@ export function getTracesTopology(clusterId: string, timeRange?: string) {
   return get<ObserveResponse<Topology>>("/api/v2/observe/traces/topology", {
     cluster_id: clusterId,
     ...(timeRange ? { time_range: timeRange } : {}),
+  });
+}
+
+/** 获取操作级聚合统计 */
+export function getTracesOperations(clusterId: string) {
+  return get<ObserveResponse<OperationStats[]>>("/api/v2/observe/traces/operations", {
+    cluster_id: clusterId,
   });
 }
 

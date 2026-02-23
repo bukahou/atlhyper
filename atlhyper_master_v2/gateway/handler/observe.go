@@ -19,6 +19,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v3/command"
+	"AtlHyper/model_v3/log"
 )
 
 // ObserveHandler 可观测性查询 Handler
@@ -354,6 +355,9 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	if query == "" {
 		otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
 		if err == nil && otel != nil && len(otel.RecentLogs) > 0 {
+			// facets 基于全量数据（过滤前）
+			facets := computeLogFacets(otel.RecentLogs)
+
 			logs := otel.RecentLogs
 			// 按 service 过滤
 			if svc, _ := body["service"].(string); svc != "" {
@@ -385,6 +389,34 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 				}
 				logs = filtered
 			}
+
+			// histogram 基于过滤后全量数据（时间范围过滤和分页之前）
+			histogram := extractLogHistogram(logs)
+
+			// 按时间范围过滤（brush 选区，histogram 之后、分页之前）
+			if startStr, _ := body["start_time"].(string); startStr != "" {
+				if startT, err := time.Parse(time.RFC3339Nano, startStr); err == nil {
+					filtered := logs[:0:0]
+					for _, l := range logs {
+						if !l.Timestamp.Before(startT) {
+							filtered = append(filtered, l)
+						}
+					}
+					logs = filtered
+				}
+			}
+			if endStr, _ := body["end_time"].(string); endStr != "" {
+				if endT, err := time.Parse(time.RFC3339Nano, endStr); err == nil {
+					filtered := logs[:0:0]
+					for _, l := range logs {
+						if !l.Timestamp.After(endT) {
+							filtered = append(filtered, l)
+						}
+					}
+					logs = filtered
+				}
+			}
+
 			// 分页
 			total := len(logs)
 			offset := 0
@@ -407,8 +439,10 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
 				"data": map[string]interface{}{
-					"logs":  logs,
-					"total": total,
+					"logs":      logs,
+					"total":     total,
+					"facets":    facets,
+					"histogram": histogram,
 				},
 			})
 			return
@@ -418,6 +452,44 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	// 全文搜索 → Command/MQ
 	delete(body, "cluster_id")
 	h.executeQuery(w, r, clusterID, command.ActionQueryLogs, body, 0)
+}
+
+// computeLogFacets 从全量日志计算 serviceName / severity / scopeName 分面统计
+func computeLogFacets(logs []log.Entry) log.Facets {
+	svcMap := make(map[string]int64)
+	sevMap := make(map[string]int64)
+	scopeMap := make(map[string]int64)
+	for i := range logs {
+		svcMap[logs[i].ServiceName]++
+		sevMap[logs[i].Severity]++
+		scopeMap[logs[i].ScopeName]++
+	}
+	toFacets := func(m map[string]int64) []log.Facet {
+		out := make([]log.Facet, 0, len(m))
+		for v, c := range m {
+			if v != "" {
+				out = append(out, log.Facet{Value: v, Count: c})
+			}
+		}
+		return out
+	}
+	return log.Facets{
+		Services:   toFacets(svcMap),
+		Severities: toFacets(sevMap),
+		Scopes:     toFacets(scopeMap),
+	}
+}
+
+// extractLogHistogram 提取过滤后全量日志的 timestamp + severity（供前端绘制柱状图）
+func extractLogHistogram(logs []log.Entry) []map[string]string {
+	out := make([]map[string]string, len(logs))
+	for i := range logs {
+		out[i] = map[string]string{
+			"timestamp": logs[i].Timestamp.Format(time.RFC3339Nano),
+			"severity":  logs[i].Severity,
+		}
+	}
+	return out
 }
 
 // ================================================================
@@ -552,6 +624,44 @@ func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
 		"data":    otel.APMTopology,
+	})
+}
+
+// TracesOperations GET /api/v2/observe/traces/operations (Dashboard: 快照直读)
+// 返回操作级聚合统计，支持 ?service=xxx 过滤
+func (h *ObserveHandler) TracesOperations(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	clusterID, ok := requireClusterID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+	if err != nil || otel == nil || otel.APMOperations == nil {
+		writeError(w, http.StatusNotFound, "数据尚未就绪")
+		return
+	}
+
+	ops := otel.APMOperations
+
+	// 按 service 过滤
+	if svc := r.URL.Query().Get("service"); svc != "" {
+		filtered := ops[:0:0]
+		for _, o := range ops {
+			if o.ServiceName == svc {
+				filtered = append(filtered, o)
+			}
+		}
+		ops = filtered
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data":    ops,
 	})
 }
 

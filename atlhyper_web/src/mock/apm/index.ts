@@ -3,7 +3,7 @@
  */
 
 export { mockGetAPMServices } from "./services";
-export { mockQueryTraces, mockGetTraceDetail } from "./traces";
+export { mockQueryTraces, mockGetTraceDetail, mockGetOperations } from "./traces";
 export type { MockTraceQueryParams } from "./traces";
 export { mockGetTopology } from "./topology";
 export {

@@ -14,12 +14,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-import type { TraceSummary, TraceDetail, APMService, Topology } from "@/types/model/apm";
+import type { TraceSummary, TraceDetail, APMService, Topology, OperationStats } from "@/types/model/apm";
 import {
   getAPMServices,
   queryTraces,
   getTraceDetail,
   getTopology,
+  getOperations,
 } from "@/datasource/apm";
 
 import { ServiceList } from "./components/ServiceList";
@@ -57,20 +58,27 @@ export default function ApmPage() {
   const [traceDetail, setTraceDetail] = useState<TraceDetail | null>(null);
   const [serviceStats, setServiceStats] = useState<APMService[]>([]);
   const [topology, setTopology] = useState<Topology | null>(null);
+  const [operations, setOperations] = useState<OperationStats[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [timeRange, setTimeRange] = useState("15d");
+  const [timeRange, setTimeRange] = useState("15min");
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
     try {
-      const traceResult = await queryTraces(currentClusterId, { limit: 100 });
+      const [traceResult, svcStats, topo, ops] = await Promise.all([
+        queryTraces(currentClusterId, { limit: 500, timeRange }),
+        getAPMServices(currentClusterId, timeRange),
+        getTopology(currentClusterId, timeRange),
+        getOperations(currentClusterId, timeRange),
+      ]);
       setTraces(traceResult.traces);
-      setServiceStats(await getAPMServices(currentClusterId));
-      setTopology(await getTopology(currentClusterId));
+      setServiceStats(svcStats);
+      setTopology(topo);
+      setOperations(ops);
       setError(null);
     } catch {
       setError(ta.loadFailed);
@@ -78,7 +86,7 @@ export default function ApmPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [currentClusterId, ta.loadFailed]);
+  }, [currentClusterId, timeRange, ta.loadFailed]);
 
   useEffect(() => {
     loadData();
@@ -274,6 +282,7 @@ export default function ApmPage() {
             t={ta}
             serviceName={view.serviceName}
             traces={traces}
+            operations={operations}
             onSelectTrace={goToTrace}
             onNavigateToService={goToService}
           />

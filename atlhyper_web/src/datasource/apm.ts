@@ -16,28 +16,41 @@ import {
   mockGetDependencies,
   mockGetSpanTypeBreakdown,
   mockGetTopology,
+  mockGetOperations,
 } from "@/mock/apm";
 import type { MockTraceQueryParams } from "@/mock/apm";
-import type { APMService, TraceSummary, TraceDetail, Topology } from "@/types/model/apm";
+import type { APMService, TraceSummary, TraceDetail, Topology, OperationStats } from "@/types/model/apm";
 import * as observeApi from "@/api/observe";
 
 export type { MockTraceQueryParams } from "@/mock/apm";
 
-export async function getAPMServices(clusterId?: string): Promise<APMService[]> {
+export async function getAPMServices(clusterId?: string, _timeRange?: string): Promise<APMService[]> {
   if (getDataSourceMode("apm") === "mock" || !clusterId) return mockGetAPMServices();
-  const response = await observeApi.getTracesServices(clusterId);
-  return response.data.data || [];
+  try {
+    const response = await observeApi.getTracesServices(clusterId);
+    return response.data.data || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function queryTraces(clusterId?: string, params?: MockTraceQueryParams): Promise<{ traces: TraceSummary[]; total: number }> {
   if (getDataSourceMode("apm") === "mock" || !clusterId) return mockQueryTraces(params);
-  const response = await observeApi.getTracesList(clusterId, {
-    service: params?.service,
-    min_duration: params?.minDurationMs ? String(params.minDurationMs) : undefined,
-    limit: params?.limit,
-  });
-  const traces = response.data.data || [];
-  return { traces, total: traces.length };
+  try {
+    const response = await observeApi.getTracesList(clusterId, {
+      service: params?.service,
+      min_duration: params?.minDurationMs ? String(params.minDurationMs) : undefined,
+      limit: params?.limit,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = response.data.data as any;
+    // 快照直读返回 { traces, total }，Command 返回数组
+    const traces: TraceSummary[] = Array.isArray(raw) ? raw : (raw?.traces || []);
+    const total: number = Array.isArray(raw) ? traces.length : (raw?.total ?? traces.length);
+    return { traces, total };
+  } catch {
+    return { traces: [], total: 0 };
+  }
 }
 
 export async function getTraceDetail(traceId: string, clusterId?: string): Promise<TraceDetail | null> {
@@ -48,8 +61,22 @@ export async function getTraceDetail(traceId: string, clusterId?: string): Promi
 
 export async function getTopology(clusterId?: string, timeRange?: string): Promise<Topology> {
   if (getDataSourceMode("apm") === "mock" || !clusterId) return mockGetTopology();
-  const response = await observeApi.getTracesTopology(clusterId, timeRange);
-  return response.data.data || { nodes: [], edges: [] };
+  try {
+    const response = await observeApi.getTracesTopology(clusterId, timeRange);
+    return response.data.data || { nodes: [], edges: [] };
+  } catch {
+    return { nodes: [], edges: [] };
+  }
+}
+
+export async function getOperations(clusterId?: string, _timeRange?: string): Promise<OperationStats[]> {
+  if (getDataSourceMode("apm") === "mock" || !clusterId) return mockGetOperations();
+  try {
+    const response = await observeApi.getTracesOperations(clusterId);
+    return response.data.data || [];
+  } catch {
+    return [];
+  }
 }
 
 // 以下为客户端计算函数，不依赖 API（从已加载的 traces 数据计算）

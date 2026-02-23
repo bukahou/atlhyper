@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { TraceSummary } from "@/types/model/apm";
+import type { TraceSummary, OperationStats } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import {
   getDependencies,
@@ -18,6 +18,7 @@ interface ServiceOverviewProps {
   t: ApmTranslations;
   serviceName: string;
   traces: TraceSummary[];
+  operations: OperationStats[];
   onSelectTrace: (traceId: string) => void;
   onNavigateToService?: (serviceName: string) => void;
 }
@@ -28,12 +29,18 @@ export function ServiceOverview({
   t,
   serviceName,
   traces,
+  operations,
   onSelectTrace,
   onNavigateToService,
 }: ServiceOverviewProps) {
   const serviceTraces = useMemo(
     () => traces.filter((tr) => tr.rootService === serviceName),
     [traces, serviceName]
+  );
+
+  const serviceOperations = useMemo(
+    () => operations.filter((op) => op.serviceName === serviceName),
+    [operations, serviceName]
   );
 
   const dependencies = useMemo(
@@ -96,7 +103,7 @@ export function ServiceOverview({
             <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
               <TransactionsTable
                 t={t}
-                traces={serviceTraces}
+                operations={serviceOperations}
                 onSelectOperation={(op) => {
                   const match = serviceTraces.find((tr) => tr.rootOperation === op);
                   if (match) onSelectTrace(match.traceId);

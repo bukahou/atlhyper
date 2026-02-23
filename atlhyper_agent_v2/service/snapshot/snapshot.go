@@ -715,13 +715,26 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 		snapshot.SLOIngress = cached.SLOIngress
 		snapshot.SLOServices = cached.SLOServices
 		snapshot.SLOEdges = cached.SLOEdges
+		snapshot.APMOperations = cached.APMOperations
 		snapshot.RecentTraces = cached.RecentTraces
 		snapshot.RecentLogs = cached.RecentLogs
 		snapshot.LogsSummary = cached.LogsSummary
 	} else if s.dashboardRepo != nil {
 		defaultSince := 5 * time.Minute
 
-		wg.Add(11)
+		wg.Add(12)
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListAPMOperations(ctx)
+			if err != nil {
+				log.Warn("Dashboard APMOperations 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.APMOperations = result
+			mu.Unlock()
+		}()
 
 		go func() {
 			defer wg.Done()
@@ -819,10 +832,10 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			mu.Unlock()
 		}()
 
-		// RecentTraces（扩展到 200 条）
+		// RecentTraces（500 条，用于 Trace 钻入；聚合统计已由 APMOperations 覆盖）
 		go func() {
 			defer wg.Done()
-			traces, err := s.dashboardRepo.ListRecentTraces(ctx, 200)
+			traces, err := s.dashboardRepo.ListRecentTraces(ctx, 500)
 			if err != nil {
 				log.Warn("Dashboard RecentTraces 查询失败", "err", err)
 				return
@@ -845,10 +858,10 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			mu.Unlock()
 		}()
 
-		// RecentLogs（最近 500 条日志条目）
+		// RecentLogs（最近 2000 条日志条目，覆盖 15 分钟窗口）
 		go func() {
 			defer wg.Done()
-			logs, err := s.dashboardRepo.ListRecentLogs(ctx, 500)
+			logs, err := s.dashboardRepo.ListRecentLogs(ctx, 2000)
 			if err != nil {
 				log.Warn("Dashboard RecentLogs 查询失败", "err", err)
 				return

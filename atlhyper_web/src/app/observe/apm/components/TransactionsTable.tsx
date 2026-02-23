@@ -2,63 +2,35 @@
 
 import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
-import type { TraceSummary } from "@/types/model/apm";
+import type { OperationStats } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs } from "@/lib/format";
-import { MiniSparkline } from "./MiniSparkline";
 import { ImpactBar } from "./ImpactBar";
 
 interface TransactionsTableProps {
   t: ApmTranslations;
-  traces: TraceSummary[];
+  operations: OperationStats[];
   onSelectOperation?: (operation: string) => void;
 }
 
-interface OpStats {
-  name: string;
-  avgMs: number;
-  throughput: number;
-  errorRate: number;
-  impact: number;
-  latencyPoints: number[];
-}
-
-export function TransactionsTable({ t, traces, onSelectOperation }: TransactionsTableProps) {
+export function TransactionsTable({ t, operations, onSelectOperation }: TransactionsTableProps) {
   const [search, setSearch] = useState("");
 
-  const opStats = useMemo(() => {
-    const map = new Map<string, { durations: number[]; errorCount: number }>();
-    for (const tr of traces) {
-      const entry = map.get(tr.rootOperation) ?? { durations: [], errorCount: 0 };
-      entry.durations.push(tr.durationMs);
-      if (tr.hasError) entry.errorCount++;
-      map.set(tr.rootOperation, entry);
-    }
-
-    const allTotals = Array.from(map.values()).map((d) => d.durations.reduce((a, b) => a + b, 0));
-    const maxTotal = Math.max(...allTotals, 1);
-
-    const result: OpStats[] = [];
-    for (const [name, data] of map) {
-      const count = data.durations.length;
-      const total = data.durations.reduce((a, b) => a + b, 0);
-      result.push({
-        name,
-        avgMs: total / count,
-        throughput: count,
-        errorRate: data.errorCount / count,
-        impact: total / maxTotal,
-        latencyPoints: data.durations,
-      });
-    }
-    return result.sort((a, b) => b.impact - a.impact);
-  }, [traces]);
+  // 计算 impact（基于总耗时占比）
+  const opsWithImpact = useMemo(() => {
+    const totals = operations.map((op) => op.avgDurationMs * op.spanCount);
+    const maxTotal = Math.max(...totals, 1);
+    return operations.map((op, i) => ({
+      ...op,
+      impact: totals[i] / maxTotal,
+    }));
+  }, [operations]);
 
   const filtered = useMemo(() => {
-    if (!search) return opStats;
+    if (!search) return opsWithImpact;
     const q = search.toLowerCase();
-    return opStats.filter((o) => o.name.toLowerCase().includes(q));
-  }, [opStats, search]);
+    return opsWithImpact.filter((o) => o.operationName.toLowerCase().includes(q));
+  }, [opsWithImpact, search]);
 
   return (
     <div>
@@ -91,25 +63,22 @@ export function TransactionsTable({ t, traces, onSelectOperation }: Transactions
           <tbody>
             {filtered.map((op) => (
               <tr
-                key={op.name}
-                onClick={() => onSelectOperation?.(op.name)}
+                key={op.operationName}
+                onClick={() => onSelectOperation?.(op.operationName)}
                 className="border-b border-[var(--border-color)] last:border-b-0 hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
               >
                 <td className="px-3 py-2">
-                  <span className="text-primary hover:underline">{op.name}</span>
+                  <span className="text-primary hover:underline">{op.operationName}</span>
                 </td>
                 <td className="px-3 py-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-default">{formatDurationMs(op.avgMs)}</span>
-                    <MiniSparkline data={op.latencyPoints} type="line" color="#6366f1" width={48} height={16} />
-                  </div>
+                  <span className="text-default">{formatDurationMs(op.avgDurationMs)}</span>
                 </td>
                 <td className="px-3 py-2">
-                  <span className="text-default">{op.throughput} {t.tpm}</span>
+                  <span className="text-default">{op.rps.toFixed(1)} {t.tpm}</span>
                 </td>
                 <td className="px-3 py-2">
-                  <span className={op.errorRate > 0 ? "text-orange-500" : "text-default"}>
-                    {(op.errorRate * 100).toFixed(1)}%
+                  <span className={(1 - op.successRate) > 0 ? "text-orange-500" : "text-default"}>
+                    {((1 - op.successRate) * 100).toFixed(1)}%
                   </span>
                 </td>
                 <td className="px-3 py-2">

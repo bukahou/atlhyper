@@ -112,6 +112,23 @@ type APMService struct {
 }
 
 // ============================================================
+// OperationStats — 操作级聚合统计（GROUP BY ServiceName, SpanName）
+// ============================================================
+
+// OperationStats 操作级聚合统计（Kibana 模式：后端 GROUP BY，前端直接展示）
+type OperationStats struct {
+	ServiceName   string  `json:"serviceName"`
+	OperationName string  `json:"operationName"` // SpanName
+	SpanCount     int64   `json:"spanCount"`
+	ErrorCount    int64   `json:"errorCount"`
+	SuccessRate   float64 `json:"successRate"`   // 0-1
+	AvgDurationMs float64 `json:"avgDurationMs"`
+	P50Ms         float64 `json:"p50Ms"`
+	P99Ms         float64 `json:"p99Ms"`
+	RPS           float64 `json:"rps"`
+}
+
+// ============================================================
 // APM 服务拓扑
 // ============================================================
 
