@@ -9,7 +9,8 @@ package config
 var defaultDurations = map[string]string{
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_EVENT_RETENTION":  "30m", // Event 保留时间
-	"MASTER_DATAHUB_HEARTBEAT_EXPIRE": "45s", // 心跳过期时间
+	"MASTER_DATAHUB_HEARTBEAT_EXPIRE":    "45s",  // 心跳过期时间
+	"MASTER_DATAHUB_SNAPSHOT_RETENTION": "15m",  // OTel 快照时间线保留时间
 
 	// -------------------- 超时配置 --------------------
 	"MASTER_TIMEOUT_COMMAND_POLL": "60s", // 长轮询超时

@@ -186,6 +186,7 @@ type LogQueryOptions struct {
 // LogQueryRepository Log 查询仓库（按需查询）
 type LogQueryRepository interface {
 	QueryLogs(ctx context.Context, opts LogQueryOptions) (*log.QueryResult, error)
+	GetSummary(ctx context.Context) (*log.Summary, error)
 }
 
 // MetricsQueryRepository Metrics 查询仓库（按需查询）
@@ -209,6 +210,8 @@ type OTelDashboardRepository interface {
 	ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
 	ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
+	ListRecentTraces(ctx context.Context, limit int) ([]apm.TraceSummary, error)
+	GetLogsSummary(ctx context.Context) (*log.Summary, error)
 }
 
 // SLOQueryRepository SLO 查询仓库（按需查询）

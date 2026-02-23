@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // Store 数据存储接口
@@ -36,6 +37,11 @@ type Store interface {
 	// GetEvents 获取集群当前所有 Events
 	GetEvents(clusterID string) ([]model_v2.Event, error)
 
+	// ==================== OTel 时间线 ====================
+
+	// GetOTelTimeline 获取 OTel 时间线数据
+	GetOTelTimeline(clusterID string, since time.Time) ([]cluster.OTelEntry, error)
+
 	// ==================== 生命周期 ====================
 
 	// Start 启动 Store
@@ -47,9 +53,10 @@ type Store interface {
 
 // Config Store 配置
 type Config struct {
-	Type            string        // 类型: memory / redis
-	EventRetention  time.Duration // Event 保留时间
-	HeartbeatExpire time.Duration // 心跳过期时间
+	Type              string        // 类型: memory / redis
+	EventRetention    time.Duration // Event 保留时间
+	HeartbeatExpire   time.Duration // 心跳过期时间
+	SnapshotRetention time.Duration // OTel 快照时间线保留时间（默认 15min）
 
 	// Redis 配置（Type=redis 时使用）
 	RedisAddr     string

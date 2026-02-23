@@ -911,3 +911,8 @@ func (q *QueryService) GetOTelSnapshot(ctx context.Context, clusterID string) (*
 	}
 	return snapshot.OTel, nil
 }
+
+// GetOTelTimeline 获取 OTel 时间线数据
+func (q *QueryService) GetOTelTimeline(ctx context.Context, clusterID string, since time.Time) ([]cluster.OTelEntry, error) {
+	return q.store.GetOTelTimeline(clusterID, since)
+}

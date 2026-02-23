@@ -89,6 +89,10 @@ type Query interface {
 
 	GetOTelSnapshot(ctx context.Context, clusterID string) (*cluster.OTelSnapshot, error)
 
+	// ==================== OTel 时间线 ====================
+
+	GetOTelTimeline(ctx context.Context, clusterID string, since time.Time) ([]cluster.OTelEntry, error)
+
 	// ==================== AIOps AI 增强 ====================
 
 	SummarizeIncident(ctx context.Context, incidentID string) (*aiopsai.SummarizeResponse, error)

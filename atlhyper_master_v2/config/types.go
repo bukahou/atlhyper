@@ -13,10 +13,11 @@ type ServerConfig struct {
 
 // DataHubConfig DataHub 配置
 type DataHubConfig struct {
-	Type            string        // 类型: memory / redis
-	EventRetention  time.Duration // Event 保留时间（30 分钟）
-	SnapshotRetain  int           // 快照保留数量
-	HeartbeatExpire time.Duration // 心跳过期时间
+	Type              string        // 类型: memory / redis
+	EventRetention    time.Duration // Event 保留时间（30 分钟）
+	SnapshotRetain    int           // 快照保留数量
+	HeartbeatExpire   time.Duration // 心跳过期时间
+	SnapshotRetention time.Duration // OTel 快照时间线保留时间（默认 15min）
 }
 
 // DatabaseConfig 数据库配置

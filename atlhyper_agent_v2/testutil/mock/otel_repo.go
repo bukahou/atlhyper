@@ -77,7 +77,8 @@ func (m *TraceQueryRepository) GetTopology(ctx context.Context) (*apm.Topology, 
 
 // LogQueryRepository mock
 type LogQueryRepository struct {
-	QueryLogsFn func(ctx context.Context, opts repository.LogQueryOptions) (*log.QueryResult, error)
+	QueryLogsFn  func(ctx context.Context, opts repository.LogQueryOptions) (*log.QueryResult, error)
+	GetSummaryFn func(ctx context.Context) (*log.Summary, error)
 }
 
 func (m *LogQueryRepository) QueryLogs(ctx context.Context, opts repository.LogQueryOptions) (*log.QueryResult, error) {
@@ -85,6 +86,13 @@ func (m *LogQueryRepository) QueryLogs(ctx context.Context, opts repository.LogQ
 		return m.QueryLogsFn(ctx, opts)
 	}
 	return &log.QueryResult{Logs: []log.Entry{}}, nil
+}
+
+func (m *LogQueryRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
+	if m.GetSummaryFn != nil {
+		return m.GetSummaryFn(ctx)
+	}
+	return nil, nil
 }
 
 // MetricsQueryRepository mock

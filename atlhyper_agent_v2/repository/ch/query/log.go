@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/atlhyper_agent_v2/sdk"
@@ -227,6 +228,74 @@ func (r *logRepository) queryFacet(ctx context.Context, column, where string) ([
 		facets = []log.Facet{}
 	}
 	return facets, rows.Err()
+}
+
+// GetSummary 获取日志统计摘要（5 分钟窗口）
+func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
+	summary := &log.Summary{
+		SeverityCounts: make(map[string]int64),
+	}
+
+	// 聚合查询：总数 + 各级别计数 + 最新时间
+	aggQuery := `
+		SELECT count() AS total,
+		       countIf(SeverityText = 'ERROR') AS errors,
+		       countIf(SeverityText = 'WARN') AS warns,
+		       countIf(SeverityText = 'INFO') AS infos,
+		       countIf(SeverityText = 'DEBUG') AS debugs,
+		       max(Timestamp) AS latest_at
+		FROM otel_logs
+		WHERE Timestamp >= now() - INTERVAL 5 MINUTE
+	`
+	var total, errors, warns, infos, debugs int64
+	var latestAt time.Time
+	err := r.client.QueryRow(ctx, aggQuery).Scan(&total, &errors, &warns, &infos, &debugs, &latestAt)
+	if err != nil {
+		return nil, fmt.Errorf("query log summary: %w", err)
+	}
+
+	summary.TotalEntries = total
+	summary.LatestAt = latestAt
+	if errors > 0 {
+		summary.SeverityCounts["ERROR"] = errors
+	}
+	if warns > 0 {
+		summary.SeverityCounts["WARN"] = warns
+	}
+	if infos > 0 {
+		summary.SeverityCounts["INFO"] = infos
+	}
+	if debugs > 0 {
+		summary.SeverityCounts["DEBUG"] = debugs
+	}
+
+	// Top 10 服务
+	topQuery := `
+		SELECT ServiceName, count() AS cnt
+		FROM otel_logs
+		WHERE Timestamp >= now() - INTERVAL 5 MINUTE
+		GROUP BY ServiceName
+		ORDER BY cnt DESC
+		LIMIT 10
+	`
+	rows, err := r.client.Query(ctx, topQuery)
+	if err != nil {
+		return summary, nil // 降级：返回不含 TopServices 的摘要
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var sc log.ServiceCount
+		if err := rows.Scan(&sc.Service, &sc.Count); err != nil {
+			break
+		}
+		summary.TopServices = append(summary.TopServices, sc)
+	}
+	if summary.TopServices == nil {
+		summary.TopServices = []log.ServiceCount{}
+	}
+
+	return summary, nil
 }
 
 // scanFacets 从 rows 扫描 facet 列表（复用）

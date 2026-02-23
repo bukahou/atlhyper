@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"AtlHyper/model_v3/apm"
+	"AtlHyper/model_v3/log"
 	"AtlHyper/model_v3/metrics"
 	"AtlHyper/model_v3/slo"
 )
@@ -123,6 +124,12 @@ func (s *ClusterSnapshot) GetPodRunningPercent() float64 {
 	return float64(s.Summary.RunningPods) / float64(s.Summary.TotalPods) * 100
 }
 
+// OTelEntry 带时间戳的 OTel 快照（时间线中的一条记录）
+type OTelEntry struct {
+	Snapshot  *OTelSnapshot `json:"snapshot"`
+	Timestamp time.Time     `json:"timestamp"`
+}
+
 // OTelSnapshot OTel 可观测性快照（Agent 从 ClickHouse 定期聚合）
 //
 // 包含两类数据：
@@ -169,4 +176,11 @@ type OTelSnapshot struct {
 	SLOIngress  []slo.IngressSLO `json:"sloIngress,omitempty"`
 	SLOServices []slo.ServiceSLO `json:"sloServices,omitempty"`
 	SLOEdges    []slo.ServiceEdge `json:"sloEdges,omitempty"`
+
+	// ===== 扩展数据（内存时间线 + Dashboard 首屏） =====
+
+	// 最近 Traces（无过滤，Dashboard 首屏用）
+	RecentTraces []apm.TraceSummary `json:"recentTraces,omitempty"`
+	// 日志统计摘要（5 分钟窗口）
+	LogsSummary *log.Summary `json:"logsSummary,omitempty"`
 }

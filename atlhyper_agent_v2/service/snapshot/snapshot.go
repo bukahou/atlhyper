@@ -679,7 +679,7 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 	if s.dashboardRepo != nil {
 		defaultSince := 5 * time.Minute
 
-		wg.Add(8)
+		wg.Add(10) // 8 existing + 2 new (RecentTraces + LogsSummary)
 
 		go func() {
 			defer wg.Done()
@@ -774,6 +774,32 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			}
 			mu.Lock()
 			snapshot.SLOEdges = result
+			mu.Unlock()
+		}()
+
+		// RecentTraces（最近 50 条 Trace）
+		go func() {
+			defer wg.Done()
+			traces, err := s.dashboardRepo.ListRecentTraces(ctx, 50)
+			if err != nil {
+				log.Warn("Dashboard RecentTraces 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.RecentTraces = traces
+			mu.Unlock()
+		}()
+
+		// LogsSummary（日志统计摘要）
+		go func() {
+			defer wg.Done()
+			summary, err := s.dashboardRepo.GetLogsSummary(ctx)
+			if err != nil {
+				log.Warn("Dashboard LogsSummary 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.LogsSummary = summary
 			mu.Unlock()
 		}()
 	}

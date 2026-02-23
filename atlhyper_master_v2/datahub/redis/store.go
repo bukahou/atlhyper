@@ -13,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // Key 前缀
@@ -331,4 +332,11 @@ func (s *RedisStore) GetEvents(clusterID string) ([]model_v2.Event, error) {
 		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
 	}
 	return snapshot.Events, nil
+}
+
+// ==================== OTel 时间线 ====================
+
+// GetOTelTimeline Redis 暂不实现 OTel 时间线（仅内存支持）
+func (s *RedisStore) GetOTelTimeline(clusterID string, since time.Time) ([]cluster.OTelEntry, error) {
+	return nil, nil
 }

@@ -27,10 +27,11 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.DataHub = DataHubConfig{
-		Type:            getString("MASTER_DATAHUB_TYPE"),
-		EventRetention:  getDuration("MASTER_DATAHUB_EVENT_RETENTION"),
-		SnapshotRetain:  getInt("MASTER_DATAHUB_SNAPSHOT_RETAIN"),
-		HeartbeatExpire: getDuration("MASTER_DATAHUB_HEARTBEAT_EXPIRE"),
+		Type:              getString("MASTER_DATAHUB_TYPE"),
+		EventRetention:    getDuration("MASTER_DATAHUB_EVENT_RETENTION"),
+		SnapshotRetain:    getInt("MASTER_DATAHUB_SNAPSHOT_RETAIN"),
+		HeartbeatExpire:   getDuration("MASTER_DATAHUB_HEARTBEAT_EXPIRE"),
+		SnapshotRetention: getDuration("MASTER_DATAHUB_SNAPSHOT_RETENTION"),
 	}
 
 	GlobalConfig.Redis = RedisConfig{

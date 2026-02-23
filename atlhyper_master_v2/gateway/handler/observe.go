@@ -250,18 +250,38 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 
 	if len(parts) == 2 && parts[1] == "series" {
 		// GET /api/v2/observe/metrics/nodes/{name}/series
+		metric := r.URL.Query().Get("metric")
+		minutes := 30 // 默认 30 分钟
+		if v := r.URL.Query().Get("minutes"); v != "" {
+			if m, err := strconv.Atoi(v); err == nil && m > 0 {
+				minutes = m
+			}
+		}
+
+		// ≤15 分钟: 尝试从 OTel 时间线直读
+		if minutes <= 15 {
+			since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+			entries, err := h.querySvc.GetOTelTimeline(r.Context(), clusterID, since)
+			if err == nil && len(entries) > 0 {
+				series := buildNodeMetricsSeries(entries, nodeName, metric)
+				if len(series.Points) > 0 {
+					writeJSON(w, http.StatusOK, map[string]interface{}{
+						"message": "获取成功",
+						"data":    series,
+					})
+					return
+				}
+			}
+		}
+
+		// 降级: Command 查询
 		params := map[string]interface{}{
 			"sub_action": "get_series",
 			"node_name":  nodeName,
+			"since":      fmt.Sprintf("%dm", minutes),
 		}
-		if v := r.URL.Query().Get("metric"); v != "" {
-			params["metric"] = v
-		}
-		// minutes → since（Agent 期望 duration 字符串，如 "30m"）
-		if minutes := r.URL.Query().Get("minutes"); minutes != "" {
-			if m, err := strconv.Atoi(minutes); err == nil {
-				params["since"] = fmt.Sprintf("%dm", m)
-			}
+		if metric != "" {
+			params["metric"] = metric
 		}
 		h.executeQuery(w, r, clusterID, command.ActionQueryMetrics, params, 10*time.Second)
 	} else {
@@ -307,6 +327,7 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 // ================================================================
 
 // TracesList GET /api/v2/observe/traces
+// 无过滤条件时从快照直读 RecentTraces，有过滤条件时走 Command
 func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -318,22 +339,41 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 检查是否有过滤条件
+	hasFilter := r.URL.Query().Get("service") != "" ||
+		r.URL.Query().Get("min_duration") != "" ||
+		r.URL.Query().Get("start_time") != "" ||
+		r.URL.Query().Get("operation") != ""
+
+	if !hasFilter {
+		// 无过滤条件: 从快照返回最近 Traces
+		otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+		if err == nil && otel != nil && len(otel.RecentTraces) > 0 {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"message": "获取成功",
+				"data": map[string]interface{}{
+					"traces": otel.RecentTraces,
+					"total":  len(otel.RecentTraces),
+				},
+			})
+			return
+		}
+	}
+
+	// 降级: Command 查询
 	params := map[string]interface{}{
 		"sub_action": "list_traces",
 	}
-	// 转发查询参数（字符串参数直接透传）
 	for _, key := range []string{"service", "operation", "start_time", "end_time"} {
 		if v := r.URL.Query().Get(key); v != "" {
 			params[key] = v
 		}
 	}
-	// min_duration → min_duration_ms（Agent 期望的参数名）
 	if v := r.URL.Query().Get("min_duration"); v != "" {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			params["min_duration_ms"] = f
 		}
 	}
-	// 数值参数解析为 int（Agent getIntParam 期望数值类型）
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			params["limit"] = i
@@ -495,6 +535,7 @@ func (h *ObserveHandler) SLOEdges(w http.ResponseWriter, r *http.Request) {
 }
 
 // SLOTimeSeries GET /api/v2/observe/slo/timeseries
+// ≤15 分钟时间范围从 OTel 时间线直读，超出则走 Command
 func (h *ObserveHandler) SLOTimeSeries(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -506,22 +547,76 @@ func (h *ObserveHandler) SLOTimeSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	serviceName := r.URL.Query().Get("service")
+	timeRange := r.URL.Query().Get("time_range")
+
+	// ≤15 分钟: 尝试从 OTel 时间线直读
+	if minutes, ok := parseTimeRangeMinutes(timeRange); ok && minutes <= 15 && serviceName != "" {
+		since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+		entries, err := h.querySvc.GetOTelTimeline(r.Context(), clusterID, since)
+		if err == nil && len(entries) > 0 {
+			series := buildSLOTimeSeries(entries, serviceName)
+			if points, ok := series["points"].([]sloPoint); ok && len(points) > 0 {
+				writeJSON(w, http.StatusOK, map[string]interface{}{
+					"message": "获取成功",
+					"data":    series,
+				})
+				return
+			}
+		}
+	}
+
+	// 降级: Command 查询
 	params := map[string]interface{}{
 		"sub_action": "get_time_series",
 	}
-	// service → name（Agent 期望 "name" 参数）
-	if v := r.URL.Query().Get("service"); v != "" {
-		params["name"] = v
+	if serviceName != "" {
+		params["name"] = serviceName
 	}
-	// time_range → since（Agent 期望 "since" 参数）
-	if v := r.URL.Query().Get("time_range"); v != "" {
-		params["since"] = v
+	if timeRange != "" {
+		params["since"] = timeRange
 	}
 	if v := r.URL.Query().Get("interval"); v != "" {
 		params["interval"] = v
 	}
 
 	h.executeQuery(w, r, clusterID, command.ActionQuerySLO, params, 5*time.Second)
+}
+
+// parseTimeRangeMinutes 解析时间范围字符串为分钟数
+// 支持格式: "15m", "1h", "30m" 等
+func parseTimeRangeMinutes(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, false
+	}
+	return int(d.Minutes()), true
+}
+
+// LogsSummary GET /api/v2/observe/logs/summary (Dashboard: 快照直读)
+func (h *ObserveHandler) LogsSummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	clusterID, ok := requireClusterID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+	if err != nil || otel == nil || otel.LogsSummary == nil {
+		writeError(w, http.StatusNotFound, "数据尚未就绪")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data":    otel.LogsSummary,
+	})
 }
 
 // SLOSummary GET /api/v2/observe/slo/summary (Dashboard: 快照直读)

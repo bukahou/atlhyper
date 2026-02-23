@@ -8,9 +8,13 @@ import (
 
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 var log = logger.Module("MemoryStore")
+
+// 默认 OTel 时间线容量：15min / 10s = 90 条
+const defaultOTelRingCapacity = 90
 
 // MemoryStore 内存数据存储
 type MemoryStore struct {
@@ -18,13 +22,18 @@ type MemoryStore struct {
 	snapshots   map[string]*model_v2.ClusterSnapshot
 	snapshotsMu sync.RWMutex
 
+	// OTel 时间线（Ring Buffer per cluster）
+	otelTimeline   map[string]*OTelRing
+	otelTimelineMu sync.RWMutex
+
 	// Agent 状态
 	agents   map[string]*model_v2.AgentInfo
 	agentsMu sync.RWMutex
 
 	// 配置
-	eventRetention  time.Duration
-	heartbeatExpire time.Duration
+	eventRetention    time.Duration
+	heartbeatExpire   time.Duration
+	snapshotRetention time.Duration
 
 	// 控制
 	stopCh chan struct{}
@@ -32,23 +41,27 @@ type MemoryStore struct {
 }
 
 // New 创建 MemoryStore
-func New(eventRetention, heartbeatExpire time.Duration) *MemoryStore {
+func New(eventRetention, heartbeatExpire, snapshotRetention time.Duration) *MemoryStore {
+	if snapshotRetention <= 0 {
+		snapshotRetention = 15 * time.Minute
+	}
 	return &MemoryStore{
-		snapshots:       make(map[string]*model_v2.ClusterSnapshot),
-		agents:          make(map[string]*model_v2.AgentInfo),
-		eventRetention:  eventRetention,
-		heartbeatExpire: heartbeatExpire,
-		stopCh:          make(chan struct{}),
+		snapshots:         make(map[string]*model_v2.ClusterSnapshot),
+		otelTimeline:      make(map[string]*OTelRing),
+		agents:            make(map[string]*model_v2.AgentInfo),
+		eventRetention:    eventRetention,
+		heartbeatExpire:   heartbeatExpire,
+		snapshotRetention: snapshotRetention,
+		stopCh:            make(chan struct{}),
 	}
 }
 
 // Start 启动 MemoryStore
 func (s *MemoryStore) Start() error {
-	// 启动过期数据清理协程
 	s.wg.Add(1)
 	go s.cleanupLoop()
 
-	log.Info("已启动")
+	log.Info("已启动", "snapshotRetention", s.snapshotRetention)
 	return nil
 }
 
@@ -72,35 +85,8 @@ func (s *MemoryStore) cleanupLoop() {
 		case <-s.stopCh:
 			return
 		case <-ticker.C:
-			s.cleanupExpiredEvents()
 			s.updateAgentStatus()
-		}
-	}
-}
-
-// cleanupExpiredEvents 清理过期 Events
-func (s *MemoryStore) cleanupExpiredEvents() {
-	s.snapshotsMu.Lock()
-	defer s.snapshotsMu.Unlock()
-
-	cutoff := time.Now().Add(-s.eventRetention)
-
-	for clusterID, snapshot := range s.snapshots {
-		beforeCount := len(snapshot.Events)
-		var validEvents []model_v2.Event
-		for _, e := range snapshot.Events {
-			if e.LastTimestamp.After(cutoff) {
-				validEvents = append(validEvents, e)
-			}
-		}
-		if len(validEvents) < beforeCount {
-			snapshot.Events = validEvents
-			// 有事件被清理时输出 INFO
-			log.Info("已清理过期事件",
-				"cluster", clusterID,
-				"before", beforeCount,
-				"after", len(validEvents),
-			)
+			s.cleanupOfflineClusterData()
 		}
 	}
 }
@@ -120,14 +106,44 @@ func (s *MemoryStore) updateAgentStatus() {
 	}
 }
 
+// cleanupOfflineClusterData 清理离线集群的 OTel 时间线数据
+func (s *MemoryStore) cleanupOfflineClusterData() {
+	s.agentsMu.RLock()
+	offlineClusters := make([]string, 0)
+	offlineCutoff := time.Now().Add(-s.snapshotRetention * 2) // 离线超过 2 倍保留时间才清理
+	for clusterID, agent := range s.agents {
+		if agent.Status == model_v2.AgentStatusOffline && agent.LastHeartbeat.Before(offlineCutoff) {
+			offlineClusters = append(offlineClusters, clusterID)
+		}
+	}
+	s.agentsMu.RUnlock()
+
+	if len(offlineClusters) == 0 {
+		return
+	}
+
+	s.otelTimelineMu.Lock()
+	for _, clusterID := range offlineClusters {
+		if _, ok := s.otelTimeline[clusterID]; ok {
+			delete(s.otelTimeline, clusterID)
+			log.Info("已清理离线集群 OTel 时间线", "cluster", clusterID)
+		}
+	}
+	s.otelTimelineMu.Unlock()
+}
+
 // ==================== 快照管理 ====================
 
 // SetSnapshot 存储集群快照
 func (s *MemoryStore) SetSnapshot(clusterID string, snapshot *model_v2.ClusterSnapshot) error {
 	s.snapshotsMu.Lock()
-	defer s.snapshotsMu.Unlock()
-
 	s.snapshots[clusterID] = snapshot
+	s.snapshotsMu.Unlock()
+
+	// 追加 OTel 到时间线
+	if snapshot.OTel != nil {
+		s.appendOTel(clusterID, snapshot.OTel, snapshot.FetchedAt)
+	}
 
 	// 同时更新 Agent 状态
 	s.agentsMu.Lock()
@@ -144,6 +160,19 @@ func (s *MemoryStore) SetSnapshot(clusterID string, snapshot *model_v2.ClusterSn
 	s.agentsMu.Unlock()
 
 	return nil
+}
+
+// appendOTel 追加 OTel 快照到时间线
+func (s *MemoryStore) appendOTel(clusterID string, otel *cluster.OTelSnapshot, ts time.Time) {
+	s.otelTimelineMu.Lock()
+	defer s.otelTimelineMu.Unlock()
+
+	ring, ok := s.otelTimeline[clusterID]
+	if !ok {
+		ring = NewOTelRing(defaultOTelRingCapacity)
+		s.otelTimeline[clusterID] = ring
+	}
+	ring.Add(otel, ts)
 }
 
 // GetSnapshot 获取集群快照
@@ -219,4 +248,31 @@ func (s *MemoryStore) GetEvents(clusterID string) ([]model_v2.Event, error) {
 		return nil, nil
 	}
 	return snapshot.Events, nil
+}
+
+// ==================== OTel 时间线 ====================
+
+// GetOTelTimeline 获取 OTel 时间线数据
+func (s *MemoryStore) GetOTelTimeline(clusterID string, since time.Time) ([]cluster.OTelEntry, error) {
+	s.otelTimelineMu.RLock()
+	defer s.otelTimelineMu.RUnlock()
+
+	ring, ok := s.otelTimeline[clusterID]
+	if !ok {
+		return nil, nil
+	}
+
+	snapshots, timestamps := ring.Since(since)
+	if len(snapshots) == 0 {
+		return nil, nil
+	}
+
+	entries := make([]cluster.OTelEntry, len(snapshots))
+	for i := range snapshots {
+		entries[i] = cluster.OTelEntry{
+			Snapshot:  snapshots[i],
+			Timestamp: timestamps[i],
+		}
+	}
+	return entries, nil
 }

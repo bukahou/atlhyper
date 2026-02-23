@@ -19,6 +19,6 @@ func New(cfg Config) Store {
 			HeartbeatExpire: cfg.HeartbeatExpire,
 		})
 	default:
-		return memory.New(cfg.EventRetention, cfg.HeartbeatExpire)
+		return memory.New(cfg.EventRetention, cfg.HeartbeatExpire, cfg.SnapshotRetention)
 	}
 }

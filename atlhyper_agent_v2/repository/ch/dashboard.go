@@ -7,6 +7,7 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/model_v3/apm"
+	"AtlHyper/model_v3/log"
 	"AtlHyper/model_v3/metrics"
 	"AtlHyper/model_v3/slo"
 )
@@ -16,6 +17,7 @@ type dashboardRepository struct {
 	metrics repository.MetricsQueryRepository
 	trace   repository.TraceQueryRepository
 	slo     repository.SLOQueryRepository
+	log     repository.LogQueryRepository
 }
 
 // NewDashboardRepository 创建 Dashboard 仓库
@@ -23,8 +25,9 @@ func NewDashboardRepository(
 	m repository.MetricsQueryRepository,
 	t repository.TraceQueryRepository,
 	s repository.SLOQueryRepository,
+	l repository.LogQueryRepository,
 ) repository.OTelDashboardRepository {
-	return &dashboardRepository{metrics: m, trace: t, slo: s}
+	return &dashboardRepository{metrics: m, trace: t, slo: s, log: l}
 }
 
 func (r *dashboardRepository) GetMetricsSummary(ctx context.Context) (*metrics.Summary, error) {
@@ -57,4 +60,18 @@ func (r *dashboardRepository) ListServiceSLO(ctx context.Context, since time.Dur
 
 func (r *dashboardRepository) ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error) {
 	return r.slo.ListServiceEdges(ctx, since)
+}
+
+func (r *dashboardRepository) ListRecentTraces(ctx context.Context, limit int) ([]apm.TraceSummary, error) {
+	if r.trace == nil {
+		return nil, nil
+	}
+	return r.trace.ListTraces(ctx, "", 0, limit, 5*time.Minute)
+}
+
+func (r *dashboardRepository) GetLogsSummary(ctx context.Context) (*log.Summary, error) {
+	if r.log == nil {
+		return nil, nil
+	}
+	return r.log.GetSummary(ctx)
 }

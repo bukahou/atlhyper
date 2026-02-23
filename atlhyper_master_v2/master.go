@@ -81,12 +81,13 @@ func New() (*Master, error) {
 
 	// 1. 初始化 Store (数据存储)
 	store := datahub.New(datahub.Config{
-		Type:            cfg.DataHub.Type,
-		EventRetention:  cfg.DataHub.EventRetention,
-		HeartbeatExpire: cfg.DataHub.HeartbeatExpire,
-		RedisAddr:       cfg.Redis.Addr,
-		RedisPassword:   cfg.Redis.Password,
-		RedisDB:         cfg.Redis.DB,
+		Type:              cfg.DataHub.Type,
+		EventRetention:    cfg.DataHub.EventRetention,
+		HeartbeatExpire:   cfg.DataHub.HeartbeatExpire,
+		SnapshotRetention: cfg.DataHub.SnapshotRetention,
+		RedisAddr:         cfg.Redis.Addr,
+		RedisPassword:     cfg.Redis.Password,
+		RedisDB:           cfg.Redis.DB,
 	})
 	log.Info("Store 初始化完成", "type", cfg.DataHub.Type)
 
