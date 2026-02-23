@@ -1496,6 +1496,10 @@ export const zh: Translations = {
     network: {
       title: "网络",
       interfaces: "个接口",
+      physicalInterfaces: "物理接口",
+      virtualInterfaces: "个虚拟接口",
+      showVirtual: "展开虚拟接口",
+      hideVirtual: "收起虚拟接口",
       receive: "接收",
       transmit: "发送",
       rxShort: "收",

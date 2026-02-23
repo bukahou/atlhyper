@@ -1496,6 +1496,10 @@ export const ja: Translations = {
     network: {
       title: "ネットワーク",
       interfaces: "インターフェース",
+      physicalInterfaces: "物理インターフェース",
+      virtualInterfaces: "仮想インターフェース",
+      showVirtual: "仮想インターフェースを展開",
+      hideVirtual: "仮想インターフェースを折りたたむ",
       receive: "受信",
       transmit: "送信",
       rxShort: "受信",

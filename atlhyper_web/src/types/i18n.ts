@@ -1573,6 +1573,10 @@ interface NodeMetricsTranslations {
   network: {
     title: string;
     interfaces: string;
+    physicalInterfaces: string;
+    virtualInterfaces: string;
+    showVirtual: string;
+    hideVirtual: string;
     receive: string;
     transmit: string;
     rxShort: string;
