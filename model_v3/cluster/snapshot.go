@@ -181,6 +181,8 @@ type OTelSnapshot struct {
 
 	// 最近 Traces（无过滤，Dashboard 首屏用）
 	RecentTraces []apm.TraceSummary `json:"recentTraces,omitempty"`
+	// 最近日志条目（5 分钟窗口，最多 500 条）
+	RecentLogs []log.Entry `json:"recentLogs,omitempty"`
 	// 日志统计摘要（5 分钟窗口）
 	LogsSummary *log.Summary `json:"logsSummary,omitempty"`
 
@@ -190,6 +192,8 @@ type OTelSnapshot struct {
 	NodeMetricsSeries []NodeMetricsTimeSeries `json:"nodeMetricsSeries,omitempty"`
 	// SLO 服务时序（每个服务最近 1h）
 	SLOTimeSeries []SLOServiceTimeSeries `json:"sloTimeSeries,omitempty"`
+	// APM 服务时序（每个服务最近 1h）
+	APMTimeSeries []APMServiceTimeSeries `json:"apmTimeSeries,omitempty"`
 }
 
 // NodeMetricsTimeSeries 单节点预聚合时序
@@ -198,15 +202,46 @@ type NodeMetricsTimeSeries struct {
 	Points   []NodeMetricsPoint `json:"points"`
 }
 
-// NodeMetricsPoint 节点指标时序数据点（1 分钟粒度）
+// NodeMetricsPoint 节点指标时序数据点（1 分钟粒度，25 字段）
 type NodeMetricsPoint struct {
 	Timestamp time.Time `json:"timestamp"`
-	CPUPct    float64   `json:"cpuPct"`
-	MemPct    float64   `json:"memPct"`
-	DiskPct   float64   `json:"diskPct"`
-	NetRxBps  float64   `json:"netRxBps"`
-	NetTxBps  float64   `json:"netTxBps"`
-	Load1     float64   `json:"load1"`
+
+	// CPU（7 字段）
+	CPUPct    float64 `json:"cpuPct"`
+	UserPct   float64 `json:"userPct"`
+	SystemPct float64 `json:"systemPct"`
+	IOWaitPct float64 `json:"iowaitPct"`
+	Load1     float64 `json:"load1"`
+	Load5     float64 `json:"load5"`
+	Load15    float64 `json:"load15"`
+
+	// Memory（2 字段）
+	MemPct       float64 `json:"memPct"`
+	SwapUsagePct float64 `json:"swapUsagePct"`
+
+	// Disk — 主磁盘（4 字段）
+	DiskPct       float64 `json:"diskPct"`
+	DiskReadBps   float64 `json:"diskReadBps"`
+	DiskWriteBps  float64 `json:"diskWriteBps"`
+	DiskIOUtilPct float64 `json:"diskIOUtilPct"`
+
+	// Network — 主网卡（4 字段）
+	NetRxBps    float64 `json:"netRxBps"`
+	NetTxBps    float64 `json:"netTxBps"`
+	NetRxPktSec float64 `json:"netRxPktSec"`
+	NetTxPktSec float64 `json:"netTxPktSec"`
+
+	// Temperature（1 字段）
+	CPUTempC float64 `json:"cpuTempC"`
+
+	// PSI（3 字段）
+	CPUSomePct float64 `json:"cpuSomePct"`
+	MemSomePct float64 `json:"memSomePct"`
+	IOSomePct  float64 `json:"ioSomePct"`
+
+	// TCP（2 字段）
+	TCPEstab    int64 `json:"tcpEstab"`
+	SocketsUsed int64 `json:"socketsUsed"`
 }
 
 // SLOServiceTimeSeries 单服务预聚合时序
@@ -215,10 +250,29 @@ type SLOServiceTimeSeries struct {
 	Points      []SLOTimePoint `json:"points"`
 }
 
-// SLOTimePoint SLO 时序数据点（1 分钟粒度）
+// SLOTimePoint SLO 时序数据点（1 分钟粒度，6 字段）
 type SLOTimePoint struct {
 	Timestamp   time.Time `json:"timestamp"`
 	RPS         float64   `json:"rps"`
 	SuccessRate float64   `json:"successRate"`
+	P50Ms       float64   `json:"p50Ms"`
 	P99Ms       float64   `json:"p99Ms"`
+	ErrorRate   float64   `json:"errorRate"`
+}
+
+// APMServiceTimeSeries 单服务 APM 预聚合时序
+type APMServiceTimeSeries struct {
+	ServiceName string         `json:"serviceName"`
+	Namespace   string         `json:"namespace"`
+	Points      []APMTimePoint `json:"points"`
+}
+
+// APMTimePoint APM 时序数据点（1 分钟粒度）
+type APMTimePoint struct {
+	Timestamp   time.Time `json:"timestamp"`
+	RPS         float64   `json:"rps"`
+	SuccessRate float64   `json:"successRate"`
+	AvgMs       float64   `json:"avgMs"`
+	P99Ms       float64   `json:"p99Ms"`
+	ErrorCount  int64     `json:"errorCount"`
 }

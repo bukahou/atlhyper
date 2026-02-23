@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"AtlHyper/model_v3/apm"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/metrics"
 	"AtlHyper/model_v3/slo"
@@ -20,6 +21,7 @@ const ringCapacity = 60 // 60 分钟 = 1 小时
 type Concentrator struct {
 	nodeRings map[string]*nodeMetricsRing
 	sloRings  map[string]*sloMetricsRing
+	apmRings  map[string]*apmMetricsRing
 	mu        sync.RWMutex
 }
 
@@ -28,17 +30,24 @@ func New() *Concentrator {
 	return &Concentrator{
 		nodeRings: make(map[string]*nodeMetricsRing),
 		sloRings:  make(map[string]*sloMetricsRing),
+		apmRings:  make(map[string]*apmMetricsRing),
 	}
 }
 
 // Ingest 摄入当前 OTel 快照数据，更新时序环
-func (c *Concentrator) Ingest(nodes []metrics.NodeMetrics, sloIngress []slo.IngressSLO, ts time.Time) {
+func (c *Concentrator) Ingest(
+	nodes []metrics.NodeMetrics,
+	sloIngress []slo.IngressSLO,
+	apmServices []apm.APMService,
+	ts time.Time,
+) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	minute := alignMinute(ts)
+	truncated := ts.Truncate(time.Minute)
 
-	// 节点指标
+	// 节点指标（25 字段）
 	for i := range nodes {
 		node := &nodes[i]
 		ring, ok := c.nodeRings[node.NodeName]
@@ -47,30 +56,52 @@ func (c *Concentrator) Ingest(nodes []metrics.NodeMetrics, sloIngress []slo.Ingr
 			c.nodeRings[node.NodeName] = ring
 		}
 
-		var diskPct float64
-		if d := node.GetPrimaryDisk(); d != nil {
-			diskPct = d.UsagePct
+		pt := cluster.NodeMetricsPoint{
+			Timestamp: truncated,
+			// CPU
+			CPUPct:    node.CPU.UsagePct,
+			UserPct:   node.CPU.UserPct,
+			SystemPct: node.CPU.SystemPct,
+			IOWaitPct: node.CPU.IOWaitPct,
+			Load1:     node.CPU.Load1,
+			Load5:     node.CPU.Load5,
+			Load15:    node.CPU.Load15,
+			// Memory
+			MemPct:       node.Memory.UsagePct,
+			SwapUsagePct: node.Memory.SwapUsagePct,
+			// Temperature
+			CPUTempC: node.Temperature.CPUTempC,
+			// PSI
+			CPUSomePct: node.PSI.CPUSomePct,
+			MemSomePct: node.PSI.MemSomePct,
+			IOSomePct:  node.PSI.IOSomePct,
+			// TCP
+			TCPEstab:    node.TCP.CurrEstab,
+			SocketsUsed: node.TCP.SocketsUsed,
 		}
-		var netRx, netTx float64
+
+		// Disk（主磁盘）
+		if d := node.GetPrimaryDisk(); d != nil {
+			pt.DiskPct = d.UsagePct
+			pt.DiskReadBps = d.ReadBytesPerSec
+			pt.DiskWriteBps = d.WriteBytesPerSec
+			pt.DiskIOUtilPct = d.IOUtilPct
+		}
+
+		// Network（聚合所有活跃非 lo 接口）
 		for _, n := range node.Networks {
 			if n.Up && n.Interface != "lo" {
-				netRx += n.RxBytesPerSec
-				netTx += n.TxBytesPerSec
+				pt.NetRxBps += n.RxBytesPerSec
+				pt.NetTxBps += n.TxBytesPerSec
+				pt.NetRxPktSec += n.RxPktPerSec
+				pt.NetTxPktSec += n.TxPktPerSec
 			}
 		}
 
-		ring.put(minute, cluster.NodeMetricsPoint{
-			Timestamp: ts.Truncate(time.Minute),
-			CPUPct:    node.CPU.UsagePct,
-			MemPct:    node.Memory.UsagePct,
-			DiskPct:   diskPct,
-			NetRxBps:  netRx,
-			NetTxBps:  netTx,
-			Load1:     node.CPU.Load1,
-		})
+		ring.put(minute, pt)
 	}
 
-	// SLO Ingress
+	// SLO Ingress（6 字段）
 	for i := range sloIngress {
 		svc := &sloIngress[i]
 		ring, ok := c.sloRings[svc.ServiceKey]
@@ -79,10 +110,30 @@ func (c *Concentrator) Ingest(nodes []metrics.NodeMetrics, sloIngress []slo.Ingr
 			c.sloRings[svc.ServiceKey] = ring
 		}
 		ring.put(minute, cluster.SLOTimePoint{
-			Timestamp:   ts.Truncate(time.Minute),
+			Timestamp:   truncated,
 			RPS:         svc.RPS,
 			SuccessRate: svc.SuccessRate,
+			P50Ms:       svc.P50Ms,
 			P99Ms:       svc.P99Ms,
+			ErrorRate:   svc.ErrorRate,
+		})
+	}
+
+	// APM Services（6 字段）
+	for i := range apmServices {
+		svc := &apmServices[i]
+		ring, ok := c.apmRings[svc.Name]
+		if !ok {
+			ring = &apmMetricsRing{namespace: svc.Namespace}
+			c.apmRings[svc.Name] = ring
+		}
+		ring.put(minute, cluster.APMTimePoint{
+			Timestamp:   truncated,
+			RPS:         svc.RPS,
+			SuccessRate: svc.SuccessRate,
+			AvgMs:       svc.AvgDurationMs,
+			P99Ms:       svc.P99Ms,
+			ErrorCount:  svc.ErrorCount,
 		})
 	}
 }
@@ -118,6 +169,26 @@ func (c *Concentrator) FlushSLOSeries() []cluster.SLOServiceTimeSeries {
 		if len(points) > 0 {
 			result = append(result, cluster.SLOServiceTimeSeries{
 				ServiceName: name,
+				Points:      points,
+			})
+		}
+	}
+	return result
+}
+
+// FlushAPMSeries 输出所有服务的预聚合 APM 时序
+func (c *Concentrator) FlushAPMSeries() []cluster.APMServiceTimeSeries {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := make([]cluster.APMServiceTimeSeries, 0, len(c.apmRings))
+	now := alignMinute(time.Now())
+	for name, ring := range c.apmRings {
+		points := ring.flush(now)
+		if len(points) > 0 {
+			result = append(result, cluster.APMServiceTimeSeries{
+				ServiceName: name,
+				Namespace:   ring.namespace,
 				Points:      points,
 			})
 		}
@@ -178,6 +249,37 @@ func (r *sloMetricsRing) put(minute int64, pt cluster.SLOTimePoint) {
 
 func (r *sloMetricsRing) flush(nowMinute int64) []cluster.SLOTimePoint {
 	result := make([]cluster.SLOTimePoint, 0, ringCapacity)
+	for i := 0; i < ringCapacity; i++ {
+		m := nowMinute - int64(ringCapacity-1) + int64(i)
+		idx := int(m % ringCapacity)
+		if idx < 0 {
+			idx += ringCapacity
+		}
+		if r.minutes[idx] == m {
+			result = append(result, r.points[idx])
+		}
+	}
+	return result
+}
+
+// ================================================================
+// apmMetricsRing — APM 指标环形缓冲
+// ================================================================
+
+type apmMetricsRing struct {
+	namespace string
+	points    [ringCapacity]cluster.APMTimePoint
+	minutes   [ringCapacity]int64
+}
+
+func (r *apmMetricsRing) put(minute int64, pt cluster.APMTimePoint) {
+	idx := int(minute % ringCapacity)
+	r.minutes[idx] = minute
+	r.points[idx] = pt
+}
+
+func (r *apmMetricsRing) flush(nowMinute int64) []cluster.APMTimePoint {
+	result := make([]cluster.APMTimePoint, 0, ringCapacity)
 	for i := 0; i < ringCapacity; i++ {
 		m := nowMinute - int64(ringCapacity-1) + int64(i)
 		idx := int(m % ringCapacity)

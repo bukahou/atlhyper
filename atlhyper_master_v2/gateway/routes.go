@@ -222,6 +222,7 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/observe/logs/summary", observeHandler.LogsSummary)
 		register("/api/v2/observe/logs/query", observeHandler.LogsQuery)
 		register("/api/v2/observe/traces/services", observeHandler.TracesServices)
+		register("/api/v2/observe/traces/services/", observeHandler.APMServiceSeries)
 		register("/api/v2/observe/traces/topology", observeHandler.TracesTopology)
 		register("/api/v2/observe/traces", observeHandler.TracesList)
 		register("/api/v2/observe/traces/", observeHandler.TracesDetail)

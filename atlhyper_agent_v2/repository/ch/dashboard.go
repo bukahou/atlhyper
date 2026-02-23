@@ -75,3 +75,10 @@ func (r *dashboardRepository) GetLogsSummary(ctx context.Context) (*log.Summary,
 	}
 	return r.log.GetSummary(ctx)
 }
+
+func (r *dashboardRepository) ListRecentLogs(ctx context.Context, limit int) ([]log.Entry, error) {
+	if r.log == nil {
+		return nil, nil
+	}
+	return r.log.ListRecentEntries(ctx, limit)
+}

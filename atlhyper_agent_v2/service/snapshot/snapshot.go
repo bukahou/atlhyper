@@ -716,11 +716,12 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 		snapshot.SLOServices = cached.SLOServices
 		snapshot.SLOEdges = cached.SLOEdges
 		snapshot.RecentTraces = cached.RecentTraces
+		snapshot.RecentLogs = cached.RecentLogs
 		snapshot.LogsSummary = cached.LogsSummary
 	} else if s.dashboardRepo != nil {
 		defaultSince := 5 * time.Minute
 
-		wg.Add(10)
+		wg.Add(11)
 
 		go func() {
 			defer wg.Done()
@@ -843,6 +844,19 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			snapshot.LogsSummary = summary
 			mu.Unlock()
 		}()
+
+		// RecentLogs（最近 500 条日志条目）
+		go func() {
+			defer wg.Done()
+			logs, err := s.dashboardRepo.ListRecentLogs(ctx, 500)
+			if err != nil {
+				log.Warn("Dashboard RecentLogs 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.RecentLogs = logs
+			mu.Unlock()
+		}()
 	}
 
 	wg.Wait()
@@ -864,9 +878,10 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 
 	// Concentrator: 摄入当前数据 + 输出预聚合时序
 	if s.conc != nil {
-		s.conc.Ingest(snapshot.MetricsNodes, snapshot.SLOIngress, now)
+		s.conc.Ingest(snapshot.MetricsNodes, snapshot.SLOIngress, snapshot.APMServices, now)
 		snapshot.NodeMetricsSeries = s.conc.FlushNodeSeries()
 		snapshot.SLOTimeSeries = s.conc.FlushSLOSeries()
+		snapshot.APMTimeSeries = s.conc.FlushAPMSeries()
 	}
 
 	return snapshot

@@ -270,7 +270,23 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 			}
 		}
 
-		// 优先: 从预聚合时序读取（覆盖 1h）
+		// 层 1: Ring Buffer（≤15min）— 任意指标，10s 精度
+		if minutes <= 15 {
+			since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+			entries, err := h.querySvc.GetOTelTimeline(r.Context(), clusterID, since)
+			if err == nil && len(entries) > 0 {
+				series := buildNodeMetricsSeries(entries, nodeName, metric)
+				if len(series.Points) > 0 {
+					writeJSON(w, http.StatusOK, map[string]interface{}{
+						"message": "获取成功",
+						"data":    series,
+					})
+					return
+				}
+			}
+		}
+
+		// 层 2: Concentrator 预聚合（≤60min）— 25 个关键指标，1min 精度
 		if otel.NodeMetricsSeries != nil {
 			for _, ns := range otel.NodeMetricsSeries {
 				if ns.NodeName == nodeName {
@@ -287,22 +303,7 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 			}
 		}
 
-		// 降级: OTel Ring Buffer（≤15min）
-		if minutes <= 15 {
-			since := time.Now().Add(-time.Duration(minutes) * time.Minute)
-			entries, err := h.querySvc.GetOTelTimeline(r.Context(), clusterID, since)
-			if err == nil && len(entries) > 0 {
-				series := buildNodeMetricsSeries(entries, nodeName, metric)
-				if len(series.Points) > 0 {
-					writeJSON(w, http.StatusOK, map[string]interface{}{
-						"message": "获取成功",
-						"data":    series,
-					})
-					return
-				}
-			}
-		}
-
+		// 层 3: Command/MQ → ClickHouse（>60min，暂返回未就绪）
 		writeError(w, http.StatusNotFound, "时序数据未就绪")
 	} else {
 		// GET /api/v2/observe/metrics/nodes/{name} — 从快照过滤
@@ -326,6 +327,9 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 // ================================================================
 
 // LogsQuery POST /api/v2/observe/logs/query
+//
+// 简单查询（无全文搜索）→ 快照直读 RecentLogs
+// 全文搜索 → Command/MQ 透传 Agent
 func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -344,7 +348,74 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// body 直接作为 params 透传给 Agent
+	query, _ := body["query"].(string)
+
+	// 快速路径：无全文搜索时从快照 RecentLogs 直读
+	if query == "" {
+		otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+		if err == nil && otel != nil && len(otel.RecentLogs) > 0 {
+			logs := otel.RecentLogs
+			// 按 service 过滤
+			if svc, _ := body["service"].(string); svc != "" {
+				filtered := logs[:0:0]
+				for _, l := range logs {
+					if l.ServiceName == svc {
+						filtered = append(filtered, l)
+					}
+				}
+				logs = filtered
+			}
+			// 按 level 过滤
+			if level, _ := body["level"].(string); level != "" {
+				filtered := logs[:0:0]
+				for _, l := range logs {
+					if l.Severity == level {
+						filtered = append(filtered, l)
+					}
+				}
+				logs = filtered
+			}
+			// 按 scope 过滤
+			if scope, _ := body["scope"].(string); scope != "" {
+				filtered := logs[:0:0]
+				for _, l := range logs {
+					if l.ScopeName == scope {
+						filtered = append(filtered, l)
+					}
+				}
+				logs = filtered
+			}
+			// 分页
+			total := len(logs)
+			offset := 0
+			limit := 50
+			if v, ok := body["offset"].(float64); ok && v > 0 {
+				offset = int(v)
+			}
+			if v, ok := body["limit"].(float64); ok && v > 0 {
+				limit = int(v)
+			}
+			if offset >= total {
+				logs = logs[:0]
+			} else {
+				end := offset + limit
+				if end > total {
+					end = total
+				}
+				logs = logs[offset:end]
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"message": "获取成功",
+				"data": map[string]interface{}{
+					"logs":  logs,
+					"total": total,
+				},
+			})
+			return
+		}
+	}
+
+	// 全文搜索 → Command/MQ
 	delete(body, "cluster_id")
 	h.executeQuery(w, r, clusterID, command.ActionQueryLogs, body, 0)
 }
@@ -704,4 +775,65 @@ func (h *ObserveHandler) SLOSummary(w http.ResponseWriter, r *http.Request) {
 		"message": "获取成功",
 		"data":    otel.SLOSummary,
 	})
+}
+
+// ================================================================
+// APM TimeSeries Handlers
+// ================================================================
+
+// APMServiceSeries GET /api/v2/observe/traces/services/{name}/series
+// 从预聚合 APMTimeSeries 读取指定服务的趋势数据
+func (h *ObserveHandler) APMServiceSeries(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	clusterID, ok := requireClusterID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	// 解析路径: /api/v2/observe/traces/services/{name}/series
+	path := strings.TrimPrefix(r.URL.Path, "/api/v2/observe/traces/services/")
+	path = strings.TrimSuffix(path, "/series")
+	path = strings.TrimSuffix(path, "/")
+	serviceName := path
+	if serviceName == "" {
+		writeError(w, http.StatusBadRequest, "service name is required")
+		return
+	}
+
+	minutes := 60
+	if v := r.URL.Query().Get("minutes"); v != "" {
+		if m, err := strconv.Atoi(v); err == nil && m > 0 {
+			minutes = m
+		}
+	}
+
+	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+	if err != nil || otel == nil {
+		writeError(w, http.StatusNotFound, "数据尚未就绪")
+		return
+	}
+
+	// 从预聚合 APM 时序读取
+	if otel.APMTimeSeries != nil {
+		for _, s := range otel.APMTimeSeries {
+			if s.ServiceName == serviceName {
+				points := filterAPMPointsByMinutes(s.Points, minutes)
+				writeJSON(w, http.StatusOK, map[string]interface{}{
+					"message": "获取成功",
+					"data": map[string]interface{}{
+						"service":   serviceName,
+						"namespace": s.Namespace,
+						"points":    points,
+					},
+				})
+				return
+			}
+		}
+	}
+
+	writeError(w, http.StatusNotFound, "服务时序数据未就绪")
 }

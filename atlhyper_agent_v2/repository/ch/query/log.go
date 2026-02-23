@@ -298,6 +298,17 @@ func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 	return summary, nil
 }
 
+// ListRecentEntries 获取最近日志条目（5 分钟窗口）
+func (r *logRepository) ListRecentEntries(ctx context.Context, limit int) ([]log.Entry, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	return r.queryEntries(ctx, "WHERE Timestamp >= now() - INTERVAL 5 MINUTE", nil, limit, 0)
+}
+
 // scanFacets 从 rows 扫描 facet 列表（复用）
 func scanFacets(rows *sql.Rows) ([]log.Facet, error) {
 	var facets []log.Facet
