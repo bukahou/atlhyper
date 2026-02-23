@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"AtlHyper/atlhyper_agent_v2/concentrator"
 	"AtlHyper/atlhyper_agent_v2/config"
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/repository"
@@ -57,8 +58,20 @@ type snapshotService struct {
 	// OTel 仓库 (可选，从 ClickHouse 聚合)
 	otelSummaryRepo repository.OTelSummaryRepository
 	dashboardRepo   repository.OTelDashboardRepository
-	otelCache       *cluster.OTelSnapshot
-	otelCacheTime   time.Time
+
+	// OTel 缓存（分离 TTL：Summary 慢变化 5min / Dashboard 列表快变化 30s）
+	otelCache             *cluster.OTelSnapshot
+	otelCacheTime         time.Time
+	otelDashboardCache    *dashboardCacheData
+	otelDashboardCacheTime time.Time
+
+	// Concentrator 预聚合时序（可选）
+	conc *concentrator.Concentrator
+}
+
+// dashboardCacheData Dashboard 列表数据缓存
+type dashboardCacheData struct {
+	snapshot *cluster.OTelSnapshot // 仅 Dashboard 列表字段
 }
 
 // NewSnapshotService 创建快照服务
@@ -86,6 +99,7 @@ func NewSnapshotService(
 	serviceAccountRepo repository.ServiceAccountRepository,
 	otelSummaryRepo repository.OTelSummaryRepository,
 	dashboardRepo repository.OTelDashboardRepository,
+	conc *concentrator.Concentrator,
 ) service.SnapshotService {
 	return &snapshotService{
 		clusterID:          clusterID,
@@ -111,6 +125,7 @@ func NewSnapshotService(
 		serviceAccountRepo: serviceAccountRepo,
 		otelSummaryRepo:    otelSummaryRepo,
 		dashboardRepo:      dashboardRepo,
+		conc:               conc,
 	}
 }
 
@@ -589,21 +604,19 @@ func (s *snapshotService) calculateNamespaceResources(snapshot *cluster.ClusterS
 	}
 }
 
-// getOTelSnapshot 获取 OTel 快照（带缓存）
+// getOTelSnapshot 获取 OTel 快照（分离缓存 TTL）
 //
-// 从 ClickHouse 聚合标量摘要 + Dashboard 列表数据。
-// 标量摘要（3 组）和 Dashboard 列表（8 个）全部并发查询。
-// 使用 TTL 缓存避免每次快照都查询 ClickHouse。
+// 标量摘要（变化慢）使用 5min TTL，Dashboard 列表（需要新鲜度）使用 30s TTL。
+// Concentrator 在每次 Dashboard 数据刷新时摄入数据并输出预聚合时序。
 func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnapshot {
-	ttl := config.GlobalConfig.Scheduler.OTelCacheTTL
-	if ttl <= 0 {
-		ttl = 5 * time.Minute
+	summaryTTL := config.GlobalConfig.Scheduler.OTelCacheTTL
+	if summaryTTL <= 0 {
+		summaryTTL = 5 * time.Minute
 	}
-	if s.otelCache != nil && time.Since(s.otelCacheTime) < ttl {
-		return s.otelCache
-	}
+	dashboardTTL := 30 * time.Second
 
 	snapshot := &cluster.OTelSnapshot{}
+	now := time.Now()
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -615,12 +628,28 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 		mu.Unlock()
 	}
 
-	// ===== 标量摘要查询（3 个并发，仅当 otelSummaryRepo 可用时）=====
+	// ===== 标量摘要（TTL = 5min，变化慢） =====
 
-	if s.otelSummaryRepo != nil {
+	summaryFresh := s.otelCache != nil && now.Sub(s.otelCacheTime) < summaryTTL
+	if summaryFresh {
+		// 复用缓存中的标量
+		snapshot.TotalServices = s.otelCache.TotalServices
+		snapshot.HealthyServices = s.otelCache.HealthyServices
+		snapshot.TotalRPS = s.otelCache.TotalRPS
+		snapshot.AvgSuccessRate = s.otelCache.AvgSuccessRate
+		snapshot.AvgP99Ms = s.otelCache.AvgP99Ms
+		snapshot.IngressServices = s.otelCache.IngressServices
+		snapshot.IngressAvgRPS = s.otelCache.IngressAvgRPS
+		snapshot.MeshServices = s.otelCache.MeshServices
+		snapshot.MeshAvgMTLS = s.otelCache.MeshAvgMTLS
+		snapshot.MonitoredNodes = s.otelCache.MonitoredNodes
+		snapshot.AvgCPUPct = s.otelCache.AvgCPUPct
+		snapshot.AvgMemPct = s.otelCache.AvgMemPct
+		snapshot.MaxCPUPct = s.otelCache.MaxCPUPct
+		snapshot.MaxMemPct = s.otelCache.MaxMemPct
+	} else if s.otelSummaryRepo != nil {
 		wg.Add(3)
 
-		// APM 摘要
 		go func() {
 			defer wg.Done()
 			totalSvc, healthySvc, totalRPS, avgSuccRate, avgP99, err := s.otelSummaryRepo.GetAPMSummary(ctx)
@@ -638,7 +667,6 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			mu.Unlock()
 		}()
 
-		// SLO 摘要
 		go func() {
 			defer wg.Done()
 			ingressSvc, ingressRPS, meshSvc, meshMTLS, err := s.otelSummaryRepo.GetSLOSummary(ctx)
@@ -655,7 +683,6 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			mu.Unlock()
 		}()
 
-		// Metrics 摘要
 		go func() {
 			defer wg.Done()
 			nodes, avgCPU, avgMem, maxCPU, maxMem, err := s.otelSummaryRepo.GetMetricsSummary(ctx)
@@ -674,12 +701,26 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 		}()
 	}
 
-	// ===== Dashboard 列表查询（8 个并发，仅当 dashboardRepo 可用时）=====
+	// ===== Dashboard 列表（TTL = 30s，需要新鲜度给 Concentrator） =====
 
-	if s.dashboardRepo != nil {
+	dashboardFresh := s.otelDashboardCache != nil && now.Sub(s.otelDashboardCacheTime) < dashboardTTL
+	if dashboardFresh {
+		// 复用缓存中的 Dashboard 列表
+		cached := s.otelDashboardCache.snapshot
+		snapshot.MetricsSummary = cached.MetricsSummary
+		snapshot.MetricsNodes = cached.MetricsNodes
+		snapshot.APMServices = cached.APMServices
+		snapshot.APMTopology = cached.APMTopology
+		snapshot.SLOSummary = cached.SLOSummary
+		snapshot.SLOIngress = cached.SLOIngress
+		snapshot.SLOServices = cached.SLOServices
+		snapshot.SLOEdges = cached.SLOEdges
+		snapshot.RecentTraces = cached.RecentTraces
+		snapshot.LogsSummary = cached.LogsSummary
+	} else if s.dashboardRepo != nil {
 		defaultSince := 5 * time.Minute
 
-		wg.Add(10) // 8 existing + 2 new (RecentTraces + LogsSummary)
+		wg.Add(10)
 
 		go func() {
 			defer wg.Done()
@@ -777,10 +818,10 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			mu.Unlock()
 		}()
 
-		// RecentTraces（最近 50 条 Trace）
+		// RecentTraces（扩展到 200 条）
 		go func() {
 			defer wg.Done()
-			traces, err := s.dashboardRepo.ListRecentTraces(ctx, 50)
+			traces, err := s.dashboardRepo.ListRecentTraces(ctx, 200)
 			if err != nil {
 				log.Warn("Dashboard RecentTraces 查询失败", "err", err)
 				return
@@ -790,7 +831,7 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			mu.Unlock()
 		}()
 
-		// LogsSummary（日志统计摘要）
+		// LogsSummary
 		go func() {
 			defer wg.Done()
 			summary, err := s.dashboardRepo.GetLogsSummary(ctx)
@@ -811,7 +852,22 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 		return s.otelCache
 	}
 
+	// 更新缓存
+	if !summaryFresh {
+		s.otelCacheTime = now
+	}
+	if !dashboardFresh {
+		s.otelDashboardCache = &dashboardCacheData{snapshot: snapshot}
+		s.otelDashboardCacheTime = now
+	}
 	s.otelCache = snapshot
-	s.otelCacheTime = time.Now()
+
+	// Concentrator: 摄入当前数据 + 输出预聚合时序
+	if s.conc != nil {
+		s.conc.Ingest(snapshot.MetricsNodes, snapshot.SLOIngress, now)
+		snapshot.NodeMetricsSeries = s.conc.FlushNodeSeries()
+		snapshot.SLOTimeSeries = s.conc.FlushSLOSeries()
+	}
+
 	return snapshot
 }

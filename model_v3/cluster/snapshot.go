@@ -183,4 +183,42 @@ type OTelSnapshot struct {
 	RecentTraces []apm.TraceSummary `json:"recentTraces,omitempty"`
 	// 日志统计摘要（5 分钟窗口）
 	LogsSummary *log.Summary `json:"logsSummary,omitempty"`
+
+	// ===== 预聚合时序（Agent Concentrator 生成，1min 粒度 × 60 点 = 1h） =====
+
+	// 节点指标时序（每个节点最近 1h）
+	NodeMetricsSeries []NodeMetricsTimeSeries `json:"nodeMetricsSeries,omitempty"`
+	// SLO 服务时序（每个服务最近 1h）
+	SLOTimeSeries []SLOServiceTimeSeries `json:"sloTimeSeries,omitempty"`
+}
+
+// NodeMetricsTimeSeries 单节点预聚合时序
+type NodeMetricsTimeSeries struct {
+	NodeName string             `json:"nodeName"`
+	Points   []NodeMetricsPoint `json:"points"`
+}
+
+// NodeMetricsPoint 节点指标时序数据点（1 分钟粒度）
+type NodeMetricsPoint struct {
+	Timestamp time.Time `json:"timestamp"`
+	CPUPct    float64   `json:"cpuPct"`
+	MemPct    float64   `json:"memPct"`
+	DiskPct   float64   `json:"diskPct"`
+	NetRxBps  float64   `json:"netRxBps"`
+	NetTxBps  float64   `json:"netTxBps"`
+	Load1     float64   `json:"load1"`
+}
+
+// SLOServiceTimeSeries 单服务预聚合时序
+type SLOServiceTimeSeries struct {
+	ServiceName string         `json:"serviceName"`
+	Points      []SLOTimePoint `json:"points"`
+}
+
+// SLOTimePoint SLO 时序数据点（1 分钟粒度）
+type SLOTimePoint struct {
+	Timestamp   time.Time `json:"timestamp"`
+	RPS         float64   `json:"rps"`
+	SuccessRate float64   `json:"successRate"`
+	P99Ms       float64   `json:"p99Ms"`
 }

@@ -1,8 +1,10 @@
 // atlhyper_master_v2/gateway/handler/observe_timeline.go
-// OTel 时间线辅助函数（从内存时间线构建时序数据）
+// OTel 时间线辅助函数（从内存时间线 / 预聚合时序构建数据）
 package handler
 
 import (
+	"time"
+
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/metrics"
 )
@@ -104,4 +106,61 @@ func buildSLOTimeSeries(entries []cluster.OTelEntry, serviceName string) map[str
 		"service": serviceName,
 		"points":  points,
 	}
+}
+
+// ================================================================
+// 预聚合时序辅助函数
+// ================================================================
+
+// filterNodePointsByMinutes 按时间范围裁剪节点时序数据点
+func filterNodePointsByMinutes(points []cluster.NodeMetricsPoint, minutes int) []cluster.NodeMetricsPoint {
+	cutoff := time.Now().Add(-time.Duration(minutes) * time.Minute)
+	result := make([]cluster.NodeMetricsPoint, 0, len(points))
+	for _, p := range points {
+		if !p.Timestamp.Before(cutoff) {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// extractNodeMetricPoints 从预聚合节点时序中提取指定指标
+func extractNodeMetricPoints(points []cluster.NodeMetricsPoint, metric string) []metrics.Point {
+	result := make([]metrics.Point, 0, len(points))
+	for _, p := range points {
+		var value float64
+		switch metric {
+		case "cpu_usage", "cpu":
+			value = p.CPUPct
+		case "memory_usage", "memory":
+			value = p.MemPct
+		case "disk_usage", "disk":
+			value = p.DiskPct
+		case "net_rx":
+			value = p.NetRxBps
+		case "net_tx":
+			value = p.NetTxBps
+		case "cpu_load1":
+			value = p.Load1
+		default:
+			value = p.CPUPct
+		}
+		result = append(result, metrics.Point{
+			Timestamp: p.Timestamp,
+			Value:     value,
+		})
+	}
+	return result
+}
+
+// filterSLOPointsByMinutes 按时间范围裁剪 SLO 时序数据点
+func filterSLOPointsByMinutes(points []cluster.SLOTimePoint, minutes int) []cluster.SLOTimePoint {
+	cutoff := time.Now().Add(-time.Duration(minutes) * time.Minute)
+	result := make([]cluster.SLOTimePoint, 0, len(points))
+	for _, p := range points {
+		if !p.Timestamp.Before(cutoff) {
+			result = append(result, p)
+		}
+	}
+	return result
 }

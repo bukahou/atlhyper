@@ -1,6 +1,8 @@
 // atlhyper_master_v2/gateway/handler/observe.go
 // 可观测性查询 Handler（Traces / Logs / Metrics / SLO）
-// 通过 Command 机制将查询请求转发给 Agent 执行 ClickHouse 查询，结果 JSON 透传给前端
+//
+// 13 个 Dashboard 端点从快照直读（O(1)，<10ms），
+// 仅 2 个端点保留 Command 机制：TracesDetail（Trace 详情）和 LogsQuery（日志搜索）。
 package handler
 
 import (
@@ -21,7 +23,8 @@ import (
 
 // ObserveHandler 可观测性查询 Handler
 //
-// Dashboard 端点（8 个）直读快照，Detail 端点（6 个）走 Command 机制。
+// Dashboard + Detail 端点（13 个）直读快照/预聚合时序，
+// 仅 TracesDetail + LogsQuery（2 个）保留 Command 机制。
 type ObserveHandler struct {
 	svc      service.Ops
 	querySvc service.Query
@@ -225,6 +228,9 @@ func (h *ObserveHandler) MetricsNodes(w http.ResponseWriter, r *http.Request) {
 }
 
 // MetricsNodeRoute GET /api/v2/observe/metrics/nodes/{name}[/series]
+//
+// 单节点详情: 从快照 MetricsNodes 中过滤
+// 节点时序: 优先从预聚合时序读取，≤15min 降级到 OTel Ring Buffer
 func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -248,17 +254,40 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 	parts := strings.SplitN(path, "/", 2)
 	nodeName := parts[0]
 
+	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+	if err != nil || otel == nil {
+		writeError(w, http.StatusNotFound, "数据尚未就绪")
+		return
+	}
+
 	if len(parts) == 2 && parts[1] == "series" {
 		// GET /api/v2/observe/metrics/nodes/{name}/series
 		metric := r.URL.Query().Get("metric")
-		minutes := 30 // 默认 30 分钟
+		minutes := 30
 		if v := r.URL.Query().Get("minutes"); v != "" {
 			if m, err := strconv.Atoi(v); err == nil && m > 0 {
 				minutes = m
 			}
 		}
 
-		// ≤15 分钟: 尝试从 OTel 时间线直读
+		// 优先: 从预聚合时序读取（覆盖 1h）
+		if otel.NodeMetricsSeries != nil {
+			for _, ns := range otel.NodeMetricsSeries {
+				if ns.NodeName == nodeName {
+					points := filterNodePointsByMinutes(ns.Points, minutes)
+					writeJSON(w, http.StatusOK, map[string]interface{}{
+						"message": "获取成功",
+						"data": map[string]interface{}{
+							"metric": metric,
+							"points": extractNodeMetricPoints(points, metric),
+						},
+					})
+					return
+				}
+			}
+		}
+
+		// 降级: OTel Ring Buffer（≤15min）
 		if minutes <= 15 {
 			since := time.Now().Add(-time.Duration(minutes) * time.Minute)
 			entries, err := h.querySvc.GetOTelTimeline(r.Context(), clusterID, since)
@@ -274,23 +303,21 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 			}
 		}
 
-		// 降级: Command 查询
-		params := map[string]interface{}{
-			"sub_action": "get_series",
-			"node_name":  nodeName,
-			"since":      fmt.Sprintf("%dm", minutes),
-		}
-		if metric != "" {
-			params["metric"] = metric
-		}
-		h.executeQuery(w, r, clusterID, command.ActionQueryMetrics, params, 10*time.Second)
+		writeError(w, http.StatusNotFound, "时序数据未就绪")
 	} else {
-		// GET /api/v2/observe/metrics/nodes/{name}
-		params := map[string]interface{}{
-			"sub_action": "get_node",
-			"node_name":  nodeName,
+		// GET /api/v2/observe/metrics/nodes/{name} — 从快照过滤
+		if otel.MetricsNodes != nil {
+			for _, node := range otel.MetricsNodes {
+				if node.NodeName == nodeName {
+					writeJSON(w, http.StatusOK, map[string]interface{}{
+						"message": "获取成功",
+						"data":    node,
+					})
+					return
+				}
+			}
 		}
-		h.executeQuery(w, r, clusterID, command.ActionQueryMetrics, params, 10*time.Second)
+		writeError(w, http.StatusNotFound, "节点未找到")
 	}
 }
 
@@ -327,7 +354,7 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 // ================================================================
 
 // TracesList GET /api/v2/observe/traces
-// 无过滤条件时从快照直读 RecentTraces，有过滤条件时走 Command
+// 从快照 RecentTraces 直读，支持客户端过滤（service / min_duration / operation）
 func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -339,53 +366,76 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检查是否有过滤条件
-	hasFilter := r.URL.Query().Get("service") != "" ||
-		r.URL.Query().Get("min_duration") != "" ||
-		r.URL.Query().Get("start_time") != "" ||
-		r.URL.Query().Get("operation") != ""
-
-	if !hasFilter {
-		// 无过滤条件: 从快照返回最近 Traces
-		otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
-		if err == nil && otel != nil && len(otel.RecentTraces) > 0 {
-			writeJSON(w, http.StatusOK, map[string]interface{}{
-				"message": "获取成功",
-				"data": map[string]interface{}{
-					"traces": otel.RecentTraces,
-					"total":  len(otel.RecentTraces),
-				},
-			})
-			return
-		}
+	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+	if err != nil || otel == nil || len(otel.RecentTraces) == 0 {
+		writeError(w, http.StatusNotFound, "数据尚未就绪")
+		return
 	}
 
-	// 降级: Command 查询
-	params := map[string]interface{}{
-		"sub_action": "list_traces",
-	}
-	for _, key := range []string{"service", "operation", "start_time", "end_time"} {
-		if v := r.URL.Query().Get(key); v != "" {
-			params[key] = v
+	traces := otel.RecentTraces
+
+	// 客户端过滤
+	if svc := r.URL.Query().Get("service"); svc != "" {
+		filtered := traces[:0:0]
+		for _, t := range traces {
+			if t.RootService == svc {
+				filtered = append(filtered, t)
+			}
 		}
+		traces = filtered
+	}
+	if op := r.URL.Query().Get("operation"); op != "" {
+		filtered := traces[:0:0]
+		for _, t := range traces {
+			if strings.Contains(t.RootOperation, op) {
+				filtered = append(filtered, t)
+			}
+		}
+		traces = filtered
 	}
 	if v := r.URL.Query().Get("min_duration"); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			params["min_duration_ms"] = f
+		if minMs, err := strconv.ParseFloat(v, 64); err == nil {
+			filtered := traces[:0:0]
+			for _, t := range traces {
+				if t.DurationMs >= minMs {
+					filtered = append(filtered, t)
+				}
+			}
+			traces = filtered
+		}
+	}
+
+	// 分页
+	total := len(traces)
+	offset := 0
+	limit := total
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if i, err := strconv.Atoi(v); err == nil && i > 0 {
+			offset = i
 		}
 	}
 	if v := r.URL.Query().Get("limit"); v != "" {
-		if i, err := strconv.Atoi(v); err == nil {
-			params["limit"] = i
+		if i, err := strconv.Atoi(v); err == nil && i > 0 {
+			limit = i
 		}
 	}
-	if v := r.URL.Query().Get("offset"); v != "" {
-		if i, err := strconv.Atoi(v); err == nil {
-			params["offset"] = i
+	if offset >= total {
+		traces = nil
+	} else {
+		end := offset + limit
+		if end > total {
+			end = total
 		}
+		traces = traces[offset:end]
 	}
 
-	h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 5*time.Second)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data": map[string]interface{}{
+			"traces": traces,
+			"total":  total,
+		},
+	})
 }
 
 // TracesServices GET /api/v2/observe/traces/services (Dashboard: 快照直读)
@@ -535,7 +585,7 @@ func (h *ObserveHandler) SLOEdges(w http.ResponseWriter, r *http.Request) {
 }
 
 // SLOTimeSeries GET /api/v2/observe/slo/timeseries
-// ≤15 分钟时间范围从 OTel 时间线直读，超出则走 Command
+// 优先从预聚合时序读取（1h），降级到 OTel Ring Buffer（≤15min）
 func (h *ObserveHandler) SLOTimeSeries(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -550,8 +600,36 @@ func (h *ObserveHandler) SLOTimeSeries(w http.ResponseWriter, r *http.Request) {
 	serviceName := r.URL.Query().Get("service")
 	timeRange := r.URL.Query().Get("time_range")
 
-	// ≤15 分钟: 尝试从 OTel 时间线直读
-	if minutes, ok := parseTimeRangeMinutes(timeRange); ok && minutes <= 15 && serviceName != "" {
+	minutes := 60 // 默认 1h
+	if m, ok := parseTimeRangeMinutes(timeRange); ok && m > 0 {
+		minutes = m
+	}
+
+	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+	if err != nil || otel == nil {
+		writeError(w, http.StatusNotFound, "数据尚未就绪")
+		return
+	}
+
+	// 优先: 从预聚合时序读取
+	if serviceName != "" && otel.SLOTimeSeries != nil {
+		for _, ss := range otel.SLOTimeSeries {
+			if ss.ServiceName == serviceName {
+				points := filterSLOPointsByMinutes(ss.Points, minutes)
+				writeJSON(w, http.StatusOK, map[string]interface{}{
+					"message": "获取成功",
+					"data": map[string]interface{}{
+						"service": serviceName,
+						"points":  points,
+					},
+				})
+				return
+			}
+		}
+	}
+
+	// 降级: OTel Ring Buffer（≤15min）
+	if minutes <= 15 && serviceName != "" {
 		since := time.Now().Add(-time.Duration(minutes) * time.Minute)
 		entries, err := h.querySvc.GetOTelTimeline(r.Context(), clusterID, since)
 		if err == nil && len(entries) > 0 {
@@ -566,21 +644,7 @@ func (h *ObserveHandler) SLOTimeSeries(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 降级: Command 查询
-	params := map[string]interface{}{
-		"sub_action": "get_time_series",
-	}
-	if serviceName != "" {
-		params["name"] = serviceName
-	}
-	if timeRange != "" {
-		params["since"] = timeRange
-	}
-	if v := r.URL.Query().Get("interval"); v != "" {
-		params["interval"] = v
-	}
-
-	h.executeQuery(w, r, clusterID, command.ActionQuerySLO, params, 5*time.Second)
+	writeError(w, http.StatusNotFound, "时序数据未就绪")
 }
 
 // parseTimeRangeMinutes 解析时间范围字符串为分钟数

@@ -22,6 +22,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/config"
 	"AtlHyper/atlhyper_agent_v2/gateway"
 	"AtlHyper/atlhyper_agent_v2/repository"
+	"AtlHyper/atlhyper_agent_v2/concentrator"
 	chrepo "AtlHyper/atlhyper_agent_v2/repository/ch"
 	chquery "AtlHyper/atlhyper_agent_v2/repository/ch/query"
 	k8srepo "AtlHyper/atlhyper_agent_v2/repository/k8s"
@@ -107,6 +108,13 @@ func New() (*Agent, error) {
 		}
 	}
 
+	// 3.2 初始化 Concentrator（预聚合时序）
+	var conc *concentrator.Concentrator
+	if cfg.ClickHouse.Endpoint != "" {
+		conc = concentrator.New()
+		log.Info("Concentrator 初始化完成")
+	}
+
 	// 4. 初始化 Service (业务逻辑层)
 	snapshotSvc := snapshotsvc.NewSnapshotService(
 		cfg.Agent.ClusterID,
@@ -119,6 +127,7 @@ func New() (*Agent, error) {
 		repos.networkPolicy, repos.serviceAccount,
 		otelSummaryRepo,
 		dashboardRepo,
+		conc,
 	)
 
 	commandSvc := commandsvc.NewCommandService(
