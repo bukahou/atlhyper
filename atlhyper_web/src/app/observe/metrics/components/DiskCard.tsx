@@ -58,10 +58,10 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
 
       {/* 磁盘列表 */}
       <div className="space-y-3 sm:space-y-4">
-        {data.map((disk) => {
+        {data.map((disk, idx) => {
           const usedBytes = disk.totalBytes - disk.availBytes;
           return (
-            <div key={disk.mountPoint} className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
+            <div key={disk.mountPoint || `disk-${idx}`} className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
               {/* 设备 & 挂载点 */}
               <div className="flex items-center justify-between mb-2">
                 <div className="min-w-0 flex-1">

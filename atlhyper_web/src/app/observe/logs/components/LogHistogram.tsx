@@ -38,55 +38,70 @@ export function LogHistogram({ data, title, selectedTimeRange, onTimeRangeSelect
   const bucketDataRef = useRef<{ times: number[]; bucketSize: number }>({ times: [], bucketSize: 0 });
   const callbackRef = useRef(onTimeRangeSelect);
   callbackRef.current = onTimeRangeSelect;
+  /** Suppress callback when programmatically re-applying brush */
+  const suppressCallbackRef = useRef(false);
 
-  // Init chart + event listeners
+  // Resize + theme observer (attached once per chart instance)
+  const listenersRef = useRef<{ resize: (() => void) | null; observer: MutationObserver | null }>({
+    resize: null,
+    observer: null,
+  });
+
+  // Init chart + update data in a single effect to avoid race condition:
+  // when data goes from empty → non-empty the container div appears for the first time,
+  // so chart init must happen in the same effect that uses [data] as dependency.
   useEffect(() => {
-    if (!containerRef.current) return;
-    const chart = echarts.init(containerRef.current);
-    chartRef.current = chart;
+    if (!containerRef.current || data.length === 0) return;
 
-    const handleResize = () => chart.resize();
-    window.addEventListener("resize", handleResize);
+    // Initialize chart if not yet created (or if container changed)
+    if (!chartRef.current) {
+      const chart = echarts.init(containerRef.current);
+      chartRef.current = chart;
 
-    // Theme observer
-    const observer = new MutationObserver(() => {
-      if (!chartRef.current) return;
-      const c = getThemeColors();
-      chartRef.current.setOption({
-        tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
-        xAxis: { axisLine: { lineStyle: { color: c.lineColor } }, axisLabel: { color: c.textColor } },
-        yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
+      const handleResize = () => chart.resize();
+      window.addEventListener("resize", handleResize);
+      listenersRef.current.resize = handleResize;
+
+      // Theme observer
+      const observer = new MutationObserver(() => {
+        if (!chartRef.current) return;
+        const c = getThemeColors();
+        chartRef.current.setOption({
+          tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
+          xAxis: { axisLine: { lineStyle: { color: c.lineColor } }, axisLabel: { color: c.textColor } },
+          yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
+        });
       });
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+      listenersRef.current.observer = observer;
 
-    // Brush event — user drags a range or clicks to clear
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    chart.on("brush", (params: any) => {
-      const areas = params.areas;
-      if (!areas || areas.length === 0) {
-        callbackRef.current?.(null);
-        return;
-      }
-      const [startIdx, endIdx] = areas[0].coordRange;
-      const { times, bucketSize } = bucketDataRef.current;
-      if (times.length === 0) return;
-      const s = Math.max(0, Math.round(startIdx));
-      const e = Math.min(times.length - 1, Math.round(endIdx));
-      callbackRef.current?.([times[s], times[e] + bucketSize]);
-    });
+      // brushEnd — only fires when user releases mouse (finished selecting)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chart.on("brushEnd", (params: any) => {
+        if (suppressCallbackRef.current) return;
+        const areas = params.areas;
+        if (!areas || areas.length === 0) {
+          callbackRef.current?.(null);
+          return;
+        }
+        const [startIdx, endIdx] = areas[0].coordRange;
+        const { times, bucketSize } = bucketDataRef.current;
+        if (times.length === 0) return;
+        const s = Math.max(0, Math.round(startIdx));
+        const e = Math.min(times.length - 1, Math.round(endIdx));
+        callbackRef.current?.([times[s], times[e] + bucketSize]);
+      });
 
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      observer.disconnect();
-      chart.dispose();
-      chartRef.current = null;
-    };
-  }, []);
-
-  // Update chart data + brush config
-  useEffect(() => {
-    if (!chartRef.current || data.length === 0) return;
+      // brush with empty areas — user clicks to clear selection
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chart.on("brush", (params: any) => {
+        if (suppressCallbackRef.current) return;
+        const areas = params.areas;
+        if (!areas || areas.length === 0) {
+          callbackRef.current?.(null);
+        }
+      });
+    }
     const c = getThemeColors();
 
     // Sort by time
@@ -194,14 +209,45 @@ export function LogHistogram({ data, title, selectedTimeRange, onTimeRangeSelect
       key: "brush",
       brushOption: { brushType: "lineX", brushMode: "single" },
     });
-  }, [data]);
 
-  // Clear brush visual when parent resets the time range
-  useEffect(() => {
-    if (!selectedTimeRange && chartRef.current) {
+    // Re-apply brush highlight if there's an active selection (suppress callback to avoid loop)
+    suppressCallbackRef.current = true;
+    if (selectedTimeRange) {
+      const { times, bucketSize } = bucketDataRef.current;
+      if (times.length > 0) {
+        const [selStart, selEnd] = selectedTimeRange;
+        // Find bucket indices that overlap with the selection
+        let startIdx = 0;
+        let endIdx = times.length - 1;
+        for (let i = 0; i < times.length; i++) {
+          if (times[i] + bucketSize >= selStart) { startIdx = i; break; }
+        }
+        for (let i = times.length - 1; i >= 0; i--) {
+          if (times[i] <= selEnd) { endIdx = i; break; }
+        }
+        chartRef.current.dispatchAction({
+          type: "brush",
+          areas: [{ brushType: "lineX", coordRange: [startIdx, endIdx], xAxisIndex: 0 }],
+        });
+      }
+    } else {
       chartRef.current.dispatchAction({ type: "brush", areas: [] });
     }
-  }, [selectedTimeRange]);
+    // Re-enable callback after echarts processes the dispatch synchronously
+    requestAnimationFrame(() => { suppressCallbackRef.current = false; });
+  }, [data, selectedTimeRange]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (listenersRef.current.resize) {
+        window.removeEventListener("resize", listenersRef.current.resize);
+      }
+      listenersRef.current.observer?.disconnect();
+      chartRef.current?.dispose();
+      chartRef.current = null;
+    };
+  }, []);
 
   if (data.length === 0) return null;
 

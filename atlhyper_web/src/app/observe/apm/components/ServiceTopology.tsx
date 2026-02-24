@@ -138,13 +138,17 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
       };
     });
 
+    // Filter edges: both source and target must exist in nodes
+    const nodeIds = new Set(topology.nodes.map((n) => n.id));
+    const validEdges = topology.edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+
     // Edge width by callCount
-    const callCounts = topology.edges.map((e) => e.callCount);
+    const callCounts = validEdges.map((e) => e.callCount);
     const minC = Math.min(...callCounts, 1);
     const maxC = Math.max(...callCounts, 1);
     const cRange = maxC - minC || 1;
 
-    const edges = topology.edges.map((e) => {
+    const edges = validEdges.map((e) => {
       const width = 1 + ((e.callCount - minC) / cRange) * 3;
       const hasError = e.errorRate > 0;
       return {

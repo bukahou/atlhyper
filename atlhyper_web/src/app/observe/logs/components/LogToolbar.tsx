@@ -6,12 +6,19 @@ import type { LogTranslations } from "@/types/i18n";
 interface LogToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
-  displayCount: number;
+  page: number;
+  pageSize: number;
   total: number;
   t: LogTranslations;
 }
 
-export function LogToolbar({ search, onSearchChange, displayCount, total, t }: LogToolbarProps) {
+export function LogToolbar({ search, onSearchChange, page, pageSize, total, t }: LogToolbarProps) {
+  const start = Math.min((page - 1) * pageSize + 1, total);
+  const end = Math.min(page * pageSize, total);
+  const rangeText = total > 0
+    ? t.showing.replace("{count}", `${start}-${end}`).replace("{total}", String(total))
+    : t.showing.replace("{count}", "0").replace("{total}", "0");
+
   return (
     <div className="flex items-center gap-3">
       <div className="flex-1 relative">
@@ -25,7 +32,7 @@ export function LogToolbar({ search, onSearchChange, displayCount, total, t }: L
         />
       </div>
       <span className="text-xs text-muted whitespace-nowrap tabular-nums">
-        {t.showing.replace("{count}", String(Math.min(displayCount, total))).replace("{total}", String(total))}
+        {rangeText}
       </span>
     </div>
   );

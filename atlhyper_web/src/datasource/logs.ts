@@ -15,6 +15,10 @@ export type { MockLogQueryParams } from "@/mock/logs";
 /** 查询参数（API 模式需要 clusterId） */
 export interface LogQueryParams extends MockLogQueryParams {
   clusterId?: string;
+  /** Brush 选区开始时间 (epoch ms) */
+  startTime?: number;
+  /** Brush 选区结束时间 (epoch ms) */
+  endTime?: number;
 }
 
 /**
@@ -47,15 +51,16 @@ export async function queryLogs(params?: LogQueryParams): Promise<LogQueryResult
     limit: params.limit,
     offset: params.offset,
     since: params.timeRange ? sinceMap[params.timeRange] : undefined,
+    start_time: params.startTime ? new Date(params.startTime).toISOString() : undefined,
+    end_time: params.endTime ? new Date(params.endTime).toISOString() : undefined,
   });
 
   const data = response.data.data;
 
-  // 生成 histogram（API 不返回，从日志条目生成）
-  const histogram = (data.logs || []).map((l) => ({
-    timestamp: l.timestamp,
-    severity: l.severity,
-  }));
+  // histogram: 优先用后端返回的，fallback 客户端从分页日志生成
+  const histogram = (data.histogram && data.histogram.length > 0)
+    ? data.histogram
+    : (data.logs || []).map((l) => ({ timestamp: l.timestamp, severity: l.severity }));
 
   return {
     logs: data.logs || [],

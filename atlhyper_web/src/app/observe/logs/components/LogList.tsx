@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { LogEntry } from "@/types/model/log";
 import type { LogTranslations } from "@/types/i18n";
 import { severityColor, shortScopeName } from "@/types/model/log";
@@ -8,8 +9,9 @@ import { severityColor, shortScopeName } from "@/types/model/log";
 interface LogListProps {
   logs: LogEntry[];
   total: number;
-  displayCount: number;
-  onLoadMore: () => void;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
   onSelectEntry?: (entry: LogEntry, idx: number) => void;
   selectedIdx?: number | null;
   searchHighlight?: string;
@@ -52,7 +54,11 @@ function highlightText(text: string, keyword?: string): React.ReactNode {
   );
 }
 
-export function LogList({ logs, total, displayCount, onLoadMore, onSelectEntry, selectedIdx, searchHighlight, t }: LogListProps) {
+export function LogList({ logs, total, page, pageSize, onPageChange, onSelectEntry, selectedIdx, searchHighlight, t }: LogListProps) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasPrev = page > 1;
+  const hasNext = page < totalPages;
+
   if (logs.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-muted text-sm">
@@ -110,14 +116,25 @@ export function LogList({ logs, total, displayCount, onLoadMore, onSelectEntry, 
         })}
       </div>
 
-      {/* Load more */}
-      {displayCount < total && (
-        <div className="flex justify-center mt-4">
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-3">
           <button
-            onClick={onLoadMore}
-            className="px-4 py-2 text-sm rounded-lg border border-[var(--border-color)] bg-card hover:bg-[var(--hover-bg)] text-default transition-colors"
+            onClick={() => onPageChange(page - 1)}
+            disabled={!hasPrev}
+            className="p-1.5 rounded-md border border-[var(--border-color)] bg-card hover:bg-[var(--hover-bg)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {t.showMore}
+            <ChevronLeft className="w-4 h-4 text-default" />
+          </button>
+          <span className="text-xs text-muted tabular-nums">
+            {page} / {totalPages}
+          </span>
+          <button
+            onClick={() => onPageChange(page + 1)}
+            disabled={!hasNext}
+            className="p-1.5 rounded-md border border-[var(--border-color)] bg-card hover:bg-[var(--hover-bg)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="w-4 h-4 text-default" />
           </button>
         </div>
       )}

@@ -55,7 +55,8 @@ export default function LogsPage() {
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>([]);
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
-  const [displayCount, setDisplayCount] = useState(50);
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(1);
 
   // Facets panel collapse
   const [facetsCollapsed, setFacetsCollapsed] = useState(false);
@@ -100,7 +101,12 @@ export default function LogsPage() {
   const [timeRange, setTimeRange] = useState("15min");
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
-  // Clear brush when query filters change (data distribution changes)
+  // Reset page when any filter changes (including brush)
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedServices, selectedSeverities, selectedScopes, timeRange, brushTimeRange]);
+
+  // Clear brush when non-brush filters change
   useEffect(() => {
     setBrushTimeRange(null);
   }, [search, selectedServices, selectedSeverities, selectedScopes, timeRange]);
@@ -117,26 +123,23 @@ export default function LogsPage() {
       severities: selectedSeverities,
       scopes: selectedScopes,
       timeRange,
-      limit: displayCount,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+      startTime: brushTimeRange?.[0],
+      endTime: brushTimeRange?.[1],
     });
     setResult(data);
-  }, [currentClusterId, search, selectedServices, selectedSeverities, selectedScopes, timeRange, displayCount]);
+  }, [currentClusterId, search, selectedServices, selectedSeverities, selectedScopes, timeRange, page, brushTimeRange]);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
 
-  // Filter logs by brush time range (client-side)
-  const filteredLogs = useMemo(() => {
-    if (!brushTimeRange) return result.logs;
-    const [start, end] = brushTimeRange;
-    return result.logs.filter((log) => {
-      const ts = new Date(log.timestamp).getTime();
-      return ts >= start && ts <= end;
-    });
-  }, [result.logs, brushTimeRange]);
-
-  const handleLoadMore = () => setDisplayCount((c) => c + 50);
+  const handlePageChange = (p: number) => {
+    setPage(p);
+    setSelectedEntry(null);
+    setSelectedIdx(null);
+  };
 
   // Filter pills helpers
   const hasAnyFilter =
@@ -228,7 +231,8 @@ export default function LogsPage() {
         <LogToolbar
           search={search}
           onSearchChange={setSearch}
-          displayCount={Math.min(displayCount, result.total)}
+          page={page}
+          pageSize={PAGE_SIZE}
           total={result.total}
           t={tl}
         />
@@ -322,10 +326,11 @@ export default function LogsPage() {
 
           <div className="flex-1 min-w-0">
             <LogList
-              logs={filteredLogs}
+              logs={result.logs}
               total={result.total}
-              displayCount={displayCount}
-              onLoadMore={handleLoadMore}
+              page={page}
+              pageSize={PAGE_SIZE}
+              onPageChange={handlePageChange}
               onSelectEntry={handleSelectEntry}
               selectedIdx={selectedIdx}
               searchHighlight={search || undefined}

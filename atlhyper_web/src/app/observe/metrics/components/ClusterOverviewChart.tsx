@@ -107,6 +107,23 @@ interface MetricChartProps {
   timeWindow: TimeWindow;
 }
 
+/** Minimum data points for an interval to be auto-selected */
+const MIN_AUTO_POINTS = 3;
+
+/** Pick the largest interval that yields >= MIN_AUTO_POINTS from the data span */
+function pickAdaptiveInterval(
+  dataSpanMs: number,
+  intervals: { label: string; seconds: number }[],
+): number {
+  // Iterate from largest to smallest
+  for (let i = intervals.length - 1; i >= 0; i--) {
+    if (dataSpanMs / (intervals[i].seconds * 1000) >= MIN_AUTO_POINTS) {
+      return intervals[i].seconds;
+    }
+  }
+  return intervals[0].seconds; // fallback: smallest
+}
+
 const MetricChart = memo(function MetricChart({
   title,
   unit,
@@ -121,14 +138,43 @@ const MetricChart = memo(function MetricChart({
   const chartInstance = useRef<echarts.ECharts | null>(null);
 
   const availableIntervals = INTERVALS_BY_WINDOW[timeWindow];
-  const [intervalSec, setIntervalSec] = useState<Interval>(300);
+  const [intervalSec, setIntervalSec] = useState<Interval>(60);
+  /** Whether the user manually picked an interval (skip auto) */
+  const manualRef = useRef(false);
 
-  // Reset interval when window changes — prefer 5m if available
+  const handleIntervalClick = useCallback((sec: number) => {
+    manualRef.current = true;
+    setIntervalSec(sec);
+  }, []);
+
+  // Reset to auto mode when time window changes
   useEffect(() => {
-    const opts = INTERVALS_BY_WINDOW[timeWindow];
-    const prefer = opts.find((o) => o.seconds === 300);
-    setIntervalSec(prefer ? prefer.seconds : opts[0].seconds);
+    manualRef.current = false;
   }, [timeWindow]);
+
+  // Adaptive interval: auto-select based on actual data span
+  useEffect(() => {
+    if (manualRef.current) return;
+    const opts = INTERVALS_BY_WINDOW[timeWindow];
+    const now = Date.now();
+    const windowMs = TIME_WINDOWS.find((w) => w.key === timeWindow)!.hours * 3600000;
+
+    // Compute data span across all nodes for this metric
+    let minTs = Infinity;
+    let maxTs = -Infinity;
+    for (const name of nodeNames) {
+      const points = historyMap[name]?.[metricKey];
+      if (!points?.length) continue;
+      for (const p of points) {
+        const ts = new Date(p.timestamp).getTime();
+        if (ts < now - windowMs) continue;
+        if (ts < minTs) minTs = ts;
+        if (ts > maxTs) maxTs = ts;
+      }
+    }
+    const span = maxTs > minTs ? maxTs - minTs : 0;
+    setIntervalSec(pickAdaptiveInterval(span, opts));
+  }, [timeWindow, historyMap, nodeNames, metricKey]);
 
   // Init ECharts
   useEffect(() => {
@@ -267,7 +313,7 @@ const MetricChart = memo(function MetricChart({
           {availableIntervals.map((opt) => (
             <button
               key={opt.seconds}
-              onClick={() => setIntervalSec(opt.seconds)}
+              onClick={() => handleIntervalClick(opt.seconds)}
               className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
                 intervalSec === opt.seconds
                   ? "bg-indigo-500/20 text-indigo-500 font-medium"
