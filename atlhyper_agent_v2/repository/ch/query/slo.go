@@ -144,7 +144,7 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 		if method != "" {
 			d.methods[method] += cnt
 		}
-		if len(code) > 0 && (code[0] == '4' || code[0] == '5') {
+		if len(code) > 0 && code[0] == '5' {
 			d.totalErrors += cnt
 		}
 	}
@@ -640,7 +640,7 @@ func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket 
 			continue
 		}
 		d.totalReqs += cnt
-		if len(code) > 0 && (code[0] == '4' || code[0] == '5') {
+		if len(code) > 0 && code[0] == '5' {
 			d.totalErrors += cnt
 		}
 	}
