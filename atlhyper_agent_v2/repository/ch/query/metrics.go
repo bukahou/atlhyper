@@ -974,3 +974,231 @@ func isCounterMetric(metric string) bool {
 	return counterMetrics[metric]
 }
 
+// GetNodeMetricsHistory 获取节点历史时序（按指标分组: cpu/memory/disk/temp）
+//
+// 时间粒度自动调整:
+//   - ≤6h  → 1min  (最多 360 点)
+//   - ≤24h → 5min  (最多 288 点)
+//   - >24h → 15min
+func (r *metricsRepository) GetNodeMetricsHistory(ctx context.Context, nodeName string, since time.Duration) (map[string][]metrics.Point, error) {
+	ip, err := r.resolveNodeIP(ctx, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
+	sec := sinceSeconds(since)
+
+	// 自动调整采样粒度
+	intervalSec := 60 // 默认 1 分钟
+	if since > 24*time.Hour {
+		intervalSec = 900 // 15 分钟
+	} else if since > 6*time.Hour {
+		intervalSec = 300 // 5 分钟
+	}
+
+	result := map[string][]metrics.Point{
+		"cpu":    {},
+		"memory": {},
+		"disk":   {},
+		"temp":   {},
+	}
+
+	// 并行查询 4 个指标
+	type kv struct {
+		key    string
+		points []metrics.Point
+	}
+	ch := make(chan kv, 4)
+	var wg sync.WaitGroup
+	wg.Add(4)
+
+	go func() {
+		defer wg.Done()
+		pts, _ := r.queryCPUHistory(ctx, ip, sec, intervalSec)
+		ch <- kv{"cpu", pts}
+	}()
+	go func() {
+		defer wg.Done()
+		pts, _ := r.queryMemoryHistory(ctx, ip, sec, intervalSec)
+		ch <- kv{"memory", pts}
+	}()
+	go func() {
+		defer wg.Done()
+		pts, _ := r.queryDiskHistory(ctx, ip, sec, intervalSec)
+		ch <- kv{"disk", pts}
+	}()
+	go func() {
+		defer wg.Done()
+		pts, _ := r.queryTempHistory(ctx, ip, sec, intervalSec)
+		ch <- kv{"temp", pts}
+	}()
+
+	wg.Wait()
+	close(ch)
+
+	for item := range ch {
+		if item.points != nil {
+			result[item.key] = item.points
+		}
+	}
+
+	return result, nil
+}
+
+// queryCPUHistory 查询 CPU 使用率历史
+//
+// CPU 是 counter 类型 (node_cpu_seconds_total)，按 mode 分组后计算:
+//   cpu_usage_pct = (1 - idle_delta / total_delta) * 100
+func (r *metricsRepository) queryCPUHistory(ctx context.Context, ip string, sinceSec int64, intervalSec int) ([]metrics.Point, error) {
+	query := fmt.Sprintf(`
+		SELECT ts, 1 - sumIf(delta, mode = 'idle') / sum(delta) AS cpu_pct
+		FROM (
+			SELECT Attributes['mode'] AS mode,
+			       toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
+			       max(Value) - min(Value) AS delta
+			FROM otel_metrics_sum
+			WHERE MetricName = 'node_cpu_seconds_total'
+			  AND ResourceAttributes['net.host.name'] = ?
+			  AND TimeUnix >= now() - INTERVAL %d SECOND
+			GROUP BY mode, Attributes['cpu'], ts
+			HAVING delta > 0
+		)
+		GROUP BY ts
+		HAVING sum(delta) > 0
+		ORDER BY ts
+	`, intervalSec, sinceSec)
+
+	rows, err := r.client.Query(ctx, query, ip)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []metrics.Point
+	for rows.Next() {
+		var p metrics.Point
+		if err := rows.Scan(&p.Timestamp, &p.Value); err != nil {
+			continue
+		}
+		p.Value = roundTo(clamp(p.Value*100, 0, 100), 2)
+		points = append(points, p)
+	}
+	if points == nil {
+		points = []metrics.Point{}
+	}
+	return points, rows.Err()
+}
+
+// queryMemoryHistory 查询内存使用率历史
+//
+// Gauge 类型: usage = (1 - available / total) * 100
+func (r *metricsRepository) queryMemoryHistory(ctx context.Context, ip string, sinceSec int64, intervalSec int) ([]metrics.Point, error) {
+	query := fmt.Sprintf(`
+		SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
+		       (1 - avgIf(Value, MetricName = 'node_memory_MemAvailable_bytes') /
+		            avgIf(Value, MetricName = 'node_memory_MemTotal_bytes')) * 100 AS mem_pct
+		FROM otel_metrics_gauge
+		WHERE MetricName IN ('node_memory_MemTotal_bytes', 'node_memory_MemAvailable_bytes')
+		  AND ResourceAttributes['net.host.name'] = ?
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		GROUP BY ts
+		HAVING avgIf(Value, MetricName = 'node_memory_MemTotal_bytes') > 0
+		ORDER BY ts
+	`, intervalSec, sinceSec)
+
+	rows, err := r.client.Query(ctx, query, ip)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []metrics.Point
+	for rows.Next() {
+		var p metrics.Point
+		if err := rows.Scan(&p.Timestamp, &p.Value); err != nil {
+			continue
+		}
+		p.Value = roundTo(clamp(p.Value, 0, 100), 2)
+		points = append(points, p)
+	}
+	if points == nil {
+		points = []metrics.Point{}
+	}
+	return points, rows.Err()
+}
+
+// queryDiskHistory 查询磁盘使用率历史（根分区 /）
+//
+// Gauge 类型: usage = (1 - avail / total) * 100
+func (r *metricsRepository) queryDiskHistory(ctx context.Context, ip string, sinceSec int64, intervalSec int) ([]metrics.Point, error) {
+	query := fmt.Sprintf(`
+		SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
+		       (1 - avgIf(Value, MetricName = 'node_filesystem_avail_bytes') /
+		            avgIf(Value, MetricName = 'node_filesystem_size_bytes')) * 100 AS disk_pct
+		FROM otel_metrics_gauge
+		WHERE MetricName IN ('node_filesystem_size_bytes', 'node_filesystem_avail_bytes')
+		  AND ResourceAttributes['net.host.name'] = ?
+		  AND Attributes['mountpoint'] = '/'
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		GROUP BY ts
+		HAVING avgIf(Value, MetricName = 'node_filesystem_size_bytes') > 0
+		ORDER BY ts
+	`, intervalSec, sinceSec)
+
+	rows, err := r.client.Query(ctx, query, ip)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []metrics.Point
+	for rows.Next() {
+		var p metrics.Point
+		if err := rows.Scan(&p.Timestamp, &p.Value); err != nil {
+			continue
+		}
+		p.Value = roundTo(clamp(p.Value, 0, 100), 2)
+		points = append(points, p)
+	}
+	if points == nil {
+		points = []metrics.Point{}
+	}
+	return points, rows.Err()
+}
+
+// queryTempHistory 查询 CPU 温度历史
+//
+// Gauge 类型: 取每个时间桶内最大传感器温度
+func (r *metricsRepository) queryTempHistory(ctx context.Context, ip string, sinceSec int64, intervalSec int) ([]metrics.Point, error) {
+	query := fmt.Sprintf(`
+		SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
+		       max(Value) AS temp_c
+		FROM otel_metrics_gauge
+		WHERE MetricName = 'node_hwmon_temp_celsius'
+		  AND ResourceAttributes['net.host.name'] = ?
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		GROUP BY ts
+		ORDER BY ts
+	`, intervalSec, sinceSec)
+
+	rows, err := r.client.Query(ctx, query, ip)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []metrics.Point
+	for rows.Next() {
+		var p metrics.Point
+		if err := rows.Scan(&p.Timestamp, &p.Value); err != nil {
+			continue
+		}
+		p.Value = roundTo(p.Value, 1)
+		points = append(points, p)
+	}
+	if points == nil {
+		points = []metrics.Point{}
+	}
+	return points, rows.Err()
+}
+

@@ -1,6 +1,9 @@
 // Package handler Gateway HTTP 处理器
 //
 // node_metrics.go - 节点指标 API 处理器
+//
+// 数据源: OTelSnapshot（内存直读）+ Ring Buffer / Concentrator / Command(CH)
+// 替代原 SQLite node_metrics_latest/node_metrics_history 表
 package handler
 
 import (
@@ -10,21 +13,34 @@ import (
 	"strings"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/model/convert"
+	"AtlHyper/atlhyper_master_v2/mq"
+	"AtlHyper/atlhyper_master_v2/service"
+	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/command"
 )
 
 // NodeMetricsHandler 节点指标处理器
+//
+// 依赖:
+//   - querySvc: OTelSnapshot 读取（实时指标 + Ring Buffer + Concentrator）
+//   - ops: Command 发送（>60min 历史查询 → Agent → ClickHouse）
+//   - bus: 等待 Command 结果
 type NodeMetricsHandler struct {
-	metricsRepo database.NodeMetricsRepository
+	querySvc service.Query
+	ops      service.Ops
+	bus      mq.Producer
 }
 
 // NewNodeMetricsHandler 创建节点指标处理器
-func NewNodeMetricsHandler(metricsRepo database.NodeMetricsRepository) *NodeMetricsHandler {
+func NewNodeMetricsHandler(querySvc service.Query, ops service.Ops, bus mq.Producer) *NodeMetricsHandler {
 	return &NodeMetricsHandler{
-		metricsRepo: metricsRepo,
+		querySvc: querySvc,
+		ops:      ops,
+		bus:      bus,
 	}
 }
 
@@ -60,6 +76,8 @@ func (h *NodeMetricsHandler) Route(w http.ResponseWriter, r *http.Request) {
 
 // List 获取集群所有节点指标
 // GET /api/v2/node-metrics?cluster_id=xxx
+//
+// 数据源: OTelSnapshot.NodeMetrics（内存快照）→ convert → API 模型
 func (h *NodeMetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -72,25 +90,28 @@ func (h *NodeMetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取所有节点实时数据
-	latestList, err := h.metricsRepo.ListLatest(r.Context(), clusterID)
+	// 从内存快照读取节点指标
+	snapshot, err := h.querySvc.GetSnapshot(r.Context(), clusterID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if snapshot == nil || snapshot.NodeMetrics == nil {
+		writeJSON(w, http.StatusOK, model.ClusterNodeMetricsResponse{
+			Summary: model.ClusterMetricsSummary{},
+			Nodes:   []model.NodeMetricsSnapshot{},
+		})
+		return
+	}
 
-	// 解析 JSON 并构建响应
-	nodes := make([]*model_v2.NodeMetricsSnapshot, 0, len(latestList))
-	for _, latest := range latestList {
-		var snapshot model_v2.NodeMetricsSnapshot
-		if err := json.Unmarshal([]byte(latest.SnapshotJSON), &snapshot); err != nil {
-			continue
-		}
-		nodes = append(nodes, &snapshot)
+	// 构建节点列表
+	nodes := make([]*model_v2.NodeMetricsSnapshot, 0, len(snapshot.NodeMetrics))
+	for _, metrics := range snapshot.NodeMetrics {
+		nodes = append(nodes, metrics)
 	}
 
 	// 计算汇总统计并转换为 API 响应
-	summary := h.calculateSummary(nodes)
+	summary := calculateSummary(nodes)
 
 	writeJSON(w, http.StatusOK, model.ClusterNodeMetricsResponse{
 		Summary: convert.ClusterMetricsSummary(summary),
@@ -99,6 +120,8 @@ func (h *NodeMetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDetail 获取单节点详情
+//
+// 数据源: OTelSnapshot.NodeMetrics[nodeName]
 func (h *NodeMetricsHandler) getDetail(w http.ResponseWriter, r *http.Request, nodeName string) {
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
@@ -106,26 +129,31 @@ func (h *NodeMetricsHandler) getDetail(w http.ResponseWriter, r *http.Request, n
 		return
 	}
 
-	latest, err := h.metricsRepo.GetLatest(r.Context(), clusterID, nodeName)
+	snapshot, err := h.querySvc.GetSnapshot(r.Context(), clusterID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if latest == nil {
+	if snapshot == nil || snapshot.NodeMetrics == nil {
 		writeError(w, http.StatusNotFound, "node metrics not found")
 		return
 	}
 
-	var snapshot model_v2.NodeMetricsSnapshot
-	if err := json.Unmarshal([]byte(latest.SnapshotJSON), &snapshot); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to parse snapshot")
+	metrics, ok := snapshot.NodeMetrics[nodeName]
+	if !ok || metrics == nil {
+		writeError(w, http.StatusNotFound, "node metrics not found")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, convert.NodeMetricsSnapshot(&snapshot))
+	writeJSON(w, http.StatusOK, convert.NodeMetricsSnapshot(metrics))
 }
 
 // getHistory 获取节点历史数据
+//
+// 3 层路由:
+//   - ≤15min: Ring Buffer（10s 精度）
+//   - ≤60min: Concentrator 预聚合（1min 精度）
+//   - >60min: Command → Agent → ClickHouse
 func (h *NodeMetricsHandler) getHistory(w http.ResponseWriter, r *http.Request, nodeName string) {
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
@@ -141,43 +169,111 @@ func (h *NodeMetricsHandler) getHistory(w http.ResponseWriter, r *http.Request, 
 		}
 	}
 
+	minutes := hours * 60
 	end := time.Now()
 	start := end.Add(-time.Duration(hours) * time.Hour)
 
-	history, err := h.metricsRepo.GetHistory(r.Context(), clusterID, nodeName, start, end)
+	// 层 1: Ring Buffer（≤15min）— 10s 精度
+	if minutes <= 15 {
+		since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+		entries, err := h.querySvc.GetOTelTimeline(r.Context(), clusterID, since)
+		if err == nil && len(entries) > 0 {
+			data := buildNodeHistoryFromTimeline(entries, nodeName)
+			if hasData(data) {
+				writeJSON(w, http.StatusOK, model.NodeMetricsHistoryResponse{
+					NodeName: nodeName,
+					Start:    start,
+					End:      end,
+					Data:     data,
+				})
+				return
+			}
+		}
+	}
+
+	// 层 2: Concentrator 预聚合（≤60min）— 1min 精度
+	if minutes <= 60 {
+		otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+		if err == nil && otel != nil && otel.NodeMetricsSeries != nil {
+			for _, ns := range otel.NodeMetricsSeries {
+				if ns.NodeName == nodeName {
+					points := filterNodePointsByMinutes(ns.Points, minutes)
+					data := buildNodeHistoryFromConcentrator(points)
+					writeJSON(w, http.StatusOK, model.NodeMetricsHistoryResponse{
+						NodeName: nodeName,
+						Start:    start,
+						End:      end,
+						Data:     data,
+					})
+					return
+				}
+			}
+		}
+	}
+
+	// 层 3: Command → Agent → ClickHouse（>60min）
+	h.getHistoryFromCH(w, r, clusterID, nodeName, start, end, hours)
+}
+
+// getHistoryFromCH 通过 Command 管道从 ClickHouse 获取历史数据
+func (h *NodeMetricsHandler) getHistoryFromCH(w http.ResponseWriter, r *http.Request, clusterID, nodeName string, start, end time.Time, hours int) {
+	params := map[string]interface{}{
+		"sub_action": "get_history",
+		"node_name":  nodeName,
+		"since":      (time.Duration(hours) * time.Hour).String(),
+	}
+
+	// 创建指令
+	resp, err := h.ops.CreateCommand(&operations.CreateCommandRequest{
+		ClusterID: clusterID,
+		Action:    command.ActionQueryMetrics,
+		Params:    params,
+		Source:    "web",
+	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "创建查询指令失败: "+err.Error())
 		return
 	}
 
-	// 转换为 API 响应
-	dataPoints := make([]model_v2.MetricsDataPoint, 0, len(history))
-	for _, h := range history {
-		dataPoints = append(dataPoints, model_v2.MetricsDataPoint{
-			Timestamp:   h.Timestamp,
-			NodeName:    h.NodeName,
-			CPUUsage:    h.CPUUsage,
-			MemoryUsage: h.MemoryUsage,
-			DiskUsage:   h.DiskUsage,
-			DiskIORead:  h.DiskIORead,
-			DiskIOWrite: h.DiskIOWrite,
-			NetworkRx:   h.NetworkRx,
-			NetworkTx:   h.NetworkTx,
-			CPUTemp:     h.CPUTemp,
-			Load1:       h.Load1,
+	// 等待结果（30s 超时）
+	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
+	if err != nil || result == nil {
+		writeError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
+		return
+	}
+
+	if !result.Success {
+		errMsg := result.Error
+		if errMsg == "" {
+			errMsg = "查询失败"
+		}
+		writeError(w, http.StatusInternalServerError, errMsg)
+		return
+	}
+
+	// 透传 Agent 返回的 JSON
+	var data map[string][]model.TimeSeriesPoint
+	if err := json.Unmarshal([]byte(result.Output), &data); err != nil {
+		// 直接透传原始 JSON
+		writeJSON(w, http.StatusOK, model.NodeMetricsHistoryResponse{
+			NodeName: nodeName,
+			Start:    start,
+			End:      end,
+			Data:     map[string][]model.TimeSeriesPoint{},
 		})
+		return
 	}
 
 	writeJSON(w, http.StatusOK, model.NodeMetricsHistoryResponse{
 		NodeName: nodeName,
 		Start:    start,
 		End:      end,
-		Data:     convert.MetricsDataPoints(dataPoints),
+		Data:     data,
 	})
 }
 
 // calculateSummary 计算集群汇总统计
-func (h *NodeMetricsHandler) calculateSummary(nodes []*model_v2.NodeMetricsSnapshot) model_v2.ClusterMetricsSummary {
+func calculateSummary(nodes []*model_v2.NodeMetricsSnapshot) model_v2.ClusterMetricsSummary {
 	summary := model_v2.ClusterMetricsSummary{
 		TotalNodes:  len(nodes),
 		OnlineNodes: len(nodes),
@@ -257,4 +353,66 @@ func (h *NodeMetricsHandler) calculateSummary(nodes []*model_v2.NodeMetricsSnaps
 	}
 
 	return summary
+}
+
+// ==================== 历史数据构建辅助函数 ====================
+
+// buildNodeHistoryFromTimeline 从 Ring Buffer 时间线构建历史数据
+func buildNodeHistoryFromTimeline(entries []cluster.OTelEntry, nodeName string) map[string][]model.TimeSeriesPoint {
+	data := map[string][]model.TimeSeriesPoint{
+		"cpu":    {},
+		"memory": {},
+		"disk":   {},
+		"temp":   {},
+	}
+
+	for _, e := range entries {
+		if e.Snapshot == nil || e.Snapshot.MetricsNodes == nil {
+			continue
+		}
+		for _, node := range e.Snapshot.MetricsNodes {
+			if node.NodeName == nodeName {
+				ts := e.Timestamp.UTC().Format(time.RFC3339)
+				data["cpu"] = append(data["cpu"], model.TimeSeriesPoint{Timestamp: ts, Value: node.CPU.UsagePct})
+				data["memory"] = append(data["memory"], model.TimeSeriesPoint{Timestamp: ts, Value: node.Memory.UsagePct})
+				if d := node.GetPrimaryDisk(); d != nil {
+					data["disk"] = append(data["disk"], model.TimeSeriesPoint{Timestamp: ts, Value: d.UsagePct})
+				}
+				data["temp"] = append(data["temp"], model.TimeSeriesPoint{Timestamp: ts, Value: node.Temperature.CPUTempC})
+				break
+			}
+		}
+	}
+
+	return data
+}
+
+// buildNodeHistoryFromConcentrator 从 Concentrator 预聚合时序构建历史数据
+func buildNodeHistoryFromConcentrator(points []cluster.NodeMetricsPoint) map[string][]model.TimeSeriesPoint {
+	data := map[string][]model.TimeSeriesPoint{
+		"cpu":    make([]model.TimeSeriesPoint, 0, len(points)),
+		"memory": make([]model.TimeSeriesPoint, 0, len(points)),
+		"disk":   make([]model.TimeSeriesPoint, 0, len(points)),
+		"temp":   make([]model.TimeSeriesPoint, 0, len(points)),
+	}
+
+	for _, p := range points {
+		ts := p.Timestamp.UTC().Format(time.RFC3339)
+		data["cpu"] = append(data["cpu"], model.TimeSeriesPoint{Timestamp: ts, Value: p.CPUPct})
+		data["memory"] = append(data["memory"], model.TimeSeriesPoint{Timestamp: ts, Value: p.MemPct})
+		data["disk"] = append(data["disk"], model.TimeSeriesPoint{Timestamp: ts, Value: p.DiskPct})
+		data["temp"] = append(data["temp"], model.TimeSeriesPoint{Timestamp: ts, Value: p.CPUTempC})
+	}
+
+	return data
+}
+
+// hasData 检查历史数据是否有内容
+func hasData(data map[string][]model.TimeSeriesPoint) bool {
+	for _, points := range data {
+		if len(points) > 0 {
+			return true
+		}
+	}
+	return false
 }

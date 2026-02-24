@@ -13,11 +13,18 @@ type ClusterNodeMetricsResponse struct {
 }
 
 // NodeMetricsHistoryResponse 节点历史数据响应
+// Data 按指标分组: { "cpu": [...], "memory": [...], "disk": [...], "temp": [...] }
 type NodeMetricsHistoryResponse struct {
-	NodeName string             `json:"nodeName"`
-	Start    time.Time          `json:"start"`
-	End      time.Time          `json:"end"`
-	Data     []MetricsDataPoint `json:"data"`
+	NodeName string                       `json:"nodeName"`
+	Start    time.Time                    `json:"start"`
+	End      time.Time                    `json:"end"`
+	Data     map[string][]TimeSeriesPoint `json:"data"`
+}
+
+// TimeSeriesPoint 时序数据点（对齐前端 Point 类型）
+type TimeSeriesPoint struct {
+	Timestamp string  `json:"timestamp"` // ISO 8601
+	Value     float64 `json:"value"`
 }
 
 // ==================== 节点指标快照 ====================
@@ -179,17 +186,6 @@ type NTPMetrics struct {
 type SoftnetMetrics struct {
 	Dropped  int64 `json:"dropped"`
 	Squeezed int64 `json:"squeezed"`
-}
-
-// ==================== 历史数据 ====================
-
-// MetricsDataPoint 历史数据点
-type MetricsDataPoint struct {
-	Timestamp   int64   `json:"timestamp"` // Unix 毫秒
-	CPUUsage    float64 `json:"cpuUsage"`
-	MemUsage    float64 `json:"memUsage"`
-	DiskUsage   float64 `json:"diskUsage"`
-	Temperature float64 `json:"temperature"`
 }
 
 // ==================== 集群汇总 ====================

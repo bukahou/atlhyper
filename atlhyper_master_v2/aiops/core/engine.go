@@ -17,6 +17,8 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
+	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/slo"
 )
 
 var log = logger.Module("AIOps")
@@ -24,15 +26,14 @@ var log = logger.Module("AIOps")
 // engine AIOps 引擎实现
 // 同时实现 statemachine.TransitionCallback 接口
 type engine struct {
-	store          datahub.Store
-	corr           *correlator.Correlator
-	stateManager   *baseline.StateManager
-	scorer         *risk.Scorer
-	sm             *statemachine.StateMachine
-	incidentStore  *incident.Store
-	graphRepo      database.AIOpsGraphRepository
-	sloServiceRepo database.SLOServiceRepository
-	sloRepo        database.SLORepository
+	store         datahub.Store
+	corr          *correlator.Correlator
+	stateManager  *baseline.StateManager
+	scorer        *risk.Scorer
+	sm            *statemachine.StateMachine
+	incidentStore *incident.Store
+	graphRepo     database.AIOpsGraphRepository
+	sloRepo       database.SLORepository
 
 	// 异常结果缓存（供风险详情查询）
 	anomalyCache map[string][]*aiops.AnomalyResult // clusterID -> anomalies
@@ -66,8 +67,15 @@ func (e *engine) OnSnapshot(clusterID string) {
 		}
 	}()
 
+	// 获取最新 OTelSnapshot（SLO 指标来源）
+	var otel *cluster.OTelSnapshot
+	timeline, _ := e.store.GetOTelTimeline(clusterID, time.Now().Add(-30*time.Second))
+	if len(timeline) > 0 {
+		otel = timeline[len(timeline)-1].Snapshot
+	}
+
 	// 2. 提取指标并进行基线检测（路径 A: EMA+3σ）
-	points := baseline.ExtractMetrics(clusterID, snap, e.sloServiceRepo, e.sloRepo)
+	points := baseline.ExtractMetrics(clusterID, snap, otel)
 	if len(points) == 0 {
 		return
 	}
@@ -410,7 +418,7 @@ func (e *engine) Stop() error {
 
 // ==================== 内部方法 ====================
 
-// buildSLOContext 从 SLO 仓库构建 SLO 上下文
+// buildSLOContext 从 OTelSnapshot 构建 SLO 上下文
 func (e *engine) buildSLOContext(clusterID string) *risk.SLOContext {
 	if e.sloRepo == nil {
 		return nil
@@ -424,29 +432,32 @@ func (e *engine) buildSLOContext(clusterID string) *risk.SLOContext {
 		return nil
 	}
 
-	now := time.Now()
+	// 获取最新 OTelSnapshot 中的 Ingress 数据
+	timeline, _ := e.store.GetOTelTimeline(clusterID, time.Now().Add(-30*time.Second))
+	if len(timeline) == 0 || timeline[len(timeline)-1].Snapshot == nil {
+		return nil
+	}
+	otel := timeline[len(timeline)-1].Snapshot
+	if len(otel.SLOIngress) == 0 {
+		return nil
+	}
+
+	// 建立 ServiceKey → IngressSLO 索引
+	ingressIndex := make(map[string]*slo.IngressSLO, len(otel.SLOIngress))
+	for i := range otel.SLOIngress {
+		ingressIndex[otel.SLOIngress[i].ServiceKey] = &otel.SLOIngress[i]
+	}
+
 	var maxBurnRate float64
-	var latestErrorRate, previousErrorRate float64
 	hasData := false
 
 	for _, t := range targets {
-		// 获取最近 10 分钟的原始指标
-		recent, err := e.sloRepo.GetRawMetrics(ctx, clusterID, t.Host, now.Add(-10*time.Minute), now)
-		if err != nil || len(recent) == 0 {
+		ing, ok := ingressIndex[t.Host]
+		if !ok {
 			continue
 		}
 
-		// 汇总最近指标
-		var totalReqs, errorReqs int64
-		for _, r := range recent {
-			totalReqs += r.TotalRequests
-			errorReqs += r.ErrorRequests
-		}
-		if totalReqs == 0 {
-			continue
-		}
-
-		actualErrorRate := float64(errorReqs) / float64(totalReqs)
+		actualErrorRate := ing.ErrorRate
 		errorBudget := 1.0 - t.AvailabilityTarget/100.0
 		if errorBudget <= 0 {
 			errorBudget = 0.001
@@ -456,39 +467,15 @@ func (e *engine) buildSLOContext(clusterID string) *risk.SLOContext {
 		if burnRate > maxBurnRate {
 			maxBurnRate = burnRate
 		}
-
-		if !hasData {
-			latestErrorRate = actualErrorRate
-			hasData = true
-		}
-
-		// 获取前一个 10 分钟窗口的数据计算增长率
-		prev, err := e.sloRepo.GetRawMetrics(ctx, clusterID, t.Host, now.Add(-20*time.Minute), now.Add(-10*time.Minute))
-		if err != nil || len(prev) == 0 {
-			continue
-		}
-		var prevTotal, prevError int64
-		for _, r := range prev {
-			prevTotal += r.TotalRequests
-			prevError += r.ErrorRequests
-		}
-		if prevTotal > 0 {
-			previousErrorRate = float64(prevError) / float64(prevTotal)
-		}
+		hasData = true
 	}
 
 	if !hasData {
 		return nil
 	}
 
-	var errorGrowthRate float64
-	if previousErrorRate > 0 {
-		errorGrowthRate = (latestErrorRate - previousErrorRate) / previousErrorRate
-	}
-
 	return &risk.SLOContext{
-		MaxBurnRate:     maxBurnRate,
-		ErrorGrowthRate: errorGrowthRate,
+		MaxBurnRate: maxBurnRate,
 	}
 }
 

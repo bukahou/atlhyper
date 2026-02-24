@@ -1,22 +1,20 @@
 // atlhyper_master_v2/aiops/baseline/extractor.go
-// 从 ClusterSnapshot 和 SLO 数据提取指标数据点
+// 从 ClusterSnapshot 和 OTelSnapshot 提取指标数据点
 package baseline
 
 import (
-	"context"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
-	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
-// ExtractMetrics 从快照和 SLO 数据中提取所有实体指标
+// ExtractMetrics 从快照和 OTelSnapshot 中提取所有实体指标
 func ExtractMetrics(
 	clusterID string,
 	snap *model_v2.ClusterSnapshot,
-	sloServiceRepo database.SLOServiceRepository,
-	sloRepo database.SLORepository,
+	otel *cluster.OTelSnapshot,
 ) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
 
@@ -26,14 +24,11 @@ func ExtractMetrics(
 	// 2. Pod 指标（从 K8s 快照）
 	points = append(points, extractPodMetrics(snap)...)
 
-	// 3. Service 指标（从 SLO Service Raw — 最近 5 分钟的聚合）
-	if sloServiceRepo != nil {
-		points = append(points, extractServiceMetrics(clusterID, snap, sloServiceRepo)...)
-	}
-
-	// 4. Ingress 指标（从 SLO Metrics Raw）
-	if sloRepo != nil {
-		points = append(points, extractIngressMetrics(clusterID, snap, sloRepo)...)
+	// 3. Service 指标（从 OTelSnapshot.SLOServices）
+	if otel != nil {
+		points = append(points, extractServiceMetrics(otel)...)
+		// 4. Ingress 指标（从 OTelSnapshot.SLOIngress）
+		points = append(points, extractIngressMetrics(otel)...)
 	}
 
 	return points
@@ -98,49 +93,18 @@ func extractPodMetrics(snap *model_v2.ClusterSnapshot) []aiops.MetricDataPoint {
 	return points
 }
 
-func extractServiceMetrics(clusterID string, snap *model_v2.ClusterSnapshot, sloServiceRepo database.SLOServiceRepository) []aiops.MetricDataPoint {
+func extractServiceMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
-	ctx := context.Background()
-	now := time.Now()
-	lookback := now.Add(-5 * time.Minute)
+	for _, svc := range otel.SLOServices {
+		key := aiops.EntityKey(svc.Namespace, "service", svc.Name)
 
-	for i := range snap.Services {
-		svc := &snap.Services[i]
-		key := aiops.EntityKey(svc.Summary.Namespace, "service", svc.Summary.Name)
-
-		raws, err := sloServiceRepo.GetServiceRaw(ctx, clusterID, svc.Summary.Namespace, svc.Summary.Name, lookback, now)
-		if err != nil || len(raws) == 0 {
-			continue
-		}
-
-		var totalReqs, errorReqs int64
-		var latencySum float64
-		var latencyCount int64
-		for _, r := range raws {
-			totalReqs += r.TotalRequests
-			errorReqs += r.ErrorRequests
-			latencySum += r.LatencySum
-			latencyCount += r.LatencyCount
-		}
-
-		if totalReqs > 0 {
-			errorRate := float64(errorReqs) / float64(totalReqs) * 100
-			points = append(points,
-				aiops.MetricDataPoint{EntityKey: key, MetricName: "error_rate", Value: errorRate},
-			)
-		}
-		if latencyCount > 0 {
-			avgLatency := latencySum / float64(latencyCount)
-			points = append(points,
-				aiops.MetricDataPoint{EntityKey: key, MetricName: "avg_latency", Value: avgLatency},
-			)
-		}
-		if totalReqs > 0 {
-			rps := float64(totalReqs) / 300.0 // 5 分钟平均 RPS
-			points = append(points,
-				aiops.MetricDataPoint{EntityKey: key, MetricName: "request_rate", Value: rps},
-			)
-		}
+		// SuccessRate 0-1 范围 → ErrorRate 0-100
+		errorRate := (1 - svc.SuccessRate) * 100
+		points = append(points,
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "error_rate", Value: errorRate},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "avg_latency", Value: svc.P90Ms},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "request_rate", Value: svc.RPS},
+		)
 	}
 	return points
 }
@@ -429,48 +393,16 @@ func deploymentImpactScore(ratio float64) float64 {
 	}
 }
 
-func extractIngressMetrics(clusterID string, snap *model_v2.ClusterSnapshot, sloRepo database.SLORepository) []aiops.MetricDataPoint {
+func extractIngressMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
-	ctx := context.Background()
-	now := time.Now()
-	lookback := now.Add(-5 * time.Minute)
+	for _, ing := range otel.SLOIngress {
+		key := aiops.EntityKey("_cluster", "ingress", ing.ServiceKey)
 
-	// 获取所有 hosts
-	hosts, err := sloRepo.GetAllHosts(ctx, clusterID)
-	if err != nil || len(hosts) == 0 {
-		return points
-	}
-
-	for _, host := range hosts {
-		key := aiops.EntityKey("_cluster", "ingress", host)
-
-		raws, err := sloRepo.GetRawMetrics(ctx, clusterID, host, lookback, now)
-		if err != nil || len(raws) == 0 {
-			continue
-		}
-
-		var totalReqs, errorReqs int64
-		var latencySum float64
-		var latencyCount int64
-		for _, r := range raws {
-			totalReqs += r.TotalRequests
-			errorReqs += r.ErrorRequests
-			latencySum += r.LatencySum
-			latencyCount += r.LatencyCount
-		}
-
-		if totalReqs > 0 {
-			errorRate := float64(errorReqs) / float64(totalReqs) * 100
-			points = append(points,
-				aiops.MetricDataPoint{EntityKey: key, MetricName: "error_rate", Value: errorRate},
-			)
-		}
-		if latencyCount > 0 {
-			avgLatency := latencySum / float64(latencyCount)
-			points = append(points,
-				aiops.MetricDataPoint{EntityKey: key, MetricName: "avg_latency", Value: avgLatency},
-			)
-		}
+		errorRate := ing.ErrorRate * 100
+		points = append(points,
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "error_rate", Value: errorRate},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "avg_latency", Value: ing.AvgMs},
+		)
 	}
 	return points
 }

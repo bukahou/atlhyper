@@ -259,39 +259,45 @@ func TestNodeMetricsSnapshot_EmptySlices(t *testing.T) {
 	}
 }
 
-// TestMetricsDataPoint_TimestampConversion 测试时间戳转换
-func TestMetricsDataPoint_TimestampConversion(t *testing.T) {
-	ts := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
-	src := model_v2.MetricsDataPoint{
-		Timestamp:   ts,
-		NodeName:    "node-1",
-		CPUUsage:    45.5,
-		MemoryUsage: 60.0,
-		DiskUsage:   40.0,
-		CPUTemp:     65.0,
+// TestMetricsHistoryGrouped 测试历史数据按指标分组
+func TestMetricsHistoryGrouped(t *testing.T) {
+	ts1 := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	ts2 := time.Date(2025, 1, 15, 10, 5, 0, 0, time.UTC)
+	src := []model_v2.MetricsDataPoint{
+		{Timestamp: ts1, CPUUsage: 45.5, MemoryUsage: 60.0, DiskUsage: 40.0, CPUTemp: 65.0},
+		{Timestamp: ts2, CPUUsage: 50.0, MemoryUsage: 70.0, DiskUsage: 45.0, CPUTemp: 68.0},
 	}
 
-	result := MetricsDataPoint(src)
+	result := MetricsHistoryGrouped(src)
 
-	// timestamp: time.Time → Unix 毫秒
-	expectedMs := ts.UnixMilli()
-	if result.Timestamp != expectedMs {
-		t.Errorf("Timestamp: got %d, want %d (Unix ms)", result.Timestamp, expectedMs)
+	// 必须包含 4 个指标键
+	for _, key := range []string{"cpu", "memory", "disk", "temp"} {
+		if _, ok := result[key]; !ok {
+			t.Fatalf("missing key %q", key)
+		}
+		if len(result[key]) != 2 {
+			t.Fatalf("%s: got %d points, want 2", key, len(result[key]))
+		}
 	}
 
-	// cpu_usage → cpuUsage
-	if result.CPUUsage != 45.5 {
-		t.Errorf("CPUUsage: got %f, want %f", result.CPUUsage, 45.5)
+	// 检查 timestamp 为 ISO 8601 格式
+	expectedTS1 := ts1.UTC().Format(time.RFC3339)
+	if result["cpu"][0].Timestamp != expectedTS1 {
+		t.Errorf("cpu[0].Timestamp: got %q, want %q", result["cpu"][0].Timestamp, expectedTS1)
 	}
 
-	// memory_usage → memUsage
-	if result.MemUsage != 60.0 {
-		t.Errorf("MemUsage: got %f, want %f", result.MemUsage, 60.0)
+	// 检查值
+	if result["cpu"][0].Value != 45.5 {
+		t.Errorf("cpu[0].Value: got %f, want 45.5", result["cpu"][0].Value)
 	}
-
-	// cpu_temp → temperature
-	if result.Temperature != 65.0 {
-		t.Errorf("Temperature: got %f, want %f (from CPUTemp)", result.Temperature, 65.0)
+	if result["memory"][1].Value != 70.0 {
+		t.Errorf("memory[1].Value: got %f, want 70.0", result["memory"][1].Value)
+	}
+	if result["disk"][0].Value != 40.0 {
+		t.Errorf("disk[0].Value: got %f, want 40.0", result["disk"][0].Value)
+	}
+	if result["temp"][1].Value != 68.0 {
+		t.Errorf("temp[1].Value: got %f, want 68.0", result["temp"][1].Value)
 	}
 }
 
@@ -359,23 +365,15 @@ func TestNodeMetricsSnapshots_Nil(t *testing.T) {
 	}
 }
 
-// TestMetricsDataPoints_Plural 测试批量数据点转换
-func TestMetricsDataPoints_Plural(t *testing.T) {
-	ts1 := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
-	ts2 := time.Date(2025, 1, 15, 10, 5, 0, 0, time.UTC)
-	src := []model_v2.MetricsDataPoint{
-		{Timestamp: ts1, CPUUsage: 40.0, MemoryUsage: 50.0, DiskUsage: 30.0, CPUTemp: 60.0},
-		{Timestamp: ts2, CPUUsage: 45.0, MemoryUsage: 55.0, DiskUsage: 35.0, CPUTemp: 65.0},
-	}
-
-	result := MetricsDataPoints(src)
-	if len(result) != 2 {
-		t.Fatalf("length: got %d, want 2", len(result))
-	}
-	if result[0].Timestamp != ts1.UnixMilli() {
-		t.Errorf("[0].Timestamp: got %d, want %d", result[0].Timestamp, ts1.UnixMilli())
-	}
-	if result[1].Temperature != 65.0 {
-		t.Errorf("[1].Temperature: got %f, want %f", result[1].Temperature, 65.0)
+// TestMetricsHistoryGrouped_Empty 测试空输入
+func TestMetricsHistoryGrouped_Empty(t *testing.T) {
+	result := MetricsHistoryGrouped(nil)
+	for _, key := range []string{"cpu", "memory", "disk", "temp"} {
+		if result[key] == nil {
+			t.Errorf("%s: should be non-nil empty slice", key)
+		}
+		if len(result[key]) != 0 {
+			t.Errorf("%s: got %d points, want 0", key, len(result[key]))
+		}
 	}
 }

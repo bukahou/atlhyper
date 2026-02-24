@@ -53,25 +53,21 @@ func NodeMetricsSnapshots(src []*model_v2.NodeMetricsSnapshot) []model.NodeMetri
 	return result
 }
 
-// MetricsDataPoint 转换历史数据点
-func MetricsDataPoint(src model_v2.MetricsDataPoint) model.MetricsDataPoint {
-	return model.MetricsDataPoint{
-		Timestamp:   src.Timestamp.UnixMilli(),
-		CPUUsage:    src.CPUUsage,
-		MemUsage:    src.MemoryUsage,
-		DiskUsage:   src.DiskUsage,
-		Temperature: src.CPUTemp,
+// MetricsHistoryGrouped 将扁平历史数据按指标分组
+// 输出: { "cpu": [...], "memory": [...], "disk": [...], "temp": [...] }
+func MetricsHistoryGrouped(src []model_v2.MetricsDataPoint) map[string][]model.TimeSeriesPoint {
+	result := map[string][]model.TimeSeriesPoint{
+		"cpu":    {},
+		"memory": {},
+		"disk":   {},
+		"temp":   {},
 	}
-}
-
-// MetricsDataPoints 批量转换历史数据点
-func MetricsDataPoints(src []model_v2.MetricsDataPoint) []model.MetricsDataPoint {
-	if src == nil {
-		return []model.MetricsDataPoint{}
-	}
-	result := make([]model.MetricsDataPoint, len(src))
-	for i, s := range src {
-		result[i] = MetricsDataPoint(s)
+	for _, pt := range src {
+		ts := pt.Timestamp.UTC().Format(time.RFC3339)
+		result["cpu"] = append(result["cpu"], model.TimeSeriesPoint{Timestamp: ts, Value: pt.CPUUsage})
+		result["memory"] = append(result["memory"], model.TimeSeriesPoint{Timestamp: ts, Value: pt.MemoryUsage})
+		result["disk"] = append(result["disk"], model.TimeSeriesPoint{Timestamp: ts, Value: pt.DiskUsage})
+		result["temp"] = append(result["temp"], model.TimeSeriesPoint{Timestamp: ts, Value: pt.CPUTemp})
 	}
 	return result
 }

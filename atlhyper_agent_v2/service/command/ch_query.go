@@ -101,6 +101,14 @@ func (s *commandService) handleQueryMetrics(ctx context.Context, cmd *command.Co
 		}
 		return s.metricsQueryRepo.GetNodeMetricsSeries(ctx, nodeName, metric, since)
 
+	case "get_history":
+		nodeName := getStringParam(cmd.Params, "node_name")
+		if nodeName == "" {
+			return nil, fmt.Errorf("node_name is required")
+		}
+		since := getDurationParam(cmd.Params, "since", 24*time.Hour)
+		return s.metricsQueryRepo.GetNodeMetricsHistory(ctx, nodeName, since)
+
 	case "get_summary", "":
 		return s.metricsQueryRepo.GetMetricsSummary(ctx)
 
