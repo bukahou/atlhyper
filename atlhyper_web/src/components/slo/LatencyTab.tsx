@@ -143,11 +143,7 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
           ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
           : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
     const prevLe = idx > 0 ? buckets[idx - 1].le : 0;
-    const rawWidth = right - left;
-    const cappedWidth = Math.min(Math.max(rawWidth, 0.5), 5);
-    const center = (left + right) / 2;
-    const barLeft = center - cappedWidth / 2;
-    return { ...b, prevLe, left: barLeft, width: cappedWidth, color };
+    return { ...b, prevLe, left, width: Math.max(right - left, 0.3), color };
   });
 
   return (
@@ -165,7 +161,7 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
         </div>
       </div>
 
-      <div className="px-4 pt-4 pb-10">
+      <div className="px-4 pt-4 pb-6">
         <div className="flex gap-2">
           {/* Y axis */}
           <div className="flex flex-col justify-between h-36 text-[9px] text-muted text-right w-8 flex-shrink-0">
@@ -209,7 +205,7 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
               return (
                 <div key={idx} className="absolute bottom-0 group z-10"
                   style={{ left: `${bar.left}%`, width: `${bar.width}%`, height: "100%" }}>
-                  <div className="h-full flex items-end px-[0.5px]">
+                  <div className="h-full flex items-end px-px">
                     <div className={`w-full rounded-t-sm transition-all duration-150 ${bar.color}`}
                       style={{ height: `${Math.max(hPct, 2)}%` }} />
                   </div>
