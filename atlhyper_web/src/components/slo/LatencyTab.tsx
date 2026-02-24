@@ -40,8 +40,8 @@ export function LatencyTab({ data, timeRange, t }: {
 
   return (
     <div className="flex flex-col lg:flex-row gap-4">
-      {/* Left: Histogram (60%) */}
-      <div className="lg:w-[60%] flex-shrink-0">
+      {/* Left: Histogram (60%) — flex 使卡片与右侧等高 */}
+      <div className="lg:w-[60%] flex-shrink-0 flex">
         <LatencyHistogram
           buckets={data.buckets}
           p50={data.p50LatencyMs}
@@ -143,11 +143,14 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
           ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
           : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
     const prevLe = idx > 0 ? buckets[idx - 1].le : 0;
-    return { ...b, prevLe, left, width: Math.max(right - left, 0.3), color };
+    // 固定窄宽度居中，不用桶的自然宽度（太粗）
+    const barW = 1.8;
+    const center = (left + right) / 2;
+    return { ...b, prevLe, left: center - barW / 2, width: barW, color };
   });
 
   return (
-    <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+    <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden h-full flex flex-col">
       <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <BarChart3 className="w-4 h-4 text-primary" />
@@ -161,17 +164,17 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
         </div>
       </div>
 
-      <div className="px-4 pt-4 pb-6">
-        <div className="flex gap-2">
+      <div className="px-4 pt-4 pb-6 flex-1 flex flex-col min-h-0">
+        <div className="flex gap-2 flex-1 min-h-[9rem]">
           {/* Y axis */}
-          <div className="flex flex-col justify-between h-36 text-[9px] text-muted text-right w-8 flex-shrink-0">
+          <div className="flex flex-col justify-between text-[9px] text-muted text-right w-8 flex-shrink-0">
             <span>{maxCount.toLocaleString()}</span>
             <span>{Math.round(maxCount / 2).toLocaleString()}</span>
             <span>0</span>
           </div>
 
           {/* Chart */}
-          <div className="relative h-36 flex-1">
+          <div className="relative flex-1">
             {/* Horizontal grid */}
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute top-0 left-0 right-0 border-t border-[var(--border-color)]" />
