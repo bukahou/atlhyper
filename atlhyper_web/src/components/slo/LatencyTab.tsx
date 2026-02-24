@@ -120,7 +120,9 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
   badgeLabel: string;
   t: LatencyTabTranslations;
 }) {
-  const active = buckets.filter(b => b.count > 0);
+  // 按 LE 升序排序（后端 map 遍历顺序不保证）
+  const sorted = [...buckets].sort((a, b) => a.le - b.le);
+  const active = sorted.filter(b => b.count > 0);
   if (active.length === 0) return null;
 
   const maxCount = Math.max(...active.map(b => b.count), 1);
@@ -131,8 +133,8 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
   // 过滤掉超出轴范围的桶，避免在不可见区域渲染
   const visibleBuckets = active.filter(b => b.le <= hi * 1.1);
   const bars = visibleBuckets.map((b, i) => {
-    const idx = buckets.indexOf(b);
-    const prev = idx > 0 ? buckets[idx - 1].le : lo;
+    const idx = sorted.indexOf(b);
+    const prev = idx > 0 ? sorted[idx - 1].le : lo;
     const left = logPos(prev, lo, hi);
     const right = logPos(b.le, lo, hi);
     const color = b.le > p99
@@ -142,7 +144,7 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
         : b.le > p50
           ? "bg-teal-400/80 hover:bg-teal-500 dark:bg-teal-500/70 dark:hover:bg-teal-400"
           : "bg-blue-400/80 hover:bg-blue-500 dark:bg-blue-500/70 dark:hover:bg-blue-400";
-    const prevLe = idx > 0 ? buckets[idx - 1].le : 0;
+    const prevLe = idx > 0 ? sorted[idx - 1].le : 0;
     // 固定窄宽度居中，不用桶的自然宽度（太粗）
     const barW = 1.8;
     const center = (left + right) / 2;

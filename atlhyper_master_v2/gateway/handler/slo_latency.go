@@ -4,6 +4,7 @@ package handler
 
 import (
 	"net/http"
+	"sort"
 
 	"AtlHyper/atlhyper_master_v2/model"
 	slomodel "AtlHyper/model_v3/slo"
@@ -127,22 +128,25 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 		avg = int(weightedAvg / float64(totalRequests))
 	}
 
-	// 构建状态码分布
+	// 构建状态码分布（按 code 升序）
 	for code, count := range statusMap {
 		if count > 0 {
 			statusCodes = append(statusCodes, model.StatusCodeBreakdown{Code: code, Count: count})
 		}
 	}
+	sort.Slice(statusCodes, func(i, j int) bool { return statusCodes[i].Code < statusCodes[j].Code })
 
-	// 构建延迟分布桶
+	// 构建延迟分布桶（按 LE 升序）
 	for le, count := range bucketMap {
 		buckets = append(buckets, model.LatencyBucket{LE: le, Count: count})
 	}
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].LE < buckets[j].LE })
 
-	// 构建方法分布
+	// 构建方法分布（按方法名排序）
 	for method, count := range methodMap {
 		methods = append(methods, model.MethodBreakdown{Method: method, Count: count})
 	}
+	sort.Slice(methods, func(i, j int) bool { return methods[i].Method < methods[j].Method })
 
 	resp := model.LatencyDistributionResponse{
 		Domain:        domain,
