@@ -623,6 +623,7 @@ func (r *sloRepository) ListIngressSLOPrevious(ctx context.Context, since time.D
 
 	type latencyData struct {
 		p50, p90, p95, p99 float64
+		buckets            []slo.LatencyBucket
 	}
 	latencyMap := make(map[string]*latencyData)
 
@@ -640,11 +641,65 @@ func (r *sloRepository) ListIngressSLOPrevious(ctx context.Context, since time.D
 				continue
 			}
 			seen[svcKey] = true
+
+			// 构建延迟分布桶（bounds 从秒→毫秒）
+			var buckets []slo.LatencyBucket
+			for i, b := range bounds {
+				var cnt int64
+				if i < len(counts) {
+					cnt = int64(counts[i])
+				}
+				buckets = append(buckets, slo.LatencyBucket{
+					LE:    roundTo(b*1000, 2),
+					Count: cnt,
+				})
+			}
+			if len(counts) > len(bounds) {
+				buckets = append(buckets, slo.LatencyBucket{
+					LE:    0,
+					Count: int64(counts[len(bounds)]),
+				})
+			}
+
 			latencyMap[svcKey] = &latencyData{
-				p50: roundTo(histogramPercentile(bounds, counts, 0.50)*1000, 2),
-				p90: roundTo(histogramPercentile(bounds, counts, 0.90)*1000, 2),
-				p95: roundTo(histogramPercentile(bounds, counts, 0.95)*1000, 2),
-				p99: roundTo(histogramPercentile(bounds, counts, 0.99)*1000, 2),
+				p50:     roundTo(histogramPercentile(bounds, counts, 0.50)*1000, 2),
+				p90:     roundTo(histogramPercentile(bounds, counts, 0.90)*1000, 2),
+				p95:     roundTo(histogramPercentile(bounds, counts, 0.95)*1000, 2),
+				p99:     roundTo(histogramPercentile(bounds, counts, 0.99)*1000, 2),
+				buckets: buckets,
+			}
+		}
+	}
+
+	// HTTP 方法分布查询（上一周期）
+	methodQuery := fmt.Sprintf(`
+		SELECT Attributes['service'] AS svc,
+		       Attributes['method'] AS method,
+		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) AS delta
+		FROM otel_metrics_sum
+		WHERE MetricName = 'traefik_service_requests_total'
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		  AND TimeUnix < now() - INTERVAL %d SECOND
+		GROUP BY svc, method
+		HAVING count() >= 2
+	`, 2*sec, sec)
+
+	methodMap := make(map[string][]slo.MethodCount)
+	methodRows, methodErr := r.client.Query(ctx, methodQuery)
+	if methodErr == nil && methodRows != nil {
+		defer methodRows.Close()
+		for methodRows.Next() {
+			var svcKey, method string
+			var delta float64
+			if err := methodRows.Scan(&svcKey, &method, &delta); err != nil {
+				continue
+			}
+			if method == "" {
+				continue
+			}
+			cnt := int64(delta)
+			if cnt > 0 {
+				methodMap[svcKey] = append(methodMap[svcKey], slo.MethodCount{Method: method, Count: cnt})
 			}
 		}
 	}
@@ -671,6 +726,10 @@ func (r *sloRepository) ListIngressSLOPrevious(ctx context.Context, since time.D
 			item.P90Ms = lat.p90
 			item.P95Ms = lat.p95
 			item.P99Ms = lat.p99
+			item.LatencyBuckets = lat.buckets
+		}
+		if methods, ok := methodMap[key]; ok {
+			item.Methods = methods
 		}
 		result = append(result, item)
 	}
