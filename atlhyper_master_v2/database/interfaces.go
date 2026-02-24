@@ -26,11 +26,9 @@ type DB struct {
 	AIProvider     AIProviderRepository
 	AIActive       AIActiveConfigRepository
 	AIModel        AIProviderModelRepository
-	SLO            SLORepository
-	SLOService     SLOServiceRepository
-	SLOEdge        SLOEdgeRepository
-	NodeMetrics    NodeMetricsRepository
-	AIOpsBaseline  AIOpsBaselineRepository
+	SLO SLORepository
+
+	AIOpsBaseline AIOpsBaselineRepository
 	AIOpsGraph     AIOpsGraphRepository
 	AIOpsIncident  AIOpsIncidentRepository
 
@@ -293,139 +291,6 @@ type AIProviderModel struct {
 
 // ==================== SLO 模型定义 ====================
 
-// SLOServiceRaw 服务网格原始数据（每次采集一行，保留 48h）
-type SLOServiceRaw struct {
-	ID                int64
-	ClusterID         string
-	Namespace         string
-	Name              string // workload name
-	Timestamp         time.Time
-	TotalRequests     int64
-	ErrorRequests     int64 // classification=failure
-	Status2xx         int64
-	Status3xx         int64
-	Status4xx         int64
-	Status5xx         int64
-	LatencySum        float64 // ms
-	LatencyCount      int64
-	LatencyBuckets    string // JSON: {"1":10, "5":50, ...}
-	TLSRequestDelta   int64
-	TotalRequestDelta int64
-}
-
-// SLOServiceHourly 服务网格小时聚合（保留 90d）
-type SLOServiceHourly struct {
-	ID             int64
-	ClusterID      string
-	Namespace      string
-	Name           string
-	HourStart      time.Time
-	TotalRequests  int64
-	ErrorRequests  int64
-	Availability   float64 // (total - error) / total * 100
-	P50LatencyMs   int
-	P95LatencyMs   int
-	P99LatencyMs   int
-	AvgLatencyMs   int
-	AvgRPS         float64
-	Status2xx      int64
-	Status3xx      int64
-	Status4xx      int64
-	Status5xx      int64
-	LatencyBuckets string  // JSON
-	MtlsPercent    float64 // tls / total * 100
-	SampleCount    int
-	CreatedAt      time.Time
-}
-
-// SLOEdgeRaw 拓扑边原始数据（每次采集一行，保留 48h）
-type SLOEdgeRaw struct {
-	ID           int64
-	ClusterID    string
-	SrcNamespace string
-	SrcName      string
-	DstNamespace string
-	DstName      string
-	Timestamp    time.Time
-	RequestDelta int64
-	FailureDelta int64
-	LatencySum   float64 // ms
-	LatencyCount int64
-}
-
-// SLOEdgeHourly 拓扑边小时聚合（保留 90d）
-type SLOEdgeHourly struct {
-	ID            int64
-	ClusterID     string
-	SrcNamespace  string
-	SrcName       string
-	DstNamespace  string
-	DstName       string
-	HourStart     time.Time
-	TotalRequests int64
-	ErrorRequests int64
-	AvgLatencyMs  int
-	AvgRPS        float64
-	ErrorRate     float64 // error / total * 100
-	SampleCount   int
-	CreatedAt     time.Time
-}
-
-// SLOMetricsRaw 入口原始增量数据（JSON bucket，保留 48h）
-type SLOMetricsRaw struct {
-	ID             int64
-	ClusterID      string
-	Host           string    // ServiceKey
-	Domain         string    // 域名（从 route_mapping 映射）
-	PathPrefix     string    // 路径前缀
-	Timestamp      time.Time
-	TotalRequests  int64
-	ErrorRequests  int64
-	LatencySum     float64 // ms
-	LatencyCount   int64
-	LatencyBuckets string  // JSON: {"100":10, "500":50, ...}
-	MethodGet      int64
-	MethodPost     int64
-	MethodPut      int64
-	MethodDelete   int64
-	MethodOther    int64
-	Status2xx      int64
-	Status3xx      int64
-	Status4xx      int64
-	Status5xx      int64
-	IsMissing      bool
-}
-
-// SLOMetricsHourly 入口小时聚合（JSON bucket，保留 90d）
-type SLOMetricsHourly struct {
-	ID             int64
-	ClusterID      string
-	Host           string
-	Domain         string
-	PathPrefix     string
-	HourStart      time.Time
-	TotalRequests  int64
-	ErrorRequests  int64
-	Availability   float64
-	P50LatencyMs   int
-	P95LatencyMs   int
-	P99LatencyMs   int
-	AvgLatencyMs   int
-	AvgRPS         float64
-	LatencyBuckets string // JSON
-	MethodGet      int64
-	MethodPost     int64
-	MethodPut      int64
-	MethodDelete   int64
-	MethodOther    int64
-	Status2xx      int64
-	Status3xx      int64
-	Status4xx      int64
-	Status5xx      int64
-	SampleCount    int
-	CreatedAt      time.Time
-}
-
 // SLOTarget SLO 目标配置
 type SLOTarget struct {
 	ID                 int64
@@ -440,31 +305,6 @@ type SLOTarget struct {
 	P95LatencyTarget   int
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-}
-
-// SLOStatusHistory SLO 状态变更历史
-type SLOStatusHistory struct {
-	ID                   int64
-	ClusterID            string
-	Host                 string
-	TimeRange            string
-	OldStatus            string // healthy / warning / critical
-	NewStatus            string
-	Availability         float64
-	P95Latency           int
-	ErrorBudgetRemaining float64
-	ChangedAt            time.Time
-}
-
-// SLOQueryOpts SLO 查询选项
-type SLOQueryOpts struct {
-	ClusterID string
-	Host      string
-	TimeRange string
-	Since     time.Time
-	Until     time.Time
-	Limit     int
-	Offset    int
 }
 
 // SLORouteMapping IngressRoute 到域名/路径的映射
@@ -486,47 +326,6 @@ type SLORouteMapping struct {
 
 // ==================== NodeMetrics 模型定义 ====================
 
-// NodeMetricsLatest 节点指标最新数据
-// 实时数据表，每个节点一条记录，覆盖式更新
-type NodeMetricsLatest struct {
-	ID            int64
-	ClusterID     string
-	NodeName      string
-	SnapshotJSON  string // 完整 NodeMetricsSnapshot JSON
-	CPUUsage      float64
-	MemoryUsage   float64
-	DiskUsage     float64
-	CPUTemp       float64
-	UpdatedAt     time.Time
-}
-
-// NodeMetricsHistory 节点指标历史数据
-// 趋势数据表，每 5 分钟采样一次，保留 30 天
-type NodeMetricsHistory struct {
-	ID          int64
-	ClusterID   string
-	NodeName    string
-	Timestamp   time.Time
-	CPUUsage    float64
-	MemoryUsage float64
-	DiskUsage   float64
-	DiskIORead  float64
-	DiskIOWrite float64
-	NetworkRx   float64
-	NetworkTx   float64
-	CPUTemp     float64
-	Load1       float64
-}
-
-// NodeMetricsQueryOpts 节点指标查询选项
-type NodeMetricsQueryOpts struct {
-	ClusterID string
-	NodeName  string
-	Since     time.Time
-	Until     time.Time
-	Limit     int
-	Offset    int
-}
 
 // ==================== Repository 接口 ====================
 
@@ -662,34 +461,14 @@ type AIProviderModelRepository interface {
 	GetDefaultModel(ctx context.Context, provider string) (*AIProviderModel, error)
 }
 
-// SLORepository SLO 入口指标数据访问接口
+// SLORepository SLO 配置与路由映射访问接口
+// 时序数据（raw/hourly）已迁移至 OTelSnapshot + ClickHouse
 type SLORepository interface {
-	// Raw Metrics (入口)
-	InsertRawMetrics(ctx context.Context, m *SLOMetricsRaw) error
-	GetRawMetrics(ctx context.Context, clusterID, host string, start, end time.Time) ([]*SLOMetricsRaw, error)
-	GetRawMetricsByDomain(ctx context.Context, clusterID, domain string, start, end time.Time) ([]*SLOMetricsRaw, error)
-	DeleteRawMetricsBefore(ctx context.Context, before time.Time) (int64, error)
-
-	// Hourly Metrics (入口)
-	UpsertHourlyMetrics(ctx context.Context, m *SLOMetricsHourly) error
-	GetHourlyMetrics(ctx context.Context, clusterID, host string, start, end time.Time) ([]*SLOMetricsHourly, error)
-	GetHourlyMetricsByDomain(ctx context.Context, clusterID, domain string, start, end time.Time) ([]*SLOMetricsHourly, error)
-	DeleteHourlyMetricsBefore(ctx context.Context, before time.Time) (int64, error)
-
 	// Targets
 	GetTargets(ctx context.Context, clusterID string) ([]*SLOTarget, error)
 	GetTargetsByHost(ctx context.Context, clusterID, host string) ([]*SLOTarget, error)
 	UpsertTarget(ctx context.Context, t *SLOTarget) error
 	DeleteTarget(ctx context.Context, clusterID, host, timeRange string) error
-
-	// Status History
-	InsertStatusHistory(ctx context.Context, h *SLOStatusHistory) error
-	GetStatusHistory(ctx context.Context, clusterID, host string, limit int) ([]*SLOStatusHistory, error)
-	DeleteStatusHistoryBefore(ctx context.Context, before time.Time) (int64, error)
-
-	// Domain List
-	GetAllHosts(ctx context.Context, clusterID string) ([]string, error)
-	GetAllClusterIDs(ctx context.Context) ([]string, error)
 
 	// Route Mapping
 	UpsertRouteMapping(ctx context.Context, m *SLORouteMapping) error
@@ -700,46 +479,6 @@ type SLORepository interface {
 	DeleteRouteMapping(ctx context.Context, clusterID, serviceKey string) error
 }
 
-// SLOServiceRepository 服务网格数据访问接口
-type SLOServiceRepository interface {
-	InsertServiceRaw(ctx context.Context, m *SLOServiceRaw) error
-	GetServiceRaw(ctx context.Context, clusterID, namespace, name string, start, end time.Time) ([]*SLOServiceRaw, error)
-	DeleteServiceRawBefore(ctx context.Context, before time.Time) (int64, error)
-
-	UpsertServiceHourly(ctx context.Context, m *SLOServiceHourly) error
-	GetServiceHourly(ctx context.Context, clusterID, namespace, name string, start, end time.Time) ([]*SLOServiceHourly, error)
-	DeleteServiceHourlyBefore(ctx context.Context, before time.Time) (int64, error)
-
-	CountDistinctServices(ctx context.Context, clusterID string, start, end time.Time) (int, error)
-}
-
-// SLOEdgeRepository 拓扑边数据访问接口
-type SLOEdgeRepository interface {
-	InsertEdgeRaw(ctx context.Context, m *SLOEdgeRaw) error
-	GetEdgeRaw(ctx context.Context, clusterID string, start, end time.Time) ([]*SLOEdgeRaw, error)
-	DeleteEdgeRawBefore(ctx context.Context, before time.Time) (int64, error)
-
-	UpsertEdgeHourly(ctx context.Context, m *SLOEdgeHourly) error
-	GetEdgeHourly(ctx context.Context, clusterID string, start, end time.Time) ([]*SLOEdgeHourly, error)
-	DeleteEdgeHourlyBefore(ctx context.Context, before time.Time) (int64, error)
-}
-
-// NodeMetricsRepository 节点指标数据访问接口
-type NodeMetricsRepository interface {
-	// 实时数据
-	UpsertLatest(ctx context.Context, m *NodeMetricsLatest) error
-	GetLatest(ctx context.Context, clusterID, nodeName string) (*NodeMetricsLatest, error)
-	ListLatest(ctx context.Context, clusterID string) ([]*NodeMetricsLatest, error)
-	DeleteLatest(ctx context.Context, clusterID, nodeName string) error
-
-	// 历史数据
-	InsertHistory(ctx context.Context, m *NodeMetricsHistory) error
-	GetHistory(ctx context.Context, clusterID, nodeName string, start, end time.Time) ([]*NodeMetricsHistory, error)
-	DeleteHistoryBefore(ctx context.Context, before time.Time) (int64, error)
-
-	// 统计
-	GetAllNodeNames(ctx context.Context, clusterID string) ([]string, error)
-}
 
 // ==================== Dialect 接口 ====================
 
@@ -760,9 +499,7 @@ type Dialect interface {
 	AIActiveConfig() AIActiveConfigDialect
 	AIProviderModel() AIProviderModelDialect
 	SLO() SLODialect
-	SLOService() SLOServiceDialect
-	SLOEdge() SLOEdgeDialect
-	NodeMetrics() NodeMetricsDialect
+
 	AIOpsBaseline() AIOpsBaselineDialect
 	AIOpsGraph() AIOpsGraphDialect
 	AIOpsIncident() AIOpsIncidentDialect
@@ -900,38 +637,15 @@ type AIProviderModelDialect interface {
 	ScanRow(rows *sql.Rows) (*AIProviderModel, error)
 }
 
-// SLODialect SLO 入口指标 SQL 方言
+// SLODialect SLO 配置与路由映射 SQL 方言
+// 时序数据（raw/hourly）已迁移至 OTelSnapshot + ClickHouse
 type SLODialect interface {
-	// Raw Metrics (入口)
-	InsertRawMetrics(m *SLOMetricsRaw) (query string, args []any)
-	SelectRawMetrics(clusterID, host string, start, end time.Time) (query string, args []any)
-	SelectRawMetricsByDomain(clusterID, domain string, start, end time.Time) (query string, args []any)
-	DeleteRawMetricsBefore(before time.Time) (query string, args []any)
-	ScanRawMetrics(rows *sql.Rows) (*SLOMetricsRaw, error)
-
-	// Hourly Metrics (入口)
-	UpsertHourlyMetrics(m *SLOMetricsHourly) (query string, args []any)
-	SelectHourlyMetrics(clusterID, host string, start, end time.Time) (query string, args []any)
-	SelectHourlyMetricsByDomain(clusterID, domain string, start, end time.Time) (query string, args []any)
-	DeleteHourlyMetricsBefore(before time.Time) (query string, args []any)
-	ScanHourlyMetrics(rows *sql.Rows) (*SLOMetricsHourly, error)
-
 	// Targets
 	SelectTargets(clusterID string) (query string, args []any)
 	SelectTargetsByHost(clusterID, host string) (query string, args []any)
 	UpsertTarget(t *SLOTarget) (query string, args []any)
 	DeleteTarget(clusterID, host, timeRange string) (query string, args []any)
 	ScanTarget(rows *sql.Rows) (*SLOTarget, error)
-
-	// Status History
-	InsertStatusHistory(h *SLOStatusHistory) (query string, args []any)
-	SelectStatusHistory(clusterID, host string, limit int) (query string, args []any)
-	DeleteStatusHistoryBefore(before time.Time) (query string, args []any)
-	ScanStatusHistory(rows *sql.Rows) (*SLOStatusHistory, error)
-
-	// Domain List
-	SelectAllHosts(clusterID string) (query string, args []any)
-	SelectAllClusterIDs() (query string, args []any)
 
 	// Route Mapping
 	UpsertRouteMapping(m *SLORouteMapping) (query string, args []any)
@@ -943,50 +657,6 @@ type SLODialect interface {
 	ScanRouteMapping(rows *sql.Rows) (*SLORouteMapping, error)
 }
 
-// SLOServiceDialect 服务网格 SQL 方言
-type SLOServiceDialect interface {
-	InsertServiceRaw(m *SLOServiceRaw) (query string, args []any)
-	SelectServiceRaw(clusterID, namespace, name string, start, end time.Time) (query string, args []any)
-	DeleteServiceRawBefore(before time.Time) (query string, args []any)
-	ScanServiceRaw(rows *sql.Rows) (*SLOServiceRaw, error)
-
-	UpsertServiceHourly(m *SLOServiceHourly) (query string, args []any)
-	SelectServiceHourly(clusterID, namespace, name string, start, end time.Time) (query string, args []any)
-	DeleteServiceHourlyBefore(before time.Time) (query string, args []any)
-	ScanServiceHourly(rows *sql.Rows) (*SLOServiceHourly, error)
-}
-
-// SLOEdgeDialect 拓扑边 SQL 方言
-type SLOEdgeDialect interface {
-	InsertEdgeRaw(m *SLOEdgeRaw) (query string, args []any)
-	SelectEdgeRaw(clusterID string, start, end time.Time) (query string, args []any)
-	DeleteEdgeRawBefore(before time.Time) (query string, args []any)
-	ScanEdgeRaw(rows *sql.Rows) (*SLOEdgeRaw, error)
-
-	UpsertEdgeHourly(m *SLOEdgeHourly) (query string, args []any)
-	SelectEdgeHourly(clusterID string, start, end time.Time) (query string, args []any)
-	DeleteEdgeHourlyBefore(before time.Time) (query string, args []any)
-	ScanEdgeHourly(rows *sql.Rows) (*SLOEdgeHourly, error)
-}
-
-// NodeMetricsDialect 节点指标 SQL 方言
-type NodeMetricsDialect interface {
-	// 实时数据
-	UpsertLatest(m *NodeMetricsLatest) (query string, args []any)
-	SelectLatest(clusterID, nodeName string) (query string, args []any)
-	SelectAllLatest(clusterID string) (query string, args []any)
-	DeleteLatest(clusterID, nodeName string) (query string, args []any)
-	ScanLatest(rows *sql.Rows) (*NodeMetricsLatest, error)
-
-	// 历史数据
-	InsertHistory(m *NodeMetricsHistory) (query string, args []any)
-	SelectHistory(clusterID, nodeName string, start, end time.Time) (query string, args []any)
-	DeleteHistoryBefore(before time.Time) (query string, args []any)
-	ScanHistory(rows *sql.Rows) (*NodeMetricsHistory, error)
-
-	// 统计
-	SelectAllNodeNames(clusterID string) (query string, args []any)
-}
 
 // ==================== AIOps 模型定义 ====================
 

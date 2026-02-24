@@ -62,15 +62,10 @@ type Master struct {
 	agentSDK     *agentsdk.Server
 	gateway      *gateway.Server
 	testerServer *tester.Server
-	eventPersist   *sync.EventPersistService
-	metricsPersist *sync.MetricsPersistService
-	alertManager   notifier.AlertManager
+	eventPersist *sync.EventPersistService
+	alertManager notifier.AlertManager
 	heartbeat    *trigger.HeartbeatTrigger
 	eventTrigger *trigger.EventTrigger
-	// SLO 组件（始终启用）
-	sloProcessor  *slo.Processor
-	sloAggregator *slo.Aggregator
-	sloCleaner    *slo.Cleaner
 	// AIOps 引擎
 	aiopsEngine aiops.Engine
 }
@@ -140,43 +135,19 @@ func New() (*Master, error) {
 	)
 	log.Info("事件持久化服务初始化完成")
 
-	// 4.1 初始化 MetricsPersistService
-	metricsPersist := sync.NewMetricsPersistService(
-		store,
-		db.NodeMetrics,
-		sync.MetricsPersistConfig{
-			SampleInterval:  config.GlobalConfig.MetricsPersist.SampleInterval,
-			RetentionDays:   config.GlobalConfig.MetricsPersist.RetentionDays,
-			CleanupInterval: config.GlobalConfig.MetricsPersist.CleanupInterval,
-		},
-	)
-	log.Info("节点指标持久化服务初始化完成")
-
-	// 4.2 初始化 SLO 组件（始终启用，无需配置开关）
-	sloProcessor := slo.NewProcessor(db.SLO, db.SLOService, db.SLOEdge)
-	sloAggregator := slo.NewAggregator(db.SLO, db.SLOService, db.SLOEdge, cfg.SLO.AggregateInterval)
-	sloCleaner := slo.NewCleaner(db.SLO, db.SLOService, db.SLOEdge, slo.CleanerConfig{
-		RawRetention:    cfg.SLO.RawRetention,
-		HourlyRetention: cfg.SLO.HourlyRetention,
-		StatusRetention: cfg.SLO.StatusRetention,
-		Interval:        cfg.SLO.CleanupInterval,
-	})
-	log.Info("SLO 组件初始化完成")
-
-	// 4.3 初始化 SLO 持久化服务
-	sloPersist := sync.NewSLOPersistService(store, sloProcessor)
-	log.Info("SLO 持久化服务初始化完成")
+	// 4.1 初始化 SLO 路由映射更新器（仅保留路由映射写入，时序数据已迁移至 OTelSnapshot + ClickHouse）
+	sloRouteUpdater := slo.NewRouteUpdater(db.SLO)
+	log.Info("SLO 路由映射更新器初始化完成")
 
 	// 4.4 初始化 AIOps 引擎
 	var aiopsEngine aiops.Engine
 	aiopsEngine = aiopscore.NewEngine(aiopscore.EngineConfig{
-		Store:          store,
-		GraphRepo:      db.AIOpsGraph,
-		BaselineRepo:   db.AIOpsBaseline,
-		IncidentRepo:   db.AIOpsIncident,
-		SLOServiceRepo: db.SLOService,
-		SLORepo:        db.SLO,
-		FlushInterval:  cfg.AIOps.FlushInterval,
+		Store:         store,
+		GraphRepo:     db.AIOpsGraph,
+		BaselineRepo:  db.AIOpsBaseline,
+		IncidentRepo:  db.AIOpsIncident,
+		SLORepo:       db.SLO,
+		FlushInterval: cfg.AIOps.FlushInterval,
 	})
 	log.Info("AIOps 引擎初始化完成")
 
@@ -188,13 +159,9 @@ func New() (*Master, error) {
 			if err := eventPersist.Sync(clusterID); err != nil {
 				log.Error("事件同步失败", "cluster", clusterID, "err", err)
 			}
-			// 同步节点指标到数据库
-			if err := metricsPersist.Sync(clusterID); err != nil {
-				log.Error("节点指标同步失败", "cluster", clusterID, "err", err)
-			}
-			// 同步 SLO 指标到数据库
-			if err := sloPersist.Sync(clusterID); err != nil {
-				log.Error("SLO 同步失败", "cluster", clusterID, "err", err)
+			// 更新 SLO 路由映射（时序数据已迁移，仅保留路由映射更新）
+			if err := sloRouteUpdater.Sync(store, clusterID); err != nil {
+				log.Error("SLO 路由映射更新失败", "cluster", clusterID, "err", err)
 			}
 			// AIOps 引擎处理
 			aiopsEngine.OnSnapshot(clusterID)
@@ -224,8 +191,8 @@ func New() (*Master, error) {
 	aiopsEnhancer := aiopsai.NewEnhancer(db.AIOpsIncident, llmFactory)
 	log.Info("AIOps AI 增强服务初始化完成")
 
-	// 6. 初始化 Query（读取路径，注入 SLO 仓库）
-	q := query.NewWithSLORepos(store, bus, db.Event, db.SLO, db.SLOService, db.SLOEdge)
+	// 6. 初始化 Query（读取路径）
+	q := query.NewWithEventRepo(store, bus, db.Event)
 	q.SetAIOpsEngine(aiopsEngine)
 	q.SetAIOpsAI(aiopsEnhancer)
 	log.Info("查询层初始化完成")
@@ -361,14 +328,10 @@ func New() (*Master, error) {
 		agentSDK:       agentServer,
 		gateway:        gw,
 		testerServer:   testerServer,
-		eventPersist:   eventPersist,
-		metricsPersist: metricsPersist,
-		alertManager:   alertMgr,
+		eventPersist: eventPersist,
+		alertManager: alertMgr,
 		heartbeat:      heartbeat,
 		eventTrigger:   eventTrigger,
-		sloProcessor:   sloProcessor,
-		sloAggregator:  sloAggregator,
-		sloCleaner:     sloCleaner,
 		aiopsEngine:    aiopsEngine,
 	}, nil
 }
@@ -388,11 +351,6 @@ func (m *Master) Run(ctx context.Context) error {
 	// 启动 EventPersistService
 	if err := m.eventPersist.Start(); err != nil {
 		return fmt.Errorf("failed to start event persist: %w", err)
-	}
-
-	// 启动 MetricsPersistService
-	if err := m.metricsPersist.Start(); err != nil {
-		return fmt.Errorf("failed to start metrics persist: %w", err)
 	}
 
 	// 启动 AlertManager
@@ -418,14 +376,6 @@ func (m *Master) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to start aiops engine: %w", err)
 		}
 	}
-
-	// 启动 SLO Aggregator
-	m.sloAggregator.Start()
-	log.Info("SLO 聚合器已启动")
-
-	// 启动 SLO Cleaner
-	m.sloCleaner.Start()
-	log.Info("SLO 清理器已启动")
 
 	// 启动 AgentSDK
 	if err := m.agentSDK.Start(); err != nil {
@@ -493,25 +443,12 @@ func (m *Master) Stop() error {
 		}
 	}
 
-	// 停止 SLO Cleaner
-	m.sloCleaner.Stop()
-	log.Info("SLO 清理器已停止")
-
-	// 停止 SLO Aggregator
-	m.sloAggregator.Stop()
-	log.Info("SLO 聚合器已停止")
-
 	// 停止 AlertManager
 	m.alertManager.Stop()
 
 	// 停止 EventPersistService
 	if err := m.eventPersist.Stop(); err != nil {
 		log.Error("停止事件持久化服务失败", "err", err)
-	}
-
-	// 停止 MetricsPersistService
-	if err := m.metricsPersist.Stop(); err != nil {
-		log.Error("停止节点指标持久化服务失败", "err", err)
 	}
 
 	// 停止 CommandBus

@@ -22,11 +22,9 @@ type Dialect struct {
 	aiProvider      *aiProviderDialect
 	aiActiveConfig  *aiActiveConfigDialect
 	aiProviderModel *aiProviderModelDialect
-	slo             *sloDialect
-	sloService      *sloServiceDialect
-	sloEdge         *sloEdgeDialect
-	nodeMetrics     *nodeMetricsDialect
-	aiopsBaseline   *aIOpsBaselineDialect
+	slo *sloDialect
+
+	aiopsBaseline *aIOpsBaselineDialect
 	aiopsGraph      *aIOpsGraphDialect
 	aiopsIncident   *aIOpsIncidentDialect
 }
@@ -46,11 +44,9 @@ func NewDialect() *Dialect {
 		aiProvider:      &aiProviderDialect{},
 		aiActiveConfig:  &aiActiveConfigDialect{},
 		aiProviderModel: &aiProviderModelDialect{},
-		slo:             &sloDialect{},
-		sloService:      &sloServiceDialect{},
-		sloEdge:         &sloEdgeDialect{},
-		nodeMetrics:     &nodeMetricsDialect{},
-		aiopsBaseline:   &aIOpsBaselineDialect{},
+		slo: &sloDialect{},
+
+		aiopsBaseline: &aIOpsBaselineDialect{},
 		aiopsGraph:      &aIOpsGraphDialect{},
 		aiopsIncident:   &aIOpsIncidentDialect{},
 	}
@@ -68,10 +64,8 @@ func (d *Dialect) AIMessage() database.AIMessageDialect           { return d.aiM
 func (d *Dialect) AIProvider() database.AIProviderDialect         { return d.aiProvider }
 func (d *Dialect) AIActiveConfig() database.AIActiveConfigDialect { return d.aiActiveConfig }
 func (d *Dialect) AIProviderModel() database.AIProviderModelDialect { return d.aiProviderModel }
-func (d *Dialect) SLO() database.SLODialect                         { return d.slo }
-func (d *Dialect) SLOService() database.SLOServiceDialect           { return d.sloService }
-func (d *Dialect) SLOEdge() database.SLOEdgeDialect                 { return d.sloEdge }
-func (d *Dialect) NodeMetrics() database.NodeMetricsDialect         { return d.nodeMetrics }
+func (d *Dialect) SLO() database.SLODialect { return d.slo }
+
 func (d *Dialect) AIOpsBaseline() database.AIOpsBaselineDialect     { return d.aiopsBaseline }
 func (d *Dialect) AIOpsGraph() database.AIOpsGraphDialect           { return d.aiopsGraph }
 func (d *Dialect) AIOpsIncident() database.AIOpsIncidentDialect     { return d.aiopsIncident }

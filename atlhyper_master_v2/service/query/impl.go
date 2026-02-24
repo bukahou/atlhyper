@@ -22,9 +22,6 @@ type QueryService struct {
 	store       datahub.Store
 	bus         mq.Producer
 	eventRepo   database.ClusterEventRepository
-	sloRepo     database.SLORepository
-	serviceRepo database.SLOServiceRepository
-	edgeRepo    database.SLOEdgeRepository
 	aiopsEngine aiops.Engine
 	aiopsAI     *aiopsai.Enhancer
 }
@@ -46,17 +43,6 @@ func NewWithEventRepo(store datahub.Store, bus mq.Producer, eventRepo database.C
 	}
 }
 
-// NewWithSLORepos 创建带 SLO 仓库的 QueryService 实例
-func NewWithSLORepos(store datahub.Store, bus mq.Producer, eventRepo database.ClusterEventRepository, sloRepo database.SLORepository, serviceRepo database.SLOServiceRepository, edgeRepo database.SLOEdgeRepository) *QueryService {
-	return &QueryService{
-		store:       store,
-		bus:         bus,
-		eventRepo:   eventRepo,
-		sloRepo:     sloRepo,
-		serviceRepo: serviceRepo,
-		edgeRepo:    edgeRepo,
-	}
-}
 
 // SetAIOpsEngine 注入 AIOps 引擎（可选）
 func (q *QueryService) SetAIOpsEngine(engine aiops.Engine) {

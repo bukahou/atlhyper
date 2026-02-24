@@ -37,9 +37,7 @@ func Init(db *database.DB, dialect database.Dialect) {
 	db.AIActive = newAIActiveConfigRepo(db.Conn, dialect.AIActiveConfig())
 	db.AIModel = newAIProviderModelRepo(db.Conn, dialect.AIProviderModel())
 	db.SLO = newSLORepo(db.Conn, dialect.SLO())
-	db.SLOService = newSLOServiceRepo(db.Conn, dialect.SLOService())
-	db.SLOEdge = newSLOEdgeRepo(db.Conn, dialect.SLOEdge())
-	db.NodeMetrics = newNodeMetricsRepo(db.Conn, dialect.NodeMetrics())
+
 	db.AIOpsBaseline = newAIOpsBaselineRepo(db.Conn, dialect.AIOpsBaseline())
 	db.AIOpsGraph = newAIOpsGraphRepo(db.Conn, dialect.AIOpsGraph())
 	db.AIOpsIncident = newAIOpsIncidentRepo(db.Conn, dialect.AIOpsIncident())
