@@ -150,7 +150,7 @@ function LatencyHistogram({ buckets, p50, p95, p99, badgeLabel, t }: {
   });
 
   return (
-    <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden h-full flex flex-col">
+    <div className="bg-card rounded-xl border border-[var(--border-color)] w-full h-full flex flex-col">
       <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <BarChart3 className="w-4 h-4 text-primary" />
