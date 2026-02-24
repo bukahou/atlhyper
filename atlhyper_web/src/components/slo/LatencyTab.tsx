@@ -318,7 +318,8 @@ function StatusCodeChart({ statusCodes, totalRequests, badgeLabel, t }: {
   badgeLabel: string;
   t: LatencyTabTranslations;
 }) {
-  const maxCount = Math.max(...statusCodes.map(s => s.count), 1);
+  const sorted = [...statusCodes].sort((a, b) => a.code.localeCompare(b.code));
+  const maxCount = Math.max(...sorted.map(s => s.count), 1);
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
@@ -331,7 +332,7 @@ function StatusCodeChart({ statusCodes, totalRequests, badgeLabel, t }: {
         </span>
       </div>
       <div className="p-4 space-y-2.5">
-        {statusCodes.map((s) => {
+        {sorted.map((s) => {
           const percent = totalRequests > 0 ? (s.count / totalRequests) * 100 : 0;
           const barWidth = (s.count / maxCount) * 100;
           const colors = getStatusColor(s.code);
