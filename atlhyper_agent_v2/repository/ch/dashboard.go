@@ -54,6 +54,14 @@ func (r *dashboardRepository) ListIngressSLO(ctx context.Context, since time.Dur
 	return r.slo.ListIngressSLO(ctx, since)
 }
 
+func (r *dashboardRepository) ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error) {
+	return r.slo.ListIngressSLOPrevious(ctx, since)
+}
+
+func (r *dashboardRepository) GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error) {
+	return r.slo.GetIngressSLOHistory(ctx, since, bucket)
+}
+
 func (r *dashboardRepository) ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error) {
 	return r.slo.ListServiceSLO(ctx, since)
 }

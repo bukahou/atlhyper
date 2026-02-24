@@ -23,6 +23,7 @@ import (
 	"AtlHyper/atlhyper_agent_v2/service"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/slo"
 )
 
 var log = logger.Module("Snapshot")
@@ -65,8 +66,17 @@ type snapshotService struct {
 	otelDashboardCache    *dashboardCacheData
 	otelDashboardCacheTime time.Time
 
+	// SLO 多窗口缓存（TTL 按窗口大小递增）
+	sloWindowCaches map[string]*sloWindowCache
+
 	// Concentrator 预聚合时序（可选）
 	conc *concentrator.Concentrator
+}
+
+// sloWindowCache SLO 窗口数据缓存
+type sloWindowCache struct {
+	data      *slo.SLOWindowData
+	fetchedAt time.Time
 }
 
 // dashboardCacheData Dashboard 列表数据缓存
@@ -897,5 +907,89 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 		snapshot.APMTimeSeries = s.conc.FlushAPMSeries()
 	}
 
+	// 多窗口 SLO 数据采集（带独立 TTL 缓存）
+	if s.dashboardRepo != nil {
+		snapshot.SLOWindows = s.collectSLOWindows(ctx, now)
+	}
+
 	return snapshot
+}
+
+// sloWindowConfig 窗口配置
+type sloWindowConfig struct {
+	key      string
+	since    time.Duration
+	bucket   time.Duration
+	cacheTTL time.Duration
+}
+
+// sloWindowConfigs 窗口配置列表
+var sloWindowConfigs = []sloWindowConfig{
+	{"1d", 24 * time.Hour, time.Hour, 5 * time.Minute},
+	{"7d", 7 * 24 * time.Hour, 6 * time.Hour, 30 * time.Minute},
+	{"30d", 30 * 24 * time.Hour, 24 * time.Hour, 2 * time.Hour},
+}
+
+// collectSLOWindows 采集多窗口 SLO 数据
+func (s *snapshotService) collectSLOWindows(ctx context.Context, now time.Time) map[string]*slo.SLOWindowData {
+	if s.sloWindowCaches == nil {
+		s.sloWindowCaches = make(map[string]*sloWindowCache)
+	}
+
+	result := make(map[string]*slo.SLOWindowData, len(sloWindowConfigs))
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for _, w := range sloWindowConfigs {
+		// 检查缓存
+		if cache, ok := s.sloWindowCaches[w.key]; ok && now.Sub(cache.fetchedAt) < w.cacheTTL {
+			mu.Lock()
+			result[w.key] = cache.data
+			mu.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		go func(wc sloWindowConfig) {
+			defer wg.Done()
+
+			current, err := s.dashboardRepo.ListIngressSLO(ctx, wc.since)
+			if err != nil {
+				log.Warn("SLO 窗口 current 查询失败", "window", wc.key, "err", err)
+				return
+			}
+
+			previous, err := s.dashboardRepo.ListIngressSLOPrevious(ctx, wc.since)
+			if err != nil {
+				log.Warn("SLO 窗口 previous 查询失败", "window", wc.key, "err", err)
+				// previous 失败不影响，继续
+			}
+
+			history, err := s.dashboardRepo.GetIngressSLOHistory(ctx, wc.since, wc.bucket)
+			if err != nil {
+				log.Warn("SLO 窗口 history 查询失败", "window", wc.key, "err", err)
+				// history 失败不影响，继续
+			}
+
+			data := &slo.SLOWindowData{
+				Current:  current,
+				Previous: previous,
+				History:  history,
+			}
+
+			// 更新缓存
+			s.sloWindowCaches[wc.key] = &sloWindowCache{data: data, fetchedAt: now}
+
+			mu.Lock()
+			result[wc.key] = data
+			mu.Unlock()
+		}(w)
+	}
+
+	wg.Wait()
+
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }

@@ -1,35 +1,37 @@
 // atlhyper_master_v2/gateway/handler/slo.go
-// SLO API Handler
+// SLO API Handler — OTelSnapshot 直读模式
+//
+// 所有时序数据从 OTelSnapshot 读取，不再依赖 SQLite 时序表。
+// SLORepository 仅用于 targets（目标配置）和 route_mapping（路由映射）。
 package handler
 
 import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/atlhyper_master_v2/slo"
 	"AtlHyper/common/logger"
+	slomodel "AtlHyper/model_v3/slo"
 )
 
 var sloLog = logger.Module("SLO-Handler")
 
 // SLOHandler SLO API Handler
 type SLOHandler struct {
-	repo        database.SLORepository
-	serviceRepo database.SLOServiceRepository
-	aggregator  *slo.Aggregator
+	querySvc service.Query
+	sloRepo  database.SLORepository
 }
 
 // NewSLOHandler 创建 SLOHandler
-func NewSLOHandler(repo database.SLORepository, serviceRepo database.SLOServiceRepository, aggregator *slo.Aggregator) *SLOHandler {
+func NewSLOHandler(querySvc service.Query, sloRepo database.SLORepository) *SLOHandler {
 	return &SLOHandler{
-		repo:        repo,
-		serviceRepo: serviceRepo,
-		aggregator:  aggregator,
+		querySvc: querySvc,
+		sloRepo:  sloRepo,
 	}
 }
 
@@ -44,13 +46,7 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		// 自动获取第一个有数据的集群
-		clusterIDs, err := h.repo.GetAllClusterIDs(r.Context())
-		if err == nil && len(clusterIDs) > 0 {
-			clusterID = clusterIDs[0]
-		} else {
-			clusterID = "default"
-		}
+		clusterID = h.defaultClusterID(r.Context())
 	}
 
 	timeRange := r.URL.Query().Get("time_range")
@@ -60,36 +56,38 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// 获取所有 hosts
-	hosts, err := h.repo.GetAllHosts(ctx, clusterID)
+	// 从 OTelSnapshot 获取当前 SLO 数据
+	otel, err := h.querySvc.GetOTelSnapshot(ctx, clusterID)
 	if err != nil {
-		sloLog.Error("获取 hosts 失败", "err", err)
+		sloLog.Error("获取 OTelSnapshot 失败", "err", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// 计算时间范围
-	now := time.Now()
-	start, end := getTimeRange(now, timeRange)
-	prevStart, prevEnd := getPreviousTimeRange(start, end)
-
-	// 获取所有目标配置
-	targets, err := h.repo.GetTargets(ctx, clusterID)
-	if err != nil {
-		sloLog.Error("获取 targets 失败", "err", err)
-	}
+	// 获取目标配置
+	targets, _ := h.sloRepo.GetTargets(ctx, clusterID)
 	targetMap := buildTargetMap(targets)
+
+	// 优先从 SLOWindows[timeRange] 获取数据
+	var ingressList []slomodel.IngressSLO
+	if otel != nil && otel.SLOWindows != nil {
+		if w, ok := otel.SLOWindows[timeRange]; ok {
+			ingressList = w.Current
+		}
+	}
+	if len(ingressList) == 0 && otel != nil {
+		ingressList = otel.SLOIngress
+	}
 
 	// 构建响应
 	var domains []model.DomainSLO
 	var totalAvail, totalBudget, totalRPS float64
 	var healthyCount, warningCount, criticalCount int
 
-	for _, host := range hosts {
-		domain := h.buildDomainSLO(ctx, clusterID, host, start, end, prevStart, prevEnd, timeRange, targetMap)
+	for _, ing := range ingressList {
+		domain := h.buildDomainFromIngress(ctx, clusterID, ing, timeRange, targetMap)
 		domains = append(domains, domain)
 
-		// 统计
 		if domain.Current != nil {
 			totalAvail += domain.Current.Availability
 			totalRPS += domain.Current.RequestsPerSec
@@ -106,11 +104,14 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 计算平均值
 	var avgAvail, avgBudget float64
 	if len(domains) > 0 {
 		avgAvail = totalAvail / float64(len(domains))
 		avgBudget = totalBudget / float64(len(domains))
+	}
+
+	if domains == nil {
+		domains = []model.DomainSLO{}
 	}
 
 	resp := model.SLODomainsResponse{
@@ -129,51 +130,28 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// buildDomainSLO 构建单个域名的 SLO 信息
-func (h *SLOHandler) buildDomainSLO(ctx context.Context, clusterID, host string, start, end, prevStart, prevEnd time.Time, timeRange string, targetMap map[string]map[string]*database.SLOTarget) model.DomainSLO {
+// buildDomainFromIngress 从 IngressSLO 构建 DomainSLO
+func (h *SLOHandler) buildDomainFromIngress(ctx context.Context, clusterID string, ing slomodel.IngressSLO, timeRange string, targetMap map[string]map[string]*database.SLOTarget) model.DomainSLO {
 	domain := model.DomainSLO{
-		Host:    host,
+		Host:    ing.ServiceKey,
 		Targets: make(map[string]*model.SLOTargetSpec),
 		Status:  "unknown",
 		Trend:   "stable",
 	}
 
-	// 获取元信息（从路由映射表）
-	mapping, _ := h.repo.GetRouteMappingByServiceKey(ctx, clusterID, host)
+	// 获取路由映射元信息
+	mapping, _ := h.sloRepo.GetRouteMappingByServiceKey(ctx, clusterID, ing.ServiceKey)
 	if mapping != nil {
 		domain.IngressName = mapping.IngressName
 		domain.Namespace = mapping.Namespace
 		domain.TLS = mapping.TLS
 	}
 
-	// 获取当前周期的 hourly 数据
-	hourlyMetrics, err := h.repo.GetHourlyMetrics(ctx, clusterID, host, start, end)
-	if err != nil {
-		sloLog.Error("获取 hourly 数据失败", "host", host, "err", err)
-	}
-
-	if len(hourlyMetrics) > 0 {
-		// 使用 hourly 数据
-		domain.Current = aggregateHourlyMetrics(hourlyMetrics)
-	} else {
-		// 回退到 raw 数据（hourly 还未聚合时）
-		rawMetrics, err := h.repo.GetRawMetrics(ctx, clusterID, host, start, end)
-		if err != nil {
-			sloLog.Error("获取 raw 数据失败", "host", host, "err", err)
-		}
-		if len(rawMetrics) > 0 {
-			domain.Current = aggregateRawMetrics(rawMetrics)
-		}
-	}
-
-	// 获取上一周期数据
-	prevHourlyMetrics, err := h.repo.GetHourlyMetrics(ctx, clusterID, host, prevStart, prevEnd)
-	if err == nil && len(prevHourlyMetrics) > 0 {
-		domain.Previous = aggregateHourlyMetrics(prevHourlyMetrics)
-	}
+	// 转换 IngressSLO → SLOMetrics
+	domain.Current = ingressToSLOMetrics(ing)
 
 	// 设置目标
-	if hostTargets, ok := targetMap[host]; ok {
+	if hostTargets, ok := targetMap[ing.ServiceKey]; ok {
 		for tr, t := range hostTargets {
 			domain.Targets[tr] = &model.SLOTargetSpec{
 				Availability: t.AvailabilityTarget,
@@ -181,8 +159,6 @@ func (h *SLOHandler) buildDomainSLO(ctx context.Context, clusterID, host string,
 			}
 		}
 	}
-
-	// 如果没有目标，使用默认值
 	if len(domain.Targets) == 0 {
 		domain.Targets["1d"] = &model.SLOTargetSpec{Availability: 95.0, P95Latency: 300}
 		domain.Targets["7d"] = &model.SLOTargetSpec{Availability: 96.0, P95Latency: 280}
@@ -199,11 +175,6 @@ func (h *SLOHandler) buildDomainSLO(ctx context.Context, clusterID, host string,
 			domain.Status = slo.DetermineStatus(domain.Current.Availability, target.Availability, domain.Current.P95Latency, target.P95Latency)
 			domain.ErrorBudget = slo.CalculateErrorBudgetRemaining(domain.Current.Availability, target.Availability)
 		}
-
-		// 计算趋势
-		if domain.Previous != nil {
-			domain.Trend = slo.CalculateTrend(domain.Current.Availability, domain.Previous.Availability)
-		}
 	}
 
 	return domain
@@ -212,7 +183,6 @@ func (h *SLOHandler) buildDomainSLO(ctx context.Context, clusterID, host string,
 // ==================== V2: 按真实域名分组 ====================
 
 // DomainsV2 GET /api/v2/slo/domains/v2
-// 按真实域名分组返回 SLO 数据（使用 IngressRoute 映射）
 func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -221,12 +191,7 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		clusterIDs, err := h.repo.GetAllClusterIDs(r.Context())
-		if err == nil && len(clusterIDs) > 0 {
-			clusterID = clusterIDs[0]
-		} else {
-			clusterID = "default"
-		}
+		clusterID = h.defaultClusterID(r.Context())
 	}
 
 	timeRange := r.URL.Query().Get("time_range")
@@ -236,33 +201,67 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// 从 OTelSnapshot 获取当前 SLO 数据
+	otel, err := h.querySvc.GetOTelSnapshot(ctx, clusterID)
+	if err != nil {
+		sloLog.Error("获取 OTelSnapshot 失败", "err", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// 优先从 SLOWindows[timeRange] 获取数据
+	var currentIngress, previousIngress []slomodel.IngressSLO
+	if otel != nil && otel.SLOWindows != nil {
+		if w, ok := otel.SLOWindows[timeRange]; ok {
+			currentIngress = w.Current
+			previousIngress = w.Previous
+		}
+	}
+	// 回退: 无窗口数据时使用 5min SLOIngress
+	if len(currentIngress) == 0 && otel != nil {
+		currentIngress = otel.SLOIngress
+	}
+
+	// 构建 ServiceKey → IngressSLO 映射
+	ingressMap := make(map[string]slomodel.IngressSLO)
+	for _, ing := range currentIngress {
+		ingressMap[ing.ServiceKey] = ing
+	}
+
+	// 构建上期映射
+	previousMap := make(map[string]slomodel.IngressSLO)
+	for _, ing := range previousIngress {
+		previousMap[ing.ServiceKey] = ing
+	}
+
 	// 获取所有真实域名
-	domains, err := h.repo.GetAllDomains(ctx, clusterID)
+	domainNames, err := h.sloRepo.GetAllDomains(ctx, clusterID)
 	if err != nil {
 		sloLog.Error("获取域名列表失败", "err", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// 计算时间范围
-	now := time.Now()
-	start, end := getTimeRange(now, timeRange)
-	prevStart, prevEnd := getPreviousTimeRange(start, end)
-
-	// 获取所有目标配置
-	targets, _ := h.repo.GetTargets(ctx, clusterID)
+	targets, _ := h.sloRepo.GetTargets(ctx, clusterID)
 	targetMap := buildTargetMap(targets)
 
-	// 构建响应
 	var domainResponses []model.DomainSLOResponseV2
+
+	if len(domainNames) == 0 && len(currentIngress) > 0 {
+		// 路由映射为空，回退到按 ServiceKey 分组（与 V1 Domains 一致）
+		for _, ing := range currentIngress {
+			prev := previousMap[ing.ServiceKey]
+			domainResponses = append(domainResponses, h.buildDomainSLOV2Fallback(ing, prev, timeRange, targetMap))
+		}
+	} else {
+		for _, domainName := range domainNames {
+			domainResponses = append(domainResponses, h.buildDomainSLOV2(ctx, clusterID, domainName, timeRange, targetMap, ingressMap, previousMap))
+		}
+	}
+
 	var totalAvail, totalBudget, totalRPS float64
 	var healthyCount, warningCount, criticalCount int
-
-	for _, domain := range domains {
-		domainResp := h.buildDomainSLOV2(ctx, clusterID, domain, start, end, prevStart, prevEnd, timeRange, targetMap)
-		domainResponses = append(domainResponses, domainResp)
-
-		// 统计
+	for _, domainResp := range domainResponses {
 		if domainResp.Summary != nil {
 			totalAvail += domainResp.Summary.Availability
 			totalRPS += domainResp.Summary.RequestsPerSec
@@ -279,17 +278,20 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 计算平均值
 	var avgAvail, avgBudget float64
 	if len(domainResponses) > 0 {
 		avgAvail = totalAvail / float64(len(domainResponses))
 		avgBudget = totalBudget / float64(len(domainResponses))
 	}
 
-	// 查询 Linkerd meshed 服务总数
+	// 服务网格服务总数（从 OTelSnapshot 直接获取）
 	var totalServices int
-	if h.serviceRepo != nil {
-		totalServices, _ = h.serviceRepo.CountDistinctServices(ctx, clusterID, start, end)
+	if otel != nil {
+		totalServices = len(otel.SLOServices)
+	}
+
+	if domainResponses == nil {
+		domainResponses = []model.DomainSLOResponseV2{}
 	}
 
 	resp := model.SLODomainsResponseV2{
@@ -310,15 +312,15 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildDomainSLOV2 构建单个域名的 V2 SLO 信息
-func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain string, start, end, prevStart, prevEnd time.Time, timeRange string, targetMap map[string]map[string]*database.SLOTarget) model.DomainSLOResponseV2 {
+func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, timeRange string, targetMap map[string]map[string]*database.SLOTarget, ingressMap, previousMap map[string]slomodel.IngressSLO) model.DomainSLOResponseV2 {
 	resp := model.DomainSLOResponseV2{
 		Domain: domain,
-		TLS:    true, // 默认启用
+		TLS:    true,
 		Status: "unknown",
 	}
 
 	// 获取该域名下的所有路由映射
-	mappings, err := h.repo.GetRouteMappingsByDomain(ctx, clusterID, domain)
+	mappings, err := h.sloRepo.GetRouteMappingsByDomain(ctx, clusterID, domain)
 	if err != nil {
 		sloLog.Error("获取路由映射失败", "domain", domain, "err", err)
 		return resp
@@ -328,61 +330,85 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 		resp.TLS = mappings[0].TLS
 	}
 
-	// 按 service_key 分组路由映射
-	// 因为 Traefik/nginx-ingress 的 metrics 是按 service 级别聚合的，
-	// 同一个 service 的多个路径应该合并到一个 ServiceSLO
+	// 按 service_key 分组
 	serviceKeyGroups := make(map[string][]*database.SLORouteMapping)
 	for _, mapping := range mappings {
 		serviceKeyGroups[mapping.ServiceKey] = append(serviceKeyGroups[mapping.ServiceKey], mapping)
 	}
 
-	// 用于汇总域名级别数据
+	// 汇总变量
 	var totalRequests, errorRequests int64
 	var totalRPS float64
 	var weightedP95Sum, weightedP99Sum float64
 	serviceCount := 0
 
-	// Previous 聚合变量
-	var prevTotalRequests, prevErrorRequests int64
-	var prevTotalRPS float64
-	var prevWeightedP95Sum, prevWeightedP99Sum float64
-	var prevServiceCount int
-
-	// 按 service_key 构建 ServiceSLO
 	for serviceKey, groupMappings := range serviceKeyGroups {
-		// 使用第一个映射作为基础
 		primaryMapping := groupMappings[0]
 
-		// 收集该 service 的所有路径
 		var paths []string
 		for _, m := range groupMappings {
 			paths = append(paths, m.PathPrefix)
 		}
 
-		// 构建 ServiceSLO
-		serviceSLO := h.buildServiceSLO(ctx, clusterID, serviceKey, primaryMapping, paths, start, end, prevStart, prevEnd, timeRange, targetMap)
-		resp.Services = append(resp.Services, serviceSLO)
+		// 从 OTelSnapshot 获取该 service 的指标
+		ing, hasData := ingressMap[serviceKey]
 
-		// 汇总数据（每个 service_key 只计算一次）
-		if serviceSLO.Current != nil {
-			totalRequests += serviceSLO.Current.TotalRequests
-			errorRequests += int64(serviceSLO.Current.ErrorRate * float64(serviceSLO.Current.TotalRequests) / 100)
-			totalRPS += serviceSLO.Current.RequestsPerSec
-			// 按请求量加权累加 P95/P99
-			weightedP95Sum += float64(serviceSLO.Current.P95Latency) * float64(serviceSLO.Current.TotalRequests)
-			weightedP99Sum += float64(serviceSLO.Current.P99Latency) * float64(serviceSLO.Current.TotalRequests)
+		serviceSLO := model.ServiceSLO{
+			ServiceKey:  serviceKey,
+			ServiceName: primaryMapping.ServiceName,
+			ServicePort: primaryMapping.ServicePort,
+			Namespace:   primaryMapping.Namespace,
+			Paths:       paths,
+			IngressName: primaryMapping.IngressName,
+			Targets:     make(map[string]*model.SLOTargetSpec),
+			Status:      "unknown",
+		}
+
+		if hasData {
+			serviceSLO.Current = ingressToSLOMetrics(ing)
+
+			// 上期数据
+			if prevIng, hasPrev := previousMap[serviceKey]; hasPrev {
+				serviceSLO.Previous = ingressToSLOMetrics(prevIng)
+			}
+
+			// 设置目标
+			if hostTargets, ok := targetMap[serviceKey]; ok {
+				for tr, t := range hostTargets {
+					serviceSLO.Targets[tr] = &model.SLOTargetSpec{
+						Availability: t.AvailabilityTarget,
+						P95Latency:   t.P95LatencyTarget,
+					}
+				}
+			}
+			if len(serviceSLO.Targets) == 0 {
+				serviceSLO.Targets["1d"] = &model.SLOTargetSpec{Availability: 95.0, P95Latency: 300}
+			}
+
+			// 计算状态
+			target := serviceSLO.Targets[timeRange]
+			if target == nil {
+				target = serviceSLO.Targets["1d"]
+			}
+			if target != nil {
+				serviceSLO.Status = slo.DetermineStatus(serviceSLO.Current.Availability, target.Availability, serviceSLO.Current.P95Latency, target.P95Latency)
+				serviceSLO.ErrorBudget = slo.CalculateErrorBudgetRemaining(serviceSLO.Current.Availability, target.Availability)
+			}
+
+			// 汇总
+			totalRequests += ing.TotalRequests
+			errorRequests += ing.TotalErrors
+			totalRPS += ing.RPS
+			p95 := ing.P95Ms
+			if p95 == 0 {
+				p95 = ing.P90Ms
+			}
+			weightedP95Sum += p95 * float64(ing.TotalRequests)
+			weightedP99Sum += ing.P99Ms * float64(ing.TotalRequests)
 			serviceCount++
 		}
 
-		// 汇总 Previous 数据
-		if serviceSLO.Previous != nil {
-			prevTotalRequests += serviceSLO.Previous.TotalRequests
-			prevErrorRequests += int64(serviceSLO.Previous.ErrorRate * float64(serviceSLO.Previous.TotalRequests) / 100)
-			prevTotalRPS += serviceSLO.Previous.RequestsPerSec
-			prevWeightedP95Sum += float64(serviceSLO.Previous.P95Latency) * float64(serviceSLO.Previous.TotalRequests)
-			prevWeightedP99Sum += float64(serviceSLO.Previous.P99Latency) * float64(serviceSLO.Previous.TotalRequests)
-			prevServiceCount++
-		}
+		resp.Services = append(resp.Services, serviceSLO)
 
 		// 统计最差状态
 		if serviceSLO.Status == "critical" && resp.Status != "critical" {
@@ -394,7 +420,7 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 		}
 	}
 
-	// 域名级别目标：使用 domain 自身的目标配置，回退到默认值
+	// 域名级别目标
 	if domainTargets, ok := targetMap[domain]; ok {
 		resp.Targets = make(map[string]*model.SLOTargetSpec)
 		for tr, t := range domainTargets {
@@ -410,7 +436,7 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 		}
 	}
 
-	// 计算域名级别汇总
+	// 域名级别汇总
 	if serviceCount > 0 {
 		var p95, p99 int
 		if totalRequests > 0 {
@@ -426,7 +452,6 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 			TotalRequests:  totalRequests,
 		}
 
-		// 使用当前时间范围的目标计算错误预算
 		target := resp.Targets[timeRange]
 		if target == nil {
 			target = resp.Targets["1d"]
@@ -438,107 +463,113 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain str
 		resp.ErrorBudgetRemaining = slo.CalculateErrorBudgetRemaining(resp.Summary.Availability, availTarget)
 	}
 
-	// 聚合 Previous
-	if prevServiceCount > 0 {
-		var prevP95, prevP99 int
-		if prevTotalRequests > 0 {
-			prevP95 = int(prevWeightedP95Sum / float64(prevTotalRequests))
-			prevP99 = int(prevWeightedP99Sum / float64(prevTotalRequests))
+	// 域名级别上期汇总
+	if len(previousMap) > 0 {
+		var prevTotal, prevErrors int64
+		var prevRPS, prevWP95, prevWP99 float64
+		for serviceKey := range serviceKeyGroups {
+			if prevIng, ok := previousMap[serviceKey]; ok {
+				prevTotal += prevIng.TotalRequests
+				prevErrors += prevIng.TotalErrors
+				prevRPS += prevIng.RPS
+				pp95 := prevIng.P95Ms
+				if pp95 == 0 {
+					pp95 = prevIng.P90Ms
+				}
+				prevWP95 += pp95 * float64(prevIng.TotalRequests)
+				prevWP99 += prevIng.P99Ms * float64(prevIng.TotalRequests)
+			}
 		}
-		resp.Previous = &model.SLOMetrics{
-			Availability:   slo.CalculateAvailability(prevTotalRequests, prevErrorRequests),
-			P95Latency:     prevP95,
-			P99Latency:     prevP99,
-			ErrorRate:      slo.CalculateErrorRate(prevTotalRequests, prevErrorRequests),
-			RequestsPerSec: prevTotalRPS,
-			TotalRequests:  prevTotalRequests,
+		if prevTotal > 0 {
+			var pp95, pp99 int
+			pp95 = int(prevWP95 / float64(prevTotal))
+			pp99 = int(prevWP99 / float64(prevTotal))
+			resp.Previous = &model.SLOMetrics{
+				Availability:   slo.CalculateAvailability(prevTotal, prevErrors),
+				P95Latency:     pp95,
+				P99Latency:     pp99,
+				ErrorRate:      slo.CalculateErrorRate(prevTotal, prevErrors),
+				RequestsPerSec: prevRPS,
+				TotalRequests:  prevTotal,
+			}
 		}
 	}
 
 	return resp
 }
 
-// buildServiceSLO 构建单个后端服务的 SLO 信息
-func (h *SLOHandler) buildServiceSLO(ctx context.Context, clusterID, serviceKey string, mapping *database.SLORouteMapping, paths []string, start, end, prevStart, prevEnd time.Time, timeRange string, targetMap map[string]map[string]*database.SLOTarget) model.ServiceSLO {
-	svc := model.ServiceSLO{
-		ServiceKey:  serviceKey,
-		ServiceName: mapping.ServiceName,
-		ServicePort: mapping.ServicePort,
-		Namespace:   mapping.Namespace,
-		Paths:       paths,
-		IngressName: mapping.IngressName,
+// buildDomainSLOV2Fallback 当路由映射为空时，从单个 IngressSLO 直接构建 V2 响应
+// 以 ServiceKey 作为域名，单个服务条目
+func (h *SLOHandler) buildDomainSLOV2Fallback(ing slomodel.IngressSLO, prevIng slomodel.IngressSLO, timeRange string, targetMap map[string]map[string]*database.SLOTarget) model.DomainSLOResponseV2 {
+	resp := model.DomainSLOResponseV2{
+		Domain: ing.ServiceKey,
+		TLS:    true,
+		Status: "unknown",
+	}
+
+	serviceSLO := model.ServiceSLO{
+		ServiceKey:  ing.ServiceKey,
+		ServiceName: ing.DisplayName,
 		Targets:     make(map[string]*model.SLOTargetSpec),
 		Status:      "unknown",
 	}
 
-	// 使用 service key (host) 查询指标数据
-	host := serviceKey
+	serviceSLO.Current = ingressToSLOMetrics(ing)
 
-	// 获取当前周期的 hourly 数据
-	hourlyMetrics, err := h.repo.GetHourlyMetrics(ctx, clusterID, host, start, end)
-	if err != nil {
-		sloLog.Debug("获取 hourly 数据失败", "host", host, "err", err)
-	}
-
-	if len(hourlyMetrics) > 0 {
-		svc.Current = aggregateHourlyMetrics(hourlyMetrics)
-	} else {
-		// 回退到 raw 数据
-		rawMetrics, err := h.repo.GetRawMetrics(ctx, clusterID, host, start, end)
-		if err != nil {
-			sloLog.Debug("获取 raw 数据失败", "host", host, "err", err)
-		}
-		if len(rawMetrics) > 0 {
-			svc.Current = aggregateRawMetrics(rawMetrics)
-		}
-	}
-
-	// 获取上一周期数据
-	prevHourlyMetrics, err := h.repo.GetHourlyMetrics(ctx, clusterID, host, prevStart, prevEnd)
-	if err == nil && len(prevHourlyMetrics) > 0 {
-		svc.Previous = aggregateHourlyMetrics(prevHourlyMetrics)
+	// 上期数据
+	if prevIng.TotalRequests > 0 {
+		serviceSLO.Previous = ingressToSLOMetrics(prevIng)
 	}
 
 	// 设置目标
-	if hostTargets, ok := targetMap[host]; ok {
+	if hostTargets, ok := targetMap[ing.ServiceKey]; ok {
 		for tr, t := range hostTargets {
-			svc.Targets[tr] = &model.SLOTargetSpec{
+			serviceSLO.Targets[tr] = &model.SLOTargetSpec{
 				Availability: t.AvailabilityTarget,
 				P95Latency:   t.P95LatencyTarget,
 			}
 		}
 	}
-
-	// 默认目标
-	if len(svc.Targets) == 0 {
-		svc.Targets["1d"] = &model.SLOTargetSpec{Availability: 95.0, P95Latency: 300}
+	if len(serviceSLO.Targets) == 0 {
+		serviceSLO.Targets["1d"] = &model.SLOTargetSpec{Availability: 95.0, P95Latency: 300}
 	}
 
 	// 计算状态
-	if svc.Current != nil {
-		target := svc.Targets[timeRange]
-		if target == nil {
-			target = svc.Targets["1d"]
-		}
-		if target != nil {
-			svc.Status = slo.DetermineStatus(svc.Current.Availability, target.Availability, svc.Current.P95Latency, target.P95Latency)
-			svc.ErrorBudget = slo.CalculateErrorBudgetRemaining(svc.Current.Availability, target.Availability)
-		}
+	target := serviceSLO.Targets[timeRange]
+	if target == nil {
+		target = serviceSLO.Targets["1d"]
+	}
+	if target != nil && serviceSLO.Current != nil {
+		serviceSLO.Status = slo.DetermineStatus(serviceSLO.Current.Availability, target.Availability, serviceSLO.Current.P95Latency, target.P95Latency)
+		serviceSLO.ErrorBudget = slo.CalculateErrorBudgetRemaining(serviceSLO.Current.Availability, target.Availability)
 	}
 
-	return svc
+	resp.Services = []model.ServiceSLO{serviceSLO}
+	resp.Status = serviceSLO.Status
+	resp.Summary = serviceSLO.Current
+	resp.Previous = serviceSLO.Previous
+	resp.Targets = serviceSLO.Targets
+
+	if serviceSLO.Current != nil {
+		availTarget := 95.0
+		if target != nil {
+			availTarget = target.Availability
+		}
+		resp.ErrorBudgetRemaining = slo.CalculateErrorBudgetRemaining(serviceSLO.Current.Availability, availTarget)
+	}
+
+	return resp
 }
 
 // ==================== 域名详情 ====================
 
-// DomainDetail GET /api/v2/slo/domains/:host
+// DomainDetail GET /api/v2/slo/domains/detail
 func (h *SLOHandler) DomainDetail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	// 从 URL 路径提取 host
 	host := r.URL.Query().Get("host")
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "host required")
@@ -556,21 +587,41 @@ func (h *SLOHandler) DomainDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	now := time.Now()
-	start, end := getTimeRange(now, timeRange)
-	prevStart, prevEnd := getPreviousTimeRange(start, end)
 
-	targets, _ := h.repo.GetTargets(ctx, clusterID)
+	otel, err := h.querySvc.GetOTelSnapshot(ctx, clusterID)
+	if err != nil {
+		sloLog.Error("获取 OTelSnapshot 失败", "err", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	targets, _ := h.sloRepo.GetTargets(ctx, clusterID)
 	targetMap := buildTargetMap(targets)
 
-	domain := h.buildDomainSLO(ctx, clusterID, host, start, end, prevStart, prevEnd, timeRange, targetMap)
+	// 查找匹配的 IngressSLO
+	if otel != nil {
+		for _, ing := range otel.SLOIngress {
+			if ing.ServiceKey == host {
+				domain := h.buildDomainFromIngress(ctx, clusterID, ing, timeRange, targetMap)
+				writeJSON(w, http.StatusOK, domain)
+				return
+			}
+		}
+	}
 
+	// 未找到，返回空数据
+	domain := model.DomainSLO{
+		Host:    host,
+		Targets: make(map[string]*model.SLOTargetSpec),
+		Status:  "unknown",
+		Trend:   "stable",
+	}
 	writeJSON(w, http.StatusOK, domain)
 }
 
 // ==================== 域名历史 ====================
 
-// DomainHistory GET /api/v2/slo/domains/:host/history
+// DomainHistory GET /api/v2/slo/domains/history
 func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -588,19 +639,18 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 		clusterID = "default"
 	}
 
+	ctx := r.Context()
+
+	// 加载 targets 用于计算 error budget
+	targets, _ := h.sloRepo.GetTargets(ctx, clusterID)
+	targetMap := buildTargetMap(targets)
+
 	timeRange := r.URL.Query().Get("time_range")
 	if timeRange == "" {
 		timeRange = "1d"
 	}
 
-	ctx := r.Context()
-	now := time.Now()
-	start, end := getTimeRange(now, timeRange)
-
-	// 加载 targets 用于计算 error budget
-	targets, _ := h.repo.GetTargets(ctx, clusterID)
-	targetMap := buildTargetMap(targets)
-	availTarget := 95.0 // 默认
+	availTarget := 95.0
 	if hostTargets, ok := targetMap[host]; ok {
 		if t, ok := hostTargets[timeRange]; ok {
 			availTarget = t.AvailabilityTarget
@@ -609,52 +659,64 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hourlyMetrics, err := h.repo.GetHourlyMetricsByDomain(ctx, clusterID, host, start, end)
-	if err != nil {
-		sloLog.Error("获取历史数据失败", "err", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
+	// 优先从 SLOWindows[timeRange].History 获取历史数据
 	var history []model.SLODomainHistoryItem
 
-	if len(hourlyMetrics) > 0 {
-		history = make([]model.SLODomainHistoryItem, 0, len(hourlyMetrics))
-		for _, m := range hourlyMetrics {
-			history = append(history, model.SLODomainHistoryItem{
-				Timestamp:    m.HourStart.Format(time.RFC3339),
-				Availability: m.Availability,
-				P95Latency:   m.P95LatencyMs,
-				P99Latency:   m.P99LatencyMs,
-				RPS:          m.AvgRPS,
-				ErrorRate:    slo.CalculateErrorRate(m.TotalRequests, m.ErrorRequests),
-				ErrorBudget:  slo.CalculateErrorBudgetRemaining(m.Availability, availTarget),
-			})
+	otel, err := h.querySvc.GetOTelSnapshot(ctx, clusterID)
+	if err != nil {
+		sloLog.Error("获取 OTelSnapshot 失败", "err", err)
+	}
+
+	windowHit := false
+	if otel != nil && otel.SLOWindows != nil {
+		if w, ok := otel.SLOWindows[timeRange]; ok && w.History != nil {
+			for _, p := range w.History {
+				if p.ServiceKey == host {
+					history = append(history, model.SLODomainHistoryItem{
+						Timestamp:    p.Timestamp.Format(time.RFC3339),
+						Availability: p.Availability,
+						P95Latency:   int(p.P95Ms),
+						P99Latency:   int(p.P99Ms),
+						RPS:          p.RPS,
+						ErrorRate:    p.ErrorRate,
+						ErrorBudget:  slo.CalculateErrorBudgetRemaining(p.Availability, availTarget),
+					})
+					windowHit = true
+				}
+			}
 		}
-	} else {
-		// hourly 无数据，回退 raw 按采样点聚合
-		rawMetrics, rawErr := h.repo.GetRawMetricsByDomain(ctx, clusterID, host, start, end)
-		if rawErr == nil && len(rawMetrics) > 0 {
-			history = make([]model.SLODomainHistoryItem, 0, len(rawMetrics))
-			for _, r := range rawMetrics {
-				var avgLatency int
-				if r.LatencyCount > 0 {
-					avgLatency = int(r.LatencySum / float64(r.LatencyCount))
+	}
+
+	// 回退: OTelTimeline ring buffer（≤15min，10s 精度）
+	if !windowHit {
+		since := time.Now().Add(-15 * time.Minute)
+		timeline, tlErr := h.querySvc.GetOTelTimeline(ctx, clusterID, since)
+		if tlErr != nil {
+			sloLog.Error("获取 OTelTimeline 失败", "err", tlErr)
+		}
+
+		for _, entry := range timeline {
+			if entry.Snapshot == nil {
+				continue
+			}
+			for _, ing := range entry.Snapshot.SLOIngress {
+				if ing.ServiceKey == host {
+					avail := ing.SuccessRate
+					p95 := int(ing.P95Ms)
+					if p95 == 0 {
+						p95 = int(ing.P90Ms)
+					}
+					history = append(history, model.SLODomainHistoryItem{
+						Timestamp:    entry.Timestamp.Format(time.RFC3339),
+						Availability: avail,
+						P95Latency:   p95,
+						P99Latency:   int(ing.P99Ms),
+						RPS:          ing.RPS,
+						ErrorRate:    ing.ErrorRate,
+						ErrorBudget:  slo.CalculateErrorBudgetRemaining(avail, availTarget),
+					})
+					break
 				}
-				var rpsVal float64
-				if r.TotalRequests > 0 {
-					rpsVal = float64(r.TotalRequests) / 10.0 // 10s 采样间隔
-				}
-				avail := slo.CalculateAvailability(r.TotalRequests, r.ErrorRequests)
-				history = append(history, model.SLODomainHistoryItem{
-					Timestamp:    r.Timestamp.Format(time.RFC3339),
-					Availability: avail,
-					P95Latency:   avgLatency, // raw 无精确 P95，用 avg 近似
-					P99Latency:   avgLatency,
-					RPS:          rpsVal,
-					ErrorRate:    slo.CalculateErrorRate(r.TotalRequests, r.ErrorRequests),
-					ErrorBudget:  slo.CalculateErrorBudgetRemaining(avail, availTarget),
-				})
 			}
 		}
 	}
@@ -674,7 +736,6 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 // ==================== 目标管理 ====================
 
 // Targets 处理 /api/v2/slo/targets
-// GET: 获取目标, PUT: 更新目标
 func (h *SLOHandler) Targets(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -686,21 +747,19 @@ func (h *SLOHandler) Targets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getTargets 获取目标配置
 func (h *SLOHandler) getTargets(w http.ResponseWriter, r *http.Request) {
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
 		clusterID = "default"
 	}
 
-	targets, err := h.repo.GetTargets(r.Context(), clusterID)
+	targets, err := h.sloRepo.GetTargets(r.Context(), clusterID)
 	if err != nil {
 		sloLog.Error("获取 targets 失败", "err", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// 转换为 camelCase 响应
 	resp := make([]model.SLOTargetResponse, 0, len(targets))
 	for _, t := range targets {
 		resp = append(resp, model.SLOTargetResponse{
@@ -717,7 +776,6 @@ func (h *SLOHandler) getTargets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// updateTarget 更新目标配置
 func (h *SLOHandler) updateTarget(w http.ResponseWriter, r *http.Request) {
 	var req model.UpdateSLOTargetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -745,7 +803,7 @@ func (h *SLOHandler) updateTarget(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:          now,
 	}
 
-	if err := h.repo.UpsertTarget(r.Context(), target); err != nil {
+	if err := h.sloRepo.UpsertTarget(r.Context(), target); err != nil {
 		sloLog.Error("更新 target 失败", "err", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -757,48 +815,42 @@ func (h *SLOHandler) updateTarget(w http.ResponseWriter, r *http.Request) {
 // ==================== 状态历史 ====================
 
 // StatusHistory GET /api/v2/slo/status-history
+// 状态历史不再写入 SQLite，返回空数组
 func (h *SLOHandler) StatusHistory(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
-	clusterID := r.URL.Query().Get("cluster_id")
-	if clusterID == "" {
-		clusterID = "default"
-	}
-
-	host := r.URL.Query().Get("host")
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if limit <= 0 {
-		limit = 50
-	}
-
-	history, err := h.repo.GetStatusHistory(r.Context(), clusterID, host, limit)
-	if err != nil {
-		sloLog.Error("获取状态历史失败", "err", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	items := make([]model.SLOStatusHistoryItem, 0, len(history))
-	for _, h := range history {
-		items = append(items, model.SLOStatusHistoryItem{
-			Host:                 h.Host,
-			TimeRange:            h.TimeRange,
-			OldStatus:            h.OldStatus,
-			NewStatus:            h.NewStatus,
-			Availability:         h.Availability,
-			P95Latency:           h.P95Latency,
-			ErrorBudgetRemaining: h.ErrorBudgetRemaining,
-			ChangedAt:            h.ChangedAt.Format(time.RFC3339),
-		})
-	}
-
-	writeJSON(w, http.StatusOK, items)
+	writeJSON(w, http.StatusOK, []model.SLOStatusHistoryItem{})
 }
 
 // ==================== 辅助函数 ====================
+
+// defaultClusterID 获取默认集群 ID
+func (h *SLOHandler) defaultClusterID(_ context.Context) string {
+	agents, err := h.querySvc.ListClusters(context.Background())
+	if err == nil && len(agents) > 0 {
+		return agents[0].ClusterID
+	}
+	return "default"
+}
+
+// ingressToSLOMetrics 将 IngressSLO 转换为 SLOMetrics
+// IngressSLO 的 SuccessRate/ErrorRate 已经是 0-100 百分比（ClickHouse 聚合结果）
+func ingressToSLOMetrics(ing slomodel.IngressSLO) *model.SLOMetrics {
+	p95 := int(ing.P95Ms)
+	if p95 == 0 {
+		p95 = int(ing.P90Ms) // 回退兼容
+	}
+	return &model.SLOMetrics{
+		Availability:   ing.SuccessRate,
+		P95Latency:     p95,
+		P99Latency:     int(ing.P99Ms),
+		ErrorRate:      ing.ErrorRate,
+		RequestsPerSec: ing.RPS,
+		TotalRequests:  ing.TotalRequests,
+	}
+}
 
 // getTimeRange 根据时间范围字符串计算起止时间
 func getTimeRange(now time.Time, timeRange string) (start, end time.Time) {
@@ -834,97 +886,4 @@ func buildTargetMap(targets []*database.SLOTarget) map[string]map[string]*databa
 		result[t.Host][t.TimeRange] = t
 	}
 	return result
-}
-
-// aggregateHourlyMetrics 聚合多个小时的数据
-func aggregateHourlyMetrics(metrics []*database.SLOMetricsHourly) *model.SLOMetrics {
-	if len(metrics) == 0 {
-		return nil
-	}
-
-	var totalRequests, errorRequests int64
-	var totalRPS float64
-	var weightedP95, weightedP99 float64
-	var allBuckets []map[float64]int64
-
-	for _, m := range metrics {
-		totalRequests += m.TotalRequests
-		errorRequests += m.ErrorRequests
-		totalRPS += m.AvgRPS
-		weightedP95 += float64(m.P95LatencyMs) * float64(m.TotalRequests)
-		weightedP99 += float64(m.P99LatencyMs) * float64(m.TotalRequests)
-		if b := slo.ParseJSONBuckets(m.LatencyBuckets); b != nil {
-			allBuckets = append(allBuckets, b)
-		}
-	}
-
-	// 优先使用合并 bucket 计算精确分位数
-	var p95, p99 int
-	if len(allBuckets) > 0 {
-		merged := slo.MergeBuckets(allBuckets...)
-		p95 = slo.CalculateQuantileMs(merged, 0.95)
-		p99 = slo.CalculateQuantileMs(merged, 0.99)
-	}
-
-	// bucket 为空时回退到加权平均（兼容无 bucket 的旧数据）
-	if p95 == 0 && totalRequests > 0 {
-		p95 = int(weightedP95 / float64(totalRequests))
-		p99 = int(weightedP99 / float64(totalRequests))
-	}
-
-	return &model.SLOMetrics{
-		Availability:   slo.CalculateAvailability(totalRequests, errorRequests),
-		P95Latency:     p95,
-		P99Latency:     p99,
-		ErrorRate:      slo.CalculateErrorRate(totalRequests, errorRequests),
-		RequestsPerSec: totalRPS / float64(len(metrics)),
-		TotalRequests:  totalRequests,
-	}
-}
-
-// aggregateRawMetrics 聚合 raw 数据（hourly 未就绪时的回退方案）
-func aggregateRawMetrics(metrics []*database.SLOMetricsRaw) *model.SLOMetrics {
-	if len(metrics) == 0 {
-		return nil
-	}
-
-	var totalRequests, errorRequests int64
-	var totalLatencySum float64
-	var totalLatencyCount int64
-	var allBuckets []map[float64]int64
-
-	for _, m := range metrics {
-		totalRequests += m.TotalRequests
-		errorRequests += m.ErrorRequests
-		totalLatencySum += m.LatencySum
-		totalLatencyCount += m.LatencyCount
-		if b := slo.ParseJSONBuckets(m.LatencyBuckets); b != nil {
-			allBuckets = append(allBuckets, b)
-		}
-	}
-
-	// 计算 RPS（假设每条 raw 是 10 秒间隔）
-	durationSeconds := float64(len(metrics)) * 10.0
-	avgRPS := float64(totalRequests) / durationSeconds
-
-	// 使用合并 bucket 计算精确分位数
-	merged := slo.MergeBuckets(allBuckets...)
-	p95 := slo.CalculateQuantileMs(merged, 0.95)
-	p99 := slo.CalculateQuantileMs(merged, 0.99)
-
-	// bucket 为空时回退到平均延迟
-	if p95 == 0 && totalLatencyCount > 0 {
-		avg := int(totalLatencySum / float64(totalLatencyCount))
-		p95 = avg
-		p99 = avg
-	}
-
-	return &model.SLOMetrics{
-		Availability:   slo.CalculateAvailability(totalRequests, errorRequests),
-		P95Latency:     p95,
-		P99Latency:     p99,
-		ErrorRate:      slo.CalculateErrorRate(totalRequests, errorRequests),
-		RequestsPerSec: avgRPS,
-		TotalRequests:  totalRequests,
-	}
 }

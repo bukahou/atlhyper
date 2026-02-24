@@ -188,6 +188,12 @@ type OTelSnapshot struct {
 	// 日志统计摘要（5 分钟窗口）
 	LogsSummary *log.Summary `json:"logsSummary,omitempty"`
 
+	// ===== 多窗口 SLO 数据（1d/7d/30d 预聚合） =====
+
+	// SLOWindows 按时间窗口预聚合的 Ingress SLO 数据
+	// key: "1d", "7d", "30d"
+	SLOWindows map[string]*slo.SLOWindowData `json:"sloWindows,omitempty"`
+
 	// ===== 预聚合时序（Agent Concentrator 生成，1min 粒度 × 60 点 = 1h） =====
 
 	// 节点指标时序（每个节点最近 1h）

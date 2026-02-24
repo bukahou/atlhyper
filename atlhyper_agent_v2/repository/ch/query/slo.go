@@ -87,7 +87,8 @@ func (r *sloRepository) ListIngressSLO(ctx context.Context, since time.Duration)
 	}
 
 	type latencyData struct {
-		p50, p90, p99, avg float64
+		p50, p90, p95, p99, avg float64
+		buckets                 []slo.LatencyBucket // 原始桶数据
 	}
 	latencyMap := make(map[string]*latencyData)
 
@@ -105,10 +106,65 @@ func (r *sloRepository) ListIngressSLO(ctx context.Context, since time.Duration)
 				continue
 			}
 			seen[svcKey] = true
+
+			// 构建延迟分布桶（bounds 从秒→毫秒）
+			var buckets []slo.LatencyBucket
+			for i, b := range bounds {
+				var cnt int64
+				if i < len(counts) {
+					cnt = int64(counts[i])
+				}
+				buckets = append(buckets, slo.LatencyBucket{
+					LE:    roundTo(b*1000, 2),
+					Count: cnt,
+				})
+			}
+			// +Inf 桶
+			if len(counts) > len(bounds) {
+				buckets = append(buckets, slo.LatencyBucket{
+					LE:    0, // 0 表示 +Inf
+					Count: int64(counts[len(bounds)]),
+				})
+			}
+
 			latencyMap[svcKey] = &latencyData{
-				p50: roundTo(histogramPercentile(bounds, counts, 0.50)*1000, 2), // sec → ms
-				p90: roundTo(histogramPercentile(bounds, counts, 0.90)*1000, 2),
-				p99: roundTo(histogramPercentile(bounds, counts, 0.99)*1000, 2),
+				p50:     roundTo(histogramPercentile(bounds, counts, 0.50)*1000, 2),
+				p90:     roundTo(histogramPercentile(bounds, counts, 0.90)*1000, 2),
+				p95:     roundTo(histogramPercentile(bounds, counts, 0.95)*1000, 2),
+				p99:     roundTo(histogramPercentile(bounds, counts, 0.99)*1000, 2),
+				buckets: buckets,
+			}
+		}
+	}
+
+	// HTTP 方法分布查询
+	methodQuery := fmt.Sprintf(`
+		SELECT Attributes['service'] AS svc,
+		       Attributes['method'] AS method,
+		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) AS delta
+		FROM otel_metrics_sum
+		WHERE MetricName = 'traefik_service_requests_total'
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		GROUP BY svc, method
+		HAVING count() >= 2
+	`, sec)
+
+	methodMap := make(map[string][]slo.MethodCount)
+	methodRows, methodErr := r.client.Query(ctx, methodQuery)
+	if methodErr == nil && methodRows != nil {
+		defer methodRows.Close()
+		for methodRows.Next() {
+			var svcKey, method string
+			var delta float64
+			if err := methodRows.Scan(&svcKey, &method, &delta); err != nil {
+				continue
+			}
+			if method == "" {
+				continue
+			}
+			cnt := int64(delta)
+			if cnt > 0 {
+				methodMap[svcKey] = append(methodMap[svcKey], slo.MethodCount{Method: method, Count: cnt})
 			}
 		}
 	}
@@ -134,7 +190,12 @@ func (r *sloRepository) ListIngressSLO(ctx context.Context, since time.Duration)
 		if lat, ok := latencyMap[key]; ok {
 			item.P50Ms = lat.p50
 			item.P90Ms = lat.p90
+			item.P95Ms = lat.p95
 			item.P99Ms = lat.p99
+			item.LatencyBuckets = lat.buckets
+		}
+		if methods, ok := methodMap[key]; ok {
+			item.Methods = methods
 		}
 		result = append(result, item)
 	}
@@ -491,4 +552,249 @@ func (r *sloRepository) GetSLOSummary(ctx context.Context) (*slo.SLOSummary, err
 	}
 
 	return summary, nil
+}
+
+// ListIngressSLOPrevious 查询上一周期的 Traefik 入口 SLO
+// since 表示窗口大小，查询 [now-2*since, now-since) 的数据
+func (r *sloRepository) ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error) {
+	sec := sinceSeconds(since)
+
+	// 请求计数（上一周期）
+	countQuery := fmt.Sprintf(`
+		SELECT Attributes['service'] AS svc,
+		       Attributes['code'] AS code,
+		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) AS delta
+		FROM otel_metrics_sum
+		WHERE MetricName = 'traefik_service_requests_total'
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		  AND TimeUnix < now() - INTERVAL %d SECOND
+		GROUP BY svc, code
+		HAVING count() >= 2
+	`, 2*sec, sec)
+
+	rows, err := r.client.Query(ctx, countQuery)
+	if err != nil {
+		return nil, fmt.Errorf("query ingress counts (previous): %w", err)
+	}
+	defer rows.Close()
+
+	type svcData struct {
+		totalReqs   int64
+		totalErrors int64
+		codes       map[string]int64
+	}
+	svcMap := make(map[string]*svcData)
+
+	for rows.Next() {
+		var svcKey, code string
+		var delta float64
+		if err := rows.Scan(&svcKey, &code, &delta); err != nil {
+			continue
+		}
+		d, ok := svcMap[svcKey]
+		if !ok {
+			d = &svcData{codes: make(map[string]int64)}
+			svcMap[svcKey] = d
+		}
+		cnt := int64(delta)
+		d.totalReqs += cnt
+		d.codes[code] += cnt
+		if len(code) > 0 && (code[0] == '4' || code[0] == '5') {
+			d.totalErrors += cnt
+		}
+	}
+
+	// 延迟分位数（上一周期）
+	latencyQuery := fmt.Sprintf(`
+		SELECT Attributes['service'] AS svc,
+		       ExplicitBounds,
+		       BucketCounts
+		FROM otel_metrics_histogram
+		WHERE MetricName = 'traefik_service_request_duration_seconds'
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		  AND TimeUnix < now() - INTERVAL %d SECOND
+		ORDER BY svc, TimeUnix DESC
+	`, 2*sec, sec)
+
+	latencyRows, lerr := r.client.Query(ctx, latencyQuery)
+	if lerr != nil {
+		latencyRows = nil
+	}
+
+	type latencyData struct {
+		p50, p90, p95, p99 float64
+	}
+	latencyMap := make(map[string]*latencyData)
+
+	if latencyRows != nil {
+		defer latencyRows.Close()
+		seen := make(map[string]bool)
+		for latencyRows.Next() {
+			var svcKey string
+			var bounds []float64
+			var counts []uint64
+			if err := latencyRows.Scan(&svcKey, &bounds, &counts); err != nil {
+				continue
+			}
+			if seen[svcKey] {
+				continue
+			}
+			seen[svcKey] = true
+			latencyMap[svcKey] = &latencyData{
+				p50: roundTo(histogramPercentile(bounds, counts, 0.50)*1000, 2),
+				p90: roundTo(histogramPercentile(bounds, counts, 0.90)*1000, 2),
+				p95: roundTo(histogramPercentile(bounds, counts, 0.95)*1000, 2),
+				p99: roundTo(histogramPercentile(bounds, counts, 0.99)*1000, 2),
+			}
+		}
+	}
+
+	duration := float64(sec)
+	var result []slo.IngressSLO
+	for key, d := range svcMap {
+		item := slo.IngressSLO{
+			ServiceKey:    key,
+			DisplayName:   key,
+			TotalRequests: d.totalReqs,
+			TotalErrors:   d.totalErrors,
+			RPS:           roundTo(float64(d.totalReqs)/duration, 2),
+		}
+		if d.totalReqs > 0 {
+			item.SuccessRate = roundTo(float64(d.totalReqs-d.totalErrors)/float64(d.totalReqs)*100, 2)
+			item.ErrorRate = roundTo(float64(d.totalErrors)/float64(d.totalReqs)*100, 2)
+		}
+		for code, cnt := range d.codes {
+			item.StatusCodes = append(item.StatusCodes, slo.StatusCodeCount{Code: code, Count: cnt})
+		}
+		if lat, ok := latencyMap[key]; ok {
+			item.P50Ms = lat.p50
+			item.P90Ms = lat.p90
+			item.P95Ms = lat.p95
+			item.P99Ms = lat.p99
+		}
+		result = append(result, item)
+	}
+	if result == nil {
+		result = []slo.IngressSLO{}
+	}
+	return result, nil
+}
+
+// GetIngressSLOHistory 查询 Ingress SLO 时序数据
+// since: 总时间范围, bucket: 每个桶的时间跨度
+func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error) {
+	sec := sinceSeconds(since)
+	bucketSec := sinceSeconds(bucket)
+
+	// 请求计数时序
+	countQuery := fmt.Sprintf(`
+		SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
+		       Attributes['service'] AS svc,
+		       Attributes['code'] AS code,
+		       (max(Value) - min(Value)) AS delta
+		FROM otel_metrics_sum
+		WHERE MetricName = 'traefik_service_requests_total'
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		GROUP BY ts, svc, code
+		HAVING count() >= 2
+		ORDER BY ts
+	`, bucketSec, sec)
+
+	rows, err := r.client.Query(ctx, countQuery)
+	if err != nil {
+		return nil, fmt.Errorf("query ingress history counts: %w", err)
+	}
+	defer rows.Close()
+
+	type bucketKey struct {
+		ts  time.Time
+		svc string
+	}
+	type bucketData struct {
+		totalReqs   int64
+		totalErrors int64
+	}
+	dataMap := make(map[bucketKey]*bucketData)
+
+	for rows.Next() {
+		var ts time.Time
+		var svcKey, code string
+		var delta float64
+		if err := rows.Scan(&ts, &svcKey, &code, &delta); err != nil {
+			continue
+		}
+		key := bucketKey{ts: ts, svc: svcKey}
+		d, ok := dataMap[key]
+		if !ok {
+			d = &bucketData{}
+			dataMap[key] = d
+		}
+		cnt := int64(delta)
+		d.totalReqs += cnt
+		if len(code) > 0 && (code[0] == '4' || code[0] == '5') {
+			d.totalErrors += cnt
+		}
+	}
+
+	// 延迟时序（取每桶最新 histogram）
+	latencyQuery := fmt.Sprintf(`
+		SELECT Attributes['service'] AS svc,
+		       toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
+		       argMax(ExplicitBounds, TimeUnix) AS bounds,
+		       argMax(BucketCounts, TimeUnix) AS counts
+		FROM otel_metrics_histogram
+		WHERE MetricName = 'traefik_service_request_duration_seconds'
+		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		GROUP BY svc, ts
+		ORDER BY svc, ts
+	`, bucketSec, sec)
+
+	type latencyPoint struct {
+		p95, p99 float64
+	}
+	latencyByBucket := make(map[bucketKey]*latencyPoint)
+
+	latRows, latErr := r.client.Query(ctx, latencyQuery)
+	if latErr == nil && latRows != nil {
+		defer latRows.Close()
+		for latRows.Next() {
+			var svcKey string
+			var ts time.Time
+			var bounds []float64
+			var counts []uint64
+			if err := latRows.Scan(&svcKey, &ts, &bounds, &counts); err != nil {
+				continue
+			}
+			key := bucketKey{ts: ts, svc: svcKey}
+			latencyByBucket[key] = &latencyPoint{
+				p95: roundTo(histogramPercentile(bounds, counts, 0.95)*1000, 2),
+				p99: roundTo(histogramPercentile(bounds, counts, 0.99)*1000, 2),
+			}
+		}
+	}
+
+	// 组装结果
+	bucketDuration := float64(bucketSec)
+	var result []slo.SLOHistoryPoint
+	for key, d := range dataMap {
+		point := slo.SLOHistoryPoint{
+			Timestamp:     key.ts,
+			ServiceKey:    key.svc,
+			TotalRequests: d.totalReqs,
+			RPS:           roundTo(float64(d.totalReqs)/bucketDuration, 2),
+		}
+		if d.totalReqs > 0 {
+			point.Availability = roundTo(float64(d.totalReqs-d.totalErrors)/float64(d.totalReqs)*100, 2)
+			point.ErrorRate = roundTo(float64(d.totalErrors)/float64(d.totalReqs)*100, 2)
+		}
+		if lat, ok := latencyByBucket[key]; ok {
+			point.P95Ms = lat.p95
+			point.P99Ms = lat.p99
+		}
+		result = append(result, point)
+	}
+	if result == nil {
+		result = []slo.SLOHistoryPoint{}
+	}
+	return result, nil
 }

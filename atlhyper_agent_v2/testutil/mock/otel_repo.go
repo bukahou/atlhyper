@@ -157,11 +157,13 @@ func (m *MetricsQueryRepository) GetNodeMetricsHistory(ctx context.Context, node
 
 // SLOQueryRepository mock
 type SLOQueryRepository struct {
-	ListIngressSLOFn    func(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
-	ListServiceSLOFn    func(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
-	ListServiceEdgesFn  func(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
-	GetSLOTimeSeriesFn  func(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error)
-	GetSLOSummaryFn     func(ctx context.Context) (*slo.SLOSummary, error)
+	ListIngressSLOFn         func(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
+	ListIngressSLOPreviousFn func(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
+	GetIngressSLOHistoryFn   func(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
+	ListServiceSLOFn         func(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
+	ListServiceEdgesFn       func(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
+	GetSLOTimeSeriesFn       func(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error)
+	GetSLOSummaryFn          func(ctx context.Context) (*slo.SLOSummary, error)
 }
 
 func (m *SLOQueryRepository) ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error) {
@@ -169,6 +171,20 @@ func (m *SLOQueryRepository) ListIngressSLO(ctx context.Context, since time.Dura
 		return m.ListIngressSLOFn(ctx, since)
 	}
 	return []slo.IngressSLO{}, nil
+}
+
+func (m *SLOQueryRepository) ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error) {
+	if m.ListIngressSLOPreviousFn != nil {
+		return m.ListIngressSLOPreviousFn(ctx, since)
+	}
+	return []slo.IngressSLO{}, nil
+}
+
+func (m *SLOQueryRepository) GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error) {
+	if m.GetIngressSLOHistoryFn != nil {
+		return m.GetIngressSLOHistoryFn(ctx, since, bucket)
+	}
+	return []slo.SLOHistoryPoint{}, nil
 }
 
 func (m *SLOQueryRepository) ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error) {

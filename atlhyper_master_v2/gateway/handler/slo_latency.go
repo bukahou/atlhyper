@@ -1,19 +1,16 @@
 // atlhyper_master_v2/gateway/handler/slo_latency.go
-// 入口延迟分布 API Handler
+// 入口延迟分布 API Handler — OTelSnapshot 直读模式
 package handler
 
 import (
-	"math"
 	"net/http"
-	"sort"
-	"time"
 
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/atlhyper_master_v2/slo"
+	slomodel "AtlHyper/model_v3/slo"
 )
 
 // LatencyDistribution GET /api/v2/slo/domains/latency
-// 返回指定域名的延迟分布（bucket + method + status）
+// 返回指定域名的延迟分布（优先从 SLOWindows 获取，回退到 SLOIngress）
 func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -22,12 +19,7 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		clusterIDs, err := h.repo.GetAllClusterIDs(r.Context())
-		if err == nil && len(clusterIDs) > 0 {
-			clusterID = clusterIDs[0]
-		} else {
-			clusterID = "default"
-		}
+		clusterID = h.defaultClusterID(r.Context())
 	}
 
 	domain := r.URL.Query().Get("domain")
@@ -42,145 +34,115 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 	}
 
 	ctx := r.Context()
-	now := time.Now()
-	start, end := getTimeRange(now, timeRange)
+
+	// 获取 OTelSnapshot
+	otel, err := h.querySvc.GetOTelSnapshot(ctx, clusterID)
+	if err != nil {
+		sloLog.Error("获取 OTelSnapshot 失败", "err", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
 	// 获取域名下所有 service_key
-	mappings, err := h.repo.GetRouteMappingsByDomain(ctx, clusterID, domain)
+	mappings, err := h.sloRepo.GetRouteMappingsByDomain(ctx, clusterID, domain)
 	if err != nil {
 		sloLog.Error("获取路由映射失败", "domain", domain, "err", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// 去重 service_key
 	serviceKeys := make(map[string]bool)
 	for _, m := range mappings {
 		serviceKeys[m.ServiceKey] = true
 	}
 
-	// 合并所有 service 的数据
-	var totalRequests, errorRequests int64
-	var latencySum float64
-	var latencyCount int64
-	var mGet, mPost, mPut, mDelete, mOther int64
-	var s2xx, s3xx, s4xx, s5xx int64
-	allBuckets := make(map[float64]int64)
+	// 路由映射为空时，直接以 domain 参数作为 ServiceKey 匹配
+	if len(serviceKeys) == 0 {
+		serviceKeys[domain] = true
+	}
 
-	for serviceKey := range serviceKeys {
-		// 优先查 hourly
-		hourlyRows, err := h.repo.GetHourlyMetrics(ctx, clusterID, serviceKey, start, end)
-		if err != nil {
-			sloLog.Debug("查询 hourly 失败", "key", serviceKey, "err", err)
+	// 优先从 SLOWindows[timeRange] 获取 IngressSLO（含 LatencyBuckets + Methods）
+	var ingressList []slomodel.IngressSLO
+	if otel != nil && otel.SLOWindows != nil {
+		if w, ok := otel.SLOWindows[timeRange]; ok {
+			ingressList = w.Current
+		}
+	}
+	// 回退到 5min SLOIngress
+	if len(ingressList) == 0 && otel != nil {
+		ingressList = otel.SLOIngress
+	}
+
+	// 合并所有 service 的 IngressSLO 数据
+	var totalRequests int64
+	var totalRPS float64
+	var weightedP50, weightedP95, weightedP99, weightedAvg float64
+	var methods []model.MethodBreakdown
+	var statusCodes []model.StatusCodeBreakdown
+	var buckets []model.LatencyBucket
+
+	// 聚合 map
+	statusMap := make(map[string]int64)
+	methodMap := make(map[string]int64)
+	bucketMap := make(map[float64]int64) // le → count
+
+	for _, ing := range ingressList {
+		if !serviceKeys[ing.ServiceKey] {
+			continue
 		}
 
-		if len(hourlyRows) > 0 {
-			var latestHourStart time.Time
-			for _, m := range hourlyRows {
-				totalRequests += m.TotalRequests
-				errorRequests += m.ErrorRequests
-				mGet += m.MethodGet
-				mPost += m.MethodPost
-				mPut += m.MethodPut
-				mDelete += m.MethodDelete
-				mOther += m.MethodOther
-				s2xx += m.Status2xx
-				s3xx += m.Status3xx
-				s4xx += m.Status4xx
-				s5xx += m.Status5xx
+		totalRequests += ing.TotalRequests
+		totalRPS += ing.RPS
+		weightedP50 += ing.P50Ms * float64(ing.TotalRequests)
+		p95 := ing.P95Ms
+		if p95 == 0 {
+			p95 = ing.P90Ms
+		}
+		weightedP95 += p95 * float64(ing.TotalRequests)
+		weightedP99 += ing.P99Ms * float64(ing.TotalRequests)
+		weightedAvg += ing.AvgMs * float64(ing.TotalRequests)
 
-				if b := slo.ParseJSONBuckets(m.LatencyBuckets); b != nil {
-					for le, count := range b {
-						allBuckets[le] += count
-					}
-				}
+		// 聚合状态码
+		for _, sc := range ing.StatusCodes {
+			statusMap[sc.Code] += sc.Count
+		}
 
-				// 用加权平均近似 latencySum/Count
-				latencySum += float64(m.AvgLatencyMs) * float64(m.TotalRequests)
-				latencyCount += m.TotalRequests
+		// 聚合延迟桶
+		for _, b := range ing.LatencyBuckets {
+			bucketMap[b.LE] += b.Count
+		}
 
-				if m.HourStart.After(latestHourStart) {
-					latestHourStart = m.HourStart
-				}
-			}
-
-			// 补充未聚合的当前时段 raw 数据
-			rawStart := latestHourStart.Add(time.Hour)
-			if rawStart.Before(end) {
-				rawRows, rawErr := h.repo.GetRawMetrics(ctx, clusterID, serviceKey, rawStart, end)
-				if rawErr == nil {
-					for _, m := range rawRows {
-						totalRequests += m.TotalRequests
-						errorRequests += m.ErrorRequests
-						latencySum += m.LatencySum
-						latencyCount += m.LatencyCount
-						mGet += m.MethodGet
-						mPost += m.MethodPost
-						mPut += m.MethodPut
-						mDelete += m.MethodDelete
-						mOther += m.MethodOther
-						s2xx += m.Status2xx
-						s3xx += m.Status3xx
-						s4xx += m.Status4xx
-						s5xx += m.Status5xx
-
-						if b := slo.ParseJSONBuckets(m.LatencyBuckets); b != nil {
-							for le, count := range b {
-								allBuckets[le] += count
-							}
-						}
-					}
-				}
-			}
-		} else {
-			// 回退到 raw
-			rawRows, err := h.repo.GetRawMetrics(ctx, clusterID, serviceKey, start, end)
-			if err != nil {
-				sloLog.Debug("查询 raw 失败", "key", serviceKey, "err", err)
-				continue
-			}
-			for _, m := range rawRows {
-				totalRequests += m.TotalRequests
-				errorRequests += m.ErrorRequests
-				latencySum += m.LatencySum
-				latencyCount += m.LatencyCount
-				mGet += m.MethodGet
-				mPost += m.MethodPost
-				mPut += m.MethodPut
-				mDelete += m.MethodDelete
-				mOther += m.MethodOther
-				s2xx += m.Status2xx
-				s3xx += m.Status3xx
-				s4xx += m.Status4xx
-				s5xx += m.Status5xx
-
-				if b := slo.ParseJSONBuckets(m.LatencyBuckets); b != nil {
-					for le, count := range b {
-						allBuckets[le] += count
-					}
-				}
-			}
+		// 聚合方法分布
+		for _, m := range ing.Methods {
+			methodMap[m.Method] += m.Count
 		}
 	}
 
-	// 计算分位数
-	p50 := slo.CalculateQuantileMs(allBuckets, 0.50)
-	p95 := slo.CalculateQuantileMs(allBuckets, 0.95)
-	p99 := slo.CalculateQuantileMs(allBuckets, 0.99)
-
-	var avgLatency int
-	if latencyCount > 0 {
-		avgLatency = int(latencySum / float64(latencyCount))
+	// 计算加权平均
+	var p50, p95, p99, avg int
+	if totalRequests > 0 {
+		p50 = int(weightedP50 / float64(totalRequests))
+		p95 = int(weightedP95 / float64(totalRequests))
+		p99 = int(weightedP99 / float64(totalRequests))
+		avg = int(weightedAvg / float64(totalRequests))
 	}
-
-	// 构建 bucket 响应
-	buckets := buildLatencyBuckets(allBuckets)
-
-	// 构建 method 分布
-	methods := buildMethodBreakdown(mGet, mPost, mPut, mDelete, mOther)
 
 	// 构建状态码分布
-	statusCodes := buildStatusCodeBreakdown(s2xx, s3xx, s4xx, s5xx)
+	for code, count := range statusMap {
+		if count > 0 {
+			statusCodes = append(statusCodes, model.StatusCodeBreakdown{Code: code, Count: count})
+		}
+	}
+
+	// 构建延迟分布桶
+	for le, count := range bucketMap {
+		buckets = append(buckets, model.LatencyBucket{LE: le, Count: count})
+	}
+
+	// 构建方法分布
+	for method, count := range methodMap {
+		methods = append(methods, model.MethodBreakdown{Method: method, Count: count})
+	}
 
 	resp := model.LatencyDistributionResponse{
 		Domain:        domain,
@@ -188,7 +150,7 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 		P50LatencyMs:  p50,
 		P95LatencyMs:  p95,
 		P99LatencyMs:  p99,
-		AvgLatencyMs:  avgLatency,
+		AvgLatencyMs:  avg,
 		Buckets:       buckets,
 		Methods:       methods,
 		StatusCodes:   statusCodes,
@@ -196,83 +158,3 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 
 	writeJSON(w, http.StatusOK, resp)
 }
-
-// buildLatencyBuckets 将 map[float64]int64 转换为 LatencyBucket 切片
-// key 为秒值，输出为毫秒
-func buildLatencyBuckets(buckets map[float64]int64) []model.LatencyBucket {
-	if len(buckets) == 0 {
-		return nil
-	}
-
-	// 排序
-	les := make([]float64, 0, len(buckets))
-	for le := range buckets {
-		if !math.IsInf(le, 1) {
-			les = append(les, le)
-		}
-	}
-	sort.Float64s(les)
-
-	// 转换为非累积计数（differential buckets）
-	result := make([]model.LatencyBucket, 0, len(les))
-	var prevCount int64
-	for _, le := range les {
-		cumulativeCount := buckets[le]
-		count := cumulativeCount - prevCount
-		if count < 0 {
-			count = 0
-		}
-		ms := le * 1000
-		result = append(result, model.LatencyBucket{
-			LE:    ms,
-			Count: count,
-		})
-		prevCount = cumulativeCount
-	}
-
-	return result
-}
-
-// buildMethodBreakdown 构建 HTTP 方法分布
-func buildMethodBreakdown(get, post, put, del, other int64) []model.MethodBreakdown {
-	var result []model.MethodBreakdown
-	if get > 0 {
-		result = append(result, model.MethodBreakdown{Method: "GET", Count: get})
-	}
-	if post > 0 {
-		result = append(result, model.MethodBreakdown{Method: "POST", Count: post})
-	}
-	if put > 0 {
-		result = append(result, model.MethodBreakdown{Method: "PUT", Count: put})
-	}
-	if del > 0 {
-		result = append(result, model.MethodBreakdown{Method: "DELETE", Count: del})
-	}
-	if other > 0 {
-		result = append(result, model.MethodBreakdown{Method: "OTHER", Count: other})
-	}
-	// 按 count 降序
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Count > result[j].Count
-	})
-	return result
-}
-
-// buildStatusCodeBreakdown 构建状态码分布
-func buildStatusCodeBreakdown(s2xx, s3xx, s4xx, s5xx int64) []model.StatusCodeBreakdown {
-	var result []model.StatusCodeBreakdown
-	if s2xx > 0 {
-		result = append(result, model.StatusCodeBreakdown{Code: "2xx", Count: s2xx})
-	}
-	if s3xx > 0 {
-		result = append(result, model.StatusCodeBreakdown{Code: "3xx", Count: s3xx})
-	}
-	if s4xx > 0 {
-		result = append(result, model.StatusCodeBreakdown{Code: "4xx", Count: s4xx})
-	}
-	if s5xx > 0 {
-		result = append(result, model.StatusCodeBreakdown{Code: "5xx", Count: s5xx})
-	}
-	return result
-}
-

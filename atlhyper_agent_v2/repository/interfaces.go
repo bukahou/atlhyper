@@ -213,6 +213,8 @@ type OTelDashboardRepository interface {
 	GetAPMTopology(ctx context.Context) (*apm.Topology, error)
 	GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error)
 	ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
+	ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
+	GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
 	ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
 	ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
 	ListRecentTraces(ctx context.Context, limit int) ([]apm.TraceSummary, error)
@@ -224,6 +226,8 @@ type OTelDashboardRepository interface {
 // SLOQueryRepository SLO 查询仓库（按需查询）
 type SLOQueryRepository interface {
 	ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
+	ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
+	GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
 	ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
 	ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
 	GetSLOTimeSeries(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error)
