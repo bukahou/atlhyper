@@ -16,7 +16,16 @@ import (
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/atlhyper_master_v2/slo"
 	"AtlHyper/common/logger"
+	model_v3 "AtlHyper/model_v3"
 	slomodel "AtlHyper/model_v3/slo"
+)
+
+// SLO 状态常量（来源: model_v3.HealthStatus，避免裸字符串硬编码）
+const (
+	statusHealthy  = string(model_v3.HealthStatusHealthy)
+	statusWarning  = string(model_v3.HealthStatusWarning)
+	statusCritical = string(model_v3.HealthStatusCritical)
+	statusUnknown  = string(model_v3.HealthStatusUnknown)
 )
 
 var sloLog = logger.Module("SLO-Handler")
@@ -95,11 +104,11 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 		totalBudget += domain.ErrorBudget
 
 		switch domain.Status {
-		case "healthy":
+		case statusHealthy:
 			healthyCount++
-		case "warning":
+		case statusWarning:
 			warningCount++
-		case "critical":
+		case statusCritical:
 			criticalCount++
 		}
 	}
@@ -135,7 +144,7 @@ func (h *SLOHandler) buildDomainFromIngress(ctx context.Context, clusterID strin
 	domain := model.DomainSLO{
 		Host:    ing.ServiceKey,
 		Targets: make(map[string]*model.SLOTargetSpec),
-		Status:  "unknown",
+		Status:  statusUnknown,
 		Trend:   "stable",
 	}
 
@@ -269,11 +278,11 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 		totalBudget += domainResp.ErrorBudgetRemaining
 
 		switch domainResp.Status {
-		case "healthy":
+		case statusHealthy:
 			healthyCount++
-		case "warning":
+		case statusWarning:
 			warningCount++
-		case "critical":
+		case statusCritical:
 			criticalCount++
 		}
 	}
@@ -316,7 +325,7 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, ti
 	resp := model.DomainSLOResponseV2{
 		Domain: domain,
 		TLS:    true,
-		Status: "unknown",
+		Status: statusUnknown,
 	}
 
 	// 获取该域名下的所有路由映射
@@ -361,7 +370,7 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, ti
 			Paths:       paths,
 			IngressName: primaryMapping.IngressName,
 			Targets:     make(map[string]*model.SLOTargetSpec),
-			Status:      "unknown",
+			Status:      statusUnknown,
 		}
 
 		if hasData {
@@ -411,12 +420,12 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, ti
 		resp.Services = append(resp.Services, serviceSLO)
 
 		// 统计最差状态
-		if serviceSLO.Status == "critical" && resp.Status != "critical" {
-			resp.Status = "critical"
-		} else if serviceSLO.Status == "warning" && resp.Status != "critical" && resp.Status != "warning" {
-			resp.Status = "warning"
-		} else if serviceSLO.Status == "healthy" && resp.Status == "unknown" {
-			resp.Status = "healthy"
+		if serviceSLO.Status == statusCritical && resp.Status != statusCritical {
+			resp.Status = statusCritical
+		} else if serviceSLO.Status == statusWarning && resp.Status != statusCritical && resp.Status != statusWarning {
+			resp.Status = statusWarning
+		} else if serviceSLO.Status == statusHealthy && resp.Status == statusUnknown {
+			resp.Status = statusHealthy
 		}
 	}
 
@@ -504,14 +513,14 @@ func (h *SLOHandler) buildDomainSLOV2Fallback(ing slomodel.IngressSLO, prevIng s
 	resp := model.DomainSLOResponseV2{
 		Domain: ing.ServiceKey,
 		TLS:    true,
-		Status: "unknown",
+		Status: statusUnknown,
 	}
 
 	serviceSLO := model.ServiceSLO{
 		ServiceKey:  ing.ServiceKey,
 		ServiceName: ing.DisplayName,
 		Targets:     make(map[string]*model.SLOTargetSpec),
-		Status:      "unknown",
+		Status:      statusUnknown,
 	}
 
 	serviceSLO.Current = ingressToSLOMetrics(ing)
@@ -578,7 +587,7 @@ func (h *SLOHandler) DomainDetail(w http.ResponseWriter, r *http.Request) {
 
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		clusterID = "default"
+		clusterID = h.defaultClusterID(r.Context())
 	}
 
 	timeRange := r.URL.Query().Get("time_range")
@@ -613,7 +622,7 @@ func (h *SLOHandler) DomainDetail(w http.ResponseWriter, r *http.Request) {
 	domain := model.DomainSLO{
 		Host:    host,
 		Targets: make(map[string]*model.SLOTargetSpec),
-		Status:  "unknown",
+		Status:  statusUnknown,
 		Trend:   "stable",
 	}
 	writeJSON(w, http.StatusOK, domain)
@@ -636,7 +645,7 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		clusterID = "default"
+		clusterID = h.defaultClusterID(r.Context())
 	}
 
 	ctx := r.Context()
@@ -659,6 +668,16 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 域名 → ServiceKey 映射（与 LatencyDistribution 一致）
+	mappings, _ := h.sloRepo.GetRouteMappingsByDomain(ctx, clusterID, host)
+	serviceKeys := make(map[string]bool)
+	for _, m := range mappings {
+		serviceKeys[m.ServiceKey] = true
+	}
+	if len(serviceKeys) == 0 {
+		serviceKeys[host] = true
+	}
+
 	// 优先从 SLOWindows[timeRange].History 获取历史数据
 	var history []model.SLODomainHistoryItem
 
@@ -671,7 +690,7 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 	if otel != nil && otel.SLOWindows != nil {
 		if w, ok := otel.SLOWindows[timeRange]; ok && w.History != nil {
 			for _, p := range w.History {
-				if p.ServiceKey == host {
+				if serviceKeys[p.ServiceKey] {
 					history = append(history, model.SLODomainHistoryItem{
 						Timestamp:    p.Timestamp.Format(time.RFC3339),
 						Availability: p.Availability,
@@ -700,7 +719,7 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			for _, ing := range entry.Snapshot.SLOIngress {
-				if ing.ServiceKey == host {
+				if serviceKeys[ing.ServiceKey] {
 					avail := ing.SuccessRate
 					p95 := int(ing.P95Ms)
 					if p95 == 0 {
@@ -750,7 +769,7 @@ func (h *SLOHandler) Targets(w http.ResponseWriter, r *http.Request) {
 func (h *SLOHandler) getTargets(w http.ResponseWriter, r *http.Request) {
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		clusterID = "default"
+		clusterID = h.defaultClusterID(r.Context())
 	}
 
 	targets, err := h.sloRepo.GetTargets(r.Context(), clusterID)
@@ -789,7 +808,7 @@ func (h *SLOHandler) updateTarget(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.ClusterID == "" {
-		req.ClusterID = "default"
+		req.ClusterID = h.defaultClusterID(r.Context())
 	}
 
 	now := time.Now()

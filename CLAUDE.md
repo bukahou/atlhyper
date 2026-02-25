@@ -677,6 +677,7 @@ atlhyper_web/src/
 - **组件按功能分目录**：`components/pod/`、`components/ai/`，禁止所有组件平铺在 components/ 根目录
 - **页面拆分**：页面 `page.tsx` 只做布局和状态编排，具体 UI 抽取为独立组件
 - **API 按资源拆分**：每个文件对应一类资源（`pod.ts`、`node.ts`），禁止所有 API 堆在一个文件
+- **组件禁止隐藏**：所有组件在无数据时必须保持渲染，显示"暂无数据"等空状态提示，禁止 `return null` 或 `{data.length > 0 && <Component />}` 隐藏整个组件
 
 ### 4.3 权限与数据策略
 

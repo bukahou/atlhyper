@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Network, Server, ArrowRight, Layers, Shield, ZoomIn, ZoomOut, Shrink, BarChart3, Loader2 } from "lucide-react";
-import { getNamespaceColor, formatLatency } from "./common";
+import { getNamespaceColor, formatLatency, formatRPS } from "./common";
 import { getMeshServiceDetail } from "@/datasource/mesh";
 import type { MeshServiceNode, MeshServiceEdge, MeshTopologyResponse, MeshServiceDetailResponse } from "@/types/mesh";
 
@@ -353,7 +353,7 @@ function ServiceTopologyView({ topology, onSelectNode, timeRange, t }: {
                 {isHighlighted && (
                   <g transform={`translate(${labelPos.x}, ${labelPos.y})`}>
                     <rect x="-42" y="-12" width="84" height="24" rx="4" fill="white" className="dark:fill-slate-800" stroke="#e2e8f0" strokeWidth="1" />
-                    <text textAnchor="middle" y="4" className="text-[10px] font-medium fill-slate-600 dark:fill-slate-300">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avgLatency)}</text>
+                    <text textAnchor="middle" y="4" className="text-[10px] font-medium fill-slate-600 dark:fill-slate-300">{formatRPS(edge.rps)}/s · avg {formatLatency(edge.avgLatency)}</text>
                   </g>
                 )}
               </g>
@@ -408,7 +408,7 @@ function ServiceListTable({ nodes, selectedId, onSelect, t }: {
   onSelect: (id: string) => void;
   t: MeshTabTranslations;
 }) {
-  const [sortKey, setSortKey] = useState<"name" | "rps" | "p95Latency" | "errorRate" | "mtlsPercent">("rps");
+  const [sortKey, setSortKey] = useState<"name" | "rps" | "p95Latency" | "errorRate">("rps");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const toggleSort = (key: typeof sortKey) => {
@@ -444,7 +444,7 @@ function ServiceListTable({ nodes, selectedId, onSelect, t }: {
             <th className="text-right py-2 px-2"><SortHeader label={t.rps} field="rps" /></th>
             <th className="text-right py-2 px-2"><SortHeader label="P95" field="p95Latency" /></th>
             <th className="text-right py-2 px-2"><SortHeader label={t.errorRate} field="errorRate" /></th>
-            <th className="text-right py-2 px-2"><SortHeader label={t.mtls} field="mtlsPercent" /></th>
+            <th className="text-center py-2 px-2"><span className="text-[10px] font-medium uppercase tracking-wider text-muted">{t.mtls}</span></th>
             <th className="text-center py-2 px-2"><span className="text-[10px] font-medium uppercase tracking-wider text-muted">{t.status}</span></th>
           </tr>
         </thead>
@@ -463,14 +463,15 @@ function ServiceListTable({ nodes, selectedId, onSelect, t }: {
                     </div>
                   </div>
                 </td>
-                <td className="text-right py-2.5 px-2 font-medium text-default">{node.rps.toFixed(0)}<span className="text-muted">/s</span></td>
+                <td className="text-right py-2.5 px-2 font-medium text-default">{formatRPS(node.rps)}<span className="text-muted">/s</span></td>
                 <td className="text-right py-2.5 px-2 font-medium text-default">{formatLatency(node.p95Latency)}</td>
                 <td className="text-right py-2.5 px-2">
                   <span className={node.errorRate > 0.5 ? "text-red-500 font-semibold" : "text-default font-medium"}>{node.errorRate.toFixed(2)}%</span>
                 </td>
-                <td className="text-right py-2.5 px-2">
-                  <span className={`font-semibold ${node.mtlsPercent >= 100 ? "text-emerald-600 dark:text-emerald-400" : node.mtlsPercent >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
-                    {node.mtlsPercent.toFixed(0)}%
+                <td className="text-center py-2.5 px-2">
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${node.mtlsEnabled ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
+                    <Shield className="w-3 h-3" />
+                    {node.mtlsEnabled ? "ON" : "OFF"}
                   </span>
                 </td>
                 <td className="text-center py-2.5 px-2">
@@ -549,7 +550,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
       {/* Golden Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {[
-          { label: t.rps, value: `${node.rps.toFixed(0)}`, unit: "/s" },
+          { label: t.rps, value: formatRPS(node.rps), unit: "/s" },
           { label: t.p50Latency, value: formatLatency(node.p50Latency), unit: "" },
           { label: t.p95Latency, value: formatLatency(node.p95Latency), unit: "" },
           { label: t.p99Latency, value: formatLatency(node.p99Latency), unit: "" },
@@ -582,7 +583,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getNamespaceColor(srcNode.namespace).fill }} />
                       <span className="font-medium text-default">{srcNode.name}</span>
                       <ArrowRight className="w-3 h-3 text-slate-400" />
-                      <span className="text-muted">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avgLatency)}</span>
+                      <span className="text-muted">{formatRPS(edge.rps)}/s · avg {formatLatency(edge.avgLatency)}</span>
                     </div>
                   );
                 })}
@@ -601,7 +602,7 @@ function ServiceDetailPanel({ node, topology, clusterId, timeRange, t }: {
                       <ArrowRight className="w-3 h-3 text-cyan-600" />
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getNamespaceColor(tgtNode.namespace).fill }} />
                       <span className="font-medium text-default">{tgtNode.name}</span>
-                      <span className="text-muted">{edge.rps.toFixed(0)}/s · avg {formatLatency(edge.avgLatency)}</span>
+                      <span className="text-muted">{formatRPS(edge.rps)}/s · avg {formatLatency(edge.avgLatency)}</span>
                     </div>
                   );
                 })}
@@ -852,11 +853,8 @@ export function MeshTab({ topology, clusterId, timeRange, t }: {
   const effectiveId = selectedServiceId ?? topology.nodes[0]?.id ?? null;
   const selectedNode = effectiveId ? topology.nodes.find(n => n.id === effectiveId) : null;
 
-  // mTLS coverage
-  const totalRps = topology.nodes.reduce((sum, n) => sum + n.rps, 0);
-  const overallMtls = totalRps > 0 ? topology.nodes.reduce((sum, n) => sum + n.mtlsPercent * n.rps, 0) / totalRps : 0;
-  const mtlsBarColor = overallMtls >= 95 ? "bg-emerald-500" : overallMtls >= 80 ? "bg-amber-500" : "bg-red-500";
-  const mtlsTextColor = overallMtls >= 95 ? "text-emerald-600 dark:text-emerald-400" : overallMtls >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+  // mTLS: check if any node has mTLS enabled
+  const mtlsEnabled = topology.nodes.some(n => n.mtlsEnabled);
 
   return (
     <div className="space-y-4">
@@ -874,15 +872,11 @@ export function MeshTab({ topology, clusterId, timeRange, t }: {
             <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">Linkerd</span>
             <span className="text-[10px] text-muted">{topology.nodes.length} services · {timeRangeLabel(timeRange)}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Shield className="w-3.5 h-3.5 text-muted" />
-              <span className="text-[10px] text-muted">{t.mtls}</span>
-              <div className="w-20 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${mtlsBarColor}`} style={{ width: `${Math.min(100, overallMtls)}%` }} />
-              </div>
-              <span className={`text-xs font-semibold ${mtlsTextColor}`}>{overallMtls.toFixed(1)}%</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium ${mtlsEnabled ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
+              <Shield className="w-3 h-3" />
+              {t.mtls} {mtlsEnabled ? "ON" : "OFF"}
+            </span>
           </div>
         </div>
         <div className="flex flex-col lg:flex-row">

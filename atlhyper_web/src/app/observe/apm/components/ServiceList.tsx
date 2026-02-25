@@ -99,8 +99,8 @@ export function ServiceList({
                   <SortIcon col="name" />
                 </button>
               </th>
-              <th className="text-left px-3 py-2.5 font-medium text-muted w-24">
-                {t.namespace}
+              <th className="text-left px-3 py-2.5 font-medium text-muted">
+                {t.tags}
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
                 <button onClick={() => toggleSort("avgDurationMs")} className="flex items-center gap-1 hover:text-default transition-colors">
@@ -147,9 +147,18 @@ export function ServiceList({
                   </span>
                 </td>
                 <td className="px-3 py-3">
-                  <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-[var(--hover-bg)] text-muted border border-[var(--border-color)]">
-                    {svc.namespace}
-                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {svc.namespace && (
+                      <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        {svc.namespace}
+                      </span>
+                    )}
+                    {svc.environment && (
+                      <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        {svc.environment}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-3 py-3 text-default whitespace-nowrap">
                   {formatDurationMs(svc.avgDurationMs)}

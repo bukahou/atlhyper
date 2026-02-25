@@ -54,15 +54,16 @@ type StatusCodeCount struct {
 // ============================================================
 
 type ServiceSLO struct {
-	Namespace   string            `json:"namespace"`
-	Name        string            `json:"name"`
-	RPS         float64           `json:"rps"`
-	SuccessRate float64           `json:"successRate"`
-	P50Ms       float64           `json:"p50Ms"`
-	P90Ms       float64           `json:"p90Ms"`
-	P99Ms       float64           `json:"p99Ms"`
-	MTLSRate    float64           `json:"mtlsRate"`
-	StatusCodes []StatusCodeCount `json:"statusCodes"`
+	Namespace      string            `json:"namespace"`
+	Name           string            `json:"name"`
+	RPS            float64           `json:"rps"`
+	SuccessRate    float64           `json:"successRate"`
+	P50Ms          float64           `json:"p50Ms"`
+	P90Ms          float64           `json:"p90Ms"`
+	P99Ms          float64           `json:"p99Ms"`
+	MTLSEnabled    bool              `json:"mtlsEnabled"`
+	StatusCodes    []StatusCodeCount `json:"statusCodes"`
+	LatencyBuckets []LatencyBucket   `json:"latencyBuckets,omitempty"`
 }
 
 // ============================================================
@@ -106,6 +107,10 @@ type SLOWindowData struct {
 	Current  []IngressSLO      `json:"current"`            // 当前窗口聚合
 	Previous []IngressSLO      `json:"previous,omitempty"` // 上一周期聚合（用于对比）
 	History  []SLOHistoryPoint `json:"history,omitempty"`  // 时序数据
+
+	// Mesh 数据（Linkerd 服务网格，按窗口时间范围聚合）
+	MeshServices []ServiceSLO  `json:"meshServices,omitempty"`
+	MeshEdges    []ServiceEdge `json:"meshEdges,omitempty"`
 }
 
 // SLOHistoryPoint 时序数据点（按桶聚合）

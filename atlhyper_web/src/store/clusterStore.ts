@@ -14,15 +14,12 @@ interface ClusterStore {
   initialize: () => void;
 }
 
-// 默认集群 ID（与后端 Agent 配置一致）
-const DEFAULT_CLUSTER_ID = "ZGMF-X10A";
-
 // 从 localStorage 获取初始状态
 const getInitialState = () => {
   if (typeof window === "undefined") {
     return {
-      clusterIds: [DEFAULT_CLUSTER_ID],
-      currentClusterId: DEFAULT_CLUSTER_ID,
+      clusterIds: [],
+      currentClusterId: "",
       initialized: false,
     };
   }
@@ -31,7 +28,7 @@ const getInitialState = () => {
   const savedClusterIds = localStorage.getItem("clusterIds");
   const savedCurrentCluster = localStorage.getItem("currentClusterId");
 
-  let clusterIds: string[] = [DEFAULT_CLUSTER_ID];
+  let clusterIds: string[] = [];
   if (savedClusterIds) {
     try {
       const parsed = JSON.parse(savedClusterIds);
@@ -39,22 +36,22 @@ const getInitialState = () => {
         clusterIds = parsed;
       }
     } catch {
-      // 解析失败，使用默认值
+      // 解析失败，使用空列表
     }
   }
 
   // 当前集群：优先使用保存的，否则使用列表第一个
-  let currentClusterId = savedCurrentCluster || clusterIds[0] || DEFAULT_CLUSTER_ID;
+  let currentClusterId = savedCurrentCluster || clusterIds[0] || "";
 
   // 确保当前集群在列表中
-  if (!clusterIds.includes(currentClusterId)) {
-    currentClusterId = clusterIds[0] || DEFAULT_CLUSTER_ID;
+  if (clusterIds.length > 0 && !clusterIds.includes(currentClusterId)) {
+    currentClusterId = clusterIds[0];
   }
 
   return {
     clusterIds,
     currentClusterId,
-    initialized: true,
+    initialized: clusterIds.length > 0,
   };
 };
 
@@ -62,20 +59,21 @@ export const useClusterStore = create<ClusterStore>((set, get) => ({
   ...getInitialState(),
 
   setClusterIds: (ids: string[]) => {
-    const validIds = ids.length > 0 ? ids : [DEFAULT_CLUSTER_ID];
-    localStorage.setItem("clusterIds", JSON.stringify(validIds));
+    if (ids.length === 0) return;
+    localStorage.setItem("clusterIds", JSON.stringify(ids));
 
     // 如果当前集群不在新列表中，切换到第一个
     const { currentClusterId } = get();
     let newCurrentId = currentClusterId;
-    if (!validIds.includes(currentClusterId)) {
-      newCurrentId = validIds[0];
+    if (!ids.includes(currentClusterId)) {
+      newCurrentId = ids[0];
       localStorage.setItem("currentClusterId", newCurrentId);
     }
 
     set({
-      clusterIds: validIds,
+      clusterIds: ids,
       currentClusterId: newCurrentId,
+      initialized: true,
     });
   },
 
@@ -95,7 +93,7 @@ export const useClusterStore = create<ClusterStore>((set, get) => ({
     set({
       clusterIds: state.clusterIds,
       currentClusterId: state.currentClusterId,
-      initialized: true,
+      initialized: state.initialized,
     });
   },
 }));

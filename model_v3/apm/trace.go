@@ -13,6 +13,13 @@ import (
 // Span — otel_traces 行的领域模型
 // ============================================================
 
+// SpanError 从 OTel exception event 提取的结构化错误信息
+type SpanError struct {
+	Type       string `json:"type"`
+	Message    string `json:"message"`
+	Stacktrace string `json:"stacktrace,omitempty"`
+}
+
 // Span 分布式追踪中的单个操作
 type Span struct {
 	Timestamp     time.Time `json:"timestamp"`
@@ -31,6 +38,7 @@ type Span struct {
 	DB       *SpanDB      `json:"db,omitempty"`
 	Resource SpanResource `json:"resource"`
 	Events   []SpanEvent  `json:"events"`
+	Error    *SpanError   `json:"error,omitempty"`
 }
 
 type SpanHTTP struct {
@@ -80,6 +88,8 @@ type TraceSummary struct {
 	SpanCount     int       `json:"spanCount"`
 	ServiceCount  int       `json:"serviceCount"`
 	HasError      bool      `json:"hasError"`
+	ErrorType     string    `json:"errorType,omitempty"`
+	ErrorMessage  string    `json:"errorMessage,omitempty"`
 	Timestamp     time.Time `json:"timestamp"`
 }
 
@@ -102,6 +112,7 @@ type TraceDetail struct {
 type APMService struct {
 	Name          string  `json:"name"`
 	Namespace     string  `json:"namespace"`
+	Environment   string  `json:"environment,omitempty"`
 	SpanCount     int64   `json:"spanCount"`
 	ErrorCount    int64   `json:"errorCount"`
 	SuccessRate   float64 `json:"successRate"`
@@ -154,4 +165,42 @@ type TopologyEdge struct {
 type Topology struct {
 	Nodes []TopologyNode `json:"nodes"`
 	Edges []TopologyEdge `json:"edges"`
+}
+
+// ============================================================
+// HTTPStats — HTTP 状态码分布统计
+// ============================================================
+
+type HTTPStats struct {
+	StatusCode int    `json:"statusCode"`
+	Method     string `json:"method"`
+	Count      int64  `json:"count"`
+}
+
+// ============================================================
+// DBOperationStats — 数据库操作统计
+// ============================================================
+
+type DBOperationStats struct {
+	DBSystem  string  `json:"dbSystem"`
+	DBName    string  `json:"dbName"`
+	Operation string  `json:"operation"`
+	Table     string  `json:"table"`
+	CallCount int64   `json:"callCount"`
+	AvgMs     float64 `json:"avgMs"`
+	P99Ms     float64 `json:"p99Ms"`
+	ErrorRate float64 `json:"errorRate"`
+}
+
+// ============================================================
+// TimePoint — 服务时序数据点（ClickHouse 按需聚合）
+// ============================================================
+
+type TimePoint struct {
+	Timestamp   time.Time `json:"timestamp"`
+	RPS         float64   `json:"rps"`
+	SuccessRate float64   `json:"successRate"` // 0-1
+	AvgMs       float64   `json:"avgMs"`
+	P99Ms       float64   `json:"p99Ms"`
+	ErrorCount  int64     `json:"errorCount"`
 }

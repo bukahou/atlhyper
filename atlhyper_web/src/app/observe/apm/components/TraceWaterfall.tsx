@@ -431,6 +431,25 @@ function SpanDrawer({
             </div>
           </section>
 
+          {/* Error Info — 仅错误 Span 显示 */}
+          {span.error && (
+            <section>
+              <SectionHeader title={t.errorInfo} />
+              <div className="border border-red-500/30 rounded-lg p-3 bg-red-500/5">
+                <div className="text-sm font-semibold text-red-400">{span.error.type}</div>
+                <div className="text-sm text-default mt-1">{span.error.message}</div>
+                {span.error.stacktrace && (
+                  <details className="mt-2">
+                    <summary className="text-xs text-muted cursor-pointer hover:text-default transition-colors">{t.showStacktrace}</summary>
+                    <pre className="mt-1 text-xs text-muted font-mono whitespace-pre-wrap break-all max-h-[300px] overflow-y-auto">
+                      {span.error.stacktrace}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* SpanName */}
           <section>
             <SectionHeader title={t.operationName} />
@@ -460,7 +479,18 @@ function SpanDrawer({
                 <KVTableRow label={t.httpMethod} value={span.http.method} />
                 {span.http.route && <KVTableRow label={t.httpRoute} value={span.http.route} border />}
                 {span.http.url && <KVTableRow label={t.httpUrl} value={span.http.url} border />}
-                {span.http.statusCode !== undefined && <KVTableRow label={t.httpStatusCode} value={String(span.http.statusCode)} border />}
+                {span.http.statusCode !== undefined && (
+                  <KVTableRow label={t.httpStatusCode} border>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-mono font-semibold ${
+                      span.http.statusCode < 300 ? 'bg-emerald-500/10 text-emerald-400' :
+                      span.http.statusCode < 400 ? 'bg-blue-500/10 text-blue-400' :
+                      span.http.statusCode < 500 ? 'bg-amber-500/10 text-amber-400' :
+                      'bg-red-500/10 text-red-400'
+                    }`}>
+                      {span.http.statusCode}
+                    </span>
+                  </KVTableRow>
+                )}
                 {span.http.server && <KVTableRow label="Server" value={`${span.http.server}:${span.http.serverPort}`} border />}
               </div>
             </section>
@@ -480,28 +510,32 @@ function SpanDrawer({
             </section>
           )}
 
-          {/* Events */}
-          {span.events && span.events.length > 0 && (
-            <section>
-              <SectionHeader title={`Events (${span.events.length})`} />
-              <div className="space-y-2">
-                {span.events.map((ev, i) => (
-                  <div key={i} className="border border-[var(--border-color)] rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-default">{ev.name}</span>
-                      <span className="text-[10px] text-muted">{new Date(ev.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    {ev.attributes && Object.entries(ev.attributes).map(([k, v]) => (
-                      <div key={k} className="text-xs text-muted mt-1">
-                        <span className="text-muted/70">{k}:</span>{" "}
-                        <span className="font-mono text-default break-all">{v}</span>
+          {/* Events — 已有错误信息块时过滤掉 exception 事件，避免重复 */}
+          {(() => {
+            const displayEvents = span.events?.filter(e => !(span.error && e.name === 'exception')) ?? [];
+            if (displayEvents.length === 0) return null;
+            return (
+              <section>
+                <SectionHeader title={`Events (${displayEvents.length})`} />
+                <div className="space-y-2">
+                  {displayEvents.map((ev, i) => (
+                    <div key={i} className="border border-[var(--border-color)] rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-default">{ev.name}</span>
+                        <span className="text-[10px] text-muted">{new Date(ev.timestamp).toLocaleTimeString()}</span>
                       </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+                      {ev.attributes && Object.entries(ev.attributes).map(([k, v]) => (
+                        <div key={k} className="text-xs text-muted mt-1">
+                          <span className="text-muted/70">{k}:</span>{" "}
+                          <span className="font-mono text-default break-all">{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })()}
 
           {/* IDs */}
           <section>
@@ -553,11 +587,11 @@ function KVRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function KVTableRow({ label, value, border, mono }: { label: string; value: string; border?: boolean; mono?: boolean }) {
+function KVTableRow({ label, value, border, mono, children }: { label: string; value?: string; border?: boolean; mono?: boolean; children?: React.ReactNode }) {
   return (
     <div className={`flex gap-3 px-3 py-2 text-xs ${border ? "border-t border-[var(--border-color)]" : ""}`}>
       <span className="text-muted flex-shrink-0 min-w-[100px]">{label}</span>
-      <span className={`text-default break-all ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>
+      {children ?? <span className={`text-default break-all ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>}
     </div>
   );
 }

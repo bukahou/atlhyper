@@ -57,7 +57,7 @@ const MOCK_NODES: MeshServiceNode[] = [
     errorRate: 0.03,
     availability: 99.97,
     status: "healthy",
-    mtlsPercent: 100,
+    mtlsEnabled: true,
     totalRequests: 2419200, // 28 * 86400
   },
   {
@@ -72,7 +72,7 @@ const MOCK_NODES: MeshServiceNode[] = [
     errorRate: 0.01,
     availability: 99.99,
     status: "healthy",
-    mtlsPercent: 100,
+    mtlsEnabled: true,
     totalRequests: 1900800,
   },
   {
@@ -87,7 +87,7 @@ const MOCK_NODES: MeshServiceNode[] = [
     errorRate: 0.02,
     availability: 99.98,
     status: "healthy",
-    mtlsPercent: 100,
+    mtlsEnabled: true,
     totalRequests: 2246400,
   },
   {
@@ -102,7 +102,7 @@ const MOCK_NODES: MeshServiceNode[] = [
     errorRate: 0.04,
     availability: 99.96,
     status: "healthy",
-    mtlsPercent: 100,
+    mtlsEnabled: true,
     totalRequests: 691200,
   },
   {
@@ -117,7 +117,7 @@ const MOCK_NODES: MeshServiceNode[] = [
     errorRate: 0.02,
     availability: 99.98,
     status: "healthy",
-    mtlsPercent: 100,
+    mtlsEnabled: true,
     totalRequests: 864000,
   },
   {
@@ -132,7 +132,7 @@ const MOCK_NODES: MeshServiceNode[] = [
     errorRate: 0.08,
     availability: 99.92,
     status: "healthy",
-    mtlsPercent: 100,
+    mtlsEnabled: true,
     totalRequests: 259200,
   },
 ];
@@ -211,7 +211,7 @@ function generateServiceHistory(node: MeshServiceNode): MeshServiceHistoryPoint[
       p95Latency: Math.max(1, node.p95Latency + jitter() * node.p95Latency * 0.15),
       errorRate: Math.max(0, node.errorRate + jitter() * 0.05),
       availability: Math.min(100, Math.max(99, node.availability + jitter() * 0.1)),
-      mtlsPercent: node.mtlsPercent,
+      mtlsEnabled: node.mtlsEnabled,
     });
   }
   return points;

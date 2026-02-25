@@ -60,7 +60,7 @@ interface ServiceNode {
   p99Latency: number;     // ms
   errorRate: number;      // % (failure / total * 100)
   status: "healthy" | "warning" | "critical";
-  mtlsPercent: number;           // mTLS 覆盖率 (0-100)
+  mtlsEnabled: boolean;           // mTLS 是否启用
   latencyDistribution: LatencyBucket[];      // Linkerd 24桶
   requestBreakdown: RequestBreakdown[];
   statusCodeBreakdown: StatusCodeBreakdown[];
@@ -168,14 +168,14 @@ function generateLatencyDistribution(peakMs: number): LatencyBucket[] {
 // 全局拓扑
 const mockGlobalTopology: ServiceTopology = {
   nodes: [
-    { id: "traefik",        name: "traefik",        namespace: "kube-system", rps: 5200, avgLatency: 3,   p50Latency: 2,   p95Latency: 8,   p99Latency: 15,  errorRate: 0.02, status: "healthy",  mtlsPercent: 98,  latencyDistribution: generateLatencyDistribution(5),   requestBreakdown: [{ method: "GET", count: 38000, errorCount: 8 }, { method: "POST", count: 12000, errorCount: 3 }], statusCodeBreakdown: [{ code: "2xx", count: 48500 }, { code: "3xx", count: 800 }, { code: "4xx", count: 600 }, { code: "5xx", count: 100 }], totalRequests: 50000 },
-    { id: "geass-gateway",  name: "geass-gateway",  namespace: "geass",       rps: 1240, avgLatency: 18,  p50Latency: 12,  p95Latency: 45,  p99Latency: 88,  errorRate: 0.12, status: "healthy",  mtlsPercent: 100, latencyDistribution: generateLatencyDistribution(25),  requestBreakdown: [{ method: "GET", count: 8200, errorCount: 5 }, { method: "POST", count: 3100, errorCount: 4 }, { method: "PUT", count: 680, errorCount: 1 }], statusCodeBreakdown: [{ code: "2xx", count: 11200 }, { code: "3xx", count: 280 }, { code: "4xx", count: 420 }, { code: "5xx", count: 80 }], totalRequests: 11980 },
-    { id: "geass-auth",     name: "geass-auth",     namespace: "geass",       rps: 890,  avgLatency: 8,   p50Latency: 5,   p95Latency: 12,  p99Latency: 25,  errorRate: 0.05, status: "healthy",  mtlsPercent: 100, latencyDistribution: generateLatencyDistribution(10),  requestBreakdown: [{ method: "POST", count: 7500, errorCount: 4 }, { method: "GET", count: 1200, errorCount: 0 }], statusCodeBreakdown: [{ code: "2xx", count: 8300 }, { code: "4xx", count: 350 }, { code: "5xx", count: 50 }], totalRequests: 8700 },
-    { id: "geass-user",     name: "geass-user",     namespace: "geass",       rps: 560,  avgLatency: 85,  p50Latency: 60,  p95Latency: 180, p99Latency: 350, errorRate: 1.2,  status: "warning",  mtlsPercent: 72,  latencyDistribution: generateLatencyDistribution(100), requestBreakdown: [{ method: "GET", count: 3500, errorCount: 25 }, { method: "POST", count: 1200, errorCount: 18 }, { method: "PUT", count: 400, errorCount: 5 }, { method: "DELETE", count: 100, errorCount: 2 }], statusCodeBreakdown: [{ code: "2xx", count: 4900 }, { code: "3xx", count: 80 }, { code: "4xx", count: 160 }, { code: "5xx", count: 60 }], totalRequests: 5200 },
-    { id: "geass-web",      name: "geass-web",      namespace: "geass",       rps: 3200, avgLatency: 12,  p50Latency: 8,   p95Latency: 35,  p99Latency: 65,  errorRate: 0.03, status: "healthy",  mtlsPercent: 100, latencyDistribution: generateLatencyDistribution(15),  requestBreakdown: [{ method: "GET", count: 28000, errorCount: 5 }, { method: "POST", count: 2800, errorCount: 3 }], statusCodeBreakdown: [{ code: "2xx", count: 29800 }, { code: "3xx", count: 600 }, { code: "4xx", count: 350 }, { code: "5xx", count: 50 }], totalRequests: 30800 },
-    { id: "geass-media",    name: "geass-media",    namespace: "geass",       rps: 420,  avgLatency: 45,  p50Latency: 30,  p95Latency: 120, p99Latency: 230, errorRate: 0.15, status: "healthy",  mtlsPercent: 95,  latencyDistribution: generateLatencyDistribution(60),  requestBreakdown: [{ method: "GET", count: 3200, errorCount: 3 }, { method: "POST", count: 850, errorCount: 2 }], statusCodeBreakdown: [{ code: "2xx", count: 3800 }, { code: "3xx", count: 120 }, { code: "4xx", count: 100 }, { code: "5xx", count: 30 }], totalRequests: 4050 },
-    { id: "elasticsearch",  name: "elasticsearch",  namespace: "elastic",     rps: 340,  avgLatency: 22,  p50Latency: 15,  p95Latency: 35,  p99Latency: 72,  errorRate: 0.02, status: "healthy",  mtlsPercent: 85,  latencyDistribution: generateLatencyDistribution(28),  requestBreakdown: [{ method: "GET", count: 2400, errorCount: 1 }, { method: "POST", count: 800, errorCount: 0 }], statusCodeBreakdown: [{ code: "2xx", count: 3100 }, { code: "4xx", count: 80 }, { code: "5xx", count: 20 }], totalRequests: 3200 },
-    { id: "atlhyper-web",   name: "atlhyper-web",   namespace: "atlhyper",    rps: 150,  avgLatency: 15,  p50Latency: 10,  p95Latency: 42,  p99Latency: 80,  errorRate: 0.01, status: "healthy",  mtlsPercent: 100, latencyDistribution: generateLatencyDistribution(20),  requestBreakdown: [{ method: "GET", count: 1200, errorCount: 0 }, { method: "POST", count: 250, errorCount: 1 }], statusCodeBreakdown: [{ code: "2xx", count: 1380 }, { code: "3xx", count: 40 }, { code: "4xx", count: 25 }, { code: "5xx", count: 5 }], totalRequests: 1450 },
+    { id: "traefik",        name: "traefik",        namespace: "kube-system", rps: 5200, avgLatency: 3,   p50Latency: 2,   p95Latency: 8,   p99Latency: 15,  errorRate: 0.02, status: "healthy",  mtlsEnabled: true,  latencyDistribution: generateLatencyDistribution(5),   requestBreakdown: [{ method: "GET", count: 38000, errorCount: 8 }, { method: "POST", count: 12000, errorCount: 3 }], statusCodeBreakdown: [{ code: "2xx", count: 48500 }, { code: "3xx", count: 800 }, { code: "4xx", count: 600 }, { code: "5xx", count: 100 }], totalRequests: 50000 },
+    { id: "geass-gateway",  name: "geass-gateway",  namespace: "geass",       rps: 1240, avgLatency: 18,  p50Latency: 12,  p95Latency: 45,  p99Latency: 88,  errorRate: 0.12, status: "healthy",  mtlsEnabled: true, latencyDistribution: generateLatencyDistribution(25),  requestBreakdown: [{ method: "GET", count: 8200, errorCount: 5 }, { method: "POST", count: 3100, errorCount: 4 }, { method: "PUT", count: 680, errorCount: 1 }], statusCodeBreakdown: [{ code: "2xx", count: 11200 }, { code: "3xx", count: 280 }, { code: "4xx", count: 420 }, { code: "5xx", count: 80 }], totalRequests: 11980 },
+    { id: "geass-auth",     name: "geass-auth",     namespace: "geass",       rps: 890,  avgLatency: 8,   p50Latency: 5,   p95Latency: 12,  p99Latency: 25,  errorRate: 0.05, status: "healthy",  mtlsEnabled: true, latencyDistribution: generateLatencyDistribution(10),  requestBreakdown: [{ method: "POST", count: 7500, errorCount: 4 }, { method: "GET", count: 1200, errorCount: 0 }], statusCodeBreakdown: [{ code: "2xx", count: 8300 }, { code: "4xx", count: 350 }, { code: "5xx", count: 50 }], totalRequests: 8700 },
+    { id: "geass-user",     name: "geass-user",     namespace: "geass",       rps: 560,  avgLatency: 85,  p50Latency: 60,  p95Latency: 180, p99Latency: 350, errorRate: 1.2,  status: "warning",  mtlsEnabled: true,  latencyDistribution: generateLatencyDistribution(100), requestBreakdown: [{ method: "GET", count: 3500, errorCount: 25 }, { method: "POST", count: 1200, errorCount: 18 }, { method: "PUT", count: 400, errorCount: 5 }, { method: "DELETE", count: 100, errorCount: 2 }], statusCodeBreakdown: [{ code: "2xx", count: 4900 }, { code: "3xx", count: 80 }, { code: "4xx", count: 160 }, { code: "5xx", count: 60 }], totalRequests: 5200 },
+    { id: "geass-web",      name: "geass-web",      namespace: "geass",       rps: 3200, avgLatency: 12,  p50Latency: 8,   p95Latency: 35,  p99Latency: 65,  errorRate: 0.03, status: "healthy",  mtlsEnabled: true, latencyDistribution: generateLatencyDistribution(15),  requestBreakdown: [{ method: "GET", count: 28000, errorCount: 5 }, { method: "POST", count: 2800, errorCount: 3 }], statusCodeBreakdown: [{ code: "2xx", count: 29800 }, { code: "3xx", count: 600 }, { code: "4xx", count: 350 }, { code: "5xx", count: 50 }], totalRequests: 30800 },
+    { id: "geass-media",    name: "geass-media",    namespace: "geass",       rps: 420,  avgLatency: 45,  p50Latency: 30,  p95Latency: 120, p99Latency: 230, errorRate: 0.15, status: "healthy",  mtlsEnabled: true,  latencyDistribution: generateLatencyDistribution(60),  requestBreakdown: [{ method: "GET", count: 3200, errorCount: 3 }, { method: "POST", count: 850, errorCount: 2 }], statusCodeBreakdown: [{ code: "2xx", count: 3800 }, { code: "3xx", count: 120 }, { code: "4xx", count: 100 }, { code: "5xx", count: 30 }], totalRequests: 4050 },
+    { id: "elasticsearch",  name: "elasticsearch",  namespace: "elastic",     rps: 340,  avgLatency: 22,  p50Latency: 15,  p95Latency: 35,  p99Latency: 72,  errorRate: 0.02, status: "healthy",  mtlsEnabled: true,  latencyDistribution: generateLatencyDistribution(28),  requestBreakdown: [{ method: "GET", count: 2400, errorCount: 1 }, { method: "POST", count: 800, errorCount: 0 }], statusCodeBreakdown: [{ code: "2xx", count: 3100 }, { code: "4xx", count: 80 }, { code: "5xx", count: 20 }], totalRequests: 3200 },
+    { id: "atlhyper-web",   name: "atlhyper-web",   namespace: "atlhyper",    rps: 150,  avgLatency: 15,  p50Latency: 10,  p95Latency: 42,  p99Latency: 80,  errorRate: 0.01, status: "healthy",  mtlsEnabled: true, latencyDistribution: generateLatencyDistribution(20),  requestBreakdown: [{ method: "GET", count: 1200, errorCount: 0 }, { method: "POST", count: 250, errorCount: 1 }], statusCodeBreakdown: [{ code: "2xx", count: 1380 }, { code: "3xx", count: 40 }, { code: "4xx", count: 25 }, { code: "5xx", count: 5 }], totalRequests: 1450 },
   ],
   edges: [
     { source: "traefik",       target: "geass-gateway", rps: 1240, avgLatency: 3,  errorRate: 0.02 },
@@ -1571,7 +1571,7 @@ function ServiceListTable({ nodes, selectedId, onSelect }: {
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
-  const [sortKey, setSortKey] = useState<"name" | "rps" | "p95Latency" | "errorRate" | "mtlsPercent">("rps");
+  const [sortKey, setSortKey] = useState<"name" | "rps" | "p95Latency" | "errorRate">("rps");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const toggleSort = (key: typeof sortKey) => {
@@ -1596,12 +1596,6 @@ function ServiceListTable({ nodes, selectedId, onSelect }: {
     return arr;
   }, [nodes, sortKey, sortDir]);
 
-  const getMtlsColor = (pct: number) => {
-    if (pct >= 100) return "text-emerald-600 dark:text-emerald-400";
-    if (pct >= 80) return "text-amber-600 dark:text-amber-400";
-    return "text-red-600 dark:text-red-400";
-  };
-
   const SortHeader = ({ label, field }: { label: string; field: typeof sortKey }) => (
     <button
       onClick={() => toggleSort(field)}
@@ -1625,7 +1619,7 @@ function ServiceListTable({ nodes, selectedId, onSelect }: {
             <th className="text-right py-2 px-2"><SortHeader label="RPS" field="rps" /></th>
             <th className="text-right py-2 px-2"><SortHeader label="P95" field="p95Latency" /></th>
             <th className="text-right py-2 px-2"><SortHeader label="错误率" field="errorRate" /></th>
-            <th className="text-right py-2 px-2"><SortHeader label="mTLS" field="mtlsPercent" /></th>
+            <th className="text-right py-2 px-2"><span className="text-[10px] font-medium uppercase tracking-wider text-muted">mTLS</span></th>
             <th className="text-center py-2 px-2"><span className="text-[10px] font-medium uppercase tracking-wider text-muted">状态</span></th>
           </tr>
         </thead>
@@ -1660,8 +1654,12 @@ function ServiceListTable({ nodes, selectedId, onSelect }: {
                   </span>
                 </td>
                 <td className="text-right py-2.5 px-2">
-                  <span className={`font-semibold ${getMtlsColor(node.mtlsPercent)}`}>
-                    {node.mtlsPercent}%
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                    node.mtlsEnabled
+                      ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                  }`}>
+                    {node.mtlsEnabled ? "ON" : "OFF"}
                   </span>
                 </td>
                 <td className="text-center py-2.5 px-2">
@@ -1824,15 +1822,9 @@ function ServiceMeshOverview({ topology, selectedServiceId, onSelectService }: {
     ? topology.nodes.find(n => n.id === selectedServiceId)
     : null;
 
-  // mTLS 加权覆盖率
-  const totalRps = topology.nodes.reduce((sum, n) => sum + n.rps, 0);
-  const overallMtls = totalRps > 0
-    ? topology.nodes.reduce((sum, n) => sum + n.mtlsPercent * n.rps, 0) / totalRps
-    : 0;
-  const mtlsFull = topology.nodes.filter(n => n.mtlsPercent >= 100).length;
-  const mtlsLow = topology.nodes.filter(n => n.mtlsPercent < 80).length;
-  const mtlsBarColor = overallMtls >= 95 ? "bg-emerald-500" : overallMtls >= 80 ? "bg-amber-500" : "bg-red-500";
-  const mtlsTextColor = overallMtls >= 95 ? "text-emerald-600 dark:text-emerald-400" : overallMtls >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+  // mTLS 启用状态
+  const mtlsEnabledCount = topology.nodes.filter(n => n.mtlsEnabled).length;
+  const allMtlsEnabled = mtlsEnabledCount === topology.nodes.length;
 
   return (
     <div className="rounded-xl border border-[var(--border-color)] bg-card overflow-hidden">
@@ -1846,12 +1838,14 @@ function ServiceMeshOverview({ topology, selectedServiceId, onSelectService }: {
           <div className="flex items-center gap-2">
             <Shield className="w-3.5 h-3.5 text-muted" />
             <span className="text-[10px] text-muted">mTLS</span>
-            <div className="w-20 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${mtlsBarColor}`} style={{ width: `${Math.min(100, overallMtls)}%` }} />
-            </div>
-            <span className={`text-xs font-semibold ${mtlsTextColor}`}>{overallMtls.toFixed(1)}%</span>
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+              allMtlsEnabled
+                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+                : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+            }`}>
+              {allMtlsEnabled ? "ON" : `${mtlsEnabledCount}/${topology.nodes.length}`}
+            </span>
           </div>
-          <span className="text-[10px] text-muted">{mtlsFull}/{topology.nodes.length} 全覆盖{mtlsLow > 0 ? ` · ${mtlsLow} 低于80%` : ""}</span>
         </div>
       </div>
       <div className="flex flex-col lg:flex-row">
@@ -1874,26 +1868,12 @@ function ServiceMeshOverview({ topology, selectedServiceId, onSelectService }: {
   );
 }
 
-// mTLS 覆盖率卡片
+// mTLS 状态卡片
 function MtlsCoverageView({ topology }: { topology: ServiceTopology }) {
   const nodes = topology.nodes;
 
-  // RPS 加权平均 mTLS 覆盖率
-  const totalRps = nodes.reduce((sum, n) => sum + n.rps, 0);
-  const overallMtls = totalRps > 0
-    ? nodes.reduce((sum, n) => sum + n.mtlsPercent * n.rps, 0) / totalRps
-    : 0;
-
-  // 按 mtlsPercent 升序（最低的在前）
-  const sorted = [...nodes].sort((a, b) => a.mtlsPercent - b.mtlsPercent);
-
-  const getMtlsColor = (pct: number) => {
-    if (pct >= 100) return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
-    if (pct >= 80) return { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-400", dot: "bg-amber-500" };
-    return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
-  };
-
-  const barColor = overallMtls >= 95 ? "bg-emerald-500" : overallMtls >= 80 ? "bg-amber-500" : "bg-red-500";
+  const mtlsEnabledCount = nodes.filter(n => n.mtlsEnabled).length;
+  const allEnabled = mtlsEnabledCount === nodes.length;
 
   return (
     <div className="rounded-xl border border-[var(--border-color)] bg-card overflow-hidden">
@@ -1901,35 +1881,33 @@ function MtlsCoverageView({ topology }: { topology: ServiceTopology }) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium text-default">mTLS 覆盖率</span>
+            <span className="text-sm font-medium text-default">mTLS</span>
           </div>
-          <span className="text-sm font-bold text-default">{overallMtls.toFixed(1)}%</span>
-        </div>
-
-        {/* 整体进度条 */}
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex-1 h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${barColor}`}
-              style={{ width: `${Math.min(100, overallMtls)}%` }}
-            />
-          </div>
-          <span className="text-xs font-medium text-muted w-12 text-right">{overallMtls.toFixed(1)}%</span>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+            allEnabled
+              ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+              : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+          }`}>
+            {allEnabled ? "ON" : `${mtlsEnabledCount}/${nodes.length} ON`}
+          </span>
         </div>
 
         {/* Per-service 药丸 */}
         <div className="flex flex-wrap gap-1.5">
-          {sorted.map((node) => {
-            const colors = getMtlsColor(node.mtlsPercent);
+          {nodes.map((node) => {
             const nsColor = getNamespaceColor(node.namespace);
             return (
               <div
                 key={node.id}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium ${colors.bg} ${colors.text}`}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium ${
+                  node.mtlsEnabled
+                    ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                }`}
               >
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: nsColor.fill }} />
                 <span>{node.name}</span>
-                <span className="font-bold">{node.mtlsPercent}%</span>
+                <span className="font-bold">{node.mtlsEnabled ? "ON" : "OFF"}</span>
               </div>
             );
           })}
@@ -2463,8 +2441,8 @@ export default function StylePreviewPage() {
                   <strong>服务网格层（Linkerd）：</strong>服务调用拓扑、per-service golden metrics（RPS / 延迟百分位 / 错误率）和 24 桶延迟直方图来源于
                   <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded ml-1">otel_response_total</code> +
                   <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded ml-1">otel_response_latency_ms</code>。
-                  mTLS 覆盖率通过 <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded">response_total</code> 的
-                  <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded ml-1">tls</code> 标签计算。
+                  mTLS 状态通过 <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded">response_total</code> 的
+                  <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded ml-1">tls</code> 标签判断。
                 </p>
                 <p className="text-blue-700 dark:text-blue-300 text-xs leading-relaxed mt-1">
                   <strong>入口层（Traefik）：</strong>域名级 SLO（可用性 / 延迟 / 错误预算）来源于 Traefik 入口指标。

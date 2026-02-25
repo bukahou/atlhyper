@@ -7,8 +7,29 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/atlhyper_agent_v2/sdk"
+	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/slo"
 )
+
+var sloLog = logger.Module("SLO-CH")
+
+// gaugeCounterDelta ClickHouse SQL: counter-reset-safe delta for Linkerd gauge counters.
+// Reset detection: if peak > latest, a counter reset occurred within the window.
+// Normal: latest - earliest; Reset: (peak - earliest) + latest.
+const gaugeCounterDelta = `if(max(Value) > argMax(Value, TimeUnix),
+    (max(Value) - argMin(Value, TimeUnix)) + argMax(Value, TimeUnix),
+    argMax(Value, TimeUnix) - argMin(Value, TimeUnix))`
+
+// seriesIsolation 用于 GROUP BY 隔离独立计数器系列的列（原始表查询用）。
+// Linkerd gauge 指标按 (pod, status_code, route_name, target_addr) 产生独立计数器。
+const seriesIsolation = `Attributes['pod'], Attributes['status_code'],
+             Attributes['route_name'], Attributes['target_addr']`
+
+// gaugeCounterDeltaMerge 是 gaugeCounterDelta 的 AggregatingMergeTree 版本。
+// 操作预聚合 MV 中的 -State 列，使用 -Merge 组合器最终化。
+const gaugeCounterDeltaMerge = `if(maxMerge(peak_val) > argMaxMerge(latest_val),
+    (maxMerge(peak_val) - argMinMerge(earliest_val)) + argMaxMerge(latest_val),
+    argMaxMerge(latest_val) - argMinMerge(earliest_val))`
 
 // sloRepository SLO 查询仓库
 type sloRepository struct {
@@ -192,7 +213,7 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 			DisplayName:   key,
 			TotalRequests: d.totalReqs,
 			TotalErrors:   d.totalErrors,
-			RPS:           roundTo(float64(d.totalReqs)/duration, 2),
+			RPS:           roundRPS(float64(d.totalReqs) / duration),
 		}
 		if d.totalReqs > 0 {
 			item.SuccessRate = roundTo(float64(d.totalReqs-d.totalErrors)/float64(d.totalReqs)*100, 2)
@@ -223,18 +244,21 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error) {
 	sec := sinceSeconds(since)
 
-	// response_total (gauge) — 按 deployment/namespace/status_code/tls 分组
+	// response_total: 从预聚合 MV 读取，-Merge 组合器最终化
 	query := fmt.Sprintf(`
-		SELECT Attributes['deployment'] AS deploy,
-		       Attributes['namespace'] AS ns,
-		       Attributes['status_code'] AS code,
-		       Attributes['tls'] AS tls,
-		       sum(Value) AS total
-		FROM otel_metrics_gauge
-		WHERE MetricName = 'response_total'
-		  AND Attributes['direction'] = 'inbound'
-		  AND TimeUnix >= now() - INTERVAL %d SECOND
-		GROUP BY deploy, ns, code, tls
+		SELECT deploy, ns, status_code, tls, sum(delta) AS delta
+		FROM (
+			SELECT deploy, ns, status_code, tls,
+			       `+gaugeCounterDeltaMerge+` AS delta
+			FROM mv_linkerd_response_total
+			WHERE direction = 'inbound'
+			  AND target_addr NOT LIKE '%%:4191'
+			  AND route_name != 'probe'
+			  AND hour >= toStartOfHour(now() - INTERVAL %d SECOND)
+			GROUP BY deploy, ns, status_code, tls, pod, route_name, target_addr
+			HAVING countMerge(point_cnt) >= 2
+		)
+		GROUP BY deploy, ns, status_code, tls
 	`, sec)
 
 	rows, err := r.client.Query(ctx, query)
@@ -249,16 +273,19 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 	type svcData struct {
 		totalReqs   float64
 		successReqs float64
-		tlsReqs     float64
+		mtlsEnabled bool
 		codes       map[string]int64
 	}
 	svcMap := make(map[svcKey]*svcData)
 
 	for rows.Next() {
 		var deploy, ns, code, tls string
-		var total float64
-		if err := rows.Scan(&deploy, &ns, &code, &tls, &total); err != nil {
+		var delta float64
+		if err := rows.Scan(&deploy, &ns, &code, &tls, &delta); err != nil {
 			continue
+		}
+		if delta <= 0 {
+			continue // counter reset 或无增量
 		}
 		key := svcKey{deploy, ns}
 		d, ok := svcMap[key]
@@ -266,32 +293,36 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 			d = &svcData{codes: make(map[string]int64)}
 			svcMap[key] = d
 		}
-		d.totalReqs += total
-		if code == "200" || code == "201" || code == "204" || (len(code) > 0 && code[0] == '2') {
-			d.successReqs += total
+		d.totalReqs += delta
+		if len(code) > 0 && code[0] < '4' {
+			d.successReqs += delta // 1xx/2xx/3xx 均视为成功
 		}
 		if tls == "true" {
-			d.tlsReqs += total
+			d.mtlsEnabled = true
 		}
-		d.codes[code] += int64(total)
+		d.codes[code] += int64(delta)
 	}
 
-	// Linkerd latency buckets
+	// Linkerd latency buckets: 从预聚合 MV 读取
 	latQuery := fmt.Sprintf(`
-		SELECT Attributes['deployment'] AS deploy,
-		       Attributes['namespace'] AS ns,
-		       Attributes['le'] AS le,
-		       sum(Value) AS total
-		FROM otel_metrics_gauge
-		WHERE MetricName = 'response_latency_ms_bucket'
-		  AND Attributes['direction'] = 'inbound'
-		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		SELECT deploy, ns, le, sum(delta) AS delta
+		FROM (
+			SELECT deploy, ns, le,
+			       `+gaugeCounterDeltaMerge+` AS delta
+			FROM mv_linkerd_latency_bucket
+			WHERE target_addr NOT LIKE '%%:4191'
+			  AND route_name != 'probe'
+			  AND hour >= toStartOfHour(now() - INTERVAL %d SECOND)
+			GROUP BY deploy, ns, le, pod, status_code, route_name, target_addr
+			HAVING countMerge(point_cnt) >= 2
+		)
 		GROUP BY deploy, ns, le
 		ORDER BY deploy, ns, toFloat64OrNull(le)
 	`, sec)
 
 	latRows, err := r.client.Query(ctx, latQuery)
 	if err != nil {
+		sloLog.Warn("Linkerd latency query failed", "since", since, "err", err)
 		latRows = nil
 	}
 
@@ -307,9 +338,12 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 		defer latRows.Close()
 		for latRows.Next() {
 			var deploy, ns, le string
-			var total float64
-			if err := latRows.Scan(&deploy, &ns, &le, &total); err != nil {
+			var delta float64
+			if err := latRows.Scan(&deploy, &ns, &le, &delta); err != nil {
 				continue
+			}
+			if delta < 0 {
+				delta = 0
 			}
 			key := latKey{deploy, ns}
 			data := latBuckets[key]
@@ -320,7 +354,7 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 				fmt.Sscanf(le, "%f", &bound)
 				data.bounds = append(data.bounds, bound)
 			}
-			data.counts = append(data.counts, uint64(total))
+			data.counts = append(data.counts, uint64(delta))
 			latBuckets[key] = data
 		}
 	}
@@ -331,20 +365,31 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 		item := slo.ServiceSLO{
 			Namespace: key.ns,
 			Name:      key.name,
-			RPS:       roundTo(d.totalReqs/duration, 2),
+			RPS:       roundRPS(d.totalReqs / duration),
 		}
 		if d.totalReqs > 0 {
 			item.SuccessRate = roundTo(d.successReqs/d.totalReqs*100, 2)
-			item.MTLSRate = roundTo(d.tlsReqs/d.totalReqs*100, 2)
 		}
+		item.MTLSEnabled = d.mtlsEnabled
 		for code, cnt := range d.codes {
 			item.StatusCodes = append(item.StatusCodes, slo.StatusCodeCount{Code: code, Count: cnt})
 		}
 		lk := latKey{key.name, key.ns}
 		if lb, ok := latBuckets[lk]; ok && len(lb.counts) > 0 {
-			item.P50Ms = roundTo(histogramPercentile(lb.bounds, lb.counts, 0.50), 2)
-			item.P90Ms = roundTo(histogramPercentile(lb.bounds, lb.counts, 0.90), 2)
-			item.P99Ms = roundTo(histogramPercentile(lb.bounds, lb.counts, 0.99), 2)
+			// Linkerd le 桶是 Prometheus 风格累积桶，需先转为差分
+			diffCounts := cumulativeToDifferential(lb.counts)
+			item.P50Ms = roundTo(histogramPercentile(lb.bounds, diffCounts, 0.50), 2)
+			item.P90Ms = roundTo(histogramPercentile(lb.bounds, diffCounts, 0.90), 2)
+			item.P99Ms = roundTo(histogramPercentile(lb.bounds, diffCounts, 0.99), 2)
+			// 填充延迟分布桶（差分后每个桶独立，单位已是 ms）
+			for i, bound := range lb.bounds {
+				if i < len(diffCounts) {
+					item.LatencyBuckets = append(item.LatencyBuckets, slo.LatencyBucket{
+						LE:    bound,
+						Count: int64(diffCounts[i]),
+					})
+				}
+			}
 		}
 		result = append(result, item)
 	}
@@ -363,17 +408,19 @@ func (r *sloRepository) ListServiceEdges(ctx context.Context, since time.Duratio
 	sec := sinceSeconds(since)
 
 	query := fmt.Sprintf(`
-		SELECT Attributes['deployment'] AS src,
-		       Attributes['namespace'] AS src_ns,
-		       Attributes['dst_deployment'] AS dst,
-		       Attributes['dst_namespace'] AS dst_ns,
-		       Attributes['status_code'] AS code,
-		       sum(Value) AS total
-		FROM otel_metrics_gauge
-		WHERE MetricName = 'response_total'
-		  AND Attributes['direction'] = 'outbound'
-		  AND TimeUnix >= now() - INTERVAL %d SECOND
-		GROUP BY src, src_ns, dst, dst_ns, code
+		SELECT deploy, ns, dst_deploy, dst_ns, status_code, sum(delta) AS delta
+		FROM (
+			SELECT deploy, ns, dst_deploy, dst_ns, status_code,
+			       `+gaugeCounterDeltaMerge+` AS delta
+			FROM mv_linkerd_response_total
+			WHERE direction = 'outbound'
+			  AND target_addr NOT LIKE '%%:4191'
+			  AND route_name != 'probe'
+			  AND hour >= toStartOfHour(now() - INTERVAL %d SECOND)
+			GROUP BY deploy, ns, dst_deploy, dst_ns, status_code, pod, route_name, target_addr
+			HAVING countMerge(point_cnt) >= 2
+		)
+		GROUP BY deploy, ns, dst_deploy, dst_ns, status_code
 	`, sec)
 
 	rows, err := r.client.Query(ctx, query)
@@ -392,8 +439,11 @@ func (r *sloRepository) ListServiceEdges(ctx context.Context, since time.Duratio
 
 	for rows.Next() {
 		var src, srcNs, dst, dstNs, code string
-		var total float64
-		if err := rows.Scan(&src, &srcNs, &dst, &dstNs, &code, &total); err != nil {
+		var delta float64
+		if err := rows.Scan(&src, &srcNs, &dst, &dstNs, &code, &delta); err != nil {
+			continue
+		}
+		if delta <= 0 {
 			continue
 		}
 		key := edgeKey{srcNs, src, dstNs, dst}
@@ -402,9 +452,9 @@ func (r *sloRepository) ListServiceEdges(ctx context.Context, since time.Duratio
 			d = &edgeData{}
 			edgeMap[key] = d
 		}
-		d.total += total
-		if len(code) > 0 && code[0] == '2' {
-			d.success += total
+		d.total += delta
+		if len(code) > 0 && code[0] < '4' {
+			d.success += delta
 		}
 	}
 
@@ -416,7 +466,7 @@ func (r *sloRepository) ListServiceEdges(ctx context.Context, since time.Duratio
 			SrcName:      key.src,
 			DstNamespace: key.dstNs,
 			DstName:      key.dst,
-			RPS:          roundTo(d.total/duration, 2),
+			RPS:          roundRPS(d.total / duration),
 		}
 		if d.total > 0 {
 			edge.SuccessRate = roundTo(d.success/d.total*100, 2)
@@ -437,16 +487,23 @@ func (r *sloRepository) ListServiceEdges(ctx context.Context, since time.Duratio
 func (r *sloRepository) GetSLOTimeSeries(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error) {
 	sec := sinceSeconds(since)
 
-	// 按 5 分钟窗口聚合
+	// 按 5 分钟窗口聚合，子查询隔离每个计数器系列
 	query := fmt.Sprintf(`
-		SELECT toStartOfInterval(TimeUnix, INTERVAL 300 SECOND) AS ts,
-		       Attributes['status_code'] AS code,
-		       sum(Value) AS total
-		FROM otel_metrics_gauge
-		WHERE MetricName = 'response_total'
-		  AND Attributes['direction'] = 'inbound'
-		  AND (Attributes['deployment'] = ? OR Attributes['service'] = ?)
-		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		SELECT ts, code, sum(delta) AS delta
+		FROM (
+			SELECT toStartOfInterval(TimeUnix, INTERVAL 300 SECOND) AS ts,
+			       Attributes['status_code'] AS code,
+			       `+gaugeCounterDelta+` AS delta
+			FROM otel_metrics_gauge
+			WHERE MetricName = 'response_total'
+			  AND Attributes['direction'] = 'inbound'
+			  AND Attributes['target_addr'] NOT LIKE '%%:4191'
+			  AND Attributes['route_name'] != 'probe'
+			  AND (Attributes['deployment'] = ? OR Attributes['service'] = ?)
+			  AND TimeUnix >= now() - INTERVAL %d SECOND
+			GROUP BY ts, code, `+seriesIsolation+`
+			HAVING count() >= 2
+		)
 		GROUP BY ts, code
 		ORDER BY ts
 	`, sec)
@@ -465,8 +522,11 @@ func (r *sloRepository) GetSLOTimeSeries(ctx context.Context, name string, since
 	for rows.Next() {
 		var ts time.Time
 		var code string
-		var total float64
-		if err := rows.Scan(&ts, &code, &total); err != nil {
+		var delta float64
+		if err := rows.Scan(&ts, &code, &delta); err != nil {
+			continue
+		}
+		if delta <= 0 {
 			continue
 		}
 		d, ok := tsMap[ts]
@@ -474,9 +534,9 @@ func (r *sloRepository) GetSLOTimeSeries(ctx context.Context, name string, since
 			d = &tsData{}
 			tsMap[ts] = d
 		}
-		d.total += total
-		if len(code) > 0 && code[0] == '2' {
-			d.success += total
+		d.total += delta
+		if len(code) > 0 && code[0] < '4' {
+			d.success += delta
 		}
 	}
 
@@ -690,7 +750,7 @@ func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket 
 			Timestamp:     key.ts,
 			ServiceKey:    key.svc,
 			TotalRequests: d.totalReqs,
-			RPS:           roundTo(float64(d.totalReqs)/bucketDuration, 2),
+			RPS:           roundRPS(float64(d.totalReqs) / bucketDuration),
 		}
 		if d.totalReqs > 0 {
 			point.Availability = roundTo(float64(d.totalReqs-d.totalErrors)/float64(d.totalReqs)*100, 2)

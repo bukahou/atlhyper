@@ -497,7 +497,7 @@ func extractLogHistogram(logs []log.Entry) []map[string]string {
 // ================================================================
 
 // TracesList GET /api/v2/observe/traces
-// 从快照 RecentTraces 直读，支持客户端过滤（service / min_duration / operation）
+// 默认 15m 从快照直读；自定义时间走 Command/MQ 查询 ClickHouse
 func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -506,6 +506,29 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	clusterID, ok := requireClusterID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	// 自定义时间范围 → Command/MQ
+	timeRange := r.URL.Query().Get("time_range")
+	if timeRange != "" && timeRange != "15m" {
+		minutes, ok := parseTimeRangeMinutes(timeRange)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "invalid time_range")
+			return
+		}
+		params := map[string]interface{}{
+			"sub_action": "list_traces",
+			"since":      fmt.Sprintf("%dm", minutes),
+			"limit":      500,
+		}
+		if svc := r.URL.Query().Get("service"); svc != "" {
+			params["service"] = svc
+		}
+		if op := r.URL.Query().Get("operation"); op != "" {
+			params["operation"] = op
+		}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
 
@@ -581,7 +604,7 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// TracesServices GET /api/v2/observe/traces/services (Dashboard: 快照直读)
+// TracesServices GET /api/v2/observe/traces/services (Dashboard: 快照直读 / 自定义时间: Command)
 func (h *ObserveHandler) TracesServices(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -590,6 +613,18 @@ func (h *ObserveHandler) TracesServices(w http.ResponseWriter, r *http.Request) 
 	clusterID, ok := requireClusterID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	timeRange := r.URL.Query().Get("time_range")
+	if timeRange != "" && timeRange != "15m" {
+		minutes, ok := parseTimeRangeMinutes(timeRange)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "invalid time_range")
+			return
+		}
+		params := map[string]interface{}{"sub_action": "list_services", "since": fmt.Sprintf("%dm", minutes)}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
 
@@ -604,7 +639,7 @@ func (h *ObserveHandler) TracesServices(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// TracesTopology GET /api/v2/observe/traces/topology (Dashboard: 快照直读)
+// TracesTopology GET /api/v2/observe/traces/topology (Dashboard: 快照直读 / 自定义时间: Command)
 func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -613,6 +648,18 @@ func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) 
 	clusterID, ok := requireClusterID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	timeRange := r.URL.Query().Get("time_range")
+	if timeRange != "" && timeRange != "15m" {
+		minutes, ok := parseTimeRangeMinutes(timeRange)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "invalid time_range")
+			return
+		}
+		params := map[string]interface{}{"sub_action": "get_topology", "since": fmt.Sprintf("%dm", minutes)}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
 
@@ -627,7 +674,7 @@ func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// TracesOperations GET /api/v2/observe/traces/operations (Dashboard: 快照直读)
+// TracesOperations GET /api/v2/observe/traces/operations (Dashboard: 快照直读 / 自定义时间: Command)
 // 返回操作级聚合统计，支持 ?service=xxx 过滤
 func (h *ObserveHandler) TracesOperations(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -637,6 +684,18 @@ func (h *ObserveHandler) TracesOperations(w http.ResponseWriter, r *http.Request
 	clusterID, ok := requireClusterID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	timeRange := r.URL.Query().Get("time_range")
+	if timeRange != "" && timeRange != "15m" {
+		minutes, ok := parseTimeRangeMinutes(timeRange)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "invalid time_range")
+			return
+		}
+		params := map[string]interface{}{"sub_action": "list_operations", "since": fmt.Sprintf("%dm", minutes)}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
 
@@ -841,6 +900,20 @@ func parseTimeRangeMinutes(s string) (int, bool) {
 	return int(d.Minutes()), true
 }
 
+// cacheTTLForMinutes 根据查询时间范围返回合适的缓存 TTL
+func cacheTTLForMinutes(minutes int) time.Duration {
+	switch {
+	case minutes <= 60:
+		return 30 * time.Second
+	case minutes <= 360:
+		return 2 * time.Minute
+	case minutes <= 1440:
+		return 5 * time.Minute
+	default:
+		return 10 * time.Minute
+	}
+}
+
 // LogsSummary GET /api/v2/observe/logs/summary (Dashboard: 快照直读)
 func (h *ObserveHandler) LogsSummary(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -888,11 +961,51 @@ func (h *ObserveHandler) SLOSummary(w http.ResponseWriter, r *http.Request) {
 }
 
 // ================================================================
+// APM Stats Handler (HTTP Stats / DB Stats)
+// ================================================================
+
+// TracesStats GET /api/v2/observe/traces/stats
+// 通过 Command/MQ 查询 HTTP 状态码分布和数据库操作统计
+func (h *ObserveHandler) TracesStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	clusterID, ok := requireClusterID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	subAction := r.URL.Query().Get("sub_action")
+	service := r.URL.Query().Get("service")
+	if service == "" {
+		writeError(w, http.StatusBadRequest, "service is required")
+		return
+	}
+
+	minutes := 15
+	if tr := r.URL.Query().Get("time_range"); tr != "" {
+		if m, valid := parseTimeRangeMinutes(tr); valid {
+			minutes = m
+		}
+	}
+
+	params := map[string]interface{}{
+		"sub_action": subAction,
+		"service":    service,
+		"since":      fmt.Sprintf("%dm", minutes),
+	}
+
+	h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
+}
+
+// ================================================================
 // APM TimeSeries Handlers
 // ================================================================
 
 // APMServiceSeries GET /api/v2/observe/traces/services/{name}/series
-// 从预聚合 APMTimeSeries 读取指定服务的趋势数据
+// ≤60min: 从 Concentrator 预聚合读取；>60min: Command/MQ 查询 ClickHouse
 func (h *ObserveHandler) APMServiceSeries(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -921,29 +1034,43 @@ func (h *ObserveHandler) APMServiceSeries(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
-	if err != nil || otel == nil {
-		writeError(w, http.StatusNotFound, "数据尚未就绪")
+	// >60min: 走 Command/MQ 查询 ClickHouse（Concentrator 只存 60 分钟）
+	if minutes > 60 {
+		params := map[string]interface{}{
+			"sub_action": "service_series",
+			"service":    serviceName,
+			"since":      fmt.Sprintf("%dm", minutes),
+		}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
 
-	// 从预聚合 APM 时序读取
-	if otel.APMTimeSeries != nil {
+	// ≤60min: 优先从 Concentrator 预聚合读取，无数据时回退 ClickHouse
+	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
+	if err == nil && otel != nil && otel.APMTimeSeries != nil {
 		for _, s := range otel.APMTimeSeries {
 			if s.ServiceName == serviceName {
 				points := filterAPMPointsByMinutes(s.Points, minutes)
-				writeJSON(w, http.StatusOK, map[string]interface{}{
-					"message": "获取成功",
-					"data": map[string]interface{}{
-						"service":   serviceName,
-						"namespace": s.Namespace,
-						"points":    points,
-					},
-				})
-				return
+				if len(points) > 0 {
+					writeJSON(w, http.StatusOK, map[string]interface{}{
+						"message": "获取成功",
+						"data": map[string]interface{}{
+							"service":   serviceName,
+							"namespace": s.Namespace,
+							"points":    points,
+						},
+					})
+					return
+				}
 			}
 		}
 	}
 
-	writeError(w, http.StatusNotFound, "服务时序数据未就绪")
+	// Concentrator 无数据（如最近无流量），回退到 ClickHouse 查询
+	params := map[string]interface{}{
+		"sub_action": "service_series",
+		"service":    serviceName,
+		"since":      fmt.Sprintf("%dm", minutes),
+	}
+	h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 }

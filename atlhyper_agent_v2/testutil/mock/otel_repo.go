@@ -41,16 +41,19 @@ func (m *OTelSummaryRepository) GetMetricsSummary(ctx context.Context) (monitore
 
 // TraceQueryRepository mock
 type TraceQueryRepository struct {
-	ListTracesFn      func(ctx context.Context, service string, minDurationMs float64, limit int, since time.Duration) ([]apm.TraceSummary, error)
+	ListTracesFn      func(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string) ([]apm.TraceSummary, error)
 	GetTraceDetailFn  func(ctx context.Context, traceID string) (*apm.TraceDetail, error)
-	ListServicesFn    func(ctx context.Context) ([]apm.APMService, error)
-	GetTopologyFn     func(ctx context.Context) (*apm.Topology, error)
-	ListOperationsFn  func(ctx context.Context) ([]apm.OperationStats, error)
+	ListServicesFn    func(ctx context.Context, since time.Duration) ([]apm.APMService, error)
+	GetTopologyFn     func(ctx context.Context, since time.Duration) (*apm.Topology, error)
+	ListOperationsFn  func(ctx context.Context, since time.Duration) ([]apm.OperationStats, error)
+	GetHTTPStatsFn    func(ctx context.Context, service string, since time.Duration) ([]apm.HTTPStats, error)
+	GetDBStatsFn              func(ctx context.Context, service string, since time.Duration) ([]apm.DBOperationStats, error)
+	GetServiceTimeSeriesFn    func(ctx context.Context, service string, since time.Duration) ([]apm.TimePoint, error)
 }
 
-func (m *TraceQueryRepository) ListTraces(ctx context.Context, service string, minDurationMs float64, limit int, since time.Duration) ([]apm.TraceSummary, error) {
+func (m *TraceQueryRepository) ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string) ([]apm.TraceSummary, error) {
 	if m.ListTracesFn != nil {
-		return m.ListTracesFn(ctx, service, minDurationMs, limit, since)
+		return m.ListTracesFn(ctx, service, operation, minDurationMs, limit, since, sort)
 	}
 	return []apm.TraceSummary{}, nil
 }
@@ -62,25 +65,46 @@ func (m *TraceQueryRepository) GetTraceDetail(ctx context.Context, traceID strin
 	return nil, nil
 }
 
-func (m *TraceQueryRepository) ListServices(ctx context.Context) ([]apm.APMService, error) {
+func (m *TraceQueryRepository) ListServices(ctx context.Context, since time.Duration) ([]apm.APMService, error) {
 	if m.ListServicesFn != nil {
-		return m.ListServicesFn(ctx)
+		return m.ListServicesFn(ctx, since)
 	}
 	return []apm.APMService{}, nil
 }
 
-func (m *TraceQueryRepository) GetTopology(ctx context.Context) (*apm.Topology, error) {
+func (m *TraceQueryRepository) GetTopology(ctx context.Context, since time.Duration) (*apm.Topology, error) {
 	if m.GetTopologyFn != nil {
-		return m.GetTopologyFn(ctx)
+		return m.GetTopologyFn(ctx, since)
 	}
 	return nil, nil
 }
 
-func (m *TraceQueryRepository) ListOperations(ctx context.Context) ([]apm.OperationStats, error) {
+func (m *TraceQueryRepository) ListOperations(ctx context.Context, since time.Duration) ([]apm.OperationStats, error) {
 	if m.ListOperationsFn != nil {
-		return m.ListOperationsFn(ctx)
+		return m.ListOperationsFn(ctx, since)
 	}
 	return []apm.OperationStats{}, nil
+}
+
+func (m *TraceQueryRepository) GetHTTPStats(ctx context.Context, service string, since time.Duration) ([]apm.HTTPStats, error) {
+	if m.GetHTTPStatsFn != nil {
+		return m.GetHTTPStatsFn(ctx, service, since)
+	}
+	return []apm.HTTPStats{}, nil
+}
+
+func (m *TraceQueryRepository) GetDBStats(ctx context.Context, service string, since time.Duration) ([]apm.DBOperationStats, error) {
+	if m.GetDBStatsFn != nil {
+		return m.GetDBStatsFn(ctx, service, since)
+	}
+	return []apm.DBOperationStats{}, nil
+}
+
+func (m *TraceQueryRepository) GetServiceTimeSeries(ctx context.Context, service string, since time.Duration) ([]apm.TimePoint, error) {
+	if m.GetServiceTimeSeriesFn != nil {
+		return m.GetServiceTimeSeriesFn(ctx, service, since)
+	}
+	return []apm.TimePoint{}, nil
 }
 
 // LogQueryRepository mock

@@ -1897,6 +1897,7 @@ export interface ApmTranslations {
   // time range
   last15min: string;
   last1h: string;
+  last6h: string;
   last24h: string;
   last7d: string;
   last15d: string;
@@ -1904,6 +1905,7 @@ export interface ApmTranslations {
   // service list (Kibana-style)
   searchServices: string;
   namespace: string;
+  tags: string;
   successRate: string;
   latencyAvg: string;
   throughput: string;
@@ -1918,6 +1920,8 @@ export interface ApmTranslations {
   impact: string;
   searchTransactions: string;
   viewAll: string;
+  // service metrics
+  totalRequests: string;
   // chart titles
   latencyChartTitle: string;
   throughputChartTitle: string;
@@ -1966,6 +1970,33 @@ export interface ApmTranslations {
   loadFailed: string;
   noCluster: string;
   noClusterDesc: string;
+  // trend charts
+  latencyTrend: string;
+  throughputTrend: string;
+  errorCountTrend: string;
+  // error traces
+  errorTraces: string;
+  noErrors: string;
+  // http status distribution
+  httpStatusDistribution: string;
+  statusCode2xx: string;
+  statusCode3xx: string;
+  statusCode4xx: string;
+  statusCode5xx: string;
+  // database stats
+  database: string;
+  dbCallCount: string;
+  noDBCalls: string;
+  // slow traces
+  slowTraces: string;
+  noData: string;
+  // error detail
+  exceptionType: string;
+  exceptionMessage: string;
+  stacktrace: string;
+  errorInfo: string;
+  httpStatus: string;
+  showStacktrace: string;
   // units
   us: string;
   ms: string;

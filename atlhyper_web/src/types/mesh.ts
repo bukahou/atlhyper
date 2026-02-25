@@ -16,7 +16,7 @@ export interface MeshServiceNode {
   errorRate: number;
   availability: number;
   status: "healthy" | "warning" | "critical";
-  mtlsPercent: number;
+  mtlsEnabled: boolean;
   totalRequests: number;
 }
 
@@ -42,7 +42,7 @@ export interface MeshServiceHistoryPoint {
   p95Latency: number;
   errorRate: number;
   availability: number;
-  mtlsPercent: number;
+  mtlsEnabled: boolean;
 }
 
 // 状态码分布

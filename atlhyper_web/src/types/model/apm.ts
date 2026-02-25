@@ -39,6 +39,12 @@ export interface SpanEvent {
   attributes?: Record<string, string>;
 }
 
+export interface SpanError {
+  type: string;
+  message: string;
+  stacktrace?: string;
+}
+
 export interface Span {
   timestamp: string;      // ISO 8601
   traceId: string;
@@ -56,6 +62,7 @@ export interface Span {
   db?: SpanDB;
   resource: SpanResource;
   events: SpanEvent[];
+  error?: SpanError;
 }
 
 // ============================================================
@@ -70,6 +77,8 @@ export interface TraceSummary {
   spanCount: number;
   serviceCount: number;
   hasError: boolean;
+  errorType?: string;
+  errorMessage?: string;
   timestamp: string; // ISO 8601
 }
 
@@ -92,6 +101,7 @@ export interface TraceDetail {
 export interface APMService {
   name: string;
   namespace: string;
+  environment?: string;
   spanCount: number;
   errorCount: number;
   successRate: number;    // 0-1
@@ -169,6 +179,50 @@ export interface Dependency {
 export interface SpanTypeBreakdown {
   type: string;           // "HTTP" | "DB" | "Other"
   percentage: number;
+}
+
+// ============================================================
+// APMTimePoint — 服务时序趋势数据点（Concentrator 预聚合）
+// ============================================================
+
+export interface APMTimePoint {
+  timestamp: string;   // ISO 8601
+  rps: number;
+  successRate: number; // 0-1
+  avgMs: number;
+  p99Ms: number;
+  errorCount: number;
+}
+
+export interface APMServiceSeriesResponse {
+  service: string;
+  namespace: string;
+  points: APMTimePoint[];
+}
+
+// ============================================================
+// HTTP 状态码分布统计
+// ============================================================
+
+export interface HTTPStats {
+  statusCode: number;
+  method: string;
+  count: number;
+}
+
+// ============================================================
+// 数据库操作统计
+// ============================================================
+
+export interface DBOperationStats {
+  dbSystem: string;
+  dbName: string;
+  operation: string;
+  table: string;
+  callCount: number;
+  avgMs: number;
+  p99Ms: number;
+  errorRate: number;
 }
 
 // ============================================================

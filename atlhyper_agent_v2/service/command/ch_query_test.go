@@ -39,7 +39,7 @@ func newTestService(
 
 func TestExecute_QueryTraces_ListTraces(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{
-		ListTracesFn: func(ctx context.Context, service string, minDurationMs float64, limit int, since time.Duration) ([]apm.TraceSummary, error) {
+		ListTracesFn: func(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string) ([]apm.TraceSummary, error) {
 			return []apm.TraceSummary{
 				{TraceId: "abc123", RootService: "api", SpanCount: 5},
 			}, nil
@@ -65,7 +65,7 @@ func TestExecute_QueryTraces_ListTraces(t *testing.T) {
 
 func TestExecute_QueryTraces_ListServices(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{
-		ListServicesFn: func(ctx context.Context) ([]apm.APMService, error) {
+		ListServicesFn: func(ctx context.Context, since time.Duration) ([]apm.APMService, error) {
 			return []apm.APMService{{Name: "frontend", RPS: 10.5}}, nil
 		},
 	}
@@ -394,6 +394,81 @@ func TestGetIntParam(t *testing.T) {
 	}
 	if getIntParam(params, "missing", 10) != 10 {
 		t.Error("expected default 10")
+	}
+}
+
+func TestExecute_QueryTraces_HTTPStats(t *testing.T) {
+	traceRepo := &mock.TraceQueryRepository{
+		GetHTTPStatsFn: func(ctx context.Context, service string, since time.Duration) ([]apm.HTTPStats, error) {
+			if service != "api" {
+				t.Errorf("expected service 'api', got '%s'", service)
+			}
+			return []apm.HTTPStats{
+				{StatusCode: 200, Method: "GET", Count: 100},
+				{StatusCode: 404, Method: "GET", Count: 5},
+			}, nil
+		},
+	}
+
+	svc := newTestService(traceRepo, nil, nil, nil)
+	cmd := &command.Command{
+		ID:     "cmd-traces-http-stats",
+		Action: command.ActionQueryTraces,
+		Params: map[string]any{"sub_action": "http_stats", "service": "api"},
+	}
+
+	result := svc.Execute(context.Background(), cmd)
+
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+	if !strings.Contains(result.Output, "200") {
+		t.Errorf("expected output to contain status code 200, got: %s", result.Output)
+	}
+}
+
+func TestExecute_QueryTraces_HTTPStats_MissingService(t *testing.T) {
+	traceRepo := &mock.TraceQueryRepository{}
+	svc := newTestService(traceRepo, nil, nil, nil)
+	cmd := &command.Command{
+		ID:     "cmd-traces-http-stats-2",
+		Action: command.ActionQueryTraces,
+		Params: map[string]any{"sub_action": "http_stats"},
+	}
+
+	result := svc.Execute(context.Background(), cmd)
+
+	if result.Success {
+		t.Fatal("expected failure for missing service")
+	}
+	if !strings.Contains(result.Error, "service is required") {
+		t.Errorf("expected 'service is required', got: %s", result.Error)
+	}
+}
+
+func TestExecute_QueryTraces_DBStats(t *testing.T) {
+	traceRepo := &mock.TraceQueryRepository{
+		GetDBStatsFn: func(ctx context.Context, service string, since time.Duration) ([]apm.DBOperationStats, error) {
+			return []apm.DBOperationStats{
+				{DBSystem: "mysql", DBName: "mydb", Operation: "SELECT", CallCount: 50},
+			}, nil
+		},
+	}
+
+	svc := newTestService(traceRepo, nil, nil, nil)
+	cmd := &command.Command{
+		ID:     "cmd-traces-db-stats",
+		Action: command.ActionQueryTraces,
+		Params: map[string]any{"sub_action": "db_stats", "service": "api"},
+	}
+
+	result := svc.Execute(context.Background(), cmd)
+
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+	if !strings.Contains(result.Output, "mysql") {
+		t.Errorf("expected output to contain 'mysql', got: %s", result.Output)
 	}
 }
 

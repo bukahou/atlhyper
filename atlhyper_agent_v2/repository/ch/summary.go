@@ -75,6 +75,8 @@ func (r *summaryRepository) GetSLOSummary(ctx context.Context) (ingressServices 
 		       sumIf(Value, Attributes['tls'] = 'true') / if(sum(Value) = 0, 1, sum(Value)) AS avg_mtls
 		FROM otel_metrics_gauge
 		WHERE MetricName = 'response_total' AND Attributes['direction'] = 'inbound'
+		  AND Attributes['target_addr'] NOT LIKE '%:4191'
+		  AND Attributes['route_name'] != 'probe'
 		  AND TimeUnix >= now() - INTERVAL 5 MINUTE
 	`
 	_ = r.client.QueryRow(ctx, meshQuery).Scan(&meshServices, &meshAvgMTLS)
@@ -127,8 +129,11 @@ func (r *summaryRepository) GetMetricsSummary(ctx context.Context) (monitoredNod
 	return monitoredNodes, avgCPUPct, avgMemPct, maxCPUPct, maxMemPct, nil
 }
 
-// roundF 四舍五入到指定小数位
+// roundF 四舍五入到指定小数位（NaN/Inf → 0）
 func roundF(v float64, decimals int) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0
+	}
 	pow := math.Pow(10, float64(decimals))
 	return math.Round(v*pow) / pow
 }

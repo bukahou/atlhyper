@@ -194,40 +194,64 @@ func (s *Scheduler) collectAndPushSnapshot() {
 func (s *Scheduler) runCommandLoop(topic string) {
 	defer s.wg.Done()
 
+	backoff := s.config.CommandPollInterval
+	maxBackoff := 30 * time.Second
+	var failCount int
+	var lastWarnTime time.Time
+
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
 		default:
-			if s.pollAndExecuteCommands(topic) {
+			ok, connErr := s.pollAndExecuteCommands(topic)
+			if ok {
+				backoff = s.config.CommandPollInterval
+				failCount = 0
 				continue // 有指令，立即再 poll（排空队列）
 			}
+
+			if connErr {
+				failCount++
+				// 首次失败 + 之后每 30s 打一次 WARN，避免刷屏
+				if failCount == 1 || time.Since(lastWarnTime) >= 30*time.Second {
+					log.Warn("拉取指令失败，等待重连", "topic", topic, "consecutiveFails", failCount)
+					lastWarnTime = time.Now()
+				}
+				// 指数退避: 100ms → 200ms → 400ms → ... → 30s
+				backoff = min(backoff*2, maxBackoff)
+			} else {
+				backoff = s.config.CommandPollInterval
+				if failCount > 0 {
+					log.Info("指令轮询恢复", "topic", topic, "previousFails", failCount)
+					failCount = 0
+				}
+			}
+
 			select {
 			case <-s.ctx.Done():
 				return
-			case <-time.After(s.config.CommandPollInterval):
+			case <-time.After(backoff):
 			}
 		}
 	}
 }
 
-// pollAndExecuteCommands 轮询并执行指令，返回是否有指令
-func (s *Scheduler) pollAndExecuteCommands(topic string) bool {
+// pollAndExecuteCommands 轮询并执行指令
+// 返回 (hasCommands, isConnError)
+func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, bool) {
 	ctx, cancel := context.WithTimeout(s.ctx, s.config.CommandPollTimeout)
 	defer cancel()
 
 	// 拉取指令
 	commands, err := s.masterGw.PollCommands(ctx, topic)
 	if err != nil {
-		log.Warn("拉取指令失败", "topic", topic, "err", err)
-		return false
+		return false, true
 	}
 
 	if len(commands) == 0 {
-		return false
+		return false, false
 	}
-
-	log.Info("收到指令", "count", len(commands), "topic", topic)
 
 	// 并发执行所有指令
 	var wg sync.WaitGroup
@@ -236,17 +260,26 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) bool {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			start := time.Now()
 			result := s.commandSvc.Execute(ctx, cmd)
+			elapsed := time.Since(start)
+
+			// 构建可读的 action 标识
+			action := cmd.Action
+			if sub, ok := cmd.Params["sub_action"].(string); ok && sub != "" {
+				action += "/" + sub
+			}
+
 			// 上报结果
 			if err := s.masterGw.ReportResult(ctx, result); err != nil {
-				log.Error("上报执行结果失败", "cmd_id", cmd.ID, "err", err)
+				log.Error("指令失败", "action", action, "elapsed", elapsed.Round(time.Millisecond), "err", err)
 			} else {
-				log.Debug("指令已执行", "cmd_id", cmd.ID, "success", result.Success)
+				log.Info("指令完成", "action", action, "elapsed", elapsed.Round(time.Millisecond), "success", result.Success)
 			}
 		}()
 	}
 	wg.Wait()
-	return true
+	return true, false
 }
 
 // =============================================================================

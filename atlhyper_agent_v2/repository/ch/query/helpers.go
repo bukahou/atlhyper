@@ -165,10 +165,56 @@ func clamp(v, min, max float64) float64 {
 	return v
 }
 
-// roundTo 四舍五入到指定小数位
+// roundTo 四舍五入到指定小数位（NaN/Inf → 0）
 func roundTo(v float64, decimals int) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0
+	}
 	pow := math.Pow(10, float64(decimals))
 	return math.Round(v*pow) / pow
+}
+
+// roundRPS 对 RPS 值智能舍入
+//
+// 大窗口（如 1d/7d/30d）下 RPS 可能非常小（如 373/86400 = 0.004），
+// 固定 2 位小数会丢失为 0。此函数保留至少 2 位有效数字：
+//
+//	1.234  → 1.23  (2 位小数足够)
+//	0.123  → 0.12
+//	0.0043 → 0.0043 (自动扩展到 4 位)
+func roundRPS(v float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) || v <= 0 {
+		return 0
+	}
+	// 至少保留 2 位有效数字
+	digits := 2
+	if v < 1 {
+		digits = 2 - int(math.Floor(math.Log10(v)))
+		if digits > 6 {
+			digits = 6
+		}
+	}
+	pow := math.Pow(10, float64(digits))
+	return math.Round(v*pow) / pow
+}
+
+// cumulativeToDifferential 将 Prometheus 风格累积桶计数转换为差分计数
+//
+// 输入: [10, 25, 40, 50] (cumulative: ≤b0, ≤b1, ≤b2, ≤b3)
+// 输出: [10, 15, 15, 10] (differential: [0,b0], (b0,b1], (b1,b2], (b2,b3])
+func cumulativeToDifferential(counts []uint64) []uint64 {
+	if len(counts) == 0 {
+		return counts
+	}
+	diff := make([]uint64, len(counts))
+	diff[0] = counts[0]
+	for i := 1; i < len(counts); i++ {
+		if counts[i] >= counts[i-1] {
+			diff[i] = counts[i] - counts[i-1]
+		}
+		// else: counter anomaly, keep 0
+	}
+	return diff
 }
 
 // sinceInterval 将 time.Duration 转换为 ClickHouse INTERVAL 秒数

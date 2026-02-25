@@ -2,7 +2,8 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
-import type { TraceSummary } from "@/types/model/apm";
+import type { OperationStats } from "@/types/model/apm";
+import { formatDurationMs } from "@/lib/format";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -18,10 +19,10 @@ function getThemeColors() {
 
 interface LatencyChartProps {
   title: string;
-  traces: TraceSummary[];
+  operations: OperationStats[];
 }
 
-export function LatencyChart({ title, traces }: LatencyChartProps) {
+export function LatencyChart({ title, operations }: LatencyChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
 
@@ -38,8 +39,8 @@ export function LatencyChart({ title, traces }: LatencyChartProps) {
       const c = getThemeColors();
       chartRef.current.setOption({
         tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
-        xAxis: { axisLine: { lineStyle: { color: c.lineColor } }, axisLabel: { color: c.textColor } },
-        yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
+        xAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
+        yAxis: { axisLine: { lineStyle: { color: c.lineColor } }, axisLabel: { color: c.textColor } },
       });
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
@@ -52,45 +53,83 @@ export function LatencyChart({ title, traces }: LatencyChartProps) {
   }, []);
 
   useEffect(() => {
-    if (!chartRef.current || traces.length === 0) return;
+    if (!chartRef.current || operations.length === 0) return;
     const c = getThemeColors();
 
-    const data = traces.map((t) => [new Date(t.timestamp).getTime(), t.durationMs]);
+    // Top 10 by avgDurationMs descending, then reverse for bottom-to-top display
+    const top = [...operations]
+      .sort((a, b) => b.avgDurationMs - a.avgDurationMs)
+      .slice(0, 10)
+      .reverse();
+
+    const names = top.map((op) => {
+      const n = op.operationName;
+      return n.length > 30 ? n.slice(0, 27) + "..." : n;
+    });
 
     chartRef.current.setOption({
       tooltip: {
-        trigger: "item",
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
         backgroundColor: c.tooltipBg,
         borderColor: c.tooltipBorder,
         textStyle: { color: c.tooltipText, fontSize: 12 },
-        formatter: (params: { value: number[] }) => {
-          const time = new Date(params.value[0]).toLocaleTimeString();
-          return `${time}<br/>Latency: ${params.value[1].toFixed(1)}ms`;
+        formatter: (params: { seriesName: string; value: number; dataIndex: number }[]) => {
+          const opName = top[params[0]?.dataIndex]?.operationName ?? "";
+          let html = `<div style="font-weight:600;margin-bottom:4px">${opName}</div>`;
+          for (const p of params) {
+            html += `${p.seriesName}: ${formatDurationMs(p.value)}<br/>`;
+          }
+          return html;
         },
       },
-      grid: { top: 12, right: 16, bottom: 32, left: 50 },
-      xAxis: {
-        type: "time",
-        axisLine: { lineStyle: { color: c.lineColor } },
-        axisLabel: { color: c.textColor, fontSize: 10, formatter: (val: number) => new Date(val).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
-        splitLine: { show: false },
+      legend: {
+        data: ["Avg", "P50", "P99"],
+        right: 0,
+        top: 0,
+        textStyle: { color: c.textColor, fontSize: 11 },
+        itemWidth: 12,
+        itemHeight: 8,
       },
-      yAxis: {
+      grid: { top: 28, right: 16, bottom: 8, left: 120, containLabel: false },
+      xAxis: {
         type: "value",
-        name: "ms",
-        nameTextStyle: { color: c.textColor, fontSize: 10 },
-        axisLabel: { color: c.textColor, fontSize: 10 },
+        axisLabel: { color: c.textColor, fontSize: 10, formatter: (v: number) => formatDurationMs(v) },
         splitLine: { lineStyle: { color: c.splitLineColor } },
       },
-      series: [{
-        type: "scatter",
-        data,
-        symbolSize: 6,
-        itemStyle: { color: "#6366f1" },
-      }],
+      yAxis: {
+        type: "category",
+        data: names,
+        axisLine: { lineStyle: { color: c.lineColor } },
+        axisLabel: { color: c.textColor, fontSize: 10 },
+        axisTick: { show: false },
+      },
+      series: [
+        {
+          name: "Avg",
+          type: "bar",
+          data: top.map((op) => op.avgDurationMs),
+          itemStyle: { color: "#6366f1", borderRadius: [0, 2, 2, 0] },
+          barMaxWidth: 8,
+        },
+        {
+          name: "P50",
+          type: "bar",
+          data: top.map((op) => op.p50Ms),
+          itemStyle: { color: "#22c55e", borderRadius: [0, 2, 2, 0] },
+          barMaxWidth: 8,
+        },
+        {
+          name: "P99",
+          type: "bar",
+          data: top.map((op) => op.p99Ms),
+          itemStyle: { color: "#f97316", borderRadius: [0, 2, 2, 0] },
+          barMaxWidth: 8,
+        },
+      ],
       animation: false,
     }, true);
-  }, [traces]);
+  }, [operations]);
 
   return (
     <div>

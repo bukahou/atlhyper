@@ -10,6 +10,7 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/atlhyper_agent_v2/sdk"
+	model_v3 "AtlHyper/model_v3"
 	"AtlHyper/model_v3/apm"
 )
 
@@ -24,7 +25,7 @@ func NewTraceQueryRepository(client sdk.ClickHouseClient) repository.TraceQueryR
 }
 
 // ListTraces 查询 Trace 列表（按 TraceId 聚合）
-func (r *traceRepository) ListTraces(ctx context.Context, service string, minDurationMs float64, limit int, since time.Duration) ([]apm.TraceSummary, error) {
+func (r *traceRepository) ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sortBy string) ([]apm.TraceSummary, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -42,6 +43,10 @@ func (r *traceRepository) ListTraces(ctx context.Context, service string, minDur
 		conditions = append(conditions, "ServiceName = ?")
 		args = append(args, service)
 	}
+	if operation != "" {
+		conditions = append(conditions, "SpanName = ?")
+		args = append(args, operation)
+	}
 	if minDurationMs > 0 {
 		conditions = append(conditions, "Duration >= ?")
 		args = append(args, int64(minDurationMs*1e6)) // ms → ns
@@ -49,21 +54,38 @@ func (r *traceRepository) ListTraces(ctx context.Context, service string, minDur
 
 	where := strings.Join(conditions, " AND ")
 
+	orderBy := "ts DESC"
+	if sortBy == "duration_desc" {
+		orderBy = "durationMs DESC"
+	}
+
 	query := fmt.Sprintf(`
 		SELECT TraceId,
 		       min(Timestamp) AS ts,
-		       argMinIf(ServiceName, Timestamp, ParentSpanId = '') AS rootSvc,
-		       argMinIf(SpanName, Timestamp, ParentSpanId = '') AS rootOp,
+		       if(argMinIf(ServiceName, Timestamp, SpanKind = 'SPAN_KIND_SERVER') != '',
+		          argMinIf(ServiceName, Timestamp, SpanKind = 'SPAN_KIND_SERVER'),
+		          argMinIf(ServiceName, Timestamp, ParentSpanId = '')) AS rootSvc,
+		       if(argMinIf(SpanName, Timestamp, SpanKind = 'SPAN_KIND_SERVER') != '',
+		          argMinIf(SpanName, Timestamp, SpanKind = 'SPAN_KIND_SERVER'),
+		          argMinIf(SpanName, Timestamp, ParentSpanId = '')) AS rootOp,
 		       max(Duration) / 1e6 AS durationMs,
 		       count() AS spanCount,
 		       count(DISTINCT ServiceName) AS serviceCount,
-		       countIf(StatusCode = 'STATUS_CODE_ERROR') > 0 AS hasError
+		       countIf(StatusCode = 'STATUS_CODE_ERROR') > 0 AS hasError,
+		       anyIf(
+		           Events.Attributes[indexOf(Events.Name, 'exception')]['exception.type'],
+		           indexOf(Events.Name, 'exception') > 0
+		       ) AS errorType,
+		       anyIf(
+		           Events.Attributes[indexOf(Events.Name, 'exception')]['exception.message'],
+		           indexOf(Events.Name, 'exception') > 0
+		       ) AS errorMessage
 		FROM otel_traces
 		WHERE %s
 		GROUP BY TraceId
-		ORDER BY ts DESC
+		ORDER BY %s
 		LIMIT %d
-	`, where, limit)
+	`, where, orderBy, limit)
 
 	rows, err := r.client.Query(ctx, query, args...)
 	if err != nil {
@@ -78,6 +100,7 @@ func (r *traceRepository) ListTraces(ctx context.Context, service string, minDur
 		if err := rows.Scan(
 			&t.TraceId, &t.Timestamp, &t.RootService, &t.RootOperation,
 			&t.DurationMs, &t.SpanCount, &t.ServiceCount, &hasErr,
+			&t.ErrorType, &t.ErrorMessage,
 		); err != nil {
 			continue
 		}
@@ -183,6 +206,18 @@ func (r *traceRepository) GetTraceDetail(ctx context.Context, traceID string) (*
 			s.Events = append(s.Events, evt)
 		}
 
+		// 从 Events 提取结构化错误信息
+		for _, evt := range s.Events {
+			if evt.Name == "exception" {
+				s.Error = &apm.SpanError{
+					Type:       evt.Attributes["exception.type"],
+					Message:    evt.Attributes["exception.message"],
+					Stacktrace: evt.Attributes["exception.stacktrace"],
+				}
+				break
+			}
+		}
+
 		spans = append(spans, s)
 	}
 
@@ -208,22 +243,24 @@ func (r *traceRepository) GetTraceDetail(ctx context.Context, traceID string) (*
 }
 
 // ListServices 查询服务列表（聚合统计）
-func (r *traceRepository) ListServices(ctx context.Context) ([]apm.APMService, error) {
-	query := `
+func (r *traceRepository) ListServices(ctx context.Context, since time.Duration) ([]apm.APMService, error) {
+	sec := sinceSeconds(since)
+	query := fmt.Sprintf(`
 		SELECT ServiceName,
-		       ResourceAttributes['service.namespace'] AS ns,
+		       if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default')) AS ns,
+		       anyLast(ResourceAttributes['deployment.environment']) AS env,
 		       count() AS spanCount,
 		       countIf(StatusCode = 'STATUS_CODE_ERROR') AS errorCount,
 		       1 - countIf(StatusCode = 'STATUS_CODE_ERROR') / count() AS successRate,
 		       avg(Duration) / 1e6 AS avgMs,
 		       quantile(0.50)(Duration) / 1e6 AS p50Ms,
 		       quantile(0.99)(Duration) / 1e6 AS p99Ms,
-		       count() / 900 AS rps
+		       count() / %d AS rps
 		FROM otel_traces
 		WHERE SpanKind = 'SPAN_KIND_SERVER'
-		  AND Timestamp >= now() - INTERVAL 15 MINUTE
+		  AND Timestamp >= now() - INTERVAL %d SECOND
 		GROUP BY ServiceName, ns
-	`
+	`, sec, sec)
 
 	rows, err := r.client.Query(ctx, query)
 	if err != nil {
@@ -235,19 +272,16 @@ func (r *traceRepository) ListServices(ctx context.Context) ([]apm.APMService, e
 	for rows.Next() {
 		var s apm.APMService
 		if err := rows.Scan(
-			&s.Name, &s.Namespace, &s.SpanCount, &s.ErrorCount,
+			&s.Name, &s.Namespace, &s.Environment, &s.SpanCount, &s.ErrorCount,
 			&s.SuccessRate, &s.AvgDurationMs, &s.P50Ms, &s.P99Ms, &s.RPS,
 		); err != nil {
 			continue
 		}
-		if s.Namespace == "" {
-			s.Namespace = "default"
-		}
-		s.SuccessRate = roundTo(s.SuccessRate, 4) // 保持 0-1 比例，前端负责 ×100 显示
+		s.SuccessRate = roundTo(s.SuccessRate, 4)
 		s.AvgDurationMs = roundTo(s.AvgDurationMs, 2)
 		s.P50Ms = roundTo(s.P50Ms, 2)
 		s.P99Ms = roundTo(s.P99Ms, 2)
-		s.RPS = roundTo(s.RPS, 3)
+		s.RPS = roundRPS(s.RPS)
 		result = append(result, s)
 	}
 	if result == nil {
@@ -257,8 +291,9 @@ func (r *traceRepository) ListServices(ctx context.Context) ([]apm.APMService, e
 }
 
 // ListOperations 查询操作级聚合统计（GROUP BY ServiceName, SpanName）
-func (r *traceRepository) ListOperations(ctx context.Context) ([]apm.OperationStats, error) {
-	query := `
+func (r *traceRepository) ListOperations(ctx context.Context, since time.Duration) ([]apm.OperationStats, error) {
+	sec := sinceSeconds(since)
+	query := fmt.Sprintf(`
 		SELECT ServiceName,
 		       SpanName AS operation,
 		       count() AS spanCount,
@@ -267,13 +302,13 @@ func (r *traceRepository) ListOperations(ctx context.Context) ([]apm.OperationSt
 		       avg(Duration) / 1e6 AS avgMs,
 		       quantile(0.50)(Duration) / 1e6 AS p50Ms,
 		       quantile(0.99)(Duration) / 1e6 AS p99Ms,
-		       count() / 900 AS rps
+		       count() / %d AS rps
 		FROM otel_traces
 		WHERE SpanKind = 'SPAN_KIND_SERVER'
-		  AND Timestamp >= now() - INTERVAL 15 MINUTE
+		  AND Timestamp >= now() - INTERVAL %d SECOND
 		GROUP BY ServiceName, SpanName
 		ORDER BY spanCount DESC
-	`
+	`, sec, sec)
 
 	rows, err := r.client.Query(ctx, query)
 	if err != nil {
@@ -294,7 +329,7 @@ func (r *traceRepository) ListOperations(ctx context.Context) ([]apm.OperationSt
 		o.AvgDurationMs = roundTo(o.AvgDurationMs, 2)
 		o.P50Ms = roundTo(o.P50Ms, 2)
 		o.P99Ms = roundTo(o.P99Ms, 2)
-		o.RPS = roundTo(o.RPS, 3)
+		o.RPS = roundRPS(o.RPS)
 		result = append(result, o)
 	}
 	if result == nil {
@@ -304,19 +339,21 @@ func (r *traceRepository) ListOperations(ctx context.Context) ([]apm.OperationSt
 }
 
 // GetTopology 获取服务拓扑图
-func (r *traceRepository) GetTopology(ctx context.Context) (*apm.Topology, error) {
+func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration) (*apm.Topology, error) {
+	sec := sinceSeconds(since)
+
 	// 节点: 所有服务
-	serviceQuery := `
+	serviceQuery := fmt.Sprintf(`
 		SELECT ServiceName,
-		       ResourceAttributes['service.namespace'] AS ns,
-		       count() / 900 AS rps,
+		       if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default')) AS ns,
+		       count() / %d AS rps,
 		       1 - countIf(StatusCode = 'STATUS_CODE_ERROR') / count() AS successRate,
 		       quantile(0.99)(Duration) / 1e6 AS p99Ms
 		FROM otel_traces
 		WHERE SpanKind = 'SPAN_KIND_SERVER'
-		  AND Timestamp >= now() - INTERVAL 15 MINUTE
+		  AND Timestamp >= now() - INTERVAL %d SECOND
 		GROUP BY ServiceName, ns
-	`
+	`, sec, sec)
 	svcRows, err := r.client.Query(ctx, serviceQuery)
 	if err != nil {
 		return nil, fmt.Errorf("topology nodes: %w", err)
@@ -342,28 +379,28 @@ func (r *traceRepository) GetTopology(ctx context.Context) (*apm.Topology, error
 			Name:        name,
 			Namespace:   ns,
 			Type:        "service",
-			RPS:         roundTo(rps, 3),
-			SuccessRate: roundTo(successRate, 4), // 保持 0-1 比例
+			RPS:         roundRPS(rps),
+			SuccessRate: roundTo(successRate, 4),
 			P99Ms:       roundTo(p99Ms, 2),
+			Status:      nodeStatus(successRate),
 		}
 		nodes = append(nodes, node)
 	}
 
 	// 边: 跨服务调用（parent-child 关系）
-	// source/target 使用 ns/name 格式与节点 ID 保持一致
-	edgeQuery := `
-		SELECT concat(if(t1.ResourceAttributes['service.namespace'] = '', 'default', t1.ResourceAttributes['service.namespace']), '/', t1.ServiceName) AS source,
-		       concat(if(t2.ResourceAttributes['service.namespace'] = '', 'default', t2.ResourceAttributes['service.namespace']), '/', t2.ServiceName) AS target,
+	edgeQuery := fmt.Sprintf(`
+		SELECT concat(if(t1.ResourceAttributes['service.namespace'] != '', t1.ResourceAttributes['service.namespace'], if(t1.ResourceAttributes['k8s.namespace.name'] != '', t1.ResourceAttributes['k8s.namespace.name'], 'default')), '/', t1.ServiceName) AS source,
+		       concat(if(t2.ResourceAttributes['service.namespace'] != '', t2.ResourceAttributes['service.namespace'], if(t2.ResourceAttributes['k8s.namespace.name'] != '', t2.ResourceAttributes['k8s.namespace.name'], 'default')), '/', t2.ServiceName) AS target,
 		       count() AS callCount,
 		       avg(t2.Duration) / 1e6 AS avgMs,
 		       countIf(t2.StatusCode = 'STATUS_CODE_ERROR') / count() AS errorRate
 		FROM otel_traces t1
 		JOIN otel_traces t2 ON t1.SpanId = t2.ParentSpanId AND t1.TraceId = t2.TraceId
 		WHERE t1.ServiceName != t2.ServiceName
-		  AND t1.Timestamp >= now() - INTERVAL 15 MINUTE
-		  AND t2.Timestamp >= now() - INTERVAL 15 MINUTE
+		  AND t1.Timestamp >= now() - INTERVAL %d SECOND
+		  AND t2.Timestamp >= now() - INTERVAL %d SECOND
 		GROUP BY source, target
-	`
+	`, sec, sec)
 
 	edgeRows, err := r.client.Query(ctx, edgeQuery)
 	if err != nil {
@@ -378,18 +415,73 @@ func (r *traceRepository) GetTopology(ctx context.Context) (*apm.Topology, error
 		if err := edgeRows.Scan(&source, &target, &e.CallCount, &e.AvgMs, &e.ErrorRate); err != nil {
 			continue
 		}
-		// 只保留两端节点都存在的边
 		if !nodeSet[source] || !nodeSet[target] {
 			continue
 		}
 		e.Source = source
 		e.Target = target
 		e.AvgMs = roundTo(e.AvgMs, 2)
-		e.ErrorRate = roundTo(e.ErrorRate, 4) // 保持 0-1 比例
+		e.ErrorRate = roundTo(e.ErrorRate, 4)
 		edges = append(edges, e)
 	}
 	if edges == nil {
 		edges = []apm.TopologyEdge{}
+	}
+
+	// DB 节点: 从 CLIENT span 中提取数据库调用
+	dbQuery := fmt.Sprintf(`
+		SELECT ServiceName,
+		       if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default')) AS ns,
+		       SpanAttributes['db.system'] AS dbSystem,
+		       SpanAttributes['db.name'] AS dbName,
+		       count() AS callCount,
+		       avg(Duration) / 1e6 AS avgMs,
+		       countIf(StatusCode = 'STATUS_CODE_ERROR') / count() AS errorRate
+		FROM otel_traces
+		WHERE SpanKind = 'SPAN_KIND_CLIENT'
+		  AND SpanAttributes['db.system'] != ''
+		  AND Timestamp >= now() - INTERVAL %d SECOND
+		GROUP BY ServiceName, ns, dbSystem, dbName
+	`, sec)
+
+	dbRows, err := r.client.Query(ctx, dbQuery)
+	if err == nil {
+		defer dbRows.Close()
+		dbNodeSet := make(map[string]bool)
+		for dbRows.Next() {
+			var svcName, svcNs, dbSystem, dbName string
+			var callCount int64
+			var avgMs, errorRate float64
+			if err := dbRows.Scan(&svcName, &svcNs, &dbSystem, &dbName, &callCount, &avgMs, &errorRate); err != nil {
+				continue
+			}
+			// 创建 DB 节点
+			dbID := dbSystem + ":" + dbName
+			if !dbNodeSet[dbID] {
+				dbNodeSet[dbID] = true
+				successRate := 1 - errorRate
+				nodes = append(nodes, apm.TopologyNode{
+					Id:          dbID,
+					Name:        dbID,
+					Type:        "database",
+					RPS:         roundRPS(float64(callCount) / float64(sec)),
+					SuccessRate: roundTo(successRate, 4),
+					P99Ms:       roundTo(avgMs, 2),
+					Status:      nodeStatus(successRate),
+				})
+			}
+			// 创建 service → DB 边
+			svcID := svcNs + "/" + svcName
+			if nodeSet[svcID] {
+				edges = append(edges, apm.TopologyEdge{
+					Source:    svcID,
+					Target:    dbID,
+					CallCount: callCount,
+					AvgMs:     roundTo(avgMs, 2),
+					ErrorRate: roundTo(errorRate, 4),
+				})
+			}
+		}
 	}
 
 	// 排序节点
@@ -398,4 +490,156 @@ func (r *traceRepository) GetTopology(ctx context.Context) (*apm.Topology, error
 	})
 
 	return &apm.Topology{Nodes: nodes, Edges: edges}, nil
+}
+
+// GetHTTPStats 获取 HTTP 状态码分布
+func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, since time.Duration) ([]apm.HTTPStats, error) {
+	sec := sinceSeconds(since)
+	query := fmt.Sprintf(`
+		SELECT toInt32OrZero(SpanAttributes['http.response.status_code']) AS statusCode,
+		       SpanAttributes['http.request.method'] AS method,
+		       count() AS cnt
+		FROM otel_traces
+		WHERE SpanKind = 'SPAN_KIND_SERVER'
+		  AND SpanAttributes['http.response.status_code'] != ''
+		  AND ServiceName = ?
+		  AND Timestamp >= now() - INTERVAL %d SECOND
+		GROUP BY statusCode, method
+		ORDER BY statusCode, method
+	`, sec)
+
+	rows, err := r.client.Query(ctx, query, service)
+	if err != nil {
+		return nil, fmt.Errorf("get http stats: %w", err)
+	}
+	defer rows.Close()
+
+	var result []apm.HTTPStats
+	for rows.Next() {
+		var s apm.HTTPStats
+		if err := rows.Scan(&s.StatusCode, &s.Method, &s.Count); err != nil {
+			continue
+		}
+		result = append(result, s)
+	}
+	if result == nil {
+		result = []apm.HTTPStats{}
+	}
+	return result, rows.Err()
+}
+
+// GetDBStats 获取数据库操作统计
+func (r *traceRepository) GetDBStats(ctx context.Context, service string, since time.Duration) ([]apm.DBOperationStats, error) {
+	sec := sinceSeconds(since)
+	query := fmt.Sprintf(`
+		SELECT SpanAttributes['db.system'] AS dbSystem,
+		       SpanAttributes['db.name'] AS dbName,
+		       SpanAttributes['db.operation'] AS operation,
+		       SpanAttributes['db.sql.table'] AS tableName,
+		       count() AS callCount,
+		       avg(Duration) / 1e6 AS avgMs,
+		       quantile(0.99)(Duration) / 1e6 AS p99Ms,
+		       countIf(StatusCode = 'STATUS_CODE_ERROR') / count() AS errorRate
+		FROM otel_traces
+		WHERE SpanKind = 'SPAN_KIND_CLIENT'
+		  AND SpanAttributes['db.system'] != ''
+		  AND ServiceName = ?
+		  AND Timestamp >= now() - INTERVAL %d SECOND
+		GROUP BY dbSystem, dbName, operation, tableName
+		ORDER BY callCount DESC
+	`, sec)
+
+	rows, err := r.client.Query(ctx, query, service)
+	if err != nil {
+		return nil, fmt.Errorf("get db stats: %w", err)
+	}
+	defer rows.Close()
+
+	var result []apm.DBOperationStats
+	for rows.Next() {
+		var s apm.DBOperationStats
+		if err := rows.Scan(&s.DBSystem, &s.DBName, &s.Operation, &s.Table, &s.CallCount, &s.AvgMs, &s.P99Ms, &s.ErrorRate); err != nil {
+			continue
+		}
+		s.AvgMs = roundTo(s.AvgMs, 2)
+		s.P99Ms = roundTo(s.P99Ms, 2)
+		s.ErrorRate = roundTo(s.ErrorRate, 4)
+		result = append(result, s)
+	}
+	if result == nil {
+		result = []apm.DBOperationStats{}
+	}
+	return result, rows.Err()
+}
+
+// GetServiceTimeSeries 获取服务时序趋势（ClickHouse 按需聚合）
+//
+// 根据 since 自动选择时间桶大小，目标 60-180 个数据点。
+func (r *traceRepository) GetServiceTimeSeries(ctx context.Context, service string, since time.Duration) ([]apm.TimePoint, error) {
+	sec := sinceSeconds(since)
+
+	// 根据总时长选择桶大小（秒），目标 60-180 点
+	bucketSec := int64(60) // 默认 1 分钟
+	switch {
+	case sec <= 3600: // ≤1h → 1min 桶
+		bucketSec = 60
+	case sec <= 21600: // ≤6h → 5min 桶
+		bucketSec = 300
+	case sec <= 86400: // ≤24h → 15min 桶
+		bucketSec = 900
+	case sec <= 604800: // ≤7d → 1h 桶
+		bucketSec = 3600
+	default: // >7d → 4h 桶
+		bucketSec = 14400
+	}
+
+	query := fmt.Sprintf(`
+		SELECT toStartOfInterval(Timestamp, INTERVAL %d SECOND) AS bucket,
+		       count() / %d AS rps,
+		       1 - countIf(StatusCode = 'STATUS_CODE_ERROR') / count() AS successRate,
+		       avg(Duration) / 1e6 AS avgMs,
+		       quantile(0.99)(Duration) / 1e6 AS p99Ms,
+		       countIf(StatusCode = 'STATUS_CODE_ERROR') AS errorCount
+		FROM otel_traces
+		WHERE SpanKind = 'SPAN_KIND_SERVER'
+		  AND ServiceName = ?
+		  AND Timestamp >= now() - INTERVAL %d SECOND
+		GROUP BY bucket
+		ORDER BY bucket ASC
+	`, bucketSec, bucketSec, sec)
+
+	rows, err := r.client.Query(ctx, query, service)
+	if err != nil {
+		return nil, fmt.Errorf("get service time series: %w", err)
+	}
+	defer rows.Close()
+
+	var result []apm.TimePoint
+	for rows.Next() {
+		var pt apm.TimePoint
+		if err := rows.Scan(&pt.Timestamp, &pt.RPS, &pt.SuccessRate, &pt.AvgMs, &pt.P99Ms, &pt.ErrorCount); err != nil {
+			continue
+		}
+		pt.RPS = roundRPS(pt.RPS)
+		pt.SuccessRate = roundTo(pt.SuccessRate, 4)
+		pt.AvgMs = roundTo(pt.AvgMs, 2)
+		pt.P99Ms = roundTo(pt.P99Ms, 2)
+		result = append(result, pt)
+	}
+	if result == nil {
+		result = []apm.TimePoint{}
+	}
+	return result, rows.Err()
+}
+
+// nodeStatus 根据成功率判断节点健康状态
+func nodeStatus(successRate float64) model_v3.HealthStatus {
+	switch {
+	case successRate < 0.95:
+		return model_v3.HealthStatusCritical
+	case successRate < 0.99:
+		return model_v3.HealthStatusWarning
+	default:
+		return model_v3.HealthStatusHealthy
+	}
 }

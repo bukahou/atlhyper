@@ -34,7 +34,7 @@ func TestConcentrator_IngestAndFlush(t *testing.T) {
 		apmServices := []apm.APMService{
 			{Name: "gateway", Namespace: "default", RPS: 200, SuccessRate: 99.0, AvgDurationMs: 10, P99Ms: 50, ErrorCount: 2},
 		}
-		c.Ingest(nodes, sloIngress, apmServices, ts)
+		c.Ingest(nodes, sloIngress, nil, apmServices, ts)
 	}
 
 	// Flush 节点时序
@@ -171,7 +171,7 @@ func TestConcentrator_GAUGESemantic(t *testing.T) {
 				Memory:   metrics.NodeMemory{UsagePct: 50.0},
 			},
 		}
-		c.Ingest(nodes, nil, nil, ts)
+		c.Ingest(nodes, nil, nil, nil, ts)
 	}
 
 	series := c.FlushNodeSeries()
@@ -202,7 +202,7 @@ func TestConcentrator_RingOverwrite(t *testing.T) {
 				Memory:   metrics.NodeMemory{UsagePct: 50.0},
 			},
 		}
-		c.Ingest(nodes, nil, nil, ts)
+		c.Ingest(nodes, nil, nil, nil, ts)
 	}
 
 	series := c.FlushNodeSeries()
@@ -237,7 +237,7 @@ func TestConcentrator_MultipleNodes(t *testing.T) {
 		{NodeName: "worker-1", CPU: metrics.NodeCPU{UsagePct: 60}, Memory: metrics.NodeMemory{UsagePct: 70}},
 		{NodeName: "worker-2", CPU: metrics.NodeCPU{UsagePct: 80}, Memory: metrics.NodeMemory{UsagePct: 90}},
 	}
-	c.Ingest(nodes, nil, nil, now)
+	c.Ingest(nodes, nil, nil, nil, now)
 
 	series := c.FlushNodeSeries()
 	if len(series) != 3 {
@@ -272,7 +272,7 @@ func TestConcentrator_APMMultipleServices(t *testing.T) {
 			{Name: "api", Namespace: "prod", RPS: 100, SuccessRate: 99, AvgDurationMs: 5, P99Ms: 20, ErrorCount: 1},
 			{Name: "worker", Namespace: "prod", RPS: 50, SuccessRate: 98, AvgDurationMs: 15, P99Ms: 80, ErrorCount: 3},
 		}
-		c.Ingest(nil, nil, services, ts)
+		c.Ingest(nil, nil, nil, services, ts)
 	}
 
 	series := c.FlushAPMSeries()

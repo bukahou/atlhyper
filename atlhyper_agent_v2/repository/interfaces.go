@@ -166,11 +166,14 @@ type OTelSummaryRepository interface {
 
 // TraceQueryRepository Trace 查询仓库（按需查询）
 type TraceQueryRepository interface {
-	ListTraces(ctx context.Context, service string, minDurationMs float64, limit int, since time.Duration) ([]apm.TraceSummary, error)
+	ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string) ([]apm.TraceSummary, error)
 	GetTraceDetail(ctx context.Context, traceID string) (*apm.TraceDetail, error)
-	ListServices(ctx context.Context) ([]apm.APMService, error)
-	GetTopology(ctx context.Context) (*apm.Topology, error)
-	ListOperations(ctx context.Context) ([]apm.OperationStats, error)
+	ListServices(ctx context.Context, since time.Duration) ([]apm.APMService, error)
+	GetTopology(ctx context.Context, since time.Duration) (*apm.Topology, error)
+	ListOperations(ctx context.Context, since time.Duration) ([]apm.OperationStats, error)
+	GetHTTPStats(ctx context.Context, service string, since time.Duration) ([]apm.HTTPStats, error)
+	GetDBStats(ctx context.Context, service string, since time.Duration) ([]apm.DBOperationStats, error)
+	GetServiceTimeSeries(ctx context.Context, service string, since time.Duration) ([]apm.TimePoint, error)
 }
 
 // LogQueryOptions 日志查询选项

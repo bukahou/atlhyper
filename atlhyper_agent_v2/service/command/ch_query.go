@@ -25,16 +25,56 @@ func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Com
 	switch subAction {
 	case "list_traces", "":
 		service := getStringParam(cmd.Params, "service")
+		operation := getStringParam(cmd.Params, "operation")
 		minDuration := getFloat64Param(cmd.Params, "min_duration_ms")
 		limit := getIntParam(cmd.Params, "limit", 50)
 		since := getDurationParam(cmd.Params, "since", 5*time.Minute)
-		return s.traceQueryRepo.ListTraces(ctx, service, minDuration, limit, since)
+		sortBy := getStringParam(cmd.Params, "sort")
+		return s.traceQueryRepo.ListTraces(ctx, service, operation, minDuration, limit, since, sortBy)
 
 	case "list_services":
-		return s.traceQueryRepo.ListServices(ctx)
+		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
+		return s.traceQueryRepo.ListServices(ctx, since)
 
 	case "get_topology":
-		return s.traceQueryRepo.GetTopology(ctx)
+		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
+		return s.traceQueryRepo.GetTopology(ctx, since)
+
+	case "list_operations":
+		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
+		return s.traceQueryRepo.ListOperations(ctx, since)
+
+	case "http_stats":
+		service := getStringParam(cmd.Params, "service")
+		if service == "" {
+			return nil, fmt.Errorf("service is required for http_stats")
+		}
+		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
+		return s.traceQueryRepo.GetHTTPStats(ctx, service, since)
+
+	case "db_stats":
+		service := getStringParam(cmd.Params, "service")
+		if service == "" {
+			return nil, fmt.Errorf("service is required for db_stats")
+		}
+		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
+		return s.traceQueryRepo.GetDBStats(ctx, service, since)
+
+	case "service_series":
+		service := getStringParam(cmd.Params, "service")
+		if service == "" {
+			return nil, fmt.Errorf("service is required for service_series")
+		}
+		since := getDurationParam(cmd.Params, "since", 60*time.Minute)
+		points, err := s.traceQueryRepo.GetServiceTimeSeries(ctx, service, since)
+		if err != nil {
+			return nil, err
+		}
+		// 包装为与 Concentrator 路径一致的格式: { service, points }
+		return map[string]interface{}{
+			"service": service,
+			"points":  points,
+		}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown trace sub_action: %s", subAction)

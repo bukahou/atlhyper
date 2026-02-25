@@ -199,14 +199,14 @@ type ServiceNodeResponse struct {
 	Name          string  `json:"name"`
 	Namespace     string  `json:"namespace"`
 	RPS           float64 `json:"rps"`
-	AvgLatencyMs  int     `json:"avgLatency"`
-	P50LatencyMs  int     `json:"p50Latency"`
-	P95LatencyMs  int     `json:"p95Latency"`
-	P99LatencyMs  int     `json:"p99Latency"`
+	AvgLatencyMs  float64 `json:"avgLatency"`
+	P50LatencyMs  float64 `json:"p50Latency"`
+	P95LatencyMs  float64 `json:"p95Latency"`
+	P99LatencyMs  float64 `json:"p99Latency"`
 	ErrorRate     float64 `json:"errorRate"`
 	Availability  float64 `json:"availability"`
 	Status        string  `json:"status"`         // healthy/warning/critical
-	MtlsPercent   float64 `json:"mtlsPercent"`
+	MtlsEnabled   bool    `json:"mtlsEnabled"`
 	TotalRequests int64   `json:"totalRequests"`
 }
 
@@ -215,7 +215,7 @@ type ServiceEdgeResponse struct {
 	Source       string  `json:"source"`      // "namespace/name"
 	Target       string  `json:"target"`
 	RPS          float64 `json:"rps"`
-	AvgLatencyMs int     `json:"avgLatency"`
+	AvgLatencyMs float64 `json:"avgLatency"`
 	ErrorRate    float64 `json:"errorRate"`
 }
 
@@ -233,8 +233,8 @@ type ServiceDetailResponse struct {
 type ServiceHistoryPoint struct {
 	Timestamp    string  `json:"timestamp"`
 	RPS          float64 `json:"rps"`
-	P95LatencyMs int     `json:"p95Latency"`
+	P95LatencyMs float64 `json:"p95Latency"`
 	ErrorRate    float64 `json:"errorRate"`
 	Availability float64 `json:"availability"`
-	MtlsPercent  float64 `json:"mtlsPercent"`
+	MtlsEnabled  bool    `json:"mtlsEnabled"`
 }

@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
-import type { TraceSummary } from "@/types/model/apm";
+import type { OperationStats } from "@/types/model/apm";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -18,10 +18,10 @@ function getThemeColors() {
 
 interface ThroughputChartProps {
   title: string;
-  traces: TraceSummary[];
+  operations: OperationStats[];
 }
 
-export function ThroughputChart({ title, traces }: ThroughputChartProps) {
+export function ThroughputChart({ title, operations }: ThroughputChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
 
@@ -52,58 +52,60 @@ export function ThroughputChart({ title, traces }: ThroughputChartProps) {
   }, []);
 
   useEffect(() => {
-    if (!chartRef.current || traces.length === 0) return;
+    if (!chartRef.current || operations.length === 0) return;
     const c = getThemeColors();
 
-    // Group traces into time buckets using ISO timestamp
-    const sorted = [...traces].sort((a, b) =>
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-    const bucketCount = Math.min(sorted.length, 20);
-    const minTime = new Date(sorted[0].timestamp).getTime();
-    const maxTime = new Date(sorted[sorted.length - 1].timestamp).getTime();
-    const bucketSize = Math.max((maxTime - minTime) / bucketCount, 1);
+    // Top 10 by rps descending
+    const top = [...operations]
+      .sort((a, b) => b.rps - a.rps)
+      .slice(0, 10);
 
-    const buckets: { time: number; count: number }[] = [];
-    for (let i = 0; i < bucketCount; i++) {
-      buckets.push({ time: minTime + i * bucketSize, count: 0 });
-    }
-    for (const t of sorted) {
-      const ts = new Date(t.timestamp).getTime();
-      const idx = Math.min(Math.floor((ts - minTime) / bucketSize), bucketCount - 1);
-      buckets[idx].count++;
-    }
+    const names = top.map((op) => {
+      const n = op.operationName;
+      return n.length > 20 ? n.slice(0, 17) + "..." : n;
+    });
+
+    // rps → tpm (requests per minute)
+    const tpmValues = top.map((op) => +(op.rps * 60).toFixed(1));
 
     chartRef.current.setOption({
       tooltip: {
         trigger: "axis",
+        axisPointer: { type: "shadow" },
         backgroundColor: c.tooltipBg,
         borderColor: c.tooltipBorder,
         textStyle: { color: c.tooltipText, fontSize: 12 },
+        formatter: (params: { dataIndex: number; value: number }[]) => {
+          const idx = params[0]?.dataIndex ?? 0;
+          const op = top[idx];
+          return `<div style="font-weight:600;margin-bottom:4px">${op.operationName}</div>` +
+            `${params[0].value} tpm (${op.rps.toFixed(2)} rps)`;
+        },
       },
-      grid: { top: 12, right: 16, bottom: 32, left: 40 },
+      grid: { top: 12, right: 16, bottom: 56, left: 40 },
       xAxis: {
         type: "category",
-        data: buckets.map((b) => new Date(b.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })),
+        data: names,
         axisLine: { lineStyle: { color: c.lineColor } },
-        axisLabel: { color: c.textColor, fontSize: 10, rotate: 0 },
+        axisLabel: { color: c.textColor, fontSize: 10, rotate: 30, interval: 0 },
         splitLine: { show: false },
       },
       yAxis: {
         type: "value",
+        name: "tpm",
         nameTextStyle: { color: c.textColor, fontSize: 10 },
         axisLabel: { color: c.textColor, fontSize: 10 },
         splitLine: { lineStyle: { color: c.splitLineColor } },
       },
       series: [{
         type: "bar",
-        data: buckets.map((b) => b.count),
+        data: tpmValues,
         itemStyle: { color: "#22c55e", borderRadius: [2, 2, 0, 0] },
-        barMaxWidth: 20,
+        barMaxWidth: 24,
       }],
       animation: false,
     }, true);
-  }, [traces]);
+  }, [operations]);
 
   return (
     <div>

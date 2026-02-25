@@ -90,6 +90,6 @@ func (u *RouteUpdater) syncFromIngresses(ctx context.Context, clusterID string, 
 	}
 
 	if count > 0 {
-		routeLog.Info("路由映射同步完成", "cluster", clusterID, "count", count)
+		routeLog.Debug("路由映射同步完成", "cluster", clusterID, "count", count)
 	}
 }

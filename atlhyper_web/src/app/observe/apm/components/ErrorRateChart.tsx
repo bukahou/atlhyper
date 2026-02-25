@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
-import type { TraceSummary } from "@/types/model/apm";
+import type { OperationStats } from "@/types/model/apm";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -18,10 +18,10 @@ function getThemeColors() {
 
 interface ErrorRateChartProps {
   title: string;
-  traces: TraceSummary[];
+  operations: OperationStats[];
 }
 
-export function ErrorRateChart({ title, traces }: ErrorRateChartProps) {
+export function ErrorRateChart({ title, operations }: ErrorRateChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
 
@@ -52,61 +52,67 @@ export function ErrorRateChart({ title, traces }: ErrorRateChartProps) {
   }, []);
 
   useEffect(() => {
-    if (!chartRef.current || traces.length === 0) return;
+    if (!chartRef.current || operations.length === 0) return;
     const c = getThemeColors();
 
-    // Compute error rate as a running rate using ISO timestamps
-    const sorted = [...traces].sort((a, b) =>
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-    let errorSum = 0;
-    const data = sorted.map((t, i) => {
-      if (t.hasError) errorSum++;
-      const rate = ((errorSum / (i + 1)) * 100);
-      return [new Date(t.timestamp).getTime(), parseFloat(rate.toFixed(1))];
+    // Top 10 by error rate descending
+    const withRate = operations.map((op) => ({
+      ...op,
+      errorRate: (1 - op.successRate) * 100,
+    }));
+    const top = [...withRate]
+      .sort((a, b) => b.errorRate - a.errorRate)
+      .slice(0, 10);
+
+    const names = top.map((op) => {
+      const n = op.operationName;
+      return n.length > 20 ? n.slice(0, 17) + "..." : n;
+    });
+
+    const rates = top.map((op) => +op.errorRate.toFixed(2));
+    const colors = top.map((op) => {
+      if (op.errorRate > 5) return "#ef4444";
+      if (op.errorRate > 1) return "#f97316";
+      return "#22c55e";
     });
 
     chartRef.current.setOption({
       tooltip: {
         trigger: "axis",
+        axisPointer: { type: "shadow" },
         backgroundColor: c.tooltipBg,
         borderColor: c.tooltipBorder,
         textStyle: { color: c.tooltipText, fontSize: 12 },
-        formatter: (params: { value: number[] }[]) => {
-          const p = params[0];
-          const time = new Date(p.value[0]).toLocaleTimeString();
-          return `${time}<br/>Error rate: ${p.value[1]}%`;
+        formatter: (params: { dataIndex: number; value: number }[]) => {
+          const idx = params[0]?.dataIndex ?? 0;
+          const op = top[idx];
+          return `<div style="font-weight:600;margin-bottom:4px">${op.operationName}</div>` +
+            `Error rate: ${params[0].value}%`;
         },
       },
-      grid: { top: 12, right: 16, bottom: 32, left: 40 },
+      grid: { top: 12, right: 16, bottom: 56, left: 40 },
       xAxis: {
-        type: "time",
+        type: "category",
+        data: names,
         axisLine: { lineStyle: { color: c.lineColor } },
-        axisLabel: { color: c.textColor, fontSize: 10, formatter: (val: number) => new Date(val).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
+        axisLabel: { color: c.textColor, fontSize: 10, rotate: 30, interval: 0 },
         splitLine: { show: false },
       },
       yAxis: {
         type: "value",
-        max: 100,
+        max: (v: { max: number }) => Math.max(v.max * 1.2, 1),
         axisLabel: { color: c.textColor, fontSize: 10, formatter: (v: number) => `${v}%` },
         splitLine: { lineStyle: { color: c.splitLineColor } },
       },
       series: [{
-        type: "line",
-        data,
-        smooth: true,
-        lineStyle: { color: "#f97316", width: 2 },
-        areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: "rgba(249,115,22,0.2)" },
-          { offset: 1, color: "rgba(249,115,22,0)" },
-        ])},
-        itemStyle: { color: "#f97316" },
-        symbol: "circle",
-        symbolSize: 4,
+        type: "bar",
+        data: rates.map((val, i) => ({ value: val, itemStyle: { color: colors[i] } })),
+        barMaxWidth: 24,
+        itemStyle: { borderRadius: [2, 2, 0, 0] },
       }],
       animation: false,
     }, true);
-  }, [traces]);
+  }, [operations]);
 
   return (
     <div>

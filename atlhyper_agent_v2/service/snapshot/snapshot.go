@@ -901,7 +901,7 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 
 	// Concentrator: 摄入当前数据 + 输出预聚合时序
 	if s.conc != nil {
-		s.conc.Ingest(snapshot.MetricsNodes, snapshot.SLOIngress, snapshot.APMServices, now)
+		s.conc.Ingest(snapshot.MetricsNodes, snapshot.SLOIngress, snapshot.SLOServices, snapshot.APMServices, now)
 		snapshot.NodeMetricsSeries = s.conc.FlushNodeSeries()
 		snapshot.SLOTimeSeries = s.conc.FlushSLOSeries()
 		snapshot.APMTimeSeries = s.conc.FlushAPMSeries()
@@ -937,59 +937,61 @@ func (s *snapshotService) collectSLOWindows(ctx context.Context, now time.Time) 
 	}
 
 	result := make(map[string]*slo.SLOWindowData, len(sloWindowConfigs))
-	var wg sync.WaitGroup
-	var mu sync.Mutex
 
-	for _, w := range sloWindowConfigs {
+	// 顺序执行每个窗口查询（不再并发）
+	// 原因: Linkerd gauge 查询在大窗口下需要 30-60 秒，
+	// 3 个窗口并发会导致 ClickHouse 资源竞争 → 全部超时。
+	// 窗口有独立 TTL 缓存，大部分调用直接命中缓存，不会阻塞。
+	for _, wc := range sloWindowConfigs {
 		// 检查缓存
-		if cache, ok := s.sloWindowCaches[w.key]; ok && now.Sub(cache.fetchedAt) < w.cacheTTL {
-			mu.Lock()
-			result[w.key] = cache.data
-			mu.Unlock()
+		if cache, ok := s.sloWindowCaches[wc.key]; ok && now.Sub(cache.fetchedAt) < wc.cacheTTL {
+			result[wc.key] = cache.data
 			continue
 		}
 
-		wg.Add(1)
-		go func(wc sloWindowConfig) {
-			defer wg.Done()
-
-			current, err := s.dashboardRepo.ListIngressSLO(ctx, wc.since)
-			if err != nil {
-				log.Warn("SLO 窗口 current 查询失败", "window", wc.key, "err", err)
-				return
-			}
-
-			previous, err := s.dashboardRepo.ListIngressSLOPrevious(ctx, wc.since)
-			if err != nil {
-				log.Warn("SLO 窗口 previous 查询失败", "window", wc.key, "err", err)
-				// previous 失败不影响，继续
-			}
-
-			history, err := s.dashboardRepo.GetIngressSLOHistory(ctx, wc.since, wc.bucket)
-			if err != nil {
-				log.Warn("SLO 窗口 history 查询失败", "window", wc.key, "err", err)
-				// history 失败不影响，继续
-			}
-
-			data := &slo.SLOWindowData{
-				Current:  current,
-				Previous: previous,
-				History:  history,
-			}
-
-			// 更新缓存
+		data := s.fetchSLOWindow(wc)
+		if data != nil {
 			s.sloWindowCaches[wc.key] = &sloWindowCache{data: data, fetchedAt: now}
-
-			mu.Lock()
 			result[wc.key] = data
-			mu.Unlock()
-		}(w)
+		}
 	}
-
-	wg.Wait()
 
 	if len(result) == 0 {
 		return nil
 	}
 	return result
+}
+
+// fetchSLOWindow 获取单个窗口的 SLO 数据（独立 3 分钟超时）
+func (s *snapshotService) fetchSLOWindow(wc sloWindowConfig) *slo.SLOWindowData {
+	windowCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	current, err := s.dashboardRepo.ListIngressSLO(windowCtx, wc.since)
+	if err != nil {
+		log.Warn("SLO 窗口 current 查询失败", "window", wc.key, "err", err)
+		return nil
+	}
+
+	previous, _ := s.dashboardRepo.ListIngressSLOPrevious(windowCtx, wc.since)
+	history, _ := s.dashboardRepo.GetIngressSLOHistory(windowCtx, wc.since, wc.bucket)
+
+	// Mesh 数据（Linkerd 服务网格）
+	meshServices, err := s.dashboardRepo.ListServiceSLO(windowCtx, wc.since)
+	if err != nil {
+		log.Warn("SLO 窗口 meshServices 查询失败", "window", wc.key, "err", err)
+	}
+
+	meshEdges, err := s.dashboardRepo.ListServiceEdges(windowCtx, wc.since)
+	if err != nil {
+		log.Warn("SLO 窗口 meshEdges 查询失败", "window", wc.key, "err", err)
+	}
+
+	return &slo.SLOWindowData{
+		Current:      current,
+		Previous:     previous,
+		History:      history,
+		MeshServices: meshServices,
+		MeshEdges:    meshEdges,
+	}
 }

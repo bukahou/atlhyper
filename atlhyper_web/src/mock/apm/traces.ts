@@ -7,6 +7,7 @@ import { mockTraceSummaries, mockTraceDetailsMap } from "./data";
 
 export interface MockTraceQueryParams {
   service?: string;
+  operation?: string;
   namespace?: string;
   statusCode?: string;
   minDurationMs?: number;

@@ -5,6 +5,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
 	"AtlHyper/atlhyper_master_v2/service"
@@ -30,12 +31,12 @@ func (h *SLOMeshHandler) MeshTopology(w http.ResponseWriter, r *http.Request) {
 
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		clusterID = "default"
+		clusterID = h.defaultClusterID(r.Context())
 	}
 
 	timeRange := r.URL.Query().Get("time_range")
 	if timeRange == "" {
-		timeRange = "1h"
+		timeRange = "1d"
 	}
 
 	resp, err := h.query.GetMeshTopology(r.Context(), clusterID, timeRange)
@@ -57,7 +58,7 @@ func (h *SLOMeshHandler) ServiceDetail(w http.ResponseWriter, r *http.Request) {
 
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		clusterID = "default"
+		clusterID = h.defaultClusterID(r.Context())
 	}
 
 	namespace := r.URL.Query().Get("namespace")
@@ -69,7 +70,7 @@ func (h *SLOMeshHandler) ServiceDetail(w http.ResponseWriter, r *http.Request) {
 
 	timeRange := r.URL.Query().Get("time_range")
 	if timeRange == "" {
-		timeRange = "1h"
+		timeRange = "1d"
 	}
 
 	resp, err := h.query.GetServiceDetail(r.Context(), clusterID, namespace, name, timeRange)
@@ -83,4 +84,13 @@ func (h *SLOMeshHandler) ServiceDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// defaultClusterID 获取默认集群 ID
+func (h *SLOMeshHandler) defaultClusterID(_ context.Context) string {
+	agents, err := h.query.ListClusters(context.Background())
+	if err == nil && len(agents) > 0 {
+		return agents[0].ClusterID
+	}
+	return "default"
 }

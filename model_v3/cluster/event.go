@@ -36,10 +36,10 @@ func (e *Event) IsCritical() bool {
 
 func (e *Event) GetSeverity() string {
 	if e.IsCritical() {
-		return "critical"
+		return string(model_v3.HealthStatusCritical)
 	}
 	if e.IsWarning() {
-		return "warning"
+		return string(model_v3.HealthStatusWarning)
 	}
 	return "info"
 }

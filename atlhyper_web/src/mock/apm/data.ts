@@ -227,9 +227,17 @@ function generateTrace(
           attributes: {
             "exception.type": "java.lang.RuntimeException",
             "exception.message": "Downstream service timeout",
+            "exception.stacktrace": "java.lang.RuntimeException: Downstream service timeout\n\tat com.geass.gateway.handler.ProxyHandler.invoke(ProxyHandler.java:142)\n\tat com.geass.gateway.filter.AuthFilter.doFilter(AuthFilter.java:58)\n\tat org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:897)\n\tat javax.servlet.http.HttpServlet.service(HttpServlet.java:750)",
           },
         }]
       : [],
+    ...(isError ? {
+      error: {
+        type: "java.lang.RuntimeException",
+        message: "Downstream service timeout",
+        stacktrace: "java.lang.RuntimeException: Downstream service timeout\n\tat com.geass.gateway.handler.ProxyHandler.invoke(ProxyHandler.java:142)\n\tat com.geass.gateway.filter.AuthFilter.doFilter(AuthFilter.java:58)\n\tat org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:897)\n\tat javax.servlet.http.HttpServlet.service(HttpServlet.java:750)",
+      },
+    } : {}),
   });
 
   let timeOffset = 2; // ms offset from gateway start
@@ -340,7 +348,24 @@ function generateTrace(
         serverPort: ds.service.port,
       },
       resource: makeResource(ds.service),
-      events: [],
+      events: dsIsError
+        ? [{
+            timestamp: new Date(baseTime.getTime() + timeOffset + serverDurationMs * 0.9).toISOString(),
+            name: "exception",
+            attributes: {
+              "exception.type": "java.sql.SQLException",
+              "exception.message": "Database query failed",
+              "exception.stacktrace": "java.sql.SQLException: Database query failed\n\tat com.geass.repository.BaseRepository.execute(BaseRepository.java:87)\n\tat com.geass.service.DataService.query(DataService.java:45)",
+            },
+          }]
+        : [],
+      ...(dsIsError ? {
+        error: {
+          type: "java.sql.SQLException",
+          message: "Database query failed",
+          stacktrace: "java.sql.SQLException: Database query failed\n\tat com.geass.repository.BaseRepository.execute(BaseRepository.java:87)\n\tat com.geass.service.DataService.query(DataService.java:45)",
+        },
+      } : {}),
     });
 
     // DB queries (if service has dbTables)
@@ -429,6 +454,10 @@ function buildMockData() {
       spanCount: spans.length,
       serviceCount: services.size,
       hasError: isError,
+      ...(isError ? {
+        errorType: "java.lang.RuntimeException",
+        errorMessage: "Downstream service timeout",
+      } : {}),
       timestamp: rootSpan.timestamp,
     });
   }

@@ -7,6 +7,8 @@ import (
 	"math"
 	"sort"
 	"strconv"
+
+	model_v3 "AtlHyper/model_v3"
 )
 
 // CalculateQuantile 计算 Histogram 分位数（线性插值）
@@ -137,13 +139,13 @@ func CalculateErrorBudgetRemaining(actualAvail, targetAvail float64) float64 {
 func DetermineStatus(actualAvail, targetAvail float64, actualP95, targetP95 int) string {
 	// 可用性未达标 -> critical
 	if actualAvail < targetAvail {
-		return "critical"
+		return string(model_v3.HealthStatusCritical)
 	}
 	// 延迟超标 -> warning
 	if actualP95 > targetP95 {
-		return "warning"
+		return string(model_v3.HealthStatusWarning)
 	}
-	return "healthy"
+	return string(model_v3.HealthStatusHealthy)
 }
 
 // CalculateTrend 计算趋势

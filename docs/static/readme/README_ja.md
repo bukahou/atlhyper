@@ -1,27 +1,29 @@
 # AtlHyper
 
-**軽量 Kubernetes マルチクラスター監視・運用プラットフォーム**
+**Kubernetes マルチクラスター監視・オブザーバビリティプラットフォーム**
 
 [English](../README.md) | [中文](README_zh.md) | 日本語
 
 ---
 
-AtlHyper は軽量 Kubernetes 環境向けの監視・管理プラットフォームです。Master-Agent アーキテクチャを採用し、マルチクラスター統合管理、リアルタイムリソース監視、異常検知、SLO 追跡、リモート運用をサポートしています。
+AtlHyper は Kubernetes 環境向けの監視・オブザーバビリティプラットフォームです。Master-Agent アーキテクチャを採用し、マルチクラスター統合管理、フルスタックオブザーバビリティ（Metrics / Traces / Mesh）、アルゴリズム駆動の AIOps エンジン、AI アシスタント運用をサポートしています。
 
 ---
 
 ## 機能
 
 - **マルチクラスター管理** — 単一のダッシュボードで複数の Kubernetes クラスターを管理
-- **リアルタイム監視** — Pod、Node、Deployment のステータスをリアルタイム表示、メトリクス可視化
+- **リアルタイム監視** — Pod、Node、Deployment など 21 種類の K8s リソースのステータスとメトリクスを可視化
 - **異常検知** — CrashLoopBackOff、OOMKilled、ImagePullBackOff などを自動検知
-- **SLO 監視** — Ingress メトリクスに基づくサービス可用性、レイテンシ、エラー率の追跡
+- **フルスタックオブザーバビリティ** — ClickHouse + OTel Collector + Linkerd による Metrics / Traces / Mesh の統合観測
+- **SLO 監視** — Ingress（Traefik）+ サービスメッシュ（Linkerd）の二層 SLO トラッキング、レイテンシ分布・ステータスコード分布を含む
+- **サービスメッシュトポロジー** — Linkerd サービス依存関係の可視化（mTLS トラフィック、レイテンシ分布、リクエスト成功率）
+- **AIOps エンジン** — 依存グラフ構築、EMA 動的ベースライン、三段階リスクスコアリング、ステートマシン、インシデントライフサイクル管理
+- **AI アシスタント** — Gemini 駆動の自然言語運用（Chat + Tool Use）、インシデント要約と根本原因分析
 - **アラート通知** — メール (SMTP) と Slack (Webhook) に対応
 - **リモート運用** — kubectl コマンドのリモート実行、Pod 再起動、レプリカ数調整
-- **AI アシスタント** — 自然言語でクラスター運用（オプション）
-- **AIOps エンジン** — 依存グラフ、動的ベースライン、リスクスコアリング、インシデントライフサイクル管理 *（計画中）*
 - **監査ログ** — 完全な操作履歴とユーザー追跡
-- **多言語対応** — 英語、中国語、日本語
+- **多言語対応** — 中国語、日本語
 
 ---
 
@@ -29,175 +31,115 @@ AtlHyper は軽量 Kubernetes 環境向けの監視・管理プラットフォ�
 
 | コンポーネント | 技術 | 説明 |
 |---------------|------|------|
-| **Master** | Go + Gin + SQLite/MySQL | 中央制御、データ集約、API サーバー |
-| **Agent** | Go + controller-runtime | クラスターデータ収集、コマンド実行 |
-| **Metrics** | Go (DaemonSet) | ノードレベルのメトリクス収集 (CPU/メモリ/ディスク/ネットワーク) |
-| **Web** | Next.js 15 + TypeScript + Tailwind CSS | モダンなレスポンシブダッシュボード |
+| **Master** | Go 1.24 + net/http + SQLite | 中央制御、データ集約、API サーバー、AIOps エンジン |
+| **Agent** | Go 1.24 + client-go + ClickHouse | クラスターデータ収集、OTel データクエリ、コマンド実行 |
+| **Web** | Next.js 16 + React 19 + Tailwind CSS 4 + ECharts + G6 | 可視化管理インターフェース |
+| **オブザーバビリティ** | ClickHouse + OTel Collector + Linkerd | メトリクスストレージ、テレメトリ収集、サービスメッシュ |
+| **AI** | Gemini API (Chat + Tool Use) | AI チャット運用、インシデント分析 |
 
 ---
 
 ## アーキテクチャ
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           AtlHyper プラットフォーム                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌─────────────┐     ┌─────────────────────────────────────────────────┐   │
-│   │   Web UI    │────▶│                    Master                       │   │
-│   │  (Next.js)  │◀────│                                                 │   │
-│   └─────────────┘     │  ┌─────────┐  ┌──────────┐  ┌───────────────┐   │   │
-│                       │  │ Gateway │  │ DataHub  │  │   Services    │   │   │
-│                       │  │  (API)  │  │ (メモリ) │  │ (SLO/アラート)│   │   │
-│                       │  └─────────┘  └──────────┘  └───────────────┘   │   │
-│                       │                     │                           │   │
-│                       │              ┌──────┴──────┐                    │   │
-│                       │              │ データベース │                    │   │
-│                       │              │(SQLite/MySQL)│                   │   │
-│                       └──────────────┴──────────────┴───────────────────┘   │
-│                                          │                                  │
-│            ┌─────────────────────────────┼─────────────────────────────┐    │
-│            │                             │                             │    │
-│            ▼                             ▼                             ▼    │
-│   ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│   │Agent (クラスタA)│         │Agent (クラスタB)│         │Agent (クラスタN)│
-│   │                 │         │                 │         │                 │
-│   │  ┌───────────┐  │         │  ┌───────────┐  │         │  ┌───────────┐  │
-│   │  │  Source   │  │         │  │  Source   │  │         │  │  Source   │  │
-│   │  │ ├─ イベント│  │         │  │ ├─ イベント│  │         │  │ ├─ イベント│  │
-│   │  │ ├─ スナップ│ │         │  │ ├─ スナップ│ │         │  │ ├─ スナップ│ │
-│   │  │ └─ メトリクス│ │        │  │ └─ メトリクス│ │        │  │ └─ メトリクス│ │
-│   │  ├───────────┤  │         │  ├───────────┤  │         │  ├───────────┤  │
-│   │  │  Executor │  │         │  │  Executor │  │         │  │  Executor │  │
-│   │  └───────────┘  │         │  └───────────┘  │         │  └───────────┘  │
-│   └────────┬────────┘         └────────┬────────┘         └────────┬────────┘
-│            │                           │                           │        │
-│            ▼                           ▼                           ▼        │
-│   ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│   │   Kubernetes    │         │   Kubernetes    │         │   Kubernetes    │
-│   │   クラスター A   │         │   クラスター B   │         │   クラスター N   │
-│   │ ┌─────────────┐ │         │ ┌─────────────┐ │         │ ┌─────────────┐ │
-│   │ │   Metrics   │ │         │ │   Metrics   │ │         │ │   Metrics   │ │
-│   │ │ (DaemonSet) │ │         │ │ (DaemonSet) │ │         │ │ (DaemonSet) │ │
-│   │ └─────────────┘ │         │ └─────────────┘ │         │ └─────────────┘ │
-│   └─────────────────┘         └─────────────────┘         └─────────────────┘
-└─────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                           AtlHyper プラットフォーム                                │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌──────────┐    ┌──────────────────────────────────────────────────────────┐    │
+│  │  Web UI  │───▶│                        Master                           │    │
+│  │(Next.js) │◀───│                                                          │    │
+│  └──────────┘    │  ┌─────────┐ ┌────────┐ ┌─────────┐ ┌────────────────┐  │    │
+│                  │  │ Gateway │ │DataHub │ │ Service │ │   Database     │  │    │
+│                  │  │  (API)  │ │(メモリ) │ │(業務層) │ │   (SQLite)     │  │    │
+│                  │  └─────────┘ └────────┘ └─────────┘ └────────────────┘  │    │
+│                  │  ┌──────────────────┐   ┌──────────────────────────┐     │    │
+│                  │  │  AIOps Engine    │   │      AI (Gemini)        │     │    │
+│                  │  │依存グラフ│基線│ﾘｽｸ│   │  Chat│Tool Use│分析     │     │    │
+│                  │  │ｽﾃｰﾄﾏｼﾝ│ｲﾝｼﾃﾞﾝﾄ   │   └──────────────────────────┘     │    │
+│                  │  └──────────────────┘                                    │    │
+│                  └──────────────────────────────────────────────────────────┘    │
+│                                          │                                       │
+│         ┌────────────────────────────────┼────────────────────────────────┐      │
+│         │                                │                                │      │
+│         ▼                                ▼                                ▼      │
+│  ┌──────────────────┐         ┌──────────────────┐         ┌──────────────────┐  │
+│  │Agent (クラスタA) │         │Agent (クラスタB) │         │Agent (クラスタN) │  │
+│  │                  │         │                  │         │                  │  │
+│  │ SDK (K8s+CH)     │         │ SDK (K8s+CH)     │         │ SDK (K8s+CH)     │  │
+│  │ Repository       │         │ Repository       │         │ Repository       │  │
+│  │ Concentrator     │         │ Concentrator     │         │ Concentrator     │  │
+│  │ Service          │         │ Service          │         │ Service          │  │
+│  │ Scheduler        │         │ Scheduler        │         │ Scheduler        │  │
+│  └────────┬─────────┘         └────────┬─────────┘         └────────┬─────────┘  │
+│           │                            │                            │            │
+│           ▼                            ▼                            ▼            │
+│  ┌──────────────────┐         ┌──────────────────┐         ┌──────────────────┐  │
+│  │ Kubernetes クラスタ│         │ Kubernetes クラスタ│         │ Kubernetes クラスタ│  │
+│  │                  │         │                  │         │                  │  │
+│  │ ┌──────────────┐ │         │ ┌──────────────┐ │         │ ┌──────────────┐ │  │
+│  │ │OTel Collector│ │         │ │OTel Collector│ │         │ │OTel Collector│ │  │
+│  │ │node_exporter │ │         │ │node_exporter │ │         │ │node_exporter │ │  │
+│  │ │   Linkerd    │ │         │ │   Linkerd    │ │         │ │   Linkerd    │ │  │
+│  │ │  ClickHouse  │ │         │ │  ClickHouse  │ │         │ │  ClickHouse  │ │  │
+│  │ └──────────────┘ │         │ └──────────────┘ │         │ └──────────────┘ │  │
+│  └──────────────────┘         └──────────────────┘         └──────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## データフロー
 
-AtlHyper は4つのモジュールで構成され、それぞれ独立したデータフローを持ちます：
-
-### 1. Agent データフロー（4つのストリーム）
+### 1. Agent → Master（スナップショット送信 + コマンド実行）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                        Agent → Master データフロー                        │
+│                        Agent ↔ Master データフロー                        │
 ├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  [イベントストリーム]                                                      │
-│  K8s Watch ──▶ 異常フィルタ ──▶ DataHub ──▶ Pusher ──▶ Master            │
-│  • 検知: CrashLoop、OOM、ImagePull、NodeNotReady など                    │
 │                                                                          │
 │  [スナップショットストリーム]                                               │
-│  SDK.List() ──▶ Snapshot ──▶ Pusher ──▶ Master                          │
-│  • リソース: Pod、Node、Deployment、Service、Ingress など                 │
-│                                                                          │
-│  [メトリクスストリーム]                                                     │
-│  Metrics DaemonSet ──▶ Agent Gateway ──▶ Receiver ──▶ Pusher ──▶ Master │
-│  • ノードメトリクス: 各ノードの CPU、メモリ、ディスク、ネットワーク          │
+│  K8s SDK ──▶ Repository ──▶ SnapshotService ──▶ Scheduler ──▶ Master   │
+│  • K8s リソース: Pod、Node、Deployment、Service、Ingress など 21 種類    │
+│  • SLO メトリクス: ClickHouse から Traefik + Linkerd データを照会        │
+│  • ノードメトリクス: ClickHouse から node_exporter データを照会           │
+│  • APM データ: ClickHouse から分散トレーシングデータを照会                 │
+│  • 時系列集約: Concentrator リングバッファ（1 時間 × 1 分粒度）           │
 │                                                                          │
 │  [コマンドストリーム]                                                      │
-│  Master ──▶ Agent Gateway ──▶ Executor ──▶ K8s SDK ──▶ 結果 ──▶ Master  │
+│  Master ──▶ Agent Poll ──▶ CommandService ──▶ K8s SDK ──▶ 結果 → Master│
 │  • 操作: Pod 再起動、レプリカ調整、ノード隔離など                           │
 │                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-### 2. Metrics DaemonSet データフロー
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                     メトリクスコレクター（各ノード）                         │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
-│  │ /proc/stat  │    │/proc/meminfo│    │/proc/diskstats│                 │
-│  │ /proc/net   │    │   syscall   │    │/proc/mounts │                   │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘                   │
-│         │                  │                  │                          │
-│         ▼                  ▼                  ▼                          │
-│  ┌─────────────────────────────────────────────────────┐                 │
-│  │           メトリクスコレクター (Go)                   │                 │
-│  │  • CPU: 使用率、コアごと、ロードアベレージ              │                 │
-│  │  • メモリ: 使用中、利用可能、キャッシュ、バッファ        │                 │
-│  │  • ディスク: 容量、IO レート、IOPS、使用率             │                 │
-│  │  • ネットワーク: インターフェースごとのバイト/パケット   │                 │
-│  └──────────────────────────┬──────────────────────────┘                 │
-│                             │                                            │
-│                             ▼                                            │
-│                    POST /metrics/push                                    │
-│                             │                                            │
-│                             ▼                                            │
-│                    ┌─────────────────┐                                   │
-│                    │  Agent (同ノード) │                                  │
-│                    └─────────────────┘                                   │
+│  [ハートビートストリーム]                                                  │
+│  Agent ──▶ 定期ハートビート ──▶ Master（接続状態維持）                     │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Master データフロー（3つのストリーム）
+### 2. オブザーバビリティパイプライン（OTel → ClickHouse → Agent）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         Master データストリーム                            │
+│                     オブザーバビリティデータパイプライン                     │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  [1. クラスタースナップショット — メモリストレージ (DataHub)]               │
-│  ─────────────────────────────────────────────────────────────────────── │
-│  Agent ──▶ AgentSDK ──▶ Processor ──▶ DataHub (メモリ)                   │
-│                                            │                             │
-│  用途: Pod/Node のリアルタイムクエリ        ◀── Web API クエリ            │
-│  保持: 最新のスナップショットのみ                                          │
+│  [ノードメトリクス]                                                       │
+│  node_exporter ──▶ OTel Collector ──▶ ClickHouse                       │
+│  • CPU、メモリ、ディスク、ネットワーク、PSI プレッシャー、TCP、温度        │
 │                                                                          │
-│  [2. コマンドディスパッチ — メッセージキュー]                               │
-│  ─────────────────────────────────────────────────────────────────────── │
-│  ユーザー/AI ──▶ API ──▶ CommandBus ──▶ Agent 実行                       │
-│                          │                                               │
-│  用途: リモート操作      Agent ──▶ 結果 ──▶ CommandBus ──▶ API           │
-│  保持: 一時的                                                             │
+│  [Ingress SLO]                                                           │
+│  Traefik ──▶ OTel Collector ──▶ ClickHouse                             │
+│  • RPS、成功率、レイテンシ分布（histogram バケット）、ステータスコード分布  │
 │                                                                          │
-│  [3. 永続化データ — データベース]                                          │
-│  ─────────────────────────────────────────────────────────────────────── │
-│  Agent ──▶ Processor ──┬──▶ イベント ──▶ DB (event_history)              │
-│                        ├──▶ SLO メトリクス ──▶ DB (slo_* テーブル)        │
-│                        └──▶ ノードメトリクス ──▶ DB (node_metrics_history)│
-│                                    │                                     │
-│  用途: 履歴分析                    ◀── トレンド/SLO API クエリ            │
-│  保持: 30-180日（設定可能）                                               │
+│  [サービスメッシュ SLO]                                                   │
+│  Linkerd Proxy ──▶ OTel Collector ──▶ ClickHouse                       │
+│  • サービス間トラフィックトポロジー、P50/P95/P99 レイテンシ、成功率、mTLS │
 │                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-### 4. Web フロントエンドデータフロー
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                       Web フロントエンドフロー                             │
-├──────────────────────────────────────────────────────────────────────────┤
+│  [分散トレーシング]                                                       │
+│  アプリ SDK ──▶ OTel Collector ──▶ ClickHouse                           │
+│  • TraceID/SpanID、サービストポロジー、オペレーション統計                   │
 │                                                                          │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
-│  │  ブラウザ   │    │  Next.js    │    │   Master    │                   │
-│  │             │───▶│ ミドルウェア │───▶│   Gateway   │                   │
-│  │             │◀───│  (プロキシ)  │◀───│   (API)     │                   │
-│  └─────────────┘    └─────────────┘    └─────────────┘                   │
-│                                                                          │
-│  • 認証: JWT トークンを localStorage に保存                               │
-│  • API プロキシ: /api/v2/* → Master:8080 (ランタイム設定)                 │
-│  • 状態: Zustand でグローバル状態管理                                     │
-│  • リアルタイム: 設定可能な間隔でポーリング                                 │
+│                    ClickHouse ◀── Agent 定期クエリ                        │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -227,7 +169,7 @@ AtlHyper は4つのモジュールで構成され、それぞれ独立したデ�
 ![ノードメトリクス](../img/system_metrics.png)
 
 ### SLO 監視
-Ingress メトリクスに基づくサービスレベル目標の追跡。
+Ingress + サービスメッシュの二層 SLO トラッキング。
 
 ![SLO 概要](../img/workbench_slo_overview.png)
 
@@ -239,9 +181,10 @@ Ingress メトリクスに基づくサービスレベル目標の追跡。
 
 ### 前提条件
 
-- Go 1.21+
-- Node.js 18+
+- Go 1.24+
+- Node.js 20+
 - Kubernetes クラスター（Agent デプロイ用）
+- ClickHouse（オブザーバビリティデータストレージ）
 - Docker（コンテナ化デプロイ）
 
 ### クイックスタート（開発環境）
@@ -272,27 +215,9 @@ npm install && npm run dev
 # アクセス: http://localhost:3000
 ```
 
-### Kubernetes デプロイ（Helm）
-
-```bash
-# Helm リポジトリ追加（公開済みの場合）
-helm repo add atlhyper https://charts.atlhyper.io
-
-# Master インストール
-helm install atlhyper-master atlhyper/atlhyper \
-  --set master.admin.username=admin \
-  --set master.admin.password=<YOUR_PASSWORD> \
-  --set master.jwt.secret=<YOUR_SECRET>
-
-# Agent インストール（各クラスター）
-helm install atlhyper-agent atlhyper/atlhyper-agent \
-  --set agent.clusterId=production \
-  --set agent.masterUrl=http://atlhyper-master:8081
-```
-
 ### Kubernetes デプロイ（YAML）
 
-デプロイ順序: **Master → Agent → Metrics → Web**
+デプロイ順序: **ClickHouse + OTel Collector + Linkerd → Master → Agent → Web**
 
 ```bash
 cd deploy/k8s
@@ -301,18 +226,15 @@ cd deploy/k8s
 kubectl apply -f atlhyper-config.yaml
 
 # 2. Master デプロイ
-kubectl apply -f atlhyper-Master.yaml
+kubectl apply -f atlhyper-master.yaml
 
 # 3. Agent デプロイ
 kubectl apply -f atlhyper-agent.yaml
 
-# 4. Metrics デプロイ (DaemonSet)
-kubectl apply -f atlhyper-metrics.yaml
-
-# 5. Web デプロイ
+# 4. Web デプロイ
 kubectl apply -f atlhyper-web.yaml
 
-# 6. (オプション) Traefik IngressRoute
+# 5. (オプション) Traefik IngressRoute
 kubectl apply -f atlhyper-traefik.yaml
 ```
 
@@ -327,8 +249,6 @@ kubectl apply -f atlhyper-traefik.yaml
 | `MASTER_JWT_SECRET` | はい | - | JWT 署名キー |
 | `MASTER_GATEWAY_PORT` | いいえ | `8080` | Web/API ポート |
 | `MASTER_AGENTSDK_PORT` | いいえ | `8081` | Agent データポート |
-| `MASTER_DB_TYPE` | いいえ | `sqlite` | データベースタイプ |
-| `MASTER_DB_DSN` | いいえ | - | MySQL/PostgreSQL DSN |
 | `MASTER_LOG_LEVEL` | いいえ | `info` | ログレベル |
 
 #### Agent 設定
@@ -338,77 +258,165 @@ kubectl apply -f atlhyper-traefik.yaml
 | `--cluster-id` | はい | クラスター固有識別子 |
 | `--master` | はい | Master AgentSDK URL |
 
-#### Metrics DaemonSet
-
-Metrics コレクターは自動的に DaemonSet としてデプロイされ、ローカル Agent に報告します。ConfigMap で設定：
-
-| 変数 | デフォルト | 説明 |
-|------|-----------|------|
-| `METRICS_AGENT_URL` | `http://atlhyper-agent:8082` | Agent メトリクスエンドポイント |
-| `METRICS_PUSH_INTERVAL` | `15s` | プッシュ間隔 |
-
 ---
 
 ## プロジェクト構造
 
 ```
 atlhyper/
-├── atlhyper_master_v2/       # Master（中央制御）
-│   ├── gateway/              # HTTP API (Web + AgentSDK)
-│   ├── datahub/              # メモリデータストア
-│   ├── database/             # 永続化ストレージ (SQLite/MySQL)
-│   ├── service/              # ビジネスロジック (SLO, アラート)
-│   ├── ai/                   # AI アシスタント統合
-│   ├── aiops/                # AIOps エンジン（計画中）
-│   └── config/               # 設定管理
+├── atlhyper_master_v2/     # Master（中央制御）
+│   ├── gateway/            #   HTTP API ゲートウェイ
+│   ├── datahub/            #   メモリデータストア
+│   ├── database/           #   永続化 (SQLite)
+│   ├── service/            #   ビジネスロジック
+│   ├── aiops/              #   AIOps エンジン
+│   ├── ai/                 #   AI アシスタント (Gemini)
+│   ├── slo/                #   SLO 計算
+│   ├── notifier/           #   アラート通知
+│   ├── processor/          #   データ処理
+│   ├── agentsdk/           #   Agent 通信層
+│   ├── mq/                 #   メッセージキュー
+│   └── config/             #   設定
 │
-├── atlhyper_agent_v2/        # Agent（クラスタープロキシ）
-│   ├── source/               # データソース
-│   │   ├── event/            # K8s イベントウォッチャー
-│   │   ├── snapshot/         # リソーススナップショット
-│   │   └── metrics/          # メトリクスレシーバー
-│   ├── executor/             # コマンド実行
-│   ├── sdk/                  # K8s 操作
-│   └── pusher/               # データプッシュスケジューラー
+├── atlhyper_agent_v2/      # Agent（クラスタープロキシ）
+│   ├── sdk/                #   K8s + ClickHouse SDK
+│   ├── repository/         #   データリポジトリ (K8s + CH クエリ)
+│   ├── service/            #   スナップショット/コマンドサービス
+│   ├── concentrator/       #   OTel 時系列集約（リングバッファ）
+│   ├── scheduler/          #   スケジューラー
+│   └── gateway/            #   Agent↔Master 通信
 │
-├── atlhyper_metrics_v2/      # メトリクスコレクター (DaemonSet)
-│   ├── collector/            # CPU、メモリ、ディスク、ネットワーク
-│   └── pusher/               # Agent へプッシュ
+├── atlhyper_web/           # Web フロントエンド
+│   ├── src/app/            #   Next.js ページ
+│   ├── src/components/     #   React コンポーネント
+│   ├── src/api/            #   API クライアント
+│   └── src/i18n/           #   国際化 (中国語/日本語)
 │
-├── atlhyper_web/             # Web フロントエンド
-│   ├── src/app/              # Next.js ページ
-│   ├── src/components/       # React コンポーネント
-│   ├── src/api/              # API クライアント
-│   └── src/i18n/             # 国際化
-│
-├── model_v2/                 # 共有データモデル
-├── cmd/                      # エントリーポイント
-└── deploy/                   # デプロイ設定
-    ├── helm/                 # Helm チャート
-    └── k8s/                  # K8s マニフェスト
+├── model_v2/               # 共有モデル (K8s リソース)
+├── model_v3/               # 共有モデル (SLO/APM/Metrics/Log)
+├── common/                 # ユーティリティ (logger/crypto/gzip)
+├── cmd/                    # エントリーポイント
+└── docs/                   # ドキュメント
 ```
 
 ---
 
-## ロードマップ
+## AIOps エンジン
 
-### AIOps エンジン
+アルゴリズム駆動の AIOps エンジンで、自動化された異常検知、根本原因特定、インシデントライフサイクル管理を実現。コア設計原則：**説明可能なアルゴリズム** — すべてのリスクスコアは具体的な計算式と入力メトリクスに遡及可能、ML ブラックボックスではない。
 
-自動化された根本原因分析とインシデント管理を実現するアルゴリズム駆動の AIOps エンジンを計画しています。設計ドキュメントは [`docs/design/future/`](../../design/future/) を参照してください。
+### M1 — 依存グラフ（Correlator）
 
-| フェーズ | モジュール | 説明 | 状態 |
-|---------|-----------|------|------|
-| **Phase 1** | 依存グラフ + ベースライン | K8s トポロジー DAG の自動構築；EMA + 3σ 異常検知 | 設計完了 |
-| **Phase 2a** | リスクスコアラー | 3段階パイプライン：ローカルリスク → 時系列重み → グラフ伝播 → ClusterRisk | 設計完了 |
-| **Phase 2b** | ステートマシン + インシデントストア | エンティティライフサイクル（Healthy → Warning → Incident → Recovery → Stable）；構造化インシデント保存 | 設計完了 |
-| **Phase 3** | フロントエンド可視化 | リスクダッシュボード、インシデント管理、トポロジーグラフ | 設計完了 |
-| **Phase 4** | AI 強化 | LLM 駆動のインシデント要約、対処提案、Chat Tool 統合 | 設計完了 |
+`ClusterSnapshot` から四層の有向非巡回グラフ（DAG）を自動構築：
 
-**主な差別化ポイント：**
-- **説明可能なアルゴリズム** — すべてのリスクスコアは具体的な計算式と入力メトリクスに遡及可能、ML ブラックボックスではない
-- **シングルバイナリ、外部依存ゼロ** — Kafka、Elasticsearch、時系列 DB 不要
-- **K8s ネイティブトポロジー** — K8s API + Linkerd + OTel から直接依存グラフを構築、追加設定不要
-- **SLO 駆動のドリルダウン** — ユーザーが体感する SLO（ドメインエラー率/レイテンシ）からインフラ根本原因まで掘り下げ
+```
+Ingress ──routes_to──▶ Service ──selects──▶ Pod ──runs_on──▶ Node
+                         │
+                         └──calls──▶ Service（Linkerd サービス間トラフィック）
+```
+
+- **データソース**: K8s API（リソース関係）+ Linkerd outbound（サービス間呼出）+ OTel Traces（トレースチェーン）
+- **グラフ構造**: 正方向/逆方向隣接リスト、BFS によるチェーントレーシング対応
+- **永続化**: 各スナップショット後に非同期で SQLite へ書き込み
+
+### M2 — ベースラインエンジン（Baseline）
+
+**EMA（指数移動平均）+ 3σ 動的ベースライン**、二チャネル異常検知：
+
+**チャネル A — 統計型検知：**
+
+```
+EMA_t = α × x_t + (1-α) × EMA_{t-1}     (α = 0.033, 60 サンプルポイント相当)
+異常スコア = sigmoid(|x - EMA| / σ - 3)    (偏差 > 3σ で異常)
+```
+
+| エンティティ | 監視メトリクス |
+|-------------|--------------|
+| Node | cpu_usage, memory_usage, disk_usage, psi_cpu/memory/io |
+| Pod | restart_count, is_running, not_ready_containers |
+| Service (Linkerd) | error_rate, avg_latency, request_rate |
+| Ingress (Traefik) | error_rate, avg_latency |
+
+- コールドスタート：最初の 100 データポイントは学習のみ、アラートなし（ゼロ値メトリクスは 10 ポイントで早期終了可能）
+
+**チャネル B — 確定的検知（コールドスタートバイパス）：**
+
+| 検知項目 | スコア |
+|---------|-------|
+| OOMKilled | 0.95 |
+| CrashLoopBackOff | 0.90 |
+| 設定エラー | 0.80 |
+| K8s Critical Event（5 分以内） | 0.85 |
+| Deployment 利用不可 ≥75% | 0.95 |
+
+二チャネルの結果をマージ：同一メトリクスでスコアが高い方を採用。
+
+### M3 — リスクスコアリング（Risk Scorer）
+
+三段階パイプライン、ローカルメトリクスからグローバルトポロジーへ：
+
+**Stage 1 — ローカルリスク (R_local):**
+```
+チャネル1（統計）: R_stat = Σ(w_i × score_i)
+チャネル2（確定的）: R_det = max(score_i) × breadthBoost(n)
+R_local = max(R_stat, R_det)
+```
+
+**Stage 2 — 時系列減衰 (W_time):**
+```
+W_time = 0.7 + 0.3 × (1 - exp(-Δt / τ))
+```
+初回検知 W=0.7、5 分持続 ≈0.82、10 分持続 ≈0.93
+
+**Stage 3 — グラフ伝播 (R_final):**
+```
+トポロジカルソート: Node(0) → Pod(1) → Service(2) → Ingress(3)
+R_final(v) = max(R_weighted(v), α × R_weighted(v) + (1-α) × avg(R_final(deps)))
+```
+SLO コンテキスト重み付け：最大エラーバジェット燃焼率による修正
+
+**リスクレベルマッピング:**
+
+| R_final | レベル |
+|---------|--------|
+| ≥ 0.8 | Critical |
+| ≥ 0.6 | High |
+| ≥ 0.4 | Medium |
+| ≥ 0.2 | Low |
+| < 0.2 | Healthy |
+
+### M4 — ステートマシン（State Machine）
+
+五状態ライフサイクル管理：
+
+```
+                    R>0.2 持続≥2min           R>0.5 持続≥5min
+  Healthy ──────────────────▶ Warning ──────────────────▶ Incident
+     ▲  R<0.15 持続≥5min       │                            │
+     └──────────────────────────┘          R<0.15 持続≥10min │
+                                                             ▼
+                               R>0.2 即時再発             Recovery
+                    Warning ◀─────────────────────────────── │
+                                                             │
+                                         定期チェック（10min）│
+                                              Stable ◀───────┘
+```
+
+- 期限切れクリーンアップ：30 分間未評価のエントリは自動クローズ（Pod 削除後）
+- 再発トラッキング：recovery → warning 時に recurrence カウント +1
+
+### M5 — インシデントストア（Incident Store）
+
+SQLite で永続化、構造化されたインシデント記録：
+
+| データ | 内容 |
+|--------|------|
+| **Incident** | ID、クラスター、状態、重大度、根本原因エンティティ、ピークリスク、持続時間 |
+| **Entity** | 影響を受けたエンティティリスト（R_local / R_final / ロールを含む） |
+| **Timeline** | 状態変更タイムライン（anomaly_detected → state_change → recovery_started） |
+| **Statistics** | MTTR、再発率、重大度分布、Top 根本原因 |
+
+AI 強化（オプション）：Gemini LLM によるインシデント要約、根本原因分析、対処提案の生成。
 
 ---
 

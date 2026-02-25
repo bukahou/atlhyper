@@ -6,18 +6,18 @@ import type { Topology, HealthStatus } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs } from "@/lib/format";
 
-// Node color based on status + successRate
-function nodeColor(status: HealthStatus, successRate: number): string {
+// Health-based ring color (Kibana-style softer palette)
+function ringColor(status: HealthStatus, successRate: number): string {
   if (status === "critical" || successRate < 0.95) return "#ef4444";
-  if (status === "warning" || successRate < 0.99) return "#fbbf24";
-  return "#4ade80";
+  if (status === "warning" || successRate < 0.99) return "#f59e0b";
+  return "#60a5fa"; // healthy = blue
 }
 
-// Node shape icon by type
+// Node icon by type
 function nodeIcon(type: string): string {
-  if (type === "database") return "D";
-  if (type === "external") return "E";
-  return "S";
+  if (type === "database") return "⛁";
+  if (type === "external") return "⊕";
+  return "⬡";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,6 +62,17 @@ interface ServiceTopologyProps {
 }
 
 export function ServiceTopology({ t, topology, onSelectService }: ServiceTopologyProps) {
+  if (!topology.nodes || topology.nodes.length === 0) {
+    return (
+      <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[var(--border-color)]">
+          <h3 className="text-sm font-medium text-default">{t.serviceTopology}</h3>
+        </div>
+        <div className="py-12 text-center text-sm text-muted">{t.noData}</div>
+      </div>
+    );
+  }
+
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
@@ -89,67 +100,66 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
   }, [topology]);
 
   const buildData = useCallback(() => {
-    // RPS range for node sizing
-    const rpsValues = topology.nodes.map((n) => n.rps);
-    const minRps = Math.min(...rpsValues, 0);
-    const maxRps = Math.max(...rpsValues, 0.001);
-    const rpsRange = maxRps - minRps || 1;
+    const isDark = document.documentElement.classList.contains("dark");
+    const labelColor = isDark ? "#d1d5db" : "#374151";
+    const labelBg = isDark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.85)";
 
     const nodes = topology.nodes.map((n) => {
-      const color = nodeColor(n.status, n.successRate);
-      const baseSize = 30 + ((n.rps - minRps) / rpsRange) * 16;
-
-      const badges = n.successRate < 0.99
-        ? [{
-            text: `${((1 - n.successRate) * 100).toFixed(1)}%`,
-            placement: "right-top" as const,
-            backgroundFill: n.successRate < 0.95 ? "#ef4444" : "#fbbf24",
-            fill: "#fff",
-            fontSize: 8,
-          }]
-        : [];
+      const color = ringColor(n.status, n.successRate);
+      const isDb = n.type === "database";
+      const size = isDb ? 36 : 42;
 
       return {
         id: n.id,
         data: { rps: n.rps, successRate: n.successRate, p99Ms: n.p99Ms, namespace: n.namespace, type: n.type },
         style: {
-          type: (n.type === "database" ? "diamond" : "circle") as "circle" | "diamond",
-          size: baseSize,
-          fill: color,
-          fillOpacity: 0.2,
+          type: (isDb ? "diamond" : "circle") as "circle" | "diamond",
+          size,
+          fill: isDark ? `${color}18` : `${color}12`,
           stroke: color,
-          lineWidth: 2,
+          lineWidth: 2.5,
+          shadowBlur: 0,
           labelText: n.name.length > 22 ? n.name.slice(0, 20) + ".." : n.name,
-          labelFontSize: 10,
-          labelFill: color,
+          labelFontSize: 11,
+          labelFontWeight: 500,
+          labelFill: labelColor,
           labelPlacement: "bottom" as const,
-          labelOffsetY: 4,
+          labelOffsetY: 6,
           labelBackground: true,
-          labelBackgroundFill: "rgba(0,0,0,0.55)",
-          labelBackgroundRadius: 3,
-          labelBackgroundPadding: [1, 4, 1, 4],
+          labelBackgroundFill: labelBg,
+          labelBackgroundRadius: 4,
+          labelBackgroundPadding: [2, 6, 2, 6],
           iconText: nodeIcon(n.type),
-          iconFontSize: 13,
-          iconFontWeight: 700,
+          iconFontSize: isDb ? 16 : 15,
+          iconFontWeight: 400,
           iconFill: color,
           cursor: "pointer" as const,
-          badges,
+          badges: n.successRate < 0.99
+            ? [{
+                text: `${((1 - n.successRate) * 100).toFixed(1)}%`,
+                placement: "right-top" as const,
+                backgroundFill: n.successRate < 0.95 ? "#ef4444" : "#f59e0b",
+                fill: "#fff",
+                fontSize: 8,
+              }]
+            : [],
+          // Double-ring effect via halo
+          halo: true,
+          haloStroke: color,
+          haloStrokeOpacity: isDark ? 0.15 : 0.1,
+          haloLineWidth: 8,
         },
       };
     });
 
-    // Filter edges: both source and target must exist in nodes
+    // Filter edges: both source and target must exist
     const nodeIds = new Set(topology.nodes.map((n) => n.id));
     const validEdges = topology.edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
 
-    // Edge width by callCount
-    const callCounts = validEdges.map((e) => e.callCount);
-    const minC = Math.min(...callCounts, 1);
-    const maxC = Math.max(...callCounts, 1);
-    const cRange = maxC - minC || 1;
+    const edgeColor = isDark ? "#4b5563" : "#9ca3af";
+    const edgeErrorColor = "#f87171";
 
     const edges = validEdges.map((e) => {
-      const width = 1 + ((e.callCount - minC) / cRange) * 3;
       const hasError = e.errorRate > 0;
       return {
         id: `${e.source}>${e.target}`,
@@ -157,13 +167,15 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         target: e.target,
         data: { callCount: e.callCount, avgMs: e.avgMs, errorRate: e.errorRate },
         style: {
-          stroke: hasError ? "#f87171" : "#666",
-          lineWidth: width,
-          strokeOpacity: hasError ? 0.7 : 0.35,
+          type: "cubic-horizontal" as const,
+          stroke: hasError ? edgeErrorColor : edgeColor,
+          lineWidth: 1.5,
+          strokeOpacity: hasError ? 0.6 : 0.4,
           lineDash: hasError ? [6, 3] : (undefined as number[] | undefined),
           endArrow: true,
-          endArrowSize: 6,
-          endArrowFill: hasError ? "#f87171" : "#666",
+          endArrowSize: 5,
+          endArrowFill: hasError ? edgeErrorColor : edgeColor,
+          endArrowFillOpacity: hasError ? 0.6 : 0.4,
         },
       };
     });
@@ -194,27 +206,27 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
       const instance = new Graph({
         container,
         autoFit: "view",
-        padding: [20, 20, 20, 20],
+        padding: [24, 40, 24, 40],
         data,
         node: {
           style: { cursor: "pointer" as const },
           state: {
-            active: { lineWidth: 3 },
-            selected: { lineWidth: 3, shadowBlur: 18, shadowColor: "#3b82f6" },
+            active: { lineWidth: 3, shadowBlur: 12, shadowColor: "rgba(96,165,250,0.4)" },
+            selected: { lineWidth: 3.5, shadowBlur: 20, shadowColor: "#3b82f6" },
           },
         },
         edge: {
-          style: { type: "line" },
+          style: { type: "cubic-horizontal" },
           state: {
-            active: { stroke: "#3b82f6", lineWidth: 2, strokeOpacity: 0.8 },
+            active: { stroke: "#60a5fa", lineWidth: 2, strokeOpacity: 0.8 },
             selected: { stroke: "#3b82f6", lineWidth: 2.5, strokeOpacity: 1 },
           },
         },
         layout: {
-          type: "d3-force",
-          link: { distance: 160 },
-          charge: { strength: -500 },
-          collide: { radius: 50 },
+          type: "dagre",
+          rankdir: "LR",
+          nodesep: 50,
+          ranksep: 120,
         },
         behaviors: ["drag-canvas", "zoom-canvas", "drag-element"],
         plugins: [
@@ -243,7 +255,7 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
 
               // Node tooltip
               if (d.rps !== undefined) {
-                const color = nodeColor(
+                const color = ringColor(
                   d.successRate !== undefined && d.successRate < 0.95 ? "critical" : "healthy",
                   d.successRate ?? 1
                 );
@@ -312,12 +324,11 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
       instance.on("node:click", (evt: any) => {
         const nodeId = evt?.target?.id;
         if (!nodeId) return;
-        // Only navigate if it's a service node (not database/external)
         const nodeData = topology.nodes.find((n) => n.id === nodeId);
         try { applySelection(instance, nodeId); } catch { /* ignore */ }
         setSelectedNode(nodeId);
         if (nodeData?.type === "service") {
-          onSelectRef.current(nodeId);
+          onSelectRef.current(nodeData.name);
         }
       });
 
@@ -408,25 +419,20 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
       {/* Legend */}
       <div className="px-4 py-2 border-t border-[var(--border-color)] flex items-center gap-4 text-[10px] text-muted">
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#4ade80] inline-block" />
+          <span className="w-3 h-3 rounded-full border-2 border-[#60a5fa] bg-[#60a5fa]/10 inline-block" />
           {t.nodeTypeService}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rotate-45 bg-[#60a5fa] inline-block" style={{ borderRadius: 2 }} />
+          <span className="w-3 h-3 rotate-45 border-2 border-[#60a5fa] bg-[#60a5fa]/10 inline-block" style={{ borderRadius: 2 }} />
           {t.nodeTypeDatabase}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#a78bfa] inline-block" />
-          {t.nodeTypeExternal}
-        </span>
-        <span className="text-[var(--border-color)]">|</span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-4 border-t border-[#666] inline-block" />
-          {t.topoCalls}
+          <span className="w-3 h-3 rounded-full border-2 border-[#f59e0b] bg-[#f59e0b]/10 inline-block" />
+          {t.topoErrorRate} &gt;1%
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-4 border-t border-dashed border-[#f87171] inline-block" />
-          {t.topoErrorRate}
+          <span className="w-3 h-3 rounded-full border-2 border-[#ef4444] bg-[#ef4444]/10 inline-block" />
+          {t.topoErrorRate} &gt;5%
         </span>
       </div>
     </div>

@@ -146,8 +146,8 @@ export function LatencyDistribution({
           splitLine: { show: false },
         },
         yAxis: {
-          type: "log",
-          min: 1,
+          type: "value",
+          minInterval: 1,
           axisLabel: { color: c.textColor, fontSize: 10 },
           splitLine: { lineStyle: { color: c.splitLineColor } },
         },

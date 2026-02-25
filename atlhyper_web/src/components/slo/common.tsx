@@ -148,9 +148,19 @@ export function SummaryCard({
 // ==================== Utilities ====================
 
 export function formatLatency(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
+  if (ms === 0) return "0ms";
+  if (ms < 1) return `${ms.toFixed(2)}ms`;
+  if (ms < 10) return `${ms.toFixed(1)}ms`;
+  if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60000).toFixed(1)}min`;
+}
+
+export function formatRPS(rps: number): string {
+  if (rps === 0) return "0";
+  if (rps >= 1000) return `${(rps / 1000).toFixed(1)}K`;
+  if (rps >= 1) return rps.toFixed(0);
+  return rps.toFixed(2);
 }
 
 export function formatNumber(num: number): string {
