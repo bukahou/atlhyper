@@ -17,15 +17,12 @@ import (
 	"AtlHyper/model_v3/command"
 )
 
-// Query 只读查询接口
-type Query interface {
-	// ==================== 集群查询 ====================
+// ================================================================
+// 子接口（按功能域划分）
+// ================================================================
 
-	ListClusters(ctx context.Context) ([]model_v2.ClusterInfo, error)
-	GetCluster(ctx context.Context, clusterID string) (*model_v2.ClusterDetail, error)
-
-	// ==================== 快照查询 ====================
-
+// QueryK8s K8s 资源快照查询
+type QueryK8s interface {
 	GetSnapshot(ctx context.Context, clusterID string) (*model_v2.ClusterSnapshot, error)
 	GetPods(ctx context.Context, clusterID string, opts model.PodQueryOpts) ([]model_v2.Pod, error)
 	GetNodes(ctx context.Context, clusterID string) ([]model_v2.Node, error)
@@ -45,35 +42,22 @@ type Query interface {
 	GetResourceQuotas(ctx context.Context, clusterID string, namespace string) ([]model_v2.ResourceQuota, error)
 	GetLimitRanges(ctx context.Context, clusterID string, namespace string) ([]model_v2.LimitRange, error)
 	GetServiceAccounts(ctx context.Context, clusterID string, namespace string) ([]model_v2.ServiceAccount, error)
+}
 
-	// ==================== Event 查询 ====================
+// QueryOTel OTel 快照/时间线查询
+type QueryOTel interface {
+	GetOTelSnapshot(ctx context.Context, clusterID string) (*cluster.OTelSnapshot, error)
+	GetOTelTimeline(ctx context.Context, clusterID string, since time.Time) ([]cluster.OTelEntry, error)
+}
 
-	GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]model_v2.Event, error)
-	GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]model_v2.Event, error)
-
-	// ==================== Agent / 指令状态查询 ====================
-
-	GetAgentStatus(ctx context.Context, clusterID string) (*model_v2.AgentStatus, error)
-	GetCommandStatus(ctx context.Context, commandID string) (*command.Status, error)
-
-	// ==================== 概览 ====================
-
-	GetOverview(ctx context.Context, clusterID string) (*model_v2.ClusterOverview, error)
-
-	// ==================== 单资源查询 (Event Alert Enrichment) ====================
-
-	GetPod(ctx context.Context, clusterID, namespace, name string) (*model_v2.Pod, error)
-	GetNode(ctx context.Context, clusterID, name string) (*model_v2.Node, error)
-	GetDeployment(ctx context.Context, clusterID, namespace, name string) (*model_v2.Deployment, error)
-	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*model_v2.Deployment, error)
-
-	// ==================== SLO 服务网格查询 ====================
-
+// QuerySLO SLO 服务网格查询
+type QuerySLO interface {
 	GetMeshTopology(ctx context.Context, clusterID, timeRange string) (*model.ServiceMeshTopologyResponse, error)
 	GetServiceDetail(ctx context.Context, clusterID, namespace, name, timeRange string) (*model.ServiceDetailResponse, error)
+}
 
-	// ==================== AIOps 查询 ====================
-
+// QueryAIOps AIOps 查询与 AI 增强
+type QueryAIOps interface {
 	GetAIOpsGraph(ctx context.Context, clusterID string) (*aiops.DependencyGraph, error)
 	GetAIOpsGraphTrace(ctx context.Context, clusterID, fromKey, direction string, maxDepth int) (*aiops.TraceResult, error)
 	GetAIOpsBaseline(ctx context.Context, clusterID, entityKey string) (*aiops.EntityBaseline, error)
@@ -84,18 +68,36 @@ type Query interface {
 	GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error)
 	GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error)
 	GetAIOpsIncidentPatterns(ctx context.Context, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
-
-	// ==================== OTel 快照直读 ====================
-
-	GetOTelSnapshot(ctx context.Context, clusterID string) (*cluster.OTelSnapshot, error)
-
-	// ==================== OTel 时间线 ====================
-
-	GetOTelTimeline(ctx context.Context, clusterID string, since time.Time) ([]cluster.OTelEntry, error)
-
-	// ==================== AIOps AI 增强 ====================
-
 	SummarizeIncident(ctx context.Context, incidentID string) (*aiopsai.SummarizeResponse, error)
+}
+
+// QueryOverview 集群概览、Agent 状态、事件、单资源查询
+type QueryOverview interface {
+	ListClusters(ctx context.Context) ([]model_v2.ClusterInfo, error)
+	GetCluster(ctx context.Context, clusterID string) (*model_v2.ClusterDetail, error)
+	GetAgentStatus(ctx context.Context, clusterID string) (*model_v2.AgentStatus, error)
+	GetCommandStatus(ctx context.Context, commandID string) (*command.Status, error)
+	GetOverview(ctx context.Context, clusterID string) (*model_v2.ClusterOverview, error)
+	GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]model_v2.Event, error)
+	GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]model_v2.Event, error)
+	// 单资源查询 (Event Alert Enrichment)
+	GetPod(ctx context.Context, clusterID, namespace, name string) (*model_v2.Pod, error)
+	GetNode(ctx context.Context, clusterID, name string) (*model_v2.Node, error)
+	GetDeployment(ctx context.Context, clusterID, namespace, name string) (*model_v2.Deployment, error)
+	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*model_v2.Deployment, error)
+}
+
+// ================================================================
+// 组合接口（向后兼容，现有代码无需修改）
+// ================================================================
+
+// Query 只读查询接口
+type Query interface {
+	QueryK8s
+	QueryOTel
+	QuerySLO
+	QueryAIOps
+	QueryOverview
 }
 
 // Ops 写入操作接口
