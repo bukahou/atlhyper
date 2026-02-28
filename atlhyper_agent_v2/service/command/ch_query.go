@@ -21,6 +21,8 @@ func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Com
 	}
 
 	subAction := getStringParam(cmd.Params, "sub_action")
+	startTime := getStringParam(cmd.Params, "start_time")
+	endTime := getStringParam(cmd.Params, "end_time")
 
 	switch subAction {
 	case "list_traces", "":
@@ -30,19 +32,19 @@ func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Com
 		limit := getIntParam(cmd.Params, "limit", 50)
 		since := getDurationParam(cmd.Params, "since", 5*time.Minute)
 		sortBy := getStringParam(cmd.Params, "sort")
-		return s.traceQueryRepo.ListTraces(ctx, service, operation, minDuration, limit, since, sortBy)
+		return s.traceQueryRepo.ListTraces(ctx, service, operation, minDuration, limit, since, sortBy, startTime, endTime)
 
 	case "list_services":
 		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.ListServices(ctx, since)
+		return s.traceQueryRepo.ListServices(ctx, since, startTime, endTime)
 
 	case "get_topology":
 		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.GetTopology(ctx, since)
+		return s.traceQueryRepo.GetTopology(ctx, since, startTime, endTime)
 
 	case "list_operations":
 		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.ListOperations(ctx, since)
+		return s.traceQueryRepo.ListOperations(ctx, since, startTime, endTime)
 
 	case "http_stats":
 		service := getStringParam(cmd.Params, "service")
@@ -50,7 +52,7 @@ func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Com
 			return nil, fmt.Errorf("service is required for http_stats")
 		}
 		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.GetHTTPStats(ctx, service, since)
+		return s.traceQueryRepo.GetHTTPStats(ctx, service, since, startTime, endTime)
 
 	case "db_stats":
 		service := getStringParam(cmd.Params, "service")
@@ -58,7 +60,7 @@ func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Com
 			return nil, fmt.Errorf("service is required for db_stats")
 		}
 		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.GetDBStats(ctx, service, since)
+		return s.traceQueryRepo.GetDBStats(ctx, service, since, startTime, endTime)
 
 	case "service_series":
 		service := getStringParam(cmd.Params, "service")

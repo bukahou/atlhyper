@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import type { OperationStats, Topology, APMTimePoint, TraceSummary, HTTPStats, DBOperationStats } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
-import { getDependenciesFromTopology, getServiceTimeSeries, getHTTPStats, getDBStats, queryTraces } from "@/datasource/apm";
+import { getDependenciesFromTopology, getServiceTimeSeries, getHTTPStats, getDBStats, queryTraces, type TimeParams } from "@/datasource/apm";
 import { formatDurationMs } from "@/lib/format";
 import { TransactionsTable } from "./TransactionsTable";
 import { DependenciesTable } from "./DependenciesTable";
@@ -19,7 +19,7 @@ interface ServiceOverviewProps {
   operations: OperationStats[];
   topology: Topology | null;
   clusterId?: string;
-  timeRange?: string;
+  timeParams?: TimeParams;
   onSelectOperation: (operation: string) => void;
   onNavigateToService?: (serviceName: string) => void;
   onSelectTrace?: (traceId: string) => void;
@@ -53,7 +53,7 @@ export function ServiceOverview({
   operations,
   topology,
   clusterId,
-  timeRange,
+  timeParams,
   onSelectOperation,
   onNavigateToService,
   onSelectTrace,
@@ -89,12 +89,11 @@ export function ServiceOverview({
   // Load trend data + service traces + HTTP stats + DB stats
   useEffect(() => {
     if (!clusterId) return;
-    getServiceTimeSeries(clusterId, serviceName, timeRange || "15m").then(setTrendPoints);
-    const tr = timeRange === "15m" ? undefined : timeRange;
-    queryTraces(clusterId, { service: serviceName, limit: 200 }, tr).then((r) => setServiceTraces(r.traces));
-    getHTTPStats(clusterId, serviceName, timeRange).then(setHttpStats);
-    getDBStats(clusterId, serviceName, timeRange).then(setDbStats);
-  }, [clusterId, serviceName, timeRange]);
+    getServiceTimeSeries(clusterId, serviceName, timeParams?.since || "15m").then(setTrendPoints);
+    queryTraces(clusterId, { service: serviceName, limit: 200 }, timeParams).then((r) => setServiceTraces(r.traces));
+    getHTTPStats(clusterId, serviceName, timeParams).then(setHttpStats);
+    getDBStats(clusterId, serviceName, timeParams).then(setDbStats);
+  }, [clusterId, serviceName, timeParams]);
 
   const tabLabels: Record<TabType, string> = {
     overview: t.overview,

@@ -165,31 +165,39 @@ type OTelSummaryRepository interface {
 }
 
 // TraceQueryRepository Trace 查询仓库（按需查询）
+//
+// startTime/endTime: 绝对时间（RFC3339），优先于 since 相对时间。
+// 空字符串表示不使用绝对时间，回退到 since 相对时间。
 type TraceQueryRepository interface {
-	ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string) ([]apm.TraceSummary, error)
+	ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string, startTime, endTime string) ([]apm.TraceSummary, error)
 	GetTraceDetail(ctx context.Context, traceID string) (*apm.TraceDetail, error)
-	ListServices(ctx context.Context, since time.Duration) ([]apm.APMService, error)
-	GetTopology(ctx context.Context, since time.Duration) (*apm.Topology, error)
-	ListOperations(ctx context.Context, since time.Duration) ([]apm.OperationStats, error)
-	GetHTTPStats(ctx context.Context, service string, since time.Duration) ([]apm.HTTPStats, error)
-	GetDBStats(ctx context.Context, service string, since time.Duration) ([]apm.DBOperationStats, error)
+	ListServices(ctx context.Context, since time.Duration, startTime, endTime string) ([]apm.APMService, error)
+	GetTopology(ctx context.Context, since time.Duration, startTime, endTime string) (*apm.Topology, error)
+	ListOperations(ctx context.Context, since time.Duration, startTime, endTime string) ([]apm.OperationStats, error)
+	GetHTTPStats(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.HTTPStats, error)
+	GetDBStats(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.DBOperationStats, error)
 	GetServiceTimeSeries(ctx context.Context, service string, since time.Duration) ([]apm.TimePoint, error)
 }
 
 // LogQueryOptions 日志查询选项
 type LogQueryOptions struct {
-	Query   string        // Body 全文搜索
-	Service string        // ServiceName 过滤
-	Level   string        // SeverityText 过滤
-	Scope   string        // ScopeName 过滤
-	Limit   int           // 每页条数
-	Offset  int           // 分页偏移
-	Since   time.Duration // 时间范围
+	Query     string        // Body 全文搜索
+	Service   string        // ServiceName 过滤
+	Level     string        // SeverityText 过滤
+	Scope     string        // ScopeName 过滤
+	TraceId   string        // TraceId 精确匹配（跨信号关联）
+	SpanId    string        // SpanId 精确匹配（跨信号关联）
+	Limit     int           // 每页条数
+	Offset    int           // 分页偏移
+	Since     time.Duration // 时间范围（相对）
+	StartTime string        // 绝对开始时间（RFC3339，brush 选区）
+	EndTime   string        // 绝对结束时间（RFC3339，brush 选区）
 }
 
 // LogQueryRepository Log 查询仓库（按需查询）
 type LogQueryRepository interface {
 	QueryLogs(ctx context.Context, opts LogQueryOptions) (*log.QueryResult, error)
+	QueryHistogram(ctx context.Context, opts LogQueryOptions) (*log.HistogramResult, error)
 	GetSummary(ctx context.Context) (*log.Summary, error)
 	ListRecentEntries(ctx context.Context, limit int) ([]log.Entry, error)
 }

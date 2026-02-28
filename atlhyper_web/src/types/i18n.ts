@@ -1828,8 +1828,29 @@ export interface AIOpsTranslations {
   };
 }
 
+// 时间范围选择器翻译（TimeRangePicker 复用）
+export interface TimeRangePickerTranslations {
+  last15min: string;
+  last1h: string;
+  last24h: string;
+  last7d: string;
+  last15d: string;
+  last30d: string;
+  timeRangePresets: string;
+  timeRangeCustomRelative: string;
+  timeRangeAbsolute: string;
+  timeRangeLastN: string;
+  timeRangeMinutes: string;
+  timeRangeHours: string;
+  timeRangeDays: string;
+  timeRangeStart: string;
+  timeRangeEnd: string;
+  timeRangeApply: string;
+  timeRangeInvalidRange: string;
+}
+
 // Log 翻译
-export interface LogTranslations {
+export interface LogTranslations extends TimeRangePickerTranslations {
   pageTitle: string;
   pageDescription: string;
   searchPlaceholder: string;
@@ -1860,25 +1881,6 @@ export interface LogTranslations {
   // 直方图 / 过滤器
   logVolume: string;
   clearFilters: string;
-  // 时间范围
-  last15min: string;
-  last1h: string;
-  last24h: string;
-  last7d: string;
-  last15d: string;
-  last30d: string;
-  // 时间范围选择器
-  timeRangePresets: string;
-  timeRangeCustomRelative: string;
-  timeRangeAbsolute: string;
-  timeRangeLastN: string;
-  timeRangeMinutes: string;
-  timeRangeHours: string;
-  timeRangeDays: string;
-  timeRangeStart: string;
-  timeRangeEnd: string;
-  timeRangeApply: string;
-  timeRangeInvalidRange: string;
 }
 
 // APM 翻译
@@ -1962,7 +1964,7 @@ export interface ObserveLandingTranslations {
   loadFailed: string;
 }
 
-export interface ApmTranslations {
+export interface ApmTranslations extends TimeRangePickerTranslations {
   pageTitle: string;
   pageDescription: string;
   // services
@@ -1994,14 +1996,8 @@ export interface ApmTranslations {
   // filters
   minDuration: string;
   maxDuration: string;
-  // time range
-  last15min: string;
-  last1h: string;
+  // time range (APM-specific, rest inherited from TimeRangePickerTranslations)
   last6h: string;
-  last24h: string;
-  last7d: string;
-  last15d: string;
-  last30d: string;
   // service list (Kibana-style)
   searchServices: string;
   namespace: string;

@@ -1,17 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { useClusterStore } from "@/store/clusterStore";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { TimeRangePicker } from "@/components/common";
+import type { TimeRangeSelection } from "@/types/time-range";
+import { toSince, toAbsoluteParams } from "@/lib/time-range";
 import {
   RefreshCw,
   Loader2,
   WifiOff,
   AlertTriangle,
   ChevronRight,
-  Clock,
 } from "lucide-react";
 
 import type { TraceSummary, TraceDetail, APMService, Topology, OperationStats, Span } from "@/types/model/apm";
@@ -21,6 +24,7 @@ import {
   getTraceDetail,
   getTopology,
   getOperations,
+  type TimeParams,
 } from "@/datasource/apm";
 
 import { ServiceList } from "./components/ServiceList";
@@ -44,30 +48,59 @@ export default function ApmPage() {
   const [topology, setTopology] = useState<Topology | null>(null);
   const [operations, setOperations] = useState<OperationStats[]>([]);
   const [operationTraces, setOperationTraces] = useState<TraceSummary[]>([]);
-  const [timeRange, setTimeRange] = useState("15m");
+  const [timeSelection, setTimeSelection] = useState<TimeRangeSelection>({ mode: "preset", preset: "15min" });
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const timeRangeOptions = useMemo(() => [
-    { value: "15m", label: ta.last15min },
-    { value: "1h", label: ta.last1h },
-    { value: "6h", label: ta.last6h },
-    { value: "24h", label: ta.last24h },
-    { value: "168h", label: ta.last7d },
-    { value: "360h", label: ta.last15d },
-    { value: "720h", label: ta.last30d },
-  ], [ta]);
+  // 跨信号关联：URL ?trace=xxx 自动进入 trace-detail
+  const searchParams = useSearchParams();
+  const traceParam = searchParams.get("trace");
+  const handledTraceParam = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!traceParam || !currentClusterId || traceParam === handledTraceParam.current) return;
+    handledTraceParam.current = traceParam;
+    getTraceDetail(traceParam, currentClusterId).then((detail) => {
+      if (detail && detail.spans.length > 0) {
+        const rootSpan = detail.spans[0];
+        setView({
+          level: "trace-detail",
+          serviceName: rootSpan.serviceName,
+          operationName: rootSpan.spanName,
+          traceId: traceParam,
+          traceIndex: 0,
+        });
+        setTraceDetail(detail);
+        setOperationTraces([{
+          traceId: detail.traceId,
+          rootService: rootSpan.serviceName,
+          rootOperation: rootSpan.spanName,
+          durationMs: detail.durationMs,
+          spanCount: detail.spanCount,
+          serviceCount: detail.serviceCount,
+          hasError: rootSpan.statusCode === "STATUS_CODE_ERROR",
+          timestamp: rootSpan.timestamp,
+        }]);
+      }
+    });
+  }, [traceParam, currentClusterId]);
+
+  /** 从 timeSelection 派生 API 时间参数 */
+  const timeParams = useMemo((): TimeParams => {
+    const since = toSince(timeSelection);
+    const abs = toAbsoluteParams(timeSelection);
+    return { since, startTime: abs.startTime, endTime: abs.endTime };
+  }, [timeSelection]);
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
     try {
-      const tr = timeRange === "15m" ? undefined : timeRange;
       const [svcStats, topo, ops] = await Promise.all([
-        getAPMServices(currentClusterId, tr),
-        getTopology(currentClusterId, tr),
-        getOperations(currentClusterId, tr),
+        getAPMServices(currentClusterId, timeParams),
+        getTopology(currentClusterId, timeParams),
+        getOperations(currentClusterId, timeParams),
       ]);
       setServiceStats(svcStats);
       setTopology(topo);
@@ -79,7 +112,7 @@ export default function ApmPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [currentClusterId, timeRange, ta.loadFailed]);
+  }, [currentClusterId, timeParams, ta.loadFailed]);
 
   // 静默刷新（自动刷新用，不显示 loading 状态）
   const loadDataSilent = useCallback(() => {
@@ -105,10 +138,9 @@ export default function ApmPage() {
 
   // 点击事务行：查该 operation 的 traces，然后进入第三层
   const goToTraceForOperation = async (serviceName: string, operation: string) => {
-    const tr = timeRange === "15m" ? undefined : timeRange;
     const result = await queryTraces(currentClusterId, {
       service: serviceName, operation, limit: 200,
-    }, tr);
+    }, timeParams);
     if (result.traces.length > 0) {
       setOperationTraces(result.traces);
       setView({
@@ -228,19 +260,11 @@ export default function ApmPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" />
-              <select
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-                className="appearance-none pl-8 pr-7 py-1.5 text-sm rounded-lg border border-default bg-secondary text-default cursor-pointer hover:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
-              >
-                {timeRangeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <ChevronRight className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted rotate-90 pointer-events-none" />
-            </div>
+            <TimeRangePicker
+              value={timeSelection}
+              onChange={setTimeSelection}
+              t={ta}
+            />
             <button
               onClick={() => loadData(true)}
               disabled={isRefreshing}
@@ -272,7 +296,7 @@ export default function ApmPage() {
             operations={operations}
             topology={topology}
             clusterId={currentClusterId}
-            timeRange={timeRange}
+            timeParams={timeParams}
             onSelectOperation={(op) => goToTraceForOperation(view.serviceName, op)}
             onNavigateToService={goToService}
             onSelectTrace={(traceId) => {

@@ -198,26 +198,32 @@ export function getTracesList(clusterId: string, params?: {
 }
 
 /** 获取服务列表 */
-export function getTracesServices(clusterId: string, timeRange?: string) {
+export function getTracesServices(clusterId: string, timeRange?: string, startTime?: string, endTime?: string) {
   return get<ObserveResponse<APMService[]>>("/api/v2/observe/traces/services", {
     cluster_id: clusterId,
     ...(timeRange ? { time_range: timeRange } : {}),
+    ...(startTime ? { start_time: startTime } : {}),
+    ...(endTime ? { end_time: endTime } : {}),
   });
 }
 
 /** 获取服务拓扑 */
-export function getTracesTopology(clusterId: string, timeRange?: string) {
+export function getTracesTopology(clusterId: string, timeRange?: string, startTime?: string, endTime?: string) {
   return get<ObserveResponse<Topology>>("/api/v2/observe/traces/topology", {
     cluster_id: clusterId,
     ...(timeRange ? { time_range: timeRange } : {}),
+    ...(startTime ? { start_time: startTime } : {}),
+    ...(endTime ? { end_time: endTime } : {}),
   });
 }
 
 /** 获取操作级聚合统计 */
-export function getTracesOperations(clusterId: string, timeRange?: string) {
+export function getTracesOperations(clusterId: string, timeRange?: string, startTime?: string, endTime?: string) {
   return get<ObserveResponse<OperationStats[]>>("/api/v2/observe/traces/operations", {
     cluster_id: clusterId,
     ...(timeRange ? { time_range: timeRange } : {}),
+    ...(startTime ? { start_time: startTime } : {}),
+    ...(endTime ? { end_time: endTime } : {}),
   });
 }
 
@@ -233,6 +239,8 @@ export function getAPMServiceSeries(clusterId: string, serviceName: string, minu
 export function getTracesHTTPStats(clusterId: string, params: {
   service: string;
   time_range?: string;
+  start_time?: string;
+  end_time?: string;
 }) {
   return get<ObserveResponse<HTTPStats[]>>("/api/v2/observe/traces/stats", {
     cluster_id: clusterId,
@@ -245,6 +253,8 @@ export function getTracesHTTPStats(clusterId: string, params: {
 export function getTracesDBStats(clusterId: string, params: {
   service: string;
   time_range?: string;
+  start_time?: string;
+  end_time?: string;
 }) {
   return get<ObserveResponse<DBOperationStats[]>>("/api/v2/observe/traces/stats", {
     cluster_id: clusterId,

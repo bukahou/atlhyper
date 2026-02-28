@@ -25,8 +25,28 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 自定义时间范围 → Command/MQ
+	// 绝对时间 / 自定义时间范围 → Command/MQ
 	timeRange := r.URL.Query().Get("time_range")
+	startTime := r.URL.Query().Get("start_time")
+	endTime := r.URL.Query().Get("end_time")
+
+	if startTime != "" && endTime != "" {
+		params := map[string]interface{}{
+			"sub_action": "list_traces",
+			"start_time": startTime,
+			"end_time":   endTime,
+			"limit":      500,
+		}
+		if svc := r.URL.Query().Get("service"); svc != "" {
+			params["service"] = svc
+		}
+		if op := r.URL.Query().Get("operation"); op != "" {
+			params["operation"] = op
+		}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
+		return
+	}
+
 	if timeRange != "" && timeRange != "15m" {
 		minutes, ok := parseTimeRangeMinutes(timeRange)
 		if !ok {
@@ -133,6 +153,15 @@ func (h *ObserveHandler) TracesServices(w http.ResponseWriter, r *http.Request) 
 	}
 
 	timeRange := r.URL.Query().Get("time_range")
+	startTime := r.URL.Query().Get("start_time")
+	endTime := r.URL.Query().Get("end_time")
+
+	if startTime != "" && endTime != "" {
+		params := map[string]interface{}{"sub_action": "list_services", "start_time": startTime, "end_time": endTime}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
+		return
+	}
+
 	if timeRange != "" && timeRange != "15m" {
 		minutes, ok := parseTimeRangeMinutes(timeRange)
 		if !ok {
@@ -168,6 +197,15 @@ func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) 
 	}
 
 	timeRange := r.URL.Query().Get("time_range")
+	startTime := r.URL.Query().Get("start_time")
+	endTime := r.URL.Query().Get("end_time")
+
+	if startTime != "" && endTime != "" {
+		params := map[string]interface{}{"sub_action": "get_topology", "start_time": startTime, "end_time": endTime}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
+		return
+	}
+
 	if timeRange != "" && timeRange != "15m" {
 		minutes, ok := parseTimeRangeMinutes(timeRange)
 		if !ok {
@@ -204,6 +242,15 @@ func (h *ObserveHandler) TracesOperations(w http.ResponseWriter, r *http.Request
 	}
 
 	timeRange := r.URL.Query().Get("time_range")
+	startTime := r.URL.Query().Get("start_time")
+	endTime := r.URL.Query().Get("end_time")
+
+	if startTime != "" && endTime != "" {
+		params := map[string]interface{}{"sub_action": "list_operations", "start_time": startTime, "end_time": endTime}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
+		return
+	}
+
 	if timeRange != "" && timeRange != "15m" {
 		minutes, ok := parseTimeRangeMinutes(timeRange)
 		if !ok {
@@ -284,6 +331,20 @@ func (h *ObserveHandler) TracesStats(w http.ResponseWriter, r *http.Request) {
 	service := r.URL.Query().Get("service")
 	if service == "" {
 		writeError(w, http.StatusBadRequest, "service is required")
+		return
+	}
+
+	startTime := r.URL.Query().Get("start_time")
+	endTime := r.URL.Query().Get("end_time")
+
+	if startTime != "" && endTime != "" {
+		params := map[string]interface{}{
+			"sub_action": subAction,
+			"service":    service,
+			"start_time": startTime,
+			"end_time":   endTime,
+		}
+		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
 		return
 	}
 

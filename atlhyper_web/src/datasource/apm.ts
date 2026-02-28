@@ -11,17 +11,24 @@ import * as observeApi from "@/api/observe";
 
 export type { MockTraceQueryParams } from "@/mock/apm";
 
-export async function getAPMServices(clusterId?: string, timeRange?: string): Promise<APMService[]> {
+/** 时间参数：since（相对时间）+ startTime/endTime（绝对时间） */
+export interface TimeParams {
+  since?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export async function getAPMServices(clusterId?: string, time?: TimeParams): Promise<APMService[]> {
   if (!clusterId) return [];
   try {
-    const response = await observeApi.getTracesServices(clusterId, timeRange);
+    const response = await observeApi.getTracesServices(clusterId, time?.since, time?.startTime, time?.endTime);
     return response.data.data || [];
   } catch {
     return [];
   }
 }
 
-export async function queryTraces(clusterId?: string, params?: MockTraceQueryParams, timeRange?: string): Promise<{ traces: TraceSummary[]; total: number }> {
+export async function queryTraces(clusterId?: string, params?: MockTraceQueryParams, time?: TimeParams): Promise<{ traces: TraceSummary[]; total: number }> {
   if (!clusterId) return { traces: [], total: 0 };
   try {
     const response = await observeApi.getTracesList(clusterId, {
@@ -29,7 +36,9 @@ export async function queryTraces(clusterId?: string, params?: MockTraceQueryPar
       operation: params?.operation,
       min_duration: params?.minDurationMs ? String(params.minDurationMs) : undefined,
       limit: params?.limit,
-      time_range: timeRange,
+      time_range: time?.since,
+      start_time: time?.startTime,
+      end_time: time?.endTime,
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = response.data.data as any;
@@ -48,10 +57,10 @@ export async function getTraceDetail(traceId: string, clusterId?: string): Promi
   return response.data.data || null;
 }
 
-export async function getTopology(clusterId?: string, timeRange?: string): Promise<Topology> {
+export async function getTopology(clusterId?: string, time?: TimeParams): Promise<Topology> {
   if (!clusterId) return { nodes: [], edges: [] };
   try {
-    const response = await observeApi.getTracesTopology(clusterId, timeRange);
+    const response = await observeApi.getTracesTopology(clusterId, time?.since, time?.startTime, time?.endTime);
     const data = response.data.data;
     return { nodes: data?.nodes || [], edges: data?.edges || [] };
   } catch {
@@ -59,10 +68,10 @@ export async function getTopology(clusterId?: string, timeRange?: string): Promi
   }
 }
 
-export async function getOperations(clusterId?: string, timeRange?: string): Promise<OperationStats[]> {
+export async function getOperations(clusterId?: string, time?: TimeParams): Promise<OperationStats[]> {
   if (!clusterId) return [];
   try {
-    const response = await observeApi.getTracesOperations(clusterId, timeRange);
+    const response = await observeApi.getTracesOperations(clusterId, time?.since, time?.startTime, time?.endTime);
     return response.data.data || [];
   } catch {
     return [];
@@ -94,12 +103,14 @@ export async function getServiceTimeSeries(clusterId?: string, serviceName?: str
   }
 }
 
-export async function getHTTPStats(clusterId?: string, serviceName?: string, timeRange?: string): Promise<HTTPStats[]> {
+export async function getHTTPStats(clusterId?: string, serviceName?: string, time?: TimeParams): Promise<HTTPStats[]> {
   if (!clusterId || !serviceName) return [];
   try {
     const response = await observeApi.getTracesHTTPStats(clusterId, {
       service: serviceName,
-      ...(timeRange && timeRange !== "15m" ? { time_range: timeRange } : {}),
+      ...(time?.since && time.since !== "15m" ? { time_range: time.since } : {}),
+      ...(time?.startTime ? { start_time: time.startTime } : {}),
+      ...(time?.endTime ? { end_time: time.endTime } : {}),
     });
     return response.data.data || [];
   } catch {
@@ -107,12 +118,14 @@ export async function getHTTPStats(clusterId?: string, serviceName?: string, tim
   }
 }
 
-export async function getDBStats(clusterId?: string, serviceName?: string, timeRange?: string): Promise<DBOperationStats[]> {
+export async function getDBStats(clusterId?: string, serviceName?: string, time?: TimeParams): Promise<DBOperationStats[]> {
   if (!clusterId || !serviceName) return [];
   try {
     const response = await observeApi.getTracesDBStats(clusterId, {
       service: serviceName,
-      ...(timeRange && timeRange !== "15m" ? { time_range: timeRange } : {}),
+      ...(time?.since && time.since !== "15m" ? { time_range: time.since } : {}),
+      ...(time?.startTime ? { start_time: time.startTime } : {}),
+      ...(time?.endTime ? { end_time: time.endTime } : {}),
     });
     return response.data.data || [];
   } catch {

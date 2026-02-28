@@ -24,8 +24,37 @@ func NewTraceQueryRepository(client sdk.ClickHouseClient) repository.TraceQueryR
 	return &traceRepository{client: client}
 }
 
+// traceTimeCondition 构建时间条件和参数
+// 绝对时间（startTime/endTime）优先于相对时间（since）
+func traceTimeCondition(col string, since time.Duration, startTime, endTime string) ([]string, []any) {
+	if startTime != "" && endTime != "" {
+		if startT, err := time.Parse(time.RFC3339Nano, startTime); err == nil {
+			if endT, err := time.Parse(time.RFC3339Nano, endTime); err == nil {
+				return []string{col + " >= ?", col + " <= ?"}, []any{startT, endT}
+			}
+		}
+	}
+	sec := sinceSeconds(since)
+	return []string{fmt.Sprintf("%s >= now() - INTERVAL %d SECOND", col, sec)}, nil
+}
+
+// traceTimeSec 返回绝对时间范围的秒数，或 since 秒数（用于 RPS 分母等）
+func traceTimeSec(since time.Duration, startTime, endTime string) int64 {
+	if startTime != "" && endTime != "" {
+		if startT, err := time.Parse(time.RFC3339Nano, startTime); err == nil {
+			if endT, err := time.Parse(time.RFC3339Nano, endTime); err == nil {
+				sec := int64(endT.Sub(startT).Seconds())
+				if sec > 0 {
+					return sec
+				}
+			}
+		}
+	}
+	return sinceSeconds(since)
+}
+
 // ListTraces 查询 Trace 列表（按 TraceId 聚合）
-func (r *traceRepository) ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sortBy string) ([]apm.TraceSummary, error) {
+func (r *traceRepository) ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sortBy string, startTime, endTime string) ([]apm.TraceSummary, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -33,11 +62,10 @@ func (r *traceRepository) ListTraces(ctx context.Context, service, operation str
 		limit = 2000
 	}
 
-	sec := sinceSeconds(since)
-
 	// 构建 WHERE
-	conditions := []string{fmt.Sprintf("Timestamp >= now() - INTERVAL %d SECOND", sec)}
-	var args []any
+	timeConds, timeArgs := traceTimeCondition("Timestamp", since, startTime, endTime)
+	conditions := timeConds
+	args := timeArgs
 
 	if service != "" {
 		conditions = append(conditions, "ServiceName = ?")
@@ -191,6 +219,9 @@ func (r *traceRepository) GetTraceDetail(ctx context.Context, traceID string) (*
 			ServiceVersion: resAttrs["service.version"],
 			InstanceId:     resAttrs["service.instance.id"],
 			PodName:        resAttrs["k8s.pod.name"],
+			NodeName:       resAttrs["k8s.node.name"],
+			DeploymentName: resAttrs["k8s.deployment.name"],
+			NamespaceName:  resAttrs["k8s.namespace.name"],
 			ClusterName:    resAttrs["k8s.cluster.name"],
 		}
 
@@ -243,8 +274,15 @@ func (r *traceRepository) GetTraceDetail(ctx context.Context, traceID string) (*
 }
 
 // ListServices 查询服务列表（聚合统计）
-func (r *traceRepository) ListServices(ctx context.Context, since time.Duration) ([]apm.APMService, error) {
-	sec := sinceSeconds(since)
+func (r *traceRepository) ListServices(ctx context.Context, since time.Duration, startTime, endTime string) ([]apm.APMService, error) {
+	sec := traceTimeSec(since, startTime, endTime)
+	timeConds, timeArgs := traceTimeCondition("Timestamp", since, startTime, endTime)
+
+	whereClause := "SpanKind = 'SPAN_KIND_SERVER'"
+	for _, c := range timeConds {
+		whereClause += " AND " + c
+	}
+
 	query := fmt.Sprintf(`
 		SELECT ServiceName,
 		       if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default')) AS ns,
@@ -257,12 +295,11 @@ func (r *traceRepository) ListServices(ctx context.Context, since time.Duration)
 		       quantile(0.99)(Duration) / 1e6 AS p99Ms,
 		       count() / %d AS rps
 		FROM otel_traces
-		WHERE SpanKind = 'SPAN_KIND_SERVER'
-		  AND Timestamp >= now() - INTERVAL %d SECOND
+		WHERE %s
 		GROUP BY ServiceName, ns
-	`, sec, sec)
+	`, sec, whereClause)
 
-	rows, err := r.client.Query(ctx, query)
+	rows, err := r.client.Query(ctx, query, timeArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("list services: %w", err)
 	}
@@ -291,8 +328,15 @@ func (r *traceRepository) ListServices(ctx context.Context, since time.Duration)
 }
 
 // ListOperations 查询操作级聚合统计（GROUP BY ServiceName, SpanName）
-func (r *traceRepository) ListOperations(ctx context.Context, since time.Duration) ([]apm.OperationStats, error) {
-	sec := sinceSeconds(since)
+func (r *traceRepository) ListOperations(ctx context.Context, since time.Duration, startTime, endTime string) ([]apm.OperationStats, error) {
+	sec := traceTimeSec(since, startTime, endTime)
+	timeConds, timeArgs := traceTimeCondition("Timestamp", since, startTime, endTime)
+
+	whereClause := "SpanKind = 'SPAN_KIND_SERVER'"
+	for _, c := range timeConds {
+		whereClause += " AND " + c
+	}
+
 	query := fmt.Sprintf(`
 		SELECT ServiceName,
 		       SpanName AS operation,
@@ -304,13 +348,12 @@ func (r *traceRepository) ListOperations(ctx context.Context, since time.Duratio
 		       quantile(0.99)(Duration) / 1e6 AS p99Ms,
 		       count() / %d AS rps
 		FROM otel_traces
-		WHERE SpanKind = 'SPAN_KIND_SERVER'
-		  AND Timestamp >= now() - INTERVAL %d SECOND
+		WHERE %s
 		GROUP BY ServiceName, SpanName
 		ORDER BY spanCount DESC
-	`, sec, sec)
+	`, sec, whereClause)
 
-	rows, err := r.client.Query(ctx, query)
+	rows, err := r.client.Query(ctx, query, timeArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("list operations: %w", err)
 	}
@@ -339,8 +382,14 @@ func (r *traceRepository) ListOperations(ctx context.Context, since time.Duratio
 }
 
 // GetTopology 获取服务拓扑图
-func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration) (*apm.Topology, error) {
-	sec := sinceSeconds(since)
+func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration, startTime, endTime string) (*apm.Topology, error) {
+	sec := traceTimeSec(since, startTime, endTime)
+	timeConds, timeArgs := traceTimeCondition("Timestamp", since, startTime, endTime)
+
+	svcWhere := "SpanKind = 'SPAN_KIND_SERVER'"
+	for _, c := range timeConds {
+		svcWhere += " AND " + c
+	}
 
 	// 节点: 所有服务
 	serviceQuery := fmt.Sprintf(`
@@ -350,11 +399,10 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration) 
 		       1 - countIf(StatusCode = 'STATUS_CODE_ERROR') / count() AS successRate,
 		       quantile(0.99)(Duration) / 1e6 AS p99Ms
 		FROM otel_traces
-		WHERE SpanKind = 'SPAN_KIND_SERVER'
-		  AND Timestamp >= now() - INTERVAL %d SECOND
+		WHERE %s
 		GROUP BY ServiceName, ns
-	`, sec, sec)
-	svcRows, err := r.client.Query(ctx, serviceQuery)
+	`, sec, svcWhere)
+	svcRows, err := r.client.Query(ctx, serviceQuery, timeArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("topology nodes: %w", err)
 	}
@@ -388,6 +436,21 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration) 
 	}
 
 	// 边: 跨服务调用（parent-child 关系）
+	edgeTimeConds1, _ := traceTimeCondition("t1.Timestamp", since, startTime, endTime)
+	edgeTimeConds2, _ := traceTimeCondition("t2.Timestamp", since, startTime, endTime)
+	edgeWhere := "t1.ServiceName != t2.ServiceName"
+	for _, c := range edgeTimeConds1 {
+		edgeWhere += " AND " + c
+	}
+	for _, c := range edgeTimeConds2 {
+		edgeWhere += " AND " + c
+	}
+
+	// 边查询需要 t1 和 t2 两组时间参数
+	var edgeArgs []any
+	edgeArgs = append(edgeArgs, timeArgs...)
+	edgeArgs = append(edgeArgs, timeArgs...)
+
 	edgeQuery := fmt.Sprintf(`
 		SELECT concat(if(t1.ResourceAttributes['service.namespace'] != '', t1.ResourceAttributes['service.namespace'], if(t1.ResourceAttributes['k8s.namespace.name'] != '', t1.ResourceAttributes['k8s.namespace.name'], 'default')), '/', t1.ServiceName) AS source,
 		       concat(if(t2.ResourceAttributes['service.namespace'] != '', t2.ResourceAttributes['service.namespace'], if(t2.ResourceAttributes['k8s.namespace.name'] != '', t2.ResourceAttributes['k8s.namespace.name'], 'default')), '/', t2.ServiceName) AS target,
@@ -396,13 +459,11 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration) 
 		       countIf(t2.StatusCode = 'STATUS_CODE_ERROR') / count() AS errorRate
 		FROM otel_traces t1
 		JOIN otel_traces t2 ON t1.SpanId = t2.ParentSpanId AND t1.TraceId = t2.TraceId
-		WHERE t1.ServiceName != t2.ServiceName
-		  AND t1.Timestamp >= now() - INTERVAL %d SECOND
-		  AND t2.Timestamp >= now() - INTERVAL %d SECOND
+		WHERE %s
 		GROUP BY source, target
-	`, sec, sec)
+	`, edgeWhere)
 
-	edgeRows, err := r.client.Query(ctx, edgeQuery)
+	edgeRows, err := r.client.Query(ctx, edgeQuery, edgeArgs...)
 	if err != nil {
 		return &apm.Topology{Nodes: nodes, Edges: []apm.TopologyEdge{}}, nil
 	}
@@ -429,6 +490,11 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration) 
 	}
 
 	// DB 节点: 从 CLIENT span 中提取数据库调用
+	dbWhere := "SpanKind = 'SPAN_KIND_CLIENT' AND SpanAttributes['db.system'] != ''"
+	for _, c := range timeConds {
+		dbWhere += " AND " + c
+	}
+
 	dbQuery := fmt.Sprintf(`
 		SELECT ServiceName,
 		       if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default')) AS ns,
@@ -438,13 +504,11 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration) 
 		       avg(Duration) / 1e6 AS avgMs,
 		       countIf(StatusCode = 'STATUS_CODE_ERROR') / count() AS errorRate
 		FROM otel_traces
-		WHERE SpanKind = 'SPAN_KIND_CLIENT'
-		  AND SpanAttributes['db.system'] != ''
-		  AND Timestamp >= now() - INTERVAL %d SECOND
+		WHERE %s
 		GROUP BY ServiceName, ns, dbSystem, dbName
-	`, sec)
+	`, dbWhere)
 
-	dbRows, err := r.client.Query(ctx, dbQuery)
+	dbRows, err := r.client.Query(ctx, dbQuery, timeArgs...)
 	if err == nil {
 		defer dbRows.Close()
 		dbNodeSet := make(map[string]bool)
@@ -493,22 +557,26 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration) 
 }
 
 // GetHTTPStats 获取 HTTP 状态码分布
-func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, since time.Duration) ([]apm.HTTPStats, error) {
-	sec := sinceSeconds(since)
+func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.HTTPStats, error) {
+	timeConds, timeArgs := traceTimeCondition("Timestamp", since, startTime, endTime)
+
+	whereClause := "SpanKind = 'SPAN_KIND_SERVER' AND SpanAttributes['http.response.status_code'] != '' AND ServiceName = ?"
+	for _, c := range timeConds {
+		whereClause += " AND " + c
+	}
+
 	query := fmt.Sprintf(`
 		SELECT toInt32OrZero(SpanAttributes['http.response.status_code']) AS statusCode,
 		       SpanAttributes['http.request.method'] AS method,
 		       count() AS cnt
 		FROM otel_traces
-		WHERE SpanKind = 'SPAN_KIND_SERVER'
-		  AND SpanAttributes['http.response.status_code'] != ''
-		  AND ServiceName = ?
-		  AND Timestamp >= now() - INTERVAL %d SECOND
+		WHERE %s
 		GROUP BY statusCode, method
 		ORDER BY statusCode, method
-	`, sec)
+	`, whereClause)
 
-	rows, err := r.client.Query(ctx, query, service)
+	args := append([]any{service}, timeArgs...)
+	rows, err := r.client.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get http stats: %w", err)
 	}
@@ -529,8 +597,14 @@ func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, sinc
 }
 
 // GetDBStats 获取数据库操作统计
-func (r *traceRepository) GetDBStats(ctx context.Context, service string, since time.Duration) ([]apm.DBOperationStats, error) {
-	sec := sinceSeconds(since)
+func (r *traceRepository) GetDBStats(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.DBOperationStats, error) {
+	timeConds, timeArgs := traceTimeCondition("Timestamp", since, startTime, endTime)
+
+	whereClause := "SpanKind = 'SPAN_KIND_CLIENT' AND SpanAttributes['db.system'] != '' AND ServiceName = ?"
+	for _, c := range timeConds {
+		whereClause += " AND " + c
+	}
+
 	query := fmt.Sprintf(`
 		SELECT SpanAttributes['db.system'] AS dbSystem,
 		       SpanAttributes['db.name'] AS dbName,
@@ -541,15 +615,13 @@ func (r *traceRepository) GetDBStats(ctx context.Context, service string, since 
 		       quantile(0.99)(Duration) / 1e6 AS p99Ms,
 		       countIf(StatusCode = 'STATUS_CODE_ERROR') / count() AS errorRate
 		FROM otel_traces
-		WHERE SpanKind = 'SPAN_KIND_CLIENT'
-		  AND SpanAttributes['db.system'] != ''
-		  AND ServiceName = ?
-		  AND Timestamp >= now() - INTERVAL %d SECOND
+		WHERE %s
 		GROUP BY dbSystem, dbName, operation, tableName
 		ORDER BY callCount DESC
-	`, sec)
+	`, whereClause)
 
-	rows, err := r.client.Query(ctx, query, service)
+	args := append([]any{service}, timeArgs...)
+	rows, err := r.client.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get db stats: %w", err)
 	}

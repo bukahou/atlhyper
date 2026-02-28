@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Calendar, ChevronDown } from "lucide-react";
 import type { PresetKey, RelativeUnit, TimeRangeSelection } from "@/types/time-range";
-import type { LogTranslations } from "@/types/i18n";
+import type { TimeRangePickerTranslations } from "@/types/i18n";
 import { toDisplayLabel } from "@/lib/time-range";
 
 const PRESET_KEYS: PresetKey[] = ["15min", "1h", "24h", "7d", "15d", "30d"];
@@ -16,7 +16,7 @@ const RELATIVE_UNITS: { value: RelativeUnit; labelKey: "timeRangeMinutes" | "tim
 interface TimeRangePickerProps {
   value: TimeRangeSelection;
   onChange: (value: TimeRangeSelection) => void;
-  t: LogTranslations;
+  t: TimeRangePickerTranslations;
 }
 
 export function TimeRangePicker({ value, onChange, t }: TimeRangePickerProps) {

@@ -39,11 +39,11 @@ func (r *dashboardRepository) ListAllNodeMetrics(ctx context.Context) ([]metrics
 }
 
 func (r *dashboardRepository) ListAPMServices(ctx context.Context) ([]apm.APMService, error) {
-	return r.trace.ListServices(ctx, 15*time.Minute)
+	return r.trace.ListServices(ctx, 15*time.Minute, "", "")
 }
 
 func (r *dashboardRepository) GetAPMTopology(ctx context.Context) (*apm.Topology, error) {
-	return r.trace.GetTopology(ctx, 15*time.Minute)
+	return r.trace.GetTopology(ctx, 15*time.Minute, "", "")
 }
 
 func (r *dashboardRepository) GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error) {
@@ -74,14 +74,14 @@ func (r *dashboardRepository) ListAPMOperations(ctx context.Context) ([]apm.Oper
 	if r.trace == nil {
 		return nil, nil
 	}
-	return r.trace.ListOperations(ctx, 15*time.Minute)
+	return r.trace.ListOperations(ctx, 15*time.Minute, "", "")
 }
 
 func (r *dashboardRepository) ListRecentTraces(ctx context.Context, limit int) ([]apm.TraceSummary, error) {
 	if r.trace == nil {
 		return nil, nil
 	}
-	return r.trace.ListTraces(ctx, "", "", 0, limit, 15*time.Minute, "")
+	return r.trace.ListTraces(ctx, "", "", 0, limit, 15*time.Minute, "", "", "")
 }
 
 func (r *dashboardRepository) GetLogsSummary(ctx context.Context) (*log.Summary, error) {
