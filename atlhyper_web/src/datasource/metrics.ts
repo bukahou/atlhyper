@@ -8,7 +8,7 @@
 
 import { getDataSourceMode } from "@/config/data-source";
 import * as mock from "@/mock/metrics";
-import * as observe from "@/api/observe";
+import * as observe from "@/api/observe-metrics";
 import * as nodeMetrics from "@/api/node-metrics";
 
 export type { Summary } from "@/types/node-metrics";

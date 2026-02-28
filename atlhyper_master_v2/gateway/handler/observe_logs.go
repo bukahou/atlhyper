@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/model_v3/command"
-	"AtlHyper/model_v3/log"
 )
 
 // LogsQuery POST /api/v2/observe/logs/query
 //
-// 简单查询（无全文搜索）→ 快照直读 RecentLogs
+// 简单查询（无全文搜索）→ Service 层快照直读
 // 全文搜索 → Command/MQ 透传 Agent
 func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -40,94 +40,33 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	endTime, _ := body["end_time"].(string)
 
 	// 快速路径：无全文搜索、无 trace/span 关联、无绝对时间过滤时从快照直读
-	// 有 start_time/end_time (brush 选区) 时必须走 ClickHouse（快照只有最近 ~1 分钟数据）
 	if query == "" && traceId == "" && spanId == "" && startTime == "" && endTime == "" {
-		otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
-		if err == nil && otel != nil && len(otel.RecentLogs) > 0 {
-			// facets 基于全量数据（过滤前）
-			facets := computeLogFacets(otel.RecentLogs)
+		svc, _ := body["service"].(string)
+		level, _ := body["level"].(string)
+		scope, _ := body["scope"].(string)
+		offset := 0
+		limit := 50
+		if v, ok := body["offset"].(float64); ok && v > 0 {
+			offset = int(v)
+		}
+		if v, ok := body["limit"].(float64); ok && v > 0 {
+			limit = int(v)
+		}
 
-			logs := otel.RecentLogs
-			// 按 service 过滤
-			if svc, _ := body["service"].(string); svc != "" {
-				filtered := logs[:0:0]
-				for _, l := range logs {
-					if l.ServiceName == svc {
-						filtered = append(filtered, l)
-					}
-				}
-				logs = filtered
-			}
-			// 按 level 过滤
-			if level, _ := body["level"].(string); level != "" {
-				filtered := logs[:0:0]
-				for _, l := range logs {
-					if l.Severity == level {
-						filtered = append(filtered, l)
-					}
-				}
-				logs = filtered
-			}
-			// 按 scope 过滤
-			if scope, _ := body["scope"].(string); scope != "" {
-				filtered := logs[:0:0]
-				for _, l := range logs {
-					if l.ScopeName == scope {
-						filtered = append(filtered, l)
-					}
-				}
-				logs = filtered
-			}
-
-			// 按时间范围过滤（brush 选区，分页之前）
-			if startStr, _ := body["start_time"].(string); startStr != "" {
-				if startT, err := time.Parse(time.RFC3339Nano, startStr); err == nil {
-					filtered := logs[:0:0]
-					for _, l := range logs {
-						if !l.Timestamp.Before(startT) {
-							filtered = append(filtered, l)
-						}
-					}
-					logs = filtered
-				}
-			}
-			if endStr, _ := body["end_time"].(string); endStr != "" {
-				if endT, err := time.Parse(time.RFC3339Nano, endStr); err == nil {
-					filtered := logs[:0:0]
-					for _, l := range logs {
-						if !l.Timestamp.After(endT) {
-							filtered = append(filtered, l)
-						}
-					}
-					logs = filtered
-				}
-			}
-
-			// 分页
-			total := len(logs)
-			offset := 0
-			limit := 50
-			if v, ok := body["offset"].(float64); ok && v > 0 {
-				offset = int(v)
-			}
-			if v, ok := body["limit"].(float64); ok && v > 0 {
-				limit = int(v)
-			}
-			if offset >= total {
-				logs = logs[:0]
-			} else {
-				end := offset + limit
-				if end > total {
-					end = total
-				}
-				logs = logs[offset:end]
-			}
+		result, err := h.querySvc.QueryLogsFromSnapshot(r.Context(), clusterID, model.LogSnapshotQueryOpts{
+			Service: svc,
+			Level:   level,
+			Scope:   scope,
+			Offset:  offset,
+			Limit:   limit,
+		})
+		if err == nil && result != nil {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
 				"data": map[string]interface{}{
-					"logs":   logs,
-					"total":  total,
-					"facets": facets,
+					"logs":   result.Logs,
+					"total":  result.Total,
+					"facets": result.Facets,
 				},
 			})
 			return
@@ -137,32 +76,6 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	// 全文搜索 → Command/MQ
 	delete(body, "cluster_id")
 	h.executeQuery(w, r, clusterID, command.ActionQueryLogs, body, 0)
-}
-
-// computeLogFacets 从全量日志计算 serviceName / severity / scopeName 分面统计
-func computeLogFacets(logs []log.Entry) log.Facets {
-	svcMap := make(map[string]int64)
-	sevMap := make(map[string]int64)
-	scopeMap := make(map[string]int64)
-	for i := range logs {
-		svcMap[logs[i].ServiceName]++
-		sevMap[logs[i].Severity]++
-		scopeMap[logs[i].ScopeName]++
-	}
-	toFacets := func(m map[string]int64) []log.Facet {
-		out := make([]log.Facet, 0, len(m))
-		for v, c := range m {
-			if v != "" {
-				out = append(out, log.Facet{Value: v, Count: c})
-			}
-		}
-		return out
-	}
-	return log.Facets{
-		Services:   toFacets(svcMap),
-		Severities: toFacets(sevMap),
-		Scopes:     toFacets(scopeMap),
-	}
 }
 
 // LogsHistogram GET /api/v2/observe/logs/histogram

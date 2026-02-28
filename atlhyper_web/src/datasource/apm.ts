@@ -7,7 +7,7 @@ import {
 } from "@/mock/apm";
 import type { MockTraceQueryParams } from "@/mock/apm";
 import type { APMService, TraceSummary, TraceDetail, Topology, OperationStats, Dependency, APMTimePoint, HTTPStats, DBOperationStats } from "@/types/model/apm";
-import * as observeApi from "@/api/observe";
+import * as observeApi from "@/api/observe-apm";
 
 export type { MockTraceQueryParams } from "@/mock/apm";
 

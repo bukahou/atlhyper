@@ -1,13 +1,59 @@
-// atlhyper_master_v2/gateway/handler/observe_timeline.go
-// OTel 时间线辅助函数（从内存时间线 / 预聚合时序构建数据）
+// atlhyper_master_v2/gateway/handler/observe_metrics_helpers.go
+// Metrics 时序辅助函数（从 observe_timeline.go 拆分）
 package handler
 
 import (
+	"context"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/metrics"
 )
+
+// resolveNodeSeries 3 层路由获取单指标节点时序
+//
+// 层 1: Ring Buffer（≤15min）— 任意指标，10s 精度
+// 层 2: Concentrator 预聚合 — 25 个关键指标，1min 精度
+// 层 3: 未实现（调用方可自行降级到 ClickHouse）
+//
+// 返回: points（时序数据点）, source（"ring" | "concentrator" | ""）, error
+// source="" 表示两层都无数据
+func resolveNodeSeries(
+	querySvc service.Query, ctx context.Context,
+	clusterID, nodeName, metric string, minutes int,
+) ([]metrics.Point, string, error) {
+	// 层 1: Ring Buffer（≤15min）
+	if minutes <= 15 {
+		since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+		entries, err := querySvc.GetOTelTimeline(ctx, clusterID, since)
+		if err != nil {
+			return nil, "", err
+		}
+		if len(entries) > 0 {
+			series := buildNodeMetricsSeries(entries, nodeName, metric)
+			if len(series.Points) > 0 {
+				return series.Points, "ring", nil
+			}
+		}
+	}
+
+	// 层 2: Concentrator 预聚合
+	otel, err := querySvc.GetOTelSnapshot(ctx, clusterID)
+	if err != nil {
+		return nil, "", err
+	}
+	if otel != nil && otel.NodeMetricsSeries != nil {
+		for _, ns := range otel.NodeMetricsSeries {
+			if ns.NodeName == nodeName {
+				points := filterNodePointsByMinutes(ns.Points, minutes)
+				return extractNodeMetricPoints(points, metric), "concentrator", nil
+			}
+		}
+	}
+
+	return nil, "", nil
+}
 
 // buildNodeMetricsSeries 从 OTel 时间线提取单节点时序
 // 支持完整 NodeMetrics（100+ 字段），10s 精度
@@ -140,64 +186,6 @@ func primaryNetValue(node *metrics.NodeMetrics, field string) float64 {
 	return total
 }
 
-// sloPoint SLO 时序数据点
-type sloPoint struct {
-	Timestamp interface{} `json:"timestamp"`
-	RPS       float64     `json:"rps"`
-	SuccRate  float64     `json:"successRate"`
-	P50Ms     float64     `json:"p50Ms"`
-	P99Ms     float64     `json:"p99Ms"`
-	ErrorRate float64     `json:"errorRate"`
-}
-
-// buildSLOTimeSeries 从 OTel 时间线构建 SLO 时序
-// 返回指定服务的 SLO 指标随时间变化（请求量、成功率、延迟）
-func buildSLOTimeSeries(entries []cluster.OTelEntry, serviceName string) map[string]interface{} {
-	points := make([]sloPoint, 0, len(entries))
-	for _, e := range entries {
-		if e.Snapshot == nil {
-			continue
-		}
-		// 在 SLO Ingress 或 SLO Services 中查找
-		found := false
-		if e.Snapshot.SLOIngress != nil {
-			for _, svc := range e.Snapshot.SLOIngress {
-				if svc.ServiceKey == serviceName || svc.DisplayName == serviceName {
-					points = append(points, sloPoint{
-						Timestamp: e.Timestamp,
-						RPS:       svc.RPS,
-						SuccRate:  svc.SuccessRate,
-						P50Ms:     svc.P50Ms,
-						P99Ms:     svc.P99Ms,
-						ErrorRate: svc.ErrorRate,
-					})
-					found = true
-					break
-				}
-			}
-		}
-		if !found && e.Snapshot.SLOServices != nil {
-			for _, svc := range e.Snapshot.SLOServices {
-				if svc.Name == serviceName {
-					points = append(points, sloPoint{
-						Timestamp: e.Timestamp,
-						RPS:       svc.RPS,
-						SuccRate:  svc.SuccessRate,
-						P50Ms:     svc.P50Ms,
-						P99Ms:     svc.P99Ms,
-					})
-					break
-				}
-			}
-		}
-	}
-
-	return map[string]interface{}{
-		"service": serviceName,
-		"points":  points,
-	}
-}
-
 // ================================================================
 // 预聚合时序辅助函数
 // ================================================================
@@ -280,30 +268,6 @@ func extractNodeMetricPoints(points []cluster.NodeMetricsPoint, metric string) [
 			Timestamp: p.Timestamp,
 			Value:     value,
 		})
-	}
-	return result
-}
-
-// filterSLOPointsByMinutes 按时间范围裁剪 SLO 时序数据点
-func filterSLOPointsByMinutes(points []cluster.SLOTimePoint, minutes int) []cluster.SLOTimePoint {
-	cutoff := time.Now().Add(-time.Duration(minutes) * time.Minute)
-	result := make([]cluster.SLOTimePoint, 0, len(points))
-	for _, p := range points {
-		if !p.Timestamp.Before(cutoff) {
-			result = append(result, p)
-		}
-	}
-	return result
-}
-
-// filterAPMPointsByMinutes 按时间范围裁剪 APM 时序数据点
-func filterAPMPointsByMinutes(points []cluster.APMTimePoint, minutes int) []cluster.APMTimePoint {
-	cutoff := time.Now().Add(-time.Duration(minutes) * time.Minute)
-	result := make([]cluster.APMTimePoint, 0, len(points))
-	for _, p := range points {
-		if !p.Timestamp.Before(cutoff) {
-			result = append(result, p)
-		}
 	}
 	return result
 }

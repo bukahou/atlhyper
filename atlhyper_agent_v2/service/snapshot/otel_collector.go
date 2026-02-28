@@ -1,0 +1,317 @@
+// Package snapshot OTel 数据采集
+//
+// 本文件实现 OTel 快照的缓存与聚合逻辑：
+//   - 标量摘要（TTL=5min）：TotalServices / RPS / CPU / Mem 等慢变化指标
+//   - Dashboard 列表（TTL=30s）：Services / Topology / Logs 等需要新鲜度的数据
+//   - Concentrator 时序摄入与输出
+package snapshot
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"AtlHyper/atlhyper_agent_v2/config"
+	"AtlHyper/model_v3/cluster"
+)
+
+// getOTelSnapshot 获取 OTel 快照（分离缓存 TTL）
+//
+// 标量摘要（变化慢）使用 5min TTL，Dashboard 列表（需要新鲜度）使用 30s TTL。
+// Concentrator 在每次 Dashboard 数据刷新时摄入数据并输出预聚合时序。
+func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnapshot {
+	summaryTTL := config.GlobalConfig.Scheduler.OTelCacheTTL
+	if summaryTTL <= 0 {
+		summaryTTL = 5 * time.Minute
+	}
+	dashboardTTL := 30 * time.Second
+
+	snapshot := &cluster.OTelSnapshot{}
+	now := time.Now()
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var hasError bool
+
+	setError := func() {
+		mu.Lock()
+		hasError = true
+		mu.Unlock()
+	}
+
+	// ===== 标量摘要（TTL = 5min，变化慢） =====
+
+	summaryFresh := s.otelCache != nil && now.Sub(s.otelCacheTime) < summaryTTL
+	if summaryFresh {
+		// 复用缓存中的标量
+		snapshot.TotalServices = s.otelCache.TotalServices
+		snapshot.HealthyServices = s.otelCache.HealthyServices
+		snapshot.TotalRPS = s.otelCache.TotalRPS
+		snapshot.AvgSuccessRate = s.otelCache.AvgSuccessRate
+		snapshot.AvgP99Ms = s.otelCache.AvgP99Ms
+		snapshot.IngressServices = s.otelCache.IngressServices
+		snapshot.IngressAvgRPS = s.otelCache.IngressAvgRPS
+		snapshot.MeshServices = s.otelCache.MeshServices
+		snapshot.MeshAvgMTLS = s.otelCache.MeshAvgMTLS
+		snapshot.MonitoredNodes = s.otelCache.MonitoredNodes
+		snapshot.AvgCPUPct = s.otelCache.AvgCPUPct
+		snapshot.AvgMemPct = s.otelCache.AvgMemPct
+		snapshot.MaxCPUPct = s.otelCache.MaxCPUPct
+		snapshot.MaxMemPct = s.otelCache.MaxMemPct
+	} else if s.otelSummaryRepo != nil {
+		wg.Add(3)
+
+		go func() {
+			defer wg.Done()
+			totalSvc, healthySvc, totalRPS, avgSuccRate, avgP99, err := s.otelSummaryRepo.GetAPMSummary(ctx)
+			if err != nil {
+				log.Warn("OTel APM 概览查询失败", "err", err)
+				setError()
+				return
+			}
+			mu.Lock()
+			snapshot.TotalServices = totalSvc
+			snapshot.HealthyServices = healthySvc
+			snapshot.TotalRPS = totalRPS
+			snapshot.AvgSuccessRate = avgSuccRate
+			snapshot.AvgP99Ms = avgP99
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			ingressSvc, ingressRPS, meshSvc, meshMTLS, err := s.otelSummaryRepo.GetSLOSummary(ctx)
+			if err != nil {
+				log.Warn("OTel SLO 概览查询失败", "err", err)
+				setError()
+				return
+			}
+			mu.Lock()
+			snapshot.IngressServices = ingressSvc
+			snapshot.IngressAvgRPS = ingressRPS
+			snapshot.MeshServices = meshSvc
+			snapshot.MeshAvgMTLS = meshMTLS
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			nodes, avgCPU, avgMem, maxCPU, maxMem, err := s.otelSummaryRepo.GetMetricsSummary(ctx)
+			if err != nil {
+				log.Warn("OTel Metrics 概览查询失败", "err", err)
+				setError()
+				return
+			}
+			mu.Lock()
+			snapshot.MonitoredNodes = nodes
+			snapshot.AvgCPUPct = avgCPU
+			snapshot.AvgMemPct = avgMem
+			snapshot.MaxCPUPct = maxCPU
+			snapshot.MaxMemPct = maxMem
+			mu.Unlock()
+		}()
+	}
+
+	// ===== Dashboard 列表（TTL = 30s，需要新鲜度给 Concentrator） =====
+
+	dashboardFresh := s.otelDashboardCache != nil && now.Sub(s.otelDashboardCacheTime) < dashboardTTL
+	if dashboardFresh {
+		// 复用缓存中的 Dashboard 列表
+		cached := s.otelDashboardCache.snapshot
+		snapshot.MetricsSummary = cached.MetricsSummary
+		snapshot.MetricsNodes = cached.MetricsNodes
+		snapshot.APMServices = cached.APMServices
+		snapshot.APMTopology = cached.APMTopology
+		snapshot.SLOSummary = cached.SLOSummary
+		snapshot.SLOIngress = cached.SLOIngress
+		snapshot.SLOServices = cached.SLOServices
+		snapshot.SLOEdges = cached.SLOEdges
+		snapshot.APMOperations = cached.APMOperations
+		snapshot.RecentTraces = cached.RecentTraces
+		snapshot.RecentLogs = cached.RecentLogs
+		snapshot.LogsSummary = cached.LogsSummary
+	} else if s.dashboardRepo != nil {
+		defaultSince := 5 * time.Minute
+
+		wg.Add(12)
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListAPMOperations(ctx)
+			if err != nil {
+				log.Warn("Dashboard APMOperations 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.APMOperations = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.GetMetricsSummary(ctx)
+			if err != nil {
+				log.Warn("Dashboard MetricsSummary 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.MetricsSummary = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListAllNodeMetrics(ctx)
+			if err != nil {
+				log.Warn("Dashboard MetricsNodes 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.MetricsNodes = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListAPMServices(ctx)
+			if err != nil {
+				log.Warn("Dashboard APMServices 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.APMServices = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.GetAPMTopology(ctx)
+			if err != nil {
+				log.Warn("Dashboard APMTopology 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.APMTopology = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.GetSLOSummary(ctx)
+			if err != nil {
+				log.Warn("Dashboard SLOSummary 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.SLOSummary = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListIngressSLO(ctx, defaultSince)
+			if err != nil {
+				log.Warn("Dashboard SLOIngress 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.SLOIngress = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListServiceSLO(ctx, defaultSince)
+			if err != nil {
+				log.Warn("Dashboard SLOServices 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.SLOServices = result
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			result, err := s.dashboardRepo.ListServiceEdges(ctx, defaultSince)
+			if err != nil {
+				log.Warn("Dashboard SLOEdges 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.SLOEdges = result
+			mu.Unlock()
+		}()
+
+		// RecentTraces（500 条，用于 Trace 钻入；聚合统计已由 APMOperations 覆盖）
+		go func() {
+			defer wg.Done()
+			traces, err := s.dashboardRepo.ListRecentTraces(ctx, 500)
+			if err != nil {
+				log.Warn("Dashboard RecentTraces 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.RecentTraces = traces
+			mu.Unlock()
+		}()
+
+		// LogsSummary
+		go func() {
+			defer wg.Done()
+			summary, err := s.dashboardRepo.GetLogsSummary(ctx)
+			if err != nil {
+				log.Warn("Dashboard LogsSummary 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.LogsSummary = summary
+			mu.Unlock()
+		}()
+
+		// RecentLogs（最近 2000 条日志条目，覆盖 15 分钟窗口）
+		go func() {
+			defer wg.Done()
+			logs, err := s.dashboardRepo.ListRecentLogs(ctx, 2000)
+			if err != nil {
+				log.Warn("Dashboard RecentLogs 查询失败", "err", err)
+				return
+			}
+			mu.Lock()
+			snapshot.RecentLogs = logs
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+
+	// 全部失败时不更新缓存，继续使用旧数据
+	if hasError && s.otelCache != nil {
+		return s.otelCache
+	}
+
+	// 更新缓存
+	if !summaryFresh {
+		s.otelCacheTime = now
+	}
+	if !dashboardFresh {
+		s.otelDashboardCache = &dashboardCacheData{snapshot: snapshot}
+		s.otelDashboardCacheTime = now
+	}
+	s.otelCache = snapshot
+
+	// Concentrator: 摄入当前数据 + 输出预聚合时序
+	if s.conc != nil {
+		s.conc.Ingest(snapshot.MetricsNodes, snapshot.SLOIngress, snapshot.SLOServices, snapshot.APMServices, now)
+		snapshot.NodeMetricsSeries = s.conc.FlushNodeSeries()
+		snapshot.SLOTimeSeries = s.conc.FlushSLOSeries()
+		snapshot.APMTimeSeries = s.conc.FlushAPMSeries()
+	}
+
+	// 多窗口 SLO 数据采集（带独立 TTL 缓存）
+	if s.dashboardRepo != nil {
+		snapshot.SLOWindows = s.collectSLOWindows(ctx, now)
+	}
+
+	return snapshot
+}

@@ -7,7 +7,7 @@
 import { getDataSourceMode } from "@/config/data-source";
 import { mockQueryLogs } from "@/mock/logs";
 import type { MockLogQueryParams } from "@/mock/logs";
-import * as observeApi from "@/api/observe";
+import * as observeApi from "@/api/observe-logs";
 import type { LogQueryResult, LogHistogramResult } from "@/types/model/log";
 
 export type { MockLogQueryParams } from "@/mock/logs";

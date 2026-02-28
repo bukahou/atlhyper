@@ -48,6 +48,8 @@ type QueryK8s interface {
 type QueryOTel interface {
 	GetOTelSnapshot(ctx context.Context, clusterID string) (*cluster.OTelSnapshot, error)
 	GetOTelTimeline(ctx context.Context, clusterID string, since time.Time) ([]cluster.OTelEntry, error)
+	// QueryLogsFromSnapshot 从快照查询日志（过滤+分页+facets）
+	QueryLogsFromSnapshot(ctx context.Context, clusterID string, opts model.LogSnapshotQueryOpts) (*model.LogSnapshotResult, error)
 }
 
 // QuerySLO SLO 服务网格查询

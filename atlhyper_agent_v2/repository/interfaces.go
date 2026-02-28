@@ -213,25 +213,49 @@ type MetricsQueryRepository interface {
 	GetNodeMetricsHistory(ctx context.Context, nodeName string, since time.Duration) (map[string][]metrics.Point, error)
 }
 
-// OTelDashboardRepository Dashboard 数据采集（定期聚合，随快照上报）
-//
-// 组合委托 MetricsQueryRepository、TraceQueryRepository、SLOQueryRepository，
-// 不写新 SQL，仅复用已有查询方法。
-type OTelDashboardRepository interface {
+// =============================================================================
+// Dashboard 信号域子接口 — 按 Metrics/APM/SLO/Logs 拆分
+// =============================================================================
+
+// MetricsDashboardRepository Metrics Dashboard 数据采集
+type MetricsDashboardRepository interface {
 	GetMetricsSummary(ctx context.Context) (*metrics.Summary, error)
 	ListAllNodeMetrics(ctx context.Context) ([]metrics.NodeMetrics, error)
+}
+
+// APMDashboardRepository APM Dashboard 数据采集
+type APMDashboardRepository interface {
 	ListAPMServices(ctx context.Context) ([]apm.APMService, error)
 	GetAPMTopology(ctx context.Context) (*apm.Topology, error)
+	ListAPMOperations(ctx context.Context) ([]apm.OperationStats, error)
+	ListRecentTraces(ctx context.Context, limit int) ([]apm.TraceSummary, error)
+}
+
+// SLODashboardRepository SLO Dashboard 数据采集
+type SLODashboardRepository interface {
 	GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error)
 	ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
 	ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error)
 	ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error)
-	ListRecentTraces(ctx context.Context, limit int) ([]apm.TraceSummary, error)
-	ListAPMOperations(ctx context.Context) ([]apm.OperationStats, error)
+}
+
+// LogsDashboardRepository Logs Dashboard 数据采集
+type LogsDashboardRepository interface {
 	GetLogsSummary(ctx context.Context) (*log.Summary, error)
 	ListRecentLogs(ctx context.Context, limit int) ([]log.Entry, error)
+}
+
+// OTelDashboardRepository Dashboard 数据采集（组合接口，兼容现有代码）
+//
+// 组合委托 MetricsQueryRepository、TraceQueryRepository、SLOQueryRepository，
+// 不写新 SQL，仅复用已有查询方法。
+type OTelDashboardRepository interface {
+	MetricsDashboardRepository
+	APMDashboardRepository
+	SLODashboardRepository
+	LogsDashboardRepository
 }
 
 // SLOQueryRepository SLO 查询仓库（按需查询）

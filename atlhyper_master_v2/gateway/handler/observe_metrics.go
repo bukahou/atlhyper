@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // MetricsSummary GET /api/v2/observe/metrics/summary (Dashboard: 快照直读)
@@ -98,37 +97,16 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 			}
 		}
 
-		// 层 1: Ring Buffer（≤15min）— 任意指标，10s 精度
-		if minutes <= 15 {
-			since := time.Now().Add(-time.Duration(minutes) * time.Minute)
-			entries, err := h.querySvc.GetOTelTimeline(r.Context(), clusterID, since)
-			if err == nil && len(entries) > 0 {
-				series := buildNodeMetricsSeries(entries, nodeName, metric)
-				if len(series.Points) > 0 {
-					writeJSON(w, http.StatusOK, map[string]interface{}{
-						"message": "获取成功",
-						"data":    series,
-					})
-					return
-				}
-			}
-		}
-
-		// 层 2: Concentrator 预聚合（≤60min）— 25 个关键指标，1min 精度
-		if otel.NodeMetricsSeries != nil {
-			for _, ns := range otel.NodeMetricsSeries {
-				if ns.NodeName == nodeName {
-					points := filterNodePointsByMinutes(ns.Points, minutes)
-					writeJSON(w, http.StatusOK, map[string]interface{}{
-						"message": "获取成功",
-						"data": map[string]interface{}{
-							"metric": metric,
-							"points": extractNodeMetricPoints(points, metric),
-						},
-					})
-					return
-				}
-			}
+		points, _, err := resolveNodeSeries(h.querySvc, r.Context(), clusterID, nodeName, metric, minutes)
+		if err == nil && len(points) > 0 {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"message": "获取成功",
+				"data": map[string]interface{}{
+					"metric": metric,
+					"points": points,
+				},
+			})
+			return
 		}
 
 		// 层 3: Command/MQ → ClickHouse（>60min，暂返回未就绪）
