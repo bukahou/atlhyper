@@ -12,7 +12,8 @@
 
 import { get, post } from "./request";
 import type { TraceSummary, TraceDetail, APMService, Topology, OperationStats, APMServiceSeriesResponse, HTTPStats, DBOperationStats } from "@/types/model/apm";
-import type { LogEntry, LogFacets, LogHistogramBucket } from "@/types/model/log";
+import type { LogEntry, LogFacets, LogHistogramResult } from "@/types/model/log";
+import type { LandingPageResponse } from "@/types/model/observe";
 import type { NodeMetrics, Summary, Point } from "@/types/node-metrics";
 
 // ============================================================================
@@ -102,7 +103,6 @@ export interface LogQueryResponse {
   logs: LogEntry[];
   total: number;
   facets: LogFacets;
-  histogram?: LogHistogramBucket[];
 }
 
 // ============================================================================
@@ -150,6 +150,8 @@ export function queryLogs(params: {
   service?: string;
   level?: string;
   scope?: string;
+  trace_id?: string;
+  span_id?: string;
   limit?: number;
   offset?: number;
   since?: string;
@@ -157,6 +159,20 @@ export function queryLogs(params: {
   end_time?: string;
 }) {
   return post<ObserveResponse<LogQueryResponse>>("/api/v2/observe/logs/query", params);
+}
+
+/** 查询日志直方图 (GET, ClickHouse 聚合) */
+export function getLogsHistogram(params: {
+  cluster_id: string;
+  since?: string;
+  service?: string;
+  level?: string;
+  scope?: string;
+  query?: string;
+  start_time?: string;
+  end_time?: string;
+}) {
+  return get<ObserveResponse<LogHistogramResult>>("/api/v2/observe/logs/histogram", params);
 }
 
 // ============================================================================
@@ -290,5 +306,19 @@ export function getSLOTimeSeries(clusterId: string, params?: {
   return get<ObserveResponse<SLOTimeSeries>>("/api/v2/observe/slo/timeseries", {
     cluster_id: clusterId,
     ...params,
+  });
+}
+
+// ============================================================================
+// Observe Landing Page API
+// ============================================================================
+
+type HealthTimeRange = "15m" | "1d" | "7d" | "30d";
+
+/** 获取服务健康总览（Landing Page） */
+export function getObserveHealth(clusterId: string, timeRange?: HealthTimeRange) {
+  return get<ObserveResponse<LandingPageResponse>>("/api/v2/observe/health", {
+    cluster_id: clusterId,
+    ...(timeRange ? { time_range: timeRange } : {}),
   });
 }

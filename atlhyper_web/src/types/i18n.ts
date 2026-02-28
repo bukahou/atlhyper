@@ -55,6 +55,8 @@ export interface NavTranslations {
   topologyNav: string;
   // APM
   apm: string;
+  // Observe Landing
+  observeLanding: string;
   // Admin
   datasource: string;
 }
@@ -147,6 +149,12 @@ export interface CommonTranslations {
   retry: string;
   loadFailed: string;
   noCluster: string;
+  // K8s 上下文
+  k8sContext: string;
+  podName: string;
+  nodeName: string;
+  deploymentName: string;
+  namespaceName: string;
 }
 
 // 状态翻译
@@ -1859,9 +1867,101 @@ export interface LogTranslations {
   last7d: string;
   last15d: string;
   last30d: string;
+  // 时间范围选择器
+  timeRangePresets: string;
+  timeRangeCustomRelative: string;
+  timeRangeAbsolute: string;
+  timeRangeLastN: string;
+  timeRangeMinutes: string;
+  timeRangeHours: string;
+  timeRangeDays: string;
+  timeRangeStart: string;
+  timeRangeEnd: string;
+  timeRangeApply: string;
+  timeRangeInvalidRange: string;
 }
 
 // APM 翻译
+// Observe Landing Page 翻译
+export interface ObserveLandingTranslations {
+  title: string;
+  description: string;
+  // Overview 卡片
+  totalServices: string;
+  healthyServices: string;
+  warningServices: string;
+  criticalServices: string;
+  totalRps: string;
+  avgSuccessRate: string;
+  sloCompliance: string;
+  totalErrorCount: string;
+  // 节点
+  nodeStatus: string;
+  avgCpu: string;
+  avgMem: string;
+  // 服务卡片 / 表格列
+  serviceHealth: string;
+  apmSection: string;
+  sloSection: string;
+  logsSection: string;
+  infraSection: string;
+  rps: string;
+  successRate: string;
+  errorRate: string;
+  p99: string;
+  meshSLO: string;
+  ingressSLO: string;
+  mtls: string;
+  podCount: string;
+  errorCount: string;
+  warnCount: string;
+  // Level 1 表格列
+  namespace: string;
+  // Level 2 drill-down
+  viewDetail: string;
+  k8sResources: string;
+  backToOverview: string;
+  // Level 3 K8s 资源
+  deploymentSection: string;
+  replicas: string;
+  image: string;
+  strategy: string;
+  age: string;
+  pods: string;
+  phase: string;
+  ready: string;
+  restarts: string;
+  node: string;
+  ingressSection: string;
+  host: string;
+  path: string;
+  tls: string;
+  backend: string;
+  serviceType: string;
+  clusterIP: string;
+  ports: string;
+  // Level 3 信号详情
+  avgLatency: string;
+  spanCount: string;
+  errorSpanCount: string;
+  allMetrics: string;
+  meshDetail: string;
+  domain: string;
+  distribution: string;
+  cpu: string;
+  memory: string;
+  // 时间范围
+  timeRange15m: string;
+  timeRange1d: string;
+  timeRange7d: string;
+  timeRange30d: string;
+  // 状态
+  noCluster: string;
+  noClusterDesc: string;
+  noServices: string;
+  loadFailed: string;
+}
+
 export interface ApmTranslations {
   pageTitle: string;
   pageDescription: string;
@@ -1942,6 +2042,9 @@ export interface ApmTranslations {
   startOffset: string;
   resourceInfo: string;
   podName: string;
+  nodeName: string;
+  deploymentName: string;
+  namespaceName: string;
   clusterName: string;
   serviceVersion: string;
   httpMethod: string;
@@ -1997,6 +2100,10 @@ export interface ApmTranslations {
   errorInfo: string;
   httpStatus: string;
   showStacktrace: string;
+  // cross-signal correlation
+  correlatedLogs: string;
+  noCorrelatedLogs: string;
+  viewCorrelatedLogs: string;
   // units
   us: string;
   ms: string;
@@ -2088,6 +2195,7 @@ export interface Translations {
   policyPage: PolicyTranslations;
   nodeMetrics: NodeMetricsTranslations;
   aiops: AIOpsTranslations;
+  observeLanding: ObserveLandingTranslations;
   apm: ApmTranslations;
   logs: LogTranslations;
   dataSource: DataSourceTranslations;

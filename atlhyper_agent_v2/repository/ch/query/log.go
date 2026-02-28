@@ -96,8 +96,24 @@ func (r *logRepository) QueryLogs(ctx context.Context, opts repository.LogQueryO
 
 // buildWhere 构建 WHERE 子句和参数
 func (r *logRepository) buildWhere(since int64, opts repository.LogQueryOptions) (string, []any) {
-	conditions := []string{fmt.Sprintf("Timestamp >= now() - INTERVAL %d SECOND", since)}
+	var conditions []string
 	var args []any
+
+	// 绝对时间范围（brush 选区）优先于相对时间
+	// 前端传 ISO 8601 字符串，需解析为 time.Time 以兼容 ClickHouse DateTime64(9)
+	if opts.StartTime != "" && opts.EndTime != "" {
+		if startT, err := time.Parse(time.RFC3339Nano, opts.StartTime); err == nil {
+			conditions = append(conditions, "Timestamp >= ?")
+			args = append(args, startT)
+		}
+		if endT, err := time.Parse(time.RFC3339Nano, opts.EndTime); err == nil {
+			conditions = append(conditions, "Timestamp <= ?")
+			args = append(args, endT)
+		}
+	} else if opts.TraceId == "" {
+		// 有 TraceId 时跳过时间条件（TraceId 是精确匹配，不需要时间窗口限制）
+		conditions = append(conditions, fmt.Sprintf("Timestamp >= now() - INTERVAL %d SECOND", since))
+	}
 
 	if opts.Query != "" {
 		conditions = append(conditions, "Body LIKE ?")
@@ -115,7 +131,18 @@ func (r *logRepository) buildWhere(since int64, opts repository.LogQueryOptions)
 		conditions = append(conditions, "ScopeName = ?")
 		args = append(args, opts.Scope)
 	}
+	if opts.TraceId != "" {
+		conditions = append(conditions, "TraceId = ?")
+		args = append(args, opts.TraceId)
+	}
+	if opts.SpanId != "" {
+		conditions = append(conditions, "SpanId = ?")
+		args = append(args, opts.SpanId)
+	}
 
+	if len(conditions) == 0 {
+		return "", args
+	}
 	return "WHERE " + strings.Join(conditions, " AND "), args
 }
 
@@ -228,6 +255,69 @@ func (r *logRepository) queryFacet(ctx context.Context, column, where string) ([
 		facets = []log.Facet{}
 	}
 	return facets, rows.Err()
+}
+
+// QueryHistogram 查询直方图（服务端聚合，~30 桶）
+func (r *logRepository) QueryHistogram(ctx context.Context, opts repository.LogQueryOptions) (*log.HistogramResult, error) {
+	since := sinceSeconds(opts.Since)
+	where, args := r.buildWhere(since, opts)
+
+	// 绝对时间时基于实际跨度计算桶间隔
+	spanSeconds := since
+	if opts.StartTime != "" && opts.EndTime != "" {
+		if startT, err := time.Parse(time.RFC3339Nano, opts.StartTime); err == nil {
+			if endT, err := time.Parse(time.RFC3339Nano, opts.EndTime); err == nil {
+				s := int64(endT.Sub(startT).Seconds())
+				if s > 0 {
+					spanSeconds = s
+				}
+			}
+		}
+	}
+	interval := histogramBucketSeconds(spanSeconds)
+
+	query := fmt.Sprintf(`
+		SELECT
+			toStartOfInterval(Timestamp, INTERVAL %d SECOND) AS bucket,
+			SeverityText AS severity,
+			count() AS cnt
+		FROM otel_logs
+		%s
+		GROUP BY bucket, severity
+		ORDER BY bucket ASC
+	`, interval, where)
+
+	rows, err := r.client.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query histogram: %w", err)
+	}
+	defer rows.Close()
+
+	var buckets []log.HistogramBucket
+	for rows.Next() {
+		var b log.HistogramBucket
+		if err := rows.Scan(&b.Timestamp, &b.Severity, &b.Count); err != nil {
+			return nil, fmt.Errorf("scan histogram bucket: %w", err)
+		}
+		buckets = append(buckets, b)
+	}
+	if buckets == nil {
+		buckets = []log.HistogramBucket{}
+	}
+
+	return &log.HistogramResult{
+		Buckets:    buckets,
+		IntervalMs: interval * 1000,
+	}, rows.Err()
+}
+
+// histogramBucketSeconds 自适应桶间隔：目标 ~30 桶，最小 10 秒
+func histogramBucketSeconds(sinceSeconds int64) int64 {
+	interval := sinceSeconds / 30
+	if interval < 10 {
+		interval = 10
+	}
+	return interval
 }
 
 // GetSummary 获取日志统计摘要（5 分钟窗口）

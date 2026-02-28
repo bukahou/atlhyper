@@ -1,22 +1,24 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { useClusterStore } from "@/store/clusterStore";
 import {
   RefreshCw,
   WifiOff,
-  Calendar,
-  ChevronDown,
   ChevronRight,
   X,
   Clock,
 } from "lucide-react";
 
-import { queryLogs } from "@/datasource/logs";
+import { queryLogs, queryLogHistogram } from "@/datasource/logs";
+import { TimeRangePicker } from "@/components/common";
+import { toSince, toAbsoluteParams, toSpanMs } from "@/lib/time-range";
+import type { TimeRangeSelection } from "@/types/time-range";
 
-import type { LogEntry, LogQueryResult } from "@/types/model/log";
+import type { LogEntry, LogQueryResult, LogHistogramBucket } from "@/types/model/log";
 
 import { LogToolbar } from "./components/LogToolbar";
 import { LogFacets } from "./components/LogFacets";
@@ -50,6 +52,11 @@ export default function LogsPage() {
   const tl = t.logs;
   const { currentClusterId } = useClusterStore();
 
+  // 跨信号关联：URL ?traceId= / ?spanId= 参数过滤
+  const searchParams = useSearchParams();
+  const urlTraceId = searchParams.get("traceId") || undefined;
+  const urlSpanId = searchParams.get("spanId") || undefined;
+
   // Filter state
   const [search, setSearch] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -82,54 +89,71 @@ export default function LogsPage() {
     setSelectedIdx(null);
   };
 
-  // Time range dropdown
-  const TIME_RANGE_OPTIONS = useMemo(() => [
-    { value: "15min", label: tl.last15min },
-    { value: "1h", label: tl.last1h },
-    { value: "24h", label: tl.last24h },
-    { value: "7d", label: tl.last7d },
-    { value: "15d", label: tl.last15d },
-    { value: "30d", label: tl.last30d },
-  ], [tl]);
-
-  const timeRangeLabels = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const opt of TIME_RANGE_OPTIONS) map[opt.value] = opt.label;
-    return map;
-  }, [TIME_RANGE_OPTIONS]);
-
-  const [timeRange, setTimeRange] = useState("15min");
-  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+  // Time range selection
+  const [timeSelection, setTimeSelection] = useState<TimeRangeSelection>({ mode: "preset", preset: "15min" });
 
   // Reset page when any filter changes (including brush)
   useEffect(() => {
     setPage(1);
-  }, [search, selectedServices, selectedSeverities, selectedScopes, timeRange, brushTimeRange]);
+  }, [search, selectedServices, selectedSeverities, selectedScopes, timeSelection, brushTimeRange]);
 
   // Clear brush when non-brush filters change
   useEffect(() => {
     setBrushTimeRange(null);
-  }, [search, selectedServices, selectedSeverities, selectedScopes, timeRange]);
+  }, [search, selectedServices, selectedSeverities, selectedScopes, timeSelection]);
+
+  // Histogram: 独立请求，不依赖 page 和 brushTimeRange
+  const [histogramData, setHistogramData] = useState<LogHistogramBucket[]>([]);
+  const [histogramIntervalMs, setHistogramIntervalMs] = useState(0);
+
+  const loadHistogram = useCallback(async () => {
+    const since = toSince(timeSelection);
+    const abs = toAbsoluteParams(timeSelection);
+    const data = await queryLogHistogram({
+      clusterId: currentClusterId,
+      search,
+      services: selectedServices,
+      severities: selectedSeverities,
+      scopes: selectedScopes,
+      since: since,
+      startTime: abs.startTime,
+      endTime: abs.endTime,
+    });
+    setHistogramData(data.buckets);
+    setHistogramIntervalMs(data.intervalMs);
+  }, [currentClusterId, search, selectedServices, selectedSeverities, selectedScopes, timeSelection]);
+
+  useEffect(() => {
+    loadHistogram();
+  }, [loadHistogram]);
 
   // Query logs (async — supports both mock and real API)
-  const emptyResult: LogQueryResult = { logs: [], total: 0, facets: { services: [], severities: [], scopes: [] }, histogram: [] };
+  const emptyResult: LogQueryResult = { logs: [], total: 0, facets: { services: [], severities: [], scopes: [] } };
   const [result, setResult] = useState<LogQueryResult>(emptyResult);
 
   const loadLogs = useCallback(async () => {
+    // since 始终传递（后端 facets 依赖 since 计算时间窗口）
+    // Brush 选区时：since + startTime/endTime 都传，后端 buildWhere 优先使用绝对时间
+    const since = toSince(timeSelection);
+    const abs = toAbsoluteParams(timeSelection);
+    const brushActive = brushTimeRange !== null;
+
     const data = await queryLogs({
       clusterId: currentClusterId,
       search,
       services: selectedServices,
       severities: selectedSeverities,
       scopes: selectedScopes,
-      timeRange,
+      since,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
-      startTime: brushTimeRange?.[0],
-      endTime: brushTimeRange?.[1],
+      startTime: brushActive ? brushTimeRange[0] : (abs.startTime ? new Date(abs.startTime).getTime() : undefined),
+      endTime: brushActive ? brushTimeRange[1] + histogramIntervalMs : (abs.endTime ? new Date(abs.endTime).getTime() : undefined),
+      traceId: urlTraceId,
+      spanId: urlSpanId,
     });
     setResult(data);
-  }, [currentClusterId, search, selectedServices, selectedSeverities, selectedScopes, timeRange, page, brushTimeRange]);
+  }, [currentClusterId, search, selectedServices, selectedSeverities, selectedScopes, timeSelection, page, brushTimeRange, histogramIntervalMs, urlTraceId, urlSpanId]);
 
   useEffect(() => {
     loadLogs();
@@ -146,7 +170,8 @@ export default function LogsPage() {
     selectedServices.length > 0 ||
     selectedSeverities.length > 0 ||
     selectedScopes.length > 0 ||
-    brushTimeRange !== null;
+    brushTimeRange !== null ||
+    !!urlTraceId;
 
   const removeService = (v: string) => setSelectedServices((prev) => prev.filter((s) => s !== v));
   const removeSeverity = (v: string) => setSelectedSeverities((prev) => prev.filter((s) => s !== v));
@@ -173,7 +198,7 @@ export default function LogsPage() {
 
   return (
     <Layout>
-      <div className="space-y-4 sm:space-y-5">
+      <div className="space-y-4 sm:space-y-5 overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -182,40 +207,12 @@ export default function LogsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Time range dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowTimeDropdown((v) => !v)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-[var(--border-color)] bg-card hover:bg-[var(--hover-bg)] transition-colors"
-              >
-                <Calendar className="w-3.5 h-3.5 text-muted" />
-                <span className="text-default">{timeRangeLabels[timeRange]}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-muted" />
-              </button>
-              {showTimeDropdown && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowTimeDropdown(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] py-1 rounded-lg border border-[var(--border-color)] bg-card shadow-lg">
-                    {TIME_RANGE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          setTimeRange(opt.value);
-                          setShowTimeDropdown(false);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                          timeRange === opt.value
-                            ? "text-primary bg-primary/5"
-                            : "text-default hover:bg-[var(--hover-bg)]"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            {/* Time range picker */}
+            <TimeRangePicker
+              value={timeSelection}
+              onChange={setTimeSelection}
+              t={tl}
+            />
 
             {/* Refresh button */}
             <button
@@ -281,6 +278,11 @@ export default function LogsPage() {
                 <X className="w-3 h-3" />
               </button>
             ))}
+            {urlTraceId && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">
+                Trace: {urlTraceId.slice(0, 8)}...
+              </span>
+            )}
             <button
               onClick={clearAllFilters}
               className="text-xs text-muted hover:text-default transition-colors ml-1"
@@ -292,8 +294,10 @@ export default function LogsPage() {
 
         {/* Log volume histogram */}
         <LogHistogram
-          data={result.histogram}
+          data={histogramData}
+          intervalMs={histogramIntervalMs}
           title={tl.logVolume}
+          timeSpanMs={toSpanMs(timeSelection)}
           selectedTimeRange={brushTimeRange}
           onTimeRangeSelect={setBrushTimeRange}
         />

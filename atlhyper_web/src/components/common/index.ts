@@ -12,3 +12,4 @@ export { Drawer } from "./Drawer";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { ToastContainer, toast } from "./Toast";
 export { StatusPage } from "./StatusPage";
+export { TimeRangePicker } from "./TimeRangePicker";

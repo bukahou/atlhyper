@@ -36,9 +36,12 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	query, _ := body["query"].(string)
 	traceId, _ := body["trace_id"].(string)
 	spanId, _ := body["span_id"].(string)
+	startTime, _ := body["start_time"].(string)
+	endTime, _ := body["end_time"].(string)
 
-	// 快速路径：无全文搜索 且 无 trace/span 关联查询时从快照 RecentLogs 直读
-	if query == "" && traceId == "" && spanId == "" {
+	// 快速路径：无全文搜索、无 trace/span 关联、无绝对时间过滤时从快照直读
+	// 有 start_time/end_time (brush 选区) 时必须走 ClickHouse（快照只有最近 ~1 分钟数据）
+	if query == "" && traceId == "" && spanId == "" && startTime == "" && endTime == "" {
 		otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
 		if err == nil && otel != nil && len(otel.RecentLogs) > 0 {
 			// facets 基于全量数据（过滤前）
@@ -76,10 +79,7 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 				logs = filtered
 			}
 
-			// histogram 基于过滤后全量数据（时间范围过滤和分页之前）
-			histogram := extractLogHistogram(logs)
-
-			// 按时间范围过滤（brush 选区，histogram 之后、分页之前）
+			// 按时间范围过滤（brush 选区，分页之前）
 			if startStr, _ := body["start_time"].(string); startStr != "" {
 				if startT, err := time.Parse(time.RFC3339Nano, startStr); err == nil {
 					filtered := logs[:0:0]
@@ -125,10 +125,9 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message": "获取成功",
 				"data": map[string]interface{}{
-					"logs":      logs,
-					"total":     total,
-					"facets":    facets,
-					"histogram": histogram,
+					"logs":   logs,
+					"total":  total,
+					"facets": facets,
 				},
 			})
 			return
@@ -166,16 +165,64 @@ func computeLogFacets(logs []log.Entry) log.Facets {
 	}
 }
 
-// extractLogHistogram 提取过滤后全量日志的 timestamp + severity（供前端绘制柱状图）
-func extractLogHistogram(logs []log.Entry) []map[string]string {
-	out := make([]map[string]string, len(logs))
-	for i := range logs {
-		out[i] = map[string]string{
-			"timestamp": logs[i].Timestamp.Format(time.RFC3339Nano),
-			"severity":  logs[i].Severity,
+// LogsHistogram GET /api/v2/observe/logs/histogram
+//
+// 直方图始终走 ClickHouse 聚合查询，返回 ~30 个预聚合桶
+func (h *ObserveHandler) LogsHistogram(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	clusterID, ok := requireClusterID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	q := r.URL.Query()
+	params := map[string]interface{}{
+		"sub_action": "histogram",
+	}
+	if v := q.Get("since"); v != "" {
+		params["since"] = v
+	}
+	if v := q.Get("service"); v != "" {
+		params["service"] = v
+	}
+	if v := q.Get("level"); v != "" {
+		params["level"] = v
+	}
+	if v := q.Get("scope"); v != "" {
+		params["scope"] = v
+	}
+	if v := q.Get("query"); v != "" {
+		params["query"] = v
+	}
+	if v := q.Get("start_time"); v != "" {
+		params["start_time"] = v
+	}
+	if v := q.Get("end_time"); v != "" {
+		params["end_time"] = v
+	}
+
+	// cacheTTL 根据时间范围决定
+	minutes := 15
+	if since := q.Get("since"); since != "" {
+		if m, valid := parseTimeRangeMinutes(since); valid {
+			minutes = m
+		}
+	} else if st := q.Get("start_time"); st != "" {
+		// 绝对时间：根据跨度计算 cacheTTL
+		if startT, err := time.Parse(time.RFC3339Nano, st); err == nil {
+			if et := q.Get("end_time"); et != "" {
+				if endT, err := time.Parse(time.RFC3339Nano, et); err == nil {
+					minutes = int(endT.Sub(startT).Minutes())
+				}
+			}
 		}
 	}
-	return out
+
+	h.executeQuery(w, r, clusterID, command.ActionQueryLogs, params, cacheTTLForMinutes(minutes))
 }
 
 // LogsSummary GET /api/v2/observe/logs/summary (Dashboard: 快照直读)

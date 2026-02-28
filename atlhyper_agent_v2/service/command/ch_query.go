@@ -94,23 +94,46 @@ func (s *commandService) handleQueryTraceDetail(ctx context.Context, cmd *comman
 	return s.traceQueryRepo.GetTraceDetail(ctx, traceID)
 }
 
-// handleQueryLogs 处理日志查询指令
+// handleQueryLogs 处理日志查询指令（通过 sub_action 区分列表/直方图）
 func (s *commandService) handleQueryLogs(ctx context.Context, cmd *command.Command) (any, error) {
 	if s.logQueryRepo == nil {
 		return nil, fmt.Errorf("ClickHouse not configured")
 	}
 
+	subAction := getStringParam(cmd.Params, "sub_action")
+	if subAction == "histogram" {
+		return s.handleQueryLogHistogram(ctx, cmd)
+	}
+
 	opts := repository.LogQueryOptions{
-		Query:   getStringParam(cmd.Params, "query"),
-		Service: getStringParam(cmd.Params, "service"),
-		Level:   getStringParam(cmd.Params, "level"),
-		Scope:   getStringParam(cmd.Params, "scope"),
-		Limit:   getIntParam(cmd.Params, "limit", 50),
-		Offset:  getIntParam(cmd.Params, "offset", 0),
-		Since:   getDurationParam(cmd.Params, "since", 15*time.Minute),
+		Query:     getStringParam(cmd.Params, "query"),
+		Service:   getStringParam(cmd.Params, "service"),
+		Level:     getStringParam(cmd.Params, "level"),
+		Scope:     getStringParam(cmd.Params, "scope"),
+		TraceId:   getStringParam(cmd.Params, "trace_id"),
+		SpanId:    getStringParam(cmd.Params, "span_id"),
+		Limit:     getIntParam(cmd.Params, "limit", 50),
+		Offset:    getIntParam(cmd.Params, "offset", 0),
+		Since:     getDurationParam(cmd.Params, "since", 15*time.Minute),
+		StartTime: getStringParam(cmd.Params, "start_time"),
+		EndTime:   getStringParam(cmd.Params, "end_time"),
 	}
 
 	return s.logQueryRepo.QueryLogs(ctx, opts)
+}
+
+// handleQueryLogHistogram 处理日志直方图查询指令
+func (s *commandService) handleQueryLogHistogram(ctx context.Context, cmd *command.Command) (any, error) {
+	opts := repository.LogQueryOptions{
+		Query:     getStringParam(cmd.Params, "query"),
+		Service:   getStringParam(cmd.Params, "service"),
+		Level:     getStringParam(cmd.Params, "level"),
+		Scope:     getStringParam(cmd.Params, "scope"),
+		Since:     getDurationParam(cmd.Params, "since", 15*time.Minute),
+		StartTime: getStringParam(cmd.Params, "start_time"),
+		EndTime:   getStringParam(cmd.Params, "end_time"),
+	}
+	return s.logQueryRepo.QueryHistogram(ctx, opts)
 }
 
 // handleQueryMetrics 处理指标查询指令
