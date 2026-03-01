@@ -20,7 +20,7 @@ AtlHyper is a next-generation SRE platform for the AI era, adopting a Master-Age
 - **SLO Monitoring** — Dual-layer SLO tracking for Ingress (Traefik) + service mesh (Linkerd): latency distribution, error budget, status code distribution
 - **AIOps Engine** — Dependency graph construction, EMA dynamic baseline, 3-stage risk scoring, state machine, incident lifecycle management
 - **Causal Topology Graph** — Four-layer directed acyclic graph (Ingress -> Service -> Pod -> Node) with risk propagation visualization
-- **AI Assistant** — Gemini-powered natural language operations (Chat + Tool Use), incident summary and root cause analysis
+- **AI Assistant** — Multi-model natural language operations (Chat + Tool Use), supports Gemini / OpenAI / Claude, incident summary and root cause analysis
 - **Alert Notifications** — Email (SMTP) and Slack (Webhook) integrations
 - **Remote Operations** — Execute kubectl commands, restart Pods, scale deployments, cordon/uncordon Nodes remotely
 - **Audit Logging** — Complete operation history with user tracking
@@ -36,7 +36,7 @@ AtlHyper is a next-generation SRE platform for the AI era, adopting a Master-Age
 | **Agent** | Go 1.24 + client-go + ClickHouse | Cluster data collection, OTel data query, command execution |
 | **Web** | Next.js 16 + React 19 + Tailwind CSS 4 + ECharts + G6 | Visual management interface |
 | **Observability** | ClickHouse + OTel Collector + Linkerd | Time-series storage, telemetry collection, service mesh |
-| **AI** | Gemini API (Chat + Tool Use) | AI conversational operations, incident analysis |
+| **AI** | Gemini / OpenAI / Claude (Chat + Tool Use) | AI conversational operations, incident analysis |
 
 ---
 
@@ -56,7 +56,7 @@ AtlHyper is a next-generation SRE platform for the AI era, adopting a Master-Age
 │                  │  └─────────┘ └────────┘ │ Logic)  │ └────────────────┘  │    │
 │                  │  ┌──────────────────┐   └─────────┘                     │    │
 │                  │  │  AIOps Engine    │   ┌──────────────────────────┐     │    │
-│                  │  │ Graph│Baseline│  │   │      AI (Gemini)        │     │    │
+│                  │  │ Graph│Baseline│  │   │      AI (Multi-LLM)     │     │    │
 │                  │  │ Risk │State   │  │   │  Chat│Tool Use│Analysis │     │    │
 │                  │  │ Machine│Store  │  │   └──────────────────────────┘     │    │
 │                  │  └──────────────────┘                                    │    │
@@ -139,7 +139,7 @@ Four-layer dependency graph (Node -> Pod -> Service -> Ingress) with risk propag
 ![AIOps Topology](docs/static/img/aiops-topology.png)
 
 ### AI Assistant
-Gemini-powered natural language operations chat with Tool Use support (incident query, analysis). Automatically outputs structured incident summaries and root cause analysis.
+Multi-model natural language operations chat (supports Gemini / OpenAI / Claude) with Tool Use (incident query, analysis). Automatically outputs structured incident summaries and root cause analysis.
 
 ![AI Assistant](docs/static/img/aiops-chat.png)
 
@@ -253,7 +253,7 @@ atlhyper/
 │   ├── agentsdk/           #   Agent Communication Layer
 │   ├── mq/                 #   Message Queue
 │   ├── aiops/              #   AIOps Engine
-│   ├── ai/                 #   AI Assistant (Gemini)
+│   ├── ai/                 #   AI Assistant (Gemini/OpenAI/Claude)
 │   ├── slo/                #   SLO Route Updater
 │   ├── notifier/           #   Alert Notifications
 │   └── config/             #   Configuration
@@ -372,7 +372,7 @@ SQLite-persisted structured incident records:
 | **Timeline** | State transition timeline |
 | **Statistics** | MTTR, recurrence rate, severity distribution, Top root causes |
 
-AI Enhancement (optional): Gemini LLM generates incident summaries, root cause analysis, and remediation recommendations.
+AI Enhancement (optional): LLM (Gemini / OpenAI / Claude) generates incident summaries, root cause analysis, and remediation recommendations.
 
 ---
 

@@ -20,7 +20,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 - **SLO 監視** — Ingress（Traefik）+ サービスメッシュ（Linkerd）二層 SLO トラッキング、レイテンシ分布、エラーバジェット、ステータスコード分布
 - **AIOps エンジン** — 依存グラフ構築、EMA 動的ベースライン、三段階リスクスコアリング、ステートマシン、インシデントライフサイクル管理
 - **因果トポロジーグラフ** — 四層有向非巡回グラフ（Ingress→Service→Pod→Node）、リスク伝播可視化
-- **AI アシスタント** — Gemini 駆動の自然言語運用（Chat + Tool Use）、インシデント要約と根本原因分析
+- **AI アシスタント** — マルチモデル駆動の自然言語運用（Chat + Tool Use）、Gemini / OpenAI / Claude 対応、インシデント要約と根本原因分析
 - **アラート通知** — メール (SMTP) と Slack (Webhook) に対応
 - **リモート運用** — kubectl コマンドのリモート実行、Pod 再起動、レプリカ数調整、ノード隔離
 - **監査ログ** — 完全な操作履歴とユーザー追跡
@@ -36,7 +36,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 | **Agent** | Go 1.24 + client-go + ClickHouse | クラスターデータ収集、OTel データクエリ、コマンド実行 |
 | **Web** | Next.js 16 + React 19 + Tailwind CSS 4 + ECharts + G6 | 可視化管理インターフェース |
 | **オブザーバビリティ** | ClickHouse + OTel Collector + Linkerd | 時系列ストレージ、テレメトリ収集、サービスメッシュ |
-| **AI** | Gemini API (Chat + Tool Use) | AI チャット運用、インシデント分析 |
+| **AI** | Gemini / OpenAI / Claude (Chat + Tool Use) | AI チャット運用、インシデント分析 |
 
 ---
 
@@ -55,7 +55,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 │                  │  │  (API)  │ │(メモリ) │ │(業務層) │ │   (SQLite)     │  │    │
 │                  │  └─────────┘ └────────┘ └─────────┘ └────────────────┘  │    │
 │                  │  ┌──────────────────┐   ┌──────────────────────────┐     │    │
-│                  │  │  AIOps Engine    │   │      AI (Gemini)        │     │    │
+│                  │  │  AIOps Engine    │   │      AI (Multi-LLM)     │     │    │
 │                  │  │依存グラフ│基線│ﾘｽｸ│   │  Chat│Tool Use│分析     │     │    │
 │                  │  │ｽﾃｰﾄﾏｼﾝ│ｲﾝｼﾃﾞﾝﾄ   │   └──────────────────────────┘     │    │
 │                  │  └──────────────────┘                                    │    │
@@ -138,7 +138,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 ![AIOps トポロジー](../img/aiops-topology.png)
 
 ### AI アシスタント
-Gemini 駆動の自然言語運用対話、Tool Use（インシデントクエリ、分析）に対応。構造化されたインシデント要約と根本原因分析を自動出力。
+マルチモデル駆動の自然言語運用対話（Gemini / OpenAI / Claude 対応）、Tool Use（インシデントクエリ、分析）に対応。構造化されたインシデント要約と根本原因分析を自動出力。
 
 ![AI アシスタント](../img/aiops-chat.png)
 
@@ -252,7 +252,7 @@ atlhyper/
 │   ├── agentsdk/           #   Agent 通信層
 │   ├── mq/                 #   メッセージキュー
 │   ├── aiops/              #   AIOps エンジン
-│   ├── ai/                 #   AI アシスタント (Gemini)
+│   ├── ai/                 #   AI アシスタント (Gemini/OpenAI/Claude)
 │   ├── slo/                #   SLO ルート更新
 │   ├── notifier/           #   アラート通知
 │   └── config/             #   設定
@@ -370,7 +370,7 @@ SQLite で永続化、構造化されたインシデント記録：
 | **Timeline** | 状態変更タイムライン |
 | **Statistics** | MTTR、再発率、重大度分布、Top 根本原因 |
 
-AI 強化（オプション）：Gemini LLM によるインシデント要約、根本原因分析、対処提案の生成。
+AI 強化（オプション）：LLM（Gemini / OpenAI / Claude）によるインシデント要約、根本原因分析、対処提案の生成。
 
 ---
 

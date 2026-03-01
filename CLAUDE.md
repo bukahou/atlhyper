@@ -587,7 +587,9 @@ atlhyper_master_v2/
     ├── service.go            #   实现
     └── llm/                  #   LLM 客户端抽象（外部依赖封装）
         ├── interfaces.go     #     LLMClient 接口
-        └── gemini.go         #     Gemini 实现
+        ├── gemini.go         #     Gemini 实现
+        ├── openai.go         #     OpenAI 实现
+        └── anthropic.go      #     Anthropic (Claude) 实现
 ```
 
 新模块规则:

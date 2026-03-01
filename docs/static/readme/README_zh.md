@@ -20,7 +20,7 @@ AtlHyper 是面向 AI 时代的次世代 SRE 平台，采用 Master-Agent 架构
 - **SLO 监控** — Ingress（Traefik）+ 服务网格（Linkerd）双层 SLO 追踪，延迟分布、错误预算、状态码分布
 - **AIOps 引擎** — 依赖图构建、EMA 动态基线、三阶段风险评分、状态机、事件生命周期管理
 - **因果拓扑图** — 四层有向无环图（Ingress→Service→Pod→Node），风险传播可视化
-- **AI 助手** — Gemini 驱动的自然语言运维（Chat + Tool Use），事件摘要与根因分析
+- **AI 助手** — 多模型驱动的自然语言运维（Chat + Tool Use），支持 Gemini / OpenAI / Claude，事件摘要与根因分析
 - **告警通知** — 支持邮件 (SMTP) 和 Slack (Webhook) 通知
 - **远程运维** — 远程执行 kubectl 命令、重启 Pod、调整副本数、隔离节点
 - **审计日志** — 完整的操作历史记录与用户追踪
@@ -36,7 +36,7 @@ AtlHyper 是面向 AI 时代的次世代 SRE 平台，采用 Master-Agent 架构
 | **Agent** | Go 1.24 + client-go + ClickHouse | 集群数据采集、OTel 数据查询、命令执行 |
 | **Web** | Next.js 16 + React 19 + Tailwind CSS 4 + ECharts + G6 | 可视化管理界面 |
 | **可观测** | ClickHouse + OTel Collector + Linkerd | 时序存储、遥测采集、服务网格 |
-| **AI** | Gemini API (Chat + Tool Use) | AI 对话运维、事件分析 |
+| **AI** | Gemini / OpenAI / Claude (Chat + Tool Use) | AI 对话运维、事件分析 |
 
 ---
 
@@ -55,7 +55,7 @@ AtlHyper 是面向 AI 时代的次世代 SRE 平台，采用 Master-Agent 架构
 │                  │  │  (API)  │ │ (内存) │ │(业务层) │ │   (SQLite)     │  │    │
 │                  │  └─────────┘ └────────┘ └─────────┘ └────────────────┘  │    │
 │                  │  ┌──────────────────┐   ┌──────────────────────────┐     │    │
-│                  │  │  AIOps Engine    │   │      AI (Gemini)        │     │    │
+│                  │  │  AIOps Engine    │   │      AI (Multi-LLM)     │     │    │
 │                  │  │ 依赖图│基线│风险  │   │  Chat│Tool Use│事件分析  │     │    │
 │                  │  │ 状态机│事件存储   │   └──────────────────────────┘     │    │
 │                  │  └──────────────────┘                                    │    │
@@ -138,7 +138,7 @@ AtlHyper 是面向 AI 时代的次世代 SRE 平台，采用 Master-Agent 架构
 ![AIOps 拓扑](../img/aiops-topology.png)
 
 ### AI 助手
-Gemini 驱动的自然语言运维对话，支持 Tool Use（事件查询、分析），自动输出结构化事件摘要和根因分析。
+多模型驱动的自然语言运维对话（支持 Gemini / OpenAI / Claude），Tool Use（事件查询、分析），自动输出结构化事件摘要和根因分析。
 
 ![AI 助手](../img/aiops-chat.png)
 
@@ -252,7 +252,7 @@ atlhyper/
 │   ├── agentsdk/           #   Agent 通信层
 │   ├── mq/                 #   消息队列
 │   ├── aiops/              #   AIOps 引擎
-│   ├── ai/                 #   AI 助手 (Gemini)
+│   ├── ai/                 #   AI 助手 (Gemini/OpenAI/Claude)
 │   ├── slo/                #   SLO 路由更新
 │   ├── notifier/           #   告警通知
 │   └── config/             #   配置
@@ -370,7 +370,7 @@ SQLite 持久化，结构化事件记录：
 | **Timeline** | 状态变更时间线 |
 | **Statistics** | MTTR、复发率、严重性分布、Top 根因 |
 
-AI 增强（可选）：Gemini LLM 生成事件摘要、根因分析和处置建议。
+AI 增强（可选）：LLM（Gemini / OpenAI / Claude）生成事件摘要、根因分析和处置建议。
 
 ---
 
