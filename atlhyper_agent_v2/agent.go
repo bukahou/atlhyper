@@ -109,9 +109,9 @@ func New() (*Agent, error) {
 	}
 
 	// 3.2 初始化 Concentrator（预聚合时序）
-	var conc *concentrator.Concentrator
+	var conc concentrator.TimeSeriesAggregator
 	if cfg.ClickHouse.Endpoint != "" {
-		conc = concentrator.New()
+		conc = concentrator.NewConcentrator()
 		log.Info("Concentrator 初始化完成")
 	}
 

@@ -74,7 +74,7 @@ type snapshotService struct {
 	sloWindowCaches map[string]*sloWindowCache
 
 	// Concentrator 预聚合时序（可选）
-	conc *concentrator.Concentrator
+	conc concentrator.TimeSeriesAggregator
 }
 
 // sloWindowCache SLO 窗口数据缓存
@@ -113,7 +113,7 @@ func NewSnapshotService(
 	serviceAccountRepo repository.ServiceAccountRepository,
 	otelSummaryRepo repository.OTelSummaryRepository,
 	dashboardRepo repository.OTelDashboardRepository,
-	conc *concentrator.Concentrator,
+	conc concentrator.TimeSeriesAggregator,
 ) service.SnapshotService {
 	return &snapshotService{
 		clusterID:          clusterID,

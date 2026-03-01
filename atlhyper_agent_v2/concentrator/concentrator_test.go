@@ -10,7 +10,7 @@ import (
 )
 
 func TestConcentrator_IngestAndFlush(t *testing.T) {
-	c := New()
+	c := NewConcentrator()
 	now := time.Now().Truncate(time.Minute)
 
 	// 模拟 3 分钟的数据（从过去到现在）
@@ -159,7 +159,7 @@ func TestConcentrator_IngestAndFlush(t *testing.T) {
 
 func TestConcentrator_GAUGESemantic(t *testing.T) {
 	// 同一分钟内多次写入，取最新值
-	c := New()
+	c := NewConcentrator()
 	now := time.Now().Truncate(time.Minute)
 
 	for i := 0; i < 6; i++ {
@@ -189,7 +189,7 @@ func TestConcentrator_GAUGESemantic(t *testing.T) {
 
 func TestConcentrator_RingOverwrite(t *testing.T) {
 	// 超过 60 分钟后旧数据被覆盖
-	c := New()
+	c := NewConcentrator()
 	now := time.Now().Truncate(time.Minute)
 
 	// 写入 70 分钟的数据（从过去到现在）
@@ -229,7 +229,7 @@ func TestConcentrator_RingOverwrite(t *testing.T) {
 }
 
 func TestConcentrator_MultipleNodes(t *testing.T) {
-	c := New()
+	c := NewConcentrator()
 	now := time.Now().Truncate(time.Minute)
 
 	nodes := []metrics.NodeMetrics{
@@ -246,7 +246,7 @@ func TestConcentrator_MultipleNodes(t *testing.T) {
 }
 
 func TestConcentrator_EmptyFlush(t *testing.T) {
-	c := New()
+	c := NewConcentrator()
 	nodeSeries := c.FlushNodeSeries()
 	sloSeries := c.FlushSLOSeries()
 	apmSeries := c.FlushAPMSeries()
@@ -263,7 +263,7 @@ func TestConcentrator_EmptyFlush(t *testing.T) {
 }
 
 func TestConcentrator_APMMultipleServices(t *testing.T) {
-	c := New()
+	c := NewConcentrator()
 	now := time.Now().Truncate(time.Minute)
 
 	for i := 0; i < 3; i++ {

@@ -25,8 +25,8 @@ type Concentrator struct {
 	mu        sync.RWMutex
 }
 
-// New 创建 Concentrator
-func New() *Concentrator {
+// NewConcentrator 创建 Concentrator
+func NewConcentrator() TimeSeriesAggregator {
 	return &Concentrator{
 		nodeRings: make(map[string]*nodeMetricsRing),
 		sloRings:  make(map[string]*sloMetricsRing),
