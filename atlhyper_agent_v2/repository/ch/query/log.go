@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -397,20 +396,4 @@ func (r *logRepository) ListRecentEntries(ctx context.Context, limit int) ([]log
 		limit = 5000
 	}
 	return r.queryEntries(ctx, "WHERE Timestamp >= now() - INTERVAL 15 MINUTE", nil, limit, 0)
-}
-
-// scanFacets 从 rows 扫描 facet 列表（复用）
-func scanFacets(rows *sql.Rows) ([]log.Facet, error) {
-	var facets []log.Facet
-	for rows.Next() {
-		var f log.Facet
-		if err := rows.Scan(&f.Value, &f.Count); err != nil {
-			return nil, err
-		}
-		facets = append(facets, f)
-	}
-	if facets == nil {
-		facets = []log.Facet{}
-	}
-	return facets, rows.Err()
 }

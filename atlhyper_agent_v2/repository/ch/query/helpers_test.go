@@ -78,39 +78,6 @@ func TestComputeRateSeries_SameTimestamp(t *testing.T) {
 }
 
 // =============================================================================
-// TestComputeRate
-// =============================================================================
-
-func TestComputeRate_Normal(t *testing.T) {
-	t1 := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	t2 := t1.Add(60 * time.Second)
-
-	rate := computeRate(100, 160, t1, t2)
-	if rate != 1 {
-		t.Errorf("expected rate 1, got %f", rate)
-	}
-}
-
-func TestComputeRate_ZeroDuration(t *testing.T) {
-	now := time.Now()
-	rate := computeRate(0, 100, now, now)
-	if rate != 0 {
-		t.Errorf("expected rate 0 for zero duration, got %f", rate)
-	}
-}
-
-func TestComputeRate_CounterReset(t *testing.T) {
-	t1 := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	t2 := t1.Add(10 * time.Second)
-
-	rate := computeRate(500, 30, t1, t2)
-	// delta < 0 => use 30 as delta => 30/10 = 3
-	if rate != 3 {
-		t.Errorf("expected rate 3, got %f", rate)
-	}
-}
-
-// =============================================================================
 // TestHistogramPercentile
 // =============================================================================
 
@@ -178,28 +145,8 @@ func TestHistogramPercentile_Boundary(t *testing.T) {
 }
 
 // =============================================================================
-// TestSafeDiv / SafeDivPct
+// TestSafeDivPct
 // =============================================================================
-
-func TestSafeDiv(t *testing.T) {
-	tests := []struct {
-		name     string
-		a, b     float64
-		expected float64
-	}{
-		{"Normal", 10, 5, 2},
-		{"ZeroDenominator", 10, 0, 0},
-		{"ZeroBoth", 0, 0, 0},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := safeDiv(tc.a, tc.b)
-			if got != tc.expected {
-				t.Errorf("safeDiv(%f, %f) = %f, want %f", tc.a, tc.b, got, tc.expected)
-			}
-		})
-	}
-}
 
 func TestSafeDivPct(t *testing.T) {
 	got := safeDivPct(3, 4)

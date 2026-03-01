@@ -51,24 +51,6 @@ type LogOptions struct {
 	Previous bool
 }
 
-// ExecOptions 执行命令选项
-//
-// 用于在 Pod 容器中执行命令
-type ExecOptions struct {
-	// Container 容器名称
-	Container string
-
-	// Command 要执行的命令
-	// 示例: []string{"sh", "-c", "ls -la"}
-	Command []string
-
-	// TTY 是否分配 TTY
-	TTY bool
-
-	// Stdin 是否使用 stdin
-	Stdin bool
-}
-
 // DeleteOptions 删除选项
 type DeleteOptions struct {
 	// GracePeriodSeconds 优雅终止时间 (秒)
@@ -86,20 +68,3 @@ type DeleteOptions struct {
 	PropagationPolicy string
 }
 
-// ScaleOptions 扩缩容选项
-type ScaleOptions struct {
-	// Replicas 目标副本数
-	Replicas int32
-}
-
-// PatchOptions 补丁选项
-type PatchOptions struct {
-	// PatchType 补丁类型
-	// strategic: Strategic Merge Patch (K8s 默认)
-	// merge: JSON Merge Patch
-	// json: JSON Patch
-	PatchType string
-
-	// PatchData 补丁内容
-	PatchData []byte
-}

@@ -42,23 +42,6 @@ func computeRateSeries(points []rawPoint) []metrics.Point {
 	return result
 }
 
-// computeRate 从两个端点计算速率（用于快照查询）
-//
-// 适用于 argMax/argMin 模式：
-//
-//	rate = (max_value - min_value) / (max_time - min_time)
-func computeRate(minVal, maxVal float64, minTime, maxTime time.Time) float64 {
-	dt := maxTime.Sub(minTime).Seconds()
-	if dt <= 0 {
-		return 0
-	}
-	delta := maxVal - minVal
-	if delta < 0 {
-		delta = maxVal // counter reset
-	}
-	return delta / dt
-}
-
 // histogramPercentile 从 Prometheus-style histogram 计算百分位数
 //
 // bounds: 桶边界 (ExplicitBounds)，升序排列
@@ -136,14 +119,6 @@ func histogramPercentile(bounds []float64, counts []uint64, p float64) float64 {
 // parseDurationNanos 将纳秒 Duration 转换为毫秒
 func parseDurationNanos(nanos int64) float64 {
 	return float64(nanos) / 1e6
-}
-
-// safeDiv 安全除法，避免除零
-func safeDiv(a, b float64) float64 {
-	if b == 0 {
-		return 0
-	}
-	return a / b
 }
 
 // safeDivPct 安全百分比计算
