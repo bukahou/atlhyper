@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("OpenAI")
 
 const (
 	apiEndpoint = "https://api.openai.com/v1/chat/completions"
@@ -230,7 +232,7 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 
 		var chunk streamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			log.Printf("[OpenAI] JSON parse error: %v, data: %s", err, data)
+			log.Error("JSON parse error", "err", err, "data", data)
 			continue
 		}
 
@@ -289,7 +291,7 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Printf("[OpenAI] Scanner error: %v", err)
+		log.Error("Scanner error", "err", err)
 		ch <- &llm.Chunk{Type: llm.ChunkError, Error: err}
 	}
 }

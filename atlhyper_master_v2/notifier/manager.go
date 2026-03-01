@@ -5,13 +5,15 @@ package notifier
 
 import (
 	"context"
-	"log"
 	"sync"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/notifier/channel"
 	"AtlHyper/atlhyper_master_v2/notifier/template"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Notifier")
 
 // Manager 告警管理器
 type Manager struct {
@@ -38,13 +40,13 @@ func NewManager(notifyRepo database.NotifyChannelRepository) (*Manager, error) {
 
 // Start 启动
 func (m *Manager) Start() error {
-	log.Println("[AlertManager] 已启动")
+	log.Info("已启动")
 	return nil
 }
 
 // Stop 停止
 func (m *Manager) Stop() {
-	log.Println("[AlertManager] 已停止")
+	log.Info("已停止")
 }
 
 // SendWithTemplate 使用模板发送告警
@@ -54,12 +56,12 @@ func (m *Manager) SendWithTemplate(templateName string, data *template.AlertData
 	// 1. 获取所有已启用的渠道
 	channels, err := m.notifyRepo.ListEnabled(ctx)
 	if err != nil {
-		log.Printf("[AlertManager] 获取渠道列表失败: %v", err)
+		log.Error("获取渠道列表失败", "err", err)
 		return err
 	}
 
 	if len(channels) == 0 {
-		log.Printf("[AlertManager] 无可用渠道，告警未发送: %s", data.Title)
+		log.Info("无可用渠道，告警未发送", "title", data.Title)
 		return nil
 	}
 
@@ -73,24 +75,24 @@ func (m *Manager) SendWithTemplate(templateName string, data *template.AlertData
 			// 渲染模板
 			msg, err := m.renderer.Render(templateName, ch.Type, data)
 			if err != nil {
-				log.Printf("[AlertManager] 渲染模板失败: channel=%s, err=%v", ch.Type, err)
+				log.Error("渲染模板失败", "channel", ch.Type, "err", err)
 				return
 			}
 
 			// 创建 notifier
 			notifier, err := m.factory.Create(ch)
 			if err != nil {
-				log.Printf("[AlertManager] 创建通知器失败: channel=%s, err=%v", ch.Type, err)
+				log.Error("创建通知器失败", "channel", ch.Type, "err", err)
 				return
 			}
 
 			// 发送
 			if err := notifier.Send(ctx, msg); err != nil {
-				log.Printf("[AlertManager] 发送失败: channel=%s, err=%v", ch.Type, err)
+				log.Error("发送失败", "channel", ch.Type, "err", err)
 				return
 			}
 
-			log.Printf("[AlertManager] 发送成功: channel=%s, title=%s", ch.Type, data.Title)
+			log.Info("发送成功", "channel", ch.Type, "title", data.Title)
 		}(ch)
 	}
 	wg.Wait()

@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Anthropic")
 
 const (
 	apiEndpoint   = "https://api.anthropic.com/v1/messages"
@@ -168,13 +170,11 @@ func (c *Client) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.
 	httpReq.Header.Set("anthropic-version", apiVersion)
 
 	// デバッグ: リクエスト内容をログ
-	log.Printf("[Anthropic] Request: messages=%d, tools=%d", len(apiReq.Messages), len(apiReq.Tools))
-	// メッセージの role 順序をログ
 	var roles []string
 	for _, m := range apiReq.Messages {
 		roles = append(roles, m.Role)
 	}
-	log.Printf("[Anthropic] Message roles: %v", roles)
+	log.Info("请求信息", "messages", len(apiReq.Messages), "tools", len(apiReq.Tools), "roles", roles)
 
 	// リクエスト送信
 	resp, err := c.httpClient.Do(httpReq)
@@ -185,11 +185,11 @@ func (c *Client) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 		body, _ := io.ReadAll(resp.Body)
-		log.Printf("[Anthropic] API Error: %d - %s", resp.StatusCode, string(body))
+		log.Error("API 请求失败", "statusCode", resp.StatusCode, "body", string(body))
 		return nil, fmt.Errorf("anthropic API error: %d - %s", resp.StatusCode, string(body))
 	}
 
-	log.Printf("[Anthropic] Response status: %d", resp.StatusCode)
+	log.Info("请求成功", "statusCode", resp.StatusCode)
 
 	// ストリーム読み取り開始
 	ch := make(chan *llm.Chunk, 32)
@@ -227,7 +227,7 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 
 		var event streamEvent
 		if err := json.Unmarshal([]byte(data), &event); err != nil {
-			log.Printf("[Anthropic] JSON parse error: %v, data: %s", err, data)
+			log.Error("JSON 解析失败", "err", err, "data", data)
 			continue
 		}
 
@@ -293,14 +293,14 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 			return
 
 		case "error":
-			log.Printf("[Anthropic] Stream error event: %+v", event)
+			log.Error("收到流错误事件", "event", event)
 			ch <- &llm.Chunk{Type: llm.ChunkError, Error: fmt.Errorf("stream error")}
 			return
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Printf("[Anthropic] Scanner error: %v", err)
+		log.Error("Scanner 读取错误", "err", err)
 		ch <- &llm.Chunk{Type: llm.ChunkError, Error: err}
 	}
 }

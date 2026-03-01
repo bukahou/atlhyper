@@ -3,15 +3,17 @@
 package trigger
 
 import (
-	"log"
 	"sync"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/notifier/template"
+	"AtlHyper/common/logger"
 	agentmodel "AtlHyper/model_v3/agent"
 )
+
+var log = logger.Module("Trigger")
 
 // HeartbeatConfig 心跳检测配置
 type HeartbeatConfig struct {
@@ -62,7 +64,7 @@ func (t *HeartbeatTrigger) Start() error {
 
 	go t.loop()
 
-	log.Printf("[HeartbeatTrigger] 启动: 间隔=%v, 离线阈值=%v", t.config.CheckInterval, t.config.OfflineAfter)
+	log.Info("启动", "间隔", t.config.CheckInterval, "离线阈值", t.config.OfflineAfter)
 	return nil
 }
 
@@ -77,7 +79,7 @@ func (t *HeartbeatTrigger) Stop() error {
 	t.running = false
 
 	close(t.stopCh)
-	log.Println("[HeartbeatTrigger] 已停止")
+	log.Info("已停止")
 	return nil
 }
 
@@ -102,7 +104,7 @@ func (t *HeartbeatTrigger) loop() {
 func (t *HeartbeatTrigger) check() {
 	agents, err := t.store.ListAgents()
 	if err != nil {
-		log.Printf("[HeartbeatTrigger] 获取 Agent 列表失败: %v", err)
+		log.Error("获取 Agent 列表失败", "err", err)
 		return
 	}
 
@@ -157,7 +159,7 @@ func (t *HeartbeatTrigger) triggerOffline(agent agentmodel.AgentInfo, now time.T
 	}
 
 	if err := t.manager.SendWithTemplate("heartbeat_offline", data); err != nil {
-		log.Printf("[HeartbeatTrigger] 发送离线告警失败: cluster=%s, err=%v", agent.ClusterID, err)
+		log.Error("发送离线告警失败", "cluster", agent.ClusterID, "err", err)
 		return
 	}
 
@@ -165,7 +167,7 @@ func (t *HeartbeatTrigger) triggerOffline(agent agentmodel.AgentInfo, now time.T
 	t.alerted[agent.ClusterID] = now
 	t.alertedMu.Unlock()
 
-	log.Printf("[HeartbeatTrigger] Agent 离线: cluster=%s", agent.ClusterID)
+	log.Info("Agent 离线", "cluster", agent.ClusterID)
 }
 
 // triggerRecovery 触发恢复告警
@@ -191,7 +193,7 @@ func (t *HeartbeatTrigger) triggerRecovery(agent agentmodel.AgentInfo) {
 	}
 
 	if err := t.manager.SendWithTemplate("heartbeat_recovery", data); err != nil {
-		log.Printf("[HeartbeatTrigger] 发送恢复告警失败: cluster=%s, err=%v", agent.ClusterID, err)
+		log.Error("发送恢复告警失败", "cluster", agent.ClusterID, "err", err)
 		return
 	}
 
@@ -199,5 +201,5 @@ func (t *HeartbeatTrigger) triggerRecovery(agent agentmodel.AgentInfo) {
 	delete(t.alerted, agent.ClusterID)
 	t.alertedMu.Unlock()
 
-	log.Printf("[HeartbeatTrigger] Agent 恢复: cluster=%s, downtime=%s", agent.ClusterID, downtime)
+	log.Info("Agent 恢复", "cluster", agent.ClusterID, "downtime", downtime)
 }

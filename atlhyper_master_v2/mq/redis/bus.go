@@ -6,13 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
+	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
 )
+
+var log = logger.Module("RedisBus")
 
 // Key 前缀
 const (
@@ -52,7 +54,7 @@ func (b *RedisBus) Start() error {
 		return fmt.Errorf("redis ping failed: %w", err)
 	}
 
-	log.Println("[RedisBus] 已启动")
+	log.Info("已启动")
 	return nil
 }
 
@@ -61,7 +63,7 @@ func (b *RedisBus) Stop() error {
 	if err := b.client.Close(); err != nil {
 		return fmt.Errorf("redis close failed: %w", err)
 	}
-	log.Println("[RedisBus] 已停止")
+	log.Info("已停止")
 	return nil
 }
 
@@ -95,7 +97,7 @@ func (b *RedisBus) EnqueueCommand(clusterID, topic string, cmd *command.Command)
 	// 状态保留 24h
 	b.client.Set(ctx, keyCmd+cmd.ID, statusData, 24*time.Hour)
 
-	log.Printf("[RedisBus] 指令已入队: %s -> %s [%s]", cmd.ID, clusterID, topic)
+	log.Info("指令已入队", "cmdID", cmd.ID, "clusterID", clusterID, "topic", topic)
 	return nil
 }
 
@@ -182,7 +184,7 @@ func (b *RedisBus) AckCommand(cmdID string, result *command.Result) error {
 	// result key 保留较短时间
 	b.client.Expire(ctx, keyResult+cmdID, 10*time.Minute)
 
-	log.Printf("[RedisBus] 指令已完成: %s -> %s", cmdID, cs.Status)
+	log.Info("指令已完成", "cmdID", cmdID, "status", cs.Status)
 	return nil
 }
 

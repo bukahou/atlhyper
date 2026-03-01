@@ -5,10 +5,12 @@ package repo
 import (
 	"context"
 	"database/sql"
-	"log"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("AIProvider")
 
 type aiProviderRepo struct {
 	db      *sql.DB
@@ -24,7 +26,7 @@ func (r *aiProviderRepo) Create(ctx context.Context, p *database.AIProvider) err
 	if globalEncryptor != nil && p.APIKey != "" {
 		encrypted, err := globalEncryptor.Encrypt(p.APIKey)
 		if err != nil {
-			log.Printf("[AIProvider] API Key 加密失败: %v", err)
+			log.Error("API Key 加密失败", "err", err)
 			return err
 		}
 		p.APIKey = encrypted
@@ -48,7 +50,7 @@ func (r *aiProviderRepo) Update(ctx context.Context, p *database.AIProvider) err
 	if globalEncryptor != nil && p.APIKey != "" {
 		encrypted, err := globalEncryptor.Encrypt(p.APIKey)
 		if err != nil {
-			log.Printf("[AIProvider] API Key 加密失败: %v", err)
+			log.Error("API Key 加密失败", "err", err)
 			return err
 		}
 		p.APIKey = encrypted
@@ -82,7 +84,7 @@ func (r *aiProviderRepo) GetByID(ctx context.Context, id int64) (*database.AIPro
 		if globalEncryptor != nil && p.APIKey != "" {
 			decrypted, err := globalEncryptor.Decrypt(p.APIKey)
 			if err != nil {
-				log.Printf("[AIProvider] API Key 解密失败: %v", err)
+				log.Error("API Key 解密失败", "err", err)
 				// 解密失败不阻断，可能是旧的未加密数据
 			} else {
 				p.APIKey = decrypted
@@ -111,7 +113,7 @@ func (r *aiProviderRepo) List(ctx context.Context) ([]*database.AIProvider, erro
 		if globalEncryptor != nil && p.APIKey != "" {
 			decrypted, err := globalEncryptor.Decrypt(p.APIKey)
 			if err != nil {
-				log.Printf("[AIProvider] API Key 解密失败 (ID=%d): %v", p.ID, err)
+				log.Error("API Key 解密失败", "id", p.ID, "err", err)
 				// 解密失败不阻断，可能是旧的未加密数据
 			} else {
 				p.APIKey = decrypted

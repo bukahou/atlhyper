@@ -4,13 +4,15 @@ package sqlite
 
 import (
 	"database/sql"
-	"log"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/config"
+	"AtlHyper/common/logger"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+var log = logger.Module("Migrations")
 
 // migrate 执行数据库迁移
 func migrate(db *sql.DB) error {
@@ -345,7 +347,7 @@ func migrate(db *sql.DB) error {
 
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
-			log.Printf("[SQLiteDB] 数据库迁移失败: %v\nSQL: %s", err, m)
+			log.Error("数据库迁移失败", "err", err, "sql", m)
 			return err
 		}
 	}
@@ -354,14 +356,14 @@ func migrate(db *sql.DB) error {
 	for _, m := range alterMigrations {
 		if _, err := db.Exec(m); err != nil {
 			// 忽略 "duplicate column name" 错误
-			log.Printf("[SQLiteDB] 增量迁移跳过（可能列已存在）: %v", err)
+			log.Warn("增量迁移跳过（可能列已存在）", "err", err)
 		}
 	}
 
 	// 删除旧 snapshot 表
 	for _, m := range dropMigrations {
 		if _, err := db.Exec(m); err != nil {
-			log.Printf("[SQLiteDB] 删除旧表跳过: %v", err)
+			log.Warn("删除旧表跳过", "err", err)
 		}
 	}
 
@@ -377,11 +379,11 @@ func migrate(db *sql.DB) error {
 
 	// 清理无效的 entrypoint 级别数据
 	if err := cleanupEntrypointData(db); err != nil {
-		log.Printf("[SQLiteDB] 清理 entrypoint 数据失败: %v", err)
+		log.Warn("清理 entrypoint 数据失败", "err", err)
 		// 不中断启动，只记录警告
 	}
 
-	log.Println("[SQLiteDB] 数据库迁移完成")
+	log.Info("数据库迁移完成")
 	return nil
 }
 
@@ -391,7 +393,7 @@ func migrate(db *sql.DB) error {
 func initDefaultAdmin(db *sql.DB) error {
 	adminCfg := config.GlobalConfig.Admin
 	if adminCfg.Username == "" || adminCfg.Password == "" {
-		log.Println("[SQLiteDB] 未配置默认管理员，跳过创建")
+		log.Info("未配置默认管理员，跳过创建")
 		return nil
 	}
 
@@ -402,14 +404,14 @@ func initDefaultAdmin(db *sql.DB) error {
 		return err
 	}
 	if count > 0 {
-		log.Printf("[SQLiteDB] 管理员用户 %s 已存在，跳过创建", adminCfg.Username)
+		log.Info("管理员用户已存在，跳过创建", "username", adminCfg.Username)
 		return nil
 	}
 
 	// 加密密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminCfg.Password), bcrypt.DefaultCost)
 	if err != nil {
-		log.Printf("[SQLiteDB] 密码加密失败: %v", err)
+		log.Error("密码加密失败", "err", err)
 		return err
 	}
 
@@ -420,11 +422,11 @@ func initDefaultAdmin(db *sql.DB) error {
 		VALUES (?, ?, ?, 3, 1, ?, ?)`,
 		adminCfg.Username, string(hashedPassword), adminCfg.DisplayName, now, now)
 	if err != nil {
-		log.Printf("[SQLiteDB] 创建默认管理员失败: %v", err)
+		log.Error("创建默认管理员失败", "err", err)
 		return err
 	}
 
-	log.Printf("[SQLiteDB] 已创建默认管理员: %s", adminCfg.Username)
+	log.Info("已创建默认管理员", "username", adminCfg.Username)
 	return nil
 }
 
@@ -475,11 +477,11 @@ func initDefaultAIModels(db *sql.DB) error {
 
 	for _, m := range models {
 		if _, err := stmt.Exec(m.provider, m.model, m.displayName, m.isDefault, m.sortOrder, now); err != nil {
-			log.Printf("[SQLiteDB] 插入默认模型失败: %v", err)
+			log.Warn("插入默认模型失败", "err", err)
 		}
 	}
 
-	log.Println("[SQLiteDB] 已初始化默认 AI 模型列表")
+	log.Info("已初始化默认 AI 模型列表")
 	return nil
 }
 
@@ -487,11 +489,11 @@ func initDefaultAIModels(db *sql.DB) error {
 func cleanupEntrypointData(db *sql.DB) error {
 	result, err := db.Exec(`DELETE FROM slo_targets WHERE host LIKE '%@entrypoint%'`)
 	if err != nil {
-		log.Printf("[SQLiteDB] 清理 slo_targets entrypoint 数据失败: %v", err)
+		log.Error("清理 slo_targets entrypoint 数据失败", "err", err)
 		return nil
 	}
 	if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
-		log.Printf("[SQLiteDB] 已清理 slo_targets 表 %d 条 entrypoint 数据", rowsAffected)
+		log.Info("已清理 slo_targets 表 entrypoint 数据", "rows", rowsAffected)
 	}
 	return nil
 }

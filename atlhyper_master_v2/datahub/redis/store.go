@@ -6,15 +6,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	agentmodel "AtlHyper/model_v3/agent"
+	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/cluster"
 )
+
+var log = logger.Module("RedisStore")
 
 // Key 前缀
 const (
@@ -69,7 +71,7 @@ func (s *RedisStore) Start() error {
 	s.wg.Add(1)
 	go s.cleanupLoop()
 
-	log.Println("[RedisStore] 已启动")
+	log.Info("已启动")
 	return nil
 }
 
@@ -81,7 +83,7 @@ func (s *RedisStore) Stop() error {
 	if err := s.client.Close(); err != nil {
 		return fmt.Errorf("redis close failed: %w", err)
 	}
-	log.Println("[RedisStore] 已停止")
+	log.Info("已停止")
 	return nil
 }
 
@@ -136,8 +138,7 @@ func (s *RedisStore) cleanupExpiredEvents() {
 			snapshot.Events = validEvents
 			newData, _ := json.Marshal(&snapshot)
 			s.client.Set(ctx, keySnapshot+clusterID, newData, 0)
-			log.Printf("[RedisStore] 已清理过期事件: 集群=%s, %d -> %d",
-				clusterID, len(snapshot.Events), len(validEvents))
+			log.Info("已清理过期事件", "clusterID", clusterID, "before", len(snapshot.Events), "after", len(validEvents))
 		}
 	}
 }
@@ -167,7 +168,7 @@ func (s *RedisStore) updateAgentStatus() {
 			agent.Status = agentmodel.StatusOffline
 			newData, _ := json.Marshal(&agent)
 			s.client.Set(ctx, keyAgent+clusterID, newData, 0)
-			log.Printf("[RedisStore] Agent 已标记为离线: 集群=%s", clusterID)
+			log.Info("Agent 已标记为离线", "clusterID", clusterID)
 		}
 	}
 }

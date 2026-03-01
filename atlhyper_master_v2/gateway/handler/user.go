@@ -4,14 +4,16 @@ package handler
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
+	"AtlHyper/common/logger"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+var log = logger.Module("UserHandler")
 
 // UserHandler 用户管理 Handler
 type UserHandler struct {
@@ -107,7 +109,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// 查找用户
 	user, err := h.userRepo.GetByUsername(r.Context(), req.Username)
 	if err != nil {
-		log.Printf("[UserHandler] 查询用户失败: %v", err)
+		log.Error("查询用户失败", "err", err)
 		writeError(w, http.StatusInternalServerError, "查询用户失败: "+err.Error())
 		return
 	}

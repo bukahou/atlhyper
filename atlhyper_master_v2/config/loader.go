@@ -3,12 +3,15 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Config")
 
 // LoadConfig 加载所有配置项
 //
@@ -93,8 +96,12 @@ func LoadConfig() {
 		CleanupInterval: getDuration("MASTER_METRICS_CLEANUP_INTERVAL"),
 	}
 
-	log.Printf("[config] Master 配置加载完成: GatewayPort=%d, AgentSDKPort=%d, TesterPort=%d, DBType=%s, Admin=%s",
-		GlobalConfig.Server.GatewayPort, GlobalConfig.Server.AgentSDKPort, GlobalConfig.Server.TesterPort, GlobalConfig.Database.Type, GlobalConfig.Admin.Username)
+	log.Info("Master 配置加载完成",
+		"gatewayPort", GlobalConfig.Server.GatewayPort,
+		"agentSDKPort", GlobalConfig.Server.AgentSDKPort,
+		"testerPort", GlobalConfig.Server.TesterPort,
+		"dbType", GlobalConfig.Database.Type,
+		"admin", GlobalConfig.Admin.Username)
 }
 
 // ==================== 工具函数 ====================
@@ -105,11 +112,12 @@ func getDuration(envKey string) time.Duration {
 		if d, err := time.ParseDuration(val); err == nil {
 			return d
 		}
-		log.Printf("[config] 环境变量 %s 格式错误，使用默认值", envKey)
+		log.Warn("环境变量格式错误，使用默认值", "key", envKey)
 	}
 	def, ok := defaultDurations[envKey]
 	if !ok {
-		log.Fatalf("[config] 未定义默认时间配置项: %s", envKey)
+		log.Error("未定义默认时间配置项", "key", envKey)
+		os.Exit(1)
 	}
 	d, _ := time.ParseDuration(def)
 	return d
@@ -121,11 +129,12 @@ func getInt(envKey string) int {
 		if i, err := strconv.Atoi(val); err == nil {
 			return i
 		}
-		log.Printf("[config] 环境变量 %s 格式错误，使用默认值", envKey)
+		log.Warn("环境变量格式错误，使用默认值", "key", envKey)
 	}
 	def, ok := defaultInts[envKey]
 	if !ok {
-		log.Fatalf("[config] 未定义默认整数配置项: %s", envKey)
+		log.Error("未定义默认整数配置项", "key", envKey)
+		os.Exit(1)
 	}
 	return def
 }
@@ -137,7 +146,8 @@ func getString(envKey string) string {
 	}
 	def, ok := defaultStrings[envKey]
 	if !ok {
-		log.Fatalf("[config] 未定义默认字符串配置项: %s", envKey)
+		log.Error("未定义默认字符串配置项", "key", envKey)
+		os.Exit(1)
 	}
 	return def
 }
@@ -151,7 +161,8 @@ func getBool(envKey string) bool {
 	}
 	def, ok := defaultBools[envKey]
 	if !ok {
-		log.Fatalf("[config] 未定义默认布尔配置项: %s", envKey)
+		log.Error("未定义默认布尔配置项", "key", envKey)
+		os.Exit(1)
 	}
 	return def
 }

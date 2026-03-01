@@ -5,7 +5,6 @@ package database
 
 import (
 	"context"
-	"log"
 	"strconv"
 	"time"
 
@@ -18,7 +17,7 @@ func InitAIActiveConfig(ctx context.Context, db *DB, cfg *config.AIConfig) error
 	// 检查是否已有配置
 	existing, _ := db.AIActive.Get(ctx)
 	if existing != nil {
-		log.Println("[Sync] AI Active Config 已存在，跳过初始化")
+		log.Info("AI Active Config 已存在，跳过初始化")
 		return nil
 	}
 
@@ -39,7 +38,7 @@ func InitAIActiveConfig(ctx context.Context, db *DB, cfg *config.AIConfig) error
 		return err
 	}
 
-	log.Printf("[Sync] AI Active Config 已初始化 (enabled=%v, timeout=%ds)", cfg.Enabled, toolTimeout)
+	log.Info("AI Active Config 已初始化", "enabled", cfg.Enabled, "timeoutSec", toolTimeout)
 	return nil
 }
 
@@ -89,14 +88,14 @@ func MigrateOldAIConfig(ctx context.Context, db *DB) error {
 	// 检查新表是否已有数据
 	providers, _ := db.AIProvider.List(ctx)
 	if len(providers) > 0 {
-		log.Println("[Migrate] AI Provider 表已有数据，跳过迁移")
+		log.Info("AI Provider 表已有数据，跳过迁移")
 		return nil
 	}
 
 	// 检查旧配置是否存在
 	apiKey, _ := db.Settings.Get(ctx, "ai.api_key")
 	if apiKey == nil || apiKey.Value == "" {
-		log.Println("[Migrate] 无旧 AI 配置，跳过迁移")
+		log.Info("无旧 AI 配置，跳过迁移")
 		return nil
 	}
 
@@ -129,7 +128,7 @@ func MigrateOldAIConfig(ctx context.Context, db *DB) error {
 	}
 
 	if err := db.AIProvider.Create(ctx, newProvider); err != nil {
-		log.Printf("[Migrate] 创建 AI Provider 失败: %v", err)
+		log.Error("创建 AI Provider 失败", "err", err)
 		return err
 	}
 
@@ -145,10 +144,10 @@ func MigrateOldAIConfig(ctx context.Context, db *DB) error {
 	}
 
 	if err := db.AIActive.Update(ctx, activeConfig); err != nil {
-		log.Printf("[Migrate] 更新 AI Active Config 失败: %v", err)
+		log.Error("更新 AI Active Config 失败", "err", err)
 		return err
 	}
 
-	log.Printf("[Migrate] AI 配置已迁移到新表 (provider=%s, model=%s)", providerValue, modelValue)
+	log.Info("AI 配置已迁移到新表", "provider", providerValue, "model", modelValue)
 	return nil
 }

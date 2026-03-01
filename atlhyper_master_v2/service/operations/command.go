@@ -7,15 +7,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
+	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
 )
+
+var log = logger.Module("CommandService")
 
 // CommandService 指令服务
 type CommandService struct {
@@ -95,7 +97,7 @@ func (s *CommandService) CreateCommand(req *CreateCommandRequest) (*CreateComman
 		CreatedAt:       cmd.CreatedAt,
 	}
 	if err := s.cmdRepo.Create(context.Background(), history); err != nil {
-		log.Printf("[CommandService] 指令历史持久化失败: %v", err)
+		log.Error("指令历史持久化失败", "err", err)
 	}
 
 	return &CreateCommandResponse{

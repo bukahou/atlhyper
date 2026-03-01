@@ -5,7 +5,6 @@ package trigger
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -54,7 +53,7 @@ func (t *EventTrigger) Start() error {
 	// 获取最新事件 ID
 	latestID, err := t.eventRepo.GetLatestEventID(context.Background())
 	if err != nil {
-		log.Printf("[EventTrigger] 获取最新事件 ID 失败，从 0 开始: %v", err)
+		log.Warn("获取最新事件 ID 失败，从 0 开始", "err", err)
 		latestID = 0
 	}
 	t.lastSeenID = latestID
@@ -62,7 +61,7 @@ func (t *EventTrigger) Start() error {
 	t.wg.Add(1)
 	go t.loop()
 
-	log.Printf("[EventTrigger] 启动: 间隔=%v, 起始ID=%d", t.config.CheckInterval, t.lastSeenID)
+	log.Info("EventTrigger 启动", "间隔", t.config.CheckInterval, "起始ID", t.lastSeenID)
 	return nil
 }
 
@@ -70,7 +69,7 @@ func (t *EventTrigger) Start() error {
 func (t *EventTrigger) Stop() error {
 	close(t.stopCh)
 	t.wg.Wait()
-	log.Println("[EventTrigger] 已停止")
+	log.Info("EventTrigger 已停止")
 	return nil
 }
 
@@ -97,7 +96,7 @@ func (t *EventTrigger) processEvents() {
 
 	events, err := t.eventRepo.GetEventsSince(ctx, t.lastSeenID)
 	if err != nil {
-		log.Printf("[EventTrigger] 查询事件失败: %v", err)
+		log.Error("查询事件失败", "err", err)
 		return
 	}
 
@@ -108,7 +107,7 @@ func (t *EventTrigger) processEvents() {
 	var sent int
 	for _, event := range events {
 		if err := t.triggerEvent(ctx, event); err != nil {
-			log.Printf("[EventTrigger] 处理事件 %d 失败: %v", event.ID, err)
+			log.Error("处理事件失败", "eventID", event.ID, "err", err)
 		} else {
 			sent++
 		}
@@ -120,7 +119,7 @@ func (t *EventTrigger) processEvents() {
 		t.mu.Unlock()
 	}
 
-	log.Printf("[EventTrigger] 处理 %d 个事件, 发送 %d 个告警", len(events), sent)
+	log.Info("事件处理完成", "total", len(events), "sent", sent)
 }
 
 // triggerEvent 触发单个事件告警
@@ -148,8 +147,7 @@ func (t *EventTrigger) triggerEvent(ctx context.Context, event *database.Cluster
 		return fmt.Errorf("send alert: %w", err)
 	}
 
-	log.Printf("[EventTrigger] 告警已发送: cluster=%s, reason=%s, kind=%s, name=%s",
-		event.ClusterID, event.Reason, event.InvolvedKind, event.InvolvedName)
+	log.Info("告警已发送", "cluster", event.ClusterID, "reason", event.Reason, "kind", event.InvolvedKind, "name", event.InvolvedName)
 
 	return nil
 }

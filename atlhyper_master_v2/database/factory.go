@@ -5,12 +5,15 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Database")
 
 // Config 数据库配置
 type Config struct {
@@ -41,7 +44,7 @@ func NewDatabase(cfg Config, dialect Dialect) (*DB, error) {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	log.Printf("[Database] 已连接数据库: type=%s", cfg.Type)
+	log.Info("已连接数据库", "type", cfg.Type)
 	return &DB{Conn: conn}, nil
 }
 

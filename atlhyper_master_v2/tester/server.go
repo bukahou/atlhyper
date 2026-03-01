@@ -6,12 +6,14 @@ package tester
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/notifier"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Tester")
 
 // Server 测试服务器
 type Server struct {
@@ -69,11 +71,11 @@ func (s *Server) Start() error {
 		WriteTimeout: 60 * time.Second,
 	}
 
-	log.Printf("[Tester] 启动测试服务器: 端口=%d", s.port)
+	log.Info("启动测试服务器", "端口", s.port)
 
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("[Tester] 服务器错误: %v", err)
+			log.Error("服务器错误", "err", err)
 		}
 	}()
 
@@ -85,7 +87,7 @@ func (s *Server) Stop() error {
 	if s.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		log.Println("[Tester] 停止测试服务器")
+		log.Info("停止测试服务器")
 		return s.httpServer.Shutdown(ctx)
 	}
 	return nil

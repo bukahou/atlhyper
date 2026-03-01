@@ -6,14 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/common/logger"
 )
+
+var log = logger.Module("Gemini")
 
 func init() {
 	llm.Register("gemini", func(apiKey, model string) (llm.LLMClient, error) {
@@ -81,7 +83,7 @@ func (c *Client) readStream(ctx context.Context, iter *genai.GenerateContentResp
 			return
 		}
 		if err != nil {
-			log.Printf("[Gemini] 流式读取错误: %v", err)
+			log.Error("流式读取错误", "err", err)
 			ch <- &llm.Chunk{Type: llm.ChunkError, Error: err}
 			return
 		}
