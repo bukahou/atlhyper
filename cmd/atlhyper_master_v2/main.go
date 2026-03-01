@@ -26,7 +26,7 @@ func main() {
 	log.Info("AtlHyper Master V2 starting...")
 
 	// 创建 Master 实例
-	master, err := atlhyper_master_v2.New()
+	master, err := atlhyper_master_v2.NewMaster()
 	if err != nil {
 		log.Error("创建 Master 失败", "err", err)
 		os.Exit(1)

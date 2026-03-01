@@ -40,8 +40,8 @@ type MemoryStore struct {
 	wg     sync.WaitGroup
 }
 
-// New 创建 MemoryStore
-func New(eventRetention, heartbeatExpire, snapshotRetention time.Duration) *MemoryStore {
+// NewMemoryStore 创建 MemoryStore
+func NewMemoryStore(eventRetention, heartbeatExpire, snapshotRetention time.Duration) *MemoryStore {
 	if snapshotRetention <= 0 {
 		snapshotRetention = 15 * time.Minute
 	}

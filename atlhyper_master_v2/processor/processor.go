@@ -46,8 +46,8 @@ type Config struct {
 	OnSnapshotReceived func(clusterID string)
 }
 
-// New 创建 Processor
-func New(cfg Config) Processor {
+// NewProcessor 创建 Processor
+func NewProcessor(cfg Config) Processor {
 	return &processorImpl{
 		store:              cfg.Store,
 		onSnapshotReceived: cfg.OnSnapshotReceived,

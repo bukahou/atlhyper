@@ -22,7 +22,7 @@ const (
 
 func init() {
 	llm.Register("openai", func(apiKey, model string) (llm.LLMClient, error) {
-		return New(apiKey, model)
+		return NewOpenAIClient(apiKey, model)
 	})
 }
 
@@ -33,8 +33,8 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// New 创建 OpenAI 客户端
-func New(apiKey, model string) (*Client, error) {
+// NewOpenAIClient 创建 OpenAI 客户端
+func NewOpenAIClient(apiKey, model string) (*Client, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("openai api key is required")
 	}

@@ -18,9 +18,9 @@ func Register(name string, factory ProviderFactory) {
 	providers[name] = factory
 }
 
-// New 根据配置创建 LLMClient
+// NewLLMClient 根据配置创建 LLMClient
 // 上层调用此函数，无需直接依赖具体 provider 包
-func New(cfg Config) (LLMClient, error) {
+func NewLLMClient(cfg Config) (LLMClient, error) {
 	factory, ok := providers[cfg.Provider]
 	if !ok {
 		available := make([]string, 0, len(providers))

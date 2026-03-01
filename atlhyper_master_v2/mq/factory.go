@@ -17,16 +17,16 @@ type Config struct {
 	RedisDB       int
 }
 
-// New 创建 CommandBus 实例
-func New(cfg Config) CommandBus {
+// NewCommandBus 创建 CommandBus 实例
+func NewCommandBus(cfg Config) CommandBus {
 	switch cfg.Type {
 	case "redis":
-		return redisBus.New(redisBus.Config{
+		return redisBus.NewRedisBus(redisBus.Config{
 			Addr:     cfg.RedisAddr,
 			Password: cfg.RedisPassword,
 			DB:       cfg.RedisDB,
 		})
 	default:
-		return memory.New()
+		return memory.NewMemoryBus()
 	}
 }

@@ -18,9 +18,9 @@ type Config struct {
 	Path string // SQLite 文件路径
 }
 
-// New 创建数据库实例
+// NewDatabase 创建数据库实例
 // 打开连接并执行迁移，Repository 通过 repo.Init() 注入
-func New(cfg Config, dialect Dialect) (*DB, error) {
+func NewDatabase(cfg Config, dialect Dialect) (*DB, error) {
 	var conn *sql.DB
 	var err error
 

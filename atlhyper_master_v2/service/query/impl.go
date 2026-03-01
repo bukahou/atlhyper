@@ -26,16 +26,16 @@ type QueryService struct {
 	aiopsAI     *aiopsai.Enhancer
 }
 
-// New 创建 QueryService 实例
-func New(store datahub.Store, bus mq.Producer) *QueryService {
+// NewQueryService 创建 QueryService 实例
+func NewQueryService(store datahub.Store, bus mq.Producer) *QueryService {
 	return &QueryService{
 		store: store,
 		bus:   bus,
 	}
 }
 
-// NewWithEventRepo 创建带事件仓库的 QueryService 实例（用于 Alert Trends）
-func NewWithEventRepo(store datahub.Store, bus mq.Producer, eventRepo database.ClusterEventRepository) *QueryService {
+// NewQueryServiceWithEventRepo 创建带事件仓库的 QueryService 实例（用于 Alert Trends）
+func NewQueryServiceWithEventRepo(store datahub.Store, bus mq.Producer, eventRepo database.ClusterEventRepository) *QueryService {
 	return &QueryService{
 		store:     store,
 		bus:       bus,

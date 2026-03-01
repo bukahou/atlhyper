@@ -13,7 +13,7 @@ type serviceImpl struct {
 	*operations.CommandService
 }
 
-// New 创建统一 Service 实例
-func New(q *query.QueryService, ops *operations.CommandService) Service {
+// NewService 创建统一 Service 实例
+func NewService(q *query.QueryService, ops *operations.CommandService) Service {
 	return &serviceImpl{QueryService: q, CommandService: ops}
 }

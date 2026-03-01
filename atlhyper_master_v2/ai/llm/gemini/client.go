@@ -17,7 +17,7 @@ import (
 
 func init() {
 	llm.Register("gemini", func(apiKey, model string) (llm.LLMClient, error) {
-		return New(apiKey, model)
+		return NewGeminiClient(apiKey, model)
 	})
 }
 
@@ -27,8 +27,8 @@ type Client struct {
 	model  string
 }
 
-// New 创建 Gemini 客户端
-func New(apiKey, model string) (*Client, error) {
+// NewGeminiClient 创建 Gemini 客户端
+func NewGeminiClient(apiKey, model string) (*Client, error) {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {

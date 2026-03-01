@@ -38,8 +38,8 @@ type commandQueue struct {
 	mu       sync.Mutex
 }
 
-// New 创建 MemoryBus
-func New() *MemoryBus {
+// NewMemoryBus 创建 MemoryBus
+func NewMemoryBus() *MemoryBus {
 	return &MemoryBus{
 		queues:         make(map[string]*commandQueue),
 		commands:       make(map[string]*command.Status),

@@ -33,8 +33,8 @@ type RedisBus struct {
 	client *redis.Client
 }
 
-// New 创建 RedisBus
-func New(cfg Config) *RedisBus {
+// NewRedisBus 创建 RedisBus
+func NewRedisBus(cfg Config) *RedisBus {
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.Addr,
 		Password: cfg.Password,

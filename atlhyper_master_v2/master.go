@@ -13,7 +13,7 @@
 // 使用方式:
 //
 //	config.LoadConfig()
-//	master, err := atlhyper_master_v2.New()
+//	master, err := atlhyper_master_v2.NewMaster()
 //	master.Run(ctx)
 package atlhyper_master_v2
 
@@ -70,12 +70,12 @@ type Master struct {
 	aiopsEngine aiops.Engine
 }
 
-// New 创建并初始化 Master 实例
-func New() (*Master, error) {
+// NewMaster 创建并初始化 Master 实例
+func NewMaster() (*Master, error) {
 	cfg := &config.GlobalConfig
 
 	// 1. 初始化 Store (数据存储)
-	store := datahub.New(datahub.Config{
+	store := datahub.NewStore(datahub.Config{
 		Type:              cfg.DataHub.Type,
 		EventRetention:    cfg.DataHub.EventRetention,
 		HeartbeatExpire:   cfg.DataHub.HeartbeatExpire,
@@ -87,7 +87,7 @@ func New() (*Master, error) {
 	log.Info("Store 初始化完成", "type", cfg.DataHub.Type)
 
 	// 2. 初始化 CommandBus (消息队列)
-	bus := mq.New(mq.Config{
+	bus := mq.NewCommandBus(mq.Config{
 		Type:          cfg.DataHub.Type,
 		RedisAddr:     cfg.Redis.Addr,
 		RedisPassword: cfg.Redis.Password,
@@ -97,7 +97,7 @@ func New() (*Master, error) {
 
 	// 3. 初始化 Database
 	dialect := sqlite.NewDialect()
-	db, err := database.New(database.Config{
+	db, err := database.NewDatabase(database.Config{
 		Type: cfg.Database.Type,
 		Path: cfg.Database.Path,
 	}, dialect)
@@ -152,7 +152,7 @@ func New() (*Master, error) {
 	log.Info("AIOps 引擎初始化完成")
 
 	// 5. 初始化 Processor（写入路径）
-	proc := processor.New(processor.Config{
+	proc := processor.NewProcessor(processor.Config{
 		Store: store,
 		OnSnapshotReceived: func(clusterID string) {
 			// 同步事件到数据库
@@ -182,7 +182,7 @@ func New() (*Master, error) {
 		if err != nil || provider == nil {
 			return nil, fmt.Errorf("AI 提供商不存在")
 		}
-		return llm.New(llm.Config{
+		return llm.NewLLMClient(llm.Config{
 			Provider: provider.Provider,
 			APIKey:   provider.APIKey,
 			Model:    provider.Model,
@@ -192,7 +192,7 @@ func New() (*Master, error) {
 	log.Info("AIOps AI 增强服务初始化完成")
 
 	// 6. 初始化 Query（读取路径）
-	q := query.NewWithEventRepo(store, bus, db.Event)
+	q := query.NewQueryServiceWithEventRepo(store, bus, db.Event)
 	q.SetAIOpsEngine(aiopsEngine)
 	q.SetAIOpsAI(aiopsEnhancer)
 	log.Info("查询层初始化完成")
@@ -202,7 +202,7 @@ func New() (*Master, error) {
 	log.Info("操作服务初始化完成")
 
 	// 组合统一 Service
-	svc := service.New(q, ops)
+	svc := service.NewService(q, ops)
 
 	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{

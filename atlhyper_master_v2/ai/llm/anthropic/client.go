@@ -24,7 +24,7 @@ const (
 
 func init() {
 	llm.Register("anthropic", func(apiKey, model string) (llm.LLMClient, error) {
-		return New(apiKey, model)
+		return NewAnthropicClient(apiKey, model)
 	})
 }
 
@@ -35,8 +35,8 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// New 创建 Anthropic 客户端
-func New(apiKey, model string) (*Client, error) {
+// NewAnthropicClient 创建 Anthropic 客户端
+func NewAnthropicClient(apiKey, model string) (*Client, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("anthropic api key is required")
 	}

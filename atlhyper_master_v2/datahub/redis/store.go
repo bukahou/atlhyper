@@ -42,8 +42,8 @@ type RedisStore struct {
 	wg     sync.WaitGroup
 }
 
-// New 创建 RedisStore
-func New(cfg Config) *RedisStore {
+// NewRedisStore 创建 RedisStore
+func NewRedisStore(cfg Config) *RedisStore {
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.Addr,
 		Password: cfg.Password,

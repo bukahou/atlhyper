@@ -22,7 +22,7 @@ func SetEncryptionSecret(secret string) error {
 }
 
 // Init 注入所有 Repository 到 DB 实例
-// 在 database.New() 之后调用
+// 在 database.NewDatabase() 之后调用
 func Init(db *database.DB, dialect database.Dialect) {
 	db.Audit = newAuditRepo(db.Conn, dialect.Audit())
 	db.User = newUserRepo(db.Conn, dialect.User())
