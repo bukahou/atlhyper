@@ -896,6 +896,29 @@ export interface DaemonSetTranslations {
   nodeSelector: string;
   tolerations: string;
   age: string;
+  // Detail modal tabs and sections
+  overview: string;
+  strategy: string;
+  basicInfo: string;
+  desired: string;
+  ready: string;
+  available: string;
+  current: string;
+  updated: string;
+  noContainers: string;
+  noLabels: string;
+  noAnnotations: string;
+  image: string;
+  ports: string;
+  loadFailed: string;
+  nodeScheduleStatus: string;
+  abnormalStatus: string;
+  unavailable: string;
+  misscheduled: string;
+  strategyType: string;
+  otherConfig: string;
+  scheduling: string;
+  moreItems: string;
 }
 
 // StatefulSet 翻译
@@ -918,6 +941,33 @@ export interface StatefulSetTranslations {
   containers: string;
   age: string;
   revision: string;
+  // Detail modal tabs and sections
+  overview: string;
+  strategy: string;
+  storage: string;
+  basicInfo: string;
+  desired: string;
+  ready: string;
+  available: string;
+  current: string;
+  updated: string;
+  noContainers: string;
+  noLabels: string;
+  noAnnotations: string;
+  image: string;
+  ports: string;
+  loadFailed: string;
+  replicaStatus: string;
+  currentRevision: string;
+  updateRevision: string;
+  strategyType: string;
+  podManagement: string;
+  pvcRetentionPolicy: string;
+  whenDeleted: string;
+  whenScaled: string;
+  scheduling: string;
+  moreItems: string;
+  noPvcTemplates: string;
 }
 
 // Placeholder 页面翻译

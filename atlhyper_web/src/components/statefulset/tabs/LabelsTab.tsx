@@ -1,12 +1,16 @@
 "use client";
 
 import type { StatefulSetDetail } from "@/api/workload";
+import type { useI18n } from "@/i18n/context";
+
+type Translations = ReturnType<typeof useI18n>["t"];
 
 interface LabelsTabProps {
   detail: StatefulSetDetail;
+  t: Translations;
 }
 
-export function LabelsTab({ detail }: LabelsTabProps) {
+export function LabelsTab({ detail, t }: LabelsTabProps) {
   const labels = Object.entries(detail.labels || {});
   const annotations = Object.entries(detail.annotations || {});
 
@@ -16,7 +20,7 @@ export function LabelsTab({ detail }: LabelsTabProps) {
       <div>
         <h3 className="text-sm font-semibold text-default mb-3">Labels ({labels.length})</h3>
         {labels.length === 0 ? (
-          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">无标签</div>
+          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">{t.statefulset.noLabels}</div>
         ) : (
           <div className="space-y-2">
             {labels.map(([key, value]) => (
@@ -34,7 +38,7 @@ export function LabelsTab({ detail }: LabelsTabProps) {
       <div>
         <h3 className="text-sm font-semibold text-default mb-3">Annotations ({annotations.length})</h3>
         {annotations.length === 0 ? (
-          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">无注解</div>
+          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">{t.statefulset.noAnnotations}</div>
         ) : (
           <div className="space-y-2">
             {annotations.map(([key, value]) => (

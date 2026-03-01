@@ -9,9 +9,17 @@ import {
   AlertTriangle,
   XCircle,
 } from "lucide-react";
+import type { useI18n } from "@/i18n/context";
+
+type Translations = ReturnType<typeof useI18n>["t"];
+
+interface TabProps {
+  detail: DaemonSetDetail;
+  t: Translations;
+}
 
 // 概览 Tab
-export function OverviewTab({ detail }: { detail: DaemonSetDetail }) {
+export function OverviewTab({ detail, t }: TabProps) {
   const getRolloutBadgeType = (phase: string): "success" | "warning" | "error" | "info" => {
     switch (phase) {
       case "Complete": return "success";
@@ -43,13 +51,13 @@ export function OverviewTab({ detail }: { detail: DaemonSetDetail }) {
 
       {/* 节点调度状态 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">节点调度状态</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.daemonset.nodeScheduleStatus}</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: "期望", value: detail.desired, color: "text-default", icon: Server },
-            { label: "就绪", value: detail.ready, color: "text-green-500", icon: CheckCircle },
-            { label: "可用", value: detail.available, color: "text-blue-500", icon: CheckCircle },
-            { label: "当前", value: detail.current, color: "text-purple-500", icon: Server },
+            { label: t.daemonset.desired, value: detail.desired, color: "text-default", icon: Server },
+            { label: t.daemonset.ready, value: detail.ready, color: "text-green-500", icon: CheckCircle },
+            { label: t.daemonset.available, value: detail.available, color: "text-blue-500", icon: CheckCircle },
+            { label: t.daemonset.current, value: detail.current, color: "text-purple-500", icon: Server },
           ].map((item, i) => (
             <div key={i} className="bg-[var(--background)] rounded-lg p-3 text-center">
               <div className={`text-2xl font-bold ${item.color}`}>{item.value}</div>
@@ -62,14 +70,14 @@ export function OverviewTab({ detail }: { detail: DaemonSetDetail }) {
       {/* 异常状态 */}
       {(detail.unavailable > 0 || detail.misscheduled > 0) && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">异常状态</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.daemonset.abnormalStatus}</h3>
           <div className="grid grid-cols-2 gap-3">
             {detail.unavailable > 0 && (
               <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 flex items-center gap-3">
                 <XCircle className="w-8 h-8 text-red-500" />
                 <div>
                   <div className="text-2xl font-bold text-red-500">{detail.unavailable}</div>
-                  <div className="text-xs text-red-600 dark:text-red-400">不可用</div>
+                  <div className="text-xs text-red-600 dark:text-red-400">{t.daemonset.unavailable}</div>
                 </div>
               </div>
             )}
@@ -78,7 +86,7 @@ export function OverviewTab({ detail }: { detail: DaemonSetDetail }) {
                 <AlertTriangle className="w-8 h-8 text-yellow-500" />
                 <div>
                   <div className="text-2xl font-bold text-yellow-500">{detail.misscheduled}</div>
-                  <div className="text-xs text-yellow-600 dark:text-yellow-400">错误调度</div>
+                  <div className="text-xs text-yellow-600 dark:text-yellow-400">{t.daemonset.misscheduled}</div>
                 </div>
               </div>
             )}
@@ -88,14 +96,14 @@ export function OverviewTab({ detail }: { detail: DaemonSetDetail }) {
 
       {/* 基本信息 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">基本信息</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.daemonset.basicInfo}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[
-            { label: "名称", value: detail.name },
-            { label: "命名空间", value: detail.namespace },
+            { label: t.common.name, value: detail.name },
+            { label: t.common.namespace, value: detail.namespace },
             { label: "Age", value: detail.age || "-" },
-            { label: "已更新", value: detail.updatedScheduled },
-            { label: "创建时间", value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
+            { label: t.daemonset.updated, value: detail.updatedScheduled },
+            { label: t.common.createdAt, value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
           ].map((item, i) => (
             <div key={i} className="bg-[var(--background)] rounded-lg p-3">
               <div className="text-xs text-muted mb-1">{item.label}</div>
@@ -136,11 +144,11 @@ export function OverviewTab({ detail }: { detail: DaemonSetDetail }) {
 }
 
 // 容器 Tab
-export function ContainersTab({ detail }: { detail: DaemonSetDetail }) {
+export function ContainersTab({ detail, t }: TabProps) {
   const containers = detail.template?.containers || [];
 
   if (containers.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无容器信息</div>;
+    return <div className="text-center py-8 text-muted">{t.daemonset.noContainers}</div>;
   }
 
   return (
@@ -157,14 +165,14 @@ export function ContainersTab({ detail }: { detail: DaemonSetDetail }) {
           <div className="space-y-3">
             {/* 镜像 */}
             <div>
-              <span className="text-xs text-muted">镜像: </span>
+              <span className="text-xs text-muted">{t.daemonset.image}: </span>
               <span className="text-sm font-mono text-default break-all">{c.image}</span>
             </div>
 
             {/* 端口 */}
             {c.ports && c.ports.length > 0 && (
               <div>
-                <span className="text-xs text-muted block mb-1">端口:</span>
+                <span className="text-xs text-muted block mb-1">{t.daemonset.ports}:</span>
                 <div className="flex flex-wrap gap-2">
                   {c.ports.map((p, j) => (
                     <span key={j} className="px-2 py-1 bg-[var(--card-background)] rounded text-xs font-mono">
@@ -232,17 +240,17 @@ export function ContainersTab({ detail }: { detail: DaemonSetDetail }) {
 }
 
 // 策略 Tab
-export function StrategyTab({ detail }: { detail: DaemonSetDetail }) {
+export function StrategyTab({ detail, t }: TabProps) {
   const strategy = detail.spec.updateStrategy;
 
   return (
     <div className="space-y-6">
       {/* 更新策略 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">更新策略</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.daemonset.updateStrategy}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">策略类型</div>
+            <div className="text-xs text-muted mb-1">{t.daemonset.strategyType}</div>
             <div className="text-sm font-medium text-default">
               {strategy?.type || "RollingUpdate"}
             </div>
@@ -264,7 +272,7 @@ export function StrategyTab({ detail }: { detail: DaemonSetDetail }) {
 
       {/* 其他配置 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">其他配置</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.daemonset.otherConfig}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-[var(--background)] rounded-lg p-3">
             <div className="text-xs text-muted mb-1">Min Ready Seconds</div>
@@ -284,7 +292,7 @@ export function StrategyTab({ detail }: { detail: DaemonSetDetail }) {
       {/* 调度信息 */}
       {(detail.template?.nodeSelector || detail.template?.tolerations?.length) && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">调度</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.daemonset.scheduling}</h3>
           <div className="space-y-3">
             {detail.template.nodeSelector && Object.keys(detail.template.nodeSelector).length > 0 && (
               <div className="bg-[var(--background)] rounded-lg p-3">
@@ -302,13 +310,13 @@ export function StrategyTab({ detail }: { detail: DaemonSetDetail }) {
               <div className="bg-[var(--background)] rounded-lg p-3">
                 <div className="text-xs text-muted mb-2">Tolerations ({detail.template.tolerations.length})</div>
                 <div className="space-y-1">
-                  {detail.template.tolerations.slice(0, 5).map((t, i) => (
+                  {detail.template.tolerations.slice(0, 5).map((tol, i) => (
                     <div key={i} className="text-xs font-mono text-default">
-                      {t.key || "*"} {t.operator || "Equal"} {t.value || ""} : {t.effect || "All"}
+                      {tol.key || "*"} {tol.operator || "Equal"} {tol.value || ""} : {tol.effect || "All"}
                     </div>
                   ))}
                   {detail.template.tolerations.length > 5 && (
-                    <div className="text-xs text-muted">... 还有 {detail.template.tolerations.length - 5} 个</div>
+                    <div className="text-xs text-muted">... {t.daemonset.moreItems.replace("{count}", String(detail.template.tolerations.length - 5))}</div>
                   )}
                 </div>
               </div>
@@ -321,7 +329,7 @@ export function StrategyTab({ detail }: { detail: DaemonSetDetail }) {
 }
 
 // 标签 Tab
-export function LabelsTab({ detail }: { detail: DaemonSetDetail }) {
+export function LabelsTab({ detail, t }: TabProps) {
   const labels = Object.entries(detail.labels || {});
   const annotations = Object.entries(detail.annotations || {});
 
@@ -331,7 +339,7 @@ export function LabelsTab({ detail }: { detail: DaemonSetDetail }) {
       <div>
         <h3 className="text-sm font-semibold text-default mb-3">Labels ({labels.length})</h3>
         {labels.length === 0 ? (
-          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">无标签</div>
+          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">{t.daemonset.noLabels}</div>
         ) : (
           <div className="space-y-2">
             {labels.map(([key, value]) => (
@@ -349,7 +357,7 @@ export function LabelsTab({ detail }: { detail: DaemonSetDetail }) {
       <div>
         <h3 className="text-sm font-semibold text-default mb-3">Annotations ({annotations.length})</h3>
         {annotations.length === 0 ? (
-          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">无注解</div>
+          <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">{t.daemonset.noAnnotations}</div>
         ) : (
           <div className="space-y-2">
             {annotations.map(([key, value]) => (

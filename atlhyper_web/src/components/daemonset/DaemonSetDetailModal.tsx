@@ -8,6 +8,7 @@ import type { DaemonSetDetail } from "@/api/workload";
 import { getCurrentClusterId } from "@/config/cluster";
 import { OverviewTab, ContainersTab, StrategyTab, LabelsTab } from "./DaemonSetDetailTabs";
 import { Server, Box, Settings, Tag } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 
 interface DaemonSetDetailModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export function DaemonSetDetailModal({
   namespace,
   name,
 }: DaemonSetDetailModalProps) {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,7 +43,7 @@ export function DaemonSetDetailModal({
       });
       setDetail(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.daemonset.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -55,10 +57,10 @@ export function DaemonSetDetailModal({
   }, [isOpen, fetchDetail]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: "overview", label: "概览", icon: <Server className="w-4 h-4" /> },
-    { key: "containers", label: "容器", icon: <Box className="w-4 h-4" /> },
-    { key: "strategy", label: "策略", icon: <Settings className="w-4 h-4" /> },
-    { key: "labels", label: "标签", icon: <Tag className="w-4 h-4" /> },
+    { key: "overview", label: t.daemonset.overview, icon: <Server className="w-4 h-4" /> },
+    { key: "containers", label: t.daemonset.containers, icon: <Box className="w-4 h-4" /> },
+    { key: "strategy", label: t.daemonset.strategy, icon: <Settings className="w-4 h-4" /> },
+    { key: "labels", label: t.daemonset.labels, icon: <Tag className="w-4 h-4" /> },
   ];
 
   return (
@@ -91,10 +93,10 @@ export function DaemonSetDetailModal({
 
           {/* Tab Content */}
           <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} />}
-            {activeTab === "containers" && <ContainersTab detail={detail} />}
-            {activeTab === "strategy" && <StrategyTab detail={detail} />}
-            {activeTab === "labels" && <LabelsTab detail={detail} />}
+            {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
+            {activeTab === "containers" && <ContainersTab detail={detail} t={t} />}
+            {activeTab === "strategy" && <StrategyTab detail={detail} t={t} />}
+            {activeTab === "labels" && <LabelsTab detail={detail} t={t} />}
           </div>
         </div>
       ) : null}

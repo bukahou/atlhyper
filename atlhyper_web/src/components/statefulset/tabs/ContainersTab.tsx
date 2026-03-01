@@ -2,16 +2,20 @@
 
 import { StatusBadge } from "@/components/common";
 import type { StatefulSetDetail } from "@/api/workload";
+import type { useI18n } from "@/i18n/context";
+
+type Translations = ReturnType<typeof useI18n>["t"];
 
 interface ContainersTabProps {
   detail: StatefulSetDetail;
+  t: Translations;
 }
 
-export function ContainersTab({ detail }: ContainersTabProps) {
+export function ContainersTab({ detail, t }: ContainersTabProps) {
   const containers = detail.template?.containers || [];
 
   if (containers.length === 0) {
-    return <div className="text-center py-8 text-muted">暂无容器信息</div>;
+    return <div className="text-center py-8 text-muted">{t.statefulset.noContainers}</div>;
   }
 
   return (
@@ -28,14 +32,14 @@ export function ContainersTab({ detail }: ContainersTabProps) {
           <div className="space-y-3">
             {/* 镜像 */}
             <div>
-              <span className="text-xs text-muted">镜像: </span>
+              <span className="text-xs text-muted">{t.statefulset.image}: </span>
               <span className="text-sm font-mono text-default break-all">{c.image}</span>
             </div>
 
             {/* 端口 */}
             {c.ports && c.ports.length > 0 && (
               <div>
-                <span className="text-xs text-muted block mb-1">端口:</span>
+                <span className="text-xs text-muted block mb-1">{t.statefulset.ports}:</span>
                 <div className="flex flex-wrap gap-2">
                   {c.ports.map((p, j) => (
                     <span key={j} className="px-2 py-1 bg-[var(--card-background)] rounded text-xs font-mono">

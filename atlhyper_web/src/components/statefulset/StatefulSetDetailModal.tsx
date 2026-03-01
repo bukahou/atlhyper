@@ -7,6 +7,7 @@ import { getStatefulSetDetail } from "@/datasource/cluster";
 import type { StatefulSetDetail } from "@/api/workload";
 import { getCurrentClusterId } from "@/config/cluster";
 import { Server, Box, Settings, Database, Tag } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 
 import { OverviewTab, ContainersTab, StrategyTab, StorageTab, LabelsTab } from "./tabs";
 
@@ -25,6 +26,7 @@ export function StatefulSetDetailModal({
   namespace,
   name,
 }: StatefulSetDetailModalProps) {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -42,7 +44,7 @@ export function StatefulSetDetailModal({
       });
       setDetail(res.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t.statefulset.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -56,11 +58,11 @@ export function StatefulSetDetailModal({
   }, [isOpen, fetchDetail]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: "overview", label: "概览", icon: <Server className="w-4 h-4" /> },
-    { key: "containers", label: "容器", icon: <Box className="w-4 h-4" /> },
-    { key: "strategy", label: "策略", icon: <Settings className="w-4 h-4" /> },
-    { key: "storage", label: "存储", icon: <Database className="w-4 h-4" /> },
-    { key: "labels", label: "标签", icon: <Tag className="w-4 h-4" /> },
+    { key: "overview", label: t.statefulset.overview, icon: <Server className="w-4 h-4" /> },
+    { key: "containers", label: t.statefulset.containers, icon: <Box className="w-4 h-4" /> },
+    { key: "strategy", label: t.statefulset.strategy, icon: <Settings className="w-4 h-4" /> },
+    { key: "storage", label: t.statefulset.storage, icon: <Database className="w-4 h-4" /> },
+    { key: "labels", label: t.statefulset.labels, icon: <Tag className="w-4 h-4" /> },
   ];
 
   return (
@@ -93,11 +95,11 @@ export function StatefulSetDetailModal({
 
           {/* Tab Content */}
           <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} />}
-            {activeTab === "containers" && <ContainersTab detail={detail} />}
-            {activeTab === "strategy" && <StrategyTab detail={detail} />}
-            {activeTab === "storage" && <StorageTab detail={detail} />}
-            {activeTab === "labels" && <LabelsTab detail={detail} />}
+            {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
+            {activeTab === "containers" && <ContainersTab detail={detail} t={t} />}
+            {activeTab === "strategy" && <StrategyTab detail={detail} t={t} />}
+            {activeTab === "storage" && <StorageTab detail={detail} t={t} />}
+            {activeTab === "labels" && <LabelsTab detail={detail} t={t} />}
           </div>
         </div>
       ) : null}

@@ -1,12 +1,16 @@
 "use client";
 
 import type { StatefulSetDetail } from "@/api/workload";
+import type { useI18n } from "@/i18n/context";
+
+type Translations = ReturnType<typeof useI18n>["t"];
 
 interface StorageTabProps {
   detail: StatefulSetDetail;
+  t: Translations;
 }
 
-export function StorageTab({ detail }: StorageTabProps) {
+export function StorageTab({ detail, t }: StorageTabProps) {
   const vcts = detail.spec.volumeClaimTemplates || [];
   const volumes = detail.template?.volumes || [];
 
@@ -19,7 +23,7 @@ export function StorageTab({ detail }: StorageTabProps) {
         </h3>
         {vcts.length === 0 ? (
           <div className="text-center py-4 text-muted bg-[var(--background)] rounded-lg">
-            无 PVC 模板
+            {t.statefulset.noPvcTemplates}
           </div>
         ) : (
           <div className="space-y-3">

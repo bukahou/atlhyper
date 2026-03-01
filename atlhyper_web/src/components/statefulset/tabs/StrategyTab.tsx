@@ -1,22 +1,26 @@
 "use client";
 
 import type { StatefulSetDetail } from "@/api/workload";
+import type { useI18n } from "@/i18n/context";
+
+type Translations = ReturnType<typeof useI18n>["t"];
 
 interface StrategyTabProps {
   detail: StatefulSetDetail;
+  t: Translations;
 }
 
-export function StrategyTab({ detail }: StrategyTabProps) {
+export function StrategyTab({ detail, t }: StrategyTabProps) {
   const strategy = detail.spec.updateStrategy;
 
   return (
     <div className="space-y-6">
       {/* 更新策略 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">更新策略</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.statefulset.updateStrategy}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">策略类型</div>
+            <div className="text-xs text-muted mb-1">{t.statefulset.strategyType}</div>
             <div className="text-sm font-medium text-default">
               {strategy?.type || "RollingUpdate"}
             </div>
@@ -38,10 +42,10 @@ export function StrategyTab({ detail }: StrategyTabProps) {
 
       {/* Pod 管理策略 */}
       <div>
-        <h3 className="text-sm font-semibold text-default mb-3">Pod 管理</h3>
+        <h3 className="text-sm font-semibold text-default mb-3">{t.statefulset.podManagement}</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-[var(--background)] rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">Pod 管理策略</div>
+            <div className="text-xs text-muted mb-1">{t.statefulset.podManagementPolicy}</div>
             <div className="text-sm font-medium text-default">
               {detail.spec.podManagementPolicy || "OrderedReady"}
             </div>
@@ -64,16 +68,16 @@ export function StrategyTab({ detail }: StrategyTabProps) {
       {/* PVC 保留策略 */}
       {detail.spec.persistentVolumeClaimRetentionPolicy && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">PVC 保留策略</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.statefulset.pvcRetentionPolicy}</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-[var(--background)] rounded-lg p-3">
-              <div className="text-xs text-muted mb-1">删除时</div>
+              <div className="text-xs text-muted mb-1">{t.statefulset.whenDeleted}</div>
               <div className="text-sm font-medium text-default">
                 {detail.spec.persistentVolumeClaimRetentionPolicy.whenDeleted || "Retain"}
               </div>
             </div>
             <div className="bg-[var(--background)] rounded-lg p-3">
-              <div className="text-xs text-muted mb-1">缩容时</div>
+              <div className="text-xs text-muted mb-1">{t.statefulset.whenScaled}</div>
               <div className="text-sm font-medium text-default">
                 {detail.spec.persistentVolumeClaimRetentionPolicy.whenScaled || "Retain"}
               </div>
@@ -85,7 +89,7 @@ export function StrategyTab({ detail }: StrategyTabProps) {
       {/* 调度信息 */}
       {(detail.template?.nodeSelector || detail.template?.tolerations?.length) && (
         <div>
-          <h3 className="text-sm font-semibold text-default mb-3">调度</h3>
+          <h3 className="text-sm font-semibold text-default mb-3">{t.statefulset.scheduling}</h3>
           <div className="space-y-3">
             {detail.template?.nodeSelector && Object.keys(detail.template.nodeSelector).length > 0 && (
               <div className="bg-[var(--background)] rounded-lg p-3">
@@ -103,13 +107,13 @@ export function StrategyTab({ detail }: StrategyTabProps) {
               <div className="bg-[var(--background)] rounded-lg p-3">
                 <div className="text-xs text-muted mb-2">Tolerations ({detail.template.tolerations.length})</div>
                 <div className="space-y-1">
-                  {detail.template.tolerations.slice(0, 5).map((t, i) => (
+                  {detail.template.tolerations.slice(0, 5).map((tol, i) => (
                     <div key={i} className="text-xs font-mono text-default">
-                      {t.key || "*"} {t.operator || "Equal"} {t.value || ""} : {t.effect || "All"}
+                      {tol.key || "*"} {tol.operator || "Equal"} {tol.value || ""} : {tol.effect || "All"}
                     </div>
                   ))}
                   {detail.template.tolerations.length > 5 && (
-                    <div className="text-xs text-muted">... 还有 {detail.template.tolerations.length - 5} 个</div>
+                    <div className="text-xs text-muted">... {t.statefulset.moreItems.replace("{count}", String(detail.template.tolerations.length - 5))}</div>
                   )}
                 </div>
               </div>

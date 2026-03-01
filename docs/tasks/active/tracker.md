@@ -22,7 +22,7 @@
     - database/interfaces.go 拆分为 types.go + interfaces.go ✅
     - CreateCommandRequest/Response 移至 model 包（消除 service→operations 反向依赖）✅
     - service/sync/ 评估：独立后台同步服务，保持现状 ✅
-  - 2.4 handler/ 目录拆分 — 待办
+  - 2.4 handler/ 目录拆分（44 文件→5 子目录） ✅
 - Phase 3: 前端规范整改 — 🔄 部分完成
   - cluster-resources.ts 拆分为 8 个按资源 API 文件 ✅
   - 300 行组件拆分 — 🔄 部分完成
@@ -32,8 +32,17 @@
     - Chat/page（534→5 文件）✅
     - MessageBubble（468→3 文件）✅
     - ClusterOverviewChart（475→4 文件）✅
-    - 剩余 DetailModal 等 >400 行组件 — 待办
-  - i18n 硬编码补全（~15 组件）— 待办
+    - ServiceTopology（363→282 + topology-utils.ts）✅
+    - DomainCard（420→352 + DomainSummaryRow）✅
+    - OverviewTab/SLO（489→108 + HistoryChart + ErrorBudgetBurnChart）✅
+    - DaemonSetDetailModal（467→104 + DaemonSetDetailTabs）✅
+    - NodeDetailModal（460→185 + NodeDetailTabs）✅
+    - PodDetailModal（440→115 + PodDetailTabs）✅
+    - 剩余 >400 行: pod/page(473), metrics/page(424), EmailCard(404) — 待办
+  - i18n 硬编码补全 — 🔄 部分完成
+    - Batch A: ThemeSwitcher/LoginDialog/not-found ✅
+    - Batch B: DaemonSetDetailModal 等 DetailModal 系列 — 待办
+    - Batch C: PodLogsViewer/TagInput/EmailCard — 待办
   - 组件可见性修复（GPUCard/MiniSparkline/LogHistogram/ProbesDisplay） ✅
 - Phase 4: 低优先级清理 — ✅ 完成
   - 4.1 Agent 死代码删除（scanFacets/computeRate/safeDiv/unused types） ✅
