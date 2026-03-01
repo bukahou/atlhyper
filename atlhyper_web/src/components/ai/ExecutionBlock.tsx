@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/i18n/context";
 import { ChevronDown, CheckCircle2, Loader2, Terminal, Brain } from "lucide-react";
 import { ChatStats } from "./types";
 import { Round, formatCommandTitle, formatCommandParams } from "./command-utils";
@@ -14,6 +15,7 @@ const statusConfig = {
 };
 
 function RoundBlock({ round, roundIdx }: { round: Round; roundIdx: number }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const cmdCount = round.commands.length;
   const allSuccess = round.commands.every((c) => c.status === "success");
@@ -26,17 +28,17 @@ function RoundBlock({ round, roundIdx }: { round: Round; roundIdx: number }) {
         onClick={() => setExpanded(!expanded)}
         className="w-full px-3 py-2 flex items-center gap-2 hover:bg-[var(--hover-bg)] transition-colors text-left"
       >
-        <span className="text-xs font-medium text-muted flex-shrink-0">第 {roundIdx + 1} 轮</span>
+        <span className="text-xs font-medium text-muted flex-shrink-0">{t.aiChatPage.execution.roundLabel.replace("{n}", String(roundIdx + 1))}</span>
         {!expanded && (
           <>
             <Brain className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-xs text-muted flex-1 truncate">{round.thinking || "执行中..."}</span>
+            <span className="text-xs text-muted flex-1 truncate">{round.thinking || t.aiChatPage.execution.executing}</span>
           </>
         )}
         {expanded && <span className="flex-1" />}
-        {cmdCount > 0 && <span className="text-xs text-muted">{cmdCount} 条指令</span>}
+        {cmdCount > 0 && <span className="text-xs text-muted">{t.aiChatPage.execution.commandsUnit.replace("{n}", String(cmdCount))}</span>}
         <span className={`text-xs ${hasRunning ? "text-yellow-400" : allSuccess ? "text-green-400" : "text-red-400"}`}>
-          {hasRunning ? "执行中" : allSuccess ? "成功" : "失败"}
+          {hasRunning ? t.aiChatPage.execution.executing : allSuccess ? t.aiChatPage.execution.success : t.aiChatPage.execution.failed}
         </span>
         <ChevronDown className={`w-4 h-4 text-muted flex-shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`} />
       </button>
@@ -93,6 +95,7 @@ interface ExecutionBlockProps {
 }
 
 export function ExecutionBlock({ rounds, stats, streaming }: ExecutionBlockProps) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
 
   const totalCommands = rounds.reduce((sum, r) => sum + r.commands.length, 0);
@@ -114,9 +117,9 @@ export function ExecutionBlock({ rounds, stats, streaming }: ExecutionBlockProps
         <div className="flex items-center gap-2">
           <Terminal className="w-4 h-4 text-muted" />
           <div className="flex items-center gap-2 text-xs text-muted">
-            <span>思考 {rounds.length} 轮</span>
+            <span>{t.aiChatPage.execution.thinkingRounds.replace("{n}", String(rounds.length))}</span>
             <span className="text-muted/50">·</span>
-            <span>指令 {totalCommands} 条</span>
+            <span>{t.aiChatPage.execution.commandsCount.replace("{n}", String(totalCommands))}</span>
             {stats && (
               <>
                 <span className="text-muted/50">·</span>
@@ -128,7 +131,7 @@ export function ExecutionBlock({ rounds, stats, streaming }: ExecutionBlockProps
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-xs font-medium ${hasRunning || streaming ? "text-yellow-400" : allSuccess ? "text-green-400" : "text-red-400"}`}>
-            {hasRunning || streaming ? "执行中..." : allSuccess ? "完成" : "有失败"}
+            {hasRunning || streaming ? t.aiChatPage.execution.executing : allSuccess ? t.aiChatPage.execution.completed : t.aiChatPage.execution.hasFailed}
           </span>
           <ChevronDown className={`w-4 h-4 text-muted transition-transform ${expanded ? "" : "-rotate-90"}`} />
         </div>

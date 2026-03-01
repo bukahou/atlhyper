@@ -154,6 +154,12 @@ export const ja: Translations = {
     nodeName: "ノード",
     deploymentName: "Deployment",
     namespaceName: "ネームスペース",
+    // デモモード（共通）
+    demoMode: "デモモード",
+    demoModeHint: "サンプルデータを表示中です。Operator 権限でログインすると実際の設定を確認できます。",
+    demoModeHintAudit: "サンプルデータを表示中です。Operator 権限でログインすると実際の監査ログを確認できます。",
+    // 閲覧権限ヒント
+    viewOnlyHint: "閲覧のみ可能です。設定を変更するには管理者にお問い合わせください。",
   },
   status: {
     running: "実行中",
@@ -306,6 +312,15 @@ export const ja: Translations = {
     previous: "前回のコンテナログ",
     selectContainer: "コンテナを選択",
     noContainers: "コンテナなし",
+    // PodLogsViewer
+    showLast: "末尾から表示",
+    linesUnit: "行",
+    searchLogs: "ログを検索...",
+    autoScrollToBottom: "自動スクロール（末尾へ）",
+    autoScroll: "自動スクロール",
+    downloadLogs: "ログをダウンロード",
+    fetchLogsFailed: "ログの取得に失敗",
+    linesCount: "{count} 行",
     // Detail modal tabs and sections
     overview: "概要",
     network: "ネットワーク",
@@ -789,6 +804,19 @@ export const ja: Translations = {
     saveFailed: "保存に失敗しました",
     slackSaved: "Slack 設定を保存しました",
     emailSaved: "メール設定を保存しました",
+    // SMTP プリセットラベル
+    smtpPresets: {
+      qq: "QQ メール",
+      netease163: "163 メール",
+      netease126: "126 メール",
+      tencentEnterprise: "テンセント企業メール",
+      aliEnterprise: "アリババ企業メール",
+      feishu: "Feishu メール",
+    },
+    // TagInput メッセージ
+    tagInputPlaceholder: "入力して Enter で追加",
+    tagInputDuplicate: "既に存在します",
+    tagInputInvalidFormat: "形式が無効です",
   },
   login: {
     title: "ログイン",
@@ -1503,6 +1531,18 @@ export const ja: Translations = {
       past30Days: "過去 30 日間",
       older: "それ以前",
     },
+    // ExecutionBlock
+    execution: {
+      roundLabel: "第 {n} ラウンド",
+      executing: "実行中...",
+      commandsUnit: "{n} 件のコマンド",
+      thinkingRounds: "思考 {n} ラウンド",
+      commandsCount: "コマンド {n} 件",
+      completed: "完了",
+      hasFailed: "失敗あり",
+      success: "成功",
+      failed: "失敗",
+    },
   },
   nodeMetrics: {
     pageDescription: "ノードハードウェアメトリクス — CPU、メモリ、ディスク、ネットワーク、温度",
@@ -1907,6 +1947,7 @@ export const ja: Translations = {
     spanTypeChartTitle: "スパンタイプごとの所要時間",
     latencyDistribution: "レイテンシ分布",
     traceSample: "トレースサンプル",
+    currentSample: "現在のサンプル",
     timeline: "タイムライン",
     metadata: "メタデータ",
     logs: "ログ",

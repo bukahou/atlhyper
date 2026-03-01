@@ -218,12 +218,10 @@ export default function AISettingsPage() {
             <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             <div>
               <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                {t.locale === "zh" ? "演示模式" : "デモモード"}
+                {t.common.demoMode}
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t.locale === "zh"
-                  ? "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实配置。"
-                  : "サンプルデータを表示中です。Operator 権限でログインすると実際の設定を確認できます。"}
+                {t.common.demoModeHint}
               </p>
             </div>
           </div>
@@ -234,9 +232,7 @@ export default function AISettingsPage() {
           <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
             <AlertTriangle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
             <p className="text-sm text-blue-800 dark:text-blue-300">
-              {t.locale === "zh"
-                ? "您只有查看权限。如需修改配置，请联系管理员。"
-                : "閲覧のみ可能です。設定を変更するには管理者にお問い合わせください。"}
+              {t.common.viewOnlyHint}
             </p>
           </div>
         )}

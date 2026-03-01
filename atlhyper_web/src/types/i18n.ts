@@ -159,6 +159,12 @@ export interface CommonTranslations {
   nodeName: string;
   deploymentName: string;
   namespaceName: string;
+  // 演示模式（通用）
+  demoMode: string;
+  demoModeHint: string;
+  demoModeHintAudit: string;
+  // 查看权限提示
+  viewOnlyHint: string;
 }
 
 // 状态翻译
@@ -321,6 +327,15 @@ export interface PodTranslations {
   previous: string;
   selectContainer: string;
   noContainers: string;
+  // PodLogsViewer
+  showLast: string;
+  linesUnit: string;
+  searchLogs: string;
+  autoScrollToBottom: string;
+  autoScroll: string;
+  downloadLogs: string;
+  fetchLogsFailed: string;
+  linesCount: string;
   // Detail modal tabs and sections
   overview: string;
   network: string;
@@ -830,6 +845,19 @@ export interface NotificationsTranslations {
   saveFailed: string;
   slackSaved: string;
   emailSaved: string;
+  // SMTP 预设标签
+  smtpPresets: {
+    qq: string;
+    netease163: string;
+    netease126: string;
+    tencentEnterprise: string;
+    aliEnterprise: string;
+    feishu: string;
+  };
+  // TagInput 消息
+  tagInputPlaceholder: string;
+  tagInputDuplicate: string;
+  tagInputInvalidFormat: string;
 }
 
 // Login 页面翻译
@@ -1453,6 +1481,18 @@ export interface AIChatPageTranslations {
     past7Days: string;
     past30Days: string;
     older: string;
+  };
+  // ExecutionBlock
+  execution: {
+    roundLabel: string;
+    executing: string;
+    commandsUnit: string;
+    thinkingRounds: string;
+    commandsCount: string;
+    completed: string;
+    hasFailed: string;
+    success: string;
+    failed: string;
   };
 }
 
@@ -2080,6 +2120,7 @@ export interface ApmTranslations extends TimeRangePickerTranslations {
   // trace waterfall
   latencyDistribution: string;
   traceSample: string;
+  currentSample: string;
   timeline: string;
   metadata: string;
   logs: string;

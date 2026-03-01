@@ -6,17 +6,19 @@ import { useI18n } from "@/i18n/context";
 import { TagInput, emailValidator } from "./TagInput";
 import type { EmailConfig, EmailUpdateData } from "@/api/notify";
 
-// 常见 SMTP 服务器列表
-const SMTP_PRESETS = [
-  { value: "smtp.gmail.com", label: "Gmail", port: 587 },
-  { value: "smtp.office365.com", label: "Outlook / Office 365", port: 587 },
-  { value: "smtp.qq.com", label: "QQ 邮箱", port: 587 },
-  { value: "smtp.163.com", label: "163 邮箱", port: 465 },
-  { value: "smtp.126.com", label: "126 邮箱", port: 465 },
-  { value: "smtp.exmail.qq.com", label: "腾讯企业邮", port: 465 },
-  { value: "smtp.mxhichina.com", label: "阿里企业邮", port: 465 },
-  { value: "smtp.feishu.cn", label: "飞书邮箱", port: 465 },
-];
+// 常见 SMTP 服务器列表（标签通过 i18n 动态获取）
+function getSmtpPresets(presetLabels: { qq: string; netease163: string; netease126: string; tencentEnterprise: string; aliEnterprise: string; feishu: string }) {
+  return [
+    { value: "smtp.gmail.com", label: "Gmail", port: 587 },
+    { value: "smtp.office365.com", label: "Outlook / Office 365", port: 587 },
+    { value: "smtp.qq.com", label: presetLabels.qq, port: 587 },
+    { value: "smtp.163.com", label: presetLabels.netease163, port: 465 },
+    { value: "smtp.126.com", label: presetLabels.netease126, port: 465 },
+    { value: "smtp.exmail.qq.com", label: presetLabels.tencentEnterprise, port: 465 },
+    { value: "smtp.mxhichina.com", label: presetLabels.aliEnterprise, port: 465 },
+    { value: "smtp.feishu.cn", label: presetLabels.feishu, port: 465 },
+  ];
+}
 
 interface EmailCardProps {
   config: EmailConfig;
@@ -39,6 +41,7 @@ export function EmailCard({
 }: EmailCardProps) {
   const { t } = useI18n();
   const nt = t.notifications;
+  const SMTP_PRESETS = getSmtpPresets(nt.smtpPresets);
 
   // 表单状态
   const [localEnabled, setLocalEnabled] = useState(enabled);
@@ -366,6 +369,8 @@ export function EmailCard({
             placeholder={nt.recipientsPlaceholder}
             disabled={readOnly}
             validator={emailValidator}
+            duplicateMessage={nt.tagInputDuplicate}
+            invalidFormatMessage={nt.tagInputInvalidFormat}
           />
         </div>
       </div>

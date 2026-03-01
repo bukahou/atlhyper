@@ -154,6 +154,12 @@ export const zh: Translations = {
     nodeName: "节点",
     deploymentName: "Deployment",
     namespaceName: "命名空间",
+    // 演示模式（通用）
+    demoMode: "演示模式",
+    demoModeHint: "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实配置。",
+    demoModeHintAudit: "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实审计日志。",
+    // 查看权限提示
+    viewOnlyHint: "您只有查看权限。如需修改配置，请联系管理员。",
   },
   status: {
     running: "运行中",
@@ -306,6 +312,15 @@ export const zh: Translations = {
     previous: "上次容器日志",
     selectContainer: "选择容器",
     noContainers: "无容器",
+    // PodLogsViewer
+    showLast: "显示最后",
+    linesUnit: "行",
+    searchLogs: "搜索日志...",
+    autoScrollToBottom: "自动滚动到底部",
+    autoScroll: "自动滚动",
+    downloadLogs: "下载日志",
+    fetchLogsFailed: "获取日志失败",
+    linesCount: "{count} 行",
     // Detail modal tabs and sections
     overview: "概览",
     network: "网络",
@@ -789,6 +804,19 @@ export const zh: Translations = {
     saveFailed: "保存失败",
     slackSaved: "Slack 配置已保存",
     emailSaved: "邮件配置已保存",
+    // SMTP 预设标签
+    smtpPresets: {
+      qq: "QQ 邮箱",
+      netease163: "163 邮箱",
+      netease126: "126 邮箱",
+      tencentEnterprise: "腾讯企业邮",
+      aliEnterprise: "阿里企业邮",
+      feishu: "飞书邮箱",
+    },
+    // TagInput 消息
+    tagInputPlaceholder: "输入后按 Enter 添加",
+    tagInputDuplicate: "已存在",
+    tagInputInvalidFormat: "格式无效",
   },
   login: {
     title: "登录",
@@ -1503,6 +1531,18 @@ export const zh: Translations = {
       past30Days: "过去 30 天",
       older: "更早",
     },
+    // ExecutionBlock
+    execution: {
+      roundLabel: "第 {n} 轮",
+      executing: "执行中...",
+      commandsUnit: "{n} 条指令",
+      thinkingRounds: "思考 {n} 轮",
+      commandsCount: "指令 {n} 条",
+      completed: "完成",
+      hasFailed: "有失败",
+      success: "成功",
+      failed: "失败",
+    },
   },
   nodeMetrics: {
     pageDescription: "节点硬件指标 — CPU、内存、磁盘、网络、温度",
@@ -1907,6 +1947,7 @@ export const zh: Translations = {
     spanTypeChartTitle: "跨度类型花费的时间",
     latencyDistribution: "延迟分布",
     traceSample: "跟踪样例",
+    currentSample: "当前样例",
     timeline: "时间线",
     metadata: "元数据",
     logs: "日志",

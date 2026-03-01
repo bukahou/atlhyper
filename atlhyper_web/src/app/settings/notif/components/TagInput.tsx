@@ -9,6 +9,8 @@ interface TagInputProps {
   placeholder?: string;
   disabled?: boolean;
   validator?: (value: string) => boolean;
+  duplicateMessage?: string;
+  invalidFormatMessage?: string;
 }
 
 /**
@@ -18,9 +20,11 @@ interface TagInputProps {
 export function TagInput({
   value,
   onChange,
-  placeholder = "输入后按 Enter 添加",
+  placeholder,
   disabled = false,
   validator,
+  duplicateMessage,
+  invalidFormatMessage,
 }: TagInputProps) {
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState("");
@@ -31,13 +35,13 @@ export function TagInput({
 
     // 检查重复
     if (value.includes(trimmed)) {
-      setError("已存在");
+      setError(duplicateMessage || "Duplicate");
       return;
     }
 
     // 验证格式（如邮箱）
     if (validator && !validator(trimmed)) {
-      setError("格式无效");
+      setError(invalidFormatMessage || "Invalid format");
       return;
     }
 

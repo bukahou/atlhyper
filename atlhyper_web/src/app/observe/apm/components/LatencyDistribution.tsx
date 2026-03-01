@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
+import { useI18n } from "@/i18n/context";
 import type { LatencyBucket } from "@/types/model/apm";
 
 function getThemeColors() {
@@ -40,6 +41,7 @@ export function LatencyDistribution({
   buckets,
   highlightBucket,
 }: LatencyDistributionProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
 
@@ -95,7 +97,7 @@ export function LatencyDistribution({
         xAxis: highlightBucket,
         label: {
           show: true,
-          formatter: title.includes("分布") ? "当前样例" : "current",
+          formatter: t.apm.currentSample,
           position: "insideEndTop",
           color: c.highlightColor,
           fontSize: 10,
@@ -180,7 +182,7 @@ export function LatencyDistribution({
       },
       true
     );
-  }, [buckets, highlightBucket, title]);
+  }, [buckets, highlightBucket, title, t.apm.currentSample]);
 
   return (
     <div>

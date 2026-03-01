@@ -283,12 +283,10 @@ export default function AuditPage() {
             <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             <div>
               <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                {t.locale === "zh" ? "演示模式" : "デモモード"}
+                {t.common.demoMode}
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t.locale === "zh"
-                  ? "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实审计日志。"
-                  : "サンプルデータを表示中です。Operator 権限でログインすると実際の監査ログを確認できます。"}
+                {t.common.demoModeHintAudit}
               </p>
             </div>
           </div>

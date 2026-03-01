@@ -5,6 +5,7 @@ import { Modal } from "@/components/common/Modal";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getPodLogs } from "@/api/pod";
 import { getCurrentClusterId } from "@/config/cluster";
+import { useI18n } from "@/i18n/context";
 import {
   RefreshCw,
   Download,
@@ -29,6 +30,7 @@ export function PodLogsViewer({
   podName,
   containerName,
 }: PodLogsViewerProps) {
+  const { t } = useI18n();
   const [logs, setLogs] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,9 +53,9 @@ export function PodLogsViewer({
         TailLines: tailLines,
         TimeoutSeconds: 30,
       });
-      setLogs(res.data.data?.logs || "暂无日志");
+      setLogs(res.data.data?.logs || t.pod.logsEmpty);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "获取日志失败");
+      setError(err instanceof Error ? err.message : t.pod.fetchLogsFailed);
     } finally {
       setLoading(false);
     }
@@ -98,7 +100,7 @@ export function PodLogsViewer({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`日志: ${podName}${containerName ? ` / ${containerName}` : ""}`}
+      title={`${t.pod.logsTitle}: ${podName}${containerName ? ` / ${containerName}` : ""}`}
       size="full"
     >
       <div className="flex flex-col h-full">
@@ -108,7 +110,7 @@ export function PodLogsViewer({
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* 行数选择 */}
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="text-xs sm:text-sm text-muted hidden sm:inline">显示最后</span>
+              <span className="text-xs sm:text-sm text-muted hidden sm:inline">{t.pod.showLast}</span>
               <div className="relative">
                 <select
                   value={tailLines}
@@ -123,7 +125,7 @@ export function PodLogsViewer({
                 </select>
                 <ChevronDown className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-muted pointer-events-none" />
               </div>
-              <span className="text-xs sm:text-sm text-muted">行</span>
+              <span className="text-xs sm:text-sm text-muted">{t.pod.linesUnit}</span>
             </div>
 
             {/* 搜索按钮 */}
@@ -132,7 +134,7 @@ export function PodLogsViewer({
               className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
                 showSearch ? "bg-primary/10 text-primary" : "hover-bg text-muted"
               }`}
-              title="搜索"
+              title={t.common.search}
             >
               <Search className="w-4 h-4" />
             </button>
@@ -144,7 +146,7 @@ export function PodLogsViewer({
                   type="text"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
-                  placeholder="搜索日志..."
+                  placeholder={t.pod.searchLogs}
                   className="w-full sm:w-48 pl-3 pr-8 py-1.5 bg-card border border-[var(--border-color)] rounded text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary"
                   autoFocus
                 />
@@ -170,10 +172,10 @@ export function PodLogsViewer({
                   ? "bg-primary/10 text-primary"
                   : "hover-bg text-muted"
               }`}
-              title="自动滚动到底部"
+              title={t.pod.autoScrollToBottom}
             >
               <ArrowDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">自动滚动</span>
+              <span className="hidden sm:inline">{t.pod.autoScroll}</span>
             </button>
 
             {/* 刷新 */}
@@ -181,7 +183,7 @@ export function PodLogsViewer({
               onClick={fetchLogs}
               disabled={loading}
               className="p-1.5 sm:p-2 rounded-lg hover-bg text-muted hover:text-default disabled:opacity-50 transition-colors"
-              title="刷新"
+              title={t.common.refresh}
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </button>
@@ -191,7 +193,7 @@ export function PodLogsViewer({
               onClick={handleDownload}
               disabled={!logs || loading}
               className="p-1.5 sm:p-2 rounded-lg hover-bg text-muted hover:text-default disabled:opacity-50 transition-colors"
-              title="下载日志"
+              title={t.pod.downloadLogs}
             >
               <Download className="w-4 h-4" />
             </button>
@@ -220,9 +222,9 @@ export function PodLogsViewer({
         {/* 状态栏 */}
         <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 sm:py-2 border-t border-[var(--border-color)] bg-[var(--background)] text-[10px] sm:text-xs text-muted shrink-0">
           <span>
-            {logs ? `${logs.split("\n").length} 行` : "暂无日志"}
+            {logs ? t.pod.linesCount.replace("{count}", String(logs.split("\n").length)) : t.pod.logsEmpty}
           </span>
-          {loading && <span className="text-primary">加载中...</span>}
+          {loading && <span className="text-primary">{t.common.loading}</span>}
         </div>
       </div>
     </Modal>
