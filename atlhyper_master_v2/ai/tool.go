@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/common/logger"
@@ -77,7 +78,7 @@ func (e *toolExecutor) Execute(ctx context.Context, clusterID string, tc *llm.To
 	// 3. 映射为内部 action + 构建 Command 参数
 	internalAction, cmdParams := mapToInternalAction(action, params)
 
-	req := &operations.CreateCommandRequest{
+	req := &model.CreateCommandRequest{
 		ClusterID:       clusterID,
 		Action:          internalAction,
 		TargetKind:      kind,

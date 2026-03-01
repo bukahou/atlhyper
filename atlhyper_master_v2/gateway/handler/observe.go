@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
-	"AtlHyper/atlhyper_master_v2/service/operations"
 )
 
 // ObserveHandler 可观测性查询 Handler
@@ -121,7 +121,7 @@ func (h *ObserveHandler) executeQuery(
 	}
 
 	// 2. 创建指令
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID: clusterID,
 		Action:    action,
 		Params:    params,

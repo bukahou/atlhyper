@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service"
-	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/common/logger"
 )
 
@@ -53,7 +53,7 @@ func (h *CommandHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 创建指令
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          req.Action,
 		TargetKind:      req.TargetKind,

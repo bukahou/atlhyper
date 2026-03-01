@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
-	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v3/command"
 )
 
@@ -124,7 +124,7 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. 创建指令
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionGetLogs,
 		TargetKind:      "Pod",
@@ -183,7 +183,7 @@ func (h *OpsHandler) PodRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionDelete,
 		TargetKind:      "Pod",
@@ -227,7 +227,7 @@ func (h *OpsHandler) DeploymentScale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionScale,
 		TargetKind:      "Deployment",
@@ -269,7 +269,7 @@ func (h *OpsHandler) DeploymentRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionRestart,
 		TargetKind:      "Deployment",
@@ -313,7 +313,7 @@ func (h *OpsHandler) DeploymentImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionUpdateImage,
 		TargetKind:      "Deployment",
@@ -356,7 +356,7 @@ func (h *OpsHandler) NodeCordon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:  req.ClusterID,
 		Action:     command.ActionCordon,
 		TargetKind: "Node",
@@ -394,7 +394,7 @@ func (h *OpsHandler) NodeUncordon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:  req.ClusterID,
 		Action:     command.ActionUncordon,
 		TargetKind: "Node",
@@ -433,7 +433,7 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. 创建指令
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionGetConfigMap,
 		TargetKind:      "ConfigMap",
@@ -490,7 +490,7 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. 创建指令
-	resp, err := h.svc.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionGetSecret,
 		TargetKind:      "Secret",

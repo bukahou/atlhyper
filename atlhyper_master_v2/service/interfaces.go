@@ -12,7 +12,6 @@ import (
 	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v3/agent"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/command"
@@ -140,7 +139,7 @@ type Query interface {
 
 // Ops 写入操作接口
 type Ops interface {
-	CreateCommand(req *operations.CreateCommandRequest) (*operations.CreateCommandResponse, error)
+	CreateCommand(req *model.CreateCommandRequest) (*model.CreateCommandResponse, error)
 	OpsAdmin
 }
 

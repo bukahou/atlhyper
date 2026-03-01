@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
@@ -33,25 +34,8 @@ func NewCommandService(bus mq.Producer, cmdRepo database.CommandHistoryRepositor
 	}
 }
 
-// CreateCommandRequest 创建指令请求
-type CreateCommandRequest struct {
-	ClusterID       string                 `json:"cluster_id"`
-	Action          string                 `json:"action"` // scale / restart / delete_pod / exec ...
-	TargetKind      string                 `json:"target_kind,omitempty"`
-	TargetNamespace string                 `json:"target_namespace,omitempty"`
-	TargetName      string                 `json:"target_name,omitempty"`
-	Params          map[string]interface{} `json:"params,omitempty"`
-	Source          string                 `json:"source,omitempty"` // web / ai
-}
-
-// CreateCommandResponse 创建指令响应
-type CreateCommandResponse struct {
-	CommandID string `json:"command_id"`
-	Status    string `json:"status"`
-}
-
 // CreateCommand 创建指令
-func (s *CommandService) CreateCommand(req *CreateCommandRequest) (*CreateCommandResponse, error) {
+func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.CreateCommandResponse, error) {
 	// 1. 校验
 	if err := s.validateRequest(req); err != nil {
 		return nil, fmt.Errorf("validate request: %w", err)
@@ -100,14 +84,14 @@ func (s *CommandService) CreateCommand(req *CreateCommandRequest) (*CreateComman
 		log.Error("指令历史持久化失败", "err", err)
 	}
 
-	return &CreateCommandResponse{
+	return &model.CreateCommandResponse{
 		CommandID: commandID,
 		Status:    "pending",
 	}, nil
 }
 
 // validateRequest 校验请求
-func (s *CommandService) validateRequest(req *CreateCommandRequest) error {
+func (s *CommandService) validateRequest(req *model.CreateCommandRequest) error {
 	if req.ClusterID == "" {
 		return fmt.Errorf("cluster_id required")
 	}

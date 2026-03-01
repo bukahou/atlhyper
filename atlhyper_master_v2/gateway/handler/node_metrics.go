@@ -17,7 +17,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/model/convert"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
-	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/command"
 	"AtlHyper/model_v3/metrics"
@@ -230,7 +229,7 @@ func (h *NodeMetricsHandler) getHistoryFromCH(w http.ResponseWriter, r *http.Req
 	}
 
 	// 创建指令
-	resp, err := h.ops.CreateCommand(&operations.CreateCommandRequest{
+	resp, err := h.ops.CreateCommand(&model.CreateCommandRequest{
 		ClusterID: clusterID,
 		Action:    command.ActionQueryMetrics,
 		Params:    params,
