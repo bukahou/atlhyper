@@ -15,7 +15,13 @@ export function MiniSparkline({
   width = 80,
   height = 24,
 }: MiniSparklineProps) {
-  if (data.length === 0) return null;
+  if (data.length === 0) {
+    return (
+      <svg width={width} height={height} className="inline-block align-middle">
+        <line x1={1} y1={height / 2} x2={width - 1} y2={height / 2} stroke="var(--border-color)" strokeWidth={1} strokeDasharray="3,3" />
+      </svg>
+    );
+  }
 
   const padding = 1;
   const innerW = width - padding * 2;

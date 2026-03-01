@@ -40,7 +40,17 @@ export const GPUCard = memo(function GPUCard({ data }: GPUCardProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
   if (!data || data.length === 0) {
-    return null;
+    return (
+      <div className="bg-card rounded-xl border border-[var(--border-color)] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 bg-emerald-500/10 rounded-lg">
+            <Zap className="w-5 h-5 text-emerald-500" />
+          </div>
+          <h3 className="text-base font-semibold text-default">{nm.gpu.title}</h3>
+        </div>
+        <p className="text-sm text-muted">{t.common.noData}</p>
+      </div>
+    );
   }
 
   return (

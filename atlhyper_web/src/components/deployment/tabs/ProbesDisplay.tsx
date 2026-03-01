@@ -17,7 +17,14 @@ export function ProbesDisplay({ liveness, readiness, startup, t }: ProbesDisplay
     { name: "Startup", probe: startup },
   ].filter((p) => p.probe);
 
-  if (probes.length === 0) return null;
+  if (probes.length === 0) {
+    return (
+      <div className="mt-3">
+        <div className="text-xs text-muted">{t.deployment.probes}</div>
+        <p className="text-xs text-muted mt-1 italic">{t.common.noData}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-3">

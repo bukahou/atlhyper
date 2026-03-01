@@ -304,7 +304,18 @@ export function LogHistogram({ data, intervalMs, title, timeSpanMs, selectedTime
     };
   }, []);
 
-  if (data.length === 0) return null;
+  if (data.length === 0) {
+    return (
+      <div>
+        <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
+          {title}
+        </h4>
+        <div className="w-full h-[120px] flex items-center justify-center text-sm text-muted border border-dashed border-[var(--border-color)] rounded-lg">
+          No data
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
