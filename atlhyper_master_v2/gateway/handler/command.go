@@ -22,12 +22,11 @@ var cmdHandlerLog = logger.Module("CommandHandler")
 // CommandHandler 指令 Handler
 type CommandHandler struct {
 	svc service.Service
-	db  *database.DB
 }
 
 // NewCommandHandler 创建 CommandHandler
-func NewCommandHandler(svc service.Service, db *database.DB) *CommandHandler {
-	return &CommandHandler{svc: svc, db: db}
+func NewCommandHandler(svc service.Service) *CommandHandler {
+	return &CommandHandler{svc: svc}
 }
 
 // CreateCommandRequest 创建指令请求
@@ -132,13 +131,6 @@ func (h *CommandHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检查数据库连接
-	if h.db == nil || h.db.Command == nil {
-		cmdHandlerLog.Error("数据库未初始化")
-		writeError(w, http.StatusInternalServerError, "database not initialized")
-		return
-	}
-
 	query := r.URL.Query()
 	opts := database.CommandQueryOpts{
 		ClusterID: query.Get("cluster_id"),
@@ -162,7 +154,7 @@ func (h *CommandHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// 查询列表
-	commands, err := h.db.Command.List(ctx, opts)
+	commands, err := h.svc.ListCommandHistory(ctx, opts)
 	if err != nil {
 		cmdHandlerLog.Error("查询命令列表失败", "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to list commands: "+err.Error())
@@ -170,7 +162,7 @@ func (h *CommandHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询总数
-	total, err := h.db.Command.Count(ctx, opts)
+	total, err := h.svc.CountCommandHistory(ctx, opts)
 	if err != nil {
 		cmdHandlerLog.Error("统计命令数量失败", "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to count commands: "+err.Error())

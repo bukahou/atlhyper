@@ -1,7 +1,7 @@
 // atlhyper_master_v2/gateway/handler/event.go
 // Event 查询 API Handler
 // 实时 Events 通过 Query 层查询 DataHub
-// 历史 Events 通过 Database 查询
+// 历史 Events 通过 Query 层查询 Database
 package handler
 
 import (
@@ -19,14 +19,12 @@ import (
 // EventHandler Event Handler
 type EventHandler struct {
 	svc service.Query
-	db  *database.DB
 }
 
 // NewEventHandler 创建 EventHandler
-func NewEventHandler(svc service.Query, db *database.DB) *EventHandler {
+func NewEventHandler(svc service.Query) *EventHandler {
 	return &EventHandler{
 		svc: svc,
-		db:  db,
 	}
 }
 
@@ -140,13 +138,13 @@ func (h *EventHandler) listFromDatabase(w http.ResponseWriter, r *http.Request, 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	dbEvents, err := h.db.Event.ListByCluster(ctx, clusterID, opts)
+	dbEvents, err := h.svc.ListEventHistory(ctx, clusterID, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to query events")
 		return
 	}
 
-	total, _ := h.db.Event.CountByCluster(ctx, clusterID)
+	total, _ := h.svc.CountEventHistory(ctx, clusterID)
 
 	writeJSON(w, http.StatusOK, model.EventListResponse{
 		Events: convert.EventLogsFromDB(dbEvents, clusterID),

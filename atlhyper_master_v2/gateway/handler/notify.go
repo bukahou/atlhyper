@@ -10,17 +10,18 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // NotifyHandler 通知 Handler
 type NotifyHandler struct {
-	db *database.DB
+	svc service.Service
 }
 
 // NewNotifyHandler 创建 NotifyHandler
-func NewNotifyHandler(db *database.DB) *NotifyHandler {
+func NewNotifyHandler(svc service.Service) *NotifyHandler {
 	return &NotifyHandler{
-		db: db,
+		svc: svc,
 	}
 }
 
@@ -47,7 +48,7 @@ func (h *NotifyHandler) ListChannels(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	channels, err := h.db.Notify.List(ctx)
+	channels, err := h.svc.ListNotifyChannels(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list channels")
 		return
@@ -113,7 +114,7 @@ func (h *NotifyHandler) getChannel(w http.ResponseWriter, r *http.Request, chann
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	channel, err := h.db.Notify.GetByType(ctx, channelType)
+	channel, err := h.svc.GetNotifyChannelByType(ctx, channelType)
 	if err != nil || channel == nil {
 		writeError(w, http.StatusNotFound, "channel not found")
 		return
@@ -151,7 +152,7 @@ func (h *NotifyHandler) updateChannel(w http.ResponseWriter, r *http.Request, ch
 	defer cancel()
 
 	// 获取现有配置
-	existing, err := h.db.Notify.GetByType(ctx, channelType)
+	existing, err := h.svc.GetNotifyChannelByType(ctx, channelType)
 	if err != nil || existing == nil {
 		// 不存在则创建
 		existing = &database.NotifyChannel{
@@ -175,9 +176,9 @@ func (h *NotifyHandler) updateChannel(w http.ResponseWriter, r *http.Request, ch
 
 	// 保存
 	if existing.ID == 0 {
-		err = h.db.Notify.Create(ctx, existing)
+		err = h.svc.CreateNotifyChannel(ctx, existing)
 	} else {
-		err = h.db.Notify.Update(ctx, existing)
+		err = h.svc.UpdateNotifyChannel(ctx, existing)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update channel")

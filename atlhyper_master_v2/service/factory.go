@@ -7,13 +7,14 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/query"
 )
 
-// serviceImpl 组合 QueryService + CommandService
+// serviceImpl 组合 QueryService + CommandService + AdminService
 type serviceImpl struct {
 	*query.QueryService
 	*operations.CommandService
+	*operations.AdminService
 }
 
 // NewService 创建统一 Service 实例
-func NewService(q *query.QueryService, ops *operations.CommandService) Service {
-	return &serviceImpl{QueryService: q, CommandService: ops}
+func NewService(q *query.QueryService, cmd *operations.CommandService, admin *operations.AdminService) Service {
+	return &serviceImpl{QueryService: q, CommandService: cmd, AdminService: admin}
 }

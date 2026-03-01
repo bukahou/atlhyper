@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // supportedProviders 支持的提供商 ID 列表
@@ -25,12 +26,12 @@ var providerNames = map[string]string{
 
 // AIProviderHandler AI Provider Handler
 type AIProviderHandler struct {
-	db *database.DB
+	svc service.Service
 }
 
 // NewAIProviderHandler 创建 AIProviderHandler
-func NewAIProviderHandler(db *database.DB) *AIProviderHandler {
-	return &AIProviderHandler{db: db}
+func NewAIProviderHandler(svc service.Service) *AIProviderHandler {
+	return &AIProviderHandler{svc: svc}
 }
 
 // ==================== Response Types ====================
@@ -165,14 +166,14 @@ func (h *AIProviderHandler) listProviders(w http.ResponseWriter, r *http.Request
 	defer cancel()
 
 	// プロバイダー一覧
-	providers, err := h.db.AIProvider.List(ctx)
+	providers, err := h.svc.ListAIProviders(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list providers")
 		return
 	}
 
 	// アクティブ設定
-	active, err := h.db.AIActive.Get(ctx)
+	active, err := h.svc.GetAIActiveConfig(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get active config")
 		return
@@ -248,12 +249,12 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		UpdatedAt:   now,
 	}
 
-	if err := h.db.AIProvider.Create(ctx, provider); err != nil {
+	if err := h.svc.CreateAIProvider(ctx, provider); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create provider")
 		return
 	}
 
-	active, _ := h.db.AIActive.Get(ctx)
+	active, _ := h.svc.GetAIActiveConfig(ctx)
 	writeJSON(w, http.StatusCreated, h.toProviderResponse(provider, active.ProviderID))
 }
 
@@ -262,7 +263,7 @@ func (h *AIProviderHandler) getProvider(w http.ResponseWriter, r *http.Request, 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	provider, err := h.db.AIProvider.GetByID(ctx, id)
+	provider, err := h.svc.GetAIProviderByID(ctx, id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get provider")
 		return
@@ -272,7 +273,7 @@ func (h *AIProviderHandler) getProvider(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	active, _ := h.db.AIActive.Get(ctx)
+	active, _ := h.svc.GetAIActiveConfig(ctx)
 	writeJSON(w, http.StatusOK, h.toProviderResponse(provider, active.ProviderID))
 }
 
@@ -287,7 +288,7 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	provider, err := h.db.AIProvider.GetByID(ctx, id)
+	provider, err := h.svc.GetAIProviderByID(ctx, id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get provider")
 		return
@@ -315,12 +316,12 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 	}
 	provider.UpdatedAt = time.Now()
 
-	if err := h.db.AIProvider.Update(ctx, provider); err != nil {
+	if err := h.svc.UpdateAIProvider(ctx, provider); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update provider")
 		return
 	}
 
-	active, _ := h.db.AIActive.Get(ctx)
+	active, _ := h.svc.GetAIActiveConfig(ctx)
 	writeJSON(w, http.StatusOK, h.toProviderResponse(provider, active.ProviderID))
 }
 
@@ -330,13 +331,13 @@ func (h *AIProviderHandler) deleteProvider(w http.ResponseWriter, r *http.Reques
 	defer cancel()
 
 	// アクティブなプロバイダーは削除不可
-	active, _ := h.db.AIActive.Get(ctx)
+	active, _ := h.svc.GetAIActiveConfig(ctx)
 	if active != nil && active.ProviderID != nil && *active.ProviderID == id {
 		writeError(w, http.StatusBadRequest, "cannot delete active provider")
 		return
 	}
 
-	if err := h.db.AIProvider.Delete(ctx, id); err != nil {
+	if err := h.svc.DeleteAIProvider(ctx, id); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete provider")
 		return
 	}
@@ -349,7 +350,7 @@ func (h *AIProviderHandler) getActiveConfig(w http.ResponseWriter, r *http.Reque
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	active, err := h.db.AIActive.Get(ctx)
+	active, err := h.svc.GetAIActiveConfig(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get active config")
 		return
@@ -381,7 +382,7 @@ func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	active, err := h.db.AIActive.Get(ctx)
+	active, err := h.svc.GetAIActiveConfig(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get active config")
 		return
@@ -401,7 +402,7 @@ func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Re
 	}
 	if req.ProviderID != nil {
 		// プロバイダー存在チェック
-		provider, _ := h.db.AIProvider.GetByID(ctx, *req.ProviderID)
+		provider, _ := h.svc.GetAIProviderByID(ctx, *req.ProviderID)
 		if provider == nil {
 			writeError(w, http.StatusBadRequest, "provider not found")
 			return
@@ -413,7 +414,7 @@ func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Re
 	}
 	active.UpdatedAt = time.Now()
 
-	if err := h.db.AIActive.Update(ctx, active); err != nil {
+	if err := h.svc.UpdateAIActiveConfig(ctx, active); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update active config")
 		return
 	}
@@ -455,7 +456,7 @@ func (h *AIProviderHandler) toProviderResponse(p *database.AIProvider, activeID 
 
 // loadModelsGrouped プロバイダー別モデル一覧取得
 func (h *AIProviderHandler) loadModelsGrouped(ctx context.Context) []ProviderModelInfo {
-	models, err := h.db.AIModel.ListAll(ctx)
+	models, err := h.svc.ListAIModels(ctx)
 	if err != nil {
 		return []ProviderModelInfo{}
 	}

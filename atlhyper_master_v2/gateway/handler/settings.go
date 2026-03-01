@@ -11,17 +11,18 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // SettingsHandler Settings Handler
 type SettingsHandler struct {
-	db *database.DB
+	svc service.Service
 }
 
 // NewSettingsHandler 创建 SettingsHandler
-func NewSettingsHandler(db *database.DB) *SettingsHandler {
+func NewSettingsHandler(svc service.Service) *SettingsHandler {
 	return &SettingsHandler{
-		db: db,
+		svc: svc,
 	}
 }
 
@@ -183,9 +184,9 @@ func (h *SettingsHandler) testAIConnection(w http.ResponseWriter, r *http.Reques
 	defer cancel()
 
 	// 加载当前配置
-	apiKey, _ := h.db.Settings.Get(ctx, "ai.api_key")
-	provider, _ := h.db.Settings.Get(ctx, "ai.provider")
-	model, _ := h.db.Settings.Get(ctx, "ai.model")
+	apiKey, _ := h.svc.GetSetting(ctx, "ai.api_key")
+	provider, _ := h.svc.GetSetting(ctx, "ai.provider")
+	model, _ := h.svc.GetSetting(ctx, "ai.model")
 
 	if apiKey == nil || apiKey.Value == "" {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -233,11 +234,11 @@ func (h *SettingsHandler) testAIConnection(w http.ResponseWriter, r *http.Reques
 
 // loadAIConfig 从数据库加载 AI 配置
 func (h *SettingsHandler) loadAIConfig(ctx context.Context) *AIConfigResponse {
-	enabled, _ := h.db.Settings.Get(ctx, "ai.enabled")
-	provider, _ := h.db.Settings.Get(ctx, "ai.provider")
-	apiKey, _ := h.db.Settings.Get(ctx, "ai.api_key")
-	model, _ := h.db.Settings.Get(ctx, "ai.model")
-	timeout, _ := h.db.Settings.Get(ctx, "ai.tool_timeout")
+	enabled, _ := h.svc.GetSetting(ctx, "ai.enabled")
+	provider, _ := h.svc.GetSetting(ctx, "ai.provider")
+	apiKey, _ := h.svc.GetSetting(ctx, "ai.api_key")
+	model, _ := h.svc.GetSetting(ctx, "ai.model")
+	timeout, _ := h.svc.GetSetting(ctx, "ai.tool_timeout")
 
 	// 构建响应
 	config := &AIConfigResponse{
@@ -260,7 +261,7 @@ func (h *SettingsHandler) loadAIConfig(ctx context.Context) *AIConfigResponse {
 
 // setSetting 设置配置项
 func (h *SettingsHandler) setSetting(ctx context.Context, key, value string) error {
-	return h.db.Settings.Set(ctx, &database.Setting{
+	return h.svc.SetSetting(ctx, &database.Setting{
 		Key:   key,
 		Value: value,
 	})

@@ -10,6 +10,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/aiops"
 	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
+	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/model_v3/agent"
@@ -89,6 +90,40 @@ type QueryOverview interface {
 	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*cluster.Deployment, error)
 }
 
+// QueryAdmin 管理查询（审计日志、命令历史、事件历史、通知渠道、设置、AI Provider）
+type QueryAdmin interface {
+	// Audit
+	ListAuditLogs(ctx context.Context, opts database.AuditQueryOpts) ([]*database.AuditLog, error)
+	CountAuditLogs(ctx context.Context, opts database.AuditQueryOpts) (int64, error)
+	// Command History
+	ListCommandHistory(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error)
+	CountCommandHistory(ctx context.Context, opts database.CommandQueryOpts) (int64, error)
+	// Event History
+	ListEventHistory(ctx context.Context, clusterID string, opts database.EventQueryOpts) ([]*database.ClusterEvent, error)
+	CountEventHistory(ctx context.Context, clusterID string) (int64, error)
+	// Notify
+	ListNotifyChannels(ctx context.Context) ([]*database.NotifyChannel, error)
+	GetNotifyChannelByType(ctx context.Context, channelType string) (*database.NotifyChannel, error)
+	// Settings
+	GetSetting(ctx context.Context, key string) (*database.Setting, error)
+	// AI Provider
+	ListAIProviders(ctx context.Context) ([]*database.AIProvider, error)
+	GetAIProviderByID(ctx context.Context, id int64) (*database.AIProvider, error)
+	GetAIActiveConfig(ctx context.Context) (*database.AIActiveConfig, error)
+	ListAIModels(ctx context.Context) ([]*database.AIProviderModel, error)
+}
+
+// OpsAdmin 管理写入操作（通知渠道、设置、AI Provider）
+type OpsAdmin interface {
+	CreateNotifyChannel(ctx context.Context, ch *database.NotifyChannel) error
+	UpdateNotifyChannel(ctx context.Context, ch *database.NotifyChannel) error
+	SetSetting(ctx context.Context, setting *database.Setting) error
+	CreateAIProvider(ctx context.Context, p *database.AIProvider) error
+	UpdateAIProvider(ctx context.Context, p *database.AIProvider) error
+	DeleteAIProvider(ctx context.Context, id int64) error
+	UpdateAIActiveConfig(ctx context.Context, cfg *database.AIActiveConfig) error
+}
+
 // ================================================================
 // 组合接口（向后兼容，现有代码无需修改）
 // ================================================================
@@ -100,11 +135,13 @@ type Query interface {
 	QuerySLO
 	QueryAIOps
 	QueryOverview
+	QueryAdmin
 }
 
 // Ops 写入操作接口
 type Ops interface {
 	CreateCommand(req *operations.CreateCommandRequest) (*operations.CreateCommandResponse, error)
+	OpsAdmin
 }
 
 // Service 组合接口 (master.go 持有)

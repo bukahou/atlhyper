@@ -24,6 +24,15 @@ type QueryService struct {
 	eventRepo   database.ClusterEventRepository
 	aiopsEngine aiops.Engine
 	aiopsAI     *aiopsai.Enhancer
+
+	// Admin repositories（管理查询）
+	auditRepo      database.AuditRepository
+	commandRepo    database.CommandHistoryRepository
+	notifyRepo     database.NotifyChannelRepository
+	settingsRepo   database.SettingsRepository
+	aiProviderRepo database.AIProviderRepository
+	aiActiveRepo   database.AIActiveConfigRepository
+	aiModelRepo    database.AIProviderModelRepository
 }
 
 // NewQueryService 创建 QueryService 实例
@@ -51,4 +60,15 @@ func (q *QueryService) SetAIOpsEngine(engine aiops.Engine) {
 // SetAIOpsAI 注入 AIOps AI 增强服务（可选）
 func (q *QueryService) SetAIOpsAI(enhancer *aiopsai.Enhancer) {
 	q.aiopsAI = enhancer
+}
+
+// SetAdminRepos 注入管理查询所需的 Repository（审计、命令历史、通知、设置、AI Provider）
+func (q *QueryService) SetAdminRepos(db *database.DB) {
+	q.auditRepo = db.Audit
+	q.commandRepo = db.Command
+	q.notifyRepo = db.Notify
+	q.settingsRepo = db.Settings
+	q.aiProviderRepo = db.AIProvider
+	q.aiActiveRepo = db.AIActive
+	q.aiModelRepo = db.AIModel
 }

@@ -195,14 +195,16 @@ func NewMaster() (*Master, error) {
 	q := query.NewQueryServiceWithEventRepo(store, bus, db.Event)
 	q.SetAIOpsEngine(aiopsEngine)
 	q.SetAIOpsAI(aiopsEnhancer)
+	q.SetAdminRepos(db)
 	log.Info("查询层初始化完成")
 
 	// 7. 初始化 Operations（写入路径）
-	ops := operations.NewCommandService(bus, db.Command)
+	cmdOps := operations.NewCommandService(bus, db.Command)
+	adminOps := operations.NewAdminService(db.Notify, db.Settings, db.AIProvider, db.AIActive)
 	log.Info("操作服务初始化完成")
 
 	// 组合统一 Service
-	svc := service.NewService(q, ops)
+	svc := service.NewService(q, cmdOps, adminOps)
 
 	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{
@@ -221,7 +223,7 @@ func NewMaster() (*Master, error) {
 		ai.ServiceConfig{
 			ToolTimeout: cfg.AI.ToolTimeout,
 		},
-		ops, bus,
+		cmdOps, bus,
 		db.AIProvider, db.AIActive,
 		db.AIConversation, db.AIMessage,
 	)
