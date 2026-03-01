@@ -144,6 +144,10 @@ export const ja: Translations = {
     retry: "再試行",
     loadFailed: "読み込み失敗",
     noCluster: "利用可能なクラスタがありません",
+    // 404 ページ
+    notFoundTitle: "ページが見つかりません",
+    notFoundDescription: "アクセスしたページは存在しないか、削除されました",
+    backToHome: "ホームに戻る",
     // K8s コンテキスト
     k8sContext: "K8s コンテキスト",
     podName: "Pod",

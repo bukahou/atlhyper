@@ -144,6 +144,10 @@ export const zh: Translations = {
     retry: "重试",
     loadFailed: "加载失败",
     noCluster: "暂无可用集群",
+    // 404 页面
+    notFoundTitle: "页面未找到",
+    notFoundDescription: "你访问的页面不存在或已被移除",
+    backToHome: "返回首页",
     // K8s 上下文
     k8sContext: "K8s 上下文",
     podName: "Pod",

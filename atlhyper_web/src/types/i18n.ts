@@ -149,6 +149,10 @@ export interface CommonTranslations {
   retry: string;
   loadFailed: string;
   noCluster: string;
+  // 404 页面
+  notFoundTitle: string;
+  notFoundDescription: string;
+  backToHome: string;
   // K8s 上下文
   k8sContext: string;
   podName: string;

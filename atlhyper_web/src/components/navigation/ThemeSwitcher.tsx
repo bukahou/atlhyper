@@ -2,16 +2,18 @@
 
 import { Sun, Moon, Monitor } from "lucide-react";
 import { useTheme } from "@/theme/context";
+import { useI18n } from "@/i18n/context";
 import type { Theme } from "@/types/common";
-
-const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
-  { value: "light", icon: Sun, label: "亮色" },
-  { value: "dark", icon: Moon, label: "暗色" },
-  { value: "system", icon: Monitor, label: "系统" },
-];
 
 export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
+  const { t } = useI18n();
+
+  const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
+    { value: "light", icon: Sun, label: t.common.themeLight },
+    { value: "dark", icon: Moon, label: t.common.themeDark },
+    { value: "system", icon: Monitor, label: t.common.themeSystem },
+  ];
 
   const currentTheme = themes.find((t) => t.value === theme) || themes[2];
   const Icon = currentTheme.icon;

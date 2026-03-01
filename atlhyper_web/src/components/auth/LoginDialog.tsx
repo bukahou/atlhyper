@@ -40,7 +40,7 @@ export function LoginDialog() {
       setUsername("");
       setPassword("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "登录失败");
+      setError(err instanceof Error ? err.message : t.login.loginFailed);
     } finally {
       setLoading(false);
     }
