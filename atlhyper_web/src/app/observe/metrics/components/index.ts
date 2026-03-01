@@ -13,3 +13,5 @@ export { TCPCard } from "./TCPCard";
 export { SystemResourcesCard } from "./SystemResourcesCard";
 export { VMStatCard } from "./VMStatCard";
 export { ClusterOverviewChart } from "./ClusterOverviewChart";
+export { SummaryCard } from "./SummaryCard";
+export { NodeCard } from "./NodeCard";

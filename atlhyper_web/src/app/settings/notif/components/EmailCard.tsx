@@ -1,24 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Mail, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Mail, Loader2, AlertCircle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { TagInput, emailValidator } from "./TagInput";
+import { getSmtpPresets } from "./smtp-presets";
+import { EmailFormFields } from "./EmailFormFields";
 import type { EmailConfig, EmailUpdateData } from "@/api/notify";
-
-// 常见 SMTP 服务器列表（标签通过 i18n 动态获取）
-function getSmtpPresets(presetLabels: { qq: string; netease163: string; netease126: string; tencentEnterprise: string; aliEnterprise: string; feishu: string }) {
-  return [
-    { value: "smtp.gmail.com", label: "Gmail", port: 587 },
-    { value: "smtp.office365.com", label: "Outlook / Office 365", port: 587 },
-    { value: "smtp.qq.com", label: presetLabels.qq, port: 587 },
-    { value: "smtp.163.com", label: presetLabels.netease163, port: 465 },
-    { value: "smtp.126.com", label: presetLabels.netease126, port: 465 },
-    { value: "smtp.exmail.qq.com", label: presetLabels.tencentEnterprise, port: 465 },
-    { value: "smtp.mxhichina.com", label: presetLabels.aliEnterprise, port: 465 },
-    { value: "smtp.feishu.cn", label: presetLabels.feishu, port: 465 },
-  ];
-}
 
 interface EmailCardProps {
   config: EmailConfig;
@@ -59,9 +46,6 @@ export function EmailCard({
   const [showPassword, setShowPassword] = useState(false);
   const [isCustomSmtp, setIsCustomSmtp] = useState(false);
 
-  // 判断当前 SMTP 是否在预设列表中
-  const isPresetSmtp = SMTP_PRESETS.some((p) => p.value === smtpHost);
-
   // 同步外部状态
   useEffect(() => {
     setLocalEnabled(enabled);
@@ -94,15 +78,8 @@ export function EmailCard({
 
     setHasChanges(changed);
   }, [
-    localEnabled,
-    smtpHost,
-    smtpPort,
-    smtpUser,
-    smtpPassword,
-    smtpTls,
-    recipients,
-    enabled,
-    config,
+    localEnabled, smtpHost, smtpPort, smtpUser,
+    smtpPassword, smtpTls, recipients, enabled, config,
   ]);
 
   const handleToggle = async () => {
@@ -147,6 +124,14 @@ export function EmailCard({
       await onTest();
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleSmtpHostChange = (host: string, isCustom: boolean, port?: number) => {
+    setIsCustomSmtp(isCustom);
+    setSmtpHost(host);
+    if (port !== undefined) {
+      setSmtpPort(port);
     }
   };
 
@@ -206,174 +191,43 @@ export function EmailCard({
       )}
 
       {/* SMTP 配置表单 */}
-      <div className="px-6 py-4 space-y-4">
-        {/* SMTP 服务器 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-default mb-1">
-              {nt.smtpServer} <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={isCustomSmtp ? "__custom__" : smtpHost}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "__custom__") {
-                  setIsCustomSmtp(true);
-                  setSmtpHost("");
-                } else {
-                  setIsCustomSmtp(false);
-                  setSmtpHost(val);
-                  // 自动设置对应的端口
-                  const preset = SMTP_PRESETS.find((p) => p.value === val);
-                  if (preset) {
-                    setSmtpPort(preset.port);
-                  }
-                }
-              }}
-              disabled={readOnly}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)]
-                bg-[var(--bg-primary)] text-default
-                focus:outline-none focus:ring-2 focus:ring-blue-500
-                disabled:opacity-50 disabled:cursor-not-allowed
-                [&>option]:bg-white [&>option]:text-gray-900
-                dark:[&>option]:bg-gray-800 dark:[&>option]:text-gray-100"
-            >
-              <option value="">{nt.smtpServerPlaceholder}</option>
-              {SMTP_PRESETS.map((preset) => (
-                <option key={preset.value} value={preset.value}>
-                  {preset.label} ({preset.value})
-                </option>
-              ))}
-              <option value="__custom__">{nt.smtpCustom}</option>
-            </select>
-            {isCustomSmtp && (
-              <input
-                type="text"
-                value={smtpHost}
-                onChange={(e) => setSmtpHost(e.target.value)}
-                placeholder={nt.smtpCustomPlaceholder}
-                disabled={readOnly}
-                className="w-full mt-2 px-3 py-2 rounded-lg border border-[var(--border-color)]
-                  bg-[var(--bg-primary)] text-default
-                  placeholder:text-muted
-                  focus:outline-none focus:ring-2 focus:ring-blue-500
-                  disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-default mb-1">
-              {nt.port} <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              value={smtpPort}
-              onChange={(e) => setSmtpPort(parseInt(e.target.value) || 587)}
-              placeholder="587"
-              disabled={readOnly}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)]
-                bg-[var(--bg-primary)] text-default
-                placeholder:text-muted
-                focus:outline-none focus:ring-2 focus:ring-blue-500
-                disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <p className="mt-1 text-xs text-muted">
-              {nt.portHint}
-            </p>
-          </div>
-        </div>
-
-        {/* 邮箱账号和密码 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-default mb-1">
-              {nt.emailAccount} <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              value={smtpUser}
-              onChange={(e) => setSmtpUser(e.target.value)}
-              placeholder="user@example.com"
-              disabled={readOnly}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)]
-                bg-[var(--bg-primary)] text-default
-                placeholder:text-muted
-                focus:outline-none focus:ring-2 focus:ring-blue-500
-                disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <p className="mt-1 text-xs text-muted">{nt.emailAccountHint}</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-default mb-1">
-              {nt.password} <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={smtpPassword}
-                onChange={(e) => setSmtpPassword(e.target.value)}
-                placeholder={nt.passwordPlaceholder}
-                disabled={readOnly}
-                className="w-full px-3 py-2 pr-10 rounded-lg border border-[var(--border-color)]
-                  bg-[var(--bg-primary)] text-default
-                  placeholder:text-muted
-                  focus:outline-none focus:ring-2 focus:ring-blue-500
-                  disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-default"
-              >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* TLS 加密 */}
-        <div className="flex items-center justify-between py-2">
-          <div>
-            <label className="block text-sm font-medium text-default">
-              {nt.tlsEncryption}
-            </label>
-            <p className="text-xs text-muted">{nt.tlsHint}</p>
-          </div>
-          <button
-            onClick={() => !readOnly && setSmtpTls(!smtpTls)}
-            disabled={readOnly}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              smtpTls ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
-            } ${readOnly ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-          >
-            <span
-              className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                smtpTls ? "translate-x-6" : "translate-x-0"
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* 收件人 */}
-        <div>
-          <label className="block text-sm font-medium text-default mb-1">
-            {nt.recipients}
-          </label>
-          <TagInput
-            value={recipients}
-            onChange={setRecipients}
-            placeholder={nt.recipientsPlaceholder}
-            disabled={readOnly}
-            validator={emailValidator}
-            duplicateMessage={nt.tagInputDuplicate}
-            invalidFormatMessage={nt.tagInputInvalidFormat}
-          />
-        </div>
-      </div>
+      <EmailFormFields
+        smtpPresets={SMTP_PRESETS}
+        isCustomSmtp={isCustomSmtp}
+        smtpHost={smtpHost}
+        smtpPort={smtpPort}
+        smtpUser={smtpUser}
+        smtpPassword={smtpPassword}
+        smtpTls={smtpTls}
+        recipients={recipients}
+        showPassword={showPassword}
+        readOnly={readOnly}
+        onSmtpHostChange={handleSmtpHostChange}
+        onSmtpPortChange={setSmtpPort}
+        onSmtpUserChange={setSmtpUser}
+        onSmtpPasswordChange={setSmtpPassword}
+        onSmtpTlsToggle={() => setSmtpTls(!smtpTls)}
+        onRecipientsChange={setRecipients}
+        onShowPasswordToggle={() => setShowPassword(!showPassword)}
+        labels={{
+          smtpServer: nt.smtpServer,
+          smtpServerPlaceholder: nt.smtpServerPlaceholder,
+          smtpCustom: nt.smtpCustom,
+          smtpCustomPlaceholder: nt.smtpCustomPlaceholder,
+          port: nt.port,
+          portHint: nt.portHint,
+          emailAccount: nt.emailAccount,
+          emailAccountHint: nt.emailAccountHint,
+          password: nt.password,
+          passwordPlaceholder: nt.passwordPlaceholder,
+          tlsEncryption: nt.tlsEncryption,
+          tlsHint: nt.tlsHint,
+          recipients: nt.recipients,
+          recipientsPlaceholder: nt.recipientsPlaceholder,
+          tagInputDuplicate: nt.tagInputDuplicate,
+          tagInputInvalidFormat: nt.tagInputInvalidFormat,
+        }}
+      />
 
       {/* 操作按钮 */}
       {!readOnly && (
