@@ -20,6 +20,7 @@ export const MODULE_REGISTRY: ModuleDataSource[] = [
   { key: "logs", category: "observe", labelKey: "logs", hasMock: true, defaultMode: "mock" },
   { key: "apm", category: "observe", labelKey: "apm", hasMock: true, defaultMode: "mock" },
   { key: "slo", category: "observe", labelKey: "slo", hasMock: true, defaultMode: "mock" },
+  { key: "observeHealth", category: "observe", labelKey: "observeLanding", hasMock: true, defaultMode: "mock" },
   { key: "overview", category: "observe", labelKey: "overview", hasMock: true, defaultMode: "mock" },
   // Cluster
   { key: "pod", category: "cluster", labelKey: "pod", hasMock: true, defaultMode: "mock" },

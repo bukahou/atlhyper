@@ -50,7 +50,7 @@ export function Layout({ children }: LayoutProps) {
       <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-screen relative z-0 py-3 pr-3 sm:py-4 sm:pr-4 md:py-6 md:pr-6">
+      <div className="flex-1 min-w-0 flex flex-col h-screen relative z-0 py-3 pr-3 sm:py-4 sm:pr-4 md:py-6 md:pr-6">
         {/* Mobile Header - only shows on mobile */}
         <div className="lg:hidden h-14 flex items-center px-4 border-b border-[var(--border-color)]/30 flex-shrink-0 -mt-3 -mr-3 mb-3 sm:-mt-4 sm:-mr-4 sm:mb-4 md:-mt-6 md:-mr-6 md:mb-6 bg-card rounded-t-2xl">
           <button

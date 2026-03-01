@@ -38,12 +38,18 @@ export interface LogFacets {
 }
 
 // ============================================================
-// Histogram — 直方图数据点
+// Histogram — 直方图数据（服务端预聚合）
 // ============================================================
 
 export interface LogHistogramBucket {
   timestamp: string;          // ISO 8601
   severity: string;           // "INFO" | "DEBUG" | "WARN" | "ERROR"
+  count: number;              // 该桶内的日志计数
+}
+
+export interface LogHistogramResult {
+  buckets: LogHistogramBucket[];
+  intervalMs: number;         // 桶间隔（毫秒）
 }
 
 // ============================================================
@@ -54,7 +60,6 @@ export interface LogQueryResult {
   logs: LogEntry[];
   total: number;
   facets: LogFacets;
-  histogram: LogHistogramBucket[];  // 过滤后全量数据（非分页）
 }
 
 // ============================================================

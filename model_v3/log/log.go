@@ -40,3 +40,16 @@ type QueryResult struct {
 	Total  int64   `json:"total"`
 	Facets Facets  `json:"facets"`
 }
+
+// HistogramBucket 单个直方图桶（服务端预聚合）
+type HistogramBucket struct {
+	Timestamp time.Time `json:"timestamp"`
+	Severity  string    `json:"severity"`
+	Count     int64     `json:"count"`
+}
+
+// HistogramResult 直方图查询结果
+type HistogramResult struct {
+	Buckets    []HistogramBucket `json:"buckets"`
+	IntervalMs int64            `json:"intervalMs"`
+}

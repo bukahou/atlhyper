@@ -106,6 +106,7 @@ const navGroups: NavGroup[] = [
     key: "observe",
     icon: Activity,
     children: [
+      { key: "observeLanding", href: "/observe", icon: LayoutDashboard },
       { key: "apm", href: "/observe/apm", icon: Waypoints },
       { key: "logs", href: "/observe/logs", icon: FileText },
       { key: "metrics", href: "/observe/metrics", icon: Activity },

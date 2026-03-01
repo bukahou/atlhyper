@@ -62,6 +62,9 @@ type SpanResource struct {
 	ServiceVersion string `json:"serviceVersion,omitempty"`
 	InstanceId     string `json:"instanceId,omitempty"`
 	PodName        string `json:"podName,omitempty"`
+	NodeName       string `json:"nodeName,omitempty"`
+	DeploymentName string `json:"deploymentName,omitempty"`
+	NamespaceName  string `json:"namespaceName,omitempty"`
 	ClusterName    string `json:"clusterName,omitempty"`
 }
 

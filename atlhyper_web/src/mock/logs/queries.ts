@@ -2,7 +2,7 @@
  * Log Mock — 查询 API
  */
 
-import type { LogQueryResult, LogFacets, LogHistogramBucket } from "@/types/model/log";
+import type { LogQueryResult, LogFacets } from "@/types/model/log";
 import { mockLogEntries } from "./data";
 
 /** 时间范围 → 毫秒 */
@@ -89,12 +89,6 @@ export function mockQueryLogs(params?: MockLogQueryParams): LogQueryResult {
 
   const total = logs.length;
 
-  // histogram: 过滤后全量数据的 timestamp + severity（非分页）
-  const histogram: LogHistogramBucket[] = logs.map((l) => ({
-    timestamp: l.timestamp,
-    severity: l.severity,
-  }));
-
   const offset = params?.offset ?? 0;
   const limit = params?.limit ?? 100;
   logs = logs.slice(offset, offset + limit);
@@ -103,6 +97,5 @@ export function mockQueryLogs(params?: MockLogQueryParams): LogQueryResult {
     logs,
     total,
     facets,
-    histogram,
   };
 }

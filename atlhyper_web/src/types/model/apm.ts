@@ -30,6 +30,9 @@ export interface SpanResource {
   serviceVersion?: string;
   instanceId?: string;
   podName?: string;
+  nodeName?: string;
+  deploymentName?: string;
+  namespaceName?: string;
   clusterName?: string;
 }
 

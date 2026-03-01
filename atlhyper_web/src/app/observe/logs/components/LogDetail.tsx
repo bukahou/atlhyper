@@ -5,6 +5,7 @@ import { ExternalLink, X } from "lucide-react";
 import type { LogEntry } from "@/types/model/log";
 import type { LogTranslations } from "@/types/i18n";
 import { hasTrace, shortScopeName, severityColor } from "@/types/model/log";
+import { useI18n } from "@/i18n/context";
 
 interface LogDetailDrawerProps {
   entry: LogEntry | null;
@@ -15,8 +16,16 @@ interface LogDetailDrawerProps {
 export function LogDetailDrawer({ entry, onClose, t }: LogDetailDrawerProps) {
   if (!entry) return null;
 
+  const { t: i18n } = useI18n();
   const attrs = Object.entries(entry.attributes);
   const res = Object.entries(entry.resource);
+
+  // K8s 元数据
+  const k8sPodName = entry.resource["k8s.pod.name"];
+  const k8sNodeName = entry.resource["k8s.node.name"];
+  const k8sDeploymentName = entry.resource["k8s.deployment.name"];
+  const k8sNamespaceName = entry.resource["k8s.namespace.name"];
+  const hasK8sContext = k8sPodName || k8sNodeName || k8sDeploymentName || k8sNamespaceName;
 
   return (
     <>
@@ -101,6 +110,39 @@ export function LogDetailDrawer({ entry, onClose, t }: LogDetailDrawerProps) {
               </div>
             )}
           </div>
+
+          {/* K8s Context */}
+          {hasK8sContext && (
+            <div>
+              <h4 className="text-xs font-medium text-muted mb-1.5">{i18n.common.k8sContext}</h4>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs px-3 py-2.5 rounded-lg bg-[var(--hover-bg)]">
+                {k8sPodName && (
+                  <div>
+                    <span className="text-muted">{i18n.common.podName}</span>
+                    <p className="text-default font-mono mt-0.5 truncate" title={k8sPodName}>{k8sPodName}</p>
+                  </div>
+                )}
+                {k8sNodeName && (
+                  <div>
+                    <span className="text-muted">{i18n.common.nodeName}</span>
+                    <p className="text-default font-mono mt-0.5">{k8sNodeName}</p>
+                  </div>
+                )}
+                {k8sDeploymentName && (
+                  <div>
+                    <span className="text-muted">{i18n.common.deploymentName}</span>
+                    <p className="text-default font-mono mt-0.5">{k8sDeploymentName}</p>
+                  </div>
+                )}
+                {k8sNamespaceName && (
+                  <div>
+                    <span className="text-muted">{i18n.common.namespaceName}</span>
+                    <p className="text-default font-mono mt-0.5">{k8sNamespaceName}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Attributes */}
           {attrs.length > 0 && (

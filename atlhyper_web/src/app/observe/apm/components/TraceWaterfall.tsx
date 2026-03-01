@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -16,6 +16,9 @@ import { isSpanError } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs, formatTimeAgo } from "@/lib/format";
 import { getLatencyDistribution } from "@/datasource/apm";
+import { useClusterStore } from "@/store/clusterStore";
+import { queryLogs } from "@/datasource/logs";
+import type { LogEntry } from "@/types/model/log";
 import { LatencyDistribution } from "./LatencyDistribution";
 
 interface TraceWaterfallProps {
@@ -90,6 +93,7 @@ export function TraceWaterfall({
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
 
   const serviceColorMap = useMemo(() => {
     const services = [...new Set(trace.spans.map((s) => s.serviceName))];
@@ -215,9 +219,10 @@ export function TraceWaterfall({
           {[t.timeline, t.metadata, t.logs].map((label, i) => (
             <button
               key={label}
-              disabled={i > 0}
+              disabled={i === 1}
+              onClick={() => setActiveTab(i)}
               className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
-                i === 0 ? "text-primary border-primary" : "text-muted/50 border-transparent cursor-not-allowed"
+                activeTab === i ? "text-primary border-primary" : i === 1 ? "text-muted/50 border-transparent cursor-not-allowed" : "text-muted border-transparent hover:text-default"
               }`}
             >
               {label}
@@ -225,6 +230,13 @@ export function TraceWaterfall({
           ))}
         </div>
 
+        {/* Logs tab content */}
+        {activeTab === 2 && (
+          <SpanLogs t={t} traceId={trace.traceId} serviceName={selectedSpan?.serviceName} />
+        )}
+
+        {/* Timeline tab content */}
+        {activeTab === 0 && <>
         {/* Service legend */}
         <div className="flex flex-wrap gap-3 px-4 py-2 border-b border-[var(--border-color)]">
           {[...serviceColorMap.entries()].map(([svc, color]) => (
@@ -331,6 +343,7 @@ export function TraceWaterfall({
             );
           })}
         </div>
+        </>}
       </div>
 
       {/* Span detail drawer */}
@@ -464,6 +477,9 @@ function SpanDrawer({
               <SectionHeader title={t.resourceInfo} />
               <div className="space-y-1.5">
                 {span.resource.podName && <KVRow label={t.podName} value={span.resource.podName} />}
+                {span.resource.nodeName && <KVRow label={t.nodeName} value={span.resource.nodeName} />}
+                {span.resource.deploymentName && <KVRow label={t.deploymentName} value={span.resource.deploymentName} />}
+                {span.resource.namespaceName && <KVRow label={t.namespaceName} value={span.resource.namespaceName} />}
                 {span.resource.clusterName && <KVRow label={t.clusterName} value={span.resource.clusterName} />}
                 {span.resource.serviceVersion && <KVRow label={t.serviceVersion} value={span.resource.serviceVersion} />}
                 {span.resource.instanceId && <KVRow label="Instance ID" value={span.resource.instanceId} />}
@@ -546,6 +562,14 @@ function SpanDrawer({
               <IdRow label="Trace ID" value={trace.traceId} />
             </div>
           </section>
+
+          {/* Correlated Logs */}
+          <section>
+            <SectionHeader title={`${t.correlatedLogs} — ${span.serviceName}`} />
+            <div className="border border-[var(--border-color)] rounded-lg overflow-hidden">
+              <SpanLogs t={t} traceId={trace.traceId} serviceName={span.serviceName} compact />
+            </div>
+          </section>
         </div>
       </div>
     </>
@@ -583,6 +607,76 @@ function KVRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--hover-bg)] text-xs">
       <span className="text-muted flex-shrink-0 min-w-[100px]">{label}</span>
       <span className="text-default font-mono text-[11px] truncate">{value}</span>
+    </div>
+  );
+}
+
+// ============================================================
+// SpanLogs — Trace 关联日志
+// ============================================================
+
+function SpanLogs({ t, traceId, serviceName, compact }: {
+  t: ApmTranslations;
+  traceId: string;
+  serviceName?: string;
+  compact?: boolean;
+}) {
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const clusterId = useClusterStore((s) => s.currentClusterId);
+
+  useEffect(() => {
+    if (!clusterId) { setLoading(false); return; }
+    setLoading(true);
+    queryLogs({
+      clusterId,
+      traceId,
+      services: serviceName ? [serviceName] : undefined,
+      limit: compact ? 20 : 100,
+    })
+      .then((result) => setLogs(result.logs))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [clusterId, traceId, serviceName, compact]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-sm text-muted">
+        <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin mr-2" />
+        {t.loading}
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-12 text-sm text-muted">
+        {t.noCorrelatedLogs}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`overflow-auto ${compact ? "max-h-[300px]" : "max-h-[500px]"}`}>
+      {logs.map((log, i) => {
+        const severityClass =
+          log.severity === "ERROR" ? "bg-red-500/10 text-red-500" :
+          log.severity === "WARN" ? "bg-amber-500/10 text-amber-500" :
+          log.severity === "DEBUG" ? "bg-gray-500/10 text-gray-500" :
+          "bg-blue-500/10 text-blue-500";
+        return (
+          <div key={i} className="flex items-start gap-2 px-4 py-2 border-b border-[var(--border-color)]/20 hover:bg-[var(--hover-bg)] text-xs">
+            <span className="text-[10px] text-muted flex-shrink-0 w-[70px] pt-0.5">
+              {new Date(log.timestamp).toLocaleTimeString()}
+            </span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${severityClass}`}>
+              {log.severity}
+            </span>
+            <span className="text-muted flex-shrink-0 max-w-[120px] truncate">{log.serviceName}</span>
+            <span className="text-default break-all">{log.body}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

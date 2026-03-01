@@ -69,7 +69,7 @@ export function LogList({ logs, total, page, pageSize, onPageChange, onSelectEnt
 
   return (
     <div className="flex flex-col">
-      <div className="divide-y divide-[var(--border-color)] border border-[var(--border-color)] rounded-lg overflow-hidden">
+      <div className="divide-y divide-[var(--border-color)] border border-[var(--border-color)] rounded-lg overflow-hidden min-w-0">
         {logs.map((entry, idx) => {
           const isSelected = selectedIdx === idx;
           return (
