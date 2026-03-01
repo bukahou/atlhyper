@@ -15,6 +15,11 @@ import (
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
+	adminHandler "AtlHyper/atlhyper_master_v2/gateway/handler/admin"
+	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
+	k8sHandler "AtlHyper/atlhyper_master_v2/gateway/handler/k8s"
+	observeHandler "AtlHyper/atlhyper_master_v2/gateway/handler/observe"
+	sloHandler "AtlHyper/atlhyper_master_v2/gateway/handler/slo"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
@@ -60,44 +65,54 @@ func (r *Router) Handler() http.Handler {
 
 // registerRoutes 注册所有路由
 func (r *Router) registerRoutes() {
-	// 创建 Handlers
-	userHandler := handler.NewUserHandler(r.database.User)
-	clusterHandler := handler.NewClusterHandler(r.service)
-	overviewHandler := handler.NewOverviewHandler(r.service)
-	sloHandler := handler.NewSLOHandler(r.service, r.database.SLO)
-	sloMeshHandler := handler.NewSLOMeshHandler(r.service)
-	podHandler := handler.NewPodHandler(r.service)
-	nodeHandler := handler.NewNodeHandler(r.service)
-	deploymentHandler := handler.NewDeploymentHandler(r.service)
-	daemonsetHandler := handler.NewDaemonSetHandler(r.service)
-	statefulsetHandler := handler.NewStatefulSetHandler(r.service)
-	serviceHandler := handler.NewServiceHandler(r.service)
-	ingressHandler := handler.NewIngressHandler(r.service)
-	configmapHandler := handler.NewConfigMapHandler(r.service)
-	secretHandler := handler.NewSecretHandler(r.service)
-	namespaceHandler := handler.NewNamespaceHandler(r.service)
-	eventHandler := handler.NewEventHandler(r.service)
-	commandHandler := handler.NewCommandHandler(r.service)
-	notifyHandler := handler.NewNotifyHandler(r.service)
-	settingsHandler := handler.NewSettingsHandler(r.service)
-	aiProviderHandler := handler.NewAIProviderHandler(r.service)
-	opsHandler := handler.NewOpsHandler(r.service, r.bus)
-	auditHandler := handler.NewAuditHandler(r.service)
-	jobHandler := handler.NewJobHandler(r.service)
-	cronjobHandler := handler.NewCronJobHandler(r.service)
-	pvHandler := handler.NewPVHandler(r.service)
-	pvcHandler := handler.NewPVCHandler(r.service)
-	networkPolicyHandler := handler.NewNetworkPolicyHandler(r.service)
-	resourceQuotaHandler := handler.NewResourceQuotaHandler(r.service)
-	limitRangeHandler := handler.NewLimitRangeHandler(r.service)
-	serviceAccountHandler := handler.NewServiceAccountHandler(r.service)
-	nodeMetricsHandler := handler.NewNodeMetricsHandler(r.service, r.service, r.bus)
-	observeHandler := handler.NewObserveHandler(r.service, r.service, r.bus)
-	aiopsGraphHandler := handler.NewAIOpsGraphHandler(r.service)
-	aiopsBaselineHandler := handler.NewAIOpsBaselineHandler(r.service)
-	aiopsRiskHandler := handler.NewAIOpsRiskHandler(r.service)
-	aiopsIncidentHandler := handler.NewAIOpsIncidentHandler(r.service)
-	aiopsAIHandler := handler.NewAIOpsAIHandler(r.service)
+	// 创建 Handlers — 顶层 (package handler)
+	clusterH := handler.NewClusterHandler(r.service)
+	overviewH := handler.NewOverviewHandler(r.service)
+	eventH := handler.NewEventHandler(r.service)
+	opsH := handler.NewOpsHandler(r.service, r.bus)
+
+	// 创建 Handlers — K8s 资源 (package k8s)
+	podH := k8sHandler.NewPodHandler(r.service)
+	nodeH := k8sHandler.NewNodeHandler(r.service)
+	deploymentH := k8sHandler.NewDeploymentHandler(r.service)
+	daemonsetH := k8sHandler.NewDaemonSetHandler(r.service)
+	statefulsetH := k8sHandler.NewStatefulSetHandler(r.service)
+	serviceH := k8sHandler.NewServiceHandler(r.service)
+	ingressH := k8sHandler.NewIngressHandler(r.service)
+	configmapH := k8sHandler.NewConfigMapHandler(r.service)
+	secretH := k8sHandler.NewSecretHandler(r.service)
+	namespaceH := k8sHandler.NewNamespaceHandler(r.service)
+	jobH := k8sHandler.NewJobHandler(r.service)
+	cronjobH := k8sHandler.NewCronJobHandler(r.service)
+	pvH := k8sHandler.NewPVHandler(r.service)
+	pvcH := k8sHandler.NewPVCHandler(r.service)
+	networkPolicyH := k8sHandler.NewNetworkPolicyHandler(r.service)
+	resourceQuotaH := k8sHandler.NewResourceQuotaHandler(r.service)
+	limitRangeH := k8sHandler.NewLimitRangeHandler(r.service)
+	serviceAccountH := k8sHandler.NewServiceAccountHandler(r.service)
+
+	// 创建 Handlers — 可观测性 (package observe)
+	nodeMetricsH := observeHandler.NewNodeMetricsHandler(r.service, r.service, r.bus)
+	observeH := observeHandler.NewObserveHandler(r.service, r.service, r.bus)
+
+	// 创建 Handlers — SLO (package slo)
+	sloH := sloHandler.NewSLOHandler(r.service, r.database.SLO)
+	sloMeshH := sloHandler.NewSLOMeshHandler(r.service)
+
+	// 创建 Handlers — AIOps (package aiops)
+	aiopsGraphH := aiopsHandler.NewAIOpsGraphHandler(r.service)
+	aiopsBaselineH := aiopsHandler.NewAIOpsBaselineHandler(r.service)
+	aiopsRiskH := aiopsHandler.NewAIOpsRiskHandler(r.service)
+	aiopsIncidentH := aiopsHandler.NewAIOpsIncidentHandler(r.service)
+	aiopsAIH := aiopsHandler.NewAIOpsAIHandler(r.service)
+
+	// 创建 Handlers — 管理 (package admin)
+	userH := adminHandler.NewUserHandler(r.database.User)
+	commandH := adminHandler.NewCommandHandler(r.service)
+	notifyH := adminHandler.NewNotifyHandler(r.service)
+	settingsH := adminHandler.NewSettingsHandler(r.service)
+	aiProviderH := adminHandler.NewAIProviderHandler(r.service)
+	auditH := adminHandler.NewAuditHandler(r.service)
 
 	// ================================================================
 	// 公开路由（无需认证）
@@ -105,147 +120,147 @@ func (r *Router) registerRoutes() {
 	// ================================================================
 
 	// 登录需要审计（记录成功/失败的登录尝试）
-	r.publicAudited("/api/v2/user/login", "login", "user", userHandler.Login)
+	r.publicAudited("/api/v2/user/login", "login", "user", userH.Login)
 
 	r.public(func(register func(pattern string, h http.HandlerFunc)) {
 		// 健康检查
 		register("/health", healthCheck)
 
 		// ---------- 集群概览 ----------
-		register("/api/v2/overview", overviewHandler.Get)
+		register("/api/v2/overview", overviewH.Get)
 
 		// ---------- 集群查询 ----------
-		register("/api/v2/clusters", clusterHandler.List)
-		register("/api/v2/clusters/", clusterHandler.Get)
+		register("/api/v2/clusters", clusterH.List)
+		register("/api/v2/clusters/", clusterH.Get)
 
 		// ---------- 工作负载查询 ----------
 		// Pod
-		register("/api/v2/pods", podHandler.List)
-		register("/api/v2/pods/", podHandler.Get)
+		register("/api/v2/pods", podH.List)
+		register("/api/v2/pods/", podH.Get)
 
 		// Node
-		register("/api/v2/nodes", nodeHandler.List)
-		register("/api/v2/nodes/", nodeHandler.Get)
+		register("/api/v2/nodes", nodeH.List)
+		register("/api/v2/nodes/", nodeH.Get)
 
 		// Deployment
-		register("/api/v2/deployments", deploymentHandler.List)
-		register("/api/v2/deployments/", deploymentHandler.Get)
+		register("/api/v2/deployments", deploymentH.List)
+		register("/api/v2/deployments/", deploymentH.Get)
 
 		// DaemonSet
-		register("/api/v2/daemonsets", daemonsetHandler.List)
-		register("/api/v2/daemonsets/", daemonsetHandler.Get)
+		register("/api/v2/daemonsets", daemonsetH.List)
+		register("/api/v2/daemonsets/", daemonsetH.Get)
 
 		// StatefulSet
-		register("/api/v2/statefulsets", statefulsetHandler.List)
-		register("/api/v2/statefulsets/", statefulsetHandler.Get)
+		register("/api/v2/statefulsets", statefulsetH.List)
+		register("/api/v2/statefulsets/", statefulsetH.Get)
 
 		// ---------- 网络查询 ----------
 		// Service
-		register("/api/v2/services", serviceHandler.List)
-		register("/api/v2/services/", serviceHandler.Get)
+		register("/api/v2/services", serviceH.List)
+		register("/api/v2/services/", serviceH.Get)
 
 		// Ingress
-		register("/api/v2/ingresses", ingressHandler.List)
-		register("/api/v2/ingresses/", ingressHandler.Get)
+		register("/api/v2/ingresses", ingressH.List)
+		register("/api/v2/ingresses/", ingressH.Get)
 
 		// ---------- 批处理工作负载查询 ----------
 		// Job
-		register("/api/v2/jobs", jobHandler.List)
-		register("/api/v2/jobs/", jobHandler.Get)
+		register("/api/v2/jobs", jobH.List)
+		register("/api/v2/jobs/", jobH.Get)
 
 		// CronJob
-		register("/api/v2/cronjobs", cronjobHandler.List)
-		register("/api/v2/cronjobs/", cronjobHandler.Get)
+		register("/api/v2/cronjobs", cronjobH.List)
+		register("/api/v2/cronjobs/", cronjobH.Get)
 
 		// ---------- 存储查询 ----------
 		// PersistentVolume
-		register("/api/v2/pvs", pvHandler.List)
-		register("/api/v2/pvs/", pvHandler.Get)
+		register("/api/v2/pvs", pvH.List)
+		register("/api/v2/pvs/", pvH.Get)
 
 		// PersistentVolumeClaim
-		register("/api/v2/pvcs", pvcHandler.List)
-		register("/api/v2/pvcs/", pvcHandler.Get)
+		register("/api/v2/pvcs", pvcH.List)
+		register("/api/v2/pvcs/", pvcH.Get)
 
 		// ---------- 策略与配额查询 ----------
 		// NetworkPolicy
-		register("/api/v2/network-policies", networkPolicyHandler.List)
-		register("/api/v2/network-policies/", networkPolicyHandler.Get)
+		register("/api/v2/network-policies", networkPolicyH.List)
+		register("/api/v2/network-policies/", networkPolicyH.Get)
 
 		// ResourceQuota
-		register("/api/v2/resource-quotas", resourceQuotaHandler.List)
-		register("/api/v2/resource-quotas/", resourceQuotaHandler.Get)
+		register("/api/v2/resource-quotas", resourceQuotaH.List)
+		register("/api/v2/resource-quotas/", resourceQuotaH.Get)
 
 		// LimitRange
-		register("/api/v2/limit-ranges", limitRangeHandler.List)
-		register("/api/v2/limit-ranges/", limitRangeHandler.Get)
+		register("/api/v2/limit-ranges", limitRangeH.List)
+		register("/api/v2/limit-ranges/", limitRangeH.Get)
 
 		// ServiceAccount
-		register("/api/v2/service-accounts", serviceAccountHandler.List)
-		register("/api/v2/service-accounts/", serviceAccountHandler.Get)
+		register("/api/v2/service-accounts", serviceAccountH.List)
+		register("/api/v2/service-accounts/", serviceAccountH.Get)
 
 		// ---------- 配置查询（仅列表，详情需要权限） ----------
-		register("/api/v2/configmaps", configmapHandler.List)
+		register("/api/v2/configmaps", configmapH.List)
 
 		// ---------- 命名空间查询 ----------
-		register("/api/v2/namespaces", namespaceHandler.List)
-		register("/api/v2/namespaces/", namespaceHandler.Get)
+		register("/api/v2/namespaces", namespaceH.List)
+		register("/api/v2/namespaces/", namespaceH.Get)
 
 		// ---------- 事件查询 ----------
-		register("/api/v2/events", eventHandler.List)
-		register("/api/v2/events/by-resource", eventHandler.ListByResource)
+		register("/api/v2/events", eventH.List)
+		register("/api/v2/events/by-resource", eventH.ListByResource)
 
 		// ---------- 指令查询 ----------
-		register("/api/v2/commands/history", commandHandler.ListHistory)
-		register("/api/v2/commands/", commandHandler.GetStatus)
+		register("/api/v2/commands/history", commandH.ListHistory)
+		register("/api/v2/commands/", commandH.GetStatus)
 
 		// ---------- SLO 监控查询（只读） ----------
-		register("/api/v2/slo/domains", sloHandler.Domains)       // V1: 按 service key
-		register("/api/v2/slo/domains/v2", sloHandler.DomainsV2)  // V2: 按真实域名
-		register("/api/v2/slo/domains/detail", sloHandler.DomainDetail)
-		register("/api/v2/slo/domains/history", sloHandler.DomainHistory)
-		register("/api/v2/slo/domains/latency", sloHandler.LatencyDistribution)
-		register("/api/v2/slo/targets", sloHandler.Targets)
-		register("/api/v2/slo/status-history", sloHandler.StatusHistory)
+		register("/api/v2/slo/domains", sloH.Domains)       // V1: 按 service key
+		register("/api/v2/slo/domains/v2", sloH.DomainsV2)  // V2: 按真实域名
+		register("/api/v2/slo/domains/detail", sloH.DomainDetail)
+		register("/api/v2/slo/domains/history", sloH.DomainHistory)
+		register("/api/v2/slo/domains/latency", sloH.LatencyDistribution)
+		register("/api/v2/slo/targets", sloH.Targets)
+		register("/api/v2/slo/status-history", sloH.StatusHistory)
 
 		// ---------- SLO 服务网格查询（只读） ----------
-		register("/api/v2/slo/mesh/topology", sloMeshHandler.MeshTopology)
-		register("/api/v2/slo/mesh/service/detail", sloMeshHandler.ServiceDetail)
+		register("/api/v2/slo/mesh/topology", sloMeshH.MeshTopology)
+		register("/api/v2/slo/mesh/service/detail", sloMeshH.ServiceDetail)
 
 		// ---------- 节点指标查询（只读） ----------
-		register("/api/v2/node-metrics", nodeMetricsHandler.Route)
-		register("/api/v2/node-metrics/", nodeMetricsHandler.Route)
+		register("/api/v2/node-metrics", nodeMetricsH.Route)
+		register("/api/v2/node-metrics/", nodeMetricsH.Route)
 
 		// ---------- 可观测性查询（ClickHouse 按需） ----------
-		register("/api/v2/observe/metrics/summary", observeHandler.MetricsSummary)
-		register("/api/v2/observe/metrics/nodes", observeHandler.MetricsNodes)
-		register("/api/v2/observe/metrics/nodes/", observeHandler.MetricsNodeRoute)
-		register("/api/v2/observe/logs/summary", observeHandler.LogsSummary)
-		register("/api/v2/observe/logs/query", observeHandler.LogsQuery)
-		register("/api/v2/observe/logs/histogram", observeHandler.LogsHistogram)
-		register("/api/v2/observe/traces/services", observeHandler.TracesServices)
-		register("/api/v2/observe/traces/services/", observeHandler.APMServiceSeries)
-		register("/api/v2/observe/traces/stats", observeHandler.TracesStats)
-		register("/api/v2/observe/traces/topology", observeHandler.TracesTopology)
-		register("/api/v2/observe/traces/operations", observeHandler.TracesOperations)
-		register("/api/v2/observe/traces", observeHandler.TracesList)
-		register("/api/v2/observe/traces/", observeHandler.TracesDetail)
-		register("/api/v2/observe/slo/summary", observeHandler.SLOSummary)
-		register("/api/v2/observe/slo/ingress", observeHandler.SLOIngress)
-		register("/api/v2/observe/slo/services", observeHandler.SLOServices)
-		register("/api/v2/observe/slo/edges", observeHandler.SLOEdges)
-		register("/api/v2/observe/slo/timeseries", observeHandler.SLOTimeSeries)
+		register("/api/v2/observe/metrics/summary", observeH.MetricsSummary)
+		register("/api/v2/observe/metrics/nodes", observeH.MetricsNodes)
+		register("/api/v2/observe/metrics/nodes/", observeH.MetricsNodeRoute)
+		register("/api/v2/observe/logs/summary", observeH.LogsSummary)
+		register("/api/v2/observe/logs/query", observeH.LogsQuery)
+		register("/api/v2/observe/logs/histogram", observeH.LogsHistogram)
+		register("/api/v2/observe/traces/services", observeH.TracesServices)
+		register("/api/v2/observe/traces/services/", observeH.APMServiceSeries)
+		register("/api/v2/observe/traces/stats", observeH.TracesStats)
+		register("/api/v2/observe/traces/topology", observeH.TracesTopology)
+		register("/api/v2/observe/traces/operations", observeH.TracesOperations)
+		register("/api/v2/observe/traces", observeH.TracesList)
+		register("/api/v2/observe/traces/", observeH.TracesDetail)
+		register("/api/v2/observe/slo/summary", observeH.SLOSummary)
+		register("/api/v2/observe/slo/ingress", observeH.SLOIngress)
+		register("/api/v2/observe/slo/services", observeH.SLOServices)
+		register("/api/v2/observe/slo/edges", observeH.SLOEdges)
+		register("/api/v2/observe/slo/timeseries", observeH.SLOTimeSeries)
 
 		// ---------- AIOps 查询（只读） ----------
-		register("/api/v2/aiops/graph", aiopsGraphHandler.Graph)
-		register("/api/v2/aiops/graph/trace", aiopsGraphHandler.Trace)
-		register("/api/v2/aiops/baseline", aiopsBaselineHandler.Baseline)
-		register("/api/v2/aiops/risk/cluster", aiopsRiskHandler.ClusterRisk)
-		register("/api/v2/aiops/risk/entities", aiopsRiskHandler.EntityRisks)
-		register("/api/v2/aiops/risk/entity", aiopsRiskHandler.EntityRisk)
-		register("/api/v2/aiops/incidents", aiopsIncidentHandler.List)
-		register("/api/v2/aiops/incidents/stats", aiopsIncidentHandler.Stats)
-		register("/api/v2/aiops/incidents/patterns", aiopsIncidentHandler.Patterns)
-		register("/api/v2/aiops/incidents/", aiopsIncidentHandler.Detail)
+		register("/api/v2/aiops/graph", aiopsGraphH.Graph)
+		register("/api/v2/aiops/graph/trace", aiopsGraphH.Trace)
+		register("/api/v2/aiops/baseline", aiopsBaselineH.Baseline)
+		register("/api/v2/aiops/risk/cluster", aiopsRiskH.ClusterRisk)
+		register("/api/v2/aiops/risk/entities", aiopsRiskH.EntityRisks)
+		register("/api/v2/aiops/risk/entity", aiopsRiskH.EntityRisk)
+		register("/api/v2/aiops/incidents", aiopsIncidentH.List)
+		register("/api/v2/aiops/incidents/stats", aiopsIncidentH.Stats)
+		register("/api/v2/aiops/incidents/patterns", aiopsIncidentH.Patterns)
+		register("/api/v2/aiops/incidents/", aiopsIncidentH.Detail)
 	})
 
 	// ================================================================
@@ -256,41 +271,41 @@ func (r *Router) registerRoutes() {
 
 	// AIOps AI 增强 (Operator 权限，有 LLM API 调用成本)
 	r.operator(func(register func(pattern string, h http.HandlerFunc)) {
-		register("/api/v2/aiops/ai/summarize", aiopsAIHandler.Summarize)
-		register("/api/v2/aiops/ai/recommend", aiopsAIHandler.Recommend)
+		register("/api/v2/aiops/ai/summarize", aiopsAIH.Summarize)
+		register("/api/v2/aiops/ai/recommend", aiopsAIH.Recommend)
 	})
 
 	// ConfigMap 详情、通知渠道、审计日志、AI 配置查询（不审计，只是查看）
 	r.operator(func(register func(pattern string, h http.HandlerFunc)) {
-		register("/api/v2/configmaps/", configmapHandler.Get)
-		register("/api/v2/secrets", secretHandler.List)
-		register("/api/v2/notify/channels", notifyHandler.ListChannels)
-		register("/api/v2/audit/logs", auditHandler.List)
-		register("/api/v2/settings/ai", settingsHandler.AIConfigHandler)
-		register("/api/v2/ai/providers", aiProviderHandler.ProvidersHandler)
-		register("/api/v2/ai/active", aiProviderHandler.ActiveConfigHandler)
+		register("/api/v2/configmaps/", configmapH.Get)
+		register("/api/v2/secrets", secretH.List)
+		register("/api/v2/notify/channels", notifyH.ListChannels)
+		register("/api/v2/audit/logs", auditH.List)
+		register("/api/v2/settings/ai", settingsH.AIConfigHandler)
+		register("/api/v2/ai/providers", aiProviderH.ProvidersHandler)
+		register("/api/v2/ai/active", aiProviderH.ActiveConfigHandler)
 	})
 
 	// ---------- 需要审计的敏感操作 ----------
 	// 指令下发
-	r.operatorAudited("/api/v2/commands", "execute", "command", commandHandler.Create)
+	r.operatorAudited("/api/v2/commands", "execute", "command", commandH.Create)
 
 	// Pod 操作
-	r.operatorAudited("/api/v2/ops/pods/logs", "read", "pod", opsHandler.PodLogs)
-	r.operatorAudited("/api/v2/ops/pods/restart", "execute", "pod", opsHandler.PodRestart)
+	r.operatorAudited("/api/v2/ops/pods/logs", "read", "pod", opsH.PodLogs)
+	r.operatorAudited("/api/v2/ops/pods/restart", "execute", "pod", opsH.PodRestart)
 
 	// Deployment 操作
-	r.operatorAudited("/api/v2/ops/deployments/scale", "execute", "deployment", opsHandler.DeploymentScale)
-	r.operatorAudited("/api/v2/ops/deployments/restart", "execute", "deployment", opsHandler.DeploymentRestart)
-	r.operatorAudited("/api/v2/ops/deployments/image", "execute", "deployment", opsHandler.DeploymentImage)
+	r.operatorAudited("/api/v2/ops/deployments/scale", "execute", "deployment", opsH.DeploymentScale)
+	r.operatorAudited("/api/v2/ops/deployments/restart", "execute", "deployment", opsH.DeploymentRestart)
+	r.operatorAudited("/api/v2/ops/deployments/image", "execute", "deployment", opsH.DeploymentImage)
 
 	// Node 操作
-	r.operatorAudited("/api/v2/ops/nodes/cordon", "execute", "node", opsHandler.NodeCordon)
-	r.operatorAudited("/api/v2/ops/nodes/uncordon", "execute", "node", opsHandler.NodeUncordon)
+	r.operatorAudited("/api/v2/ops/nodes/cordon", "execute", "node", opsH.NodeCordon)
+	r.operatorAudited("/api/v2/ops/nodes/uncordon", "execute", "node", opsH.NodeUncordon)
 
 	// ConfigMap/Secret 数据获取（敏感数据读取需要审计）
-	r.operatorAudited("/api/v2/ops/configmaps/data", "read", "configmap", opsHandler.ConfigMapData)
-	r.operatorAudited("/api/v2/ops/secrets/data", "read", "secret", opsHandler.SecretData)
+	r.operatorAudited("/api/v2/ops/configmaps/data", "read", "configmap", opsH.ConfigMapData)
+	r.operatorAudited("/api/v2/ops/secrets/data", "read", "secret", opsH.SecretData)
 
 	// ================================================================
 	// AI 对话（需要认证，Viewer+ 即可使用）
@@ -298,10 +313,10 @@ func (r *Router) registerRoutes() {
 	// ================================================================
 
 	if r.aiService != nil {
-		aiHandler := handler.NewAIHandler(r.aiService)
-		r.mux.HandleFunc("/api/v2/ai/conversations", aiHandler.Conversations)
-		r.mux.HandleFunc("/api/v2/ai/conversations/", aiHandler.ConversationByID)
-		r.mux.HandleFunc("/api/v2/ai/chat", aiHandler.Chat)
+		aiH := aiopsHandler.NewAIHandler(r.aiService)
+		r.mux.HandleFunc("/api/v2/ai/conversations", aiH.Conversations)
+		r.mux.HandleFunc("/api/v2/ai/conversations/", aiH.ConversationByID)
+		r.mux.HandleFunc("/api/v2/ai/chat", aiH.Chat)
 	}
 
 	// ================================================================
@@ -312,25 +327,25 @@ func (r *Router) registerRoutes() {
 
 	// 用户列表查询（不审计，只是查看）
 	r.admin(func(register func(pattern string, h http.HandlerFunc)) {
-		register("/api/v2/user/list", userHandler.List)
+		register("/api/v2/user/list", userH.List)
 	})
 
 	// ---------- 需要审计的管理操作 ----------
 	// 用户管理
-	r.adminAudited("/api/v2/user/register", "create", "user", userHandler.Register)
-	r.adminAudited("/api/v2/user/update-role", "update", "user", userHandler.UpdateRole)
-	r.adminAudited("/api/v2/user/update-status", "update", "user", userHandler.UpdateStatus)
-	r.adminAudited("/api/v2/user/delete", "delete", "user", userHandler.Delete)
+	r.adminAudited("/api/v2/user/register", "create", "user", userH.Register)
+	r.adminAudited("/api/v2/user/update-role", "update", "user", userH.UpdateRole)
+	r.adminAudited("/api/v2/user/update-status", "update", "user", userH.UpdateStatus)
+	r.adminAudited("/api/v2/user/delete", "delete", "user", userH.Delete)
 
 	// 通知渠道管理（Operator 可管理）
-	r.operatorAudited("/api/v2/notify/channels/", "update", "notify", notifyHandler.ChannelHandler)
+	r.operatorAudited("/api/v2/notify/channels/", "update", "notify", notifyH.ChannelHandler)
 
 	// AI 配置管理（需要 Admin 权限）
-	r.adminAudited("/api/v2/settings/ai/", "update", "ai_config", settingsHandler.AIConfigHandler)
+	r.adminAudited("/api/v2/settings/ai/", "update", "ai_config", settingsH.AIConfigHandler)
 
 	// AI Provider 管理（需要 Admin 权限）
-	r.adminAudited("/api/v2/ai/providers/", "update", "ai_provider", aiProviderHandler.ProviderHandler)
-	r.adminAudited("/api/v2/ai/active/", "update", "ai_provider", aiProviderHandler.ActiveConfigHandler)
+	r.adminAudited("/api/v2/ai/providers/", "update", "ai_provider", aiProviderH.ProviderHandler)
+	r.adminAudited("/api/v2/ai/active/", "update", "ai_provider", aiProviderH.ActiveConfigHandler)
 }
 
 // ================================================================
@@ -375,21 +390,21 @@ func (r *Router) audit(action, resource string) func(http.HandlerFunc) http.Hand
 // 顺序: Audit -> RequireMinRole(Operator) -> Handler
 // 无论认证成功/失败，都会记录审计日志
 func (r *Router) operatorAudited(pattern, action, resource string, h http.HandlerFunc) {
-	handler := r.audit(action, resource)(middleware.RequireMinRole(middleware.RoleOperator, h))
-	r.mux.HandleFunc(pattern, handler)
+	wrapped := r.audit(action, resource)(middleware.RequireMinRole(middleware.RoleOperator, h))
+	r.mux.HandleFunc(pattern, wrapped)
 }
 
 // adminAudited 注册带审计的 Admin 权限路由
 // 顺序: Audit -> RequireMinRole(Admin) -> Handler
 func (r *Router) adminAudited(pattern, action, resource string, h http.HandlerFunc) {
-	handler := r.audit(action, resource)(middleware.RequireMinRole(middleware.RoleAdmin, h))
-	r.mux.HandleFunc(pattern, handler)
+	wrapped := r.audit(action, resource)(middleware.RequireMinRole(middleware.RoleAdmin, h))
+	r.mux.HandleFunc(pattern, wrapped)
 }
 
 // publicAudited 注册带审计的公开路由（如登录）
 func (r *Router) publicAudited(pattern, action, resource string, h http.HandlerFunc) {
-	handler := r.audit(action, resource)(h)
-	r.publicMux.HandleFunc(pattern, handler)
+	wrapped := r.audit(action, resource)(h)
+	r.publicMux.HandleFunc(pattern, wrapped)
 }
 
 // healthCheck 健康检查

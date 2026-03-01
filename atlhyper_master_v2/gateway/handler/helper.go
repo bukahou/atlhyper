@@ -7,14 +7,24 @@ import (
 	"net/http"
 )
 
-// writeJSON 写入 JSON 响应
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
+// WriteJSON 写入 JSON 响应（导出供子包使用）
+func WriteJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
 }
 
-// writeError 写入错误响应
+// WriteError 写入错误响应（导出供子包使用）
+func WriteError(w http.ResponseWriter, status int, message string) {
+	WriteJSON(w, status, map[string]string{"error": message})
+}
+
+// writeJSON 包内便捷别名
+func writeJSON(w http.ResponseWriter, status int, data interface{}) {
+	WriteJSON(w, status, data)
+}
+
+// writeError 包内便捷别名
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
+	WriteError(w, status, message)
 }

@@ -1,0 +1,49 @@
+// atlhyper_master_v2/gateway/handler/secret.go
+// Secret 查询 Handler
+package k8s
+
+import (
+	"net/http"
+
+	"AtlHyper/atlhyper_master_v2/gateway/handler"
+	"AtlHyper/atlhyper_master_v2/service"
+)
+
+// SecretHandler Secret Handler
+type SecretHandler struct {
+	svc service.Query
+}
+
+// NewSecretHandler 创建 SecretHandler
+func NewSecretHandler(svc service.Query) *SecretHandler {
+	return &SecretHandler{svc: svc}
+}
+
+// List 获取 Secret 列表
+// GET /api/v2/secrets?cluster_id=xxx&namespace=xxx
+func (h *SecretHandler) List(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	clusterID := r.URL.Query().Get("cluster_id")
+	if clusterID == "" {
+		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		return
+	}
+
+	namespace := r.URL.Query().Get("namespace")
+
+	secrets, err := h.svc.GetSecrets(r.Context(), clusterID, namespace)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "查询 Secret 失败")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data":    secrets,
+		"total":   len(secrets),
+	})
+}
