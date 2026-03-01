@@ -1,27 +1,30 @@
 # AtlHyper
 
-**Lightweight Kubernetes Multi-Cluster Monitoring & Operations Platform**
+**Next-Generation Kubernetes SRE Platform for the AI Era**
 
 English | [中文](docs/static/readme/README_zh.md) | [日本語](docs/static/readme/README_ja.md)
 
 ---
 
-AtlHyper is a monitoring and management platform designed for lightweight Kubernetes environments. It adopts a Master-Agent architecture, supporting unified multi-cluster management, real-time resource monitoring, anomaly detection, SLO tracking, and remote operations.
+AtlHyper is a next-generation SRE platform for the AI era, adopting a Master-Agent architecture to manage multi-cluster Kubernetes environments. It provides full-stack observability across four signal domains (Metrics / APM / Logs / SLO), an algorithm-driven AIOps engine, and AI-assisted operations, with the goal of building a "system runtime cognitive model" that lets systems understand themselves.
 
 ---
 
 ## Features
 
-- **Multi-Cluster Management** — Manage multiple Kubernetes clusters from a single dashboard
-- **Real-Time Monitoring** — Live Pod, Node, Deployment status with metrics visualization
-- **Anomaly Detection** — Automatic detection of CrashLoopBackOff, OOMKilled, ImagePullBackOff, etc.
-- **SLO Monitoring** — Track service availability, latency, and error rates based on Ingress metrics
+- **Multi-Cluster Management** — Manage multiple Kubernetes clusters from a single dashboard with automatic Agent registration
+- **Real-Time Monitoring** — Live status and metrics visualization for 21 K8s resource types including Pod, Node, Deployment, etc.
+- **Four-Signal Observability** — Full-stack Metrics / APM / Logs / SLO observability based on ClickHouse + OTel Collector
+- **Distributed Tracing (APM)** — Trace waterfall, Span details, service topology, latency distribution, database call analysis
+- **Log Query** — Multi-dimensional filtering (service/level/source class), timeline histogram, structured log details, Trace correlation
+- **SLO Monitoring** — Dual-layer SLO tracking for Ingress (Traefik) + service mesh (Linkerd): latency distribution, error budget, status code distribution
+- **AIOps Engine** — Dependency graph construction, EMA dynamic baseline, 3-stage risk scoring, state machine, incident lifecycle management
+- **Causal Topology Graph** — Four-layer directed acyclic graph (Ingress -> Service -> Pod -> Node) with risk propagation visualization
+- **AI Assistant** — Gemini-powered natural language operations (Chat + Tool Use), incident summary and root cause analysis
 - **Alert Notifications** — Email (SMTP) and Slack (Webhook) integrations
-- **Remote Operations** — Execute kubectl commands, restart pods, scale deployments remotely
-- **AI Assistant** — Natural language interface for cluster operations (optional)
-- **AIOps Engine** — Dependency graph, dynamic baseline, risk scoring, incident lifecycle management *(planned)*
+- **Remote Operations** — Execute kubectl commands, restart Pods, scale deployments, cordon/uncordon Nodes remotely
 - **Audit Logging** — Complete operation history with user tracking
-- **Multi-Language** — English, Chinese, Japanese support
+- **Multi-Language** — Chinese, Japanese
 
 ---
 
@@ -29,178 +32,61 @@ AtlHyper is a monitoring and management platform designed for lightweight Kubern
 
 | Component | Technology | Description |
 |-----------|------------|-------------|
-| **Master** | Go + Gin + SQLite/MySQL | Central control, data aggregation, API server |
-| **Agent** | Go + controller-runtime | Cluster data collection, command execution |
-| **Metrics** | Go (DaemonSet) | Node-level metrics collection (CPU, Memory, Disk, Network) |
-| **Web** | Next.js 15 + TypeScript + Tailwind CSS | Modern responsive dashboard |
+| **Master** | Go 1.24 + net/http + SQLite | Central control, data aggregation, API server, AIOps engine |
+| **Agent** | Go 1.24 + client-go + ClickHouse | Cluster data collection, OTel data query, command execution |
+| **Web** | Next.js 16 + React 19 + Tailwind CSS 4 + ECharts + G6 | Visual management interface |
+| **Observability** | ClickHouse + OTel Collector + Linkerd | Time-series storage, telemetry collection, service mesh |
+| **AI** | Gemini API (Chat + Tool Use) | AI conversational operations, incident analysis |
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              AtlHyper Platform                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌─────────────┐     ┌─────────────────────────────────────────────────┐   │
-│   │   Web UI    │────▶│                    Master                       │   │
-│   │  (Next.js)  │◀────│                                                 │   │
-│   └─────────────┘     │  ┌─────────┐  ┌──────────┐  ┌───────────────┐   │   │
-│                       │  │ Gateway │  │ DataHub  │  │   Services    │   │   │
-│                       │  │  (API)  │  │ (Memory) │  │ (SLO/Alert)   │   │   │
-│                       │  └─────────┘  └──────────┘  └───────────────┘   │   │
-│                       │                     │                           │   │
-│                       │              ┌──────┴──────┐                    │   │
-│                       │              │   Database  │                    │   │
-│                       │              │(SQLite/MySQL)│                   │   │
-│                       └──────────────┴──────────────┴───────────────────┘   │
-│                                          │                                  │
-│            ┌─────────────────────────────┼─────────────────────────────┐    │
-│            │                             │                             │    │
-│            ▼                             ▼                             ▼    │
-│   ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│   │  Agent (K8s A)  │         │  Agent (K8s B)  │         │  Agent (K8s N)  │
-│   │                 │         │                 │         │                 │
-│   │  ┌───────────┐  │         │  ┌───────────┐  │         │  ┌───────────┐  │
-│   │  │  Source   │  │         │  │  Source   │  │         │  │  Source   │  │
-│   │  │ ├─ Event  │  │         │  │ ├─ Event  │  │         │  │ ├─ Event  │  │
-│   │  │ ├─ Snapshot│ │         │  │ ├─ Snapshot│ │         │  │ ├─ Snapshot│ │
-│   │  │ └─ Metrics│  │         │  │ └─ Metrics│  │         │  │ └─ Metrics│  │
-│   │  ├───────────┤  │         │  ├───────────┤  │         │  ├───────────┤  │
-│   │  │  Executor │  │         │  │  Executor │  │         │  │  Executor │  │
-│   │  └───────────┘  │         │  └───────────┘  │         │  └───────────┘  │
-│   └────────┬────────┘         └────────┬────────┘         └────────┬────────┘
-│            │                           │                           │        │
-│            ▼                           ▼                           ▼        │
-│   ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│   │   Kubernetes    │         │   Kubernetes    │         │   Kubernetes    │
-│   │    Cluster A    │         │    Cluster B    │         │    Cluster N    │
-│   │                 │         │                 │         │                 │
-│   │ ┌─────────────┐ │         │ ┌─────────────┐ │         │ ┌─────────────┐ │
-│   │ │   Metrics   │ │         │ │   Metrics   │ │         │ │   Metrics   │ │
-│   │ │ (DaemonSet) │ │         │ │ (DaemonSet) │ │         │ │ (DaemonSet) │ │
-│   │ └─────────────┘ │         │ └─────────────┘ │         │ └─────────────┘ │
-│   └─────────────────┘         └─────────────────┘         └─────────────────┘
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Data Flow
-
-AtlHyper consists of four modules with distinct data flows:
-
-### 1. Agent Data Flow (4 Streams)
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                        Agent → Master Data Flows                         │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  [Event Stream]                                                          │
-│  K8s Watch ──▶ Abnormal Filter ──▶ DataHub ──▶ Pusher ──▶ Master        │
-│  • Detects: CrashLoop, OOM, ImagePull, NodeNotReady, etc.               │
-│                                                                          │
-│  [Snapshot Stream]                                                       │
-│  SDK.List() ──▶ Snapshot ──▶ Pusher ──▶ Master                          │
-│  • Resources: Pods, Nodes, Deployments, Services, Ingresses, etc.       │
-│                                                                          │
-│  [Metrics Stream]                                                        │
-│  Metrics DaemonSet ──▶ Agent Gateway ──▶ Receiver ──▶ Pusher ──▶ Master │
-│  • Node metrics: CPU, Memory, Disk, Network per node                    │
-│                                                                          │
-│  [Command Stream]                                                        │
-│  Master ──▶ Agent Gateway ──▶ Executor ──▶ K8s SDK ──▶ Result ──▶ Master│
-│  • Operations: Restart Pod, Scale Deployment, Cordon Node, etc.         │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-### 2. Metrics DaemonSet Data Flow
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                     Metrics Collector (Per Node)                         │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
-│  │ /proc/stat  │    │ /proc/meminfo│   │/proc/diskstats│                 │
-│  │ /proc/net   │    │   syscall   │    │/proc/mounts │                   │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘                   │
-│         │                  │                  │                          │
-│         ▼                  ▼                  ▼                          │
-│  ┌─────────────────────────────────────────────────────┐                 │
-│  │              Metrics Collector (Go)                 │                 │
-│  │  • CPU: usage%, per-core, load average              │                 │
-│  │  • Memory: used, available, cached, buffers         │                 │
-│  │  • Disk: space, IO rate, IOPS, utilization          │                 │
-│  │  • Network: bytes/packets in/out per interface      │                 │
-│  └──────────────────────────┬──────────────────────────┘                 │
-│                             │                                            │
-│                             ▼                                            │
-│                    POST /metrics/push                                    │
-│                             │                                            │
-│                             ▼                                            │
-│                    ┌─────────────────┐                                   │
-│                    │  Agent (同节点)  │                                   │
-│                    └─────────────────┘                                   │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-### 3. Master Data Flow (3 Streams)
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         Master Data Streams                              │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  [1. Cluster Snapshot — In-Memory (DataHub)]                             │
-│  ─────────────────────────────────────────────────────────────────────── │
-│  Agent ──▶ AgentSDK ──▶ Processor ──▶ DataHub (Memory)                  │
-│                                            │                             │
-│  Purpose: Real-time query of Pods/Nodes    ◀── Web API queries          │
-│  Retention: Latest snapshot only                                         │
-│                                                                          │
-│  [2. Command Dispatch — Message Queue]                                   │
-│  ─────────────────────────────────────────────────────────────────────── │
-│  User/AI ──▶ API ──▶ CommandBus ──▶ Agent executes                      │
-│                          │                                               │
-│  Purpose: Remote ops     Agent ──▶ Result ──▶ CommandBus ──▶ API        │
-│  Retention: Transient                                                    │
-│                                                                          │
-│  [3. Persistent Data — Database]                                         │
-│  ─────────────────────────────────────────────────────────────────────── │
-│  Agent ──▶ Processor ──┬──▶ Events ──▶ DB (event_history)               │
-│                        ├──▶ SLO Metrics ──▶ DB (slo_* tables)           │
-│                        └──▶ Node Metrics ──▶ DB (node_metrics_history)  │
-│                                    │                                     │
-│  Purpose: Historical analysis      ◀── Trend/SLO API queries            │
-│  Retention: 30-180 days (configurable)                                   │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-### 4. Web Frontend Data Flow
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         Web Frontend Flow                                │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
-│  │   Browser   │    │  Next.js    │    │   Master    │                   │
-│  │             │───▶│  Middleware │───▶│   Gateway   │                   │
-│  │             │◀───│  (Proxy)    │◀───│   (API)     │                   │
-│  └─────────────┘    └─────────────┘    └─────────────┘                   │
-│                                                                          │
-│  • Authentication: JWT token in localStorage                             │
-│  • API Proxy: /api/v2/* → Master:8080 (runtime configured)              │
-│  • State: Zustand for global state management                            │
-│  • Real-time: Polling with configurable intervals                        │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                              AtlHyper Platform                                    │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌──────────┐    ┌──────────────────────────────────────────────────────────┐    │
+│  │  Web UI  │───▶│                        Master                           │    │
+│  │(Next.js) │◀───│                                                          │    │
+│  └──────────┘    │  ┌─────────┐ ┌────────┐ ┌─────────┐ ┌────────────────┐  │    │
+│                  │  │ Gateway │ │DataHub │ │ Service │ │   Database     │  │    │
+│                  │  │  (API)  │ │(Memory)│ │(Business│ │   (SQLite)     │  │    │
+│                  │  └─────────┘ └────────┘ │ Logic)  │ └────────────────┘  │    │
+│                  │  ┌──────────────────┐   └─────────┘                     │    │
+│                  │  │  AIOps Engine    │   ┌──────────────────────────┐     │    │
+│                  │  │ Graph│Baseline│  │   │      AI (Gemini)        │     │    │
+│                  │  │ Risk │State   │  │   │  Chat│Tool Use│Analysis │     │    │
+│                  │  │ Machine│Store  │  │   └──────────────────────────┘     │    │
+│                  │  └──────────────────┘                                    │    │
+│                  └──────────────────────────────────────────────────────────┘    │
+│                                          │                                       │
+│         ┌────────────────────────────────┼────────────────────────────────┐      │
+│         │                                │                                │      │
+│         ▼                                ▼                                ▼      │
+│  ┌──────────────────┐         ┌──────────────────┐         ┌──────────────────┐  │
+│  │  Agent (Cluster A)│        │  Agent (Cluster B)│        │  Agent (Cluster N)│ │
+│  │                  │         │                  │         │                  │  │
+│  │ SDK (K8s+CH)     │         │ SDK (K8s+CH)     │         │ SDK (K8s+CH)     │  │
+│  │ Repository       │         │ Repository       │         │ Repository       │  │
+│  │ Concentrator     │         │ Concentrator     │         │ Concentrator     │  │
+│  │ Service          │         │ Service          │         │ Service          │  │
+│  │ Scheduler        │         │ Scheduler        │         │ Scheduler        │  │
+│  └────────┬─────────┘         └────────┬─────────┘         └────────┬─────────┘  │
+│           │                            │                            │            │
+│           ▼                            ▼                            ▼            │
+│  ┌──────────────────┐         ┌──────────────────┐         ┌──────────────────┐  │
+│  │ Kubernetes Cluster│        │ Kubernetes Cluster│        │ Kubernetes Cluster│ │
+│  │                  │         │                  │         │                  │  │
+│  │ ┌──────────────┐ │         │ ┌──────────────┐ │         │ ┌──────────────┐ │  │
+│  │ │OTel Collector│ │         │ │OTel Collector│ │         │ │OTel Collector│ │  │
+│  │ │node_exporter │ │         │ │node_exporter │ │         │ │node_exporter │ │  │
+│  │ │   Linkerd    │ │         │ │   Linkerd    │ │         │ │   Linkerd    │ │  │
+│  │ │  ClickHouse  │ │         │ │  ClickHouse  │ │         │ │  ClickHouse  │ │  │
+│  │ └──────────────┘ │         │ └──────────────┘ │         │ └──────────────┘ │  │
+│  └──────────────────┘         └──────────────────┘         └──────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -208,31 +94,86 @@ AtlHyper consists of four modules with distinct data flows:
 ## Screenshots
 
 ### Cluster Overview
-Real-time cluster health, resource usage, and recent alerts at a glance.
+Cluster health status, workload summary, SLO overview, node resource usage, recent alerts.
 
 ![Cluster Overview](docs/static/img/overview.png)
 
 ### Pod Management
-List, filter, and manage pods across namespaces with detailed status.
+Cross-namespace Pod list with filtering. Side drawer displays Pod details (basic info, containers, volume mounts, networking, scheduling).
 
-![Pod Management](docs/static/img/cluster_pod.png)
+![Pod Management](docs/static/img/cluster-pod.png)
 
-### Alert Dashboard
-View and analyze cluster alerts with filtering and AI-powered analysis.
+### Node Management
+Node list with detail drawer showing system info, roles, Pod CIDR, container runtime version. Supports cordon/uncordon operations.
 
-![Alert Dashboard](docs/static/img/cluster_alert.png)
+![Node Management](docs/static/img/cluster-node.png)
 
 ### Node Metrics
-Detailed node-level metrics with historical trends.
+Cluster-wide node-level hardware metrics: CPU, memory, disk, temperature. Supports multiple time ranges (1h/6h/1d/7d) and granularities (1m/5m/15m).
 
-![Node Metrics](docs/static/img/system_metrics.png)
+![Node Metrics](docs/static/img/observe-metrics.png)
+
+### APM Distributed Tracing
+Distributed trace analysis: latency distribution histogram, trace waterfall, Span details (with database attributes and K8s context). Supports Trace-Log correlation.
+
+![APM Distributed Tracing](docs/static/img/observe-apm.png)
+
+### Log Query
+Multi-dimensional log filtering (service/level/source class), timeline histogram, structured log details (with Trace ID and K8s resource info). Supports full-text search.
+
+![Log Query](docs/static/img/observe-logs.png)
 
 ### SLO Monitoring
-Track service level objectives based on Ingress metrics.
+Domain-level SLO overview (availability, P95 latency, error rate, error budget), latency distribution histogram, request method distribution, status code distribution.
 
-![SLO Overview](docs/static/img/workbench_slo_overview.png)
+![SLO Monitoring](docs/static/img/observe-slo.png)
 
-![SLO Details](docs/static/img/workbench_slo.png)
+### AIOps Risk Dashboard
+Cluster risk score (0-100), high-risk entity list showing local risk / final risk / risk level and first anomaly time.
+
+![AIOps Risk](docs/static/img/aiops-risk.png)
+
+### AIOps Causal Topology
+Four-layer dependency graph (Node -> Pod -> Service -> Ingress) with risk propagation visualization. Node detail panel shows baseline metrics and causal chains.
+
+![AIOps Topology](docs/static/img/aiops-topology.png)
+
+### AI Assistant
+Gemini-powered natural language operations chat with Tool Use support (incident query, analysis). Automatically outputs structured incident summaries and root cause analysis.
+
+![AI Assistant](docs/static/img/aiops-chat.png)
+
+---
+
+## Data Flow
+
+### Agent -> Master (Snapshot Reporting + Command Execution)
+
+```
+[Snapshot Stream]
+K8s SDK ──▶ Repository ──▶ SnapshotService ──▶ Scheduler ──▶ Master
+• K8s Resources: Pod, Node, Deployment, Service, Ingress, and 21 resource types total
+• OTel Data: ClickHouse queries across Metrics / APM / Logs / SLO signal domains
+• Time-Series Aggregation: Concentrator ring buffer (1 hour x 1 minute granularity)
+
+[Command Stream]
+Master ──▶ Agent Poll ──▶ CommandService ──▶ K8s SDK ──▶ Result → Master
+
+[Heartbeat Stream]
+Agent ──▶ Periodic Heartbeat ──▶ Master (connection state maintenance)
+```
+
+### Observability Pipeline (OTel -> ClickHouse -> Agent)
+
+```
+[Node Metrics]  node_exporter ──▶ OTel Collector ──▶ ClickHouse
+[Ingress]       Traefik ──▶ OTel Collector ──▶ ClickHouse
+[Mesh]          Linkerd Proxy ──▶ OTel Collector ──▶ ClickHouse
+[Traces]        App SDK ──▶ OTel Collector ──▶ ClickHouse
+[Logs]          App Logs ──▶ Filebeat ──▶ OTel Collector ──▶ ClickHouse
+
+                    ClickHouse ◀── Agent periodic queries
+```
 
 ---
 
@@ -240,10 +181,10 @@ Track service level objectives based on Ingress metrics.
 
 ### Prerequisites
 
-- Go 1.21+
-- Node.js 18+
+- Go 1.24+
+- Node.js 20+
 - Kubernetes cluster(s) for Agent deployment
-- Docker (for containerized deployment)
+- ClickHouse (observability data storage)
 
 ### Quick Start (Development)
 
@@ -260,10 +201,12 @@ go run main.go
 
 **2. Start Agent (in K8s cluster)**
 ```bash
+# Cluster ID auto-detected (kube-system UID), or specify via environment variable
+export AGENT_MASTER_URL=http://<MASTER_IP>:8081
+# export AGENT_CLUSTER_ID=my-cluster  # Optional, auto-detected by default
+
 cd cmd/atlhyper_agent_v2
-go run main.go \
-  --cluster-id=my-cluster \
-  --master=http://<MASTER_IP>:8081
+go run main.go
 ```
 
 **3. Start Web**
@@ -271,50 +214,6 @@ go run main.go \
 cd atlhyper_web
 npm install && npm run dev
 # Access: http://localhost:3000
-```
-
-### Kubernetes Deployment (Helm)
-
-```bash
-# Add Helm repo (if published)
-helm repo add atlhyper https://charts.atlhyper.io
-
-# Install Master
-helm install atlhyper-master atlhyper/atlhyper \
-  --set master.admin.username=admin \
-  --set master.admin.password=<YOUR_PASSWORD> \
-  --set master.jwt.secret=<YOUR_SECRET>
-
-# Install Agent (per cluster)
-helm install atlhyper-agent atlhyper/atlhyper-agent \
-  --set agent.clusterId=production \
-  --set agent.masterUrl=http://atlhyper-master:8081
-```
-
-### Kubernetes Deployment (Manifests)
-
-Deploy order: **Master → Agent → Metrics → Web**
-
-```bash
-cd deploy/k8s
-
-# 1. Create namespace and config
-kubectl apply -f atlhyper-config.yaml
-
-# 2. Deploy Master
-kubectl apply -f atlhyper-Master.yaml
-
-# 3. Deploy Agent
-kubectl apply -f atlhyper-agent.yaml
-
-# 4. Deploy Metrics (DaemonSet)
-kubectl apply -f atlhyper-metrics.yaml
-
-# 5. Deploy Web
-kubectl apply -f atlhyper-web.yaml
-
-# 6. (Optional) Traefik IngressRoute
-kubectl apply -f atlhyper-traefik.yaml
 ```
 
 ### Configuration Reference
@@ -328,25 +227,15 @@ kubectl apply -f atlhyper-traefik.yaml
 | `MASTER_JWT_SECRET` | Yes | - | JWT signing key |
 | `MASTER_GATEWAY_PORT` | No | `8080` | Web/API port |
 | `MASTER_AGENTSDK_PORT` | No | `8081` | Agent data port |
-| `MASTER_DB_TYPE` | No | `sqlite` | Database type |
-| `MASTER_DB_DSN` | No | - | MySQL/PostgreSQL DSN |
 | `MASTER_LOG_LEVEL` | No | `info` | Log level |
 
-#### Agent Configuration
+#### Agent Environment Variables
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--cluster-id` | Yes | Unique cluster identifier |
-| `--master` | Yes | Master AgentSDK URL |
-
-#### Metrics DaemonSet
-
-The Metrics collector is automatically deployed as a DaemonSet and reports to the local Agent. Configuration via ConfigMap:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `METRICS_AGENT_URL` | `http://atlhyper-agent:8082` | Agent metrics endpoint |
-| `METRICS_PUSH_INTERVAL` | `15s` | Push interval |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AGENT_MASTER_URL` | Yes | - | Master AgentSDK URL |
+| `AGENT_CLUSTER_ID` | No | Auto-detected | Unique cluster identifier (defaults to kube-system UID) |
+| `AGENT_CLICKHOUSE_DSN` | No | - | ClickHouse connection URL (enables OTel queries) |
 
 ---
 
@@ -354,86 +243,145 @@ The Metrics collector is automatically deployed as a DaemonSet and reports to th
 
 ```
 atlhyper/
-├── atlhyper_master_v2/       # Master (Central Control)
-│   ├── gateway/              # HTTP API (Web + AgentSDK)
-│   ├── datahub/              # In-memory data store
-│   ├── database/             # Persistent storage (SQLite/MySQL)
-│   ├── service/              # Business logic (SLO, Alert)
-│   ├── ai/                   # AI assistant integration
-│   ├── aiops/                # AIOps engine (planned)
-│   └── config/               # Configuration management
+├── atlhyper_master_v2/     # Master (Central Control) — 37k lines
+│   ├── gateway/            #   HTTP API Gateway
+│   │   └── handler/        #     Handlers (k8s/observe/aiops/admin/slo subdirectories)
+│   ├── service/            #   Business Logic (query + operations)
+│   ├── datahub/            #   In-Memory Data Store
+│   ├── database/           #   Persistent Storage (SQLite)
+│   ├── processor/          #   Data Processing
+│   ├── agentsdk/           #   Agent Communication Layer
+│   ├── mq/                 #   Message Queue
+│   ├── aiops/              #   AIOps Engine
+│   ├── ai/                 #   AI Assistant (Gemini)
+│   ├── slo/                #   SLO Route Updater
+│   ├── notifier/           #   Alert Notifications
+│   └── config/             #   Configuration
 │
-├── atlhyper_agent_v2/        # Agent (Cluster Proxy)
-│   ├── source/               # Data sources
-│   │   ├── event/            # K8s event watcher
-│   │   ├── snapshot/         # Resource snapshots
-│   │   └── metrics/          # Metrics receiver
-│   ├── executor/             # Command execution
-│   ├── sdk/                  # K8s operations
-│   └── pusher/               # Data push scheduler
+├── atlhyper_agent_v2/      # Agent (Cluster Proxy) — 20k lines
+│   ├── sdk/                #   K8s + ClickHouse SDK
+│   ├── repository/         #   Data Repository (K8s + CH queries)
+│   ├── service/            #   Snapshot / Command Services
+│   ├── concentrator/       #   OTel Time-Series Aggregation (Ring Buffer)
+│   ├── scheduler/          #   Scheduler
+│   └── gateway/            #   Agent ↔ Master Communication
 │
-├── atlhyper_metrics_v2/      # Metrics Collector (DaemonSet)
-│   ├── collector/            # CPU, Memory, Disk, Network
-│   └── pusher/               # Push to Agent
+├── atlhyper_web/           # Web Frontend — 58k lines
+│   ├── src/app/            #   Next.js Pages
+│   ├── src/components/     #   React Components
+│   ├── src/api/            #   API Client
+│   ├── src/datasource/     #   Data Source Layer (API + mock fallback)
+│   └── src/i18n/           #   Internationalization (Chinese/Japanese)
 │
-├── atlhyper_web/             # Web Frontend
-│   ├── src/app/              # Next.js pages
-│   ├── src/components/       # React components
-│   ├── src/api/              # API client
-│   └── src/i18n/             # Internationalization
-│
-├── model_v2/                 # Shared data models
-├── cmd/                      # Entry points
-└── deploy/                   # Deployment configs
-    ├── helm/                 # Helm charts
-    └── k8s/                  # K8s manifests
+├── model_v3/               # Shared Models (cluster/agent/metrics/slo/command/apm/log)
+├── common/                 # Utility Packages (logger/crypto/gzip)
+├── cmd/                    # Entry Points
+└── docs/                   # Documentation
 ```
 
 ---
 
-## Roadmap
+## AIOps Engine
 
-### AIOps Engine
+An algorithm-driven AIOps engine implementing automated anomaly detection, root cause localization, and incident lifecycle management. Core design principle: **Explainable algorithms** — every risk score traces back to specific formulas and input metrics, not an ML black box.
 
-An algorithmic AIOps engine is planned to bring automated root cause analysis and incident management. The design documents are available in [`docs/design/future/`](docs/design/future/).
+### M1 — Dependency Graph (Correlator)
 
-| Phase | Module | Description | Status |
-|-------|--------|-------------|--------|
-| **Phase 1** | Dependency Graph + Baseline | Auto-build K8s topology DAG; EMA + 3σ anomaly detection per entity | Designed |
-| **Phase 2a** | Risk Scorer | 3-stage pipeline: local risk → temporal weight → graph propagation → ClusterRisk | Designed |
-| **Phase 2b** | State Machine + Incident Store | Entity lifecycle (Healthy → Warning → Incident → Recovery → Stable); structured incident storage | Designed |
-| **Phase 3** | Frontend Visualization | Risk dashboard, incident management, topology graph | Designed |
-| **Phase 4** | AI Enhancement | LLM-powered incident summary, recommendations, and Chat Tool integration | Designed |
+Automatically builds a four-layer directed acyclic graph (DAG) from `ClusterSnapshot`:
 
-**Key differentiators:**
-- **Explainable algorithms** — every risk score traces back to specific formulas and input metrics, not an ML black box
-- **Single-binary, zero external dependencies** — no Kafka, Elasticsearch, or time-series DB required
-- **K8s-native topology** — dependency graph built directly from K8s API + Linkerd + OTel, zero extra configuration
-- **SLO-driven drill-down** — from user-facing SLO (domain error rate / latency) down to infrastructure root cause
+```
+Ingress ──routes_to──▶ Service ──selects──▶ Pod ──runs_on──▶ Node
+                         │
+                         └──calls──▶ Service (Linkerd inter-service traffic)
+```
+
+- **Data Sources**: K8s API (resource relationships) + Linkerd outbound (service-to-service calls) + OTel Traces (trace links)
+- **Graph Structure**: Forward/reverse adjacency lists supporting BFS link tracing
+- **Persistence**: Async write to SQLite after each snapshot
+
+### M2 — Baseline Engine (Baseline)
+
+**EMA (Exponential Moving Average) + 3-sigma dynamic baseline**, dual-channel anomaly detection:
+
+**Channel A — Statistical Detection:**
+
+```
+EMA_t = alpha x x_t + (1-alpha) x EMA_{t-1}     (alpha = 0.033, equivalent to 60-sample window)
+Anomaly Score = sigmoid(|x - EMA| / sigma - 3)   (deviation > 3-sigma = anomaly)
+```
+
+| Entity | Monitored Metrics |
+|--------|-------------------|
+| Node | cpu_usage, memory_usage, disk_usage, psi_cpu/memory/io |
+| Pod | restart_count, is_running, not_ready_containers |
+| Service (Linkerd) | error_rate, avg_latency, request_rate |
+| Ingress (Traefik) | error_rate, avg_latency |
+
+**Channel B — Deterministic Detection (bypasses cold start):**
+
+| Detection | Score |
+|-----------|-------|
+| OOMKilled | 0.95 |
+| CrashLoopBackOff | 0.90 |
+| Configuration Error | 0.80 |
+| K8s Critical Event (within 5 min) | 0.85 |
+| Deployment Unavailable >= 75% | 0.95 |
+
+### M3 — Risk Scoring (Risk Scorer)
+
+Three-stage pipeline from local metrics to global topology:
+
+```
+Stage 1 — Local Risk:    R_local = max(R_stat, R_det)
+Stage 2 — Temporal Decay: W_time = 0.7 + 0.3 x (1 - exp(-dt / tau))
+Stage 3 — Graph Propagation: R_final = f(R_weighted, avg(R_final(deps)), SLO_context)
+```
+
+| R_final | Level |
+|---------|-------|
+| >= 0.8 | Critical |
+| >= 0.6 | High |
+| >= 0.4 | Medium |
+| >= 0.2 | Low |
+| < 0.2 | Healthy |
+
+### M4 — State Machine (State Machine)
+
+```
+                    R>0.2 sustained >=2min        R>0.5 sustained >=5min
+  Healthy ──────────────────▶ Warning ──────────────────▶ Incident
+     ^  R<0.15 sustained >=5min  │                            │
+     └───────────────────────────┘          R<0.15 sustained >=10min
+                                                              │
+                                                              ▼
+                               R>0.2 immediate relapse     Recovery
+                    Warning ◀──────────────────────────────── │
+                                                              │
+                                           Scheduled check (10min)
+                                              Stable ◀────────┘
+```
+
+### M5 — Incident Store (Incident Store)
+
+SQLite-persisted structured incident records:
+
+| Data | Content |
+|------|---------|
+| **Incident** | ID, cluster, status, severity, root cause entity, peak risk, duration |
+| **Entity** | Affected entity list (with R_local / R_final / role) |
+| **Timeline** | State transition timeline |
+| **Statistics** | MTTR, recurrence rate, severity distribution, Top root causes |
+
+AI Enhancement (optional): Gemini LLM generates incident summaries, root cause analysis, and remediation recommendations.
 
 ---
 
 ## Security
 
-### Sensitive Information
-
 - **Never hardcode** API keys, passwords, or secrets in code
-- Use environment variables for all credentials
+- All credentials use environment variables
 - AI API keys are stored encrypted in database (configured via Web UI)
-
-### Pre-commit Check
-
-```bash
-# Scan for potential API key leaks
-grep -rE "sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9]{30,}" \
-  --include="*.go" --include="*.ts" --include="*.tsx" .
-```
-
-### Files Ignored by .gitignore
-
-- `atlhyper_master_v2/database/sqlite/data/` — Database files
-- `atlhyper_web/.env.local` — Local environment
-- `*.db` — All SQLite databases
+- K8s Secret contents are masked in display
 
 ---
 
