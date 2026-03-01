@@ -12,7 +12,7 @@ import {
   type TableColumn,
   LoadingSpinner,
 } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import {
   Terminal,
   Bot,
@@ -47,6 +47,7 @@ const sourceIcons: Record<string, typeof Terminal> = {
 
 export default function CommandsPage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [commands, setCommands] = useState<CommandHistory[]>([]);
   const [total, setTotal] = useState(0);
@@ -78,7 +79,7 @@ export default function CommandsPage() {
     setError("");
     try {
       const res = await getCommandHistory({
-        cluster_id: getCurrentClusterId(),
+        cluster_id: currentClusterId,
         source: sourceFilter,
         status: statusFilter,
         action: actionFilter,

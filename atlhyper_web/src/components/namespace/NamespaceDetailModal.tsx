@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getNamespaceDetail } from "@/datasource/cluster";
 import { getConfigMaps, getSecrets } from "@/api/namespace";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useI18n } from "@/i18n/context";
 import type { NamespaceDetail, ConfigMapDTO, SecretDTO } from "@/types/cluster";
@@ -33,6 +33,7 @@ export function NamespaceDetailModal({
   onClose,
   namespaceName,
 }: NamespaceDetailModalProps) {
+  const { currentClusterId } = useClusterStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,7 +51,7 @@ export function NamespaceDetailModal({
     setError("");
     try {
       const res = await getNamespaceDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespaceName,
       });
       setDetail(res.data.data);
@@ -66,7 +67,7 @@ export function NamespaceDetailModal({
     setConfigMapsLoading(true);
     try {
       const res = await getConfigMaps({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespaceName,
       });
       setConfigMaps(res.data.data || []);
@@ -83,7 +84,7 @@ export function NamespaceDetailModal({
     setSecretsLoading(true);
     try {
       const res = await getSecrets({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespaceName,
       });
       setSecrets(res.data.data || []);

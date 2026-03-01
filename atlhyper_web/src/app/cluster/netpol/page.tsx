@@ -7,12 +7,13 @@ import { getNetworkPolicyList } from "@/datasource/cluster";
 import type { NetworkPolicyItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, FilterBar, type TableColumn } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Eye } from "lucide-react";
 import { NetworkPolicyDetailModal } from "@/components/network-policy";
 
 export default function NetworkPolicyPage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [items, setItems] = useState<NetworkPolicyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,7 +31,7 @@ export default function NetworkPolicyPage() {
   const fetchData = useCallback(async () => {
     setError("");
     try {
-      const res = await getNetworkPolicyList({ cluster_id: getCurrentClusterId() });
+      const res = await getNetworkPolicyList({ cluster_id: currentClusterId });
       setItems(res.data.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);

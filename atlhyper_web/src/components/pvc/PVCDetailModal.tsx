@@ -6,7 +6,7 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
 import { getPVCDetail } from "@/datasource/cluster";
 import type { PVCDetail } from "@/api/cluster-resources";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import { Server, Tag } from "lucide-react";
 
@@ -21,6 +21,7 @@ type TabType = "overview" | "labels";
 
 export function PVCDetailModal({ isOpen, onClose, namespace, name }: PVCDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -32,7 +33,7 @@ export function PVCDetailModal({ isOpen, onClose, namespace, name }: PVCDetailMo
     setError("");
     try {
       const res = await getPVCDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: name,
       });

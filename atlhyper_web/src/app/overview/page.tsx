@@ -59,7 +59,7 @@ export default function OverviewPage() {
             }
             return;
           }
-          clusterId = clusters[0].cluster_id;
+          clusterId = clusters[0].clusterId;
         }
 
         const [res, sloRes] = await Promise.all([

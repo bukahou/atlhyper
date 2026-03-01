@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getLimitRangeDetail } from "@/datasource/cluster";
 import type { LimitRangeDetail } from "@/api/cluster-resources";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import { Server, Tag } from "lucide-react";
 
@@ -159,6 +159,7 @@ export function LimitRangeDetailModal({
   name,
 }: LimitRangeDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<LimitRangeDetail | null>(null);
@@ -175,7 +176,7 @@ export function LimitRangeDetailModal({
     setError("");
     try {
       const res = await getLimitRangeDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: name,
       });

@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { ConfirmDialog } from "@/components/common";
 import { getNodeDetail, cordonNode, uncordonNode } from "@/datasource/cluster";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import type { NodeDetail } from "@/types/cluster";
@@ -23,6 +23,7 @@ type TabType = "overview" | "resources" | "conditions" | "taints" | "labels";
 
 export function NodeDetailModal({ isOpen, onClose, nodeName, onNodeChanged }: NodeDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const requireAuth = useRequireAuth();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
@@ -39,7 +40,7 @@ export function NodeDetailModal({ isOpen, onClose, nodeName, onNodeChanged }: No
     setError("");
     try {
       const res = await getNodeDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         NodeName: nodeName,
       });
       setDetail(res.data.data);
@@ -67,9 +68,9 @@ export function NodeDetailModal({ isOpen, onClose, nodeName, onNodeChanged }: No
     setCordonLoading(true);
     try {
       if (detail.schedulable) {
-        await cordonNode({ ClusterID: getCurrentClusterId(), Node: nodeName });
+        await cordonNode({ ClusterID: currentClusterId, Node: nodeName });
       } else {
-        await uncordonNode({ ClusterID: getCurrentClusterId(), Node: nodeName });
+        await uncordonNode({ ClusterID: currentClusterId, Node: nodeName });
       }
       setShowCordonConfirm(false);
       // 刷新详情 + 通知父组件

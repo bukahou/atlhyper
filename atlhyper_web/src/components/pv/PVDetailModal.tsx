@@ -6,7 +6,7 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
 import { getPVDetail } from "@/datasource/cluster";
 import type { PVDetail } from "@/api/cluster-resources";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import { Server, Tag } from "lucide-react";
 
@@ -20,6 +20,7 @@ type TabType = "overview" | "labels";
 
 export function PVDetailModal({ isOpen, onClose, name }: PVDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -31,7 +32,7 @@ export function PVDetailModal({ isOpen, onClose, name }: PVDetailModalProps) {
     setError("");
     try {
       const res = await getPVDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Name: name,
       });
       setDetail(res.data.data);

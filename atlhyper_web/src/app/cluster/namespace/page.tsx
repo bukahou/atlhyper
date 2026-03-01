@@ -6,7 +6,7 @@ import { useI18n } from "@/i18n/context";
 import { getNamespaceOverview } from "@/datasource/cluster";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Filter, X } from "lucide-react";
 import type { NamespaceOverview, NamespaceItem } from "@/types/cluster";
 import { NamespaceDetailModal } from "@/components/namespace";
@@ -95,6 +95,7 @@ function FilterSelect({
 
 export default function NamespacePage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<NamespaceOverview | null>(null);
   const [error, setError] = useState("");
@@ -112,7 +113,7 @@ export default function NamespacePage() {
   const fetchData = useCallback(async () => {
     setError("");
     try {
-      const res = await getNamespaceOverview({ ClusterID: getCurrentClusterId() });
+      const res = await getNamespaceOverview({ ClusterID: currentClusterId });
       setData(res.data.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);

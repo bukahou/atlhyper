@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getNetworkPolicyDetail } from "@/datasource/cluster";
 import type { NetworkPolicyDetail, NetworkPolicyRule } from "@/api/cluster-resources";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import { Server, Shield, Tag } from "lucide-react";
 
@@ -25,6 +25,7 @@ export function NetworkPolicyDetailModal({
   name,
 }: NetworkPolicyDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,7 +37,7 @@ export function NetworkPolicyDetailModal({
     setError("");
     try {
       const res = await getNetworkPolicyDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: name,
       });

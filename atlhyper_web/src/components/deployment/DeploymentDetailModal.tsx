@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { ConfirmDialog } from "@/components/common";
 import { getDeploymentDetail, scaleDeployment, updateDeploymentImage } from "@/datasource/cluster";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useI18n } from "@/i18n/context";
 import type { DeploymentDetail } from "@/types/cluster";
@@ -44,6 +44,7 @@ export function DeploymentDetailModal({
   const [detail, setDetail] = useState<DeploymentDetail | null>(null);
   const requireAuth = useRequireAuth();
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
 
   // 编辑状态
   const [editingImage, setEditingImage] = useState<{ containerName: string; oldImage: string; newImage: string } | null>(null);
@@ -57,7 +58,7 @@ export function DeploymentDetailModal({
     setError("");
     try {
       const res = await getDeploymentDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: deploymentName,
       });
@@ -84,7 +85,7 @@ export function DeploymentDetailModal({
     setSaving(true);
     try {
       await updateDeploymentImage({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: deploymentName,
         Kind: "Deployment",
@@ -111,7 +112,7 @@ export function DeploymentDetailModal({
     setSaving(true);
     try {
       await scaleDeployment({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: deploymentName,
         Kind: "Deployment",

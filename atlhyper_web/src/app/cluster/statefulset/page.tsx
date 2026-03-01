@@ -7,12 +7,13 @@ import { getStatefulSetList } from "@/datasource/cluster";
 import type { StatefulSetListItem } from "@/api/workload";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, FilterBar, type TableColumn } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Eye } from "lucide-react";
 import { StatefulSetDetailModal } from "@/components/statefulset";
 
 export default function StatefulSetPage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<StatefulSetListItem[]>([]);
   const [error, setError] = useState("");
@@ -30,7 +31,7 @@ export default function StatefulSetPage() {
   const fetchData = useCallback(async () => {
     setError("");
     try {
-      const res = await getStatefulSetList({ cluster_id: getCurrentClusterId() });
+      const res = await getStatefulSetList({ cluster_id: currentClusterId });
       setItems(res.data.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);

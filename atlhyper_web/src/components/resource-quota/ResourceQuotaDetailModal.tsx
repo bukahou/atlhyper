@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getResourceQuotaDetail } from "@/datasource/cluster";
 import type { ResourceQuotaDetail } from "@/api/cluster-resources";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import { Server, Tag } from "lucide-react";
 
@@ -132,6 +132,7 @@ export function ResourceQuotaDetailModal({
   name,
 }: ResourceQuotaDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<ResourceQuotaDetail | null>(null);
@@ -148,7 +149,7 @@ export function ResourceQuotaDetailModal({
     setError("");
     try {
       const res = await getResourceQuotaDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: name,
       });

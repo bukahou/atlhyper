@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getConfigMapData } from "@/api/namespace";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import type { ConfigMapDTO } from "@/types/cluster";
 import type { useI18n } from "@/i18n/context";
 
@@ -23,6 +23,7 @@ export function ConfigMapsTab({
   namespace,
   t,
 }: ConfigMapsTabProps) {
+  const { currentClusterId } = useClusterStore();
   const [expandedCMs, setExpandedCMs] = useState<Set<string>>(new Set());
   const [cmDataMap, setCmDataMap] = useState<Record<string, Record<string, string>>>({});
   const [loadingCMs, setLoadingCMs] = useState<Set<string>>(new Set());
@@ -48,7 +49,7 @@ export function ConfigMapsTab({
         setLoadingCMs((prev) => new Set(prev).add(name));
         try {
           const data = await getConfigMapData({
-            ClusterID: getCurrentClusterId(),
+            ClusterID: currentClusterId,
             Namespace: namespace,
             Name: name,
           });

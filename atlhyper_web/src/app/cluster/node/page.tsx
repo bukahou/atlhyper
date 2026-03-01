@@ -6,7 +6,7 @@ import { useI18n } from "@/i18n/context";
 import { getNodeOverview } from "@/datasource/cluster";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Filter, X } from "lucide-react";
 import type { NodeItem, NodeOverview } from "@/types/cluster";
 import { NodeDetailModal } from "@/components/node";
@@ -95,6 +95,7 @@ function FilterSelect({
 
 export default function NodePage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<NodeOverview | null>(null);
   const [error, setError] = useState("");
@@ -114,7 +115,7 @@ export default function NodePage() {
   const fetchData = useCallback(async () => {
     setError("");
     try {
-      const res = await getNodeOverview({ ClusterID: getCurrentClusterId() });
+      const res = await getNodeOverview({ ClusterID: currentClusterId });
       setData(res.data.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);

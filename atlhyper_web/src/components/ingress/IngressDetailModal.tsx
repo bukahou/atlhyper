@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getIngressDetail } from "@/datasource/cluster";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import type { IngressDetail } from "@/types/cluster";
 import { Globe, Route, Lock, Tag } from "lucide-react";
@@ -30,6 +30,7 @@ export function IngressDetailModal({
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<IngressDetail | null>(null);
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
 
   const fetchDetail = useCallback(async () => {
     if (!ingressName || !namespace) return;
@@ -37,7 +38,7 @@ export function IngressDetailModal({
     setError("");
     try {
       const res = await getIngressDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: ingressName,
       });

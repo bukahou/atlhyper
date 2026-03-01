@@ -4,13 +4,13 @@
 
 import type { ClusterRequest, NamespaceRequest, ResourceStatus, NodeStatus } from "./common";
 
-// 集群信息（Master V2 使用 snake_case）
+// 集群信息（Master V2 使用 camelCase）
 export interface ClusterInfo {
-  cluster_id: string;
+  clusterId: string;
   status: string;
-  last_seen: string;
-  node_count: number;
-  pod_count: number;
+  lastSeen: string;
+  nodeCount: number;
+  podCount: number;
 }
 
 // 旧集群信息类型（兼容）

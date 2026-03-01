@@ -6,7 +6,7 @@ import { useI18n } from "@/i18n/context";
 import { getServiceOverview } from "@/datasource/cluster";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Eye } from "lucide-react";
 import type { ServiceItem, ServiceOverview } from "@/types/cluster";
 import { ServiceDetailModal } from "@/components/service";
@@ -14,6 +14,7 @@ import { ServiceFilterBar } from "./components/ServiceFilterBar";
 
 export default function ServicePage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ServiceOverview | null>(null);
   const [error, setError] = useState("");
@@ -32,7 +33,7 @@ export default function ServicePage() {
   const fetchData = useCallback(async () => {
     setError("");
     try {
-      const res = await getServiceOverview({ ClusterID: getCurrentClusterId() });
+      const res = await getServiceOverview({ ClusterID: currentClusterId });
       setData(res.data.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);

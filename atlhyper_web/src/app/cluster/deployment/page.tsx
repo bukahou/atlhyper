@@ -6,13 +6,14 @@ import { useI18n } from "@/i18n/context";
 import { getDeploymentOverview } from "@/datasource/cluster";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, FilterBar, type TableColumn } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Eye } from "lucide-react";
 import type { DeploymentItem, DeploymentOverview } from "@/types/cluster";
 import { DeploymentDetailModal } from "@/components/deployment";
 
 export default function DeploymentPage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DeploymentOverview | null>(null);
   const [error, setError] = useState("");
@@ -30,7 +31,7 @@ export default function DeploymentPage() {
   const fetchData = useCallback(async () => {
     setError("");
     try {
-      const res = await getDeploymentOverview({ ClusterID: getCurrentClusterId() });
+      const res = await getDeploymentOverview({ ClusterID: currentClusterId });
       setData(res.data.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);

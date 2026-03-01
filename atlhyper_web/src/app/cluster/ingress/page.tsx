@@ -6,13 +6,14 @@ import { useI18n } from "@/i18n/context";
 import { getIngressOverview } from "@/datasource/cluster";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Globe, Lock, Eye } from "lucide-react";
 import type { IngressItem, IngressOverview } from "@/types/cluster";
 import { IngressDetailModal } from "@/components/ingress";
 
 export default function IngressPage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<IngressOverview | null>(null);
   const [error, setError] = useState("");
@@ -24,7 +25,7 @@ export default function IngressPage() {
   const fetchData = useCallback(async () => {
     setError("");
     try {
-      const res = await getIngressOverview({ ClusterID: getCurrentClusterId() });
+      const res = await getIngressOverview({ ClusterID: currentClusterId });
       setData(res.data.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);

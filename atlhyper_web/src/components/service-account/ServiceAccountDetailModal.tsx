@@ -6,7 +6,7 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
 import { getServiceAccountDetail } from "@/datasource/cluster";
 import type { ServiceAccountDetail } from "@/api/cluster-resources";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import { Server, Tag } from "lucide-react";
 
@@ -156,6 +156,7 @@ export function ServiceAccountDetailModal({
   name,
 }: ServiceAccountDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<ServiceAccountDetail | null>(null);
@@ -172,7 +173,7 @@ export function ServiceAccountDetailModal({
     setError("");
     try {
       const res = await getServiceAccountDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: name,
       });

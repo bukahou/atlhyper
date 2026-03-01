@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getCronJobDetail } from "@/datasource/cluster";
 import type { CronJobDetail } from "@/api/cluster-resources";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import { Server, Box, Tag } from "lucide-react";
 import { OverviewTab, ContainersTab, LabelsTab } from "./CronJobDetailTabs";
@@ -26,6 +26,7 @@ export function CronJobDetailModal({
   name,
 }: CronJobDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,7 +38,7 @@ export function CronJobDetailModal({
     setError("");
     try {
       const res = await getCronJobDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: name,
       });

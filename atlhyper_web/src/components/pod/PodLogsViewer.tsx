@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Modal } from "@/components/common/Modal";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getPodLogs } from "@/api/pod";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import {
   RefreshCw,
@@ -31,6 +31,7 @@ export function PodLogsViewer({
   containerName,
 }: PodLogsViewerProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [logs, setLogs] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -46,7 +47,7 @@ export function PodLogsViewer({
     setError("");
     try {
       const res = await getPodLogs({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Pod: podName,
         Container: containerName || undefined,

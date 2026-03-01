@@ -29,7 +29,7 @@ export function Layout({ children }: LayoutProps) {
         const res = await getClusterList();
         const clusters = res.data?.clusters || [];
         if (clusters.length > 0) {
-          const ids = clusters.map((c: { cluster_id: string }) => c.cluster_id);
+          const ids = clusters.map((c: { clusterId: string }) => c.clusterId);
           setClusterIds(ids);
         }
       } catch (err) {

@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getDaemonSetDetail } from "@/datasource/cluster";
 import type { DaemonSetDetail } from "@/api/workload";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { OverviewTab, ContainersTab, StrategyTab, LabelsTab } from "./DaemonSetDetailTabs";
 import { Server, Box, Settings, Tag } from "lucide-react";
 import { useI18n } from "@/i18n/context";
@@ -26,6 +26,7 @@ export function DaemonSetDetailModal({
   name,
 }: DaemonSetDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,7 +38,7 @@ export function DaemonSetDetailModal({
     setError("");
     try {
       const res = await getDaemonSetDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: name,
       });

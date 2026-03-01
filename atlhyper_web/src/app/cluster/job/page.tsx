@@ -7,13 +7,14 @@ import { getJobList } from "@/datasource/cluster";
 import type { JobItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Eye } from "lucide-react";
 import { JobDetailModal } from "@/components/job";
 import { JobFilterBar } from "./components/JobFilterBar";
 
 export default function JobPage() {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [items, setItems] = useState<JobItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -31,7 +32,7 @@ export default function JobPage() {
   const fetchData = useCallback(async () => {
     setError("");
     try {
-      const res = await getJobList({ cluster_id: getCurrentClusterId() });
+      const res = await getJobList({ cluster_id: currentClusterId });
       setItems(res.data.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.loadFailed);

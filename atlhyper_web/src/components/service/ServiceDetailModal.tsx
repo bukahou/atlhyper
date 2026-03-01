@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common";
 import { getServiceDetail } from "@/datasource/cluster";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
 import type { ServiceDetail, ServicePort, BackendEndpoint } from "@/types/cluster";
 import { ServiceOverviewTab } from "./ServiceOverviewTab";
@@ -38,6 +38,7 @@ export function ServiceDetailModal({
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<ServiceDetail | null>(null);
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
 
   const fetchDetail = useCallback(async () => {
     if (!serviceName || !namespace) return;
@@ -45,7 +46,7 @@ export function ServiceDetailModal({
     setError("");
     try {
       const res = await getServiceDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: serviceName,
       });

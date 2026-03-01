@@ -5,7 +5,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getStatefulSetDetail } from "@/datasource/cluster";
 import type { StatefulSetDetail } from "@/api/workload";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import { Server, Box, Settings, Database, Tag } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
@@ -27,6 +27,7 @@ export function StatefulSetDetailModal({
   name,
 }: StatefulSetDetailModalProps) {
   const { t } = useI18n();
+  const { currentClusterId } = useClusterStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -38,7 +39,7 @@ export function StatefulSetDetailModal({
     setError("");
     try {
       const res = await getStatefulSetDetail({
-        ClusterID: getCurrentClusterId(),
+        ClusterID: currentClusterId,
         Namespace: namespace,
         Name: name,
       });

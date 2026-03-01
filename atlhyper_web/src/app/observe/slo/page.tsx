@@ -50,7 +50,7 @@ export default function SLOPage() {
           if (isMountedRef.current && isFirstLoadRef.current) setError(sloT.noCluster);
           return;
         }
-        currentClusterId = clusters[0].cluster_id;
+        currentClusterId = clusters[0].clusterId;
         setClusterId(currentClusterId);
       }
       const res = await getSLODomainsV2({ clusterId: currentClusterId, timeRange });

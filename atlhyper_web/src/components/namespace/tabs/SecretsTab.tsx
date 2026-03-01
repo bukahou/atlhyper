@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getSecretData } from "@/api/namespace";
-import { getCurrentClusterId } from "@/config/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import type { SecretDTO } from "@/types/cluster";
 import type { useI18n } from "@/i18n/context";
 
@@ -23,6 +23,7 @@ export function SecretsTab({
   namespace,
   t,
 }: SecretsTabProps) {
+  const { currentClusterId } = useClusterStore();
   const [expandedSecrets, setExpandedSecrets] = useState<Set<string>>(new Set());
   const [secretDataMap, setSecretDataMap] = useState<Record<string, Record<string, string>>>({});
   const [loadingSecrets, setLoadingSecrets] = useState<Set<string>>(new Set());
@@ -48,7 +49,7 @@ export function SecretsTab({
         setLoadingSecrets((prev) => new Set(prev).add(name));
         try {
           const data = await getSecretData({
-            ClusterID: getCurrentClusterId(),
+            ClusterID: currentClusterId,
             Namespace: namespace,
             Name: name,
           });

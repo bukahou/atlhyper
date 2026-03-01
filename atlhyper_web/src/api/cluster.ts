@@ -19,32 +19,14 @@ interface ClusterListResponse {
 
 // 集群详情响应（包含完整快照）
 interface ClusterDetailResponse {
-  cluster_id: string;
-  status: string;
-  last_heartbeat: string;
-  last_snapshot: string;
-  snapshot: {
-    cluster_id: string;
-    timestamp: string;
-    summary: {
-      total_pods: number;
-      running_pods: number;
-      total_nodes: number;
-      ready_nodes: number;
-      total_deployments: number;
-      ready_deployments: number;
-      total_services: number;
-      total_namespaces: number;
-      warning_events: number;
-      normal_events: number;
-    };
-    pods: unknown[];
-    nodes: unknown[];
-    deployments: unknown[];
-    services: unknown[];
-    namespaces: unknown[];
-    events: unknown[];
+  clusterId: string;
+  status: {
+    clusterId: string;
+    status: string;
+    lastHeartbeat: string;
+    lastSnapshot: string;
   };
+  snapshot: unknown;
 }
 
 // ============================================================
