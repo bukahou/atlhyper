@@ -1,59 +1,11 @@
 "use client";
 
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
-import type { Topology, HealthStatus } from "@/types/model/apm";
+import type { Topology } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs } from "@/lib/format";
-
-// Health-based ring color (Kibana-style softer palette)
-function ringColor(status: HealthStatus, successRate: number): string {
-  if (status === "critical" || successRate < 0.95) return "#ef4444";
-  if (status === "warning" || successRate < 0.99) return "#f59e0b";
-  return "#60a5fa"; // healthy = blue
-}
-
-// Node icon by type
-function nodeIcon(type: string): string {
-  if (type === "database") return "⛁";
-  if (type === "external") return "⊕";
-  return "⬡";
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function addState(g: any, id: string, state: string) {
-  try {
-    const cur: string[] = g.getElementState(id);
-    if (!cur.includes(state)) g.setElementState(id, [...cur, state]);
-  } catch { /* ignore */ }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function removeState(g: any, id: string, state: string) {
-  try {
-    const cur: string[] = g.getElementState(id);
-    if (cur.includes(state)) g.setElementState(id, cur.filter((s: string) => s !== state));
-  } catch { /* ignore */ }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applySelection(g: any, nodeId: string | null) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const n of g.getNodeData()) removeState(g, (n as any).id, "selected");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const e of g.getEdgeData()) removeState(g, (e as any).id, "selected");
-
-  if (!nodeId) return;
-
-  addState(g, nodeId, "selected");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const e of g.getEdgeData()) {
-    const ed = e as { id: string; source: string; target: string };
-    if (ed.source === nodeId || ed.target === nodeId) {
-      addState(g, ed.id, "selected");
-    }
-  }
-}
+import { ringColor, buildGraphData, addState, removeState, applySelection } from "./topology-utils";
+import { TopologyHeader, TopologyLegend } from "./TopologyLegend";
 
 interface ServiceTopologyProps {
   t: ApmTranslations;
@@ -99,89 +51,7 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
     return nk + "||" + ek;
   }, [topology]);
 
-  const buildData = useCallback(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    const labelColor = isDark ? "#d1d5db" : "#374151";
-    const labelBg = isDark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.85)";
-
-    const nodes = topology.nodes.map((n) => {
-      const color = ringColor(n.status, n.successRate);
-      const isDb = n.type === "database";
-      const size = isDb ? 36 : 42;
-
-      return {
-        id: n.id,
-        data: { rps: n.rps, successRate: n.successRate, p99Ms: n.p99Ms, namespace: n.namespace, type: n.type },
-        style: {
-          type: (isDb ? "diamond" : "circle") as "circle" | "diamond",
-          size,
-          fill: isDark ? `${color}18` : `${color}12`,
-          stroke: color,
-          lineWidth: 2.5,
-          shadowBlur: 0,
-          labelText: n.name.length > 22 ? n.name.slice(0, 20) + ".." : n.name,
-          labelFontSize: 11,
-          labelFontWeight: 500,
-          labelFill: labelColor,
-          labelPlacement: "bottom" as const,
-          labelOffsetY: 6,
-          labelBackground: true,
-          labelBackgroundFill: labelBg,
-          labelBackgroundRadius: 4,
-          labelBackgroundPadding: [2, 6, 2, 6],
-          iconText: nodeIcon(n.type),
-          iconFontSize: isDb ? 16 : 15,
-          iconFontWeight: 400,
-          iconFill: color,
-          cursor: "pointer" as const,
-          badges: n.successRate < 0.99
-            ? [{
-                text: `${((1 - n.successRate) * 100).toFixed(1)}%`,
-                placement: "right-top" as const,
-                backgroundFill: n.successRate < 0.95 ? "#ef4444" : "#f59e0b",
-                fill: "#fff",
-                fontSize: 8,
-              }]
-            : [],
-          // Double-ring effect via halo
-          halo: true,
-          haloStroke: color,
-          haloStrokeOpacity: isDark ? 0.15 : 0.1,
-          haloLineWidth: 8,
-        },
-      };
-    });
-
-    // Filter edges: both source and target must exist
-    const nodeIds = new Set(topology.nodes.map((n) => n.id));
-    const validEdges = topology.edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-
-    const edgeColor = isDark ? "#4b5563" : "#9ca3af";
-    const edgeErrorColor = "#f87171";
-
-    const edges = validEdges.map((e) => {
-      const hasError = e.errorRate > 0;
-      return {
-        id: `${e.source}>${e.target}`,
-        source: e.source,
-        target: e.target,
-        data: { callCount: e.callCount, avgMs: e.avgMs, errorRate: e.errorRate },
-        style: {
-          type: "cubic-horizontal" as const,
-          stroke: hasError ? edgeErrorColor : edgeColor,
-          lineWidth: 1.5,
-          strokeOpacity: hasError ? 0.6 : 0.4,
-          lineDash: hasError ? [6, 3] : (undefined as number[] | undefined),
-          endArrow: true,
-          endArrowSize: 5,
-          endArrowFill: hasError ? edgeErrorColor : edgeColor,
-          endArrowFillOpacity: hasError ? 0.6 : 0.4,
-        },
-      };
-    });
-
-    return { nodes, edges };
-  }, [topology]);
+  const buildData = useCallback(() => buildGraphData(topology), [topology]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -386,28 +256,18 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
     return () => clearTimeout(timer);
   }, [expanded]);
 
+  // Suppress unused-var warning — selectedNode is set for future detail panel usage
+  void selectedNode;
+
   return (
     <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-2.5 border-b border-[var(--border-color)] flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h3 className="text-sm font-medium text-default">{t.serviceTopology}</h3>
-          <div className="flex items-center gap-2">
-            <StatPill label={t.services} value={String(stats.nodeCount)} />
-            <StatPill label={t.topoCalls} value={String(stats.totalCalls)} />
-            <StatPill label="P99" value={formatDurationMs(stats.avgP99)} />
-            {stats.errorNodes > 0 && (
-              <StatPill label={t.topoErrorRate} value={String(stats.errorNodes)} variant="error" />
-            )}
-          </div>
-        </div>
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] transition-colors text-muted"
-        >
-          {expanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-        </button>
-      </div>
+      <TopologyHeader
+        t={t}
+        stats={stats}
+        expanded={expanded}
+        onToggleExpand={() => setExpanded((v) => !v)}
+        formatDurationMs={formatDurationMs}
+      />
 
       {/* Graph */}
       <div
@@ -416,40 +276,7 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         style={{ height: expanded ? 480 : 320 }}
       />
 
-      {/* Legend */}
-      <div className="px-4 py-2 border-t border-[var(--border-color)] flex items-center gap-4 text-[10px] text-muted">
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full border-2 border-[#60a5fa] bg-[#60a5fa]/10 inline-block" />
-          {t.nodeTypeService}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rotate-45 border-2 border-[#60a5fa] bg-[#60a5fa]/10 inline-block" style={{ borderRadius: 2 }} />
-          {t.nodeTypeDatabase}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full border-2 border-[#f59e0b] bg-[#f59e0b]/10 inline-block" />
-          {t.topoErrorRate} &gt;1%
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full border-2 border-[#ef4444] bg-[#ef4444]/10 inline-block" />
-          {t.topoErrorRate} &gt;5%
-        </span>
-      </div>
+      <TopologyLegend t={t} />
     </div>
-  );
-}
-
-function StatPill({ label, value, variant }: { label: string; value: string; variant?: "error" }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] ${
-        variant === "error"
-          ? "bg-red-500/10 text-red-400"
-          : "bg-[var(--hover-bg)] text-muted"
-      }`}
-    >
-      <span className="opacity-70">{label}</span>
-      <span className="font-semibold text-default">{value}</span>
-    </span>
   );
 }
