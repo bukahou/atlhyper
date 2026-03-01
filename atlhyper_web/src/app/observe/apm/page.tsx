@@ -6,18 +6,11 @@ import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { useClusterStore } from "@/store/clusterStore";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { TimeRangePicker } from "@/components/common";
 import type { TimeRangeSelection } from "@/types/time-range";
 import { toSince, toAbsoluteParams } from "@/lib/time-range";
-import {
-  RefreshCw,
-  Loader2,
-  WifiOff,
-  AlertTriangle,
-  ChevronRight,
-} from "lucide-react";
+import { Loader2, WifiOff, AlertTriangle } from "lucide-react";
 
-import type { TraceSummary, TraceDetail, APMService, Topology, OperationStats, Span } from "@/types/model/apm";
+import type { TraceSummary, TraceDetail, APMService, Topology, OperationStats } from "@/types/model/apm";
 import {
   getAPMServices,
   queryTraces,
@@ -27,10 +20,12 @@ import {
   type TimeParams,
 } from "@/datasource/apm";
 
+import { ApmPageHeader } from "./components/ApmPageHeader";
 import { ServiceList } from "./components/ServiceList";
 import { ServiceOverview } from "./components/ServiceOverview";
 import { TraceWaterfall } from "./components/TraceWaterfall";
 import { ServiceTopology } from "./components/ServiceTopology";
+import { filterTraceForService } from "./components/trace-utils";
 
 type ViewState =
   | { level: "services" }
@@ -211,70 +206,17 @@ export default function ApmPage() {
   return (
     <Layout>
       <div className="space-y-4 sm:space-y-5">
-        {/* Header with breadcrumb */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <nav className="flex items-center gap-1 text-sm mb-1">
-              <button
-                onClick={goToServices}
-                className={`transition-colors ${
-                  view.level === "services"
-                    ? "text-default font-semibold"
-                    : "text-primary hover:text-primary/80"
-                }`}
-              >
-                {ta.pageTitle}
-              </button>
-
-              {view.level !== "services" && (
-                <>
-                  <ChevronRight className="w-4 h-4 text-muted" />
-                  <button
-                    onClick={() => goToService(view.serviceName)}
-                    className={`transition-colors ${
-                      view.level === "service-detail"
-                        ? "text-default font-semibold"
-                        : "text-primary hover:text-primary/80"
-                    }`}
-                  >
-                    {view.serviceName}
-                  </button>
-                </>
-              )}
-
-              {view.level === "trace-detail" && (
-                <>
-                  <ChevronRight className="w-4 h-4 text-muted" />
-                  <span className="text-default text-xs truncate max-w-[200px]">
-                    {view.operationName}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-muted" />
-                  <span className="text-default font-semibold font-mono text-xs">
-                    {view.traceId.slice(0, 12)}...
-                  </span>
-                </>
-              )}
-            </nav>
-
-            <p className="text-xs text-muted">{ta.pageDescription}</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <TimeRangePicker
-              value={timeSelection}
-              onChange={setTimeSelection}
-              t={ta}
-            />
-            <button
-              onClick={() => loadData(true)}
-              disabled={isRefreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-              {t.common.refresh}
-            </button>
-          </div>
-        </div>
+        <ApmPageHeader
+          ta={ta}
+          tc={t.common}
+          view={view}
+          timeSelection={timeSelection}
+          isRefreshing={isRefreshing}
+          onTimeChange={setTimeSelection}
+          onRefresh={() => loadData(true)}
+          onGoToServices={goToServices}
+          onGoToService={goToService}
+        />
 
         {/* View content */}
         {view.level === "services" && (
@@ -329,60 +271,4 @@ export default function ApmPage() {
       </div>
     </Layout>
   );
-}
-
-/**
- * 按聚焦服务裁剪 Trace：只保留该服务的入口 Span 及其所有后代。
- * 上层调用者（如网关）被过滤掉，入口 Span 成为新的根节点。
- */
-function filterTraceForService(trace: TraceDetail, focusService: string): TraceDetail {
-  const { spans } = trace;
-  if (spans.length === 0) return trace;
-
-  // 构建查找表
-  const spanMap = new Map<string, Span>();
-  const childrenMap = new Map<string, string[]>();
-  for (const span of spans) {
-    spanMap.set(span.spanId, span);
-    if (span.parentSpanId) {
-      const list = childrenMap.get(span.parentSpanId) ?? [];
-      list.push(span.spanId);
-      childrenMap.set(span.parentSpanId, list);
-    }
-  }
-
-  // 找到聚焦服务的入口 Span：自身 serviceName 匹配，但父 Span 的 serviceName 不匹配（或无父）
-  const entryIds: string[] = [];
-  for (const span of spans) {
-    if (span.serviceName !== focusService) continue;
-    const parent = span.parentSpanId ? spanMap.get(span.parentSpanId) : undefined;
-    if (!parent || parent.serviceName !== focusService) {
-      entryIds.push(span.spanId);
-    }
-  }
-
-  // 无匹配时回退显示完整 Trace
-  if (entryIds.length === 0) return trace;
-
-  // 收集入口 Span 及其所有后代
-  const included = new Set<string>();
-  const collect = (id: string) => {
-    included.add(id);
-    for (const childId of childrenMap.get(id) ?? []) collect(childId);
-  };
-  entryIds.forEach(collect);
-
-  // 过滤 + 将入口 Span 的 parentSpanId 清空（使其成为根）
-  const entrySet = new Set(entryIds);
-  const filtered = spans
-    .filter((s) => included.has(s.spanId))
-    .map((s) => (entrySet.has(s.spanId) ? { ...s, parentSpanId: "" } : s));
-
-  return {
-    traceId: trace.traceId,
-    spans: filtered,
-    spanCount: filtered.length,
-    serviceCount: new Set(filtered.map((s) => s.serviceName)).size,
-    durationMs: trace.durationMs,
-  };
 }
