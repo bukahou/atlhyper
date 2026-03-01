@@ -1,25 +1,23 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   ChevronRight,
-  ChevronDown,
   ChevronLeft,
   ChevronsLeft,
   ChevronsRight,
   Copy,
   Check,
-  X,
 } from "lucide-react";
 import type { TraceDetail, TraceSummary, Span } from "@/types/model/apm";
-import { isSpanError } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs, formatTimeAgo } from "@/lib/format";
 import { getLatencyDistribution } from "@/datasource/apm";
-import { useClusterStore } from "@/store/clusterStore";
-import { queryLogs } from "@/datasource/logs";
-import type { LogEntry } from "@/types/model/log";
 import { LatencyDistribution } from "./LatencyDistribution";
+import { SERVICE_COLORS, buildSpanTree, flattenTree } from "./waterfall-utils";
+import { SpanRow } from "./SpanRow";
+import { SpanDrawer } from "./SpanDrawer";
+import { SpanLogs } from "./SpanLogs";
 
 interface TraceWaterfallProps {
   t: ApmTranslations;
@@ -27,60 +25,6 @@ interface TraceWaterfallProps {
   allTraces: TraceSummary[];
   currentTraceIndex: number;
   onNavigateTrace: (index: number) => void;
-}
-
-const SERVICE_COLORS = [
-  "#60a5fa", "#34d399", "#fbbf24", "#a78bfa",
-  "#f87171", "#22d3ee", "#fb923c", "#818cf8",
-];
-
-interface SpanNode {
-  span: Span;
-  children: SpanNode[];
-  depth: number;
-}
-
-function buildSpanTree(spans: Span[]): SpanNode[] {
-  const spanMap = new Map<string, SpanNode>();
-  const roots: SpanNode[] = [];
-
-  for (const span of spans) {
-    spanMap.set(span.spanId, { span, children: [], depth: 0 });
-  }
-
-  for (const span of spans) {
-    const node = spanMap.get(span.spanId)!;
-    if (span.parentSpanId && spanMap.has(span.parentSpanId)) {
-      spanMap.get(span.parentSpanId)!.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-
-  function setDepth(node: SpanNode, depth: number) {
-    node.depth = depth;
-    node.children.forEach((c) => setDepth(c, depth + 1));
-  }
-  roots.forEach((r) => setDepth(r, 0));
-  return roots;
-}
-
-function flattenTree(nodes: SpanNode[], collapsed: Set<string>): SpanNode[] {
-  const result: SpanNode[] = [];
-  function walk(node: SpanNode) {
-    result.push(node);
-    if (!collapsed.has(node.span.spanId)) {
-      node.children.forEach(walk);
-    }
-  }
-  nodes.forEach(walk);
-  return result;
-}
-
-function countDescendants(node: SpanNode): number {
-  let count = node.children.length;
-  for (const child of node.children) count += countDescendants(child);
-  return count;
 }
 
 export function TraceWaterfall({
@@ -261,87 +205,19 @@ export function TraceWaterfall({
 
         {/* Waterfall rows */}
         <div className="overflow-auto">
-          {flatSpans.map((node) => {
-            const { span, depth } = node;
-            const color = serviceColorMap.get(span.serviceName) ?? "#94a3b8";
-            const spanStartMs = new Date(span.timestamp).getTime();
-            const offset = traceDurationMs > 0
-              ? ((spanStartMs - traceStartMs) / traceDurationMs) * 100
-              : 0;
-            const width = traceDurationMs > 0
-              ? (span.durationMs / traceDurationMs) * 100
-              : 100;
-            const isSelected = selectedSpan?.spanId === span.spanId;
-            const childCount = countDescendants(node);
-            const hasChildren = node.children.length > 0;
-            const isCollapsed = collapsedSpans.has(span.spanId);
-            const isError = isSpanError(span);
-
-            const barIsWide = width > 15;
-            const barH = 24;
-
-            return (
-              <div
-                key={span.spanId}
-                onClick={() => setSelectedSpan(span)}
-                className={`flex items-center cursor-pointer border-b border-[var(--border-color)]/20 transition-colors ${
-                  isSelected ? "bg-primary/5" : "hover:bg-[var(--hover-bg)]"
-                }`}
-                style={{ height: 34 }}
-              >
-                <div
-                  className="w-[80px] flex-shrink-0 flex items-center gap-1 text-xs px-2"
-                  style={{ paddingLeft: `${depth * 12 + 8}px` }}
-                >
-                  {hasChildren ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleCollapse(span.spanId); }}
-                      className="flex items-center gap-0.5 p-0.5 rounded hover:bg-[var(--hover-bg)]"
-                    >
-                      {isCollapsed ? <ChevronRight className="w-3 h-3 text-muted" /> : <ChevronDown className="w-3 h-3 text-muted" />}
-                      <span className="text-[10px] text-muted">{childCount}</span>
-                    </button>
-                  ) : (
-                    <span className="w-[18px]" />
-                  )}
-                </div>
-
-                <div className="flex-1 relative" style={{ height: barH }}>
-                  <div
-                    className="absolute top-0"
-                    style={{
-                      left: `${offset}%`,
-                      width: `${Math.max(width, 0.3)}%`,
-                      height: barH,
-                      borderRadius: 4,
-                      borderLeft: `3px solid ${isError ? "#ef4444" : color}`,
-                      background: isError ? "rgba(239,68,68,0.15)" : `${color}30`,
-                    }}
-                  >
-                    {barIsWide && (
-                      <div className="absolute inset-0 flex items-center gap-1 px-2 overflow-hidden">
-                        <span className="text-[11px] font-medium truncate" style={{ color: isError ? "#ef4444" : color }}>
-                          {span.spanName}
-                        </span>
-                        <span className="text-[10px] flex-shrink-0" style={{ color: `${isError ? "#ef4444" : color}99` }}>
-                          {formatDurationMs(span.durationMs)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  {!barIsWide && (
-                    <div
-                      className="absolute flex items-center gap-1.5 whitespace-nowrap"
-                      style={{ left: `${offset + Math.max(width, 0.3) + 0.5}%`, top: 0, height: barH }}
-                    >
-                      <span className="text-[11px] text-default truncate">{span.spanName}</span>
-                      <span className="text-[10px] text-muted flex-shrink-0">{formatDurationMs(span.durationMs)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {flatSpans.map((node) => (
+            <SpanRow
+              key={node.span.spanId}
+              node={node}
+              serviceColorMap={serviceColorMap}
+              traceStartMs={traceStartMs}
+              traceDurationMs={traceDurationMs}
+              isSelected={selectedSpan?.spanId === node.span.spanId}
+              isCollapsed={collapsedSpans.has(node.span.spanId)}
+              onSelect={setSelectedSpan}
+              onToggleCollapse={toggleCollapse}
+            />
+          ))}
         </div>
         </>}
       </div>
@@ -355,337 +231,6 @@ export function TraceWaterfall({
         traceStartMs={traceStartMs}
         onClose={() => setSelectedSpan(null)}
       />
-    </div>
-  );
-}
-
-// ============================================================
-// SpanDrawer — structured attribute display
-// ============================================================
-
-function SpanDrawer({
-  t,
-  span,
-  trace,
-  serviceColorMap,
-  traceStartMs,
-  onClose,
-}: {
-  t: ApmTranslations;
-  span: Span | null;
-  trace: TraceDetail;
-  serviceColorMap: Map<string, string>;
-  traceStartMs: number;
-  onClose: () => void;
-}) {
-  if (!span) return null;
-
-  const color = serviceColorMap.get(span.serviceName) ?? "#94a3b8";
-  const spanStartMs = new Date(span.timestamp).getTime();
-
-  // Self-time = span duration minus direct children duration
-  const childDuration = trace.spans
-    .filter((s) => s.parentSpanId === span.spanId)
-    .reduce((sum, s) => sum + s.durationMs, 0);
-  const selfTime = span.durationMs - childDuration;
-  const startOffset = spanStartMs - traceStartMs;
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-40 transition-opacity" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[520px] max-w-[90vw] z-50 bg-card border-l border-[var(--border-color)] shadow-2xl overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-card border-b border-[var(--border-color)] px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-            <h3 className="text-sm font-semibold text-default truncate">{t.spanDetail}</h3>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex-shrink-0">
-            <X className="w-4 h-4 text-muted" />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-5">
-          {/* Overview */}
-          <section>
-            <SectionHeader title={t.overview} />
-            <div className="grid grid-cols-2 gap-2.5">
-              <MetricCard label={t.serviceName}>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                  <span className="text-sm font-medium text-default truncate">{span.serviceName}</span>
-                </div>
-              </MetricCard>
-              <MetricCard label={t.spanKind}>
-                <span className="text-sm font-medium text-default">
-                  {span.spanKind.replace("SPAN_KIND_", "")}
-                </span>
-              </MetricCard>
-              <MetricCard label={t.statusCode}>
-                <span className={`text-sm font-medium ${isSpanError(span) ? "text-red-400" : "text-emerald-400"}`}>
-                  {span.statusCode.replace("STATUS_CODE_", "")}
-                </span>
-              </MetricCard>
-              <MetricCard label={t.duration}>
-                <span className="text-sm font-medium text-default">{formatDurationMs(span.durationMs)}</span>
-              </MetricCard>
-              <MetricCard label={t.selfTime}>
-                <span className="text-sm font-medium text-default">{formatDurationMs(selfTime)}</span>
-                <span className="text-[10px] text-muted ml-1">
-                  ({span.durationMs > 0 ? Math.round((selfTime / span.durationMs) * 100) : 0}%)
-                </span>
-              </MetricCard>
-              <MetricCard label={t.childTime}>
-                <span className="text-sm font-medium text-default">{formatDurationMs(childDuration)}</span>
-              </MetricCard>
-              <MetricCard label={t.startOffset} fullWidth>
-                <span className="text-sm font-mono text-default">+{formatDurationMs(startOffset)}</span>
-              </MetricCard>
-            </div>
-          </section>
-
-          {/* Error Info — 仅错误 Span 显示 */}
-          {span.error && (
-            <section>
-              <SectionHeader title={t.errorInfo} />
-              <div className="border border-red-500/30 rounded-lg p-3 bg-red-500/5">
-                <div className="text-sm font-semibold text-red-400">{span.error.type}</div>
-                <div className="text-sm text-default mt-1">{span.error.message}</div>
-                {span.error.stacktrace && (
-                  <details className="mt-2">
-                    <summary className="text-xs text-muted cursor-pointer hover:text-default transition-colors">{t.showStacktrace}</summary>
-                    <pre className="mt-1 text-xs text-muted font-mono whitespace-pre-wrap break-all max-h-[300px] overflow-y-auto">
-                      {span.error.stacktrace}
-                    </pre>
-                  </details>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* SpanName */}
-          <section>
-            <SectionHeader title={t.operationName} />
-            <div className="px-3 py-2.5 rounded-lg bg-[var(--hover-bg)] text-sm font-mono text-default break-all">
-              {span.spanName}
-            </div>
-          </section>
-
-          {/* Resource */}
-          {span.resource && (span.resource.podName || span.resource.clusterName || span.resource.serviceVersion) && (
-            <section>
-              <SectionHeader title={t.resourceInfo} />
-              <div className="space-y-1.5">
-                {span.resource.podName && <KVRow label={t.podName} value={span.resource.podName} />}
-                {span.resource.nodeName && <KVRow label={t.nodeName} value={span.resource.nodeName} />}
-                {span.resource.deploymentName && <KVRow label={t.deploymentName} value={span.resource.deploymentName} />}
-                {span.resource.namespaceName && <KVRow label={t.namespaceName} value={span.resource.namespaceName} />}
-                {span.resource.clusterName && <KVRow label={t.clusterName} value={span.resource.clusterName} />}
-                {span.resource.serviceVersion && <KVRow label={t.serviceVersion} value={span.resource.serviceVersion} />}
-                {span.resource.instanceId && <KVRow label="Instance ID" value={span.resource.instanceId} />}
-              </div>
-            </section>
-          )}
-
-          {/* HTTP */}
-          {span.http && (
-            <section>
-              <SectionHeader title={t.httpAttributes} />
-              <div className="border border-[var(--border-color)] rounded-lg overflow-hidden">
-                <KVTableRow label={t.httpMethod} value={span.http.method} />
-                {span.http.route && <KVTableRow label={t.httpRoute} value={span.http.route} border />}
-                {span.http.url && <KVTableRow label={t.httpUrl} value={span.http.url} border />}
-                {span.http.statusCode !== undefined && (
-                  <KVTableRow label={t.httpStatusCode} border>
-                    <span className={`px-1.5 py-0.5 rounded text-xs font-mono font-semibold ${
-                      span.http.statusCode < 300 ? 'bg-emerald-500/10 text-emerald-400' :
-                      span.http.statusCode < 400 ? 'bg-blue-500/10 text-blue-400' :
-                      span.http.statusCode < 500 ? 'bg-amber-500/10 text-amber-400' :
-                      'bg-red-500/10 text-red-400'
-                    }`}>
-                      {span.http.statusCode}
-                    </span>
-                  </KVTableRow>
-                )}
-                {span.http.server && <KVTableRow label="Server" value={`${span.http.server}:${span.http.serverPort}`} border />}
-              </div>
-            </section>
-          )}
-
-          {/* DB */}
-          {span.db && (
-            <section>
-              <SectionHeader title={t.dbAttributes} />
-              <div className="border border-[var(--border-color)] rounded-lg overflow-hidden">
-                <KVTableRow label={t.dbSystem} value={span.db.system} />
-                {span.db.name && <KVTableRow label={t.dbName} value={span.db.name} border />}
-                {span.db.operation && <KVTableRow label={t.dbOperation} value={span.db.operation} border />}
-                {span.db.table && <KVTableRow label={t.dbTable} value={span.db.table} border />}
-                {span.db.statement && <KVTableRow label={t.dbStatement} value={span.db.statement} border mono />}
-              </div>
-            </section>
-          )}
-
-          {/* Events — 已有错误信息块时过滤掉 exception 事件，避免重复 */}
-          {(() => {
-            const displayEvents = span.events?.filter(e => !(span.error && e.name === 'exception')) ?? [];
-            if (displayEvents.length === 0) return null;
-            return (
-              <section>
-                <SectionHeader title={`Events (${displayEvents.length})`} />
-                <div className="space-y-2">
-                  {displayEvents.map((ev, i) => (
-                    <div key={i} className="border border-[var(--border-color)] rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-default">{ev.name}</span>
-                        <span className="text-[10px] text-muted">{new Date(ev.timestamp).toLocaleTimeString()}</span>
-                      </div>
-                      {ev.attributes && Object.entries(ev.attributes).map(([k, v]) => (
-                        <div key={k} className="text-xs text-muted mt-1">
-                          <span className="text-muted/70">{k}:</span>{" "}
-                          <span className="font-mono text-default break-all">{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            );
-          })()}
-
-          {/* IDs */}
-          <section>
-            <SectionHeader title={t.spanIds} />
-            <div className="space-y-1.5">
-              <IdRow label="Span ID" value={span.spanId} />
-              {span.parentSpanId && <IdRow label={t.parentSpan} value={span.parentSpanId} />}
-              <IdRow label="Trace ID" value={trace.traceId} />
-            </div>
-          </section>
-
-          {/* Correlated Logs */}
-          <section>
-            <SectionHeader title={`${t.correlatedLogs} — ${span.serviceName}`} />
-            <div className="border border-[var(--border-color)] rounded-lg overflow-hidden">
-              <SpanLogs t={t} traceId={trace.traceId} serviceName={span.serviceName} compact />
-            </div>
-          </section>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ============================================================
-// Drawer sub-components
-// ============================================================
-
-function SectionHeader({ title }: { title: string }) {
-  return <h4 className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">{title}</h4>;
-}
-
-function MetricCard({ label, children, fullWidth }: { label: string; children: React.ReactNode; fullWidth?: boolean }) {
-  return (
-    <div className={`px-3 py-2 rounded-lg bg-[var(--hover-bg)] ${fullWidth ? "col-span-2" : ""}`}>
-      <div className="text-[10px] text-muted mb-0.5">{label}</div>
-      <div className="flex items-center">{children}</div>
-    </div>
-  );
-}
-
-function IdRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--hover-bg)] text-xs">
-      <span className="text-muted flex-shrink-0 min-w-[80px]">{label}</span>
-      <code className="text-default font-mono text-[11px] truncate">{value}</code>
-    </div>
-  );
-}
-
-function KVRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--hover-bg)] text-xs">
-      <span className="text-muted flex-shrink-0 min-w-[100px]">{label}</span>
-      <span className="text-default font-mono text-[11px] truncate">{value}</span>
-    </div>
-  );
-}
-
-// ============================================================
-// SpanLogs — Trace 关联日志
-// ============================================================
-
-function SpanLogs({ t, traceId, serviceName, compact }: {
-  t: ApmTranslations;
-  traceId: string;
-  serviceName?: string;
-  compact?: boolean;
-}) {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const clusterId = useClusterStore((s) => s.currentClusterId);
-
-  useEffect(() => {
-    if (!clusterId) { setLoading(false); return; }
-    setLoading(true);
-    queryLogs({
-      clusterId,
-      traceId,
-      services: serviceName ? [serviceName] : undefined,
-      limit: compact ? 20 : 100,
-    })
-      .then((result) => setLogs(result.logs))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [clusterId, traceId, serviceName, compact]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12 text-sm text-muted">
-        <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin mr-2" />
-        {t.loading}
-      </div>
-    );
-  }
-
-  if (logs.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-12 text-sm text-muted">
-        {t.noCorrelatedLogs}
-      </div>
-    );
-  }
-
-  return (
-    <div className={`overflow-auto ${compact ? "max-h-[300px]" : "max-h-[500px]"}`}>
-      {logs.map((log, i) => {
-        const severityClass =
-          log.severity === "ERROR" ? "bg-red-500/10 text-red-500" :
-          log.severity === "WARN" ? "bg-amber-500/10 text-amber-500" :
-          log.severity === "DEBUG" ? "bg-gray-500/10 text-gray-500" :
-          "bg-blue-500/10 text-blue-500";
-        return (
-          <div key={i} className="flex items-start gap-2 px-4 py-2 border-b border-[var(--border-color)]/20 hover:bg-[var(--hover-bg)] text-xs">
-            <span className="text-[10px] text-muted flex-shrink-0 w-[70px] pt-0.5">
-              {new Date(log.timestamp).toLocaleTimeString()}
-            </span>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${severityClass}`}>
-              {log.severity}
-            </span>
-            <span className="text-muted flex-shrink-0 max-w-[120px] truncate">{log.serviceName}</span>
-            <span className="text-default break-all">{log.body}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function KVTableRow({ label, value, border, mono, children }: { label: string; value?: string; border?: boolean; mono?: boolean; children?: React.ReactNode }) {
-  return (
-    <div className={`flex gap-3 px-3 py-2 text-xs ${border ? "border-t border-[var(--border-color)]" : ""}`}>
-      <span className="text-muted flex-shrink-0 min-w-[100px]">{label}</span>
-      {children ?? <span className={`text-default break-all ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>}
     </div>
   );
 }
