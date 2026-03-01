@@ -4,19 +4,19 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestServiceItem_PortFormatting(t *testing.T) {
-	src := &model_v2.Service{
-		Summary: model_v2.ServiceSummary{
+	src := &cluster.Service{
+		Summary: cluster.ServiceSummary{
 			Name:      "web",
 			Namespace: "default",
 			Type:      "NodePort",
 			ClusterIP: "10.96.0.1",
 			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		},
-		Ports: []model_v2.ServicePort{
+		Ports: []cluster.ServicePort{
 			{Port: 80, NodePort: 30080, Protocol: "TCP", TargetPort: "8080"},
 			{Port: 443, Protocol: "TCP", TargetPort: "8443"},
 		},
@@ -37,14 +37,14 @@ func TestServiceItem_PortFormatting(t *testing.T) {
 }
 
 func TestServiceItem_SamePortTarget(t *testing.T) {
-	src := &model_v2.Service{
-		Summary: model_v2.ServiceSummary{
+	src := &cluster.Service{
+		Summary: cluster.ServiceSummary{
 			Name:      "simple",
 			Namespace: "default",
 			Type:      "ClusterIP",
 			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		},
-		Ports: []model_v2.ServicePort{
+		Ports: []cluster.ServicePort{
 			{Port: 80, Protocol: "TCP", TargetPort: "80"},
 		},
 	}
@@ -57,8 +57,8 @@ func TestServiceItem_SamePortTarget(t *testing.T) {
 }
 
 func TestServiceItem_NoPorts(t *testing.T) {
-	src := &model_v2.Service{
-		Summary: model_v2.ServiceSummary{
+	src := &cluster.Service{
+		Summary: cluster.ServiceSummary{
 			Name:      "headless",
 			Namespace: "default",
 			Type:      "ClusterIP",
@@ -74,8 +74,8 @@ func TestServiceItem_NoPorts(t *testing.T) {
 }
 
 func TestServiceDetail_FieldMapping(t *testing.T) {
-	src := &model_v2.Service{
-		Summary: model_v2.ServiceSummary{
+	src := &cluster.Service{
+		Summary: cluster.ServiceSummary{
 			Name:      "api",
 			Namespace: "prod",
 			Type:      "LoadBalancer",
@@ -83,19 +83,19 @@ func TestServiceDetail_FieldMapping(t *testing.T) {
 			Age:       "30d",
 			Badges:    []string{"external"},
 		},
-		Ports: []model_v2.ServicePort{
+		Ports: []cluster.ServicePort{
 			{Port: 443, Protocol: "TCP", TargetPort: "8443", AppProtocol: "https"},
 		},
 		Selector: map[string]string{"app": "api"},
-		Network: model_v2.ServiceNetwork{
+		Network: cluster.ServiceNetwork{
 			ClusterIPs:            []string{"10.96.0.5"},
 			ExternalTrafficPolicy: "Local",
 		},
-		Spec: model_v2.ServiceSpec{
+		Spec: cluster.ServiceSpec{
 			SessionAffinity: "ClientIP",
 		},
-		Backends: &model_v2.ServiceBackends{
-			Summary: model_v2.BackendSummary{Ready: 3, Total: 3},
+		Backends: &cluster.ServiceBackends{
+			Summary: cluster.BackendSummary{Ready: 3, Total: 3},
 		},
 	}
 

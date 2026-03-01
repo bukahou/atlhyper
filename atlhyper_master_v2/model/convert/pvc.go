@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/pvc.go
-// model_v2.PersistentVolumeClaim → model.PVCItem 转换函数
+// cluster.PersistentVolumeClaim → model.PVCItem 转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // PVCItem 转换为列表项
-func PVCItem(src *model_v2.PersistentVolumeClaim) model.PVCItem {
+func PVCItem(src *cluster.PersistentVolumeClaim) model.PVCItem {
 	return model.PVCItem{
 		Name:              src.Name,
 		Namespace:         src.Namespace,
@@ -24,7 +24,7 @@ func PVCItem(src *model_v2.PersistentVolumeClaim) model.PVCItem {
 }
 
 // PVCDetail 转换为详情
-func PVCDetail(src *model_v2.PersistentVolumeClaim) model.PVCDetail {
+func PVCDetail(src *cluster.PersistentVolumeClaim) model.PVCDetail {
 	return model.PVCDetail{
 		Name:              src.Name,
 		Namespace:         src.Namespace,
@@ -43,7 +43,7 @@ func PVCDetail(src *model_v2.PersistentVolumeClaim) model.PVCDetail {
 }
 
 // PVCItems 转换多个 PersistentVolumeClaim 为列表项
-func PVCItems(src []model_v2.PersistentVolumeClaim) []model.PVCItem {
+func PVCItems(src []cluster.PersistentVolumeClaim) []model.PVCItem {
 	if src == nil {
 		return []model.PVCItem{}
 	}

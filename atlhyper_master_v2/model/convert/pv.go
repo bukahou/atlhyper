@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/pv.go
-// model_v2.PersistentVolume → model.PVItem 转换函数
+// cluster.PersistentVolume → model.PVItem 转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // PVItem 转换为列表项
-func PVItem(src *model_v2.PersistentVolume) model.PVItem {
+func PVItem(src *cluster.PersistentVolume) model.PVItem {
 	return model.PVItem{
 		Name:          src.Name,
 		Capacity:      src.Capacity,
@@ -22,7 +22,7 @@ func PVItem(src *model_v2.PersistentVolume) model.PVItem {
 }
 
 // PVDetail 转换为详情
-func PVDetail(src *model_v2.PersistentVolume) model.PVDetail {
+func PVDetail(src *cluster.PersistentVolume) model.PVDetail {
 	return model.PVDetail{
 		Name:             src.Name,
 		UID:              src.UID,
@@ -41,7 +41,7 @@ func PVDetail(src *model_v2.PersistentVolume) model.PVDetail {
 }
 
 // PVItems 转换多个 PersistentVolume 为列表项
-func PVItems(src []model_v2.PersistentVolume) []model.PVItem {
+func PVItems(src []cluster.PersistentVolume) []model.PVItem {
 	if src == nil {
 		return []model.PVItem{}
 	}

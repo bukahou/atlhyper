@@ -4,14 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestJobItem_FieldMapping(t *testing.T) {
 	start := time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC)
 	finish := time.Date(2026, 2, 13, 10, 5, 32, 0, time.UTC)
-	src := &model_v2.Job{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.Job{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "data-migration-v2",
 			Namespace: "default",
 			CreatedAt: time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC),
@@ -59,8 +60,8 @@ func TestJobItem_FieldMapping(t *testing.T) {
 }
 
 func TestJobItem_NilTimePointers(t *testing.T) {
-	src := &model_v2.Job{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.Job{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "running-job",
 			Namespace: "default",
 			CreatedAt: time.Now(),
@@ -91,7 +92,7 @@ func TestJobItems_NilInput(t *testing.T) {
 }
 
 func TestJobItems_EmptyInput(t *testing.T) {
-	result := JobItems([]model_v2.Job{})
+	result := JobItems([]cluster.Job{})
 	if result == nil {
 		t.Error("JobItems([]) should return empty slice, not nil")
 	}
@@ -107,8 +108,8 @@ func TestJobItems_EmptyInput(t *testing.T) {
 func TestJobDetail_FieldMapping(t *testing.T) {
 	start := time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC)
 	finish := time.Date(2026, 2, 13, 10, 5, 32, 0, time.UTC)
-	src := &model_v2.Job{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.Job{
+		CommonMeta: model_v3.CommonMeta{
 			UID:       "abc-123",
 			Name:      "data-migration-v2",
 			Namespace: "default",
@@ -188,8 +189,8 @@ func TestJobDetail_Duration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := &model_v2.Job{
-				CommonMeta: model_v2.CommonMeta{
+			src := &cluster.Job{
+				CommonMeta: model_v3.CommonMeta{
 					Name:      "test-job",
 					Namespace: "default",
 					CreatedAt: time.Now(),
@@ -206,8 +207,8 @@ func TestJobDetail_Duration(t *testing.T) {
 }
 
 func TestJobDetail_NilTimes(t *testing.T) {
-	src := &model_v2.Job{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.Job{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "running-job",
 			Namespace: "default",
 			CreatedAt: time.Now(),
@@ -246,8 +247,8 @@ func TestJobDetail_Status(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := &model_v2.Job{
-				CommonMeta: model_v2.CommonMeta{
+			src := &cluster.Job{
+				CommonMeta: model_v3.CommonMeta{
 					Name:      "test",
 					Namespace: "default",
 					CreatedAt: time.Now(),
@@ -265,14 +266,14 @@ func TestJobDetail_Status(t *testing.T) {
 }
 
 func TestJobDetail_PodTemplate(t *testing.T) {
-	src := &model_v2.Job{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.Job{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "test-job",
 			Namespace: "default",
 			CreatedAt: time.Now(),
 		},
-		Template: model_v2.PodTemplate{
-			Containers: []model_v2.ContainerDetail{
+		Template: cluster.PodTemplate{
+			Containers: []cluster.ContainerDetail{
 				{Name: "worker", Image: "busybox:latest"},
 			},
 		},
@@ -286,8 +287,8 @@ func TestJobDetail_PodTemplate(t *testing.T) {
 }
 
 func TestJobDetail_PodTemplate_Empty(t *testing.T) {
-	src := &model_v2.Job{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.Job{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "test-job",
 			Namespace: "default",
 			CreatedAt: time.Now(),
@@ -302,14 +303,14 @@ func TestJobDetail_PodTemplate_Empty(t *testing.T) {
 }
 
 func TestJobDetail_Conditions(t *testing.T) {
-	src := &model_v2.Job{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.Job{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "test-job",
 			Namespace: "default",
 			CreatedAt: time.Now(),
 		},
 		Complete: true,
-		Conditions: []model_v2.WorkloadCondition{
+		Conditions: []cluster.WorkloadCondition{
 			{Type: "Complete", Status: "True", Reason: "BackoffLimitExceeded"},
 		},
 	}
@@ -326,8 +327,8 @@ func TestJobDetail_SpecFields(t *testing.T) {
 	parallelism := int32(2)
 	backoff := int32(6)
 
-	src := &model_v2.Job{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.Job{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "test-job",
 			Namespace: "default",
 			CreatedAt: time.Now(),

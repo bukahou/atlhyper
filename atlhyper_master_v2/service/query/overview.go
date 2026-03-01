@@ -8,29 +8,31 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/agent"
+	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/command"
 )
 
 // ==================== 集群查询 ====================
 
 // ListClusters 列出所有集群
-func (q *QueryService) ListClusters(ctx context.Context) ([]model_v2.ClusterInfo, error) {
+func (q *QueryService) ListClusters(ctx context.Context) ([]agent.ClusterInfo, error) {
 	agents, err := q.store.ListAgents()
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]model_v2.ClusterInfo, 0, len(agents))
-	for _, agent := range agents {
-		info := model_v2.ClusterInfo{
-			ClusterID: agent.ClusterID,
-			Status:    agent.Status,
-			LastSeen:  agent.LastHeartbeat,
+	result := make([]agent.ClusterInfo, 0, len(agents))
+	for _, a := range agents {
+		info := agent.ClusterInfo{
+			ClusterID: a.ClusterID,
+			Status:    a.Status,
+			LastSeen:  a.LastHeartbeat,
 		}
 
 		// 获取快照统计
-		if snapshot, err := q.store.GetSnapshot(agent.ClusterID); err == nil && snapshot != nil {
+		if snapshot, err := q.store.GetSnapshot(a.ClusterID); err == nil && snapshot != nil {
 			info.NodeCount = len(snapshot.Nodes)
 			info.PodCount = len(snapshot.Pods)
 		}
@@ -42,7 +44,7 @@ func (q *QueryService) ListClusters(ctx context.Context) ([]model_v2.ClusterInfo
 }
 
 // GetCluster 获取集群详情
-func (q *QueryService) GetCluster(ctx context.Context, clusterID string) (*model_v2.ClusterDetail, error) {
+func (q *QueryService) GetCluster(ctx context.Context, clusterID string) (*agent.ClusterDetail, error) {
 	snapshot, err := q.GetSnapshot(ctx, clusterID)
 	if err != nil {
 		return nil, err
@@ -50,7 +52,7 @@ func (q *QueryService) GetCluster(ctx context.Context, clusterID string) (*model
 
 	status, _ := q.GetAgentStatus(ctx, clusterID)
 
-	return &model_v2.ClusterDetail{
+	return &agent.ClusterDetail{
 		ClusterID: clusterID,
 		Status:    status,
 		Snapshot:  snapshot,
@@ -60,7 +62,7 @@ func (q *QueryService) GetCluster(ctx context.Context, clusterID string) (*model
 // ==================== Agent 状态查询 ====================
 
 // GetAgentStatus 获取 Agent 状态
-func (q *QueryService) GetAgentStatus(ctx context.Context, clusterID string) (*model_v2.AgentStatus, error) {
+func (q *QueryService) GetAgentStatus(ctx context.Context, clusterID string) (*agent.AgentStatus, error) {
 	return q.store.GetAgentStatus(clusterID)
 }
 
@@ -74,13 +76,13 @@ func (q *QueryService) GetCommandStatus(ctx context.Context, commandID string) (
 // ==================== Event 查询 ====================
 
 // GetEvents 获取实时 Events
-func (q *QueryService) GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]model_v2.Event, error) {
+func (q *QueryService) GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]cluster.Event, error) {
 	events, err := q.store.GetEvents(clusterID)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]model_v2.Event, 0, len(events))
+	result := make([]cluster.Event, 0, len(events))
 	for _, e := range events {
 		// 过滤
 		if opts.Type != "" && e.Type != opts.Type {
@@ -107,13 +109,13 @@ func (q *QueryService) GetEvents(ctx context.Context, clusterID string, opts mod
 }
 
 // GetEventsByResource 按资源查询 Events
-func (q *QueryService) GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]model_v2.Event, error) {
+func (q *QueryService) GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]cluster.Event, error) {
 	events, err := q.store.GetEvents(clusterID)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]model_v2.Event, 0)
+	result := make([]cluster.Event, 0)
 	for _, e := range events {
 		if e.InvolvedObject.Kind == kind && e.InvolvedObject.Namespace == namespace && e.InvolvedObject.Name == name {
 			result = append(result, e)
@@ -126,7 +128,7 @@ func (q *QueryService) GetEventsByResource(ctx context.Context, clusterID, kind,
 // ==================== 概览查询 ====================
 
 // GetOverview 获取集群概览
-func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*model_v2.ClusterOverview, error) {
+func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*cluster.ClusterOverview, error) {
 	// 获取快照
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil {
@@ -136,7 +138,7 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 		return nil, nil
 	}
 
-	// 使用 model_v2 的 Summary
+	// 使用快照的 Summary
 	summary := snapshot.Summary
 
 	// 计算百分比
@@ -151,25 +153,25 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 	}
 
 	// 构建健康状态
-	healthStatus := model_v2.CalculateHealthStatus(nodeReadyPct, podReadyPct)
-	healthReason := model_v2.CalculateHealthReason(nodeReadyPct, podReadyPct)
+	healthStatus := cluster.CalculateHealthStatus(nodeReadyPct, podReadyPct)
+	healthReason := cluster.CalculateHealthReason(nodeReadyPct, podReadyPct)
 
 	// 计算集群 CPU/Memory 使用率
 	var totalCPUAllocatable, totalCPUUsage int64
 	var totalMemAllocatable, totalMemUsage int64
-	nodeUsages := make([]model_v2.NodeUsage, 0, len(snapshot.Nodes))
+	nodeUsages := make([]cluster.NodeUsage, 0, len(snapshot.Nodes))
 	var peakCPU, peakMem float64
 	var peakCPUNode, peakMemNode string
 
 	for _, node := range snapshot.Nodes {
-		cpuAllocatable := model_v2.ParseCPU(node.Allocatable.CPU)
-		memAllocatable := model_v2.ParseMemory(node.Allocatable.Memory)
+		cpuAllocatable := model_v3.ParseCPU(node.Allocatable.CPU)
+		memAllocatable := model_v3.ParseMemory(node.Allocatable.Memory)
 
 		// 从 Metrics 获取使用量
 		var cpuUsage, memUsage int64
 		if node.Metrics != nil {
-			cpuUsage = model_v2.ParseCPU(node.Metrics.CPU.Usage)
-			memUsage = model_v2.ParseMemory(node.Metrics.Memory.Usage)
+			cpuUsage = model_v3.ParseCPU(node.Metrics.CPU.Usage)
+			memUsage = model_v3.ParseMemory(node.Metrics.Memory.Usage)
 		}
 
 		totalCPUAllocatable += cpuAllocatable
@@ -189,7 +191,7 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 
 		// 只添加有 metrics 数据的节点
 		if cpuUsage > 0 || memUsage > 0 {
-			nodeUsages = append(nodeUsages, model_v2.NodeUsage{
+			nodeUsages = append(nodeUsages, cluster.NodeUsage{
 				Node:     node.GetName(),
 				CPUUsage: nodeCPUPct,
 				MemUsage: nodeMemPct,
@@ -220,7 +222,7 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 	hasMetrics := len(nodeUsages) > 0
 
 	// ==================== 告警数据（全部从数据库获取）====================
-	recentAlerts := make([]model_v2.RecentAlert, 0)
+	recentAlerts := make([]cluster.RecentAlert, 0)
 	alertTotal := 0
 
 	// 1. 告警趋势（完整的 24 小时时间线，按资源类型统计）
@@ -229,11 +231,11 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 	currentHour := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
 
 	// 初始化 24 个时间点，每个时间点的 Kinds 为空 map
-	alertTrend := make([]model_v2.AlertTrendPoint, 24)
+	alertTrend := make([]cluster.AlertTrendPoint, 24)
 	hourToIndex := make(map[string]int)
 	for i := 0; i < 24; i++ {
 		t := currentHour.Add(time.Duration(i-23) * time.Hour)
-		alertTrend[i] = model_v2.AlertTrendPoint{
+		alertTrend[i] = cluster.AlertTrendPoint{
 			At:    t,
 			Kinds: make(map[string]int),
 		}
@@ -257,7 +259,7 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 			Limit: 10,
 		})
 		for _, e := range dbEvents {
-			recentAlerts = append(recentAlerts, model_v2.RecentAlert{
+			recentAlerts = append(recentAlerts, cluster.RecentAlert{
 				Timestamp: e.LastTimestamp.Format("2006-01-02T15:04:05Z"),
 				Severity:  "warning", // 数据库只存 Warning
 				Kind:      e.InvolvedKind,
@@ -350,32 +352,32 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 	}
 
 	// 构建响应
-	overview := &model_v2.ClusterOverview{
+	overview := &cluster.ClusterOverview{
 		ClusterID: clusterID,
-		Cards: model_v2.OverviewCards{
-			ClusterHealth: model_v2.ClusterHealth{
+		Cards: cluster.OverviewCards{
+			ClusterHealth: cluster.ClusterHealth{
 				Status:           healthStatus,
 				Reason:           healthReason,
 				NodeReadyPercent: nodeReadyPct,
 				PodReadyPercent:  podReadyPct,
 			},
-			NodeReady: model_v2.ResourceReady{
+			NodeReady: cluster.ResourceReady{
 				Total:   summary.TotalNodes,
 				Ready:   summary.ReadyNodes,
 				Percent: nodeReadyPct,
 			},
-			CPUUsage:  model_v2.ResourcePercent{Percent: clusterCPUPct},
-			MemUsage:  model_v2.ResourcePercent{Percent: clusterMemPct},
+			CPUUsage:  cluster.ResourcePercent{Percent: clusterCPUPct},
+			MemUsage:  cluster.ResourcePercent{Percent: clusterMemPct},
 			Events24h: alertTotal,
 		},
-		Workloads: model_v2.OverviewWorkloads{
-			Summary: model_v2.WorkloadSummary{
-				Deployments:  model_v2.WorkloadStatus{Total: deploymentTotal, Ready: deploymentReady},
-				DaemonSets:   model_v2.WorkloadStatus{Total: daemonSetTotal, Ready: daemonSetReady},
-				StatefulSets: model_v2.WorkloadStatus{Total: statefulSetTotal, Ready: statefulSetReady},
-				Jobs:         model_v2.JobStatus{Total: jobTotal, Running: jobRunning, Succeeded: jobSucceeded, Failed: jobFailed},
+		Workloads: cluster.OverviewWorkloads{
+			Summary: cluster.WorkloadSummary{
+				Deployments:  cluster.WorkloadStatus{Total: deploymentTotal, Ready: deploymentReady},
+				DaemonSets:   cluster.WorkloadStatus{Total: daemonSetTotal, Ready: daemonSetReady},
+				StatefulSets: cluster.WorkloadStatus{Total: statefulSetTotal, Ready: statefulSetReady},
+				Jobs:         cluster.JobStatus{Total: jobTotal, Running: jobRunning, Succeeded: jobSucceeded, Failed: jobFailed},
 			},
-			PodStatus: model_v2.PodStatusDistribution{
+			PodStatus: cluster.PodStatusDistribution{
 				Total:            podTotal,
 				Running:          podRunning,
 				Pending:          podPending,
@@ -387,7 +389,7 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 				FailedPercent:    failedPct,
 				SucceededPercent: succeededPct,
 			},
-			PeakStats: &model_v2.PeakStats{
+			PeakStats: &cluster.PeakStats{
 				PeakCPU:     peakCPU,
 				PeakCPUNode: peakCPUNode,
 				PeakMem:     peakMem,
@@ -395,16 +397,16 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 				HasData:     hasMetrics,
 			},
 		},
-		Alerts: model_v2.OverviewAlerts{
+		Alerts: cluster.OverviewAlerts{
 			Trend: alertTrend,
-			Totals: model_v2.AlertTotals{
+			Totals: cluster.AlertTotals{
 				Critical: 0,          // 不再区分严重程度
 				Warning:  alertTotal, // 全部告警数
 				Info:     0,
 			},
 			Recent: recentAlerts,
 		},
-		Nodes: model_v2.OverviewNodes{
+		Nodes: cluster.OverviewNodes{
 			Usage: nodeUsages,
 		},
 	}
@@ -415,7 +417,7 @@ func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*mode
 // ==================== 单资源查询 (Event Alert Enrichment) ====================
 
 // GetPod 获取单个 Pod
-func (q *QueryService) GetPod(ctx context.Context, clusterID, namespace, name string) (*model_v2.Pod, error) {
+func (q *QueryService) GetPod(ctx context.Context, clusterID, namespace, name string) (*cluster.Pod, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -431,7 +433,7 @@ func (q *QueryService) GetPod(ctx context.Context, clusterID, namespace, name st
 }
 
 // GetNode 获取单个 Node
-func (q *QueryService) GetNode(ctx context.Context, clusterID, name string) (*model_v2.Node, error) {
+func (q *QueryService) GetNode(ctx context.Context, clusterID, name string) (*cluster.Node, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -447,7 +449,7 @@ func (q *QueryService) GetNode(ctx context.Context, clusterID, name string) (*mo
 }
 
 // GetDeployment 获取单个 Deployment
-func (q *QueryService) GetDeployment(ctx context.Context, clusterID, namespace, name string) (*model_v2.Deployment, error) {
+func (q *QueryService) GetDeployment(ctx context.Context, clusterID, namespace, name string) (*cluster.Deployment, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -464,7 +466,7 @@ func (q *QueryService) GetDeployment(ctx context.Context, clusterID, namespace, 
 
 // GetDeploymentByReplicaSet 通过 ReplicaSet 名称查找所属 Deployment
 // ReplicaSet 名称格式: {deployment-name}-{hash}
-func (q *QueryService) GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*model_v2.Deployment, error) {
+func (q *QueryService) GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*cluster.Deployment, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err

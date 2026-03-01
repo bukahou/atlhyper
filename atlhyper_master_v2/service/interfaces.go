@@ -12,7 +12,7 @@ import (
 	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service/operations"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/agent"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/command"
 )
@@ -23,25 +23,25 @@ import (
 
 // QueryK8s K8s 资源快照查询
 type QueryK8s interface {
-	GetSnapshot(ctx context.Context, clusterID string) (*model_v2.ClusterSnapshot, error)
-	GetPods(ctx context.Context, clusterID string, opts model.PodQueryOpts) ([]model_v2.Pod, error)
-	GetNodes(ctx context.Context, clusterID string) ([]model_v2.Node, error)
-	GetDeployments(ctx context.Context, clusterID string, namespace string) ([]model_v2.Deployment, error)
-	GetServices(ctx context.Context, clusterID string, namespace string) ([]model_v2.Service, error)
-	GetIngresses(ctx context.Context, clusterID string, namespace string) ([]model_v2.Ingress, error)
-	GetConfigMaps(ctx context.Context, clusterID string, namespace string) ([]model_v2.ConfigMap, error)
-	GetSecrets(ctx context.Context, clusterID string, namespace string) ([]model_v2.Secret, error)
-	GetNamespaces(ctx context.Context, clusterID string) ([]model_v2.Namespace, error)
-	GetDaemonSets(ctx context.Context, clusterID string, namespace string) ([]model_v2.DaemonSet, error)
-	GetStatefulSets(ctx context.Context, clusterID string, namespace string) ([]model_v2.StatefulSet, error)
-	GetJobs(ctx context.Context, clusterID string, namespace string) ([]model_v2.Job, error)
-	GetCronJobs(ctx context.Context, clusterID string, namespace string) ([]model_v2.CronJob, error)
-	GetPersistentVolumes(ctx context.Context, clusterID string) ([]model_v2.PersistentVolume, error)
-	GetPersistentVolumeClaims(ctx context.Context, clusterID string, namespace string) ([]model_v2.PersistentVolumeClaim, error)
-	GetNetworkPolicies(ctx context.Context, clusterID string, namespace string) ([]model_v2.NetworkPolicy, error)
-	GetResourceQuotas(ctx context.Context, clusterID string, namespace string) ([]model_v2.ResourceQuota, error)
-	GetLimitRanges(ctx context.Context, clusterID string, namespace string) ([]model_v2.LimitRange, error)
-	GetServiceAccounts(ctx context.Context, clusterID string, namespace string) ([]model_v2.ServiceAccount, error)
+	GetSnapshot(ctx context.Context, clusterID string) (*cluster.ClusterSnapshot, error)
+	GetPods(ctx context.Context, clusterID string, opts model.PodQueryOpts) ([]cluster.Pod, error)
+	GetNodes(ctx context.Context, clusterID string) ([]cluster.Node, error)
+	GetDeployments(ctx context.Context, clusterID string, namespace string) ([]cluster.Deployment, error)
+	GetServices(ctx context.Context, clusterID string, namespace string) ([]cluster.Service, error)
+	GetIngresses(ctx context.Context, clusterID string, namespace string) ([]cluster.Ingress, error)
+	GetConfigMaps(ctx context.Context, clusterID string, namespace string) ([]cluster.ConfigMap, error)
+	GetSecrets(ctx context.Context, clusterID string, namespace string) ([]cluster.Secret, error)
+	GetNamespaces(ctx context.Context, clusterID string) ([]cluster.Namespace, error)
+	GetDaemonSets(ctx context.Context, clusterID string, namespace string) ([]cluster.DaemonSet, error)
+	GetStatefulSets(ctx context.Context, clusterID string, namespace string) ([]cluster.StatefulSet, error)
+	GetJobs(ctx context.Context, clusterID string, namespace string) ([]cluster.Job, error)
+	GetCronJobs(ctx context.Context, clusterID string, namespace string) ([]cluster.CronJob, error)
+	GetPersistentVolumes(ctx context.Context, clusterID string) ([]cluster.PersistentVolume, error)
+	GetPersistentVolumeClaims(ctx context.Context, clusterID string, namespace string) ([]cluster.PersistentVolumeClaim, error)
+	GetNetworkPolicies(ctx context.Context, clusterID string, namespace string) ([]cluster.NetworkPolicy, error)
+	GetResourceQuotas(ctx context.Context, clusterID string, namespace string) ([]cluster.ResourceQuota, error)
+	GetLimitRanges(ctx context.Context, clusterID string, namespace string) ([]cluster.LimitRange, error)
+	GetServiceAccounts(ctx context.Context, clusterID string, namespace string) ([]cluster.ServiceAccount, error)
 }
 
 // QueryOTel OTel 快照/时间线查询
@@ -75,18 +75,18 @@ type QueryAIOps interface {
 
 // QueryOverview 集群概览、Agent 状态、事件、单资源查询
 type QueryOverview interface {
-	ListClusters(ctx context.Context) ([]model_v2.ClusterInfo, error)
-	GetCluster(ctx context.Context, clusterID string) (*model_v2.ClusterDetail, error)
-	GetAgentStatus(ctx context.Context, clusterID string) (*model_v2.AgentStatus, error)
+	ListClusters(ctx context.Context) ([]agent.ClusterInfo, error)
+	GetCluster(ctx context.Context, clusterID string) (*agent.ClusterDetail, error)
+	GetAgentStatus(ctx context.Context, clusterID string) (*agent.AgentStatus, error)
 	GetCommandStatus(ctx context.Context, commandID string) (*command.Status, error)
-	GetOverview(ctx context.Context, clusterID string) (*model_v2.ClusterOverview, error)
-	GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]model_v2.Event, error)
-	GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]model_v2.Event, error)
+	GetOverview(ctx context.Context, clusterID string) (*cluster.ClusterOverview, error)
+	GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]cluster.Event, error)
+	GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]cluster.Event, error)
 	// 单资源查询 (Event Alert Enrichment)
-	GetPod(ctx context.Context, clusterID, namespace, name string) (*model_v2.Pod, error)
-	GetNode(ctx context.Context, clusterID, name string) (*model_v2.Node, error)
-	GetDeployment(ctx context.Context, clusterID, namespace, name string) (*model_v2.Deployment, error)
-	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*model_v2.Deployment, error)
+	GetPod(ctx context.Context, clusterID, namespace, name string) (*cluster.Pod, error)
+	GetNode(ctx context.Context, clusterID, name string) (*cluster.Node, error)
+	GetDeployment(ctx context.Context, clusterID, namespace, name string) (*cluster.Deployment, error)
+	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*cluster.Deployment, error)
 }
 
 // ================================================================

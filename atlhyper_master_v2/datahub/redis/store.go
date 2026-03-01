@@ -12,7 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"AtlHyper/model_v2"
+	agentmodel "AtlHyper/model_v3/agent"
 	"AtlHyper/model_v3/cluster"
 )
 
@@ -120,12 +120,12 @@ func (s *RedisStore) cleanupExpiredEvents() {
 			continue
 		}
 
-		var snapshot model_v2.ClusterSnapshot
+		var snapshot cluster.ClusterSnapshot
 		if err := json.Unmarshal(data, &snapshot); err != nil {
 			continue
 		}
 
-		var validEvents []model_v2.Event
+		var validEvents []cluster.Event
 		for _, e := range snapshot.Events {
 			if e.LastTimestamp.After(cutoff) {
 				validEvents = append(validEvents, e)
@@ -158,13 +158,13 @@ func (s *RedisStore) updateAgentStatus() {
 			continue
 		}
 
-		var agent model_v2.AgentInfo
+		var agent agentmodel.AgentInfo
 		if err := json.Unmarshal(data, &agent); err != nil {
 			continue
 		}
 
-		if agent.LastHeartbeat.Before(cutoff) && agent.Status == model_v2.AgentStatusOnline {
-			agent.Status = model_v2.AgentStatusOffline
+		if agent.LastHeartbeat.Before(cutoff) && agent.Status == agentmodel.StatusOnline {
+			agent.Status = agentmodel.StatusOffline
 			newData, _ := json.Marshal(&agent)
 			s.client.Set(ctx, keyAgent+clusterID, newData, 0)
 			log.Printf("[RedisStore] Agent 已标记为离线: 集群=%s", clusterID)
@@ -175,7 +175,7 @@ func (s *RedisStore) updateAgentStatus() {
 // ==================== 快照管理 ====================
 
 // SetSnapshot 存储集群快照
-func (s *RedisStore) SetSnapshot(clusterID string, snapshot *model_v2.ClusterSnapshot) error {
+func (s *RedisStore) SetSnapshot(clusterID string, snapshot *cluster.ClusterSnapshot) error {
 	ctx := context.Background()
 
 	data, err := json.Marshal(snapshot)
@@ -193,16 +193,16 @@ func (s *RedisStore) SetSnapshot(clusterID string, snapshot *model_v2.ClusterSna
 	agentData, err := s.client.Get(ctx, keyAgent+clusterID).Bytes()
 	if err == redis.Nil {
 		// 新 Agent
-		agent := model_v2.AgentInfo{
+		agent := agentmodel.AgentInfo{
 			ClusterID:     clusterID,
-			Status:        model_v2.AgentStatusOnline,
+			Status:        agentmodel.StatusOnline,
 			LastHeartbeat: time.Now(),
 			LastSnapshot:  snapshot.FetchedAt,
 		}
 		newData, _ := json.Marshal(&agent)
 		s.client.Set(ctx, keyAgent+clusterID, newData, 0)
 	} else if err == nil {
-		var agent model_v2.AgentInfo
+		var agent agentmodel.AgentInfo
 		if json.Unmarshal(agentData, &agent) == nil {
 			agent.LastSnapshot = snapshot.FetchedAt
 			newData, _ := json.Marshal(&agent)
@@ -214,7 +214,7 @@ func (s *RedisStore) SetSnapshot(clusterID string, snapshot *model_v2.ClusterSna
 }
 
 // GetSnapshot 获取集群快照
-func (s *RedisStore) GetSnapshot(clusterID string) (*model_v2.ClusterSnapshot, error) {
+func (s *RedisStore) GetSnapshot(clusterID string) (*cluster.ClusterSnapshot, error) {
 	ctx := context.Background()
 
 	data, err := s.client.Get(ctx, keySnapshot+clusterID).Bytes()
@@ -225,7 +225,7 @@ func (s *RedisStore) GetSnapshot(clusterID string) (*model_v2.ClusterSnapshot, e
 		return nil, fmt.Errorf("get snapshot: %w", err)
 	}
 
-	var snapshot model_v2.ClusterSnapshot
+	var snapshot cluster.ClusterSnapshot
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
 	}
@@ -242,9 +242,9 @@ func (s *RedisStore) UpdateHeartbeat(clusterID string) error {
 
 	agentData, err := s.client.Get(ctx, keyAgent+clusterID).Bytes()
 	if err == redis.Nil {
-		agent := model_v2.AgentInfo{
+		agent := agentmodel.AgentInfo{
 			ClusterID:     clusterID,
-			Status:        model_v2.AgentStatusOnline,
+			Status:        agentmodel.StatusOnline,
 			LastHeartbeat: time.Now(),
 		}
 		data, _ := json.Marshal(&agent)
@@ -254,19 +254,19 @@ func (s *RedisStore) UpdateHeartbeat(clusterID string) error {
 		return fmt.Errorf("get agent: %w", err)
 	}
 
-	var agent model_v2.AgentInfo
+	var agent agentmodel.AgentInfo
 	if err := json.Unmarshal(agentData, &agent); err != nil {
 		return fmt.Errorf("unmarshal agent: %w", err)
 	}
 
 	agent.LastHeartbeat = time.Now()
-	agent.Status = model_v2.AgentStatusOnline
+	agent.Status = agentmodel.StatusOnline
 	data, _ := json.Marshal(&agent)
 	return s.client.Set(ctx, keyAgent+clusterID, data, 0).Err()
 }
 
 // GetAgentStatus 获取 Agent 状态
-func (s *RedisStore) GetAgentStatus(clusterID string) (*model_v2.AgentStatus, error) {
+func (s *RedisStore) GetAgentStatus(clusterID string) (*agentmodel.AgentStatus, error) {
 	ctx := context.Background()
 
 	data, err := s.client.Get(ctx, keyAgent+clusterID).Bytes()
@@ -277,12 +277,12 @@ func (s *RedisStore) GetAgentStatus(clusterID string) (*model_v2.AgentStatus, er
 		return nil, fmt.Errorf("get agent: %w", err)
 	}
 
-	var agent model_v2.AgentInfo
+	var agent agentmodel.AgentInfo
 	if err := json.Unmarshal(data, &agent); err != nil {
 		return nil, fmt.Errorf("unmarshal agent: %w", err)
 	}
 
-	return &model_v2.AgentStatus{
+	return &agentmodel.AgentStatus{
 		ClusterID:     agent.ClusterID,
 		Status:        agent.Status,
 		LastHeartbeat: agent.LastHeartbeat,
@@ -291,7 +291,7 @@ func (s *RedisStore) GetAgentStatus(clusterID string) (*model_v2.AgentStatus, er
 }
 
 // ListAgents 列出所有 Agent
-func (s *RedisStore) ListAgents() ([]model_v2.AgentInfo, error) {
+func (s *RedisStore) ListAgents() ([]agentmodel.AgentInfo, error) {
 	ctx := context.Background()
 
 	clusterIDs, err := s.client.SMembers(ctx, keyAgents).Result()
@@ -299,13 +299,13 @@ func (s *RedisStore) ListAgents() ([]model_v2.AgentInfo, error) {
 		return nil, fmt.Errorf("get agents set: %w", err)
 	}
 
-	result := make([]model_v2.AgentInfo, 0, len(clusterIDs))
+	result := make([]agentmodel.AgentInfo, 0, len(clusterIDs))
 	for _, clusterID := range clusterIDs {
 		data, err := s.client.Get(ctx, keyAgent+clusterID).Bytes()
 		if err != nil {
 			continue
 		}
-		var agent model_v2.AgentInfo
+		var agent agentmodel.AgentInfo
 		if json.Unmarshal(data, &agent) == nil {
 			result = append(result, agent)
 		}
@@ -316,7 +316,7 @@ func (s *RedisStore) ListAgents() ([]model_v2.AgentInfo, error) {
 // ==================== Event 查询 ====================
 
 // GetEvents 获取集群当前所有 Events
-func (s *RedisStore) GetEvents(clusterID string) ([]model_v2.Event, error) {
+func (s *RedisStore) GetEvents(clusterID string) ([]cluster.Event, error) {
 	ctx := context.Background()
 
 	data, err := s.client.Get(ctx, keySnapshot+clusterID).Bytes()
@@ -327,7 +327,7 @@ func (s *RedisStore) GetEvents(clusterID string) ([]model_v2.Event, error) {
 		return nil, fmt.Errorf("get snapshot: %w", err)
 	}
 
-	var snapshot model_v2.ClusterSnapshot
+	var snapshot cluster.ClusterSnapshot
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
 	}

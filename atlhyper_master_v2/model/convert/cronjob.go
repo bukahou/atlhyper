@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/cronjob.go
-// model_v2.CronJob → model.CronJobItem 转换函数
+// cluster.CronJob → model.CronJobItem 转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // CronJobItem 转换为列表项
-func CronJobItem(src *model_v2.CronJob) model.CronJobItem {
+func CronJobItem(src *cluster.CronJob) model.CronJobItem {
 	return model.CronJobItem{
 		Name:               src.Name,
 		Namespace:          src.Namespace,
@@ -23,7 +23,7 @@ func CronJobItem(src *model_v2.CronJob) model.CronJobItem {
 }
 
 // CronJobItems 转换多个 CronJob 为列表项
-func CronJobItems(src []model_v2.CronJob) []model.CronJobItem {
+func CronJobItems(src []cluster.CronJob) []model.CronJobItem {
 	if src == nil {
 		return []model.CronJobItem{}
 	}
@@ -35,7 +35,7 @@ func CronJobItems(src []model_v2.CronJob) []model.CronJobItem {
 }
 
 // CronJobDetail 转换为详情
-func CronJobDetail(src *model_v2.CronJob) model.CronJobDetail {
+func CronJobDetail(src *cluster.CronJob) model.CronJobDetail {
 	detail := model.CronJobDetail{
 		Name:      src.Name,
 		Namespace: src.Namespace,

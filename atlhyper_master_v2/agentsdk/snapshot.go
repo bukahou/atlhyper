@@ -1,6 +1,6 @@
 // atlhyper_master_v2/agentsdk/snapshot.go
 // 处理 Agent 快照上报
-// 直接解析 model_v2.ClusterSnapshot 格式
+// 直接解析 cluster.ClusterSnapshot 格式
 package agentsdk
 
 import (
@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"AtlHyper/common"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // 使用 server.go 中定义的 log 变量
@@ -30,8 +30,8 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 	defer reader.Close()
 
-	// 直接解析为 model_v2.ClusterSnapshot
-	var snapshot model_v2.ClusterSnapshot
+	// 直接解析为 cluster.ClusterSnapshot
+	var snapshot cluster.ClusterSnapshot
 	if err := json.NewDecoder(reader).Decode(&snapshot); err != nil {
 		log.Error("解析快照失败", "err", err)
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)

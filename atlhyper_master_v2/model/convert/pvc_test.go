@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestPVCItem_FieldMapping(t *testing.T) {
-	src := &model_v2.PersistentVolumeClaim{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.PersistentVolumeClaim{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "data-pvc-001",
 			Namespace: "default",
 			CreatedAt: time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC),
@@ -64,7 +65,7 @@ func TestPVCItems_NilInput(t *testing.T) {
 }
 
 func TestPVCItems_EmptyInput(t *testing.T) {
-	result := PVCItems([]model_v2.PersistentVolumeClaim{})
+	result := PVCItems([]cluster.PersistentVolumeClaim{})
 	if result == nil {
 		t.Error("PVCItems([]) should return empty slice, not nil")
 	}
@@ -74,8 +75,8 @@ func TestPVCItems_EmptyInput(t *testing.T) {
 }
 
 func TestPVCDetail_VolumeMode(t *testing.T) {
-	src := &model_v2.PersistentVolumeClaim{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.PersistentVolumeClaim{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "block-pvc",
 			Namespace: "default",
 			UID:       "pvc-uid-123",

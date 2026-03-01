@@ -18,9 +18,9 @@ import (
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/atlhyper_master_v2/service/operations"
-	"AtlHyper/model_v2"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/command"
+	"AtlHyper/model_v3/metrics"
 )
 
 // NodeMetricsHandler 节点指标处理器
@@ -96,7 +96,7 @@ func (h *NodeMetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if snapshot == nil || snapshot.NodeMetrics == nil {
+	if snapshot == nil || snapshot.OTel == nil || len(snapshot.OTel.MetricsNodes) == 0 {
 		writeJSON(w, http.StatusOK, model.ClusterNodeMetricsResponse{
 			Summary: model.ClusterMetricsSummary{},
 			Nodes:   []model.NodeMetricsSnapshot{},
@@ -105,9 +105,9 @@ func (h *NodeMetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 构建节点列表
-	nodes := make([]*model_v2.NodeMetricsSnapshot, 0, len(snapshot.NodeMetrics))
-	for _, metrics := range snapshot.NodeMetrics {
-		nodes = append(nodes, metrics)
+	nodes := make([]*metrics.NodeMetrics, 0, len(snapshot.OTel.MetricsNodes))
+	for i := range snapshot.OTel.MetricsNodes {
+		nodes = append(nodes, &snapshot.OTel.MetricsNodes[i])
 	}
 
 	// 计算汇总统计并转换为 API 响应
@@ -134,18 +134,24 @@ func (h *NodeMetricsHandler) getDetail(w http.ResponseWriter, r *http.Request, n
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if snapshot == nil || snapshot.NodeMetrics == nil {
+	if snapshot == nil || snapshot.OTel == nil || len(snapshot.OTel.MetricsNodes) == 0 {
 		writeError(w, http.StatusNotFound, "node metrics not found")
 		return
 	}
 
-	metrics, ok := snapshot.NodeMetrics[nodeName]
-	if !ok || metrics == nil {
+	var nodeMetrics *metrics.NodeMetrics
+	for i := range snapshot.OTel.MetricsNodes {
+		if snapshot.OTel.MetricsNodes[i].NodeName == nodeName {
+			nodeMetrics = &snapshot.OTel.MetricsNodes[i]
+			break
+		}
+	}
+	if nodeMetrics == nil {
 		writeError(w, http.StatusNotFound, "node metrics not found")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, convert.NodeMetricsSnapshot(metrics))
+	writeJSON(w, http.StatusOK, convert.NodeMetricsSnapshot(nodeMetrics))
 }
 
 // getHistory 获取节点历史数据
@@ -273,8 +279,8 @@ func (h *NodeMetricsHandler) getHistoryFromCH(w http.ResponseWriter, r *http.Req
 }
 
 // calculateSummary 计算集群汇总统计
-func calculateSummary(nodes []*model_v2.NodeMetricsSnapshot) model_v2.ClusterMetricsSummary {
-	summary := model_v2.ClusterMetricsSummary{
+func calculateSummary(nodes []*metrics.NodeMetrics) metrics.Summary {
+	summary := metrics.Summary{
 		TotalNodes:  len(nodes),
 		OnlineNodes: len(nodes),
 	}
@@ -284,72 +290,43 @@ func calculateSummary(nodes []*model_v2.NodeMetricsSnapshot) model_v2.ClusterMet
 	}
 
 	var (
-		totalCPU, totalMem, totalDisk float64
-		totalMemBytes, usedMemBytes   int64
-		totalDiskBytes, usedDiskBytes int64
-		totalNetRx, totalNetTx        float64
-		maxCPU, maxMem, maxDisk       float64
-		totalTemp                     float64
-		tempCount                     int
+		totalCPU, totalMem float64
+		maxCPU, maxMem     float64
+		totalTemp          float64
+		tempCount          int
 	)
 
 	for _, node := range nodes {
 		// CPU
-		totalCPU += node.CPU.UsagePercent
-		if node.CPU.UsagePercent > maxCPU {
-			maxCPU = node.CPU.UsagePercent
+		totalCPU += node.CPU.UsagePct
+		if node.CPU.UsagePct > maxCPU {
+			maxCPU = node.CPU.UsagePct
 		}
 
 		// 内存
-		totalMem += node.Memory.UsagePercent
-		totalMemBytes += node.Memory.Total
-		usedMemBytes += node.Memory.Used
-		if node.Memory.UsagePercent > maxMem {
-			maxMem = node.Memory.UsagePercent
-		}
-
-		// 磁盘
-		if disk := node.GetPrimaryDisk(); disk != nil {
-			totalDisk += disk.UsagePercent
-			totalDiskBytes += disk.Total
-			usedDiskBytes += disk.Used
-			if disk.UsagePercent > maxDisk {
-				maxDisk = disk.UsagePercent
-			}
-		}
-
-		// 网络
-		if net := node.GetPrimaryNetwork(); net != nil {
-			totalNetRx += net.RxRate
-			totalNetTx += net.TxRate
+		totalMem += node.Memory.UsagePct
+		if node.Memory.UsagePct > maxMem {
+			maxMem = node.Memory.UsagePct
 		}
 
 		// 温度
-		if node.Temperature.CPUTemp > 0 {
-			totalTemp += node.Temperature.CPUTemp
+		if node.Temperature.CPUTempC > 0 {
+			totalTemp += node.Temperature.CPUTempC
 			tempCount++
-			if node.Temperature.CPUTemp > summary.MaxCPUTemp {
-				summary.MaxCPUTemp = node.Temperature.CPUTemp
+			if node.Temperature.CPUTempC > summary.MaxCPUTemp {
+				summary.MaxCPUTemp = node.Temperature.CPUTempC
 			}
 		}
 	}
 
 	n := float64(len(nodes))
-	summary.AvgCPUUsage = totalCPU / n
-	summary.AvgMemoryUsage = totalMem / n
-	summary.AvgDiskUsage = totalDisk / n
-	summary.MaxCPUUsage = maxCPU
-	summary.MaxMemoryUsage = maxMem
-	summary.MaxDiskUsage = maxDisk
-	summary.TotalMemory = totalMemBytes
-	summary.UsedMemory = usedMemBytes
-	summary.TotalDisk = totalDiskBytes
-	summary.UsedDisk = usedDiskBytes
-	summary.TotalNetworkRx = int64(totalNetRx)
-	summary.TotalNetworkTx = int64(totalNetTx)
+	summary.AvgCPUPct = totalCPU / n
+	summary.AvgMemPct = totalMem / n
+	summary.MaxCPUPct = maxCPU
+	summary.MaxMemPct = maxMem
 
 	if tempCount > 0 {
-		summary.AvgCPUTemp = totalTemp / float64(tempCount)
+		summary.MaxCPUTemp = totalTemp / float64(tempCount)
 	}
 
 	return summary

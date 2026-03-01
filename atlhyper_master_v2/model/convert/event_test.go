@@ -5,12 +5,13 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestEventLogFromModel_FieldMapping(t *testing.T) {
-	src := model_v2.Event{
-		CommonMeta: model_v2.CommonMeta{
+	src := cluster.Event{
+		CommonMeta: model_v3.CommonMeta{
 			UID:       "uid-1",
 			Name:      "event-1",
 			Namespace: "default",
@@ -21,7 +22,7 @@ func TestEventLogFromModel_FieldMapping(t *testing.T) {
 		Reason:  "FailedScheduling",
 		Message: "0/6 nodes are available",
 		Source:  "scheduler",
-		InvolvedObject: model_v2.ResourceRef{
+		InvolvedObject: model_v3.ResourceRef{
 			Kind:      "Pod",
 			Namespace: "default",
 			Name:      "test-pod",
@@ -82,7 +83,7 @@ func TestEventLogFromModel_SeverityMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.eventType, func(t *testing.T) {
-			src := model_v2.Event{Type: tt.eventType}
+			src := cluster.Event{Type: tt.eventType}
 			result := EventLog(&src, "c1")
 			if result.Severity != tt.want {
 				t.Errorf("Type=%q: got severity %q, want %q", tt.eventType, result.Severity, tt.want)
@@ -93,8 +94,8 @@ func TestEventLogFromModel_SeverityMapping(t *testing.T) {
 
 func TestEventLogFromModel_FallbackNames(t *testing.T) {
 	// When InvolvedObject is empty, fall back to event's own fields
-	src := model_v2.Event{
-		CommonMeta: model_v2.CommonMeta{
+	src := cluster.Event{
+		CommonMeta: model_v3.CommonMeta{
 			Name: "event-name",
 		},
 		Type: "Normal",
@@ -154,30 +155,30 @@ func TestEventLogFromDB_FieldMapping(t *testing.T) {
 }
 
 func TestEventOverview_Aggregation(t *testing.T) {
-	events := []model_v2.Event{
+	events := []cluster.Event{
 		{
-			CommonMeta: model_v2.CommonMeta{Name: "e1"},
+			CommonMeta: model_v3.CommonMeta{Name: "e1"},
 			Type:       "Warning",
 			Reason:     "FailedScheduling",
-			InvolvedObject: model_v2.ResourceRef{Kind: "Pod", Name: "pod-1"},
+			InvolvedObject: model_v3.ResourceRef{Kind: "Pod", Name: "pod-1"},
 		},
 		{
-			CommonMeta: model_v2.CommonMeta{Name: "e2"},
+			CommonMeta: model_v3.CommonMeta{Name: "e2"},
 			Type:       "Warning",
 			Reason:     "Unhealthy",
-			InvolvedObject: model_v2.ResourceRef{Kind: "Pod", Name: "pod-2"},
+			InvolvedObject: model_v3.ResourceRef{Kind: "Pod", Name: "pod-2"},
 		},
 		{
-			CommonMeta: model_v2.CommonMeta{Name: "e3"},
+			CommonMeta: model_v3.CommonMeta{Name: "e3"},
 			Type:       "Normal",
 			Reason:     "Scheduled",
-			InvolvedObject: model_v2.ResourceRef{Kind: "Node", Name: "node-1"},
+			InvolvedObject: model_v3.ResourceRef{Kind: "Node", Name: "node-1"},
 		},
 		{
-			CommonMeta: model_v2.CommonMeta{Name: "e4"},
+			CommonMeta: model_v3.CommonMeta{Name: "e4"},
 			Type:       "Normal",
 			Reason:     "Pulled",
-			InvolvedObject: model_v2.ResourceRef{Kind: "Pod", Name: "pod-3"},
+			InvolvedObject: model_v3.ResourceRef{Kind: "Pod", Name: "pod-3"},
 		},
 	}
 
@@ -228,9 +229,9 @@ func TestEventOverview_EmptyInput(t *testing.T) {
 }
 
 func TestEventLogs_Plural(t *testing.T) {
-	events := []model_v2.Event{
-		{CommonMeta: model_v2.CommonMeta{Name: "e1"}, Type: "Normal"},
-		{CommonMeta: model_v2.CommonMeta{Name: "e2"}, Type: "Warning"},
+	events := []cluster.Event{
+		{CommonMeta: model_v3.CommonMeta{Name: "e1"}, Type: "Normal"},
+		{CommonMeta: model_v3.CommonMeta{Name: "e2"}, Type: "Warning"},
 	}
 
 	result := EventLogs(events, "c1")

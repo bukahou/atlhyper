@@ -3,17 +3,17 @@ package convert
 import (
 	"testing"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestNamespaceItem_FieldMapping(t *testing.T) {
-	src := &model_v2.Namespace{
-		Summary: model_v2.NamespaceSummary{
+	src := &cluster.Namespace{
+		Summary: cluster.NamespaceSummary{
 			Name:      "production",
 			CreatedAt: "2024-01-01T00:00:00Z",
 		},
-		Status: model_v2.NamespaceStatus{Phase: "Active"},
-		Resources: model_v2.NamespaceResources{
+		Status: cluster.NamespaceStatus{Phase: "Active"},
+		Resources: cluster.NamespaceResources{
 			Pods: 42,
 		},
 		Labels:      map[string]string{"env": "prod", "team": "backend"},
@@ -40,14 +40,14 @@ func TestNamespaceItem_FieldMapping(t *testing.T) {
 }
 
 func TestNamespaceDetail_FieldMapping(t *testing.T) {
-	src := &model_v2.Namespace{
-		Summary: model_v2.NamespaceSummary{
+	src := &cluster.Namespace{
+		Summary: cluster.NamespaceSummary{
 			Name:      "staging",
 			CreatedAt: "2024-03-15T00:00:00Z",
 			Age:       "120d",
 		},
-		Status: model_v2.NamespaceStatus{Phase: "Active"},
-		Resources: model_v2.NamespaceResources{
+		Status: cluster.NamespaceStatus{Phase: "Active"},
+		Resources: cluster.NamespaceResources{
 			Pods:        20,
 			PodsRunning: 18,
 			PodsPending: 1,

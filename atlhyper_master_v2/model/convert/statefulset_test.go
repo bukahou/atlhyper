@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestStatefulSetItem_FieldMapping(t *testing.T) {
-	src := &model_v2.StatefulSet{
-		Summary: model_v2.StatefulSetSummary{
+	src := &cluster.StatefulSet{
+		Summary: cluster.StatefulSetSummary{
 			Name:        "mysql",
 			Namespace:   "db",
 			Replicas:    3,
@@ -59,9 +59,9 @@ func TestStatefulSetItems_NilReturnsEmpty(t *testing.T) {
 }
 
 func TestStatefulSetItems_Multiple(t *testing.T) {
-	src := []model_v2.StatefulSet{
-		{Summary: model_v2.StatefulSetSummary{Name: "a", CreatedAt: time.Now()}},
-		{Summary: model_v2.StatefulSetSummary{Name: "b", CreatedAt: time.Now()}},
+	src := []cluster.StatefulSet{
+		{Summary: cluster.StatefulSetSummary{Name: "a", CreatedAt: time.Now()}},
+		{Summary: cluster.StatefulSetSummary{Name: "b", CreatedAt: time.Now()}},
 	}
 	result := StatefulSetItems(src)
 	if len(result) != 2 {
@@ -73,8 +73,8 @@ func TestStatefulSetItems_Multiple(t *testing.T) {
 }
 
 func TestStatefulSetDetail_FieldMapping(t *testing.T) {
-	src := &model_v2.StatefulSet{
-		Summary: model_v2.StatefulSetSummary{
+	src := &cluster.StatefulSet{
+		Summary: cluster.StatefulSetSummary{
 			Name:        "mysql",
 			Namespace:   "db",
 			Replicas:    3,

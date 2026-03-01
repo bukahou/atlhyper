@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestPVItem_FieldMapping(t *testing.T) {
-	src := &model_v2.PersistentVolume{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.PersistentVolume{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "pv-data-001",
 			CreatedAt: time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC),
 		},
@@ -59,7 +60,7 @@ func TestPVItems_NilInput(t *testing.T) {
 }
 
 func TestPVItems_EmptyInput(t *testing.T) {
-	result := PVItems([]model_v2.PersistentVolume{})
+	result := PVItems([]cluster.PersistentVolume{})
 	if result == nil {
 		t.Error("PVItems([]) should return empty slice, not nil")
 	}
@@ -69,8 +70,8 @@ func TestPVItems_EmptyInput(t *testing.T) {
 }
 
 func TestPVDetail_VolumeSourceAndClaimRef(t *testing.T) {
-	src := &model_v2.PersistentVolume{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.PersistentVolume{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "pv-nfs-001",
 			UID:       "pv-uid-123",
 			Labels:    map[string]string{"tier": "storage"},

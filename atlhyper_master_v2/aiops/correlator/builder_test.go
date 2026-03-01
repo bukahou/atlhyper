@@ -4,11 +4,12 @@ package correlator
 import (
 	"testing"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/slo"
 )
 
 func TestBuildFromSnapshot_Empty(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{}
+	snap := &cluster.ClusterSnapshot{}
 	graph := BuildFromSnapshot("test-cluster", snap)
 
 	if graph == nil {
@@ -26,10 +27,10 @@ func TestBuildFromSnapshot_Empty(t *testing.T) {
 }
 
 func TestBuildFromSnapshot_PodToNode(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			{
-				Summary: model_v2.PodSummary{
+				Summary: cluster.PodSummary{
 					Name:      "api-server-abc",
 					Namespace: "default",
 					NodeName:  "worker-1",
@@ -37,9 +38,9 @@ func TestBuildFromSnapshot_PodToNode(t *testing.T) {
 				Labels: map[string]string{"app": "api"},
 			},
 		},
-		Nodes: []model_v2.Node{
+		Nodes: []cluster.Node{
 			{
-				Summary: model_v2.NodeSummary{Name: "worker-1"},
+				Summary: cluster.NodeSummary{Name: "worker-1"},
 			},
 		},
 	}
@@ -65,20 +66,20 @@ func TestBuildFromSnapshot_PodToNode(t *testing.T) {
 }
 
 func TestBuildFromSnapshot_ServiceSelectsPod(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Services: []model_v2.Service{
+	snap := &cluster.ClusterSnapshot{
+		Services: []cluster.Service{
 			{
-				Summary:  model_v2.ServiceSummary{Name: "api-svc", Namespace: "default"},
+				Summary:  cluster.ServiceSummary{Name: "api-svc", Namespace: "default"},
 				Selector: map[string]string{"app": "api"},
 			},
 		},
-		Pods: []model_v2.Pod{
+		Pods: []cluster.Pod{
 			{
-				Summary: model_v2.PodSummary{Name: "api-pod-1", Namespace: "default"},
+				Summary: cluster.PodSummary{Name: "api-pod-1", Namespace: "default"},
 				Labels:  map[string]string{"app": "api", "version": "v1"},
 			},
 			{
-				Summary: model_v2.PodSummary{Name: "other-pod", Namespace: "default"},
+				Summary: cluster.PodSummary{Name: "other-pod", Namespace: "default"},
 				Labels:  map[string]string{"app": "other"},
 			},
 		},
@@ -105,19 +106,19 @@ func TestBuildFromSnapshot_ServiceSelectsPod(t *testing.T) {
 }
 
 func TestBuildFromSnapshot_IngressRoutesToService(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Ingresses: []model_v2.Ingress{
+	snap := &cluster.ClusterSnapshot{
+		Ingresses: []cluster.Ingress{
 			{
-				Summary: model_v2.IngressSummary{Name: "my-ingress", Namespace: "default"},
-				Spec: model_v2.IngressSpec{
-					Rules: []model_v2.IngressRule{
+				Summary: cluster.IngressSummary{Name: "my-ingress", Namespace: "default"},
+				Spec: cluster.IngressSpec{
+					Rules: []cluster.IngressRule{
 						{
 							Host: "api.example.com",
-							Paths: []model_v2.IngressPath{
+							Paths: []cluster.IngressPath{
 								{
 									Path: "/",
-									Backend: &model_v2.IngressBackend{
-										Service: &model_v2.IngressServiceBackend{
+									Backend: &cluster.IngressBackend{
+										Service: &cluster.IngressServiceBackend{
 											Name:       "api-svc",
 											PortNumber: 80,
 										},
@@ -129,9 +130,9 @@ func TestBuildFromSnapshot_IngressRoutesToService(t *testing.T) {
 				},
 			},
 		},
-		Services: []model_v2.Service{
+		Services: []cluster.Service{
 			{
-				Summary: model_v2.ServiceSummary{Name: "api-svc", Namespace: "default"},
+				Summary: cluster.ServiceSummary{Name: "api-svc", Namespace: "default"},
 			},
 		},
 	}
@@ -157,9 +158,9 @@ func TestBuildFromSnapshot_IngressRoutesToService(t *testing.T) {
 }
 
 func TestBuildFromSnapshot_SLOCalls(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		SLOData: &model_v2.SLOSnapshot{
-			Edges: []model_v2.ServiceEdge{
+	snap := &cluster.ClusterSnapshot{
+		OTel: &cluster.OTelSnapshot{
+			SLOEdges: []slo.ServiceEdge{
 				{
 					SrcNamespace: "default",
 					SrcName:      "frontend",

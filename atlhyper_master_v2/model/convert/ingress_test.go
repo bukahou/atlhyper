@@ -4,27 +4,27 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestIngressItems_RowExpansion(t *testing.T) {
-	src := []model_v2.Ingress{
+	src := []cluster.Ingress{
 		{
-			Summary: model_v2.IngressSummary{
+			Summary: cluster.IngressSummary{
 				Name:      "web-ingress",
 				Namespace: "default",
 				CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 			},
-			Spec: model_v2.IngressSpec{
-				Rules: []model_v2.IngressRule{
+			Spec: cluster.IngressSpec{
+				Rules: []cluster.IngressRule{
 					{
 						Host: "example.com",
-						Paths: []model_v2.IngressPath{
+						Paths: []cluster.IngressPath{
 							{
 								Path:     "/api",
 								PathType: "Prefix",
-								Backend: &model_v2.IngressBackend{
-									Service: &model_v2.IngressServiceBackend{
+								Backend: &cluster.IngressBackend{
+									Service: &cluster.IngressServiceBackend{
 										Name:       "api-svc",
 										PortNumber: 80,
 									},
@@ -33,8 +33,8 @@ func TestIngressItems_RowExpansion(t *testing.T) {
 							{
 								Path:     "/web",
 								PathType: "Prefix",
-								Backend: &model_v2.IngressBackend{
-									Service: &model_v2.IngressServiceBackend{
+								Backend: &cluster.IngressBackend{
+									Service: &cluster.IngressServiceBackend{
 										Name:     "web-svc",
 										PortName: "http",
 									},
@@ -44,12 +44,12 @@ func TestIngressItems_RowExpansion(t *testing.T) {
 					},
 					{
 						Host: "admin.example.com",
-						Paths: []model_v2.IngressPath{
+						Paths: []cluster.IngressPath{
 							{
 								Path:     "/",
 								PathType: "Prefix",
-								Backend: &model_v2.IngressBackend{
-									Service: &model_v2.IngressServiceBackend{
+								Backend: &cluster.IngressBackend{
+									Service: &cluster.IngressServiceBackend{
 										Name:       "admin-svc",
 										PortNumber: 8080,
 									},
@@ -58,7 +58,7 @@ func TestIngressItems_RowExpansion(t *testing.T) {
 						},
 					},
 				},
-				TLS: []model_v2.IngressTLS{
+				TLS: []cluster.IngressTLS{
 					{Hosts: []string{"example.com"}},
 				},
 			},
@@ -104,17 +104,17 @@ func TestIngressItems_RowExpansion(t *testing.T) {
 }
 
 func TestIngressItems_NoRules(t *testing.T) {
-	src := []model_v2.Ingress{
+	src := []cluster.Ingress{
 		{
-			Summary: model_v2.IngressSummary{
+			Summary: cluster.IngressSummary{
 				Name:       "fallback",
 				Namespace:  "default",
 				CreatedAt:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 				TLSEnabled: true,
 			},
-			Spec: model_v2.IngressSpec{
-				DefaultBackend: &model_v2.IngressBackend{
-					Service: &model_v2.IngressServiceBackend{
+			Spec: cluster.IngressSpec{
+				DefaultBackend: &cluster.IngressBackend{
+					Service: &cluster.IngressServiceBackend{
 						Name:       "default-svc",
 						PortNumber: 80,
 					},
@@ -146,8 +146,8 @@ func TestIngressItems_NilInput(t *testing.T) {
 }
 
 func TestIngressDetail_FieldMapping(t *testing.T) {
-	src := &model_v2.Ingress{
-		Summary: model_v2.IngressSummary{
+	src := &cluster.Ingress{
+		Summary: cluster.IngressSummary{
 			Name:         "main",
 			Namespace:    "prod",
 			IngressClass: "traefik",
@@ -156,7 +156,7 @@ func TestIngressDetail_FieldMapping(t *testing.T) {
 			Hosts:        []string{"example.com"},
 			TLSEnabled:   true,
 		},
-		Status: model_v2.IngressStatus{
+		Status: cluster.IngressStatus{
 			LoadBalancer: []string{"1.2.3.4"},
 		},
 		Annotations: map[string]string{"traefik.ingress.kubernetes.io/router.tls": "true"},

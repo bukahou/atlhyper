@@ -7,14 +7,15 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 )
 
 // ==================== Phase 1: extractPodMetrics 容器级指标 ====================
 
 func TestExtractPodMetrics_AllHealthy(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "web-abc", "Running", 0,
 				makeContainer("nginx", "running", "", true, 0, ""),
 				makeContainer("sidecar", "running", "", true, 0, ""),
@@ -33,8 +34,8 @@ func TestExtractPodMetrics_AllHealthy(t *testing.T) {
 }
 
 func TestExtractPodMetrics_OneCrashLoopBackOff(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "mysql-0", "Running", 5,
 				makeContainer("mysql", "waiting", "CrashLoopBackOff", false, 5, ""),
 				makeContainer("sidecar", "running", "", true, 0, ""),
@@ -51,8 +52,8 @@ func TestExtractPodMetrics_OneCrashLoopBackOff(t *testing.T) {
 }
 
 func TestExtractPodMetrics_NoContainers(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("kube-system", "pending-pod", "Pending", 0),
 		},
 	}
@@ -68,8 +69,8 @@ func TestExtractPodMetrics_NoContainers(t *testing.T) {
 // ==================== Phase 2: ExtractDeterministicAnomalies 容器异常 ====================
 
 func TestExtractDeterministic_CrashLoopBackOff(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "crash-pod", "Running", 10,
 				makeContainer("app", "waiting", "CrashLoopBackOff", false, 10, ""),
 				makeContainer("sidecar", "running", "", true, 0, ""),
@@ -91,8 +92,8 @@ func TestExtractDeterministic_CrashLoopBackOff(t *testing.T) {
 }
 
 func TestExtractDeterministic_OOMKilled(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "oom-pod", "Running", 3,
 				makeContainer("app", "waiting", "OOMKilled", false, 3, "OOMKilled"),
 			),
@@ -110,8 +111,8 @@ func TestExtractDeterministic_OOMKilled(t *testing.T) {
 }
 
 func TestExtractDeterministic_ImagePullBackOff(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "img-pod", "Pending", 0,
 				makeContainer("app", "waiting", "ImagePullBackOff", false, 0, ""),
 			),
@@ -129,8 +130,8 @@ func TestExtractDeterministic_ImagePullBackOff(t *testing.T) {
 }
 
 func TestExtractDeterministic_AllNormal(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "healthy-pod", "Running", 0,
 				makeContainer("app", "running", "", true, 0, ""),
 				makeContainer("sidecar", "running", "", true, 0, ""),
@@ -147,8 +148,8 @@ func TestExtractDeterministic_AllNormal(t *testing.T) {
 
 func TestExtractDeterministic_MultiContainer_TakesWorst(t *testing.T) {
 	// 一个容器 ImagePullBackOff(0.70), 另一个 OOMKilled(0.95) → 取最严重
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "multi-bad", "Running", 5,
 				makeContainer("app", "waiting", "ImagePullBackOff", false, 0, ""),
 				makeContainer("worker", "waiting", "OOMKilled", false, 5, "OOMKilled"),
@@ -167,8 +168,8 @@ func TestExtractDeterministic_MultiContainer_TakesWorst(t *testing.T) {
 }
 
 func TestExtractDeterministic_TerminatedOOMKilled(t *testing.T) {
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "term-oom", "Running", 1,
 				makeContainerWithTime("app", "terminated", "", false, 1, "OOMKilled", ""),
 			),
@@ -188,8 +189,8 @@ func TestExtractDeterministic_TerminatedOOMKilled(t *testing.T) {
 func TestExtractDeterministic_RunningRecentCrash(t *testing.T) {
 	// 容器 running 但 2 分钟前崩溃过（快照恰好抓到重启后的 running 瞬间）
 	recentTime := time.Now().Add(-2 * time.Minute).Format(time.RFC3339)
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("geass", "geass-user-abc", "Running", 3,
 				makeContainerWithTime("geass-user", "running", "", true, 3, "Error", recentTime),
 				makeContainer("linkerd-proxy", "running", "", true, 0, ""),
@@ -210,8 +211,8 @@ func TestExtractDeterministic_RunningRecentCrash(t *testing.T) {
 func TestExtractDeterministic_RunningOldCrash(t *testing.T) {
 	// 容器 running，崩溃是 1 小时前的 → 不应告警
 	oldTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "old-crash", "Running", 2,
 				makeContainerWithTime("app", "running", "", true, 2, "Error", oldTime),
 			),
@@ -227,8 +228,8 @@ func TestExtractDeterministic_RunningOldCrash(t *testing.T) {
 
 func TestExtractDeterministic_NotReady(t *testing.T) {
 	// 容器 running 但 ready=false（readiness probe 失败）
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("geass", "geass-media-xyz", "Running", 0,
 				makeContainer("geass-media", "running", "", false, 0, ""),
 				makeContainer("linkerd-proxy", "running", "", true, 0, ""),
@@ -251,42 +252,42 @@ func TestExtractDeterministic_NotReady(t *testing.T) {
 func TestClassifyContainerAnomaly(t *testing.T) {
 	tests := []struct {
 		name       string
-		container  model_v2.PodContainerDetail
+		container  cluster.PodContainerDetail
 		wantReason string
 	}{
 		{
 			"waiting_CrashLoopBackOff",
-			model_v2.PodContainerDetail{State: "waiting", StateReason: "CrashLoopBackOff"},
+			cluster.PodContainerDetail{State: "waiting", StateReason: "CrashLoopBackOff"},
 			"CrashLoopBackOff",
 		},
 		{
 			"waiting_OOMKilled",
-			model_v2.PodContainerDetail{State: "waiting", StateReason: "OOMKilled"},
+			cluster.PodContainerDetail{State: "waiting", StateReason: "OOMKilled"},
 			"OOMKilled",
 		},
 		{
 			"waiting_ImagePullBackOff",
-			model_v2.PodContainerDetail{State: "waiting", StateReason: "ImagePullBackOff"},
+			cluster.PodContainerDetail{State: "waiting", StateReason: "ImagePullBackOff"},
 			"ImagePullBackOff",
 		},
 		{
 			"waiting_ErrImagePull",
-			model_v2.PodContainerDetail{State: "waiting", StateReason: "ErrImagePull"},
+			cluster.PodContainerDetail{State: "waiting", StateReason: "ErrImagePull"},
 			"ErrImagePull",
 		},
 		{
 			"waiting_CreateContainerConfigError",
-			model_v2.PodContainerDetail{State: "waiting", StateReason: "CreateContainerConfigError"},
+			cluster.PodContainerDetail{State: "waiting", StateReason: "CreateContainerConfigError"},
 			"CreateContainerConfigError",
 		},
 		{
 			"terminated_OOMKilled",
-			model_v2.PodContainerDetail{State: "terminated", LastTerminationReason: "OOMKilled"},
+			cluster.PodContainerDetail{State: "terminated", LastTerminationReason: "OOMKilled"},
 			"OOMKilled",
 		},
 		{
 			"running_recent_crash",
-			model_v2.PodContainerDetail{
+			cluster.PodContainerDetail{
 				State: "running", Ready: true, RestartCount: 3,
 				LastTerminationReason: "Error",
 				LastTerminationTime:   time.Now().Add(-2 * time.Minute).Format(time.RFC3339),
@@ -295,7 +296,7 @@ func TestClassifyContainerAnomaly(t *testing.T) {
 		},
 		{
 			"running_recent_oom",
-			model_v2.PodContainerDetail{
+			cluster.PodContainerDetail{
 				State: "running", Ready: true, RestartCount: 1,
 				LastTerminationReason: "OOMKilled",
 				LastTerminationTime:   time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
@@ -304,7 +305,7 @@ func TestClassifyContainerAnomaly(t *testing.T) {
 		},
 		{
 			"running_old_crash_no_alert",
-			model_v2.PodContainerDetail{
+			cluster.PodContainerDetail{
 				State: "running", Ready: true, RestartCount: 2,
 				LastTerminationReason: "Error",
 				LastTerminationTime:   time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
@@ -313,17 +314,17 @@ func TestClassifyContainerAnomaly(t *testing.T) {
 		},
 		{
 			"running_not_ready",
-			model_v2.PodContainerDetail{State: "running", Ready: false},
+			cluster.PodContainerDetail{State: "running", Ready: false},
 			"NotReady",
 		},
 		{
 			"running_normal",
-			model_v2.PodContainerDetail{State: "running", Ready: true},
+			cluster.PodContainerDetail{State: "running", Ready: true},
 			"",
 		},
 		{
 			"waiting_ContainerCreating",
-			model_v2.PodContainerDetail{State: "waiting", StateReason: "ContainerCreating"},
+			cluster.PodContainerDetail{State: "waiting", StateReason: "ContainerCreating"},
 			"",
 		},
 	}
@@ -342,13 +343,13 @@ func TestClassifyContainerAnomaly(t *testing.T) {
 
 func TestExtractEventAnomalies_CriticalPodEvent(t *testing.T) {
 	now := time.Now()
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "crash-pod", "Running", 5,
 				makeContainer("app", "waiting", "CrashLoopBackOff", false, 5, ""),
 			),
 		},
-		Events: []model_v2.Event{
+		Events: []cluster.Event{
 			makeEvent("Warning", "BackOff", "Pod", "default", "crash-pod", now.Add(-2*time.Minute)),
 		},
 	}
@@ -365,13 +366,13 @@ func TestExtractEventAnomalies_CriticalPodEvent(t *testing.T) {
 
 func TestExtractEventAnomalies_OldEvent(t *testing.T) {
 	now := time.Now()
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "old-pod", "Running", 0,
 				makeContainer("app", "running", "", true, 0, ""),
 			),
 		},
-		Events: []model_v2.Event{
+		Events: []cluster.Event{
 			makeEvent("Warning", "BackOff", "Pod", "default", "old-pod", now.Add(-10*time.Minute)),
 		},
 	}
@@ -385,9 +386,9 @@ func TestExtractEventAnomalies_OldEvent(t *testing.T) {
 
 func TestExtractEventAnomalies_PodNotInSnapshot(t *testing.T) {
 	now := time.Now()
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{}, // 无 Pod
-		Events: []model_v2.Event{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{}, // 无 Pod
+		Events: []cluster.Event{
 			makeEvent("Warning", "BackOff", "Pod", "default", "ghost-pod", now.Add(-1*time.Minute)),
 		},
 	}
@@ -400,13 +401,13 @@ func TestExtractEventAnomalies_PodNotInSnapshot(t *testing.T) {
 
 func TestExtractEventAnomalies_NormalEvent(t *testing.T) {
 	now := time.Now()
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "normal-pod", "Running", 0,
 				makeContainer("app", "running", "", true, 0, ""),
 			),
 		},
-		Events: []model_v2.Event{
+		Events: []cluster.Event{
 			makeEvent("Normal", "Scheduled", "Pod", "default", "normal-pod", now.Add(-1*time.Minute)),
 		},
 	}
@@ -419,13 +420,13 @@ func TestExtractEventAnomalies_NormalEvent(t *testing.T) {
 
 func TestExtractEventAnomalies_NonPodEvent(t *testing.T) {
 	now := time.Now()
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "some-pod", "Running", 0,
 				makeContainer("app", "running", "", true, 0, ""),
 			),
 		},
-		Events: []model_v2.Event{
+		Events: []cluster.Event{
 			makeEvent("Warning", "NodeNotReady", "Node", "", "worker-1", now.Add(-1*time.Minute)),
 		},
 	}
@@ -438,13 +439,13 @@ func TestExtractEventAnomalies_NonPodEvent(t *testing.T) {
 
 func TestExtractEventAnomalies_DeduplicatePerPod(t *testing.T) {
 	now := time.Now()
-	snap := &model_v2.ClusterSnapshot{
-		Pods: []model_v2.Pod{
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
 			makePod("default", "dup-pod", "Running", 3,
 				makeContainer("app", "waiting", "CrashLoopBackOff", false, 3, ""),
 			),
 		},
-		Events: []model_v2.Event{
+		Events: []cluster.Event{
 			makeEvent("Warning", "BackOff", "Pod", "default", "dup-pod", now.Add(-1*time.Minute)),
 			makeEvent("Warning", "Failed", "Pod", "default", "dup-pod", now.Add(-2*time.Minute)),
 		},
@@ -464,13 +465,13 @@ func TestExtractEventAnomalies_DeduplicatePerPod(t *testing.T) {
 
 // ==================== 辅助函数 ====================
 
-func makePod(namespace, name, phase string, restarts int32, containers ...model_v2.PodContainerDetail) model_v2.Pod {
-	return model_v2.Pod{
-		Summary: model_v2.PodSummary{
+func makePod(namespace, name, phase string, restarts int32, containers ...cluster.PodContainerDetail) cluster.Pod {
+	return cluster.Pod{
+		Summary: cluster.PodSummary{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Status: model_v2.PodStatus{
+		Status: cluster.PodStatus{
 			Phase:    phase,
 			Restarts: restarts,
 		},
@@ -478,8 +479,8 @@ func makePod(namespace, name, phase string, restarts int32, containers ...model_
 	}
 }
 
-func makeContainer(name, state, stateReason string, ready bool, restarts int32, lastTermReason string) model_v2.PodContainerDetail {
-	return model_v2.PodContainerDetail{
+func makeContainer(name, state, stateReason string, ready bool, restarts int32, lastTermReason string) cluster.PodContainerDetail {
+	return cluster.PodContainerDetail{
 		Name:                  name,
 		State:                 state,
 		StateReason:           stateReason,
@@ -489,8 +490,8 @@ func makeContainer(name, state, stateReason string, ready bool, restarts int32, 
 	}
 }
 
-func makeContainerWithTime(name, state, stateReason string, ready bool, restarts int32, lastTermReason, lastTermTime string) model_v2.PodContainerDetail {
-	return model_v2.PodContainerDetail{
+func makeContainerWithTime(name, state, stateReason string, ready bool, restarts int32, lastTermReason, lastTermTime string) cluster.PodContainerDetail {
+	return cluster.PodContainerDetail{
 		Name:                  name,
 		State:                 state,
 		StateReason:           stateReason,
@@ -501,16 +502,16 @@ func makeContainerWithTime(name, state, stateReason string, ready bool, restarts
 	}
 }
 
-func makeEvent(typ, reason, involvedKind, involvedNS, involvedName string, lastTimestamp time.Time) model_v2.Event {
-	return model_v2.Event{
-		CommonMeta: model_v2.CommonMeta{
+func makeEvent(typ, reason, involvedKind, involvedNS, involvedName string, lastTimestamp time.Time) cluster.Event {
+	return cluster.Event{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      reason + "-event",
 			Namespace: involvedNS,
 		},
 		Type:           typ,
 		Reason:         reason,
 		LastTimestamp:   lastTimestamp,
-		InvolvedObject: model_v2.ResourceRef{Kind: involvedKind, Namespace: involvedNS, Name: involvedName},
+		InvolvedObject: model_v3.ResourceRef{Kind: involvedKind, Namespace: involvedNS, Name: involvedName},
 	}
 }
 
@@ -559,15 +560,15 @@ func findAllResults(results []*aiops.AnomalyResult, metricName string) []*aiops.
 }
 
 // makePodWithOwner 创建带 Owner 信息的 Pod
-func makePodWithOwner(namespace, name, phase string, restarts int32, ownerKind, ownerName string, containers ...model_v2.PodContainerDetail) model_v2.Pod {
-	return model_v2.Pod{
-		Summary: model_v2.PodSummary{
+func makePodWithOwner(namespace, name, phase string, restarts int32, ownerKind, ownerName string, containers ...cluster.PodContainerDetail) cluster.Pod {
+	return cluster.Pod{
+		Summary: cluster.PodSummary{
 			Name:      name,
 			Namespace: namespace,
 			OwnerKind: ownerKind,
 			OwnerName: ownerName,
 		},
-		Status: model_v2.PodStatus{
+		Status: cluster.PodStatus{
 			Phase:    phase,
 			Restarts: restarts,
 		},
@@ -576,9 +577,9 @@ func makePodWithOwner(namespace, name, phase string, restarts int32, ownerKind, 
 }
 
 // makeDeployment 创建 Deployment
-func makeDeployment(namespace, name string, replicas, ready int32) model_v2.Deployment {
-	return model_v2.Deployment{
-		Summary: model_v2.DeploymentSummary{
+func makeDeployment(namespace, name string, replicas, ready int32) cluster.Deployment {
+	return cluster.Deployment{
+		Summary: cluster.DeploymentSummary{
 			Name:      name,
 			Namespace: namespace,
 			Replicas:  replicas,
@@ -588,9 +589,9 @@ func makeDeployment(namespace, name string, replicas, ready int32) model_v2.Depl
 }
 
 // makeReplicaSet 创建 ReplicaSet（通过 OwnerKind/OwnerName 关联 Deployment）
-func makeReplicaSet(namespace, name, ownerName string) model_v2.ReplicaSet {
-	return model_v2.ReplicaSet{
-		CommonMeta: model_v2.CommonMeta{
+func makeReplicaSet(namespace, name, ownerName string) cluster.ReplicaSet {
+	return cluster.ReplicaSet{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      name,
 			Namespace: namespace,
 			OwnerKind: "Deployment",
@@ -603,14 +604,14 @@ func makeReplicaSet(namespace, name, ownerName string) model_v2.ReplicaSet {
 
 func TestExtractDeploymentImpact_75Percent(t *testing.T) {
 	// 4 个 Pod，3 个不健康 → 75% → score=0.95
-	snap := &model_v2.ClusterSnapshot{
-		Deployments: []model_v2.Deployment{
+	snap := &cluster.ClusterSnapshot{
+		Deployments: []cluster.Deployment{
 			makeDeployment("default", "web", 4, 1),
 		},
-		ReplicaSets: []model_v2.ReplicaSet{
+		ReplicaSets: []cluster.ReplicaSet{
 			makeReplicaSet("default", "web-rs-abc", "web"),
 		},
-		Pods: []model_v2.Pod{
+		Pods: []cluster.Pod{
 			makePodWithOwner("default", "web-1", "Running", 5, "ReplicaSet", "web-rs-abc",
 				makeContainer("app", "waiting", "CrashLoopBackOff", false, 5, ""),
 			),
@@ -645,14 +646,14 @@ func TestExtractDeploymentImpact_75Percent(t *testing.T) {
 
 func TestExtractDeploymentImpact_50Percent(t *testing.T) {
 	// 4 个 Pod，2 个不健康 → 50% → score=0.80
-	snap := &model_v2.ClusterSnapshot{
-		Deployments: []model_v2.Deployment{
+	snap := &cluster.ClusterSnapshot{
+		Deployments: []cluster.Deployment{
 			makeDeployment("default", "api", 4, 2),
 		},
-		ReplicaSets: []model_v2.ReplicaSet{
+		ReplicaSets: []cluster.ReplicaSet{
 			makeReplicaSet("default", "api-rs-xyz", "api"),
 		},
-		Pods: []model_v2.Pod{
+		Pods: []cluster.Pod{
 			makePodWithOwner("default", "api-1", "Running", 3, "ReplicaSet", "api-rs-xyz",
 				makeContainer("app", "waiting", "CrashLoopBackOff", false, 3, ""),
 			),
@@ -682,14 +683,14 @@ func TestExtractDeploymentImpact_50Percent(t *testing.T) {
 
 func TestExtractDeploymentImpact_25Percent_NoInjection(t *testing.T) {
 	// 4 个 Pod，1 个不健康 → 25% → 不注入
-	snap := &model_v2.ClusterSnapshot{
-		Deployments: []model_v2.Deployment{
+	snap := &cluster.ClusterSnapshot{
+		Deployments: []cluster.Deployment{
 			makeDeployment("default", "worker", 4, 3),
 		},
-		ReplicaSets: []model_v2.ReplicaSet{
+		ReplicaSets: []cluster.ReplicaSet{
 			makeReplicaSet("default", "worker-rs-def", "worker"),
 		},
-		Pods: []model_v2.Pod{
+		Pods: []cluster.Pod{
 			makePodWithOwner("default", "worker-1", "Running", 3, "ReplicaSet", "worker-rs-def",
 				makeContainer("app", "waiting", "CrashLoopBackOff", false, 3, ""),
 			),
@@ -714,14 +715,14 @@ func TestExtractDeploymentImpact_25Percent_NoInjection(t *testing.T) {
 
 func TestExtractDeploymentImpact_HealthyPodNoSignal(t *testing.T) {
 	// 全部健康 Pod → 不注入
-	snap := &model_v2.ClusterSnapshot{
-		Deployments: []model_v2.Deployment{
+	snap := &cluster.ClusterSnapshot{
+		Deployments: []cluster.Deployment{
 			makeDeployment("default", "healthy-app", 2, 2),
 		},
-		ReplicaSets: []model_v2.ReplicaSet{
+		ReplicaSets: []cluster.ReplicaSet{
 			makeReplicaSet("default", "healthy-rs", "healthy-app"),
 		},
-		Pods: []model_v2.Pod{
+		Pods: []cluster.Pod{
 			makePodWithOwner("default", "healthy-1", "Running", 0, "ReplicaSet", "healthy-rs",
 				makeContainer("app", "running", "", true, 0, ""),
 			),
@@ -740,14 +741,14 @@ func TestExtractDeploymentImpact_HealthyPodNoSignal(t *testing.T) {
 
 func TestExtractDeploymentImpact_NonRSPodSkipped(t *testing.T) {
 	// Pod 不属于 ReplicaSet（直接创建或属于 DaemonSet）→ 不参与
-	snap := &model_v2.ClusterSnapshot{
-		Deployments: []model_v2.Deployment{
+	snap := &cluster.ClusterSnapshot{
+		Deployments: []cluster.Deployment{
 			makeDeployment("default", "web", 2, 0),
 		},
-		ReplicaSets: []model_v2.ReplicaSet{
+		ReplicaSets: []cluster.ReplicaSet{
 			makeReplicaSet("default", "web-rs", "web"),
 		},
-		Pods: []model_v2.Pod{
+		Pods: []cluster.Pod{
 			// DaemonSet Pod，不健康但 OwnerKind 不是 ReplicaSet
 			makePodWithOwner("default", "ds-pod", "Running", 5, "DaemonSet", "my-ds",
 				makeContainer("app", "waiting", "CrashLoopBackOff", false, 5, ""),
@@ -768,14 +769,14 @@ func TestExtractDeploymentImpact_NonRSPodSkipped(t *testing.T) {
 
 func TestExtractDeploymentImpact_IntegrationWithContainerAnomaly(t *testing.T) {
 	// 集成测试：container_anomaly + deployment_impact 同时产生
-	snap := &model_v2.ClusterSnapshot{
-		Deployments: []model_v2.Deployment{
+	snap := &cluster.ClusterSnapshot{
+		Deployments: []cluster.Deployment{
 			makeDeployment("default", "app", 4, 1),
 		},
-		ReplicaSets: []model_v2.ReplicaSet{
+		ReplicaSets: []cluster.ReplicaSet{
 			makeReplicaSet("default", "app-rs", "app"),
 		},
-		Pods: []model_v2.Pod{
+		Pods: []cluster.Pod{
 			makePodWithOwner("default", "app-1", "Running", 10, "ReplicaSet", "app-rs",
 				makeContainer("main", "waiting", "CrashLoopBackOff", false, 10, ""),
 			),

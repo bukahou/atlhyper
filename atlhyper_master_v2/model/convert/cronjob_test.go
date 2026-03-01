@@ -4,14 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestCronJobItem_FieldMapping(t *testing.T) {
 	lastSchedule := time.Date(2026, 2, 14, 2, 0, 0, 0, time.UTC)
 	lastSuccess := time.Date(2026, 2, 14, 2, 5, 0, 0, time.UTC)
-	src := &model_v2.CronJob{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.CronJob{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "backup-daily",
 			Namespace: "default",
 			CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -52,8 +53,8 @@ func TestCronJobItem_FieldMapping(t *testing.T) {
 }
 
 func TestCronJobItem_NilTimePointers(t *testing.T) {
-	src := &model_v2.CronJob{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.CronJob{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "new-cronjob",
 			Namespace: "default",
 			CreatedAt: time.Now(),
@@ -84,7 +85,7 @@ func TestCronJobItems_NilInput(t *testing.T) {
 }
 
 func TestCronJobItems_EmptyInput(t *testing.T) {
-	result := CronJobItems([]model_v2.CronJob{})
+	result := CronJobItems([]cluster.CronJob{})
 	if result == nil {
 		t.Error("CronJobItems([]) should return empty slice, not nil")
 	}
@@ -100,8 +101,8 @@ func TestCronJobItems_EmptyInput(t *testing.T) {
 func TestCronJobDetail_FieldMapping(t *testing.T) {
 	lastSchedule := time.Date(2026, 2, 14, 2, 0, 0, 0, time.UTC)
 	lastSuccess := time.Date(2026, 2, 14, 2, 5, 0, 0, time.UTC)
-	src := &model_v2.CronJob{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.CronJob{
+		CommonMeta: model_v3.CommonMeta{
 			UID:       "cron-456",
 			Name:      "backup-daily",
 			Namespace: "default",
@@ -151,8 +152,8 @@ func TestCronJobDetail_AgoFields(t *testing.T) {
 	// 3 小时前
 	threeHoursAgo := time.Now().Add(-3 * time.Hour)
 
-	src := &model_v2.CronJob{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.CronJob{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "test-cron",
 			Namespace: "default",
 			CreatedAt: time.Now().Add(-24 * time.Hour),
@@ -173,8 +174,8 @@ func TestCronJobDetail_AgoFields(t *testing.T) {
 }
 
 func TestCronJobDetail_NilTimes(t *testing.T) {
-	src := &model_v2.CronJob{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.CronJob{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "new-cron",
 			Namespace: "default",
 			CreatedAt: time.Now(),
@@ -203,8 +204,8 @@ func TestCronJobDetail_NilTimes(t *testing.T) {
 func TestCronJobDetail_SpecFields(t *testing.T) {
 	successLimit := int32(3)
 	failedLimit := int32(1)
-	src := &model_v2.CronJob{
-		CommonMeta: model_v2.CommonMeta{
+	src := &cluster.CronJob{
+		CommonMeta: model_v3.CommonMeta{
 			Name:      "test-cron",
 			Namespace: "default",
 			CreatedAt: time.Now(),
@@ -213,8 +214,8 @@ func TestCronJobDetail_SpecFields(t *testing.T) {
 		ConcurrencyPolicy:         "Forbid",
 		SuccessfulJobsHistoryLimit: &successLimit,
 		FailedJobsHistoryLimit:     &failedLimit,
-		Template: model_v2.PodTemplate{
-			Containers: []model_v2.ContainerDetail{
+		Template: cluster.PodTemplate{
+			Containers: []cluster.ContainerDetail{
 				{Name: "worker", Image: "busybox:latest"},
 			},
 		},

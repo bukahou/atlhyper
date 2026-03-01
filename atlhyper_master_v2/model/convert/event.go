@@ -1,5 +1,5 @@
 // atlhyper_master_v2/model/convert/event.go
-// model_v2.Event / database.ClusterEvent → model.EventLog 转换函数
+// cluster.Event / database.ClusterEvent → model.EventLog 转换函数
 package convert
 
 import (
@@ -7,11 +7,11 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
-// EventLog 转换单个 model_v2.Event 为 Web API 响应
-func EventLog(src *model_v2.Event, clusterID string) model.EventLog {
+// EventLog 转换单个 cluster.Event 为 Web API 响应
+func EventLog(src *cluster.Event, clusterID string) model.EventLog {
 	kind := src.InvolvedObject.Kind
 	if kind == "" {
 		kind = "Event"
@@ -37,8 +37,8 @@ func EventLog(src *model_v2.Event, clusterID string) model.EventLog {
 	}
 }
 
-// EventLogs 转换多个 model_v2.Event
-func EventLogs(src []model_v2.Event, clusterID string) []model.EventLog {
+// EventLogs 转换多个 cluster.Event
+func EventLogs(src []cluster.Event, clusterID string) []model.EventLog {
 	if src == nil {
 		return []model.EventLog{}
 	}
@@ -79,7 +79,7 @@ func EventLogsFromDB(src []*database.ClusterEvent, clusterID string) []model.Eve
 }
 
 // EventOverview 将事件列表转换为概览（含统计卡片）
-func EventOverview(src []model_v2.Event, clusterID string) model.EventOverview {
+func EventOverview(src []cluster.Event, clusterID string) model.EventOverview {
 	rows := EventLogs(src, clusterID)
 
 	kinds := map[string]struct{}{}

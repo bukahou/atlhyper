@@ -3,14 +3,14 @@ package convert
 import (
 	"testing"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestLimitRangeItem_FieldMapping(t *testing.T) {
-	src := &model_v2.LimitRange{
+	src := &cluster.LimitRange{
 		Name:      "default-limits",
 		Namespace: "production",
-		Items: []model_v2.LimitRangeItem{
+		Items: []cluster.LimitRangeItem{
 			{
 				Type:           "Container",
 				Max:            map[string]string{"cpu": "4", "memory": "8Gi"},
@@ -59,7 +59,7 @@ func TestLimitRangeItems_NilInput(t *testing.T) {
 }
 
 func TestLimitRangeItems_EmptyInput(t *testing.T) {
-	result := LimitRangeItems([]model_v2.LimitRange{})
+	result := LimitRangeItems([]cluster.LimitRange{})
 	if result == nil {
 		t.Error("should return empty slice, not nil")
 	}
@@ -69,10 +69,10 @@ func TestLimitRangeItems_EmptyInput(t *testing.T) {
 }
 
 func TestLimitRangeDetail_FieldMapping(t *testing.T) {
-	src := &model_v2.LimitRange{
+	src := &cluster.LimitRange{
 		Name:      "default-limits",
 		Namespace: "production",
-		Items: []model_v2.LimitRangeItem{
+		Items: []cluster.LimitRangeItem{
 			{
 				Type:    "Container",
 				Max:     map[string]string{"cpu": "4"},

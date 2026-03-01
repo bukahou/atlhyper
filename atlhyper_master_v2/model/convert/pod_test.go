@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestPodItem_FieldMapping(t *testing.T) {
-	src := model_v2.Pod{
-		Summary: model_v2.PodSummary{
+	src := cluster.Pod{
+		Summary: cluster.PodSummary{
 			Name:      "web-abc-123",
 			Namespace: "default",
 			NodeName:  "node-1",
@@ -18,7 +18,7 @@ func TestPodItem_FieldMapping(t *testing.T) {
 			CreatedAt: time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
 			Age:       "2d",
 		},
-		Status: model_v2.PodStatus{
+		Status: cluster.PodStatus{
 			Phase:       "Running",
 			Ready:       "1/1",
 			Restarts:    3,
@@ -60,8 +60,8 @@ func TestPodItem_FieldMapping(t *testing.T) {
 }
 
 func TestPodItem_EmptyMetrics(t *testing.T) {
-	src := model_v2.Pod{
-		Status: model_v2.PodStatus{Phase: "Pending"},
+	src := cluster.Pod{
+		Status: cluster.PodStatus{Phase: "Pending"},
 	}
 	result := PodItem(&src)
 	if result.CPUText != "-" {
@@ -90,8 +90,8 @@ func TestPodItem_DeploymentInference(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := model_v2.Pod{
-				Summary: model_v2.PodSummary{OwnerKind: tt.ownerKind, OwnerName: tt.ownerName},
+			src := cluster.Pod{
+				Summary: cluster.PodSummary{OwnerKind: tt.ownerKind, OwnerName: tt.ownerName},
 				Labels:  tt.labels,
 			}
 			result := PodItem(&src)
@@ -103,8 +103,8 @@ func TestPodItem_DeploymentInference(t *testing.T) {
 }
 
 func TestPodDetail_FieldMapping(t *testing.T) {
-	src := model_v2.Pod{
-		Summary: model_v2.PodSummary{
+	src := cluster.Pod{
+		Summary: cluster.PodSummary{
 			Name:      "web-pod",
 			Namespace: "production",
 			NodeName:  "node-2",
@@ -113,12 +113,12 @@ func TestPodDetail_FieldMapping(t *testing.T) {
 			CreatedAt: time.Date(2025, 2, 1, 8, 0, 0, 0, time.UTC),
 			Age:       "10d",
 		},
-		Spec: model_v2.PodSpec{
+		Spec: cluster.PodSpec{
 			RestartPolicy:      "Always",
 			ServiceAccountName: "default",
 			DNSPolicy:          "ClusterFirst",
 		},
-		Status: model_v2.PodStatus{
+		Status: cluster.PodStatus{
 			Phase:       "Running",
 			Ready:       "2/2",
 			Restarts:    0,
@@ -128,7 +128,7 @@ func TestPodDetail_FieldMapping(t *testing.T) {
 			CPUUsage:    "200m",
 			MemoryUsage: "512Mi",
 		},
-		Containers: []model_v2.PodContainerDetail{
+		Containers: []cluster.PodContainerDetail{
 			{
 				Name:                 "app",
 				Image:                "nginx:1.25",
@@ -137,7 +137,7 @@ func TestPodDetail_FieldMapping(t *testing.T) {
 				LastTerminationReason: "OOMKilled",
 			},
 		},
-		Volumes: []model_v2.VolumeSpec{
+		Volumes: []cluster.VolumeSpec{
 			{Name: "config", Type: "ConfigMap", Source: "app-config"},
 		},
 	}

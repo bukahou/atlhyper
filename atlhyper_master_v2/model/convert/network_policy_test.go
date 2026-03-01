@@ -3,11 +3,11 @@ package convert
 import (
 	"testing"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestNetworkPolicyItem_FieldMapping(t *testing.T) {
-	src := &model_v2.NetworkPolicy{
+	src := &cluster.NetworkPolicy{
 		Name:             "deny-all-ingress",
 		Namespace:        "production",
 		PodSelector:      "{}",
@@ -57,7 +57,7 @@ func TestNetworkPolicyItems_NilInput(t *testing.T) {
 }
 
 func TestNetworkPolicyItems_EmptyInput(t *testing.T) {
-	result := NetworkPolicyItems([]model_v2.NetworkPolicy{})
+	result := NetworkPolicyItems([]cluster.NetworkPolicy{})
 	if result == nil {
 		t.Error("should return empty slice, not nil")
 	}
@@ -67,26 +67,26 @@ func TestNetworkPolicyItems_EmptyInput(t *testing.T) {
 }
 
 func TestNetworkPolicyDetail_Rules(t *testing.T) {
-	src := &model_v2.NetworkPolicy{
+	src := &cluster.NetworkPolicy{
 		Name:             "allow-web",
 		Namespace:        "production",
 		PodSelector:      `{"matchLabels":{"app":"web"}}`,
 		PolicyTypes:      []string{"Ingress", "Egress"},
 		IngressRuleCount: 1,
 		EgressRuleCount:  1,
-		IngressRules: []model_v2.NetworkPolicyRule{
+		IngressRules: []cluster.NetworkPolicyRule{
 			{
-				Peers: []model_v2.NetworkPolicyPeer{
+				Peers: []cluster.NetworkPolicyPeer{
 					{Type: "podSelector", Selector: `{"matchLabels":{"role":"frontend"}}`},
 				},
-				Ports: []model_v2.NetworkPolicyPort{
+				Ports: []cluster.NetworkPolicyPort{
 					{Protocol: "TCP", Port: "80"},
 				},
 			},
 		},
-		EgressRules: []model_v2.NetworkPolicyRule{
+		EgressRules: []cluster.NetworkPolicyRule{
 			{
-				Peers: []model_v2.NetworkPolicyPeer{
+				Peers: []cluster.NetworkPolicyPeer{
 					{Type: "ipBlock", CIDR: "10.0.0.0/8", Except: []string{"10.0.1.0/24"}},
 				},
 			},
@@ -117,7 +117,7 @@ func TestNetworkPolicyDetail_Rules(t *testing.T) {
 }
 
 func TestNetworkPolicyDetail_EmptyRules(t *testing.T) {
-	src := &model_v2.NetworkPolicy{
+	src := &cluster.NetworkPolicy{
 		Name:      "deny-all",
 		Namespace: "default",
 		CreatedAt: "2025-12-01T00:00:00Z",

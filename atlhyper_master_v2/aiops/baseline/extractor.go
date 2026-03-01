@@ -6,19 +6,18 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
-	"AtlHyper/model_v2"
 	"AtlHyper/model_v3/cluster"
 )
 
 // ExtractMetrics 从快照和 OTelSnapshot 中提取所有实体指标
 func ExtractMetrics(
 	clusterID string,
-	snap *model_v2.ClusterSnapshot,
+	snap *cluster.ClusterSnapshot,
 	otel *cluster.OTelSnapshot,
 ) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
 
-	// 1. Node 指标（从 ClusterSnapshot.NodeMetrics）
+	// 1. Node 指标（从 OTelSnapshot.MetricsNodes）
 	points = append(points, extractNodeMetrics(snap)...)
 
 	// 2. Pod 指标（从 K8s 快照）
@@ -34,32 +33,33 @@ func ExtractMetrics(
 	return points
 }
 
-func extractNodeMetrics(snap *model_v2.ClusterSnapshot) []aiops.MetricDataPoint {
+func extractNodeMetrics(snap *cluster.ClusterSnapshot) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
-	for nodeName, metrics := range snap.NodeMetrics {
-		if metrics == nil {
-			continue
-		}
-		key := aiops.EntityKey("_cluster", "node", nodeName)
+	if snap.OTel == nil {
+		return points
+	}
+	for i := range snap.OTel.MetricsNodes {
+		nm := &snap.OTel.MetricsNodes[i]
+		key := aiops.EntityKey("_cluster", "node", nm.NodeName)
 		points = append(points,
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "cpu_usage", Value: metrics.CPU.UsagePercent},
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "memory_usage", Value: metrics.Memory.UsagePercent},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "cpu_usage", Value: nm.CPU.UsagePct},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "memory_usage", Value: nm.Memory.UsagePct},
 		)
-		if disk := metrics.GetPrimaryDisk(); disk != nil {
+		if disk := nm.GetPrimaryDisk(); disk != nil {
 			points = append(points,
-				aiops.MetricDataPoint{EntityKey: key, MetricName: "disk_usage", Value: disk.UsagePercent},
+				aiops.MetricDataPoint{EntityKey: key, MetricName: "disk_usage", Value: disk.UsagePct},
 			)
 		}
 		points = append(points,
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_cpu", Value: metrics.PSI.CPUSomePercent},
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_memory", Value: metrics.PSI.MemorySomePercent},
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_io", Value: metrics.PSI.IOSomePercent},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_cpu", Value: nm.PSI.CPUSomePct},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_memory", Value: nm.PSI.MemSomePct},
+			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_io", Value: nm.PSI.IOSomePct},
 		)
 	}
 	return points
 }
 
-func extractPodMetrics(snap *model_v2.ClusterSnapshot) []aiops.MetricDataPoint {
+func extractPodMetrics(snap *cluster.ClusterSnapshot) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
 	for i := range snap.Pods {
 		pod := &snap.Pods[i]
@@ -111,7 +111,7 @@ func extractServiceMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 
 // ExtractDeterministicAnomalies 从快照中提取确定性异常（绕过 EMA 冷启动）
 // 扫描容器状态和关联 Event，对 CrashLoopBackOff/OOMKilled 等确定性异常直接生成 AnomalyResult
-func ExtractDeterministicAnomalies(snap *model_v2.ClusterSnapshot) []*aiops.AnomalyResult {
+func ExtractDeterministicAnomalies(snap *cluster.ClusterSnapshot) []*aiops.AnomalyResult {
 	now := time.Now().Unix()
 	var results []*aiops.AnomalyResult
 
@@ -129,7 +129,7 @@ func ExtractDeterministicAnomalies(snap *model_v2.ClusterSnapshot) []*aiops.Anom
 
 // extractContainerAnomalies 从容器状态提取确定性异常
 // 每个 Pod 只报告最严重的一个容器异常
-func extractContainerAnomalies(snap *model_v2.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
+func extractContainerAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
 	var results []*aiops.AnomalyResult
 	for i := range snap.Pods {
 		pod := &snap.Pods[i]
@@ -167,7 +167,7 @@ func extractContainerAnomalies(snap *model_v2.ClusterSnapshot, now int64) []*aio
 
 // classifyContainerAnomaly 判断容器异常原因
 // 返回空字符串表示无异常
-func classifyContainerAnomaly(c *model_v2.PodContainerDetail) string {
+func classifyContainerAnomaly(c *cluster.PodContainerDetail) string {
 	// waiting 状态异常（最明确的信号）
 	if c.State == "waiting" {
 		switch c.StateReason {
@@ -236,7 +236,7 @@ func deterministicScore(reason string) float64 {
 
 // extractEventAnomalies 从 K8s Event 提取关联异常信号
 // 筛选 5 分钟内的 Critical Event，关联到已有 Pod 实体
-func extractEventAnomalies(snap *model_v2.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
+func extractEventAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
 	cutoff := time.Unix(now, 0).Add(-5 * time.Minute)
 
 	// 构建 Pod 存在性索引
@@ -293,7 +293,7 @@ type deploymentInfo struct {
 
 // extractDeploymentImpact Deployment 影响比例异常
 // 当 Deployment 不可用比例 >= 50% 时，为该 Deployment 下的不健康 Pod 注入信号
-func extractDeploymentImpact(snap *model_v2.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
+func extractDeploymentImpact(snap *cluster.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
 	rsMap := buildRSToDeploymentMap(snap)
 	if len(rsMap) == 0 {
 		return nil
@@ -337,7 +337,7 @@ func extractDeploymentImpact(snap *model_v2.ClusterSnapshot, now int64) []*aiops
 
 // buildRSToDeploymentMap 构建 "namespace/rsName" -> deploymentInfo 映射
 // 通过 snapshot.ReplicaSets 的 OwnerKind/OwnerName 反向关联 Deployment
-func buildRSToDeploymentMap(snap *model_v2.ClusterSnapshot) map[string]*deploymentInfo {
+func buildRSToDeploymentMap(snap *cluster.ClusterSnapshot) map[string]*deploymentInfo {
 	// Step 1: 索引 Deployment → deploymentInfo（按 namespace/name）
 	depMap := make(map[string]*deploymentInfo, len(snap.Deployments))
 	for i := range snap.Deployments {
@@ -371,7 +371,7 @@ func buildRSToDeploymentMap(snap *model_v2.ClusterSnapshot) map[string]*deployme
 }
 
 // isPodUnhealthy 至少一个容器 Ready=false
-func isPodUnhealthy(pod *model_v2.Pod) bool {
+func isPodUnhealthy(pod *cluster.Pod) bool {
 	for j := range pod.Containers {
 		if !pod.Containers[j].Ready {
 			return true

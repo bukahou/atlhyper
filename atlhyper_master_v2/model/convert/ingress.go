@@ -1,5 +1,5 @@
 // atlhyper_master_v2/model/convert/ingress.go
-// model_v2.Ingress → model.IngressItem / model.IngressDetail 转换函数
+// cluster.Ingress → model.IngressItem / model.IngressDetail 转换函数
 // IngressItems 做行展开：1 个 Ingress 含 N 个 host×path → N 行 IngressItem
 package convert
 
@@ -7,11 +7,11 @@ import (
 	"fmt"
 
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // IngressItems 展开多个 Ingress 为行列表（1 Ingress → N 行）
-func IngressItems(src []model_v2.Ingress) []model.IngressItem {
+func IngressItems(src []cluster.Ingress) []model.IngressItem {
 	if src == nil {
 		return []model.IngressItem{}
 	}
@@ -26,7 +26,7 @@ func IngressItems(src []model_v2.Ingress) []model.IngressItem {
 }
 
 // expandIngress 将单个 Ingress 展开为多行
-func expandIngress(src *model_v2.Ingress) []model.IngressItem {
+func expandIngress(src *cluster.Ingress) []model.IngressItem {
 	createdAt := src.Summary.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 
 	// 检查每个 host 是否有 TLS
@@ -91,7 +91,7 @@ func expandIngress(src *model_v2.Ingress) []model.IngressItem {
 }
 
 // extractBackend 从 IngressBackend 提取 service name 和 port
-func extractBackend(b *model_v2.IngressBackend) (string, string) {
+func extractBackend(b *cluster.IngressBackend) (string, string) {
 	if b == nil || b.Service == nil {
 		return "", ""
 	}
@@ -103,7 +103,7 @@ func extractBackend(b *model_v2.IngressBackend) (string, string) {
 }
 
 // IngressDetail 转换为详情（扁平 + 嵌套 spec/status）
-func IngressDetail(src *model_v2.Ingress) model.IngressDetail {
+func IngressDetail(src *cluster.Ingress) model.IngressDetail {
 	return model.IngressDetail{
 		Name:      src.Summary.Name,
 		Namespace: src.Summary.Namespace,

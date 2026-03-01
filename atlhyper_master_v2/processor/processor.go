@@ -9,7 +9,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 var log = logger.Module("Processor")
@@ -18,7 +18,7 @@ var log = logger.Module("Processor")
 type Processor interface {
 	// ProcessSnapshot 处理集群快照
 	// 接收 Agent 上报的快照，校验后写入 DataHub
-	ProcessSnapshot(clusterID string, snapshot *model_v2.ClusterSnapshot) error
+	ProcessSnapshot(clusterID string, snapshot *cluster.ClusterSnapshot) error
 
 	// ProcessHeartbeat 处理心跳
 	ProcessHeartbeat(clusterID string) error
@@ -56,7 +56,7 @@ func New(cfg Config) Processor {
 }
 
 // ProcessSnapshot 处理集群快照
-func (p *processorImpl) ProcessSnapshot(clusterID string, snapshot *model_v2.ClusterSnapshot) error {
+func (p *processorImpl) ProcessSnapshot(clusterID string, snapshot *cluster.ClusterSnapshot) error {
 	// 1. 校验
 	if err := p.validateSnapshot(clusterID, snapshot); err != nil {
 		return fmt.Errorf("validate snapshot: %w", err)
@@ -116,7 +116,7 @@ func (p *processorImpl) ProcessHeartbeat(clusterID string) error {
 }
 
 // validateSnapshot 校验快照
-func (p *processorImpl) validateSnapshot(clusterID string, snapshot *model_v2.ClusterSnapshot) error {
+func (p *processorImpl) validateSnapshot(clusterID string, snapshot *cluster.ClusterSnapshot) error {
 	if clusterID == "" {
 		return fmt.Errorf("cluster_id required")
 	}

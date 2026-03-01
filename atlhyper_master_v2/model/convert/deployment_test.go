@@ -4,20 +4,20 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestDeploymentItem_FieldMapping(t *testing.T) {
-	src := &model_v2.Deployment{
-		Summary: model_v2.DeploymentSummary{
+	src := &cluster.Deployment{
+		Summary: cluster.DeploymentSummary{
 			Name:      "web",
 			Namespace: "default",
 			Replicas:  3,
 			Ready:     2,
 			CreatedAt: time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC),
 		},
-		Template: model_v2.PodTemplate{
-			Containers: []model_v2.ContainerDetail{
+		Template: cluster.PodTemplate{
+			Containers: []cluster.ContainerDetail{
 				{Image: "nginx:1.25"},
 				{Image: "sidecar:latest"},
 			},
@@ -49,12 +49,12 @@ func TestDeploymentItem_FieldMapping(t *testing.T) {
 }
 
 func TestDeploymentItem_NoContainers(t *testing.T) {
-	src := &model_v2.Deployment{
-		Summary: model_v2.DeploymentSummary{
+	src := &cluster.Deployment{
+		Summary: cluster.DeploymentSummary{
 			Name:      "empty",
 			Namespace: "test",
 		},
-		Template: model_v2.PodTemplate{},
+		Template: cluster.PodTemplate{},
 	}
 
 	item := DeploymentItem(src)
@@ -64,8 +64,8 @@ func TestDeploymentItem_NoContainers(t *testing.T) {
 }
 
 func TestDeploymentDetail_FieldMapping(t *testing.T) {
-	src := &model_v2.Deployment{
-		Summary: model_v2.DeploymentSummary{
+	src := &cluster.Deployment{
+		Summary: cluster.DeploymentSummary{
 			Name:      "api",
 			Namespace: "prod",
 			Strategy:  "RollingUpdate",

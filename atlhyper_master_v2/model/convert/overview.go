@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/overview.go
-// model_v2 → model 集群概览转换函数
+// cluster → model 集群概览转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // Overview 转换集群概览
-func Overview(src *model_v2.ClusterOverview) model.ClusterOverview {
+func Overview(src *cluster.ClusterOverview) model.ClusterOverview {
 	if src == nil {
 		return model.ClusterOverview{
 			Alerts: model.OverviewAlerts{
@@ -30,7 +30,7 @@ func Overview(src *model_v2.ClusterOverview) model.ClusterOverview {
 	}
 }
 
-func convertOverviewCards(src model_v2.OverviewCards) model.OverviewCards {
+func convertOverviewCards(src cluster.OverviewCards) model.OverviewCards {
 	return model.OverviewCards{
 		ClusterHealth: model.OverviewClusterHealth{
 			Status:           src.ClusterHealth.Status,
@@ -49,7 +49,7 @@ func convertOverviewCards(src model_v2.OverviewCards) model.OverviewCards {
 	}
 }
 
-func convertOverviewWorkloads(src model_v2.OverviewWorkloads) model.OverviewWorkloads {
+func convertOverviewWorkloads(src cluster.OverviewWorkloads) model.OverviewWorkloads {
 	result := model.OverviewWorkloads{
 		Summary: model.OverviewWorkloadSummary{
 			Deployments:  model.OverviewWorkloadStatus{Total: src.Summary.Deployments.Total, Ready: src.Summary.Deployments.Ready},
@@ -87,7 +87,7 @@ func convertOverviewWorkloads(src model_v2.OverviewWorkloads) model.OverviewWork
 	return result
 }
 
-func convertOverviewAlerts(src model_v2.OverviewAlerts) model.OverviewAlerts {
+func convertOverviewAlerts(src cluster.OverviewAlerts) model.OverviewAlerts {
 	trend := make([]model.OverviewAlertTrend, len(src.Trend))
 	for i, t := range src.Trend {
 		kinds := t.Kinds
@@ -124,7 +124,7 @@ func convertOverviewAlerts(src model_v2.OverviewAlerts) model.OverviewAlerts {
 	}
 }
 
-func convertOverviewNodes(src model_v2.OverviewNodes) model.OverviewNodes {
+func convertOverviewNodes(src cluster.OverviewNodes) model.OverviewNodes {
 	usage := make([]model.OverviewNodeUsage, len(src.Usage))
 	for i, u := range src.Usage {
 		usage[i] = model.OverviewNodeUsage{

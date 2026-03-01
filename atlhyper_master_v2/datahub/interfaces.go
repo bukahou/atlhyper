@@ -6,7 +6,7 @@ package datahub
 import (
 	"time"
 
-	"AtlHyper/model_v2"
+	agentmodel "AtlHyper/model_v3/agent"
 	"AtlHyper/model_v3/cluster"
 )
 
@@ -16,10 +16,10 @@ type Store interface {
 	// ==================== 快照管理 ====================
 
 	// SetSnapshot 存储集群快照
-	SetSnapshot(clusterID string, snapshot *model_v2.ClusterSnapshot) error
+	SetSnapshot(clusterID string, snapshot *cluster.ClusterSnapshot) error
 
 	// GetSnapshot 获取集群快照
-	GetSnapshot(clusterID string) (*model_v2.ClusterSnapshot, error)
+	GetSnapshot(clusterID string) (*cluster.ClusterSnapshot, error)
 
 	// ==================== Agent 状态 ====================
 
@@ -27,15 +27,15 @@ type Store interface {
 	UpdateHeartbeat(clusterID string) error
 
 	// GetAgentStatus 获取 Agent 状态
-	GetAgentStatus(clusterID string) (*model_v2.AgentStatus, error)
+	GetAgentStatus(clusterID string) (*agentmodel.AgentStatus, error)
 
 	// ListAgents 列出所有 Agent
-	ListAgents() ([]model_v2.AgentInfo, error)
+	ListAgents() ([]agentmodel.AgentInfo, error)
 
 	// ==================== Event 查询 ====================
 
 	// GetEvents 获取集群当前所有 Events
-	GetEvents(clusterID string) ([]model_v2.Event, error)
+	GetEvents(clusterID string) ([]cluster.Event, error)
 
 	// ==================== OTel 时间线 ====================
 

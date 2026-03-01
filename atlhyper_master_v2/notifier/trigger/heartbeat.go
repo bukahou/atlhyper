@@ -10,7 +10,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/notifier/template"
-	"AtlHyper/model_v2"
+	agentmodel "AtlHyper/model_v3/agent"
 )
 
 // HeartbeatConfig 心跳检测配置
@@ -121,8 +121,8 @@ func (t *HeartbeatTrigger) check() {
 }
 
 // isOffline 判断是否离线
-func (t *HeartbeatTrigger) isOffline(agent model_v2.AgentInfo, now time.Time) bool {
-	if agent.Status == model_v2.AgentStatusOffline {
+func (t *HeartbeatTrigger) isOffline(agent agentmodel.AgentInfo, now time.Time) bool {
+	if agent.Status == agentmodel.StatusOffline {
 		return true
 	}
 	if agent.LastHeartbeat.IsZero() {
@@ -140,7 +140,7 @@ func (t *HeartbeatTrigger) isAlerted(clusterID string) bool {
 }
 
 // triggerOffline 触发离线告警
-func (t *HeartbeatTrigger) triggerOffline(agent model_v2.AgentInfo, now time.Time) {
+func (t *HeartbeatTrigger) triggerOffline(agent agentmodel.AgentInfo, now time.Time) {
 	data := &template.AlertData{
 		Title:     "Agent 离线",
 		Message:   "Agent 心跳超时，可能已离线或网络异常",
@@ -169,7 +169,7 @@ func (t *HeartbeatTrigger) triggerOffline(agent model_v2.AgentInfo, now time.Tim
 }
 
 // triggerRecovery 触发恢复告警
-func (t *HeartbeatTrigger) triggerRecovery(agent model_v2.AgentInfo) {
+func (t *HeartbeatTrigger) triggerRecovery(agent agentmodel.AgentInfo) {
 	t.alertedMu.RLock()
 	alertedAt := t.alerted[agent.ClusterID]
 	t.alertedMu.RUnlock()

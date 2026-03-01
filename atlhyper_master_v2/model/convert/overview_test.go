@@ -4,35 +4,35 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // TestOverview_FieldMapping 验证 Overview 关键字段转换
 func TestOverview_FieldMapping(t *testing.T) {
-	src := &model_v2.ClusterOverview{
+	src := &cluster.ClusterOverview{
 		ClusterID: "cluster-1",
-		Cards: model_v2.OverviewCards{
-			ClusterHealth: model_v2.ClusterHealth{
+		Cards: cluster.OverviewCards{
+			ClusterHealth: cluster.ClusterHealth{
 				Status:           "Healthy",
 				Reason:           "",
 				NodeReadyPercent: 100.0,
 				PodReadyPercent:  95.0,
 			},
-			NodeReady: model_v2.ResourceReady{
+			NodeReady: cluster.ResourceReady{
 				Total: 6, Ready: 6, Percent: 100.0,
 			},
-			CPUUsage:  model_v2.ResourcePercent{Percent: 45.0},
-			MemUsage:  model_v2.ResourcePercent{Percent: 60.0},
+			CPUUsage:  cluster.ResourcePercent{Percent: 45.0},
+			MemUsage:  cluster.ResourcePercent{Percent: 60.0},
 			Events24h: 12,
 		},
-		Workloads: model_v2.OverviewWorkloads{
-			Summary: model_v2.WorkloadSummary{
-				Deployments:  model_v2.WorkloadStatus{Total: 10, Ready: 9},
-				DaemonSets:   model_v2.WorkloadStatus{Total: 3, Ready: 3},
-				StatefulSets: model_v2.WorkloadStatus{Total: 2, Ready: 2},
-				Jobs:         model_v2.JobStatus{Total: 5, Running: 1, Succeeded: 3, Failed: 1},
+		Workloads: cluster.OverviewWorkloads{
+			Summary: cluster.WorkloadSummary{
+				Deployments:  cluster.WorkloadStatus{Total: 10, Ready: 9},
+				DaemonSets:   cluster.WorkloadStatus{Total: 3, Ready: 3},
+				StatefulSets: cluster.WorkloadStatus{Total: 2, Ready: 2},
+				Jobs:         cluster.JobStatus{Total: 5, Running: 1, Succeeded: 3, Failed: 1},
 			},
-			PodStatus: model_v2.PodStatusDistribution{
+			PodStatus: cluster.PodStatusDistribution{
 				Total:            50,
 				Running:          45,
 				Pending:          2,
@@ -43,7 +43,7 @@ func TestOverview_FieldMapping(t *testing.T) {
 				FailedPercent:    2.0,
 				SucceededPercent: 4.0,
 			},
-			PeakStats: &model_v2.PeakStats{
+			PeakStats: &cluster.PeakStats{
 				PeakCPU:     85.0,
 				PeakCPUNode: "node-3",
 				PeakMem:     92.0,
@@ -51,17 +51,17 @@ func TestOverview_FieldMapping(t *testing.T) {
 				HasData:     true,
 			},
 		},
-		Alerts: model_v2.OverviewAlerts{
-			Trend: []model_v2.AlertTrendPoint{
+		Alerts: cluster.OverviewAlerts{
+			Trend: []cluster.AlertTrendPoint{
 				{At: time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC), Kinds: map[string]int{"Pod": 3, "Node": 1}},
 			},
-			Totals: model_v2.AlertTotals{Critical: 1, Warning: 5, Info: 6},
-			Recent: []model_v2.RecentAlert{
+			Totals: cluster.AlertTotals{Critical: 1, Warning: 5, Info: 6},
+			Recent: []cluster.RecentAlert{
 				{Timestamp: "2025-01-15T10:30:00Z", Severity: "warning", Kind: "Pod", Namespace: "default", Name: "test-pod", Message: "OOMKilled", Reason: "OOM"},
 			},
 		},
-		Nodes: model_v2.OverviewNodes{
-			Usage: []model_v2.NodeUsage{
+		Nodes: cluster.OverviewNodes{
+			Usage: []cluster.NodeUsage{
 				{Node: "node-1", CPUUsage: 45.0, MemUsage: 60.0},
 				{Node: "node-2", CPUUsage: 30.0, MemUsage: 50.0},
 			},
@@ -131,8 +131,8 @@ func TestOverview_NilInput(t *testing.T) {
 
 // TestOverview_NilPeakStats 测试 PeakStats 为 nil
 func TestOverview_NilPeakStats(t *testing.T) {
-	src := &model_v2.ClusterOverview{
-		Workloads: model_v2.OverviewWorkloads{
+	src := &cluster.ClusterOverview{
+		Workloads: cluster.OverviewWorkloads{
 			PeakStats: nil,
 		},
 	}

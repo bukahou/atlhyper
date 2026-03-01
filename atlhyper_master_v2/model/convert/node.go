@@ -1,5 +1,5 @@
 // atlhyper_master_v2/model/convert/node.go
-// model_v2.Node → model.NodeItem / model.NodeDetail 转换函数
+// cluster.Node → model.NodeItem / model.NodeDetail 转换函数
 // 包含 K8s CPU/Memory 单位转换
 package convert
 
@@ -7,11 +7,12 @@ import (
 	"strconv"
 
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	model_v3 "AtlHyper/model_v3"
+	"AtlHyper/model_v3/cluster"
 )
 
 // NodeItem 转换为列表项（扁平，单位已转换）
-func NodeItem(src *model_v2.Node) model.NodeItem {
+func NodeItem(src *cluster.Node) model.NodeItem {
 	return model.NodeItem{
 		Name:         src.Summary.Name,
 		Ready:        src.Summary.Ready == "True",
@@ -25,7 +26,7 @@ func NodeItem(src *model_v2.Node) model.NodeItem {
 }
 
 // NodeItems 转换多个 Node 为列表项
-func NodeItems(src []model_v2.Node) []model.NodeItem {
+func NodeItems(src []cluster.Node) []model.NodeItem {
 	if src == nil {
 		return []model.NodeItem{}
 	}
@@ -37,7 +38,7 @@ func NodeItems(src []model_v2.Node) []model.NodeItem {
 }
 
 // NodeDetail 转换为详情（扁平，单位已转换）
-func NodeDetail(src *model_v2.Node) model.NodeDetail {
+func NodeDetail(src *cluster.Node) model.NodeDetail {
 	d := model.NodeDetail{
 		Name:        src.Summary.Name,
 		Roles:       src.Summary.Roles,
@@ -115,13 +116,13 @@ func NodeDetail(src *model_v2.Node) model.NodeDetail {
 // cpuToFloat 将 K8s CPU 字符串转换为核心数（float64）
 // "4" → 4.0, "500m" → 0.5, "4000m" → 4.0, "123456789n" → 0.123
 func cpuToFloat(s string) float64 {
-	return float64(model_v2.ParseCPU(s)) / 1000.0
+	return float64(model_v3.ParseCPU(s)) / 1000.0
 }
 
 // memToGiB 将 K8s Memory 字符串转换为 GiB（float64）
 // "8Gi" → 8.0, "16384Mi" → 16.0, "1073741824" → 1.0
 func memToGiB(s string) float64 {
-	bytes := model_v2.ParseMemory(s)
+	bytes := model_v3.ParseMemory(s)
 	if bytes == 0 {
 		return 0
 	}

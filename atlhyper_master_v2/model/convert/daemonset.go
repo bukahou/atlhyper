@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/daemonset.go
-// model_v2.DaemonSet → model.DaemonSetDetail 转换函数
+// cluster.DaemonSet → model.DaemonSetDetail 转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // DaemonSetItem 转换为列表项（扁平）
-func DaemonSetItem(src *model_v2.DaemonSet) model.DaemonSetItem {
+func DaemonSetItem(src *cluster.DaemonSet) model.DaemonSetItem {
 	return model.DaemonSetItem{
 		Name:         src.Summary.Name,
 		Namespace:    src.Summary.Namespace,
@@ -23,7 +23,7 @@ func DaemonSetItem(src *model_v2.DaemonSet) model.DaemonSetItem {
 }
 
 // DaemonSetItems 转换多个 DaemonSet 为列表项
-func DaemonSetItems(src []model_v2.DaemonSet) []model.DaemonSetItem {
+func DaemonSetItems(src []cluster.DaemonSet) []model.DaemonSetItem {
 	if src == nil {
 		return []model.DaemonSetItem{}
 	}
@@ -35,7 +35,7 @@ func DaemonSetItems(src []model_v2.DaemonSet) []model.DaemonSetItem {
 }
 
 // DaemonSetDetail 转换为详情（扁平顶层 + 嵌套子结构）
-func DaemonSetDetail(src *model_v2.DaemonSet) model.DaemonSetDetail {
+func DaemonSetDetail(src *cluster.DaemonSet) model.DaemonSetDetail {
 	return model.DaemonSetDetail{
 		Name:             src.Summary.Name,
 		Namespace:        src.Summary.Namespace,

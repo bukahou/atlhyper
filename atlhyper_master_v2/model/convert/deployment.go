@@ -1,16 +1,16 @@
 // atlhyper_master_v2/model/convert/deployment.go
-// model_v2.Deployment → model.DeploymentItem / model.DeploymentDetail 转换函数
+// cluster.Deployment → model.DeploymentItem / model.DeploymentDetail 转换函数
 package convert
 
 import (
 	"fmt"
 
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // DeploymentItem 转换为列表项（扁平）
-func DeploymentItem(src *model_v2.Deployment) model.DeploymentItem {
+func DeploymentItem(src *cluster.Deployment) model.DeploymentItem {
 	image := ""
 	if len(src.Template.Containers) > 0 {
 		image = src.Template.Containers[0].Image
@@ -28,7 +28,7 @@ func DeploymentItem(src *model_v2.Deployment) model.DeploymentItem {
 }
 
 // DeploymentItems 转换多个 Deployment 为列表项
-func DeploymentItems(src []model_v2.Deployment) []model.DeploymentItem {
+func DeploymentItems(src []cluster.Deployment) []model.DeploymentItem {
 	if src == nil {
 		return []model.DeploymentItem{}
 	}
@@ -40,7 +40,7 @@ func DeploymentItems(src []model_v2.Deployment) []model.DeploymentItem {
 }
 
 // DeploymentDetail 转换为详情（扁平顶层 + 嵌套子结构）
-func DeploymentDetail(src *model_v2.Deployment) model.DeploymentDetail {
+func DeploymentDetail(src *cluster.Deployment) model.DeploymentDetail {
 	return model.DeploymentDetail{
 		Name:        src.Summary.Name,
 		Namespace:   src.Summary.Namespace,

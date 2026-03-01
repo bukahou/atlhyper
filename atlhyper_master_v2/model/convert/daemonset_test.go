@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestDaemonSetItem_FieldMapping(t *testing.T) {
-	src := &model_v2.DaemonSet{
-		Summary: model_v2.DaemonSetSummary{
+	src := &cluster.DaemonSet{
+		Summary: cluster.DaemonSetSummary{
 			Name:                   "fluent-bit",
 			Namespace:              "logging",
 			DesiredNumberScheduled: 5,
@@ -64,9 +64,9 @@ func TestDaemonSetItems_NilReturnsEmpty(t *testing.T) {
 }
 
 func TestDaemonSetItems_Multiple(t *testing.T) {
-	src := []model_v2.DaemonSet{
-		{Summary: model_v2.DaemonSetSummary{Name: "a", CreatedAt: time.Now()}},
-		{Summary: model_v2.DaemonSetSummary{Name: "b", CreatedAt: time.Now()}},
+	src := []cluster.DaemonSet{
+		{Summary: cluster.DaemonSetSummary{Name: "a", CreatedAt: time.Now()}},
+		{Summary: cluster.DaemonSetSummary{Name: "b", CreatedAt: time.Now()}},
 	}
 	result := DaemonSetItems(src)
 	if len(result) != 2 {
@@ -78,8 +78,8 @@ func TestDaemonSetItems_Multiple(t *testing.T) {
 }
 
 func TestDaemonSetDetail_FieldMapping(t *testing.T) {
-	src := &model_v2.DaemonSet{
-		Summary: model_v2.DaemonSetSummary{
+	src := &cluster.DaemonSet{
+		Summary: cluster.DaemonSetSummary{
 			Name:                   "fluent-bit",
 			Namespace:              "logging",
 			DesiredNumberScheduled: 5,

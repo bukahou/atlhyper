@@ -3,12 +3,12 @@ package convert
 import (
 	"testing"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestServiceAccountItem_FieldMapping(t *testing.T) {
 	automount := true
-	src := &model_v2.ServiceAccount{
+	src := &cluster.ServiceAccount{
 		Name:                         "app-deployer",
 		Namespace:                    "production",
 		SecretsCount:                 2,
@@ -44,7 +44,7 @@ func TestServiceAccountItem_FieldMapping(t *testing.T) {
 }
 
 func TestServiceAccountItem_NilAutomount(t *testing.T) {
-	src := &model_v2.ServiceAccount{
+	src := &cluster.ServiceAccount{
 		Name:                         "default",
 		Namespace:                    "default",
 		AutomountServiceAccountToken: nil,
@@ -70,7 +70,7 @@ func TestServiceAccountItems_NilInput(t *testing.T) {
 }
 
 func TestServiceAccountItems_EmptyInput(t *testing.T) {
-	result := ServiceAccountItems([]model_v2.ServiceAccount{})
+	result := ServiceAccountItems([]cluster.ServiceAccount{})
 	if result == nil {
 		t.Error("should return empty slice, not nil")
 	}
@@ -81,7 +81,7 @@ func TestServiceAccountItems_EmptyInput(t *testing.T) {
 
 func TestServiceAccountDetail_SecretNames(t *testing.T) {
 	automount := true
-	src := &model_v2.ServiceAccount{
+	src := &cluster.ServiceAccount{
 		Name:                         "app-deployer",
 		Namespace:                    "production",
 		SecretsCount:                 2,

@@ -1,16 +1,16 @@
 // atlhyper_master_v2/model/convert/pod.go
-// model_v2.Pod → model.PodItem / model.PodDetail 转换函数
+// cluster.Pod → model.PodItem / model.PodDetail 转换函数
 package convert
 
 import (
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // PodItem 转换为列表项（扁平）
-func PodItem(src *model_v2.Pod) model.PodItem {
+func PodItem(src *cluster.Pod) model.PodItem {
 	deployment := inferDeployment(src)
 	cpuText := src.Status.CPUUsage
 	if cpuText == "" {
@@ -37,7 +37,7 @@ func PodItem(src *model_v2.Pod) model.PodItem {
 }
 
 // PodItems 转换多个 Pod 为列表项
-func PodItems(src []model_v2.Pod) []model.PodItem {
+func PodItems(src []cluster.Pod) []model.PodItem {
 	if src == nil {
 		return []model.PodItem{}
 	}
@@ -49,7 +49,7 @@ func PodItems(src []model_v2.Pod) []model.PodItem {
 }
 
 // PodDetail 转换为详情（扁平）
-func PodDetail(src *model_v2.Pod) model.PodDetail {
+func PodDetail(src *cluster.Pod) model.PodDetail {
 	controller := ""
 	if src.Summary.OwnerKind != "" && src.Summary.OwnerName != "" {
 		controller = src.Summary.OwnerKind + "/" + src.Summary.OwnerName
@@ -106,7 +106,7 @@ func PodDetail(src *model_v2.Pod) model.PodDetail {
 	}
 }
 
-func convertPodContainer(c model_v2.PodContainerDetail) model.PodContainerResponse {
+func convertPodContainer(c cluster.PodContainerDetail) model.PodContainerResponse {
 	return model.PodContainerResponse{
 		Name:                 c.Name,
 		Image:                c.Image,
@@ -126,7 +126,7 @@ func convertPodContainer(c model_v2.PodContainerDetail) model.PodContainerRespon
 }
 
 // inferDeployment 从 Pod 的 Owner 推断 Deployment 名称
-func inferDeployment(pod *model_v2.Pod) string {
+func inferDeployment(pod *cluster.Pod) string {
 	if pod.Summary.OwnerKind == "ReplicaSet" && pod.Summary.OwnerName != "" {
 		// ReplicaSet 命名: deployment-name-hash
 		parts := strings.Split(pod.Summary.OwnerName, "-")

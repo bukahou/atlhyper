@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"AtlHyper/common/logger"
-	"AtlHyper/model_v2"
+	agentmodel "AtlHyper/model_v3/agent"
 	"AtlHyper/model_v3/cluster"
 )
 
@@ -19,7 +19,7 @@ const defaultOTelRingCapacity = 90
 // MemoryStore 内存数据存储
 type MemoryStore struct {
 	// 快照存储
-	snapshots   map[string]*model_v2.ClusterSnapshot
+	snapshots   map[string]*cluster.ClusterSnapshot
 	snapshotsMu sync.RWMutex
 
 	// OTel 时间线（Ring Buffer per cluster）
@@ -27,7 +27,7 @@ type MemoryStore struct {
 	otelTimelineMu sync.RWMutex
 
 	// Agent 状态
-	agents   map[string]*model_v2.AgentInfo
+	agents   map[string]*agentmodel.AgentInfo
 	agentsMu sync.RWMutex
 
 	// 配置
@@ -46,9 +46,9 @@ func New(eventRetention, heartbeatExpire, snapshotRetention time.Duration) *Memo
 		snapshotRetention = 15 * time.Minute
 	}
 	return &MemoryStore{
-		snapshots:         make(map[string]*model_v2.ClusterSnapshot),
+		snapshots:         make(map[string]*cluster.ClusterSnapshot),
 		otelTimeline:      make(map[string]*OTelRing),
-		agents:            make(map[string]*model_v2.AgentInfo),
+		agents:            make(map[string]*agentmodel.AgentInfo),
 		eventRetention:    eventRetention,
 		heartbeatExpire:   heartbeatExpire,
 		snapshotRetention: snapshotRetention,
@@ -99,8 +99,8 @@ func (s *MemoryStore) updateAgentStatus() {
 	cutoff := time.Now().Add(-s.heartbeatExpire)
 
 	for clusterID, agent := range s.agents {
-		if agent.LastHeartbeat.Before(cutoff) && agent.Status == model_v2.AgentStatusOnline {
-			agent.Status = model_v2.AgentStatusOffline
+		if agent.LastHeartbeat.Before(cutoff) && agent.Status == agentmodel.StatusOnline {
+			agent.Status = agentmodel.StatusOffline
 			log.Warn("Agent 已标记为离线", "cluster", clusterID)
 		}
 	}
@@ -112,7 +112,7 @@ func (s *MemoryStore) cleanupOfflineClusterData() {
 	offlineClusters := make([]string, 0)
 	offlineCutoff := time.Now().Add(-s.snapshotRetention * 2) // 离线超过 2 倍保留时间才清理
 	for clusterID, agent := range s.agents {
-		if agent.Status == model_v2.AgentStatusOffline && agent.LastHeartbeat.Before(offlineCutoff) {
+		if agent.Status == agentmodel.StatusOffline && agent.LastHeartbeat.Before(offlineCutoff) {
 			offlineClusters = append(offlineClusters, clusterID)
 		}
 	}
@@ -135,7 +135,7 @@ func (s *MemoryStore) cleanupOfflineClusterData() {
 // ==================== 快照管理 ====================
 
 // SetSnapshot 存储集群快照
-func (s *MemoryStore) SetSnapshot(clusterID string, snapshot *model_v2.ClusterSnapshot) error {
+func (s *MemoryStore) SetSnapshot(clusterID string, snapshot *cluster.ClusterSnapshot) error {
 	s.snapshotsMu.Lock()
 	s.snapshots[clusterID] = snapshot
 	s.snapshotsMu.Unlock()
@@ -150,9 +150,9 @@ func (s *MemoryStore) SetSnapshot(clusterID string, snapshot *model_v2.ClusterSn
 	if agent, ok := s.agents[clusterID]; ok {
 		agent.LastSnapshot = snapshot.FetchedAt
 	} else {
-		s.agents[clusterID] = &model_v2.AgentInfo{
+		s.agents[clusterID] = &agentmodel.AgentInfo{
 			ClusterID:     clusterID,
-			Status:        model_v2.AgentStatusOnline,
+			Status:        agentmodel.StatusOnline,
 			LastHeartbeat: time.Now(),
 			LastSnapshot:  snapshot.FetchedAt,
 		}
@@ -176,7 +176,7 @@ func (s *MemoryStore) appendOTel(clusterID string, otel *cluster.OTelSnapshot, t
 }
 
 // GetSnapshot 获取集群快照
-func (s *MemoryStore) GetSnapshot(clusterID string) (*model_v2.ClusterSnapshot, error) {
+func (s *MemoryStore) GetSnapshot(clusterID string) (*cluster.ClusterSnapshot, error) {
 	s.snapshotsMu.RLock()
 	defer s.snapshotsMu.RUnlock()
 
@@ -196,11 +196,11 @@ func (s *MemoryStore) UpdateHeartbeat(clusterID string) error {
 
 	if agent, ok := s.agents[clusterID]; ok {
 		agent.LastHeartbeat = time.Now()
-		agent.Status = model_v2.AgentStatusOnline
+		agent.Status = agentmodel.StatusOnline
 	} else {
-		s.agents[clusterID] = &model_v2.AgentInfo{
+		s.agents[clusterID] = &agentmodel.AgentInfo{
 			ClusterID:     clusterID,
-			Status:        model_v2.AgentStatusOnline,
+			Status:        agentmodel.StatusOnline,
 			LastHeartbeat: time.Now(),
 		}
 	}
@@ -208,7 +208,7 @@ func (s *MemoryStore) UpdateHeartbeat(clusterID string) error {
 }
 
 // GetAgentStatus 获取 Agent 状态
-func (s *MemoryStore) GetAgentStatus(clusterID string) (*model_v2.AgentStatus, error) {
+func (s *MemoryStore) GetAgentStatus(clusterID string) (*agentmodel.AgentStatus, error) {
 	s.agentsMu.RLock()
 	defer s.agentsMu.RUnlock()
 
@@ -216,7 +216,7 @@ func (s *MemoryStore) GetAgentStatus(clusterID string) (*model_v2.AgentStatus, e
 	if !ok {
 		return nil, nil
 	}
-	return &model_v2.AgentStatus{
+	return &agentmodel.AgentStatus{
 		ClusterID:     agent.ClusterID,
 		Status:        agent.Status,
 		LastHeartbeat: agent.LastHeartbeat,
@@ -225,11 +225,11 @@ func (s *MemoryStore) GetAgentStatus(clusterID string) (*model_v2.AgentStatus, e
 }
 
 // ListAgents 列出所有 Agent
-func (s *MemoryStore) ListAgents() ([]model_v2.AgentInfo, error) {
+func (s *MemoryStore) ListAgents() ([]agentmodel.AgentInfo, error) {
 	s.agentsMu.RLock()
 	defer s.agentsMu.RUnlock()
 
-	result := make([]model_v2.AgentInfo, 0, len(s.agents))
+	result := make([]agentmodel.AgentInfo, 0, len(s.agents))
 	for _, agent := range s.agents {
 		result = append(result, *agent)
 	}
@@ -239,7 +239,7 @@ func (s *MemoryStore) ListAgents() ([]model_v2.AgentInfo, error) {
 // ==================== Event 查询 ====================
 
 // GetEvents 获取集群当前所有 Events
-func (s *MemoryStore) GetEvents(clusterID string) ([]model_v2.Event, error) {
+func (s *MemoryStore) GetEvents(clusterID string) ([]cluster.Event, error) {
 	s.snapshotsMu.RLock()
 	defer s.snapshotsMu.RUnlock()
 

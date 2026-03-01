@@ -14,7 +14,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 var routeLog = logger.Module("SLORoute")
@@ -47,7 +47,7 @@ func (u *RouteUpdater) Sync(store datahub.Store, clusterID string) error {
 // syncFromIngresses 从 K8s Ingress 资源构建路由映射
 // Ingress Rule: Host + Path → Backend Service (name + port)
 // ServiceKey 格式: "{namespace}-{serviceName}-{port}@kubernetes"（与 Traefik metrics 一致）
-func (u *RouteUpdater) syncFromIngresses(ctx context.Context, clusterID string, snapshot *model_v2.ClusterSnapshot) {
+func (u *RouteUpdater) syncFromIngresses(ctx context.Context, clusterID string, snapshot *cluster.ClusterSnapshot) {
 	now := time.Now()
 	count := 0
 

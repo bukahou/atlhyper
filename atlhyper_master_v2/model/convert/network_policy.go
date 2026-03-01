@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/network_policy.go
-// model_v2.NetworkPolicy → model.NetworkPolicyItem 转换函数
+// cluster.NetworkPolicy → model.NetworkPolicyItem 转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // NetworkPolicyItem 转换为列表项
-func NetworkPolicyItem(src *model_v2.NetworkPolicy) model.NetworkPolicyItem {
+func NetworkPolicyItem(src *cluster.NetworkPolicy) model.NetworkPolicyItem {
 	return model.NetworkPolicyItem{
 		Name:             src.Name,
 		Namespace:        src.Namespace,
@@ -22,7 +22,7 @@ func NetworkPolicyItem(src *model_v2.NetworkPolicy) model.NetworkPolicyItem {
 }
 
 // NetworkPolicyItems 转换多个 NetworkPolicy 为列表项
-func NetworkPolicyItems(src []model_v2.NetworkPolicy) []model.NetworkPolicyItem {
+func NetworkPolicyItems(src []cluster.NetworkPolicy) []model.NetworkPolicyItem {
 	if src == nil {
 		return []model.NetworkPolicyItem{}
 	}
@@ -34,7 +34,7 @@ func NetworkPolicyItems(src []model_v2.NetworkPolicy) []model.NetworkPolicyItem 
 }
 
 // NetworkPolicyDetail 转换为详情
-func NetworkPolicyDetail(src *model_v2.NetworkPolicy) model.NetworkPolicyDetail {
+func NetworkPolicyDetail(src *cluster.NetworkPolicy) model.NetworkPolicyDetail {
 	detail := model.NetworkPolicyDetail{
 		Name:             src.Name,
 		Namespace:        src.Namespace,

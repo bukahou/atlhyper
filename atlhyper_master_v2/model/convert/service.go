@@ -1,5 +1,5 @@
 // atlhyper_master_v2/model/convert/service.go
-// model_v2.Service → model.ServiceItem / model.ServiceDetail 转换函数
+// cluster.Service → model.ServiceItem / model.ServiceDetail 转换函数
 package convert
 
 import (
@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // ServiceItem 转换为列表项（扁平）
-func ServiceItem(src *model_v2.Service) model.ServiceItem {
+func ServiceItem(src *cluster.Service) model.ServiceItem {
 	return model.ServiceItem{
 		Name:      src.Summary.Name,
 		Namespace: src.Summary.Namespace,
@@ -25,7 +25,7 @@ func ServiceItem(src *model_v2.Service) model.ServiceItem {
 }
 
 // ServiceItems 转换多个 Service 为列表项
-func ServiceItems(src []model_v2.Service) []model.ServiceItem {
+func ServiceItems(src []cluster.Service) []model.ServiceItem {
 	if src == nil {
 		return []model.ServiceItem{}
 	}
@@ -37,7 +37,7 @@ func ServiceItems(src []model_v2.Service) []model.ServiceItem {
 }
 
 // ServiceDetail 转换为详情（扁平 + 嵌套）
-func ServiceDetail(src *model_v2.Service) model.ServiceDetail {
+func ServiceDetail(src *cluster.Service) model.ServiceDetail {
 	ports := make([]model.ServicePortResponse, len(src.Ports))
 	for i, p := range src.Ports {
 		ports[i] = model.ServicePortResponse{
@@ -77,7 +77,7 @@ func ServiceDetail(src *model_v2.Service) model.ServiceDetail {
 }
 
 // formatServicePorts 格式化端口为字符串，如 "80:30080/TCP→8080, 443/TCP→8443"
-func formatServicePorts(ports []model_v2.ServicePort) string {
+func formatServicePorts(ports []cluster.ServicePort) string {
 	if len(ports) == 0 {
 		return ""
 	}
@@ -97,7 +97,7 @@ func formatServicePorts(ports []model_v2.ServicePort) string {
 }
 
 // firstProtocol 获取第一个端口的协议
-func firstProtocol(ports []model_v2.ServicePort) string {
+func firstProtocol(ports []cluster.ServicePort) string {
 	if len(ports) == 0 {
 		return ""
 	}

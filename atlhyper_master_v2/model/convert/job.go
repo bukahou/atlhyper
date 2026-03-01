@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/job.go
-// model_v2.Job → model.JobItem 转换函数
+// cluster.Job → model.JobItem 转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // JobItem 转换为列表项
-func JobItem(src *model_v2.Job) model.JobItem {
+func JobItem(src *cluster.Job) model.JobItem {
 	return model.JobItem{
 		Name:       src.Name,
 		Namespace:  src.Namespace,
@@ -24,7 +24,7 @@ func JobItem(src *model_v2.Job) model.JobItem {
 }
 
 // JobItems 转换多个 Job 为列表项
-func JobItems(src []model_v2.Job) []model.JobItem {
+func JobItems(src []cluster.Job) []model.JobItem {
 	if src == nil {
 		return []model.JobItem{}
 	}
@@ -36,7 +36,7 @@ func JobItems(src []model_v2.Job) []model.JobItem {
 }
 
 // JobDetail 转换为详情
-func JobDetail(src *model_v2.Job) model.JobDetail {
+func JobDetail(src *cluster.Job) model.JobDetail {
 	detail := model.JobDetail{
 		Name:      src.Name,
 		Namespace: src.Namespace,
@@ -76,7 +76,7 @@ func JobDetail(src *model_v2.Job) model.JobDetail {
 }
 
 // jobStatus 计算 Job 状态文本
-func jobStatus(src *model_v2.Job) string {
+func jobStatus(src *cluster.Job) string {
 	if src.Complete {
 		return "Complete"
 	}

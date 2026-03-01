@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/namespace.go
-// model_v2.Namespace → model.NamespaceItem / model.NamespaceDetail 转换函数
+// cluster.Namespace → model.NamespaceItem / model.NamespaceDetail 转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // NamespaceItem 转换为列表项（扁平）
-func NamespaceItem(src *model_v2.Namespace) model.NamespaceItem {
+func NamespaceItem(src *cluster.Namespace) model.NamespaceItem {
 	return model.NamespaceItem{
 		Name:            src.Summary.Name,
 		Status:          src.Status.Phase,
@@ -20,7 +20,7 @@ func NamespaceItem(src *model_v2.Namespace) model.NamespaceItem {
 }
 
 // NamespaceItems 转换多个 Namespace 为列表项
-func NamespaceItems(src []model_v2.Namespace) []model.NamespaceItem {
+func NamespaceItems(src []cluster.Namespace) []model.NamespaceItem {
 	if src == nil {
 		return []model.NamespaceItem{}
 	}
@@ -32,7 +32,7 @@ func NamespaceItems(src []model_v2.Namespace) []model.NamespaceItem {
 }
 
 // NamespaceDetail 转换为详情（扁平）
-func NamespaceDetail(src *model_v2.Namespace) model.NamespaceDetail {
+func NamespaceDetail(src *cluster.Namespace) model.NamespaceDetail {
 	return model.NamespaceDetail{
 		Name:      src.Summary.Name,
 		Phase:     src.Status.Phase,

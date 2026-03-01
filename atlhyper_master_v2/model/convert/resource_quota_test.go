@@ -3,11 +3,11 @@ package convert
 import (
 	"testing"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestResourceQuotaItem_FieldMapping(t *testing.T) {
-	src := &model_v2.ResourceQuota{
+	src := &cluster.ResourceQuota{
 		Name:      "compute-quota",
 		Namespace: "production",
 		Scopes:    []string{"NotTerminating"},
@@ -50,7 +50,7 @@ func TestResourceQuotaItems_NilInput(t *testing.T) {
 }
 
 func TestResourceQuotaItems_EmptyInput(t *testing.T) {
-	result := ResourceQuotaItems([]model_v2.ResourceQuota{})
+	result := ResourceQuotaItems([]cluster.ResourceQuota{})
 	if result == nil {
 		t.Error("should return empty slice, not nil")
 	}
@@ -60,7 +60,7 @@ func TestResourceQuotaItems_EmptyInput(t *testing.T) {
 }
 
 func TestResourceQuotaDetail_FieldMapping(t *testing.T) {
-	src := &model_v2.ResourceQuota{
+	src := &cluster.ResourceQuota{
 		Name:        "compute-quota",
 		Namespace:   "production",
 		Scopes:      []string{"NotTerminating"},

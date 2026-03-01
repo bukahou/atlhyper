@@ -4,22 +4,22 @@ import (
 	"testing"
 	"time"
 
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 func TestNodeItem_UnitConversion(t *testing.T) {
-	src := model_v2.Node{
-		Summary: model_v2.NodeSummary{
+	src := cluster.Node{
+		Summary: cluster.NodeSummary{
 			Name:        "node-1",
 			Ready:       "True",
 			Schedulable: true,
 		},
-		Capacity: model_v2.NodeResources{
+		Capacity: cluster.NodeResources{
 			CPU:    "4",
 			Memory: "8Gi",
 		},
-		Addresses: model_v2.NodeAddresses{InternalIP: "10.0.0.1"},
-		Info: model_v2.NodeInfo{
+		Addresses: cluster.NodeAddresses{InternalIP: "10.0.0.1"},
+		Info: cluster.NodeInfo{
 			OSImage:      "Ubuntu 22.04",
 			Architecture: "amd64",
 		},
@@ -42,8 +42,8 @@ func TestNodeItem_UnitConversion(t *testing.T) {
 }
 
 func TestNodeItem_MillicoreCPU(t *testing.T) {
-	src := model_v2.Node{
-		Capacity: model_v2.NodeResources{CPU: "500m"},
+	src := cluster.Node{
+		Capacity: cluster.NodeResources{CPU: "500m"},
 	}
 	result := NodeItem(&src)
 	if result.CPUCores != 0.5 {
@@ -52,8 +52,8 @@ func TestNodeItem_MillicoreCPU(t *testing.T) {
 }
 
 func TestNodeDetail_FieldMapping(t *testing.T) {
-	src := model_v2.Node{
-		Summary: model_v2.NodeSummary{
+	src := cluster.Node{
+		Summary: cluster.NodeSummary{
 			Name:         "master-1",
 			Roles:        []string{"control-plane"},
 			Ready:        "True",
@@ -62,38 +62,38 @@ func TestNodeDetail_FieldMapping(t *testing.T) {
 			CreationTime: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 			Badges:       []string{"control-plane"},
 		},
-		Spec: model_v2.NodeSpec{
+		Spec: cluster.NodeSpec{
 			PodCIDRs: []string{"10.244.0.0/24"},
 		},
-		Capacity: model_v2.NodeResources{
+		Capacity: cluster.NodeResources{
 			CPU:    "8",
 			Memory: "32Gi",
 			Pods:   "110",
 		},
-		Allocatable: model_v2.NodeResources{
+		Allocatable: cluster.NodeResources{
 			CPU:    "7500m",
 			Memory: "30Gi",
 		},
-		Addresses: model_v2.NodeAddresses{
+		Addresses: cluster.NodeAddresses{
 			Hostname:   "master-1",
 			InternalIP: "192.168.1.10",
 		},
-		Info: model_v2.NodeInfo{
+		Info: cluster.NodeInfo{
 			KubeletVersion:          "v1.28.5",
 			ContainerRuntimeVersion: "containerd://1.7.2",
 			KernelVersion:           "5.15.0",
 		},
-		Conditions: []model_v2.NodeCondition{
+		Conditions: []cluster.NodeCondition{
 			{Type: "Ready", Status: "True", Reason: "KubeletReady"},
 		},
-		Taints: []model_v2.NodeTaint{
+		Taints: []cluster.NodeTaint{
 			{Key: "node-role.kubernetes.io/control-plane", Effect: "NoSchedule"},
 		},
-		Metrics: &model_v2.NodeMetrics{
-			CPU:    model_v2.NodeResourceMetric{Usage: "2000m", UtilPct: 25.0},
-			Memory: model_v2.NodeResourceMetric{Usage: "16Gi", UtilPct: 50.0},
-			Pods:   model_v2.PodCountMetric{Used: 35, Capacity: 110, UtilPct: 31.8},
-			Pressure: model_v2.PressureFlags{
+		Metrics: &cluster.NodeResourceUsage{
+			CPU:    cluster.NodeResourceMetric{Usage: "2000m", UtilPct: 25.0},
+			Memory: cluster.NodeResourceMetric{Usage: "16Gi", UtilPct: 50.0},
+			Pods:   cluster.PodCountMetric{Used: 35, Capacity: 110, UtilPct: 31.8},
+			Pressure: cluster.PressureFlags{
 				MemoryPressure: false,
 				DiskPressure:   false,
 			},
@@ -135,8 +135,8 @@ func TestNodeDetail_FieldMapping(t *testing.T) {
 }
 
 func TestNodeDetail_NilMetrics(t *testing.T) {
-	src := model_v2.Node{
-		Summary: model_v2.NodeSummary{Name: "node-no-metrics"},
+	src := cluster.Node{
+		Summary: cluster.NodeSummary{Name: "node-no-metrics"},
 	}
 	result := NodeDetail(&src)
 	if result.CPUUsageCores != 0 {

@@ -4,11 +4,11 @@ package correlator
 
 import (
 	"AtlHyper/atlhyper_master_v2/aiops"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // BuildFromSnapshot 从快照构建完整依赖图
-func BuildFromSnapshot(clusterID string, snap *model_v2.ClusterSnapshot) *aiops.DependencyGraph {
+func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot) *aiops.DependencyGraph {
 	g := aiops.NewDependencyGraph(clusterID)
 
 	// 1. Pod → Node (runs_on)
@@ -62,8 +62,8 @@ func BuildFromSnapshot(clusterID string, snap *model_v2.ClusterSnapshot) *aiops.
 	}
 
 	// 4. Service → Service (calls, 从 SLO Edge 数据)
-	if snap.SLOData != nil {
-		for _, edge := range snap.SLOData.Edges {
+	if snap.OTel != nil {
+		for _, edge := range snap.OTel.SLOEdges {
 			srcKey := aiops.EntityKey(edge.SrcNamespace, "service", edge.SrcName)
 			dstKey := aiops.EntityKey(edge.DstNamespace, "service", edge.DstName)
 			// 确保节点存在

@@ -1,14 +1,14 @@
 // atlhyper_master_v2/model/convert/resource_quota.go
-// model_v2.ResourceQuota → model.ResourceQuotaItem 转换函数
+// cluster.ResourceQuota → model.ResourceQuotaItem 转换函数
 package convert
 
 import (
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/model_v2"
+	"AtlHyper/model_v3/cluster"
 )
 
 // ResourceQuotaItem 转换为列表项
-func ResourceQuotaItem(src *model_v2.ResourceQuota) model.ResourceQuotaItem {
+func ResourceQuotaItem(src *cluster.ResourceQuota) model.ResourceQuotaItem {
 	return model.ResourceQuotaItem{
 		Name:      src.Name,
 		Namespace: src.Namespace,
@@ -21,7 +21,7 @@ func ResourceQuotaItem(src *model_v2.ResourceQuota) model.ResourceQuotaItem {
 }
 
 // ResourceQuotaItems 转换多个 ResourceQuota 为列表项
-func ResourceQuotaItems(src []model_v2.ResourceQuota) []model.ResourceQuotaItem {
+func ResourceQuotaItems(src []cluster.ResourceQuota) []model.ResourceQuotaItem {
 	if src == nil {
 		return []model.ResourceQuotaItem{}
 	}
@@ -33,7 +33,7 @@ func ResourceQuotaItems(src []model_v2.ResourceQuota) []model.ResourceQuotaItem 
 }
 
 // ResourceQuotaDetail 转换为详情
-func ResourceQuotaDetail(src *model_v2.ResourceQuota) model.ResourceQuotaDetail {
+func ResourceQuotaDetail(src *cluster.ResourceQuota) model.ResourceQuotaDetail {
 	return model.ResourceQuotaDetail{
 		Name:        src.Name,
 		Namespace:   src.Namespace,
