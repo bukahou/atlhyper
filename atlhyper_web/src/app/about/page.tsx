@@ -4,127 +4,25 @@ import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import {
-  Globe,
-  Network,
-  Search,
-  FileText,
-  Cpu,
   Box,
-  Activity,
-  Bot,
-  ClipboardList,
-  AlertTriangle,
+  Cpu,
   BookOpen,
-  CheckCircle2,
-  Clock,
   ChevronDown,
   Zap,
-  Server,
-  Monitor,
+  Bot,
   Github,
   Scale,
   ExternalLink,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import type { AboutTranslations } from "@/types/i18n";
-import { LayerDetailModal } from "./components";
-
-// ── 五层架构定义 ──
-
-interface LayerDef {
-  level: string;
-  titleKey: keyof AboutTranslations;
-  descKey: keyof AboutTranslations;
-  sourceKey: keyof AboutTranslations;
-  metricsKey: keyof AboutTranslations;
-  icon: LucideIcon;
-  status: "done" | "planned";
-  color: string;
-  detailWhatKey: keyof AboutTranslations;
-  detailRoleKey: keyof AboutTranslations;
-  detailToolsKey: keyof AboutTranslations;
-  detailAtlhyperKey: keyof AboutTranslations;
-}
-
-const layers: LayerDef[] = [
-  { level: "L1", titleKey: "layer1Title", descKey: "layer1Desc", sourceKey: "layer1Source", metricsKey: "layer1Metrics", icon: Globe, status: "done", color: "blue", detailWhatKey: "layer1DetailWhat", detailRoleKey: "layer1DetailRole", detailToolsKey: "layer1DetailTools", detailAtlhyperKey: "layer1DetailAtlhyper" },
-  { level: "L2", titleKey: "layer2Title", descKey: "layer2Desc", sourceKey: "layer2Source", metricsKey: "layer2Metrics", icon: Network, status: "done", color: "violet", detailWhatKey: "layer2DetailWhat", detailRoleKey: "layer2DetailRole", detailToolsKey: "layer2DetailTools", detailAtlhyperKey: "layer2DetailAtlhyper" },
-  { level: "L3", titleKey: "layer3Title", descKey: "layer3Desc", sourceKey: "layer3Source", metricsKey: "layer3Metrics", icon: Search, status: "planned", color: "amber", detailWhatKey: "layer3DetailWhat", detailRoleKey: "layer3DetailRole", detailToolsKey: "layer3DetailTools", detailAtlhyperKey: "layer3DetailAtlhyper" },
-  { level: "L4", titleKey: "layer4Title", descKey: "layer4Desc", sourceKey: "layer4Source", metricsKey: "layer4Metrics", icon: FileText, status: "planned", color: "emerald", detailWhatKey: "layer4DetailWhat", detailRoleKey: "layer4DetailRole", detailToolsKey: "layer4DetailTools", detailAtlhyperKey: "layer4DetailAtlhyper" },
-  { level: "L5", titleKey: "layer5Title", descKey: "layer5Desc", sourceKey: "layer5Source", metricsKey: "layer5Metrics", icon: Cpu, status: "done", color: "rose", detailWhatKey: "layer5DetailWhat", detailRoleKey: "layer5DetailRole", detailToolsKey: "layer5DetailTools", detailAtlhyperKey: "layer5DetailAtlhyper" },
-];
-
-const drilldowns: { key: keyof AboutTranslations }[] = [
-  { key: "drilldown12" },
-  { key: "drilldown23" },
-  { key: "drilldown34" },
-  { key: "drilldown45" },
-];
-
-// ── 功能模块定义 ──
-
-interface FeatureDef {
-  icon: LucideIcon;
-  titleKey: keyof AboutTranslations;
-  descKey: keyof AboutTranslations;
-  status: "done" | "planned";
-}
-
-const featureModules: FeatureDef[] = [
-  { icon: Box, titleKey: "featureClusterTitle", descKey: "featureClusterDesc", status: "done" },
-  { icon: Activity, titleKey: "featureSloTitle", descKey: "featureSloDesc", status: "done" },
-  { icon: Network, titleKey: "featureTopologyTitle", descKey: "featureTopologyDesc", status: "done" },
-  { icon: Bot, titleKey: "featureAiTitle", descKey: "featureAiDesc", status: "done" },
-  { icon: ClipboardList, titleKey: "featureCommandTitle", descKey: "featureCommandDesc", status: "done" },
-  { icon: AlertTriangle, titleKey: "featureAlertTitle", descKey: "featureAlertDesc", status: "done" },
-  { icon: Cpu, titleKey: "featureMetricsTitle", descKey: "featureMetricsDesc", status: "done" },
-  { icon: Search, titleKey: "featureApmTitle", descKey: "featureApmDesc", status: "planned" },
-  { icon: FileText, titleKey: "featureLogsTitle", descKey: "featureLogsDesc", status: "planned" },
-];
-
-// ── 技术栈定义 ──
-
-interface TechDef {
-  icon: LucideIcon;
-  titleKey: keyof AboutTranslations;
-  stackKey: keyof AboutTranslations;
-  descKey: keyof AboutTranslations;
-}
-
-const techStack: TechDef[] = [
-  { icon: Server, titleKey: "techMasterTitle", stackKey: "techMasterStack", descKey: "techMasterDesc" },
-  { icon: Zap, titleKey: "techAgentTitle", stackKey: "techAgentStack", descKey: "techAgentDesc" },
-  { icon: Cpu, titleKey: "techMetricsTitle", stackKey: "techMetricsStack", descKey: "techMetricsDesc" },
-  { icon: Monitor, titleKey: "techWebTitle", stackKey: "techWebStack", descKey: "techWebDesc" },
-];
-
-// ── 组件 ──
-
-function StatusBadge({ status, label }: { status: "done" | "planned"; label: string }) {
-  if (status === "done") {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-500 flex-shrink-0">
-        <CheckCircle2 className="w-3 h-3" />
-        {label}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/15 text-blue-500 flex-shrink-0">
-      <Clock className="w-3 h-3" />
-      {label}
-    </span>
-  );
-}
-
-// 层级颜色映射
-const colorMap: Record<string, { bg: string; text: string; border: string; badge: string }> = {
-  blue:    { bg: "bg-blue-500/10",    text: "text-blue-500",    border: "border-blue-500/20",    badge: "bg-blue-500/20 text-blue-400" },
-  violet:  { bg: "bg-violet-500/10",  text: "text-violet-500",  border: "border-violet-500/20",  badge: "bg-violet-500/20 text-violet-400" },
-  amber:   { bg: "bg-amber-500/10",   text: "text-amber-500",   border: "border-amber-500/20",   badge: "bg-amber-500/20 text-amber-400" },
-  emerald: { bg: "bg-emerald-500/10", text: "text-emerald-500", border: "border-emerald-500/20", badge: "bg-emerald-500/20 text-emerald-400" },
-  rose:    { bg: "bg-rose-500/10",    text: "text-rose-500",    border: "border-rose-500/20",    badge: "bg-rose-500/20 text-rose-400" },
-};
+import {
+  LayerDetailModal,
+  StatusBadge,
+  layers,
+  drilldowns,
+  featureModules,
+  techStack,
+  colorMap,
+} from "./components";
 
 export default function AboutPage() {
   const { t } = useI18n();
@@ -138,14 +36,13 @@ export default function AboutPage() {
     <Layout>
       <div className="max-w-5xl mx-auto space-y-12 pb-16">
 
-        {/* ═══ Hero ═══ */}
+        {/* Hero */}
         <section className="text-center pt-8 pb-2">
           <h1 className="text-4xl font-bold text-default tracking-tight">AtlHyper</h1>
           <p className="mt-3 text-lg text-primary font-medium">{a.subtitle}</p>
           <p className="mt-3 text-sm text-muted max-w-2xl mx-auto leading-relaxed">
             {a.description}
           </p>
-          {/* 关键数字 */}
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
             {[
               { value: "4", label: a.heroStatComponents },
@@ -161,7 +58,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ═══ 五层可观测性架构 ═══ */}
+        {/* Architecture */}
         <section>
           <div className="flex items-center gap-2 mb-2">
             <BookOpen className="w-5 h-5 text-primary" />
@@ -173,30 +70,25 @@ export default function AboutPage() {
             {a.detailClickHint}
           </p>
 
-          {/* 五层 + drill-down */}
           <div className="space-y-0">
             {layers.map((layer, idx) => {
               const Icon = layer.icon;
               const c = colorMap[layer.color];
               const drill = idx < drilldowns.length ? drilldowns[idx] : null;
-
               return (
                 <div key={layer.level}>
-                  {/* 层级卡片 — 可点击 */}
                   <button
                     type="button"
                     onClick={() => setSelectedLayer(idx)}
                     className={`w-full text-left bg-card rounded-xl border ${c.border} p-5 relative cursor-pointer transition-all duration-150 hover:shadow-md hover:border-opacity-60 hover:scale-[1.005] active:scale-[0.998]`}
                   >
                     <div className="flex items-start gap-4">
-                      {/* 层级标号 + 图标 */}
                       <div className="flex flex-col items-center gap-1 flex-shrink-0">
                         <span className={`text-xs font-bold ${c.text} tracking-wide`}>{layer.level}</span>
                         <div className={`w-10 h-10 rounded-lg ${c.bg} flex items-center justify-center`}>
                           <Icon className={`w-5 h-5 ${c.text}`} />
                         </div>
                       </div>
-                      {/* 内容 */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-base font-semibold text-default">{a[layer.titleKey]}</h3>
@@ -212,8 +104,6 @@ export default function AboutPage() {
                       </div>
                     </div>
                   </button>
-
-                  {/* Drill-down 箭头 */}
                   {drill && (
                     <div className="flex items-center gap-2 py-2 pl-6">
                       <ChevronDown className="w-4 h-4 text-primary/60" />
@@ -226,7 +116,7 @@ export default function AboutPage() {
             })}
           </div>
 
-          {/* AI 全链路面板 */}
+          {/* AI Panel */}
           <div className="mt-6 bg-gradient-to-br from-primary/5 via-card to-primary/5 rounded-xl border border-primary/20 p-6">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
@@ -237,8 +127,6 @@ export default function AboutPage() {
               </div>
             </div>
             <p className="text-sm text-secondary leading-relaxed mb-4">{a.aiDesc}</p>
-
-            {/* 场景示例 */}
             <div className="bg-card/80 rounded-lg border border-[var(--border-color)] p-4">
               <h4 className="text-sm font-semibold text-default mb-3 flex items-center gap-2">
                 <Zap className="w-4 h-4 text-amber-500" />
@@ -267,7 +155,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ═══ 功能模块 ═══ */}
+        {/* Features */}
         <section>
           <div className="flex items-center gap-2 mb-4">
             <Box className="w-5 h-5 text-primary" />
@@ -277,10 +165,7 @@ export default function AboutPage() {
             {featureModules.map((mod) => {
               const Icon = mod.icon;
               return (
-                <div
-                  key={mod.titleKey}
-                  className="bg-card rounded-xl border border-[var(--border-color)] p-4 flex items-start gap-3"
-                >
+                <div key={mod.titleKey} className="bg-card rounded-xl border border-[var(--border-color)] p-4 flex items-start gap-3">
                   <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Icon className="w-4 h-4 text-primary" />
                   </div>
@@ -297,7 +182,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ═══ 技术架构 ═══ */}
+        {/* Tech Stack */}
         <section>
           <div className="flex items-center gap-2 mb-4">
             <Cpu className="w-5 h-5 text-primary" />
@@ -307,10 +192,7 @@ export default function AboutPage() {
             {techStack.map((tech) => {
               const Icon = tech.icon;
               return (
-                <div
-                  key={tech.titleKey}
-                  className="bg-card rounded-xl border border-[var(--border-color)] p-4"
-                >
+                <div key={tech.titleKey} className="bg-card rounded-xl border border-[var(--border-color)] p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Icon className="w-4 h-4 text-primary" />
                     <h3 className="text-sm font-bold text-default">{a[tech.titleKey]}</h3>
@@ -323,7 +205,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ═══ 开源信息 ═══ */}
+        {/* Open Source */}
         <section>
           <div className="bg-card rounded-xl border border-[var(--border-color)] p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -350,7 +232,7 @@ export default function AboutPage() {
 
       </div>
 
-      {/* ═══ 层级详情弹窗 ═══ */}
+      {/* Layer detail modal */}
       {selectedLayer !== null && (
         <LayerDetailModal
           isOpen

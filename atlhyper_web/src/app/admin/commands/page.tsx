@@ -14,8 +14,6 @@ import {
 } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
 import {
-  Filter,
-  X,
   Terminal,
   Bot,
   Globe,
@@ -27,9 +25,9 @@ import {
   Clock,
 } from "lucide-react";
 
-import { FilterInput, FilterSelect, CommandDetailModal } from "./components";
+import { CommandDetailModal, CommandFilterToolbar, CommandPagination } from "./components";
 
-// 状态配置
+// Status config
 const statusConfig: Record<
   string,
   { icon: typeof CheckCircle2; color: string; badgeType: "success" | "error" | "warning" | "info" | "default" }
@@ -41,7 +39,7 @@ const statusConfig: Record<
   pending: { icon: Clock, color: "text-gray-500", badgeType: "default" },
 };
 
-// 来源图标
+// Source icons
 const sourceIcons: Record<string, typeof Terminal> = {
   web: Globe,
   ai: Bot,
@@ -54,23 +52,20 @@ export default function CommandsPage() {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
 
-  // 筛选状态
+  // Filter state
   const [sourceFilter, setSourceFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // 分页状态
+  // Pagination
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
-  // 详情弹窗
+  // Detail modal
   const [selectedCommand, setSelectedCommand] = useState<CommandHistory | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  // 筛选辅助
-  const activeFilterCount = [sourceFilter, statusFilter, actionFilter, searchTerm].filter(Boolean).length;
-  const hasActiveFilters = activeFilterCount > 0;
   const clearAllFilters = () => {
     setSourceFilter("");
     setStatusFilter("");
@@ -102,26 +97,22 @@ export default function CommandsPage() {
 
   const { intervalSeconds } = useAutoRefresh(fetchData);
 
-  // 获取操作类型选项
   const actionOptions = useMemo(() => {
     const actions = Object.entries(t.commands.actions) as [string, string][];
     return actions.map(([value, label]) => ({ value, label }));
   }, [t.commands.actions]);
 
-  // 查看详情
   const handleViewDetail = (cmd: CommandHistory) => {
     setSelectedCommand(cmd);
     setDetailOpen(true);
   };
 
-  // 格式化耗时
   const formatDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`;
     if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
     return `${(ms / 60000).toFixed(1)}m`;
   };
 
-  // 格式化目标
   const formatTarget = (cmd: CommandHistory) => {
     const parts = [];
     if (cmd.targetKind) parts.push(cmd.targetKind);
@@ -221,71 +212,23 @@ export default function CommandsPage() {
           autoRefreshSeconds={intervalSeconds}
         />
 
-        {/* 筛选工具栏 */}
-        <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Filter className="w-4 h-4 text-muted" />
-            <span className="text-sm font-medium text-default">{t.common.filter}</span>
-            {activeFilterCount > 0 && (
-              <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
-                {activeFilterCount}
-              </span>
-            )}
-            {hasActiveFilters && (
-              <button
-                onClick={clearAllFilters}
-                className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-default transition-colors"
-              >
-                <X className="w-3 h-3" />
-                {t.common.clearAll}
-              </button>
-            )}
-          </div>
+        <CommandFilterToolbar
+          sourceFilter={sourceFilter}
+          statusFilter={statusFilter}
+          actionFilter={actionFilter}
+          searchTerm={searchTerm}
+          onSourceChange={(v) => { setSourceFilter(v); setPage(0); }}
+          onStatusChange={(v) => { setStatusFilter(v); setPage(0); }}
+          onActionChange={(v) => { setActionFilter(v); setPage(0); }}
+          onSearchChange={(v) => { setSearchTerm(v); setPage(0); }}
+          onClearAll={clearAllFilters}
+          actionOptions={actionOptions}
+          commandCount={commands.length}
+          total={total}
+          t={t}
+        />
 
-          <div className="flex flex-wrap gap-3 items-center">
-            <FilterSelect
-              value={sourceFilter}
-              onChange={(v) => { setSourceFilter(v); setPage(0); }}
-              onClear={() => { setSourceFilter(""); setPage(0); }}
-              placeholder={t.commands.allSources}
-              options={[
-                { value: "web", label: t.commands.sources.web },
-                { value: "ai", label: t.commands.sources.ai },
-              ]}
-            />
-            <FilterSelect
-              value={statusFilter}
-              onChange={(v) => { setStatusFilter(v); setPage(0); }}
-              onClear={() => { setStatusFilter(""); setPage(0); }}
-              placeholder={t.commands.allStatus}
-              options={[
-                { value: "pending", label: t.commands.statuses.pending },
-                { value: "running", label: t.commands.statuses.running },
-                { value: "success", label: t.commands.statuses.success },
-                { value: "failed", label: t.commands.statuses.failed },
-                { value: "timeout", label: t.commands.statuses.timeout },
-              ]}
-            />
-            <FilterSelect
-              value={actionFilter}
-              onChange={(v) => { setActionFilter(v); setPage(0); }}
-              onClear={() => { setActionFilter(""); setPage(0); }}
-              placeholder={t.commands.allActions}
-              options={actionOptions}
-            />
-            <FilterInput
-              value={searchTerm}
-              onChange={(v) => { setSearchTerm(v); setPage(0); }}
-              onClear={() => { setSearchTerm(""); setPage(0); }}
-              placeholder={t.commands.searchPlaceholder}
-            />
-            <span className="text-sm text-muted whitespace-nowrap">
-              {commands.length} / {total} {t.common.items}
-            </span>
-          </div>
-        </div>
-
-        {/* 数据表格 */}
+        {/* Data table */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
           {loading ? (
             <div className="py-12">
@@ -309,33 +252,16 @@ export default function CommandsPage() {
           )}
         </div>
 
-        {/* 分页 */}
-        {total > pageSize && (
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted">
-              {t.table.showing} {page * pageSize + 1}-{Math.min((page + 1) * pageSize, total)} / {total} {t.table.entries}
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="px-3 py-1 text-sm border border-[var(--border-color)] rounded-lg hover-bg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {t.table.previousPage}
-              </button>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={(page + 1) * pageSize >= total}
-                className="px-3 py-1 text-sm border border-[var(--border-color)] rounded-lg hover-bg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {t.table.nextPage}
-              </button>
-            </div>
-          </div>
-        )}
+        <CommandPagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          t={t}
+        />
       </div>
 
-      {/* 详情弹窗 */}
+      {/* Detail modal */}
       {detailOpen && selectedCommand && (
         <CommandDetailModal
           command={selectedCommand}

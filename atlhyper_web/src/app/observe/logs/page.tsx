@@ -9,8 +9,6 @@ import {
   RefreshCw,
   WifiOff,
   ChevronRight,
-  X,
-  Clock,
 } from "lucide-react";
 
 import { queryLogs, queryLogHistogram } from "@/datasource/logs";
@@ -25,34 +23,14 @@ import { LogFacets } from "./components/LogFacets";
 import { LogList } from "./components/LogList";
 import { LogHistogram } from "./components/LogHistogram";
 import { LogDetailDrawer } from "./components/LogDetail";
-
-/** Pill color by filter type */
-function pillStyle(type: "severity" | "service" | "scope", value?: string) {
-  if (type === "severity") {
-    switch (value?.toUpperCase()) {
-      case "ERROR": return "bg-red-500/15 text-red-600 dark:text-red-400";
-      case "WARN": return "bg-amber-500/15 text-amber-600 dark:text-amber-400";
-      case "INFO": return "bg-blue-500/15 text-blue-600 dark:text-blue-400";
-      case "DEBUG": return "bg-gray-500/15 text-gray-600 dark:text-gray-400";
-    }
-  }
-  if (type === "service") return "bg-purple-500/15 text-purple-600 dark:text-purple-400";
-  return "bg-gray-500/10 text-gray-600 dark:text-gray-400";
-}
-
-/** Format epoch ms pair to "HH:MM — HH:MM" */
-function formatBrushRange(start: number, end: number): string {
-  const fmt = (ts: number) =>
-    new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  return `${fmt(start)} — ${fmt(end)}`;
-}
+import { LogFilterPills } from "./components/LogFilterPills";
 
 export default function LogsPage() {
   const { t } = useI18n();
   const tl = t.logs;
   const { currentClusterId } = useClusterStore();
 
-  // 跨信号关联：URL ?traceId= / ?spanId= 参数过滤
+  // URL ?traceId= / ?spanId= params
   const searchParams = useSearchParams();
   const urlTraceId = searchParams.get("traceId") || undefined;
   const urlSpanId = searchParams.get("spanId") || undefined;
@@ -102,7 +80,7 @@ export default function LogsPage() {
     setBrushTimeRange(null);
   }, [search, selectedServices, selectedSeverities, selectedScopes, timeSelection]);
 
-  // Histogram: 独立请求，不依赖 page 和 brushTimeRange
+  // Histogram: independent request
   const [histogramData, setHistogramData] = useState<LogHistogramBucket[]>([]);
   const [histogramIntervalMs, setHistogramIntervalMs] = useState(0);
 
@@ -127,13 +105,11 @@ export default function LogsPage() {
     loadHistogram();
   }, [loadHistogram]);
 
-  // Query logs (async — supports both mock and real API)
+  // Query logs
   const emptyResult: LogQueryResult = { logs: [], total: 0, facets: { services: [], severities: [], scopes: [] } };
   const [result, setResult] = useState<LogQueryResult>(emptyResult);
 
   const loadLogs = useCallback(async () => {
-    // since 始终传递（后端 facets 依赖 since 计算时间窗口）
-    // Brush 选区时：since + startTime/endTime 都传，后端 buildWhere 优先使用绝对时间
     const since = toSince(timeSelection);
     const abs = toAbsoluteParams(timeSelection);
     const brushActive = brushTimeRange !== null;
@@ -165,14 +141,7 @@ export default function LogsPage() {
     setSelectedIdx(null);
   };
 
-  // Filter pills helpers
-  const hasAnyFilter =
-    selectedServices.length > 0 ||
-    selectedSeverities.length > 0 ||
-    selectedScopes.length > 0 ||
-    brushTimeRange !== null ||
-    !!urlTraceId;
-
+  // Filter helpers
   const removeService = (v: string) => setSelectedServices((prev) => prev.filter((s) => s !== v));
   const removeSeverity = (v: string) => setSelectedSeverities((prev) => prev.filter((s) => s !== v));
   const removeScope = (v: string) => setSelectedScopes((prev) => prev.filter((s) => s !== v));
@@ -207,14 +176,11 @@ export default function LogsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Time range picker */}
             <TimeRangePicker
               value={timeSelection}
               onChange={setTimeSelection}
               t={tl}
             />
-
-            {/* Refresh button */}
             <button
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
             >
@@ -235,62 +201,19 @@ export default function LogsPage() {
         />
 
         {/* Filter pills */}
-        {hasAnyFilter && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {/* Brush time range pill */}
-            {brushTimeRange && (
-              <button
-                onClick={() => setBrushTimeRange(null)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary transition-colors hover:opacity-80"
-              >
-                <Clock className="w-3 h-3" />
-                {formatBrushRange(brushTimeRange[0], brushTimeRange[1])}
-                <X className="w-3 h-3" />
-              </button>
-            )}
-            {selectedSeverities.map((v) => (
-              <button
-                key={`sev-${v}`}
-                onClick={() => removeSeverity(v)}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors hover:opacity-80 ${pillStyle("severity", v)}`}
-              >
-                {v}
-                <X className="w-3 h-3" />
-              </button>
-            ))}
-            {selectedServices.map((v) => (
-              <button
-                key={`svc-${v}`}
-                onClick={() => removeService(v)}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors hover:opacity-80 ${pillStyle("service")}`}
-              >
-                {v.replace("geass-", "")}
-                <X className="w-3 h-3" />
-              </button>
-            ))}
-            {selectedScopes.map((v) => (
-              <button
-                key={`scope-${v}`}
-                onClick={() => removeScope(v)}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors hover:opacity-80 ${pillStyle("scope")}`}
-              >
-                {v.split(".").pop()}
-                <X className="w-3 h-3" />
-              </button>
-            ))}
-            {urlTraceId && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">
-                Trace: {urlTraceId.slice(0, 8)}...
-              </span>
-            )}
-            <button
-              onClick={clearAllFilters}
-              className="text-xs text-muted hover:text-default transition-colors ml-1"
-            >
-              {tl.clearFilters}
-            </button>
-          </div>
-        )}
+        <LogFilterPills
+          selectedSeverities={selectedSeverities}
+          selectedServices={selectedServices}
+          selectedScopes={selectedScopes}
+          brushTimeRange={brushTimeRange}
+          urlTraceId={urlTraceId}
+          onRemoveSeverity={removeSeverity}
+          onRemoveService={removeService}
+          onRemoveScope={removeScope}
+          onClearBrushTimeRange={() => setBrushTimeRange(null)}
+          onClearAll={clearAllFilters}
+          clearFiltersLabel={tl.clearFilters}
+        />
 
         {/* Log volume histogram */}
         <LogHistogram
@@ -304,7 +227,6 @@ export default function LogsPage() {
 
         {/* Main content: facets + log list */}
         <div className="flex gap-4">
-          {/* Facets panel — collapsible */}
           {facetsCollapsed ? (
             <button
               onClick={() => setFacetsCollapsed(false)}

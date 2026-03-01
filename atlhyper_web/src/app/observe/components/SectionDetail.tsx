@@ -3,6 +3,8 @@
 import { Lock } from "lucide-react";
 import type { ServiceHealth } from "@/types/model/observe";
 import type { ObserveLandingTranslations } from "@/types/i18n";
+import { DetailCard, KV, MetricBox, ProgressRow, NoData } from "./SectionDetailParts";
+import { K8sDetail } from "./K8sDetail";
 
 type DetailSection = "k8s" | "apm" | "slo" | "logs" | "infra";
 
@@ -39,121 +41,6 @@ export function sectionTitle(section: DetailSection, tl: ObserveLandingTranslati
 }
 
 // ============================================================================
-// K8s Resources Detail
-// ============================================================================
-
-function K8sDetail({ service, tl }: { service: ServiceHealth; tl: ObserveLandingTranslations }) {
-  const { deployment, pods, k8sService, ingresses } = service;
-
-  return (
-    <div className="space-y-4">
-      {/* Deployment */}
-      <DetailCard title={tl.deploymentSection}>
-        {deployment ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <KV label={tl.replicas} value={deployment.replicas} />
-            <KV label={tl.strategy} value={deployment.strategy} />
-            <KV label={tl.age} value={deployment.age} />
-            <KV label={tl.image} value={deployment.image} mono />
-          </div>
-        ) : <NoData />}
-      </DetailCard>
-
-      {/* K8s Service */}
-      {k8sService && (
-        <DetailCard title="Service">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <KV label={tl.serviceType} value={k8sService.type} />
-            <KV label={tl.clusterIP} value={k8sService.clusterIP} mono />
-            <KV label={tl.ports} value={k8sService.ports} mono />
-          </div>
-        </DetailCard>
-      )}
-
-      {/* Pods */}
-      <DetailCard title={tl.pods}>
-        {pods && pods.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted text-left border-b border-[var(--border-color)]">
-                  <th className="py-1.5 pr-3 font-medium">{tl.serviceHealth}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.phase}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.ready}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.restarts}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.node}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.age}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.cpu}</th>
-                  <th className="py-1.5 font-medium">{tl.memory}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pods.map((pod) => (
-                  <tr key={pod.name} className="border-b border-[var(--border-color)] last:border-b-0">
-                    <td className="py-1.5 pr-3 text-default font-mono truncate max-w-[200px]">{pod.name}</td>
-                    <td className="py-1.5 pr-3">
-                      <span className={pod.phase === "Running" ? "text-green-500" : pod.phase === "Pending" ? "text-yellow-500" : "text-red-500"}>
-                        {pod.phase}
-                      </span>
-                    </td>
-                    <td className="py-1.5 pr-3 text-default">{pod.ready}</td>
-                    <td className="py-1.5 pr-3">
-                      <span className={pod.restarts > 0 ? "text-yellow-500" : "text-default"}>{pod.restarts}</span>
-                    </td>
-                    <td className="py-1.5 pr-3 text-muted">{pod.nodeName}</td>
-                    <td className="py-1.5 pr-3 text-muted">{pod.age}</td>
-                    <td className="py-1.5 pr-3 text-default font-mono">{pod.cpuUsage}</td>
-                    <td className="py-1.5 text-default font-mono">{pod.memoryUsage}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : <NoData />}
-      </DetailCard>
-
-      {/* Ingress */}
-      <DetailCard title={tl.ingressSection}>
-        {ingresses && ingresses.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted text-left border-b border-[var(--border-color)]">
-                  <th className="py-1.5 pr-3 font-medium">{tl.serviceHealth}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.host}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.path}</th>
-                  <th className="py-1.5 pr-3 font-medium">{tl.tls}</th>
-                  <th className="py-1.5 font-medium">{tl.backend}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ingresses.map((ing) => (
-                  <tr key={ing.name} className="border-b border-[var(--border-color)] last:border-b-0">
-                    <td className="py-1.5 pr-3 text-default font-mono">{ing.name}</td>
-                    <td className="py-1.5 pr-3 text-default">{ing.hosts.join(", ")}</td>
-                    <td className="py-1.5 pr-3 text-muted font-mono">
-                      {ing.paths.map(p => p.path).join(", ")}
-                    </td>
-                    <td className="py-1.5 pr-3">
-                      <span className={ing.tlsEnabled ? "text-green-500" : "text-muted"}>
-                        {ing.tlsEnabled ? "✓" : "✗"}
-                      </span>
-                    </td>
-                    <td className="py-1.5 text-muted font-mono">
-                      {ing.paths.map(p => `${p.serviceName}:${p.port}`).join(", ")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : <NoData />}
-      </DetailCard>
-    </div>
-  );
-}
-
-// ============================================================================
 // APM Detail
 // ============================================================================
 
@@ -163,7 +50,6 @@ function ApmDetail({ service, tl }: { service: ServiceHealth; tl: ObserveLanding
 
   return (
     <div className="space-y-4">
-      {/* Top metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <MetricBox label={tl.rps} value={apm.rps.toFixed(1)} />
         <MetricBox
@@ -178,7 +64,6 @@ function ApmDetail({ service, tl }: { service: ServiceHealth; tl: ObserveLanding
         />
         <MetricBox label={tl.p99} value={`${apm.p99Ms}ms`} />
       </div>
-      {/* All metrics */}
       <DetailCard title={tl.allMetrics}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <KV label={tl.avgLatency} value={`${apm.avgMs}ms`} />
@@ -200,7 +85,6 @@ function SloDetail({ service, tl }: { service: ServiceHealth; tl: ObserveLanding
 
   return (
     <div className="space-y-4">
-      {/* Mesh */}
       <DetailCard title={tl.meshDetail}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {slo.meshSuccessRate != null && (
@@ -215,13 +99,12 @@ function SloDetail({ service, tl }: { service: ServiceHealth; tl: ObserveLanding
           <div className="flex items-center gap-1.5 text-xs">
             <Lock className="w-3 h-3 text-green-500" />
             <span className={slo.mtlsEnabled ? "text-green-500" : "text-muted"}>
-              mTLS {slo.mtlsEnabled ? "✓" : "✗"}
+              mTLS {slo.mtlsEnabled ? "\u2713" : "\u2717"}
             </span>
           </div>
         </div>
       </DetailCard>
 
-      {/* Ingress Domains */}
       {slo.ingressDomains && slo.ingressDomains.length > 0 && (
         <DetailCard title={tl.ingressSLO}>
           <div className="space-y-2">
@@ -274,7 +157,6 @@ function LogsDetail({ service, tl, totalLabel }: { service: ServiceHealth; tl: O
         <MetricBox label={totalLabel} value={logs.totalCount.toLocaleString()} />
       </div>
 
-      {/* Distribution bar */}
       <DetailCard title={tl.distribution}>
         <div className="h-3 rounded-full overflow-hidden flex bg-secondary/50">
           <div className="bg-red-500 h-full" style={{ width: `${errPct}%` }} />
@@ -313,55 +195,4 @@ function InfraDetail({ service, tl }: { service: ServiceHealth; tl: ObserveLandi
       ))}
     </div>
   );
-}
-
-// ============================================================================
-// Shared sub-components
-// ============================================================================
-
-function DetailCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-[var(--border-color)] bg-card p-3">
-      <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2.5">{title}</h4>
-      {children}
-    </div>
-  );
-}
-
-function KV({ label, value, mono, valueColor }: { label: string; value: string; mono?: boolean; valueColor?: string }) {
-  return (
-    <div>
-      <p className="text-[11px] text-muted mb-0.5">{label}</p>
-      <p className={`text-xs ${mono ? "font-mono" : ""} ${valueColor ?? "text-default"} truncate`}>{value}</p>
-    </div>
-  );
-}
-
-function MetricBox({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div className="p-3 rounded-xl border border-[var(--border-color)] bg-card">
-      <p className="text-xs text-muted mb-1">{label}</p>
-      <p className={`text-xl font-bold ${color ?? "text-default"}`}>{value}</p>
-      {sub && <p className="text-[11px] text-muted mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-function ProgressRow({ label, value }: { label: string; value: number }) {
-  const color = value > 85 ? "bg-red-500" : value > 70 ? "bg-yellow-500" : "bg-green-500";
-  return (
-    <div>
-      <div className="flex items-center justify-between text-xs mb-1">
-        <span className="text-muted">{label}</span>
-        <span className="text-default font-mono">{value.toFixed(1)}%</span>
-      </div>
-      <div className="h-2 rounded-full bg-secondary/50 overflow-hidden">
-        <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${value}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function NoData() {
-  return <p className="text-xs text-muted py-2">-</p>;
 }

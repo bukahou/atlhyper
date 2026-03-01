@@ -8,146 +8,9 @@ import type { JobItem } from "@/api/cluster-resources";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import { getCurrentClusterId } from "@/config/cluster";
-import { Filter, X, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { JobDetailModal } from "@/components/job";
-
-// 筛选输入框
-function FilterInput({
-  value,
-  onChange,
-  onClear,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onClear: () => void;
-  placeholder: string;
-}) {
-  return (
-    <div className="relative">
-      <input
-        type="text"
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2.5 sm:py-2 pr-8 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-sm text-default placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-primary"
-      />
-      {value && (
-        <button
-          onClick={onClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted hover:text-default transition-colors"
-        >
-          <X className="w-4 h-4 sm:w-3 sm:h-3" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-// 筛选下拉框
-function FilterSelect({
-  value,
-  onChange,
-  onClear,
-  placeholder,
-  options,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onClear: () => void;
-  placeholder: string;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2.5 sm:py-2 pr-8 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-sm text-default focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
-      >
-        <option value="">{placeholder}</option>
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-      {value ? (
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            onClear();
-          }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted hover:text-default transition-colors z-10"
-        >
-          <X className="w-4 h-4 sm:w-3 sm:h-3" />
-        </button>
-      ) : (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-          <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// 筛选栏
-function FilterBar({
-  namespaces,
-  filters,
-  onFilterChange,
-}: {
-  namespaces: string[];
-  filters: { namespace: string; search: string };
-  onFilterChange: (key: string, value: string) => void;
-}) {
-  const { t } = useI18n();
-  const hasFilters = filters.namespace || filters.search;
-  const activeCount = [filters.namespace, filters.search].filter(Boolean).length;
-
-  return (
-    <div className="bg-card rounded-xl border border-[var(--border-color)] p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Filter className="w-4 h-4 text-muted" />
-        <span className="text-sm font-medium text-default">{t.common.filter}</span>
-        {activeCount > 0 && (
-          <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
-            {activeCount}
-          </span>
-        )}
-        {hasFilters && (
-          <button
-            onClick={() => {
-              onFilterChange("namespace", "");
-              onFilterChange("search", "");
-            }}
-            className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-default transition-colors"
-          >
-            <X className="w-3 h-3" />
-            {t.common.clearAll}
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <FilterInput
-          value={filters.search}
-          onChange={(v) => onFilterChange("search", v)}
-          onClear={() => onFilterChange("search", "")}
-          placeholder={t.job.searchPlaceholder}
-        />
-        <FilterSelect
-          value={filters.namespace}
-          onChange={(v) => onFilterChange("namespace", v)}
-          onClear={() => onFilterChange("namespace", "")}
-          placeholder={t.deployment.allNamespaces}
-          options={namespaces.map((ns) => ({ value: ns, label: ns }))}
-        />
-      </div>
-    </div>
-  );
-}
+import { JobFilterBar } from "./components/JobFilterBar";
 
 export default function JobPage() {
   const { t } = useI18n();
@@ -155,13 +18,13 @@ export default function JobPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // 筛选状态
+  // Filter state
   const [filters, setFilters] = useState({
     namespace: "",
     search: "",
   });
 
-  // 详情弹窗状态
+  // Detail modal state
   const [selectedItem, setSelectedItem] = useState<JobItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -179,7 +42,7 @@ export default function JobPage() {
 
   const { intervalSeconds } = useAutoRefresh(fetchData);
 
-  // 提取唯一的 namespaces
+  // Extract unique namespaces
   const namespaces = useMemo(() => {
     const nsSet = new Set<string>();
     items.forEach((d) => {
@@ -188,7 +51,7 @@ export default function JobPage() {
     return Array.from(nsSet).sort();
   }, [items]);
 
-  // StatsCards 统计
+  // Stats cards
   const stats = useMemo(() => {
     const totalActive = items.reduce((sum, d) => sum + d.active, 0);
     const totalSucceeded = items.reduce((sum, d) => sum + d.succeeded, 0);
@@ -201,7 +64,7 @@ export default function JobPage() {
     };
   }, [items]);
 
-  // 根据筛选条件过滤数据
+  // Filter items
   const filteredItems = useMemo(() => {
     return items.filter((d) => {
       if (filters.search && !d.name.toLowerCase().includes(filters.search.toLowerCase())) {
@@ -223,7 +86,7 @@ export default function JobPage() {
     setDetailOpen(true);
   };
 
-  // 确定 Job 状态
+  // Determine Job status
   const getJobStatus = (job: JobItem) => {
     if (job.complete) {
       return { label: t.job.statusComplete, type: "success" as const };
@@ -319,7 +182,7 @@ export default function JobPage() {
           </div>
         )}
 
-        <FilterBar
+        <JobFilterBar
           namespaces={namespaces}
           filters={filters}
           onFilterChange={handleFilterChange}
