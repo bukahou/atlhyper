@@ -105,6 +105,9 @@ request.interceptors.response.use(
       };
       authErrorManager.emit(authError);
       console.warn("[Auth] 403 Forbidden:", errorMsg);
+    } else if (status === 404) {
+      // 资源不存在或数据未就绪，属正常状态，不打 error
+      console.debug("[Request] 404:", errorMsg);
     } else {
       console.error("[Request] Error:", status, errorMsg);
     }
