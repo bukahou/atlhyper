@@ -76,6 +76,7 @@ export interface TraceSummary {
   traceId: string;
   rootService: string;
   rootOperation: string;
+  services: string[];
   durationMs: number;
   spanCount: number;
   serviceCount: number;

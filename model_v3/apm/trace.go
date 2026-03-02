@@ -87,6 +87,7 @@ type TraceSummary struct {
 	TraceId       string    `json:"traceId"`
 	RootService   string    `json:"rootService"`
 	RootOperation string    `json:"rootOperation"`
+	Services      []string  `json:"services"`
 	DurationMs    float64   `json:"durationMs"`
 	SpanCount     int       `json:"spanCount"`
 	ServiceCount  int       `json:"serviceCount"`

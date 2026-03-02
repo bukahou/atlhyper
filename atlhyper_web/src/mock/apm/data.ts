@@ -450,6 +450,7 @@ function buildMockData() {
       traceId,
       rootService: rootSpan.serviceName,
       rootOperation: rootSpan.spanName,
+      services: [...services],
       durationMs: totalDurationMs,
       spanCount: spans.length,
       serviceCount: services.size,

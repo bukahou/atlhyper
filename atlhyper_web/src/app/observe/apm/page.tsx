@@ -68,10 +68,12 @@ export default function ApmPage() {
           traceIndex: 0,
         });
         setTraceDetail(detail);
+        const uniqueServices = [...new Set(detail.spans.map(s => s.serviceName))];
         setOperationTraces([{
           traceId: detail.traceId,
           rootService: rootSpan.serviceName,
           rootOperation: rootSpan.spanName,
+          services: uniqueServices,
           durationMs: detail.durationMs,
           spanCount: detail.spanCount,
           serviceCount: detail.serviceCount,

@@ -99,6 +99,7 @@ func (r *traceRepository) ListTraces(ctx context.Context, service, operation str
 		       max(Duration) / 1e6 AS durationMs,
 		       count() AS spanCount,
 		       count(DISTINCT ServiceName) AS serviceCount,
+		       groupArray(DISTINCT ServiceName) AS services,
 		       countIf(StatusCode = 'STATUS_CODE_ERROR') > 0 AS hasError,
 		       anyIf(
 		           Events.Attributes[indexOf(Events.Name, 'exception')]['exception.type'],
@@ -127,7 +128,7 @@ func (r *traceRepository) ListTraces(ctx context.Context, service, operation str
 		var hasErr uint8
 		if err := rows.Scan(
 			&t.TraceId, &t.Timestamp, &t.RootService, &t.RootOperation,
-			&t.DurationMs, &t.SpanCount, &t.ServiceCount, &hasErr,
+			&t.DurationMs, &t.SpanCount, &t.ServiceCount, &t.Services, &hasErr,
 			&t.ErrorType, &t.ErrorMessage,
 		); err != nil {
 			continue

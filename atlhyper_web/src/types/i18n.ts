@@ -2124,6 +2124,12 @@ export interface ApmTranslations extends TimeRangePickerTranslations {
   timeline: string;
   metadata: string;
   logs: string;
+  // metadata tab
+  serviceBreakdown: string;
+  durationPercent: string;
+  errorSpans: string;
+  resourceOverview: string;
+  instanceCount: string;
   traceOf: string;
   // span detail drawer
   spanKind: string;

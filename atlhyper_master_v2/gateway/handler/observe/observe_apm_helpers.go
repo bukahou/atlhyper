@@ -19,3 +19,13 @@ func filterAPMPointsByMinutes(points []cluster.APMTimePoint, minutes int) []clus
 	}
 	return result
 }
+
+// sliceContains 检查字符串切片是否包含目标值
+func sliceContains(ss []string, target string) bool {
+	for _, s := range ss {
+		if s == target {
+			return true
+		}
+	}
+	return false
+}

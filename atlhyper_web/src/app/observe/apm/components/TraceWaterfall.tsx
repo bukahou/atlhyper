@@ -18,6 +18,7 @@ import { SERVICE_COLORS, buildSpanTree, flattenTree } from "./waterfall-utils";
 import { SpanRow } from "./SpanRow";
 import { SpanDrawer } from "./SpanDrawer";
 import { SpanLogs } from "./SpanLogs";
+import { TraceMetadata } from "./TraceMetadata";
 
 interface TraceWaterfallProps {
   t: ApmTranslations;
@@ -163,16 +164,20 @@ export function TraceWaterfall({
           {[t.timeline, t.metadata, t.logs].map((label, i) => (
             <button
               key={label}
-              disabled={i === 1}
               onClick={() => setActiveTab(i)}
               className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
-                activeTab === i ? "text-primary border-primary" : i === 1 ? "text-muted/50 border-transparent cursor-not-allowed" : "text-muted border-transparent hover:text-default"
+                activeTab === i ? "text-primary border-primary" : "text-muted border-transparent hover:text-default"
               }`}
             >
               {label}
             </button>
           ))}
         </div>
+
+        {/* Metadata tab content */}
+        {activeTab === 1 && (
+          <TraceMetadata t={t} trace={trace} />
+        )}
 
         {/* Logs tab content */}
         {activeTab === 2 && (

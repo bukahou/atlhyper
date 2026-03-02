@@ -81,7 +81,7 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	if svc := r.URL.Query().Get("service"); svc != "" {
 		filtered := traces[:0:0]
 		for _, t := range traces {
-			if t.RootService == svc {
+			if sliceContains(t.Services, svc) {
 				filtered = append(filtered, t)
 			}
 		}
