@@ -68,7 +68,7 @@ export function SpanRow({
         )}
       </div>
 
-      <div className="flex-1 relative" style={{ height: barH }}>
+      <div className="flex-1 relative overflow-hidden" style={{ height: barH }}>
         <div
           className="absolute top-0"
           style={{
@@ -91,15 +91,26 @@ export function SpanRow({
             </div>
           )}
         </div>
-        {!barIsWide && (
-          <div
-            className="absolute flex items-center gap-1.5 whitespace-nowrap"
-            style={{ left: `${offset + Math.max(width, 0.3) + 0.5}%`, top: 0, height: barH }}
-          >
-            <span className="text-[11px] text-default truncate">{span.spanName}</span>
-            <span className="text-[10px] text-muted flex-shrink-0">{formatDurationMs(span.durationMs)}</span>
-          </div>
-        )}
+        {!barIsWide && (() => {
+          const nearRightEdge = offset + width > 65;
+          return nearRightEdge ? (
+            <div
+              className="absolute flex items-center justify-end gap-1.5 whitespace-nowrap"
+              style={{ right: `${100 - offset + 0.5}%`, top: 0, height: barH }}
+            >
+              <span className="text-[10px] text-muted flex-shrink-0">{formatDurationMs(span.durationMs)}</span>
+              <span className="text-[11px] text-default truncate">{span.spanName}</span>
+            </div>
+          ) : (
+            <div
+              className="absolute flex items-center gap-1.5 whitespace-nowrap"
+              style={{ left: `${offset + Math.max(width, 0.3) + 0.5}%`, top: 0, height: barH }}
+            >
+              <span className="text-[11px] text-default truncate">{span.spanName}</span>
+              <span className="text-[10px] text-muted flex-shrink-0">{formatDurationMs(span.durationMs)}</span>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
