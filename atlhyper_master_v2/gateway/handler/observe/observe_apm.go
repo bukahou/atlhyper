@@ -87,15 +87,8 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 		}
 		traces = filtered
 	}
-	if op := r.URL.Query().Get("operation"); op != "" {
-		filtered := traces[:0:0]
-		for _, t := range traces {
-			if strings.Contains(t.RootOperation, op) {
-				filtered = append(filtered, t)
-			}
-		}
-		traces = filtered
-	}
+	// 快照路径不按 operation 过滤：RootOperation 是入口服务的操作名，
+	// 子服务 operation 与之不同会被误过滤。Service 过滤已缩小范围足够。
 	if v := r.URL.Query().Get("min_duration"); v != "" {
 		if minMs, err := strconv.ParseFloat(v, 64); err == nil {
 			filtered := traces[:0:0]
