@@ -17,7 +17,7 @@ import { getActiveConfig, type ActiveConfig } from "@/api/ai-provider";
 import { formatAlertsMessage } from "@/lib/alertFormat";
 import type { RecentAlert } from "@/types/overview";
 import type { AIConfigStatus } from "./types";
-import { MOCK_CONVERSATIONS, MOCK_MESSAGES } from "./mock-data";
+import { getMockConversations, getMockMessages } from "./mock-data";
 
 export function useAIChat() {
   const router = useRouter();
@@ -113,15 +113,16 @@ export function useAIChat() {
     [currentClusterId, loadConversations],
   );
 
-  // 演示模式：加载 mock 数据
+  // 演示模式：加载 mock 数据（语言切换时刷新）
   useEffect(() => {
     if (isDemo) {
-      setConversations(MOCK_CONVERSATIONS);
+      const aiChatT = t.aiChatPage;
+      setConversations(getMockConversations(aiChatT));
       setCurrentConvId(1);
-      setMessages(MOCK_MESSAGES);
+      setMessages(getMockMessages(aiChatT));
       setAiStatus("ready");
     }
-  }, [isDemo]);
+  }, [isDemo, t.locale]);
 
   // 登录后检查 AI 配置状态
   useEffect(() => {
@@ -148,7 +149,7 @@ export function useAIChat() {
       if (alerts.length === 0) return;
 
       const message = formatAlertsMessage(alerts);
-      const alertTitle = t.locale === "zh" ? "告警分析" : "アラート分析";
+      const alertTitle = t.aiChatPage.alertAnalysis;
 
       (async () => {
         try {

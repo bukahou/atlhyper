@@ -1532,6 +1532,59 @@ export const ja: Translations = {
       capNoSystemNs: "kube-system 等のシステム名前空間へのアクセス",
       capNoSensitive: "パスワード/トークン/API キーの出力",
     },
+    // Demo mock データ
+    demo: {
+      conv1Title: "Pod 障害診断",
+      conv2Title: "クラスタリソース分析",
+      msg1User: "nginx-deployment の Pod が再起動を繰り返しています。原因を分析してください",
+      msg2Assistant: `nginx-deployment の Pod 再起動問題を分析します。
+
+## 診断結果
+
+クラスタ状態を照会した結果、以下の問題が見つかりました：
+
+### Pod ステータス
+- **Pod 名**: nginx-deployment-5d4f7b8c9-abc12
+- **ステータス**: CrashLoopBackOff
+- **再起動回数**: 5 回
+- **最終終了コード**: 137 (OOMKilled)
+
+### 根本原因分析
+Pod はメモリ不足 (OOM) によりシステムに終了させられました。現在の設定：
+- メモリ制限: 128Mi
+- 実際のピーク使用量: ~150Mi
+
+### 修復提案
+1. **一時対応**: メモリ制限を 256Mi に増加
+\`\`\`yaml
+resources:
+  limits:
+    memory: "256Mi"
+  requests:
+    memory: "128Mi"
+\`\`\`
+
+2. **恒久対応**: アプリケーションのメモリリークを調査
+
+修復操作を実行しますか？`,
+      msg3User: "はい、メモリ制限を 256Mi に調整してください",
+      msg4Assistant: `nginx-deployment のメモリ設定を正常に更新しました！
+
+## 実行結果
+Deployment が更新され、新しい Pod が起動中です
+
+### 変更詳細
+- **リソース**: Deployment/nginx-deployment
+- **名前空間**: default
+- **変更内容**: memory limit 128Mi → 256Mi
+
+### 現在のステータス
+- 新しい Pod を作成: nginx-deployment-5d4f7b8c9-xyz99
+- ステータス: Running
+- 再起動回数: 0
+
+10〜15 分間継続的に監視し、問題が解決されたことを確認してください。`,
+    },
     // ConversationSidebar
     sidebar: {
       title: "会話履歴",

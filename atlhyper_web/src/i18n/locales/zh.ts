@@ -1532,6 +1532,59 @@ export const zh: Translations = {
       capNoSystemNs: "访问 kube-system 等系统命名空间",
       capNoSensitive: "输出密码/Token/API Key",
     },
+    // Demo mock 数据
+    demo: {
+      conv1Title: "Pod 故障诊断",
+      conv2Title: "集群资源分析",
+      msg1User: "nginx-deployment 的 Pod 一直在重启，帮我分析一下原因",
+      msg2Assistant: `我来帮你分析 nginx-deployment 的 Pod 重启问题。
+
+## 诊断结果
+
+通过查询集群状态，发现以下问题：
+
+### Pod 状态
+- **Pod 名称**: nginx-deployment-5d4f7b8c9-abc12
+- **状态**: CrashLoopBackOff
+- **重启次数**: 5 次
+- **最后退出码**: 137 (OOMKilled)
+
+### 根因分析
+Pod 因为内存不足 (OOM) 被系统终止。当前配置：
+- 内存限制: 128Mi
+- 实际使用峰值: ~150Mi
+
+### 修复建议
+1. **临时方案**: 增加内存限制到 256Mi
+\`\`\`yaml
+resources:
+  limits:
+    memory: "256Mi"
+  requests:
+    memory: "128Mi"
+\`\`\`
+
+2. **长期方案**: 检查应用是否有内存泄漏
+
+需要我帮你执行修复操作吗？`,
+      msg3User: "好的，请帮我把内存限制调整到 256Mi",
+      msg4Assistant: `已成功更新 nginx-deployment 的内存配置！
+
+## 执行结果
+Deployment 已更新，新的 Pod 正在启动中
+
+### 变更详情
+- **资源**: Deployment/nginx-deployment
+- **命名空间**: default
+- **变更内容**: memory limit 128Mi → 256Mi
+
+### 当前状态
+- 新 Pod 已创建: nginx-deployment-5d4f7b8c9-xyz99
+- 状态: Running
+- 重启次数: 0
+
+建议持续观察 10-15 分钟确认问题已解决。`,
+    },
     // ConversationSidebar
     sidebar: {
       title: "对话记录",

@@ -1466,6 +1466,15 @@ export interface AIChatPageTranslations {
     capNoSystemNs: string;
     capNoSensitive: string;
   };
+  // Demo mock 数据
+  demo: {
+    conv1Title: string;
+    conv2Title: string;
+    msg1User: string;
+    msg2Assistant: string;
+    msg3User: string;
+    msg4Assistant: string;
+  };
   // ConversationSidebar
   sidebar: {
     title: string;
