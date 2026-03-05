@@ -14,6 +14,10 @@ import {
   Server,
   Zap,
   Monitor,
+  GitBranch,
+  TrendingUp,
+  Gauge,
+  Workflow,
 } from "lucide-react";
 
 // -- Layer definitions --
@@ -36,8 +40,8 @@ export interface LayerDef {
 export const layers: LayerDef[] = [
   { level: "L1", titleKey: "layer1Title", descKey: "layer1Desc", sourceKey: "layer1Source", metricsKey: "layer1Metrics", icon: Globe, status: "done", color: "blue", detailWhatKey: "layer1DetailWhat", detailRoleKey: "layer1DetailRole", detailToolsKey: "layer1DetailTools", detailAtlhyperKey: "layer1DetailAtlhyper" },
   { level: "L2", titleKey: "layer2Title", descKey: "layer2Desc", sourceKey: "layer2Source", metricsKey: "layer2Metrics", icon: Network, status: "done", color: "violet", detailWhatKey: "layer2DetailWhat", detailRoleKey: "layer2DetailRole", detailToolsKey: "layer2DetailTools", detailAtlhyperKey: "layer2DetailAtlhyper" },
-  { level: "L3", titleKey: "layer3Title", descKey: "layer3Desc", sourceKey: "layer3Source", metricsKey: "layer3Metrics", icon: Search, status: "planned", color: "amber", detailWhatKey: "layer3DetailWhat", detailRoleKey: "layer3DetailRole", detailToolsKey: "layer3DetailTools", detailAtlhyperKey: "layer3DetailAtlhyper" },
-  { level: "L4", titleKey: "layer4Title", descKey: "layer4Desc", sourceKey: "layer4Source", metricsKey: "layer4Metrics", icon: FileText, status: "planned", color: "emerald", detailWhatKey: "layer4DetailWhat", detailRoleKey: "layer4DetailRole", detailToolsKey: "layer4DetailTools", detailAtlhyperKey: "layer4DetailAtlhyper" },
+  { level: "L3", titleKey: "layer3Title", descKey: "layer3Desc", sourceKey: "layer3Source", metricsKey: "layer3Metrics", icon: Search, status: "done", color: "amber", detailWhatKey: "layer3DetailWhat", detailRoleKey: "layer3DetailRole", detailToolsKey: "layer3DetailTools", detailAtlhyperKey: "layer3DetailAtlhyper" },
+  { level: "L4", titleKey: "layer4Title", descKey: "layer4Desc", sourceKey: "layer4Source", metricsKey: "layer4Metrics", icon: FileText, status: "done", color: "emerald", detailWhatKey: "layer4DetailWhat", detailRoleKey: "layer4DetailRole", detailToolsKey: "layer4DetailTools", detailAtlhyperKey: "layer4DetailAtlhyper" },
   { level: "L5", titleKey: "layer5Title", descKey: "layer5Desc", sourceKey: "layer5Source", metricsKey: "layer5Metrics", icon: Cpu, status: "done", color: "rose", detailWhatKey: "layer5DetailWhat", detailRoleKey: "layer5DetailRole", detailToolsKey: "layer5DetailTools", detailAtlhyperKey: "layer5DetailAtlhyper" },
 ];
 
@@ -65,8 +69,8 @@ export const featureModules: FeatureDef[] = [
   { icon: ClipboardList, titleKey: "featureCommandTitle", descKey: "featureCommandDesc", status: "done" },
   { icon: AlertTriangle, titleKey: "featureAlertTitle", descKey: "featureAlertDesc", status: "done" },
   { icon: Cpu, titleKey: "featureMetricsTitle", descKey: "featureMetricsDesc", status: "done" },
-  { icon: Search, titleKey: "featureApmTitle", descKey: "featureApmDesc", status: "planned" },
-  { icon: FileText, titleKey: "featureLogsTitle", descKey: "featureLogsDesc", status: "planned" },
+  { icon: Search, titleKey: "featureApmTitle", descKey: "featureApmDesc", status: "done" },
+  { icon: FileText, titleKey: "featureLogsTitle", descKey: "featureLogsDesc", status: "done" },
 ];
 
 // -- Tech stack definitions --
@@ -81,8 +85,25 @@ export interface TechDef {
 export const techStack: TechDef[] = [
   { icon: Server, titleKey: "techMasterTitle", stackKey: "techMasterStack", descKey: "techMasterDesc" },
   { icon: Zap, titleKey: "techAgentTitle", stackKey: "techAgentStack", descKey: "techAgentDesc" },
-  { icon: Cpu, titleKey: "techMetricsTitle", stackKey: "techMetricsStack", descKey: "techMetricsDesc" },
+  { icon: Activity, titleKey: "techOtelTitle", stackKey: "techOtelStack", descKey: "techOtelDesc" },
   { icon: Monitor, titleKey: "techWebTitle", stackKey: "techWebStack", descKey: "techWebDesc" },
+];
+
+// -- AIOps engine capabilities --
+
+export interface AIOpsCapDef {
+  icon: LucideIcon;
+  titleKey: keyof AboutTranslations;
+  descKey: keyof AboutTranslations;
+  status: "done" | "partial" | "planned";
+  color: string;
+}
+
+export const aiopsCaps: AIOpsCapDef[] = [
+  { icon: GitBranch, titleKey: "aiopsDepGraphTitle", descKey: "aiopsDepGraphDesc", status: "partial", color: "violet" },
+  { icon: TrendingUp, titleKey: "aiopsBaselineTitle", descKey: "aiopsBaselineDesc", status: "partial", color: "blue" },
+  { icon: Gauge, titleKey: "aiopsRiskTitle", descKey: "aiopsRiskDesc", status: "partial", color: "amber" },
+  { icon: Workflow, titleKey: "aiopsStateMachineTitle", descKey: "aiopsStateMachineDesc", status: "partial", color: "emerald" },
 ];
 
 // -- Color map --

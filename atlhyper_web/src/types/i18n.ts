@@ -1575,12 +1575,29 @@ export interface AboutTranslations {
   techAgentTitle: string;
   techAgentStack: string;
   techAgentDesc: string;
-  techMetricsTitle: string;
-  techMetricsStack: string;
-  techMetricsDesc: string;
+  techOtelTitle: string;
+  techOtelStack: string;
+  techOtelDesc: string;
   techWebTitle: string;
   techWebStack: string;
   techWebDesc: string;
+  // AIOps 引擎
+  aiopsEngineTitle: string;
+  aiopsEngineDesc: string;
+  aiopsStatusPartial: string;
+  aiopsDepGraphTitle: string;
+  aiopsDepGraphDesc: string;
+  aiopsBaselineTitle: string;
+  aiopsBaselineDesc: string;
+  aiopsRiskTitle: string;
+  aiopsRiskDesc: string;
+  aiopsStateMachineTitle: string;
+  aiopsStateMachineDesc: string;
+  aiopsFlow1: string;
+  aiopsFlow2: string;
+  aiopsFlow3: string;
+  aiopsFlow4: string;
+  aiopsVision: string;
   // 开源信息
   sectionOpenSource: string;
   openSourceDesc: string;

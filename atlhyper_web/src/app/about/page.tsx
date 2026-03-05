@@ -13,6 +13,8 @@ import {
   Github,
   Scale,
   ExternalLink,
+  BrainCircuit,
+  ArrowRight,
 } from "lucide-react";
 import {
   LayerDetailModal,
@@ -21,6 +23,7 @@ import {
   drilldowns,
   featureModules,
   techStack,
+  aiopsCaps,
   colorMap,
 } from "./components";
 
@@ -45,7 +48,7 @@ export default function AboutPage() {
           </p>
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
             {[
-              { value: "4", label: a.heroStatComponents },
+              { value: "3", label: a.heroStatComponents },
               { value: "5", label: a.heroStatLayers },
               { value: "2", label: a.heroStatLanguages },
               { value: "MIT", label: a.heroStatLicense },
@@ -152,6 +155,53 @@ export default function AboutPage() {
                 <p className="text-xs font-medium text-primary">{a.aiFullStack}</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* AIOps Engine */}
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <BrainCircuit className="w-5 h-5 text-amber-500" />
+            <h2 className="text-xl font-semibold text-default">{a.aiopsEngineTitle}</h2>
+          </div>
+          <p className="text-sm text-muted mb-6">{a.aiopsEngineDesc}</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {aiopsCaps.map((cap) => {
+              const Icon = cap.icon;
+              const c = colorMap[cap.color];
+              return (
+                <div key={cap.titleKey} className={`bg-card rounded-xl border ${c.border} p-5`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-lg ${c.bg} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className={`w-5 h-5 ${c.text}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-sm font-semibold text-default">{a[cap.titleKey]}</h3>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400">
+                          {a.aiopsStatusPartial}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted leading-relaxed">{a[cap.descKey]}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pipeline flow */}
+          <div className="mt-5 bg-card/50 rounded-xl border border-[var(--border-color)] p-4">
+            <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-secondary">
+              {[a.aiopsFlow1, a.aiopsFlow2, a.aiopsFlow3, a.aiopsFlow4].map((step, idx) => (
+                <span key={idx} className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 font-medium">{step}</span>
+                  {idx < 3 && <ArrowRight className="w-3.5 h-3.5 text-muted" />}
+                </span>
+              ))}
+            </div>
+            <p className="text-center text-xs text-muted mt-3">{a.aiopsVision}</p>
           </div>
         </section>
 
