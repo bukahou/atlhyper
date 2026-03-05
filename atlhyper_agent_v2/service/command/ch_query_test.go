@@ -39,7 +39,7 @@ func newTestService(
 
 func TestExecute_QueryTraces_ListTraces(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{
-		ListTracesFn: func(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string) ([]apm.TraceSummary, error) {
+		ListTracesFn: func(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string, startTime, endTime string, statusCode, method string) ([]apm.TraceSummary, error) {
 			return []apm.TraceSummary{
 				{TraceId: "abc123", RootService: "api", SpanCount: 5},
 			}, nil
@@ -65,7 +65,7 @@ func TestExecute_QueryTraces_ListTraces(t *testing.T) {
 
 func TestExecute_QueryTraces_ListServices(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{
-		ListServicesFn: func(ctx context.Context, since time.Duration) ([]apm.APMService, error) {
+		ListServicesFn: func(ctx context.Context, since time.Duration, startTime, endTime string) ([]apm.APMService, error) {
 			return []apm.APMService{{Name: "frontend", RPS: 10.5}}, nil
 		},
 	}
@@ -399,7 +399,7 @@ func TestGetIntParam(t *testing.T) {
 
 func TestExecute_QueryTraces_HTTPStats(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{
-		GetHTTPStatsFn: func(ctx context.Context, service string, since time.Duration) ([]apm.HTTPStats, error) {
+		GetHTTPStatsFn: func(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.HTTPStats, error) {
 			if service != "api" {
 				t.Errorf("expected service 'api', got '%s'", service)
 			}
@@ -448,7 +448,7 @@ func TestExecute_QueryTraces_HTTPStats_MissingService(t *testing.T) {
 
 func TestExecute_QueryTraces_DBStats(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{
-		GetDBStatsFn: func(ctx context.Context, service string, since time.Duration) ([]apm.DBOperationStats, error) {
+		GetDBStatsFn: func(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.DBOperationStats, error) {
 			return []apm.DBOperationStats{
 				{DBSystem: "mysql", DBName: "mydb", Operation: "SELECT", CallCount: 50},
 			}, nil

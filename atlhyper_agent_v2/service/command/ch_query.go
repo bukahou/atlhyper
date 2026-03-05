@@ -32,7 +32,9 @@ func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Com
 		limit := getIntParam(cmd.Params, "limit", 50)
 		since := getDurationParam(cmd.Params, "since", 5*time.Minute)
 		sortBy := getStringParam(cmd.Params, "sort")
-		return s.traceQueryRepo.ListTraces(ctx, service, operation, minDuration, limit, since, sortBy, startTime, endTime)
+		statusCode := getStringParam(cmd.Params, "status_code")
+		method := getStringParam(cmd.Params, "method")
+		return s.traceQueryRepo.ListTraces(ctx, service, operation, minDuration, limit, since, sortBy, startTime, endTime, statusCode, method)
 
 	case "list_services":
 		since := getDurationParam(cmd.Params, "since", 15*time.Minute)

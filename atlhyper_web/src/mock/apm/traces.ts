@@ -9,7 +9,8 @@ export interface MockTraceQueryParams {
   service?: string;
   operation?: string;
   namespace?: string;
-  statusCode?: string;
+  status_code?: string;
+  method?: string;
   minDurationMs?: number;
   maxDurationMs?: number;
   limit?: number;

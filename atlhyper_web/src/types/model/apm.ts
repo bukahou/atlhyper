@@ -211,6 +211,7 @@ export interface APMServiceSeriesResponse {
 export interface HTTPStats {
   statusCode: number;
   method: string;
+  operation: string;
   count: number;
 }
 

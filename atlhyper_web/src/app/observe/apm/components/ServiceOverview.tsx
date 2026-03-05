@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import type { OperationStats, Topology, APMTimePoint, TraceSummary, HTTPStats, DBOperationStats } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { getDependenciesFromTopology, getServiceTimeSeries, getHTTPStats, getDBStats, queryTraces, type TimeParams } from "@/datasource/apm";
@@ -63,6 +63,8 @@ export function ServiceOverview({
   const [serviceTraces, setServiceTraces] = useState<TraceSummary[]>([]);
   const [httpStats, setHttpStats] = useState<HTTPStats[]>([]);
   const [dbStats, setDbStats] = useState<DBOperationStats[]>([]);
+  const [statusFilter, setStatusFilter] = useState<{ code: number; method: string } | null>(null);
+  const [filteredTraces, setFilteredTraces] = useState<TraceSummary[]>([]);
 
   const serviceOperations = useMemo(
     () => operations.filter((op) => op.serviceName === serviceName),
@@ -93,7 +95,26 @@ export function ServiceOverview({
     queryTraces(clusterId, { service: serviceName, limit: 200 }, timeParams).then((r) => setServiceTraces(r.traces));
     getHTTPStats(clusterId, serviceName, timeParams).then(setHttpStats);
     getDBStats(clusterId, serviceName, timeParams).then(setDbStats);
+    setStatusFilter(null);
+    setFilteredTraces([]);
   }, [clusterId, serviceName, timeParams]);
+
+  // Click HTTP status code row → query filtered traces
+  const handleStatusCodeClick = useCallback((code: number, method: string) => {
+    if (!clusterId) return;
+    if (statusFilter?.code === code && statusFilter?.method === method) {
+      setStatusFilter(null);
+      setFilteredTraces([]);
+      return;
+    }
+    setStatusFilter({ code, method });
+    queryTraces(clusterId, {
+      service: serviceName,
+      limit: 100,
+      status_code: String(code),
+      method,
+    }, timeParams).then((r) => setFilteredTraces(r.traces));
+  }, [clusterId, serviceName, timeParams, statusFilter]);
 
   const tabLabels: Record<TabType, string> = {
     overview: t.overview,
@@ -143,7 +164,33 @@ export function ServiceOverview({
 
           {/* HTTP Status Code Distribution */}
           <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
-            <StatusCodeChart t={t} stats={httpStats} />
+            <StatusCodeChart t={t} stats={httpStats} onClickRow={handleStatusCodeClick} />
+            {statusFilter && filteredTraces.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
+                <h4 className="text-xs font-medium text-muted mb-2">
+                  {statusFilter.code} {statusFilter.method} — {filteredTraces.length} traces
+                </h4>
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {filteredTraces.map((tr) => (
+                    <div
+                      key={tr.traceId}
+                      onClick={() => onSelectTrace?.(tr.traceId)}
+                      className="flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                    >
+                      <span className="font-mono text-muted">{tr.traceId.slice(0, 16)}...</span>
+                      <span className="text-default">{tr.rootOperation}</span>
+                      <span className="text-muted">{formatDurationMs(tr.durationMs)}</span>
+                      <span className="text-muted">{new Date(tr.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {statusFilter && filteredTraces.length === 0 && (
+              <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
+                <p className="text-xs text-muted text-center py-2">{t.noData}</p>
+              </div>
+            )}
           </div>
 
           {/* Transactions table */}

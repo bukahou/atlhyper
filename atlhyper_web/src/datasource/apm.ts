@@ -36,6 +36,8 @@ export async function queryTraces(clusterId?: string, params?: MockTraceQueryPar
       operation: params?.operation,
       min_duration: params?.minDurationMs ? String(params.minDurationMs) : undefined,
       limit: params?.limit,
+      status_code: params?.status_code,
+      method: params?.method,
       time_range: time?.since,
       start_time: time?.startTime,
       end_time: time?.endTime,

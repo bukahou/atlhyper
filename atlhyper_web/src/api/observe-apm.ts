@@ -17,6 +17,8 @@ export function getTracesList(clusterId: string, params?: {
   start_time?: string;
   end_time?: string;
   time_range?: string;
+  status_code?: string;
+  method?: string;
 }) {
   return get<ObserveResponse<TraceSummary[]>>("/api/v2/observe/traces", {
     cluster_id: clusterId,

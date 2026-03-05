@@ -54,7 +54,7 @@ func traceTimeSec(since time.Duration, startTime, endTime string) int64 {
 }
 
 // ListTraces 查询 Trace 列表（按 TraceId 聚合）
-func (r *traceRepository) ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sortBy string, startTime, endTime string) ([]apm.TraceSummary, error) {
+func (r *traceRepository) ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sortBy string, startTime, endTime string, statusCode, method string) ([]apm.TraceSummary, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -78,6 +78,14 @@ func (r *traceRepository) ListTraces(ctx context.Context, service, operation str
 	if minDurationMs > 0 {
 		conditions = append(conditions, "Duration >= ?")
 		args = append(args, int64(minDurationMs*1e6)) // ms → ns
+	}
+	if statusCode != "" {
+		conditions = append(conditions, "SpanAttributes['http.response.status_code'] = ?")
+		args = append(args, statusCode)
+	}
+	if method != "" {
+		conditions = append(conditions, "SpanAttributes['http.request.method'] = ?")
+		args = append(args, method)
 	}
 
 	where := strings.Join(conditions, " AND ")
@@ -569,11 +577,12 @@ func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, sinc
 	query := fmt.Sprintf(`
 		SELECT toInt32OrZero(SpanAttributes['http.response.status_code']) AS statusCode,
 		       SpanAttributes['http.request.method'] AS method,
+		       SpanName AS operation,
 		       count() AS cnt
 		FROM otel_traces
 		WHERE %s
-		GROUP BY statusCode, method
-		ORDER BY statusCode, method
+		GROUP BY statusCode, method, operation
+		ORDER BY statusCode, method, operation
 	`, whereClause)
 
 	args := append([]any{service}, timeArgs...)
@@ -586,7 +595,7 @@ func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, sinc
 	var result []apm.HTTPStats
 	for rows.Next() {
 		var s apm.HTTPStats
-		if err := rows.Scan(&s.StatusCode, &s.Method, &s.Count); err != nil {
+		if err := rows.Scan(&s.StatusCode, &s.Method, &s.Operation, &s.Count); err != nil {
 			continue
 		}
 		result = append(result, s)

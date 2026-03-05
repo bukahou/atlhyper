@@ -169,7 +169,7 @@ type OTelSummaryRepository interface {
 // startTime/endTime: 绝对时间（RFC3339），优先于 since 相对时间。
 // 空字符串表示不使用绝对时间，回退到 since 相对时间。
 type TraceQueryRepository interface {
-	ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string, startTime, endTime string) ([]apm.TraceSummary, error)
+	ListTraces(ctx context.Context, service, operation string, minDurationMs float64, limit int, since time.Duration, sort string, startTime, endTime string, statusCode, method string) ([]apm.TraceSummary, error)
 	GetTraceDetail(ctx context.Context, traceID string) (*apm.TraceDetail, error)
 	ListServices(ctx context.Context, since time.Duration, startTime, endTime string) ([]apm.APMService, error)
 	GetTopology(ctx context.Context, since time.Duration, startTime, endTime string) (*apm.Topology, error)

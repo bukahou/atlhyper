@@ -81,7 +81,7 @@ func (r *dashboardRepository) ListRecentTraces(ctx context.Context, limit int) (
 	if r.trace == nil {
 		return nil, nil
 	}
-	return r.trace.ListTraces(ctx, "", "", 0, limit, 15*time.Minute, "", "", "")
+	return r.trace.ListTraces(ctx, "", "", 0, limit, 15*time.Minute, "", "", "", "", "")
 }
 
 func (r *dashboardRepository) GetLogsSummary(ctx context.Context) (*log.Summary, error) {

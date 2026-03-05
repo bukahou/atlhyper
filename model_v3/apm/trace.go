@@ -178,6 +178,7 @@ type Topology struct {
 type HTTPStats struct {
 	StatusCode int    `json:"statusCode"`
 	Method     string `json:"method"`
+	Operation  string `json:"operation"`
 	Count      int64  `json:"count"`
 }
 

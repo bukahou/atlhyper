@@ -24,19 +24,28 @@ function formatCount(n: number): string {
 interface StatusCodeChartProps {
   t: ApmTranslations;
   stats: HTTPStats[];
+  onClickRow?: (statusCode: number, method: string) => void;
 }
 
-export function StatusCodeChart({ t, stats }: StatusCodeChartProps) {
+export function StatusCodeChart({ t, stats, onClickRow }: StatusCodeChartProps) {
   const rows = useMemo(() => {
-    // Aggregate by method+statusCode
-    const map = new Map<string, { method: string; code: number; count: number }>();
+    // Aggregate by method+statusCode, collect operations
+    const map = new Map<string, { method: string; code: number; count: number; operations: string[] }>();
     for (const s of stats) {
       const key = `${s.method} ${s.statusCode}`;
       const existing = map.get(key);
       if (existing) {
         existing.count += s.count;
+        if (s.operation && !existing.operations.includes(s.operation)) {
+          existing.operations.push(s.operation);
+        }
       } else {
-        map.set(key, { method: s.method, code: s.statusCode, count: s.count });
+        map.set(key, {
+          method: s.method,
+          code: s.statusCode,
+          count: s.count,
+          operations: s.operation ? [s.operation] : [],
+        });
       }
     }
     const items = [...map.values()].sort((a, b) => b.count - a.count);
@@ -46,7 +55,6 @@ export function StatusCodeChart({ t, stats }: StatusCodeChartProps) {
       ...item,
       group: getStatusGroup(item.code),
       pct: total > 0 ? (item.count / total) * 100 : 0,
-      // Use log scale for bar width so small values are still visible
       barWidth: Math.max(2, (Math.log10(item.count + 1) / Math.log10(maxCount + 1)) * 100),
     }));
   }, [stats]);
@@ -66,14 +74,24 @@ export function StatusCodeChart({ t, stats }: StatusCodeChartProps) {
       <div className="space-y-1.5">
         {rows.map((row) => {
           const colors = STATUS_COLORS[row.group] || STATUS_COLORS["2xx"];
+          const clickable = !!onClickRow;
           return (
-            <div key={`${row.method}-${row.code}`} className="flex items-center gap-3 h-8">
-              {/* Status badge */}
+            <div
+              key={`${row.method}-${row.code}`}
+              className={`flex items-center gap-3 h-8 rounded px-1 -mx-1 ${clickable ? "cursor-pointer hover:bg-[var(--hover-bg)] transition-colors" : ""}`}
+              onClick={clickable ? () => onClickRow(row.code, row.method) : undefined}
+            >
+              {/* Status badge + method */}
               <div className="w-20 shrink-0 flex items-center gap-1.5">
                 <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${colors.bg} ${colors.text}`}>
                   {row.code}
                 </span>
                 <span className="text-xs text-muted">{row.method}</span>
+              </div>
+
+              {/* Operation name */}
+              <div className="w-40 shrink-0 truncate text-xs text-muted" title={row.operations.join(", ")}>
+                {row.operations.length > 0 ? row.operations.join(", ") : "-"}
               </div>
 
               {/* Bar */}

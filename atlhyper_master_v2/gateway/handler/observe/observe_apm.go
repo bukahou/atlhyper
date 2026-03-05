@@ -44,6 +44,12 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 		if op := r.URL.Query().Get("operation"); op != "" {
 			params["operation"] = op
 		}
+		if sc := r.URL.Query().Get("status_code"); sc != "" {
+			params["status_code"] = sc
+		}
+		if m := r.URL.Query().Get("method"); m != "" {
+			params["method"] = m
+		}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
 		return
 	}
@@ -64,6 +70,12 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 		}
 		if op := r.URL.Query().Get("operation"); op != "" {
 			params["operation"] = op
+		}
+		if sc := r.URL.Query().Get("status_code"); sc != "" {
+			params["status_code"] = sc
+		}
+		if m := r.URL.Query().Get("method"); m != "" {
+			params["method"] = m
 		}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
