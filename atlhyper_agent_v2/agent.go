@@ -15,9 +15,11 @@ package atlhyper_agent_v2
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"AtlHyper/atlhyper_agent_v2/config"
 	"AtlHyper/atlhyper_agent_v2/gateway"
@@ -166,13 +168,35 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err := a.scheduler.Start(ctx); err != nil {
 		return err
 	}
-	log.Info("Agent 启动成功")
+
+	// 启动健康检查 HTTP 服务器（供 K8s liveness/readiness 探针使用）
+	healthMux := http.NewServeMux()
+	healthMux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+	healthSrv := &http.Server{Addr: ":8082", Handler: healthMux}
+	go func() {
+		if err := healthSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("健康检查服务器异常", "err", err)
+		}
+	}()
+
+	log.Info("Agent 启动成功", "healthPort", 8082)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 
 	log.Info("正在关闭...")
+
+	// 关闭健康检查服务器
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := healthSrv.Shutdown(shutdownCtx); err != nil {
+		log.Error("关闭健康检查服务器失败", "err", err)
+	}
 
 	// 关闭 ClickHouse 连接
 	if a.chClient != nil {
