@@ -294,8 +294,8 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 			svcMap[key] = d
 		}
 		d.totalReqs += delta
-		if len(code) > 0 && code[0] < '4' {
-			d.successReqs += delta // 1xx/2xx/3xx 均视为成功
+		if len(code) > 0 && code[0] != '5' {
+			d.successReqs += delta // 1xx/2xx/3xx/4xx 均视为成功，仅 5xx 计为错误
 		}
 		if tls == "true" {
 			d.mtlsEnabled = true
@@ -453,8 +453,8 @@ func (r *sloRepository) ListServiceEdges(ctx context.Context, since time.Duratio
 			edgeMap[key] = d
 		}
 		d.total += delta
-		if len(code) > 0 && code[0] < '4' {
-			d.success += delta
+		if len(code) > 0 && code[0] != '5' {
+			d.success += delta // 仅 5xx 计为错误
 		}
 	}
 
@@ -535,8 +535,8 @@ func (r *sloRepository) GetSLOTimeSeries(ctx context.Context, name string, since
 			tsMap[ts] = d
 		}
 		d.total += delta
-		if len(code) > 0 && code[0] < '4' {
-			d.success += delta
+		if len(code) > 0 && code[0] != '5' {
+			d.success += delta // 仅 5xx 计为错误
 		}
 	}
 
