@@ -9,9 +9,6 @@ export interface NavTranslations {
   about: string;
   overview: string;
   observe: string;
-  stylePreview: string;
-  stylePreviewSLO: string;
-  stylePreviewMetrics: string;
   slo: string;
   ai: string;
   commands: string;

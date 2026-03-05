@@ -11,7 +11,6 @@ import {
   Activity,
   Gauge,
   GitGraph,
-  Palette,
   FileText,
   Users,
   ClipboardList,
@@ -136,15 +135,6 @@ export const navGroups: NavGroup[] = [
       { key: "audit", href: "/admin/audit", icon: ClipboardList },
       { key: "commands", href: "/admin/commands", icon: ClipboardList },
       { key: "datasource", href: "/admin/datasource", icon: ToggleLeft },
-    ],
-  },
-  {
-    key: "stylePreview",
-    icon: Palette,
-    authOnly: true,
-    children: [
-      { key: "stylePreviewSLO", href: "/style-preview", icon: Activity },
-      { key: "stylePreviewMetrics", href: "/style-preview/metrics", icon: Gauge },
     ],
   },
 ];
