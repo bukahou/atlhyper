@@ -74,7 +74,13 @@ func (e *engine) OnSnapshot(clusterID string) {
 		otel = timeline[len(timeline)-1].Snapshot
 	}
 
-	// 2. 提取指标并进行基线检测（路径 A: EMA+3σ）
+	// 2. 清理已不存在于快照中的实体基线状态（防止滚动更新后旧 Pod 状态残留）
+	activeKeys := extractActiveEntityKeys(snap, otel)
+	if removed := e.stateManager.CleanupStaleEntities(activeKeys); removed > 0 {
+		log.Debug("清理过期基线状态", "cluster", clusterID, "removed", removed)
+	}
+
+	// 3. 提取指标并进行基线检测（路径 A: EMA+3σ）
 	points := baseline.ExtractMetrics(clusterID, snap, otel)
 	if len(points) == 0 {
 		return
@@ -554,6 +560,37 @@ func (e *engine) reloadActiveIncidents(ctx context.Context) {
 		count++
 	}
 	log.Info("活跃事件恢复到状态机", "count", count)
+}
+
+// extractActiveEntityKeys 从快照中提取当前所有活跃实体的 entityKey 集合
+func extractActiveEntityKeys(snap *cluster.ClusterSnapshot, otel *cluster.OTelSnapshot) map[string]bool {
+	keys := make(map[string]bool, len(snap.Pods)+len(snap.Nodes)+len(snap.Services))
+
+	for i := range snap.Pods {
+		pod := &snap.Pods[i]
+		keys[aiops.EntityKey(pod.Summary.Namespace, "pod", pod.Summary.Name)] = true
+	}
+	for i := range snap.Nodes {
+		node := &snap.Nodes[i]
+		keys[aiops.EntityKey("_cluster", "node", node.GetName())] = true
+	}
+	for i := range snap.Services {
+		svc := &snap.Services[i]
+		keys[aiops.EntityKey(svc.Summary.Namespace, "service", svc.Summary.Name)] = true
+	}
+	for i := range snap.Ingresses {
+		ing := &snap.Ingresses[i]
+		keys[aiops.EntityKey(ing.Summary.Namespace, "ingress", ing.Summary.Name)] = true
+	}
+	if otel != nil {
+		for _, svc := range otel.SLOServices {
+			keys[aiops.EntityKey(svc.Namespace, "service", svc.Name)] = true
+		}
+		for _, ing := range otel.SLOIngress {
+			keys[aiops.EntityKey("_cluster", "ingress", ing.ServiceKey)] = true
+		}
+	}
+	return keys
 }
 
 // recoveryCheckLoop 定期检查 Recovery 状态的实体是否可以转为 Stable

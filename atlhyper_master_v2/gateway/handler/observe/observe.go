@@ -45,8 +45,11 @@ func NewObserveHandler(svc service.Ops, querySvc service.Query, bus mq.Producer)
 }
 
 // ================================================================
-// TTL 缓存
+// TTL 缓存（带容量上限）
 // ================================================================
+
+// maxCacheEntries 缓存最大条目数，防止不同查询参数导致缓存无限膨胀
+const maxCacheEntries = 128
 
 type cacheEntry struct {
 	data      json.RawMessage
@@ -87,6 +90,10 @@ func (c *observeCache) set(key string, data json.RawMessage, ttl time.Duration) 
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// 容量上限：超出时淘汰最早过期的条目
+	if len(c.items) >= maxCacheEntries {
+		c.evictOldest()
+	}
 	c.items[key] = &cacheEntry{data: data, expiresAt: time.Now().Add(ttl)}
 }
 
@@ -97,6 +104,28 @@ func (c *observeCache) cleanup() {
 	for k, v := range c.items {
 		if now.After(v.expiresAt) {
 			delete(c.items, k)
+		}
+	}
+}
+
+// evictOldest 淘汰最早过期的 25% 条目（调用方已持有锁）
+func (c *observeCache) evictOldest() {
+	evictCount := len(c.items) / 4
+	if evictCount < 1 {
+		evictCount = 1
+	}
+	// 找最早过期的条目逐个删除
+	for i := 0; i < evictCount; i++ {
+		var oldestKey string
+		var oldestTime time.Time
+		for k, v := range c.items {
+			if oldestKey == "" || v.expiresAt.Before(oldestTime) {
+				oldestKey = k
+				oldestTime = v.expiresAt
+			}
+		}
+		if oldestKey != "" {
+			delete(c.items, oldestKey)
 		}
 	}
 }

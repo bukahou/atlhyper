@@ -163,6 +163,9 @@ func (s *MemoryStore) SetSnapshot(clusterID string, snapshot *cluster.ClusterSna
 }
 
 // appendOTel 追加 OTel 快照到时间线
+// Ring 只存轻量副本：仅保留 timeline 查询需要的字段（MetricsNodes / SLO / APMServices）
+// 预聚合时序（NodeMetricsSeries/SLOTimeSeries/APMTimeSeries）、RecentTraces、RecentLogs 等
+// 体积大且仅从最新快照读取的数据不进 Ring，避免 90 条 × 完整快照导致 OOM
 func (s *MemoryStore) appendOTel(clusterID string, otel *cluster.OTelSnapshot, ts time.Time) {
 	s.otelTimelineMu.Lock()
 	defer s.otelTimelineMu.Unlock()
@@ -172,7 +175,45 @@ func (s *MemoryStore) appendOTel(clusterID string, otel *cluster.OTelSnapshot, t
 		ring = NewOTelRing(defaultOTelRingCapacity)
 		s.otelTimeline[clusterID] = ring
 	}
-	ring.Add(otel, ts)
+	ring.Add(lightweightOTelCopy(otel), ts)
+}
+
+// lightweightOTelCopy 创建 OTelSnapshot 的轻量副本
+// 只保留 Ring Buffer timeline 查询需要的字段，剥离预聚合时序和大体积数据
+func lightweightOTelCopy(src *cluster.OTelSnapshot) *cluster.OTelSnapshot {
+	if src == nil {
+		return nil
+	}
+	return &cluster.OTelSnapshot{
+		// 标量摘要（小，保留）
+		TotalServices:   src.TotalServices,
+		HealthyServices: src.HealthyServices,
+		TotalRPS:        src.TotalRPS,
+		AvgSuccessRate:  src.AvgSuccessRate,
+		AvgP99Ms:        src.AvgP99Ms,
+		IngressServices: src.IngressServices,
+		IngressAvgRPS:   src.IngressAvgRPS,
+		MeshServices:    src.MeshServices,
+		MeshAvgMTLS:     src.MeshAvgMTLS,
+		MonitoredNodes:  src.MonitoredNodes,
+		AvgCPUPct:       src.AvgCPUPct,
+		AvgMemPct:       src.AvgMemPct,
+		MaxCPUPct:       src.MaxCPUPct,
+		MaxMemPct:       src.MaxMemPct,
+
+		// Dashboard 列表（timeline 查询需要）
+		MetricsNodes: src.MetricsNodes,
+		APMServices:  src.APMServices,
+		SLOIngress:   src.SLOIngress,
+		SLOServices:  src.SLOServices,
+		SLOEdges:     src.SLOEdges,
+
+		// 以下字段不复制（仅从最新快照读取）:
+		// MetricsSummary, APMTopology, SLOSummary,
+		// APMOperations, RecentTraces, RecentLogs, LogsSummary,
+		// SLOWindows,
+		// NodeMetricsSeries, SLOTimeSeries, APMTimeSeries
+	}
 }
 
 // GetSnapshot 获取集群快照

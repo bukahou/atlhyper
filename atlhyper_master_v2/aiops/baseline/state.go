@@ -138,6 +138,38 @@ func (m *StateManager) GetStates(entityKey string) *aiops.EntityBaseline {
 	return result
 }
 
+// CleanupStaleEntities 清理不再存在于集群中的实体的基线状态和异常缓存
+// activeKeys: 当前快照中所有实体的 entityKey 集合
+func (m *StateManager) CleanupStaleEntities(activeKeys map[string]bool) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	removed := 0
+
+	// 清理 states: key = "entityKey|metricName"
+	for cacheKey := range m.states {
+		sep := strings.Index(cacheKey, "|")
+		if sep < 0 {
+			continue
+		}
+		entityKey := cacheKey[:sep]
+		if !activeKeys[entityKey] {
+			delete(m.states, cacheKey)
+			delete(m.dirty, cacheKey)
+			removed++
+		}
+	}
+
+	// 清理 anomalies: key = entityKey
+	for entityKey := range m.anomalies {
+		if !activeKeys[entityKey] {
+			delete(m.anomalies, entityKey)
+		}
+	}
+
+	return removed
+}
+
 // GetAllAnomalies 返回所有当前异常（供风险评分使用）
 func (m *StateManager) GetAllAnomalies() []*aiops.AnomalyResult {
 	m.mu.RLock()
