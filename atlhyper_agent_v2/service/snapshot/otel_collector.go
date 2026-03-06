@@ -128,12 +128,12 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 		snapshot.SLOEdges = cached.SLOEdges
 		snapshot.APMOperations = cached.APMOperations
 		snapshot.RecentTraces = cached.RecentTraces
-		snapshot.RecentLogs = cached.RecentLogs
+		// RecentLogs 不再缓存到快照（日志走 Command → ClickHouse 按需查询）
 		snapshot.LogsSummary = cached.LogsSummary
 	} else if s.dashboardRepo != nil {
 		defaultSince := 5 * time.Minute
 
-		wg.Add(12)
+		wg.Add(11) // RecentLogs 已移除，日志走 Command 按需查询
 
 		go func() {
 			defer wg.Done()
@@ -269,18 +269,8 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			mu.Unlock()
 		}()
 
-		// RecentLogs（最近 2000 条日志条目，覆盖 15 分钟窗口）
-		go func() {
-			defer wg.Done()
-			logs, err := s.dashboardRepo.ListRecentLogs(ctx, 2000)
-			if err != nil {
-				log.Warn("Dashboard RecentLogs 查询失败", "err", err)
-				return
-			}
-			mu.Lock()
-			snapshot.RecentLogs = logs
-			mu.Unlock()
-		}()
+		// RecentLogs 已移除 — 日志不缓存到快照内存
+		// 前端查询走 Command → Agent → ClickHouse 按需查询（Kibana 模式）
 	}
 
 	wg.Wait()

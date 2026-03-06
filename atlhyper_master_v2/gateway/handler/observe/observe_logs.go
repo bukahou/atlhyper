@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
-	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/model_v3/command"
 )
 
 // LogsQuery POST /api/v2/observe/logs/query
 //
-// 简单查询（无全文搜索）→ Service 层快照直读
-// 全文搜索 → Command/MQ 透传 Agent
+// 所有日志查询统一走 Command → Agent → ClickHouse（Kibana 模式）
+// 日志不缓存在 Master 内存中，按需实时查询
 func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -34,47 +33,6 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query, _ := body["query"].(string)
-	traceId, _ := body["trace_id"].(string)
-	spanId, _ := body["span_id"].(string)
-	startTime, _ := body["start_time"].(string)
-	endTime, _ := body["end_time"].(string)
-
-	// 快速路径：无全文搜索、无 trace/span 关联、无绝对时间过滤时从快照直读
-	if query == "" && traceId == "" && spanId == "" && startTime == "" && endTime == "" {
-		svc, _ := body["service"].(string)
-		level, _ := body["level"].(string)
-		scope, _ := body["scope"].(string)
-		offset := 0
-		limit := 50
-		if v, ok := body["offset"].(float64); ok && v > 0 {
-			offset = int(v)
-		}
-		if v, ok := body["limit"].(float64); ok && v > 0 {
-			limit = int(v)
-		}
-
-		result, err := h.querySvc.QueryLogsFromSnapshot(r.Context(), clusterID, model.LogSnapshotQueryOpts{
-			Service: svc,
-			Level:   level,
-			Scope:   scope,
-			Offset:  offset,
-			Limit:   limit,
-		})
-		if err == nil && result != nil {
-			handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-				"message": "获取成功",
-				"data": map[string]interface{}{
-					"logs":   result.Logs,
-					"total":  result.Total,
-					"facets": result.Facets,
-				},
-			})
-			return
-		}
-	}
-
-	// 全文搜索 → Command/MQ
 	delete(body, "cluster_id")
 	h.executeQuery(w, r, clusterID, command.ActionQueryLogs, body, 0)
 }
