@@ -6,6 +6,7 @@ import (
 
 	"AtlHyper/model_v3/apm"
 	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/log"
 	"AtlHyper/model_v3/slo"
 )
 
@@ -288,5 +289,39 @@ func TestBuildFromSnapshot_NilOTel(t *testing.T) {
 	}
 	if !runsOnFound {
 		t.Fatal("should have runs_on edge even with nil otel")
+	}
+}
+
+func TestBuildFromSnapshot_LogsGlobalNode(t *testing.T) {
+	snap := &cluster.ClusterSnapshot{}
+	otel := &cluster.OTelSnapshot{
+		LogsSummary: &log.Summary{
+			SeverityCounts: map[string]int64{"ERROR": 100},
+		},
+	}
+	graph := BuildFromSnapshot("test", snap, otel)
+
+	logsKey := "_cluster/logs/global"
+	found := false
+	for _, n := range graph.Nodes {
+		if n.Key == logsKey && n.Type == "logs" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected logs/global virtual node in dependency graph")
+	}
+}
+
+func TestBuildFromSnapshot_NoLogsNodeWhenNilSummary(t *testing.T) {
+	snap := &cluster.ClusterSnapshot{}
+	otel := &cluster.OTelSnapshot{LogsSummary: nil}
+	graph := BuildFromSnapshot("test", snap, otel)
+
+	for _, n := range graph.Nodes {
+		if n.Type == "logs" {
+			t.Fatal("should not have logs node when LogsSummary is nil")
+		}
 	}
 }

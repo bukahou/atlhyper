@@ -118,6 +118,12 @@ func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot, otel *cl
 		g.AddNode(nodeKey, "node", "_cluster", node.GetName(), nil)
 	}
 
+	// 5. 虚拟实体：logs/global（OTel 日志聚合节点）
+	if otel != nil && otel.LogsSummary != nil {
+		logsKey := aiops.EntityKey("_cluster", "logs", "global")
+		g.AddNode(logsKey, "logs", "_cluster", "global", nil)
+	}
+
 	g.RebuildIndex()
 	return g
 }

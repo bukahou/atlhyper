@@ -328,8 +328,8 @@ func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 	// 聚合查询：总数 + 各级别计数 + 最新时间
 	aggQuery := `
 		SELECT count() AS total,
-		       countIf(SeverityText = 'ERROR') AS errors,
-		       countIf(SeverityText = 'WARN') AS warns,
+		       countIf(SeverityText IN ('ERROR', 'SEVERE')) AS errors,
+		       countIf(SeverityText IN ('WARN', 'WARNING')) AS warns,
 		       countIf(SeverityText = 'INFO') AS infos,
 		       countIf(SeverityText = 'DEBUG') AS debugs,
 		       max(Timestamp) AS latest_at
