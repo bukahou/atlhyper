@@ -18,8 +18,8 @@ import (
 var log = logger.Module("Gemini")
 
 func init() {
-	llm.Register("gemini", func(apiKey, model string) (llm.LLMClient, error) {
-		return NewGeminiClient(apiKey, model)
+	llm.Register("gemini", func(cfg llm.Config) (llm.LLMClient, error) {
+		return NewGeminiClient(cfg.APIKey, cfg.Model)
 	})
 }
 

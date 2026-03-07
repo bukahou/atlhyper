@@ -52,6 +52,7 @@ func (s *aiServiceImpl) loadAIConfig(ctx context.Context) (*llm.Config, error) {
 		Provider: provider.Provider,
 		APIKey:   provider.APIKey,
 		Model:    provider.Model,
+		BaseURL:  provider.BaseURL,
 	}, nil
 }
 

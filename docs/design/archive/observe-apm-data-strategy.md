@@ -169,7 +169,7 @@ timeline, _ := e.store.GetOTelTimeline(clusterID, time.Now().Add(-30*time.Second
 ```
 
 但它只使用 SLO 相关字段（`SLOServices`, `SLOIngress`），**不使用 APM 字段**。
-根据 `aiops-otel-enhancement-design.md` 的计划，未来会增加 APM 指标提取，
+根据 `aiops-tiered-design.md` 的计划，未来会增加 APM 指标提取，
 但需要的仅是聚合值（如 `error_rate`, `avg_latency`），而不是完整的 `APMServices[]` 列表。
 
 ### 4.3 APM 聚合 vs 详情的清晰分界

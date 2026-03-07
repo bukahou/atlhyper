@@ -7,7 +7,7 @@ package llm
 import "fmt"
 
 // ProviderFactory 创建 LLMClient 的工厂函数
-type ProviderFactory func(apiKey, model string) (LLMClient, error)
+type ProviderFactory func(cfg Config) (LLMClient, error)
 
 // providers 已注册的 provider 工厂
 var providers = map[string]ProviderFactory{}
@@ -29,5 +29,5 @@ func NewLLMClient(cfg Config) (LLMClient, error) {
 		}
 		return nil, fmt.Errorf("unknown LLM provider: %q, available: %v", cfg.Provider, available)
 	}
-	return factory(cfg.APIKey, cfg.Model)
+	return factory(cfg)
 }

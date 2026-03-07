@@ -123,6 +123,11 @@ func NewMaster() (*Master, error) {
 		log.Warn("AI Active Config 初始化失败", "err", err)
 	}
 
+	// 3.3 种子 AI Provider（从环境变量自动创建，仅首次无数据时生效）
+	if err := database.SeedAIProvider(context.Background(), db, &cfg.AI.Seed); err != nil {
+		log.Warn("AI Provider 种子初始化失败", "err", err)
+	}
+
 	// 4. 初始化 EventPersistService
 	eventPersist := sync.NewEventPersistService(
 		store,
@@ -186,6 +191,7 @@ func NewMaster() (*Master, error) {
 			Provider: provider.Provider,
 			APIKey:   provider.APIKey,
 			Model:    provider.Model,
+			BaseURL:  provider.BaseURL,
 		})
 	}
 	aiopsEnhancer := aiopsai.NewEnhancer(db.AIOpsIncident, llmFactory)

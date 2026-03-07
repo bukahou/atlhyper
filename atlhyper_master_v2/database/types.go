@@ -210,9 +210,10 @@ type AIMessage struct {
 type AIProvider struct {
 	ID          int64
 	Name        string // 显示名称 (例: "Gemini本番", "OpenAI予備")
-	Provider    string // gemini / openai / anthropic
+	Provider    string // gemini / openai / anthropic / ollama
 	APIKey      string
 	Model       string
+	BaseURL     string // 自定义 API 地址（Ollama 等自部署服务使用）
 	Description string // 说明・备注
 
 	// 使用统计

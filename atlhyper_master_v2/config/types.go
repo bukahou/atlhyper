@@ -67,6 +67,18 @@ type RedisConfig struct {
 type AIConfig struct {
 	Enabled     bool          // 是否启用 AI（默认 false，用于初始化数据库）
 	ToolTimeout time.Duration // Tool 执行超时（默认 30s）
+	Seed        AISeed        // 种子配置：首次启动时自动写入 DB
+}
+
+// AISeed AI 种子配置
+// 通过环境变量注入，首次启动时自动创建 AI Provider 并激活
+// 已有 Provider 数据时跳过（不覆盖 Web UI 配置）
+type AISeed struct {
+	Provider string // 提供商类型: gemini / openai / anthropic / ollama
+	Name     string // 显示名称
+	APIKey   string // API Key（Ollama 可为空）
+	Model    string // 模型名称
+	BaseURL  string // 自定义 API 地址（Ollama 使用）
 }
 
 // EventAlertConfig 事件告警配置

@@ -25,8 +25,8 @@ const (
 )
 
 func init() {
-	llm.Register("anthropic", func(apiKey, model string) (llm.LLMClient, error) {
-		return NewAnthropicClient(apiKey, model)
+	llm.Register("anthropic", func(cfg llm.Config) (llm.LLMClient, error) {
+		return NewAnthropicClient(cfg.APIKey, cfg.Model)
 	})
 }
 

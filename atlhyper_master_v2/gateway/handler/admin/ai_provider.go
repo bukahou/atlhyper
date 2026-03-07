@@ -16,13 +16,14 @@ import (
 )
 
 // supportedProviders 支持的提供商 ID 列表
-var supportedProviders = []string{"gemini", "openai", "anthropic"}
+var supportedProviders = []string{"gemini", "openai", "anthropic", "ollama"}
 
 // providerNames 提供商名称映射
 var providerNames = map[string]string{
 	"gemini":    "Google Gemini",
 	"openai":    "OpenAI",
 	"anthropic": "Anthropic Claude",
+	"ollama":    "Ollama (本地部署)",
 }
 
 // AIProviderHandler AI Provider Handler
@@ -43,6 +44,7 @@ type ProviderResponse struct {
 	Name          string  `json:"name"`
 	Provider      string  `json:"provider"`
 	Model         string  `json:"model"`
+	BaseURL       string  `json:"baseUrl,omitempty"`
 	Description   string  `json:"description"`
 	APIKeyMasked  string  `json:"api_key_masked"`
 	APIKeySet     bool    `json:"api_key_set"`
@@ -84,6 +86,7 @@ type ProviderCreateRequest struct {
 	Provider    string `json:"provider"`
 	APIKey      string `json:"api_key"`
 	Model       string `json:"model"`
+	BaseURL     string `json:"base_url"`
 	Description string `json:"description"`
 }
 
@@ -93,6 +96,7 @@ type ProviderUpdateRequest struct {
 	Provider    *string `json:"provider,omitempty"`
 	APIKey      *string `json:"api_key,omitempty"`
 	Model       *string `json:"model,omitempty"`
+	BaseURL     *string `json:"base_url,omitempty"`
 	Description *string `json:"description,omitempty"`
 }
 
@@ -226,7 +230,8 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		handler.WriteError(w, http.StatusBadRequest, "provider is required")
 		return
 	}
-	if req.APIKey == "" {
+	// Ollama 不需要 API Key，其他提供商必须
+	if req.APIKey == "" && req.Provider != "ollama" {
 		handler.WriteError(w, http.StatusBadRequest, "api_key is required")
 		return
 	}
@@ -244,6 +249,7 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		Provider:    req.Provider,
 		APIKey:      req.APIKey,
 		Model:       req.Model,
+		BaseURL:     req.BaseURL,
 		Description: req.Description,
 		Status:      "unknown",
 		CreatedAt:   now,
@@ -311,6 +317,9 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 	}
 	if req.Model != nil {
 		provider.Model = *req.Model
+	}
+	if req.BaseURL != nil {
+		provider.BaseURL = *req.BaseURL
 	}
 	if req.Description != nil {
 		provider.Description = *req.Description
@@ -436,6 +445,7 @@ func (h *AIProviderHandler) toProviderResponse(p *database.AIProvider, activeID 
 		Name:          p.Name,
 		Provider:      p.Provider,
 		Model:         p.Model,
+		BaseURL:       p.BaseURL,
 		Description:   p.Description,
 		APIKeyMasked:  maskAPIKey(p.APIKey),
 		APIKeySet:     p.APIKey != "",

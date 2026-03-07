@@ -5,6 +5,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -80,6 +81,64 @@ func secondsToDuration(seconds int) time.Duration {
 		return 30 * time.Second // 默认 30 秒
 	}
 	return time.Duration(seconds) * time.Second
+}
+
+// SeedAIProvider 从环境变量种子配置初始化 AI Provider
+// 仅在 ai_providers 表无数据且 seed.Provider 非空时执行
+// 用于部署时通过环境变量自动配置 Ollama 等本地 AI 服务
+func SeedAIProvider(ctx context.Context, db *DB, seed *config.AISeed) error {
+	// 无种子配置则跳过
+	if seed.Provider == "" {
+		return nil
+	}
+
+	// 已有 Provider 数据则跳过（不覆盖 Web UI 配置）
+	providers, _ := db.AIProvider.List(ctx)
+	if len(providers) > 0 {
+		log.Info("AI Provider 表已有数据，跳过种子初始化")
+		return nil
+	}
+
+	// 设置默认名称
+	name := seed.Name
+	if name == "" {
+		name = seed.Provider + " (seed)"
+	}
+
+	now := time.Now()
+	newProvider := &AIProvider{
+		Name:        name,
+		Provider:    seed.Provider,
+		APIKey:      seed.APIKey,
+		Model:       seed.Model,
+		BaseURL:     seed.BaseURL,
+		Description: "环境变量种子配置自动创建",
+		Status:      "unknown",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := db.AIProvider.Create(ctx, newProvider); err != nil {
+		return fmt.Errorf("创建种子 AI Provider 失败: %w", err)
+	}
+
+	// 激活该 Provider 并启用 AI
+	activeConfig := &AIActiveConfig{
+		Enabled:     true,
+		ProviderID:  &newProvider.ID,
+		ToolTimeout: 30,
+		UpdatedAt:   now,
+	}
+	if err := db.AIActive.Update(ctx, activeConfig); err != nil {
+		return fmt.Errorf("激活种子 AI Provider 失败: %w", err)
+	}
+
+	log.Info("AI Provider 种子初始化完成",
+		"provider", seed.Provider,
+		"model", seed.Model,
+		"baseURL", seed.BaseURL,
+	)
+	return nil
 }
 
 // MigrateOldAIConfig 迁移旧 Settings 表中的 AI 配置到新的 ai_providers 表

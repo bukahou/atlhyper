@@ -19,12 +19,12 @@ import (
 var log = logger.Module("OpenAI")
 
 const (
-	apiEndpoint = "https://api.openai.com/v1/chat/completions"
+	defaultEndpoint = "https://api.openai.com/v1/chat/completions"
 )
 
 func init() {
-	llm.Register("openai", func(apiKey, model string) (llm.LLMClient, error) {
-		return NewOpenAIClient(apiKey, model)
+	llm.Register("openai", func(cfg llm.Config) (llm.LLMClient, error) {
+		return NewOpenAIClient(cfg.APIKey, cfg.Model, cfg.BaseURL)
 	})
 }
 
@@ -32,20 +32,27 @@ func init() {
 type Client struct {
 	apiKey     string
 	model      string
+	endpoint   string
 	httpClient *http.Client
 }
 
 // NewOpenAIClient 创建 OpenAI 客户端
-func NewOpenAIClient(apiKey, model string) (*Client, error) {
+// baseURL 可选，为空时使用 OpenAI 官方地址
+func NewOpenAIClient(apiKey, model, baseURL string) (*Client, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("openai api key is required")
 	}
 	if model == "" {
 		model = "gpt-4o"
 	}
+	endpoint := defaultEndpoint
+	if baseURL != "" {
+		endpoint = strings.TrimRight(baseURL, "/") + "/v1/chat/completions"
+	}
 	return &Client{
 		apiKey:     apiKey,
 		model:      model,
+		endpoint:   endpoint,
 		httpClient: &http.Client{},
 	}, nil
 }
@@ -168,7 +175,7 @@ func (c *Client) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.
 	}
 
 	// HTTP リクエスト作成
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", apiEndpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

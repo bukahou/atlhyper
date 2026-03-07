@@ -80,6 +80,13 @@ func LoadConfig() {
 	GlobalConfig.AI = AIConfig{
 		Enabled:     getBool("MASTER_AI_ENABLED"),
 		ToolTimeout: getDuration("MASTER_AI_TOOL_TIMEOUT"),
+		Seed: AISeed{
+			Provider: getString("MASTER_AI_SEED_PROVIDER"),
+			Name:     getString("MASTER_AI_SEED_NAME"),
+			APIKey:   getString("MASTER_AI_SEED_API_KEY"),
+			Model:    getString("MASTER_AI_SEED_MODEL"),
+			BaseURL:  getString("MASTER_AI_SEED_BASE_URL"),
+		},
 	}
 
 	GlobalConfig.SLO = SLOConfig{

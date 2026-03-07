@@ -103,11 +103,11 @@ var _ database.AIMessageDialect = (*aiMessageDialect)(nil)
 type aiProviderDialect struct{}
 
 func (d *aiProviderDialect) Insert(p *database.AIProvider) (string, []any) {
-	query := `INSERT INTO ai_providers (name, provider, api_key, model, description,
+	query := `INSERT INTO ai_providers (name, provider, api_key, model, base_url, description,
 		total_requests, total_tokens, total_cost, status, created_at, created_by, updated_at, updated_by)
-	VALUES (?, ?, ?, ?, ?, 0, 0, 0, 'unknown', ?, ?, ?, ?)`
+	VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'unknown', ?, ?, ?, ?)`
 	args := []any{
-		p.Name, p.Provider, p.APIKey, p.Model, p.Description,
+		p.Name, p.Provider, p.APIKey, p.Model, p.BaseURL, p.Description,
 		p.CreatedAt.Format(time.RFC3339), p.CreatedBy,
 		p.UpdatedAt.Format(time.RFC3339), p.UpdatedBy,
 	}
@@ -115,8 +115,8 @@ func (d *aiProviderDialect) Insert(p *database.AIProvider) (string, []any) {
 }
 
 func (d *aiProviderDialect) Update(p *database.AIProvider) (string, []any) {
-	query := `UPDATE ai_providers SET name = ?, provider = ?, api_key = ?, model = ?, description = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL`
-	args := []any{p.Name, p.Provider, p.APIKey, p.Model, p.Description, p.UpdatedAt.Format(time.RFC3339), p.UpdatedBy, p.ID}
+	query := `UPDATE ai_providers SET name = ?, provider = ?, api_key = ?, model = ?, base_url = ?, description = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL`
+	args := []any{p.Name, p.Provider, p.APIKey, p.Model, p.BaseURL, p.Description, p.UpdatedAt.Format(time.RFC3339), p.UpdatedBy, p.ID}
 	return query, args
 }
 
@@ -126,14 +126,14 @@ func (d *aiProviderDialect) Delete(id int64) (string, []any) {
 }
 
 func (d *aiProviderDialect) SelectByID(id int64) (string, []any) {
-	return `SELECT id, name, provider, api_key, model, description,
+	return `SELECT id, name, provider, api_key, model, base_url, description,
 		total_requests, total_tokens, total_cost, last_used_at, last_error, last_error_at,
 		status, status_checked_at, created_at, created_by, updated_at, updated_by, deleted_at
 		FROM ai_providers WHERE id = ? AND deleted_at IS NULL`, []any{id}
 }
 
 func (d *aiProviderDialect) SelectAll() (string, []any) {
-	return `SELECT id, name, provider, api_key, model, description,
+	return `SELECT id, name, provider, api_key, model, base_url, description,
 		total_requests, total_tokens, total_cost, last_used_at, last_error, last_error_at,
 		status, status_checked_at, created_at, created_by, updated_at, updated_by, deleted_at
 		FROM ai_providers WHERE deleted_at IS NULL ORDER BY id ASC`, nil
@@ -156,11 +156,12 @@ func (d *aiProviderDialect) UpdateStatus(id int64, status, errorMsg string) (str
 func (d *aiProviderDialect) ScanRow(rows *sql.Rows) (*database.AIProvider, error) {
 	p := &database.AIProvider{}
 	var createdAt, updatedAt string
+	var baseURL sql.NullString
 	var lastUsedAt, lastErrorAt, statusCheckedAt, deletedAt sql.NullString
 	var lastError sql.NullString
 	var status sql.NullString
 
-	err := rows.Scan(&p.ID, &p.Name, &p.Provider, &p.APIKey, &p.Model, &p.Description,
+	err := rows.Scan(&p.ID, &p.Name, &p.Provider, &p.APIKey, &p.Model, &baseURL, &p.Description,
 		&p.TotalRequests, &p.TotalTokens, &p.TotalCost, &lastUsedAt, &lastError, &lastErrorAt,
 		&status, &statusCheckedAt, &createdAt, &p.CreatedBy, &updatedAt, &p.UpdatedBy, &deletedAt)
 	if err != nil {
@@ -169,6 +170,9 @@ func (d *aiProviderDialect) ScanRow(rows *sql.Rows) (*database.AIProvider, error
 
 	p.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	p.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if baseURL.Valid {
+		p.BaseURL = baseURL.String
+	}
 
 	if lastUsedAt.Valid {
 		t, _ := time.Parse(time.RFC3339, lastUsedAt.String)

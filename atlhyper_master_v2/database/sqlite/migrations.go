@@ -169,6 +169,7 @@ func migrate(db *sql.DB) error {
 			provider TEXT NOT NULL,
 			api_key TEXT NOT NULL,
 			model TEXT NOT NULL,
+			base_url TEXT DEFAULT '',
 			description TEXT,
 			total_requests INTEGER DEFAULT 0,
 			total_tokens INTEGER DEFAULT 0,
@@ -327,6 +328,8 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE ai_conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0`,
 		`ALTER TABLE ai_conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0`,
 		`ALTER TABLE ai_conversations ADD COLUMN total_tool_calls INTEGER DEFAULT 0`,
+		// AI 提供商表添加 base_url（Ollama 等自部署服务使用）
+		`ALTER TABLE ai_providers ADD COLUMN base_url TEXT DEFAULT ''`,
 	}
 
 	// 删除旧表（OTel 迁移后不再需要）
@@ -467,6 +470,12 @@ func initDefaultAIModels(db *sql.DB) error {
 		{"anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku", 0, 4},
 		{"anthropic", "claude-3-opus-20240229", "Claude 3 Opus", 0, 5},
 		{"anthropic", "claude-3-haiku-20240307", "Claude 3 Haiku", 0, 6},
+		// Ollama (本地部署)
+		{"ollama", "qwen2.5:14b", "Qwen 2.5 14B", 1, 1},
+		{"ollama", "qwen2.5:7b", "Qwen 2.5 7B", 0, 2},
+		{"ollama", "qwen2.5:32b", "Qwen 2.5 32B", 0, 3},
+		{"ollama", "llama3.1:8b", "Llama 3.1 8B", 0, 4},
+		{"ollama", "deepseek-r1:14b", "DeepSeek R1 14B", 0, 5},
 	}
 
 	stmt, err := db.Prepare(`INSERT INTO ai_provider_models (provider, model, display_name, is_default, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)`)

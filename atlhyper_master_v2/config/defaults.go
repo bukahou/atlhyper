@@ -94,6 +94,12 @@ var defaultStrings = map[string]string{
 	"MASTER_ADMIN_PASSWORD":     "", // 管理员密码（必须通过环境变量配置）
 	"MASTER_ADMIN_DISPLAY_NAME": "", // 管理员显示名称
 
+	// -------------------- AI Seed 配置 --------------------
+	"MASTER_AI_SEED_PROVIDER": "", // 种子 Provider 类型（为空则不初始化）
+	"MASTER_AI_SEED_NAME":     "", // 种子 Provider 显示名称
+	"MASTER_AI_SEED_API_KEY":  "", // 种子 API Key
+	"MASTER_AI_SEED_MODEL":    "", // 种子模型名称
+	"MASTER_AI_SEED_BASE_URL": "", // 种子自定义 API 地址
 }
 
 // ============================================================

@@ -82,7 +82,8 @@ const (
 
 // Config LLM 配置
 type Config struct {
-	Provider string // gemini / openai
-	APIKey   string // API Key
+	Provider string // gemini / openai / anthropic / ollama
+	APIKey   string // API Key（Ollama 可为空）
 	Model    string // 模型名称 (e.g. gemini-2.0-flash)
+	BaseURL  string // 自定义 API 地址（Ollama 等自部署服务使用）
 }

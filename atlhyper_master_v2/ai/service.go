@@ -9,6 +9,7 @@ import (
 
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/anthropic" // 注册 anthropic provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini"    // 注册 gemini provider
+	_ "AtlHyper/atlhyper_master_v2/ai/llm/ollama"    // 注册 ollama provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/openai"    // 注册 openai provider
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
