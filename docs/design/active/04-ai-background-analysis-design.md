@@ -211,7 +211,10 @@ T=75s  事件 A 状态变化                   → 冷却结束，允许入队
 触发 ─────────────────────────────────────────────────
   谁触发？  系统自动（高危事件触发，不需要人工触发）
   何时触发？
-    1. severity=critical 的事件自动触发
+    1. 事件严重度 >= auto_trigger_min_severity 时自动触发
+       - auto_trigger_min_severity 存储在 ai_role_budget 表（analysis 角色配置）
+       - 默认 "critical"，用户可在 Web UI 调整为 high/medium/low/off
+       - "off" = 禁用自动触发
     2. 人工调查需求走 chat 角色，不走 analysis
 
   与 background 共享优先级队列，但 analysis 任务优先级更高。
@@ -401,6 +404,25 @@ Pod 在 CrashLoopBackOff，需要查看日志确认崩溃原因...
 - 结束调查: {"continue": false, "report": {summary, rootCause, recommendations, confidence}}
 ```
 
+### 触发等级配置
+
+analysis 自动触发的最低严重度通过 `ai_role_budget` 表的 `auto_trigger_min_severity` 字段控制：
+
+```
+判断逻辑:
+  事件状态变迁时（如 Warning → Incident）
+    → 读取 ai_role_budget 中 analysis 角色的 auto_trigger_min_severity
+    → 比较事件 severity 与阈值:
+       severity 优先级: critical > high > medium > low
+       事件 severity >= 阈值 → 创建 analysis 任务入队
+       事件 severity < 阈值 → 跳过
+       阈值 = "off" → 永不自动触发
+
+  Web UI 配置:
+    Settings → AI → analysis 角色预算 → "自动触发等级" 下拉:
+    [Critical | High | Medium | Low | 关闭]
+```
+
 ### 前置依赖
 
 | 依赖 | 说明 | 现状 |
@@ -408,8 +430,46 @@ Pod 在 CrashLoopBackOff，需要查看日志确认崩溃原因...
 | 角色路由 | loadAIConfigForRole("analysis") | Phase 3 实现 |
 | 报告存储 | ai_reports 表 | Phase 5 实现 |
 | 优先级队列 | 与 background 共享 | Phase 6 实现 |
+| 触发等级配置 | ai_role_budget.auto_trigger_min_severity | Phase 3 实现（ai_role_budget 表） |
 | chat Tool 基础设施 | Tool 定义 + 执行 + 消息构建 | 已有，可复用 |
 | 事件标签机制 | 事件打上"已深度分析"标签 | 需新增 |
+
+---
+
+## 文件变更清单
+
+> 路径均相对于 `atlhyper_master_v2/`，遵循项目分层。
+> Phase 6 (background) 和 Phase 7 (analysis) 的文件变更。
+> Phase 1-5 的基础设施变更见 [03-ai-role-routing-design.md](./03-ai-role-routing-design.md) 和 [02-ai-reports-storage-design.md](./02-ai-reports-storage-design.md)。
+
+### Phase 6: background 自动触发
+
+| # | 文件 | 操作 | 层级 | 说明 |
+|---|------|------|------|------|
+| 1 | `aiops/ai/queue.go` | **新增** | 业务层 | `SummaryTask` + 优先级队列（heap 实现）+ 去重逻辑 + 冷却 map |
+| 2 | `aiops/ai/worker.go` | **新增** | 业务层 | 单 worker goroutine: 消费队列 + 熔断器 + 重试逻辑 + 按 Role 分发执行 |
+| 3 | `aiops/ai/bus.go` | **新增** | 业务层 | 事件总线集成: Subscribe IncidentEvent/StateChanged → 入队 |
+| 4 | `aiops/ai/queue_test.go` | **新增** | 测试 | 优先级排序、去重替换、冷却跳过、队列上限丢弃 |
+| 5 | `aiops/ai/worker_test.go` | **新增** | 测试 | 熔断触发/恢复、重试逻辑、needRerun 标记 |
+| 6 | `aiops/ai/enhancer.go` | 修改 | 业务层 | Summarize 结果写入 ai_reports + 同步 incidents.summary（复用 02 文档的存储层） |
+| 7 | `aiops/core/engine.go` | 修改 | 业务层 | OnSnapshot 中 StateMachine 状态变迁时发布事件到总线 |
+| 8 | `aiops/interfaces.go` | 修改 | 接口定义 | 新增事件总线接口（Publish/Subscribe） |
+| 9 | `master.go` | 修改 | 启动入口 | 创建事件总线 + 注入 Engine 和 Enhancer + 启动 Worker goroutine |
+
+### Phase 7: analysis 深度分析
+
+| # | 文件 | 操作 | 层级 | 说明 |
+|---|------|------|------|------|
+| 10 | `aiops/ai/analysis.go` | **新增** | 业务层 | `AnalysisLoop`: 复用 chatLoop 的 Tool Calling 基础设施，最大 8 轮，每轮写 DB |
+| 11 | `aiops/ai/analysis_test.go` | **新增** | 测试 | 轮次控制、continue=false 停止、每轮记录验证、超时处理 |
+| 12 | `aiops/ai/worker.go` | 修改 | 业务层 | Worker 根据 task.Role 分发: background→Summarize / analysis→AnalysisLoop |
+| 13 | `aiops/ai/bus.go` | 修改 | 业务层 | 订阅 StateChanged 时检查 severity 与 auto_trigger_min_severity 阈值，决定是否创建 analysis 任务 |
+| 14 | `aiops/incident/store.go` | 修改 | 业务层 | 事件完成分析后打上"已深度分析"标签（UpdateTags） |
+| 15 | `database/interfaces.go` | 修改 | 接口定义 | `AIOpsIncidentRepository` 新增 `UpdateTags` 方法 |
+| 16 | `database/sqlite/aiops_incident.go` | 修改 | Dialect 实现 | `UpdateTags` SQL 实现 |
+| 17 | `database/repo/aiops_incident.go` | 修改 | Repository 实现 | `UpdateTags` 调用 Dialect |
+
+| | **合计** | | | Phase 6: **4 新增 + 4 修改**; Phase 7: **2 新增 + 5 修改** |
 
 ---
 

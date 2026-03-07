@@ -84,7 +84,7 @@
 
 **行为链**: severity=critical 自动触发 → 共享优先级队列（analysis 优先级高于 background）→ 复用 chatLoop 多轮 Tool Calling（最大 8 轮，AI 自主决定是否继续）→ 每轮写 ai_reports + 事件打标签
 
-- 触发: severity=critical 自动升级（与 background 共享队列，analysis 优先级更高）
+- 触发: 事件严重度 >= auto_trigger_min_severity 自动升级（DB 可配置，默认 critical；与 background 共享队列，analysis 优先级更高）
 - 路由: loadAIConfigForRole("analysis")（Phase 3 提供）
 - 执行: 复用 chatLoop 的 Tool Calling 基础设施，最大 8 轮，AI 返回 `{"continue": false}` 停止
 - 记录: 每轮立即写 DB（思考过程 + Tool 调用 + 结果），中途崩溃不丢步骤

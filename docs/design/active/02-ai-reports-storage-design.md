@@ -306,16 +306,19 @@ AIOps → 巡检报告
 
 ## 7. 文件变更清单
 
-| # | 文件 | 操作 | 说明 |
-|---|------|------|------|
-| 1 | `database/types.go` | 修改 | 新增 `AIReport` struct |
-| 2 | `database/interfaces.go` | 修改 | 新增 `AIReportRepository` 接口 |
-| 3 | `database/sqlite/migrations.go` | 修改 | 新增 `ai_reports` 表 + 索引 |
-| 4 | `database/sqlite/ai_report.go` | 新增 | Repository SQLite 实现 |
-| 5 | `aiops/ai/enhancer.go` | 修改 | Summarize 结果写入 `ai_reports` + 同步 incidents.summary |
-| 6 | `database/repo/init.go` | 修改 | 初始化 AIReportRepository |
-| 7 | `master.go` | 修改 | 注入 AIReportRepository |
-| **合计** | | **1 新增 + 6 修改** | |
+> 路径均相对于 `atlhyper_master_v2/`，遵循项目分层：types.go(模型) → interfaces.go(接口+Dialect) → sqlite/(Dialect 实现) → repo/(Repository 实现) → 业务层
+
+| # | 文件 | 操作 | 层级 | 说明 |
+|---|------|------|------|------|
+| 1 | `database/types.go` | 修改 | 数据模型 | 新增 `AIReport` struct |
+| 2 | `database/interfaces.go` | 修改 | 接口定义 | 新增 `AIReportRepository` 接口 + `AIReportDialect` 接口 + `DB.AIReport` 字段 + `Dialect.AIReport()` 方法 |
+| 3 | `database/sqlite/migrations.go` | 修改 | 迁移 | 新增 `ai_reports` 表 + 索引 |
+| 4 | `database/sqlite/ai_report.go` | **新增** | Dialect 实现 | `AIReportDialect` SQLite 实现（SQL 生成 + ScanRow） |
+| 5 | `database/repo/ai_report.go` | **新增** | Repository 实现 | `AIReportRepository` 实现（调用 Dialect 执行 SQL） |
+| 6 | `database/repo/init.go` | 修改 | 注入 | `Init()` 新增 `db.AIReport = newAIReportRepo(...)` |
+| 7 | `aiops/ai/enhancer.go` | 修改 | 业务层 | Summarize 结果写入 `ai_reports` + 同步 `incidents.summary` |
+| 8 | `master.go` | 修改 | 启动入口 | 注入 `AIReportRepository` 到 Enhancer |
+| | **合计** | | | **2 新增 + 6 修改** |
 
 > analysis 角色的执行逻辑（AnalysisService）属于 [04-ai-background-analysis-design.md](./04-ai-background-analysis-design.md) 的范畴，本文档只定义存储层。
 

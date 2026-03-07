@@ -89,6 +89,12 @@ CREATE TABLE IF NOT EXISTS ai_role_budget (
     -- 降级配置
     fallback_provider_id INTEGER,        -- 预算耗尽时的降级 Provider
 
+    -- 自动触发配置（analysis 角色专用）
+    auto_trigger_min_severity TEXT DEFAULT 'critical',
+    -- 可选值: 'critical' / 'high' / 'medium' / 'low' / 'off'
+    -- 'off' = 禁用自动触发，仅支持手动触发
+    -- 非 analysis 角色忽略此字段
+
     -- 当日用量（跨日自动重置）
     daily_tokens_used   INTEGER DEFAULT 0,
     daily_calls_used    INTEGER DEFAULT 0,
@@ -123,6 +129,12 @@ type AIRoleBudget struct {
     DailyTokenLimit    int    // 0 = 无限制
     DailyCallLimit     int    // 0 = 无限制
     FallbackProviderID *int64 // 降级 Provider（可选）
+
+    // analysis 角色专用: 自动触发的最低严重度
+    // "critical" / "high" / "medium" / "low" / "off"
+    // "off" = 禁用自动触发; 非 analysis 角色忽略
+    AutoTriggerMinSeverity string
+
     DailyTokensUsed    int
     DailyCallsUsed     int
     DailyResetAt       *time.Time
@@ -783,35 +795,42 @@ type RoleConfig struct {
 
 ## 文件变更清单
 
+> 路径均相对于 `atlhyper_master_v2/`（前端路径标注 `atlhyper_web/`），遵循项目分层：
+> types.go(模型) → interfaces.go(接口+Dialect) → sqlite/(Dialect 实现) → repo/(Repository 实现) → 业务层 → Gateway → 前端
+
 ### 新增文件
 
-| 文件 | 内容 |
-|------|------|
-| `ai/context.go` | ContextManager: FitMessages + estimateTokens |
-| `ai/role.go` | 角色常量 + loadAIConfigForRole + checkBudget |
-| `database/sqlite/ai_role_budget.go` | AIRoleBudgetRepository SQLite 实现 |
-| `gateway/handler/admin/ai_role.go` | 角色预算 API Handler |
-| `atlhyper_web/src/api/ai-role.ts` | 角色/预算 API 调用 |
+| # | 文件 | 层级 | 内容 |
+|---|------|------|------|
+| 1 | `ai/context.go` | 业务层 | ContextManager: FitMessages + estimateTokens |
+| 2 | `ai/role.go` | 业务层 | 角色常量 + loadAIConfigForRole + checkBudget |
+| 3 | `database/sqlite/ai_role_budget.go` | Dialect 实现 | `AIRoleBudgetDialect` SQLite 实现（SQL 生成 + ScanRow） |
+| 4 | `database/repo/ai_role_budget.go` | Repository 实现 | `AIRoleBudgetRepository` 实现（调用 Dialect 执行 SQL） |
+| 5 | `gateway/handler/admin/ai_role.go` | Gateway | 角色预算 API Handler |
+| 6 | `atlhyper_web/src/api/ai-role.ts` | 前端 | 角色/预算 API 调用 |
 
 ### 修改文件
 
-| 文件 | 变更 |
-|------|------|
-| `database/types.go` | AIProvider 新增 Roles/ContextWindow; 新增 AIRoleBudget |
-| `database/interfaces.go` | 新增 AIRoleBudgetRepository; AIProviderRepository 扩展 |
-| `database/db.go` | DB struct 新增 AIRoleBudget |
-| `database/sqlite/migrations.go` | ai_providers 新增 roles/context_window_override 列; ai_provider_models 新增 context_window 列; 新增 ai_role_budget 表 |
-| `database/sqlite/ai.go` | AIProvider CRUD 支持 roles/context_window_override; AIProviderModel 支持 context_window |
-| `database/repo/init.go` | 初始化 AIRoleBudget repo |
-| `ai/service.go` | aiServiceImpl 新增 budgetRepo; NewService 参数 |
-| `ai/chat.go` | chatLoop 使用 loadAIConfigForRole + ContextManager |
-| `master.go` | llmFactory 适配 role routing; 传入 budgetRepo |
-| `gateway/routes.go` | 注册角色 API 路由 |
-| `gateway/handler/admin/ai_provider.go` | Provider API 支持 roles/context_window |
-| `atlhyper_web/src/app/settings/ai/page.tsx` | Provider 卡片加角色标签 + 预算展示 |
-| `atlhyper_web/src/types/i18n.ts` | 新增 aiRole 翻译类型 |
-| `atlhyper_web/src/i18n/locales/zh.ts` | 新增翻译 |
-| `atlhyper_web/src/i18n/locales/ja.ts` | 新增翻译 |
+| # | 文件 | 层级 | 变更 |
+|---|------|------|------|
+| 7 | `database/types.go` | 数据模型 | AIProvider 新增 Roles; AIProviderModel 新增 ContextWindow; 新增 AIRoleBudget struct |
+| 8 | `database/interfaces.go` | 接口定义 | 新增 `AIRoleBudgetRepository` + `AIRoleBudgetDialect` 接口; `AIProviderRepository` 扩展 UpdateRoles/FindByRole; `AIProviderDialect` 扩展; `DB.AIRoleBudget` 字段; `Dialect.AIRoleBudget()` 方法 |
+| 9 | `database/sqlite/migrations.go` | 迁移 | ai_providers 新增 roles + context_window_override 列; ai_provider_models 新增 context_window 列; 新增 ai_role_budget 表 |
+| 10 | `database/sqlite/ai.go` | Dialect 实现 | AIProviderDialect 支持 roles/context_window_override 读写; AIProviderModelDialect 支持 context_window |
+| 11 | `database/repo/ai_provider.go` | Repository 实现 | AIProvider CRUD 适配新字段（roles JSON 编解码） |
+| 12 | `database/repo/init.go` | 注入 | `Init()` 新增 `db.AIRoleBudget = newAIRoleBudgetRepo(...)` |
+| 13 | `config/defaults.go` | 配置 | initDefaultAIModels 填充各模型 context_window 默认值 |
+| 14 | `ai/service.go` | 业务层 | aiServiceImpl 新增 budgetRepo; NewService 参数扩展 |
+| 15 | `ai/chat.go` | 业务层 | chatLoop 使用 loadAIConfigForRole + ContextManager |
+| 16 | `aiops/ai/enhancer.go` | 业务层 | Prompt 截断感知 context_window（maxPromptCharsForContext） |
+| 17 | `master.go` | 启动入口 | llmFactory 适配 role routing; 传入 budgetRepo |
+| 18 | `gateway/routes.go` | Gateway | 注册角色 API 路由 |
+| 19 | `gateway/handler/admin/ai_provider.go` | Gateway | Provider API 支持 roles/context_window 读写 |
+| 20 | `atlhyper_web/src/app/settings/ai/page.tsx` | 前端 | Provider 卡片加角色标签 + 预算展示 + context_window 显示 |
+| 21 | `atlhyper_web/src/types/i18n.ts` | 前端 | 新增 aiRole 翻译类型 |
+| 22 | `atlhyper_web/src/i18n/locales/zh.ts` | 前端 | 新增翻译 |
+| 23 | `atlhyper_web/src/i18n/locales/ja.ts` | 前端 | 新增翻译 |
+| | **合计** | | **6 新增 + 17 修改** |
 
 ---
 
