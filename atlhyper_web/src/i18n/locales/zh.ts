@@ -140,6 +140,10 @@ export const zh: Translations = {
     retry: "重试",
     loadFailed: "加载失败",
     noCluster: "暂无可用集群",
+    // OTel 可用性提示
+    otelRequired: "此功能需要 OTel 数据",
+    otelRequiredDesc: "当前集群未部署 OpenTelemetry + ClickHouse，无法提供可观测性数据（Metrics / APM / Logs / SLO）。",
+    otelRequiredHint: "请部署 OTel Collector 和 ClickHouse 后重试，或参考部署文档完成数据源配置。",
     // 404 页面
     notFoundTitle: "页面未找到",
     notFoundDescription: "你访问的页面不存在或已被移除",

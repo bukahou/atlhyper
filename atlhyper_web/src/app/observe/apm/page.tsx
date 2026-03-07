@@ -9,6 +9,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { TimeRangeSelection } from "@/types/time-range";
 import { toSince, toAbsoluteParams } from "@/lib/time-range";
 import { Loader2, WifiOff, AlertTriangle } from "lucide-react";
+import { OTelGuard } from "@/components/observe/OTelGuard";
 
 import type { TraceSummary, TraceDetail, APMService, Topology, OperationStats } from "@/types/model/apm";
 import {
@@ -33,6 +34,14 @@ type ViewState =
   | { level: "trace-detail"; serviceName: string; operationName: string; traceId: string; traceIndex: number };
 
 export default function ApmPage() {
+  return (
+    <OTelGuard>
+      <ApmPageContent />
+    </OTelGuard>
+  );
+}
+
+function ApmPageContent() {
   const { t } = useI18n();
   const ta = t.apm;
   const { currentClusterId } = useClusterStore();

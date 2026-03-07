@@ -32,11 +32,12 @@ type AgentInfo struct {
 
 // ClusterInfo 集群基础信息（列表展示）
 type ClusterInfo struct {
-	ClusterID string    `json:"clusterId"`
-	Status    string    `json:"status"`
-	LastSeen  time.Time `json:"lastSeen"`
-	NodeCount int       `json:"nodeCount"`
-	PodCount  int       `json:"podCount"`
+	ClusterID     string    `json:"clusterId"`
+	Status        string    `json:"status"`
+	LastSeen      time.Time `json:"lastSeen"`
+	NodeCount     int       `json:"nodeCount"`
+	PodCount      int       `json:"podCount"`
+	OTelAvailable bool      `json:"otelAvailable"`
 }
 
 // ClusterDetail 集群详情

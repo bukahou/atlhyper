@@ -2,10 +2,13 @@ package k8s
 
 import (
 	"context"
+	"math"
+	"strconv"
 
 	"AtlHyper/atlhyper_agent_v2/model"
-	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/repository"
+	"AtlHyper/atlhyper_agent_v2/sdk"
+	model_v3 "AtlHyper/model_v3"
 	"AtlHyper/model_v3/cluster"
 )
 
@@ -42,19 +45,28 @@ func (r *nodeRepository) List(ctx context.Context, opts model.ListOptions) ([]cl
 	for i := range k8sNodes {
 		node := ConvertNode(&k8sNodes[i])
 
-		// 合并 metrics 数据
+		// 合并 metrics 数据 + Pressure
+		pressure := extractPressure(node.Conditions)
 		if metrics, ok := metricsMap[node.GetName()]; ok {
 			node.Metrics = &cluster.NodeResourceUsage{
 				CPU: cluster.NodeResourceMetric{
 					Usage:       metrics.CPU,
 					Allocatable: node.Allocatable.CPU,
 					Capacity:    node.Capacity.CPU,
+					UtilPct:     calcUtilPct(model_v3.ParseCPU(metrics.CPU), model_v3.ParseCPU(node.Allocatable.CPU)),
 				},
 				Memory: cluster.NodeResourceMetric{
 					Usage:       metrics.Memory,
 					Allocatable: node.Allocatable.Memory,
 					Capacity:    node.Capacity.Memory,
+					UtilPct:     calcUtilPct(model_v3.ParseMemory(metrics.Memory), model_v3.ParseMemory(node.Allocatable.Memory)),
 				},
+				Pressure: pressure,
+			}
+		} else {
+			// 即使无 Metrics Server，也填充 Pressure（来自 Node Conditions）
+			node.Metrics = &cluster.NodeResourceUsage{
+				Pressure: pressure,
 			}
 		}
 
@@ -71,4 +83,40 @@ func (r *nodeRepository) Get(ctx context.Context, name string) (*cluster.Node, e
 	}
 	node := ConvertNode(k8sNode)
 	return &node, nil
+}
+
+// calcUtilPct 计算使用率百分比（保留 2 位小数）
+func calcUtilPct(usage, total int64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	pct := float64(usage) / float64(total) * 100
+	return math.Round(pct*100) / 100
+}
+
+// extractPressure 从 Node Conditions 提取压力标志
+func extractPressure(conditions []cluster.NodeCondition) cluster.PressureFlags {
+	var flags cluster.PressureFlags
+	for _, c := range conditions {
+		if c.Status != "True" {
+			continue
+		}
+		switch c.Type {
+		case "MemoryPressure":
+			flags.MemoryPressure = true
+		case "DiskPressure":
+			flags.DiskPressure = true
+		case "PIDPressure":
+			flags.PIDPressure = true
+		case "NetworkUnavailable":
+			flags.NetworkUnavailable = true
+		}
+	}
+	return flags
+}
+
+// parseInt 简单解析整数字符串
+func parseInt(s string) int {
+	v, _ := strconv.Atoi(s)
+	return v
 }

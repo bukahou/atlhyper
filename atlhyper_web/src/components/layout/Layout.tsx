@@ -17,7 +17,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { setClusterIds } = useClusterStore();
+  const { setClusterIds, setOTelAvailableMap } = useClusterStore();
 
   // 全局监听权限错误，自动触发登录对话框
   useAuthError();
@@ -31,13 +31,20 @@ export function Layout({ children }: LayoutProps) {
         if (clusters.length > 0) {
           const ids = clusters.map((c: { clusterId: string }) => c.clusterId);
           setClusterIds(ids);
+
+          // 存储各集群 OTel 可用性
+          const otelMap: Record<string, boolean> = {};
+          for (const c of clusters) {
+            otelMap[c.clusterId] = c.otelAvailable ?? false;
+          }
+          setOTelAvailableMap(otelMap);
         }
       } catch (err) {
         console.warn("[Layout] Failed to fetch clusters:", err);
       }
     };
     fetchClusters();
-  }, [setClusterIds]);
+  }, [setClusterIds, setOTelAvailableMap]);
 
   return (
     <div className="h-screen flex bg-[var(--background)] overflow-hidden">

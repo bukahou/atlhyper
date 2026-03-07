@@ -40,7 +40,7 @@ var defaultStrings = map[string]string{
 	// -------------------- Kubernetes 配置 --------------------
 	"AGENT_KUBECONFIG": "", // kubeconfig 文件路径，空则使用 InCluster 模式
 
-	// -------------------- ClickHouse 配置 --------------------
-	"AGENT_CLICKHOUSE_ENDPOINT": "http://localhost:8123", // ClickHouse 地址 (HTTP 协议，兼容 Linkerd sidecar)
-	"AGENT_CLICKHOUSE_DATABASE": "atlhyper",              // ClickHouse 数据库名
+	// -------------------- ClickHouse 配置（可选，不配置则纯 K8s 模式） --------------------
+	"AGENT_CLICKHOUSE_ENDPOINT": "", // ClickHouse 地址，为空则不连接（纯 K8s 模式，无 OTel 数据）
+	"AGENT_CLICKHOUSE_DATABASE": "atlhyper", // ClickHouse 数据库名
 }

@@ -5,21 +5,28 @@ interface ClusterStore {
   clusterIds: string[];
   // 当前选中的集群
   currentClusterId: string;
+  // 各集群 OTel 可用性
+  otelAvailableMap: Record<string, boolean>;
   // 是否已初始化
   initialized: boolean;
 
   // Actions
   setClusterIds: (ids: string[]) => void;
+  setOTelAvailableMap: (map: Record<string, boolean>) => void;
   setCurrentCluster: (id: string) => void;
   initialize: () => void;
+
+  // Derived
+  isOTelAvailable: () => boolean;
 }
 
 // 从 localStorage 获取初始状态
 const getInitialState = () => {
   if (typeof window === "undefined") {
     return {
-      clusterIds: [],
+      clusterIds: [] as string[],
       currentClusterId: "",
+      otelAvailableMap: {} as Record<string, boolean>,
       initialized: false,
     };
   }
@@ -51,6 +58,7 @@ const getInitialState = () => {
   return {
     clusterIds,
     currentClusterId,
+    otelAvailableMap: {},
     initialized: clusterIds.length > 0,
   };
 };
@@ -77,6 +85,10 @@ export const useClusterStore = create<ClusterStore>((set, get) => ({
     });
   },
 
+  setOTelAvailableMap: (map: Record<string, boolean>) => {
+    set({ otelAvailableMap: map });
+  },
+
   setCurrentCluster: (id: string) => {
     const { clusterIds } = get();
     // 验证集群 ID 有效
@@ -93,7 +105,13 @@ export const useClusterStore = create<ClusterStore>((set, get) => ({
     set({
       clusterIds: state.clusterIds,
       currentClusterId: state.currentClusterId,
+      otelAvailableMap: {},
       initialized: state.initialized,
     });
+  },
+
+  isOTelAvailable: () => {
+    const { currentClusterId, otelAvailableMap } = get();
+    return otelAvailableMap[currentClusterId] ?? false;
   },
 }));

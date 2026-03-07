@@ -18,6 +18,8 @@ package snapshot
 
 import (
 	"context"
+	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -424,6 +426,9 @@ func (s *snapshotService) Collect(ctx context.Context) (*cluster.ClusterSnapshot
 
 	wg.Wait()
 
+	// 补全 Node 的 Pod 使用量统计（需要 Nodes + Pods 都就绪）
+	enrichNodePodCount(snapshot)
+
 	// 聚合 OTel 快照（带缓存）
 	if s.otelSummaryRepo != nil || s.dashboardRepo != nil {
 		otelSnapshot := s.getOTelSnapshot(ctx)
@@ -614,6 +619,47 @@ func (s *snapshotService) calculateNamespaceResources(snapshot *cluster.ClusterS
 			}
 			snapshot.Namespaces[i].Quotas = stats.quotas
 			snapshot.Namespaces[i].LimitRanges = stats.limitRanges
+		}
+	}
+}
+
+// enrichNodePodCount 补全每个 Node 的 Pod 使用量统计
+// 需在 Nodes 和 Pods 都采集完成后调用
+func enrichNodePodCount(snapshot *cluster.ClusterSnapshot) {
+	// 统计每个 Node 上的 Pod 数量
+	podCountByNode := make(map[string]int, len(snapshot.Nodes))
+	for i := range snapshot.Pods {
+		nodeName := snapshot.Pods[i].Summary.NodeName
+		if nodeName != "" {
+			podCountByNode[nodeName]++
+		}
+	}
+
+	for i := range snapshot.Nodes {
+		node := &snapshot.Nodes[i]
+		if node.Metrics == nil {
+			continue
+		}
+
+		podCount := podCountByNode[node.GetName()]
+		podsCapacity := 0
+		if v := node.Allocatable.Pods; v != "" {
+			podsCapacity, _ = strconv.Atoi(v)
+		}
+		if podsCapacity == 0 {
+			if v := node.Capacity.Pods; v != "" {
+				podsCapacity, _ = strconv.Atoi(v)
+			}
+		}
+
+		var utilPct float64
+		if podsCapacity > 0 {
+			utilPct = math.Round(float64(podCount)/float64(podsCapacity)*10000) / 100
+		}
+		node.Metrics.Pods = cluster.PodCountMetric{
+			Used:     podCount,
+			Capacity: podsCapacity,
+			UtilPct:  utilPct,
 		}
 	}
 }

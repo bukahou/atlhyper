@@ -35,6 +35,7 @@ func (q *QueryService) ListClusters(ctx context.Context) ([]agent.ClusterInfo, e
 		if snapshot, err := q.store.GetSnapshot(a.ClusterID); err == nil && snapshot != nil {
 			info.NodeCount = len(snapshot.Nodes)
 			info.PodCount = len(snapshot.Pods)
+			info.OTelAvailable = snapshot.OTel != nil
 		}
 
 		result = append(result, info)

@@ -145,6 +145,10 @@ export interface CommonTranslations {
   retry: string;
   loadFailed: string;
   noCluster: string;
+  // OTel 可用性提示
+  otelRequired: string;
+  otelRequiredDesc: string;
+  otelRequiredHint: string;
   // 404 页面
   notFoundTitle: string;
   notFoundDescription: string;

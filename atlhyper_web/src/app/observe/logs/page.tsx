@@ -11,6 +11,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+import { OTelGuard } from "@/components/observe/OTelGuard";
 import { queryLogs, queryLogHistogram } from "@/datasource/logs";
 import { TimeRangePicker } from "@/components/common";
 import { toSince, toAbsoluteParams, toSpanMs } from "@/lib/time-range";
@@ -26,6 +27,14 @@ import { LogDetailDrawer } from "./components/LogDetail";
 import { LogFilterPills } from "./components/LogFilterPills";
 
 export default function LogsPage() {
+  return (
+    <OTelGuard>
+      <LogsPageContent />
+    </OTelGuard>
+  );
+}
+
+function LogsPageContent() {
   const { t } = useI18n();
   const tl = t.logs;
   const { currentClusterId } = useClusterStore();

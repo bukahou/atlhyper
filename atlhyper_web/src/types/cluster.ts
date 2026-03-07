@@ -11,6 +11,7 @@ export interface ClusterInfo {
   lastSeen: string;
   nodeCount: number;
   podCount: number;
+  otelAvailable: boolean;
 }
 
 // 旧集群信息类型（兼容）

@@ -140,6 +140,10 @@ export const ja: Translations = {
     retry: "再試行",
     loadFailed: "読み込み失敗",
     noCluster: "利用可能なクラスタがありません",
+    // OTel 可用性提示
+    otelRequired: "この機能には OTel データが必要です",
+    otelRequiredDesc: "現在のクラスタに OpenTelemetry + ClickHouse がデプロイされていないため、観測データ（Metrics / APM / Logs / SLO）を提供できません。",
+    otelRequiredHint: "OTel Collector と ClickHouse をデプロイしてから再試行するか、デプロイドキュメントを参照してデータソースを設定してください。",
     // 404 ページ
     notFoundTitle: "ページが見つかりません",
     notFoundDescription: "アクセスしたページは存在しないか、削除されました",

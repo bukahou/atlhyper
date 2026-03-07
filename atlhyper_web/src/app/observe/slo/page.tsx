@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { LoadingSpinner } from "@/components/common";
 import { useI18n } from "@/i18n/context";
+import { OTelGuard } from "@/components/observe/OTelGuard";
 import { getSLODomainsV2 } from "@/datasource/slo";
 import { getClusterList } from "@/api/cluster";
 import { getDataSourceMode } from "@/config/data-source";
@@ -25,6 +26,14 @@ type TimeRange = "1d" | "7d" | "30d";
 const REFRESH_INTERVAL = 30000;
 
 export default function SLOPage() {
+  return (
+    <OTelGuard>
+      <SLOPageContent />
+    </OTelGuard>
+  );
+}
+
+function SLOPageContent() {
   const { t } = useI18n();
   const sloT = t.slo;
   const [loading, setLoading] = useState(true);

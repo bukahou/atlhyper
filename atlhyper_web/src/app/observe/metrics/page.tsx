@@ -22,6 +22,9 @@ import {
   NodeCard,
 } from "./components";
 
+// OTel 可用性守卫
+import { OTelGuard } from "@/components/observe/OTelGuard";
+
 // 数据源代理层（自动切换 mock / api）
 import {
   getClusterNodeMetrics,
@@ -33,6 +36,14 @@ import type { NodeMetrics, Point } from "@/types/node-metrics";
 
 // ==================== 主页面 ====================
 export default function MetricsPage() {
+  return (
+    <OTelGuard>
+      <MetricsPageContent />
+    </OTelGuard>
+  );
+}
+
+function MetricsPageContent() {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
   const { currentClusterId } = useClusterStore();
