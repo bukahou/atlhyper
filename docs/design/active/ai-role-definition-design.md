@@ -54,8 +54,7 @@ AIOps Engine（基线/异常/事件）
 | **输出** | 结构化 JSON（摘要/根因/建议），持久化到 DB |
 | **Tool Calling** | 不需要（数据由 Engine 直接提供） |
 | **频率** | 高（每个 incident 至少一次） |
-| **模型要求** | 低成本、可用即可 |
-| **推荐 Provider** | Ollama（本地免费、无 API 配额限制） |
+| **模型倾向** | 低成本、可用即可（如 Ollama 本地、Gemini Flash） |
 
 ### chat（交互对话）
 
@@ -69,8 +68,7 @@ AIOps Engine（基线/异常/事件）
 | **输出** | 实时文本流 + Tool 调用过程展示 |
 | **Tool Calling** | 最多 5 轮 x 5 并行，用户可见每一步 |
 | **频率** | 中（用户按需） |
-| **模型要求** | 快速响应 + 强工具调用能力 |
-| **推荐 Provider** | Gemini Flash / GPT-4o-mini |
+| **模型倾向** | 快速响应 + 强工具调用能力（如 Gemini Flash、GPT-4o-mini） |
 
 ### analysis（深度分析）
 
@@ -84,8 +82,11 @@ AIOps Engine（基线/异常/事件）
 | **输出** | 结构化分析报告（根因链/证据/建议/历史对比） |
 | **Tool Calling** | 多轮自主调用（和 chat 共享 Tool，但无用户参与） |
 | **频率** | 低（仅重要/复杂事件） |
-| **模型要求** | 强推理 + 大上下文 |
-| **推荐 Provider** | Gemini Pro / Claude / GPT-4o |
+| **模型倾向** | 强推理 + 大上下文（如 Gemini Pro、Claude、GPT-4o） |
+
+> **角色与 Provider 不硬绑定**：任何角色可分配给任何 Provider，用户在 Web UI 随时切换。
+> 上述"模型倾向"仅为选型参考，不构成约束。上下文管理、Token 裁剪等自动适配当前 Provider 的模型能力。
+> 详见 [ai-role-routing-design.md](./ai-role-routing-design.md)。
 
 ---
 
