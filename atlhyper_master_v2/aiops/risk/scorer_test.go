@@ -69,10 +69,10 @@ func TestComputeLocalRisks_MultipleMetrics(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	// error_rate: 0.20 × 1.0 = 0.20
-	// avg_latency: 0.10 × 0.5 = 0.05
+	// error_rate: 0.10 × 1.0 = 0.10
+	// avg_latency: 0.05 × 0.5 = 0.025
 	// request_rate: not anomaly, skip
-	expected := 0.25
+	expected := 0.125
 	if diff := math.Abs(risks["default/service/api"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/service/api"])
 	}
@@ -88,8 +88,8 @@ func TestComputeLocalRisks_Clamped(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	// 0.20 + 0.10 + 0.10 = 0.40
-	expected := 0.40
+	// 0.10 + 0.05 + 0.05 = 0.20
+	expected := 0.20
 	if diff := math.Abs(risks["default/service/api"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/service/api"])
 	}
@@ -135,8 +135,8 @@ func TestComputeLocalRisks_ServiceStatistical(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	// 全 statistical → ch1 = 0.20×1.0 + 0.10×0.5 = 0.25
-	expected := 0.25
+	// 全 statistical → ch1 = 0.10×1.0 + 0.05×0.5 = 0.125
+	expected := 0.125
 	if diff := math.Abs(risks["default/service/api"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/service/api"])
 	}

@@ -40,16 +40,20 @@ func DefaultRiskConfig() *RiskConfig {
 		MetricConfigs: map[string]map[string]MetricConfig{
 			"service": {
 				// Basic: SLO 指标
-				"error_rate":   {Weight: 0.20, Channel: ChannelStatistical},
-				"avg_latency":  {Weight: 0.10, Channel: ChannelStatistical},
-				"request_rate": {Weight: 0.10, Channel: ChannelStatistical},
-				// Enhanced: APM 指标
-				"apm_error_rate":   {Weight: 0.25, Channel: ChannelStatistical},
-				"apm_p99_latency":  {Weight: 0.15, Channel: ChannelStatistical},
+				"error_rate":   {Weight: 0.10, Channel: ChannelStatistical},
+				"avg_latency":  {Weight: 0.05, Channel: ChannelStatistical},
+				"request_rate": {Weight: 0.05, Channel: ChannelStatistical},
+				// Enhanced: APM 统计指标
+				"apm_error_rate":   {Weight: 0.15, Channel: ChannelStatistical},
+				"apm_p99_latency":  {Weight: 0.10, Channel: ChannelStatistical},
 				"apm_rps":          {Weight: 0.05, Channel: ChannelStatistical},
-				// Enhanced: Log 指标
-				"log_error_count": {Weight: 0.10, Channel: ChannelStatistical},
+				// Enhanced: Log 统计指标
+				"log_error_count": {Weight: 0.05, Channel: ChannelStatistical},
 				"log_warn_count":  {Weight: 0.05, Channel: ChannelStatistical},
+				// Enhanced: 确定性异常（阈值直注，绕过冷启动）
+				"apm_high_error_rate":   {Weight: 0.20, Channel: ChannelDeterministic},
+				"apm_high_p99_latency":  {Weight: 0.15, Channel: ChannelDeterministic},
+				"deployment_impact":     {Weight: 0.05, Channel: ChannelDeterministic},
 			},
 			"pod": {
 				"restart_count":          {Weight: 0.20, Channel: ChannelBoth},
@@ -78,8 +82,9 @@ func DefaultRiskConfig() *RiskConfig {
 				"avg_latency": {Weight: 0.50, Channel: ChannelStatistical},
 			},
 			"logs": {
-				"log_error_count": {Weight: 0.60, Channel: ChannelStatistical},
-				"log_warn_count":  {Weight: 0.40, Channel: ChannelStatistical},
+				"log_error_count":  {Weight: 0.40, Channel: ChannelStatistical},
+				"log_warn_count":   {Weight: 0.20, Channel: ChannelStatistical},
+				"log_error_spike":  {Weight: 0.40, Channel: ChannelDeterministic},
 			},
 		},
 		TemporalHalfLife:    300,
