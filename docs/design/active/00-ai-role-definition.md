@@ -2,9 +2,9 @@
 
 > 状态: active | 创建: 2026-03-06
 > 关联文档:
-> - [ai-role-routing-design.md](./ai-role-routing-design.md) — 路由基础设施（Provider 分配/预算/上下文管理）
-> - [ai-background-analysis-design.md](./ai-background-analysis-design.md) — background + analysis 功能实现设计
-> - [ai-reports-persistence-design.md](./ai-reports-persistence-design.md) — 报告持久化（存储层设计）
+> - [03-ai-role-routing-design.md](./03-ai-role-routing-design.md) — 路由基础设施（Provider 分配/预算/上下文管理）
+> - [04-ai-background-analysis-design.md](./04-ai-background-analysis-design.md) — background + analysis 功能实现设计
+> - [02-ai-reports-storage-design.md](./02-ai-reports-storage-design.md) — 报告持久化（存储层设计）
 
 ## 概述
 
@@ -86,7 +86,7 @@ AIOps Engine（基线/异常/事件）
 
 > **角色与 Provider 不硬绑定**：任何角色可分配给任何 Provider，用户在 Web UI 随时切换。
 > 上述"模型倾向"仅为选型参考，不构成约束。上下文管理、Token 裁剪等自动适配当前 Provider 的模型能力。
-> 详见 [ai-role-routing-design.md](./ai-role-routing-design.md)。
+> 详见 [03-ai-role-routing-design.md](./03-ai-role-routing-design.md)。
 
 ---
 
@@ -110,7 +110,7 @@ AIOps Engine（基线/异常/事件）
 | **background** | `aiops/ai/enhancer.go` -> `Summarize` | 基本可用（单轮 LLM，手动触发），需改为自动触发 |
 | **analysis** | -- | 未实现（无代码路径） |
 
-详细实现设计见 [ai-background-analysis-design.md](./ai-background-analysis-design.md)。
+详细实现设计见 [04-ai-background-analysis-design.md](./04-ai-background-analysis-design.md)。
 
 ---
 

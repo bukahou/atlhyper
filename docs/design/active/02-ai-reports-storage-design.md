@@ -2,9 +2,9 @@
 
 > 状态: active | 创建: 2026-03-07
 > 关联文档:
-> - [ai-role-definition-design.md](./ai-role-definition-design.md) — 三个角色定义
-> - [ai-background-analysis-design.md](./ai-background-analysis-design.md) — background + analysis 功能实现
-> - [aiops-tiered-design.md](./aiops-tiered-design.md) — AIOps 分层架构（数据源）
+> - [00-ai-role-definition.md](./00-ai-role-definition.md) — 三个角色定义
+> - [04-ai-background-analysis-design.md](./04-ai-background-analysis-design.md) — background + analysis 功能实现
+> - [01-aiops-data-tiered-design.md](./01-aiops-data-tiered-design.md) — AIOps 分层架构（数据源）
 
 ## 1. 背景
 
@@ -317,7 +317,7 @@ AIOps → 巡检报告
 | 7 | `master.go` | 修改 | 注入 AIReportRepository |
 | **合计** | | **1 新增 + 6 修改** | |
 
-> analysis 角色的执行逻辑（AnalysisService）属于 [ai-background-analysis-design.md](./ai-background-analysis-design.md) 的范畴，本文档只定义存储层。
+> analysis 角色的执行逻辑（AnalysisService）属于 [04-ai-background-analysis-design.md](./04-ai-background-analysis-design.md) 的范畴，本文档只定义存储层。
 
 ---
 

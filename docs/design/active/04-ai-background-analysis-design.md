@@ -2,9 +2,9 @@
 
 > 状态: active (讨论中) | 创建: 2026-03-06
 > 关联文档:
-> - [ai-role-definition-design.md](./ai-role-definition-design.md) — 角色定义（是什么）
-> - [ai-role-routing-design.md](./ai-role-routing-design.md) — 路由基础设施（Provider 分配/预算/上下文管理）
-> - [ai-reports-persistence-design.md](./ai-reports-persistence-design.md) — 报告持久化（存储层设计）
+> - [00-ai-role-definition.md](./00-ai-role-definition.md) — 角色定义（是什么）
+> - [03-ai-role-routing-design.md](./03-ai-role-routing-design.md) — 路由基础设施（Provider 分配/预算/上下文管理）
+> - [02-ai-reports-storage-design.md](./02-ai-reports-storage-design.md) — 报告持久化（存储层设计）
 
 ## 概述
 

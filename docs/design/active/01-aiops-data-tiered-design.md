@@ -2,8 +2,8 @@
 
 > 状态: active | 创建: 2026-03-06
 > 关联文档:
-> - [ai-background-analysis-design.md](./ai-background-analysis-design.md) — AI 角色实现（依赖本文档）
-> - [ai-role-definition-design.md](./ai-role-definition-design.md) — AI 角色定义
+> - [04-ai-background-analysis-design.md](./04-ai-background-analysis-design.md) — AI 角色实现（依赖本文档）
+> - [00-ai-role-definition.md](./00-ai-role-definition.md) — AI 角色定义
 
 ## 1. 背景
 
