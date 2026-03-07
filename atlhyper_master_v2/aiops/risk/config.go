@@ -39,9 +39,17 @@ func DefaultRiskConfig() *RiskConfig {
 	return &RiskConfig{
 		MetricConfigs: map[string]map[string]MetricConfig{
 			"service": {
-				"error_rate":   {Weight: 0.40, Channel: ChannelStatistical},
-				"avg_latency":  {Weight: 0.30, Channel: ChannelStatistical},
-				"request_rate": {Weight: 0.20, Channel: ChannelStatistical},
+				// Basic: SLO 指标
+				"error_rate":   {Weight: 0.20, Channel: ChannelStatistical},
+				"avg_latency":  {Weight: 0.10, Channel: ChannelStatistical},
+				"request_rate": {Weight: 0.10, Channel: ChannelStatistical},
+				// Enhanced: APM 指标
+				"apm_error_rate":   {Weight: 0.25, Channel: ChannelStatistical},
+				"apm_p99_latency":  {Weight: 0.15, Channel: ChannelStatistical},
+				"apm_rps":          {Weight: 0.05, Channel: ChannelStatistical},
+				// Enhanced: Log 指标
+				"log_error_count": {Weight: 0.10, Channel: ChannelStatistical},
+				"log_warn_count":  {Weight: 0.05, Channel: ChannelStatistical},
 			},
 			"pod": {
 				"restart_count":          {Weight: 0.20, Channel: ChannelBoth},
@@ -53,16 +61,25 @@ func DefaultRiskConfig() *RiskConfig {
 				"deployment_impact":      {Weight: 0.25, Channel: ChannelDeterministic},
 			},
 			"node": {
-				"memory_usage": {Weight: 0.25, Channel: ChannelStatistical},
-				"cpu_usage":    {Weight: 0.25, Channel: ChannelStatistical},
-				"disk_usage":   {Weight: 0.20, Channel: ChannelStatistical},
-				"psi_cpu":      {Weight: 0.10, Channel: ChannelStatistical},
-				"psi_memory":   {Weight: 0.10, Channel: ChannelStatistical},
-				"psi_io":       {Weight: 0.10, Channel: ChannelStatistical},
+				// Basic: K8s Metrics Server
+				"cpu_usage":       {Weight: 0.20, Channel: ChannelStatistical},
+				"memory_usage":    {Weight: 0.20, Channel: ChannelStatistical},
+				"memory_pressure": {Weight: 0.10, Channel: ChannelDeterministic},
+				"disk_pressure":   {Weight: 0.05, Channel: ChannelDeterministic},
+				"pid_pressure":    {Weight: 0.05, Channel: ChannelDeterministic},
+				// Enhanced: OTel 深度指标
+				"disk_usage":  {Weight: 0.15, Channel: ChannelStatistical},
+				"psi_cpu":     {Weight: 0.10, Channel: ChannelStatistical},
+				"psi_memory":  {Weight: 0.10, Channel: ChannelStatistical},
+				"psi_io":      {Weight: 0.05, Channel: ChannelStatistical},
 			},
 			"ingress": {
 				"error_rate":  {Weight: 0.50, Channel: ChannelStatistical},
 				"avg_latency": {Weight: 0.50, Channel: ChannelStatistical},
+			},
+			"logs": {
+				"log_error_count": {Weight: 0.60, Channel: ChannelStatistical},
+				"log_warn_count":  {Weight: 0.40, Channel: ChannelStatistical},
 			},
 		},
 		TemporalHalfLife:    300,

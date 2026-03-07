@@ -51,8 +51,11 @@ func (e *engine) OnSnapshot(clusterID string) {
 		return
 	}
 
+	// 获取 OTel 数据（直接从 snap.OTel 读取，非 Ring Buffer）
+	otel := snap.OTel
+
 	// 1. 构建并更新依赖图
-	graph := correlator.BuildFromSnapshot(clusterID, snap)
+	graph := correlator.BuildFromSnapshot(clusterID, snap, otel)
 	e.corr.Update(clusterID, graph)
 
 	// 持久化图快照（异步，不阻塞主流程）
@@ -67,12 +70,7 @@ func (e *engine) OnSnapshot(clusterID string) {
 		}
 	}()
 
-	// 获取最新 OTelSnapshot（SLO 指标来源）
-	var otel *cluster.OTelSnapshot
-	timeline, _ := e.store.GetOTelTimeline(clusterID, time.Now().Add(-30*time.Second))
-	if len(timeline) > 0 {
-		otel = timeline[len(timeline)-1].Snapshot
-	}
+	// otel 已在上方从 snap.OTel 获取（直接读取，非 Ring Buffer）
 
 	// 2. 清理已不存在于快照中的实体基线状态（防止滚动更新后旧 Pod 状态残留）
 	activeKeys := extractActiveEntityKeys(snap, otel)
@@ -90,6 +88,10 @@ func (e *engine) OnSnapshot(clusterID string) {
 
 	// 路径 B: 确定性异常直注（绕过冷启动）
 	deterministicResults := baseline.ExtractDeterministicAnomalies(snap)
+	// Enhanced: OTel 确定性异常（APM 高错误率/高延迟、日志错误尖峰）
+	// otel==nil 时函数内部直接 return nil，不影响 Basic 层
+	otelDeterministic := baseline.ExtractOTelDeterministicAnomalies(otel)
+	deterministicResults = append(deterministicResults, otelDeterministic...)
 	results = mergeAnomalyResults(results, deterministicResults)
 
 	// 缓存异常结果
@@ -588,6 +590,14 @@ func extractActiveEntityKeys(snap *cluster.ClusterSnapshot, otel *cluster.OTelSn
 		}
 		for _, ing := range otel.SLOIngress {
 			keys[aiops.EntityKey("_cluster", "ingress", ing.ServiceKey)] = true
+		}
+		// Enhanced: APM 服务实体
+		for _, svc := range otel.APMServices {
+			keys[aiops.EntityKey(svc.Namespace, "service", svc.Name)] = true
+		}
+		// Enhanced: logs 虚拟实体
+		if otel.LogsSummary != nil {
+			keys[aiops.EntityKey("_cluster", "logs", "global")] = true
 		}
 	}
 	return keys

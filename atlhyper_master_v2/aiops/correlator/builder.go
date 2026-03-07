@@ -8,7 +8,8 @@ import (
 )
 
 // BuildFromSnapshot 从快照构建完整依赖图
-func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot) *aiops.DependencyGraph {
+// otel 参数独立传入（而非从 snap.OTel 读取），便于 AIOps 引擎控制数据源
+func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot, otel *cluster.OTelSnapshot) *aiops.DependencyGraph {
 	g := aiops.NewDependencyGraph(clusterID)
 
 	// 1. Pod → Node (runs_on)
@@ -61,15 +62,52 @@ func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot) *aiops.D
 		}
 	}
 
-	// 4. Service → Service (calls, 从 SLO Edge 数据)
-	if snap.OTel != nil {
-		for _, edge := range snap.OTel.SLOEdges {
+	// 4. Service → Service (calls, 从 SLO Edge + APM Topology，去重)
+	if otel != nil {
+		edgeSet := make(map[string]bool) // "srcKey->dstKey" 去重
+
+		// 4a. SLO 边
+		for _, edge := range otel.SLOEdges {
 			srcKey := aiops.EntityKey(edge.SrcNamespace, "service", edge.SrcName)
 			dstKey := aiops.EntityKey(edge.DstNamespace, "service", edge.DstName)
-			// 确保节点存在
+			dedupKey := srcKey + "->" + dstKey
+			if edgeSet[dedupKey] {
+				continue
+			}
+			edgeSet[dedupKey] = true
 			g.AddNode(srcKey, "service", edge.SrcNamespace, edge.SrcName, nil)
 			g.AddNode(dstKey, "service", edge.DstNamespace, edge.DstName, nil)
 			g.AddEdge(srcKey, dstKey, "calls", 1.0)
+		}
+
+		// 4b. APM 拓扑边
+		if otel.APMTopology != nil {
+			// 构建 nodeId → namespace 索引
+			nsIndex := make(map[string]string, len(otel.APMTopology.Nodes))
+			for _, n := range otel.APMTopology.Nodes {
+				nsIndex[n.Id] = n.Namespace
+			}
+
+			for _, edge := range otel.APMTopology.Edges {
+				srcNs := nsIndex[edge.Source]
+				dstNs := nsIndex[edge.Target]
+				if srcNs == "" {
+					srcNs = "_cluster"
+				}
+				if dstNs == "" {
+					dstNs = "_cluster"
+				}
+				srcKey := aiops.EntityKey(srcNs, "service", edge.Source)
+				dstKey := aiops.EntityKey(dstNs, "service", edge.Target)
+				dedupKey := srcKey + "->" + dstKey
+				if edgeSet[dedupKey] {
+					continue
+				}
+				edgeSet[dedupKey] = true
+				g.AddNode(srcKey, "service", srcNs, edge.Source, nil)
+				g.AddNode(dstKey, "service", dstNs, edge.Target, nil)
+				g.AddEdge(srcKey, dstKey, "calls", 1.0)
+			}
 		}
 	}
 

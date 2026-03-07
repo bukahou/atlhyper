@@ -59,7 +59,7 @@ func TestComputeLocalRisks_SingleAnomaly(t *testing.T) {
 	}
 }
 
-// Service: all statistical → 行为不变
+// Service: all statistical
 func TestComputeLocalRisks_MultipleMetrics(t *testing.T) {
 	anomalies := []*aiops.AnomalyResult{
 		{EntityKey: "default/service/api", MetricName: "error_rate", IsAnomaly: true, Score: 1.0},
@@ -69,16 +69,16 @@ func TestComputeLocalRisks_MultipleMetrics(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	// error_rate: 0.40 × 1.0 = 0.40
-	// avg_latency: 0.30 × 0.5 = 0.15
+	// error_rate: 0.20 × 1.0 = 0.20
+	// avg_latency: 0.10 × 0.5 = 0.05
 	// request_rate: not anomaly, skip
-	expected := 0.55
+	expected := 0.25
 	if diff := math.Abs(risks["default/service/api"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/service/api"])
 	}
 }
 
-// Service: all statistical, clamped → 行为不变
+// Service: all statistical, clamped
 func TestComputeLocalRisks_Clamped(t *testing.T) {
 	anomalies := []*aiops.AnomalyResult{
 		{EntityKey: "default/service/api", MetricName: "error_rate", IsAnomaly: true, Score: 1.0},
@@ -88,8 +88,8 @@ func TestComputeLocalRisks_Clamped(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	// 0.40 + 0.30 + 0.20 = 0.90 (within [0,1])
-	expected := 0.90
+	// 0.20 + 0.10 + 0.10 = 0.40
+	expected := 0.40
 	if diff := math.Abs(risks["default/service/api"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/service/api"])
 	}
@@ -112,7 +112,7 @@ func TestComputeLocalRisks_UnknownMetric(t *testing.T) {
 
 // ==================== 回归测试 (Node/Service/Ingress 行为不变) ====================
 
-func TestComputeLocalRisks_NodeStatistical_Unchanged(t *testing.T) {
+func TestComputeLocalRisks_NodeStatistical(t *testing.T) {
 	anomalies := []*aiops.AnomalyResult{
 		{EntityKey: "_cluster/node/node1", MetricName: "cpu_usage", IsAnomaly: true, Score: 0.85},
 		{EntityKey: "_cluster/node/node1", MetricName: "memory_usage", IsAnomaly: true, Score: 0.70},
@@ -120,14 +120,14 @@ func TestComputeLocalRisks_NodeStatistical_Unchanged(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	// 全 statistical → ch1 = 0.25×0.85 + 0.25×0.70 = 0.3875, ch2 = 0
-	expected := 0.3875
+	// 全 statistical → ch1 = 0.20×0.85 + 0.20×0.70 = 0.31, ch2 = 0
+	expected := 0.31
 	if diff := math.Abs(risks["_cluster/node/node1"] - expected); diff > 0.001 {
 		t.Errorf("expected %.4f, got %.4f", expected, risks["_cluster/node/node1"])
 	}
 }
 
-func TestComputeLocalRisks_ServiceStatistical_Unchanged(t *testing.T) {
+func TestComputeLocalRisks_ServiceStatistical(t *testing.T) {
 	anomalies := []*aiops.AnomalyResult{
 		{EntityKey: "default/service/api", MetricName: "error_rate", IsAnomaly: true, Score: 1.0},
 		{EntityKey: "default/service/api", MetricName: "avg_latency", IsAnomaly: true, Score: 0.5},
@@ -135,8 +135,8 @@ func TestComputeLocalRisks_ServiceStatistical_Unchanged(t *testing.T) {
 	config := DefaultRiskConfig()
 
 	risks := ComputeLocalRisks(anomalies, config)
-	// 全 statistical → ch1 = 0.40×1.0 + 0.30×0.5 = 0.55
-	expected := 0.55
+	// 全 statistical → ch1 = 0.20×1.0 + 0.10×0.5 = 0.25
+	expected := 0.25
 	if diff := math.Abs(risks["default/service/api"] - expected); diff > 0.001 {
 		t.Errorf("expected %.3f, got %.3f", expected, risks["default/service/api"])
 	}
@@ -613,5 +613,82 @@ func TestClusterRiskLevel(t *testing.T) {
 		if got != tt.expected {
 			t.Errorf("ClusterRiskLevel(%.0f) = %s, want %s", tt.risk, got, tt.expected)
 		}
+	}
+}
+
+// ==================== Enhanced: 权重配置测试 ====================
+
+func TestServiceWeights_Enhanced(t *testing.T) {
+	config := DefaultRiskConfig()
+	serviceConfigs := config.GetMetricConfigs("service")
+
+	// Enhanced 后 service 应包含 APM 和 Log 指标
+	requiredMetrics := []string{
+		"error_rate", "avg_latency", "request_rate", // Basic SLO
+		"apm_error_rate", "apm_p99_latency",         // Enhanced APM
+		"log_error_count",                            // Enhanced Log
+	}
+	for _, name := range requiredMetrics {
+		if _, ok := serviceConfigs[name]; !ok {
+			t.Errorf("service 权重配置缺少指标: %s", name)
+		}
+	}
+
+	// 权重之和 = 1.0
+	var sum float64
+	for _, cfg := range serviceConfigs {
+		sum += cfg.Weight
+	}
+	if math.Abs(sum-1.0) > 0.001 {
+		t.Errorf("service 权重之和应为 1.0, got %.3f", sum)
+	}
+}
+
+func TestNodeWeights_Enhanced(t *testing.T) {
+	config := DefaultRiskConfig()
+	nodeConfigs := config.GetMetricConfigs("node")
+
+	// Enhanced 后 node 应包含磁盘和 PSI 指标
+	requiredMetrics := []string{
+		"cpu_usage", "memory_usage",     // Basic
+		"disk_usage",                    // Enhanced
+		"psi_cpu", "psi_memory", "psi_io", // Enhanced
+	}
+	for _, name := range requiredMetrics {
+		if _, ok := nodeConfigs[name]; !ok {
+			t.Errorf("node 权重配置缺少指标: %s", name)
+		}
+	}
+
+	// 权重之和 = 1.0
+	var sum float64
+	for _, cfg := range nodeConfigs {
+		sum += cfg.Weight
+	}
+	if math.Abs(sum-1.0) > 0.001 {
+		t.Errorf("node 权重之和应为 1.0, got %.3f", sum)
+	}
+}
+
+func TestLogsEntityWeights(t *testing.T) {
+	config := DefaultRiskConfig()
+	logsConfigs := config.GetMetricConfigs("logs")
+
+	if len(logsConfigs) == 0 {
+		t.Fatal("logs 实体类型权重配置不存在")
+	}
+
+	// 应包含 log_error_count
+	if _, ok := logsConfigs["log_error_count"]; !ok {
+		t.Error("logs 权重配置缺少 log_error_count")
+	}
+
+	// 权重之和 = 1.0
+	var sum float64
+	for _, cfg := range logsConfigs {
+		sum += cfg.Weight
+	}
+	if math.Abs(sum-1.0) > 0.001 {
+		t.Errorf("logs 权重之和应为 1.0, got %.3f", sum)
 	}
 }

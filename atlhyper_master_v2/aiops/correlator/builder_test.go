@@ -4,13 +4,14 @@ package correlator
 import (
 	"testing"
 
+	"AtlHyper/model_v3/apm"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/slo"
 )
 
 func TestBuildFromSnapshot_Empty(t *testing.T) {
 	snap := &cluster.ClusterSnapshot{}
-	graph := BuildFromSnapshot("test-cluster", snap)
+	graph := BuildFromSnapshot("test-cluster", snap, snap.OTel)
 
 	if graph == nil {
 		t.Fatal("graph should not be nil")
@@ -45,7 +46,7 @@ func TestBuildFromSnapshot_PodToNode(t *testing.T) {
 		},
 	}
 
-	graph := BuildFromSnapshot("test", snap)
+	graph := BuildFromSnapshot("test", snap, snap.OTel)
 
 	// 应有 pod + node 节点
 	if len(graph.Nodes) < 2 {
@@ -85,7 +86,7 @@ func TestBuildFromSnapshot_ServiceSelectsPod(t *testing.T) {
 		},
 	}
 
-	graph := BuildFromSnapshot("test", snap)
+	graph := BuildFromSnapshot("test", snap, snap.OTel)
 
 	// 应有 selects 边从 service 到匹配的 pod
 	selectsEdges := 0
@@ -137,7 +138,7 @@ func TestBuildFromSnapshot_IngressRoutesToService(t *testing.T) {
 		},
 	}
 
-	graph := BuildFromSnapshot("test", snap)
+	graph := BuildFromSnapshot("test", snap, snap.OTel)
 
 	// 检查 routes_to 边: ingress 节点 key 使用 ingress 资源名而非 host
 	found := false
@@ -171,7 +172,7 @@ func TestBuildFromSnapshot_SLOCalls(t *testing.T) {
 		},
 	}
 
-	graph := BuildFromSnapshot("test", snap)
+	graph := BuildFromSnapshot("test", snap, snap.OTel)
 
 	// 检查 calls 边
 	found := false
@@ -188,5 +189,104 @@ func TestBuildFromSnapshot_SLOCalls(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("should have calls edge from SLO data")
+	}
+}
+
+// ==================== Enhanced: APM 拓扑边 ====================
+
+func TestBuildFromSnapshot_APMTopologyEdges(t *testing.T) {
+	otel := &cluster.OTelSnapshot{
+		APMTopology: &apm.Topology{
+			Nodes: []apm.TopologyNode{
+				{Id: "api-gateway", Name: "api-gateway", Namespace: "default"},
+				{Id: "user-svc", Name: "user-svc", Namespace: "default"},
+			},
+			Edges: []apm.TopologyEdge{
+				{Source: "api-gateway", Target: "user-svc", CallCount: 1000, AvgMs: 50, ErrorRate: 0.02},
+			},
+		},
+	}
+	snap := &cluster.ClusterSnapshot{}
+	graph := BuildFromSnapshot("test", snap, otel)
+
+	// 检查 calls 边
+	found := false
+	for _, edge := range graph.Edges {
+		if edge.Type == "calls" {
+			found = true
+			if edge.From != "default/service/api-gateway" {
+				t.Fatalf("APM calls edge from should be src service, got %s", edge.From)
+			}
+			if edge.To != "default/service/user-svc" {
+				t.Fatalf("APM calls edge to should be dst service, got %s", edge.To)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("should have calls edge from APM topology")
+	}
+}
+
+func TestBuildFromSnapshot_EdgeDedup(t *testing.T) {
+	otel := &cluster.OTelSnapshot{
+		// SLO 边：api-gateway→user-svc + api-gateway→order-svc
+		SLOEdges: []slo.ServiceEdge{
+			{SrcNamespace: "default", SrcName: "api-gateway", DstNamespace: "default", DstName: "user-svc"},
+			{SrcNamespace: "default", SrcName: "api-gateway", DstNamespace: "default", DstName: "order-svc"},
+		},
+		// APM 边：api-gateway→user-svc（与 SLO 重复）
+		APMTopology: &apm.Topology{
+			Nodes: []apm.TopologyNode{
+				{Id: "api-gateway", Name: "api-gateway", Namespace: "default"},
+				{Id: "user-svc", Name: "user-svc", Namespace: "default"},
+			},
+			Edges: []apm.TopologyEdge{
+				{Source: "api-gateway", Target: "user-svc", CallCount: 500},
+			},
+		},
+	}
+	snap := &cluster.ClusterSnapshot{}
+	graph := BuildFromSnapshot("test", snap, otel)
+
+	// 统计 calls 边数
+	callsCount := 0
+	for _, edge := range graph.Edges {
+		if edge.Type == "calls" {
+			callsCount++
+		}
+	}
+
+	// SLO 有 2 条 + APM 有 1 条（与 SLO 重复） → 去重后 = 2
+	if callsCount != 2 {
+		t.Fatalf("expected 2 calls edges after dedup, got %d", callsCount)
+	}
+}
+
+func TestBuildFromSnapshot_NilOTel(t *testing.T) {
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
+			{Summary: cluster.PodSummary{Name: "pod-1", Namespace: "default", NodeName: "node-1"}},
+		},
+		Nodes: []cluster.Node{
+			{Summary: cluster.NodeSummary{Name: "node-1"}},
+		},
+	}
+	graph := BuildFromSnapshot("test", snap, nil)
+
+	// 不 panic，且 K8s 边仍正常
+	if graph == nil {
+		t.Fatal("graph should not be nil")
+	}
+	runsOnFound := false
+	for _, edge := range graph.Edges {
+		if edge.Type == "runs_on" {
+			runsOnFound = true
+		}
+		if edge.Type == "calls" {
+			t.Fatal("nil otel should not produce calls edges")
+		}
+	}
+	if !runsOnFound {
+		t.Fatal("should have runs_on edge even with nil otel")
 	}
 }

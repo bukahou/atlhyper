@@ -94,7 +94,11 @@ AIOps Enhanced 层需要 APMTopology（拓扑边）、LogsSummary（日志指标
 
 ### 2.1 Basic 层（K8s 原生）
 
-**前置条件**：Agent + Master 部署即可。Node 指标需要集群安装 Metrics Server（K8s 标配组件）。
+**前置条件**：Agent + Master 部署即可。
+
+> ⚠️ **现状注意**：当前 AIOps 的 Node 指标**全部从 `snap.OTel.MetricsNodes` 读取**（依赖 ClickHouse），
+> 属于 Enhanced 层。Basic 层目前**没有 Node 指标能力**。
+> 下方 2.1.2 描述的改造将让 Basic 层也能从 K8s Metrics Server 获取 Node CPU/Memory/Pressure。
 
 #### 2.1.1 现有能力（已实现）
 
@@ -108,12 +112,23 @@ AIOps Enhanced 层需要 APMTopology（拓扑边）、LogsSummary（日志指标
 | 风险评分 + 传播 | 3 阶段 Scorer（局部→时序→传播） | ✅ 已实现 |
 | 状态机 + 事件管理 | Healthy→Warning→Incident→Recovery→Stable | ✅ 已实现 |
 
+> **注意**：上述已实现能力**不包含 Node 指标**。当前 Node CPU/Memory/Disk/PSI 全部来自 OTel（ClickHouse），
+> `snap.OTel == nil` 时 `extractNodeMetrics()` 直接返回空。
+
 #### 2.1.2 需要新增的能力（本次改造）
 
 | 能力 | 数据源 | 说明 |
 |------|--------|------|
-| **Node CPU/Memory 异常检测** | `snap.Nodes[].Metrics`（K8s Metrics Server） | 当前只从 `snap.OTel.MetricsNodes` 读取（依赖 ClickHouse），需改为优先读 Metrics Server |
+| **Node CPU/Memory 异常检测** | `snap.Nodes[].Metrics`（K8s Metrics Server） | **当前问题**：`extractNodeMetrics()` 只从 `snap.OTel.MetricsNodes` 读取（依赖 ClickHouse），需改为优先读 K8s Metrics Server |
 | **Node 压力标志确定性异常** | `snap.Nodes[].Metrics.Pressure`（K8s Node Conditions） | MemoryPressure/DiskPressure/PIDPressure = 确定性异常 |
+
+**改造前后对比**：
+
+| | 改造前（现状） | 改造后（目标） |
+|--|---------------|---------------|
+| Node CPU/Memory 数据源 | 仅 `snap.OTel.MetricsNodes`（ClickHouse） | 优先 `snap.Nodes[].Metrics`（K8s Metrics Server），OTel 兜底 |
+| 无 OTel 时 Node 指标 | ❌ 完全没有 | ✅ 有 CPU/Memory/Pressure（Basic 层） |
+| Node Pressure 检测 | ❌ 未实现 | ✅ 确定性异常（Basic 层） |
 
 **关键修正**：当前 `extractNodeMetrics()` 只从 `snap.OTel.MetricsNodes` 读取，这依赖 ClickHouse。但 Agent 已通过 K8s Metrics Server API 采集 Node 资源使用率，数据存在 `snap.Nodes[].Metrics` 中：
 
@@ -168,7 +183,7 @@ type NodeResourceUsage struct {
 
 | 能力 | 数据源 | 现状 |
 |------|--------|------|
-| Node 深度指标（Disk/PSI） | `otel.MetricsNodes`（node_exporter → ClickHouse） | ✅ 已实现 |
+| Node 全部指标（CPU/Mem/Disk/PSI） | `otel.MetricsNodes`（node_exporter → ClickHouse） | ✅ 已实现（**注意**：改造后 CPU/Memory 将移至 Basic 层，此处仅保留 Disk/PSI） |
 | SLO 指标（Mesh） | `otel.SLOServices`（Linkerd Proxy） | ✅ 已实现 |
 | SLO 指标（Ingress） | `otel.SLOIngress`（Traefik） | ✅ 已实现 |
 | SLO 调用边 | `snap.OTel.SLOEdges`（Linkerd） | ✅ 已实现 |
@@ -659,6 +674,17 @@ func extractActiveEntityKeys(snap *cluster.ClusterSnapshot, otel *cluster.OTelSn
 
 ## 4. 降级行为矩阵
 
+### 4.1 改造前（现状）
+
+| 部署场景 | Node 指标 | Service 指标 | 依赖图边 | 确定性异常 |
+|---------|----------|-------------|---------|----------|
+| **纯 K8s（无 OTel）** | **无** | 无 | K8s 拓扑 | Container + Event + Deployment |
+| **+ ClickHouse（OTel）** | CPU + Mem + Disk + PSI（全部来自 OTel） | + SLO | + SLO Edge | 同上 |
+
+> 现状问题：没有 OTel 就完全没有 Node 指标，即使集群有 Metrics Server 也不使用。
+
+### 4.2 改造后（目标）
+
 | 部署场景 | Node 指标 | Service 指标 | 依赖图边 | 确定性异常 |
 |---------|----------|-------------|---------|----------|
 | **纯 K8s（无 Metrics Server）** | 无 | 无 | K8s 拓扑 | Container + Event + Deployment |
@@ -841,7 +867,7 @@ go test ./atlhyper_master_v2/aiops/correlator/ -v -run TestBuildFromSnapshot_Edg
 go test ./atlhyper_master_v2/aiops/risk/ -v -run TestServiceRisk_WithAPM
 ```
 
-### 9.1 降级验证
+### 9.1 降级验证（改造后预期行为）
 
 | 测试场景 | 预期行为 |
 |---------|---------|
@@ -858,7 +884,7 @@ go test ./atlhyper_master_v2/aiops/risk/ -v -run TestServiceRisk_WithAPM
 | 问题 | 决策 |
 |------|------|
 | 两层如何切换 | **不切换**：nil 保护自动降级，数据驱动而非配置驱动 |
-| Basic 层 Node 指标来源 | **K8s Metrics Server**（`snap.Nodes[].Metrics`），OTel 兜底 |
+| Basic 层 Node 指标来源 | **改造后**：优先 K8s Metrics Server（`snap.Nodes[].Metrics`），OTel 兜底。**现状**：全部来自 OTel |
 | Basic 层 Node 压力 | **确定性异常**：MemoryPressure/DiskPressure/PIDPressure |
 | APM 和 SLO 指标是否互斥 | **共存**：同一 service 可同时有 SLO 和 APM 指标 |
 | Enhanced 权重在 Basic 下是否影响评分 | **不影响**：无数据 = 无指标点 = Scorer 自动归一化 |

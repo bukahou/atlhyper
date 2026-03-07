@@ -17,17 +17,21 @@ func ExtractMetrics(
 ) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
 
-	// 1. Node 指标（从 OTelSnapshot.MetricsNodes）
+	// 1. Node 指标（从 K8s Metrics Server: snap.Nodes[].Metrics）
 	points = append(points, extractNodeMetrics(snap)...)
 
 	// 2. Pod 指标（从 K8s 快照）
 	points = append(points, extractPodMetrics(snap)...)
 
-	// 3. Service 指标（从 OTelSnapshot.SLOServices）
+	// 3. OTel 信号（SLO + APM + Log + Enhanced Node）
 	if otel != nil {
+		// Basic SLO
 		points = append(points, extractServiceMetrics(otel)...)
-		// 4. Ingress 指标（从 OTelSnapshot.SLOIngress）
 		points = append(points, extractIngressMetrics(otel)...)
+		// Enhanced: APM / Log / 深度 Node（函数实现在 extractor_enhanced.go）
+		points = append(points, extractAPMMetrics(otel)...)
+		points = append(points, extractLogMetrics(otel)...)
+		points = append(points, extractEnhancedNodeMetrics(otel)...)
 	}
 
 	return points
@@ -35,26 +39,27 @@ func ExtractMetrics(
 
 func extractNodeMetrics(snap *cluster.ClusterSnapshot) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
-	if snap.OTel == nil {
-		return points
-	}
-	for i := range snap.OTel.MetricsNodes {
-		nm := &snap.OTel.MetricsNodes[i]
-		key := aiops.EntityKey("_cluster", "node", nm.NodeName)
-		points = append(points,
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "cpu_usage", Value: nm.CPU.UsagePct},
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "memory_usage", Value: nm.Memory.UsagePct},
-		)
-		if disk := nm.GetPrimaryDisk(); disk != nil {
+
+	// 从 K8s Metrics Server 数据读取（snap.Nodes[].Metrics）
+	// 不依赖 OTel/ClickHouse，Agent + Master 即可工作
+	for i := range snap.Nodes {
+		node := &snap.Nodes[i]
+		if node.Metrics == nil {
+			continue
+		}
+		key := aiops.EntityKey("_cluster", "node", node.GetName())
+
+		// CPU/Memory 使用率（来自 K8s Metrics Server）
+		if node.Metrics.CPU.UtilPct > 0 {
 			points = append(points,
-				aiops.MetricDataPoint{EntityKey: key, MetricName: "disk_usage", Value: disk.UsagePct},
+				aiops.MetricDataPoint{EntityKey: key, MetricName: "cpu_usage", Value: node.Metrics.CPU.UtilPct},
 			)
 		}
-		points = append(points,
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_cpu", Value: nm.PSI.CPUSomePct},
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_memory", Value: nm.PSI.MemSomePct},
-			aiops.MetricDataPoint{EntityKey: key, MetricName: "psi_io", Value: nm.PSI.IOSomePct},
-		)
+		if node.Metrics.Memory.UtilPct > 0 {
+			points = append(points,
+				aiops.MetricDataPoint{EntityKey: key, MetricName: "memory_usage", Value: node.Metrics.Memory.UtilPct},
+			)
+		}
 	}
 	return points
 }
@@ -124,6 +129,44 @@ func ExtractDeterministicAnomalies(snap *cluster.ClusterSnapshot) []*aiops.Anoma
 	// 路径 B3: Deployment 影响比例异常
 	results = append(results, extractDeploymentImpact(snap, now)...)
 
+	// 路径 B4: Node 压力确定性异常（来自 K8s Node Conditions，不依赖 OTel）
+	results = append(results, extractNodePressure(snap, now)...)
+
+	return results
+}
+
+// extractNodePressure 从 Node Conditions 提取确定性压力异常
+func extractNodePressure(snap *cluster.ClusterSnapshot, now int64) []*aiops.AnomalyResult {
+	var results []*aiops.AnomalyResult
+	for i := range snap.Nodes {
+		node := &snap.Nodes[i]
+		if node.Metrics == nil {
+			continue
+		}
+		key := aiops.EntityKey("_cluster", "node", node.GetName())
+
+		if node.Metrics.Pressure.MemoryPressure {
+			results = append(results, &aiops.AnomalyResult{
+				EntityKey: key, MetricName: "memory_pressure",
+				CurrentValue: 1, Baseline: 0, Deviation: 10,
+				Score: 0.85, IsAnomaly: true, DetectedAt: now,
+			})
+		}
+		if node.Metrics.Pressure.DiskPressure {
+			results = append(results, &aiops.AnomalyResult{
+				EntityKey: key, MetricName: "disk_pressure",
+				CurrentValue: 1, Baseline: 0, Deviation: 10,
+				Score: 0.80, IsAnomaly: true, DetectedAt: now,
+			})
+		}
+		if node.Metrics.Pressure.PIDPressure {
+			results = append(results, &aiops.AnomalyResult{
+				EntityKey: key, MetricName: "pid_pressure",
+				CurrentValue: 1, Baseline: 0, Deviation: 10,
+				Score: 0.75, IsAnomaly: true, DetectedAt: now,
+			})
+		}
+	}
 	return results
 }
 
