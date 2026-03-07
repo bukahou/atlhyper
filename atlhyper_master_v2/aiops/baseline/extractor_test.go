@@ -9,6 +9,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 	model_v3 "AtlHyper/model_v3"
 	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/slo"
 )
 
 // ==================== Phase 1: extractPodMetrics 容器级指标 ====================
@@ -821,4 +822,54 @@ func TestExtractDeploymentImpact_IntegrationWithContainerAnomaly(t *testing.T) {
 	if findResult(results, "default/pod/app-4", "container_anomaly") != nil {
 		t.Error("健康 Pod app-4 不应有 container_anomaly")
 	}
+}
+
+// ==================== Phase 5: SLO/Ingress 指标提取（范围修复验证） ====================
+
+func TestExtractServiceMetrics_SuccessRateRange(t *testing.T) {
+	// SLO ServiceSLO.SuccessRate 是 0-100 范围
+	otel := &cluster.OTelSnapshot{
+		SLOServices: []slo.ServiceSLO{
+			{Namespace: "default", Name: "api-svc", SuccessRate: 99.5, P90Ms: 120, RPS: 50},
+			{Namespace: "default", Name: "db-svc", SuccessRate: 85.0, P90Ms: 500, RPS: 30},
+			{Namespace: "default", Name: "perfect-svc", SuccessRate: 100.0, P90Ms: 10, RPS: 100},
+		},
+	}
+
+	points := extractServiceMetrics(otel)
+
+	// api-svc: error_rate = 100 - 99.5 = 0.5
+	apiMetrics := indexPoints(points, "default/service/api-svc")
+	assertMetricApprox(t, apiMetrics, "error_rate", 0.5)
+	assertMetric(t, apiMetrics, "avg_latency", 120)
+	assertMetric(t, apiMetrics, "request_rate", 50)
+
+	// db-svc: error_rate = 100 - 85 = 15
+	dbMetrics := indexPoints(points, "default/service/db-svc")
+	assertMetricApprox(t, dbMetrics, "error_rate", 15.0)
+
+	// perfect-svc: error_rate = 100 - 100 = 0
+	perfectMetrics := indexPoints(points, "default/service/perfect-svc")
+	assertMetricApprox(t, perfectMetrics, "error_rate", 0.0)
+}
+
+func TestExtractIngressMetrics_ErrorRateRange(t *testing.T) {
+	// IngressSLO.ErrorRate 已是 0-100 范围，不应再乘 100
+	otel := &cluster.OTelSnapshot{
+		SLOIngress: []slo.IngressSLO{
+			{ServiceKey: "web@docker", ErrorRate: 2.5, AvgMs: 150},
+			{ServiceKey: "api@docker", ErrorRate: 0.0, AvgMs: 50},
+		},
+	}
+
+	points := extractIngressMetrics(otel)
+
+	// web@docker: errorRate 应为 2.5（直接透传），不是 250
+	webMetrics := indexPoints(points, "_cluster/ingress/web@docker")
+	assertMetricApprox(t, webMetrics, "error_rate", 2.5)
+	assertMetric(t, webMetrics, "avg_latency", 150)
+
+	// api@docker: errorRate = 0
+	apiMetrics := indexPoints(points, "_cluster/ingress/api@docker")
+	assertMetricApprox(t, apiMetrics, "error_rate", 0.0)
 }

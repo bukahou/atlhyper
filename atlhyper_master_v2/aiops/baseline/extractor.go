@@ -103,8 +103,8 @@ func extractServiceMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	for _, svc := range otel.SLOServices {
 		key := aiops.EntityKey(svc.Namespace, "service", svc.Name)
 
-		// SuccessRate 0-1 范围 → ErrorRate 0-100
-		errorRate := (1 - svc.SuccessRate) * 100
+		// SuccessRate 0-100 范围（如 99.5） → ErrorRate 0-100（如 0.5）
+		errorRate := 100 - svc.SuccessRate
 		points = append(points,
 			aiops.MetricDataPoint{EntityKey: key, MetricName: "error_rate", Value: errorRate},
 			aiops.MetricDataPoint{EntityKey: key, MetricName: "avg_latency", Value: svc.P90Ms},
@@ -441,7 +441,7 @@ func extractIngressMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	for _, ing := range otel.SLOIngress {
 		key := aiops.EntityKey("_cluster", "ingress", ing.ServiceKey)
 
-		errorRate := ing.ErrorRate * 100
+		errorRate := ing.ErrorRate // 已是 0-100 范围
 		points = append(points,
 			aiops.MetricDataPoint{EntityKey: key, MetricName: "error_rate", Value: errorRate},
 			aiops.MetricDataPoint{EntityKey: key, MetricName: "avg_latency", Value: ing.AvgMs},
