@@ -5,6 +5,8 @@ package ai
 import (
 	"context"
 	"time"
+
+	"AtlHyper/atlhyper_master_v2/ai/llm"
 )
 
 // AIService AI 服务接口
@@ -27,6 +29,12 @@ type AIService interface {
 
 	// RegisterTool 注册自定义 Tool（AIOps 等扩展模块使用）
 	RegisterTool(name string, handler ToolHandler)
+
+	// GetToolExecuteFunc 获取 Tool 执行函数（供 analysis 深度分析使用）
+	GetToolExecuteFunc() func(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error)
+
+	// GetToolDefinitions 获取 Tool 定义列表
+	GetToolDefs() []llm.ToolDefinition
 }
 
 // ChatRequest 发送消息请求

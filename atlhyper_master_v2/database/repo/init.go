@@ -38,6 +38,9 @@ func Init(db *database.DB, dialect database.Dialect) {
 	db.AIModel = newAIProviderModelRepo(db.Conn, dialect.AIProviderModel())
 	db.SLO = newSLORepo(db.Conn, dialect.SLO())
 
+	db.AIRoleBudget = newAIRoleBudgetRepo(db.Conn, dialect.AIRoleBudget())
+	db.AIReport = newAIReportRepo(db.Conn, dialect.AIReport())
+
 	db.AIOpsBaseline = newAIOpsBaselineRepo(db.Conn, dialect.AIOpsBaseline())
 	db.AIOpsGraph = newAIOpsGraphRepo(db.Conn, dialect.AIOpsGraph())
 	db.AIOpsIncident = newAIOpsIncidentRepo(db.Conn, dialect.AIOpsIncident())

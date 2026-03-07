@@ -284,6 +284,7 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/settings/ai", settingsH.AIConfigHandler)
 		register("/api/v2/ai/providers", aiProviderH.ProvidersHandler)
 		register("/api/v2/ai/active", aiProviderH.ActiveConfigHandler)
+		register("/api/v2/ai/roles", aiProviderH.RolesOverviewHandler)
 	})
 
 	// ---------- 需要审计的敏感操作 ----------

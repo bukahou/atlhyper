@@ -23,6 +23,9 @@ import (
 
 var log = logger.Module("AIOps")
 
+// IncidentNotifyFunc 事件通知回调（供 AI 后台自动分析）
+type IncidentNotifyFunc func(incidentID, severity, trigger string)
+
 // engine AIOps 引擎实现
 // 同时实现 statemachine.TransitionCallback 接口
 type engine struct {
@@ -35,6 +38,9 @@ type engine struct {
 	graphRepo     database.AIOpsGraphRepository
 	sloRepo       database.SLORepository
 
+	// AI 后台分析通知回调（可选）
+	incidentNotify IncidentNotifyFunc
+
 	// 异常结果缓存（供风险详情查询）
 	anomalyCache map[string][]*aiops.AnomalyResult // clusterID -> anomalies
 	anomalyMu    sync.RWMutex
@@ -42,6 +48,11 @@ type engine struct {
 	flushInterval time.Duration
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
+}
+
+// SetIncidentNotify 设置事件通知回调
+func (e *engine) SetIncidentNotify(fn func(incidentID, severity, trigger string)) {
+	e.incidentNotify = IncidentNotifyFunc(fn)
 }
 
 // OnSnapshot 快照更新时触发
@@ -130,12 +141,21 @@ func (e *engine) OnSnapshot(clusterID string) {
 
 // OnWarningCreated 创建 Warning 事件
 func (e *engine) OnWarningCreated(ctx context.Context, clusterID, entityKey string, risk *aiops.EntityRisk, now time.Time) string {
-	return e.incidentStore.Create(ctx, clusterID, entityKey, risk, now)
+	id := e.incidentStore.Create(ctx, clusterID, entityKey, risk, now)
+	if id != "" && e.incidentNotify != nil {
+		severity := aiops.SeverityFromRisk(risk.RFinal)
+		e.incidentNotify(id, severity, "incident_created")
+	}
+	return id
 }
 
 // OnStateEscalated 事件升级
 func (e *engine) OnStateEscalated(ctx context.Context, incidentID string, state aiops.EntityState, risk *aiops.EntityRisk, now time.Time) {
 	e.incidentStore.UpdateState(ctx, incidentID, state, risk, now)
+	if e.incidentNotify != nil {
+		severity := aiops.SeverityFromRisk(risk.RFinal)
+		e.incidentNotify(incidentID, severity, "state_escalated")
+	}
 }
 
 // OnRecoveryStarted 开始恢复

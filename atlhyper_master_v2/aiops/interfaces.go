@@ -42,6 +42,9 @@ type Engine interface {
 	// GetIncidentPatterns 获取历史事件模式
 	GetIncidentPatterns(ctx context.Context, entityKey string, since time.Time) []*IncidentPattern
 
+	// SetIncidentNotify 设置事件通知回调（供 AI 后台自动分析）
+	SetIncidentNotify(fn func(incidentID, severity, trigger string))
+
 	// Start 启动引擎（加载 DB 状态 + 定时 flush + Recovery 检查）
 	Start(ctx context.Context) error
 

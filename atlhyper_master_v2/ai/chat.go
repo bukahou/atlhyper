@@ -16,44 +16,9 @@ import (
 
 var log = logger.Module("AI-Chat")
 
-// loadAIConfig 从数据库加载 AI 配置
-// 使用 2 表设计: ai_active_config (当前配置) + ai_providers (提供商配置)
-func (s *aiServiceImpl) loadAIConfig(ctx context.Context) (*llm.Config, error) {
-	// 1. 获取当前配置
-	active, err := s.activeRepo.Get(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("获取 AI 配置失败: %w", err)
-	}
-	if active == nil {
-		return nil, fmt.Errorf("AI 配置未初始化")
-	}
-
-	// 2. 检查是否启用
-	if !active.Enabled {
-		return nil, fmt.Errorf("AI 功能未启用")
-	}
-
-	// 3. 检查是否设置了提供商
-	if active.ProviderID == nil {
-		return nil, fmt.Errorf("未设置 AI 提供商")
-	}
-
-	// 4. 获取提供商配置
-	provider, err := s.providerRepo.GetByID(ctx, *active.ProviderID)
-	if err != nil {
-		return nil, fmt.Errorf("获取 AI 提供商失败: %w", err)
-	}
-	if provider == nil {
-		return nil, fmt.Errorf("AI 提供商不存在: %d", *active.ProviderID)
-	}
-
-	// 5. 构建 LLM 配置
-	return &llm.Config{
-		Provider: provider.Provider,
-		APIKey:   provider.APIKey,
-		Model:    provider.Model,
-		BaseURL:  provider.BaseURL,
-	}, nil
+// loadAIConfig 从数据库加载 AI 配置（向后兼容方法，内部使用 loadAIConfigForRole）
+func (s *aiServiceImpl) loadAIConfig(ctx context.Context) (*RoleConfig, error) {
+	return s.loadAIConfigForRole(ctx, RoleChat)
 }
 
 const maxToolRounds = 5             // 最大 Tool 调用轮数
@@ -120,23 +85,28 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	startTime := time.Now()
 
 	// 每次 Chat 从 DB 获取最新配置并创建 LLM Client（支持热更新）
-	llmCfg, err := s.loadAIConfig(ctx)
+	roleCfg, err := s.loadAIConfigForRole(ctx, RoleChat)
 	if err != nil {
 		sendError(ch, fmt.Sprintf("AI 配置错误: %v", err))
 		return
 	}
 
-	llmClient, err := llm.NewLLMClient(*llmCfg)
+	llmClient, err := llm.NewLLMClient(roleCfg.Config)
 	if err != nil {
 		sendError(ch, fmt.Sprintf("创建 LLM 客户端失败: %v", err))
 		return
 	}
 	defer llmClient.Close()
 
+	// 根据 Provider 上下文窗口创建 ContextManager
+	ctxMgr := NewContextManager(roleCfg.ContextWindow)
+	maxToolResult := toolResultMaxLen(roleCfg.ContextWindow)
+
 	log.Info("对话开始",
 		"conv", convID,
-		"provider", llmCfg.Provider,
-		"model", llmCfg.Model,
+		"provider", roleCfg.Provider,
+		"model", roleCfg.Model,
+		"contextWindow", roleCfg.ContextWindow,
 	)
 
 	systemPrompt := BuildSystemPrompt()
@@ -157,10 +127,19 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			remaining,
 		)
 
+		// 发送前裁剪消息以适应上下文窗口
+		fittedMsgs, truncated := ctxMgr.FitMessages(systemPrompt+roundHint, messages)
+		if truncated {
+			log.Warn("上下文超限，已裁剪历史消息",
+				"original", len(messages), "fitted", len(fittedMsgs),
+				"provider", roleCfg.Provider, "contextWindow", roleCfg.ContextWindow)
+			ch <- &ChatChunk{Type: "text", Content: "\n[系统: 历史消息已裁剪以适应模型上下文窗口]\n"}
+		}
+
 		// 调用 LLM
 		llmReq := &llm.Request{
 			SystemPrompt: systemPrompt + roundHint,
-			Messages:     messages,
+			Messages:     fittedMsgs,
 			Tools:        tools,
 		}
 
@@ -255,11 +234,11 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 				Content: truncate(result, 4000),
 			}
 
-			// 添加 tool 结果到历史（截断防 token 爆炸）
+			// 添加 tool 结果到历史（截断强度按 context_window 调整）
 			toolResult := &llm.ToolResult{
 				CallID:  tc.ID,
 				Name:    tc.Name,
-				Content: truncate(result, 32000),
+				Content: truncate(result, maxToolResult),
 			}
 			messages = append(messages, llm.Message{
 				Role:       "tool",
@@ -276,9 +255,11 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 
 	// 超过最大轮数，要求 AI 基于已有信息给出结论
 	// 最后一次调用不提供 tools，强制 AI 输出文本结论（不算 toolRounds）
+	finalPrompt := systemPrompt + "\n\n[系统提示] Tool 调用次数已用完。请根据已获取的信息给出分析结论。不要再调用 Tool。"
+	finalMsgs, _ := ctxMgr.FitMessages(finalPrompt, messages)
 	llmReq := &llm.Request{
-		SystemPrompt: systemPrompt + "\n\n[系统提示] Tool 调用次数已用完。请根据已获取的信息给出分析结论。不要再调用 Tool。",
-		Messages:     messages,
+		SystemPrompt: finalPrompt,
+		Messages:     finalMsgs,
 		Tools:        nil, // 不提供 tools，强制文本输出
 	}
 	stream, err := llmClient.ChatStream(ctx, llmReq)

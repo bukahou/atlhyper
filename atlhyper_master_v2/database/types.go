@@ -216,6 +216,10 @@ type AIProvider struct {
 	BaseURL     string // 自定义 API 地址（Ollama 等自部署服务使用）
 	Description string // 说明・备注
 
+	// 角色路由
+	Roles                []string // JSON 解码后的角色列表: ["background","chat"]
+	ContextWindowOverride int     // 用户覆盖的上下文窗口 (0=使用模型默认值)
+
 	// 使用统计
 	TotalRequests int64
 	TotalTokens   int64
@@ -248,13 +252,59 @@ type AIActiveConfig struct {
 
 // AIProviderModel 提供商支持的模型列表
 type AIProviderModel struct {
-	ID          int64
-	Provider    string // gemini / openai / anthropic
-	Model       string // 模型ID (例: gemini-2.0-flash)
-	DisplayName string // 表示名 (例: Gemini 2.0 Flash)
-	IsDefault   bool   // 是否为该提供商的默认模型
-	SortOrder   int    // 显示顺序
-	CreatedAt   time.Time
+	ID            int64
+	Provider      string // gemini / openai / anthropic
+	Model         string // 模型ID (例: gemini-2.0-flash)
+	DisplayName   string // 表示名 (例: Gemini 2.0 Flash)
+	IsDefault     bool   // 是否为该提供商的默认模型
+	SortOrder     int    // 显示顺序
+	ContextWindow int    // 上下文窗口大小(tokens)，0=无限制
+	CreatedAt     time.Time
+}
+
+// AIRoleBudget 角色预算配置
+type AIRoleBudget struct {
+	Role               string
+	DailyTokenLimit    int    // 0 = 无限制
+	DailyCallLimit     int    // 0 = 无限制
+	FallbackProviderID *int64 // 降级 Provider（可选）
+
+	// analysis 角色专用: 自动触发的最低严重度
+	// "critical" / "high" / "medium" / "low" / "off"
+	AutoTriggerMinSeverity string
+
+	DailyTokensUsed int
+	DailyCallsUsed  int
+	DailyResetAt    *time.Time
+	UpdatedAt       time.Time
+}
+
+// AIReport AI 分析报告（background/analysis 的持久化产出）
+type AIReport struct {
+	ID         int64
+	IncidentID string // 关联事件 ID（可为空：巡检报告无事件）
+	ClusterID  string
+	Role       string // "background" / "analysis"
+	Trigger    string // "incident_created" / "state_changed" / "manual" / "auto_escalation" / "patrol"
+
+	// 报告内容
+	Summary           string
+	RootCauseAnalysis string
+	Recommendations   string // JSON: []Recommendation
+	SimilarIncidents  string // JSON: []SimilarMatch
+
+	// analysis 专属
+	InvestigationSteps string // JSON: 调查步骤
+	EvidenceChain      string // JSON: 证据链
+
+	// 生成元数据
+	ProviderName string
+	Model        string
+	InputTokens  int
+	OutputTokens int
+	DurationMs   int64
+
+	CreatedAt time.Time
 }
 
 // ==================== SLO 模型定义 ====================

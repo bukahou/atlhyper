@@ -64,3 +64,7 @@ func (s *AdminService) DeleteAIProvider(ctx context.Context, id int64) error {
 func (s *AdminService) UpdateAIActiveConfig(ctx context.Context, cfg *database.AIActiveConfig) error {
 	return s.aiActiveRepo.Update(ctx, cfg)
 }
+
+func (s *AdminService) UpdateAIProviderRoles(ctx context.Context, id int64, roles []string) error {
+	return s.aiProviderRepo.UpdateRoles(ctx, id, roles)
+}

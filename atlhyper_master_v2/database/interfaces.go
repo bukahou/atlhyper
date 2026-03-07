@@ -32,6 +32,9 @@ type DB struct {
 	AIOpsGraph     AIOpsGraphRepository
 	AIOpsIncident  AIOpsIncidentRepository
 
+	AIRoleBudget AIRoleBudgetRepository
+	AIReport     AIReportRepository
+
 	Conn *sql.DB // 导出供 repo 包使用
 }
 
@@ -151,6 +154,10 @@ type AIProviderRepository interface {
 	GetByID(ctx context.Context, id int64) (*AIProvider, error)
 	List(ctx context.Context) ([]*AIProvider, error) // deleted_at IS NULL
 
+	// 角色路由
+	UpdateRoles(ctx context.Context, id int64, roles []string) error
+	FindByRole(ctx context.Context, role string) (*AIProvider, error)
+
 	// 统计更新
 	IncrementUsage(ctx context.Context, id int64, requests, tokens int64, cost float64) error
 	UpdateStatus(ctx context.Context, id int64, status, errorMsg string) error
@@ -190,6 +197,30 @@ type SLORepository interface {
 	GetAllRouteMappings(ctx context.Context, clusterID string) ([]*SLORouteMapping, error)
 	GetAllDomains(ctx context.Context, clusterID string) ([]string, error)
 	DeleteRouteMapping(ctx context.Context, clusterID, serviceKey string) error
+}
+
+// ==================== AI Role Budget Repository 接口 ====================
+
+// AIRoleBudgetRepository 角色预算接口
+type AIRoleBudgetRepository interface {
+	Get(ctx context.Context, role string) (*AIRoleBudget, error)
+	Upsert(ctx context.Context, budget *AIRoleBudget) error
+	Delete(ctx context.Context, role string) error
+	IncrementUsage(ctx context.Context, role string, tokens int) error
+	ResetDailyUsage(ctx context.Context, role string) error
+}
+
+// ==================== AI Report Repository 接口 ====================
+
+// AIReportRepository AI 分析报告接口
+type AIReportRepository interface {
+	Create(ctx context.Context, report *AIReport) error
+	GetByID(ctx context.Context, id int64) (*AIReport, error)
+	ListByIncident(ctx context.Context, incidentID string) ([]*AIReport, error)
+	ListByCluster(ctx context.Context, clusterID, role string, limit int) ([]*AIReport, error)
+	CountByClusterAndRole(ctx context.Context, clusterID, role string, since time.Time) (int, error)
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
+	UpdateInvestigationSteps(ctx context.Context, id int64, steps string) error
 }
 
 // ==================== AIOps Repository 接口 ====================
@@ -250,6 +281,8 @@ type Dialect interface {
 	AIActiveConfig() AIActiveConfigDialect
 	AIProviderModel() AIProviderModelDialect
 	SLO() SLODialect
+	AIRoleBudget() AIRoleBudgetDialect
+	AIReport() AIReportDialect
 
 	AIOpsBaseline() AIOpsBaselineDialect
 	AIOpsGraph() AIOpsGraphDialect
@@ -363,6 +396,7 @@ type AIProviderDialect interface {
 	Delete(id int64) (query string, args []any)
 	SelectByID(id int64) (query string, args []any)
 	SelectAll() (query string, args []any)
+	UpdateRoles(id int64, rolesJSON string) (query string, args []any)
 	IncrementUsage(id int64, requests, tokens int64, cost float64) (query string, args []any)
 	UpdateStatus(id int64, status, errorMsg string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*AIProvider, error)
@@ -386,6 +420,28 @@ type AIProviderModelDialect interface {
 	SelectAll() (query string, args []any)
 	SelectDefault(provider string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*AIProviderModel, error)
+}
+
+// AIRoleBudgetDialect 角色预算 SQL 方言
+type AIRoleBudgetDialect interface {
+	Upsert(b *AIRoleBudget) (query string, args []any)
+	SelectByRole(role string) (query string, args []any)
+	Delete(role string) (query string, args []any)
+	IncrementUsage(role string, tokens int) (query string, args []any)
+	ResetDailyUsage(role string) (query string, args []any)
+	ScanRow(rows *sql.Rows) (*AIRoleBudget, error)
+}
+
+// AIReportDialect AI 分析报告 SQL 方言
+type AIReportDialect interface {
+	Insert(r *AIReport) (query string, args []any)
+	SelectByID(id int64) (query string, args []any)
+	SelectByIncident(incidentID string) (query string, args []any)
+	SelectByCluster(clusterID, role string, limit int) (query string, args []any)
+	CountByClusterAndRole(clusterID, role string, since time.Time) (query string, args []any)
+	DeleteBefore(before time.Time) (query string, args []any)
+	UpdateInvestigationSteps(id int64, steps string) (query string, args []any)
+	ScanRow(rows *sql.Rows) (*AIReport, error)
 }
 
 // SLODialect SLO 配置与路由映射 SQL 方言

@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"AtlHyper/atlhyper_master_v2/gateway/handler"
+	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -40,23 +41,25 @@ func NewAIProviderHandler(svc service.Service) *AIProviderHandler {
 
 // ProviderResponse プロバイダー情報レスポンス
 type ProviderResponse struct {
-	ID            int64   `json:"id"`
-	Name          string  `json:"name"`
-	Provider      string  `json:"provider"`
-	Model         string  `json:"model"`
-	BaseURL       string  `json:"baseUrl,omitempty"`
-	Description   string  `json:"description"`
-	APIKeyMasked  string  `json:"api_key_masked"`
-	APIKeySet     bool    `json:"api_key_set"`
-	IsActive      bool    `json:"is_active"`
-	Status        string  `json:"status"`
-	TotalRequests int64   `json:"total_requests"`
-	TotalTokens   int64   `json:"total_tokens"`
-	TotalCost     float64 `json:"total_cost"`
-	LastUsedAt    *string `json:"last_used_at,omitempty"`
-	LastError     string  `json:"last_error,omitempty"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
+	ID                    int64    `json:"id"`
+	Name                  string   `json:"name"`
+	Provider              string   `json:"provider"`
+	Model                 string   `json:"model"`
+	BaseURL               string   `json:"baseUrl,omitempty"`
+	Description           string   `json:"description"`
+	APIKeyMasked          string   `json:"api_key_masked"`
+	APIKeySet             bool     `json:"api_key_set"`
+	IsActive              bool     `json:"is_active"`
+	Roles                 []string `json:"roles"`
+	ContextWindowOverride int      `json:"contextWindowOverride"`
+	Status                string   `json:"status"`
+	TotalRequests         int64    `json:"total_requests"`
+	TotalTokens           int64    `json:"total_tokens"`
+	TotalCost             float64  `json:"total_cost"`
+	LastUsedAt            *string  `json:"last_used_at,omitempty"`
+	LastError             string   `json:"last_error,omitempty"`
+	CreatedAt             string   `json:"created_at"`
+	UpdatedAt             string   `json:"updated_at"`
 }
 
 // ActiveConfigResponse アクティブ設定レスポンス
@@ -127,13 +130,21 @@ func (h *AIProviderHandler) ProvidersHandler(w http.ResponseWriter, r *http.Requ
 // GET    /api/v2/ai/providers/{id} -> 取得
 // PUT    /api/v2/ai/providers/{id} -> 更新
 // DELETE /api/v2/ai/providers/{id} -> 削除
+// PUT    /api/v2/ai/providers/{id}/roles -> 角色分配
 func (h *AIProviderHandler) ProviderHandler(w http.ResponseWriter, r *http.Request) {
 	// パスから ID 抽出
 	path := strings.TrimPrefix(r.URL.Path, "/api/v2/ai/providers/")
-	idStr := strings.Split(path, "/")[0]
+	parts := strings.Split(path, "/")
+	idStr := parts[0]
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		handler.WriteError(w, http.StatusBadRequest, "invalid provider id")
+		return
+	}
+
+	// 子路径路由: /api/v2/ai/providers/{id}/roles
+	if len(parts) >= 2 && parts[1] == "roles" {
+		h.ProviderRolesHandler(w, r)
 		return
 	}
 
@@ -440,29 +451,169 @@ func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Re
 
 // toProviderResponse DB モデルをレスポンスに変換
 func (h *AIProviderHandler) toProviderResponse(p *database.AIProvider, activeID *int64) ProviderResponse {
+	roles := p.Roles
+	if roles == nil {
+		roles = []string{}
+	}
 	resp := ProviderResponse{
-		ID:            p.ID,
-		Name:          p.Name,
-		Provider:      p.Provider,
-		Model:         p.Model,
-		BaseURL:       p.BaseURL,
-		Description:   p.Description,
-		APIKeyMasked:  maskAPIKey(p.APIKey),
-		APIKeySet:     p.APIKey != "",
-		IsActive:      activeID != nil && *activeID == p.ID,
-		Status:        p.Status,
-		TotalRequests: p.TotalRequests,
-		TotalTokens:   p.TotalTokens,
-		TotalCost:     p.TotalCost,
-		LastError:     p.LastError,
-		CreatedAt:     p.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:     p.UpdatedAt.Format(time.RFC3339),
+		ID:                    p.ID,
+		Name:                  p.Name,
+		Provider:              p.Provider,
+		Model:                 p.Model,
+		BaseURL:               p.BaseURL,
+		Description:           p.Description,
+		APIKeyMasked:          maskAPIKey(p.APIKey),
+		APIKeySet:             p.APIKey != "",
+		IsActive:              activeID != nil && *activeID == p.ID,
+		Roles:                 roles,
+		ContextWindowOverride: p.ContextWindowOverride,
+		Status:                p.Status,
+		TotalRequests:         p.TotalRequests,
+		TotalTokens:           p.TotalTokens,
+		TotalCost:             p.TotalCost,
+		LastError:             p.LastError,
+		CreatedAt:             p.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:             p.UpdatedAt.Format(time.RFC3339),
 	}
 	if p.LastUsedAt != nil {
 		s := p.LastUsedAt.Format(time.RFC3339)
 		resp.LastUsedAt = &s
 	}
 	return resp
+}
+
+// ProviderRolesHandler Provider 角色分配
+// PUT /api/v2/ai/providers/{id}/roles → 设置角色
+func (h *AIProviderHandler) ProviderRolesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// 从路径提取 provider ID: /api/v2/ai/providers/{id}/roles
+	path := strings.TrimPrefix(r.URL.Path, "/api/v2/ai/providers/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 || parts[1] != "roles" {
+		handler.WriteError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	id, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, "invalid provider id")
+		return
+	}
+
+	var req struct {
+		Roles []string `json:"roles"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		handler.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	// 校验角色有效性
+	for _, role := range req.Roles {
+		if !ai.IsValidRole(role) {
+			handler.WriteError(w, http.StatusBadRequest, "invalid role: "+role)
+			return
+		}
+	}
+
+	// 校验互斥约束
+	providers, _ := h.svc.ListAIProviders(ctx)
+	for _, role := range req.Roles {
+		for _, p := range providers {
+			if p.ID == id {
+				continue
+			}
+			for _, existingRole := range p.Roles {
+				if existingRole == role {
+					handler.WriteError(w, http.StatusConflict,
+						"角色 "+role+" 已被 ["+p.Name+"] 持有，请先移除")
+					return
+				}
+			}
+		}
+	}
+
+	// 更新角色
+	if err := h.svc.UpdateAIProviderRoles(ctx, id, req.Roles); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "failed to update roles")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "角色更新成功",
+		"roles":   req.Roles,
+	})
+}
+
+// RolesOverviewHandler 角色总览
+// GET /api/v2/ai/roles → 获取所有角色状态
+func (h *AIProviderHandler) RolesOverviewHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	providers, _ := h.svc.ListAIProviders(ctx)
+
+	// 构建角色名映射
+	roleNames := map[string]string{
+		"background": "后台分析",
+		"chat":       "交互对话",
+		"analysis":   "深度分析",
+	}
+
+	type roleProviderInfo struct {
+		ID            int64  `json:"id"`
+		Name          string `json:"name"`
+		Model         string `json:"model"`
+		ContextWindow int    `json:"contextWindow"`
+	}
+	type roleOverview struct {
+		Role     string            `json:"role"`
+		RoleName string            `json:"roleName"`
+		Provider *roleProviderInfo `json:"provider"`
+	}
+
+	roles := []roleOverview{}
+	for _, role := range ai.ValidRoles {
+		item := roleOverview{
+			Role:     role,
+			RoleName: roleNames[role],
+		}
+		// 查找持有该角色的 Provider
+		for _, p := range providers {
+			for _, r := range p.Roles {
+				if r == role {
+					cw := p.ContextWindowOverride
+					item.Provider = &roleProviderInfo{
+						ID:            p.ID,
+						Name:          p.Name,
+						Model:         p.Model,
+						ContextWindow: cw,
+					}
+					break
+				}
+			}
+			if item.Provider != nil {
+				break
+			}
+		}
+		roles = append(roles, item)
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data":    roles,
+	})
 }
 
 // loadModelsGrouped プロバイダー別モデル一覧取得

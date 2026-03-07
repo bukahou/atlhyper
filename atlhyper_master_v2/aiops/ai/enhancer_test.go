@@ -143,11 +143,11 @@ func TestSummarize_NormalIncident(t *testing.T) {
 	}`
 
 	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, error) {
-		return mockClient, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
+		return mockClient, 0, nil
 	}
 
-	enhancer := NewEnhancer(repo, factory)
+	enhancer := NewEnhancer(repo, nil, factory)
 	result, err := enhancer.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("Summarize failed: %v", err)
@@ -186,11 +186,11 @@ func TestSummarize_LLMParseError(t *testing.T) {
 
 	// LLM 返回纯文本（非 JSON）
 	mockClient := &mockLLMClient{response: "这是一个关于内存压力的事件分析结果。"}
-	factory := func(ctx context.Context) (llm.LLMClient, error) {
-		return mockClient, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
+		return mockClient, 0, nil
 	}
 
-	enhancer := NewEnhancer(repo, factory)
+	enhancer := NewEnhancer(repo, nil, factory)
 	result, err := enhancer.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("Summarize should not fail on parse error: %v", err)
@@ -213,11 +213,11 @@ func TestSummarize_LLMUnavailable(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	factory := func(ctx context.Context) (llm.LLMClient, error) {
-		return nil, fmt.Errorf("LLM 连接超时")
+	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
+		return nil, 0, fmt.Errorf("LLM 连接超时")
 	}
 
-	enhancer := NewEnhancer(repo, factory)
+	enhancer := NewEnhancer(repo, nil, factory)
 	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
 	if err == nil {
 		t.Fatal("expected error when LLM unavailable")
@@ -227,11 +227,11 @@ func TestSummarize_LLMUnavailable(t *testing.T) {
 // TestSummarize_IncidentNotFound 事件不存在
 func TestSummarize_IncidentNotFound(t *testing.T) {
 	repo := &mockIncidentRepo{incident: nil}
-	factory := func(ctx context.Context) (llm.LLMClient, error) {
-		return &mockLLMClient{}, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
+		return &mockLLMClient{}, 0, nil
 	}
 
-	enhancer := NewEnhancer(repo, factory)
+	enhancer := NewEnhancer(repo, nil, factory)
 	_, err := enhancer.Summarize(context.Background(), "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for nonexistent incident")
@@ -249,11 +249,11 @@ func TestSummarize_NoHistoricalPatterns(t *testing.T) {
 
 	llmResponse := `{"summary": "事件摘要", "rootCauseAnalysis": "根因分析", "recommendations": []}`
 	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, error) {
-		return mockClient, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
+		return mockClient, 0, nil
 	}
 
-	enhancer := NewEnhancer(repo, factory)
+	enhancer := NewEnhancer(repo, nil, factory)
 	result, err := enhancer.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("Summarize failed: %v", err)
@@ -273,11 +273,11 @@ func TestSummarize_MarkdownCodeBlock(t *testing.T) {
 
 	llmResponse := "```json\n{\"summary\": \"代码块摘要\", \"rootCauseAnalysis\": \"分析\", \"recommendations\": []}\n```"
 	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, error) {
-		return mockClient, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
+		return mockClient, 0, nil
 	}
 
-	enhancer := NewEnhancer(repo, factory)
+	enhancer := NewEnhancer(repo, nil, factory)
 	result, err := enhancer.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("Summarize failed: %v", err)
@@ -382,11 +382,11 @@ func TestFormatDuration(t *testing.T) {
 
 // mockLLMFactory 创建计数 LLM 工厂
 func mockLLMFactory(callCount *int) LLMClientFactory {
-	return func(ctx context.Context) (llm.LLMClient, error) {
+	return func(ctx context.Context) (llm.LLMClient, int, error) {
 		*callCount++
 		return &mockLLMClient{
 			response: `{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`,
-		}, nil
+		}, 0, nil
 	}
 }
 
@@ -399,7 +399,7 @@ func TestRateLimit_Cooldown(t *testing.T) {
 	}
 
 	callCount := 0
-	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
 	enhancer.cooldown = 2 * time.Second // 测试用短冷却
 
 	// 第一次调用应成功
@@ -443,7 +443,7 @@ func TestRateLimit_CooldownExpired(t *testing.T) {
 	}
 
 	callCount := 0
-	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
 	enhancer.cooldown = 50 * time.Millisecond // 极短冷却
 
 	// 第一次调用
@@ -479,7 +479,7 @@ func TestCache_StableIncident(t *testing.T) {
 	}
 
 	callCount := 0
-	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
 	enhancer.cooldown = 0 // 关闭 rate limit
 
 	// 第一次调用 → LLM
@@ -518,7 +518,7 @@ func TestCache_RecoveryIncident(t *testing.T) {
 	}
 
 	callCount := 0
-	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
 	enhancer.cooldown = 0
 
 	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
@@ -548,7 +548,7 @@ func TestCache_ActiveIncident_NoCache(t *testing.T) {
 	}
 
 	callCount := 0
-	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
 	enhancer.cooldown = 0 // 关闭 rate limit
 
 	// 第一次调用
@@ -579,7 +579,7 @@ func TestCache_WarningState_NoCache(t *testing.T) {
 	}
 
 	callCount := 0
-	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
 	enhancer.cooldown = 0
 
 	_, _ = enhancer.Summarize(context.Background(), "inc-test-001")
@@ -602,7 +602,7 @@ func TestCache_SkipsRateLimit(t *testing.T) {
 	}
 
 	callCount := 0
-	enhancer := NewEnhancer(repo, mockLLMFactory(&callCount))
+	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
 	enhancer.cooldown = 1 * time.Hour // 极长冷却期
 
 	// 第一次调用
@@ -629,8 +629,8 @@ func TestPromptTruncation_NormalPrompt(t *testing.T) {
 	entities := makeTestEntities()
 	timeline := makeTestTimeline()
 
-	enhancer := NewEnhancer(nil, nil)
-	prompt := enhancer.buildPromptWithTruncation(inc, entities, timeline, nil)
+	enhancer := NewEnhancer(nil, nil, nil)
+	prompt := enhancer.buildPromptWithTruncation(inc, entities, timeline, nil, 0)
 
 	totalChars := len(prompt.System) + len(prompt.User)
 	if totalChars > MaxPromptChars {
@@ -684,8 +684,8 @@ func TestPromptTruncation_LargePrompt(t *testing.T) {
 		}
 	}
 
-	enhancer := NewEnhancer(nil, nil)
-	prompt := enhancer.buildPromptWithTruncation(inc, entities, timeline, historical)
+	enhancer := NewEnhancer(nil, nil, nil)
+	prompt := enhancer.buildPromptWithTruncation(inc, entities, timeline, historical, 0)
 
 	totalChars := len(prompt.System) + len(prompt.User)
 	if totalChars > MaxPromptChars {

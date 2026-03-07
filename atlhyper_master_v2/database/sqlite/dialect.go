@@ -23,6 +23,8 @@ type Dialect struct {
 	aiActiveConfig  *aiActiveConfigDialect
 	aiProviderModel *aiProviderModelDialect
 	slo *sloDialect
+	aiRoleBudget  *aiRoleBudgetDialect
+	aiReport      *aiReportDialect
 
 	aiopsBaseline *aIOpsBaselineDialect
 	aiopsGraph      *aIOpsGraphDialect
@@ -44,7 +46,9 @@ func NewDialect() *Dialect {
 		aiProvider:      &aiProviderDialect{},
 		aiActiveConfig:  &aiActiveConfigDialect{},
 		aiProviderModel: &aiProviderModelDialect{},
-		slo: &sloDialect{},
+		slo:          &sloDialect{},
+		aiRoleBudget: &aiRoleBudgetDialect{},
+		aiReport:     &aiReportDialect{},
 
 		aiopsBaseline: &aIOpsBaselineDialect{},
 		aiopsGraph:      &aIOpsGraphDialect{},
@@ -64,7 +68,9 @@ func (d *Dialect) AIMessage() database.AIMessageDialect           { return d.aiM
 func (d *Dialect) AIProvider() database.AIProviderDialect         { return d.aiProvider }
 func (d *Dialect) AIActiveConfig() database.AIActiveConfigDialect { return d.aiActiveConfig }
 func (d *Dialect) AIProviderModel() database.AIProviderModelDialect { return d.aiProviderModel }
-func (d *Dialect) SLO() database.SLODialect { return d.slo }
+func (d *Dialect) SLO() database.SLODialect                         { return d.slo }
+func (d *Dialect) AIRoleBudget() database.AIRoleBudgetDialect       { return d.aiRoleBudget }
+func (d *Dialect) AIReport() database.AIReportDialect               { return d.aiReport }
 
 func (d *Dialect) AIOpsBaseline() database.AIOpsBaselineDialect     { return d.aiopsBaseline }
 func (d *Dialect) AIOpsGraph() database.AIOpsGraphDialect           { return d.aiopsGraph }

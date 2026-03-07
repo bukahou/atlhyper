@@ -4,6 +4,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
@@ -104,10 +105,13 @@ type aiProviderDialect struct{}
 
 func (d *aiProviderDialect) Insert(p *database.AIProvider) (string, []any) {
 	query := `INSERT INTO ai_providers (name, provider, api_key, model, base_url, description,
+		roles, context_window_override,
 		total_requests, total_tokens, total_cost, status, created_at, created_by, updated_at, updated_by)
-	VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'unknown', ?, ?, ?, ?)`
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'unknown', ?, ?, ?, ?)`
+	rolesJSON := encodeRoles(p.Roles)
 	args := []any{
 		p.Name, p.Provider, p.APIKey, p.Model, p.BaseURL, p.Description,
+		rolesJSON, p.ContextWindowOverride,
 		p.CreatedAt.Format(time.RFC3339), p.CreatedBy,
 		p.UpdatedAt.Format(time.RFC3339), p.UpdatedBy,
 	}
@@ -115,8 +119,9 @@ func (d *aiProviderDialect) Insert(p *database.AIProvider) (string, []any) {
 }
 
 func (d *aiProviderDialect) Update(p *database.AIProvider) (string, []any) {
-	query := `UPDATE ai_providers SET name = ?, provider = ?, api_key = ?, model = ?, base_url = ?, description = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL`
-	args := []any{p.Name, p.Provider, p.APIKey, p.Model, p.BaseURL, p.Description, p.UpdatedAt.Format(time.RFC3339), p.UpdatedBy, p.ID}
+	query := `UPDATE ai_providers SET name = ?, provider = ?, api_key = ?, model = ?, base_url = ?, description = ?, roles = ?, context_window_override = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL`
+	rolesJSON := encodeRoles(p.Roles)
+	args := []any{p.Name, p.Provider, p.APIKey, p.Model, p.BaseURL, p.Description, rolesJSON, p.ContextWindowOverride, p.UpdatedAt.Format(time.RFC3339), p.UpdatedBy, p.ID}
 	return query, args
 }
 
@@ -126,18 +131,22 @@ func (d *aiProviderDialect) Delete(id int64) (string, []any) {
 }
 
 func (d *aiProviderDialect) SelectByID(id int64) (string, []any) {
-	return `SELECT id, name, provider, api_key, model, base_url, description,
-		total_requests, total_tokens, total_cost, last_used_at, last_error, last_error_at,
-		status, status_checked_at, created_at, created_by, updated_at, updated_by, deleted_at
-		FROM ai_providers WHERE id = ? AND deleted_at IS NULL`, []any{id}
+	return selectAIProviderColumns + ` FROM ai_providers WHERE id = ? AND deleted_at IS NULL`, []any{id}
 }
 
 func (d *aiProviderDialect) SelectAll() (string, []any) {
-	return `SELECT id, name, provider, api_key, model, base_url, description,
-		total_requests, total_tokens, total_cost, last_used_at, last_error, last_error_at,
-		status, status_checked_at, created_at, created_by, updated_at, updated_by, deleted_at
-		FROM ai_providers WHERE deleted_at IS NULL ORDER BY id ASC`, nil
+	return selectAIProviderColumns + ` FROM ai_providers WHERE deleted_at IS NULL ORDER BY id ASC`, nil
 }
+
+func (d *aiProviderDialect) UpdateRoles(id int64, rolesJSON string) (string, []any) {
+	return `UPDATE ai_providers SET roles = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+		[]any{rolesJSON, time.Now().Format(time.RFC3339), id}
+}
+
+const selectAIProviderColumns = `SELECT id, name, provider, api_key, model, base_url, description,
+	roles, context_window_override,
+	total_requests, total_tokens, total_cost, last_used_at, last_error, last_error_at,
+	status, status_checked_at, created_at, created_by, updated_at, updated_by, deleted_at`
 
 func (d *aiProviderDialect) IncrementUsage(id int64, requests, tokens int64, cost float64) (string, []any) {
 	return `UPDATE ai_providers SET total_requests = total_requests + ?, total_tokens = total_tokens + ?, total_cost = total_cost + ?, last_used_at = ? WHERE id = ?`,
@@ -157,11 +166,13 @@ func (d *aiProviderDialect) ScanRow(rows *sql.Rows) (*database.AIProvider, error
 	p := &database.AIProvider{}
 	var createdAt, updatedAt string
 	var baseURL sql.NullString
+	var rolesJSON sql.NullString
 	var lastUsedAt, lastErrorAt, statusCheckedAt, deletedAt sql.NullString
 	var lastError sql.NullString
 	var status sql.NullString
 
 	err := rows.Scan(&p.ID, &p.Name, &p.Provider, &p.APIKey, &p.Model, &baseURL, &p.Description,
+		&rolesJSON, &p.ContextWindowOverride,
 		&p.TotalRequests, &p.TotalTokens, &p.TotalCost, &lastUsedAt, &lastError, &lastErrorAt,
 		&status, &statusCheckedAt, &createdAt, &p.CreatedBy, &updatedAt, &p.UpdatedBy, &deletedAt)
 	if err != nil {
@@ -172,6 +183,12 @@ func (d *aiProviderDialect) ScanRow(rows *sql.Rows) (*database.AIProvider, error
 	p.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 	if baseURL.Valid {
 		p.BaseURL = baseURL.String
+	}
+	if rolesJSON.Valid && rolesJSON.String != "" {
+		_ = json.Unmarshal([]byte(rolesJSON.String), &p.Roles)
+	}
+	if p.Roles == nil {
+		p.Roles = []string{}
 	}
 
 	if lastUsedAt.Valid {
@@ -198,6 +215,15 @@ func (d *aiProviderDialect) ScanRow(rows *sql.Rows) (*database.AIProvider, error
 	}
 
 	return p, nil
+}
+
+// encodeRoles 将角色列表编码为 JSON 字符串
+func encodeRoles(roles []string) string {
+	if len(roles) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(roles)
+	return string(b)
 }
 
 var _ database.AIProviderDialect = (*aiProviderDialect)(nil)
@@ -255,8 +281,8 @@ var _ database.AIActiveConfigDialect = (*aiActiveConfigDialect)(nil)
 type aiProviderModelDialect struct{}
 
 func (d *aiProviderModelDialect) Insert(m *database.AIProviderModel) (string, []any) {
-	query := `INSERT INTO ai_provider_models (provider, model, display_name, is_default, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-	args := []any{m.Provider, m.Model, m.DisplayName, m.IsDefault, m.SortOrder, m.CreatedAt.Format(time.RFC3339)}
+	query := `INSERT INTO ai_provider_models (provider, model, display_name, is_default, sort_order, context_window, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	args := []any{m.Provider, m.Model, m.DisplayName, m.IsDefault, m.SortOrder, m.ContextWindow, m.CreatedAt.Format(time.RFC3339)}
 	return query, args
 }
 
@@ -265,27 +291,29 @@ func (d *aiProviderModelDialect) Delete(id int64) (string, []any) {
 }
 
 func (d *aiProviderModelDialect) SelectByID(id int64) (string, []any) {
-	return "SELECT id, provider, model, display_name, is_default, sort_order, created_at FROM ai_provider_models WHERE id = ?", []any{id}
+	return selectAIProviderModelColumns + " FROM ai_provider_models WHERE id = ?", []any{id}
 }
 
 func (d *aiProviderModelDialect) SelectByProvider(provider string) (string, []any) {
-	return "SELECT id, provider, model, display_name, is_default, sort_order, created_at FROM ai_provider_models WHERE provider = ? ORDER BY sort_order ASC", []any{provider}
+	return selectAIProviderModelColumns + " FROM ai_provider_models WHERE provider = ? ORDER BY sort_order ASC", []any{provider}
 }
 
 func (d *aiProviderModelDialect) SelectAll() (string, []any) {
-	return "SELECT id, provider, model, display_name, is_default, sort_order, created_at FROM ai_provider_models ORDER BY provider, sort_order ASC", nil
+	return selectAIProviderModelColumns + " FROM ai_provider_models ORDER BY provider, sort_order ASC", nil
 }
 
 func (d *aiProviderModelDialect) SelectDefault(provider string) (string, []any) {
-	return "SELECT id, provider, model, display_name, is_default, sort_order, created_at FROM ai_provider_models WHERE provider = ? AND is_default = 1 LIMIT 1", []any{provider}
+	return selectAIProviderModelColumns + " FROM ai_provider_models WHERE provider = ? AND is_default = 1 LIMIT 1", []any{provider}
 }
+
+const selectAIProviderModelColumns = "SELECT id, provider, model, display_name, is_default, sort_order, context_window, created_at"
 
 func (d *aiProviderModelDialect) ScanRow(rows *sql.Rows) (*database.AIProviderModel, error) {
 	m := &database.AIProviderModel{}
 	var createdAt string
 	var displayName sql.NullString
 
-	err := rows.Scan(&m.ID, &m.Provider, &m.Model, &displayName, &m.IsDefault, &m.SortOrder, &createdAt)
+	err := rows.Scan(&m.ID, &m.Provider, &m.Model, &displayName, &m.IsDefault, &m.SortOrder, &m.ContextWindow, &createdAt)
 	if err != nil {
 		return nil, err
 	}

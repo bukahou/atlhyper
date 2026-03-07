@@ -171,6 +171,8 @@ func migrate(db *sql.DB) error {
 			model TEXT NOT NULL,
 			base_url TEXT DEFAULT '',
 			description TEXT,
+			roles TEXT DEFAULT '[]',
+			context_window_override INTEGER DEFAULT 0,
 			total_requests INTEGER DEFAULT 0,
 			total_tokens INTEGER DEFAULT 0,
 			total_cost REAL DEFAULT 0,
@@ -209,10 +211,47 @@ func migrate(db *sql.DB) error {
 			display_name TEXT,
 			is_default INTEGER DEFAULT 0,
 			sort_order INTEGER DEFAULT 0,
+			context_window INTEGER DEFAULT 0,
 			created_at TEXT NOT NULL,
 			UNIQUE(provider, model)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_ai_models_provider ON ai_provider_models(provider, sort_order)`,
+
+		// ==================== AI 角色预算表 ====================
+		`CREATE TABLE IF NOT EXISTS ai_role_budget (
+			role TEXT PRIMARY KEY,
+			daily_token_limit INTEGER DEFAULT 0,
+			daily_call_limit INTEGER DEFAULT 0,
+			fallback_provider_id INTEGER,
+			auto_trigger_min_severity TEXT DEFAULT 'critical',
+			daily_tokens_used INTEGER DEFAULT 0,
+			daily_calls_used INTEGER DEFAULT 0,
+			daily_reset_at TEXT,
+			updated_at TEXT NOT NULL
+		)`,
+
+		// ==================== AI 分析报告表 ====================
+		`CREATE TABLE IF NOT EXISTS ai_reports (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			incident_id TEXT,
+			cluster_id TEXT NOT NULL,
+			role TEXT NOT NULL,
+			trigger TEXT NOT NULL,
+			summary TEXT,
+			root_cause_analysis TEXT,
+			recommendations TEXT,
+			similar_incidents TEXT,
+			investigation_steps TEXT,
+			evidence_chain TEXT,
+			provider_name TEXT,
+			model TEXT,
+			input_tokens INTEGER DEFAULT 0,
+			output_tokens INTEGER DEFAULT 0,
+			duration_ms INTEGER DEFAULT 0,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_ai_reports_incident ON ai_reports(incident_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_ai_reports_cluster ON ai_reports(cluster_id, role, created_at DESC)`,
 
 		// ==================== SLO: 目标配置表 ====================
 		// SLO 目标配置，用户可配置不同周期的可用性和延迟目标
@@ -330,6 +369,11 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE ai_conversations ADD COLUMN total_tool_calls INTEGER DEFAULT 0`,
 		// AI 提供商表添加 base_url（Ollama 等自部署服务使用）
 		`ALTER TABLE ai_providers ADD COLUMN base_url TEXT DEFAULT ''`,
+		// AI 提供商表添加角色路由字段
+		`ALTER TABLE ai_providers ADD COLUMN roles TEXT DEFAULT '[]'`,
+		`ALTER TABLE ai_providers ADD COLUMN context_window_override INTEGER DEFAULT 0`,
+		// AI 模型表添加上下文窗口字段
+		`ALTER TABLE ai_provider_models ADD COLUMN context_window INTEGER DEFAULT 0`,
 	}
 
 	// 删除旧表（OTel 迁移后不再需要）
@@ -446,46 +490,47 @@ func initDefaultAIModels(db *sql.DB) error {
 
 	now := time.Now().Format(time.RFC3339)
 	models := []struct {
-		provider    string
-		model       string
-		displayName string
-		isDefault   int
-		sortOrder   int
+		provider      string
+		model         string
+		displayName   string
+		isDefault     int
+		sortOrder     int
+		contextWindow int // tokens
 	}{
 		// Gemini 2.5 系列
-		{"gemini", "gemini-2.5-flash", "Gemini 2.5 Flash", 1, 1},
-		{"gemini", "gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite", 0, 2},
-		{"gemini", "gemini-2.5-pro", "Gemini 2.5 Pro", 0, 3},
+		{"gemini", "gemini-2.5-flash", "Gemini 2.5 Flash", 1, 1, 1048576},
+		{"gemini", "gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite", 0, 2, 1048576},
+		{"gemini", "gemini-2.5-pro", "Gemini 2.5 Pro", 0, 3, 1048576},
 		// OpenAI
-		{"openai", "gpt-4o", "GPT-4o", 1, 1},
-		{"openai", "gpt-4o-mini", "GPT-4o Mini", 0, 2},
-		{"openai", "gpt-4-turbo", "GPT-4 Turbo", 0, 3},
-		{"openai", "gpt-4", "GPT-4", 0, 4},
-		{"openai", "o1", "o1", 0, 5},
-		{"openai", "o1-mini", "o1 Mini", 0, 6},
+		{"openai", "gpt-4o", "GPT-4o", 1, 1, 128000},
+		{"openai", "gpt-4o-mini", "GPT-4o Mini", 0, 2, 128000},
+		{"openai", "gpt-4-turbo", "GPT-4 Turbo", 0, 3, 128000},
+		{"openai", "gpt-4", "GPT-4", 0, 4, 8192},
+		{"openai", "o1", "o1", 0, 5, 200000},
+		{"openai", "o1-mini", "o1 Mini", 0, 6, 128000},
 		// Anthropic
-		{"anthropic", "claude-sonnet-4-20250514", "Claude Sonnet 4", 1, 1},
-		{"anthropic", "claude-opus-4-5-20251101", "Claude Opus 4.5", 0, 2},
-		{"anthropic", "claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet", 0, 3},
-		{"anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku", 0, 4},
-		{"anthropic", "claude-3-opus-20240229", "Claude 3 Opus", 0, 5},
-		{"anthropic", "claude-3-haiku-20240307", "Claude 3 Haiku", 0, 6},
+		{"anthropic", "claude-sonnet-4-20250514", "Claude Sonnet 4", 1, 1, 200000},
+		{"anthropic", "claude-opus-4-5-20251101", "Claude Opus 4.5", 0, 2, 200000},
+		{"anthropic", "claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet", 0, 3, 200000},
+		{"anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku", 0, 4, 200000},
+		{"anthropic", "claude-3-opus-20240229", "Claude 3 Opus", 0, 5, 200000},
+		{"anthropic", "claude-3-haiku-20240307", "Claude 3 Haiku", 0, 6, 200000},
 		// Ollama (本地部署)
-		{"ollama", "qwen2.5:14b", "Qwen 2.5 14B", 1, 1},
-		{"ollama", "qwen2.5:7b", "Qwen 2.5 7B", 0, 2},
-		{"ollama", "qwen2.5:32b", "Qwen 2.5 32B", 0, 3},
-		{"ollama", "llama3.1:8b", "Llama 3.1 8B", 0, 4},
-		{"ollama", "deepseek-r1:14b", "DeepSeek R1 14B", 0, 5},
+		{"ollama", "qwen2.5:14b", "Qwen 2.5 14B", 1, 1, 32768},
+		{"ollama", "qwen2.5:7b", "Qwen 2.5 7B", 0, 2, 32768},
+		{"ollama", "qwen2.5:32b", "Qwen 2.5 32B", 0, 3, 32768},
+		{"ollama", "llama3.1:8b", "Llama 3.1 8B", 0, 4, 131072},
+		{"ollama", "deepseek-r1:14b", "DeepSeek R1 14B", 0, 5, 65536},
 	}
 
-	stmt, err := db.Prepare(`INSERT INTO ai_provider_models (provider, model, display_name, is_default, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+	stmt, err := db.Prepare(`INSERT INTO ai_provider_models (provider, model, display_name, is_default, sort_order, context_window, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
 	for _, m := range models {
-		if _, err := stmt.Exec(m.provider, m.model, m.displayName, m.isDefault, m.sortOrder, now); err != nil {
+		if _, err := stmt.Exec(m.provider, m.model, m.displayName, m.isDefault, m.sortOrder, m.contextWindow, now); err != nil {
 			log.Warn("插入默认模型失败", "err", err)
 		}
 	}

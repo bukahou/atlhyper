@@ -119,6 +119,7 @@ type OpsAdmin interface {
 	UpdateAIProvider(ctx context.Context, p *database.AIProvider) error
 	DeleteAIProvider(ctx context.Context, id int64) error
 	UpdateAIActiveConfig(ctx context.Context, cfg *database.AIActiveConfig) error
+	UpdateAIProviderRoles(ctx context.Context, id int64, roles []string) error
 }
 
 // ================================================================

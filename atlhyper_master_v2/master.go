@@ -175,27 +175,54 @@ func NewMaster() (*Master, error) {
 	log.Info("数据处理器初始化完成")
 
 	// 5.1 初始化 AIOps AI 增强服务
-	llmFactory := func(ctx context.Context) (llm.LLMClient, error) {
+	// llmFactory 支持角色路由: 优先查找 background 角色的 Provider，否则退回全局
+	llmFactory := func(ctx context.Context) (llm.LLMClient, int, error) {
 		active, err := db.AIActive.Get(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("获取 AI 配置失败: %w", err)
+		if err != nil || active == nil || !active.Enabled {
+			return nil, 0, fmt.Errorf("AI 未配置或未启用")
 		}
-		if active == nil || !active.Enabled || active.ProviderID == nil {
-			return nil, fmt.Errorf("AI 未配置或未启用")
+
+		// 优先查找持有 background 角色的 Provider
+		providers, _ := db.AIProvider.List(ctx)
+		var provider *database.AIProvider
+		for _, p := range providers {
+			for _, r := range p.Roles {
+				if r == ai.RoleBackground {
+					provider = p
+					break
+				}
+			}
+			if provider != nil {
+				break
+			}
 		}
-		provider, err := db.AIProvider.GetByID(ctx, *active.ProviderID)
-		if err != nil || provider == nil {
-			return nil, fmt.Errorf("AI 提供商不存在")
+
+		// 无 background 角色 → 退回全局
+		if provider == nil {
+			if active.ProviderID == nil {
+				return nil, 0, fmt.Errorf("AI 提供商未配置")
+			}
+			provider, err = db.AIProvider.GetByID(ctx, *active.ProviderID)
+			if err != nil || provider == nil {
+				return nil, 0, fmt.Errorf("AI 提供商不存在")
+			}
 		}
-		return llm.NewLLMClient(llm.Config{
+
+		// 解析有效上下文窗口
+		contextWindow := ai.EffectiveContextWindow(ctx, provider, db.AIModel)
+
+		client, err := llm.NewLLMClient(llm.Config{
 			Provider: provider.Provider,
 			APIKey:   provider.APIKey,
 			Model:    provider.Model,
 			BaseURL:  provider.BaseURL,
 		})
+		return client, contextWindow, err
 	}
-	aiopsEnhancer := aiopsai.NewEnhancer(db.AIOpsIncident, llmFactory)
-	log.Info("AIOps AI 增强服务初始化完成")
+	aiopsEnhancer := aiopsai.NewEnhancer(db.AIOpsIncident, db.AIReport, llmFactory)
+	aiopsEnhancer.EnableBackgroundTrigger(db.AIRoleBudget)
+	aiopsEngine.SetIncidentNotify(aiopsEnhancer.NotifyIncidentEvent)
+	log.Info("AIOps AI 增强服务初始化完成（后台自动分析已启用）")
 
 	// 6. 初始化 Query（读取路径）
 	q := query.NewQueryServiceWithEventRepo(store, bus, db.Event)
@@ -230,7 +257,7 @@ func NewMaster() (*Master, error) {
 			ToolTimeout: cfg.AI.ToolTimeout,
 		},
 		cmdOps, bus,
-		db.AIProvider, db.AIActive,
+		db.AIProvider, db.AIActive, db.AIModel, db.AIRoleBudget,
 		db.AIConversation, db.AIMessage,
 	)
 	log.Info("AI 服务初始化完成 (动态配置)")
@@ -281,6 +308,15 @@ func NewMaster() (*Master, error) {
 		return string(data), nil
 	})
 	log.Info("AIOps Tool 注册完成 (3 个)")
+
+	// 9.2 配置 analysis 深度分析（复用 AI Service 的 Tool 基础设施）
+	aiopsEnhancer.SetAnalysisConfig(&aiopsai.AnalysisConfig{
+		LLMFactory:   llmFactory,
+		ToolExecute:  aiopsai.ToolExecuteFunc(aiService.GetToolExecuteFunc()),
+		ToolDefs:     aiService.GetToolDefs(),
+		ReportRepo:   db.AIReport,
+		IncidentRepo: db.AIOpsIncident,
+	})
 
 	// 10. 初始化 AlertManager（告警管理器）
 	alertMgr, err := notifier.NewManager(db.Notify)

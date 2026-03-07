@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/ai/llm"
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/anthropic" // 注册 anthropic provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini"    // 注册 gemini provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/ollama"    // 注册 ollama provider
@@ -26,6 +27,8 @@ type ServiceConfig struct {
 type aiServiceImpl struct {
 	providerRepo database.AIProviderRepository
 	activeRepo   database.AIActiveConfigRepository
+	modelRepo    database.AIProviderModelRepository
+	budgetRepo   database.AIRoleBudgetRepository
 	executor     *toolExecutor
 	convRepo     database.AIConversationRepository
 	msgRepo      database.AIMessageRepository
@@ -39,6 +42,8 @@ func NewService(
 	bus mq.Producer,
 	providerRepo database.AIProviderRepository,
 	activeRepo database.AIActiveConfigRepository,
+	modelRepo database.AIProviderModelRepository,
+	budgetRepo database.AIRoleBudgetRepository,
 	convRepo database.AIConversationRepository,
 	msgRepo database.AIMessageRepository,
 ) AIService {
@@ -51,6 +56,8 @@ func NewService(
 	return &aiServiceImpl{
 		providerRepo: providerRepo,
 		activeRepo:   activeRepo,
+		modelRepo:    modelRepo,
+		budgetRepo:   budgetRepo,
 		executor:     newToolExecutor(ops, bus, toolTimeout),
 		convRepo:     convRepo,
 		msgRepo:      msgRepo,
@@ -114,6 +121,16 @@ func (s *aiServiceImpl) DeleteConversation(ctx context.Context, conversationID i
 // RegisterTool 注册自定义 Tool
 func (s *aiServiceImpl) RegisterTool(name string, handler ToolHandler) {
 	s.executor.RegisterTool(name, handler)
+}
+
+// GetToolExecuteFunc 获取 Tool 执行函数
+func (s *aiServiceImpl) GetToolExecuteFunc() func(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error) {
+	return s.executor.Execute
+}
+
+// GetToolDefs 获取 Tool 定义列表
+func (s *aiServiceImpl) GetToolDefs() []llm.ToolDefinition {
+	return GetToolDefinitions()
 }
 
 // toConversation 转换 DB 模型为 API 类型

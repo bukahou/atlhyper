@@ -5,6 +5,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/common/logger"
@@ -122,6 +123,33 @@ func (r *aiProviderRepo) List(ctx context.Context) ([]*database.AIProvider, erro
 		providers = append(providers, p)
 	}
 	return providers, nil
+}
+
+func (r *aiProviderRepo) UpdateRoles(ctx context.Context, id int64, roles []string) error {
+	rolesJSON := "[]"
+	if len(roles) > 0 {
+		b, _ := json.Marshal(roles)
+		rolesJSON = string(b)
+	}
+	query, args := r.dialect.UpdateRoles(id, rolesJSON)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+func (r *aiProviderRepo) FindByRole(ctx context.Context, role string) (*database.AIProvider, error) {
+	// 查询所有 provider，在应用层过滤角色（SQLite JSON 查询能力有限）
+	providers, err := r.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range providers {
+		for _, r := range p.Roles {
+			if r == role {
+				return p, nil
+			}
+		}
+	}
+	return nil, nil
 }
 
 func (r *aiProviderRepo) IncrementUsage(ctx context.Context, id int64, requests, tokens int64, cost float64) error {
