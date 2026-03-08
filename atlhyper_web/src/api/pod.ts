@@ -85,11 +85,11 @@ export function getPodLogs(data: {
   TimeoutSeconds?: number;
 }) {
   return post<PodLogsResponse>("/api/v2/ops/pods/logs", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     namespace: data.Namespace,
     name: data.Pod,
     container: data.Container,
-    tail_lines: data.TailLines,
+    tailLines: data.TailLines,
   });
 }
 
@@ -109,7 +109,7 @@ export function restartPod(data: {
   Pod: string;
 }) {
   return post<CommandResponse>("/api/v2/ops/pods/restart", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     namespace: data.Namespace,
     name: data.Pod,
   });

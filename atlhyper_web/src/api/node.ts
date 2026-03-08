@@ -67,7 +67,7 @@ export async function getNodeDetail(data: { ClusterID: string; NodeName: string 
  */
 export function cordonNode(data: { ClusterID: string; Node: string }) {
   return post<CommandResponse>("/api/v2/ops/nodes/cordon", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     name: data.Node,
   });
 }
@@ -78,7 +78,7 @@ export function cordonNode(data: { ClusterID: string; Node: string }) {
  */
 export function uncordonNode(data: { ClusterID: string; Node: string }) {
   return post<CommandResponse>("/api/v2/ops/nodes/uncordon", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     name: data.Node,
   });
 }

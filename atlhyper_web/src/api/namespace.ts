@@ -164,7 +164,7 @@ export async function getConfigMapData(data: {
   Name: string;
 }): Promise<Record<string, string>> {
   const res = await post<ConfigMapDataResponse>("/api/v2/ops/configmaps/data", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     namespace: data.Namespace,
     name: data.Name,
   });
@@ -186,7 +186,7 @@ export async function getSecretData(data: {
   Name: string;
 }): Promise<Record<string, string>> {
   const res = await post<SecretDataResponse>("/api/v2/ops/secrets/data", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     namespace: data.Namespace,
     name: data.Name,
   });

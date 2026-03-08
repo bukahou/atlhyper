@@ -70,7 +70,7 @@ export async function getDeploymentDetail(data: { ClusterID: string; Namespace: 
  */
 export function scaleDeployment(data: { ClusterID: string; Namespace: string; Name: string; Kind?: string; Replicas: number }) {
   return post<CommandResponse>("/api/v2/ops/deployments/scale", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     namespace: data.Namespace,
     name: data.Name,
     replicas: data.Replicas,
@@ -83,7 +83,7 @@ export function scaleDeployment(data: { ClusterID: string; Namespace: string; Na
  */
 export function restartDeployment(data: { ClusterID: string; Namespace: string; Name: string }) {
   return post<CommandResponse>("/api/v2/ops/deployments/restart", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     namespace: data.Namespace,
     name: data.Name,
   });
@@ -95,7 +95,7 @@ export function restartDeployment(data: { ClusterID: string; Namespace: string; 
  */
 export function updateDeploymentImage(data: { ClusterID: string; Namespace: string; Name: string; Kind?: string; ContainerName?: string; NewImage: string; OldImage?: string }) {
   return post<CommandResponse>("/api/v2/ops/deployments/image", {
-    cluster_id: data.ClusterID,
+    clusterId: data.ClusterID,
     namespace: data.Namespace,
     name: data.Name,
     container: data.ContainerName || "",
