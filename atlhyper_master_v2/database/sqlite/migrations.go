@@ -576,7 +576,7 @@ func initDefaultRoleBudgets(db *sql.DB) error {
 	}{
 		{"background", 400000, 100000, 50, 4000000, 1000000, 500, "low"},
 		{"chat", 800000, 200000, 100, 8000000, 2000000, 1000, "off"},
-		{"analysis", 1600000, 400000, 20, 8000000, 2000000, 100, "critical"},
+		{"analysis", 1600000, 400000, 20, 8000000, 2000000, 100, "high"},
 	}
 
 	stmt, err := db.Prepare(`INSERT INTO ai_role_budget

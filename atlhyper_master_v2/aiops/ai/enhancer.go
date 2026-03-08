@@ -167,13 +167,25 @@ func (e *Enhancer) SetAnalysisConfig(cfg *AnalysisConfig) {
 	}
 }
 
-// TriggerAnalysis 手动触发深度分析（异步）
+// TriggerAnalysis 手动触发深度分析（异步，直接调用 RunAnalysis，不经过 background 流程）
 func (e *Enhancer) TriggerAnalysis(incidentID string) {
-	if e.bgTrigger == nil {
-		log.Warn("深度分析触发器未启用", "incident", incidentID)
+	if e.bgTrigger == nil || e.bgTrigger.analysisCfg == nil {
+		log.Warn("深度分析未配置", "incident", incidentID)
 		return
 	}
-	e.bgTrigger.Submit(incidentID, "high", "manual")
+
+	log.Info("手动触发深度分析", "incident", incidentID)
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), analysisTimeout)
+		defer cancel()
+
+		if err := RunAnalysis(ctx, *e.bgTrigger.analysisCfg, incidentID, "manual"); err != nil {
+			log.Warn("手动深度分析失败", "incident", incidentID, "err", err)
+		} else {
+			log.Info("手动深度分析完成", "incident", incidentID)
+		}
+	}()
 }
 
 // Stop 停止后台任务

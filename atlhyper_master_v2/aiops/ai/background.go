@@ -87,6 +87,7 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 	bt.mu.Lock()
 	if last, ok := bt.seen[evt.IncidentID]; ok && time.Since(last) < 5*time.Minute {
 		bt.mu.Unlock()
+		log.Info("后台分析去重跳过（5分钟内已触发）", "incident", evt.IncidentID)
 		return
 	}
 	bt.seen[evt.IncidentID] = time.Now()
@@ -104,11 +105,11 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 		if err == nil && budget != nil {
 			minSeverity := budget.AutoTriggerMinSeverity
 			if minSeverity == "off" {
-				log.Debug("后台分析已禁用", "incident", evt.IncidentID)
+				log.Info("后台分析已禁用（配置=off）", "incident", evt.IncidentID)
 				return
 			}
 			if minSeverity != "" && !meetsMinSeverity(evt.Severity, minSeverity) {
-				log.Debug("严重度不足，跳过后台分析",
+				log.Info("严重度不足，跳过后台分析",
 					"incident", evt.IncidentID,
 					"severity", evt.Severity,
 					"min", minSeverity)

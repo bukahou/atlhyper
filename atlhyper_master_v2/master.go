@@ -175,56 +175,49 @@ func NewMaster() (*Master, error) {
 	log.Info("数据处理器初始化完成")
 
 	// 5.1 初始化 AIOps AI 增强服务
-	// llmFactory 支持角色路由: 优先查找 background 角色的 Provider，否则退回全局
-	llmFactory := func(ctx context.Context) (llm.LLMClient, int, *aiopsai.LLMClientMeta, error) {
-		active, err := db.AIActive.Get(ctx)
-		if err != nil || active == nil || !active.Enabled {
-			return nil, 0, nil, fmt.Errorf("AI 未配置或未启用")
-		}
-
-		// 优先查找持有 background 角色的 Provider
-		providers, _ := db.AIProvider.List(ctx)
-		var provider *database.AIProvider
-		for _, p := range providers {
-			for _, r := range p.Roles {
-				if r == ai.RoleBackground {
-					provider = p
+	// makeLLMFactory 按角色创建 LLM 工厂函数
+	// 角色分配即生效：只要 Provider 被分配了角色就直接使用，不依赖全局激活开关
+	makeLLMFactory := func(role string) aiopsai.LLMClientFactory {
+		return func(ctx context.Context) (llm.LLMClient, int, *aiopsai.LLMClientMeta, error) {
+			// 查找持有指定角色的 Provider
+			providers, _ := db.AIProvider.List(ctx)
+			var provider *database.AIProvider
+			for _, p := range providers {
+				for _, r := range p.Roles {
+					if r == role {
+						provider = p
+						break
+					}
+				}
+				if provider != nil {
 					break
 				}
 			}
-			if provider != nil {
-				break
+
+			if provider == nil {
+				return nil, 0, nil, fmt.Errorf("无 Provider 分配了 %s 角色", role)
 			}
-		}
 
-		// 无 background 角色 → 退回全局
-		if provider == nil {
-			if active.ProviderID == nil {
-				return nil, 0, nil, fmt.Errorf("AI 提供商未配置")
+			// 解析有效上下文窗口
+			contextWindow := ai.EffectiveContextWindow(ctx, provider, db.AIModel)
+
+			meta := &aiopsai.LLMClientMeta{
+				ProviderID:   provider.ID,
+				ProviderName: provider.Name,
+				Model:        provider.Model,
 			}
-			provider, err = db.AIProvider.GetByID(ctx, *active.ProviderID)
-			if err != nil || provider == nil {
-				return nil, 0, nil, fmt.Errorf("AI 提供商不存在")
-			}
+
+			client, err := llm.NewLLMClient(llm.Config{
+				Provider: provider.Provider,
+				APIKey:   provider.APIKey,
+				Model:    provider.Model,
+				BaseURL:  provider.BaseURL,
+			})
+			return client, contextWindow, meta, err
 		}
-
-		// 解析有效上下文窗口
-		contextWindow := ai.EffectiveContextWindow(ctx, provider, db.AIModel)
-
-		meta := &aiopsai.LLMClientMeta{
-			ProviderID:   provider.ID,
-			ProviderName: provider.Name,
-			Model:        provider.Model,
-		}
-
-		client, err := llm.NewLLMClient(llm.Config{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-			Model:    provider.Model,
-			BaseURL:  provider.BaseURL,
-		})
-		return client, contextWindow, meta, err
 	}
+	llmFactory := makeLLMFactory(ai.RoleBackground)
+	analysisLLMFactory := makeLLMFactory(ai.RoleAnalysis)
 	aiopsEnhancer := aiopsai.NewEnhancer(db.AIOpsIncident, db.AIReport, llmFactory)
 	aiopsEnhancer.EnableBackgroundTrigger(db.AIRoleBudget)
 	aiopsEnhancer.SetRecordUsage(func(ctx context.Context, role string, providerID int64, inputTokens, outputTokens int) {
@@ -330,7 +323,7 @@ func NewMaster() (*Master, error) {
 
 	// 9.2 配置 analysis 深度分析（复用 AI Service 的 Tool 基础设施）
 	aiopsEnhancer.SetAnalysisConfig(&aiopsai.AnalysisConfig{
-		LLMFactory:   llmFactory,
+		LLMFactory:   analysisLLMFactory,
 		ToolExecute:  aiopsai.ToolExecuteFunc(aiService.GetToolExecuteFunc()),
 		ToolDefs:     aiService.GetToolDefs(),
 		ReportRepo:   db.AIReport,
