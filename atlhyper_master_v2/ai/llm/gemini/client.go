@@ -202,7 +202,10 @@ func convertMessage(msg llm.Message) *genai.Content {
 		}
 		for _, tc := range msg.ToolCalls {
 			var args map[string]any
-			json.Unmarshal([]byte(tc.Params), &args)
+			if err := json.Unmarshal([]byte(tc.Params), &args); err != nil {
+				log.Warn("Tool Call 参数解析失败，使用空参数", "tool", tc.Name, "err", err)
+				args = map[string]any{}
+			}
 			parts = append(parts, genai.FunctionCall{
 				Name: tc.Name,
 				Args: args,

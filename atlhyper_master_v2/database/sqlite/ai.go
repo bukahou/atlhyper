@@ -53,8 +53,12 @@ func (d *aiConversationDialect) ScanRow(rows *sql.Rows) (*database.AIConversatio
 	if err != nil {
 		return nil, err
 	}
-	conv.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	conv.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+		conv.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+		conv.UpdatedAt = t
+	}
 	return conv, nil
 }
 
@@ -93,7 +97,9 @@ func (d *aiMessageDialect) ScanRow(rows *sql.Rows) (*database.AIMessage, error) 
 	if toolCalls.Valid {
 		msg.ToolCalls = toolCalls.String
 	}
-	msg.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+		msg.CreatedAt = t
+	}
 	return msg, nil
 }
 
@@ -179,8 +185,12 @@ func (d *aiProviderDialect) ScanRow(rows *sql.Rows) (*database.AIProvider, error
 		return nil, err
 	}
 
-	p.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	p.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+		p.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+		p.UpdatedAt = t
+	}
 	if baseURL.Valid {
 		p.BaseURL = baseURL.String
 	}
@@ -192,26 +202,30 @@ func (d *aiProviderDialect) ScanRow(rows *sql.Rows) (*database.AIProvider, error
 	}
 
 	if lastUsedAt.Valid {
-		t, _ := time.Parse(time.RFC3339, lastUsedAt.String)
-		p.LastUsedAt = &t
+		if t, err := time.Parse(time.RFC3339, lastUsedAt.String); err == nil {
+			p.LastUsedAt = &t
+		}
 	}
 	if lastError.Valid {
 		p.LastError = lastError.String
 	}
 	if lastErrorAt.Valid {
-		t, _ := time.Parse(time.RFC3339, lastErrorAt.String)
-		p.LastErrorAt = &t
+		if t, err := time.Parse(time.RFC3339, lastErrorAt.String); err == nil {
+			p.LastErrorAt = &t
+		}
 	}
 	if status.Valid {
 		p.Status = status.String
 	}
 	if statusCheckedAt.Valid {
-		t, _ := time.Parse(time.RFC3339, statusCheckedAt.String)
-		p.StatusCheckedAt = &t
+		if t, err := time.Parse(time.RFC3339, statusCheckedAt.String); err == nil {
+			p.StatusCheckedAt = &t
+		}
 	}
 	if deletedAt.Valid {
-		t, _ := time.Parse(time.RFC3339, deletedAt.String)
-		p.DeletedAt = &t
+		if t, err := time.Parse(time.RFC3339, deletedAt.String); err == nil {
+			p.DeletedAt = &t
+		}
 	}
 
 	return p, nil
@@ -263,7 +277,9 @@ func (d *aiActiveConfigDialect) ScanRow(rows *sql.Rows) (*database.AIActiveConfi
 		return nil, err
 	}
 
-	cfg.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+		cfg.UpdatedAt = t
+	}
 	if providerID.Valid {
 		cfg.ProviderID = &providerID.Int64
 	}
@@ -318,7 +334,9 @@ func (d *aiProviderModelDialect) ScanRow(rows *sql.Rows) (*database.AIProviderMo
 		return nil, err
 	}
 
-	m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+		m.CreatedAt = t
+	}
 	if displayName.Valid {
 		m.DisplayName = displayName.String
 	}

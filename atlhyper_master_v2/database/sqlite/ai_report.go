@@ -46,6 +46,35 @@ func (d *aiReportDialect) SelectByCluster(clusterID, role string, limit int) (st
 		[]any{clusterID, limit}
 }
 
+func (d *aiReportDialect) SelectRecent(role string, limit, offset int) (string, []any) {
+	if role != "" {
+		return selectAIReportColumns + ` FROM ai_reports WHERE role = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+			[]any{role, limit, offset}
+	}
+	return selectAIReportColumns + ` FROM ai_reports ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		[]any{limit, offset}
+}
+
+func (d *aiReportDialect) CountRecent(role string) (string, []any) {
+	if role != "" {
+		return `SELECT COUNT(*) FROM ai_reports WHERE role = ?`, []any{role}
+	}
+	return `SELECT COUNT(*) FROM ai_reports`, nil
+}
+
+func (d *aiReportDialect) UpdateResult(id int64, r *database.AIReport) (string, []any) {
+	return `UPDATE ai_reports SET
+		summary = ?, root_cause_analysis = ?, recommendations = ?,
+		investigation_steps = ?,
+		input_tokens = ?, output_tokens = ?, duration_ms = ?
+	WHERE id = ?`, []any{
+		r.Summary, r.RootCauseAnalysis, r.Recommendations,
+		r.InvestigationSteps,
+		r.InputTokens, r.OutputTokens, r.DurationMs,
+		id,
+	}
+}
+
 func (d *aiReportDialect) CountByClusterAndRole(clusterID, role string, since time.Time) (string, []any) {
 	return `SELECT COUNT(*) FROM ai_reports WHERE cluster_id = ? AND role = ? AND created_at >= ?`,
 		[]any{clusterID, role, since.Format(time.RFC3339)}

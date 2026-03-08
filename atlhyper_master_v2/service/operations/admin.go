@@ -14,6 +14,7 @@ type AdminService struct {
 	settingsRepo   database.SettingsRepository
 	aiProviderRepo database.AIProviderRepository
 	aiActiveRepo   database.AIActiveConfigRepository
+	aiBudgetRepo   database.AIRoleBudgetRepository
 }
 
 // NewAdminService 创建 AdminService
@@ -22,12 +23,14 @@ func NewAdminService(
 	settingsRepo database.SettingsRepository,
 	aiProviderRepo database.AIProviderRepository,
 	aiActiveRepo database.AIActiveConfigRepository,
+	aiBudgetRepo database.AIRoleBudgetRepository,
 ) *AdminService {
 	return &AdminService{
 		notifyRepo:     notifyRepo,
 		settingsRepo:   settingsRepo,
 		aiProviderRepo: aiProviderRepo,
 		aiActiveRepo:   aiActiveRepo,
+		aiBudgetRepo:   aiBudgetRepo,
 	}
 }
 
@@ -67,4 +70,10 @@ func (s *AdminService) UpdateAIActiveConfig(ctx context.Context, cfg *database.A
 
 func (s *AdminService) UpdateAIProviderRoles(ctx context.Context, id int64, roles []string) error {
 	return s.aiProviderRepo.UpdateRoles(ctx, id, roles)
+}
+
+// ==================== AI Role Budget ====================
+
+func (s *AdminService) UpdateAIRoleBudget(ctx context.Context, budget *database.AIRoleBudget) error {
+	return s.aiBudgetRepo.Upsert(ctx, budget)
 }

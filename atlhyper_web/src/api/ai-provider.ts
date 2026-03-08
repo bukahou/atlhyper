@@ -12,24 +12,28 @@ export interface AIProvider {
   name: string;
   provider: string;
   model: string;
+  baseUrl?: string;
   description: string;
-  api_key_masked: string;
-  api_key_set: boolean;
-  is_active: boolean;
+  apiKeyMasked: string;
+  apiKeySet: boolean;
+  isActive: boolean;
+  roles: string[];
+  contextWindowOverride: number;
   status: string;
-  total_requests: number;
-  total_tokens: number;
-  total_cost: number;
-  last_used_at?: string;
-  last_error?: string;
-  created_at: string;
-  updated_at: string;
+  totalRequests: number;
+  totalTokens: number;
+  totalCost: number;
+  lastUsedAt?: string;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ActiveConfig {
   enabled: boolean;
-  provider_id: number | null;
-  tool_timeout: number;
+  providerId: number | null;
+  toolTimeout: number;
+  chatReady: boolean;
 }
 
 export interface ProviderModelInfo {
@@ -40,30 +44,94 @@ export interface ProviderModelInfo {
 
 export interface ProviderListResponse {
   providers: AIProvider[];
-  active_config: ActiveConfig;
+  activeConfig: ActiveConfig;
   models: ProviderModelInfo[];
 }
 
 export interface ProviderCreateRequest {
   name: string;
   provider: string;
-  api_key: string;
+  apiKey: string;
   model: string;
+  baseUrl?: string;
   description?: string;
 }
 
 export interface ProviderUpdateRequest {
   name?: string;
   provider?: string;
-  api_key?: string;
+  apiKey?: string;
   model?: string;
+  baseUrl?: string;
   description?: string;
+}
+
+export interface RoleOverview {
+  role: string;
+  roleName: string;
+  provider: {
+    id: number;
+    name: string;
+    model: string;
+    contextWindow: number;
+  } | null;
+}
+
+export interface RoleBudget {
+  role: string;
+  // 日限额
+  dailyInputTokenLimit: number;
+  dailyOutputTokenLimit: number;
+  dailyCallLimit: number;
+  // 日消耗
+  dailyInputTokensUsed: number;
+  dailyOutputTokensUsed: number;
+  dailyCallsUsed: number;
+  dailyResetAt?: string;
+  // 月限额
+  monthlyInputTokenLimit: number;
+  monthlyOutputTokenLimit: number;
+  monthlyCallLimit: number;
+  // 月消耗
+  monthlyInputTokensUsed: number;
+  monthlyOutputTokensUsed: number;
+  monthlyCallsUsed: number;
+  monthlyResetAt?: string;
+  // 配置
+  autoTriggerMinSeverity: string;
+  fallbackProviderId: number | null;
+}
+
+export interface BudgetUpdateRequest {
+  dailyInputTokenLimit?: number;
+  dailyOutputTokenLimit?: number;
+  dailyCallLimit?: number;
+  monthlyInputTokenLimit?: number;
+  monthlyOutputTokenLimit?: number;
+  monthlyCallLimit?: number;
+  autoTriggerMinSeverity?: string;
+  fallbackProviderId?: number | null;
 }
 
 export interface ActiveConfigUpdateRequest {
   enabled?: boolean;
-  provider_id?: number;
-  tool_timeout?: number;
+  providerId?: number;
+  toolTimeout?: number;
+}
+
+export interface AIReportItem {
+  id: number;
+  incidentId: string;
+  clusterId: string;
+  role: string;
+  trigger: string;
+  summary: string;
+  providerName: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+  createdAt: string;
 }
 
 // ============================================================
@@ -105,6 +173,44 @@ export function updateActiveConfig(data: ActiveConfigUpdateRequest) {
   return put<ActiveConfig>("/api/v2/ai/active", data);
 }
 
+// 角色分配
+export function updateProviderRoles(id: number, roles: string[]) {
+  return put<{ message: string; roles: string[] }>(
+    `/api/v2/ai/providers/${id}/roles`,
+    { roles }
+  );
+}
+
+// 角色总览
+export function getRolesOverview() {
+  return get<{ message: string; data: RoleOverview[] }>("/api/v2/ai/roles");
+}
+
+// 角色预算列表
+export function getBudgets() {
+  return get<{ message: string; data: RoleBudget[] }>("/api/v2/ai/budgets");
+}
+
+// 角色预算更新
+export function updateBudget(role: string, data: BudgetUpdateRequest) {
+  return put<{ message: string; role: string }>(
+    `/api/v2/ai/budgets/${encodeURIComponent(role)}`,
+    data
+  );
+}
+
+// AI Reports (调用历史)
+export function getAIReports(params?: { role?: string; limit?: number; offset?: number }) {
+  const query = new URLSearchParams();
+  if (params?.role) query.set("role", params.role);
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.offset) query.set("offset", String(params.offset));
+  const qs = query.toString();
+  return get<{ message: string; data: AIReportItem[]; total: number }>(
+    `/api/v2/ai/reports${qs ? `?${qs}` : ""}`
+  );
+}
+
 // ============================================================
 // Mock Data (Guest用)
 // ============================================================
@@ -117,16 +223,18 @@ export const mockProviderList: ProviderListResponse = {
       provider: "gemini",
       model: "gemini-2.0-flash",
       description: "本番環境用",
-      api_key_masked: "AIza****1234",
-      api_key_set: true,
-      is_active: true,
+      apiKeyMasked: "AIza****1234",
+      apiKeySet: true,
+      isActive: true,
+      roles: ["background", "chat"],
+      contextWindowOverride: 0,
       status: "healthy",
-      total_requests: 1234,
-      total_tokens: 456789,
-      total_cost: 12.34,
-      last_used_at: "2026-01-26T10:30:00Z",
-      created_at: "2026-01-01T00:00:00Z",
-      updated_at: "2026-01-26T10:30:00Z",
+      totalRequests: 1234,
+      totalTokens: 456789,
+      totalCost: 12.34,
+      lastUsedAt: "2026-01-26T10:30:00Z",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-26T10:30:00Z",
     },
     {
       id: 2,
@@ -134,21 +242,24 @@ export const mockProviderList: ProviderListResponse = {
       provider: "openai",
       model: "gpt-4o",
       description: "バックアップ用",
-      api_key_masked: "sk-****5678",
-      api_key_set: true,
-      is_active: false,
+      apiKeyMasked: "sk-****5678",
+      apiKeySet: true,
+      isActive: false,
+      roles: [],
+      contextWindowOverride: 0,
       status: "unknown",
-      total_requests: 0,
-      total_tokens: 0,
-      total_cost: 0,
-      created_at: "2026-01-15T00:00:00Z",
-      updated_at: "2026-01-15T00:00:00Z",
+      totalRequests: 0,
+      totalTokens: 0,
+      totalCost: 0,
+      createdAt: "2026-01-15T00:00:00Z",
+      updatedAt: "2026-01-15T00:00:00Z",
     },
   ],
-  active_config: {
+  activeConfig: {
     enabled: true,
-    provider_id: 1,
-    tool_timeout: 30,
+    providerId: 1,
+    toolTimeout: 30,
+    chatReady: true,
   },
   models: [
     {

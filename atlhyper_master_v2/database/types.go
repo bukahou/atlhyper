@@ -115,18 +115,18 @@ type NotifyChannel struct {
 
 // SlackConfig Slack 配置
 type SlackConfig struct {
-	WebhookURL string `json:"webhook_url"`
+	WebhookURL string `json:"webhookUrl"`
 }
 
 // EmailConfig Email 配置
 type EmailConfig struct {
-	SMTPHost     string   `json:"smtp_host"`
-	SMTPPort     int      `json:"smtp_port"`
-	SMTPUser     string   `json:"smtp_user"`
-	SMTPPassword string   `json:"smtp_password"`
-	SMTPTLS      bool     `json:"smtp_tls"`
-	FromAddress  string   `json:"from_address"`
-	ToAddresses  []string `json:"to_addresses"`
+	SMTPHost     string   `json:"smtpHost"`
+	SMTPPort     int      `json:"smtpPort"`
+	SMTPUser     string   `json:"smtpUser"`
+	SMTPPassword string   `json:"smtpPassword"`
+	SMTPTLS      bool     `json:"smtpTLS"`
+	FromAddress  string   `json:"fromAddress"`
+	ToAddresses  []string `json:"toAddresses"`
 }
 
 // Cluster 集群信息
@@ -264,19 +264,36 @@ type AIProviderModel struct {
 
 // AIRoleBudget 角色预算配置
 type AIRoleBudget struct {
-	Role               string
-	DailyTokenLimit    int    // 0 = 无限制
-	DailyCallLimit     int    // 0 = 无限制
-	FallbackProviderID *int64 // 降级 Provider（可选）
+	Role string
 
-	// analysis 角色专用: 自动触发的最低严重度
-	// "critical" / "high" / "medium" / "low" / "off"
+	// 日限额（0 = 无限制）
+	DailyInputTokenLimit  int
+	DailyOutputTokenLimit int
+	DailyCallLimit        int
+
+	// 日消耗
+	DailyInputTokensUsed  int
+	DailyOutputTokensUsed int
+	DailyCallsUsed        int
+	DailyResetAt          *time.Time
+
+	// 月限额（0 = 无限制）
+	MonthlyInputTokenLimit  int
+	MonthlyOutputTokenLimit int
+	MonthlyCallLimit        int
+
+	// 月消耗
+	MonthlyInputTokensUsed  int
+	MonthlyOutputTokensUsed int
+	MonthlyCallsUsed        int
+	MonthlyResetAt          *time.Time
+
+	// 配置
+	FallbackProviderID *int64 // 降级 Provider（可选）
+	// 自动触发的最低严重度: "critical" / "high" / "medium" / "low" / "off"
 	AutoTriggerMinSeverity string
 
-	DailyTokensUsed int
-	DailyCallsUsed  int
-	DailyResetAt    *time.Time
-	UpdatedAt       time.Time
+	UpdatedAt time.Time
 }
 
 // AIReport AI 分析报告（background/analysis 的持久化产出）

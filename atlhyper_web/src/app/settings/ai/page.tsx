@@ -1,198 +1,38 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { PageHeader, LoadingSpinner } from "@/components/common";
-import { toast } from "@/components/common/Toast";
-import { useAuthStore } from "@/store/authStore";
 import { AlertTriangle, Bot, Plus, Eye } from "lucide-react";
-import { UserRole } from "@/types/auth";
 
-import {
-  listProviders,
-  createProvider,
-  updateProvider,
-  deleteProvider,
-  updateActiveConfig,
-  mockProviderList,
-  type AIProvider,
-  type ProviderListResponse,
-} from "@/api/ai-provider";
-
-import { GlobalSettingsCard, ProviderCard, ProviderModal } from "./components";
+import { GlobalSettingsCard, ProviderCard, ProviderModal, RoleOverviewCard, BudgetConfigCard, UsageHistoryCard } from "./components";
+import { useAISettings } from "./components/useAISettings";
 
 export default function AISettingsPage() {
   const { t } = useI18n();
-  const { user, isAuthenticated } = useAuthStore();
   const aiT = t.aiSettingsPage;
 
-  const hasViewPermission = isAuthenticated && user && user.role >= UserRole.OPERATOR;
-  const isAdmin = user?.role === UserRole.ADMIN;
-  const isDemo = !hasViewPermission;
-
-  // State
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<ProviderListResponse | null>(null);
-
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
-  const [editingProvider, setEditingProvider] = useState<AIProvider | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  // Global settings state
-  const [globalEnabled, setGlobalEnabled] = useState(false);
-  const [globalTimeout, setGlobalTimeout] = useState(30);
-  const [savingGlobal, setSavingGlobal] = useState(false);
-
-  // Load data
-  const loadData = useCallback(async () => {
-    if (isDemo) {
-      setData(mockProviderList);
-      setGlobalEnabled(mockProviderList.active_config.enabled);
-      setGlobalTimeout(mockProviderList.active_config.tool_timeout);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const res = await listProviders();
-      setData(res.data);
-      setGlobalEnabled(res.data.active_config.enabled);
-      setGlobalTimeout(res.data.active_config.tool_timeout);
-    } catch (err) {
-      console.error("Failed to load providers:", err);
-      toast.error(aiT.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [isDemo]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Open modal for new provider
-  const handleAddProvider = () => {
-    setEditingProvider(null);
-    setShowModal(true);
-  };
-
-  // Open modal for editing
-  const handleEditProvider = (provider: AIProvider) => {
-    setEditingProvider(provider);
-    setShowModal(true);
-  };
-
-  // Save provider
-  const handleSaveProvider = async (formData: {
-    name: string;
-    provider: string;
-    apiKey: string;
-    model: string;
-    description: string;
-  }) => {
-    if (!formData.name || !formData.provider || !formData.model) {
-      toast.error(aiT.requiredFields);
-      return;
-    }
-    if (!editingProvider && !formData.apiKey) {
-      toast.error(aiT.apiKeyRequired);
-      return;
-    }
-
-    setSaving(true);
-    try {
-      if (editingProvider) {
-        await updateProvider(editingProvider.id, {
-          name: formData.name,
-          provider: formData.provider,
-          model: formData.model,
-          description: formData.description,
-          ...(formData.apiKey ? { api_key: formData.apiKey } : {}),
-        });
-        toast.success(aiT.providerUpdated);
-      } else {
-        await createProvider({
-          name: formData.name,
-          provider: formData.provider,
-          api_key: formData.apiKey,
-          model: formData.model,
-          description: formData.description,
-        });
-        toast.success(aiT.providerAdded);
-      }
-      setShowModal(false);
-      loadData();
-    } catch (err) {
-      console.error("Failed to save provider:", err);
-      toast.error(aiT.saveFailed);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Delete provider
-  const handleDeleteProvider = async (provider: AIProvider) => {
-    if (provider.is_active) {
-      toast.error(aiT.cannotDeleteActive);
-      return;
-    }
-    if (!confirm(aiT.confirmDelete.replace("{name}", provider.name))) return;
-
-    try {
-      await deleteProvider(provider.id);
-      toast.success(aiT.providerDeleted);
-      loadData();
-    } catch (err) {
-      console.error("Failed to delete provider:", err);
-      toast.error(aiT.deleteFailed);
-    }
-  };
-
-  // Activate provider
-  const handleActivateProvider = async (provider: AIProvider) => {
-    try {
-      await updateActiveConfig({ provider_id: provider.id });
-      toast.success(aiT.providerActivated.replace("{name}", provider.name));
-      loadData();
-    } catch (err) {
-      console.error("Failed to activate provider:", err);
-      toast.error(aiT.activateFailed);
-    }
-  };
-
-  // Toggle global enabled
-  const handleToggleEnabled = async () => {
-    if (!isAdmin) return;
-    setSavingGlobal(true);
-    try {
-      const newEnabled = !globalEnabled;
-      await updateActiveConfig({ enabled: newEnabled });
-      setGlobalEnabled(newEnabled);
-      toast.success(newEnabled ? aiT.aiEnabled : aiT.aiDisabled);
-    } catch (err) {
-      console.error("Failed to toggle enabled:", err);
-      toast.error(aiT.settingChangeFailed);
-    } finally {
-      setSavingGlobal(false);
-    }
-  };
-
-  // Save global timeout
-  const handleSaveGlobalTimeout = async () => {
-    if (!isAdmin) return;
-    setSavingGlobal(true);
-    try {
-      await updateActiveConfig({ tool_timeout: globalTimeout });
-      toast.success(aiT.timeoutSaved);
-    } catch (err) {
-      console.error("Failed to save timeout:", err);
-      toast.error(aiT.saveFailed);
-    } finally {
-      setSavingGlobal(false);
-    }
-  };
+  const {
+    isAdmin,
+    isDemo,
+    loading,
+    data,
+    globalEnabled,
+    globalTimeout,
+    savingGlobal,
+    setGlobalTimeout,
+    handleToggleEnabled,
+    handleSaveGlobalTimeout,
+    showModal,
+    setShowModal,
+    editingProvider,
+    saving,
+    handleAddProvider,
+    handleEditProvider,
+    handleSaveProvider,
+    handleDeleteProvider,
+    handleActivateProvider,
+  } = useAISettings();
 
   if (loading) {
     return (
@@ -247,6 +87,9 @@ export default function AISettingsPage() {
           onTimeoutChange={setGlobalTimeout}
           onSaveTimeout={handleSaveGlobalTimeout}
         />
+
+        {/* Role Overview */}
+        <RoleOverviewCard />
 
         {/* Provider List */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
@@ -304,6 +147,11 @@ export default function AISettingsPage() {
             )}
           </div>
         </div>
+        {/* Budget Config */}
+        <BudgetConfigCard />
+
+        {/* Usage History */}
+        <UsageHistoryCard />
       </div>
 
       {/* Modal */}

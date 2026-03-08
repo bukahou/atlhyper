@@ -28,16 +28,16 @@ export function MessageBubble({ message, stats }: MessageBubbleProps) {
     );
   }
 
-  // Assistant message - 解析 tool_calls 显示 ExecutionBlock
+  // Assistant message - 解析 toolCalls 显示 ExecutionBlock
   const content = message.content && !isToolResultJSON(message.content) ? message.content : "";
 
-  // 从 tool_calls 解析 rounds（每3个 tool_call 为一轮，模拟多轮思考）
+  // 从 toolCalls 解析 rounds（每3个 tool_call 为一轮，模拟多轮思考）
   let rounds: Round[] = [];
-  if (message.tool_calls) {
+  if (message.toolCalls) {
     try {
-      const toolCalls = JSON.parse(message.tool_calls);
+      const toolCalls = JSON.parse(message.toolCalls);
       if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-        // 将 tool_calls 按轮次分组（启发式：每轮最多3个指令）
+        // 将 toolCalls 按轮次分组（启发式：每轮最多3个指令）
         const commands = toolCalls.map((tc: { ID?: string; Name?: string; Params?: string }, idx: number) => ({
           id: tc.ID || `cmd-${idx}`,
           name: tc.Name || "unknown",

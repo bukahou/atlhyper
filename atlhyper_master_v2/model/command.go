@@ -4,17 +4,17 @@ package model
 
 // CreateCommandRequest 创建指令请求
 type CreateCommandRequest struct {
-	ClusterID       string                 `json:"cluster_id"`
+	ClusterID       string                 `json:"clusterId"`
 	Action          string                 `json:"action"` // scale / restart / delete_pod / exec ...
-	TargetKind      string                 `json:"target_kind,omitempty"`
-	TargetNamespace string                 `json:"target_namespace,omitempty"`
-	TargetName      string                 `json:"target_name,omitempty"`
+	TargetKind      string                 `json:"targetKind,omitempty"`
+	TargetNamespace string                 `json:"targetNamespace,omitempty"`
+	TargetName      string                 `json:"targetName,omitempty"`
 	Params          map[string]interface{} `json:"params,omitempty"`
 	Source          string                 `json:"source,omitempty"` // web / ai
 }
 
 // CreateCommandResponse 创建指令响应
 type CreateCommandResponse struct {
-	CommandID string `json:"command_id"`
+	CommandID string `json:"commandId"`
 	Status    string `json:"status"`
 }

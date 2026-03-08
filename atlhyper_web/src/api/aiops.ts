@@ -153,6 +153,8 @@ export interface SummarizeResponse {
   recommendations: Recommendation[];
   similarIncidents: SimilarMatch[];
   generatedAt: number;
+  reportId?: number;
+  fromCache?: boolean;
 }
 
 export interface Recommendation {
@@ -168,6 +170,30 @@ export interface SimilarMatch {
   rootCause: string;
   occurredAt: string;
   durationS: number;
+}
+
+// AI 报告
+export interface AIReport {
+  id: number;
+  incidentId: string;
+  clusterId: string;
+  role: string;
+  trigger: string;
+  summary: string;
+  providerName: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+  createdAt: string;
+}
+
+export interface AIReportDetail extends AIReport {
+  rootCauseAnalysis: string;
+  recommendations: string;
+  similarIncidents: string;
+  investigationSteps: string;
+  evidenceChain: string;
 }
 
 // 查询参数
@@ -230,4 +256,18 @@ export async function summarizeIncident(incidentId: string): Promise<SummarizeRe
 
 export async function recommendActions(incidentId: string): Promise<SummarizeResponse> {
   return (await post<SummarizeResponse>("/api/v2/aiops/ai/recommend", { incidentId })).data;
+}
+
+// AI 报告
+export async function getAIReports(incidentId: string): Promise<AIReport[]> {
+  const resp = (await get<{ data: AIReport[] }>(`/api/v2/aiops/ai/reports`, { incident_id: incidentId })).data;
+  return resp?.data ?? [];
+}
+
+export async function getAIReportDetail(reportId: number): Promise<AIReportDetail> {
+  return (await get<{ data: AIReportDetail }>(`/api/v2/aiops/ai/reports/${reportId}`)).data.data;
+}
+
+export async function triggerAnalysis(incidentId: string): Promise<{ message: string; reportId: number }> {
+  return (await post<{ message: string; reportId: number }>("/api/v2/aiops/ai/analyze", { incidentId })).data;
 }

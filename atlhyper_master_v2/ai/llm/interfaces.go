@@ -66,8 +66,8 @@ type Chunk struct {
 
 // Usage Token 使用量
 type Usage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens  int `json:"inputTokens"`
+	OutputTokens int `json:"outputTokens"`
 }
 
 // ChunkType 响应块类型

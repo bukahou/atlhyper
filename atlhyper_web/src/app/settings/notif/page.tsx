@@ -68,7 +68,7 @@ export default function NotificationsPage() {
 
   // 保存 Slack 配置
   const handleSaveSlack = useCallback(
-    async (data: { enabled?: boolean; webhook_url?: string }) => {
+    async (data: { enabled?: boolean; webhookUrl?: string }) => {
       try {
         const res = await updateSlack(data);
         // 更新本地状态
@@ -160,10 +160,10 @@ export default function NotificationsPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Slack 卡片 */}
             <SlackCard
-              config={(slackChannel?.config as SlackConfig) || { webhook_url: "" }}
+              config={(slackChannel?.config as SlackConfig) || { webhookUrl: "" }}
               enabled={slackChannel?.enabled || false}
-              effectiveEnabled={slackChannel?.effective_enabled || false}
-              validationErrors={slackChannel?.validation_errors || []}
+              effectiveEnabled={slackChannel?.effectiveEnabled || false}
+              validationErrors={slackChannel?.validationErrors || []}
               readOnly={isDemo}
               onSave={handleSaveSlack}
               onTest={handleTestSlack}
@@ -173,16 +173,16 @@ export default function NotificationsPage() {
             <EmailCard
               config={
                 (emailChannel?.config as EmailConfig) || {
-                  smtp_host: "",
-                  smtp_port: 587,
-                  smtp_user: "",
-                  from_address: "",
-                  to_addresses: [],
+                  smtpHost: "",
+                  smtpPort: 587,
+                  smtpUser: "",
+                  fromAddress: "",
+                  toAddresses: [],
                 }
               }
               enabled={emailChannel?.enabled || false}
-              effectiveEnabled={emailChannel?.effective_enabled || false}
-              validationErrors={emailChannel?.validation_errors || []}
+              effectiveEnabled={emailChannel?.effectiveEnabled || false}
+              validationErrors={emailChannel?.validationErrors || []}
               readOnly={isDemo}
               onSave={handleSaveEmail}
               onTest={handleTestEmail}

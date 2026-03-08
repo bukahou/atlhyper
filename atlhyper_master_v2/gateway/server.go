@@ -14,6 +14,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/database"
+	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/common/logger"
@@ -23,38 +24,41 @@ var serverLog = logger.Module("Gateway")
 
 // Server Gateway HTTP Server
 type Server struct {
-	port       int
-	service    service.Service
-	database   *database.DB
-	bus        mq.Producer
-	aiService  ai.AIService
-	httpServer *http.Server
+	port            int
+	service         service.Service
+	database        *database.DB
+	bus             mq.Producer
+	aiService       ai.AIService
+	analyzeTrigger  aiopsHandler.AnalyzeTrigger
+	httpServer      *http.Server
 }
 
 // Config Server 配置
 type Config struct {
-	Port      int
-	Service   service.Service
-	Database  *database.DB
-	Bus       mq.Producer
-	AIService ai.AIService // 可选，nil 表示 AI 功能未启用
+	Port           int
+	Service        service.Service
+	Database       *database.DB
+	Bus            mq.Producer
+	AIService      ai.AIService                // 可选，nil 表示 AI 功能未启用
+	AnalyzeTrigger aiopsHandler.AnalyzeTrigger  // 可选，nil 表示深度分析未启用
 }
 
 // NewServer 创建 Server
 func NewServer(cfg Config) *Server {
 	return &Server{
-		port:      cfg.Port,
-		service:   cfg.Service,
-		database:  cfg.Database,
-		bus:       cfg.Bus,
-		aiService: cfg.AIService,
+		port:           cfg.Port,
+		service:        cfg.Service,
+		database:       cfg.Database,
+		bus:            cfg.Bus,
+		aiService:      cfg.AIService,
+		analyzeTrigger: cfg.AnalyzeTrigger,
 	}
 }
 
 // Start 启动 Server
 func (s *Server) Start() error {
 	// 使用 Router 统一管理路由（见 routes.go）
-	router := NewRouter(s.service, s.database, s.bus, s.aiService)
+	router := NewRouter(s.service, s.database, s.bus, s.aiService, s.analyzeTrigger)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),

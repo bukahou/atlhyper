@@ -134,7 +134,7 @@ func (h *CommandHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query()
 	opts := database.CommandQueryOpts{
-		ClusterID: query.Get("cluster_id"),
+		ClusterID: query.Get("clusterId"),
 		Source:    query.Get("source"),
 		Status:    query.Get("status"),
 		Action:    query.Get("action"),

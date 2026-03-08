@@ -33,6 +33,8 @@ type QueryService struct {
 	aiProviderRepo database.AIProviderRepository
 	aiActiveRepo   database.AIActiveConfigRepository
 	aiModelRepo    database.AIProviderModelRepository
+	aiBudgetRepo   database.AIRoleBudgetRepository
+	aiReportRepo   database.AIReportRepository
 }
 
 // NewQueryService 创建 QueryService 实例
@@ -71,4 +73,6 @@ func (q *QueryService) SetAdminRepos(db *database.DB) {
 	q.aiProviderRepo = db.AIProvider
 	q.aiActiveRepo = db.AIActive
 	q.aiModelRepo = db.AIModel
+	q.aiBudgetRepo = db.AIRoleBudget
+	q.aiReportRepo = db.AIReport
 }

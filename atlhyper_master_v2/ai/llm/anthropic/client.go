@@ -333,7 +333,10 @@ func convertMessages(msgs []llm.Message) []messageParam {
 			}
 			for _, tc := range msg.ToolCalls {
 				var input any
-				json.Unmarshal([]byte(tc.Params), &input)
+				if err := json.Unmarshal([]byte(tc.Params), &input); err != nil {
+					log.Warn("Tool Call 参数解析失败，使用空参数", "tool", tc.Name, "err", err)
+					input = map[string]any{}
+				}
 				parts = append(parts, contentPart{
 					Type:  "tool_use",
 					ID:    tc.ID,
@@ -372,7 +375,10 @@ func convertTools(tools []llm.ToolDefinition) []toolParam {
 	var result []toolParam
 	for _, t := range tools {
 		var schema any
-		json.Unmarshal(t.Parameters, &schema)
+		if err := json.Unmarshal(t.Parameters, &schema); err != nil {
+			log.Warn("Tool 参数 Schema 解析失败", "tool", t.Name, "err", err)
+			schema = map[string]any{"type": "object"}
+		}
 		result = append(result, toolParam{
 			Name:        t.Name,
 			Description: t.Description,

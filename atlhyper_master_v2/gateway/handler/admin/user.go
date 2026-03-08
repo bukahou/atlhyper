@@ -64,25 +64,25 @@ type UserDTO struct {
 type RegisterRequest struct {
 	Username    string `json:"username"`
 	Password    string `json:"password"`
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"displayName"`
 	Email       string `json:"email"`
 	Role        int    `json:"role"` // 1=Viewer, 2=Operator, 3=Admin
 }
 
 // UpdateRoleRequest 更新角色请求
 type UpdateRoleRequest struct {
-	UserID int64 `json:"user_id"`
+	UserID int64 `json:"userId"`
 	Role   int   `json:"role"`
 }
 
 // DeleteUserRequest 删除用户请求
 type DeleteUserRequest struct {
-	UserID int64 `json:"user_id"`
+	UserID int64 `json:"userId"`
 }
 
 // UpdateStatusRequest 更新用户状态请求
 type UpdateStatusRequest struct {
-	UserID int64 `json:"user_id"`
+	UserID int64 `json:"userId"`
 	Status int   `json:"status"` // 1=Active, 0=Disabled
 }
 

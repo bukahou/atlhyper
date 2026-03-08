@@ -50,8 +50,10 @@ export function useAIChat() {
 
       if (!config.enabled) {
         setAiStatus("not_enabled");
-      } else if (config.provider_id === null) {
+      } else if (config.providerId === null) {
         setAiStatus("not_configured");
+      } else if (!config.chatReady) {
+        setAiStatus("chat_not_assigned");
       } else {
         setAiStatus("ready");
       }
@@ -75,10 +77,10 @@ export function useAIChat() {
     (convId: number, message: string) => {
       const userMsg: Message = {
         id: Date.now(),
-        conversation_id: convId,
+        conversationId: convId,
         role: "user",
         content: message,
-        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, userMsg]);
       setStreaming(true);
@@ -88,7 +90,7 @@ export function useAIChat() {
       abortRef.current = controller;
 
       streamChat(
-        { conversation_id: convId, cluster_id: currentClusterId, message },
+        { conversationId: convId, clusterId: currentClusterId, message },
         (segment) => setStreamSegments((prev) => [...prev, segment]),
         (stats) => {
           setStreaming(false);

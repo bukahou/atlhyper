@@ -46,6 +46,7 @@ type engine struct {
 	anomalyMu    sync.RWMutex
 
 	flushInterval time.Duration
+	bgCtx         context.Context
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
 }
@@ -76,7 +77,9 @@ func (e *engine) OnSnapshot(clusterID string) {
 			log.Error("序列化依赖图失败", "cluster", clusterID, "err", err)
 			return
 		}
-		if err := e.graphRepo.Save(context.Background(), clusterID, data); err != nil {
+		ctx, cancel := context.WithTimeout(e.bgCtx, 10*time.Second)
+		defer cancel()
+		if err := e.graphRepo.Save(ctx, clusterID, data); err != nil {
 			log.Error("持久化依赖图失败", "cluster", clusterID, "err", err)
 		}
 	}()
@@ -132,7 +135,7 @@ func (e *engine) OnSnapshot(clusterID string) {
 		// 4. 状态机评估
 		if e.sm != nil {
 			entityRisks := e.scorer.GetEntityRiskMap(clusterID)
-			e.sm.Evaluate(context.Background(), clusterID, entityRisks, clusterRisk)
+			e.sm.Evaluate(e.bgCtx, clusterID, entityRisks, clusterRisk)
 		}
 	}
 }
@@ -412,15 +415,14 @@ func (e *engine) Start(ctx context.Context) error {
 	}
 
 	// 4. 启动定期 flush + Recovery→Stable 检查 goroutine
-	bgCtx, cancel := context.WithCancel(context.Background())
-	e.cancel = cancel
+	e.bgCtx, e.cancel = context.WithCancel(context.Background())
 
 	e.wg.Add(1)
-	go e.flushLoop(bgCtx)
+	go e.flushLoop(e.bgCtx)
 
 	if e.sm != nil {
 		e.wg.Add(1)
-		go e.recoveryCheckLoop(bgCtx)
+		go e.recoveryCheckLoop(e.bgCtx)
 	}
 
 	log.Info("AIOps 引擎已启动", "flushInterval", e.flushInterval)
@@ -452,7 +454,8 @@ func (e *engine) buildSLOContext(clusterID string) *risk.SLOContext {
 		return nil
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(e.bgCtx, 5*time.Second)
+	defer cancel()
 
 	// 获取集群所有 SLO 目标
 	targets, err := e.sloRepo.GetTargets(ctx, clusterID)

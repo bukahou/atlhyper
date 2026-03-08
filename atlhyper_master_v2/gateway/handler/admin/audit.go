@@ -60,7 +60,7 @@ func (h *AuditHandler) List(w http.ResponseWriter, r *http.Request) {
 		Offset: 0,
 	}
 
-	if userIDStr := query.Get("user_id"); userIDStr != "" {
+	if userIDStr := query.Get("userId"); userIDStr != "" {
 		if userID, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
 			opts.UserID = userID
 		}

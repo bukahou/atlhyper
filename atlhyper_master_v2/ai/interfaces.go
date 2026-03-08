@@ -56,33 +56,33 @@ type ChatChunk struct {
 
 // ChatStats 对话统计信息
 type ChatStats struct {
-	Rounds         int `json:"rounds"`            // 思考轮次（AI 调用次数）
-	TotalToolCalls int `json:"total_tool_calls"`  // 总指令数（所有轮次的 Tool 调用总数）
-	InputTokens    int `json:"input_tokens"`      // 输入 Token 数
-	OutputTokens   int `json:"output_tokens"`     // 输出 Token 数
+	Rounds         int `json:"rounds"`          // 思考轮次（AI 调用次数）
+	TotalToolCalls int `json:"totalToolCalls"`   // 总指令数（所有轮次的 Tool 调用总数）
+	InputTokens    int `json:"inputTokens"`      // 输入 Token 数
+	OutputTokens   int `json:"outputTokens"`     // 输出 Token 数
 }
 
 // Conversation 对话
 type Conversation struct {
 	ID           int64     `json:"id"`
-	UserID       int64     `json:"user_id"`
-	ClusterID    string    `json:"cluster_id"`
+	UserID       int64     `json:"userId"`
+	ClusterID    string    `json:"clusterId"`
 	Title        string    `json:"title"`
-	MessageCount int       `json:"message_count"`
+	MessageCount int       `json:"messageCount"`
 	// 累计统计
-	TotalInputTokens  int64 `json:"total_input_tokens"`  // 累计输入 Token
-	TotalOutputTokens int64 `json:"total_output_tokens"` // 累计输出 Token
-	TotalToolCalls    int   `json:"total_tool_calls"`    // 累计指令数
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	TotalInputTokens  int64 `json:"totalInputTokens"`    // 累计输入 Token
+	TotalOutputTokens int64 `json:"totalOutputTokens"`   // 累计输出 Token
+	TotalToolCalls    int   `json:"totalToolCalls"`       // 累计指令数
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 // Message 消息
 type Message struct {
 	ID             int64     `json:"id"`
-	ConversationID int64     `json:"conversation_id"`
-	Role           string    `json:"role"`                 // user / assistant / tool
+	ConversationID int64     `json:"conversationId"`
+	Role           string    `json:"role"`                // user / assistant / tool
 	Content        string    `json:"content"`
-	ToolCalls      string    `json:"tool_calls,omitempty"` // JSON
-	CreatedAt      time.Time `json:"created_at"`
+	ToolCalls      string    `json:"toolCalls,omitempty"` // JSON
+	CreatedAt      time.Time `json:"createdAt"`
 }

@@ -11,7 +11,7 @@ interface SlackCardProps {
   effectiveEnabled: boolean;
   validationErrors: string[];
   readOnly: boolean;
-  onSave: (data: { enabled?: boolean; webhook_url?: string }) => Promise<void>;
+  onSave: (data: { enabled?: boolean; webhookUrl?: string }) => Promise<void>;
   onTest: () => Promise<{ success: boolean; message: string }>;
 }
 
@@ -28,7 +28,7 @@ export function SlackCard({
   const nt = t.notifications;
 
   const [localEnabled, setLocalEnabled] = useState(enabled);
-  const [webhookUrl, setWebhookUrl] = useState(config.webhook_url || "");
+  const [webhookUrl, setWebhookUrl] = useState(config.webhookUrl || "");
   const [showWebhook, setShowWebhook] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -37,14 +37,14 @@ export function SlackCard({
   // 同步外部状态
   useEffect(() => {
     setLocalEnabled(enabled);
-    setWebhookUrl(config.webhook_url || "");
-  }, [enabled, config.webhook_url]);
+    setWebhookUrl(config.webhookUrl || "");
+  }, [enabled, config.webhookUrl]);
 
   // 检测变化
   useEffect(() => {
-    const changed = localEnabled !== enabled || webhookUrl !== (config.webhook_url || "");
+    const changed = localEnabled !== enabled || webhookUrl !== (config.webhookUrl || "");
     setHasChanges(changed);
-  }, [localEnabled, webhookUrl, enabled, config.webhook_url]);
+  }, [localEnabled, webhookUrl, enabled, config.webhookUrl]);
 
   const handleToggle = async () => {
     if (readOnly) return;
@@ -63,7 +63,7 @@ export function SlackCard({
     if (readOnly || !hasChanges) return;
     setSaving(true);
     try {
-      await onSave({ enabled: localEnabled, webhook_url: webhookUrl });
+      await onSave({ enabled: localEnabled, webhookUrl: webhookUrl });
     } finally {
       setSaving(false);
     }

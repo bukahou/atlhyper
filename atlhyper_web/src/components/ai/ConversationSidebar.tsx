@@ -41,7 +41,7 @@ function groupByTime(conversations: Conversation[], labels: TimeLabels) {
   ];
 
   for (const conv of conversations) {
-    const d = new Date(conv.updated_at || conv.created_at);
+    const d = new Date(conv.updatedAt || conv.createdAt);
     if (d >= today) groups[0].items.push(conv);
     else if (d >= yesterday) groups[1].items.push(conv);
     else if (d >= prev7) groups[2].items.push(conv);

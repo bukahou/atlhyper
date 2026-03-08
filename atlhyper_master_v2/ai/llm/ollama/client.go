@@ -245,7 +245,10 @@ func convertMessages(msgs []llm.Message, systemPrompt string) []messageParam {
 			param := messageParam{Role: "assistant", Content: msg.Content}
 			for _, tc := range msg.ToolCalls {
 				var args map[string]any
-				json.Unmarshal([]byte(tc.Params), &args)
+				if err := json.Unmarshal([]byte(tc.Params), &args); err != nil {
+					log.Warn("Tool Call 参数解析失败，使用空参数", "tool", tc.Name, "err", err)
+					args = map[string]any{}
+				}
 				param.ToolCalls = append(param.ToolCalls, toolCall{
 					Function: toolCallFunction{Name: tc.Name, Arguments: args},
 				})
@@ -270,7 +273,10 @@ func convertTools(tools []llm.ToolDefinition) []toolParam {
 	var result []toolParam
 	for _, t := range tools {
 		var params any
-		json.Unmarshal(t.Parameters, &params)
+		if err := json.Unmarshal(t.Parameters, &params); err != nil {
+			log.Warn("Tool 参数 Schema 解析失败", "tool", t.Name, "err", err)
+			params = map[string]any{"type": "object"}
+		}
 		result = append(result, toolParam{
 			Type: "function",
 			Function: functionDef{

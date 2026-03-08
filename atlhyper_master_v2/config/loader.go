@@ -103,12 +103,25 @@ func LoadConfig() {
 		CleanupInterval: getDuration("MASTER_METRICS_CLEANUP_INTERVAL"),
 	}
 
+	// 关键字段校验
+	validateRequired("MASTER_JWT_SECRET", GlobalConfig.JWT.SecretKey)
+	validateRequired("MASTER_ADMIN_USERNAME", GlobalConfig.Admin.Username)
+	validateRequired("MASTER_ADMIN_PASSWORD", GlobalConfig.Admin.Password)
+
 	log.Info("Master 配置加载完成",
 		"gatewayPort", GlobalConfig.Server.GatewayPort,
 		"agentSDKPort", GlobalConfig.Server.AgentSDKPort,
 		"testerPort", GlobalConfig.Server.TesterPort,
 		"dbType", GlobalConfig.Database.Type,
 		"admin", GlobalConfig.Admin.Username)
+}
+
+// validateRequired 校验必需配置项不能为空
+func validateRequired(envKey, value string) {
+	if value == "" {
+		log.Error("必需配置项未设置", "key", envKey)
+		os.Exit(1)
+	}
 }
 
 // ==================== 工具函数 ====================

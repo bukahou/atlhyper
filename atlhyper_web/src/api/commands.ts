@@ -27,9 +27,9 @@ export interface CommandHistory {
   durationMs: number;
 }
 
-// 查询参数（query string 保持 snake_case，因为是 URL 参数由后端 r.URL.Query().Get 解析）
+// 查询参数
 export interface CommandQueryParams {
-  cluster_id?: string;
+  clusterId?: string;
   source?: string;
   status?: string;
   action?: string;
@@ -49,7 +49,7 @@ export interface CommandListResponse {
  */
 export function getCommandHistory(params: CommandQueryParams = {}) {
   return get<CommandListResponse>("/api/v2/commands/history", {
-    cluster_id: params.cluster_id || "",
+    clusterId: params.clusterId || "",
     source: params.source || "",
     status: params.status || "",
     action: params.action || "",

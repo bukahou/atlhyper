@@ -13,14 +13,15 @@ interface RootCauseCardProps {
 export function RootCauseCard({ entity }: RootCauseCardProps) {
   const { t } = useI18n();
 
-  if (!entity) return null;
-
   return (
     <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
       <div className="flex items-center gap-2 mb-3">
         <Target className="w-4 h-4 text-red-500" />
         <span className="text-sm font-semibold text-default">{t.aiops.rootCause}</span>
       </div>
+      {!entity ? (
+        <p className="text-sm text-muted text-center py-2">{t.common.noData}</p>
+      ) : (
       <div className="flex items-center gap-4">
         <EntityLink entityKey={entity.entityKey} />
         <div className="flex items-center gap-2 text-xs text-muted">
@@ -29,6 +30,7 @@ export function RootCauseCard({ entity }: RootCauseCardProps) {
         </div>
         <RiskBadge level={entity.rFinal >= 0.8 ? "critical" : entity.rFinal >= 0.5 ? "warning" : "low"} size="md" />
       </div>
+      )}
     </div>
   );
 }

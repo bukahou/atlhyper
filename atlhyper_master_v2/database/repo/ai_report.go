@@ -85,6 +85,39 @@ func (r *aiReportRepo) ListByCluster(ctx context.Context, clusterID, role string
 	return reports, nil
 }
 
+func (r *aiReportRepo) ListRecent(ctx context.Context, role string, limit, offset int) ([]*database.AIReport, int, error) {
+	// Count
+	countQuery, countArgs := r.dialect.CountRecent(role)
+	var total int
+	if err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// List
+	query, args := r.dialect.SelectRecent(role, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var reports []*database.AIReport
+	for rows.Next() {
+		report, err := r.dialect.ScanRow(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		reports = append(reports, report)
+	}
+	return reports, total, nil
+}
+
+func (r *aiReportRepo) UpdateResult(ctx context.Context, id int64, report *database.AIReport) error {
+	query, args := r.dialect.UpdateResult(id, report)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
 func (r *aiReportRepo) CountByClusterAndRole(ctx context.Context, clusterID, role string, since time.Time) (int, error) {
 	query, args := r.dialect.CountByClusterAndRole(clusterID, role, since)
 	var count int

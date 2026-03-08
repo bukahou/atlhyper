@@ -45,11 +45,11 @@ function groupMessages(messages: Message[]): Message[] {
         // 合并连续的 assistant 消息
         const merged: Message = {
           id: pendingAssistant.id,
-          conversation_id: pendingAssistant.conversation_id,
+          conversationId: pendingAssistant.conversationId,
           role: "assistant",
           content: [pendingAssistant.content, msg.content].filter(Boolean).join("\n\n"),
-          tool_calls: mergeToolCalls(pendingAssistant.tool_calls, msg.tool_calls),
-          created_at: pendingAssistant.created_at,
+          toolCalls: mergeToolCalls(pendingAssistant.toolCalls, msg.toolCalls),
+          createdAt: pendingAssistant.createdAt,
         };
         pendingAssistant = merged;
       } else {

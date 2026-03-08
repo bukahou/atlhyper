@@ -143,8 +143,8 @@ func TestSummarize_NormalIncident(t *testing.T) {
 	}`
 
 	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
-		return mockClient, 0, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
+		return mockClient, 0, nil, nil
 	}
 
 	enhancer := NewEnhancer(repo, nil, factory)
@@ -186,8 +186,8 @@ func TestSummarize_LLMParseError(t *testing.T) {
 
 	// LLM 返回纯文本（非 JSON）
 	mockClient := &mockLLMClient{response: "这是一个关于内存压力的事件分析结果。"}
-	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
-		return mockClient, 0, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
+		return mockClient, 0, nil, nil
 	}
 
 	enhancer := NewEnhancer(repo, nil, factory)
@@ -213,8 +213,8 @@ func TestSummarize_LLMUnavailable(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
-		return nil, 0, fmt.Errorf("LLM 连接超时")
+	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
+		return nil, 0, nil, fmt.Errorf("LLM 连接超时")
 	}
 
 	enhancer := NewEnhancer(repo, nil, factory)
@@ -227,8 +227,8 @@ func TestSummarize_LLMUnavailable(t *testing.T) {
 // TestSummarize_IncidentNotFound 事件不存在
 func TestSummarize_IncidentNotFound(t *testing.T) {
 	repo := &mockIncidentRepo{incident: nil}
-	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
-		return &mockLLMClient{}, 0, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
+		return &mockLLMClient{}, 0, nil, nil
 	}
 
 	enhancer := NewEnhancer(repo, nil, factory)
@@ -249,8 +249,8 @@ func TestSummarize_NoHistoricalPatterns(t *testing.T) {
 
 	llmResponse := `{"summary": "事件摘要", "rootCauseAnalysis": "根因分析", "recommendations": []}`
 	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
-		return mockClient, 0, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
+		return mockClient, 0, nil, nil
 	}
 
 	enhancer := NewEnhancer(repo, nil, factory)
@@ -273,8 +273,8 @@ func TestSummarize_MarkdownCodeBlock(t *testing.T) {
 
 	llmResponse := "```json\n{\"summary\": \"代码块摘要\", \"rootCauseAnalysis\": \"分析\", \"recommendations\": []}\n```"
 	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, int, error) {
-		return mockClient, 0, nil
+	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
+		return mockClient, 0, nil, nil
 	}
 
 	enhancer := NewEnhancer(repo, nil, factory)
@@ -382,11 +382,11 @@ func TestFormatDuration(t *testing.T) {
 
 // mockLLMFactory 创建计数 LLM 工厂
 func mockLLMFactory(callCount *int) LLMClientFactory {
-	return func(ctx context.Context) (llm.LLMClient, int, error) {
+	return func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
 		*callCount++
 		return &mockLLMClient{
 			response: `{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`,
-		}, 0, nil
+		}, 0, &LLMClientMeta{ProviderID: 1, ProviderName: "test", Model: "test-model"}, nil
 	}
 }
 

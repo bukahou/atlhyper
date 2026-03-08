@@ -32,7 +32,7 @@ func NewAIHandler(aiService aiPkg.AIService) *AIHandler {
 
 // createConversationRequest 创建对话请求
 type createConversationRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Title     string `json:"title"`
 }
 
@@ -171,8 +171,8 @@ func (h *AIHandler) deleteConversation(w http.ResponseWriter, r *http.Request, c
 
 // chatRequest Chat 请求
 type chatRequest struct {
-	ConversationID int64  `json:"conversation_id"`
-	ClusterID      string `json:"cluster_id"`
+	ConversationID int64  `json:"conversationId"`
+	ClusterID      string `json:"clusterId"`
 	Message        string `json:"message"`
 }
 

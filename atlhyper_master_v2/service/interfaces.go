@@ -69,6 +69,9 @@ type QueryAIOps interface {
 	GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error)
 	GetAIOpsIncidentPatterns(ctx context.Context, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
 	SummarizeIncident(ctx context.Context, incidentID string) (*aiopsai.SummarizeResponse, error)
+	// AI 报告查询
+	ListAIReports(ctx context.Context, incidentID string) ([]*database.AIReport, error)
+	GetAIReport(ctx context.Context, id int64) (*database.AIReport, error)
 }
 
 // QueryOverview 集群概览、Agent 状态、事件、单资源查询
@@ -108,6 +111,10 @@ type QueryAdmin interface {
 	GetAIProviderByID(ctx context.Context, id int64) (*database.AIProvider, error)
 	GetAIActiveConfig(ctx context.Context) (*database.AIActiveConfig, error)
 	ListAIModels(ctx context.Context) ([]*database.AIProviderModel, error)
+	// AI Role Budget
+	ListAIRoleBudgets(ctx context.Context) ([]*database.AIRoleBudget, error)
+	// AI Reports (调用历史)
+	ListRecentAIReports(ctx context.Context, role string, limit, offset int) ([]*database.AIReport, int, error)
 }
 
 // OpsAdmin 管理写入操作（通知渠道、设置、AI Provider）
@@ -120,6 +127,7 @@ type OpsAdmin interface {
 	DeleteAIProvider(ctx context.Context, id int64) error
 	UpdateAIActiveConfig(ctx context.Context, cfg *database.AIActiveConfig) error
 	UpdateAIProviderRoles(ctx context.Context, id int64, roles []string) error
+	UpdateAIRoleBudget(ctx context.Context, budget *database.AIRoleBudget) error
 }
 
 // ================================================================

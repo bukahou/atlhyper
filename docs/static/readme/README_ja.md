@@ -20,7 +20,9 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 - **SLO 監視** — Ingress（Traefik）+ サービスメッシュ（Linkerd）二層 SLO トラッキング、レイテンシ分布、エラーバジェット、ステータスコード分布
 - **AIOps エンジン** — 依存グラフ構築、EMA 動的ベースライン、三段階リスクスコアリング、ステートマシン、インシデントライフサイクル管理
 - **因果トポロジーグラフ** — 四層有向非巡回グラフ（Ingress→Service→Pod→Node）、リスク伝播可視化
-- **AI アシスタント** — マルチモデル駆動の自然言語運用（Chat + Tool Use）、Gemini / OpenAI / Claude 対応、インシデント要約と根本原因分析
+- **AI アシスタント** — マルチモデル駆動の自然言語運用（Chat + Tool Use）、Gemini / OpenAI / Claude / Ollama（ローカル）対応、インシデント要約と根本原因分析
+- **AI マルチロールルーティング** — 3つの AI ロール（background / chat / analysis）、ロール別プロバイダールーティング、日次トークン/コール予算制御
+- **AI インシデント分析** — インシデント作成時に自動バックグラウンド分析、マルチラウンド Tool Calling による深層調査（最大8ラウンド）、信頼度スコア付き構造化レポート
 - **アラート通知** — メール (SMTP) と Slack (Webhook) に対応
 - **リモート運用** — kubectl コマンドのリモート実行、Pod 再起動、レプリカ数調整、ノード隔離
 - **監査ログ** — 完全な操作履歴とユーザー追跡
@@ -36,7 +38,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 | **Agent** | Go 1.24 + client-go + ClickHouse | クラスターデータ収集、OTel データクエリ、コマンド実行 |
 | **Web** | Next.js 16 + React 19 + Tailwind CSS 4 + ECharts + G6 | 可視化管理インターフェース |
 | **オブザーバビリティ** | ClickHouse + OTel Collector + Linkerd | 時系列ストレージ、テレメトリ収集、サービスメッシュ |
-| **AI** | Gemini / OpenAI / Claude (Chat + Tool Use) | AI チャット運用、インシデント分析 |
+| **AI** | Gemini / OpenAI / Claude / Ollama (Chat + Tool Use) | AI チャット運用、マルチロールルーティング、インシデント分析 |
 
 ---
 
@@ -55,9 +57,10 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 │                  │  │  (API)  │ │(メモリ) │ │(業務層) │ │   (SQLite)     │  │    │
 │                  │  └─────────┘ └────────┘ └─────────┘ └────────────────┘  │    │
 │                  │  ┌──────────────────┐   ┌──────────────────────────┐     │    │
-│                  │  │  AIOps Engine    │   │      AI (Multi-LLM)     │     │    │
-│                  │  │依存グラフ│基線│ﾘｽｸ│   │  Chat│Tool Use│分析     │     │    │
-│                  │  │ｽﾃｰﾄﾏｼﾝ│ｲﾝｼﾃﾞﾝﾄ   │   └──────────────────────────┘     │    │
+│                  │  │  AIOps Engine    │   │ AI (Multi-LLM+ロール)   │     │    │
+│                  │  │依存グラフ│基線│ﾘｽｸ│   │ Gemini│OpenAI│Claude   │     │    │
+│                  │  │ｽﾃｰﾄﾏｼﾝ│ｲﾝｼﾃﾞﾝﾄ   │   │ Ollama│ロールルーティング│     │    │
+│                  │  │       │          │   └──────────────────────────┘     │    │
 │                  │  └──────────────────┘                                    │    │
 │                  └──────────────────────────────────────────────────────────┘    │
 │                                          │                                       │
@@ -138,7 +141,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 ![AIOps トポロジー](../img/aiops-topology.png)
 
 ### AI アシスタント
-マルチモデル駆動の自然言語運用対話（Gemini / OpenAI / Claude 対応）、Tool Use（インシデントクエリ、分析）に対応。構造化されたインシデント要約と根本原因分析を自動出力。
+マルチモデル駆動の自然言語運用対話（Gemini / OpenAI / Claude / Ollama 対応）、Tool Use（インシデントクエリ、分析）に対応。3つの AI ロール（background / chat / analysis）によるロール別プロバイダールーティングと予算制御。構造化されたインシデント要約と根本原因分析を自動出力。
 
 ![AI アシスタント](../img/aiops-chat.png)
 
@@ -242,7 +245,7 @@ npm install && npm run dev
 
 ```
 atlhyper/
-├── atlhyper_master_v2/     # Master（中央制御）— 37k 行
+├── atlhyper_master_v2/     # Master（中央制御）— 41k 行
 │   ├── gateway/            #   HTTP API ゲートウェイ
 │   │   └── handler/        #     Handler（k8s/observe/aiops/admin/slo サブディレクトリ）
 │   ├── service/            #   ビジネスロジック（query + operations）
@@ -252,7 +255,7 @@ atlhyper/
 │   ├── agentsdk/           #   Agent 通信層
 │   ├── mq/                 #   メッセージキュー
 │   ├── aiops/              #   AIOps エンジン
-│   ├── ai/                 #   AI アシスタント (Gemini/OpenAI/Claude)
+│   ├── ai/                 #   AI アシスタント (Gemini/OpenAI/Claude/Ollama)
 │   ├── slo/                #   SLO ルート更新
 │   ├── notifier/           #   アラート通知
 │   └── config/             #   設定
@@ -265,7 +268,7 @@ atlhyper/
 │   ├── scheduler/          #   スケジューラー
 │   └── gateway/            #   Agent↔Master 通信
 │
-├── atlhyper_web/           # Web フロントエンド — 58k 行
+├── atlhyper_web/           # Web フロントエンド — 55k 行
 │   ├── src/app/            #   Next.js ページ
 │   ├── src/components/     #   React コンポーネント
 │   ├── src/api/            #   API クライアント
@@ -370,7 +373,19 @@ SQLite で永続化、構造化されたインシデント記録：
 | **Timeline** | 状態変更タイムライン |
 | **Statistics** | MTTR、再発率、重大度分布、Top 根本原因 |
 
-AI 強化（オプション）：LLM（Gemini / OpenAI / Claude）によるインシデント要約、根本原因分析、対処提案の生成。
+### M6 — AI 強化（AI Enhancer）
+
+LLM 駆動のインシデント分析、3つの AI ロール：
+
+| ロール | トリガー | 説明 |
+|--------|---------|------|
+| **background** | 自動（インシデント作成/エスカレーション時） | 高速要約、対処提案、類似インシデント。レートリミット（60秒/インシデント）、結果24時間キャッシュ |
+| **chat** | ユーザー起動 | インタラクティブな自然言語運用、SSE ストリーミング |
+| **analysis** | ユーザー起動 | マルチラウンド深層調査（最大8ラウンド × 5 Tool Call）、信頼度スコア付き構造化レポート |
+
+- **マルチプロバイダー**: Gemini / OpenAI / Claude / Ollama（ローカル）、各ロールは異なるプロバイダーにルーティング可能
+- **ロール予算**: ロール毎の日次トークンリミットとコールリミット、予算枯渇時にフォールバックプロバイダーへ切り替え
+- **レポート永続化**: すべての AI レポート（要約、根本原因分析、調査ステップ）を SQLite に永続化
 
 ---
 

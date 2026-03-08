@@ -79,7 +79,7 @@ export default function CommandsPage() {
     setError("");
     try {
       const res = await getCommandHistory({
-        cluster_id: currentClusterId,
+        clusterId: currentClusterId,
         source: sourceFilter,
         status: statusFilter,
         action: actionFilter,

@@ -117,7 +117,16 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 		}
 	}
 
-	// 3. 触发 background 分析
+	// 3. 预算前置检查（防止自动触发导致成本失控）
+	if bt.budgetRepo != nil {
+		budget, err := bt.budgetRepo.Get(context.Background(), "background")
+		if err == nil && budget != nil && !isBudgetAvailable(budget) {
+			log.Warn("后台分析预算已用尽，跳过", "incident", evt.IncidentID)
+			return
+		}
+	}
+
+	// 4. 触发 background 分析
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -131,7 +140,7 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 
 	log.Info("后台分析完成", "incident", evt.IncidentID, "summary_len", len(result.Summary))
 
-	// 4. 检查是否需要触发 analysis 深度分析
+	// 5. 检查是否需要触发 analysis 深度分析
 	bt.maybeTriggerAnalysis(evt)
 }
 
@@ -164,6 +173,12 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 		return
 	}
 
+	// analysis 预算前置检查
+	if !isBudgetAvailable(budget) {
+		log.Warn("analysis 预算已用尽，跳过深度分析", "incident", evt.IncidentID)
+		return
+	}
+
 	log.Info("触发 analysis 深度分析",
 		"incident", evt.IncidentID,
 		"severity", evt.Severity,
@@ -182,4 +197,33 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 // meetsMinSeverity 检查事件严重度是否达到最低阈值
 func meetsMinSeverity(severity, minSeverity string) bool {
 	return severityOrder[severity] >= severityOrder[minSeverity]
+}
+
+// isBudgetAvailable 检查预算是否还有余额（多维度：input/output × 日/月）
+// 0 = 无限制的语义保留
+func isBudgetAvailable(budget *db.AIRoleBudget) bool {
+	if budget == nil {
+		return true
+	}
+	// 日限额检查
+	if budget.DailyInputTokenLimit > 0 && budget.DailyInputTokensUsed >= budget.DailyInputTokenLimit {
+		return false
+	}
+	if budget.DailyOutputTokenLimit > 0 && budget.DailyOutputTokensUsed >= budget.DailyOutputTokenLimit {
+		return false
+	}
+	if budget.DailyCallLimit > 0 && budget.DailyCallsUsed >= budget.DailyCallLimit {
+		return false
+	}
+	// 月限额检查
+	if budget.MonthlyInputTokenLimit > 0 && budget.MonthlyInputTokensUsed >= budget.MonthlyInputTokenLimit {
+		return false
+	}
+	if budget.MonthlyOutputTokenLimit > 0 && budget.MonthlyOutputTokensUsed >= budget.MonthlyOutputTokenLimit {
+		return false
+	}
+	if budget.MonthlyCallLimit > 0 && budget.MonthlyCallsUsed >= budget.MonthlyCallLimit {
+		return false
+	}
+	return true
 }

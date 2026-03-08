@@ -66,6 +66,22 @@ export function StatusViews({ aiStatus, goToSettings }: StatusViewsProps) {
     );
   }
 
+  // Chat 角色未分配 Provider
+  if (aiStatus === "chat_not_assigned") {
+    return (
+      <Layout>
+        <div className="-m-6 h-[calc(100vh-3.5rem)]">
+          <StatusPage
+            icon={Settings}
+            title={aiChatT.chatNotAssigned}
+            description={aiChatT.chatNotAssignedDesc}
+            action={{ label: aiChatT.goToSettings, onClick: goToSettings }}
+          />
+        </div>
+      </Layout>
+    );
+  }
+
   // aiStatus === "ready" 时不渲染
   return null;
 }

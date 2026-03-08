@@ -184,7 +184,7 @@ export default function TopologyPage() {
               className={`p-2 rounded-lg hover:bg-[var(--hover-bg)] transition-colors ${
                 autoRefresh ? "text-emerald-500" : "text-muted hover:text-default"
               }`}
-              title={autoRefresh ? "Pause auto-refresh" : "Resume auto-refresh"}
+              title={autoRefresh ? t.aiops.pauseAutoRefresh : t.aiops.resumeAutoRefresh}
             >
               {autoRefresh ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             </button>

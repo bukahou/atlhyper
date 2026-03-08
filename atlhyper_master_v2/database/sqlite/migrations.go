@@ -220,13 +220,22 @@ func migrate(db *sql.DB) error {
 		// ==================== AI 角色预算表 ====================
 		`CREATE TABLE IF NOT EXISTS ai_role_budget (
 			role TEXT PRIMARY KEY,
-			daily_token_limit INTEGER DEFAULT 0,
+			daily_input_token_limit INTEGER DEFAULT 0,
+			daily_output_token_limit INTEGER DEFAULT 0,
 			daily_call_limit INTEGER DEFAULT 0,
-			fallback_provider_id INTEGER,
-			auto_trigger_min_severity TEXT DEFAULT 'critical',
-			daily_tokens_used INTEGER DEFAULT 0,
+			daily_input_tokens_used INTEGER DEFAULT 0,
+			daily_output_tokens_used INTEGER DEFAULT 0,
 			daily_calls_used INTEGER DEFAULT 0,
 			daily_reset_at TEXT,
+			monthly_input_token_limit INTEGER DEFAULT 0,
+			monthly_output_token_limit INTEGER DEFAULT 0,
+			monthly_call_limit INTEGER DEFAULT 0,
+			monthly_input_tokens_used INTEGER DEFAULT 0,
+			monthly_output_tokens_used INTEGER DEFAULT 0,
+			monthly_calls_used INTEGER DEFAULT 0,
+			monthly_reset_at TEXT,
+			fallback_provider_id INTEGER,
+			auto_trigger_min_severity TEXT DEFAULT 'critical',
 			updated_at TEXT NOT NULL
 		)`,
 
@@ -424,6 +433,11 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
+	// 初始化默认角色预算
+	if err := initDefaultRoleBudgets(db); err != nil {
+		return err
+	}
+
 	// 清理无效的 entrypoint 级别数据
 	if err := cleanupEntrypointData(db); err != nil {
 		log.Warn("清理 entrypoint 数据失败", "err", err)
@@ -539,12 +553,61 @@ func initDefaultAIModels(db *sql.DB) error {
 	return nil
 }
 
+// initDefaultRoleBudgets 初始化默认角色预算（种子数据）
+func initDefaultRoleBudgets(db *sql.DB) error {
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM ai_role_budget").Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	budgets := []struct {
+		role                    string
+		dailyInputTokenLimit    int
+		dailyOutputTokenLimit   int
+		dailyCallLimit          int
+		monthlyInputTokenLimit  int
+		monthlyOutputTokenLimit int
+		monthlyCallLimit        int
+		autoTriggerMinSeverity  string
+	}{
+		{"background", 400000, 100000, 50, 4000000, 1000000, 500, "critical"},
+		{"chat", 800000, 200000, 100, 8000000, 2000000, 1000, "off"},
+		{"analysis", 1600000, 400000, 20, 8000000, 2000000, 100, "high"},
+	}
+
+	stmt, err := db.Prepare(`INSERT INTO ai_role_budget
+		(role, daily_input_token_limit, daily_output_token_limit, daily_call_limit,
+		 monthly_input_token_limit, monthly_output_token_limit, monthly_call_limit,
+		 auto_trigger_min_severity, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, b := range budgets {
+		if _, err := stmt.Exec(b.role,
+			b.dailyInputTokenLimit, b.dailyOutputTokenLimit, b.dailyCallLimit,
+			b.monthlyInputTokenLimit, b.monthlyOutputTokenLimit, b.monthlyCallLimit,
+			b.autoTriggerMinSeverity, now); err != nil {
+			log.Warn("插入默认角色预算失败", "role", b.role, "err", err)
+		}
+	}
+
+	log.Info("已初始化默认角色预算")
+	return nil
+}
+
 // cleanupEntrypointData 清理无效的 entrypoint 级别 SLO 数据
 func cleanupEntrypointData(db *sql.DB) error {
-	result, err := db.Exec(`DELETE FROM slo_targets WHERE host LIKE '%@entrypoint%'`)
+	result, err := db.Exec(`DELETE FROM slo_targets WHERE host LIKE ?`, "%@entrypoint%")
 	if err != nil {
 		log.Error("清理 slo_targets entrypoint 数据失败", "err", err)
-		return nil
+		return err
 	}
 	if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
 		log.Info("已清理 slo_targets 表 entrypoint 数据", "rows", rowsAffected)

@@ -8,12 +8,20 @@ const providerColors: Record<string, string> = {
   gemini: "bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400",
   openai: "bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400",
   anthropic: "bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400",
+  ollama: "bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400",
 };
 
 const providerNames: Record<string, string> = {
   gemini: "Google Gemini",
   openai: "OpenAI",
   anthropic: "Anthropic Claude",
+  ollama: "Ollama",
+};
+
+const roleColors: Record<string, string> = {
+  background: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+  chat: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+  analysis: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
 };
 
 interface ProviderCardProps {
@@ -37,13 +45,13 @@ export function ProviderCard({
   return (
     <div
       className={`relative rounded-xl border p-4 transition-all ${
-        provider.is_active
+        provider.isActive
           ? "border-green-500 bg-green-50/50 dark:bg-green-900/10"
           : "border-[var(--border-color)] hover:border-violet-300"
       }`}
     >
       {/* Active Badge */}
-      {provider.is_active && (
+      {provider.isActive && (
         <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-green-500 text-white text-xs flex items-center gap-1">
           <Check className="w-3 h-3" />
           {aiT.enabled}
@@ -68,7 +76,7 @@ export function ProviderCard({
       </div>
 
       {/* Info */}
-      <div className="space-y-1 text-sm mb-4">
+      <div className="space-y-1 text-sm mb-3">
         <div className="flex items-center gap-2 text-muted">
           <Zap className="w-3.5 h-3.5" />
           <span className="truncate">{provider.model}</span>
@@ -78,22 +86,42 @@ export function ProviderCard({
         )}
       </div>
 
+      {/* Role Tags */}
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {provider.roles && provider.roles.length > 0 ? (
+          provider.roles.map((role) => (
+            <span
+              key={role}
+              className={`px-2 py-0.5 text-xs rounded-full font-medium ${roleColors[role] || "bg-gray-100 text-gray-600"}`}
+            >
+              {role === "background" ? aiT.roleBackground :
+               role === "chat" ? aiT.roleChat :
+               role === "analysis" ? aiT.roleAnalysis : role}
+            </span>
+          ))
+        ) : (
+          <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-800 text-gray-400">
+            {aiT.roleUnassigned}
+          </span>
+        )}
+      </div>
+
       {/* Stats */}
       <div className="flex items-center gap-4 text-xs text-muted mb-4">
         <div className="flex items-center gap-1">
           <MessageSquare className="w-3 h-3" />
-          {provider.total_requests.toLocaleString()}
+          {provider.totalRequests.toLocaleString()}
         </div>
         <div className="flex items-center gap-1">
           <Coins className="w-3 h-3" />
-          {provider.total_tokens.toLocaleString()}
+          {provider.totalTokens.toLocaleString()}
         </div>
       </div>
 
       {/* Actions */}
       {isAdmin && (
         <div className="flex items-center gap-2">
-          {!provider.is_active && (
+          {!provider.isActive && (
             <button
               onClick={() => onActivate(provider)}
               className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
@@ -108,7 +136,7 @@ export function ProviderCard({
           >
             <Settings className="w-4 h-4 text-muted" />
           </button>
-          {!provider.is_active && (
+          {!provider.isActive && (
             <button
               onClick={() => onDelete(provider)}
               className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"

@@ -44,9 +44,9 @@ export function InspectorPanel({
   // 计算对话历史中的总指令数（所有消息）
   let historyToolCalls = 0;
   for (const msg of messages) {
-    if (msg.role === "assistant" && msg.tool_calls) {
+    if (msg.role === "assistant" && msg.toolCalls) {
       try {
-        const calls = JSON.parse(msg.tool_calls);
+        const calls = JSON.parse(msg.toolCalls);
         historyToolCalls += calls.length;
       } catch { /* ignore */ }
     }
@@ -95,19 +95,19 @@ export function InspectorPanel({
                 />
                 <InfoRow
                   label={inspectorT.executedCommands}
-                  value={`${currentStats.total_tool_calls} ${inspectorT.commandsUnit}`}
+                  value={`${currentStats.totalToolCalls} ${inspectorT.commandsUnit}`}
                 />
                 <InfoRow
                   label={inspectorT.inputTokens}
-                  value={currentStats.input_tokens.toLocaleString()}
+                  value={currentStats.inputTokens.toLocaleString()}
                 />
                 <InfoRow
                   label={inspectorT.outputTokens}
-                  value={currentStats.output_tokens.toLocaleString()}
+                  value={currentStats.outputTokens.toLocaleString()}
                 />
                 <InfoRow
                   label={inspectorT.totalTokens}
-                  value={(currentStats.input_tokens + currentStats.output_tokens).toLocaleString()}
+                  value={(currentStats.inputTokens + currentStats.outputTokens).toLocaleString()}
                 />
               </>
             ) : (
@@ -120,11 +120,11 @@ export function InspectorPanel({
         <Section icon={BarChart3} title={inspectorT.conversationOverview}>
           <div className="px-4 space-y-1.5">
             <InfoRow label={inspectorT.conversationRounds} value={`${conversationRounds} ${inspectorT.roundsUnit}`} />
-            <InfoRow label={inspectorT.totalCommands} value={`${currentConversation?.total_tool_calls ?? historyToolCalls} ${inspectorT.commandsUnit}`} />
+            <InfoRow label={inspectorT.totalCommands} value={`${currentConversation?.totalToolCalls ?? historyToolCalls} ${inspectorT.commandsUnit}`} />
             <InfoRow
               label={inspectorT.totalTokensLabel}
               value={currentConversation
-                ? `↑${currentConversation.total_input_tokens.toLocaleString()} ↓${currentConversation.total_output_tokens.toLocaleString()}`
+                ? `↑${currentConversation.totalInputTokens.toLocaleString()} ↓${currentConversation.totalOutputTokens.toLocaleString()}`
                 : "-"
               }
             />

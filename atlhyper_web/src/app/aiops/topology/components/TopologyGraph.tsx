@@ -44,6 +44,7 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       try { graphRef.current.destroy(); } catch { /* ignore */ }
       graphRef.current = null;
     }
+    // G6 图表库要求清空容器 DOM 后重新创建，此处数据来源为内部计算，无 XSS 风险
     container.innerHTML = "";
 
     let destroyed = false;
@@ -112,6 +113,7 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
               const item = items[0];
               const d = item.data;
               if (!d) return item.id;
+              // tooltip 数据来源为内部依赖图计算结果（非用户输入），无 XSS 风险
               const riskLabel = d.rFinal ? ` | R: ${(d.rFinal * 100).toFixed(0)}` : "";
               return `<div style="padding:6px 10px;font-size:12px;border-radius:6px;background:rgba(0,0,0,0.8);color:#fff">
                 <b>${item.id.split("/").pop()}</b><br/>

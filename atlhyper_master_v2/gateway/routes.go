@@ -27,23 +27,25 @@ import (
 
 // Router 路由管理器
 type Router struct {
-	mux       *http.ServeMux
-	publicMux *http.ServeMux // 公开路由（不需要认证）
-	service   service.Service
-	database  *database.DB
-	bus       mq.Producer
-	aiService ai.AIService
+	mux            *http.ServeMux
+	publicMux      *http.ServeMux // 公开路由（不需要认证）
+	service        service.Service
+	database       *database.DB
+	bus            mq.Producer
+	aiService      ai.AIService
+	analyzeTrigger aiopsHandler.AnalyzeTrigger
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.AIService) *Router {
+func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger) *Router {
 	return &Router{
-		mux:       http.NewServeMux(),
-		publicMux: http.NewServeMux(),
-		service:   svc,
-		database:  db,
-		bus:       bus,
-		aiService: aiSvc,
+		mux:            http.NewServeMux(),
+		publicMux:      http.NewServeMux(),
+		service:        svc,
+		database:       db,
+		bus:            bus,
+		aiService:      aiSvc,
+		analyzeTrigger: trigger,
 	}
 }
 
@@ -105,6 +107,9 @@ func (r *Router) registerRoutes() {
 	aiopsRiskH := aiopsHandler.NewAIOpsRiskHandler(r.service)
 	aiopsIncidentH := aiopsHandler.NewAIOpsIncidentHandler(r.service)
 	aiopsAIH := aiopsHandler.NewAIOpsAIHandler(r.service)
+	if r.analyzeTrigger != nil {
+		aiopsAIH.SetAnalyzeTrigger(r.analyzeTrigger)
+	}
 
 	// 创建 Handlers — 管理 (package admin)
 	userH := adminHandler.NewUserHandler(r.database.User)
@@ -273,6 +278,7 @@ func (r *Router) registerRoutes() {
 	r.operator(func(register func(pattern string, h http.HandlerFunc)) {
 		register("/api/v2/aiops/ai/summarize", aiopsAIH.Summarize)
 		register("/api/v2/aiops/ai/recommend", aiopsAIH.Recommend)
+		register("/api/v2/aiops/ai/reports", aiopsAIH.ReportsHandler)
 	})
 
 	// ConfigMap 详情、通知渠道、审计日志、AI 配置查询（不审计，只是查看）
@@ -285,6 +291,8 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/ai/providers", aiProviderH.ProvidersHandler)
 		register("/api/v2/ai/active", aiProviderH.ActiveConfigHandler)
 		register("/api/v2/ai/roles", aiProviderH.RolesOverviewHandler)
+		register("/api/v2/ai/budgets", aiProviderH.BudgetsHandler)
+		register("/api/v2/ai/reports", aiProviderH.AIReportsHandler)
 	})
 
 	// ---------- 需要审计的敏感操作 ----------
@@ -347,6 +355,11 @@ func (r *Router) registerRoutes() {
 	// AI Provider 管理（需要 Admin 权限）
 	r.adminAudited("/api/v2/ai/providers/", "update", "ai_provider", aiProviderH.ProviderHandler)
 	r.adminAudited("/api/v2/ai/active/", "update", "ai_provider", aiProviderH.ActiveConfigHandler)
+	r.adminAudited("/api/v2/ai/budgets/", "update", "ai_budget", aiProviderH.BudgetHandler)
+
+	// AI 报告详情 + 深度分析触发（Operator 权限，审计）
+	r.operatorAudited("/api/v2/aiops/ai/reports/", "read", "ai_report", aiopsAIH.ReportDetailHandler)
+	r.operatorAudited("/api/v2/aiops/ai/analyze", "execute", "ai_analysis", aiopsAIH.AnalyzeHandler)
 }
 
 // ================================================================

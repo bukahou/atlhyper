@@ -71,3 +71,15 @@ func (q *QueryService) GetAIActiveConfig(ctx context.Context) (*database.AIActiv
 func (q *QueryService) ListAIModels(ctx context.Context) ([]*database.AIProviderModel, error) {
 	return q.aiModelRepo.ListAll(ctx)
 }
+
+// ==================== AI Role Budget ====================
+
+func (q *QueryService) ListAIRoleBudgets(ctx context.Context) ([]*database.AIRoleBudget, error) {
+	return q.aiBudgetRepo.ListAll(ctx)
+}
+
+// ==================== AI Reports ====================
+
+func (q *QueryService) ListRecentAIReports(ctx context.Context, role string, limit, offset int) ([]*database.AIReport, int, error) {
+	return q.aiReportRepo.ListRecent(ctx, role, limit, offset)
+}

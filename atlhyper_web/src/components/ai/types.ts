@@ -2,24 +2,24 @@
 
 export interface Conversation {
   id: number;
-  cluster_id: string;
+  clusterId: string;
   title: string;
-  message_count: number;
+  messageCount: number;
   // 累计统计
-  total_input_tokens: number;  // 累计输入 Token
-  total_output_tokens: number; // 累计输出 Token
-  total_tool_calls: number;    // 累计指令数
-  created_at: string;
-  updated_at: string;
+  totalInputTokens: number;  // 累计输入 Token
+  totalOutputTokens: number; // 累计输出 Token
+  totalToolCalls: number;    // 累计指令数
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Message {
   id: number;
-  conversation_id: number;
+  conversationId: number;
   role: "user" | "assistant" | "tool";
   content: string;
-  tool_calls?: string;
-  created_at: string;
+  toolCalls?: string;
+  createdAt: string;
 }
 
 // 流式渲染段
@@ -48,10 +48,10 @@ export interface ThinkingRound {
 
 // 单次提问的统计信息（后端 done 时返回）
 export interface ChatStats {
-  rounds: number;           // 思考轮次（AI 调用次数）
-  total_tool_calls: number; // 总指令数（所有轮次的 Tool 调用总数）
-  input_tokens: number;     // 输入 Token 数
-  output_tokens: number;    // 输出 Token 数
+  rounds: number;          // 思考轮次（AI 调用次数）
+  totalToolCalls: number;  // 总指令数（所有轮次的 Tool 调用总数）
+  inputTokens: number;     // 输入 Token 数
+  outputTokens: number;    // 输出 Token 数
 }
 
 // 单次 API 调用的 Token 用量

@@ -59,7 +59,7 @@ export function getUserList() {
  * 获取审计日志（需要 Admin 权限）
  * GET /api/v2/audit/logs
  */
-export function getAuditLogs(params?: { user_id?: number; source?: string; action?: string; since?: string; until?: string; limit?: number; offset?: number }) {
+export function getAuditLogs(params?: { userId?: number; source?: string; action?: string; since?: string; until?: string; limit?: number; offset?: number }) {
   return get<AuditLogsApiResponse>("/api/v2/audit/logs", params);
 }
 
@@ -71,7 +71,7 @@ export function registerUser(data: { username: string; password: string; display
   return post<OperationResponse>("/api/v2/user/register", {
     username: data.username,
     password: data.password,
-    display_name: data.displayName,
+    displayName: data.displayName,
     email: data.email,
     role: data.role,
   });
@@ -83,7 +83,7 @@ export function registerUser(data: { username: string; password: string; display
  */
 export function updateUserRole(data: { userId: number; role: number }) {
   return post<OperationResponse>("/api/v2/user/update-role", {
-    user_id: data.userId,
+    userId: data.userId,
     role: data.role,
   });
 }
@@ -94,7 +94,7 @@ export function updateUserRole(data: { userId: number; role: number }) {
  */
 export function updateUserStatus(data: { userId: number; status: number }) {
   return post<OperationResponse>("/api/v2/user/update-status", {
-    user_id: data.userId,
+    userId: data.userId,
     status: data.status,
   });
 }
@@ -104,5 +104,5 @@ export function updateUserStatus(data: { userId: number; status: number }) {
  * POST /api/v2/user/delete
  */
 export function deleteUser(id: number) {
-  return post<OperationResponse>("/api/v2/user/delete", { user_id: id });
+  return post<OperationResponse>("/api/v2/user/delete", { userId: id });
 }

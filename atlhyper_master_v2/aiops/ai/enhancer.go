@@ -18,9 +18,16 @@ import (
 
 var log = logger.Module("AIOps-AI")
 
+// LLMClientMeta 客户端元数据（工厂函数返回）
+type LLMClientMeta struct {
+	ProviderID   int64
+	ProviderName string
+	Model        string
+}
+
 // LLMClientFactory 创建 LLM 客户端的工厂函数
-// 每次调用返回新实例 + 有效上下文窗口(tokens)，调用方负责 Close
-type LLMClientFactory func(ctx context.Context) (llm.LLMClient, int, error)
+// 每次调用返回新实例 + 有效上下文窗口(tokens) + Provider 元数据，调用方负责 Close
+type LLMClientFactory func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error)
 
 // SummarizeResponse 事件摘要响应
 type SummarizeResponse struct {
@@ -30,6 +37,8 @@ type SummarizeResponse struct {
 	Recommendations  []Recommendation `json:"recommendations"`
 	SimilarIncidents []SimilarMatch   `json:"similarIncidents"`
 	GeneratedAt      int64            `json:"generatedAt"`
+	ReportID         int64            `json:"reportId,omitempty"`
+	FromCache        bool             `json:"fromCache"`
 }
 
 // Recommendation 处置建议
@@ -58,10 +67,11 @@ const (
 
 // 默认配置
 const (
-	defaultCooldown    = 60 * time.Second // Rate Limit 冷却时间
-	defaultMaxCache    = 200              // 最大缓存条目数
-	defaultCacheTTL    = 24 * time.Hour   // 缓存 TTL
-	rateLimitExpiry    = 1 * time.Hour    // Rate Limit 条目过期清理阈值
+	defaultCooldown        = 60 * time.Second // Rate Limit 冷却时间
+	defaultMaxCache        = 200              // 最大缓存条目数
+	defaultCacheTTL        = 24 * time.Hour   // 缓存 TTL
+	rateLimitExpiry        = 1 * time.Hour    // Rate Limit 条目过期清理阈值
+	maxConcurrentAnalysis  = 3                // 最多同时进行的后台分析数
 )
 
 // 可缓存的事件状态（已结束，数据不再变化）
@@ -76,14 +86,23 @@ type cachedResult struct {
 	cachedAt time.Time
 }
 
+// RecordUsageFunc 记录 AI 调用消耗的回调函数
+type RecordUsageFunc func(ctx context.Context, role string, providerID int64, inputTokens, outputTokens int)
+
 // Enhancer AIOps AI 增強服务
 type Enhancer struct {
 	incidentRepo database.AIOpsIncidentRepository
 	reportRepo   database.AIReportRepository // 报告持久化（可选）
 	llmFactory   LLMClientFactory
 
+	// 预算扣减回调（可选，由 master.go 注入）
+	recordUsage RecordUsageFunc
+
 	// 后台自动触发器（可选）
 	bgTrigger *backgroundTrigger
+
+	// 并发信号量：限制同时进行的后台分析数量
+	concurrencySem chan struct{}
 
 	// Rate Limit: 同一事件在 cooldown 内不允许重复调用 LLM
 	rateMu    sync.Mutex
@@ -104,15 +123,26 @@ func NewEnhancer(
 	llmFactory LLMClientFactory,
 ) *Enhancer {
 	return &Enhancer{
-		incidentRepo: incidentRepo,
-		reportRepo:   reportRepo,
-		llmFactory:   llmFactory,
-		lastCalls:    make(map[string]time.Time),
-		cooldown:     defaultCooldown,
-		cache:        make(map[string]*cachedResult),
-		maxCache:     defaultMaxCache,
-		cacheTTL:     defaultCacheTTL,
+		incidentRepo:   incidentRepo,
+		reportRepo:     reportRepo,
+		llmFactory:     llmFactory,
+		concurrencySem: make(chan struct{}, maxConcurrentAnalysis),
+		lastCalls:      make(map[string]time.Time),
+		cooldown:       defaultCooldown,
+		cache:          make(map[string]*cachedResult),
+		maxCache:       defaultMaxCache,
+		cacheTTL:       defaultCacheTTL,
 	}
+}
+
+// SetRecordUsage 设置预算扣减回调
+func (e *Enhancer) SetRecordUsage(fn RecordUsageFunc) {
+	e.recordUsage = fn
+}
+
+// GetRecordUsage 获取预算扣减回调（供 AnalysisConfig 使用）
+func (e *Enhancer) GetRecordUsage() RecordUsageFunc {
+	return e.recordUsage
 }
 
 // EnableBackgroundTrigger 启用后台自动触发器
@@ -137,6 +167,15 @@ func (e *Enhancer) SetAnalysisConfig(cfg *AnalysisConfig) {
 	}
 }
 
+// TriggerAnalysis 手动触发深度分析（异步）
+func (e *Enhancer) TriggerAnalysis(incidentID string) {
+	if e.bgTrigger == nil {
+		log.Warn("深度分析触发器未启用", "incident", incidentID)
+		return
+	}
+	e.bgTrigger.Submit(incidentID, "high", "manual")
+}
+
 // Stop 停止后台任务
 func (e *Enhancer) Stop() {
 	if e.bgTrigger != nil {
@@ -145,56 +184,132 @@ func (e *Enhancer) Stop() {
 }
 
 // Summarize 生成事件 AI 摘要（用户手动触发）
+// A4: 优先查询已有报告，无报告时才调 LLM
 func (e *Enhancer) Summarize(ctx context.Context, incidentID string) (*SummarizeResponse, error) {
-	result, incident, err := e.summarizeCore(ctx, incidentID)
+	// 优先查询已有 background 报告
+	if e.reportRepo != nil {
+		reports, err := e.reportRepo.ListByIncident(ctx, incidentID)
+		if err == nil && len(reports) > 0 {
+			// 取最新一条 background 报告
+			for _, r := range reports {
+				if r.Role == "background" {
+					resp := reportToSummarizeResponse(r)
+					return resp, nil
+				}
+			}
+		}
+	}
+
+	// 无已有报告，调 LLM 生成
+	result, incident, usage, meta, err := e.summarizeCore(ctx, incidentID)
 	if err != nil {
 		return nil, err
 	}
-	e.saveReport(ctx, incident, result, "manual")
+	e.saveReport(ctx, incident, result, "manual", meta, usage)
+	// 扣减预算（手动触发也计入 background 角色）
+	if e.recordUsage != nil && usage != nil {
+		providerID := int64(0)
+		if meta != nil {
+			providerID = meta.ProviderID
+		}
+		e.recordUsage(ctx, "background", providerID, usage.InputTokens, usage.OutputTokens)
+	}
 	return result, nil
+}
+
+// reportToSummarizeResponse 将 DB 报告转换为 SummarizeResponse
+func reportToSummarizeResponse(r *database.AIReport) *SummarizeResponse {
+	resp := &SummarizeResponse{
+		IncidentID:        r.IncidentID,
+		Summary:           r.Summary,
+		RootCauseAnalysis: r.RootCauseAnalysis,
+		GeneratedAt:       r.CreatedAt.UnixMilli(),
+		ReportID:          r.ID,
+		FromCache:         true,
+	}
+
+	// 解析 JSON 字段
+	if r.Recommendations != "" {
+		var recs []Recommendation
+		if err := json.Unmarshal([]byte(r.Recommendations), &recs); err == nil {
+			resp.Recommendations = recs
+		}
+	}
+	if resp.Recommendations == nil {
+		resp.Recommendations = []Recommendation{}
+	}
+
+	if r.SimilarIncidents != "" {
+		var sims []SimilarMatch
+		if err := json.Unmarshal([]byte(r.SimilarIncidents), &sims); err == nil {
+			resp.SimilarIncidents = sims
+		}
+	}
+	if resp.SimilarIncidents == nil {
+		resp.SimilarIncidents = []SimilarMatch{}
+	}
+
+	return resp
 }
 
 // SummarizeBackground 后台自动分析（指定 trigger 类型）
 func (e *Enhancer) SummarizeBackground(ctx context.Context, incidentID, trigger string) (*SummarizeResponse, error) {
-	result, incident, err := e.summarizeCore(ctx, incidentID)
+	// 并发上限检查
+	select {
+	case e.concurrencySem <- struct{}{}:
+		defer func() { <-e.concurrencySem }()
+	default:
+		return nil, fmt.Errorf("后台分析并发上限（%d），跳过", maxConcurrentAnalysis)
+	}
+
+	result, incident, usage, meta, err := e.summarizeCore(ctx, incidentID)
 	if err != nil {
 		return nil, err
 	}
-	e.saveReport(ctx, incident, result, trigger)
+	e.saveReport(ctx, incident, result, trigger, meta, usage)
+	// 扣减预算
+	if e.recordUsage != nil && usage != nil {
+		providerID := int64(0)
+		if meta != nil {
+			providerID = meta.ProviderID
+		}
+		e.recordUsage(ctx, "background", providerID, usage.InputTokens, usage.OutputTokens)
+	}
 	return result, nil
 }
 
 // summarizeCore 核心分析流程
 // 流程: 缓存查询 → Rate Limit → 查数据 → 构建上下文 → Token 预估 → LLM → 写缓存
-func (e *Enhancer) summarizeCore(ctx context.Context, incidentID string) (*SummarizeResponse, *database.AIOpsIncident, error) {
+// 返回: 结果, 事件, usage, meta, 错误
+func (e *Enhancer) summarizeCore(ctx context.Context, incidentID string) (*SummarizeResponse, *database.AIOpsIncident, *llm.Usage, *LLMClientMeta, error) {
 	// 1. 查缓存（命中则直接返回，不计 rate limit）
 	if cached := e.getCache(incidentID); cached != nil {
 		log.Debug("缓存命中", "incident", incidentID)
-		return cached, nil, nil
+		return cached, nil, nil, nil, nil
 	}
 
 	// 2. Rate Limit 检查
 	if err := e.checkRateLimit(incidentID); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// 3. 查询事件数据
 	incident, err := e.incidentRepo.GetByID(ctx, incidentID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("查询事件失败: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("查询事件失败: %w", err)
 	}
 	if incident == nil {
-		return nil, nil, fmt.Errorf("事件不存在: %s", incidentID)
+		return nil, nil, nil, nil, fmt.Errorf("事件不存在: %s", incidentID)
 	}
 
 	entities, err := e.incidentRepo.GetEntities(ctx, incidentID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("查询受影响实体失败: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("查询受影响实体失败: %w", err)
 	}
 
 	timeline, err := e.incidentRepo.GetTimeline(ctx, incidentID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("查询时间线失败: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("查询时间线失败: %w", err)
 	}
 
 	// 4. 查询历史相似事件（根因实体的历史事件，90天内）
@@ -205,9 +320,9 @@ func (e *Enhancer) summarizeCore(ctx context.Context, incidentID string) (*Summa
 	}
 
 	// 5. 调用 LLM（先获取 client 和 context_window，再构建 prompt）
-	client, contextWindow, err := e.llmFactory(ctx)
+	client, contextWindow, meta, err := e.llmFactory(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
 	}
 	defer client.Close()
 
@@ -219,18 +334,18 @@ func (e *Enhancer) summarizeCore(ctx context.Context, incidentID string) (*Summa
 		Messages:     []llm.Message{{Role: "user", Content: prompt.User}},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("LLM 调用失败: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("LLM 调用失败: %w", err)
 	}
 
 	// 7. 收集完整响应
-	fullText := collectResponse(stream)
+	fullText, usage := collectResponse(stream)
 
 	log.Debug("LLM 响应", "incident", incidentID, "len", len(fullText))
 
 	// 8. 解析结构化输出
 	result, err := parseResponse(fullText, incidentID, historical)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// 9. 更新 rate limit 时间戳
@@ -241,7 +356,7 @@ func (e *Enhancer) summarizeCore(ctx context.Context, incidentID string) (*Summa
 		e.setCache(incidentID, result)
 	}
 
-	return result, incident, nil
+	return result, incident, usage, meta, nil
 }
 
 // ==================== Rate Limit ====================
@@ -417,8 +532,8 @@ func maxPromptCharsForContext(contextWindow int) int {
 	return chars
 }
 
-// collectResponse 收集流式响应为完整文本
-func collectResponse(stream <-chan *llm.Chunk) string {
+// collectResponse 收集流式响应为完整文本和 usage 信息
+func collectResponse(stream <-chan *llm.Chunk) (string, *llm.Usage) {
 	var b strings.Builder
 	for chunk := range stream {
 		switch chunk.Type {
@@ -429,10 +544,10 @@ func collectResponse(stream <-chan *llm.Chunk) string {
 				log.Warn("LLM 流错误", "err", chunk.Error)
 			}
 		case llm.ChunkDone:
-			return b.String()
+			return b.String(), chunk.Usage
 		}
 	}
-	return b.String()
+	return b.String(), nil
 }
 
 // parseResponse 解析 LLM 响应为结构化结果
@@ -515,7 +630,7 @@ func extractJSON(text string) string {
 }
 
 // saveReport 持久化 AI 分析报告（fire-and-forget，不影响主流程）
-func (e *Enhancer) saveReport(ctx context.Context, incident *database.AIOpsIncident, result *SummarizeResponse, trigger string) {
+func (e *Enhancer) saveReport(ctx context.Context, incident *database.AIOpsIncident, result *SummarizeResponse, trigger string, meta *LLMClientMeta, usage *llm.Usage) {
 	if e.reportRepo == nil {
 		return
 	}
@@ -533,6 +648,16 @@ func (e *Enhancer) saveReport(ctx context.Context, incident *database.AIOpsIncid
 		Recommendations:   string(recsJSON),
 		SimilarIncidents:  string(similarsJSON),
 		CreatedAt:         time.Now(),
+	}
+
+	// 填充 Provider 元数据
+	if meta != nil {
+		report.ProviderName = meta.ProviderName
+		report.Model = meta.Model
+	}
+	if usage != nil {
+		report.InputTokens = usage.InputTokens
+		report.OutputTokens = usage.OutputTokens
 	}
 
 	if err := e.reportRepo.Create(ctx, report); err != nil {

@@ -32,12 +32,12 @@ export function EmailCard({
 
   // 表单状态
   const [localEnabled, setLocalEnabled] = useState(enabled);
-  const [smtpHost, setSmtpHost] = useState(config.smtp_host || "");
-  const [smtpPort, setSmtpPort] = useState(config.smtp_port || 587);
-  const [smtpUser, setSmtpUser] = useState(config.smtp_user || "");
+  const [smtpHost, setSmtpHost] = useState(config.smtpHost || "");
+  const [smtpPort, setSmtpPort] = useState(config.smtpPort || 587);
+  const [smtpUser, setSmtpUser] = useState(config.smtpUser || "");
   const [smtpPassword, setSmtpPassword] = useState("");
-  const [smtpTls, setSmtpTls] = useState(config.smtp_tls ?? true);
-  const [recipients, setRecipients] = useState<string[]>(config.to_addresses || []);
+  const [smtpTls, setSmtpTls] = useState(config.smtpTLS ?? true);
+  const [recipients, setRecipients] = useState<string[]>(config.toAddresses || []);
 
   // UI 状态
   const [saving, setSaving] = useState(false);
@@ -49,31 +49,31 @@ export function EmailCard({
   // 同步外部状态
   useEffect(() => {
     setLocalEnabled(enabled);
-    setSmtpHost(config.smtp_host || "");
-    setSmtpPort(config.smtp_port || 587);
-    setSmtpUser(config.smtp_user || "");
-    setSmtpTls(config.smtp_tls ?? true);
-    setRecipients(config.to_addresses || []);
+    setSmtpHost(config.smtpHost || "");
+    setSmtpPort(config.smtpPort || 587);
+    setSmtpUser(config.smtpUser || "");
+    setSmtpTls(config.smtpTLS ?? true);
+    setRecipients(config.toAddresses || []);
     setSmtpPassword(""); // 密码不从后端加载
     // 判断是否为自定义 SMTP
-    const isPreset = SMTP_PRESETS.some((p) => p.value === config.smtp_host);
-    setIsCustomSmtp(config.smtp_host !== "" && !isPreset);
+    const isPreset = SMTP_PRESETS.some((p) => p.value === config.smtpHost);
+    setIsCustomSmtp(config.smtpHost !== "" && !isPreset);
   }, [enabled, config]);
 
   // 检测变化
   useEffect(() => {
-    const originalRecipients = config.to_addresses || [];
+    const originalRecipients = config.toAddresses || [];
     const recipientsChanged =
       recipients.length !== originalRecipients.length ||
       recipients.some((r, i) => r !== originalRecipients[i]);
 
     const changed =
       localEnabled !== enabled ||
-      smtpHost !== (config.smtp_host || "") ||
-      smtpPort !== (config.smtp_port || 587) ||
-      smtpUser !== (config.smtp_user || "") ||
+      smtpHost !== (config.smtpHost || "") ||
+      smtpPort !== (config.smtpPort || 587) ||
+      smtpUser !== (config.smtpUser || "") ||
       smtpPassword !== "" || // 密码有输入即视为变化
-      smtpTls !== (config.smtp_tls ?? true) ||
+      smtpTls !== (config.smtpTLS ?? true) ||
       recipientsChanged;
 
     setHasChanges(changed);
@@ -100,16 +100,16 @@ export function EmailCard({
     try {
       const data: EmailUpdateData = {
         enabled: localEnabled,
-        smtp_host: smtpHost,
-        smtp_port: smtpPort,
-        smtp_user: smtpUser,
-        smtp_tls: smtpTls,
-        from_address: smtpUser, // 发件人地址与用户名相同
-        to_addresses: recipients,
+        smtpHost: smtpHost,
+        smtpPort: smtpPort,
+        smtpUser: smtpUser,
+        smtpTLS: smtpTls,
+        fromAddress: smtpUser, // 发件人地址与用户名相同
+        toAddresses: recipients,
       };
       // 只有输入了密码才更新
       if (smtpPassword) {
-        data.smtp_password = smtpPassword;
+        data.smtpPassword = smtpPassword;
       }
       await onSave(data);
       setSmtpPassword(""); // 保存后清空密码输入

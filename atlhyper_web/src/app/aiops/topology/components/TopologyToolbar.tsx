@@ -59,36 +59,36 @@ export function TopologyToolbar({
         <div className="flex flex-wrap gap-3 text-xs text-muted">
           {/* 形状图例 */}
           <span className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-full border-2 border-current inline-block" /> Service
+            <span className="w-3.5 h-3.5 rounded-full border-2 border-current inline-block" /> {t.aiops.nodeTypeService}
           </span>
           <span className="flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5" viewBox="-10 -10 20 20">
               <polygon points="0,-7 7,0 0,7 -7,0" fill="none" stroke="currentColor" strokeWidth={1.5} />
             </svg>
-            Ingress
+            {t.aiops.nodeTypeIngress}
           </span>
           {showAllShapes && (
             <>
               <span className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded-sm border-2 border-current inline-block" /> Pod
+                <span className="w-3.5 h-3.5 rounded-sm border-2 border-current inline-block" /> {t.aiops.nodeTypePod}
               </span>
               <span className="flex items-center gap-1.5">
                 <svg className="w-3.5 h-3.5" viewBox="-10 -10 20 20">
                   <polygon points="0,-8 7,4 -7,4" fill="none" stroke="currentColor" strokeWidth={1.5} />
                 </svg>
-                Node
+                {t.aiops.nodeTypeNode}
               </span>
             </>
           )}
           <span className="mx-1 text-[var(--border-color)]">|</span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] inline-block" /> Healthy
+            <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] inline-block" /> {t.aiops.legendHealthy}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#eab308] inline-block" /> Warning
+            <span className="w-2.5 h-2.5 rounded-full bg-[#eab308] inline-block" /> {t.aiops.legendWarning}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block" /> Critical
+            <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block" /> {t.aiops.legendCritical}
           </span>
         </div>
       </div>

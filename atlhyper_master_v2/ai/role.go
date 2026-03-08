@@ -58,9 +58,30 @@ func (s *aiServiceImpl) loadAIConfigForRole(ctx context.Context, role string) (*
 			continue
 		}
 
-		// 找到了持有该角色的 Provider → 检查预算
+		// 找到了持有该角色的 Provider → 检查预算（含跨日/跨月重置）
 		if s.budgetRepo != nil {
 			if budget, _ := s.budgetRepo.Get(ctx, role); budget != nil {
+				// 跨日重置
+				if needsDailyReset(budget) {
+					if err := s.budgetRepo.ResetDailyUsage(ctx, role); err != nil {
+						log.Warn("跨日重置失败", "role", role, "err", err)
+					} else {
+						budget.DailyInputTokensUsed = 0
+						budget.DailyOutputTokensUsed = 0
+						budget.DailyCallsUsed = 0
+					}
+				}
+				// 跨月重置
+				if needsMonthlyReset(budget) {
+					if err := s.budgetRepo.ResetMonthlyUsage(ctx, role); err != nil {
+						log.Warn("跨月重置失败", "role", role, "err", err)
+					} else {
+						budget.MonthlyInputTokensUsed = 0
+						budget.MonthlyOutputTokensUsed = 0
+						budget.MonthlyCallsUsed = 0
+					}
+				}
+
 				if !checkBudget(budget) {
 					// 预算耗尽 → 尝试 fallback
 					if budget.FallbackProviderID != nil {
@@ -71,7 +92,7 @@ func (s *aiServiceImpl) loadAIConfigForRole(ctx context.Context, role string) (*
 							return s.providerToRoleConfig(ctx, fallback), nil
 						}
 					}
-					return nil, fmt.Errorf("角色 %s 每日预算已用尽", role)
+					return nil, fmt.Errorf("角色 %s 预算已用尽", role)
 				}
 			}
 		}
@@ -79,26 +100,10 @@ func (s *aiServiceImpl) loadAIConfigForRole(ctx context.Context, role string) (*
 		return s.providerToRoleConfig(ctx, p), nil
 	}
 
-	// 3. 无角色分配 → 退回全局 (向后兼容)
-	return s.loadAIConfigFallback(ctx, active)
+	// 3. 无角色分配 → 严格模式：返回错误
+	return nil, fmt.Errorf("角色 %s 未分配 Provider，请在 AI 设置中为该角色指定提供商", role)
 }
 
-// loadAIConfigFallback 使用 ai_active_config.provider_id 作为兜底
-func (s *aiServiceImpl) loadAIConfigFallback(ctx context.Context, active *database.AIActiveConfig) (*RoleConfig, error) {
-	if active.ProviderID == nil {
-		return nil, fmt.Errorf("未设置 AI 提供商")
-	}
-
-	provider, err := s.providerRepo.GetByID(ctx, *active.ProviderID)
-	if err != nil {
-		return nil, fmt.Errorf("获取 AI 提供商失败: %w", err)
-	}
-	if provider == nil {
-		return nil, fmt.Errorf("AI 提供商不存在: %d", *active.ProviderID)
-	}
-
-	return s.providerToRoleConfig(ctx, provider), nil
-}
 
 // providerToRoleConfig 将 Provider 转换为 RoleConfig
 func (s *aiServiceImpl) providerToRoleConfig(ctx context.Context, p *database.AIProvider) *RoleConfig {
@@ -136,28 +141,66 @@ func EffectiveContextWindow(ctx context.Context, provider *database.AIProvider, 
 	return 0
 }
 
-// checkBudget 检查预算是否还有余额
+// checkBudget 检查预算是否还有余额（多维度：input/output × 日/月）
 func checkBudget(budget *database.AIRoleBudget) bool {
-	// 检查是否需要跨日重置
-	if budget.DailyResetAt != nil {
-		now := time.Now()
-		resetDate := budget.DailyResetAt.Truncate(24 * time.Hour)
-		today := now.Truncate(24 * time.Hour)
-		if today.After(resetDate) {
-			// 跨日了，视为有余额（调用方负责重置）
-			return true
-		}
-	}
-
-	// Token 限额
-	if budget.DailyTokenLimit > 0 && budget.DailyTokensUsed >= budget.DailyTokenLimit {
+	// 日限额检查
+	if budget.DailyInputTokenLimit > 0 && budget.DailyInputTokensUsed >= budget.DailyInputTokenLimit {
 		return false
 	}
-	// 调用次数限额
+	if budget.DailyOutputTokenLimit > 0 && budget.DailyOutputTokensUsed >= budget.DailyOutputTokenLimit {
+		return false
+	}
 	if budget.DailyCallLimit > 0 && budget.DailyCallsUsed >= budget.DailyCallLimit {
 		return false
 	}
+
+	// 月限额检查
+	if budget.MonthlyInputTokenLimit > 0 && budget.MonthlyInputTokensUsed >= budget.MonthlyInputTokenLimit {
+		return false
+	}
+	if budget.MonthlyOutputTokenLimit > 0 && budget.MonthlyOutputTokensUsed >= budget.MonthlyOutputTokenLimit {
+		return false
+	}
+	if budget.MonthlyCallLimit > 0 && budget.MonthlyCallsUsed >= budget.MonthlyCallLimit {
+		return false
+	}
+
 	return true
+}
+
+// needsDailyReset 检查是否需要跨日重置
+func needsDailyReset(budget *database.AIRoleBudget) bool {
+	if budget.DailyResetAt == nil {
+		return false
+	}
+	resetDate := budget.DailyResetAt.Truncate(24 * time.Hour)
+	today := time.Now().Truncate(24 * time.Hour)
+	return today.After(resetDate)
+}
+
+// needsMonthlyReset 检查是否需要跨月重置
+func needsMonthlyReset(budget *database.AIRoleBudget) bool {
+	if budget.MonthlyResetAt == nil {
+		return false
+	}
+	resetYear, resetMonth, _ := budget.MonthlyResetAt.Date()
+	nowYear, nowMonth, _ := time.Now().Date()
+	return nowYear > resetYear || nowMonth > resetMonth
+}
+
+// RecordUsage 记录 AI 调用消耗（预算扣减 + Provider 统计更新）
+func (s *aiServiceImpl) RecordUsage(ctx context.Context, role string, providerID int64, inputTokens, outputTokens int) {
+	// 1. 扣减角色预算（日 + 月同时扣减）
+	if s.budgetRepo != nil {
+		if err := s.budgetRepo.IncrementUsage(ctx, role, inputTokens, outputTokens); err != nil {
+			log.Warn("扣减角色预算失败", "role", role, "err", err)
+		}
+	}
+	// 2. 累加 Provider 统计
+	totalTokens := int64(inputTokens + outputTokens)
+	if err := s.providerRepo.IncrementUsage(ctx, providerID, 1, totalTokens, 0); err != nil {
+		log.Warn("更新 Provider 统计失败", "provider", providerID, "err", err)
+	}
 }
 
 // containsRole 检查角色列表中是否包含指定角色

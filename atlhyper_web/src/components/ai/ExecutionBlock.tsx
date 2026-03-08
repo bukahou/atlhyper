@@ -123,8 +123,8 @@ export function ExecutionBlock({ rounds, stats, streaming }: ExecutionBlockProps
             {stats && (
               <>
                 <span className="text-muted/50">·</span>
-                <span className="text-emerald-500/80">↑{stats.input_tokens.toLocaleString()}</span>
-                <span className="text-blue-500/80">↓{stats.output_tokens.toLocaleString()}</span>
+                <span className="text-emerald-500/80">↑{stats.inputTokens.toLocaleString()}</span>
+                <span className="text-blue-500/80">↓{stats.outputTokens.toLocaleString()}</span>
               </>
             )}
           </div>

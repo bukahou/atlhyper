@@ -176,10 +176,10 @@ func NewMaster() (*Master, error) {
 
 	// 5.1 初始化 AIOps AI 增强服务
 	// llmFactory 支持角色路由: 优先查找 background 角色的 Provider，否则退回全局
-	llmFactory := func(ctx context.Context) (llm.LLMClient, int, error) {
+	llmFactory := func(ctx context.Context) (llm.LLMClient, int, *aiopsai.LLMClientMeta, error) {
 		active, err := db.AIActive.Get(ctx)
 		if err != nil || active == nil || !active.Enabled {
-			return nil, 0, fmt.Errorf("AI 未配置或未启用")
+			return nil, 0, nil, fmt.Errorf("AI 未配置或未启用")
 		}
 
 		// 优先查找持有 background 角色的 Provider
@@ -200,16 +200,22 @@ func NewMaster() (*Master, error) {
 		// 无 background 角色 → 退回全局
 		if provider == nil {
 			if active.ProviderID == nil {
-				return nil, 0, fmt.Errorf("AI 提供商未配置")
+				return nil, 0, nil, fmt.Errorf("AI 提供商未配置")
 			}
 			provider, err = db.AIProvider.GetByID(ctx, *active.ProviderID)
 			if err != nil || provider == nil {
-				return nil, 0, fmt.Errorf("AI 提供商不存在")
+				return nil, 0, nil, fmt.Errorf("AI 提供商不存在")
 			}
 		}
 
 		// 解析有效上下文窗口
 		contextWindow := ai.EffectiveContextWindow(ctx, provider, db.AIModel)
+
+		meta := &aiopsai.LLMClientMeta{
+			ProviderID:   provider.ID,
+			ProviderName: provider.Name,
+			Model:        provider.Model,
+		}
 
 		client, err := llm.NewLLMClient(llm.Config{
 			Provider: provider.Provider,
@@ -217,10 +223,23 @@ func NewMaster() (*Master, error) {
 			Model:    provider.Model,
 			BaseURL:  provider.BaseURL,
 		})
-		return client, contextWindow, err
+		return client, contextWindow, meta, err
 	}
 	aiopsEnhancer := aiopsai.NewEnhancer(db.AIOpsIncident, db.AIReport, llmFactory)
 	aiopsEnhancer.EnableBackgroundTrigger(db.AIRoleBudget)
+	aiopsEnhancer.SetRecordUsage(func(ctx context.Context, role string, providerID int64, inputTokens, outputTokens int) {
+		if db.AIRoleBudget != nil {
+			if err := db.AIRoleBudget.IncrementUsage(ctx, role, inputTokens, outputTokens); err != nil {
+				log.Warn("Enhancer 扣减角色预算失败", "role", role, "err", err)
+			}
+		}
+		totalTokens := int64(inputTokens + outputTokens)
+		if providerID > 0 {
+			if err := db.AIProvider.IncrementUsage(ctx, providerID, 1, totalTokens, 0); err != nil {
+				log.Warn("Enhancer 更新 Provider 统计失败", "provider", providerID, "err", err)
+			}
+		}
+	})
 	aiopsEngine.SetIncidentNotify(aiopsEnhancer.NotifyIncidentEvent)
 	log.Info("AIOps AI 增强服务初始化完成（后台自动分析已启用）")
 
@@ -233,7 +252,7 @@ func NewMaster() (*Master, error) {
 
 	// 7. 初始化 Operations（写入路径）
 	cmdOps := operations.NewCommandService(bus, db.Command)
-	adminOps := operations.NewAdminService(db.Notify, db.Settings, db.AIProvider, db.AIActive)
+	adminOps := operations.NewAdminService(db.Notify, db.Settings, db.AIProvider, db.AIActive, db.AIRoleBudget)
 	log.Info("操作服务初始化完成")
 
 	// 组合统一 Service
@@ -316,6 +335,8 @@ func NewMaster() (*Master, error) {
 		ToolDefs:     aiService.GetToolDefs(),
 		ReportRepo:   db.AIReport,
 		IncidentRepo: db.AIOpsIncident,
+		BudgetRepo:   db.AIRoleBudget,
+		RecordUsage:  aiopsEnhancer.GetRecordUsage(),
 	})
 
 	// 10. 初始化 AlertManager（告警管理器）
@@ -348,11 +369,12 @@ func NewMaster() (*Master, error) {
 
 	// 12. 初始化 Gateway
 	gw := gateway.NewServer(gateway.Config{
-		Port:      cfg.Server.GatewayPort,
-		Service:   svc,
-		Database:  db,
-		Bus:       bus,
-		AIService: aiService,
+		Port:           cfg.Server.GatewayPort,
+		Service:        svc,
+		Database:       db,
+		Bus:            bus,
+		AIService:      aiService,
+		AnalyzeTrigger: aiopsEnhancer,
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
 

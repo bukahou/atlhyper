@@ -1397,6 +1397,56 @@ export interface AISettingsPageTranslations {
   aiDisabled: string;
   settingChangeFailed: string;
   timeoutSaved: string;
+  // 角色总览
+  roleOverview: string;
+  roleBackground: string;
+  roleChat: string;
+  roleAnalysis: string;
+  roleUnassigned: string;
+  // Base URL
+  baseUrl: string;
+  baseUrlPlaceholder: string;
+  baseUrlHint: string;
+  // 角色标签
+  roles: string;
+  rolesHint: string;
+  rolesUpdated: string;
+  // 预算配置
+  budgetConfig: string;
+  budgetConfigDesc: string;
+  // 日限额
+  dailyInputTokenLimit: string;
+  dailyOutputTokenLimit: string;
+  dailyCallLimit: string;
+  dailyInputTokens: string;
+  dailyOutputTokens: string;
+  dailyCalls: string;
+  // 月限额
+  monthlyInputTokenLimit: string;
+  monthlyOutputTokenLimit: string;
+  monthlyCallLimit: string;
+  monthlyInputTokens: string;
+  monthlyOutputTokens: string;
+  monthlyCalls: string;
+  autoTriggerMinSeverity: string;
+  budgetSaved: string;
+  budgetSaveFailed: string;
+  unlimited: string;
+  // 角色互斥
+  roleAssignConflict: string;
+  // 降级 Provider
+  fallbackProvider: string;
+  noFallback: string;
+  // 调用历史
+  usageHistory: string;
+  usageHistoryDesc: string;
+  allRoles: string;
+  noReports: string;
+  trigger: string;
+  inputTokens: string;
+  outputTokens: string;
+  duration: string;
+  loadMore: string;
 }
 
 // AI Chat 页面翻译
@@ -1408,6 +1458,8 @@ export interface AIChatPageTranslations {
   notEnabledDesc: string;
   notConfigured: string;
   notConfiguredDesc: string;
+  chatNotAssigned: string;
+  chatNotAssignedDesc: string;
   goToSettings: string;
   // 演示模式
   demoMode: string;
@@ -1913,6 +1965,16 @@ export interface AIOpsTranslations {
   viewAnomaly: string;
   viewFull: string;
   noAnomalies: string;
+  // topology legend
+  nodeTypeService: string;
+  nodeTypeIngress: string;
+  nodeTypePod: string;
+  nodeTypeNode: string;
+  legendHealthy: string;
+  legendWarning: string;
+  legendCritical: string;
+  pauseAutoRefresh: string;
+  resumeAutoRefresh: string;
 
   // 通用
   noData: string;
@@ -1945,6 +2007,29 @@ export interface AIOpsTranslations {
     noSimilar: string;
     generatedAt: string;
     regenerate: string;
+    // AI 报告
+    aiReports: string;
+    noReports: string;
+    generateAnalysis: string;
+    reanalyze: string;
+    triggerDeepAnalysis: string;
+    analysisSubmitted: string;
+    analysisInProgress: string;
+    fromBackground: string;
+    fromAnalysis: string;
+    fromManual: string;
+    triggerIncidentCreated: string;
+    triggerStateChanged: string;
+    triggerManual: string;
+    investigationSteps: string;
+    evidenceChain: string;
+    round: string;
+    toolCalls: string;
+    tokens: string;
+    duration: string;
+    expandSteps: string;
+    collapseSteps: string;
+    fromCache: string;
   };
 }
 
@@ -2109,8 +2194,16 @@ export interface ApmTranslations extends TimeRangePickerTranslations {
   topoErrorRate: string;
   topoCalls: string;
   nodeTypeService: string;
+  nodeTypeIngress: string;
+  nodeTypePod: string;
+  nodeTypeNode: string;
   nodeTypeDatabase: string;
   nodeTypeExternal: string;
+  legendHealthy: string;
+  legendWarning: string;
+  legendCritical: string;
+  pauseAutoRefresh: string;
+  resumeAutoRefresh: string;
   // states
   loading: string;
   loadFailed: string;

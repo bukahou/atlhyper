@@ -15,18 +15,18 @@ export type ChannelType = "slack" | "email";
 
 // Slack 配置
 export interface SlackConfig {
-  webhook_url: string;
+  webhookUrl: string;
 }
 
 // Email 配置
 export interface EmailConfig {
-  smtp_host: string;
-  smtp_port: number;
-  smtp_user: string;
-  smtp_password?: string; // 查询时不返回，更新时传入
-  smtp_tls?: boolean;
-  from_address: string;
-  to_addresses: string[];
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPassword?: string; // 查询时不返回，更新时传入
+  smtpTLS?: boolean;
+  fromAddress: string;
+  toAddresses: string[];
 }
 
 // 通知渠道
@@ -35,11 +35,11 @@ export interface NotifyChannel {
   type: ChannelType;
   name: string;
   enabled: boolean;
-  effective_enabled: boolean; // 实际可用状态（启用+配置完整）
-  validation_errors: string[]; // 配置校验错误
+  effectiveEnabled: boolean; // 实际可用状态（启用+配置完整）
+  validationErrors: string[]; // 配置校验错误
   config: SlackConfig | EmailConfig;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // 列表响应
@@ -79,13 +79,13 @@ export function getChannel(type: ChannelType) {
  * 更新 Slack 配置
  * PUT /api/v2/notify/channels/slack
  */
-export function updateSlack(data: { enabled?: boolean; webhook_url?: string }) {
+export function updateSlack(data: { enabled?: boolean; webhookUrl?: string }) {
   const req: UpdateChannelRequest = {};
   if (data.enabled !== undefined) {
     req.enabled = data.enabled;
   }
-  if (data.webhook_url !== undefined) {
-    req.config = { webhook_url: data.webhook_url };
+  if (data.webhookUrl !== undefined) {
+    req.config = { webhookUrl: data.webhookUrl };
   }
   return put<NotifyChannel>("/api/v2/notify/channels/slack", req);
 }
@@ -93,13 +93,13 @@ export function updateSlack(data: { enabled?: boolean; webhook_url?: string }) {
 // Email 更新参数
 export interface EmailUpdateData {
   enabled?: boolean;
-  smtp_host?: string;
-  smtp_port?: number;
-  smtp_user?: string;
-  smtp_password?: string;
-  smtp_tls?: boolean;
-  from_address?: string;
-  to_addresses?: string[];
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPassword?: string;
+  smtpTLS?: boolean;
+  fromAddress?: string;
+  toAddresses?: string[];
 }
 
 /**
@@ -114,13 +114,13 @@ export function updateEmail(data: EmailUpdateData) {
 
   // 构建 config 对象（只包含有值的字段）
   const config: Record<string, unknown> = {};
-  if (data.smtp_host !== undefined) config.smtp_host = data.smtp_host;
-  if (data.smtp_port !== undefined) config.smtp_port = data.smtp_port;
-  if (data.smtp_user !== undefined) config.smtp_user = data.smtp_user;
-  if (data.smtp_password !== undefined) config.smtp_password = data.smtp_password;
-  if (data.smtp_tls !== undefined) config.smtp_tls = data.smtp_tls;
-  if (data.from_address !== undefined) config.from_address = data.from_address;
-  if (data.to_addresses !== undefined) config.to_addresses = data.to_addresses;
+  if (data.smtpHost !== undefined) config.smtpHost = data.smtpHost;
+  if (data.smtpPort !== undefined) config.smtpPort = data.smtpPort;
+  if (data.smtpUser !== undefined) config.smtpUser = data.smtpUser;
+  if (data.smtpPassword !== undefined) config.smtpPassword = data.smtpPassword;
+  if (data.smtpTLS !== undefined) config.smtpTLS = data.smtpTLS;
+  if (data.fromAddress !== undefined) config.fromAddress = data.fromAddress;
+  if (data.toAddresses !== undefined) config.toAddresses = data.toAddresses;
 
   if (Object.keys(config).length > 0) {
     req.config = config;
@@ -167,29 +167,29 @@ export const mockChannels: NotifyChannel[] = [
     type: "slack",
     name: "Slack",
     enabled: true,
-    effective_enabled: true,
-    validation_errors: [],
+    effectiveEnabled: true,
+    validationErrors: [],
     config: {
-      webhook_url: "https://hooks.slack.com/services/T****/B****/************",
+      webhookUrl: "https://hooks.slack.com/services/T****/B****/************",
     } as SlackConfig,
-    created_at: "2025-01-01T00:00:00Z",
-    updated_at: "2025-01-20T10:30:00Z",
+    createdAt: "2025-01-01T00:00:00Z",
+    updatedAt: "2025-01-20T10:30:00Z",
   },
   {
     id: 2,
     type: "email",
     name: "Email",
     enabled: false,
-    effective_enabled: false,
-    validation_errors: ["smtp_user 未配置", "smtp_password 未配置"],
+    effectiveEnabled: false,
+    validationErrors: ["smtpUser 未配置", "smtpPassword 未配置"],
     config: {
-      smtp_host: "smtp.example.com",
-      smtp_port: 587,
-      smtp_user: "",
-      from_address: "alerts@example.com",
-      to_addresses: ["admin@example.com", "ops@example.com"],
+      smtpHost: "smtp.example.com",
+      smtpPort: 587,
+      smtpUser: "",
+      fromAddress: "alerts@example.com",
+      toAddresses: ["admin@example.com", "ops@example.com"],
     } as EmailConfig,
-    created_at: "2025-01-01T00:00:00Z",
-    updated_at: "2025-01-15T14:20:00Z",
+    createdAt: "2025-01-01T00:00:00Z",
+    updatedAt: "2025-01-15T14:20:00Z",
   },
 ];

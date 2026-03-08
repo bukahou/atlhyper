@@ -368,7 +368,10 @@ func convertTools(tools []llm.ToolDefinition) []toolParam {
 	var result []toolParam
 	for _, t := range tools {
 		var params any
-		json.Unmarshal(t.Parameters, &params)
+		if err := json.Unmarshal(t.Parameters, &params); err != nil {
+			log.Warn("Tool 参数 Schema 解析失败", "tool", t.Name, "err", err)
+			params = map[string]any{"type": "object"}
+		}
 		result = append(result, toolParam{
 			Type: "function",
 			Function: functionDef{

@@ -9,6 +9,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/aiops"
 	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
+	"AtlHyper/atlhyper_master_v2/database"
 )
 
 // GetAIOpsGraph 获取指定集群的依赖图
@@ -97,4 +98,16 @@ func (q *QueryService) SummarizeIncident(ctx context.Context, incidentID string)
 		return nil, fmt.Errorf("AI 增强服务未启用")
 	}
 	return q.aiopsAI.Summarize(ctx, incidentID)
+}
+
+// ==================== AI Report ====================
+
+// ListAIReports 查询事件的 AI 分析报告列表
+func (q *QueryService) ListAIReports(ctx context.Context, incidentID string) ([]*database.AIReport, error) {
+	return q.aiReportRepo.ListByIncident(ctx, incidentID)
+}
+
+// GetAIReport 获取单个 AI 报告详情
+func (q *QueryService) GetAIReport(ctx context.Context, id int64) (*database.AIReport, error) {
+	return q.aiReportRepo.GetByID(ctx, id)
 }

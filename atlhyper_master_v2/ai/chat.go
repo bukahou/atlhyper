@@ -16,11 +16,6 @@ import (
 
 var log = logger.Module("AI-Chat")
 
-// loadAIConfig 从数据库加载 AI 配置（向后兼容方法，内部使用 loadAIConfigForRole）
-func (s *aiServiceImpl) loadAIConfig(ctx context.Context) (*RoleConfig, error) {
-	return s.loadAIConfigForRole(ctx, RoleChat)
-}
-
 const maxToolRounds = 5             // 最大 Tool 调用轮数
 const maxToolCallsPerRound = 5      // 每轮最多 Tool Call 数
 const chatTimeout = 3 * time.Minute // Chat 全局超时
@@ -171,6 +166,8 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			s.persistFinalAssistantMessage(ctx, convID, assistantContent)
 			// 累加统计到对话
 			s.accumulateConversationStats(ctx, convID, totalInputTokens, totalOutputTokens, totalToolCalls)
+			// 扣减角色预算 + Provider 统计
+			s.RecordUsage(ctx, RoleChat, roleCfg.ProviderID, totalInputTokens, totalOutputTokens)
 			// 发送 done 并附带统计信息
 			ch <- &ChatChunk{
 				Type: "done",
@@ -276,6 +273,8 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	s.persistFinalAssistantMessage(ctx, convID, assistantContent)
 	// 累加统计到对话
 	s.accumulateConversationStats(ctx, convID, totalInputTokens, totalOutputTokens, totalToolCalls)
+	// 扣减角色预算 + Provider 统计
+	s.RecordUsage(ctx, RoleChat, roleCfg.ProviderID, totalInputTokens, totalOutputTokens)
 	// 发送 done 并附带统计信息
 	ch <- &ChatChunk{
 		Type: "done",

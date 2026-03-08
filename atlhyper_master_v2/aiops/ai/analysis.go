@@ -30,24 +30,34 @@ type AnalysisConfig struct {
 	ToolDefs       []llm.ToolDefinition
 	ReportRepo     database.AIReportRepository
 	IncidentRepo   database.AIOpsIncidentRepository
+	BudgetRepo     database.AIRoleBudgetRepository // 预算检查（可选）
+	RecordUsage    RecordUsageFunc                  // 预算扣减回调（可选）
 }
 
 // InvestigationStep 调查步骤记录
 type InvestigationStep struct {
 	Round     int                  `json:"round"`
 	Thinking  string               `json:"thinking"`
-	ToolCalls []InvestigationTool  `json:"tool_calls"`
+	ToolCalls []InvestigationTool  `json:"toolCalls"`
 }
 
 // InvestigationTool 调查中的 Tool 调用记录
 type InvestigationTool struct {
 	Tool          string `json:"tool"`
 	Params        string `json:"params"`
-	ResultSummary string `json:"result_summary"`
+	ResultSummary string `json:"resultSummary"`
 }
 
 // RunAnalysis 执行深度分析（后台静默，无 SSE）
 func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger string) error {
+	// 0. 预算前置检查（防止自动触发导致成本失控）
+	if cfg.BudgetRepo != nil {
+		budget, _ := cfg.BudgetRepo.Get(ctx, "analysis")
+		if budget != nil && !isBudgetAvailable(budget) {
+			return fmt.Errorf("analysis 角色预算已用尽")
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, analysisTimeout)
 	defer cancel()
 
@@ -61,7 +71,7 @@ func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger st
 	timeline, _ := cfg.IncidentRepo.GetTimeline(ctx, incidentID)
 
 	// 2. 创建 LLM 客户端
-	client, contextWindow, err := cfg.LLMFactory(ctx)
+	client, contextWindow, meta, err := cfg.LLMFactory(ctx)
 	if err != nil {
 		return fmt.Errorf("创建 LLM 客户端失败: %w", err)
 	}
@@ -85,6 +95,10 @@ func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger st
 		InvestigationSteps: "[]",
 		CreatedAt:          time.Now(),
 	}
+	if meta != nil {
+		report.ProviderName = meta.ProviderName
+		report.Model = meta.Model
+	}
 	if cfg.ReportRepo != nil {
 		if err := cfg.ReportRepo.Create(ctx, report); err != nil {
 			log.Warn("创建分析报告失败", "err", err)
@@ -92,6 +106,7 @@ func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger st
 	}
 
 	var steps []InvestigationStep
+	var totalInputTokens, totalOutputTokens int
 	maxToolResult := toolResultMaxLen(contextWindow)
 	startTime := time.Now()
 
@@ -121,7 +136,13 @@ func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger st
 		}
 
 		// 收集响应
-		text, toolCalls := collectAnalysisResponse(stream)
+		text, toolCalls, usage := collectAnalysisResponse(stream)
+
+		// 累计 token 使用量
+		if usage != nil {
+			totalInputTokens += usage.InputTokens
+			totalOutputTokens += usage.OutputTokens
+		}
 
 		log.Debug("analysis 轮次完成",
 			"incident", incidentID, "round", round,
@@ -132,10 +153,19 @@ func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger st
 			// 最终文本作为报告
 			finalReport := parseAnalysisReport(text, incidentID)
 			if cfg.ReportRepo != nil && report.ID > 0 {
-				saveAnalysisResult(ctx, cfg.ReportRepo, report.ID, finalReport, steps, startTime)
+				saveAnalysisResult(ctx, cfg.ReportRepo, report.ID, finalReport, steps, startTime, totalInputTokens, totalOutputTokens)
+			}
+			// 扣减预算
+			providerID := int64(0)
+			if meta != nil {
+				providerID = meta.ProviderID
+			}
+			if cfg.RecordUsage != nil {
+				cfg.RecordUsage(ctx, "analysis", providerID, totalInputTokens, totalOutputTokens)
 			}
 			log.Info("深度分析完成",
 				"incident", incidentID, "rounds", round-1,
+				"tokens", totalInputTokens+totalOutputTokens,
 				"duration", time.Since(startTime).Round(time.Second))
 			return nil
 		}
@@ -187,6 +217,15 @@ func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger st
 		}
 	}
 
+	// 循环用尽后扣减预算
+	providerID := int64(0)
+	if meta != nil {
+		providerID = meta.ProviderID
+	}
+	if cfg.RecordUsage != nil {
+		cfg.RecordUsage(ctx, "analysis", providerID, totalInputTokens, totalOutputTokens)
+	}
+
 	return nil
 }
 
@@ -232,7 +271,7 @@ func buildAnalysisUserPrompt(ctx *IncidentContext) string {
 }
 
 // collectAnalysisResponse 收集流式响应（不推送 SSE）
-func collectAnalysisResponse(stream <-chan *llm.Chunk) (string, []llm.ToolCall) {
+func collectAnalysisResponse(stream <-chan *llm.Chunk) (string, []llm.ToolCall, *llm.Usage) {
 	var text strings.Builder
 	var toolCalls []llm.ToolCall
 
@@ -245,15 +284,15 @@ func collectAnalysisResponse(stream <-chan *llm.Chunk) (string, []llm.ToolCall) 
 				toolCalls = append(toolCalls, *chunk.ToolCall)
 			}
 		case llm.ChunkDone:
-			return text.String(), toolCalls
+			return text.String(), toolCalls, chunk.Usage
 		case llm.ChunkError:
 			if chunk.Error != nil {
 				log.Warn("analysis LLM 流错误", "err", chunk.Error)
 			}
-			return text.String(), toolCalls
+			return text.String(), toolCalls, nil
 		}
 	}
-	return text.String(), toolCalls
+	return text.String(), toolCalls, nil
 }
 
 // parseAnalysisReport 从 LLM 输出中解析分析报告
@@ -299,8 +338,8 @@ func parseAnalysisReport(raw, incidentID string) *SummarizeResponse {
 	}
 }
 
-// saveAnalysisResult 保存分析结果到报告
-func saveAnalysisResult(ctx context.Context, repo database.AIReportRepository, reportID int64, result *SummarizeResponse, steps []InvestigationStep, startTime time.Time) {
+// saveAnalysisResult 保存分析结果到报告（完整更新所有字段）
+func saveAnalysisResult(ctx context.Context, repo database.AIReportRepository, reportID int64, result *SummarizeResponse, steps []InvestigationStep, startTime time.Time, inputTokens, outputTokens int) {
 	report, err := repo.GetByID(ctx, reportID)
 	if err != nil || report == nil {
 		return
@@ -309,6 +348,8 @@ func saveAnalysisResult(ctx context.Context, repo database.AIReportRepository, r
 	report.Summary = result.Summary
 	report.RootCauseAnalysis = result.RootCauseAnalysis
 	report.DurationMs = time.Since(startTime).Milliseconds()
+	report.InputTokens = inputTokens
+	report.OutputTokens = outputTokens
 
 	recsJSON, _ := json.Marshal(result.Recommendations)
 	report.Recommendations = string(recsJSON)
@@ -316,8 +357,10 @@ func saveAnalysisResult(ctx context.Context, repo database.AIReportRepository, r
 	stepsJSON, _ := json.Marshal(steps)
 	report.InvestigationSteps = string(stepsJSON)
 
-	// 使用 UpdateInvestigationSteps 更新（已有方法）
-	repo.UpdateInvestigationSteps(ctx, reportID, string(stepsJSON))
+	// 完整更新报告（包括 summary、recommendations、tokens 等）
+	if err := repo.UpdateResult(ctx, reportID, report); err != nil {
+		log.Warn("更新分析报告失败", "id", reportID, "err", err)
+	}
 }
 
 // truncateForStep 截断结果用于调查步骤记录

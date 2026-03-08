@@ -21,7 +21,7 @@ export function getConversations(limit = 20, offset = 0) {
 /** 创建对话 */
 export function createConversation(clusterId: string, title?: string) {
   return post<Conversation>("/api/v2/ai/conversations", {
-    cluster_id: clusterId,
+    clusterId: clusterId,
     title: title || "新对话",
   });
 }
@@ -41,8 +41,8 @@ export function getMessages(conversationId: number) {
 // ============================================================
 
 export interface StreamChatParams {
-  conversation_id: number;
-  cluster_id: string;
+  conversationId: number;
+  clusterId: string;
   message: string;
 }
 

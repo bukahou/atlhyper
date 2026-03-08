@@ -204,10 +204,12 @@ type SLORepository interface {
 // AIRoleBudgetRepository 角色预算接口
 type AIRoleBudgetRepository interface {
 	Get(ctx context.Context, role string) (*AIRoleBudget, error)
+	ListAll(ctx context.Context) ([]*AIRoleBudget, error)
 	Upsert(ctx context.Context, budget *AIRoleBudget) error
 	Delete(ctx context.Context, role string) error
-	IncrementUsage(ctx context.Context, role string, tokens int) error
+	IncrementUsage(ctx context.Context, role string, inputTokens, outputTokens int) error
 	ResetDailyUsage(ctx context.Context, role string) error
+	ResetMonthlyUsage(ctx context.Context, role string) error
 }
 
 // ==================== AI Report Repository 接口 ====================
@@ -218,9 +220,11 @@ type AIReportRepository interface {
 	GetByID(ctx context.Context, id int64) (*AIReport, error)
 	ListByIncident(ctx context.Context, incidentID string) ([]*AIReport, error)
 	ListByCluster(ctx context.Context, clusterID, role string, limit int) ([]*AIReport, error)
+	ListRecent(ctx context.Context, role string, limit, offset int) ([]*AIReport, int, error)
 	CountByClusterAndRole(ctx context.Context, clusterID, role string, since time.Time) (int, error)
 	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
 	UpdateInvestigationSteps(ctx context.Context, id int64, steps string) error
+	UpdateResult(ctx context.Context, id int64, report *AIReport) error
 }
 
 // ==================== AIOps Repository 接口 ====================
@@ -426,9 +430,11 @@ type AIProviderModelDialect interface {
 type AIRoleBudgetDialect interface {
 	Upsert(b *AIRoleBudget) (query string, args []any)
 	SelectByRole(role string) (query string, args []any)
+	SelectAll() (query string, args []any)
 	Delete(role string) (query string, args []any)
-	IncrementUsage(role string, tokens int) (query string, args []any)
+	IncrementUsage(role string, inputTokens, outputTokens int) (query string, args []any)
 	ResetDailyUsage(role string) (query string, args []any)
+	ResetMonthlyUsage(role string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*AIRoleBudget, error)
 }
 
@@ -438,9 +444,12 @@ type AIReportDialect interface {
 	SelectByID(id int64) (query string, args []any)
 	SelectByIncident(incidentID string) (query string, args []any)
 	SelectByCluster(clusterID, role string, limit int) (query string, args []any)
+	SelectRecent(role string, limit, offset int) (query string, args []any)
+	CountRecent(role string) (query string, args []any)
 	CountByClusterAndRole(clusterID, role string, since time.Time) (query string, args []any)
 	DeleteBefore(before time.Time) (query string, args []any)
 	UpdateInvestigationSteps(id int64, steps string) (query string, args []any)
+	UpdateResult(id int64, r *AIReport) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*AIReport, error)
 }
 

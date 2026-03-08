@@ -32,23 +32,23 @@ func NewOpsHandler(svc service.Ops, bus mq.Producer) *OpsHandler {
 
 // PodLogsRequest Pod 日志请求
 type PodLogsRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	Container string `json:"container,omitempty"`
-	TailLines int    `json:"tail_lines,omitempty"`
+	TailLines int    `json:"tailLines,omitempty"`
 }
 
 // PodRestartRequest Pod 重启请求
 type PodRestartRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 }
 
 // DeploymentScaleRequest 扩缩容请求
 type DeploymentScaleRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	Replicas  int    `json:"replicas"`
@@ -56,14 +56,14 @@ type DeploymentScaleRequest struct {
 
 // DeploymentRestartRequest 滚动重启请求
 type DeploymentRestartRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 }
 
 // DeploymentImageRequest 更新镜像请求
 type DeploymentImageRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	Container string `json:"container"`
@@ -72,20 +72,20 @@ type DeploymentImageRequest struct {
 
 // NodeCordonRequest Node 封锁/解封请求
 type NodeCordonRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Name      string `json:"name"`
 }
 
 // ConfigMapDataRequest 获取 ConfigMap 数据请求
 type ConfigMapDataRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 }
 
 // SecretDataRequest 获取 Secret 数据请求
 type SecretDataRequest struct {
-	ClusterID string `json:"cluster_id"`
+	ClusterID string `json:"clusterId"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 }

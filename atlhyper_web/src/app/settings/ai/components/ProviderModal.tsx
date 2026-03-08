@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { X, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import type { AIProvider, ProviderModelInfo } from "@/api/ai-provider";
+import { useProviderForm } from "./useProviderForm";
 
 interface ProviderModalProps {
   isOpen: boolean;
@@ -16,7 +16,9 @@ interface ProviderModalProps {
     provider: string;
     apiKey: string;
     model: string;
+    baseUrl: string;
     description: string;
+    roles: string[];
   }) => void;
 }
 
@@ -31,73 +33,7 @@ export function ProviderModal({
   const { t } = useI18n();
   const aiT = t.aiSettingsPage;
 
-  const [formName, setFormName] = useState("");
-  const [formProvider, setFormProvider] = useState("gemini");
-  const [formApiKey, setFormApiKey] = useState("");
-  const [formModel, setFormModel] = useState("");
-  const [formCustomModel, setFormCustomModel] = useState("");
-  const [formUseCustomModel, setFormUseCustomModel] = useState(false);
-  const [formDescription, setFormDescription] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
-
-  const getModelsForProvider = (provider: string): string[] => {
-    const info = models.find((m) => m.provider === provider);
-    return info?.models || [];
-  };
-
-  // Initialize form when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      if (editingProvider) {
-        setFormName(editingProvider.name);
-        setFormProvider(editingProvider.provider);
-        setFormApiKey("");
-        setFormDescription(editingProvider.description);
-        setShowApiKey(false);
-
-        const presetModels = getModelsForProvider(editingProvider.provider);
-        if (presetModels.includes(editingProvider.model)) {
-          setFormModel(editingProvider.model);
-          setFormUseCustomModel(false);
-          setFormCustomModel("");
-        } else {
-          setFormModel("");
-          setFormUseCustomModel(true);
-          setFormCustomModel(editingProvider.model);
-        }
-      } else {
-        setFormName("");
-        setFormProvider("gemini");
-        setFormApiKey("");
-        setFormModel(getModelsForProvider("gemini")[0] || "");
-        setFormCustomModel("");
-        setFormUseCustomModel(false);
-        setFormDescription("");
-        setShowApiKey(false);
-      }
-    }
-  }, [isOpen, editingProvider]);
-
-  // Update model when provider changes
-  useEffect(() => {
-    if (isOpen && !formUseCustomModel) {
-      const providerModels = getModelsForProvider(formProvider);
-      if (providerModels.length > 0 && !providerModels.includes(formModel)) {
-        setFormModel(providerModels[0]);
-      }
-    }
-  }, [formProvider, isOpen, formUseCustomModel]);
-
-  const handleSave = () => {
-    const currentModel = formUseCustomModel ? formCustomModel : formModel;
-    onSave({
-      name: formName,
-      provider: formProvider,
-      apiKey: formApiKey,
-      model: currentModel,
-      description: formDescription,
-    });
-  };
+  const form = useProviderForm({ isOpen, editingProvider, models });
 
   if (!isOpen) return null;
 
@@ -126,8 +62,8 @@ export function ProviderModal({
             </label>
             <input
               type="text"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
+              value={form.formName}
+              onChange={(e) => form.setFormName(e.target.value)}
               placeholder={aiT.namePlaceholder}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
             />
@@ -139,8 +75,8 @@ export function ProviderModal({
               {aiT.provider} <span className="text-red-500">*</span>
             </label>
             <select
-              value={formProvider}
-              onChange={(e) => setFormProvider(e.target.value)}
+              value={form.formProvider}
+              onChange={(e) => form.setFormProvider(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             >
               {models.map((m) => (
@@ -158,23 +94,23 @@ export function ProviderModal({
             </label>
             <div className="relative">
               <input
-                type={showApiKey ? "text" : "password"}
-                value={formApiKey}
-                onChange={(e) => setFormApiKey(e.target.value)}
+                type={form.showApiKey ? "text" : "password"}
+                value={form.formApiKey}
+                onChange={(e) => form.setFormApiKey(e.target.value)}
                 placeholder={editingProvider ? aiT.apiKeyUpdatePlaceholder : aiT.apiKeyPlaceholder}
                 className="w-full px-3 py-2 pr-10 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 font-mono"
               />
               <button
                 type="button"
-                onClick={() => setShowApiKey(!showApiKey)}
+                onClick={() => form.setShowApiKey(!form.showApiKey)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-default"
               >
-                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {form.showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {editingProvider?.api_key_set && (
+            {editingProvider?.apiKeySet && (
               <p className="mt-1 text-xs text-muted">
-                {aiT.current}: {editingProvider.api_key_masked}
+                {aiT.current}: {editingProvider.apiKeyMasked}
               </p>
             )}
           </div>
@@ -188,35 +124,29 @@ export function ProviderModal({
               <input
                 type="checkbox"
                 id="useCustomModel"
-                checked={formUseCustomModel}
-                onChange={(e) => {
-                  setFormUseCustomModel(e.target.checked);
-                  if (!e.target.checked) {
-                    const providerModels = getModelsForProvider(formProvider);
-                    if (providerModels.length > 0) setFormModel(providerModels[0]);
-                  }
-                }}
+                checked={form.formUseCustomModel}
+                onChange={(e) => form.handleToggleCustomModel(e.target.checked)}
                 className="w-4 h-4 rounded"
               />
               <label htmlFor="useCustomModel" className="text-sm text-muted">
                 {aiT.customModel}
               </label>
             </div>
-            {formUseCustomModel ? (
+            {form.formUseCustomModel ? (
               <input
                 type="text"
-                value={formCustomModel}
-                onChange={(e) => setFormCustomModel(e.target.value)}
+                value={form.formCustomModel}
+                onChange={(e) => form.setFormCustomModel(e.target.value)}
                 placeholder={aiT.customModelPlaceholder}
                 className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 font-mono"
               />
             ) : (
               <select
-                value={formModel}
-                onChange={(e) => setFormModel(e.target.value)}
+                value={form.formModel}
+                onChange={(e) => form.setFormModel(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               >
-                {getModelsForProvider(formProvider).map((m) => (
+                {form.getModelsForProvider(form.formProvider).map((m) => (
                   <option key={m} value={m} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
                     {m}
                   </option>
@@ -225,12 +155,60 @@ export function ProviderModal({
             )}
           </div>
 
+          {/* Base URL (Ollama等) */}
+          {form.formProvider === "ollama" && (
+            <div>
+              <label className="block text-sm font-medium text-default mb-1">
+                {aiT.baseUrl}
+              </label>
+              <input
+                type="text"
+                value={form.formBaseUrl}
+                onChange={(e) => form.setFormBaseUrl(e.target.value)}
+                placeholder={aiT.baseUrlPlaceholder}
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 font-mono"
+              />
+              <p className="mt-1 text-xs text-muted">{aiT.baseUrlHint}</p>
+            </div>
+          )}
+
+          {/* Roles */}
+          {editingProvider && (
+            <div>
+              <label className="block text-sm font-medium text-default mb-1">
+                {aiT.roles}
+              </label>
+              <p className="text-xs text-muted mb-2">{aiT.rolesHint}</p>
+              <div className="flex flex-wrap gap-3">
+                {(["background", "chat", "analysis"] as const).map((role) => {
+                  const labels: Record<string, string> = {
+                    background: aiT.roleBackground,
+                    chat: aiT.roleChat,
+                    analysis: aiT.roleAnalysis,
+                  };
+                  const checked = form.formRoles.includes(role);
+                  return (
+                    <label key={role} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => form.toggleRole(role, e.target.checked)}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm text-default">{labels[role]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Description */}
           <div>
             <label className="block text-sm font-medium text-default mb-1">{aiT.description}</label>
             <textarea
-              value={formDescription}
-              onChange={(e) => setFormDescription(e.target.value)}
+              value={form.formDescription}
+              onChange={(e) => form.setFormDescription(e.target.value)}
               placeholder={aiT.descriptionPlaceholder}
               rows={2}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 resize-none"
@@ -247,7 +225,7 @@ export function ProviderModal({
             {aiT.cancel}
           </button>
           <button
-            onClick={handleSave}
+            onClick={() => onSave(form.getFormData())}
             disabled={saving}
             className="px-4 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 flex items-center gap-2"
           >

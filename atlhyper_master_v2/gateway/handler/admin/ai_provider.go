@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -47,32 +49,33 @@ type ProviderResponse struct {
 	Model                 string   `json:"model"`
 	BaseURL               string   `json:"baseUrl,omitempty"`
 	Description           string   `json:"description"`
-	APIKeyMasked          string   `json:"api_key_masked"`
-	APIKeySet             bool     `json:"api_key_set"`
-	IsActive              bool     `json:"is_active"`
+	APIKeyMasked          string   `json:"apiKeyMasked"`
+	APIKeySet             bool     `json:"apiKeySet"`
+	IsActive              bool     `json:"isActive"`
 	Roles                 []string `json:"roles"`
 	ContextWindowOverride int      `json:"contextWindowOverride"`
 	Status                string   `json:"status"`
-	TotalRequests         int64    `json:"total_requests"`
-	TotalTokens           int64    `json:"total_tokens"`
-	TotalCost             float64  `json:"total_cost"`
-	LastUsedAt            *string  `json:"last_used_at,omitempty"`
-	LastError             string   `json:"last_error,omitempty"`
-	CreatedAt             string   `json:"created_at"`
-	UpdatedAt             string   `json:"updated_at"`
+	TotalRequests         int64    `json:"totalRequests"`
+	TotalTokens           int64    `json:"totalTokens"`
+	TotalCost             float64  `json:"totalCost"`
+	LastUsedAt            *string  `json:"lastUsedAt,omitempty"`
+	LastError             string   `json:"lastError,omitempty"`
+	CreatedAt             string   `json:"createdAt"`
+	UpdatedAt             string   `json:"updatedAt"`
 }
 
 // ActiveConfigResponse アクティブ設定レスポンス
 type ActiveConfigResponse struct {
 	Enabled     bool   `json:"enabled"`
-	ProviderID  *int64 `json:"provider_id"`
-	ToolTimeout int    `json:"tool_timeout"`
+	ProviderID  *int64 `json:"providerId"`
+	ToolTimeout int    `json:"toolTimeout"`
+	ChatReady   bool   `json:"chatReady"`
 }
 
 // ProviderListResponse プロバイダー一覧レスポンス
 type ProviderListResponse struct {
 	Providers    []ProviderResponse   `json:"providers"`
-	ActiveConfig ActiveConfigResponse `json:"active_config"`
+	ActiveConfig ActiveConfigResponse `json:"activeConfig"`
 	Models       []ProviderModelInfo  `json:"models"`
 }
 
@@ -87,9 +90,9 @@ type ProviderModelInfo struct {
 type ProviderCreateRequest struct {
 	Name        string `json:"name"`
 	Provider    string `json:"provider"`
-	APIKey      string `json:"api_key"`
+	APIKey      string `json:"apiKey"`
 	Model       string `json:"model"`
-	BaseURL     string `json:"base_url"`
+	BaseURL     string `json:"baseUrl"`
 	Description string `json:"description"`
 }
 
@@ -97,17 +100,17 @@ type ProviderCreateRequest struct {
 type ProviderUpdateRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Provider    *string `json:"provider,omitempty"`
-	APIKey      *string `json:"api_key,omitempty"`
+	APIKey      *string `json:"apiKey,omitempty"`
 	Model       *string `json:"model,omitempty"`
-	BaseURL     *string `json:"base_url,omitempty"`
+	BaseURL     *string `json:"baseUrl,omitempty"`
 	Description *string `json:"description,omitempty"`
 }
 
 // ActiveConfigUpdateRequest アクティブ設定更新リクエスト
 type ActiveConfigUpdateRequest struct {
 	Enabled     *bool  `json:"enabled,omitempty"`
-	ProviderID  *int64 `json:"provider_id,omitempty"`
-	ToolTimeout *int   `json:"tool_timeout,omitempty"`
+	ProviderID  *int64 `json:"providerId,omitempty"`
+	ToolTimeout *int   `json:"toolTimeout,omitempty"`
 }
 
 // ==================== Handlers ====================
@@ -206,6 +209,17 @@ func (h *AIProviderHandler) listProviders(w http.ResponseWriter, r *http.Request
 	// モデル一覧
 	models := h.loadModelsGrouped(ctx)
 
+	// 检查 chat 角色是否已分配
+	chatReady := false
+	if active.Enabled {
+		for _, p := range providers {
+			if slices.Contains(p.Roles, "chat") {
+				chatReady = true
+				break
+			}
+		}
+	}
+
 	// レスポンス構築
 	resp := ProviderListResponse{
 		Providers: make([]ProviderResponse, 0, len(providers)),
@@ -213,6 +227,7 @@ func (h *AIProviderHandler) listProviders(w http.ResponseWriter, r *http.Request
 			Enabled:     active.Enabled,
 			ProviderID:  active.ProviderID,
 			ToolTimeout: active.ToolTimeout,
+			ChatReady:   chatReady,
 		},
 		Models: models,
 	}
@@ -241,6 +256,10 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		handler.WriteError(w, http.StatusBadRequest, "provider is required")
 		return
 	}
+	if !slices.Contains(supportedProviders, req.Provider) {
+		handler.WriteError(w, http.StatusBadRequest, "unsupported provider type")
+		return
+	}
 	// Ollama 不需要 API Key，其他提供商必须
 	if req.APIKey == "" && req.Provider != "ollama" {
 		handler.WriteError(w, http.StatusBadRequest, "api_key is required")
@@ -249,6 +268,12 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 	if req.Model == "" {
 		handler.WriteError(w, http.StatusBadRequest, "model is required")
 		return
+	}
+	if req.BaseURL != "" {
+		if !isValidBaseURL(req.BaseURL) {
+			handler.WriteError(w, http.StatusBadRequest, "invalid base_url format")
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -272,7 +297,10 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	active, _ := h.svc.GetAIActiveConfig(ctx)
+	active, err := h.svc.GetAIActiveConfig(ctx)
+	if err != nil {
+		log.Warn("获取 AI 活跃配置失败", "err", err)
+	}
 	handler.WriteJSON(w, http.StatusCreated, h.toProviderResponse(provider, active.ProviderID))
 }
 
@@ -291,7 +319,10 @@ func (h *AIProviderHandler) getProvider(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	active, _ := h.svc.GetAIActiveConfig(ctx)
+	active, err := h.svc.GetAIActiveConfig(ctx)
+	if err != nil {
+		log.Warn("获取 AI 活跃配置失败", "err", err)
+	}
 	handler.WriteJSON(w, http.StatusOK, h.toProviderResponse(provider, active.ProviderID))
 }
 
@@ -342,7 +373,10 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	active, _ := h.svc.GetAIActiveConfig(ctx)
+	active, err := h.svc.GetAIActiveConfig(ctx)
+	if err != nil {
+		log.Warn("获取 AI 活跃配置失败", "err", err)
+	}
 	handler.WriteJSON(w, http.StatusOK, h.toProviderResponse(provider, active.ProviderID))
 }
 
@@ -352,7 +386,10 @@ func (h *AIProviderHandler) deleteProvider(w http.ResponseWriter, r *http.Reques
 	defer cancel()
 
 	// アクティブなプロバイダーは削除不可
-	active, _ := h.svc.GetAIActiveConfig(ctx)
+	active, err := h.svc.GetAIActiveConfig(ctx)
+	if err != nil {
+		log.Warn("获取 AI 活跃配置失败", "err", err)
+	}
 	if active != nil && active.ProviderID != nil && *active.ProviderID == id {
 		handler.WriteError(w, http.StatusBadRequest, "cannot delete active provider")
 		return
@@ -385,10 +422,23 @@ func (h *AIProviderHandler) getActiveConfig(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	// 检查是否有 Provider 分配了 chat 角色
+	chatReady := false
+	if active.Enabled {
+		providers, _ := h.svc.ListAIProviders(ctx)
+		for _, p := range providers {
+			if slices.Contains(p.Roles, "chat") {
+				chatReady = true
+				break
+			}
+		}
+	}
+
 	handler.WriteJSON(w, http.StatusOK, ActiveConfigResponse{
 		Enabled:     active.Enabled,
 		ProviderID:  active.ProviderID,
 		ToolTimeout: active.ToolTimeout,
+		ChatReady:   chatReady,
 	})
 }
 
@@ -423,7 +473,10 @@ func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Re
 	}
 	if req.ProviderID != nil {
 		// プロバイダー存在チェック
-		provider, _ := h.svc.GetAIProviderByID(ctx, *req.ProviderID)
+		provider, provErr := h.svc.GetAIProviderByID(ctx, *req.ProviderID)
+		if provErr != nil {
+			log.Warn("获取 Provider 失败", "id", *req.ProviderID, "err", provErr)
+		}
 		if provider == nil {
 			handler.WriteError(w, http.StatusBadRequest, "provider not found")
 			return
@@ -440,10 +493,23 @@ func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// 检查 chat 角色
+	chatReady := false
+	if active.Enabled {
+		providers, _ := h.svc.ListAIProviders(ctx)
+		for _, p := range providers {
+			if slices.Contains(p.Roles, "chat") {
+				chatReady = true
+				break
+			}
+		}
+	}
+
 	handler.WriteJSON(w, http.StatusOK, ActiveConfigResponse{
 		Enabled:     active.Enabled,
 		ProviderID:  active.ProviderID,
 		ToolTimeout: active.ToolTimeout,
+		ChatReady:   chatReady,
 	})
 }
 
@@ -523,7 +589,10 @@ func (h *AIProviderHandler) ProviderRolesHandler(w http.ResponseWriter, r *http.
 	}
 
 	// 校验互斥约束
-	providers, _ := h.svc.ListAIProviders(ctx)
+	providers, err := h.svc.ListAIProviders(ctx)
+	if err != nil {
+		log.Warn("获取 Provider 列表失败", "err", err)
+	}
 	for _, role := range req.Roles {
 		for _, p := range providers {
 			if p.ID == id {
@@ -562,7 +631,10 @@ func (h *AIProviderHandler) RolesOverviewHandler(w http.ResponseWriter, r *http.
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	providers, _ := h.svc.ListAIProviders(ctx)
+	providers, err := h.svc.ListAIProviders(ctx)
+	if err != nil {
+		log.Warn("获取 Provider 列表失败", "err", err)
+	}
 
 	// 构建角色名映射
 	roleNames := map[string]string{
@@ -616,6 +688,256 @@ func (h *AIProviderHandler) RolesOverviewHandler(w http.ResponseWriter, r *http.
 	})
 }
 
+// ==================== Budget Handlers ====================
+
+// BudgetsHandler 角色预算列表
+// GET /api/v2/ai/budgets → 获取所有角色的预算配置
+func (h *AIProviderHandler) BudgetsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	budgets, err := h.svc.ListAIRoleBudgets(ctx)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "failed to list budgets")
+		return
+	}
+
+	type budgetResponse struct {
+		Role string `json:"role"`
+		// 日限额
+		DailyInputTokenLimit  int `json:"dailyInputTokenLimit"`
+		DailyOutputTokenLimit int `json:"dailyOutputTokenLimit"`
+		DailyCallLimit        int `json:"dailyCallLimit"`
+		// 日消耗
+		DailyInputTokensUsed  int    `json:"dailyInputTokensUsed"`
+		DailyOutputTokensUsed int    `json:"dailyOutputTokensUsed"`
+		DailyCallsUsed        int    `json:"dailyCallsUsed"`
+		DailyResetAt          string `json:"dailyResetAt,omitempty"`
+		// 月限额
+		MonthlyInputTokenLimit  int `json:"monthlyInputTokenLimit"`
+		MonthlyOutputTokenLimit int `json:"monthlyOutputTokenLimit"`
+		MonthlyCallLimit        int `json:"monthlyCallLimit"`
+		// 月消耗
+		MonthlyInputTokensUsed  int    `json:"monthlyInputTokensUsed"`
+		MonthlyOutputTokensUsed int    `json:"monthlyOutputTokensUsed"`
+		MonthlyCallsUsed        int    `json:"monthlyCallsUsed"`
+		MonthlyResetAt          string `json:"monthlyResetAt,omitempty"`
+		// 配置
+		AutoTriggerMinSeverity string `json:"autoTriggerMinSeverity"`
+		FallbackProviderID     *int64 `json:"fallbackProviderId"`
+	}
+
+	items := make([]budgetResponse, 0, len(budgets))
+	for _, b := range budgets {
+		item := budgetResponse{
+			Role:                    b.Role,
+			DailyInputTokenLimit:    b.DailyInputTokenLimit,
+			DailyOutputTokenLimit:   b.DailyOutputTokenLimit,
+			DailyCallLimit:          b.DailyCallLimit,
+			DailyInputTokensUsed:    b.DailyInputTokensUsed,
+			DailyOutputTokensUsed:   b.DailyOutputTokensUsed,
+			DailyCallsUsed:          b.DailyCallsUsed,
+			MonthlyInputTokenLimit:  b.MonthlyInputTokenLimit,
+			MonthlyOutputTokenLimit: b.MonthlyOutputTokenLimit,
+			MonthlyCallLimit:        b.MonthlyCallLimit,
+			MonthlyInputTokensUsed:  b.MonthlyInputTokensUsed,
+			MonthlyOutputTokensUsed: b.MonthlyOutputTokensUsed,
+			MonthlyCallsUsed:        b.MonthlyCallsUsed,
+			AutoTriggerMinSeverity:  b.AutoTriggerMinSeverity,
+			FallbackProviderID:      b.FallbackProviderID,
+		}
+		if b.DailyResetAt != nil {
+			item.DailyResetAt = b.DailyResetAt.Format(time.RFC3339)
+		}
+		if b.MonthlyResetAt != nil {
+			item.MonthlyResetAt = b.MonthlyResetAt.Format(time.RFC3339)
+		}
+		items = append(items, item)
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data":    items,
+	})
+}
+
+// BudgetHandler 单个角色预算更新
+// PUT /api/v2/ai/budgets/{role}
+func (h *AIProviderHandler) BudgetHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	role := strings.TrimPrefix(r.URL.Path, "/api/v2/ai/budgets/")
+	if !ai.IsValidRole(role) {
+		handler.WriteError(w, http.StatusBadRequest, "invalid role: "+role)
+		return
+	}
+
+	var req struct {
+		DailyInputTokenLimit    *int    `json:"dailyInputTokenLimit,omitempty"`
+		DailyOutputTokenLimit   *int    `json:"dailyOutputTokenLimit,omitempty"`
+		DailyCallLimit          *int    `json:"dailyCallLimit,omitempty"`
+		MonthlyInputTokenLimit  *int    `json:"monthlyInputTokenLimit,omitempty"`
+		MonthlyOutputTokenLimit *int    `json:"monthlyOutputTokenLimit,omitempty"`
+		MonthlyCallLimit        *int    `json:"monthlyCallLimit,omitempty"`
+		AutoTriggerMinSeverity  *string `json:"autoTriggerMinSeverity,omitempty"`
+		FallbackProviderID      *int64  `json:"fallbackProviderId,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		handler.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// 校验 severity 值
+	validSeverities := map[string]bool{"critical": true, "high": true, "medium": true, "low": true, "off": true}
+	if req.AutoTriggerMinSeverity != nil && !validSeverities[*req.AutoTriggerMinSeverity] {
+		handler.WriteError(w, http.StatusBadRequest, "invalid severity: "+*req.AutoTriggerMinSeverity)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	// 获取现有预算（可能不存在）
+	existing, err := h.svc.ListAIRoleBudgets(ctx)
+	if err != nil {
+		log.Warn("获取角色预算列表失败", "err", err)
+	}
+	var budget *database.AIRoleBudget
+	for _, b := range existing {
+		if b.Role == role {
+			budget = b
+			break
+		}
+	}
+	if budget == nil {
+		budget = &database.AIRoleBudget{
+			Role:                   role,
+			AutoTriggerMinSeverity: "critical",
+		}
+	}
+
+	// 应用更新
+	if req.DailyInputTokenLimit != nil {
+		budget.DailyInputTokenLimit = *req.DailyInputTokenLimit
+	}
+	if req.DailyOutputTokenLimit != nil {
+		budget.DailyOutputTokenLimit = *req.DailyOutputTokenLimit
+	}
+	if req.DailyCallLimit != nil {
+		budget.DailyCallLimit = *req.DailyCallLimit
+	}
+	if req.MonthlyInputTokenLimit != nil {
+		budget.MonthlyInputTokenLimit = *req.MonthlyInputTokenLimit
+	}
+	if req.MonthlyOutputTokenLimit != nil {
+		budget.MonthlyOutputTokenLimit = *req.MonthlyOutputTokenLimit
+	}
+	if req.MonthlyCallLimit != nil {
+		budget.MonthlyCallLimit = *req.MonthlyCallLimit
+	}
+	if req.AutoTriggerMinSeverity != nil {
+		budget.AutoTriggerMinSeverity = *req.AutoTriggerMinSeverity
+	}
+	if req.FallbackProviderID != nil {
+		budget.FallbackProviderID = req.FallbackProviderID
+	}
+	budget.UpdatedAt = time.Now()
+
+	if err := h.svc.UpdateAIRoleBudget(ctx, budget); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "failed to update budget")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "预算配置已更新",
+		"role":    role,
+	})
+}
+
+// ==================== AI Reports (調用歴史) ====================
+
+// AIReportsHandler 调用历史列表
+// GET /api/v2/ai/reports?role=background&limit=20&offset=0
+func (h *AIProviderHandler) AIReportsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	// 解析参数
+	role := r.URL.Query().Get("role") // 可选，空=全部
+	limit := 20
+	offset := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+
+	reports, total, err := h.svc.ListRecentAIReports(ctx, role, limit, offset)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "failed to list reports")
+		return
+	}
+
+	type reportItem struct {
+		ID           int64  `json:"id"`
+		IncidentID   string `json:"incidentId"`
+		ClusterID    string `json:"clusterId"`
+		Role         string `json:"role"`
+		Trigger      string `json:"trigger"`
+		Summary      string `json:"summary"`
+		ProviderName string `json:"providerName"`
+		Model        string `json:"model"`
+		InputTokens  int    `json:"inputTokens"`
+		OutputTokens int    `json:"outputTokens"`
+		DurationMs   int64  `json:"durationMs"`
+		CreatedAt    string `json:"createdAt"`
+	}
+
+	items := make([]reportItem, 0, len(reports))
+	for _, rpt := range reports {
+		items = append(items, reportItem{
+			ID:           rpt.ID,
+			IncidentID:   rpt.IncidentID,
+			ClusterID:    rpt.ClusterID,
+			Role:         rpt.Role,
+			Trigger:      rpt.Trigger,
+			Summary:      rpt.Summary,
+			ProviderName: rpt.ProviderName,
+			Model:        rpt.Model,
+			InputTokens:  rpt.InputTokens,
+			OutputTokens: rpt.OutputTokens,
+			DurationMs:   rpt.DurationMs,
+			CreatedAt:    rpt.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data":    items,
+		"total":   total,
+	})
+}
+
+// ==================== Helpers ====================
+
 // loadModelsGrouped プロバイダー別モデル一覧取得
 func (h *AIProviderHandler) loadModelsGrouped(ctx context.Context) []ProviderModelInfo {
 	models, err := h.svc.ListAIModels(ctx)
@@ -642,4 +964,13 @@ func (h *AIProviderHandler) loadModelsGrouped(ctx context.Context) []ProviderMod
 	}
 
 	return result
+}
+
+// isValidBaseURL 校验 BaseURL 格式
+func isValidBaseURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
