@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/common/logger"
 )
@@ -104,8 +105,8 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		"contextWindow", roleCfg.ContextWindow,
 	)
 
-	systemPrompt := BuildSystemPrompt()
-	tools := GetToolDefinitions()
+	systemPrompt := prompts.BuildChatPrompt()
+	tools := prompts.GetToolDefinitions()
 
 	var assistantContent string
 	var totalToolCalls int    // 统计总指令数

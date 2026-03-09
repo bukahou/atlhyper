@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -17,23 +18,14 @@ const (
 	MaxEntityEntries     = 50 // 受影响实体最多 50 个
 )
 
-// IncidentContext LLM 输入上下文
-type IncidentContext struct {
-	IncidentSummary  string // 事件基本信息
-	TimelineText     string // 时间线叙述
-	AffectedEntities string // 受影响实体及其风险评分
-	RootCauseEntity  string // 根因实体详情
-	HistoricalContext string // 历史相似事件
-}
-
 // BuildIncidentContext 从结构化数据构建 LLM 上下文
 func BuildIncidentContext(
 	incident *database.AIOpsIncident,
 	entities []*database.AIOpsIncidentEntity,
 	timeline []*database.AIOpsIncidentTimeline,
 	historical []*database.AIOpsIncident,
-) *IncidentContext {
-	return &IncidentContext{
+) *prompts.IncidentPromptContext {
+	return &prompts.IncidentPromptContext{
 		IncidentSummary:  buildSummary(incident),
 		RootCauseEntity:  buildRootCause(entities),
 		AffectedEntities: buildEntities(entities),

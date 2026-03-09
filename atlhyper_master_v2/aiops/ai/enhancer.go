@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/common/logger"
 )
@@ -463,7 +464,7 @@ func (e *Enhancer) buildPromptWithTruncation(
 	timeline []*database.AIOpsIncidentTimeline,
 	historical []*database.AIOpsIncident,
 	contextWindow int,
-) *PromptPair {
+) *prompts.PromptPair {
 	// 根据 context_window 动态调整 Prompt 最大字符数
 	maxChars := MaxPromptChars
 	if contextWindow > 0 {
@@ -472,7 +473,7 @@ func (e *Enhancer) buildPromptWithTruncation(
 	warnChars := maxChars * 3 / 4
 
 	incidentCtx := BuildIncidentContext(incident, entities, timeline, historical)
-	prompt := SummarizePrompt(incidentCtx)
+	prompt := prompts.BuildBackgroundPrompt(incidentCtx)
 	totalChars := len(prompt.System) + len(prompt.User)
 
 	if totalChars > warnChars {
@@ -505,7 +506,7 @@ func (e *Enhancer) buildPromptWithTruncation(
 		en := truncateSlice(entities, step.ent)
 
 		rebuilt := BuildIncidentContext(incident, en, t, h)
-		prompt = SummarizePrompt(rebuilt)
+		prompt = prompts.BuildBackgroundPrompt(rebuilt)
 		totalChars = len(prompt.System) + len(prompt.User)
 
 		if totalChars <= maxChars {

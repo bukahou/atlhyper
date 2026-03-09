@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -79,8 +80,8 @@ func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger st
 
 	// 3. 构建初始上下文
 	incidentCtx := BuildIncidentContext(incident, entities, timeline, nil)
-	systemPrompt := buildAnalysisSystemPrompt()
-	userPrompt := buildAnalysisUserPrompt(incidentCtx)
+	systemPrompt := prompts.BuildAnalysisPrompt()
+	userPrompt := prompts.BuildAnalysisUserPrompt(incidentCtx)
 
 	messages := []llm.Message{
 		{Role: "user", Content: userPrompt},
@@ -227,47 +228,6 @@ func RunAnalysis(ctx context.Context, cfg AnalysisConfig, incidentID, trigger st
 	}
 
 	return nil
-}
-
-// buildAnalysisSystemPrompt 构建深度分析的 System Prompt
-func buildAnalysisSystemPrompt() string {
-	return `你是 AtlHyper 深度分析引擎，负责对高危事件进行系统化调查。
-
-调查规则:
-1. 基于事件信息，进行深入的根因调查
-2. 每轮你可以调用 Tool 查询集群数据（最多 5 个并行指令）
-3. 每轮结束后判断是否需要继续调查
-4. 当信息足够时，输出最终分析报告（JSON 格式）
-
-最终报告格式:
-` + "```json" + `
-{
-  "summary": "事件总结",
-  "rootCauseAnalysis": "根因分析（证据链）",
-  "recommendations": [
-    {"priority": 1, "action": "建议操作", "reason": "原因", "impact": "影响"}
-  ],
-  "confidence": 0.85
-}
-` + "```"
-}
-
-// buildAnalysisUserPrompt 构建用户提示
-func buildAnalysisUserPrompt(ctx *IncidentContext) string {
-	var b strings.Builder
-	b.WriteString("请对以下事件进行深度调查分析:\n\n")
-	b.WriteString("## 事件概要\n")
-	b.WriteString(ctx.IncidentSummary)
-	b.WriteString("\n\n## 根因实体\n")
-	b.WriteString(ctx.RootCauseEntity)
-	b.WriteString("\n\n## 受影响实体\n")
-	b.WriteString(ctx.AffectedEntities)
-	if ctx.TimelineText != "" {
-		b.WriteString("\n\n## 时间线\n")
-		b.WriteString(ctx.TimelineText)
-	}
-	b.WriteString("\n\n请开始调查。使用 Tool 查询集群数据以获取更多信息。")
-	return b.String()
 }
 
 // collectAnalysisResponse 收集流式响应（不推送 SSE）

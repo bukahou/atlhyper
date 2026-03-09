@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -94,7 +95,7 @@ func (s *aiServiceImpl) GetToolExecuteFunc() func(ctx context.Context, clusterID
 
 // GetToolDefs 获取 Tool 定义列表
 func (s *aiServiceImpl) GetToolDefs() []llm.ToolDefinition {
-	return GetToolDefinitions()
+	return prompts.GetToolDefinitions()
 }
 
 // toConversation 转换 DB 模型为 API 类型
