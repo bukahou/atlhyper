@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
-	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
+	"AtlHyper/atlhyper_master_v2/aiops/enricher"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -93,7 +93,7 @@ func (q *QueryService) GetAIOpsIncidentPatterns(ctx context.Context, entityKey s
 }
 
 // SummarizeIncident AI 增强：生成事件摘要
-func (q *QueryService) SummarizeIncident(ctx context.Context, incidentID string) (*aiopsai.SummarizeResponse, error) {
+func (q *QueryService) SummarizeIncident(ctx context.Context, incidentID string) (*enricher.SummarizeResponse, error) {
 	if q.aiopsAI == nil {
 		return nil, fmt.Errorf("AI 增强服务未启用")
 	}

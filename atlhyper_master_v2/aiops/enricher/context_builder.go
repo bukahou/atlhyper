@@ -1,6 +1,6 @@
-// atlhyper_master_v2/aiops/ai/context_builder.go
+// atlhyper_master_v2/aiops/enricher/context_builder.go
 // 将结构化事件数据转换为 LLM 可理解的文本描述
-package ai
+package enricher
 
 import (
 	"fmt"

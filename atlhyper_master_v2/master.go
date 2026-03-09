@@ -27,9 +27,8 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
-	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/aiops"
-	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
+	"AtlHyper/atlhyper_master_v2/aiops/enricher"
 	aiopscore "AtlHyper/atlhyper_master_v2/aiops/core"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
@@ -169,79 +168,34 @@ func NewMaster() (*Master, error) {
 	})
 	log.Info("数据处理器初始化完成")
 
-	// 5.1 初始化 AIOps AI 增强服务
-	// makeLLMFactory 按角色创建 LLM 工厂函数
-	// 角色分配即生效：只要 Provider 被分配了角色就直接使用，不依赖全局激活开关
-	makeLLMFactory := func(role string) aiopsai.LLMClientFactory {
-		return func(ctx context.Context) (llm.LLMClient, int, *aiopsai.LLMClientMeta, error) {
-			// 查找持有指定角色的 Provider
-			providers, _ := db.AIProvider.List(ctx)
-			var provider *database.AIProvider
-			for _, p := range providers {
-				for _, r := range p.Roles {
-					if r == role {
-						provider = p
-						break
-					}
-				}
-				if provider != nil {
-					break
-				}
-			}
-
-			if provider == nil {
-				return nil, 0, nil, fmt.Errorf("无 Provider 分配了 %s 角色", role)
-			}
-
-			// 解析有效上下文窗口
-			contextWindow := ai.EffectiveContextWindow(ctx, provider, db.AIModel)
-
-			meta := &aiopsai.LLMClientMeta{
-				ProviderID:   provider.ID,
-				ProviderName: provider.Name,
-				Model:        provider.Model,
-			}
-
-			client, err := llm.NewLLMClient(llm.Config{
-				Provider: provider.Provider,
-				APIKey:   provider.APIKey,
-				Model:    provider.Model,
-				BaseURL:  provider.BaseURL,
-			})
-			return client, contextWindow, meta, err
-		}
-	}
-	llmFactory := makeLLMFactory(ai.RoleBackground)
-	analysisLLMFactory := makeLLMFactory(ai.RoleAnalysis)
-	aiopsEnhancer := aiopsai.NewEnhancer(db.AIOpsIncident, db.AIReport, llmFactory)
-	aiopsEnhancer.EnableBackgroundTrigger(db.AIRoleBudget)
-	aiopsEnhancer.SetRecordUsage(func(ctx context.Context, role string, providerID int64, inputTokens, outputTokens int) {
-		if db.AIRoleBudget != nil {
-			if err := db.AIRoleBudget.IncrementUsage(ctx, role, inputTokens, outputTokens); err != nil {
-				log.Warn("Enhancer 扣减角色预算失败", "role", role, "err", err)
-			}
-		}
-		totalTokens := int64(inputTokens + outputTokens)
-		if providerID > 0 {
-			if err := db.AIProvider.IncrementUsage(ctx, providerID, 1, totalTokens, 0); err != nil {
-				log.Warn("Enhancer 更新 Provider 统计失败", "provider", providerID, "err", err)
-			}
-		}
-	})
-	aiopsEngine.SetIncidentNotify(aiopsEnhancer.NotifyIncidentEvent)
-	log.Info("AIOps AI 增强服务初始化完成（后台自动分析已启用）")
-
-	// 6. 初始化 Query（读取路径）
-	q := query.NewQueryServiceWithEventRepo(store, bus, db.Event)
-	q.SetAIOpsEngine(aiopsEngine)
-	q.SetAIOpsAI(aiopsEnhancer)
-	q.SetAdminRepos(db)
-	log.Info("查询层初始化完成")
-
-	// 7. 初始化 Operations（写入路径）
+	// 6. 初始化 Operations（写入路径，AI Service 依赖 cmdOps）
 	cmdOps := operations.NewCommandService(bus, db.Command)
 	adminOps := operations.NewAdminService(db.Notify, db.Settings, db.AIProvider, db.AISettings, db.AIRoleBudget)
 	log.Info("操作服务初始化完成")
+
+	// 7. 初始化 AI Service（Enricher 依赖 AIService）
+	aiService := ai.NewService(
+		ai.ServiceConfig{
+			ToolTimeout: cfg.AI.ToolTimeout,
+		},
+		cmdOps, bus,
+		db.AIProvider, db.AISettings, db.AIModel, db.AIRoleBudget,
+		db.AIConversation, db.AIMessage,
+	)
+	log.Info("AI 服务初始化完成 (动态配置)")
+
+	// 7.1 初始化 AIOps Enricher（通过 ai.AIService 接口调用 LLM，不再直接操作 ai/llm）
+	aiopsEnricher := enricher.NewEnricher(db.AIOpsIncident, db.AIReport, aiService)
+	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
+	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
+	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
+
+	// 8. 初始化 Query（读取路径）
+	q := query.NewQueryServiceWithEventRepo(store, bus, db.Event)
+	q.SetAIOpsEngine(aiopsEngine)
+	q.SetAIOpsAI(aiopsEnricher)
+	q.SetAdminRepos(db)
+	log.Info("查询层初始化完成")
 
 	// 组合统一 Service
 	svc := service.NewService(q, cmdOps, adminOps)
@@ -256,26 +210,13 @@ func NewMaster() (*Master, error) {
 	})
 	log.Info("AgentSDK 初始化完成", "port", cfg.Server.AgentSDKPort)
 
-	// 9. 初始化 AIService
-	// AI 配置从 ai_providers 表动态获取，角色分配即生效
-	// 不再在启动时检查配置，Chat 时会实时从 DB 读取最新配置
-	aiService := ai.NewService(
-		ai.ServiceConfig{
-			ToolTimeout: cfg.AI.ToolTimeout,
-		},
-		cmdOps, bus,
-		db.AIProvider, db.AISettings, db.AIModel, db.AIRoleBudget,
-		db.AIConversation, db.AIMessage,
-	)
-	log.Info("AI 服务初始化完成 (动态配置)")
-
-	// 9.1 注册 AIOps Tool（AI Chat 中使用）
+	// 9. 注册 AIOps Tool（AI Chat 中使用）
 	aiService.RegisterTool("analyze_incident", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		incidentID := getStringParam(params, "incident_id")
 		if incidentID == "" {
 			return "缺少参数 incident_id", nil
 		}
-		result, err := aiopsEnhancer.Summarize(ctx, incidentID)
+		result, err := aiopsEnricher.Summarize(ctx, incidentID)
 		if err != nil {
 			return fmt.Sprintf("分析事件失败: %v", err), nil
 		}
@@ -316,17 +257,6 @@ func NewMaster() (*Master, error) {
 	})
 	log.Info("AIOps Tool 注册完成 (3 个)")
 
-	// 9.2 配置 analysis 深度分析（复用 AI Service 的 Tool 基础设施）
-	aiopsEnhancer.SetAnalysisConfig(&aiopsai.AnalysisConfig{
-		LLMFactory:   analysisLLMFactory,
-		ToolExecute:  aiopsai.ToolExecuteFunc(aiService.GetToolExecuteFunc()),
-		ToolDefs:     aiService.GetToolDefs(),
-		ReportRepo:   db.AIReport,
-		IncidentRepo: db.AIOpsIncident,
-		BudgetRepo:   db.AIRoleBudget,
-		RecordUsage:  aiopsEnhancer.GetRecordUsage(),
-	})
-
 	// 10. 初始化 AlertManager（告警管理器）
 	alertMgr, err := notifier.NewManager(db.Notify)
 	if err != nil {
@@ -362,7 +292,7 @@ func NewMaster() (*Master, error) {
 		Database:       db,
 		Bus:            bus,
 		AIService:      aiService,
-		AnalyzeTrigger: aiopsEnhancer,
+		AnalyzeTrigger: aiopsEnricher,
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
 

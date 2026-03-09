@@ -1,6 +1,6 @@
-// atlhyper_master_v2/aiops/ai/enhancer_test.go
-// AI 增强服务测试
-package ai
+// atlhyper_master_v2/aiops/enricher/enricher_test.go
+// Enricher 测试
+package enricher
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/database"
 )
@@ -70,26 +71,52 @@ func (m *mockIncidentRepo) ListByEntity(ctx context.Context, entityKey string, s
 	return m.byEntity, nil
 }
 
-// mockLLMClient 模拟 LLM 客户端
-type mockLLMClient struct {
-	response string
-	err      error
+// mockAIService 模拟 ai.AIService
+type mockAIService struct {
+	completeResponse string
+	completeErr      error
+	callCount        int
 }
 
-func (m *mockLLMClient) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.Chunk, error) {
-	if m.err != nil {
-		return nil, m.err
+func (m *mockAIService) CreateConversation(ctx context.Context, userID int64, clusterID, title string) (*ai.Conversation, error) {
+	return nil, nil
+}
+func (m *mockAIService) Chat(ctx context.Context, req *ai.ChatRequest) (<-chan *ai.ChatChunk, error) {
+	return nil, nil
+}
+func (m *mockAIService) GetConversations(ctx context.Context, userID int64, limit, offset int) ([]*ai.Conversation, error) {
+	return nil, nil
+}
+func (m *mockAIService) GetMessages(ctx context.Context, conversationID int64) ([]*ai.Message, error) {
+	return nil, nil
+}
+func (m *mockAIService) DeleteConversation(ctx context.Context, conversationID int64) error {
+	return nil
+}
+func (m *mockAIService) RegisterTool(name string, handler ai.ToolHandler) {}
+func (m *mockAIService) Analyze(ctx context.Context, req *ai.AnalyzeRequest) (*ai.AnalyzeResult, error) {
+	return nil, nil
+}
+func (m *mockAIService) Complete(ctx context.Context, req *ai.CompleteRequest) (*ai.CompleteResult, error) {
+	m.callCount++
+	if m.completeErr != nil {
+		return nil, m.completeErr
 	}
-	ch := make(chan *llm.Chunk, 2)
-	ch <- &llm.Chunk{Type: llm.ChunkText, Content: m.response}
-	ch <- &llm.Chunk{Type: llm.ChunkDone}
-	close(ch)
-	return ch, nil
+	return &ai.CompleteResult{
+		Response:     m.completeResponse,
+		InputTokens:  100,
+		OutputTokens: 50,
+		ProviderID:   1,
+		ProviderName: "test",
+		Model:        "test-model",
+	}, nil
 }
+func (m *mockAIService) GetToolExecuteFunc() func(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error) {
+	return nil
+}
+func (m *mockAIService) GetToolDefs() []llm.ToolDefinition { return nil }
 
-func (m *mockLLMClient) Close() error { return nil }
-
-// ==================== 测试 ====================
+// ==================== 测试辅助 ====================
 
 func makeTestIncident() *database.AIOpsIncident {
 	return &database.AIOpsIncident{
@@ -122,6 +149,16 @@ func makeTestTimeline() []*database.AIOpsIncidentTimeline {
 	}
 }
 
+func newMockAIService(response string) *mockAIService {
+	return &mockAIService{completeResponse: response}
+}
+
+func newMockAIServiceErr(err error) *mockAIService {
+	return &mockAIService{completeErr: err}
+}
+
+// ==================== 测试 ====================
+
 // TestSummarize_NormalIncident 正常事件的 AI 摘要
 func TestSummarize_NormalIncident(t *testing.T) {
 	repo := &mockIncidentRepo{
@@ -142,13 +179,9 @@ func TestSummarize_NormalIncident(t *testing.T) {
 		"similarPattern": "与 7 天前事件模式一致"
 	}`
 
-	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
-		return mockClient, 0, nil, nil
-	}
-
-	enhancer := NewEnhancer(repo, nil, factory)
-	result, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	svc := newMockAIService(llmResponse)
+	e := NewEnricher(repo, nil, svc)
+	result, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("Summarize failed: %v", err)
 	}
@@ -184,14 +217,9 @@ func TestSummarize_LLMParseError(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	// LLM 返回纯文本（非 JSON）
-	mockClient := &mockLLMClient{response: "这是一个关于内存压力的事件分析结果。"}
-	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
-		return mockClient, 0, nil, nil
-	}
-
-	enhancer := NewEnhancer(repo, nil, factory)
-	result, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	svc := newMockAIService("这是一个关于内存压力的事件分析结果。")
+	e := NewEnricher(repo, nil, svc)
+	result, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("Summarize should not fail on parse error: %v", err)
 	}
@@ -213,12 +241,9 @@ func TestSummarize_LLMUnavailable(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
-		return nil, 0, nil, fmt.Errorf("LLM 连接超时")
-	}
-
-	enhancer := NewEnhancer(repo, nil, factory)
-	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	svc := newMockAIServiceErr(fmt.Errorf("LLM 连接超时"))
+	e := NewEnricher(repo, nil, svc)
+	_, err := e.Summarize(context.Background(), "inc-test-001")
 	if err == nil {
 		t.Fatal("expected error when LLM unavailable")
 	}
@@ -227,12 +252,9 @@ func TestSummarize_LLMUnavailable(t *testing.T) {
 // TestSummarize_IncidentNotFound 事件不存在
 func TestSummarize_IncidentNotFound(t *testing.T) {
 	repo := &mockIncidentRepo{incident: nil}
-	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
-		return &mockLLMClient{}, 0, nil, nil
-	}
-
-	enhancer := NewEnhancer(repo, nil, factory)
-	_, err := enhancer.Summarize(context.Background(), "nonexistent")
+	svc := newMockAIService("")
+	e := NewEnricher(repo, nil, svc)
+	_, err := e.Summarize(context.Background(), "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for nonexistent incident")
 	}
@@ -247,14 +269,9 @@ func TestSummarize_NoHistoricalPatterns(t *testing.T) {
 		byEntity: nil,
 	}
 
-	llmResponse := `{"summary": "事件摘要", "rootCauseAnalysis": "根因分析", "recommendations": []}`
-	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
-		return mockClient, 0, nil, nil
-	}
-
-	enhancer := NewEnhancer(repo, nil, factory)
-	result, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	svc := newMockAIService(`{"summary": "事件摘要", "rootCauseAnalysis": "根因分析", "recommendations": []}`)
+	e := NewEnricher(repo, nil, svc)
+	result, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("Summarize failed: %v", err)
 	}
@@ -272,13 +289,9 @@ func TestSummarize_MarkdownCodeBlock(t *testing.T) {
 	}
 
 	llmResponse := "```json\n{\"summary\": \"代码块摘要\", \"rootCauseAnalysis\": \"分析\", \"recommendations\": []}\n```"
-	mockClient := &mockLLMClient{response: llmResponse}
-	factory := func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
-		return mockClient, 0, nil, nil
-	}
-
-	enhancer := NewEnhancer(repo, nil, factory)
-	result, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	svc := newMockAIService(llmResponse)
+	e := NewEnricher(repo, nil, svc)
+	result, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("Summarize failed: %v", err)
 	}
@@ -380,16 +393,6 @@ func TestFormatDuration(t *testing.T) {
 
 // ==================== Rate Limit 测试 ====================
 
-// mockLLMFactory 创建计数 LLM 工厂
-func mockLLMFactory(callCount *int) LLMClientFactory {
-	return func(ctx context.Context) (llm.LLMClient, int, *LLMClientMeta, error) {
-		*callCount++
-		return &mockLLMClient{
-			response: `{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`,
-		}, 0, &LLMClientMeta{ProviderID: 1, ProviderName: "test", Model: "test-model"}, nil
-	}
-}
-
 // TestRateLimit_Cooldown 同一事件在冷却期内被拒绝
 func TestRateLimit_Cooldown(t *testing.T) {
 	repo := &mockIncidentRepo{
@@ -398,33 +401,33 @@ func TestRateLimit_Cooldown(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	callCount := 0
-	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
-	enhancer.cooldown = 2 * time.Second // 测试用短冷却
+	svc := newMockAIService(`{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`)
+	e := NewEnricher(repo, nil, svc)
+	e.cooldown = 2 * time.Second // 测试用短冷却
 
 	// 第一次调用应成功
-	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("first call should succeed: %v", err)
 	}
-	if callCount != 1 {
-		t.Fatalf("expected 1 LLM call, got %d", callCount)
+	if svc.callCount != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", svc.callCount)
 	}
 
 	// 立即再次调用同一事件应被 rate limit 拒绝
-	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err = e.Summarize(context.Background(), "inc-test-001")
 	if err == nil {
 		t.Fatal("second call should be rate limited")
 	}
 	if !strings.Contains(err.Error(), "请等待") {
 		t.Fatalf("expected rate limit error, got: %v", err)
 	}
-	if callCount != 1 {
-		t.Fatalf("LLM should not be called again, count=%d", callCount)
+	if svc.callCount != 1 {
+		t.Fatalf("LLM should not be called again, count=%d", svc.callCount)
 	}
 
 	// 不同事件不受影响
-	_, err = enhancer.Summarize(context.Background(), "inc-test-002")
+	_, err = e.Summarize(context.Background(), "inc-test-002")
 	if err == nil || !strings.Contains(err.Error(), "事件不存在") {
 		// inc-test-002 不存在于 mock repo，但不应该被 rate limit 拒绝
 		// 应该先通过 rate limit，然后在查数据阶段失败
@@ -442,12 +445,12 @@ func TestRateLimit_CooldownExpired(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	callCount := 0
-	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
-	enhancer.cooldown = 50 * time.Millisecond // 极短冷却
+	svc := newMockAIService(`{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`)
+	e := NewEnricher(repo, nil, svc)
+	e.cooldown = 50 * time.Millisecond // 极短冷却
 
 	// 第一次调用
-	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("first call failed: %v", err)
 	}
@@ -456,12 +459,12 @@ func TestRateLimit_CooldownExpired(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// 第二次调用应成功
-	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err = e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("call after cooldown should succeed: %v", err)
 	}
-	if callCount != 2 {
-		t.Fatalf("expected 2 LLM calls, got %d", callCount)
+	if svc.callCount != 2 {
+		t.Fatalf("expected 2 LLM calls, got %d", svc.callCount)
 	}
 }
 
@@ -478,26 +481,26 @@ func TestCache_StableIncident(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	callCount := 0
-	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
-	enhancer.cooldown = 0 // 关闭 rate limit
+	svc := newMockAIService(`{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`)
+	e := NewEnricher(repo, nil, svc)
+	e.cooldown = 0 // 关闭 rate limit
 
 	// 第一次调用 → LLM
-	result1, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	result1, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("first call failed: %v", err)
 	}
-	if callCount != 1 {
-		t.Fatalf("expected 1 LLM call, got %d", callCount)
+	if svc.callCount != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", svc.callCount)
 	}
 
 	// 第二次调用 → 缓存命中，不调 LLM
-	result2, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	result2, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("second call failed: %v", err)
 	}
-	if callCount != 1 {
-		t.Fatalf("expected still 1 LLM call (cached), got %d", callCount)
+	if svc.callCount != 1 {
+		t.Fatalf("expected still 1 LLM call (cached), got %d", svc.callCount)
 	}
 
 	// 缓存返回同一结果
@@ -517,22 +520,22 @@ func TestCache_RecoveryIncident(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	callCount := 0
-	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
-	enhancer.cooldown = 0
+	svc := newMockAIService(`{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`)
+	e := NewEnricher(repo, nil, svc)
+	e.cooldown = 0
 
-	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("first call failed: %v", err)
 	}
 
-	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err = e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("second call failed: %v", err)
 	}
 
-	if callCount != 1 {
-		t.Fatalf("expected 1 LLM call for recovery state, got %d", callCount)
+	if svc.callCount != 1 {
+		t.Fatalf("expected 1 LLM call for recovery state, got %d", svc.callCount)
 	}
 }
 
@@ -547,23 +550,23 @@ func TestCache_ActiveIncident_NoCache(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	callCount := 0
-	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
-	enhancer.cooldown = 0 // 关闭 rate limit
+	svc := newMockAIService(`{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`)
+	e := NewEnricher(repo, nil, svc)
+	e.cooldown = 0 // 关闭 rate limit
 
 	// 第一次调用
-	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("first call failed: %v", err)
 	}
 
 	// 第二次调用 → 不应命中缓存，应该再次调 LLM
-	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err = e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("second call failed: %v", err)
 	}
-	if callCount != 2 {
-		t.Fatalf("expected 2 LLM calls (no cache for active), got %d", callCount)
+	if svc.callCount != 2 {
+		t.Fatalf("expected 2 LLM calls (no cache for active), got %d", svc.callCount)
 	}
 }
 
@@ -578,15 +581,15 @@ func TestCache_WarningState_NoCache(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	callCount := 0
-	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
-	enhancer.cooldown = 0
+	svc := newMockAIService(`{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`)
+	e := NewEnricher(repo, nil, svc)
+	e.cooldown = 0
 
-	_, _ = enhancer.Summarize(context.Background(), "inc-test-001")
-	_, _ = enhancer.Summarize(context.Background(), "inc-test-001")
+	_, _ = e.Summarize(context.Background(), "inc-test-001")
+	_, _ = e.Summarize(context.Background(), "inc-test-001")
 
-	if callCount != 2 {
-		t.Fatalf("expected 2 LLM calls (no cache for warning), got %d", callCount)
+	if svc.callCount != 2 {
+		t.Fatalf("expected 2 LLM calls (no cache for warning), got %d", svc.callCount)
 	}
 }
 
@@ -601,23 +604,23 @@ func TestCache_SkipsRateLimit(t *testing.T) {
 		timeline: makeTestTimeline(),
 	}
 
-	callCount := 0
-	enhancer := NewEnhancer(repo, nil, mockLLMFactory(&callCount))
-	enhancer.cooldown = 1 * time.Hour // 极长冷却期
+	svc := newMockAIService(`{"summary": "摘要", "rootCauseAnalysis": "分析", "recommendations": []}`)
+	e := NewEnricher(repo, nil, svc)
+	e.cooldown = 1 * time.Hour // 极长冷却期
 
 	// 第一次调用
-	_, err := enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err := e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("first call failed: %v", err)
 	}
 
 	// 立即第二次 → 缓存命中，不受 rate limit 限制
-	_, err = enhancer.Summarize(context.Background(), "inc-test-001")
+	_, err = e.Summarize(context.Background(), "inc-test-001")
 	if err != nil {
 		t.Fatalf("cached call should not be rate limited: %v", err)
 	}
-	if callCount != 1 {
-		t.Fatalf("expected 1 LLM call, got %d", callCount)
+	if svc.callCount != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", svc.callCount)
 	}
 }
 
@@ -629,8 +632,8 @@ func TestPromptTruncation_NormalPrompt(t *testing.T) {
 	entities := makeTestEntities()
 	timeline := makeTestTimeline()
 
-	enhancer := NewEnhancer(nil, nil, nil)
-	prompt := enhancer.buildPromptWithTruncation(inc, entities, timeline, nil, 0)
+	e := NewEnricher(nil, nil, nil)
+	prompt := e.buildPromptWithTruncation(inc, entities, timeline, nil)
 
 	totalChars := len(prompt.System) + len(prompt.User)
 	if totalChars > MaxPromptChars {
@@ -684,8 +687,8 @@ func TestPromptTruncation_LargePrompt(t *testing.T) {
 		}
 	}
 
-	enhancer := NewEnhancer(nil, nil, nil)
-	prompt := enhancer.buildPromptWithTruncation(inc, entities, timeline, historical, 0)
+	e := NewEnricher(nil, nil, nil)
+	prompt := e.buildPromptWithTruncation(inc, entities, timeline, historical)
 
 	totalChars := len(prompt.System) + len(prompt.User)
 	if totalChars > MaxPromptChars {

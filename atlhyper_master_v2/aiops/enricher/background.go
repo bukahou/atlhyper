@@ -1,7 +1,7 @@
-// atlhyper_master_v2/aiops/ai/background.go
+// atlhyper_master_v2/aiops/enricher/background.go
 // 后台自动分析触发器
 // 监听事件创建/升级，根据严重度阈值自动触发 AI 分析
-package ai
+package enricher
 
 import (
 	"context"
@@ -21,9 +21,8 @@ var severityOrder = map[string]int{
 
 // backgroundTrigger 后台分析触发器
 type backgroundTrigger struct {
-	enhancer       *Enhancer
-	budgetRepo     db.AIRoleBudgetRepository
-	analysisCfg    *AnalysisConfig // analysis 配置（可选，设置后启用深度分析）
+	enricher   *Enricher
+	budgetRepo db.AIRoleBudgetRepository
 
 	queue chan triggerEvent
 	seen  map[string]time.Time // incidentID → 最后触发时间
@@ -39,9 +38,9 @@ type triggerEvent struct {
 }
 
 // newBackgroundTrigger 创建后台触发器
-func newBackgroundTrigger(enhancer *Enhancer, budgetRepo db.AIRoleBudgetRepository) *backgroundTrigger {
+func newBackgroundTrigger(enricher *Enricher, budgetRepo db.AIRoleBudgetRepository) *backgroundTrigger {
 	bt := &backgroundTrigger{
-		enhancer:   enhancer,
+		enricher:   enricher,
 		budgetRepo: budgetRepo,
 		queue:      make(chan triggerEvent, 64),
 		seen:       make(map[string]time.Time),
@@ -133,7 +132,7 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 
 	log.Info("后台自动分析触发", "incident", evt.IncidentID, "trigger", evt.Trigger)
 
-	result, err := bt.enhancer.SummarizeBackground(ctx, evt.IncidentID, evt.Trigger)
+	result, err := bt.enricher.SummarizeBackground(ctx, evt.IncidentID, evt.Trigger)
 	if err != nil {
 		log.Warn("后台分析失败", "incident", evt.IncidentID, "err", err)
 		return
@@ -145,16 +144,8 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 	bt.maybeTriggerAnalysis(evt)
 }
 
-// SetAnalysisConfig 设置 analysis 配置（启用深度分析）
-func (bt *backgroundTrigger) SetAnalysisConfig(cfg *AnalysisConfig) {
-	bt.analysisCfg = cfg
-}
-
 // maybeTriggerAnalysis 检查是否需要触发 analysis 深度分析
 func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
-	if bt.analysisCfg == nil {
-		return
-	}
 	if bt.budgetRepo == nil {
 		return
 	}
@@ -185,14 +176,8 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 		"severity", evt.Severity,
 		"min_severity", minSeverity)
 
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), analysisTimeout)
-		defer cancel()
-
-		if err := RunAnalysis(ctx, *bt.analysisCfg, evt.IncidentID, "auto_escalation"); err != nil {
-			log.Warn("analysis 深度分析失败", "incident", evt.IncidentID, "err", err)
-		}
-	}()
+	// 通过 Enricher.TriggerAnalysis 异步执行深度分析
+	bt.enricher.TriggerAnalysis(evt.IncidentID)
 }
 
 // meetsMinSeverity 检查事件严重度是否达到最低阈值

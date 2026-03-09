@@ -11,7 +11,7 @@ package query
 
 import (
 	"AtlHyper/atlhyper_master_v2/aiops"
-	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
+	"AtlHyper/atlhyper_master_v2/aiops/enricher"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/mq"
@@ -23,7 +23,7 @@ type QueryService struct {
 	bus         mq.Producer
 	eventRepo   database.ClusterEventRepository
 	aiopsEngine aiops.Engine
-	aiopsAI     *aiopsai.Enhancer
+	aiopsAI     *enricher.Enricher
 
 	// Admin repositories（管理查询）
 	auditRepo      database.AuditRepository
@@ -60,8 +60,8 @@ func (q *QueryService) SetAIOpsEngine(engine aiops.Engine) {
 }
 
 // SetAIOpsAI 注入 AIOps AI 增强服务（可选）
-func (q *QueryService) SetAIOpsAI(enhancer *aiopsai.Enhancer) {
-	q.aiopsAI = enhancer
+func (q *QueryService) SetAIOpsAI(e *enricher.Enricher) {
+	q.aiopsAI = e
 }
 
 // SetAdminRepos 注入管理查询所需的 Repository（审计、命令历史、通知、设置、AI Provider）

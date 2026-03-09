@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
-	aiopsai "AtlHyper/atlhyper_master_v2/aiops/ai"
+	"AtlHyper/atlhyper_master_v2/aiops/enricher"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/model_v3/agent"
@@ -68,7 +68,7 @@ type QueryAIOps interface {
 	GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error)
 	GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error)
 	GetAIOpsIncidentPatterns(ctx context.Context, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
-	SummarizeIncident(ctx context.Context, incidentID string) (*aiopsai.SummarizeResponse, error)
+	SummarizeIncident(ctx context.Context, incidentID string) (*enricher.SummarizeResponse, error)
 	// AI 报告查询
 	ListAIReports(ctx context.Context, incidentID string) ([]*database.AIReport, error)
 	GetAIReport(ctx context.Context, id int64) (*database.AIReport, error)
