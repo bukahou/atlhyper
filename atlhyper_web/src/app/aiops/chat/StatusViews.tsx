@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, AlertTriangle, Settings } from "lucide-react";
+import { Loader2, Settings } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { StatusPage } from "@/components/common";
 import { useI18n } from "@/i18n/context";
@@ -28,22 +28,6 @@ export function StatusViews({ aiStatus, goToSettings }: StatusViewsProps) {
             icon={Loader2}
             title={aiChatT.loading}
             description={aiChatT.checkingConfig}
-          />
-        </div>
-      </Layout>
-    );
-  }
-
-  // AI 功能未启用
-  if (aiStatus === "not_enabled") {
-    return (
-      <Layout>
-        <div className="-m-6 h-[calc(100vh-3.5rem)]">
-          <StatusPage
-            icon={AlertTriangle}
-            title={aiChatT.notEnabled}
-            description={aiChatT.notEnabledDesc}
-            action={{ label: aiChatT.goToSettings, onClick: goToSettings }}
           />
         </div>
       </Layout>

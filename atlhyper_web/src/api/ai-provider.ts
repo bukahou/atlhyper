@@ -16,7 +16,6 @@ export interface AIProvider {
   description: string;
   apiKeyMasked: string;
   apiKeySet: boolean;
-  isActive: boolean;
   roles: string[];
   contextWindowOverride: number;
   status: string;
@@ -29,9 +28,7 @@ export interface AIProvider {
   updatedAt: string;
 }
 
-export interface ActiveConfig {
-  enabled: boolean;
-  providerId: number | null;
+export interface AISettings {
   toolTimeout: number;
   chatReady: boolean;
 }
@@ -44,7 +41,7 @@ export interface ProviderModelInfo {
 
 export interface ProviderListResponse {
   providers: AIProvider[];
-  activeConfig: ActiveConfig;
+  settings: AISettings;
   models: ProviderModelInfo[];
 }
 
@@ -113,9 +110,7 @@ export interface BudgetUpdateRequest {
   fallbackProviderId?: number | null;
 }
 
-export interface ActiveConfigUpdateRequest {
-  enabled?: boolean;
-  providerId?: number;
+export interface AISettingsUpdateRequest {
   toolTimeout?: number;
 }
 
@@ -163,14 +158,14 @@ export function deleteProvider(id: number) {
   return del<{ status: string }>(`/api/v2/ai/providers/${id}`);
 }
 
-// アクティブ設定取得
-export function getActiveConfig() {
-  return get<ActiveConfig>("/api/v2/ai/active");
+// AI 設定取得
+export function getAISettings() {
+  return get<AISettings>("/api/v2/ai/settings");
 }
 
-// アクティブ設定更新
-export function updateActiveConfig(data: ActiveConfigUpdateRequest) {
-  return put<ActiveConfig>("/api/v2/ai/active", data);
+// AI 設定更新
+export function updateAISettings(data: AISettingsUpdateRequest) {
+  return put<AISettings>("/api/v2/ai/settings", data);
 }
 
 // 角色分配
@@ -225,7 +220,6 @@ export const mockProviderList: ProviderListResponse = {
       description: "本番環境用",
       apiKeyMasked: "AIza****1234",
       apiKeySet: true,
-      isActive: true,
       roles: ["background", "chat"],
       contextWindowOverride: 0,
       status: "healthy",
@@ -244,7 +238,6 @@ export const mockProviderList: ProviderListResponse = {
       description: "バックアップ用",
       apiKeyMasked: "sk-****5678",
       apiKeySet: true,
-      isActive: false,
       roles: [],
       contextWindowOverride: 0,
       status: "unknown",
@@ -255,9 +248,7 @@ export const mockProviderList: ProviderListResponse = {
       updatedAt: "2026-01-15T00:00:00Z",
     },
   ],
-  activeConfig: {
-    enabled: true,
-    providerId: 1,
+  settings: {
     toolTimeout: 30,
     chatReady: true,
   },

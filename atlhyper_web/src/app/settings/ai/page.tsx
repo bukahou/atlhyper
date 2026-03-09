@@ -17,11 +17,9 @@ export default function AISettingsPage() {
     isDemo,
     loading,
     data,
-    globalEnabled,
     globalTimeout,
     savingGlobal,
     setGlobalTimeout,
-    handleToggleEnabled,
     handleSaveGlobalTimeout,
     showModal,
     setShowModal,
@@ -31,7 +29,7 @@ export default function AISettingsPage() {
     handleEditProvider,
     handleSaveProvider,
     handleDeleteProvider,
-    handleActivateProvider,
+    loadData,
   } = useAISettings();
 
   if (loading) {
@@ -79,17 +77,18 @@ export default function AISettingsPage() {
 
         {/* Global Settings Card */}
         <GlobalSettingsCard
-          enabled={globalEnabled}
           timeout={globalTimeout}
           isAdmin={isAdmin}
           saving={savingGlobal}
-          onToggleEnabled={handleToggleEnabled}
           onTimeoutChange={setGlobalTimeout}
           onSaveTimeout={handleSaveGlobalTimeout}
         />
 
         {/* Role Overview */}
-        <RoleOverviewCard />
+        <RoleOverviewCard
+          providers={data?.providers || []}
+          onRoleChanged={loadData}
+        />
 
         {/* Provider List */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
@@ -127,7 +126,6 @@ export default function AISettingsPage() {
                     key={provider.id}
                     provider={provider}
                     isAdmin={isAdmin}
-                    onActivate={handleActivateProvider}
                     onEdit={handleEditProvider}
                     onDelete={handleDeleteProvider}
                   />

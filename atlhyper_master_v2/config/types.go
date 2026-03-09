@@ -62,12 +62,12 @@ type RedisConfig struct {
 }
 
 // AIConfig AI 功能配置
-// Enabled 和 ToolTimeout 用于首次启动时初始化数据库
-// 运行时配置从数据库 ai_active_config 表读取
+// ToolTimeout 用于首次启动时初始化 ai_settings 表
+// 角色分配即生效：Provider 有角色就使用，无角色就不使用
 type AIConfig struct {
-	Enabled     bool          // 是否启用 AI（默认 false，用于初始化数据库）
+	Enabled     bool          // 已废弃（保留用于配置兼容，不再影响逻辑）
 	ToolTimeout time.Duration // Tool 执行超时（默认 30s）
-	Seed        AISeed        // 种子配置：首次启动时自动写入 DB
+	Seed        AISeed        // 种子配置：首次启动时自动创建 Provider
 }
 
 // AISeed AI 种子配置

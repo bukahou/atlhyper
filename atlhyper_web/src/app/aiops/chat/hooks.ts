@@ -13,7 +13,7 @@ import {
   getMessages,
   streamChat,
 } from "@/api/ai";
-import { getActiveConfig, type ActiveConfig } from "@/api/ai-provider";
+import { getAISettings, type AISettings } from "@/api/ai-provider";
 import { formatAlertsMessage } from "@/lib/alertFormat";
 import type { RecentAlert } from "@/types/overview";
 import type { AIConfigStatus } from "./types";
@@ -45,14 +45,10 @@ export function useAIChat() {
   // 检查 AI 配置状态
   const checkAIConfig = useCallback(async () => {
     try {
-      const res = await getActiveConfig();
-      const config: ActiveConfig = res.data;
+      const res = await getAISettings();
+      const settings: AISettings = res.data;
 
-      if (!config.enabled) {
-        setAiStatus("not_enabled");
-      } else if (config.providerId === null) {
-        setAiStatus("not_configured");
-      } else if (!config.chatReady) {
+      if (!settings.chatReady) {
         setAiStatus("chat_not_assigned");
       } else {
         setAiStatus("ready");

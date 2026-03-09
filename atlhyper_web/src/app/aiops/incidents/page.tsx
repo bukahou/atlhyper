@@ -139,6 +139,7 @@ export default function IncidentsPage() {
             <button
               key={s || "all"}
               onClick={() => setStateFilter(s)}
+              title={s ? (t.aiops.stateDesc[s as keyof typeof t.aiops.stateDesc] ?? "") : ""}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
                 stateFilter === s
                   ? "bg-indigo-500 text-white border-indigo-500"

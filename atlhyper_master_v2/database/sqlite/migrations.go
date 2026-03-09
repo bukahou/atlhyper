@@ -189,18 +189,13 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_ai_provider_deleted ON ai_providers(deleted_at)`,
 
-		// ==================== AI 当前配置表 (单行) ====================
-		`CREATE TABLE IF NOT EXISTS ai_active_config (
+		// ==================== AI 全局设置表 (单行) ====================
+		`CREATE TABLE IF NOT EXISTS ai_settings (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
-			enabled INTEGER DEFAULT 0,
-			provider_id INTEGER,
 			tool_timeout INTEGER DEFAULT 30,
 			updated_at TEXT NOT NULL,
-			updated_by INTEGER,
-			FOREIGN KEY (provider_id) REFERENCES ai_providers(id)
+			updated_by INTEGER
 		)`,
-		// 注意: ai_active_config 初始化由 InitAIActiveConfig() 从配置文件读取并写入
-		// 不在此处硬编码默认值，保证配置可追溯
 
 		// ==================== AI 提供商模型表 ====================
 		// 各提供商支持的模型列表 (DB管理)
@@ -370,56 +365,10 @@ func migrate(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_timeline_inc ON aiops_incident_timeline(incident_id, timestamp ASC)`,
 	}
 
-	// 增量迁移：为已存在的表添加新列（忽略错误，可能列已存在）
-	alterMigrations := []string{
-		// AI 对话表添加累计统计字段
-		`ALTER TABLE ai_conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0`,
-		`ALTER TABLE ai_conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0`,
-		`ALTER TABLE ai_conversations ADD COLUMN total_tool_calls INTEGER DEFAULT 0`,
-		// AI 提供商表添加 base_url（Ollama 等自部署服务使用）
-		`ALTER TABLE ai_providers ADD COLUMN base_url TEXT DEFAULT ''`,
-		// AI 提供商表添加角色路由字段
-		`ALTER TABLE ai_providers ADD COLUMN roles TEXT DEFAULT '[]'`,
-		`ALTER TABLE ai_providers ADD COLUMN context_window_override INTEGER DEFAULT 0`,
-		// AI 模型表添加上下文窗口字段
-		`ALTER TABLE ai_provider_models ADD COLUMN context_window INTEGER DEFAULT 0`,
-	}
-
-	// 删除旧表（OTel 迁移后不再需要）
-	dropMigrations := []string{
-		`DROP TABLE IF EXISTS ingress_counter_snapshot`,
-		`DROP TABLE IF EXISTS ingress_histogram_snapshot`,
-		// 时序数据已迁移至 OTelSnapshot + ClickHouse
-		`DROP TABLE IF EXISTS node_metrics_latest`,
-		`DROP TABLE IF EXISTS node_metrics_history`,
-		`DROP TABLE IF EXISTS slo_metrics_raw`,
-		`DROP TABLE IF EXISTS slo_metrics_hourly`,
-		`DROP TABLE IF EXISTS slo_service_raw`,
-		`DROP TABLE IF EXISTS slo_service_hourly`,
-		`DROP TABLE IF EXISTS slo_edge_raw`,
-		`DROP TABLE IF EXISTS slo_edge_hourly`,
-		`DROP TABLE IF EXISTS slo_status_history`,
-	}
-
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
 			log.Error("数据库迁移失败", "err", err, "sql", m)
 			return err
-		}
-	}
-
-	// 执行增量迁移（忽略错误，可能列已存在）
-	for _, m := range alterMigrations {
-		if _, err := db.Exec(m); err != nil {
-			// 忽略 "duplicate column name" 错误
-			log.Warn("增量迁移跳过（可能列已存在）", "err", err)
-		}
-	}
-
-	// 删除旧 snapshot 表
-	for _, m := range dropMigrations {
-		if _, err := db.Exec(m); err != nil {
-			log.Warn("删除旧表跳过", "err", err)
 		}
 	}
 

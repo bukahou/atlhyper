@@ -109,7 +109,7 @@ type QueryAdmin interface {
 	// AI Provider
 	ListAIProviders(ctx context.Context) ([]*database.AIProvider, error)
 	GetAIProviderByID(ctx context.Context, id int64) (*database.AIProvider, error)
-	GetAIActiveConfig(ctx context.Context) (*database.AIActiveConfig, error)
+	GetAISettings(ctx context.Context) (*database.AISettings, error)
 	ListAIModels(ctx context.Context) ([]*database.AIProviderModel, error)
 	// AI Role Budget
 	ListAIRoleBudgets(ctx context.Context) ([]*database.AIRoleBudget, error)
@@ -125,7 +125,7 @@ type OpsAdmin interface {
 	CreateAIProvider(ctx context.Context, p *database.AIProvider) error
 	UpdateAIProvider(ctx context.Context, p *database.AIProvider) error
 	DeleteAIProvider(ctx context.Context, id int64) error
-	UpdateAIActiveConfig(ctx context.Context, cfg *database.AIActiveConfig) error
+	UpdateAISettings(ctx context.Context, cfg *database.AISettings) error
 	UpdateAIProviderRoles(ctx context.Context, id int64, roles []string) error
 	UpdateAIRoleBudget(ctx context.Context, budget *database.AIRoleBudget) error
 }

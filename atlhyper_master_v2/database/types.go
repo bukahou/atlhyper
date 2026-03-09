@@ -240,12 +240,9 @@ type AIProvider struct {
 	DeletedAt *time.Time // 软删除
 }
 
-// AIActiveConfig 当前使用中的 AI 配置
-type AIActiveConfig struct {
-	ID          int64
-	Enabled     bool   // AI 功能总开关
-	ProviderID  *int64 // 当前使用的 AIProvider ID (NULL = 未设置)
-	ToolTimeout int    // Tool 执行超时(秒)
+// AISettings AI 全局设置（仅 Tool 超时等运行时配置，不含激活/Provider 选择）
+type AISettings struct {
+	ToolTimeout int // Tool 执行超时(秒)
 	UpdatedAt   time.Time
 	UpdatedBy   int64
 }

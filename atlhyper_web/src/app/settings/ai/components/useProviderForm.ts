@@ -16,7 +16,6 @@ export function useProviderForm({ isOpen, editingProvider, models }: UseProvider
   const [formUseCustomModel, setFormUseCustomModel] = useState(false);
   const [formBaseUrl, setFormBaseUrl] = useState("");
   const [formDescription, setFormDescription] = useState("");
-  const [formRoles, setFormRoles] = useState<string[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
 
   const getModelsForProvider = useCallback(
@@ -36,7 +35,6 @@ export function useProviderForm({ isOpen, editingProvider, models }: UseProvider
         setFormApiKey("");
         setFormBaseUrl(editingProvider.baseUrl || "");
         setFormDescription(editingProvider.description);
-        setFormRoles(editingProvider.roles || []);
         setShowApiKey(false);
 
         const presetModels = getModelsForProvider(editingProvider.provider);
@@ -58,7 +56,6 @@ export function useProviderForm({ isOpen, editingProvider, models }: UseProvider
         setFormUseCustomModel(false);
         setFormBaseUrl("");
         setFormDescription("");
-        setFormRoles([]);
         setShowApiKey(false);
       }
     }
@@ -82,14 +79,6 @@ export function useProviderForm({ isOpen, editingProvider, models }: UseProvider
     }
   };
 
-  const toggleRole = (role: string, checked: boolean) => {
-    if (checked) {
-      setFormRoles([...formRoles, role]);
-    } else {
-      setFormRoles(formRoles.filter((r) => r !== role));
-    }
-  };
-
   const getFormData = () => ({
     name: formName,
     provider: formProvider,
@@ -97,7 +86,6 @@ export function useProviderForm({ isOpen, editingProvider, models }: UseProvider
     model: formUseCustomModel ? formCustomModel : formModel,
     baseUrl: formBaseUrl,
     description: formDescription,
-    roles: formRoles,
   });
 
   return {
@@ -117,8 +105,6 @@ export function useProviderForm({ isOpen, editingProvider, models }: UseProvider
     setFormBaseUrl,
     formDescription,
     setFormDescription,
-    formRoles,
-    toggleRole,
     showApiKey,
     setShowApiKey,
     getModelsForProvider,

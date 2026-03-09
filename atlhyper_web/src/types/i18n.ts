@@ -1333,11 +1333,6 @@ export interface AISettingsPageTranslations {
   // 全局设置
   globalSettings: string;
   globalSettingsDesc: string;
-  aiFeature: string;
-  enableAI: string;
-  enableAIDesc: string;
-  enabled: string;
-  disabled: string;
   toolTimeout: string;
   toolTimeoutDesc: string;
   seconds: string;
@@ -1348,8 +1343,6 @@ export interface AISettingsPageTranslations {
   addFirstProvider: string;
   noProviders: string;
   // 提供商卡片
-  active: string;
-  activate: string;
   settings: string;
   edit: string;
   delete: string;
@@ -1387,15 +1380,9 @@ export interface AISettingsPageTranslations {
   providerUpdated: string;
   providerAdded: string;
   saveFailed: string;
-  cannotDeleteActive: string;
   confirmDelete: string;
   providerDeleted: string;
   deleteFailed: string;
-  providerActivated: string;
-  activateFailed: string;
-  aiEnabled: string;
-  aiDisabled: string;
-  settingChangeFailed: string;
   timeoutSaved: string;
   // 角色总览
   roleOverview: string;
@@ -1408,8 +1395,6 @@ export interface AISettingsPageTranslations {
   baseUrlPlaceholder: string;
   baseUrlHint: string;
   // 角色标签
-  roles: string;
-  rolesHint: string;
   rolesUpdated: string;
   // 预算配置
   budgetConfig: string;
@@ -1429,11 +1414,18 @@ export interface AISettingsPageTranslations {
   monthlyOutputTokens: string;
   monthlyCalls: string;
   autoTriggerMinSeverity: string;
+  autoTriggerMinSeverityDesc: string;
+  severityCritical: string;
+  severityHigh: string;
+  severityMedium: string;
+  severityLow: string;
+  severityOff: string;
   budgetSaved: string;
   budgetSaveFailed: string;
   unlimited: string;
   // 角色互斥
   roleAssignConflict: string;
+  roleAssignSuccess: string;
   // 降级 Provider
   fallbackProvider: string;
   noFallback: string;
@@ -1454,8 +1446,6 @@ export interface AIChatPageTranslations {
   // 状态页面
   loading: string;
   checkingConfig: string;
-  notEnabled: string;
-  notEnabledDesc: string;
   notConfigured: string;
   notConfiguredDesc: string;
   chatNotAssigned: string;
@@ -1923,6 +1913,12 @@ export interface AIOpsTranslations {
     recovery: string;
     stable: string;
   };
+  stateDesc: {
+    warning: string;
+    incident: string;
+    recovery: string;
+    stable: string;
+  };
 
   // 严重度
   severityLevel: {
@@ -1931,6 +1927,14 @@ export interface AIOpsTranslations {
     high: string;
     critical: string;
   };
+  severityDesc: {
+    low: string;
+    medium: string;
+    high: string;
+    critical: string;
+  };
+  incidentStateTooltip: string;
+  severityTooltip: string;
 
   // 统计
   stats: {

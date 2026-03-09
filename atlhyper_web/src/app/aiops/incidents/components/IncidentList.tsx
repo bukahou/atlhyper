@@ -45,8 +45,8 @@ export function IncidentList({ incidents, onSelect }: IncidentListProps) {
       {/* 表头 */}
       <div className="grid grid-cols-[80px_70px_70px_2fr_70px_100px_80px_60px] gap-2 px-5 py-2 text-[10px] text-muted uppercase tracking-wider border-b border-[var(--border-color)]/50">
         <span>{t.aiops.incidentId}</span>
-        <span>{t.aiops.incidentState}</span>
-        <span>{t.aiops.severity}</span>
+        <span title={t.aiops.incidentStateTooltip} className="cursor-help border-b border-dotted border-current">{t.aiops.incidentState}</span>
+        <span title={t.aiops.severityTooltip} className="cursor-help border-b border-dotted border-current">{t.aiops.severity}</span>
         <span>{t.aiops.rootCause}</span>
         <span>{t.aiops.peakRisk}</span>
         <span>{t.aiops.startedAt}</span>
@@ -65,10 +65,16 @@ export function IncidentList({ incidents, onSelect }: IncidentListProps) {
             className="w-full grid grid-cols-[80px_70px_70px_2fr_70px_100px_80px_60px] gap-2 px-5 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors items-center border-b border-[var(--border-color)]/20 last:border-b-0"
           >
             <span className="font-mono text-xs text-default">{inc.id}</span>
-            <span className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATE_COLORS[inc.state] ?? ""}`}>
+            <span
+              title={t.aiops.stateDesc[inc.state as keyof typeof t.aiops.stateDesc] ?? ""}
+              className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATE_COLORS[inc.state] ?? ""}`}
+            >
               {t.aiops.state[inc.state as keyof typeof t.aiops.state] ?? inc.state}
             </span>
-            <span className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_COLORS[inc.severity] ?? ""}`}>
+            <span
+              title={t.aiops.severityDesc[inc.severity as keyof typeof t.aiops.severityDesc] ?? ""}
+              className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_COLORS[inc.severity] ?? ""}`}
+            >
               {t.aiops.severityLevel[inc.severity as keyof typeof t.aiops.severityLevel] ?? inc.severity}
             </span>
             <div className="min-w-0">

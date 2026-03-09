@@ -43,15 +43,9 @@ type RoleConfig struct {
 // 解析优先级:
 //  1. 查找持有该角色的 Provider → 检查预算 → 返回
 //  2. 预算耗尽 → 使用 fallback Provider
-//  3. 无角色分配 → 退回 ai_active_config.provider_id（向后兼容）
+//  3. 无角色分配 → 返回错误
 func (s *aiServiceImpl) loadAIConfigForRole(ctx context.Context, role string) (*RoleConfig, error) {
-	// 1. 检查 AI 总开关
-	active, err := s.activeRepo.Get(ctx)
-	if err != nil || active == nil || !active.Enabled {
-		return nil, fmt.Errorf("AI 功能未启用")
-	}
-
-	// 2. 查找持有该角色的 Provider
+	// 1. 查找持有该角色的 Provider
 	providers, _ := s.providerRepo.List(ctx)
 	for _, p := range providers {
 		if !containsRole(p.Roles, role) {

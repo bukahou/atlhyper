@@ -20,7 +20,7 @@ type Dialect struct {
 	aiConversation  *aiConversationDialect
 	aiMessage       *aiMessageDialect
 	aiProvider      *aiProviderDialect
-	aiActiveConfig  *aiActiveConfigDialect
+	aiSettings      *aiSettingsDialect
 	aiProviderModel *aiProviderModelDialect
 	slo *sloDialect
 	aiRoleBudget  *aiRoleBudgetDialect
@@ -44,7 +44,7 @@ func NewDialect() *Dialect {
 		aiConversation:  &aiConversationDialect{},
 		aiMessage:       &aiMessageDialect{},
 		aiProvider:      &aiProviderDialect{},
-		aiActiveConfig:  &aiActiveConfigDialect{},
+		aiSettings:      &aiSettingsDialect{},
 		aiProviderModel: &aiProviderModelDialect{},
 		slo:          &sloDialect{},
 		aiRoleBudget: &aiRoleBudgetDialect{},
@@ -66,7 +66,7 @@ func (d *Dialect) Settings() database.SettingsDialect             { return d.set
 func (d *Dialect) AIConversation() database.AIConversationDialect { return d.aiConversation }
 func (d *Dialect) AIMessage() database.AIMessageDialect           { return d.aiMessage }
 func (d *Dialect) AIProvider() database.AIProviderDialect         { return d.aiProvider }
-func (d *Dialect) AIActiveConfig() database.AIActiveConfigDialect { return d.aiActiveConfig }
+func (d *Dialect) AISettings() database.AISettingsDialect         { return d.aiSettings }
 func (d *Dialect) AIProviderModel() database.AIProviderModelDialect { return d.aiProviderModel }
 func (d *Dialect) SLO() database.SLODialect                         { return d.slo }
 func (d *Dialect) AIRoleBudget() database.AIRoleBudgetDialect       { return d.aiRoleBudget }

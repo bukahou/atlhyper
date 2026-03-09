@@ -20,7 +20,7 @@ const ROLE_LABELS: Record<string, string> = {
   analysis: "roleAnalysis",
 };
 
-const SEVERITY_OPTIONS = ["critical", "high", "medium", "low", "off"];
+const SEVERITY_OPTIONS = ["critical", "high", "medium", "low", "off"] as const;
 
 // Token 进度条
 function TokenProgress({ used, limit, label }: { used: number; limit: number; label: string }) {
@@ -234,15 +234,27 @@ export function BudgetConfigCard() {
               <div className="grid gap-3 md:grid-cols-2 mt-3">
                 <div>
                   <label className="block text-xs text-muted mb-1">{aiT.autoTriggerMinSeverity}</label>
+                  <p className="text-[10px] text-muted mb-1">{aiT.autoTriggerMinSeverityDesc}</p>
                   <select
                     value={severity}
                     onChange={(e) => setEdit(budget.role, "autoTriggerMinSeverity", e.target.value)}
                     disabled={!isAdmin}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-default disabled:opacity-50"
+                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50"
                   >
-                    {SEVERITY_OPTIONS.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
+                    {SEVERITY_OPTIONS.map((s) => {
+                      const labels: Record<string, string> = {
+                        critical: aiT.severityCritical,
+                        high: aiT.severityHigh,
+                        medium: aiT.severityMedium,
+                        low: aiT.severityLow,
+                        off: aiT.severityOff,
+                      };
+                      return (
+                        <option key={s} value={s} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                          {labels[s] || s}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div>

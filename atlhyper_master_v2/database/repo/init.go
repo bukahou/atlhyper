@@ -34,7 +34,7 @@ func Init(db *database.DB, dialect database.Dialect) {
 	db.AIConversation = newAIConversationRepo(db.Conn, dialect.AIConversation())
 	db.AIMessage = newAIMessageRepo(db.Conn, dialect.AIMessage())
 	db.AIProvider = newAIProviderRepo(db.Conn, dialect.AIProvider())
-	db.AIActive = newAIActiveConfigRepo(db.Conn, dialect.AIActiveConfig())
+	db.AISettings = newAISettingsRepo(db.Conn, dialect.AISettings())
 	db.AIModel = newAIProviderModelRepo(db.Conn, dialect.AIProviderModel())
 	db.SLO = newSLORepo(db.Conn, dialect.SLO())
 

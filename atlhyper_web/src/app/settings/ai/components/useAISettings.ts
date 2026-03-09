@@ -9,8 +9,7 @@ import {
   createProvider,
   updateProvider,
   deleteProvider,
-  updateActiveConfig,
-  updateProviderRoles,
+  updateAISettings,
   mockProviderList,
   type AIProvider,
   type ProviderListResponse,
@@ -35,7 +34,6 @@ export function useAISettings() {
   const [saving, setSaving] = useState(false);
 
   // Global settings state
-  const [globalEnabled, setGlobalEnabled] = useState(false);
   const [globalTimeout, setGlobalTimeout] = useState(30);
   const [savingGlobal, setSavingGlobal] = useState(false);
 
@@ -43,8 +41,7 @@ export function useAISettings() {
   const loadData = useCallback(async () => {
     if (isDemo) {
       setData(mockProviderList);
-      setGlobalEnabled(mockProviderList.activeConfig.enabled);
-      setGlobalTimeout(mockProviderList.activeConfig.toolTimeout);
+      setGlobalTimeout(mockProviderList.settings.toolTimeout);
       setLoading(false);
       return;
     }
@@ -52,8 +49,7 @@ export function useAISettings() {
     try {
       const res = await listProviders();
       setData(res.data);
-      setGlobalEnabled(res.data.activeConfig.enabled);
-      setGlobalTimeout(res.data.activeConfig.toolTimeout);
+      setGlobalTimeout(res.data.settings.toolTimeout);
     } catch (err) {
       console.error("Failed to load providers:", err);
       toast.error(aiT.loadFailed);
@@ -86,7 +82,6 @@ export function useAISettings() {
     model: string;
     baseUrl: string;
     description: string;
-    roles: string[];
   }) => {
     if (!formData.name || !formData.provider || !formData.model) {
       toast.error(aiT.requiredFields);
@@ -108,20 +103,6 @@ export function useAISettings() {
           description: formData.description,
           ...(formData.apiKey ? { apiKey: formData.apiKey } : {}),
         });
-        // 角色分配（编辑时才有）
-        try {
-          await updateProviderRoles(editingProvider.id, formData.roles);
-        } catch (roleErr: unknown) {
-          const status = (roleErr as { response?: { status?: number } })?.response?.status;
-          if (status === 409) {
-            toast.error(aiT.roleAssignConflict);
-          } else {
-            toast.error(aiT.saveFailed);
-          }
-          setSaving(false);
-          loadData();
-          return;
-        }
         toast.success(aiT.providerUpdated);
       } else {
         await createProvider({
@@ -146,10 +127,6 @@ export function useAISettings() {
 
   // Delete provider
   const handleDeleteProvider = async (provider: AIProvider) => {
-    if (provider.isActive) {
-      toast.error(aiT.cannotDeleteActive);
-      return;
-    }
     if (!confirm(aiT.confirmDelete.replace("{name}", provider.name))) return;
 
     try {
@@ -162,41 +139,12 @@ export function useAISettings() {
     }
   };
 
-  // Activate provider
-  const handleActivateProvider = async (provider: AIProvider) => {
-    try {
-      await updateActiveConfig({ providerId: provider.id });
-      toast.success(aiT.providerActivated.replace("{name}", provider.name));
-      loadData();
-    } catch (err) {
-      console.error("Failed to activate provider:", err);
-      toast.error(aiT.activateFailed);
-    }
-  };
-
-  // Toggle global enabled
-  const handleToggleEnabled = async () => {
-    if (!isAdmin) return;
-    setSavingGlobal(true);
-    try {
-      const newEnabled = !globalEnabled;
-      await updateActiveConfig({ enabled: newEnabled });
-      setGlobalEnabled(newEnabled);
-      toast.success(newEnabled ? aiT.aiEnabled : aiT.aiDisabled);
-    } catch (err) {
-      console.error("Failed to toggle enabled:", err);
-      toast.error(aiT.settingChangeFailed);
-    } finally {
-      setSavingGlobal(false);
-    }
-  };
-
   // Save global timeout
   const handleSaveGlobalTimeout = async () => {
     if (!isAdmin) return;
     setSavingGlobal(true);
     try {
-      await updateActiveConfig({ toolTimeout: globalTimeout });
+      await updateAISettings({ toolTimeout: globalTimeout });
       toast.success(aiT.timeoutSaved);
     } catch (err) {
       console.error("Failed to save timeout:", err);
@@ -214,11 +162,9 @@ export function useAISettings() {
     loading,
     data,
     // Global settings
-    globalEnabled,
     globalTimeout,
     savingGlobal,
     setGlobalTimeout,
-    handleToggleEnabled,
     handleSaveGlobalTimeout,
     // Modal
     showModal,
@@ -230,6 +176,6 @@ export function useAISettings() {
     handleEditProvider,
     handleSaveProvider,
     handleDeleteProvider,
-    handleActivateProvider,
+    loadData,
   };
 }

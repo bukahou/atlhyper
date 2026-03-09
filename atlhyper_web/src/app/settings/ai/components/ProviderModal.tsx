@@ -18,7 +18,6 @@ interface ProviderModalProps {
     model: string;
     baseUrl: string;
     description: string;
-    roles: string[];
   }) => void;
 }
 
@@ -169,37 +168,6 @@ export function ProviderModal({
                 className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 font-mono"
               />
               <p className="mt-1 text-xs text-muted">{aiT.baseUrlHint}</p>
-            </div>
-          )}
-
-          {/* Roles */}
-          {editingProvider && (
-            <div>
-              <label className="block text-sm font-medium text-default mb-1">
-                {aiT.roles}
-              </label>
-              <p className="text-xs text-muted mb-2">{aiT.rolesHint}</p>
-              <div className="flex flex-wrap gap-3">
-                {(["background", "chat", "analysis"] as const).map((role) => {
-                  const labels: Record<string, string> = {
-                    background: aiT.roleBackground,
-                    chat: aiT.roleChat,
-                    analysis: aiT.roleAnalysis,
-                  };
-                  const checked = form.formRoles.includes(role);
-                  return (
-                    <label key={role} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => form.toggleRole(role, e.target.checked)}
-                        className="w-4 h-4 rounded"
-                      />
-                      <span className="text-sm text-default">{labels[role]}</span>
-                    </label>
-                  );
-                })}
-              </div>
             </div>
           )}
 

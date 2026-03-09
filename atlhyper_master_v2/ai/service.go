@@ -20,7 +20,7 @@ type ServiceConfig struct {
 // 注意：不再缓存 llmClient，每次 Chat 时从 DB 获取最新配置并创建客户端
 type aiServiceImpl struct {
 	providerRepo database.AIProviderRepository
-	activeRepo   database.AIActiveConfigRepository
+	settingsRepo database.AISettingsRepository
 	modelRepo    database.AIProviderModelRepository
 	budgetRepo   database.AIRoleBudgetRepository
 	executor     *toolExecutor

@@ -31,7 +31,7 @@ type QueryService struct {
 	notifyRepo     database.NotifyChannelRepository
 	settingsRepo   database.SettingsRepository
 	aiProviderRepo database.AIProviderRepository
-	aiActiveRepo   database.AIActiveConfigRepository
+	aiSettingsRepo database.AISettingsRepository
 	aiModelRepo    database.AIProviderModelRepository
 	aiBudgetRepo   database.AIRoleBudgetRepository
 	aiReportRepo   database.AIReportRepository
@@ -71,7 +71,7 @@ func (q *QueryService) SetAdminRepos(db *database.DB) {
 	q.notifyRepo = db.Notify
 	q.settingsRepo = db.Settings
 	q.aiProviderRepo = db.AIProvider
-	q.aiActiveRepo = db.AIActive
+	q.aiSettingsRepo = db.AISettings
 	q.aiModelRepo = db.AIModel
 	q.aiBudgetRepo = db.AIRoleBudget
 	q.aiReportRepo = db.AIReport

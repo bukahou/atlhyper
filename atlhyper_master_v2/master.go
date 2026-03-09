@@ -113,14 +113,9 @@ func NewMaster() (*Master, error) {
 	repo.Init(db, dialect)
 	log.Info("数据库初始化完成", "type", cfg.Database.Type)
 
-	// 3.1 迁移旧 AI 配置到新表（如有）
-	if err := database.MigrateOldAIConfig(context.Background(), db); err != nil {
-		log.Warn("AI 配置迁移失败", "err", err)
-	}
-
-	// 3.2 初始化 AI Active Config（首次启动，从配置文件读取默认值）
-	if err := database.InitAIActiveConfig(context.Background(), db, &cfg.AI); err != nil {
-		log.Warn("AI Active Config 初始化失败", "err", err)
+	// 3.1 初始化 AI Settings（首次启动，从配置文件读取默认值）
+	if err := database.InitAISettings(context.Background(), db, &cfg.AI); err != nil {
+		log.Warn("AI Settings 初始化失败", "err", err)
 	}
 
 	// 3.3 种子 AI Provider（从环境变量自动创建，仅首次无数据时生效）
@@ -245,7 +240,7 @@ func NewMaster() (*Master, error) {
 
 	// 7. 初始化 Operations（写入路径）
 	cmdOps := operations.NewCommandService(bus, db.Command)
-	adminOps := operations.NewAdminService(db.Notify, db.Settings, db.AIProvider, db.AIActive, db.AIRoleBudget)
+	adminOps := operations.NewAdminService(db.Notify, db.Settings, db.AIProvider, db.AISettings, db.AIRoleBudget)
 	log.Info("操作服务初始化完成")
 
 	// 组合统一 Service
@@ -262,14 +257,14 @@ func NewMaster() (*Master, error) {
 	log.Info("AgentSDK 初始化完成", "port", cfg.Server.AgentSDKPort)
 
 	// 9. 初始化 AIService
-	// AI 配置从 ai_providers + ai_active_config 表动态获取，支持热更新
+	// AI 配置从 ai_providers 表动态获取，角色分配即生效
 	// 不再在启动时检查配置，Chat 时会实时从 DB 读取最新配置
 	aiService := ai.NewService(
 		ai.ServiceConfig{
 			ToolTimeout: cfg.AI.ToolTimeout,
 		},
 		cmdOps, bus,
-		db.AIProvider, db.AIActive, db.AIModel, db.AIRoleBudget,
+		db.AIProvider, db.AISettings, db.AIModel, db.AIRoleBudget,
 		db.AIConversation, db.AIMessage,
 	)
 	log.Info("AI 服务初始化完成 (动态配置)")

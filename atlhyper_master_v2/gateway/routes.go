@@ -289,7 +289,7 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/audit/logs", auditH.List)
 		register("/api/v2/settings/ai", settingsH.AIConfigHandler)
 		register("/api/v2/ai/providers", aiProviderH.ProvidersHandler)
-		register("/api/v2/ai/active", aiProviderH.ActiveConfigHandler)
+		register("/api/v2/ai/settings", aiProviderH.SettingsHandler)
 		register("/api/v2/ai/roles", aiProviderH.RolesOverviewHandler)
 		register("/api/v2/ai/budgets", aiProviderH.BudgetsHandler)
 		register("/api/v2/ai/reports", aiProviderH.AIReportsHandler)
@@ -354,7 +354,7 @@ func (r *Router) registerRoutes() {
 
 	// AI Provider 管理（需要 Admin 权限）
 	r.adminAudited("/api/v2/ai/providers/", "update", "ai_provider", aiProviderH.ProviderHandler)
-	r.adminAudited("/api/v2/ai/active/", "update", "ai_provider", aiProviderH.ActiveConfigHandler)
+	r.adminAudited("/api/v2/ai/settings/", "update", "ai_settings", aiProviderH.SettingsHandler)
 	r.adminAudited("/api/v2/ai/budgets/", "update", "ai_budget", aiProviderH.BudgetHandler)
 
 	// AI 报告详情 + 深度分析触发（Operator 权限，审计）

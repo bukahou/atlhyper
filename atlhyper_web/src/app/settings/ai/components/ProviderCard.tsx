@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Check, Settings, Trash2, Zap, MessageSquare, Coins } from "lucide-react";
+import { Bot, Settings, Trash2, Zap, MessageSquare, Coins } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import type { AIProvider } from "@/api/ai-provider";
 
@@ -27,7 +27,6 @@ const roleColors: Record<string, string> = {
 interface ProviderCardProps {
   provider: AIProvider;
   isAdmin: boolean;
-  onActivate: (provider: AIProvider) => void;
   onEdit: (provider: AIProvider) => void;
   onDelete: (provider: AIProvider) => void;
 }
@@ -35,7 +34,6 @@ interface ProviderCardProps {
 export function ProviderCard({
   provider,
   isAdmin,
-  onActivate,
   onEdit,
   onDelete,
 }: ProviderCardProps) {
@@ -44,19 +42,8 @@ export function ProviderCard({
 
   return (
     <div
-      className={`relative rounded-xl border p-4 transition-all ${
-        provider.isActive
-          ? "border-green-500 bg-green-50/50 dark:bg-green-900/10"
-          : "border-[var(--border-color)] hover:border-violet-300"
-      }`}
+      className="relative rounded-xl border p-4 transition-all border-[var(--border-color)] hover:border-violet-300"
     >
-      {/* Active Badge */}
-      {provider.isActive && (
-        <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-green-500 text-white text-xs flex items-center gap-1">
-          <Check className="w-3 h-3" />
-          {aiT.enabled}
-        </div>
-      )}
 
       {/* Header */}
       <div className="flex items-start gap-3 mb-3">
@@ -121,14 +108,6 @@ export function ProviderCard({
       {/* Actions */}
       {isAdmin && (
         <div className="flex items-center gap-2">
-          {!provider.isActive && (
-            <button
-              onClick={() => onActivate(provider)}
-              className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-            >
-              {aiT.activate}
-            </button>
-          )}
           <button
             onClick={() => onEdit(provider)}
             className="p-1.5 rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] transition-colors"
@@ -136,15 +115,13 @@ export function ProviderCard({
           >
             <Settings className="w-4 h-4 text-muted" />
           </button>
-          {!provider.isActive && (
-            <button
-              onClick={() => onDelete(provider)}
-              className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              title={aiT.delete}
-            >
-              <Trash2 className="w-4 h-4 text-red-500" />
-            </button>
-          )}
+          <button
+            onClick={() => onDelete(provider)}
+            className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            title={aiT.delete}
+          >
+            <Trash2 className="w-4 h-4 text-red-500" />
+          </button>
         </div>
       )}
     </div>

@@ -64,8 +64,8 @@ func (q *QueryService) GetAIProviderByID(ctx context.Context, id int64) (*databa
 	return q.aiProviderRepo.GetByID(ctx, id)
 }
 
-func (q *QueryService) GetAIActiveConfig(ctx context.Context) (*database.AIActiveConfig, error) {
-	return q.aiActiveRepo.Get(ctx)
+func (q *QueryService) GetAISettings(ctx context.Context) (*database.AISettings, error) {
+	return q.aiSettingsRepo.Get(ctx)
 }
 
 func (q *QueryService) ListAIModels(ctx context.Context) ([]*database.AIProviderModel, error) {

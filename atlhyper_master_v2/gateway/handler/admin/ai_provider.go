@@ -51,7 +51,6 @@ type ProviderResponse struct {
 	Description           string   `json:"description"`
 	APIKeyMasked          string   `json:"apiKeyMasked"`
 	APIKeySet             bool     `json:"apiKeySet"`
-	IsActive              bool     `json:"isActive"`
 	Roles                 []string `json:"roles"`
 	ContextWindowOverride int      `json:"contextWindowOverride"`
 	Status                string   `json:"status"`
@@ -64,19 +63,17 @@ type ProviderResponse struct {
 	UpdatedAt             string   `json:"updatedAt"`
 }
 
-// ActiveConfigResponse アクティブ設定レスポンス
-type ActiveConfigResponse struct {
-	Enabled     bool   `json:"enabled"`
-	ProviderID  *int64 `json:"providerId"`
-	ToolTimeout int    `json:"toolTimeout"`
-	ChatReady   bool   `json:"chatReady"`
+// AISettingsResponse AI 全局设置レスポンス
+type AISettingsResponse struct {
+	ToolTimeout int  `json:"toolTimeout"`
+	ChatReady   bool `json:"chatReady"`
 }
 
 // ProviderListResponse プロバイダー一覧レスポンス
 type ProviderListResponse struct {
-	Providers    []ProviderResponse   `json:"providers"`
-	ActiveConfig ActiveConfigResponse `json:"activeConfig"`
-	Models       []ProviderModelInfo  `json:"models"`
+	Providers  []ProviderResponse  `json:"providers"`
+	Settings   AISettingsResponse  `json:"settings"`
+	Models     []ProviderModelInfo `json:"models"`
 }
 
 // ProviderModelInfo モデル情報
@@ -106,13 +103,6 @@ type ProviderUpdateRequest struct {
 	Description *string `json:"description,omitempty"`
 }
 
-// ActiveConfigUpdateRequest アクティブ設定更新リクエスト
-type ActiveConfigUpdateRequest struct {
-	Enabled     *bool  `json:"enabled,omitempty"`
-	ProviderID  *int64 `json:"providerId,omitempty"`
-	ToolTimeout *int   `json:"toolTimeout,omitempty"`
-}
-
 // ==================== Handlers ====================
 
 // ProvidersHandler プロバイダー一覧・作成
@@ -135,7 +125,6 @@ func (h *AIProviderHandler) ProvidersHandler(w http.ResponseWriter, r *http.Requ
 // DELETE /api/v2/ai/providers/{id} -> 削除
 // PUT    /api/v2/ai/providers/{id}/roles -> 角色分配
 func (h *AIProviderHandler) ProviderHandler(w http.ResponseWriter, r *http.Request) {
-	// パスから ID 抽出
 	path := strings.TrimPrefix(r.URL.Path, "/api/v2/ai/providers/")
 	parts := strings.Split(path, "/")
 	idStr := parts[0]
@@ -163,15 +152,15 @@ func (h *AIProviderHandler) ProviderHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// ActiveConfigHandler アクティブ設定操作
-// GET /api/v2/ai/active -> 取得
-// PUT /api/v2/ai/active -> 更新
-func (h *AIProviderHandler) ActiveConfigHandler(w http.ResponseWriter, r *http.Request) {
+// SettingsHandler AI 全局設定操作
+// GET /api/v2/ai/settings -> 取得
+// PUT /api/v2/ai/settings -> 更新
+func (h *AIProviderHandler) SettingsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		h.getActiveConfig(w, r)
+		h.getSettings(w, r)
 	case http.MethodPut, http.MethodPatch:
-		h.updateActiveConfig(w, r)
+		h.updateSettings(w, r)
 	default:
 		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
@@ -184,56 +173,40 @@ func (h *AIProviderHandler) listProviders(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	// プロバイダー一覧
 	providers, err := h.svc.ListAIProviders(ctx)
 	if err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, "failed to list providers")
 		return
 	}
 
-	// アクティブ設定
-	active, err := h.svc.GetAIActiveConfig(ctx)
-	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "failed to get active config")
-		return
-	}
-	// 如果 active 为 nil（表中无记录），使用默认值
-	if active == nil {
-		active = &database.AIActiveConfig{
-			Enabled:     false,
-			ProviderID:  nil,
-			ToolTimeout: 30,
-		}
+	settings, _ := h.svc.GetAISettings(ctx)
+	toolTimeout := 30
+	if settings != nil {
+		toolTimeout = settings.ToolTimeout
 	}
 
-	// モデル一覧
 	models := h.loadModelsGrouped(ctx)
 
 	// 检查 chat 角色是否已分配
 	chatReady := false
-	if active.Enabled {
-		for _, p := range providers {
-			if slices.Contains(p.Roles, "chat") {
-				chatReady = true
-				break
-			}
+	for _, p := range providers {
+		if slices.Contains(p.Roles, "chat") {
+			chatReady = true
+			break
 		}
 	}
 
-	// レスポンス構築
 	resp := ProviderListResponse{
 		Providers: make([]ProviderResponse, 0, len(providers)),
-		ActiveConfig: ActiveConfigResponse{
-			Enabled:     active.Enabled,
-			ProviderID:  active.ProviderID,
-			ToolTimeout: active.ToolTimeout,
+		Settings: AISettingsResponse{
+			ToolTimeout: toolTimeout,
 			ChatReady:   chatReady,
 		},
 		Models: models,
 	}
 
 	for _, p := range providers {
-		resp.Providers = append(resp.Providers, h.toProviderResponse(p, active.ProviderID))
+		resp.Providers = append(resp.Providers, toProviderResponse(p))
 	}
 
 	handler.WriteJSON(w, http.StatusOK, resp)
@@ -247,7 +220,6 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// バリデーション
 	if req.Name == "" {
 		handler.WriteError(w, http.StatusBadRequest, "name is required")
 		return
@@ -297,11 +269,7 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	active, err := h.svc.GetAIActiveConfig(ctx)
-	if err != nil {
-		log.Warn("获取 AI 活跃配置失败", "err", err)
-	}
-	handler.WriteJSON(w, http.StatusCreated, h.toProviderResponse(provider, active.ProviderID))
+	handler.WriteJSON(w, http.StatusCreated, toProviderResponse(provider))
 }
 
 // getProvider プロバイダー取得
@@ -319,11 +287,7 @@ func (h *AIProviderHandler) getProvider(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	active, err := h.svc.GetAIActiveConfig(ctx)
-	if err != nil {
-		log.Warn("获取 AI 活跃配置失败", "err", err)
-	}
-	handler.WriteJSON(w, http.StatusOK, h.toProviderResponse(provider, active.ProviderID))
+	handler.WriteJSON(w, http.StatusOK, toProviderResponse(provider))
 }
 
 // updateProvider プロバイダー更新
@@ -347,7 +311,6 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 更新
 	if req.Name != nil {
 		provider.Name = *req.Name
 	}
@@ -373,27 +336,13 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	active, err := h.svc.GetAIActiveConfig(ctx)
-	if err != nil {
-		log.Warn("获取 AI 活跃配置失败", "err", err)
-	}
-	handler.WriteJSON(w, http.StatusOK, h.toProviderResponse(provider, active.ProviderID))
+	handler.WriteJSON(w, http.StatusOK, toProviderResponse(provider))
 }
 
 // deleteProvider プロバイダー削除
 func (h *AIProviderHandler) deleteProvider(w http.ResponseWriter, r *http.Request, id int64) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-
-	// アクティブなプロバイダーは削除不可
-	active, err := h.svc.GetAIActiveConfig(ctx)
-	if err != nil {
-		log.Warn("获取 AI 活跃配置失败", "err", err)
-	}
-	if active != nil && active.ProviderID != nil && *active.ProviderID == id {
-		handler.WriteError(w, http.StatusBadRequest, "cannot delete active provider")
-		return
-	}
 
 	if err := h.svc.DeleteAIProvider(ctx, id); err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, "failed to delete provider")
@@ -403,48 +352,38 @@ func (h *AIProviderHandler) deleteProvider(w http.ResponseWriter, r *http.Reques
 	handler.WriteJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-// getActiveConfig アクティブ設定取得
-func (h *AIProviderHandler) getActiveConfig(w http.ResponseWriter, r *http.Request) {
+// getSettings AI 全局設定取得
+func (h *AIProviderHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	active, err := h.svc.GetAIActiveConfig(ctx)
-	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "failed to get active config")
-		return
-	}
-	// 如果 active 为 nil，使用默认值
-	if active == nil {
-		active = &database.AIActiveConfig{
-			Enabled:     false,
-			ProviderID:  nil,
-			ToolTimeout: 30,
-		}
+	settings, _ := h.svc.GetAISettings(ctx)
+	toolTimeout := 30
+	if settings != nil {
+		toolTimeout = settings.ToolTimeout
 	}
 
 	// 检查是否有 Provider 分配了 chat 角色
 	chatReady := false
-	if active.Enabled {
-		providers, _ := h.svc.ListAIProviders(ctx)
-		for _, p := range providers {
-			if slices.Contains(p.Roles, "chat") {
-				chatReady = true
-				break
-			}
+	providers, _ := h.svc.ListAIProviders(ctx)
+	for _, p := range providers {
+		if slices.Contains(p.Roles, "chat") {
+			chatReady = true
+			break
 		}
 	}
 
-	handler.WriteJSON(w, http.StatusOK, ActiveConfigResponse{
-		Enabled:     active.Enabled,
-		ProviderID:  active.ProviderID,
-		ToolTimeout: active.ToolTimeout,
+	handler.WriteJSON(w, http.StatusOK, AISettingsResponse{
+		ToolTimeout: toolTimeout,
 		ChatReady:   chatReady,
 	})
 }
 
-// updateActiveConfig アクティブ設定更新
-func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Request) {
-	var req ActiveConfigUpdateRequest
+// updateSettings AI 全局設定更新
+func (h *AIProviderHandler) updateSettings(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ToolTimeout *int `json:"toolTimeout,omitempty"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		handler.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -453,62 +392,33 @@ func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	active, err := h.svc.GetAIActiveConfig(ctx)
-	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "failed to get active config")
-		return
-	}
-	// 如果 active 为 nil，使用默认值
-	if active == nil {
-		active = &database.AIActiveConfig{
-			Enabled:     false,
-			ProviderID:  nil,
-			ToolTimeout: 30,
-		}
+	settings, _ := h.svc.GetAISettings(ctx)
+	if settings == nil {
+		settings = &database.AISettings{ToolTimeout: 30}
 	}
 
-	// 更新
-	if req.Enabled != nil {
-		active.Enabled = *req.Enabled
-	}
-	if req.ProviderID != nil {
-		// プロバイダー存在チェック
-		provider, provErr := h.svc.GetAIProviderByID(ctx, *req.ProviderID)
-		if provErr != nil {
-			log.Warn("获取 Provider 失败", "id", *req.ProviderID, "err", provErr)
-		}
-		if provider == nil {
-			handler.WriteError(w, http.StatusBadRequest, "provider not found")
-			return
-		}
-		active.ProviderID = req.ProviderID
-	}
 	if req.ToolTimeout != nil {
-		active.ToolTimeout = *req.ToolTimeout
+		settings.ToolTimeout = *req.ToolTimeout
 	}
-	active.UpdatedAt = time.Now()
+	settings.UpdatedAt = time.Now()
 
-	if err := h.svc.UpdateAIActiveConfig(ctx, active); err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "failed to update active config")
+	if err := h.svc.UpdateAISettings(ctx, settings); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "failed to update settings")
 		return
 	}
 
 	// 检查 chat 角色
 	chatReady := false
-	if active.Enabled {
-		providers, _ := h.svc.ListAIProviders(ctx)
-		for _, p := range providers {
-			if slices.Contains(p.Roles, "chat") {
-				chatReady = true
-				break
-			}
+	providers, _ := h.svc.ListAIProviders(ctx)
+	for _, p := range providers {
+		if slices.Contains(p.Roles, "chat") {
+			chatReady = true
+			break
 		}
 	}
 
-	handler.WriteJSON(w, http.StatusOK, ActiveConfigResponse{
-		Enabled:     active.Enabled,
-		ProviderID:  active.ProviderID,
-		ToolTimeout: active.ToolTimeout,
+	handler.WriteJSON(w, http.StatusOK, AISettingsResponse{
+		ToolTimeout: settings.ToolTimeout,
 		ChatReady:   chatReady,
 	})
 }
@@ -516,7 +426,7 @@ func (h *AIProviderHandler) updateActiveConfig(w http.ResponseWriter, r *http.Re
 // ==================== Helpers ====================
 
 // toProviderResponse DB モデルをレスポンスに変換
-func (h *AIProviderHandler) toProviderResponse(p *database.AIProvider, activeID *int64) ProviderResponse {
+func toProviderResponse(p *database.AIProvider) ProviderResponse {
 	roles := p.Roles
 	if roles == nil {
 		roles = []string{}
@@ -530,7 +440,6 @@ func (h *AIProviderHandler) toProviderResponse(p *database.AIProvider, activeID 
 		Description:           p.Description,
 		APIKeyMasked:          maskAPIKey(p.APIKey),
 		APIKeySet:             p.APIKey != "",
-		IsActive:              activeID != nil && *activeID == p.ID,
 		Roles:                 roles,
 		ContextWindowOverride: p.ContextWindowOverride,
 		Status:                p.Status,
@@ -945,13 +854,11 @@ func (h *AIProviderHandler) loadModelsGrouped(ctx context.Context) []ProviderMod
 		return []ProviderModelInfo{}
 	}
 
-	// グループ化
 	grouped := make(map[string][]string)
 	for _, m := range models {
 		grouped[m.Provider] = append(grouped[m.Provider], m.Model)
 	}
 
-	// 結果構築
 	result := []ProviderModelInfo{}
 	for _, pid := range supportedProviders {
 		if ms, ok := grouped[pid]; ok {

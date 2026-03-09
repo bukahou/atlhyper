@@ -13,7 +13,7 @@ type AdminService struct {
 	notifyRepo     database.NotifyChannelRepository
 	settingsRepo   database.SettingsRepository
 	aiProviderRepo database.AIProviderRepository
-	aiActiveRepo   database.AIActiveConfigRepository
+	aiSettingsRepo database.AISettingsRepository
 	aiBudgetRepo   database.AIRoleBudgetRepository
 }
 
@@ -22,14 +22,14 @@ func NewAdminService(
 	notifyRepo database.NotifyChannelRepository,
 	settingsRepo database.SettingsRepository,
 	aiProviderRepo database.AIProviderRepository,
-	aiActiveRepo database.AIActiveConfigRepository,
+	aiSettingsRepo database.AISettingsRepository,
 	aiBudgetRepo database.AIRoleBudgetRepository,
 ) *AdminService {
 	return &AdminService{
 		notifyRepo:     notifyRepo,
 		settingsRepo:   settingsRepo,
 		aiProviderRepo: aiProviderRepo,
-		aiActiveRepo:   aiActiveRepo,
+		aiSettingsRepo: aiSettingsRepo,
 		aiBudgetRepo:   aiBudgetRepo,
 	}
 }
@@ -64,8 +64,8 @@ func (s *AdminService) DeleteAIProvider(ctx context.Context, id int64) error {
 	return s.aiProviderRepo.Delete(ctx, id)
 }
 
-func (s *AdminService) UpdateAIActiveConfig(ctx context.Context, cfg *database.AIActiveConfig) error {
-	return s.aiActiveRepo.Update(ctx, cfg)
+func (s *AdminService) UpdateAISettings(ctx context.Context, cfg *database.AISettings) error {
+	return s.aiSettingsRepo.Update(ctx, cfg)
 }
 
 func (s *AdminService) UpdateAIProviderRoles(ctx context.Context, id int64, roles []string) error {

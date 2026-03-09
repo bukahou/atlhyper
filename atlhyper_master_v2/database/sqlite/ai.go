@@ -242,46 +242,31 @@ func encodeRoles(roles []string) string {
 
 var _ database.AIProviderDialect = (*aiProviderDialect)(nil)
 
-// ==================== AIActiveConfig Dialect ====================
+// ==================== AISettings Dialect ====================
 
-type aiActiveConfigDialect struct{}
+type aiSettingsDialect struct{}
 
-func (d *aiActiveConfigDialect) Select() (string, []any) {
-	return "SELECT id, enabled, provider_id, tool_timeout, updated_at, updated_by FROM ai_active_config WHERE id = 1", nil
+func (d *aiSettingsDialect) Select() (string, []any) {
+	return "SELECT tool_timeout, updated_at, updated_by FROM ai_settings WHERE id = 1", nil
 }
 
-func (d *aiActiveConfigDialect) Update(cfg *database.AIActiveConfig) (string, []any) {
-	// 使用 INSERT OR REPLACE 确保首次初始化时能创建记录
-	return `INSERT OR REPLACE INTO ai_active_config (id, enabled, provider_id, tool_timeout, updated_at, updated_by) VALUES (1, ?, ?, ?, ?, ?)`,
-		[]any{cfg.Enabled, cfg.ProviderID, cfg.ToolTimeout, cfg.UpdatedAt.Format(time.RFC3339), cfg.UpdatedBy}
+func (d *aiSettingsDialect) Update(cfg *database.AISettings) (string, []any) {
+	return `INSERT OR REPLACE INTO ai_settings (id, tool_timeout, updated_at, updated_by) VALUES (1, ?, ?, ?)`,
+		[]any{cfg.ToolTimeout, cfg.UpdatedAt.Format(time.RFC3339), cfg.UpdatedBy}
 }
 
-func (d *aiActiveConfigDialect) SwitchProvider(providerID int64, updatedBy int64) (string, []any) {
-	return `UPDATE ai_active_config SET provider_id = ?, updated_at = ?, updated_by = ? WHERE id = 1`,
-		[]any{providerID, time.Now().Format(time.RFC3339), updatedBy}
-}
-
-func (d *aiActiveConfigDialect) SetEnabled(enabled bool, updatedBy int64) (string, []any) {
-	return `UPDATE ai_active_config SET enabled = ?, updated_at = ?, updated_by = ? WHERE id = 1`,
-		[]any{enabled, time.Now().Format(time.RFC3339), updatedBy}
-}
-
-func (d *aiActiveConfigDialect) ScanRow(rows *sql.Rows) (*database.AIActiveConfig, error) {
-	cfg := &database.AIActiveConfig{}
+func (d *aiSettingsDialect) ScanRow(rows *sql.Rows) (*database.AISettings, error) {
+	cfg := &database.AISettings{}
 	var updatedAt string
-	var providerID sql.NullInt64
 	var updatedBy sql.NullInt64
 
-	err := rows.Scan(&cfg.ID, &cfg.Enabled, &providerID, &cfg.ToolTimeout, &updatedAt, &updatedBy)
+	err := rows.Scan(&cfg.ToolTimeout, &updatedAt, &updatedBy)
 	if err != nil {
 		return nil, err
 	}
 
 	if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
 		cfg.UpdatedAt = t
-	}
-	if providerID.Valid {
-		cfg.ProviderID = &providerID.Int64
 	}
 	if updatedBy.Valid {
 		cfg.UpdatedBy = updatedBy.Int64
@@ -290,7 +275,7 @@ func (d *aiActiveConfigDialect) ScanRow(rows *sql.Rows) (*database.AIActiveConfi
 	return cfg, nil
 }
 
-var _ database.AIActiveConfigDialect = (*aiActiveConfigDialect)(nil)
+var _ database.AISettingsDialect = (*aiSettingsDialect)(nil)
 
 // ==================== AIProviderModel Dialect ====================
 

@@ -24,7 +24,7 @@ type DB struct {
 	AIConversation AIConversationRepository
 	AIMessage      AIMessageRepository
 	AIProvider     AIProviderRepository
-	AIActive       AIActiveConfigRepository
+	AISettings     AISettingsRepository
 	AIModel        AIProviderModelRepository
 	SLO SLORepository
 
@@ -163,12 +163,10 @@ type AIProviderRepository interface {
 	UpdateStatus(ctx context.Context, id int64, status, errorMsg string) error
 }
 
-// AIActiveConfigRepository 当前使用中的 AI 配置接口
-type AIActiveConfigRepository interface {
-	Get(ctx context.Context) (*AIActiveConfig, error)
-	Update(ctx context.Context, cfg *AIActiveConfig) error
-	SwitchProvider(ctx context.Context, providerID int64, updatedBy int64) error
-	SetEnabled(ctx context.Context, enabled bool, updatedBy int64) error
+// AISettingsRepository AI 全局设置接口
+type AISettingsRepository interface {
+	Get(ctx context.Context) (*AISettings, error)
+	Update(ctx context.Context, cfg *AISettings) error
 }
 
 // AIProviderModelRepository 提供商模型管理接口
@@ -282,7 +280,7 @@ type Dialect interface {
 	AIConversation() AIConversationDialect
 	AIMessage() AIMessageDialect
 	AIProvider() AIProviderDialect
-	AIActiveConfig() AIActiveConfigDialect
+	AISettings() AISettingsDialect
 	AIProviderModel() AIProviderModelDialect
 	SLO() SLODialect
 	AIRoleBudget() AIRoleBudgetDialect
@@ -406,13 +404,11 @@ type AIProviderDialect interface {
 	ScanRow(rows *sql.Rows) (*AIProvider, error)
 }
 
-// AIActiveConfigDialect AI 当前配置 SQL 方言
-type AIActiveConfigDialect interface {
+// AISettingsDialect AI 全局设置 SQL 方言
+type AISettingsDialect interface {
 	Select() (query string, args []any)
-	Update(cfg *AIActiveConfig) (query string, args []any)
-	SwitchProvider(providerID int64, updatedBy int64) (query string, args []any)
-	SetEnabled(enabled bool, updatedBy int64) (query string, args []any)
-	ScanRow(rows *sql.Rows) (*AIActiveConfig, error)
+	Update(cfg *AISettings) (query string, args []any)
+	ScanRow(rows *sql.Rows) (*AISettings, error)
 }
 
 // AIProviderModelDialect 提供商模型 SQL 方言
