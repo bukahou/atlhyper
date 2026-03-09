@@ -5,6 +5,7 @@ package ai
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
@@ -81,6 +82,54 @@ func (s *aiServiceImpl) DeleteConversation(ctx context.Context, conversationID i
 		return err
 	}
 	return s.convRepo.Delete(ctx, conversationID)
+}
+
+// Complete 单轮 LLM 调用（无 Tool，用于 background 摘要等）
+func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*CompleteResult, error) {
+	role := req.Role
+	if role == "" {
+		role = RoleBackground
+	}
+
+	roleCfg, err := s.loadAIConfigForRole(ctx, role)
+	if err != nil {
+		return nil, fmt.Errorf("AI 配置错误: %w", err)
+	}
+
+	llmClient, err := llm.NewLLMClient(roleCfg.Config)
+	if err != nil {
+		return nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
+	}
+	defer llmClient.Close()
+
+	stream, err := llmClient.ChatStream(ctx, &llm.Request{
+		SystemPrompt: req.SystemPrompt,
+		Messages:     []llm.Message{{Role: "user", Content: req.UserPrompt}},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("LLM 调用失败: %w", err)
+	}
+
+	// 收集完整响应
+	text, _, usage := collectStreamResponse(stream)
+
+	var inputTokens, outputTokens int
+	if usage != nil {
+		inputTokens = usage.InputTokens
+		outputTokens = usage.OutputTokens
+	}
+
+	// 扣减预算
+	s.RecordUsage(ctx, role, roleCfg.ProviderID, inputTokens, outputTokens)
+
+	return &CompleteResult{
+		Response:     text,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		ProviderID:   roleCfg.ProviderID,
+		ProviderName: roleCfg.ProviderName,
+		Model:        roleCfg.Config.Model,
+	}, nil
 }
 
 // RegisterTool 注册自定义 Tool

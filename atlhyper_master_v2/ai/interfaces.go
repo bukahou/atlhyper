@@ -30,6 +30,12 @@ type AIService interface {
 	// RegisterTool 注册自定义 Tool（AIOps 等扩展模块使用）
 	RegisterTool(name string, handler ToolHandler)
 
+	// Analyze 非交互式多轮 Tool Calling 分析（后台执行，无 SSE）
+	Analyze(ctx context.Context, req *AnalyzeRequest) (*AnalyzeResult, error)
+
+	// Complete 单轮 LLM 调用（无 Tool，用于 background 摘要等）
+	Complete(ctx context.Context, req *CompleteRequest) (*CompleteResult, error)
+
 	// GetToolExecuteFunc 获取 Tool 执行函数（供 analysis 深度分析使用）
 	GetToolExecuteFunc() func(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error)
 
@@ -85,4 +91,58 @@ type Message struct {
 	Content        string    `json:"content"`
 	ToolCalls      string    `json:"toolCalls,omitempty"` // JSON
 	CreatedAt      time.Time `json:"createdAt"`
+}
+
+// ==================== Analyze（多轮 Tool Calling）====================
+
+// AnalyzeRequest 非交互式分析请求
+type AnalyzeRequest struct {
+	ClusterID    string        // 目标集群
+	Role         string        // 角色名（用于预算扣减，如 "analysis"）
+	SystemPrompt string        // 调用方提供的系统提示词
+	UserPrompt   string        // 调用方构建的用户提示词
+	MaxRounds    int           // 最大 Tool 调用轮次（默认 8）
+	Timeout      time.Duration // 全局超时（默认 5min）
+}
+
+// AnalyzeResult 分析结果
+type AnalyzeResult struct {
+	Response     string        // LLM 最终文本输出
+	ToolCalls    int           // 总 Tool 调用次数
+	InputTokens  int           // 总输入 Token
+	OutputTokens int           // 总输出 Token
+	Steps        []AnalyzeStep // 调查步骤记录
+}
+
+// AnalyzeStep 单轮调查步骤
+type AnalyzeStep struct {
+	Round     int              `json:"round"`
+	Thinking  string           `json:"thinking"`
+	ToolCalls []ToolCallRecord `json:"toolCalls"`
+}
+
+// ToolCallRecord Tool 调用记录
+type ToolCallRecord struct {
+	Tool          string `json:"tool"`
+	Params        string `json:"params"`
+	ResultSummary string `json:"resultSummary"`
+}
+
+// ==================== Complete（单轮 LLM 调用）====================
+
+// CompleteRequest 单轮 LLM 调用请求（无 Tool）
+type CompleteRequest struct {
+	Role         string // 角色名（用于角色路由、预算扣减，如 "background"）
+	SystemPrompt string
+	UserPrompt   string
+}
+
+// CompleteResult 单轮 LLM 调用结果
+type CompleteResult struct {
+	Response     string
+	InputTokens  int
+	OutputTokens int
+	ProviderID   int64  // Provider ID（供调用方记录）
+	ProviderName string // Provider 名称（供调用方日志）
+	Model        string // 模型名称
 }
