@@ -55,6 +55,9 @@ export interface NavTranslations {
   // Observe Landing
   // Admin
   datasource: string;
+  deploy: string;
+  // Settings
+  github: string;
 }
 
 // 通用翻译
@@ -2277,6 +2280,123 @@ export interface EventTranslations {
   relatedResource: string;
 }
 
+// 部署管理页面翻译（/admin/deploy）
+export interface DeployPageTranslations {
+  pageTitle: string;
+  pageDescription: string;
+  // Config 仓库配置区
+  configSection: string;
+  configRepo: string;
+  configRepoPlaceholder: string;
+  editConfig: string;
+  // 部署路径
+  pathsSection: string;
+  pathsSectionHint: string;
+  pathCol: string;
+  pathPlaceholder: string;
+  addPath: string;
+  deletePath: string;
+  noPathsHint: string;
+  // 调谐配置
+  pollInterval: string;
+  pollIntervalUnit: string;
+  autoDeploy: string;
+  autoDeployOn: string;
+  autoDeployOff: string;
+  autoDeployHint: string;
+  testConnection: string;
+  testConnectionSuccess: string;
+  testConnectionFailed: string;
+  // 当前状态区
+  statusSection: string;
+  pathStatusCol: string;
+  resourceCount: string;
+  statusCol: string;
+  statusInSync: string;
+  statusOutOfSync: string;
+  statusPending: string;
+  statusDeploying: string;
+  statusFailed: string;
+  noStatus: string;
+  noStatusHint: string;
+  syncNow: string;
+  // 部署历史区
+  historySection: string;
+  timeCol: string;
+  pathCol2: string;
+  triggerCol: string;
+  commitCol: string;
+  statusCol2: string;
+  triggerAuto: string;
+  triggerManual: string;
+  triggerRollback: string;
+  viewDetail: string;
+  rollbackBtn: string;
+  rollbackConfirm: string;
+  rollbackSuccess: string;
+  rollbackFailed: string;
+  noHistory: string;
+  noHistoryHint: string;
+  // 部署详情弹窗
+  detailTitle: string;
+  detailPath: string;
+  detailNamespace: string;
+  detailTrigger: string;
+  detailCommit: string;
+  detailCommitMessage: string;
+  detailDeployedAt: string;
+  detailDuration: string;
+  detailResourceChanged: string;
+  detailStatus: string;
+  detailErrorMessage: string;
+  // 状态
+  saveFailed: string;
+  saveSuccess: string;
+  loadFailed: string;
+  // 前置条件
+  githubNotConnected: string;
+  githubNotConnectedHint: string;
+  connectGithub: string;
+}
+
+// GitHub 集成页面翻译（/settings/github）
+export interface GitHubPageTranslations {
+  pageTitle: string;
+  pageDescription: string;
+  // 连接状态
+  statusConnected: string;
+  statusNotConnected: string;
+  connectButton: string;
+  disconnectButton: string;
+  disconnectConfirm: string;
+  connectedAs: string;
+  // 已授权仓库
+  reposSection: string;
+  reposCount: string;
+  enableMapping: string;
+  // 仓库映射
+  mappingSection: string;
+  mappingSectionHint: string;
+  repoCol: string;
+  clusterCol: string;
+  deploymentCol: string;
+  namespaceCol: string;
+  imageTagCol: string;
+  sourcePathCol: string;
+  confirmedCol: string;
+  addNamespace: string;
+  noNamespaceHint: string;
+  addMapping: string;
+  deleteMapping: string;
+  confirmMapping: string;
+  confirmMappingSuccess: string;
+  noRepos: string;
+  noReposHint: string;
+  // 状态
+  loadFailed: string;
+  saveFailed: string;
+}
+
 // 数据源管理页面翻译
 export interface DataSourceTranslations {
   pageTitle: string;
@@ -2339,6 +2459,8 @@ export interface Translations {
   logs: LogTranslations;
   dataSource: DataSourceTranslations;
   event: EventTranslations;
+  deployPage: DeployPageTranslations;
+  githubPage: GitHubPageTranslations;
 }
 
 // 国际化上下文

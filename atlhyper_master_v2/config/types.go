@@ -117,6 +117,15 @@ type AIOpsConfig struct {
 	FlushInterval time.Duration // 基线状态 flush 间隔（默认 5min）
 }
 
+// GitHubConfig GitHub App 配置
+type GitHubConfig struct {
+	AppID          int64  // GitHub App ID
+	ClientID       string // OAuth Client ID
+	ClientSecret   string // OAuth Client Secret
+	PrivateKeyPath string // Private Key PEM 文件路径
+	CallbackURL    string // OAuth 回调 URL
+}
+
 // AppConfig Master 顶层配置结构体
 type AppConfig struct {
 	Log            LogConfig
@@ -133,6 +142,7 @@ type AppConfig struct {
 	SLO            SLOConfig
 	MetricsPersist MetricsPersistConfig
 	AIOps          AIOpsConfig
+	GitHub         GitHubConfig
 }
 
 // GlobalConfig 全局配置实例

@@ -103,6 +103,14 @@ func LoadConfig() {
 		CleanupInterval: getDuration("MASTER_METRICS_CLEANUP_INTERVAL"),
 	}
 
+	GlobalConfig.GitHub = GitHubConfig{
+		AppID:          int64(getInt("GITHUB_APP_ID")),
+		ClientID:       getString("GITHUB_CLIENT_ID"),
+		ClientSecret:   getString("GITHUB_CLIENT_SECRET"),
+		PrivateKeyPath: getString("GITHUB_PRIVATE_KEY_PATH"),
+		CallbackURL:    getString("GITHUB_CALLBACK_URL"),
+	}
+
 	// 关键字段校验
 	validateRequired("MASTER_JWT_SECRET", GlobalConfig.JWT.SecretKey)
 	validateRequired("MASTER_ADMIN_USERNAME", GlobalConfig.Admin.Username)

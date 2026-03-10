@@ -38,6 +38,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/database/sqlite"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/gateway"
+	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/notifier/trigger"
@@ -506,6 +507,33 @@ func NewMaster() (*Master, error) {
 		log.Info("事件告警触发器初始化完成")
 	}
 
+	// 11.5 初始化 GitHub Client（可选，未配置则跳过）
+	var ghClient github.Client
+	if cfg.GitHub.AppID > 0 && cfg.GitHub.PrivateKeyPath != "" {
+		var err error
+		ghClient, err = github.NewClient(github.Config{
+			AppID:          cfg.GitHub.AppID,
+			ClientID:       cfg.GitHub.ClientID,
+			ClientSecret:   cfg.GitHub.ClientSecret,
+			PrivateKeyPath: cfg.GitHub.PrivateKeyPath,
+			CallbackURL:    cfg.GitHub.CallbackURL,
+		})
+		if err != nil {
+			log.Warn("GitHub Client 初始化失败，GitHub 集成不可用", "err", err)
+		} else {
+			// 从数据库恢复 Installation ID
+			inst, _ := db.GitHubInstall.Get(context.Background())
+			if inst != nil {
+				if setter, ok := ghClient.(interface{ SetInstallationID(int64) }); ok {
+					setter.SetInstallationID(inst.InstallationID)
+				}
+				log.Info("GitHub Client 初始化完成", "installationID", inst.InstallationID)
+			} else {
+				log.Info("GitHub Client 初始化完成（未连接）")
+			}
+		}
+	}
+
 	// 12. 初始化 Gateway
 	gw := gateway.NewServer(gateway.Config{
 		Port:           cfg.Server.GatewayPort,
@@ -514,6 +542,7 @@ func NewMaster() (*Master, error) {
 		Bus:            bus,
 		AIService:      aiService,
 		AnalyzeTrigger: aiopsEnricher,
+		GitHubClient:   ghClient,
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
 

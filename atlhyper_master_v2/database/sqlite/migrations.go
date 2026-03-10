@@ -363,6 +363,53 @@ func migrate(db *sql.DB) error {
 			FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_timeline_inc ON aiops_incident_timeline(incident_id, timestamp ASC)`,
+
+		// ==================== GitHub App 安装记录（单行）====================
+		`CREATE TABLE IF NOT EXISTS github_installations (
+			id              INTEGER PRIMARY KEY,
+			installation_id INTEGER NOT NULL UNIQUE,
+			account_login   TEXT NOT NULL,
+			created_at      TEXT NOT NULL
+		)`,
+
+		// ==================== 仓库映射配置 ====================
+		`CREATE TABLE IF NOT EXISTS repo_config (
+			id              INTEGER PRIMARY KEY AUTOINCREMENT,
+			repo            TEXT NOT NULL UNIQUE,
+			mapping_enabled INTEGER DEFAULT 0,
+			created_at      TEXT NOT NULL,
+			updated_at      TEXT NOT NULL
+		)`,
+
+		// ==================== 部署配置（每集群一条）====================
+		`CREATE TABLE IF NOT EXISTS deploy_config (
+			id            INTEGER PRIMARY KEY,
+			cluster_id    TEXT NOT NULL UNIQUE,
+			repo_url      TEXT NOT NULL,
+			paths         TEXT NOT NULL DEFAULT '[]',
+			interval_sec  INTEGER DEFAULT 60,
+			auto_deploy   INTEGER DEFAULT 1,
+			created_at    TEXT NOT NULL,
+			updated_at    TEXT NOT NULL
+		)`,
+
+		// ==================== 部署历史 ====================
+		`CREATE TABLE IF NOT EXISTS deploy_history (
+			id                INTEGER PRIMARY KEY AUTOINCREMENT,
+			cluster_id        TEXT NOT NULL,
+			path              TEXT NOT NULL,
+			namespace         TEXT NOT NULL,
+			commit_sha        TEXT NOT NULL,
+			commit_message    TEXT,
+			deployed_at       TEXT NOT NULL,
+			trigger           TEXT NOT NULL DEFAULT 'auto',
+			status            TEXT DEFAULT 'pending',
+			duration_ms       INTEGER DEFAULT 0,
+			resource_total    INTEGER DEFAULT 0,
+			resource_changed  INTEGER DEFAULT 0,
+			error_message     TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_deploy_history_lookup ON deploy_history(cluster_id, path, deployed_at DESC)`,
 	}
 
 	for _, m := range migrations {

@@ -19,8 +19,10 @@ import (
 	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
 	k8sHandler "AtlHyper/atlhyper_master_v2/gateway/handler/k8s"
 	observeHandler "AtlHyper/atlhyper_master_v2/gateway/handler/observe"
+	settingsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/settings"
 	sloHandler "AtlHyper/atlhyper_master_v2/gateway/handler/slo"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
+	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 )
@@ -34,10 +36,11 @@ type Router struct {
 	bus            mq.Producer
 	aiService      ai.AIService
 	analyzeTrigger aiopsHandler.AnalyzeTrigger
+	ghClient       github.Client
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger) *Router {
+func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client) *Router {
 	return &Router{
 		mux:            http.NewServeMux(),
 		publicMux:      http.NewServeMux(),
@@ -46,6 +49,7 @@ func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.A
 		bus:            bus,
 		aiService:      aiSvc,
 		analyzeTrigger: trigger,
+		ghClient:       ghClient,
 	}
 }
 
@@ -333,6 +337,42 @@ func (r *Router) registerRoutes() {
 	// 用户管理、系统配置
 	// 所有管理操作都需要审计
 	// ================================================================
+
+	// ================================================================
+	// GitHub 集成路由（需要 Admin 权限）
+	// ================================================================
+	if r.ghClient != nil {
+		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.database.GitHubInstall, r.database.RepoConfig)
+		deployH := adminHandler.NewDeployHandler(r.ghClient, r.database.DeployConfig, r.database.DeployHistory, r.database.GitHubInstall)
+
+		// GitHub 连接状态（公开读取）
+		r.public(func(register func(pattern string, h http.HandlerFunc)) {
+			register("/api/github/connection", githubH.Connection)
+		})
+
+		// GitHub 连接管理（Admin 权限，审计）
+		r.adminAudited("/api/github/connect", "create", "github", githubH.Connect)
+		r.adminAudited("/api/github/callback", "create", "github", githubH.Callback)
+		r.adminAudited("/api/github/disconnect", "delete", "github", githubH.Disconnect)
+
+		// 仓库管理（Admin 权限）
+		r.admin(func(register func(pattern string, h http.HandlerFunc)) {
+			register("/api/github/repos", githubH.Repos)
+			register("/api/github/repos/", githubH.RepoSubRoute)
+		})
+
+		// 部署配置（Admin 权限）
+		r.admin(func(register func(pattern string, h http.HandlerFunc)) {
+			register("/api/deploy/config", deployH.Config)
+			register("/api/deploy/kustomize-paths", deployH.KustomizePaths)
+			register("/api/deploy/test-connection", deployH.TestConnection)
+		})
+
+		// 部署历史（公开读取）
+		r.public(func(register func(pattern string, h http.HandlerFunc)) {
+			register("/api/deploy/history", deployH.History)
+		})
+	}
 
 	// 用户列表查询（不审计，只是查看）
 	r.admin(func(register func(pattern string, h http.HandlerFunc)) {

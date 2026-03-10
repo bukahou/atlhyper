@@ -432,3 +432,59 @@ type AIOpsRootCauseCount struct {
 	EntityKey string
 	Count     int
 }
+
+// ==================== GitHub Integration 模型定义 ====================
+
+// GitHubInstallation GitHub App 安装记录
+type GitHubInstallation struct {
+	ID             int64
+	InstallationID int64
+	AccountLogin   string
+	CreatedAt      time.Time
+}
+
+// RepoConfig 仓库映射配置
+type RepoConfig struct {
+	ID             int64
+	Repo           string // e.g. "wuxiafeng/Config"
+	MappingEnabled bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// DeployConfig 部署配置
+type DeployConfig struct {
+	ID          int64
+	ClusterID   string
+	RepoURL     string
+	Paths       string // JSON array of paths
+	IntervalSec int
+	AutoDeploy  bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// DeployHistory 部署历史记录
+type DeployHistory struct {
+	ID              int64
+	ClusterID       string
+	Path            string
+	Namespace       string
+	CommitSHA       string
+	CommitMessage   string
+	DeployedAt      time.Time
+	Trigger         string // auto, manual, rollback
+	Status          string // pending, success, failed
+	DurationMs      int
+	ResourceTotal   int
+	ResourceChanged int
+	ErrorMessage    string
+}
+
+// DeployHistoryQueryOpts 部署历史查询选项
+type DeployHistoryQueryOpts struct {
+	ClusterID string
+	Path      string
+	Limit     int
+	Offset    int
+}

@@ -32,6 +32,8 @@ import {
   UserCheck,
   Waypoints,
   ToggleLeft,
+  Rocket,
+  Github,
 } from "lucide-react";
 import type { Language, Theme } from "@/types/common";
 import { UserRole } from "@/types/auth";
@@ -123,6 +125,7 @@ export const navGroups: NavGroup[] = [
     children: [
       { key: "aiSettings", href: "/settings/ai", icon: Bot },
       { key: "notifications", href: "/settings/notif", icon: Bell },
+      { key: "github", href: "/settings/github", icon: Github },
     ],
   },
   {
@@ -133,6 +136,7 @@ export const navGroups: NavGroup[] = [
       { key: "roles", href: "/admin/roles", icon: ShieldCheck },
       { key: "audit", href: "/admin/audit", icon: ClipboardList },
       { key: "commands", href: "/admin/commands", icon: ClipboardList },
+      { key: "deploy", href: "/admin/deploy", icon: Rocket },
       { key: "datasource", href: "/admin/datasource", icon: ToggleLeft },
     ],
   },

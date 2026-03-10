@@ -64,6 +64,9 @@ var defaultInts = map[string]int{
 
 	// -------------------- 节点指标持久化 --------------------
 	"MASTER_METRICS_RETENTION_DAYS": 30, // 历史数据保留天数
+
+	// -------------------- GitHub 配置 --------------------
+	"GITHUB_APP_ID": 0, // GitHub App ID
 }
 
 // ============================================================
@@ -100,6 +103,12 @@ var defaultStrings = map[string]string{
 	"MASTER_AI_SEED_API_KEY":  "", // 种子 API Key
 	"MASTER_AI_SEED_MODEL":    "", // 种子模型名称
 	"MASTER_AI_SEED_BASE_URL": "", // 种子自定义 API 地址
+
+	// -------------------- GitHub 配置 --------------------
+	"GITHUB_CLIENT_ID":       "",                                          // GitHub OAuth Client ID
+	"GITHUB_CLIENT_SECRET":   "",                                          // GitHub OAuth Client Secret
+	"GITHUB_PRIVATE_KEY_PATH": "",                                         // GitHub Private Key PEM 文件路径
+	"GITHUB_CALLBACK_URL":    "http://localhost:3000/auth/github/callback", // GitHub OAuth 回调 URL
 }
 
 // ============================================================

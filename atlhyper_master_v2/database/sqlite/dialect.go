@@ -29,6 +29,11 @@ type Dialect struct {
 	aiopsBaseline *aIOpsBaselineDialect
 	aiopsGraph      *aIOpsGraphDialect
 	aiopsIncident   *aIOpsIncidentDialect
+
+	gitHubInstall *gitHubInstallDialect
+	repoConfig    *repoConfigDialect
+	deployConfig  *deployConfigDialect
+	deployHistory *deployHistoryDialect
 }
 
 // NewDialect 创建 SQLite 方言
@@ -53,6 +58,11 @@ func NewDialect() *Dialect {
 		aiopsBaseline: &aIOpsBaselineDialect{},
 		aiopsGraph:      &aIOpsGraphDialect{},
 		aiopsIncident:   &aIOpsIncidentDialect{},
+
+		gitHubInstall: &gitHubInstallDialect{},
+		repoConfig:    &repoConfigDialect{},
+		deployConfig:  &deployConfigDialect{},
+		deployHistory: &deployHistoryDialect{},
 	}
 }
 
@@ -75,6 +85,11 @@ func (d *Dialect) AIReport() database.AIReportDialect               { return d.a
 func (d *Dialect) AIOpsBaseline() database.AIOpsBaselineDialect     { return d.aiopsBaseline }
 func (d *Dialect) AIOpsGraph() database.AIOpsGraphDialect           { return d.aiopsGraph }
 func (d *Dialect) AIOpsIncident() database.AIOpsIncidentDialect     { return d.aiopsIncident }
+
+func (d *Dialect) GitHubInstall() database.GitHubInstallDialect   { return d.gitHubInstall }
+func (d *Dialect) RepoConfig() database.RepoConfigDialect         { return d.repoConfig }
+func (d *Dialect) DeployConfig() database.DeployConfigDialect     { return d.deployConfig }
+func (d *Dialect) DeployHistory() database.DeployHistoryDialect   { return d.deployHistory }
 
 func (d *Dialect) Migrate(db *sql.DB) error {
 	return migrate(db)
