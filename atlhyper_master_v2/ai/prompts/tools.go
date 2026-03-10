@@ -101,6 +101,116 @@ const toolsJSON = `[
         }
       }
     }
+  },
+  {
+    "name": "query_traces",
+    "description": "查询 APM 分布式追踪数据。可按服务名、操作名、错误状态过滤。返回 Trace 摘要列表含耗时、Span 数、错误信息。最多返回 10 条。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "description": "服务名过滤（如 geass-gateway）"
+        },
+        "operation": {
+          "type": "string",
+          "description": "操作名过滤（如 GET /api/v1/users）"
+        },
+        "min_duration_ms": {
+          "type": "number",
+          "description": "最小耗时（毫秒），用于查找慢请求"
+        },
+        "status_code": {
+          "type": "string",
+          "description": "HTTP 状态码过滤（如 500、404）"
+        },
+        "since": {
+          "type": "string",
+          "description": "时间范围，如 5m、1h、24h。默认 1h",
+          "default": "1h"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "query_logs",
+    "description": "查询 OpenTelemetry 结构化日志。支持全文搜索、按服务/级别/TraceId 过滤。最多返回 20 条，日志 Body 截断为 200 字符。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "全文搜索关键词（模糊匹配日志 Body）"
+        },
+        "service": {
+          "type": "string",
+          "description": "服务名过滤"
+        },
+        "level": {
+          "type": "string",
+          "enum": ["DEBUG", "INFO", "WARN", "ERROR"],
+          "description": "日志级别过滤"
+        },
+        "trace_id": {
+          "type": "string",
+          "description": "按 TraceId 过滤（跨信号关联）"
+        },
+        "since": {
+          "type": "string",
+          "description": "时间范围，如 15m、1h、24h。默认 1h",
+          "default": "1h"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "query_slo",
+    "description": "查询 SLO 指标数据。返回服务/域名的可用性、延迟分位数（P50/P90/P99）、错误率、RPS。支持 1 天/7 天/30 天窗口。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "description": "服务名（Linkerd mesh 服务）"
+        },
+        "domain": {
+          "type": "string",
+          "description": "域名（Traefik ingress 域名）"
+        },
+        "window": {
+          "type": "string",
+          "enum": ["1d", "7d", "30d"],
+          "description": "时间窗口，默认 7d",
+          "default": "7d"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "get_entity_detail",
+    "description": "获取特定实体（Pod/Service/Node/Ingress）的风险详情。包含：风险分数、异常指标列表、因果树（上下游异常实体关系）、传播路径。用于深度分析某个实体为什么异常。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "entity_type": {
+          "type": "string",
+          "enum": ["pod", "service", "node", "ingress"],
+          "description": "实体类型"
+        },
+        "entity_name": {
+          "type": "string",
+          "description": "实体名称"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "命名空间（Pod/Service 必需，Node/Ingress 可选）"
+        }
+      },
+      "required": ["entity_type", "entity_name"]
+    }
   }
 ]`
 

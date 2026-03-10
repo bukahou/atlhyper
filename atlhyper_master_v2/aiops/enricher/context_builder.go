@@ -9,6 +9,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/model_v3/cluster"
 )
 
 // 条目上限常量 — 防止超长 Prompt
@@ -152,6 +153,131 @@ func buildHistorical(incidents []*database.AIOpsIncident) string {
 		b.WriteString(fmt.Sprintf("  ... 省略 %d 个事件\n", total-MaxHistoricalEntries))
 	}
 	return b.String()
+}
+
+// buildOTelContext 从 OTelSnapshot 过滤受影响服务的错误 Traces/Logs/SLO
+func buildOTelContext(otel *cluster.OTelSnapshot, entities []*database.AIOpsIncidentEntity) (traces, logs, sloCtx string) {
+	if otel == nil {
+		return "", "", ""
+	}
+
+	// 提取受影响的服务名列表
+	affectedServices := extractAffectedServices(entities)
+	if len(affectedServices) == 0 {
+		return "", "", ""
+	}
+
+	// 1. 错误 Traces（Top 5）
+	var traceLines []string
+	count := 0
+	for _, t := range otel.RecentTraces {
+		if count >= 5 {
+			break
+		}
+		if t.HasError && containsService(affectedServices, t.RootService) {
+			traceLines = append(traceLines, fmt.Sprintf(
+				"- [%s] %s %s 耗时=%.0fms Spans=%d 错误=%s",
+				t.Timestamp.Format("15:04:05"),
+				t.RootService, t.RootOperation,
+				t.DurationMs, t.SpanCount, t.ErrorMessage,
+			))
+			count++
+		}
+	}
+	if len(traceLines) > 0 {
+		traces = strings.Join(traceLines, "\n")
+	}
+
+	// 2. ERROR 日志（Top 10）
+	var logLines []string
+	count = 0
+	for _, l := range otel.RecentLogs {
+		if count >= 10 {
+			break
+		}
+		if l.Severity == "ERROR" && containsService(affectedServices, l.ServiceName) {
+			body := l.Body
+			if len(body) > 200 {
+				body = body[:200] + "..."
+			}
+			logLines = append(logLines, fmt.Sprintf(
+				"- [%s] %s: %s",
+				l.Timestamp.Format("15:04:05"),
+				l.ServiceName, body,
+			))
+			count++
+		}
+	}
+	if len(logLines) > 0 {
+		logs = strings.Join(logLines, "\n")
+	}
+
+	// 3. SLO 摘要
+	var sloLines []string
+	serviceSet := make(map[string]bool)
+	for _, s := range affectedServices {
+		serviceSet[s] = true
+	}
+
+	// 从实时 SLO 列表中匹配
+	for _, s := range otel.SLOIngress {
+		if serviceSet[s.ServiceKey] || serviceSet[s.DisplayName] {
+			sloLines = append(sloLines, fmt.Sprintf(
+				"- %s: SuccessRate=%.2f%% ErrorRate=%.4f%% P99=%.1fms RPS=%.1f",
+				s.ServiceKey, s.SuccessRate*100, s.ErrorRate*100, s.P99Ms, s.RPS,
+			))
+		}
+	}
+	for _, s := range otel.SLOServices {
+		if serviceSet[s.Name] {
+			sloLines = append(sloLines, fmt.Sprintf(
+				"- %s/%s: SuccessRate=%.2f%% P99=%.1fms RPS=%.1f",
+				s.Namespace, s.Name, s.SuccessRate*100, s.P99Ms, s.RPS,
+			))
+		}
+	}
+	if len(sloLines) > 0 {
+		sloCtx = strings.Join(sloLines, "\n")
+	}
+
+	return traces, logs, sloCtx
+}
+
+// extractAffectedServices 从事件实体中提取服务名列表
+func extractAffectedServices(entities []*database.AIOpsIncidentEntity) []string {
+	seen := make(map[string]bool)
+	var services []string
+	for _, e := range entities {
+		// entityKey 格式: "type:namespace/name" 或 "type:name"
+		name := extractServiceName(e.EntityKey)
+		if name != "" && !seen[name] {
+			seen[name] = true
+			services = append(services, name)
+		}
+	}
+	return services
+}
+
+// extractServiceName 从 entityKey 提取服务/Pod 名称
+func extractServiceName(entityKey string) string {
+	// 格式: "default/service/geass-gateway" → "geass-gateway"
+	// 格式: "default/pod/geass-auth-xxx" → "geass-auth-xxx"
+	// 格式: "_cluster/node/worker-3" → "worker-3"
+	parts := strings.Split(entityKey, "/")
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[len(parts)-1]
+}
+
+// containsService 检查服务名是否在列表中（支持前缀匹配）
+func containsService(services []string, target string) bool {
+	for _, s := range services {
+		if s == target || strings.HasPrefix(target, s) || strings.HasPrefix(s, target) {
+			return true
+		}
+	}
+	return false
 }
 
 // formatDuration 格式化持续时间（秒 → 人类可读）

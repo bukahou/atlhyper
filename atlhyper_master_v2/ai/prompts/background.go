@@ -12,6 +12,11 @@ type IncidentPromptContext struct {
 	AffectedEntities string // 受影响实体及其风险评分
 	RootCauseEntity  string // 根因实体详情
 	HistoricalContext string // 历史相似事件
+
+	// OTel 上下文（Phase 3 新增）
+	RecentErrorTraces string // 受影响服务的最近错误 Traces（Top 5）
+	RecentErrorLogs   string // 受影响服务的最近 ERROR 日志（Top 10）
+	SLOContext        string // 受影响服务的 SLO 变化摘要
 }
 
 // PromptPair 系统提示词 + 用户消息
@@ -57,13 +62,25 @@ const backgroundUserTemplate = `请分析以下 Kubernetes 集群事件:
 
 // BuildBackgroundPrompt 构建 background 角色完整 Prompt
 func BuildBackgroundPrompt(ctx *IncidentPromptContext) *PromptPair {
-	userContent := fmt.Sprintf(backgroundUserTemplate,
-		ctx.IncidentSummary+"\n\n"+
-			ctx.RootCauseEntity+"\n\n"+
-			ctx.AffectedEntities+"\n\n"+
-			ctx.TimelineText+"\n\n"+
-			ctx.HistoricalContext,
-	)
+	// 基础上下文
+	content := ctx.IncidentSummary + "\n\n" +
+		ctx.RootCauseEntity + "\n\n" +
+		ctx.AffectedEntities + "\n\n" +
+		ctx.TimelineText + "\n\n" +
+		ctx.HistoricalContext
+
+	// OTel 上下文（非空时追加）
+	if ctx.RecentErrorTraces != "" {
+		content += "\n\n## 最近错误 Traces\n" + ctx.RecentErrorTraces
+	}
+	if ctx.RecentErrorLogs != "" {
+		content += "\n\n## 最近 ERROR 日志\n" + ctx.RecentErrorLogs
+	}
+	if ctx.SLOContext != "" {
+		content += "\n\n## SLO 指标\n" + ctx.SLOContext
+	}
+
+	userContent := fmt.Sprintf(backgroundUserTemplate, content)
 	return &PromptPair{
 		System: backgroundSystem,
 		User:   userContent,

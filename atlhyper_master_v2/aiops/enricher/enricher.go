@@ -14,6 +14,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
 )
 
@@ -82,6 +83,7 @@ type Enricher struct {
 	incidentRepo database.AIOpsIncidentRepository
 	reportRepo   database.AIReportRepository // 报告持久化（可选）
 	aiService    ai.AIService                // 通过接口调用 AI 能力
+	store        datahub.Store               // 数据存储（读取 OTelSnapshot，可选）
 
 	// 后台自动触发器（可选）
 	bgTrigger *backgroundTrigger
@@ -118,6 +120,11 @@ func NewEnricher(
 		maxCache:       defaultMaxCache,
 		cacheTTL:       defaultCacheTTL,
 	}
+}
+
+// SetStore 设置数据存储（用于读取 OTelSnapshot 丰富事件上下文）
+func (e *Enricher) SetStore(store datahub.Store) {
+	e.store = store
 }
 
 // EnableBackgroundTrigger 启用后台自动触发器
@@ -469,6 +476,17 @@ func (e *Enricher) buildPromptWithTruncation(
 	warnChars := maxChars * 3 / 4
 
 	incidentCtx := BuildIncidentContext(incident, entities, timeline, historical)
+
+	// 丰富 OTel 上下文（如果 Store 可用）
+	if e.store != nil && incident.ClusterID != "" {
+		if snapshot, err := e.store.GetSnapshot(incident.ClusterID); err == nil && snapshot != nil {
+			traces, logs, sloCtx := buildOTelContext(snapshot.OTel, entities)
+			incidentCtx.RecentErrorTraces = traces
+			incidentCtx.RecentErrorLogs = logs
+			incidentCtx.SLOContext = sloCtx
+		}
+	}
+
 	prompt := prompts.BuildBackgroundPrompt(incidentCtx)
 	totalChars := len(prompt.System) + len(prompt.User)
 

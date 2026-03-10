@@ -32,6 +32,8 @@ import (
 	aiopscore "AtlHyper/atlhyper_master_v2/aiops/core"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/model_v3/command"
 	"AtlHyper/atlhyper_master_v2/database/repo"
 	"AtlHyper/atlhyper_master_v2/database/sqlite"
 	"AtlHyper/atlhyper_master_v2/datahub"
@@ -186,6 +188,7 @@ func NewMaster() (*Master, error) {
 
 	// 7.1 初始化 AIOps Enricher（通过 ai.AIService 接口调用 LLM，不再直接操作 ai/llm）
 	aiopsEnricher := enricher.NewEnricher(db.AIOpsIncident, db.AIReport, aiService)
+	aiopsEnricher.SetStore(store) // OTel 上下文丰富：读取 OTelSnapshot
 	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
 	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
@@ -255,7 +258,225 @@ func NewMaster() (*Master, error) {
 		})
 		return string(data), nil
 	})
-	log.Info("AIOps Tool 注册完成 (3 个)")
+	// 9.1 注册 OTel 查询 Tool（Command 路径：query_traces / query_logs）
+	toolTimeout := cfg.AI.ToolTimeout
+
+	aiService.RegisterTool("query_traces", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		cmdParams := map[string]interface{}{
+			"sub_action": "list_traces",
+			"limit":      10,
+		}
+		if s := getStringParam(params, "service"); s != "" {
+			cmdParams["service"] = s
+		}
+		if s := getStringParam(params, "operation"); s != "" {
+			cmdParams["operation"] = s
+		}
+		if v, ok := params["min_duration_ms"]; ok {
+			if d, ok := v.(float64); ok && d > 0 {
+				cmdParams["min_duration_ms"] = d
+			}
+		}
+		if s := getStringParam(params, "status_code"); s != "" {
+			cmdParams["status_code"] = s
+		}
+		since := getStringParam(params, "since")
+		if since == "" {
+			since = "1h"
+		}
+		cmdParams["since"] = since
+
+		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
+			ClusterID: clusterID,
+			Action:    command.ActionQueryTraces,
+			Source:    "ai",
+			Params:    cmdParams,
+		})
+		if err != nil {
+			return fmt.Sprintf("创建查询命令失败: %v", err), nil
+		}
+		result, err := bus.WaitCommandResult(ctx, resp.CommandID, toolTimeout)
+		if err != nil {
+			return fmt.Sprintf("查询超时: %v", err), nil
+		}
+		if result == nil {
+			return "查询超时: 未收到 Agent 响应", nil
+		}
+		if !result.Success {
+			return fmt.Sprintf("查询失败: %s", result.Error), nil
+		}
+		return ai.TruncateToolResult(result.Output, "traces"), nil
+	})
+
+	aiService.RegisterTool("query_logs", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		cmdParams := map[string]interface{}{
+			"limit": 20,
+		}
+		if s := getStringParam(params, "query"); s != "" {
+			cmdParams["query"] = s
+		}
+		if s := getStringParam(params, "service"); s != "" {
+			cmdParams["service"] = s
+		}
+		if s := getStringParam(params, "level"); s != "" {
+			cmdParams["level"] = s
+		}
+		if s := getStringParam(params, "trace_id"); s != "" {
+			cmdParams["trace_id"] = s
+		}
+		since := getStringParam(params, "since")
+		if since == "" {
+			since = "1h"
+		}
+		cmdParams["since"] = since
+
+		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
+			ClusterID: clusterID,
+			Action:    command.ActionQueryLogs,
+			Source:    "ai",
+			Params:    cmdParams,
+		})
+		if err != nil {
+			return fmt.Sprintf("创建查询命令失败: %v", err), nil
+		}
+		result, err := bus.WaitCommandResult(ctx, resp.CommandID, toolTimeout)
+		if err != nil {
+			return fmt.Sprintf("查询超时: %v", err), nil
+		}
+		if result == nil {
+			return "查询超时: 未收到 Agent 响应", nil
+		}
+		if !result.Success {
+			return fmt.Sprintf("查询失败: %s", result.Error), nil
+		}
+		return ai.TruncateToolResult(result.Output, "logs"), nil
+	})
+
+	// 9.2 注册内存直读 Tool（query_slo / get_entity_detail）
+	aiService.RegisterTool("query_slo", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		window := getStringParam(params, "window")
+		if window == "" {
+			window = "7d"
+		}
+		serviceName := getStringParam(params, "service")
+		domain := getStringParam(params, "domain")
+
+		snapshot, err := store.GetSnapshot(clusterID)
+		if err != nil || snapshot == nil || snapshot.OTel == nil {
+			return "当前无 OTel 数据", nil
+		}
+		otel := snapshot.OTel
+
+		var services []map[string]interface{}
+
+		// 从 SLOWindows 获取预聚合数据
+		// 过滤规则: 指定 service → 只返回 mesh; 指定 domain → 只返回 ingress; 都不指定 → 返回全部
+		if windowData, ok := otel.SLOWindows[window]; ok && windowData != nil {
+			if serviceName == "" { // 未指定 service 时才包含 ingress
+				for _, s := range windowData.Current {
+					if domain != "" && s.ServiceKey != domain {
+						continue
+					}
+					services = append(services, map[string]interface{}{
+						"name":        s.ServiceKey,
+						"type":        "ingress",
+						"rps":         s.RPS,
+						"successRate": s.SuccessRate,
+						"errorRate":   s.ErrorRate,
+						"p50Ms":       s.P50Ms,
+						"p90Ms":       s.P90Ms,
+						"p99Ms":       s.P99Ms,
+					})
+				}
+			}
+			if domain == "" { // 未指定 domain 时才包含 mesh
+				for _, s := range windowData.MeshServices {
+					if serviceName != "" && s.Name != serviceName {
+						continue
+					}
+					services = append(services, map[string]interface{}{
+						"name":        s.Name,
+						"namespace":   s.Namespace,
+						"type":        "mesh",
+						"rps":         s.RPS,
+						"successRate": s.SuccessRate,
+						"p50Ms":       s.P50Ms,
+						"p90Ms":       s.P90Ms,
+						"p99Ms":       s.P99Ms,
+					})
+				}
+			}
+		} else {
+			// 降级：从实时 SLO 列表获取
+			if serviceName == "" {
+				for _, s := range otel.SLOIngress {
+					if domain != "" && s.ServiceKey != domain {
+						continue
+					}
+					services = append(services, map[string]interface{}{
+						"name":        s.ServiceKey,
+						"type":        "ingress",
+						"rps":         s.RPS,
+						"successRate": s.SuccessRate,
+						"errorRate":   s.ErrorRate,
+						"p50Ms":       s.P50Ms,
+						"p90Ms":       s.P90Ms,
+						"p99Ms":       s.P99Ms,
+					})
+				}
+			}
+			if domain == "" {
+				for _, s := range otel.SLOServices {
+					if serviceName != "" && s.Name != serviceName {
+						continue
+					}
+					services = append(services, map[string]interface{}{
+						"name":        s.Name,
+						"namespace":   s.Namespace,
+						"type":        "mesh",
+						"rps":         s.RPS,
+						"successRate": s.SuccessRate,
+						"p50Ms":       s.P50Ms,
+						"p90Ms":       s.P90Ms,
+						"p99Ms":       s.P99Ms,
+					})
+				}
+			}
+		}
+
+		if len(services) > 50 {
+			services = services[:50]
+		}
+
+		data, _ := json.Marshal(map[string]interface{}{
+			"window":   window,
+			"services": services,
+			"count":    len(services),
+		})
+		return string(data), nil
+	})
+
+	aiService.RegisterTool("get_entity_detail", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		entityType := getStringParam(params, "entity_type")
+		entityName := getStringParam(params, "entity_name")
+		namespace := getStringParam(params, "namespace")
+
+		if entityType == "" || entityName == "" {
+			return "缺少参数 entity_type 和 entity_name", nil
+		}
+
+		entityKey := ai.BuildEntityKey(entityType, namespace, entityName)
+		detail := aiopsEngine.GetEntityRisk(clusterID, entityKey)
+		if detail == nil {
+			return fmt.Sprintf("未找到实体 %s（可能不在依赖图中或无异常数据）", entityKey), nil
+		}
+
+		result := ai.SimplifyEntityDetail(detail)
+		data, _ := json.Marshal(result)
+		return string(data), nil
+	})
+
+	log.Info("AI Tool 注册完成 (7 个)")
 
 	// 10. 初始化 AlertManager（告警管理器）
 	alertMgr, err := notifier.NewManager(db.Notify)

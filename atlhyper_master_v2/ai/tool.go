@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service/operations"
@@ -199,6 +200,109 @@ var forbiddenNamespaces = map[string]bool{
 // 禁止的资源类型
 var forbiddenResources = map[string]bool{
 	"Secret": true,
+}
+
+// ==================== AI Tool 辅助函数 ====================
+
+// TruncateToolResult 精简 AI Tool 返回数据，避免 LLM 上下文爆炸
+func TruncateToolResult(raw string, dataType string) string {
+	switch dataType {
+	case "traces":
+		var traces []json.RawMessage
+		if err := json.Unmarshal([]byte(raw), &traces); err != nil {
+			return raw
+		}
+		if len(traces) > 10 {
+			traces = traces[:10]
+		}
+		data, _ := json.Marshal(map[string]interface{}{
+			"traces":  traces,
+			"showing": len(traces),
+		})
+		return string(data)
+
+	case "logs":
+		var qr struct {
+			Logs  []json.RawMessage `json:"logs"`
+			Total int64             `json:"total"`
+		}
+		if err := json.Unmarshal([]byte(raw), &qr); err != nil {
+			return raw
+		}
+		truncated := truncateLogBodies(qr.Logs, 200)
+		if len(truncated) > 20 {
+			truncated = truncated[:20]
+		}
+		data, _ := json.Marshal(map[string]interface{}{
+			"logs":    truncated,
+			"total":   qr.Total,
+			"showing": len(truncated),
+			"hint":    fmt.Sprintf("共 %d 条日志，显示最近 %d 条", qr.Total, len(truncated)),
+		})
+		return string(data)
+	}
+	return raw
+}
+
+// truncateLogBodies 截断每条日志的 Body 字段
+func truncateLogBodies(logs []json.RawMessage, maxLen int) []json.RawMessage {
+	result := make([]json.RawMessage, 0, len(logs))
+	for _, raw := range logs {
+		var entry map[string]interface{}
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			result = append(result, raw)
+			continue
+		}
+		if body, ok := entry["body"].(string); ok && len(body) > maxLen {
+			entry["body"] = body[:maxLen] + "(truncated)"
+		}
+		data, _ := json.Marshal(entry)
+		result = append(result, data)
+	}
+	return result
+}
+
+// BuildEntityKey 构造 AIOps Engine 内部的 entityKey 格式
+// 格式: "namespace/entityType/name"（与 aiops.EntityKey() 一致）
+// 示例: "default/pod/api-1", "_cluster/node/worker-3", "default/service/api"
+func BuildEntityKey(entityType, namespace, name string) string {
+	if namespace == "" {
+		switch entityType {
+		case "node":
+			namespace = "_cluster"
+		default:
+			namespace = "default"
+		}
+	}
+	return namespace + "/" + entityType + "/" + name
+}
+
+// SimplifyEntityDetail 精简 EntityRiskDetail 用于 AI 返回
+// 只保留异常指标，减少 LLM 上下文消耗
+func SimplifyEntityDetail(detail *aiops.EntityRiskDetail) map[string]interface{} {
+	var anomalyMetrics []map[string]interface{}
+	for _, m := range detail.Metrics {
+		if m.IsAnomaly {
+			anomalyMetrics = append(anomalyMetrics, map[string]interface{}{
+				"metricName":   m.MetricName,
+				"currentValue": m.CurrentValue,
+				"baseline":     m.Baseline,
+				"deviation":    m.Deviation,
+			})
+		}
+	}
+
+	return map[string]interface{}{
+		"entityKey":   detail.EntityKey,
+		"entityType":  detail.EntityType,
+		"namespace":   detail.Namespace,
+		"name":        detail.Name,
+		"rFinal":      detail.RFinal,
+		"riskLevel":   detail.RiskLevel,
+		"metrics":     anomalyMetrics,
+		"causalTree":  detail.CausalTree,
+		"propagation": detail.Propagation,
+	}
 }
 
 // BlacklistCheck 黑名単校验
