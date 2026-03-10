@@ -60,7 +60,8 @@ const (
 	ActionGetLogs      = "get_logs"
 	ActionGetConfigMap = "get_configmap"
 	ActionGetSecret    = "get_secret"
-	ActionDynamic      = "dynamic"
+	ActionDynamic        = "dynamic"
+	ActionApplyManifests = "apply_manifests"
 
 	// ClickHouse 查询动作
 	ActionQueryTraces      = "query_traces"
@@ -76,7 +77,7 @@ var ValidActions = map[string]bool{
 	ActionDeletePod: true, ActionExec: true, ActionCordon: true,
 	ActionUncordon: true, ActionDrain: true, ActionUpdateImage: true,
 	ActionGetLogs: true, ActionGetConfigMap: true, ActionGetSecret: true,
-	ActionDynamic: true,
+	ActionDynamic: true, ActionApplyManifests: true,
 	ActionQueryTraces: true, ActionQueryTraceDetail: true,
 	ActionQueryLogs: true, ActionQueryMetrics: true, ActionQuerySLO: true,
 }

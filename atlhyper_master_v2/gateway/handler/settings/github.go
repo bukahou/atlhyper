@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/database"
@@ -20,6 +21,7 @@ type GitHubHandler struct {
 	ghClient    github.Client
 	installRepo database.GitHubInstallationRepository
 	repoConfig  database.RepoConfigRepository
+	db          *database.DB
 }
 
 // NewGitHubHandler 创建 GitHubHandler
@@ -27,11 +29,13 @@ func NewGitHubHandler(
 	ghClient github.Client,
 	installRepo database.GitHubInstallationRepository,
 	repoConfig database.RepoConfigRepository,
+	db *database.DB,
 ) *GitHubHandler {
 	return &GitHubHandler{
 		ghClient:    ghClient,
 		installRepo: installRepo,
 		repoConfig:  repoConfig,
+		db:          db,
 	}
 }
 
@@ -263,6 +267,10 @@ func (h *GitHubHandler) RepoSubRoute(w http.ResponseWriter, r *http.Request) {
 		h.RepoMapping(w, r)
 	} else if strings.HasSuffix(path, "/dirs") {
 		h.RepoDirs(w, r)
+	} else if strings.Contains(path, "/namespaces/") {
+		h.NamespaceDelete(w, r)
+	} else if strings.HasSuffix(path, "/namespaces") {
+		h.Namespaces(w, r)
 	} else {
 		handler.WriteError(w, http.StatusNotFound, "未知的路由")
 	}
@@ -290,6 +298,235 @@ func (h *GitHubHandler) RepoDirs(w http.ResponseWriter, r *http.Request) {
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"data": dirs,
 	})
+}
+
+// Namespaces POST /api/github/repos/{owner}/{repo}/namespaces — 添加命名空间
+func (h *GitHubHandler) Namespaces(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	repo := extractRepoFromPath(r.URL.Path, "/api/github/repos/", "/namespaces")
+	if repo == "" {
+		handler.WriteError(w, http.StatusBadRequest, "缺少仓库名")
+		return
+	}
+
+	var req struct {
+		Namespace string `json:"namespace"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Namespace == "" {
+		handler.WriteError(w, http.StatusBadRequest, "缺少 namespace 参数")
+		return
+	}
+
+	if err := h.db.RepoNamespace.Add(r.Context(), repo, req.Namespace); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "添加命名空间失败")
+		return
+	}
+
+	// 返回更新后的命名空间列表
+	namespaces, err := h.db.RepoNamespace.ListByRepo(r.Context(), repo)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "获取命名空间列表失败")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "命名空间已添加",
+		"data":    namespaces,
+	})
+}
+
+// NamespaceDelete DELETE /api/github/repos/{owner}/{repo}/namespaces/{ns} — 删除命名空间
+func (h *GitHubHandler) NamespaceDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// 提取 repo 和 namespace: /api/github/repos/{owner}/{repo}/namespaces/{ns}
+	path := r.URL.Path
+	prefix := "/api/github/repos/"
+	rest := strings.TrimPrefix(path, prefix)
+
+	// rest = "owner/repo/namespaces/ns"
+	nsIdx := strings.Index(rest, "/namespaces/")
+	if nsIdx < 0 {
+		handler.WriteError(w, http.StatusBadRequest, "无效的路径")
+		return
+	}
+
+	repoPath := rest[:nsIdx]
+	ns := rest[nsIdx+len("/namespaces/"):]
+
+	parts := strings.SplitN(repoPath, "/", 3)
+	if len(parts) < 2 || ns == "" {
+		handler.WriteError(w, http.StatusBadRequest, "缺少仓库名或命名空间")
+		return
+	}
+	repo := parts[0] + "/" + parts[1]
+
+	// 删除命名空间
+	if err := h.db.RepoNamespace.Remove(r.Context(), repo, ns); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "删除命名空间失败")
+		return
+	}
+
+	// 删除该命名空间下未确认的映射
+	if err := h.db.RepoMapping.DeleteByRepoAndNamespace(r.Context(), repo, ns); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "清理映射失败")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "命名空间已删除",
+	})
+}
+
+// Mappings GET/POST /api/github/mappings — 映射列表/创建
+func (h *GitHubHandler) Mappings(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.listMappings(w, r)
+	case http.MethodPost:
+		h.createMapping(w, r)
+	default:
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+func (h *GitHubHandler) listMappings(w http.ResponseWriter, r *http.Request) {
+	mappings, err := h.db.RepoMapping.List(r.Context())
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "获取映射列表失败")
+		return
+	}
+	if mappings == nil {
+		mappings = []*database.RepoDeployMapping{}
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"data":  mappings,
+		"total": len(mappings),
+	})
+}
+
+func (h *GitHubHandler) createMapping(w http.ResponseWriter, r *http.Request) {
+	var mapping database.RepoDeployMapping
+	if err := json.NewDecoder(r.Body).Decode(&mapping); err != nil {
+		handler.WriteError(w, http.StatusBadRequest, "无效的请求体")
+		return
+	}
+
+	if err := h.db.RepoMapping.Create(r.Context(), &mapping); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "创建映射失败")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "映射已创建",
+		"data":    mapping,
+	})
+}
+
+// MappingByID PUT/DELETE /api/github/mappings/{id} — 更新/确认/删除映射
+func (h *GitHubHandler) MappingByID(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
+	// 检查是否是确认操作: /api/github/mappings/{id}/confirm
+	if strings.HasSuffix(path, "/confirm") {
+		h.confirmMapping(w, r)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		h.updateMapping(w, r)
+	case http.MethodDelete:
+		h.deleteMapping(w, r)
+	default:
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+func (h *GitHubHandler) confirmMapping(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	idStr := extractMappingID(r.URL.Path, "/confirm")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		handler.WriteError(w, http.StatusBadRequest, "无效的映射 ID")
+		return
+	}
+
+	if err := h.db.RepoMapping.Confirm(r.Context(), id); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "确认映射失败")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "映射已确认",
+	})
+}
+
+func (h *GitHubHandler) updateMapping(w http.ResponseWriter, r *http.Request) {
+	idStr := extractMappingID(r.URL.Path, "")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		handler.WriteError(w, http.StatusBadRequest, "无效的映射 ID")
+		return
+	}
+
+	var mapping database.RepoDeployMapping
+	if err := json.NewDecoder(r.Body).Decode(&mapping); err != nil {
+		handler.WriteError(w, http.StatusBadRequest, "无效的请求体")
+		return
+	}
+	mapping.ID = id
+
+	if err := h.db.RepoMapping.Update(r.Context(), &mapping); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "更新映射失败")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "映射已更新",
+	})
+}
+
+func (h *GitHubHandler) deleteMapping(w http.ResponseWriter, r *http.Request) {
+	idStr := extractMappingID(r.URL.Path, "")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		handler.WriteError(w, http.StatusBadRequest, "无效的映射 ID")
+		return
+	}
+
+	if err := h.db.RepoMapping.Delete(r.Context(), id); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "删除映射失败")
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "映射已删除",
+	})
+}
+
+// extractMappingID 从 /api/github/mappings/{id}[/suffix] 提取 ID
+func extractMappingID(path, suffix string) string {
+	if suffix != "" {
+		path = strings.TrimSuffix(path, suffix)
+	}
+	prefix := "/api/github/mappings/"
+	rest := strings.TrimPrefix(path, prefix)
+	// rest could be "123" or "123/"
+	rest = strings.TrimSuffix(rest, "/")
+	return rest
 }
 
 // extractRepoFromPath 从 URL 路径中提取仓库名

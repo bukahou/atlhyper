@@ -56,3 +56,21 @@ export async function getAuthorizedRepos() {
   const res = await api.getKustomizePaths("");
   return res.data.data;
 }
+
+export async function getDeployStatus() {
+  if (getDataSourceMode("deploy") === "mock") {
+    return mock.mockGetPathStatus();
+  }
+  const res = await api.getStatus();
+  return res.data.data;
+}
+
+export async function syncDeployNow(path: string) {
+  const res = await api.syncNow(path);
+  return res.data;
+}
+
+export async function rollbackDeploy(path: string, targetCommitSha: string) {
+  const res = await api.rollback(path, targetCommitSha);
+  return res.data;
+}

@@ -11,6 +11,8 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/aiops"
+	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service/operations"
@@ -302,6 +304,161 @@ func SimplifyEntityDetail(detail *aiops.EntityRiskDetail) map[string]interface{}
 		"metrics":     anomalyMetrics,
 		"causalTree":  detail.CausalTree,
 		"propagation": detail.Propagation,
+	}
+}
+
+// ==================== GitHub + CD Tool Handler 工厂 ====================
+
+// NewDeployHistoryHandler 创建部署历史查询 Tool Handler
+func NewDeployHistoryHandler(deployRepo database.DeployHistoryRepository) ToolHandler {
+	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		path := getString(params, "path")
+		if path == "" {
+			return "缺少参数 path", nil
+		}
+		limit := getInt(params, "limit", 5)
+
+		records, err := deployRepo.List(ctx, database.DeployHistoryQueryOpts{
+			ClusterID: clusterID,
+			Path:      path,
+			Limit:     limit,
+		})
+		if err != nil {
+			return fmt.Sprintf("查询部署历史失败: %v", err), nil
+		}
+		if len(records) == 0 {
+			return fmt.Sprintf("未找到路径 '%s' 的部署记录", path), nil
+		}
+
+		out, _ := json.Marshal(map[string]interface{}{
+			"path":    path,
+			"records": records,
+			"count":   len(records),
+		})
+		return string(out), nil
+	}
+}
+
+// NewRollbackHandler 创建回滚部署 Tool Handler（stub：需用户确认，不自动执行）
+func NewRollbackHandler(deployRepo database.DeployHistoryRepository) ToolHandler {
+	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		path := getString(params, "path")
+		targetSHA := getString(params, "target_commit_sha")
+		if path == "" || targetSHA == "" {
+			return "缺少参数 path 或 target_commit_sha", nil
+		}
+
+		// 查询目标 commit 是否存在于部署历史中
+		records, err := deployRepo.List(ctx, database.DeployHistoryQueryOpts{
+			ClusterID: clusterID,
+			Path:      path,
+			Limit:     20,
+		})
+		if err != nil {
+			return fmt.Sprintf("查询部署历史失败: %v", err), nil
+		}
+
+		var targetRecord *database.DeployHistory
+		for _, r := range records {
+			if r.CommitSHA == targetSHA {
+				targetRecord = r
+				break
+			}
+		}
+		if targetRecord == nil {
+			return fmt.Sprintf("目标 commit %s 未在路径 '%s' 的部署历史中找到，请确认 SHA 是否正确", targetSHA, path), nil
+		}
+
+		out, _ := json.Marshal(map[string]interface{}{
+			"status":  "pending_confirmation",
+			"message": fmt.Sprintf("回滚计划已生成：将路径 '%s' 回滚到 commit %s（%s）。此操作需要人工确认后执行。", path, targetSHA[:8], targetRecord.CommitMessage),
+			"target": map[string]interface{}{
+				"path":      path,
+				"commitSHA": targetSHA,
+				"message":   targetRecord.CommitMessage,
+				"date":      targetRecord.DeployedAt,
+			},
+		})
+		return string(out), nil
+	}
+}
+
+// NewGitHubReadFileHandler 创建 GitHub 文件读取 Tool Handler
+func NewGitHubReadFileHandler(ghClient github.Client) ToolHandler {
+	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		repo := getString(params, "repo")
+		path := getString(params, "path")
+		if repo == "" || path == "" {
+			return "缺少参数 repo 或 path", nil
+		}
+		branch := getString(params, "branch")
+		if branch == "" {
+			branch = "main"
+		}
+
+		content, err := ghClient.ReadFile(ctx, repo, path, branch)
+		if err != nil {
+			return fmt.Sprintf("读取文件失败: %v", err), nil
+		}
+
+		// 截断过长内容，避免 LLM 上下文爆炸
+		if len(content) > 10000 {
+			content = content[:10000] + "\n... (truncated, total " + fmt.Sprintf("%d", len(content)) + " bytes)"
+		}
+		return content, nil
+	}
+}
+
+// NewGitHubSearchCodeHandler 创建 GitHub 代码搜索 Tool Handler
+func NewGitHubSearchCodeHandler(ghClient github.Client) ToolHandler {
+	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		repo := getString(params, "repo")
+		query := getString(params, "query")
+		if repo == "" || query == "" {
+			return "缺少参数 repo 或 query", nil
+		}
+
+		results, err := ghClient.SearchCode(ctx, repo, query)
+		if err != nil {
+			return fmt.Sprintf("搜索代码失败: %v", err), nil
+		}
+		if len(results) == 0 {
+			return fmt.Sprintf("未在仓库 '%s' 中找到匹配 '%s' 的代码", repo, query), nil
+		}
+
+		out, _ := json.Marshal(map[string]interface{}{
+			"repo":    repo,
+			"query":   query,
+			"results": results,
+			"count":   len(results),
+		})
+		return string(out), nil
+	}
+}
+
+// NewGitHubRecentCommitsHandler 创建 GitHub 最近提交查询 Tool Handler
+func NewGitHubRecentCommitsHandler(ghClient github.Client) ToolHandler {
+	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
+		repo := getString(params, "repo")
+		if repo == "" {
+			return "缺少参数 repo", nil
+		}
+		limit := getInt(params, "limit", 10)
+
+		commits, err := ghClient.ListCommits(ctx, repo, "main", limit)
+		if err != nil {
+			return fmt.Sprintf("获取提交记录失败: %v", err), nil
+		}
+		if len(commits) == 0 {
+			return fmt.Sprintf("仓库 '%s' 暂无提交记录", repo), nil
+		}
+
+		out, _ := json.Marshal(map[string]interface{}{
+			"repo":    repo,
+			"commits": commits,
+			"count":   len(commits),
+		})
+		return string(out), nil
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/github"
 )
@@ -17,6 +18,7 @@ type DeployHandler struct {
 	deployConfig  database.DeployConfigRepository
 	deployHistory database.DeployHistoryRepository
 	installRepo   database.GitHubInstallationRepository
+	deployer      deployer.Deployer
 }
 
 // NewDeployHandler 创建 DeployHandler
@@ -32,6 +34,93 @@ func NewDeployHandler(
 		deployHistory: deployHistory,
 		installRepo:   installRepo,
 	}
+}
+
+// SetDeployer 设置 Deployer（可选注入）
+func (h *DeployHandler) SetDeployer(d deployer.Deployer) {
+	h.deployer = d
+}
+
+// Status GET /api/deploy/status — 同步状态
+func (h *DeployHandler) Status(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	if h.deployer == nil {
+		handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+			"data": []deployer.PathStatus{},
+		})
+		return
+	}
+
+	statuses, err := h.deployer.GetPathStatus(r.Context())
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if statuses == nil {
+		statuses = []deployer.PathStatus{}
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"data": statuses,
+	})
+}
+
+// SyncNow POST /api/deploy/sync — 触发立即同步
+func (h *DeployHandler) SyncNow(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	if h.deployer == nil {
+		handler.WriteError(w, http.StatusServiceUnavailable, "Deployer 未启用")
+		return
+	}
+
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Path == "" {
+		handler.WriteError(w, http.StatusBadRequest, "path required")
+		return
+	}
+
+	if err := h.deployer.SyncNow(r.Context(), req.Path); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "sync triggered",
+	})
+}
+
+// Rollback POST /api/deploy/rollback — 回滚到指定 commit
+func (h *DeployHandler) Rollback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		Path            string `json:"path"`
+		TargetCommitSha string `json:"targetCommitSha"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Path == "" || req.TargetCommitSha == "" {
+		handler.WriteError(w, http.StatusBadRequest, "path and targetCommitSha required")
+		return
+	}
+
+	// 当前为占位实现，完整回滚需要读取目标 commit 的文件
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message":         "rollback triggered",
+		"path":            req.Path,
+		"targetCommitSha": req.TargetCommitSha,
+	})
 }
 
 // Config GET/PUT /api/deploy/config — 部署配置

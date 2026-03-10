@@ -28,6 +28,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/client-go/rest"
 )
 
 // K8sClient K8s 客户端接口
@@ -177,6 +178,9 @@ type K8sClient interface {
 
 	Delete(ctx context.Context, gvk GroupVersionKind, namespace, name string, opts DeleteOptions) error
 	Dynamic(ctx context.Context, req DynamicRequest) (*DynamicResponse, error)
+
+	// RestConfig 返回 REST 配置（用于构建 dynamic/discovery 客户端）
+	RestConfig() *rest.Config
 }
 
 // =============================================================================

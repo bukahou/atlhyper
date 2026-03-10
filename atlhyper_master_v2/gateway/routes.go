@@ -342,7 +342,7 @@ func (r *Router) registerRoutes() {
 	// GitHub 集成路由（需要 Admin 权限）
 	// ================================================================
 	if r.ghClient != nil {
-		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.database.GitHubInstall, r.database.RepoConfig)
+		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.database.GitHubInstall, r.database.RepoConfig, r.database)
 		deployH := adminHandler.NewDeployHandler(r.ghClient, r.database.DeployConfig, r.database.DeployHistory, r.database.GitHubInstall)
 
 		// GitHub 连接状态（公开读取）
@@ -359,6 +359,8 @@ func (r *Router) registerRoutes() {
 		r.admin(func(register func(pattern string, h http.HandlerFunc)) {
 			register("/api/github/repos", githubH.Repos)
 			register("/api/github/repos/", githubH.RepoSubRoute)
+			register("/api/github/mappings", githubH.Mappings)
+			register("/api/github/mappings/", githubH.MappingByID)
 		})
 
 		// 部署配置（Admin 权限）
@@ -366,6 +368,9 @@ func (r *Router) registerRoutes() {
 			register("/api/deploy/config", deployH.Config)
 			register("/api/deploy/kustomize-paths", deployH.KustomizePaths)
 			register("/api/deploy/test-connection", deployH.TestConnection)
+			register("/api/deploy/status", deployH.Status)
+			register("/api/deploy/sync", deployH.SyncNow)
+			register("/api/deploy/rollback", deployH.Rollback)
 		})
 
 		// 部署历史（公开读取）

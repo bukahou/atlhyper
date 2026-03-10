@@ -1,10 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import * as githubDS from "@/datasource/github";
 import {
-  mockGetRepoMappings,
   mockGetNamespaces,
   mockGetDeployments,
-  mockGetRepoNamespaces,
 } from "@/mock/github";
 import type { MockGitHubConnection, MockRepoMapping, MockAuthorizedRepo } from "@/mock/github/data";
 
@@ -37,8 +35,8 @@ export function useGitHubPage() {
       }
 
       const reposData = await githubDS.getAuthorizedRepos();
-      // Phase 2 功能：映射/Namespace/Deployment 暂用 mock
-      const mappingData = mockGetRepoMappings();
+      // 映射通过 datasource（支持 mock/api 切换），Namespace/Deployment 暂用 mock
+      const mappingData = await githubDS.getMappings();
       const nsData = mockGetNamespaces();
       const deplData = mockGetDeployments();
 
@@ -46,7 +44,7 @@ export function useGitHubPage() {
       const repoNs: Record<string, string[]> = {};
       for (const repo of reposData.filter((r: MockAuthorizedRepo) => r.mappingEnabled)) {
         dirs[repo.fullName] = await githubDS.getRepoDirs(repo.fullName);
-        repoNs[repo.fullName] = mockGetRepoNamespaces(repo.fullName);
+        repoNs[repo.fullName] = await githubDS.getRepoNamespaces(repo.fullName);
       }
 
       setRepos(reposData);
@@ -90,7 +88,9 @@ export function useGitHubPage() {
       githubDS.getRepoDirs(fullName).then((dirs) => {
         setRepoDirs((prev) => ({ ...prev, [fullName]: dirs }));
       });
-      setRepoNamespaces((prev) => ({ ...prev, [fullName]: mockGetRepoNamespaces(fullName) }));
+      githubDS.getRepoNamespaces(fullName).then((ns) => {
+        setRepoNamespaces((prev) => ({ ...prev, [fullName]: ns }));
+      });
     } else {
       setRepoDirs((prev) => {
         const next = { ...prev };
@@ -137,12 +137,22 @@ export function useGitHubPage() {
   }, []);
 
   const handleConfirmMapping = useCallback(async (id: number) => {
+    try {
+      await githubDS.confirmMappingAPI(id);
+    } catch (err) {
+      console.error("Failed to confirm mapping:", err);
+    }
     setMappings((prev) =>
       prev.map((m) => (m.id === id ? { ...m, confirmed: true } : m))
     );
   }, []);
 
-  const handleUpdateMapping = useCallback((id: number, field: string, value: string) => {
+  const handleUpdateMapping = useCallback(async (id: number, field: string, value: string) => {
+    try {
+      await githubDS.updateMapping(id, { [field]: value });
+    } catch (err) {
+      console.error("Failed to update mapping:", err);
+    }
     setMappings((prev) =>
       prev.map((m) => {
         if (m.id !== id) return m;
@@ -166,27 +176,49 @@ export function useGitHubPage() {
     );
   }, []);
 
-  const handleAddMapping = useCallback((repo: string) => {
-    const newId = nextIdRef.current++;
-    const newMapping: MockRepoMapping = {
-      id: newId,
-      clusterId: "zgmf-x10a",
-      repo,
-      namespace: "",
-      deployment: "",
-      container: "",
-      imagePrefix: "",
-      sourcePath: "",
-      confirmed: false,
-    };
-    setMappings((prev) => [...prev, newMapping]);
+  const handleAddMapping = useCallback(async (repo: string) => {
+    try {
+      const created = await githubDS.createMapping({
+        clusterId: "zgmf-x10a",
+        repo,
+        namespace: "",
+        deployment: "",
+      });
+      setMappings((prev) => [...prev, created as MockRepoMapping]);
+    } catch (err) {
+      console.error("Failed to create mapping:", err);
+      // Fallback: 本地创建
+      const newId = nextIdRef.current++;
+      const newMapping: MockRepoMapping = {
+        id: newId,
+        clusterId: "zgmf-x10a",
+        repo,
+        namespace: "",
+        deployment: "",
+        container: "",
+        imagePrefix: "",
+        sourcePath: "",
+        confirmed: false,
+      };
+      setMappings((prev) => [...prev, newMapping]);
+    }
   }, []);
 
-  const handleDeleteMapping = useCallback((id: number) => {
+  const handleDeleteMapping = useCallback(async (id: number) => {
+    try {
+      await githubDS.deleteMappingAPI(id);
+    } catch (err) {
+      console.error("Failed to delete mapping:", err);
+    }
     setMappings((prev) => prev.filter((m) => m.id !== id));
   }, []);
 
-  const handleAddRepoNamespace = useCallback((repo: string, ns: string) => {
+  const handleAddRepoNamespace = useCallback(async (repo: string, ns: string) => {
+    try {
+      await githubDS.addRepoNamespace(repo, ns);
+    } catch (err) {
+      console.error("Failed to add namespace:", err);
+    }
     setRepoNamespaces((prev) => {
       const current = prev[repo] || [];
       if (current.includes(ns)) return prev;
@@ -194,7 +226,12 @@ export function useGitHubPage() {
     });
   }, []);
 
-  const handleRemoveRepoNamespace = useCallback((repo: string, ns: string) => {
+  const handleRemoveRepoNamespace = useCallback(async (repo: string, ns: string) => {
+    try {
+      await githubDS.removeRepoNamespace(repo, ns);
+    } catch (err) {
+      console.error("Failed to remove namespace:", err);
+    }
     setRepoNamespaces((prev) => {
       const current = prev[repo] || [];
       return { ...prev, [repo]: current.filter((n) => n !== ns) };

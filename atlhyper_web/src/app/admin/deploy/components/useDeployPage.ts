@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import * as deployDS from "@/datasource/deploy";
 import * as githubDS from "@/datasource/github";
-import { mockGetPathStatus } from "@/mock/deploy";
 import type {
   MockDeployConfig,
   MockPathStatus,
@@ -44,8 +43,17 @@ export function useDeployPage() {
       }
       setConfig(configData);
 
-      // Phase 3-4 功能：同步状态暂用 mock
-      setStatusList(configData ? mockGetPathStatus() : []);
+      // 同步状态通过 datasource（支持 mock/api 切换）
+      if (configData) {
+        try {
+          const statusData = await deployDS.getDeployStatus();
+          setStatusList((statusData ?? []) as MockPathStatus[]);
+        } catch {
+          setStatusList([]);
+        }
+      } else {
+        setStatusList([]);
+      }
 
       // 加载部署历史
       try {
@@ -148,6 +156,11 @@ export function useDeployPage() {
   }, []);
 
   const handleSyncNow = useCallback(async (path: string) => {
+    try {
+      await deployDS.syncDeployNow(path);
+    } catch (err) {
+      console.error("Failed to sync:", err);
+    }
     setStatusList((prev) =>
       prev.map((s) => (s.path === path ? { ...s, inSync: true } : s))
     );

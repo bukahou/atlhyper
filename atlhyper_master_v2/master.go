@@ -477,7 +477,7 @@ func NewMaster() (*Master, error) {
 		return string(data), nil
 	})
 
-	log.Info("AI Tool 注册完成 (7 个)")
+	log.Info("AI Tool 注册完成 (8 个基础)")
 
 	// 10. 初始化 AlertManager（告警管理器）
 	alertMgr, err := notifier.NewManager(db.Notify)
@@ -532,6 +532,16 @@ func NewMaster() (*Master, error) {
 				log.Info("GitHub Client 初始化完成（未连接）")
 			}
 		}
+	}
+
+	// 11.6 注册 GitHub + CD Tool（仅在 GitHub Client 可用时注册）
+	if ghClient != nil {
+		aiService.RegisterTool("get_deploy_history", ai.NewDeployHistoryHandler(db.DeployHistory))
+		aiService.RegisterTool("rollback_deployment", ai.NewRollbackHandler(db.DeployHistory))
+		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient))
+		aiService.RegisterTool("github_search_code", ai.NewGitHubSearchCodeHandler(ghClient))
+		aiService.RegisterTool("github_recent_commits", ai.NewGitHubRecentCommitsHandler(ghClient))
+		log.Info("GitHub + CD Tool 注册完成 (5 个)")
 	}
 
 	// 12. 初始化 Gateway

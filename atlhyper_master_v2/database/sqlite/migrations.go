@@ -410,6 +410,30 @@ func migrate(db *sql.DB) error {
 			error_message     TEXT
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_deploy_history_lookup ON deploy_history(cluster_id, path, deployed_at DESC)`,
+
+		// ==================== 仓库部署映射 ====================
+		`CREATE TABLE IF NOT EXISTS repo_deploy_mapping (
+			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			cluster_id    TEXT NOT NULL,
+			repo          TEXT NOT NULL,
+			namespace     TEXT NOT NULL,
+			deployment    TEXT NOT NULL,
+			container     TEXT DEFAULT '',
+			image_prefix  TEXT NOT NULL DEFAULT '',
+			source_path   TEXT DEFAULT '',
+			confirmed     BOOLEAN DEFAULT 0,
+			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(cluster_id, namespace, deployment)
+		)`,
+
+		// ==================== 仓库命名空间关联 ====================
+		`CREATE TABLE IF NOT EXISTS repo_namespaces (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			repo       TEXT NOT NULL,
+			namespace  TEXT NOT NULL,
+			UNIQUE(repo, namespace)
+		)`,
 	}
 
 	for _, m := range migrations {

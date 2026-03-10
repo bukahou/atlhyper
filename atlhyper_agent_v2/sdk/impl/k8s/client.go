@@ -86,3 +86,8 @@ func NewClient(kubeconfig string) (sdk.K8sClient, error) {
 		httpClient:    httpClient,
 	}, nil
 }
+
+// RestConfig 返回 REST 配置（用于构建 dynamic/discovery 客户端）
+func (c *Client) RestConfig() *rest.Config {
+	return c.config
+}

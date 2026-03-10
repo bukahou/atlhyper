@@ -120,3 +120,128 @@ export function getRepoDirs(repo: string) {
     `/api/github/repos/${encodeURIComponent(repo)}/dirs`
   );
 }
+
+// ============================================================
+// Namespace 管理
+// ============================================================
+
+interface NamespaceResponse {
+  data: string[];
+}
+
+/**
+ * 获取仓库已配置的 Namespace 列表
+ * GET /api/github/repos/:repo/namespaces
+ */
+export function getRepoNamespaces(repo: string) {
+  return get<NamespaceResponse>(
+    `/api/github/repos/${encodeURIComponent(repo)}/namespaces`
+  );
+}
+
+/**
+ * 为仓库添加 Namespace
+ * POST /api/github/repos/:repo/namespaces
+ */
+export function addRepoNamespace(repo: string, namespace: string) {
+  return post<NamespaceResponse>(
+    `/api/github/repos/${encodeURIComponent(repo)}/namespaces`,
+    { namespace }
+  );
+}
+
+/**
+ * 移除仓库的 Namespace
+ * DELETE /api/github/repos/:repo/namespaces/:ns
+ */
+export function removeRepoNamespace(repo: string, namespace: string) {
+  return del<{ message: string }>(
+    `/api/github/repos/${encodeURIComponent(repo)}/namespaces/${encodeURIComponent(namespace)}`
+  );
+}
+
+// ============================================================
+// 映射管理
+// ============================================================
+
+interface MappingResponse {
+  data: {
+    id: number;
+    clusterId: string;
+    repo: string;
+    namespace: string;
+    deployment: string;
+    container: string;
+    imagePrefix: string;
+    sourcePath: string;
+    confirmed: boolean;
+  };
+}
+
+interface MappingListResponse {
+  data: {
+    id: number;
+    clusterId: string;
+    repo: string;
+    namespace: string;
+    deployment: string;
+    container: string;
+    imagePrefix: string;
+    sourcePath: string;
+    confirmed: boolean;
+  }[];
+}
+
+/**
+ * 获取所有映射
+ * GET /api/github/mappings
+ */
+export function getMappings() {
+  return get<MappingListResponse>("/api/github/mappings");
+}
+
+/**
+ * 创建映射
+ * POST /api/github/mappings
+ */
+export function createMapping(data: {
+  clusterId: string;
+  repo: string;
+  namespace: string;
+  deployment: string;
+  container?: string;
+  imagePrefix?: string;
+  sourcePath?: string;
+}) {
+  return post<MappingResponse>("/api/github/mappings", data);
+}
+
+/**
+ * 更新映射
+ * PUT /api/github/mappings/:id
+ */
+export function updateMapping(id: number, data: {
+  namespace?: string;
+  deployment?: string;
+  container?: string;
+  imagePrefix?: string;
+  sourcePath?: string;
+}) {
+  return put<MappingResponse>(`/api/github/mappings/${id}`, data);
+}
+
+/**
+ * 确认映射
+ * PUT /api/github/mappings/:id/confirm
+ */
+export function confirmMapping(id: number) {
+  return put<{ message: string }>(`/api/github/mappings/${id}/confirm`, {});
+}
+
+/**
+ * 删除映射
+ * DELETE /api/github/mappings/:id
+ */
+export function deleteMapping(id: number) {
+  return del<{ message: string }>(`/api/github/mappings/${id}`);
+}

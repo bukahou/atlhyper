@@ -488,3 +488,27 @@ type DeployHistoryQueryOpts struct {
 	Limit     int
 	Offset    int
 }
+
+// === Phase 2: 仓库映射 ===
+
+// RepoDeployMapping 仓库部署映射
+type RepoDeployMapping struct {
+	ID          int64
+	ClusterID   string
+	Repo        string
+	Namespace   string
+	Deployment  string
+	Container   string
+	ImagePrefix string
+	SourcePath  string
+	Confirmed   bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// RepoNamespace 仓库命名空间关联
+type RepoNamespace struct {
+	ID        int64
+	Repo      string
+	Namespace string
+}

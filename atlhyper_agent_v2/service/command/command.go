@@ -11,6 +11,7 @@
 //   - cordon: 封锁节点
 //   - uncordon: 解封节点
 //   - dynamic: 动态 API 调用 (AI 只读查询)
+//   - apply_manifests: 应用多文档 YAML (Server-Side Apply)
 //
 // 执行流程:
 //  1. 根据 Action 分发到对应的 handler
@@ -28,6 +29,7 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/repository"
+	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/service"
 	model_v3 "AtlHyper/model_v3"
 	"AtlHyper/model_v3/command"
@@ -43,6 +45,7 @@ import (
 //   - metricsQueryRepo: Metrics 按需查询 (ClickHouse, 可选)
 //   - sloQueryRepo: SLO 按需查询 (ClickHouse, 可选)
 type commandService struct {
+	k8sClient   sdk.K8sClient
 	podRepo     repository.PodRepository
 	genericRepo repository.GenericRepository
 
@@ -55,6 +58,7 @@ type commandService struct {
 
 // NewCommandService 创建指令服务
 func NewCommandService(
+	k8sClient sdk.K8sClient,
 	podRepo repository.PodRepository,
 	genericRepo repository.GenericRepository,
 	traceQueryRepo repository.TraceQueryRepository,
@@ -63,6 +67,7 @@ func NewCommandService(
 	sloQueryRepo repository.SLOQueryRepository,
 ) service.CommandService {
 	return &commandService{
+		k8sClient:        k8sClient,
 		podRepo:          podRepo,
 		genericRepo:      genericRepo,
 		traceQueryRepo:   traceQueryRepo,
@@ -122,6 +127,8 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 		data, err = s.handleQueryMetrics(ctx, cmd)
 	case command.ActionQuerySLO:
 		data, err = s.handleQuerySLO(ctx, cmd)
+	case command.ActionApplyManifests:
+		data, err = s.handleApplyManifests(ctx, cmd.Params)
 	default:
 		err = fmt.Errorf("unknown action: %s", cmd.Action)
 	}

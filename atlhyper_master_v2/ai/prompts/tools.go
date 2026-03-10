@@ -211,6 +211,108 @@ const toolsJSON = `[
       },
       "required": ["entity_type", "entity_name"]
     }
+  },
+  {
+    "name": "get_deploy_history",
+    "description": "查询指定路径的部署历史，包括 commit SHA、部署状态、触发方式等信息。用于排查部署相关问题时了解最近的变更。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "kustomize 部署路径，如 'Geass/backend' 或 'atlhyper/master'"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "返回最近 N 条记录，默认 5",
+          "default": 5
+        }
+      },
+      "required": ["path"]
+    }
+  },
+  {
+    "name": "rollback_deployment",
+    "description": "将指定路径回滚到历史 commit 版本。回滚会重新应用目标版本的 kustomize 配置。此操作需谨慎使用。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "kustomize 部署路径"
+        },
+        "target_commit_sha": {
+          "type": "string",
+          "description": "目标 commit SHA（从 deploy_history 获取）"
+        }
+      },
+      "required": ["path", "target_commit_sha"]
+    }
+  },
+  {
+    "name": "github_read_file",
+    "description": "读取关联 GitHub 仓库中的文件内容，用于代码分析和问题排查。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "description": "仓库全名，格式 'owner/repo'，如 'wuxiafeng/Geass'"
+        },
+        "path": {
+          "type": "string",
+          "description": "文件路径，相对于仓库根目录"
+        },
+        "branch": {
+          "type": "string",
+          "description": "分支名，默认 'main'",
+          "default": "main"
+        }
+      },
+      "required": ["repo", "path"]
+    }
+  },
+  {
+    "name": "github_search_code",
+    "description": "在关联 GitHub 仓库中搜索代码，查找特定关键字、类名、函数名等。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "description": "仓库全名，格式 'owner/repo'"
+        },
+        "query": {
+          "type": "string",
+          "description": "搜索关键字（支持 GitHub 代码搜索语法）"
+        }
+      },
+      "required": ["repo", "query"]
+    }
+  },
+  {
+    "name": "github_recent_commits",
+    "description": "查看仓库最近的 commits，可限定文件路径范围。用于了解最近的代码变更。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "description": "仓库全名，格式 'owner/repo'"
+        },
+        "path": {
+          "type": "string",
+          "description": "限定路径（可选），如 'src/auth/'",
+          "default": ""
+        },
+        "limit": {
+          "type": "integer",
+          "description": "返回最近 N 条，默认 10",
+          "default": 10
+        }
+      },
+      "required": ["repo"]
+    }
   }
 ]`
 

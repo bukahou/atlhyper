@@ -133,6 +133,7 @@ func New() (*Agent, error) {
 	)
 
 	commandSvc := commandsvc.NewCommandService(
+		k8sClient,
 		repos.pod, repos.generic,
 		traceQueryRepo, logQueryRepo, metricsQueryRepo, sloQueryRepo,
 	)
