@@ -7,10 +7,22 @@
 
 ---
 
-## AI 模块架构整理 + 提示词优化 — 待办
+## GitHub 集成 + CD + 代码智能 — 待办
 
-> 设计文档: [ai-role-prompts-optimization-design.md](../../design/active/ai-role-prompts-optimization-design.md)
+> 设计文档: [aiops-github-integration-design.md](../../design/active/aiops-github-integration-design.md)
 
-- Phase 1: 提示词迁移 — 创建 `ai/prompts/` 子包，统一管理 3 角色提示词
-- Phase 2: AI 接口扩展 — `ai.AIService` 新增 `Analyze()` + `Complete()` 方法
-- Phase 3: aiops/ai → aiops/enricher 重命名 + 解耦 — 通过 `ai.AIService` 接口调用
+### CD 模块（Master Deployer）
+
+- CD-1: Deployer 模块核心（gitops.go + parser.go + 调谐循环）
+- CD-2: deploy_config / deploy_history 表 + Service/Gateway API
+- CD-3: Agent 新增 apply_kustomize + set_image handler
+- CD-4: 前端 /settings/deploy + /admin/deploy 页面
+- CD-5: 回滚功能（Deployer.Rollback + 前端回滚按钮）
+
+### Code Intel 模块（GitHub 集成）
+
+- GH-1: GitHub App 注册 + OAuth 登录 + 认证模块扩展
+- GH-2: GitHub API Client（commits, PRs, 代码读取）
+- GH-3: 仓库映射配置（Settings 页面 + 自动匹配）
+- GH-4: deploy_history PR 关联（异步补充 commit/PR 信息）
+- GH-5: AI Tool 扩展（github_read_file, github_search_code 等）
