@@ -16,7 +16,7 @@
 - CD-1: Deployer 模块核心（gitops.go + parser.go + 调谐循环）
 - CD-2: deploy_config / deploy_history 表 + Service/Gateway API
 - CD-3: Agent 新增 apply_kustomize + set_image handler
-- CD-4: 前端 /settings/deploy + /admin/deploy 页面
+- CD-4: 前端 /admin/deploy 页面（配置 + 状态 + 历史 + 回滚）
 - CD-5: 回滚功能（Deployer.Rollback + 前端回滚按钮）
 
 ### Code Intel 模块（GitHub 集成）
