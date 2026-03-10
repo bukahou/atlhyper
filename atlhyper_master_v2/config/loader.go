@@ -105,8 +105,7 @@ func LoadConfig() {
 
 	GlobalConfig.GitHub = GitHubConfig{
 		AppID:          int64(getInt("GITHUB_APP_ID")),
-		ClientID:       getString("GITHUB_CLIENT_ID"),
-		ClientSecret:   getString("GITHUB_CLIENT_SECRET"),
+		AppSlug:        getString("GITHUB_APP_SLUG"),
 		PrivateKeyPath: getString("GITHUB_PRIVATE_KEY_PATH"),
 		CallbackURL:    getString("GITHUB_CALLBACK_URL"),
 	}

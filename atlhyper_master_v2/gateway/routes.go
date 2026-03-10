@@ -350,9 +350,11 @@ func (r *Router) registerRoutes() {
 			register("/api/github/connection", githubH.Connection)
 		})
 
+		// GitHub OAuth 回调（公开 + 审计，code 由 GitHub 签发，一次性使用）
+		r.publicAudited("/api/github/callback", "create", "github", githubH.Callback)
+
 		// GitHub 连接管理（Admin 权限，审计）
 		r.adminAudited("/api/github/connect", "create", "github", githubH.Connect)
-		r.adminAudited("/api/github/callback", "create", "github", githubH.Callback)
 		r.adminAudited("/api/github/disconnect", "delete", "github", githubH.Disconnect)
 
 		// 仓库管理（Admin 权限）

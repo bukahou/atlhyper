@@ -77,11 +77,14 @@ export function connect() {
 }
 
 /**
- * OAuth 回调
+ * GitHub App 安装回调
  * POST /api/github/callback
  */
-export function callback(code: string) {
-  return post<CallbackResponse>("/api/github/callback", { code });
+export function callback(installationId: number, setupAction: string) {
+  return post<CallbackResponse>("/api/github/callback", {
+    installation_id: installationId,
+    setup_action: setupAction,
+  });
 }
 
 /**

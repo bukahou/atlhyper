@@ -63,8 +63,7 @@ type CodeSearchResult struct {
 // Config GitHub 客户端配置
 type Config struct {
 	AppID          int64
-	ClientID       string
-	ClientSecret   string
+	AppSlug        string // GitHub App URL slug (e.g. "atlhyper")
 	PrivateKeyPath string
 	CallbackURL    string
 }

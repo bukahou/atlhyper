@@ -1,9 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import * as githubDS from "@/datasource/github";
-import {
-  mockGetNamespaces,
-  mockGetDeployments,
-} from "@/mock/github";
 import type { MockGitHubConnection, MockRepoMapping, MockAuthorizedRepo } from "@/mock/github/data";
 
 export function useGitHubPage() {
@@ -35,10 +31,7 @@ export function useGitHubPage() {
       }
 
       const reposData = await githubDS.getAuthorizedRepos();
-      // 映射通过 datasource（支持 mock/api 切换），Namespace/Deployment 暂用 mock
       const mappingData = await githubDS.getMappings();
-      const nsData = mockGetNamespaces();
-      const deplData = mockGetDeployments();
 
       const dirs: Record<string, string[]> = {};
       const repoNs: Record<string, string[]> = {};
@@ -49,8 +42,8 @@ export function useGitHubPage() {
 
       setRepos(reposData);
       setMappings(mappingData);
-      setNamespaces(nsData);
-      setDeployments(deplData);
+      setNamespaces([]);
+      setDeployments([]);
       setRepoDirs(dirs);
       setRepoNamespaces(repoNs);
     } catch (err) {

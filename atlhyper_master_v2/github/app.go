@@ -55,6 +55,11 @@ func NewClient(cfg Config) (Client, error) {
 	return c, nil
 }
 
+// AuthURL 生成 GitHub App 安装 URL（用户安装 App 并授权仓库）
+func (c *clientImpl) AuthURL(state string) string {
+	return "https://github.com/apps/" + c.cfg.AppSlug + "/installations/new?state=" + state
+}
+
 // SetInstallationID 设置 Installation ID（从数据库恢复）
 func (c *clientImpl) SetInstallationID(id int64) {
 	c.mu.Lock()
@@ -143,6 +148,43 @@ func (c *clientImpl) refreshInstallationToken(ctx context.Context) (string, erro
 
 	log.Info("Installation Token 已刷新", "expiresAt", result.ExpiresAt.Format(time.RFC3339))
 	return c.installToken, nil
+}
+
+// GetInstallationAccount 通过 App JWT 查询 Installation 关联的账号
+func (c *clientImpl) GetInstallationAccount(ctx context.Context, installationID int64) (string, error) {
+	jwtToken, err := c.signJWT()
+	if err != nil {
+		return "", err
+	}
+
+	url := fmt.Sprintf("https://api.github.com/app/installations/%d", installationID)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("获取 installation 信息失败: %d %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Account struct {
+			Login string `json:"login"`
+		} `json:"account"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	return result.Account.Login, nil
 }
 
 // loadPrivateKey 从 PEM 文件加载 RSA 私钥

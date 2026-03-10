@@ -21,8 +21,8 @@ export async function connectGitHub() {
   return res.data.data;
 }
 
-export async function callbackGitHub(code: string) {
-  const res = await api.callback(code);
+export async function callbackGitHub(installationId: number, setupAction: string) {
+  const res = await api.callback(installationId, setupAction);
   return res.data.data;
 }
 

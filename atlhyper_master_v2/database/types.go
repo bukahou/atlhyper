@@ -437,48 +437,48 @@ type AIOpsRootCauseCount struct {
 
 // GitHubInstallation GitHub App 安装记录
 type GitHubInstallation struct {
-	ID             int64
-	InstallationID int64
-	AccountLogin   string
-	CreatedAt      time.Time
+	ID             int64     `json:"id"`
+	InstallationID int64     `json:"installationId"`
+	AccountLogin   string    `json:"accountLogin"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 // RepoConfig 仓库映射配置
 type RepoConfig struct {
-	ID             int64
-	Repo           string // e.g. "wuxiafeng/Config"
-	MappingEnabled bool
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID             int64     `json:"id"`
+	Repo           string    `json:"repo"`
+	MappingEnabled bool      `json:"mappingEnabled"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // DeployConfig 部署配置
 type DeployConfig struct {
-	ID          int64
-	ClusterID   string
-	RepoURL     string
-	Paths       string // JSON array of paths
-	IntervalSec int
-	AutoDeploy  bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          int64     `json:"id"`
+	ClusterID   string    `json:"clusterId"`
+	RepoURL     string    `json:"repoUrl"`
+	Paths       string    `json:"paths"`
+	IntervalSec int       `json:"intervalSec"`
+	AutoDeploy  bool      `json:"autoDeploy"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // DeployHistory 部署历史记录
 type DeployHistory struct {
-	ID              int64
-	ClusterID       string
-	Path            string
-	Namespace       string
-	CommitSHA       string
-	CommitMessage   string
-	DeployedAt      time.Time
-	Trigger         string // auto, manual, rollback
-	Status          string // pending, success, failed
-	DurationMs      int
-	ResourceTotal   int
-	ResourceChanged int
-	ErrorMessage    string
+	ID              int64     `json:"id"`
+	ClusterID       string    `json:"clusterId"`
+	Path            string    `json:"path"`
+	Namespace       string    `json:"namespace"`
+	CommitSHA       string    `json:"commitSha"`
+	CommitMessage   string    `json:"commitMessage"`
+	DeployedAt      time.Time `json:"deployedAt"`
+	Trigger         string    `json:"trigger"`
+	Status          string    `json:"status"`
+	DurationMs      int       `json:"durationMs"`
+	ResourceTotal   int       `json:"resourceTotal"`
+	ResourceChanged int       `json:"resourceChanged"`
+	ErrorMessage    string    `json:"errorMessage"`
 }
 
 // DeployHistoryQueryOpts 部署历史查询选项
@@ -493,22 +493,22 @@ type DeployHistoryQueryOpts struct {
 
 // RepoDeployMapping 仓库部署映射
 type RepoDeployMapping struct {
-	ID          int64
-	ClusterID   string
-	Repo        string
-	Namespace   string
-	Deployment  string
-	Container   string
-	ImagePrefix string
-	SourcePath  string
-	Confirmed   bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          int64     `json:"id"`
+	ClusterID   string    `json:"clusterId"`
+	Repo        string    `json:"repo"`
+	Namespace   string    `json:"namespace"`
+	Deployment  string    `json:"deployment"`
+	Container   string    `json:"container"`
+	ImagePrefix string    `json:"imagePrefix"`
+	SourcePath  string    `json:"sourcePath"`
+	Confirmed   bool      `json:"confirmed"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // RepoNamespace 仓库命名空间关联
 type RepoNamespace struct {
-	ID        int64
-	Repo      string
-	Namespace string
+	ID        int64  `json:"id"`
+	Repo      string `json:"repo"`
+	Namespace string `json:"namespace"`
 }

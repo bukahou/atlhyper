@@ -120,10 +120,9 @@ type AIOpsConfig struct {
 // GitHubConfig GitHub App 配置
 type GitHubConfig struct {
 	AppID          int64  // GitHub App ID
-	ClientID       string // OAuth Client ID
-	ClientSecret   string // OAuth Client Secret
+	AppSlug        string // GitHub App URL slug (e.g. "atlhyper")
 	PrivateKeyPath string // Private Key PEM 文件路径
-	CallbackURL    string // OAuth 回调 URL
+	CallbackURL    string // App 安装回调 URL
 }
 
 // AppConfig Master 顶层配置结构体

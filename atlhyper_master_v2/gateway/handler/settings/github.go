@@ -66,7 +66,7 @@ func (h *GitHubHandler) Connection(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Connect POST /api/github/connect — 发起 OAuth 连接
+// Connect POST /api/github/connect — 发起 GitHub App 安装
 func (h *GitHubHandler) Connect(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -78,23 +78,23 @@ func (h *GitHubHandler) Connect(w http.ResponseWriter, r *http.Request) {
 	rand.Read(stateBytes)
 	state := hex.EncodeToString(stateBytes)
 
-	oauthProvider, ok := h.ghClient.(interface {
+	urlBuilder, ok := h.ghClient.(interface {
 		AuthURL(state string) string
 	})
 	if !ok {
-		handler.WriteError(w, http.StatusInternalServerError, "GitHub OAuth 未配置")
+		handler.WriteError(w, http.StatusInternalServerError, "GitHub App 未配置")
 		return
 	}
 
-	authURL := oauthProvider.AuthURL(state)
+	installURL := urlBuilder.AuthURL(state)
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"data": map[string]string{
-			"authUrl": authURL,
+			"authUrl": installURL,
 		},
 	})
 }
 
-// Callback POST /api/github/callback — OAuth 回调
+// Callback POST /api/github/callback — GitHub App 安装回调
 func (h *GitHubHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -102,37 +102,47 @@ func (h *GitHubHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Code string `json:"code"`
+		InstallationID int64  `json:"installation_id"`
+		SetupAction    string `json:"setup_action"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
-		handler.WriteError(w, http.StatusBadRequest, "缺少 code 参数")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InstallationID == 0 {
+		handler.WriteError(w, http.StatusBadRequest, "缺少 installation_id 参数")
 		return
 	}
 
-	exchanger, ok := h.ghClient.(interface {
-		ExchangeForConnection(ctx context.Context, code string) (*github.ConnectionStatus, *database.GitHubInstallation, error)
-	})
-	if !ok {
-		handler.WriteError(w, http.StatusInternalServerError, "GitHub OAuth 未配置")
-		return
+	// 设置 Installation ID 到 GitHub Client
+	if setter, ok := h.ghClient.(interface{ SetInstallationID(int64) }); ok {
+		setter.SetInstallationID(req.InstallationID)
 	}
 
-	status, inst, err := exchanger.ExchangeForConnection(r.Context(), req.Code)
-	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "OAuth 交换失败: "+err.Error())
-		return
-	}
-
-	// 保存安装记录
-	if inst != nil {
-		if err := h.installRepo.Upsert(r.Context(), inst); err != nil {
-			handler.WriteError(w, http.StatusInternalServerError, "保存安装记录失败")
-			return
+	// 通过 Installation API 获取账号信息
+	accountLogin := ""
+	if getter, ok := h.ghClient.(interface {
+		GetInstallationAccount(ctx context.Context, installationID int64) (string, error)
+	}); ok {
+		login, err := getter.GetInstallationAccount(r.Context(), req.InstallationID)
+		if err == nil {
+			accountLogin = login
 		}
 	}
 
+	// 保存安装记录
+	inst := &database.GitHubInstallation{
+		InstallationID: req.InstallationID,
+		AccountLogin:   accountLogin,
+	}
+	if err := h.installRepo.Upsert(r.Context(), inst); err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "保存安装记录失败")
+		return
+	}
+
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"data": status,
+		"data": github.ConnectionStatus{
+			Connected:      true,
+			AccountLogin:   accountLogin,
+			AvatarURL:      "https://github.com/" + accountLogin + ".png",
+			InstallationID: req.InstallationID,
+		},
 	})
 }
 
@@ -300,43 +310,52 @@ func (h *GitHubHandler) RepoDirs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Namespaces POST /api/github/repos/{owner}/{repo}/namespaces — 添加命名空间
+// Namespaces GET/POST /api/github/repos/{owner}/{repo}/namespaces — 查询/添加命名空间
 func (h *GitHubHandler) Namespaces(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
 	repo := extractRepoFromPath(r.URL.Path, "/api/github/repos/", "/namespaces")
 	if repo == "" {
 		handler.WriteError(w, http.StatusBadRequest, "缺少仓库名")
 		return
 	}
 
-	var req struct {
-		Namespace string `json:"namespace"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Namespace == "" {
-		handler.WriteError(w, http.StatusBadRequest, "缺少 namespace 参数")
-		return
-	}
+	switch r.Method {
+	case http.MethodGet:
+		namespaces, err := h.db.RepoNamespace.ListByRepo(r.Context(), repo)
+		if err != nil {
+			handler.WriteError(w, http.StatusInternalServerError, "获取命名空间列表失败")
+			return
+		}
+		handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+			"data": namespaces,
+		})
 
-	if err := h.db.RepoNamespace.Add(r.Context(), repo, req.Namespace); err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "添加命名空间失败")
-		return
-	}
+	case http.MethodPost:
+		var req struct {
+			Namespace string `json:"namespace"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Namespace == "" {
+			handler.WriteError(w, http.StatusBadRequest, "缺少 namespace 参数")
+			return
+		}
 
-	// 返回更新后的命名空间列表
-	namespaces, err := h.db.RepoNamespace.ListByRepo(r.Context(), repo)
-	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "获取命名空间列表失败")
-		return
-	}
+		if err := h.db.RepoNamespace.Add(r.Context(), repo, req.Namespace); err != nil {
+			handler.WriteError(w, http.StatusInternalServerError, "添加命名空间失败")
+			return
+		}
 
-	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "命名空间已添加",
-		"data":    namespaces,
-	})
+		namespaces, err := h.db.RepoNamespace.ListByRepo(r.Context(), repo)
+		if err != nil {
+			handler.WriteError(w, http.StatusInternalServerError, "获取命名空间列表失败")
+			return
+		}
+		handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+			"message": "命名空间已添加",
+			"data":    namespaces,
+		})
+
+	default:
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
 }
 
 // NamespaceDelete DELETE /api/github/repos/{owner}/{repo}/namespaces/{ns} — 删除命名空间

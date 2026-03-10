@@ -513,8 +513,7 @@ func NewMaster() (*Master, error) {
 		var err error
 		ghClient, err = github.NewClient(github.Config{
 			AppID:          cfg.GitHub.AppID,
-			ClientID:       cfg.GitHub.ClientID,
-			ClientSecret:   cfg.GitHub.ClientSecret,
+			AppSlug:        cfg.GitHub.AppSlug,
 			PrivateKeyPath: cfg.GitHub.PrivateKeyPath,
 			CallbackURL:    cfg.GitHub.CallbackURL,
 		})

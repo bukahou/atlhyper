@@ -14,7 +14,7 @@ import { authErrorManager, type AuthError } from "@/api/request";
 import { useAuthStore } from "@/store/authStore";
 
 export function useAuthError() {
-  const { openLoginDialog } = useAuthStore();
+  const { openLoginDialog, logout } = useAuthStore();
   const [lastError, setLastError] = useState<AuthError | null>(null);
 
   const handleAuthError = useCallback(
@@ -22,7 +22,8 @@ export function useAuthError() {
       setLastError(error);
 
       if (error.type === "unauthorized") {
-        // 401: 需要登录
+        // 401: Token 过期或无效 — 先清理登录状态，再弹登录框
+        logout();
         openLoginDialog();
       } else if (error.type === "forbidden") {
         // 403: 权限不足 - 可以在这里添加 toast 提示
@@ -30,7 +31,7 @@ export function useAuthError() {
         console.warn("[Auth] 权限不足:", error.message);
       }
     },
-    [openLoginDialog]
+    [logout, openLoginDialog]
   );
 
   useEffect(() => {

@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 需要代理的路径前缀
-  const proxyPaths = ["/api/v2", "/uiapi", "/ingest", "/ai"];
+  const proxyPaths = ["/api/v2", "/api/github", "/api/deploy", "/uiapi", "/ingest", "/ai"];
 
   // 检查是否需要代理
   const shouldProxy = proxyPaths.some((prefix) => pathname.startsWith(prefix));
@@ -39,5 +39,5 @@ export function middleware(request: NextRequest) {
 
 // 配置 middleware 匹配的路径
 export const config = {
-  matcher: ["/api/v2/:path*", "/uiapi/:path*", "/ingest/:path*", "/ai/:path*"],
+  matcher: ["/api/v2/:path*", "/api/github/:path*", "/api/deploy/:path*", "/uiapi/:path*", "/ingest/:path*", "/ai/:path*"],
 };

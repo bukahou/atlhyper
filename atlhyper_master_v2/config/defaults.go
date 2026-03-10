@@ -105,10 +105,9 @@ var defaultStrings = map[string]string{
 	"MASTER_AI_SEED_BASE_URL": "", // 种子自定义 API 地址
 
 	// -------------------- GitHub 配置 --------------------
-	"GITHUB_CLIENT_ID":       "",                                          // GitHub OAuth Client ID
-	"GITHUB_CLIENT_SECRET":   "",                                          // GitHub OAuth Client Secret
-	"GITHUB_PRIVATE_KEY_PATH": "",                                         // GitHub Private Key PEM 文件路径
-	"GITHUB_CALLBACK_URL":    "http://localhost:3000/auth/github/callback", // GitHub OAuth 回调 URL
+	"GITHUB_APP_SLUG":         "",                                          // GitHub App URL slug
+	"GITHUB_PRIVATE_KEY_PATH": "",                                          // GitHub Private Key PEM 文件路径
+	"GITHUB_CALLBACK_URL":     "http://localhost:3000/auth/github/callback", // GitHub App 安装回调 URL
 }
 
 // ============================================================
