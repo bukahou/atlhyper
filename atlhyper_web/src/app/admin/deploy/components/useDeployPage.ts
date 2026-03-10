@@ -1,11 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
-import {
-  mockGetDeployConfig,
-  mockGetPathStatus,
-  mockGetDeployHistory,
-  mockGetAuthorizedRepos,
-  mockGetKustomizePaths,
-} from "@/mock/deploy";
+import * as deployDS from "@/datasource/deploy";
+import * as githubDS from "@/datasource/github";
+import { mockGetPathStatus } from "@/mock/deploy";
 import type {
   MockDeployConfig,
   MockPathStatus,
@@ -23,24 +19,66 @@ export function useDeployPage() {
   const [editing, setEditing] = useState(false);
   const [editConfig, setEditConfig] = useState<MockDeployConfig | null>(null);
   const [saving, setSaving] = useState(false);
-  const [githubConnected, setGithubConnected] = useState(true);
+  const [githubConnected, setGithubConnected] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const configData = mockGetDeployConfig();
-      const statusData = mockGetPathStatus();
-      const historyData = mockGetDeployHistory();
-      const reposData = mockGetAuthorizedRepos();
+      // 检查 GitHub 连接状态
+      let connected = false;
+      try {
+        const connData = await githubDS.getGitHubConnection();
+        connected = connData?.connected ?? false;
+      } catch {
+        connected = false;
+      }
+      setGithubConnected(connected);
 
+      // 加载部署配置
+      const clusterId = "zgmf-x10a";
+      let configData: MockDeployConfig | null = null;
+      try {
+        configData = await deployDS.getDeployConfig(clusterId);
+      } catch {
+        configData = null;
+      }
       setConfig(configData);
-      setStatusList(statusData);
-      setHistory(historyData);
-      setRepos(reposData);
-      setGithubConnected(true);
 
-      if (configData.repoUrl) {
-        setKustomizePaths(mockGetKustomizePaths(configData.repoUrl));
+      // Phase 3-4 功能：同步状态暂用 mock
+      setStatusList(configData ? mockGetPathStatus() : []);
+
+      // 加载部署历史
+      try {
+        const historyData = await deployDS.getDeployHistory({ clusterId });
+        setHistory((historyData ?? []) as MockDeployRecord[]);
+      } catch {
+        setHistory([]);
+      }
+
+      // 加载可选仓库列表（从 GitHub datasource 获取）
+      if (connected) {
+        try {
+          const reposData = await githubDS.getAuthorizedRepos();
+          setRepos((reposData ?? []).map((r: { fullName: string; defaultBranch: string; private: boolean }) => ({
+            fullName: r.fullName,
+            defaultBranch: r.defaultBranch,
+            private: r.private,
+          })));
+        } catch {
+          setRepos([]);
+        }
+      } else {
+        setRepos([]);
+      }
+
+      // 加载 kustomize 路径
+      if (configData?.repoUrl) {
+        try {
+          const paths = await deployDS.getKustomizePaths(configData.repoUrl);
+          setKustomizePaths(paths ?? []);
+        } catch {
+          setKustomizePaths([]);
+        }
       }
     } finally {
       setLoading(false);
@@ -54,7 +92,9 @@ export function useDeployPage() {
   const handleStartEdit = useCallback(() => {
     if (config) {
       setEditConfig({ ...config, paths: [...config.paths] });
-      setKustomizePaths(mockGetKustomizePaths(config.repoUrl));
+      deployDS.getKustomizePaths(config.repoUrl).then((paths) => {
+        setKustomizePaths(paths ?? []);
+      }).catch(() => setKustomizePaths([]));
     } else {
       setEditConfig({
         repoUrl: "",
@@ -74,9 +114,10 @@ export function useDeployPage() {
 
   const handleUpdateConfig = useCallback((newConfig: MockDeployConfig) => {
     setEditConfig((prev) => {
-      // Config 仓库变更时，重新加载 kustomize 路径
-      if (prev && prev.repoUrl !== newConfig.repoUrl) {
-        setKustomizePaths(mockGetKustomizePaths(newConfig.repoUrl));
+      if (prev && prev.repoUrl !== newConfig.repoUrl && newConfig.repoUrl) {
+        deployDS.getKustomizePaths(newConfig.repoUrl).then((paths) => {
+          setKustomizePaths(paths ?? []);
+        }).catch(() => setKustomizePaths([]));
       }
       return newConfig;
     });
@@ -85,18 +126,25 @@ export function useDeployPage() {
   const handleSaveConfig = useCallback(async () => {
     if (!editConfig) return;
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
-    // 过滤掉空路径
-    const cleaned = { ...editConfig, paths: editConfig.paths.filter((p) => p !== "") };
-    setConfig(cleaned);
-    setEditing(false);
-    setEditConfig(null);
-    setSaving(false);
+    try {
+      const cleaned = { ...editConfig, paths: editConfig.paths.filter((p) => p !== "") };
+      await deployDS.saveDeployConfig(cleaned);
+      setConfig(cleaned);
+      setEditing(false);
+      setEditConfig(null);
+    } catch (err) {
+      console.error("Failed to save deploy config:", err);
+    } finally {
+      setSaving(false);
+    }
   }, [editConfig]);
 
   const handleTestConnection = useCallback(async () => {
-    await new Promise((r) => setTimeout(r, 1000));
-    return true;
+    try {
+      return await deployDS.testDeployConnection();
+    } catch {
+      return false;
+    }
   }, []);
 
   const handleSyncNow = useCallback(async (path: string) => {
