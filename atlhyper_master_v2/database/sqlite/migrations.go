@@ -408,6 +408,8 @@ func migrate(db *sql.DB) error {
 			pr_url            TEXT DEFAULT '',
 			changed_files     TEXT DEFAULT '[]',
 			compare_url       TEXT DEFAULT '',
+			source_repo       TEXT DEFAULT '',
+			source_commit_sha TEXT DEFAULT '',
 			deployed_at       TEXT NOT NULL,
 			trigger           TEXT NOT NULL DEFAULT 'auto',
 			status            TEXT DEFAULT 'pending',

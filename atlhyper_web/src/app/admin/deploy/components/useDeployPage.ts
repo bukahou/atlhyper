@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import * as deployDS from "@/datasource/deploy";
 import * as githubDS from "@/datasource/github";
 import { useClusterStore } from "@/store/clusterStore";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type {
   MockDeployConfig,
   MockPathStatus,
@@ -21,6 +22,7 @@ export function useDeployPage() {
   const [editConfig, setEditConfig] = useState<MockDeployConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [githubConnected, setGithubConnected] = useState(false);
+  const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -95,9 +97,7 @@ export function useDeployPage() {
     }
   }, [clusterId]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const { refresh, intervalSeconds } = useAutoRefresh(loadData, { interval: 30000 });
 
   const handleStartEdit = useCallback(() => {
     if (config) {
@@ -161,15 +161,39 @@ export function useDeployPage() {
   }, []);
 
   const handleSyncNow = useCallback(async (path: string) => {
+    // 防重复点击
+    if (syncingPaths.has(path)) return;
+    setSyncingPaths((prev) => new Set(prev).add(path));
+
     try {
       await deployDS.syncDeployNow(path);
     } catch (err) {
       console.error("Failed to sync:", err);
+      setSyncingPaths((prev) => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+      return;
     }
-    setStatusList((prev) =>
-      prev.map((s) => (s.path === path ? { ...s, inSync: true } : s))
-    );
-  }, []);
+    // 同步请求只是提交了任务，延迟后刷新真实状态
+    setTimeout(async () => {
+      try {
+        const statusData = await deployDS.getDeployStatus();
+        setStatusList((statusData ?? []) as MockPathStatus[]);
+        const historyData = await deployDS.getDeployHistory({ clusterId });
+        setHistory((historyData ?? []) as MockDeployRecord[]);
+      } catch {
+        // ignore
+      } finally {
+        setSyncingPaths((prev) => {
+          const next = new Set(prev);
+          next.delete(path);
+          return next;
+        });
+      }
+    }, 5000);
+  }, [clusterId, syncingPaths]);
 
   // 首次设置时自动进入编辑模式
   const isFirstSetup = !config && !editing && !editConfig;
@@ -203,6 +227,9 @@ export function useDeployPage() {
     handleSaveConfig,
     handleTestConnection,
     handleSyncNow,
+    syncingPaths,
     loadData,
+    refresh,
+    intervalSeconds,
   };
 }

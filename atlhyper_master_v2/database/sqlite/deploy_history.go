@@ -10,14 +10,14 @@ import (
 
 type deployHistoryDialect struct{}
 
-const deployHistoryCols = "id, cluster_id, path, namespace, commit_sha, commit_message, commit_author, commit_avatar_url, pr_number, pr_title, pr_url, changed_files, compare_url, deployed_at, trigger, status, duration_ms, resource_total, resource_changed, error_message"
+const deployHistoryCols = "id, cluster_id, path, namespace, commit_sha, commit_message, commit_author, commit_avatar_url, pr_number, pr_title, pr_url, changed_files, compare_url, source_repo, source_commit_sha, deployed_at, trigger, status, duration_ms, resource_total, resource_changed, error_message"
 
 func (d *deployHistoryDialect) Insert(record *database.DeployHistory) (string, []any) {
-	return `INSERT INTO deploy_history (cluster_id, path, namespace, commit_sha, commit_message, commit_author, commit_avatar_url, pr_number, pr_title, pr_url, changed_files, compare_url, deployed_at, trigger, status, duration_ms, resource_total, resource_changed, error_message)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	return `INSERT INTO deploy_history (cluster_id, path, namespace, commit_sha, commit_message, commit_author, commit_avatar_url, pr_number, pr_title, pr_url, changed_files, compare_url, source_repo, source_commit_sha, deployed_at, trigger, status, duration_ms, resource_total, resource_changed, error_message)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]any{record.ClusterID, record.Path, record.Namespace, record.CommitSHA, record.CommitMessage,
 			record.CommitAuthor, record.CommitAvatarURL, record.PRNumber, record.PRTitle, record.PRURL,
-			record.ChangedFiles, record.CompareURL,
+			record.ChangedFiles, record.CompareURL, record.SourceRepo, record.SourceCommitSHA,
 			record.DeployedAt.Format(time.RFC3339), record.Trigger, record.Status,
 			record.DurationMs, record.ResourceTotal, record.ResourceChanged, record.ErrorMessage}
 }
@@ -71,7 +71,7 @@ func (d *deployHistoryDialect) ScanRow(rows *sql.Rows) (*database.DeployHistory,
 	var deployedAt string
 	err := rows.Scan(&r.ID, &r.ClusterID, &r.Path, &r.Namespace, &r.CommitSHA, &r.CommitMessage,
 		&r.CommitAuthor, &r.CommitAvatarURL, &r.PRNumber, &r.PRTitle, &r.PRURL,
-		&r.ChangedFiles, &r.CompareURL,
+		&r.ChangedFiles, &r.CompareURL, &r.SourceRepo, &r.SourceCommitSHA,
 		&deployedAt, &r.Trigger, &r.Status, &r.DurationMs, &r.ResourceTotal, &r.ResourceChanged, &r.ErrorMessage)
 	if err != nil {
 		return nil, err

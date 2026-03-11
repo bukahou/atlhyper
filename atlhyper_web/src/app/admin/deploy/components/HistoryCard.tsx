@@ -193,25 +193,38 @@ function DetailModal({
             </span>
           </DetailRow>
 
-          {/* Commit 信息区 */}
-          <DetailRow label={dt.detailCommit}>
-            <div className="flex items-center gap-2">
+          {/* 源码仓库 + Commit 信息 */}
+          {record.sourceRepo && (
+            <DetailRow label={dt.detailSourceRepo}>
+              <div className="flex items-center gap-2">
+                <code className="text-sm bg-[var(--bg-secondary)] px-2 py-0.5 rounded text-default">
+                  {record.sourceRepo}
+                </code>
+                <span className="text-xs text-muted">@</span>
+                <code className="text-sm bg-[var(--bg-secondary)] px-2 py-0.5 rounded text-default">
+                  {(record.sourceCommitSha || record.commitSha)?.slice(0, 7)}
+                </code>
+                {record.compareUrl && (
+                  <a
+                    href={record.compareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    {dt.detailCompareLink}
+                  </a>
+                )}
+              </div>
+            </DetailRow>
+          )}
+          {!record.sourceRepo && (
+            <DetailRow label={dt.detailCommit}>
               <code className="text-sm bg-[var(--bg-secondary)] px-2 py-0.5 rounded text-default">
-                {record.commitSha}
+                {record.commitSha?.slice(0, 7) || record.commitSha}
               </code>
-              {record.compareUrl && (
-                <a
-                  href={record.compareUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  {dt.detailCompareLink}
-                </a>
-              )}
-            </div>
-          </DetailRow>
+            </DetailRow>
+          )}
 
           <DetailRow label={dt.detailCommitMessage}>
             <p className="text-sm text-default">{record.commitMessage}</p>
@@ -408,7 +421,7 @@ export function HistoryCard({ history }: HistoryCardProps) {
                     </td>
                     <td className="px-6 py-3">
                       <code className="text-xs bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-default">
-                        {record.commitSha}
+                        {record.commitSha?.slice(0, 7) || record.commitSha}
                       </code>
                     </td>
                     <td className="px-6 py-3">

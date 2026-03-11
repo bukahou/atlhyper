@@ -41,6 +41,8 @@ export interface MockDeployRecord {
   prUrl: string;
   changedFiles: string;    // JSON array of MockChangedFile
   compareUrl: string;      // GitHub compare URL
+  sourceRepo: string;      // 源码仓库 (e.g. "bukahou/Geass")
+  sourceCommitSha: string; // 源码 commit SHA (e.g. "b572f17")
   deployedAt: string;      // 实际部署完成时间
   trigger: DeployTrigger;
   status: "pending" | "success" | "failed";
@@ -113,6 +115,8 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
       { filename: "geass_gateway/src/main/java/Config.java", status: "modified", additions: 8, deletions: 3 },
     ]),
     compareUrl: "",
+    sourceRepo: "bukahou/Geass",
+    sourceCommitSha: "def5678",
     deployedAt: "2026-03-10T10:32:15Z",
     trigger: "auto",
     status: "success",
@@ -136,6 +140,8 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
       { filename: "geass_auth/src/main/java/TokenService.java", status: "modified", additions: 25, deletions: 8 },
     ]),
     compareUrl: "",
+    sourceRepo: "bukahou/Geass",
+    sourceCommitSha: "abc1234",
     deployedAt: "2026-03-09T14:33:20Z",
     trigger: "auto",
     status: "failed",
@@ -158,6 +164,8 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     prUrl: "",
     changedFiles: "[]",
     compareUrl: "",
+    sourceRepo: "bukahou/Geass",
+    sourceCommitSha: "old7890",
     deployedAt: "2026-03-09T14:40:00Z",
     trigger: "rollback",
     status: "success",
@@ -182,6 +190,8 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
       { filename: "geass_web/src/components/ThemeToggle.tsx", status: "added", additions: 45, deletions: 0 },
     ]),
     compareUrl: "",
+    sourceRepo: "bukahou/Geass",
+    sourceCommitSha: "ghi9012",
     deployedAt: "2026-03-08T09:15:30Z",
     trigger: "auto",
     status: "success",
@@ -205,6 +215,8 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
       { filename: "atlhyper_master_v2/processor/snapshot.go", status: "modified", additions: 5, deletions: 2 },
     ]),
     compareUrl: "",
+    sourceRepo: "bukahou/AtlHyper",
+    sourceCommitSha: "mst4567",
     deployedAt: "2026-03-07T16:22:10Z",
     trigger: "manual",
     status: "success",

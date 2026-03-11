@@ -250,7 +250,44 @@ export function useGitHubPage() {
       if (current.includes(ns)) return prev;
       return { ...prev, [repo]: [...current, ns] };
     });
-  }, []);
+
+    // 自动填充：如果该 repo+namespace 没有映射记录，为该 NS 下所有 Deployment 创建预填行
+    const hasExisting = mappings.some((m) => m.repo === repo && m.namespace === ns);
+    if (!hasExisting) {
+      const nsDeployments = deployments.filter((d) => d.namespace === ns);
+      if (nsDeployments.length > 0) {
+        const created: MockRepoMapping[] = [];
+        for (const dep of nsDeployments) {
+          try {
+            const result = await githubDS.createMapping({
+              clusterId,
+              repo,
+              namespace: ns,
+              deployment: dep.name,
+            });
+            created.push(result as MockRepoMapping);
+          } catch {
+            // Fallback: 本地创建
+            const newId = nextIdRef.current++;
+            created.push({
+              id: newId,
+              clusterId,
+              repo,
+              namespace: ns,
+              deployment: dep.name,
+              container: "",
+              imagePrefix: "",
+              sourcePath: "",
+              confirmed: false,
+            });
+          }
+        }
+        if (created.length > 0) {
+          setMappings((prev) => [...prev, ...created]);
+        }
+      }
+    }
+  }, [mappings, deployments, clusterId]);
 
   const handleRemoveRepoNamespace = useCallback(async (repo: string, ns: string) => {
     try {

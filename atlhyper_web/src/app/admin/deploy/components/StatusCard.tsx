@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/i18n/context";
-import { Activity, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
+import { Activity, CheckCircle, AlertTriangle, Clock, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import type { MockPathStatus } from "@/mock/deploy/data";
 import { Pagination, paginate } from "./Pagination";
@@ -9,6 +9,7 @@ import { Pagination, paginate } from "./Pagination";
 interface StatusCardProps {
   statusList: MockPathStatus[];
   onSyncNow?: (path: string) => void;
+  syncingPaths?: Set<string>;
 }
 
 function formatTime(iso: string): string {
@@ -21,7 +22,12 @@ function formatTime(iso: string): string {
 
 const STATUS_PAGE_SIZE = 5;
 
-export function StatusCard({ statusList, onSyncNow }: StatusCardProps) {
+/** 判断是否从未同步过（lastSyncAt 为空或 Go zero time） */
+function isNeverSynced(item: MockPathStatus): boolean {
+  return !item.lastSyncAt || item.lastSyncAt === "" || item.lastSyncAt.startsWith("0001-01-01");
+}
+
+export function StatusCard({ statusList, onSyncNow, syncingPaths }: StatusCardProps) {
   const { t } = useI18n();
   const dt = t.deployPage;
   const [page, setPage] = useState(0);
@@ -52,52 +58,70 @@ export function StatusCard({ statusList, onSyncNow }: StatusCardProps) {
         </div>
       ) : (
         <div className="divide-y divide-[var(--border-color)]">
-          {pagedList.map((item) => (
-            <div
-              key={item.path}
-              className="flex items-center justify-between px-6 py-3 hover:bg-[var(--bg-secondary)] transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                {item.inSync ? (
-                  <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                )}
-                <div className="min-w-0">
-                  <code className="text-sm text-default">{item.path}</code>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
-                      {item.namespace}
-                    </span>
-                    <span className="text-xs text-muted">
-                      {item.resourceCount} {dt.resourceCount}
-                    </span>
+          {pagedList.map((item) => {
+            const neverSynced = isNeverSynced(item);
+            return (
+              <div
+                key={item.path}
+                className="flex items-center justify-between px-6 py-3 hover:bg-[var(--bg-secondary)] transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {item.inSync ? (
+                    <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                  ) : neverSynced ? (
+                    <Clock className="w-5 h-5 text-zinc-400 flex-shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <code className="text-sm text-default">{item.path}</code>
+                    {!neverSynced && (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                          {item.namespace}
+                        </span>
+                        <span className="text-xs text-muted">
+                          {item.resourceCount} {dt.resourceCount}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span
-                  className={`text-sm font-medium ${
-                    item.inSync
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-amber-600 dark:text-amber-400"
-                  }`}
-                >
-                  {item.inSync ? dt.statusInSync : dt.statusOutOfSync}
-                </span>
-                {!item.inSync && onSyncNow && (
-                  <button
-                    onClick={() => onSyncNow(item.path)}
-                    className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span
+                    className={`text-sm font-medium ${
+                      item.inSync
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : neverSynced
+                          ? "text-zinc-500 dark:text-zinc-400"
+                          : "text-amber-600 dark:text-amber-400"
+                    }`}
                   >
-                    <RefreshCw className="w-3 h-3" />
-                    {dt.syncNow}
-                  </button>
-                )}
+                    {item.inSync
+                      ? dt.statusInSync
+                      : neverSynced
+                        ? dt.statusNeverSynced
+                        : dt.statusOutOfSync}
+                  </span>
+                  {!item.inSync && onSyncNow && (
+                    <button
+                      onClick={() => onSyncNow(item.path)}
+                      disabled={syncingPaths?.has(item.path)}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg text-white transition-colors ${
+                        syncingPaths?.has(item.path)
+                          ? "bg-violet-400 cursor-not-allowed"
+                          : "bg-violet-600 hover:bg-violet-700"
+                      }`}
+                    >
+                      <RefreshCw className={`w-3 h-3 ${syncingPaths?.has(item.path) ? "animate-spin" : ""}`} />
+                      {dt.syncNow}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       <Pagination

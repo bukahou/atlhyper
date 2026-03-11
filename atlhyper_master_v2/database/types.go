@@ -477,8 +477,10 @@ type DeployHistory struct {
 	PRNumber        int       `json:"prNumber"`
 	PRTitle         string    `json:"prTitle"`
 	PRURL           string    `json:"prUrl"`
-	ChangedFiles    string    `json:"changedFiles"`  // JSON array of {filename, status, additions, deletions}
-	CompareURL      string    `json:"compareUrl"`    // GitHub compare URL
+	ChangedFiles    string    `json:"changedFiles"`    // JSON array of {filename, status, additions, deletions}
+	CompareURL      string    `json:"compareUrl"`      // GitHub compare URL
+	SourceRepo      string    `json:"sourceRepo"`      // 源码仓库 (e.g. "bukahou/Geass")
+	SourceCommitSHA string    `json:"sourceCommitSha"` // 源码 commit SHA (e.g. "b572f17")
 	DeployedAt      time.Time `json:"deployedAt"`
 	Trigger         string    `json:"trigger"`
 	Status          string    `json:"status"`

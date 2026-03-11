@@ -29,6 +29,9 @@ export default function DeployPage() {
     handleSaveConfig,
     handleTestConnection,
     handleSyncNow,
+    syncingPaths,
+    refresh,
+    intervalSeconds,
   } = useDeployPage();
 
   if (loading) {
@@ -44,7 +47,7 @@ export default function DeployPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        <PageHeader title={dt.pageTitle} description={dt.pageDescription} />
+        <PageHeader title={dt.pageTitle} description={dt.pageDescription} autoRefreshSeconds={intervalSeconds} onRefresh={refresh} />
 
         {/* GitHub 未连接提示 */}
         {!githubConnected && (
@@ -86,7 +89,7 @@ export default function DeployPage() {
         />
 
         {/* 同步状态 */}
-        <StatusCard statusList={statusList} onSyncNow={handleSyncNow} />
+        <StatusCard statusList={statusList} onSyncNow={handleSyncNow} syncingPaths={syncingPaths} />
 
         {/* 部署历史 */}
         <HistoryCard history={history} />

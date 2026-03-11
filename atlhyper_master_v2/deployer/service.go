@@ -28,14 +28,16 @@ type service struct {
 	mu            sync.Mutex
 	cancel        context.CancelFunc
 	lastCommitSHA string
+	deploying     map[string]bool // 正在部署的路径，防重复
 }
 
 // NewService 创建 Deployer 服务
 func NewService(ghClient github.Client, db *database.DB, bus mq.Producer) Deployer {
 	return &service{
-		ghClient: ghClient,
-		db:       db,
-		bus:      bus,
+		ghClient:  ghClient,
+		db:        db,
+		bus:       bus,
+		deploying: make(map[string]bool),
 	}
 }
 
@@ -43,9 +45,43 @@ func (s *service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
+	// 从 DB 恢复 lastCommitSHA，避免重启后首次轮询部署所有路径
+	s.restoreLastCommitSHA(ctx)
+
 	go s.pollLoop(ctx)
 	logger.Info("[Deployer] started")
 	return nil
+}
+
+// restoreLastCommitSHA 从最近的部署历史中恢复上次的 Config 仓库 commit SHA
+func (s *service) restoreLastCommitSHA(ctx context.Context) {
+	config := s.loadConfig(ctx)
+	if config == nil {
+		return
+	}
+	paths := parsePaths(config.Paths)
+	if len(paths) == 0 {
+		return
+	}
+	// 取所有路径中最新的一条部署记录的 commitSHA
+	var latestTime time.Time
+	var latestSHA string
+	for _, p := range paths {
+		record, err := s.db.DeployHistory.GetLatestByPath(ctx, config.ClusterID, p)
+		if err != nil || record == nil {
+			continue
+		}
+		if record.DeployedAt.After(latestTime) {
+			latestTime = record.DeployedAt
+			latestSHA = record.CommitSHA
+		}
+	}
+	if latestSHA != "" {
+		s.mu.Lock()
+		s.lastCommitSHA = latestSHA
+		s.mu.Unlock()
+		logger.Info("[Deployer] restored lastCommitSHA from DB", "sha", latestSHA[:min(8, len(latestSHA))])
+	}
 }
 
 func (s *service) Stop() error {
@@ -139,9 +175,19 @@ func (s *service) checkAndDeploy(ctx context.Context, config *database.DeployCon
 		return
 	}
 
-	// 部署每个受影响的路径
+	// 部署每个受影响的路径（跳过正在部署的）
 	for _, path := range affectedPaths {
+		s.mu.Lock()
+		if s.deploying[path] {
+			s.mu.Unlock()
+			logger.Info("[Deployer] skipping path (already deploying)", "path", path)
+			continue
+		}
+		s.deploying[path] = true
+		s.mu.Unlock()
+
 		s.deployPath(ctx, config, path, sha, "auto", compareResult)
+		s.clearDeploying(path)
 	}
 
 	s.mu.Lock()
@@ -150,64 +196,22 @@ func (s *service) checkAndDeploy(ctx context.Context, config *database.DeployCon
 }
 
 func (s *service) deployPath(ctx context.Context, config *database.DeployConfig, path, commitSHA, trigger string, compareResult *github.CompareResult) {
-	repo := config.RepoURL
 	clusterID := config.ClusterID
 
-	// 通过 SHA 获取 commit 详情（message, author, avatar）
-	commitMsg := ""
-	commitAuthor := ""
-	commitAvatarURL := ""
-	commit, err := s.ghClient.GetCommitByRef(ctx, repo, commitSHA)
-	if err == nil && commit != nil {
-		commitMsg = commit.Message
-		commitAuthor = commit.Author
-		commitAvatarURL = commit.AvatarURL
-	}
-
-	// 获取关联 PR 信息
-	var prNumber int
-	var prTitle, prURL string
-	pr, err := s.ghClient.GetPRByCommit(ctx, repo, commitSHA)
-	if err == nil && pr != nil {
-		prNumber = pr.Number
-		prTitle = pr.Title
-		prURL = pr.URL
-	}
-
-	// 从 compareResult 提取变更文件列表和 compare URL
-	var changedFilesJSON string
-	var compareURL string
-	if compareResult != nil {
-		compareURL = compareResult.HTMLURL
-		if filesData, err := json.Marshal(compareResult.Files); err == nil {
-			changedFilesJSON = string(filesData)
-		}
-	}
-	if changedFilesJSON == "" {
-		changedFilesJSON = "[]"
-	}
-
 	record := &database.DeployHistory{
-		ClusterID:       clusterID,
-		Path:            path,
-		CommitSHA:       commitSHA,
-		CommitMessage:   commitMsg,
-		CommitAuthor:    commitAuthor,
-		CommitAvatarURL: commitAvatarURL,
-		PRNumber:        prNumber,
-		PRTitle:         prTitle,
-		PRURL:           prURL,
-		ChangedFiles:    changedFilesJSON,
-		CompareURL:      compareURL,
-		DeployedAt:      time.Now(),
-		Trigger:         trigger,
-		Status:          "pending",
+		ClusterID:    clusterID,
+		Path:         path,
+		CommitSHA:    commitSHA,
+		ChangedFiles: "[]",
+		DeployedAt:   time.Now(),
+		Trigger:      trigger,
+		Status:       "pending",
 	}
 
 	start := time.Now()
 
 	// 使用 kustomize 构建 manifests
-	manifests, err := s.kustomizeBuild(ctx, repo, path, commitSHA)
+	manifests, err := s.kustomizeBuild(ctx, config.RepoURL, path, commitSHA)
 	if err != nil {
 		record.Status = "failed"
 		record.ErrorMessage = fmt.Sprintf("kustomize build failed: %v", err)
@@ -225,6 +229,9 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 	if record.ResourceTotal == 0 && strings.HasPrefix(manifests, "kind:") {
 		record.ResourceTotal = 1
 	}
+
+	// 从 manifests 解析源码仓库信息（image tag → source SHA → GitHub API）
+	s.enrichSourceInfo(ctx, record, manifests, config.RepoURL)
 
 	// 通过 MQ 发送 apply_manifests 指令
 	cmd := &command.Command{
@@ -279,13 +286,24 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 }
 
 func (s *service) SyncNow(ctx context.Context, path string) error {
+	// 防重复：检查该路径是否正在部署
+	s.mu.Lock()
+	if s.deploying[path] {
+		s.mu.Unlock()
+		return fmt.Errorf("path %s is already deploying", path)
+	}
+	s.deploying[path] = true
+	s.mu.Unlock()
+
 	config := s.loadConfig(ctx)
 	if config == nil {
+		s.clearDeploying(path)
 		return fmt.Errorf("no deploy config found")
 	}
 
 	sha, err := s.ghClient.GetLatestCommitSHA(ctx, config.RepoURL, "main")
 	if err != nil {
+		s.clearDeploying(path)
 		return fmt.Errorf("get latest commit: %w", err)
 	}
 
@@ -301,8 +319,18 @@ func (s *service) SyncNow(ctx context.Context, path string) error {
 		}
 	}
 
-	go s.deployPath(ctx, config, path, sha, "manual", compareResult)
+	// 使用独立 context，避免 HTTP 请求完成后 context 被 cancel
+	go func() {
+		defer s.clearDeploying(path)
+		s.deployPath(context.Background(), config, path, sha, "manual", compareResult)
+	}()
 	return nil
+}
+
+func (s *service) clearDeploying(path string) {
+	s.mu.Lock()
+	delete(s.deploying, path)
+	s.mu.Unlock()
 }
 
 func (s *service) GetPathStatus(ctx context.Context) ([]PathStatus, error) {
@@ -426,4 +454,134 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// === 源码仓库信息解析（source.json 方案） ===
+
+// sourceJSON 是 CI 写入 Config 仓库的源码元数据文件
+// 路径: {kustomize_path}/source.json
+type sourceJSON struct {
+	Repo   string `json:"repo"`   // 源码仓库 (e.g. "bukahou/Geass")
+	SHA    string `json:"sha"`    // 源码 commit SHA (full 40-char)
+	Branch string `json:"branch"` // 源码分支 (e.g. "main")
+}
+
+// enrichSourceInfo 读取 source.json 解析源码仓库信息，填充到 DeployHistory
+func (s *service) enrichSourceInfo(ctx context.Context, record *database.DeployHistory, manifests, configRepo string) {
+	src := s.readSourceJSON(ctx, configRepo, record.Path, record.CommitSHA)
+	if src == nil {
+		// source.json 不存在（CI 尚未适配），回退显示 Config 仓库 commit 信息
+		s.enrichConfigInfo(ctx, record, configRepo)
+		return
+	}
+
+	record.SourceRepo = src.Repo
+	record.SourceCommitSHA = src.SHA
+
+	// 获取源码 commit 详情
+	srcCommit, err := s.ghClient.GetCommitByRef(ctx, src.Repo, src.SHA)
+	if err == nil && srcCommit != nil {
+		record.CommitMessage = srcCommit.Message
+		record.CommitAuthor = srcCommit.Author
+		record.CommitAvatarURL = srcCommit.AvatarURL
+	}
+
+	// 获取源码关联 PR
+	srcPR, err := s.ghClient.GetPRByCommit(ctx, src.Repo, src.SHA)
+	if err == nil && srcPR != nil {
+		record.PRNumber = srcPR.Number
+		record.PRTitle = srcPR.Title
+		record.PRURL = srcPR.URL
+	}
+
+	// 源码变更文件：与上一次部署的源码 SHA 对比
+	prevSHA := s.getPreviousSourceSHA(ctx, record.ClusterID, record.Path)
+	if prevSHA != "" && prevSHA != src.SHA {
+		srcCompare, err := s.ghClient.CompareCommitsDetail(ctx, src.Repo, prevSHA, src.SHA)
+		if err == nil && srcCompare != nil {
+			record.CompareURL = srcCompare.HTMLURL
+			// 使用 repo_mapping 的 source_path 过滤变更文件（monorepo 场景）
+			pathPrefixes := s.getSourcePathPrefixes(ctx, src.Repo)
+			filtered := filterFilesByPaths(srcCompare.Files, pathPrefixes)
+			if filesData, err := json.Marshal(filtered); err == nil {
+				record.ChangedFiles = string(filesData)
+			}
+		}
+	}
+
+	logger.Info("[Deployer] resolved source info", "sourceRepo", src.Repo, "sourceSHA", src.SHA[:min(8, len(src.SHA))])
+}
+
+// enrichConfigInfo 回退方案：使用 Config 仓库的 commit 信息（source.json 不存在时）
+func (s *service) enrichConfigInfo(ctx context.Context, record *database.DeployHistory, configRepo string) {
+	commit, err := s.ghClient.GetCommitByRef(ctx, configRepo, record.CommitSHA)
+	if err == nil && commit != nil {
+		record.CommitMessage = commit.Message
+		record.CommitAuthor = commit.Author
+		record.CommitAvatarURL = commit.AvatarURL
+	}
+	logger.Info("[Deployer] using config repo commit info (no source.json)", "path", record.Path)
+}
+
+// readSourceJSON 从 Config 仓库读取 source.json
+// CI 在更新 kustomization.yaml 时同步写入: {path}/source.json
+func (s *service) readSourceJSON(ctx context.Context, configRepo, path, ref string) *sourceJSON {
+	filePath := path + "/source.json"
+	content, err := s.ghClient.ReadFile(ctx, configRepo, filePath, ref)
+	if err != nil {
+		return nil
+	}
+	var src sourceJSON
+	if err := json.Unmarshal([]byte(content), &src); err != nil {
+		logger.Error("[Deployer] failed to parse source.json", "path", filePath, "error", err)
+		return nil
+	}
+	if src.Repo == "" || src.SHA == "" {
+		return nil
+	}
+	return &src
+}
+
+// getSourcePathPrefixes 从 repo_mapping 获取源码目录前缀（用于 monorepo 变更文件过滤）
+func (s *service) getSourcePathPrefixes(ctx context.Context, repo string) []string {
+	mappings, err := s.db.RepoMapping.ListByRepo(ctx, repo)
+	if err != nil || len(mappings) == 0 {
+		return nil
+	}
+	var prefixes []string
+	for _, m := range mappings {
+		if m.SourcePath != "" {
+			prefixes = append(prefixes, m.SourcePath)
+		}
+	}
+	return prefixes
+}
+
+// getPreviousSourceSHA 从上一次部署记录获取源码 commit SHA
+func (s *service) getPreviousSourceSHA(ctx context.Context, clusterID, path string) string {
+	latest, err := s.db.DeployHistory.GetLatestByPath(ctx, clusterID, path)
+	if err != nil || latest == nil {
+		return ""
+	}
+	return latest.SourceCommitSHA
+}
+
+// filterFilesByPaths 按路径前缀列表过滤变更文件
+func filterFilesByPaths(files []github.ChangedFile, pathPrefixes []string) []github.ChangedFile {
+	if len(pathPrefixes) == 0 {
+		return files
+	}
+	var filtered []github.ChangedFile
+	for _, f := range files {
+		for _, prefix := range pathPrefixes {
+			if strings.HasPrefix(f.Filename, prefix) {
+				filtered = append(filtered, f)
+				break
+			}
+		}
+	}
+	if filtered == nil {
+		return []github.ChangedFile{}
+	}
+	return filtered
 }
