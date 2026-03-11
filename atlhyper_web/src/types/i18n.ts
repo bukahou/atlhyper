@@ -53,10 +53,10 @@ export interface NavTranslations {
   // APM
   apm: string;
   // Observe Landing
-  // Admin
+  // DevOps
+  devops: string;
   datasource: string;
   deploy: string;
-  // Settings
   github: string;
 }
 
@@ -2317,6 +2317,7 @@ export interface DeployPageTranslations {
   statusPending: string;
   statusDeploying: string;
   statusFailed: string;
+  statusNeverSynced: string;
   noStatus: string;
   noStatusHint: string;
   syncNow: string;
@@ -2342,6 +2343,7 @@ export interface DeployPageTranslations {
   detailPath: string;
   detailNamespace: string;
   detailTrigger: string;
+  detailSourceRepo: string;
   detailCommit: string;
   detailCommitMessage: string;
   detailDeployedAt: string;

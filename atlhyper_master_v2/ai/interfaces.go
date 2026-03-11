@@ -111,6 +111,8 @@ type AnalyzeResult struct {
 	ToolCalls    int           // 总 Tool 调用次数
 	InputTokens  int           // 总输入 Token
 	OutputTokens int           // 总输出 Token
+	ProviderName string        // Provider 名称
+	Model        string        // 模型名称
 	Steps        []AnalyzeStep // 调查步骤记录
 }
 

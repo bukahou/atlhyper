@@ -50,7 +50,8 @@ export const ja: Translations = {
     // APM
     apm: "APM トレース",
     // Observe Landing
-    // Admin
+    // DevOps
+    devops: "DevOps",
     datasource: "データソース",
     deploy: "デプロイ管理",
     github: "GitHub連携",
@@ -2218,6 +2219,7 @@ Deployment が更新され、新しい Pod が起動中です
     statusPending: "デプロイ待ち",
     statusDeploying: "デプロイ中",
     statusFailed: "デプロイ失敗",
+    statusNeverSynced: "初回同期待ち",
     noStatus: "ステータスなし",
     noStatusHint: "先にConfigリポジトリとデプロイパスを設定してください",
     syncNow: "今すぐ同期",
@@ -2241,6 +2243,7 @@ Deployment が更新され、新しい Pod が起動中です
     detailPath: "デプロイパス",
     detailNamespace: "Namespace",
     detailTrigger: "トリガー方式",
+    detailSourceRepo: "ソースリポジトリ",
     detailCommit: "Commit SHA",
     detailCommitMessage: "コミットメッセージ",
     detailDeployedAt: "デプロイ時間",

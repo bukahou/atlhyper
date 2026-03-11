@@ -119,6 +119,8 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 				ToolCalls:    totalToolCalls,
 				InputTokens:  totalInputTokens,
 				OutputTokens: totalOutputTokens,
+				ProviderName: roleCfg.ProviderName,
+				Model:        roleCfg.Config.Model,
 				Steps:        steps,
 			}, nil
 		}
@@ -171,6 +173,8 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 		ToolCalls:    totalToolCalls,
 		InputTokens:  totalInputTokens,
 		OutputTokens: totalOutputTokens,
+		ProviderName: roleCfg.ProviderName,
+		Model:        roleCfg.Config.Model,
 		Steps:        steps,
 	}, nil
 }

@@ -120,12 +120,21 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    key: "devops",
+    icon: Rocket,
+    children: [
+      { key: "github", href: "/settings/github", icon: Github },
+      { key: "deploy", href: "/admin/deploy", icon: Rocket },
+      { key: "commands", href: "/admin/commands", icon: ClipboardList },
+    ],
+  },
+  {
     key: "settings",
     icon: Settings,
     children: [
       { key: "aiSettings", href: "/settings/ai", icon: Bot },
       { key: "notifications", href: "/settings/notif", icon: Bell },
-      { key: "github", href: "/settings/github", icon: Github },
+      { key: "datasource", href: "/admin/datasource", icon: ToggleLeft },
     ],
   },
   {
@@ -135,9 +144,6 @@ export const navGroups: NavGroup[] = [
       { key: "users", href: "/admin/users", icon: Users, adminOnly: true },
       { key: "roles", href: "/admin/roles", icon: ShieldCheck },
       { key: "audit", href: "/admin/audit", icon: ClipboardList },
-      { key: "commands", href: "/admin/commands", icon: ClipboardList },
-      { key: "deploy", href: "/admin/deploy", icon: Rocket },
-      { key: "datasource", href: "/admin/datasource", icon: ToggleLeft },
     ],
   },
 ];

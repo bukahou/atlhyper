@@ -307,7 +307,11 @@ func (e *Enricher) runAnalysis(ctx context.Context, incidentID, trigger string) 
 		return fmt.Errorf("深度分析失败: %w", err)
 	}
 
-	// 4. 保存分析报告
+	// 4. 保存分析报告（仅当有实际内容时）
+	if result.Response == "" {
+		log.Warn("深度分析 LLM 返回空响应，跳过保存", "incident", incidentID, "toolCalls", result.ToolCalls)
+		return fmt.Errorf("LLM 返回空响应（已使用 %d tokens，%d 轮 tool calls）", result.InputTokens+result.OutputTokens, result.ToolCalls)
+	}
 	e.saveAnalysisReport(ctx, incidentID, incident, result, trigger)
 
 	log.Info("深度分析完成",
@@ -339,6 +343,8 @@ func (e *Enricher) saveAnalysisReport(ctx context.Context, incidentID string, in
 		RootCauseAnalysis:  parsed.RootCauseAnalysis,
 		Recommendations:    string(recsJSON),
 		InvestigationSteps: string(stepsJSON),
+		ProviderName:        result.ProviderName,
+		Model:              result.Model,
 		InputTokens:        result.InputTokens,
 		OutputTokens:       result.OutputTokens,
 		CreatedAt:          time.Now(),

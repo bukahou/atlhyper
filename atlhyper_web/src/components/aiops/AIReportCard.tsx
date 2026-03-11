@@ -113,7 +113,7 @@ export function AIReportCard({ report }: AIReportCardProps) {
               {/* Recommendations */}
               {detail.recommendations && (() => {
                 let recs: Recommendation[] = [];
-                try { recs = JSON.parse(detail.recommendations); } catch { /* ignore */ }
+                try { recs = JSON.parse(detail.recommendations) ?? []; } catch { /* ignore */ }
                 return (
                   <div>
                     <h5 className="text-xs font-semibold text-muted mb-2">{aiT.recommendations}</h5>
@@ -144,7 +144,7 @@ export function AIReportCard({ report }: AIReportCardProps) {
               {/* Similar Incidents */}
               {detail.similarIncidents && (() => {
                 let sims: SimilarMatch[] = [];
-                try { sims = JSON.parse(detail.similarIncidents); } catch { /* ignore */ }
+                try { sims = JSON.parse(detail.similarIncidents) ?? []; } catch { /* ignore */ }
                 return (
                   <div>
                     <h5 className="text-xs font-semibold text-muted mb-2">{aiT.similarIncidents}</h5>
@@ -173,7 +173,7 @@ export function AIReportCard({ report }: AIReportCardProps) {
               {/* Evidence Chain */}
               {detail.evidenceChain && (() => {
                 let chain: string[] = [];
-                try { chain = JSON.parse(detail.evidenceChain); } catch { /* ignore */ }
+                try { chain = JSON.parse(detail.evidenceChain) ?? []; } catch { /* ignore */ }
                 return (
                   <div>
                     <h5 className="text-xs font-semibold text-muted mb-1">{aiT.evidenceChain}</h5>

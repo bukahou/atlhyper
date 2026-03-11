@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { useClusterStore } from "@/store/clusterStore";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import {
   RefreshCw,
   WifiOff,
@@ -144,6 +145,17 @@ function LogsPageContent() {
     loadLogs();
   }, [loadLogs]);
 
+  // 自动刷新（同时刷新日志列表和直方图）
+  const refreshAll = useCallback(() => {
+    loadLogs();
+    loadHistogram();
+  }, [loadLogs, loadHistogram]);
+
+  const { refresh, intervalSeconds } = useAutoRefresh(refreshAll, {
+    interval: 15000,
+    immediate: false, // loadLogs/loadHistogram 已经由各自的 useEffect 触发初始加载
+  });
+
   const handlePageChange = (p: number) => {
     setPage(p);
     setSelectedEntry(null);
@@ -190,7 +202,11 @@ function LogsPageContent() {
               onChange={setTimeSelection}
               t={tl}
             />
+            <span className="text-xs text-muted bg-[var(--background)] px-2 py-1 rounded">
+              {intervalSeconds}s
+            </span>
             <button
+              onClick={refresh}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />

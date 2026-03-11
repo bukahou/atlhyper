@@ -50,7 +50,8 @@ export const zh: Translations = {
     // APM
     apm: "APM 链路追踪",
     // Observe Landing
-    // Admin
+    // DevOps
+    devops: "DevOps",
     datasource: "数据源",
     deploy: "部署管理",
     github: "GitHub 集成",
@@ -2218,6 +2219,7 @@ Deployment 已更新，新的 Pod 正在启动中
     statusPending: "待部署",
     statusDeploying: "部署中",
     statusFailed: "部署失败",
+    statusNeverSynced: "等待首次同步",
     noStatus: "暂无状态",
     noStatusHint: "请先配置 Config 仓库和部署路径",
     syncNow: "立即同步",
@@ -2241,6 +2243,7 @@ Deployment 已更新，新的 Pod 正在启动中
     detailPath: "部署路径",
     detailNamespace: "Namespace",
     detailTrigger: "触发方式",
+    detailSourceRepo: "源码仓库",
     detailCommit: "Commit SHA",
     detailCommitMessage: "提交信息",
     detailDeployedAt: "部署时间",
