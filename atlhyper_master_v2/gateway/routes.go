@@ -14,6 +14,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	adminHandler "AtlHyper/atlhyper_master_v2/gateway/handler/admin"
 	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
@@ -37,10 +38,11 @@ type Router struct {
 	aiService      ai.AIService
 	analyzeTrigger aiopsHandler.AnalyzeTrigger
 	ghClient       github.Client
+	deployer       deployer.Deployer
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client) *Router {
+func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client, dep deployer.Deployer) *Router {
 	return &Router{
 		mux:            http.NewServeMux(),
 		publicMux:      http.NewServeMux(),
@@ -50,6 +52,7 @@ func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.A
 		aiService:      aiSvc,
 		analyzeTrigger: trigger,
 		ghClient:       ghClient,
+		deployer:       dep,
 	}
 }
 
@@ -344,6 +347,9 @@ func (r *Router) registerRoutes() {
 	if r.ghClient != nil {
 		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.database.GitHubInstall, r.database.RepoConfig, r.database)
 		deployH := adminHandler.NewDeployHandler(r.ghClient, r.database.DeployConfig, r.database.DeployHistory, r.database.GitHubInstall)
+		if r.deployer != nil {
+			deployH.SetDeployer(r.deployer)
+		}
 
 		// GitHub 连接状态（公开读取）
 		r.public(func(register func(pattern string, h http.HandlerFunc)) {

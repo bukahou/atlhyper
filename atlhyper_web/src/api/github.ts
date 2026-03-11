@@ -23,7 +23,11 @@ interface ConnectionResponse {
 
 interface ConnectResponse {
   data: {
-    authUrl: string;
+    authUrl?: string;
+    connected?: boolean;
+    accountLogin?: string;
+    avatarUrl?: string;
+    installationId?: number;
   };
 }
 

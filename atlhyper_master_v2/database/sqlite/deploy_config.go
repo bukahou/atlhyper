@@ -26,6 +26,10 @@ func (d *deployConfigDialect) SelectByCluster(clusterID string) (string, []any) 
 	return "SELECT id, cluster_id, repo_url, paths, interval_sec, auto_deploy, created_at, updated_at FROM deploy_config WHERE cluster_id = ?", []any{clusterID}
 }
 
+func (d *deployConfigDialect) SelectAll() (string, []any) {
+	return "SELECT id, cluster_id, repo_url, paths, interval_sec, auto_deploy, created_at, updated_at FROM deploy_config", nil
+}
+
 func (d *deployConfigDialect) Delete(clusterID string) (string, []any) {
 	return "DELETE FROM deploy_config WHERE cluster_id = ?", []any{clusterID}
 }

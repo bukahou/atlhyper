@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { getClusterOverview } from "@/datasource/overview";
-import { getClusterList } from "@/api/cluster";
 import { getSLODomainsV2 } from "@/datasource/slo";
 import { getDataSourceMode } from "@/config/data-source";
+import { useClusterStore } from "@/store/clusterStore";
 import { LoadingSpinner, PageHeader } from "@/components/common";
 import { Server, Cpu, HardDrive, AlertTriangle } from "lucide-react";
 import type { TransformedOverview } from "@/types/overview";
@@ -32,6 +32,7 @@ const REFRESH_INTERVAL = 10000;
 
 export default function OverviewPage() {
   const { t } = useI18n();
+  const clusterId = useClusterStore((s) => s.currentClusterId);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TransformedOverview>(emptyData);
   const [sloData, setSloData] = useState<DomainSLOListResponseV2 | null>(null);
@@ -48,18 +49,11 @@ export default function OverviewPage() {
 
     const fetchData = async () => {
       try {
-        // Mock 模式下跳过集群列表获取，直接用固定 ID
-        let clusterId = "zgmf-x10a";
-        if (getDataSourceMode("overview") !== "mock") {
-          const clusterRes = await getClusterList();
-          const clusters = clusterRes.data?.clusters || [];
-          if (clusters.length === 0) {
-            if (isMountedRef.current && isFirstLoadRef.current) {
-              setError(t.common.noCluster);
-            }
-            return;
+        if (!clusterId) {
+          if (isMountedRef.current && isFirstLoadRef.current) {
+            setError(t.common.noCluster);
           }
-          clusterId = clusters[0].clusterId;
+          return;
         }
 
         const [res, sloRes] = await Promise.all([
@@ -98,7 +92,7 @@ export default function OverviewPage() {
       isMountedRef.current = false;
       clearInterval(intervalId);
     };
-  }, []);
+  }, [clusterId]);
 
   if (loading) {
     return (

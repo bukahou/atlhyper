@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import * as deployDS from "@/datasource/deploy";
 import * as githubDS from "@/datasource/github";
+import { useClusterStore } from "@/store/clusterStore";
 import type {
   MockDeployConfig,
   MockPathStatus,
@@ -8,6 +9,7 @@ import type {
 } from "@/mock/deploy/data";
 
 export function useDeployPage() {
+  const clusterId = useClusterStore((s) => s.currentClusterId);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<MockDeployConfig | null>(null);
   const [statusList, setStatusList] = useState<MockPathStatus[]>([]);
@@ -34,7 +36,7 @@ export function useDeployPage() {
       setGithubConnected(connected);
 
       // 加载部署配置
-      const clusterId = "zgmf-x10a";
+
       let configData: MockDeployConfig | null = null;
       try {
         configData = await deployDS.getDeployConfig(clusterId);
@@ -91,7 +93,7 @@ export function useDeployPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clusterId]);
 
   useEffect(() => {
     loadData();
@@ -109,11 +111,11 @@ export function useDeployPage() {
         paths: [],
         intervalSec: 60,
         autoDeploy: true,
-        clusterId: "zgmf-x10a",
+        clusterId,
       });
     }
     setEditing(true);
-  }, [config]);
+  }, [config, clusterId]);
 
   const handleCancelEdit = useCallback(() => {
     setEditing(false);
@@ -121,8 +123,11 @@ export function useDeployPage() {
   }, []);
 
   const handleUpdateConfig = useCallback((newConfig: MockDeployConfig) => {
+    // 确保进入正式编辑模式（解决 isFirstSetup 下 editConfig 被硬编码覆盖的问题）
+    setEditing(true);
     setEditConfig((prev) => {
-      if (prev && prev.repoUrl !== newConfig.repoUrl && newConfig.repoUrl) {
+      const prevRepoUrl = prev?.repoUrl ?? "";
+      if (prevRepoUrl !== newConfig.repoUrl && newConfig.repoUrl) {
         deployDS.getKustomizePaths(newConfig.repoUrl).then((paths) => {
           setKustomizePaths(paths ?? []);
         }).catch(() => setKustomizePaths([]));
@@ -166,20 +171,27 @@ export function useDeployPage() {
     );
   }, []);
 
-  const isFirstSetup = !config && !editing;
+  // 首次设置时自动进入编辑模式
+  const isFirstSetup = !config && !editing && !editConfig;
+  useEffect(() => {
+    if (isFirstSetup && !loading) {
+      setEditing(true);
+      setEditConfig({
+        repoUrl: "",
+        paths: [],
+        intervalSec: 60,
+        autoDeploy: true,
+        clusterId,
+      });
+    }
+  }, [isFirstSetup, loading, clusterId]);
 
   return {
     loading,
     githubConnected,
     config,
-    editing: editing || isFirstSetup,
-    editConfig: editing ? editConfig : isFirstSetup ? {
-      repoUrl: "",
-      paths: [],
-      intervalSec: 60,
-      autoDeploy: true,
-      clusterId: "zgmf-x10a",
-    } : null,
+    editing,
+    editConfig,
     kustomizePaths,
     statusList,
     history,

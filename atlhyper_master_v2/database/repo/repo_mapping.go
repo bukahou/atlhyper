@@ -3,6 +3,9 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 )
@@ -31,6 +34,39 @@ func (r *repoMappingRepo) Create(ctx context.Context, m *database.RepoDeployMapp
 
 func (r *repoMappingRepo) Update(ctx context.Context, m *database.RepoDeployMapping) error {
 	query, args := r.dialect.Update(m)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// PartialUpdate 部分更新：只更新 fields 中存在的字段
+func (r *repoMappingRepo) PartialUpdate(ctx context.Context, id int64, fields map[string]interface{}) error {
+	// 允许更新的字段（JSON key → DB column）
+	allowed := map[string]string{
+		"namespace":   "namespace",
+		"deployment":  "deployment",
+		"container":   "container",
+		"imagePrefix": "image_prefix",
+		"sourcePath":  "source_path",
+		"confirmed":   "confirmed",
+	}
+
+	var setClauses []string
+	var args []any
+	for jsonKey, col := range allowed {
+		if val, ok := fields[jsonKey]; ok {
+			setClauses = append(setClauses, col+"=?")
+			args = append(args, val)
+		}
+	}
+	if len(setClauses) == 0 {
+		return nil
+	}
+
+	setClauses = append(setClauses, "updated_at=?")
+	args = append(args, time.Now().Format(time.RFC3339))
+	args = append(args, id)
+
+	query := fmt.Sprintf("UPDATE repo_deploy_mapping SET %s WHERE id=?", strings.Join(setClauses, ", "))
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }

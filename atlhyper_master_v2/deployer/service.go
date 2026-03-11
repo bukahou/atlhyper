@@ -56,32 +56,8 @@ func (s *service) Stop() error {
 }
 
 func (s *service) pollLoop(ctx context.Context) {
-	// 获取所有集群的部署配置，使用第一个可用的
-	clusters, err := s.db.Cluster.List(ctx)
-	if err != nil || len(clusters) == 0 {
-		logger.Info("[Deployer] no clusters found, polling disabled")
-		return
-	}
-
-	var config *database.DeployConfig
-	for _, c := range clusters {
-		cfg, err := s.db.DeployConfig.GetByCluster(ctx, c.ClusterUID)
-		if err == nil && cfg != nil {
-			config = cfg
-			break
-		}
-	}
-	if config == nil {
-		logger.Info("[Deployer] no deploy config found, polling disabled")
-		return
-	}
-
-	interval := time.Duration(config.IntervalSec) * time.Second
-	if interval < 10*time.Second {
-		interval = 60 * time.Second
-	}
-
-	ticker := time.NewTicker(interval)
+	// 使用固定间隔轮询，每次动态读取配置（支持热更新）
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -89,12 +65,25 @@ func (s *service) pollLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			config := s.loadConfig(ctx)
+			if config == nil {
+				continue // 配置尚未就绪，等待下一轮
+			}
 			if !config.AutoDeploy {
 				continue
 			}
 			s.checkAndDeploy(ctx, config)
 		}
 	}
+}
+
+// loadConfig 从数据库加载部署配置（不依赖 clusters 表）
+func (s *service) loadConfig(ctx context.Context) *database.DeployConfig {
+	configs, err := s.db.DeployConfig.List(ctx)
+	if err != nil || len(configs) == 0 {
+		return nil
+	}
+	return configs[0]
 }
 
 func (s *service) checkAndDeploy(ctx context.Context, config *database.DeployConfig) {
@@ -242,20 +231,7 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 }
 
 func (s *service) SyncNow(ctx context.Context, path string) error {
-	// 获取所有集群的部署配置
-	clusters, err := s.db.Cluster.List(ctx)
-	if err != nil || len(clusters) == 0 {
-		return fmt.Errorf("no clusters found")
-	}
-
-	var config *database.DeployConfig
-	for _, c := range clusters {
-		cfg, err := s.db.DeployConfig.GetByCluster(ctx, c.ClusterUID)
-		if err == nil && cfg != nil {
-			config = cfg
-			break
-		}
-	}
+	config := s.loadConfig(ctx)
 	if config == nil {
 		return fmt.Errorf("no deploy config found")
 	}
@@ -270,20 +246,7 @@ func (s *service) SyncNow(ctx context.Context, path string) error {
 }
 
 func (s *service) GetPathStatus(ctx context.Context) ([]PathStatus, error) {
-	// 获取所有集群的部署配置
-	clusters, err := s.db.Cluster.List(ctx)
-	if err != nil || len(clusters) == 0 {
-		return nil, nil
-	}
-
-	var config *database.DeployConfig
-	for _, c := range clusters {
-		cfg, err := s.db.DeployConfig.GetByCluster(ctx, c.ClusterUID)
-		if err == nil && cfg != nil {
-			config = cfg
-			break
-		}
-	}
+	config := s.loadConfig(ctx)
 	if config == nil {
 		return nil, nil
 	}

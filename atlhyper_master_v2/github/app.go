@@ -187,6 +187,48 @@ func (c *clientImpl) GetInstallationAccount(ctx context.Context, installationID 
 	return result.Account.Login, nil
 }
 
+// ListInstallations 通过 App JWT 查询所有安装（用于自动检测已有安装）
+func (c *clientImpl) ListInstallations(ctx context.Context) ([]Installation, error) {
+	jwtToken, err := c.signJWT()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/app/installations", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("获取 installations 列表失败: %d %s", resp.StatusCode, string(body))
+	}
+
+	var raw []struct {
+		ID      int64 `json:"id"`
+		Account struct {
+			Login string `json:"login"`
+		} `json:"account"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	result := make([]Installation, len(raw))
+	for i, r := range raw {
+		result[i] = Installation{InstallationID: r.ID, AccountLogin: r.Account.Login}
+	}
+	return result, nil
+}
+
 // loadPrivateKey 从 PEM 文件加载 RSA 私钥
 func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 	data, err := os.ReadFile(path)

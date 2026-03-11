@@ -67,13 +67,45 @@ func (h *GitHubHandler) Connection(w http.ResponseWriter, r *http.Request) {
 }
 
 // Connect POST /api/github/connect — 发起 GitHub App 安装
+// 优先自动检测已有安装，无需用户手动操作；无安装时才跳转 GitHub
 func (h *GitHubHandler) Connect(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	// 生成随机 state 防 CSRF
+	// 尝试自动检测已有安装
+	lister, ok := h.ghClient.(interface {
+		ListInstallations(ctx context.Context) ([]github.Installation, error)
+	})
+	if ok {
+		installations, err := lister.ListInstallations(r.Context())
+		if err == nil && len(installations) > 0 {
+			// 找到已有安装，直接注册连接
+			inst := installations[0]
+			h.installRepo.Upsert(r.Context(), &database.GitHubInstallation{
+				InstallationID: inst.InstallationID,
+				AccountLogin:   inst.AccountLogin,
+			})
+
+			// 设置 Installation ID 供后续 API 调用使用
+			if setter, ok := h.ghClient.(interface{ SetInstallationID(int64) }); ok {
+				setter.SetInstallationID(inst.InstallationID)
+			}
+
+			handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+				"data": github.ConnectionStatus{
+					Connected:      true,
+					AccountLogin:   inst.AccountLogin,
+					AvatarURL:      "https://github.com/" + inst.AccountLogin + ".png",
+					InstallationID: inst.InstallationID,
+				},
+			})
+			return
+		}
+	}
+
+	// 无已有安装，跳转 GitHub 安装页面
 	stateBytes := make([]byte, 16)
 	rand.Read(stateBytes)
 	state := hex.EncodeToString(stateBytes)
@@ -501,14 +533,14 @@ func (h *GitHubHandler) updateMapping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var mapping database.RepoDeployMapping
-	if err := json.NewDecoder(r.Body).Decode(&mapping); err != nil {
+	// 解析为 map 以支持部分更新（避免零值覆盖其他字段）
+	var fields map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&fields); err != nil {
 		handler.WriteError(w, http.StatusBadRequest, "无效的请求体")
 		return
 	}
-	mapping.ID = id
 
-	if err := h.db.RepoMapping.Update(r.Context(), &mapping); err != nil {
+	if err := h.db.RepoMapping.PartialUpdate(r.Context(), id, fields); err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, "更新映射失败")
 		return
 	}

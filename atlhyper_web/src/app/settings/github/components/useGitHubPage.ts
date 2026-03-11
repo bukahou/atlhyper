@@ -1,8 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import * as githubDS from "@/datasource/github";
+import * as clusterDS from "@/datasource/cluster";
+import { useClusterStore } from "@/store/clusterStore";
 import type { MockGitHubConnection, MockRepoMapping, MockAuthorizedRepo } from "@/mock/github/data";
 
 export function useGitHubPage() {
+  const clusterId = useClusterStore((s) => s.currentClusterId);
   const [loading, setLoading] = useState(true);
   const [connection, setConnection] = useState<MockGitHubConnection | null>(null);
   const [repos, setRepos] = useState<MockAuthorizedRepo[]>([]);
@@ -40,10 +43,29 @@ export function useGitHubPage() {
         repoNs[repo.fullName] = await githubDS.getRepoNamespaces(repo.fullName);
       }
 
+      // 从集群加载 namespace 和 deployment 列表（用于映射下拉菜单）
+      if (clusterId) {
+        try {
+          const nsResp = await clusterDS.getNamespaceList({ cluster_id: clusterId });
+          const nsList = (nsResp.data?.data || []).map((ns: { name: string }) => ns.name);
+          setNamespaces(nsList);
+
+          const deployResp = await clusterDS.getDeploymentList({ cluster_id: clusterId });
+          const deployList = (deployResp.data?.data || []).map((d: { name: string; namespace: string; image: string }) => ({
+            name: d.name,
+            namespace: d.namespace,
+            image: d.image,
+          }));
+          setDeployments(deployList);
+        } catch (clusterErr) {
+          console.error("Failed to load cluster data:", clusterErr);
+          setNamespaces([]);
+          setDeployments([]);
+        }
+      }
+
       setRepos(reposData);
       setMappings(mappingData);
-      setNamespaces([]);
-      setDeployments([]);
       setRepoDirs(dirs);
       setRepoNamespaces(repoNs);
     } catch (err) {
@@ -55,7 +77,7 @@ export function useGitHubPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clusterId]);
 
   useEffect(() => {
     loadData();
@@ -105,13 +127,16 @@ export function useGitHubPage() {
   const handleConnect = useCallback(async () => {
     try {
       const data = await githubDS.connectGitHub();
-      if (data?.authUrl) {
+      if (data?.connected) {
+        // 自动检测到已有安装，直接刷新数据
+        await loadData();
+      } else if (data?.authUrl) {
         window.location.href = data.authUrl;
       }
     } catch (err) {
       console.error("Failed to initiate GitHub connection:", err);
     }
-  }, []);
+  }, [loadData]);
 
   const handleDisconnect = useCallback(async () => {
     try {
@@ -172,7 +197,7 @@ export function useGitHubPage() {
   const handleAddMapping = useCallback(async (repo: string) => {
     try {
       const created = await githubDS.createMapping({
-        clusterId: "zgmf-x10a",
+        clusterId,
         repo,
         namespace: "",
         deployment: "",
@@ -184,7 +209,7 @@ export function useGitHubPage() {
       const newId = nextIdRef.current++;
       const newMapping: MockRepoMapping = {
         id: newId,
-        clusterId: "zgmf-x10a",
+        clusterId,
         repo,
         namespace: "",
         deployment: "",
@@ -195,7 +220,7 @@ export function useGitHubPage() {
       };
       setMappings((prev) => [...prev, newMapping]);
     }
-  }, []);
+  }, [clusterId]);
 
   const handleDeleteMapping = useCallback(async (id: number) => {
     try {

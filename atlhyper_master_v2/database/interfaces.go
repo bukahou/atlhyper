@@ -293,6 +293,7 @@ type RepoConfigRepository interface {
 type DeployConfigRepository interface {
 	Upsert(ctx context.Context, config *DeployConfig) error
 	GetByCluster(ctx context.Context, clusterID string) (*DeployConfig, error)
+	List(ctx context.Context) ([]*DeployConfig, error)
 	Delete(ctx context.Context, clusterID string) error
 }
 
@@ -309,6 +310,7 @@ type DeployHistoryRepository interface {
 type RepoMappingRepository interface {
 	Create(ctx context.Context, m *RepoDeployMapping) error
 	Update(ctx context.Context, m *RepoDeployMapping) error
+	PartialUpdate(ctx context.Context, id int64, fields map[string]interface{}) error
 	Confirm(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
 	GetByID(ctx context.Context, id int64) (*RepoDeployMapping, error)
@@ -597,6 +599,7 @@ type RepoConfigDialect interface {
 type DeployConfigDialect interface {
 	Upsert(config *DeployConfig) (query string, args []any)
 	SelectByCluster(clusterID string) (query string, args []any)
+	SelectAll() (query string, args []any)
 	Delete(clusterID string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*DeployConfig, error)
 }

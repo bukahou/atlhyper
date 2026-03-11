@@ -37,6 +37,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/database/repo"
 	"AtlHyper/atlhyper_master_v2/database/sqlite"
 	"AtlHyper/atlhyper_master_v2/datahub"
+	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/mq"
@@ -70,6 +71,8 @@ type Master struct {
 	eventTrigger *trigger.EventTrigger
 	// AIOps 引擎
 	aiopsEngine aiops.Engine
+	// Deployer（GitOps CD）
+	deployer deployer.Deployer
 }
 
 // NewMaster 创建并初始化 Master 实例
@@ -543,6 +546,13 @@ func NewMaster() (*Master, error) {
 		log.Info("GitHub + CD Tool 注册完成 (5 个)")
 	}
 
+	// 11.7 初始化 Deployer（GitOps CD，仅在 GitHub Client 可用时启用）
+	var deployerService deployer.Deployer
+	if ghClient != nil {
+		deployerService = deployer.NewService(ghClient, db, bus)
+		log.Info("Deployer 初始化完成")
+	}
+
 	// 12. 初始化 Gateway
 	gw := gateway.NewServer(gateway.Config{
 		Port:           cfg.Server.GatewayPort,
@@ -552,6 +562,7 @@ func NewMaster() (*Master, error) {
 		AIService:      aiService,
 		AnalyzeTrigger: aiopsEnricher,
 		GitHubClient:   ghClient,
+		Deployer:       deployerService,
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
 
@@ -576,6 +587,7 @@ func NewMaster() (*Master, error) {
 		heartbeat:      heartbeat,
 		eventTrigger:   eventTrigger,
 		aiopsEngine:    aiopsEngine,
+		deployer:       deployerService,
 	}, nil
 }
 
@@ -617,6 +629,13 @@ func (m *Master) Run(ctx context.Context) error {
 	if m.aiopsEngine != nil {
 		if err := m.aiopsEngine.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start aiops engine: %w", err)
+		}
+	}
+
+	// 启动 Deployer
+	if m.deployer != nil {
+		if err := m.deployer.Start(ctx); err != nil {
+			log.Warn("Deployer 启动失败", "err", err)
 		}
 	}
 
@@ -683,6 +702,13 @@ func (m *Master) Stop() error {
 	if m.aiopsEngine != nil {
 		if err := m.aiopsEngine.Stop(); err != nil {
 			log.Error("停止 AIOps 引擎失败", "err", err)
+		}
+	}
+
+	// 停止 Deployer
+	if m.deployer != nil {
+		if err := m.deployer.Stop(); err != nil {
+			log.Error("停止 Deployer 失败", "err", err)
 		}
 	}
 

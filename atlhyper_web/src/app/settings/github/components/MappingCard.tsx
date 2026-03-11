@@ -208,7 +208,6 @@ function NamespaceTags({
 }) {
   const { t } = useI18n();
   const gt = t.githubPage;
-  const [adding, setAdding] = useState(false);
 
   // 可添加的 NS = 全部 NS - 已添加的
   const availableNs = allNamespaces.filter((ns) => !repoNs.includes(ns));
@@ -231,37 +230,24 @@ function NamespaceTags({
         </span>
       ))}
 
-      {/* 添加 NS */}
-      {adding ? (
+      {/* 添加 NS — 始终显示下拉选择器 */}
+      {availableNs.length > 0 && (
         <select
-          autoFocus
-          className="px-2 py-0.5 text-xs rounded-lg border border-violet-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          defaultValue=""
+          className="px-2 py-0.5 text-xs rounded-lg border border-dashed border-[var(--border-color)] bg-transparent text-muted hover:text-violet-600 hover:border-violet-400 transition-colors cursor-pointer"
+          value=""
           onChange={(e) => {
             if (e.target.value) {
               onAdd(repo, e.target.value);
             }
-            setAdding(false);
           }}
-          onBlur={() => setAdding(false)}
         >
-          <option value="">{t.common.select}</option>
+          <option value="">+ {gt.addNamespace}</option>
           {availableNs.map((ns) => (
             <option key={ns} value={ns}>
               {ns}
             </option>
           ))}
         </select>
-      ) : (
-        availableNs.length > 0 && (
-          <button
-            onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border border-dashed border-[var(--border-color)] text-muted hover:text-violet-600 hover:border-violet-400 transition-colors"
-          >
-            <Plus className="w-3 h-3" />
-            {gt.addNamespace}
-          </button>
-        )
       )}
     </div>
   );

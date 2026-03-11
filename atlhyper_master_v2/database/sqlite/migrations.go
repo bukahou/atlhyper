@@ -416,15 +416,14 @@ func migrate(db *sql.DB) error {
 			id            INTEGER PRIMARY KEY AUTOINCREMENT,
 			cluster_id    TEXT NOT NULL,
 			repo          TEXT NOT NULL,
-			namespace     TEXT NOT NULL,
-			deployment    TEXT NOT NULL,
+			namespace     TEXT DEFAULT '',
+			deployment    TEXT DEFAULT '',
 			container     TEXT DEFAULT '',
 			image_prefix  TEXT NOT NULL DEFAULT '',
 			source_path   TEXT DEFAULT '',
 			confirmed     BOOLEAN DEFAULT 0,
 			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(cluster_id, namespace, deployment)
+			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
 		// ==================== 仓库命名空间关联 ====================
