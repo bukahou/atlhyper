@@ -472,6 +472,13 @@ type DeployHistory struct {
 	Namespace       string    `json:"namespace"`
 	CommitSHA       string    `json:"commitSha"`
 	CommitMessage   string    `json:"commitMessage"`
+	CommitAuthor    string    `json:"commitAuthor"`
+	CommitAvatarURL string    `json:"commitAvatarUrl"`
+	PRNumber        int       `json:"prNumber"`
+	PRTitle         string    `json:"prTitle"`
+	PRURL           string    `json:"prUrl"`
+	ChangedFiles    string    `json:"changedFiles"`  // JSON array of {filename, status, additions, deletions}
+	CompareURL      string    `json:"compareUrl"`    // GitHub compare URL
 	DeployedAt      time.Time `json:"deployedAt"`
 	Trigger         string    `json:"trigger"`
 	Status          string    `json:"status"`

@@ -86,9 +86,10 @@ func (s *commandService) handleApplyManifests(ctx context.Context, params map[st
 			continue
 		}
 
-		// Server-Side Apply
+		// Server-Side Apply（Force=true 以接管其他 manager 的字段）
 		_, err = dr.Patch(ctx, obj.GetName(), types.ApplyPatchType, data, metav1.PatchOptions{
 			FieldManager: "atlhyper-agent",
+			Force:        boolPtr(true),
 		})
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s/%s: %v", gvk.Kind, obj.GetName(), err))
@@ -105,6 +106,8 @@ func (s *commandService) handleApplyManifests(ctx context.Context, params map[st
 	out, _ := json.Marshal(result)
 	return string(out), nil
 }
+
+func boolPtr(b bool) *bool { return &b }
 
 // getDynamicClients creates dynamic and discovery clients from the K8s REST config
 func (s *commandService) getDynamicClients() (dynamic.Interface, discovery.DiscoveryInterface, error) {

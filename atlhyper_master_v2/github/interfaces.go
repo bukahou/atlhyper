@@ -17,11 +17,13 @@ type Client interface {
 	// CD 轮询
 	GetLatestCommitSHA(ctx context.Context, repo, branch string) (string, error)
 	CompareCommits(ctx context.Context, repo, base, head string) ([]ChangedFile, error)
+	CompareCommitsDetail(ctx context.Context, repo, base, head string) (*CompareResult, error)
 	ReadFile(ctx context.Context, repo, path, ref string) (string, error)
 	ReadDirectory(ctx context.Context, repo, path, ref string) ([]FileEntry, error)
 
 	// Code Intel
 	ListCommits(ctx context.Context, repo, branch string, limit int) ([]Commit, error)
+	GetCommitByRef(ctx context.Context, repo, ref string) (*Commit, error)
 	GetPRByCommit(ctx context.Context, repo, sha string) (*PullRequest, error)
 	SearchCode(ctx context.Context, repo, query string) ([]CodeSearchResult, error)
 }

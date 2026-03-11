@@ -198,29 +198,49 @@ func (c *clientImpl) GetLatestCommitSHA(ctx context.Context, repo, branch string
 	return commits[0].SHA, nil
 }
 
-// CompareCommits 比较两个 commit 的差异
+// CompareCommits 比较两个 commit 的差异（仅文件名和状态）
 func (c *clientImpl) CompareCommits(ctx context.Context, repo, base, head string) ([]ChangedFile, error) {
+	result, err := c.CompareCommitsDetail(ctx, repo, base, head)
+	if err != nil {
+		return nil, err
+	}
+	return result.Files, nil
+}
+
+// CompareCommitsDetail 比较两个 commit 的差异（含行数统计和 compare URL）
+func (c *clientImpl) CompareCommitsDetail(ctx context.Context, repo, base, head string) (*CompareResult, error) {
 	path := fmt.Sprintf("/repos/%s/compare/%s...%s", repo, base, head)
 	data, err := c.apiGet(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	var result struct {
-		Files []struct {
-			Filename string `json:"filename"`
-			Status   string `json:"status"`
+	var raw struct {
+		HTMLURL string `json:"html_url"`
+		Files   []struct {
+			Filename  string `json:"filename"`
+			Status    string `json:"status"`
+			Additions int    `json:"additions"`
+			Deletions int    `json:"deletions"`
 		} `json:"files"`
 	}
-	if err := json.Unmarshal(data, &result); err != nil {
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
 
-	files := make([]ChangedFile, len(result.Files))
-	for i, f := range result.Files {
-		files[i] = ChangedFile{Filename: f.Filename, Status: f.Status}
+	files := make([]ChangedFile, len(raw.Files))
+	for i, f := range raw.Files {
+		files[i] = ChangedFile{
+			Filename:  f.Filename,
+			Status:    f.Status,
+			Additions: f.Additions,
+			Deletions: f.Deletions,
+		}
 	}
-	return files, nil
+	return &CompareResult{
+		HTMLURL: raw.HTMLURL,
+		Files:   files,
+	}, nil
 }
 
 // ReadFile 读取仓库文件内容
@@ -294,6 +314,9 @@ func (c *clientImpl) ListCommits(ctx context.Context, repo, branch string, limit
 				Date time.Time `json:"date"`
 			} `json:"author"`
 		} `json:"commit"`
+		Author struct {
+			AvatarURL string `json:"avatar_url"`
+		} `json:"author"`
 	}
 	if err := json.Unmarshal(data, &ghCommits); err != nil {
 		return nil, err
@@ -301,14 +324,57 @@ func (c *clientImpl) ListCommits(ctx context.Context, repo, branch string, limit
 
 	commits := make([]Commit, len(ghCommits))
 	for i, gc := range ghCommits {
+		sha := gc.SHA
+		if len(sha) > 7 {
+			sha = sha[:7]
+		}
 		commits[i] = Commit{
-			SHA:     gc.SHA[:7],
-			Message: gc.Commit.Message,
-			Author:  gc.Commit.Author.Name,
-			Date:    gc.Commit.Author.Date,
+			SHA:       sha,
+			Message:   gc.Commit.Message,
+			Author:    gc.Commit.Author.Name,
+			AvatarURL: gc.Author.AvatarURL,
+			Date:      gc.Commit.Author.Date,
 		}
 	}
 	return commits, nil
+}
+
+// GetCommitByRef 通过 SHA 或 ref 获取单个 commit 详情
+func (c *clientImpl) GetCommitByRef(ctx context.Context, repo, ref string) (*Commit, error) {
+	path := fmt.Sprintf("/repos/%s/commits/%s", repo, ref)
+	data, err := c.apiGet(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+
+	var gc struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Message string `json:"message"`
+			Author  struct {
+				Name string    `json:"name"`
+				Date time.Time `json:"date"`
+			} `json:"author"`
+		} `json:"commit"`
+		Author struct {
+			AvatarURL string `json:"avatar_url"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal(data, &gc); err != nil {
+		return nil, err
+	}
+
+	sha := gc.SHA
+	if len(sha) > 7 {
+		sha = sha[:7]
+	}
+	return &Commit{
+		SHA:       sha,
+		Message:   gc.Commit.Message,
+		Author:    gc.Commit.Author.Name,
+		AvatarURL: gc.Author.AvatarURL,
+		Date:      gc.Commit.Author.Date,
+	}, nil
 }
 
 // GetPRByCommit 获取 commit 关联的 PR

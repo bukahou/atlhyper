@@ -27,10 +27,17 @@ type AuthorizedRepo struct {
 
 // Commit 提交信息
 type Commit struct {
-	SHA     string    `json:"sha"`
-	Message string    `json:"message"`
-	Author  string    `json:"author"`
-	Date    time.Time `json:"date"`
+	SHA       string    `json:"sha"`
+	Message   string    `json:"message"`
+	Author    string    `json:"author"`
+	AvatarURL string    `json:"avatarUrl"`
+	Date      time.Time `json:"date"`
+}
+
+// CompareResult commit 比较结果
+type CompareResult struct {
+	HTMLURL string        `json:"htmlUrl"` // GitHub compare 页面 URL
+	Files   []ChangedFile `json:"files"`
 }
 
 // PullRequest PR 信息
@@ -43,8 +50,10 @@ type PullRequest struct {
 
 // ChangedFile 变更文件
 type ChangedFile struct {
-	Filename string `json:"filename"`
-	Status   string `json:"status"` // added, modified, removed
+	Filename  string `json:"filename"`
+	Status    string `json:"status"` // added, modified, removed
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
 }
 
 // FileEntry 目录条目

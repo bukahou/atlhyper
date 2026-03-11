@@ -4,6 +4,7 @@ package deployer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -115,17 +116,19 @@ func (s *service) checkAndDeploy(ctx context.Context, config *database.DeployCon
 
 	// 确定受影响的路径
 	var affectedPaths []string
+	var compareResult *github.CompareResult
 	if lastSHA == "" {
 		// 首次运行，部署所有配置的路径
 		affectedPaths = parsePaths(config.Paths)
 	} else {
-		// 比较 commit 找出变更文件
-		changed, err := s.ghClient.CompareCommits(ctx, repo, lastSHA, sha)
+		// 比较 commit 找出变更文件（同时获取 compare URL 和行数统计）
+		cr, err := s.ghClient.CompareCommitsDetail(ctx, repo, lastSHA, sha)
 		if err != nil {
 			logger.Error("[Deployer] compare failed", "error", err)
 			affectedPaths = parsePaths(config.Paths)
 		} else {
-			affectedPaths = matchPaths(parsePaths(config.Paths), changed)
+			compareResult = cr
+			affectedPaths = matchPaths(parsePaths(config.Paths), cr.Files)
 		}
 	}
 
@@ -138,7 +141,7 @@ func (s *service) checkAndDeploy(ctx context.Context, config *database.DeployCon
 
 	// 部署每个受影响的路径
 	for _, path := range affectedPaths {
-		s.deployPath(ctx, config, path, sha, "auto")
+		s.deployPath(ctx, config, path, sha, "auto", compareResult)
 	}
 
 	s.mu.Lock()
@@ -146,28 +149,60 @@ func (s *service) checkAndDeploy(ctx context.Context, config *database.DeployCon
 	s.mu.Unlock()
 }
 
-func (s *service) deployPath(ctx context.Context, config *database.DeployConfig, path, commitSHA, trigger string) {
+func (s *service) deployPath(ctx context.Context, config *database.DeployConfig, path, commitSHA, trigger string, compareResult *github.CompareResult) {
 	repo := config.RepoURL
 	clusterID := config.ClusterID
 
-	// 获取 commit message
+	// 通过 SHA 获取 commit 详情（message, author, avatar）
 	commitMsg := ""
-	commits, err := s.ghClient.ListCommits(ctx, repo, "main", 1)
-	if err == nil && len(commits) > 0 {
-		commitMsg = commits[0].Message
+	commitAuthor := ""
+	commitAvatarURL := ""
+	commit, err := s.ghClient.GetCommitByRef(ctx, repo, commitSHA)
+	if err == nil && commit != nil {
+		commitMsg = commit.Message
+		commitAuthor = commit.Author
+		commitAvatarURL = commit.AvatarURL
 	}
 
-	// 创建 pending 历史记录
-	record := &database.DeployHistory{
-		ClusterID:     clusterID,
-		Path:          path,
-		CommitSHA:     commitSHA,
-		CommitMessage: commitMsg,
-		DeployedAt:    time.Now(),
-		Trigger:       trigger,
-		Status:        "pending",
+	// 获取关联 PR 信息
+	var prNumber int
+	var prTitle, prURL string
+	pr, err := s.ghClient.GetPRByCommit(ctx, repo, commitSHA)
+	if err == nil && pr != nil {
+		prNumber = pr.Number
+		prTitle = pr.Title
+		prURL = pr.URL
 	}
-	_ = s.db.DeployHistory.Create(ctx, record)
+
+	// 从 compareResult 提取变更文件列表和 compare URL
+	var changedFilesJSON string
+	var compareURL string
+	if compareResult != nil {
+		compareURL = compareResult.HTMLURL
+		if filesData, err := json.Marshal(compareResult.Files); err == nil {
+			changedFilesJSON = string(filesData)
+		}
+	}
+	if changedFilesJSON == "" {
+		changedFilesJSON = "[]"
+	}
+
+	record := &database.DeployHistory{
+		ClusterID:       clusterID,
+		Path:            path,
+		CommitSHA:       commitSHA,
+		CommitMessage:   commitMsg,
+		CommitAuthor:    commitAuthor,
+		CommitAvatarURL: commitAvatarURL,
+		PRNumber:        prNumber,
+		PRTitle:         prTitle,
+		PRURL:           prURL,
+		ChangedFiles:    changedFilesJSON,
+		CompareURL:      compareURL,
+		DeployedAt:      time.Now(),
+		Trigger:         trigger,
+		Status:          "pending",
+	}
 
 	start := time.Now()
 
@@ -220,6 +255,19 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 		record.ErrorMessage = fmt.Sprintf("command timeout: %v", err)
 	} else if result != nil && result.Success {
 		record.Status = "success"
+		// 从 Agent 返回的 Output 中解析实际资源变更数
+		var applyResult struct {
+			ResourceTotal   int    `json:"resourceTotal"`
+			ResourceChanged int    `json:"resourceChanged"`
+			ErrorMessage    string `json:"errorMessage"`
+		}
+		if json.Unmarshal([]byte(result.Output), &applyResult) == nil {
+			record.ResourceTotal = applyResult.ResourceTotal
+			record.ResourceChanged = applyResult.ResourceChanged
+			if applyResult.ErrorMessage != "" {
+				record.ErrorMessage = applyResult.ErrorMessage
+			}
+		}
 	} else if result != nil {
 		record.Status = "failed"
 		record.ErrorMessage = result.Error
@@ -241,7 +289,19 @@ func (s *service) SyncNow(ctx context.Context, path string) error {
 		return fmt.Errorf("get latest commit: %w", err)
 	}
 
-	go s.deployPath(ctx, config, path, sha, "manual")
+	// 手动同步时尝试获取 compare 信息
+	var compareResult *github.CompareResult
+	s.mu.Lock()
+	lastSHA := s.lastCommitSHA
+	s.mu.Unlock()
+	if lastSHA != "" && lastSHA != sha {
+		cr, err := s.ghClient.CompareCommitsDetail(ctx, config.RepoURL, lastSHA, sha)
+		if err == nil {
+			compareResult = cr
+		}
+	}
+
+	go s.deployPath(ctx, config, path, sha, "manual", compareResult)
 	return nil
 }
 

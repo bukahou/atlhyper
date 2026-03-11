@@ -9,9 +9,15 @@ import {
   Clock,
   Eye,
   X,
+  ExternalLink,
+  GitPullRequest,
+  FileDiff,
+  Plus,
+  Minus,
+  User,
 } from "lucide-react";
 import { useState } from "react";
-import type { MockDeployRecord, DeployTrigger } from "@/mock/deploy/data";
+import type { MockDeployRecord, MockChangedFile, DeployTrigger } from "@/mock/deploy/data";
 import { Pagination, paginate } from "./Pagination";
 
 interface HistoryCardProps {
@@ -94,6 +100,25 @@ function TriggerBadge({
   );
 }
 
+function parseChangedFiles(json: string): MockChangedFile[] {
+  try {
+    return JSON.parse(json) || [];
+  } catch {
+    return [];
+  }
+}
+
+function FileStatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "added":
+      return <Plus className="w-3.5 h-3.5 text-emerald-500" />;
+    case "removed":
+      return <Minus className="w-3.5 h-3.5 text-red-500" />;
+    default:
+      return <FileDiff className="w-3.5 h-3.5 text-amber-500" />;
+  }
+}
+
 function DetailModal({
   record,
   dt,
@@ -119,6 +144,8 @@ function DetailModal({
         ? "text-red-600 dark:text-red-400"
         : "text-amber-600 dark:text-amber-400";
 
+  const changedFiles = parseChangedFiles(record.changedFiles);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
@@ -128,9 +155,9 @@ function DetailModal({
       />
 
       {/* Modal */}
-      <div className="relative bg-card rounded-xl border border-[var(--border-color)] shadow-xl w-full max-w-lg mx-4">
+      <div className="relative bg-card rounded-xl border border-[var(--border-color)] shadow-xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)] flex-shrink-0">
           <h3 className="text-lg font-medium text-default">
             {dt.detailTitle}
           </h3>
@@ -142,8 +169,8 @@ function DetailModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
+        {/* Body — scrollable */}
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
           <DetailRow label={dt.detailPath}>
             <code className="text-sm bg-[var(--bg-secondary)] px-2 py-0.5 rounded text-default">
               {record.path}
@@ -166,15 +193,69 @@ function DetailModal({
             </span>
           </DetailRow>
 
+          {/* Commit 信息区 */}
           <DetailRow label={dt.detailCommit}>
-            <code className="text-sm bg-[var(--bg-secondary)] px-2 py-0.5 rounded text-default">
-              {record.commitSha}
-            </code>
+            <div className="flex items-center gap-2">
+              <code className="text-sm bg-[var(--bg-secondary)] px-2 py-0.5 rounded text-default">
+                {record.commitSha}
+              </code>
+              {record.compareUrl && (
+                <a
+                  href={record.compareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  {dt.detailCompareLink}
+                </a>
+              )}
+            </div>
           </DetailRow>
 
           <DetailRow label={dt.detailCommitMessage}>
             <p className="text-sm text-default">{record.commitMessage}</p>
           </DetailRow>
+
+          {/* 作者 */}
+          {record.commitAuthor && (
+            <DetailRow label={dt.detailAuthor}>
+              <div className="flex items-center gap-2">
+                {record.commitAvatarUrl ? (
+                  <img
+                    src={record.commitAvatarUrl}
+                    alt={record.commitAuthor}
+                    className="w-5 h-5 rounded-full"
+                  />
+                ) : (
+                  <User className="w-4 h-4 text-muted" />
+                )}
+                <span className="text-sm text-default">{record.commitAuthor}</span>
+              </div>
+            </DetailRow>
+          )}
+
+          {/* PR 信息 */}
+          {record.prNumber > 0 && (
+            <DetailRow label={dt.detailPR}>
+              <div className="flex items-center gap-2">
+                <GitPullRequest className="w-4 h-4 text-violet-500" />
+                <span className="text-sm text-default">
+                  #{record.prNumber} {record.prTitle}
+                </span>
+                {record.prUrl && (
+                  <a
+                    href={record.prUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </DetailRow>
+          )}
 
           <DetailRow label={dt.detailDuration}>
             <span className="text-sm text-default">
@@ -203,6 +284,36 @@ function DetailModal({
                 {record.errorMessage}
               </p>
             </DetailRow>
+          )}
+
+          {/* 变更文件列表 */}
+          {changedFiles.length > 0 && (
+            <div className="pt-2 border-t border-[var(--border-color)]">
+              <div className="flex items-center gap-2 mb-3">
+                <FileDiff className="w-4 h-4 text-muted" />
+                <span className="text-sm font-medium text-default">
+                  {dt.detailChangedFiles}
+                  <span className="text-muted ml-1">({changedFiles.length})</span>
+                </span>
+              </div>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {changedFiles.map((file, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] text-sm"
+                  >
+                    <FileStatusIcon status={file.status} />
+                    <span className="text-default flex-1 min-w-0 truncate font-mono text-xs">
+                      {file.filename}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs flex-shrink-0">
+                      <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span>
+                      <span className="text-red-500">-{file.deletions}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -184,6 +184,14 @@ export function useGitHubPage() {
   }, []);
 
   const handleConfirmAll = useCallback(async () => {
+    const toConfirm = mappings.filter(
+      (m) => m.namespace && m.deployment && m.sourcePath && !m.confirmed
+    );
+    try {
+      await Promise.all(toConfirm.map((m) => githubDS.confirmMappingAPI(m.id)));
+    } catch (err) {
+      console.error("Failed to confirm all mappings:", err);
+    }
     setMappings((prev) =>
       prev.map((m) => {
         if (m.namespace && m.deployment && m.sourcePath) {
@@ -192,7 +200,7 @@ export function useGitHubPage() {
         return m;
       })
     );
-  }, []);
+  }, [mappings]);
 
   const handleAddMapping = useCallback(async (repo: string) => {
     try {

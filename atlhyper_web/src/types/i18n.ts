@@ -2349,6 +2349,10 @@ export interface DeployPageTranslations {
   detailResourceChanged: string;
   detailStatus: string;
   detailErrorMessage: string;
+  detailAuthor: string;
+  detailPR: string;
+  detailChangedFiles: string;
+  detailCompareLink: string;
   // 状态
   saveFailed: string;
   saveSuccess: string;

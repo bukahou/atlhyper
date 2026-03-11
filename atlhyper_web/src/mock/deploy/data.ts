@@ -20,6 +20,13 @@ export interface MockPathStatus {
 
 export type DeployTrigger = "auto" | "manual" | "rollback";
 
+export interface MockChangedFile {
+  filename: string;
+  status: string;   // added, modified, removed
+  additions: number;
+  deletions: number;
+}
+
 export interface MockDeployRecord {
   id: number;
   clusterId: string;
@@ -27,7 +34,14 @@ export interface MockDeployRecord {
   namespace: string;   // 后端从 kustomize build 结果中提取
   commitSha: string;
   commitMessage: string;
-  deployedAt: string;   // 实际部署完成时间
+  commitAuthor: string;
+  commitAvatarUrl: string;
+  prNumber: number;
+  prTitle: string;
+  prUrl: string;
+  changedFiles: string;    // JSON array of MockChangedFile
+  compareUrl: string;      // GitHub compare URL
+  deployedAt: string;      // 实际部署完成时间
   trigger: DeployTrigger;
   status: "pending" | "success" | "failed";
   // 详情字段（点击查看时展示）
@@ -89,6 +103,16 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     namespace: "geass",
     commitSha: "def5678",
     commitMessage: "refactor: routing matching logic",
+    commitAuthor: "bukahou",
+    commitAvatarUrl: "",
+    prNumber: 5,
+    prTitle: "refactor: routing matching logic",
+    prUrl: "",
+    changedFiles: JSON.stringify([
+      { filename: "geass_gateway/src/main/java/Router.java", status: "modified", additions: 42, deletions: 15 },
+      { filename: "geass_gateway/src/main/java/Config.java", status: "modified", additions: 8, deletions: 3 },
+    ]),
+    compareUrl: "",
     deployedAt: "2026-03-10T10:32:15Z",
     trigger: "auto",
     status: "success",
@@ -103,6 +127,15 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     namespace: "geass",
     commitSha: "abc1234",
     commitMessage: "fix: JWT token refresh bug — 修复 Token 过期后无法自动刷新导致 401 的问题",
+    commitAuthor: "bukahou",
+    commitAvatarUrl: "",
+    prNumber: 4,
+    prTitle: "fix: JWT token refresh bug",
+    prUrl: "",
+    changedFiles: JSON.stringify([
+      { filename: "geass_auth/src/main/java/TokenService.java", status: "modified", additions: 25, deletions: 8 },
+    ]),
+    compareUrl: "",
     deployedAt: "2026-03-09T14:33:20Z",
     trigger: "auto",
     status: "failed",
@@ -118,6 +151,13 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     namespace: "geass",
     commitSha: "old7890",
     commitMessage: "fix: JWT token refresh bug — rollback to previous version",
+    commitAuthor: "bukahou",
+    commitAvatarUrl: "",
+    prNumber: 0,
+    prTitle: "",
+    prUrl: "",
+    changedFiles: "[]",
+    compareUrl: "",
     deployedAt: "2026-03-09T14:40:00Z",
     trigger: "rollback",
     status: "success",
@@ -132,6 +172,16 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     namespace: "geass-web",
     commitSha: "ghi9012",
     commitMessage: "feat: dark mode support",
+    commitAuthor: "bukahou",
+    commitAvatarUrl: "",
+    prNumber: 3,
+    prTitle: "feat: dark mode support",
+    prUrl: "",
+    changedFiles: JSON.stringify([
+      { filename: "geass_web/src/theme/dark.css", status: "added", additions: 120, deletions: 0 },
+      { filename: "geass_web/src/components/ThemeToggle.tsx", status: "added", additions: 45, deletions: 0 },
+    ]),
+    compareUrl: "",
     deployedAt: "2026-03-08T09:15:30Z",
     trigger: "auto",
     status: "success",
@@ -146,6 +196,15 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     namespace: "atlhyper",
     commitSha: "mst4567",
     commitMessage: "fix: snapshot processing timeout — 增加 processor 超时时间至 30s",
+    commitAuthor: "bukahou",
+    commitAvatarUrl: "",
+    prNumber: 0,
+    prTitle: "",
+    prUrl: "",
+    changedFiles: JSON.stringify([
+      { filename: "atlhyper_master_v2/processor/snapshot.go", status: "modified", additions: 5, deletions: 2 },
+    ]),
+    compareUrl: "",
     deployedAt: "2026-03-07T16:22:10Z",
     trigger: "manual",
     status: "success",
