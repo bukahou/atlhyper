@@ -231,7 +231,7 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 	}
 
 	// 从 manifests 解析源码仓库信息（image tag → source SHA → GitHub API）
-	s.enrichSourceInfo(ctx, record, manifests, config.RepoURL)
+	s.enrichSourceInfo(ctx, record, manifests, config.RepoURL, compareResult)
 
 	// 通过 MQ 发送 apply_manifests 指令
 	cmd := &command.Command{
@@ -459,16 +459,19 @@ func min(a, b int) int {
 // === 源码仓库信息解析（source.json 方案） ===
 
 // sourceJSON 是 CI 写入 Config 仓库的源码元数据文件
-// 路径: {kustomize_path}/source.json
+// 支持两种命名：
+//   - 单服务: {path}/source.json（传统模式，如 AtlHyper）
+//   - 多服务: {path}/source-{service}.json（微服务模式，如 Geass V2）
 type sourceJSON struct {
-	Repo   string `json:"repo"`   // 源码仓库 (e.g. "bukahou/Geass")
+	Repo   string `json:"repo"`   // 源码仓库 (e.g. "bukahou/geass-v2-auth")
 	SHA    string `json:"sha"`    // 源码 commit SHA (full 40-char)
 	Branch string `json:"branch"` // 源码分支 (e.g. "main")
 }
 
 // enrichSourceInfo 读取 source.json 解析源码仓库信息，填充到 DeployHistory
-func (s *service) enrichSourceInfo(ctx context.Context, record *database.DeployHistory, manifests, configRepo string) {
-	src := s.readSourceJSON(ctx, configRepo, record.Path, record.CommitSHA)
+// configCompare 是 Config 仓库的 commit compare 结果，用于定位 source-*.json
+func (s *service) enrichSourceInfo(ctx context.Context, record *database.DeployHistory, manifests, configRepo string, configCompare *github.CompareResult) {
+	src := s.readSourceJSON(ctx, configRepo, record.Path, record.CommitSHA, configCompare)
 	if src == nil {
 		// source.json 不存在（CI 尚未适配），回退显示 Config 仓库 commit 信息
 		s.enrichConfigInfo(ctx, record, configRepo)
@@ -523,17 +526,37 @@ func (s *service) enrichConfigInfo(ctx context.Context, record *database.DeployH
 	logger.Info("[Deployer] using config repo commit info (no source.json)", "path", record.Path)
 }
 
-// readSourceJSON 从 Config 仓库读取 source.json
-// CI 在更新 kustomization.yaml 时同步写入: {path}/source.json
-func (s *service) readSourceJSON(ctx context.Context, configRepo, path, ref string) *sourceJSON {
-	filePath := path + "/source.json"
+// readSourceJSON 从 Config 仓库读取 source 元数据
+// 查找优先级：
+//  1. 从 Config commit changed files 中找本次变更的 source-*.json（微服务模式）
+//  2. 回退读取 {path}/source.json（传统模式）
+func (s *service) readSourceJSON(ctx context.Context, configRepo, path, ref string, configCompare *github.CompareResult) *sourceJSON {
+	// 优先：从 Config commit 的 changed files 中找 source-*.json
+	if configCompare != nil {
+		prefix := path + "/source-"
+		for _, f := range configCompare.Files {
+			if strings.HasPrefix(f.Filename, prefix) && strings.HasSuffix(f.Filename, ".json") {
+				src := s.readSourceFile(ctx, configRepo, f.Filename, ref)
+				if src != nil {
+					return src
+				}
+			}
+		}
+	}
+
+	// 回退：传统单文件 source.json
+	return s.readSourceFile(ctx, configRepo, path+"/source.json", ref)
+}
+
+// readSourceFile 读取并解析单个 source JSON 文件
+func (s *service) readSourceFile(ctx context.Context, configRepo, filePath, ref string) *sourceJSON {
 	content, err := s.ghClient.ReadFile(ctx, configRepo, filePath, ref)
 	if err != nil {
 		return nil
 	}
 	var src sourceJSON
 	if err := json.Unmarshal([]byte(content), &src); err != nil {
-		logger.Error("[Deployer] failed to parse source.json", "path", filePath, "error", err)
+		logger.Error("[Deployer] failed to parse source json", "path", filePath, "error", err)
 		return nil
 	}
 	if src.Repo == "" || src.SHA == "" {
