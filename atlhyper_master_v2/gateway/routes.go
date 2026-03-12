@@ -345,7 +345,7 @@ func (r *Router) registerRoutes() {
 	// GitHub 集成路由（需要 Admin 权限）
 	// ================================================================
 	if r.ghClient != nil {
-		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.database.GitHubInstall, r.database.RepoConfig, r.database)
+		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.database.GitHubInstall, r.database.RepoConfig)
 		deployH := adminHandler.NewDeployHandler(r.ghClient, r.database.DeployConfig, r.database.DeployHistory, r.database.GitHubInstall)
 		if r.deployer != nil {
 			deployH.SetDeployer(r.deployer)
@@ -367,8 +367,6 @@ func (r *Router) registerRoutes() {
 		r.admin(func(register func(pattern string, h http.HandlerFunc)) {
 			register("/api/github/repos", githubH.Repos)
 			register("/api/github/repos/", githubH.RepoSubRoute)
-			register("/api/github/mappings", githubH.Mappings)
-			register("/api/github/mappings/", githubH.MappingByID)
 		})
 
 		// 部署配置（Admin 权限）

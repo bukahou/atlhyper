@@ -124,7 +124,6 @@ export const navGroups: NavGroup[] = [
     icon: Rocket,
     children: [
       { key: "github", href: "/settings/github", icon: Github },
-      { key: "deploy", href: "/admin/deploy", icon: Rocket },
       { key: "commands", href: "/admin/commands", icon: ClipboardList },
     ],
   },

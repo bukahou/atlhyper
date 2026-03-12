@@ -503,10 +503,7 @@ func (s *service) enrichSourceInfo(ctx context.Context, record *database.DeployH
 		srcCompare, err := s.ghClient.CompareCommitsDetail(ctx, src.Repo, prevSHA, src.SHA)
 		if err == nil && srcCompare != nil {
 			record.CompareURL = srcCompare.HTMLURL
-			// 使用 repo_mapping 的 source_path 过滤变更文件（monorepo 场景）
-			pathPrefixes := s.getSourcePathPrefixes(ctx, src.Repo)
-			filtered := filterFilesByPaths(srcCompare.Files, pathPrefixes)
-			if filesData, err := json.Marshal(filtered); err == nil {
+			if filesData, err := json.Marshal(srcCompare.Files); err == nil {
 				record.ChangedFiles = string(filesData)
 			}
 		}
@@ -565,21 +562,6 @@ func (s *service) readSourceFile(ctx context.Context, configRepo, filePath, ref 
 	return &src
 }
 
-// getSourcePathPrefixes 从 repo_mapping 获取源码目录前缀（用于 monorepo 变更文件过滤）
-func (s *service) getSourcePathPrefixes(ctx context.Context, repo string) []string {
-	mappings, err := s.db.RepoMapping.ListByRepo(ctx, repo)
-	if err != nil || len(mappings) == 0 {
-		return nil
-	}
-	var prefixes []string
-	for _, m := range mappings {
-		if m.SourcePath != "" {
-			prefixes = append(prefixes, m.SourcePath)
-		}
-	}
-	return prefixes
-}
-
 // getPreviousSourceSHA 从上一次部署记录获取源码 commit SHA
 func (s *service) getPreviousSourceSHA(ctx context.Context, clusterID, path string) string {
 	latest, err := s.db.DeployHistory.GetLatestByPath(ctx, clusterID, path)
@@ -589,22 +571,3 @@ func (s *service) getPreviousSourceSHA(ctx context.Context, clusterID, path stri
 	return latest.SourceCommitSHA
 }
 
-// filterFilesByPaths 按路径前缀列表过滤变更文件
-func filterFilesByPaths(files []github.ChangedFile, pathPrefixes []string) []github.ChangedFile {
-	if len(pathPrefixes) == 0 {
-		return files
-	}
-	var filtered []github.ChangedFile
-	for _, f := range files {
-		for _, prefix := range pathPrefixes {
-			if strings.HasPrefix(f.Filename, prefix) {
-				filtered = append(filtered, f)
-				break
-			}
-		}
-	}
-	if filtered == nil {
-		return []github.ChangedFile{}
-	}
-	return filtered
-}

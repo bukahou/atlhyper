@@ -216,6 +216,143 @@ export function getAIReports(params?: { role?: string; limit?: number; offset?: 
 // Mock Data (Guest用)
 // ============================================================
 
+// Mock: 角色总览
+export const mockRolesOverview: RoleOverview[] = [
+  {
+    role: "background",
+    roleName: "Background Analysis",
+    provider: { id: 1, name: "Gemini 本番", model: "gemini-2.0-flash", contextWindow: 1048576 },
+  },
+  {
+    role: "chat",
+    roleName: "AI Chat",
+    provider: { id: 1, name: "Gemini 本番", model: "gemini-2.0-flash", contextWindow: 1048576 },
+  },
+  {
+    role: "analysis",
+    roleName: "Deep Analysis",
+    provider: null,
+  },
+];
+
+// Mock: 角色预算
+export const mockBudgets: RoleBudget[] = [
+  {
+    role: "background",
+    dailyInputTokenLimit: 500000,
+    dailyOutputTokenLimit: 100000,
+    dailyCallLimit: 50,
+    dailyInputTokensUsed: 234567,
+    dailyOutputTokensUsed: 45678,
+    dailyCallsUsed: 23,
+    dailyResetAt: "2026-03-13T00:00:00+09:00",
+    monthlyInputTokenLimit: 10000000,
+    monthlyOutputTokenLimit: 2000000,
+    monthlyCallLimit: 1000,
+    monthlyInputTokensUsed: 4567890,
+    monthlyOutputTokensUsed: 890123,
+    monthlyCallsUsed: 456,
+    monthlyResetAt: "2026-04-01T00:00:00+09:00",
+    autoTriggerMinSeverity: "high",
+    autoTriggerMode: "auto",
+    fallbackProviderId: 2,
+  },
+  {
+    role: "chat",
+    dailyInputTokenLimit: 200000,
+    dailyOutputTokenLimit: 50000,
+    dailyCallLimit: 30,
+    dailyInputTokensUsed: 87654,
+    dailyOutputTokensUsed: 12345,
+    dailyCallsUsed: 8,
+    dailyResetAt: "2026-03-13T00:00:00+09:00",
+    monthlyInputTokenLimit: 5000000,
+    monthlyOutputTokenLimit: 1000000,
+    monthlyCallLimit: 500,
+    monthlyInputTokensUsed: 1234567,
+    monthlyOutputTokensUsed: 234567,
+    monthlyCallsUsed: 120,
+    monthlyResetAt: "2026-04-01T00:00:00+09:00",
+    autoTriggerMinSeverity: "off",
+    autoTriggerMode: "manual",
+    fallbackProviderId: null,
+  },
+  {
+    role: "analysis",
+    dailyInputTokenLimit: 1000000,
+    dailyOutputTokenLimit: 200000,
+    dailyCallLimit: 20,
+    dailyInputTokensUsed: 0,
+    dailyOutputTokensUsed: 0,
+    dailyCallsUsed: 0,
+    dailyResetAt: "2026-03-13T00:00:00+09:00",
+    monthlyInputTokenLimit: 20000000,
+    monthlyOutputTokenLimit: 4000000,
+    monthlyCallLimit: 400,
+    monthlyInputTokensUsed: 0,
+    monthlyOutputTokensUsed: 0,
+    monthlyCallsUsed: 0,
+    monthlyResetAt: "2026-04-01T00:00:00+09:00",
+    autoTriggerMinSeverity: "critical",
+    autoTriggerMode: "schedule",
+    scheduleStartTime: "02:00",
+    scheduleEndTime: "06:00",
+    fallbackProviderId: null,
+  },
+];
+
+// Mock: 调用历史
+export const mockAIReports: AIReportItem[] = [
+  {
+    id: 1, incidentId: "INC-2026-0312-001", clusterId: "ZGFX-X10A", role: "background",
+    trigger: "metric_anomaly", summary: "Node desk-one CPU 使用率が95%を超え、Pod のメモリ不足が検出されました",
+    providerName: "Gemini 本番", model: "gemini-2.0-flash",
+    inputTokens: 12345, outputTokens: 3456, durationMs: 4200, createdAt: "2026-03-12T18:30:00Z",
+  },
+  {
+    id: 2, incidentId: "INC-2026-0312-002", clusterId: "ZGFX-X10A", role: "background",
+    trigger: "pod_restart", summary: "geass-auth Pod が5分以内に3回再起動、CrashLoopBackOff 状態",
+    providerName: "Gemini 本番", model: "gemini-2.0-flash",
+    inputTokens: 8900, outputTokens: 2100, durationMs: 3100, createdAt: "2026-03-12T17:45:00Z",
+  },
+  {
+    id: 3, incidentId: "", clusterId: "ZGFX-X10A", role: "chat",
+    trigger: "manual", summary: "ユーザーが geass-media の高レイテンシについて質問",
+    providerName: "Gemini 本番", model: "gemini-2.0-flash",
+    inputTokens: 5600, outputTokens: 1800, durationMs: 2800, createdAt: "2026-03-12T16:20:00Z",
+  },
+  {
+    id: 4, incidentId: "INC-2026-0311-005", clusterId: "ZGFX-X10A", role: "background",
+    trigger: "slo_breach", summary: "geass-gateway の SLO 目標 99.9% に対して可用性が 99.2% に低下",
+    providerName: "Gemini 本番", model: "gemini-2.0-flash",
+    inputTokens: 15678, outputTokens: 4567, durationMs: 5600, createdAt: "2026-03-11T23:10:00Z",
+  },
+  {
+    id: 5, incidentId: "", clusterId: "ZGFX-X10A", role: "chat",
+    trigger: "manual", summary: "クラスター全体のリソース使用状況の分析を依頼",
+    providerName: "Gemini 本番", model: "gemini-2.0-flash",
+    inputTokens: 23456, outputTokens: 6789, durationMs: 8200, createdAt: "2026-03-11T14:30:00Z",
+  },
+  {
+    id: 6, incidentId: "INC-2026-0311-003", clusterId: "ZGFX-X10A", role: "background",
+    trigger: "metric_anomaly", summary: "raspi-zero ノードのディスク使用率が90%超過、NFS マウントポイントの空き容量不足",
+    providerName: "Gemini 本番", model: "gemini-2.0-flash",
+    inputTokens: 9876, outputTokens: 2345, durationMs: 3400, createdAt: "2026-03-11T08:15:00Z",
+  },
+  {
+    id: 7, incidentId: "INC-2026-0310-001", clusterId: "ZGFX-X10A", role: "background",
+    trigger: "pod_oom", summary: "atlhyper-master Pod が OOMKilled、メモリリミット 512Mi に対して 498Mi 使用",
+    providerName: "Gemini 本番", model: "gemini-2.0-flash",
+    inputTokens: 11234, outputTokens: 3456, durationMs: 4100, createdAt: "2026-03-10T22:45:00Z",
+  },
+  {
+    id: 8, incidentId: "", clusterId: "ZGFX-X10A", role: "chat",
+    trigger: "manual", summary: "Elasticsearch のインデックスサイズ最適化について相談",
+    providerName: "Gemini 本番", model: "gemini-2.0-flash",
+    inputTokens: 18900, outputTokens: 5600, durationMs: 7300, createdAt: "2026-03-10T15:00:00Z",
+  },
+];
+
 export const mockProviderList: ProviderListResponse = {
   providers: [
     {

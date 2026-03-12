@@ -2376,7 +2376,11 @@ export interface DeployPageTranslations {
 export interface GitHubPageTranslations {
   pageTitle: string;
   pageDescription: string;
-  // 连接状态
+  // Tabs
+  tabConnection: string;
+  tabDeploy: string;
+  tabHistory: string;
+  // 连接状態
   statusConnected: string;
   statusNotConnected: string;
   connectButton: string;
@@ -2386,26 +2390,9 @@ export interface GitHubPageTranslations {
   // 已授权仓库
   reposSection: string;
   reposCount: string;
-  enableMapping: string;
-  // 仓库映射
-  mappingSection: string;
-  mappingSectionHint: string;
-  repoCol: string;
-  clusterCol: string;
-  deploymentCol: string;
-  namespaceCol: string;
-  imageTagCol: string;
-  sourcePathCol: string;
-  confirmedCol: string;
-  addNamespace: string;
-  noNamespaceHint: string;
-  addMapping: string;
-  deleteMapping: string;
-  confirmMapping: string;
-  confirmMappingSuccess: string;
   noRepos: string;
   noReposHint: string;
-  // 状态
+  // 状態
   loadFailed: string;
   saveFailed: string;
 }

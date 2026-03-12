@@ -9,6 +9,7 @@ import { toast } from "@/components/common/Toast";
 import {
   getRolesOverview,
   updateProviderRoles,
+  mockRolesOverview,
   type RoleOverview,
   type AIProvider,
 } from "@/api/ai-provider";
@@ -46,7 +47,10 @@ export function RoleOverviewCard({ providers, onRoleChanged }: RoleOverviewCardP
   const [savingRole, setSavingRole] = useState<string | null>(null);
 
   const loadRoles = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      setRoles(mockRolesOverview);
+      return;
+    }
     try {
       const res = await getRolesOverview();
       setRoles(res.data.data);

@@ -6,7 +6,7 @@ import { useI18n } from "@/i18n/context";
 import { useAuthStore } from "@/store/authStore";
 import { UserRole } from "@/types/auth";
 import { toast } from "@/components/common/Toast";
-import { getBudgets, updateBudget, listProviders, type RoleBudget, type AIProvider } from "@/api/ai-provider";
+import { getBudgets, updateBudget, listProviders, mockBudgets, mockProviderList, type RoleBudget, type AIProvider } from "@/api/ai-provider";
 
 const ROLE_STYLES: Record<string, string> = {
   background: "border-blue-200 dark:border-blue-800",
@@ -59,6 +59,8 @@ export function BudgetConfigCard() {
 
   useEffect(() => {
     if (!isAuthenticated) {
+      setBudgets(mockBudgets);
+      setProviders(mockProviderList.providers);
       setLoading(false);
       return;
     }

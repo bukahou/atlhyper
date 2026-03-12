@@ -34,8 +34,6 @@ type Dialect struct {
 	repoConfig     *repoConfigDialect
 	deployConfig   *deployConfigDialect
 	deployHistory  *deployHistoryDialect
-	repoMapping    *repoMappingDialect
-	repoNamespace  *repoNamespaceDialect
 }
 
 // NewDialect 创建 SQLite 方言
@@ -65,8 +63,6 @@ func NewDialect() *Dialect {
 		repoConfig:    &repoConfigDialect{},
 		deployConfig:  &deployConfigDialect{},
 		deployHistory: &deployHistoryDialect{},
-		repoMapping:   &repoMappingDialect{},
-		repoNamespace: &repoNamespaceDialect{},
 	}
 }
 
@@ -94,9 +90,6 @@ func (d *Dialect) GitHubInstall() database.GitHubInstallDialect   { return d.git
 func (d *Dialect) RepoConfig() database.RepoConfigDialect         { return d.repoConfig }
 func (d *Dialect) DeployConfig() database.DeployConfigDialect     { return d.deployConfig }
 func (d *Dialect) DeployHistory() database.DeployHistoryDialect   { return d.deployHistory }
-func (d *Dialect) RepoMapping() database.RepoMappingDialect       { return d.repoMapping }
-func (d *Dialect) RepoNamespace() database.RepoNamespaceDialect   { return d.repoNamespace }
-
 func (d *Dialect) Migrate(db *sql.DB) error {
 	return migrate(db)
 }

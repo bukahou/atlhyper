@@ -9,18 +9,6 @@ export interface MockGitHubConnection {
   installationId: number;
 }
 
-export interface MockRepoMapping {
-  id: number;
-  clusterId: string;
-  repo: string;
-  namespace: string;
-  deployment: string;
-  container: string;
-  imagePrefix: string;
-  sourcePath: string;
-  confirmed: boolean;
-}
-
 export const MOCK_GITHUB_CONNECTION: MockGitHubConnection = {
   connected: true,
   accountLogin: "wuxiafeng",
@@ -35,36 +23,16 @@ export const MOCK_GITHUB_NOT_CONNECTED: MockGitHubConnection = {
   installationId: 0,
 };
 
-// 初始为空，用户手动添加映射行
-export const MOCK_REPO_MAPPINGS: MockRepoMapping[] = [];
-
 export interface MockAuthorizedRepo {
   fullName: string;
   defaultBranch: string;
   private: boolean;
-  mappingEnabled: boolean;
 }
 
 export const MOCK_AUTHORIZED_REPOS: MockAuthorizedRepo[] = [
-  { fullName: "wuxiafeng/Config", defaultBranch: "main", private: true, mappingEnabled: false },
-  { fullName: "wuxiafeng/Geass", defaultBranch: "main", private: false, mappingEnabled: true },
-  { fullName: "wuxiafeng/atlhyper", defaultBranch: "main", private: false, mappingEnabled: true },
-];
-
-// 可选项数据（来自 Snapshot + GitHub API）
-export const MOCK_NAMESPACES = ["geass", "geass-web", "atlhyper", "default"];
-
-export const MOCK_DEPLOYMENTS = [
-  { name: "geass-auth", namespace: "geass", image: "bukahou/geass-auth:20260309-abc1234" },
-  { name: "geass-gateway", namespace: "geass", image: "bukahou/geass-gateway:20260310-def5678" },
-  { name: "geass-media", namespace: "geass", image: "bukahou/geass-media:20260310-def5678" },
-  { name: "geass-user", namespace: "geass", image: "bukahou/geass-user:20260310-def5678" },
-  { name: "geass-favorites", namespace: "geass", image: "bukahou/geass-favorites:20260310-def5678" },
-  { name: "geass-history", namespace: "geass", image: "bukahou/geass-history:20260310-def5678" },
-  { name: "geass-web", namespace: "geass-web", image: "bukahou/geass-web:20260308-ghi9012" },
-  { name: "atlhyper-master", namespace: "atlhyper", image: "bukahou/atlhyper-master:20260310-mst4567" },
-  { name: "atlhyper-agent", namespace: "atlhyper", image: "bukahou/atlhyper-agent:20260310-agt8901" },
-  { name: "atlhyper-web", namespace: "atlhyper", image: "bukahou/atlhyper-web:20260309-web2345" },
+  { fullName: "wuxiafeng/Config", defaultBranch: "main", private: true },
+  { fullName: "wuxiafeng/Geass", defaultBranch: "main", private: false },
+  { fullName: "wuxiafeng/atlhyper", defaultBranch: "main", private: false },
 ];
 
 // 仓库顶层目录（GitHub API ListTopDirs 返回）
@@ -88,21 +56,6 @@ export const MOCK_REPO_DIRS: Record<string, string[]> = {
   ],
 };
 
-// 初始为空，用户手动为每个仓库添加 Namespace
-export const MOCK_REPO_NAMESPACES: Record<string, string[]> = {};
-
-export function mockGetNamespaces() {
-  return MOCK_NAMESPACES;
-}
-
-export function mockGetRepoNamespaces(repo: string) {
-  return MOCK_REPO_NAMESPACES[repo] || [];
-}
-
-export function mockGetDeployments() {
-  return MOCK_DEPLOYMENTS;
-}
-
 export function mockGetRepoDirs(repo: string) {
   return MOCK_REPO_DIRS[repo] || [];
 }
@@ -113,8 +66,4 @@ export function mockGetGitHubConnection() {
 
 export function mockGetAuthorizedRepos() {
   return MOCK_AUTHORIZED_REPOS;
-}
-
-export function mockGetRepoMappings() {
-  return MOCK_REPO_MAPPINGS;
 }

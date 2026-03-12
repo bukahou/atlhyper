@@ -38,74 +38,10 @@ export async function getAuthorizedRepos() {
   return res.data.data;
 }
 
-export async function toggleRepoMapping(repo: string, enabled: boolean) {
-  const res = await api.toggleMapping(repo, enabled);
-  return res.data;
-}
-
 export async function getRepoDirs(repo: string) {
   if (getDataSourceMode("github") === "mock") {
     return mock.mockGetRepoDirs(repo);
   }
   const res = await api.getRepoDirs(repo);
   return res.data.data;
-}
-
-export async function getRepoNamespaces(repo: string) {
-  if (getDataSourceMode("github") === "mock") {
-    const { mockGetRepoNamespaces } = await import("@/mock/github");
-    return mockGetRepoNamespaces(repo);
-  }
-  const res = await api.getRepoNamespaces(repo);
-  return res.data.data;
-}
-
-export async function addRepoNamespace(repo: string, namespace: string) {
-  const res = await api.addRepoNamespace(repo, namespace);
-  return res.data.data;
-}
-
-export async function removeRepoNamespace(repo: string, namespace: string) {
-  await api.removeRepoNamespace(repo, namespace);
-}
-
-export async function getMappings() {
-  if (getDataSourceMode("github") === "mock") {
-    const { mockGetRepoMappings } = await import("@/mock/github");
-    return mockGetRepoMappings();
-  }
-  const res = await api.getMappings();
-  return res.data.data;
-}
-
-export async function createMapping(data: {
-  clusterId: string;
-  repo: string;
-  namespace: string;
-  deployment: string;
-  container?: string;
-  imagePrefix?: string;
-  sourcePath?: string;
-}) {
-  const res = await api.createMapping(data);
-  return res.data.data;
-}
-
-export async function updateMapping(id: number, data: {
-  namespace?: string;
-  deployment?: string;
-  container?: string;
-  imagePrefix?: string;
-  sourcePath?: string;
-}) {
-  const res = await api.updateMapping(id, data);
-  return res.data.data;
-}
-
-export async function confirmMappingAPI(id: number) {
-  await api.confirmMapping(id);
-}
-
-export async function deleteMappingAPI(id: number) {
-  await api.deleteMapping(id);
 }

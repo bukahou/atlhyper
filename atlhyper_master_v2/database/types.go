@@ -503,26 +503,3 @@ type DeployHistoryQueryOpts struct {
 	Offset    int
 }
 
-// === Phase 2: 仓库映射 ===
-
-// RepoDeployMapping 仓库部署映射
-type RepoDeployMapping struct {
-	ID          int64     `json:"id"`
-	ClusterID   string    `json:"clusterId"`
-	Repo        string    `json:"repo"`
-	Namespace   string    `json:"namespace"`
-	Deployment  string    `json:"deployment"`
-	Container   string    `json:"container"`
-	ImagePrefix string    `json:"imagePrefix"`
-	SourcePath  string    `json:"sourcePath"`
-	Confirmed   bool      `json:"confirmed"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-}
-
-// RepoNamespace 仓库命名空间关联
-type RepoNamespace struct {
-	ID        int64  `json:"id"`
-	Repo      string `json:"repo"`
-	Namespace string `json:"namespace"`
-}

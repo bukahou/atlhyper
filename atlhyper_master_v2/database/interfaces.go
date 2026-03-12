@@ -40,9 +40,6 @@ type DB struct {
 	DeployConfig  DeployConfigRepository
 	DeployHistory DeployHistoryRepository
 
-	RepoMapping   RepoMappingRepository
-	RepoNamespace RepoNamespaceRepository
-
 	Conn *sql.DB // 导出供 repo 包使用
 }
 
@@ -306,26 +303,6 @@ type DeployHistoryRepository interface {
 	GetLatestByPath(ctx context.Context, clusterID, path string) (*DeployHistory, error)
 }
 
-// RepoMappingRepository 仓库部署映射接口
-type RepoMappingRepository interface {
-	Create(ctx context.Context, m *RepoDeployMapping) error
-	Update(ctx context.Context, m *RepoDeployMapping) error
-	PartialUpdate(ctx context.Context, id int64, fields map[string]interface{}) error
-	Confirm(ctx context.Context, id int64) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*RepoDeployMapping, error)
-	List(ctx context.Context) ([]*RepoDeployMapping, error)
-	ListByRepo(ctx context.Context, repo string) ([]*RepoDeployMapping, error)
-	DeleteByRepoAndNamespace(ctx context.Context, repo, namespace string) error
-}
-
-// RepoNamespaceRepository 仓库命名空间关联接口
-type RepoNamespaceRepository interface {
-	Add(ctx context.Context, repo, namespace string) error
-	Remove(ctx context.Context, repo, namespace string) error
-	ListByRepo(ctx context.Context, repo string) ([]string, error)
-}
-
 // ==================== Dialect 接口 ====================
 
 // Dialect 数据库方言接口
@@ -355,8 +332,6 @@ type Dialect interface {
 	RepoConfig() RepoConfigDialect
 	DeployConfig() DeployConfigDialect
 	DeployHistory() DeployHistoryDialect
-	RepoMapping() RepoMappingDialect
-	RepoNamespace() RepoNamespaceDialect
 	Migrate(db *sql.DB) error
 }
 
@@ -614,23 +589,3 @@ type DeployHistoryDialect interface {
 	ScanRow(rows *sql.Rows) (*DeployHistory, error)
 }
 
-// RepoMappingDialect 仓库部署映射 SQL 方言
-type RepoMappingDialect interface {
-	Insert(m *RepoDeployMapping) (string, []any)
-	Update(m *RepoDeployMapping) (string, []any)
-	Confirm(id int64) (string, []any)
-	Delete(id int64) (string, []any)
-	SelectByID(id int64) (string, []any)
-	SelectAll() (string, []any)
-	SelectByRepo(repo string) (string, []any)
-	DeleteByRepoAndNamespace(repo, namespace string) (string, []any)
-	ScanRow(rows *sql.Rows) (*RepoDeployMapping, error)
-}
-
-// RepoNamespaceDialect 仓库命名空间 SQL 方言
-type RepoNamespaceDialect interface {
-	Insert(repo, namespace string) (string, []any)
-	Delete(repo, namespace string) (string, []any)
-	SelectByRepo(repo string) (string, []any)
-	ScanNamespace(rows *sql.Rows) (string, error)
-}

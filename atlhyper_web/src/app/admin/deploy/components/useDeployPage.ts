@@ -1,7 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import * as deployDS from "@/datasource/deploy";
 import * as githubDS from "@/datasource/github";
+import * as deployMock from "@/mock/deploy";
+import * as githubMock from "@/mock/github";
 import { useClusterStore } from "@/store/clusterStore";
+import { useAuthStore } from "@/store/authStore";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type {
   MockDeployConfig,
@@ -11,6 +14,7 @@ import type {
 
 export function useDeployPage() {
   const clusterId = useClusterStore((s) => s.currentClusterId);
+  const { isAuthenticated } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<MockDeployConfig | null>(null);
   const [statusList, setStatusList] = useState<MockPathStatus[]>([]);
@@ -25,7 +29,25 @@ export function useDeployPage() {
   const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!isAuthenticated) {
+      const connData = githubMock.mockGetGitHubConnection();
+      setGithubConnected(connData?.connected ?? false);
+      const configData = deployMock.mockGetDeployConfig();
+      setConfig(configData);
+      setStatusList(deployMock.mockGetPathStatus() as MockPathStatus[]);
+      setHistory(deployMock.mockGetDeployHistory() as MockDeployRecord[]);
+      setRepos(deployMock.mockGetAuthorizedRepos().map((r) => ({
+        fullName: r.fullName,
+        defaultBranch: r.defaultBranch,
+        private: r.private,
+      })));
+      if (configData?.repoUrl) {
+        setKustomizePaths(deployMock.mockGetKustomizePaths(configData.repoUrl));
+      }
+      setLoading(false);
+      return;
+    }
+
     try {
       // 检查 GitHub 连接状态
       let connected = false;
@@ -95,7 +117,7 @@ export function useDeployPage() {
     } finally {
       setLoading(false);
     }
-  }, [clusterId]);
+  }, [clusterId, isAuthenticated]);
 
   const { refresh, intervalSeconds } = useAutoRefresh(loadData, { interval: 30000 });
 

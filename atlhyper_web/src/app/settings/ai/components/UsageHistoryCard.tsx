@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Clock, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { useAuthStore } from "@/store/authStore";
-import { getAIReports, type AIReportItem } from "@/api/ai-provider";
+import { getAIReports, mockAIReports, type AIReportItem } from "@/api/ai-provider";
 
 const ROLE_COLORS: Record<string, string> = {
   background: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -39,6 +39,11 @@ export function UsageHistoryCard() {
 
   const fetchReports = async (offset: number, append: boolean) => {
     if (!isAuthenticated) {
+      const filtered = roleFilter
+        ? mockAIReports.filter((r) => r.role === roleFilter)
+        : mockAIReports;
+      setReports(filtered);
+      setTotal(filtered.length);
       setLoading(false);
       return;
     }
