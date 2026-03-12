@@ -1418,6 +1418,13 @@ export interface AISettingsPageTranslations {
   monthlyCalls: string;
   autoTriggerMinSeverity: string;
   autoTriggerMinSeverityDesc: string;
+  autoTriggerMode: string;
+  autoTriggerModeDesc: string;
+  triggerModeAuto: string;
+  triggerModeManual: string;
+  triggerModeSchedule: string;
+  scheduleWindow: string;
+  scheduleWindowDesc: string;
   severityCritical: string;
   severityHigh: string;
   severityMedium: string;

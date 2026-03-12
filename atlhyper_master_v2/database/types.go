@@ -289,6 +289,11 @@ type AIRoleBudget struct {
 	FallbackProviderID *int64 // 降级 Provider（可选）
 	// 自动触发的最低严重度: "critical" / "high" / "medium" / "low" / "off"
 	AutoTriggerMinSeverity string
+	// 触发模式: "auto" / "manual" / "schedule"
+	AutoTriggerMode string
+	// 定时触发窗口（HH:MM 格式，仅 schedule 模式生效）
+	ScheduleStartTime string
+	ScheduleEndTime   string
 
 	UpdatedAt time.Time
 }

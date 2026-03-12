@@ -638,6 +638,9 @@ func (h *AIProviderHandler) BudgetsHandler(w http.ResponseWriter, r *http.Reques
 		MonthlyResetAt          string `json:"monthlyResetAt,omitempty"`
 		// 配置
 		AutoTriggerMinSeverity string `json:"autoTriggerMinSeverity"`
+		AutoTriggerMode        string `json:"autoTriggerMode"`
+		ScheduleStartTime      string `json:"scheduleStartTime,omitempty"`
+		ScheduleEndTime        string `json:"scheduleEndTime,omitempty"`
 		FallbackProviderID     *int64 `json:"fallbackProviderId"`
 	}
 
@@ -658,6 +661,9 @@ func (h *AIProviderHandler) BudgetsHandler(w http.ResponseWriter, r *http.Reques
 			MonthlyOutputTokensUsed: b.MonthlyOutputTokensUsed,
 			MonthlyCallsUsed:        b.MonthlyCallsUsed,
 			AutoTriggerMinSeverity:  b.AutoTriggerMinSeverity,
+			AutoTriggerMode:         b.AutoTriggerMode,
+			ScheduleStartTime:      b.ScheduleStartTime,
+			ScheduleEndTime:        b.ScheduleEndTime,
 			FallbackProviderID:      b.FallbackProviderID,
 		}
 		if b.DailyResetAt != nil {
@@ -697,6 +703,9 @@ func (h *AIProviderHandler) BudgetHandler(w http.ResponseWriter, r *http.Request
 		MonthlyOutputTokenLimit *int    `json:"monthlyOutputTokenLimit,omitempty"`
 		MonthlyCallLimit        *int    `json:"monthlyCallLimit,omitempty"`
 		AutoTriggerMinSeverity  *string `json:"autoTriggerMinSeverity,omitempty"`
+		AutoTriggerMode         *string `json:"autoTriggerMode,omitempty"`
+		ScheduleStartTime       *string `json:"scheduleStartTime,omitempty"`
+		ScheduleEndTime         *string `json:"scheduleEndTime,omitempty"`
 		FallbackProviderID      *int64  `json:"fallbackProviderId,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -708,6 +717,12 @@ func (h *AIProviderHandler) BudgetHandler(w http.ResponseWriter, r *http.Request
 	validSeverities := map[string]bool{"critical": true, "high": true, "medium": true, "low": true, "off": true}
 	if req.AutoTriggerMinSeverity != nil && !validSeverities[*req.AutoTriggerMinSeverity] {
 		handler.WriteError(w, http.StatusBadRequest, "invalid severity: "+*req.AutoTriggerMinSeverity)
+		return
+	}
+	// 校验触发模式
+	validModes := map[string]bool{"auto": true, "manual": true, "schedule": true}
+	if req.AutoTriggerMode != nil && !validModes[*req.AutoTriggerMode] {
+		handler.WriteError(w, http.StatusBadRequest, "invalid trigger mode: "+*req.AutoTriggerMode)
 		return
 	}
 
@@ -754,6 +769,15 @@ func (h *AIProviderHandler) BudgetHandler(w http.ResponseWriter, r *http.Request
 	}
 	if req.AutoTriggerMinSeverity != nil {
 		budget.AutoTriggerMinSeverity = *req.AutoTriggerMinSeverity
+	}
+	if req.AutoTriggerMode != nil {
+		budget.AutoTriggerMode = *req.AutoTriggerMode
+	}
+	if req.ScheduleStartTime != nil {
+		budget.ScheduleStartTime = *req.ScheduleStartTime
+	}
+	if req.ScheduleEndTime != nil {
+		budget.ScheduleEndTime = *req.ScheduleEndTime
 	}
 	if req.FallbackProviderID != nil {
 		budget.FallbackProviderID = req.FallbackProviderID

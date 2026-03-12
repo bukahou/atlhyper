@@ -156,6 +156,24 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 		return
 	}
 
+	// 触发模式判断
+	mode := budget.AutoTriggerMode
+	if mode == "" {
+		mode = "auto"
+	}
+	switch mode {
+	case "manual":
+		log.Info("深度分析设为手动模式，跳过自动触发", "incident", evt.IncidentID)
+		return
+	case "schedule":
+		if !isWithinSchedule(budget.ScheduleStartTime, budget.ScheduleEndTime) {
+			log.Info("深度分析不在定时窗口内，跳过",
+				"incident", evt.IncidentID,
+				"window", budget.ScheduleStartTime+"~"+budget.ScheduleEndTime)
+			return
+		}
+	}
+
 	minSeverity := budget.AutoTriggerMinSeverity
 	if minSeverity == "" || minSeverity == "off" {
 		return
@@ -174,10 +192,42 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 	log.Info("触发 analysis 深度分析",
 		"incident", evt.IncidentID,
 		"severity", evt.Severity,
-		"min_severity", minSeverity)
+		"min_severity", minSeverity,
+		"mode", mode)
 
 	// 通过 Enricher.TriggerAnalysis 异步执行深度分析
 	bt.enricher.TriggerAnalysis(evt.IncidentID)
+}
+
+// isWithinSchedule 检查当前时间是否在定时窗口内（HH:MM 格式，支持跨午夜）
+func isWithinSchedule(startTime, endTime string) bool {
+	if startTime == "" || endTime == "" {
+		return true // 未设置窗口时视为始终有效
+	}
+	now := time.Now()
+	nowMinutes := now.Hour()*60 + now.Minute()
+
+	startMinutes := parseHHMM(startTime)
+	endMinutes := parseHHMM(endTime)
+	if startMinutes < 0 || endMinutes < 0 {
+		return true // 格式错误时视为始终有效
+	}
+
+	if startMinutes <= endMinutes {
+		// 不跨午夜：09:00 ~ 18:00
+		return nowMinutes >= startMinutes && nowMinutes < endMinutes
+	}
+	// 跨午夜：22:00 ~ 06:00
+	return nowMinutes >= startMinutes || nowMinutes < endMinutes
+}
+
+// parseHHMM 解析 "HH:MM" 格式为分钟数，失败返回 -1
+func parseHHMM(s string) int {
+	t, err := time.Parse("15:04", s)
+	if err != nil {
+		return -1
+	}
+	return t.Hour()*60 + t.Minute()
 }
 
 // meetsMinSeverity 检查事件严重度是否达到最低阈值

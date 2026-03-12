@@ -89,6 +89,9 @@ export function BudgetConfigCard() {
         monthlyOutputTokenLimit: edit.monthlyOutputTokenLimit as number | undefined,
         monthlyCallLimit: edit.monthlyCallLimit as number | undefined,
         autoTriggerMinSeverity: edit.autoTriggerMinSeverity as string | undefined,
+        autoTriggerMode: edit.autoTriggerMode as string | undefined,
+        scheduleStartTime: edit.scheduleStartTime as string | undefined,
+        scheduleEndTime: edit.scheduleEndTime as string | undefined,
         fallbackProviderId: edit.fallbackProviderId !== undefined
           ? (edit.fallbackProviderId as number | null)
           : undefined,
@@ -142,6 +145,9 @@ export function BudgetConfigCard() {
           const roleLabelKey = ROLE_LABELS[budget.role] as keyof typeof aiT | undefined;
           const roleLabel = (roleLabelKey ? aiT[roleLabelKey] : budget.role) as string;
           const severity = (getEdit(budget.role, "autoTriggerMinSeverity") as string) ?? budget.autoTriggerMinSeverity;
+          const triggerMode = (getEdit(budget.role, "autoTriggerMode") as string) ?? budget.autoTriggerMode ?? "auto";
+          const schedStart = (getEdit(budget.role, "scheduleStartTime") as string) ?? budget.scheduleStartTime ?? "";
+          const schedEnd = (getEdit(budget.role, "scheduleEndTime") as string) ?? budget.scheduleEndTime ?? "";
           const fallbackId = (getEdit(budget.role, "fallbackProviderId") as number | null | undefined) ?? budget.fallbackProviderId;
           const hasChanges = edits[budget.role] && Object.keys(edits[budget.role]).length > 0;
 
@@ -229,6 +235,58 @@ export function BudgetConfigCard() {
                   <LimitInput role={budget.role} field="monthlyCallLimit" budget={budget} />
                 </div>
               </div>
+
+              {/* 触发模式（仅 analysis 角色显示） */}
+              {budget.role === "analysis" && (
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <label className="block text-xs text-muted mb-1">{aiT.autoTriggerMode}</label>
+                    <p className="text-[10px] text-muted mb-1">{aiT.autoTriggerModeDesc}</p>
+                    <div className="flex gap-1">
+                      {(["auto", "manual", "schedule"] as const).map((mode) => {
+                        const labels = { auto: aiT.triggerModeAuto, manual: aiT.triggerModeManual, schedule: aiT.triggerModeSchedule };
+                        return (
+                          <button
+                            key={mode}
+                            onClick={() => setEdit(budget.role, "autoTriggerMode", mode)}
+                            disabled={!isAdmin}
+                            className={`px-3 py-1 text-xs rounded-lg border transition-colors disabled:opacity-50 ${
+                              triggerMode === mode
+                                ? "bg-violet-600 text-white border-violet-600"
+                                : "border-[var(--border-color)] text-muted hover:bg-gray-100 dark:hover:bg-gray-800"
+                            }`}
+                          >
+                            {labels[mode]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {triggerMode === "schedule" && (
+                    <div>
+                      <label className="block text-xs text-muted mb-1">{aiT.scheduleWindow}</label>
+                      <p className="text-[10px] text-muted mb-1">{aiT.scheduleWindowDesc}</p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={schedStart}
+                          onChange={(e) => setEdit(budget.role, "scheduleStartTime", e.target.value)}
+                          disabled={!isAdmin}
+                          className="px-3 py-1.5 text-sm rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-default disabled:opacity-50"
+                        />
+                        <span className="text-xs text-muted">～</span>
+                        <input
+                          type="time"
+                          value={schedEnd}
+                          onChange={(e) => setEdit(budget.role, "scheduleEndTime", e.target.value)}
+                          disabled={!isAdmin}
+                          className="px-3 py-1.5 text-sm rounded-lg border border-[var(--border-color)] bg-white dark:bg-gray-800 text-default disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 配置项 */}
               <div className="grid gap-3 md:grid-cols-2 mt-3">

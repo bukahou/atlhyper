@@ -231,6 +231,9 @@ func migrate(db *sql.DB) error {
 			monthly_reset_at TEXT,
 			fallback_provider_id INTEGER,
 			auto_trigger_min_severity TEXT DEFAULT 'critical',
+			auto_trigger_mode TEXT DEFAULT 'auto',
+			schedule_start_time TEXT DEFAULT '',
+			schedule_end_time TEXT DEFAULT '',
 			updated_at TEXT NOT NULL
 		)`,
 

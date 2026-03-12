@@ -18,8 +18,10 @@ func (d *aiRoleBudgetDialect) Upsert(b *database.AIRoleBudget) (string, []any) {
 		 daily_input_tokens_used, daily_output_tokens_used, daily_calls_used, daily_reset_at,
 		 monthly_input_token_limit, monthly_output_token_limit, monthly_call_limit,
 		 monthly_input_tokens_used, monthly_output_tokens_used, monthly_calls_used, monthly_reset_at,
-		 fallback_provider_id, auto_trigger_min_severity, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		 fallback_provider_id, auto_trigger_min_severity,
+		 auto_trigger_mode, schedule_start_time, schedule_end_time,
+		 updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	var dailyResetAt, monthlyResetAt sql.NullString
 	if b.DailyResetAt != nil {
 		dailyResetAt = sql.NullString{String: b.DailyResetAt.Format(time.RFC3339), Valid: true}
@@ -33,7 +35,9 @@ func (d *aiRoleBudgetDialect) Upsert(b *database.AIRoleBudget) (string, []any) {
 		b.DailyInputTokensUsed, b.DailyOutputTokensUsed, b.DailyCallsUsed, dailyResetAt,
 		b.MonthlyInputTokenLimit, b.MonthlyOutputTokenLimit, b.MonthlyCallLimit,
 		b.MonthlyInputTokensUsed, b.MonthlyOutputTokensUsed, b.MonthlyCallsUsed, monthlyResetAt,
-		b.FallbackProviderID, b.AutoTriggerMinSeverity, b.UpdatedAt.Format(time.RFC3339),
+		b.FallbackProviderID, b.AutoTriggerMinSeverity,
+		b.AutoTriggerMode, b.ScheduleStartTime, b.ScheduleEndTime,
+		b.UpdatedAt.Format(time.RFC3339),
 	}
 	return query, args
 }
@@ -43,7 +47,9 @@ const selectBudgetCols = `role,
 	daily_input_tokens_used, daily_output_tokens_used, daily_calls_used, daily_reset_at,
 	monthly_input_token_limit, monthly_output_token_limit, monthly_call_limit,
 	monthly_input_tokens_used, monthly_output_tokens_used, monthly_calls_used, monthly_reset_at,
-	fallback_provider_id, auto_trigger_min_severity, updated_at`
+	fallback_provider_id, auto_trigger_min_severity,
+	auto_trigger_mode, schedule_start_time, schedule_end_time,
+	updated_at`
 
 func (d *aiRoleBudgetDialect) SelectByRole(role string) (string, []any) {
 	return `SELECT ` + selectBudgetCols + ` FROM ai_role_budget WHERE role = ?`, []any{role}
@@ -93,7 +99,7 @@ func (d *aiRoleBudgetDialect) ScanRow(rows *sql.Rows) (*database.AIRoleBudget, e
 	b := &database.AIRoleBudget{}
 	var fallbackID sql.NullInt64
 	var dailyResetAt, monthlyResetAt, updatedAt sql.NullString
-	var autoTrigger sql.NullString
+	var autoTrigger, autoMode, schedStart, schedEnd sql.NullString
 
 	err := rows.Scan(
 		&b.Role,
@@ -101,7 +107,9 @@ func (d *aiRoleBudgetDialect) ScanRow(rows *sql.Rows) (*database.AIRoleBudget, e
 		&b.DailyInputTokensUsed, &b.DailyOutputTokensUsed, &b.DailyCallsUsed, &dailyResetAt,
 		&b.MonthlyInputTokenLimit, &b.MonthlyOutputTokenLimit, &b.MonthlyCallLimit,
 		&b.MonthlyInputTokensUsed, &b.MonthlyOutputTokensUsed, &b.MonthlyCallsUsed, &monthlyResetAt,
-		&fallbackID, &autoTrigger, &updatedAt,
+		&fallbackID, &autoTrigger,
+		&autoMode, &schedStart, &schedEnd,
+		&updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -115,6 +123,13 @@ func (d *aiRoleBudgetDialect) ScanRow(rows *sql.Rows) (*database.AIRoleBudget, e
 	} else {
 		b.AutoTriggerMinSeverity = "critical"
 	}
+	if autoMode.Valid && autoMode.String != "" {
+		b.AutoTriggerMode = autoMode.String
+	} else {
+		b.AutoTriggerMode = "auto"
+	}
+	b.ScheduleStartTime = schedStart.String
+	b.ScheduleEndTime = schedEnd.String
 	if dailyResetAt.Valid {
 		t, _ := time.Parse(time.RFC3339, dailyResetAt.String)
 		b.DailyResetAt = &t

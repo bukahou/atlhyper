@@ -96,6 +96,9 @@ export interface RoleBudget {
   monthlyResetAt?: string;
   // 配置
   autoTriggerMinSeverity: string;
+  autoTriggerMode: string; // "auto" | "manual" | "schedule"
+  scheduleStartTime?: string; // HH:MM
+  scheduleEndTime?: string; // HH:MM
   fallbackProviderId: number | null;
 }
 
@@ -107,6 +110,9 @@ export interface BudgetUpdateRequest {
   monthlyOutputTokenLimit?: number;
   monthlyCallLimit?: number;
   autoTriggerMinSeverity?: string;
+  autoTriggerMode?: string;
+  scheduleStartTime?: string;
+  scheduleEndTime?: string;
   fallbackProviderId?: number | null;
 }
 
