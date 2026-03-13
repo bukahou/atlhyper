@@ -1843,6 +1843,7 @@ Deployment が更新され、新しい Pod が起動中です
     riskLevelLabel: "リスクレベル",
     firstAnomaly: "初回異常",
     noAnomaly: "異常なし",
+    noAnomalyDetail: "異常詳細なし、ベースライン学習中...",
     metricName: "メトリクス名",
     currentValue: "現在値",
     baseline: "ベースライン",

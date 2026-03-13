@@ -150,7 +150,7 @@ func (e *Enricher) TriggerAnalysis(incidentID string) {
 		defer cancel()
 
 		if err := e.runAnalysis(ctx, incidentID, "manual"); err != nil {
-			log.Warn("深度分析失败", "incident", incidentID, "err", err)
+			log.Error("深度分析失败", "incident", incidentID, "err", err)
 		} else {
 			log.Info("深度分析完成", "incident", incidentID)
 		}

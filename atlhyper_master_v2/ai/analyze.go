@@ -47,6 +47,7 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 	// 创建 LLM 客户端
 	llmClient, err := llm.NewLLMClient(roleCfg.Config)
 	if err != nil {
+		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
 		return nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
 	}
 	defer llmClient.Close()
@@ -90,6 +91,7 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 
 		stream, err := llmClient.ChatStream(ctx, llmReq)
 		if err != nil {
+			s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("第 %d 轮调用失败: %v", round, err))
 			return nil, fmt.Errorf("第 %d 轮 LLM 调用失败: %w", round, err)
 		}
 

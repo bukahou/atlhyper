@@ -125,6 +125,11 @@ export function TopEntities({ entities, clusterId, limit, onLimitChange }: TopEn
                       <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                     </div>
                   ) : detail ? (
+                    detail.metrics.length === 0 && detail.causalChain.length === 0 && (!detail.causalTree || detail.causalTree.length === 0) ? (
+                      <div className="py-3 text-center text-xs text-muted">
+                        {t.aiops.noAnomalyDetail}
+                      </div>
+                    ) : (
                     <div className="space-y-3">
                       {/* 异常指标 */}
                       {detail.metrics.length > 0 && (
@@ -178,6 +183,7 @@ export function TopEntities({ entities, clusterId, limit, onLimitChange }: TopEn
                         </div>
                       ) : null}
                     </div>
+                    )
                   ) : null}
                 </div>
               )}

@@ -1843,6 +1843,7 @@ Deployment 已更新，新的 Pod 正在启动中
     riskLevelLabel: "风险等级",
     firstAnomaly: "首次异常",
     noAnomaly: "无异常",
+    noAnomalyDetail: "暂无异常详情，基线学习中...",
     metricName: "指标名称",
     currentValue: "当前值",
     baseline: "基线值",

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Settings, Trash2, Zap, MessageSquare, Coins } from "lucide-react";
+import { Bot, Settings, Trash2, Zap, MessageSquare, Coins, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import type { AIProvider } from "@/api/ai-provider";
 
@@ -104,6 +104,14 @@ export function ProviderCard({
           {provider.totalTokens.toLocaleString()}
         </div>
       </div>
+
+      {/* Last Error */}
+      {provider.lastError && (
+        <div className="flex items-start gap-2 mb-4 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+          <span className="text-xs text-red-600 dark:text-red-400 break-all">{provider.lastError}</span>
+        </div>
+      )}
 
       {/* Actions */}
       {isAdmin && (

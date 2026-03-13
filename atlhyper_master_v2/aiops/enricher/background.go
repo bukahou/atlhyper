@@ -134,7 +134,7 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 
 	result, err := bt.enricher.SummarizeBackground(ctx, evt.IncidentID, evt.Trigger)
 	if err != nil {
-		log.Warn("后台分析失败", "incident", evt.IncidentID, "err", err)
+		log.Error("后台分析失败", "incident", evt.IncidentID, "err", err)
 		return
 	}
 

@@ -1896,6 +1896,7 @@ export interface AIOpsTranslations {
   riskLevelLabel: string;
   firstAnomaly: string;
   noAnomaly: string;
+  noAnomalyDetail: string;
   metricName: string;
   currentValue: string;
   baseline: string;

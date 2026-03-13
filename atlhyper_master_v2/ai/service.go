@@ -98,6 +98,7 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 
 	llmClient, err := llm.NewLLMClient(roleCfg.Config)
 	if err != nil {
+		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
 		return nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
 	}
 	defer llmClient.Close()
@@ -107,6 +108,7 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 		Messages:     []llm.Message{{Role: "user", Content: req.UserPrompt}},
 	})
 	if err != nil {
+		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("LLM 调用失败: %v", err))
 		return nil, fmt.Errorf("LLM 调用失败: %w", err)
 	}
 
@@ -172,5 +174,12 @@ func toMessage(m *database.AIMessage) *Message {
 		Content:        m.Content,
 		ToolCalls:      m.ToolCalls,
 		CreatedAt:      m.CreatedAt,
+	}
+}
+
+// recordProviderError 记录 Provider 错误到数据库（前端 AI 设置页可见）
+func (s *aiServiceImpl) recordProviderError(ctx context.Context, providerID int64, errMsg string) {
+	if err := s.providerRepo.UpdateStatus(ctx, providerID, "error", errMsg); err != nil {
+		log.Warn("更新 Provider 错误状态失败", "provider", providerID, "err", err)
 	}
 }

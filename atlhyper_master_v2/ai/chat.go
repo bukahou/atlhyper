@@ -89,6 +89,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 
 	llmClient, err := llm.NewLLMClient(roleCfg.Config)
 	if err != nil {
+		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
 		sendError(ch, fmt.Sprintf("创建 LLM 客户端失败: %v", err))
 		return
 	}
