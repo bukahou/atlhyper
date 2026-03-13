@@ -106,7 +106,7 @@ func (s *MemoryStore) updateAgentStatus() {
 	}
 }
 
-// cleanupOfflineClusterData 清理离线集群的 OTel 时间线数据
+// cleanupOfflineClusterData 清理离线集群的全部数据（快照 + OTel 时间线 + Agent 记录）
 func (s *MemoryStore) cleanupOfflineClusterData() {
 	s.agentsMu.RLock()
 	offlineClusters := make([]string, 0)
@@ -122,14 +122,27 @@ func (s *MemoryStore) cleanupOfflineClusterData() {
 		return
 	}
 
+	// 清理快照
+	s.snapshotsMu.Lock()
+	for _, clusterID := range offlineClusters {
+		delete(s.snapshots, clusterID)
+	}
+	s.snapshotsMu.Unlock()
+
+	// 清理 OTel 时间线
 	s.otelTimelineMu.Lock()
 	for _, clusterID := range offlineClusters {
-		if _, ok := s.otelTimeline[clusterID]; ok {
-			delete(s.otelTimeline, clusterID)
-			log.Info("已清理离线集群 OTel 时间线", "cluster", clusterID)
-		}
+		delete(s.otelTimeline, clusterID)
 	}
 	s.otelTimelineMu.Unlock()
+
+	// 清理 Agent 记录
+	s.agentsMu.Lock()
+	for _, clusterID := range offlineClusters {
+		delete(s.agents, clusterID)
+		log.Info("已清理离线集群全部数据", "cluster", clusterID)
+	}
+	s.agentsMu.Unlock()
 }
 
 // ==================== 快照管理 ====================
