@@ -111,8 +111,8 @@ export function TopEntities({ entities, clusterId, limit, onLimitChange }: TopEn
                   <EntityLink entityKey={entity.entityKey} />
                 </div>
                 <span className="text-xs text-muted">{entity.entityType}</span>
-                <span className="text-xs font-mono text-default">{entity.rLocal.toFixed(1)}</span>
-                <span className="text-xs font-mono font-semibold text-default">{entity.rFinal.toFixed(1)}</span>
+                <span className="text-xs font-mono text-default">{Math.round(entity.rLocal)}</span>
+                <span className="text-xs font-mono font-semibold text-default">{Math.round(entity.rFinal)}</span>
                 <RiskBadge level={entity.riskLevel} />
                 <span className="text-xs text-muted">{formatTimeAgo(entity.firstAnomaly, t.aiops)}</span>
               </button>

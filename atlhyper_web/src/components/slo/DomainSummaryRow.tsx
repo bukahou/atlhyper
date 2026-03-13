@@ -11,6 +11,7 @@ interface DomainSummaryRowProps {
   availability: number;
   p95Latency: number;
   errorRate: number;
+  totalRequests: number;
   rps: number;
   errorBudgetRemaining: number;
   targets: { availability: number; p95Latency: number };
@@ -33,7 +34,7 @@ interface DomainSummaryRowProps {
 
 export function DomainSummaryRow({
   domain, status, tls, serviceCount,
-  availability, p95Latency, errorRate, rps, errorBudgetRemaining,
+  availability, p95Latency, errorRate, totalRequests, rps, errorBudgetRemaining,
   targets, trend, expanded, onToggle, t,
 }: DomainSummaryRowProps) {
   const statusLabels = { healthy: t.healthy, warning: t.warning, critical: t.critical, unknown: t.unknown };
@@ -73,7 +74,7 @@ export function DomainSummaryRow({
         </div>
         <div className="text-center">
           <div className={`text-sm font-semibold ${errorRate <= 1 ? "text-emerald-500" : "text-red-500"}`}>{errorRate.toFixed(2)}%</div>
-          <div className="text-[10px] text-muted">{t.errorRate}</div>
+          <div className="text-[10px] text-muted">{t.errorRate} ({Math.round(totalRequests * errorRate / 100)})</div>
         </div>
         <div className="text-center">
           <div className="text-sm font-semibold text-default">{formatNumber(rps)}/s</div>
@@ -100,6 +101,7 @@ export function DomainSummaryRow({
         <div className="w-28">
           <div className="text-[10px] text-muted mb-0.5">{t.errorRate}</div>
           <span className={`text-sm font-semibold ${errorRate <= 1 ? "text-emerald-500" : "text-red-500"}`}>{errorRate.toFixed(2)}%</span>
+          <div className="text-[10px] text-muted">{Math.round(totalRequests * errorRate / 100)} err</div>
         </div>
         <div className="w-32">
           <div className="text-[10px] text-muted mb-0.5">{t.errorBudget}</div>

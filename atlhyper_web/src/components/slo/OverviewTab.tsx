@@ -62,7 +62,10 @@ export function OverviewTab({ summary, errorBudgetRemaining, targets, history, t
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.errorRate}</div>
           <div className="text-lg font-bold text-default">{errorRate.toFixed(3)}%</div>
-          {targets && <div className="text-xs text-muted mt-1">{t.target}: {(100 - targets.availability).toFixed(1)}%</div>}
+          <div className="text-xs text-muted mt-1">
+            {Math.round(totalRequests * errorRate / 100)} / {formatNumber(totalRequests)}
+            {targets && <span> · {t.target}: {(100 - targets.availability).toFixed(1)}%</span>}
+          </div>
         </div>
         <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
           <div className="text-xs text-muted mb-1">{t.totalRequests}</div>

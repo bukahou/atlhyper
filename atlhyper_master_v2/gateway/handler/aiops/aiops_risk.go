@@ -40,7 +40,7 @@ func (h *AIOpsRiskHandler) ClusterRisk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler.WriteJSON(w, http.StatusOK, risk)
+	handler.WriteJSON(w, http.StatusOK, ScaleClusterRisk(risk))
 }
 
 // EntityRisks 获取实体风险列表
@@ -75,7 +75,7 @@ func (h *AIOpsRiskHandler) EntityRisks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler.WriteJSON(w, http.StatusOK, risks)
+	handler.WriteJSON(w, http.StatusOK, ScaleEntityRisks(risks))
 }
 
 // EntityRisk 获取单个实体的风险详情
@@ -104,5 +104,5 @@ func (h *AIOpsRiskHandler) EntityRisk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler.WriteJSON(w, http.StatusOK, detail)
+	handler.WriteJSON(w, http.StatusOK, ScaleEntityRiskDetail(detail))
 }

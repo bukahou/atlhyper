@@ -109,6 +109,7 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 
 		// 没有 Tool Call → 分析结束
 		if len(toolCalls) == 0 {
+			s.clearProviderError(ctx, roleCfg.ProviderID)
 			s.RecordUsage(ctx, role, roleCfg.ProviderID, totalInputTokens, totalOutputTokens)
 			log.Info("分析完成",
 				"cluster", req.ClusterID,

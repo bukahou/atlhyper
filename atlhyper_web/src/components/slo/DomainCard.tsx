@@ -184,6 +184,7 @@ export function DomainCard({ domain, expanded, onToggle, timeRange, clusterId, o
         availability={availability}
         p95Latency={p95Latency}
         errorRate={errorRate}
+        totalRequests={domain.summary?.totalRequests ?? 0}
         rps={rps}
         errorBudgetRemaining={domain.errorBudgetRemaining}
         targets={targets}

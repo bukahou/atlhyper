@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -236,8 +237,8 @@ func NewMaster() (*Master, error) {
 		risk := aiopsEngine.GetClusterRisk(clusterID)
 		entities := aiopsEngine.GetEntityRisks(clusterID, "r_final", topN)
 		data, _ := json.Marshal(map[string]interface{}{
-			"clusterRisk":   risk,
-			"topEntities":   entities,
+			"clusterRisk":   scaleClusterRiskForAI(risk),
+			"topEntities":   scaleEntityRisksForAI(entities),
 			"entityCount":   len(entities),
 		})
 		return string(data), nil
@@ -760,6 +761,37 @@ func getIntParam(m map[string]interface{}, key string, defaultVal int) int {
 		}
 	}
 	return defaultVal
+}
+
+// scaleEntityRisksForAI 将 EntityRisk 列表的分数从 [0,1] 转为 [0,100]（AI tool 输出用）
+func scaleEntityRisksForAI(src []*aiops.EntityRisk) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(src))
+	for i, r := range src {
+		result[i] = map[string]interface{}{
+			"entityKey":    r.EntityKey,
+			"entityType":   r.EntityType,
+			"namespace":    r.Namespace,
+			"name":         r.Name,
+			"rFinal":       math.Round(r.RFinal * 100),
+			"riskLevel":    r.RiskLevel,
+			"firstAnomaly": r.FirstAnomaly,
+		}
+	}
+	return result
+}
+
+// scaleClusterRiskForAI 转换 ClusterRisk（Risk 已是 0-100，TopEntities 需要转换）
+func scaleClusterRiskForAI(src *aiops.ClusterRisk) map[string]interface{} {
+	if src == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"clusterId":     src.ClusterID,
+		"risk":          src.Risk,
+		"level":         src.Level,
+		"totalEntities": src.TotalEntities,
+		"anomalyCount":  src.AnomalyCount,
+	}
 }
 
 // Store 获取 Store 实例（供测试使用）

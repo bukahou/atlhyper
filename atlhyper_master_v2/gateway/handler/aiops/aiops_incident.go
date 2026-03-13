@@ -102,7 +102,7 @@ func (h *AIOpsIncidentHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler.WriteJSON(w, http.StatusOK, detail)
+	handler.WriteJSON(w, http.StatusOK, ScaleIncidentDetail(detail))
 }
 
 // Stats 事件统计

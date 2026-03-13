@@ -22,7 +22,7 @@ export function CausalTreeNodeView({ node, depth, t }: CausalTreeNodeViewProps) 
         <EntityLink entityKey={node.entityKey} showType={false} />
         <span className="text-[10px] text-muted">{edgeLabel}</span>
         {node.rFinal > 0 && (
-          <span className="font-mono text-default text-[10px]">R={node.rFinal.toFixed(2)}</span>
+          <span className="font-mono text-default text-[10px]">R={Math.round(node.rFinal)}</span>
         )}
       </div>
       {node.metrics?.map((m, i) => (

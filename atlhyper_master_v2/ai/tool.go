@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
@@ -299,7 +300,7 @@ func SimplifyEntityDetail(detail *aiops.EntityRiskDetail) map[string]interface{}
 		"entityType":  detail.EntityType,
 		"namespace":   detail.Namespace,
 		"name":        detail.Name,
-		"rFinal":      detail.RFinal,
+		"rFinal":      math.Round(detail.RFinal * 100),
 		"riskLevel":   detail.RiskLevel,
 		"metrics":     anomalyMetrics,
 		"causalTree":  detail.CausalTree,
