@@ -102,79 +102,41 @@ func (c *clientImpl) ListTopDirs(ctx context.Context, repo, branch string) ([]st
 }
 
 // ScanKustomizePaths 扫描仓库中所有 kustomization.yaml 路径
+// 使用 Git Tree API（实时，无索引延迟）替代 Search API（有索引延迟）
 func (c *clientImpl) ScanKustomizePaths(ctx context.Context, repo, branch string) ([]string, error) {
-	// 使用 GitHub Search API 查找 kustomization.yaml
-	query := url.QueryEscape(fmt.Sprintf("filename:kustomization.yaml repo:%s", repo))
-	path := fmt.Sprintf("/search/code?q=%s&per_page=100", query)
+	if branch == "" {
+		branch = "main"
+	}
 
+	// Git Tree API: 一次请求返回整棵文件树
+	path := fmt.Sprintf("/repos/%s/git/trees/%s?recursive=1", repo, url.QueryEscape(branch))
 	data, err := c.apiGet(ctx, path)
 	if err != nil {
-		// Search API 可能受限，降级为递归扫描
-		log.Warn("Search API 失败，尝试递归扫描", "err", err)
-		return c.scanKustomizePathsRecursive(ctx, repo, branch, "")
+		return nil, fmt.Errorf("git tree API: %w", err)
 	}
 
 	var result struct {
-		Items []struct {
+		Tree []struct {
 			Path string `json:"path"`
-		} `json:"items"`
+			Type string `json:"type"`
+		} `json:"tree"`
+		Truncated bool `json:"truncated"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}
 
+	if result.Truncated {
+		log.Warn("Git Tree 结果被截断（仓库文件过多），部分路径可能缺失", "repo", repo)
+	}
+
 	var paths []string
-	for _, item := range result.Items {
-		// path 是 "a/b/kustomization.yaml"，取目录部分
-		dir := strings.TrimSuffix(item.Path, "/kustomization.yaml")
-		if dir != item.Path {
+	for _, item := range result.Tree {
+		if item.Type == "blob" && strings.HasSuffix(item.Path, "/kustomization.yaml") {
+			dir := strings.TrimSuffix(item.Path, "/kustomization.yaml")
 			paths = append(paths, dir)
 		}
 	}
-	return paths, nil
-}
-
-// scanKustomizePathsRecursive 递归扫描 kustomize 路径（降级方案）
-func (c *clientImpl) scanKustomizePathsRecursive(ctx context.Context, repo, branch, dir string) ([]string, error) {
-	path := fmt.Sprintf("/repos/%s/contents/%s?ref=%s", repo, dir, url.QueryEscape(branch))
-	data, err := c.apiGet(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	var entries []struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
-		Path string `json:"path"`
-	}
-	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, err
-	}
-
-	var paths []string
-	hasKustomization := false
-
-	for _, e := range entries {
-		if e.Type == "file" && e.Name == "kustomization.yaml" {
-			hasKustomization = true
-		}
-	}
-
-	if hasKustomization {
-		paths = append(paths, dir)
-	}
-
-	// 递归子目录
-	for _, e := range entries {
-		if e.Type == "dir" {
-			subPaths, err := c.scanKustomizePathsRecursive(ctx, repo, branch, e.Path)
-			if err != nil {
-				continue // 跳过错误的子目录
-			}
-			paths = append(paths, subPaths...)
-		}
-	}
-
 	return paths, nil
 }
 

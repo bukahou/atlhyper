@@ -2,14 +2,11 @@
 set -e
 
 # ============================================
-# 版本标签（在此修改）
-# - test:   测试环境
-# - latest: 最新稳定版
-# - v1.x.x: 正式发布版本
+# 版本号（每次构建自动推送 latest + VERSION 两个 tag）
+# - 留空或注释: 只推送 latest
+# - v1.x.x:    同时推送 latest + v1.x.x
 # ============================================
-# TAG="latest"
-TAG="v0.3.6"
-# TAG="test"
+VERSION="v0.3.6"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR/../.."
