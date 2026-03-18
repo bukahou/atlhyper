@@ -16,7 +16,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/model/convert"
-	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/command"
@@ -32,15 +31,13 @@ import (
 type NodeMetricsHandler struct {
 	querySvc service.Query
 	ops      service.Ops
-	bus      mq.Producer
 }
 
 // NewNodeMetricsHandler 创建节点指标处理器
-func NewNodeMetricsHandler(querySvc service.Query, ops service.Ops, bus mq.Producer) *NodeMetricsHandler {
+func NewNodeMetricsHandler(querySvc service.Query, ops service.Ops) *NodeMetricsHandler {
 	return &NodeMetricsHandler{
 		querySvc: querySvc,
 		ops:      ops,
-		bus:      bus,
 	}
 }
 
@@ -229,21 +226,22 @@ func (h *NodeMetricsHandler) getHistoryFromCH(w http.ResponseWriter, r *http.Req
 		"since":      (time.Duration(hours) * time.Hour).String(),
 	}
 
-	// 创建指令
-	resp, err := h.ops.CreateCommand(&model.CreateCommandRequest{
+	// 同步执行指令（创建 + 等待结果，30s 超时）
+	result, err := h.ops.ExecuteCommandSync(r.Context(), &model.CreateCommandRequest{
 		ClusterID: clusterID,
 		Action:    command.ActionQueryMetrics,
 		Params:    params,
 		Source:    "web",
-	})
+	}, 30*time.Second)
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "创建查询指令失败: "+err.Error())
+		if strings.Contains(err.Error(), "create command:") {
+			handler.WriteError(w, http.StatusInternalServerError, "创建查询指令失败: "+err.Error())
+		} else {
+			handler.WriteError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
+		}
 		return
 	}
-
-	// 等待结果（30s 超时）
-	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
-	if err != nil || result == nil {
+	if result == nil {
 		handler.WriteError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
 		return
 	}

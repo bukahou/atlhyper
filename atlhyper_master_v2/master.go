@@ -198,15 +198,33 @@ func NewMaster() (*Master, error) {
 	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
 
-	// 8. 初始化 Query（读取路径）
-	q := query.NewQueryServiceWithEventRepo(store, bus, db.Event)
-	q.SetAIOpsEngine(aiopsEngine)
-	q.SetAIOpsAI(aiopsEnricher)
-	q.SetAdminRepos(db)
+	// 8. 初始化 Query（读取路径）— 全部依赖通过构造函数注入
+	q := query.NewQueryService(query.QueryServiceDeps{
+		Store:       store,
+		Bus:         bus,
+		EventRepo:   db.Event,
+		SLORepo:     db.SLO,
+		AIOpsEngine: aiopsEngine,
+		AIOpsAI:     aiopsEnricher,
+		AdminRepos: query.AdminRepos{
+			Audit:      db.Audit,
+			Command:    db.Command,
+			Notify:     db.Notify,
+			Settings:   db.Settings,
+			AIProvider: db.AIProvider,
+			AISettings: db.AISettings,
+			AIModel:    db.AIModel,
+			AIBudget:   db.AIRoleBudget,
+			AIReport:   db.AIReport,
+		},
+	})
 	log.Info("查询层初始化完成")
 
+	// 初始化 SLO 写入服务
+	sloOps := operations.NewSLOService(db.SLO)
+
 	// 组合统一 Service
-	svc := service.NewService(q, cmdOps, adminOps)
+	svc := service.NewService(q, cmdOps, adminOps, sloOps)
 
 	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{
@@ -559,7 +577,6 @@ func NewMaster() (*Master, error) {
 		Port:           cfg.Server.GatewayPort,
 		Service:        svc,
 		Database:       db,
-		Bus:            bus,
 		AIService:      aiService,
 		AnalyzeTrigger: aiopsEnricher,
 		GitHubClient:   ghClient,

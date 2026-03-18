@@ -46,7 +46,7 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 	}
 
 	// 获取域名下所有 service_key
-	mappings, err := h.sloRepo.GetRouteMappingsByDomain(ctx, clusterID, domain)
+	mappings, err := h.querySvc.GetSLORouteMappingsByDomain(ctx, clusterID, domain)
 	if err != nil {
 		sloLog.Error("获取路由映射失败", "domain", domain, "err", err)
 		handler.WriteError(w, http.StatusInternalServerError, err.Error())

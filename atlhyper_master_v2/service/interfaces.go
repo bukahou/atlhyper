@@ -50,10 +50,16 @@ type QueryOTel interface {
 	GetOTelTimeline(ctx context.Context, clusterID string, since time.Time) ([]cluster.OTelEntry, error)
 }
 
-// QuerySLO SLO 服务网格查询
+// QuerySLO SLO 服务网格查询 + SLO 目标/路由映射查询
 type QuerySLO interface {
 	GetMeshTopology(ctx context.Context, clusterID, timeRange string) (*model.ServiceMeshTopologyResponse, error)
 	GetServiceDetail(ctx context.Context, clusterID, namespace, name, timeRange string) (*model.ServiceDetailResponse, error)
+	// SLO 目标查询（返回 model 类型，非 database 类型）
+	GetSLOTargets(ctx context.Context, clusterID string) ([]model.SLOTargetResponse, error)
+	// SLO 路由映射查询（返回 model 类型，非 database 类型）
+	GetSLORouteMappingByServiceKey(ctx context.Context, clusterID, serviceKey string) (*model.SLORouteMapping, error)
+	GetSLORouteMappingsByDomain(ctx context.Context, clusterID, domain string) ([]*model.SLORouteMapping, error)
+	GetSLOAllDomains(ctx context.Context, clusterID string) ([]string, error)
 }
 
 // QueryAIOps AIOps 查询与 AI 增强
@@ -144,10 +150,18 @@ type Query interface {
 	QueryAdmin
 }
 
+// OpsSLO SLO 写入操作
+type OpsSLO interface {
+	UpsertSLOTarget(ctx context.Context, req *model.UpdateSLOTargetRequest) error
+}
+
 // Ops 写入操作接口
 type Ops interface {
 	CreateCommand(req *model.CreateCommandRequest) (*model.CreateCommandResponse, error)
+	// ExecuteCommandSync 同步执行指令（创建 + 等待 Agent 结果）
+	ExecuteCommandSync(ctx context.Context, req *model.CreateCommandRequest, timeout time.Duration) (*command.Result, error)
 	OpsAdmin
+	OpsSLO
 }
 
 // Service 组合接口 (master.go 持有)

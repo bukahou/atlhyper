@@ -11,7 +11,7 @@ package slo
 import (
 	"context"
 
-	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/common/logger"
 	model_v3 "AtlHyper/model_v3"
@@ -30,14 +30,14 @@ var sloLog = logger.Module("SLO-Handler")
 // SLOHandler SLO API Handler
 type SLOHandler struct {
 	querySvc service.Query
-	sloRepo  database.SLORepository
+	opsSvc   service.Ops
 }
 
 // NewSLOHandler 创建 SLOHandler
-func NewSLOHandler(querySvc service.Query, sloRepo database.SLORepository) *SLOHandler {
+func NewSLOHandler(querySvc service.Query, opsSvc service.Ops) *SLOHandler {
 	return &SLOHandler{
 		querySvc: querySvc,
-		sloRepo:  sloRepo,
+		opsSvc:   opsSvc,
 	}
 }
 
@@ -51,11 +51,11 @@ func (h *SLOHandler) defaultClusterID(_ context.Context) string {
 }
 
 // buildTargetMap 构建目标配置 map
-func buildTargetMap(targets []*database.SLOTarget) map[string]map[string]*database.SLOTarget {
-	result := make(map[string]map[string]*database.SLOTarget)
+func buildTargetMap(targets []model.SLOTargetResponse) map[string]map[string]model.SLOTargetResponse {
+	result := make(map[string]map[string]model.SLOTargetResponse)
 	for _, t := range targets {
 		if result[t.Host] == nil {
-			result[t.Host] = make(map[string]*database.SLOTarget)
+			result[t.Host] = make(map[string]model.SLOTargetResponse)
 		}
 		result[t.Host][t.TimeRange] = t
 	}

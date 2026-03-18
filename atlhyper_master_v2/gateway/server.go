@@ -17,7 +17,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/deployer"
 	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
 	"AtlHyper/atlhyper_master_v2/github"
-	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/common/logger"
 )
@@ -29,7 +28,6 @@ type Server struct {
 	port            int
 	service         service.Service
 	database        *database.DB
-	bus             mq.Producer
 	aiService       ai.AIService
 	analyzeTrigger  aiopsHandler.AnalyzeTrigger
 	ghClient        github.Client
@@ -42,7 +40,6 @@ type Config struct {
 	Port           int
 	Service        service.Service
 	Database       *database.DB
-	Bus            mq.Producer
 	AIService      ai.AIService                // 可选，nil 表示 AI 功能未启用
 	AnalyzeTrigger aiopsHandler.AnalyzeTrigger  // 可选，nil 表示深度分析未启用
 	GitHubClient   github.Client               // 可选，nil 表示 GitHub 集成未配置
@@ -55,7 +52,6 @@ func NewServer(cfg Config) *Server {
 		port:           cfg.Port,
 		service:        cfg.Service,
 		database:       cfg.Database,
-		bus:            cfg.Bus,
 		aiService:      cfg.AIService,
 		analyzeTrigger: cfg.AnalyzeTrigger,
 		ghClient:       cfg.GitHubClient,
@@ -66,7 +62,7 @@ func NewServer(cfg Config) *Server {
 // Start 启动 Server
 func (s *Server) Start() error {
 	// 使用 Router 统一管理路由（见 routes.go）
-	router := NewRouter(s.service, s.database, s.bus, s.aiService, s.analyzeTrigger, s.ghClient, s.deployer)
+	router := NewRouter(s.service, s.database, s.aiService, s.analyzeTrigger, s.ghClient, s.deployer)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),

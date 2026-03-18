@@ -36,8 +36,9 @@ type MemoryStore struct {
 	snapshotRetention time.Duration
 
 	// 控制
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	stopCh   chan struct{}
+	stopOnce sync.Once
+	wg       sync.WaitGroup
 }
 
 // NewMemoryStore 创建 MemoryStore
@@ -65,11 +66,13 @@ func (s *MemoryStore) Start() error {
 	return nil
 }
 
-// Stop 停止 MemoryStore
+// Stop 停止 MemoryStore（幂等，多次调用安全）
 func (s *MemoryStore) Stop() error {
-	close(s.stopCh)
-	s.wg.Wait()
-	log.Info("已停止")
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+		s.wg.Wait()
+		log.Info("已停止")
+	})
 	return nil
 }
 

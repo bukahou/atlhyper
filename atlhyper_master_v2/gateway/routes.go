@@ -24,7 +24,6 @@ import (
 	sloHandler "AtlHyper/atlhyper_master_v2/gateway/handler/slo"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/github"
-	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -34,7 +33,6 @@ type Router struct {
 	publicMux      *http.ServeMux // 公开路由（不需要认证）
 	service        service.Service
 	database       *database.DB
-	bus            mq.Producer
 	aiService      ai.AIService
 	analyzeTrigger aiopsHandler.AnalyzeTrigger
 	ghClient       github.Client
@@ -42,13 +40,12 @@ type Router struct {
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(svc service.Service, db *database.DB, bus mq.Producer, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client, dep deployer.Deployer) *Router {
+func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client, dep deployer.Deployer) *Router {
 	return &Router{
 		mux:            http.NewServeMux(),
 		publicMux:      http.NewServeMux(),
 		service:        svc,
 		database:       db,
-		bus:            bus,
 		aiService:      aiSvc,
 		analyzeTrigger: trigger,
 		ghClient:       ghClient,
@@ -78,7 +75,7 @@ func (r *Router) registerRoutes() {
 	clusterH := handler.NewClusterHandler(r.service)
 	overviewH := handler.NewOverviewHandler(r.service)
 	eventH := handler.NewEventHandler(r.service)
-	opsH := handler.NewOpsHandler(r.service, r.bus)
+	opsH := handler.NewOpsHandler(r.service)
 
 	// 创建 Handlers — K8s 资源 (package k8s)
 	podH := k8sHandler.NewPodHandler(r.service)
@@ -101,11 +98,11 @@ func (r *Router) registerRoutes() {
 	serviceAccountH := k8sHandler.NewServiceAccountHandler(r.service)
 
 	// 创建 Handlers — 可观测性 (package observe)
-	nodeMetricsH := observeHandler.NewNodeMetricsHandler(r.service, r.service, r.bus)
-	observeH := observeHandler.NewObserveHandler(r.service, r.service, r.bus)
+	nodeMetricsH := observeHandler.NewNodeMetricsHandler(r.service, r.service)
+	observeH := observeHandler.NewObserveHandler(r.service, r.service)
 
 	// 创建 Handlers — SLO (package slo)
-	sloH := sloHandler.NewSLOHandler(r.service, r.database.SLO)
+	sloH := sloHandler.NewSLOHandler(r.service, r.service)
 	sloMeshH := sloHandler.NewSLOMeshHandler(r.service)
 
 	// 创建 Handlers — AIOps (package aiops)

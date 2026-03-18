@@ -123,3 +123,16 @@ func (s *CommandService) validateRequest(req *model.CreateCommandRequest) error 
 
 	return nil
 }
+
+// ExecuteCommandSync 创建指令并同步等待 Agent 执行结果
+func (s *CommandService) ExecuteCommandSync(ctx context.Context, req *model.CreateCommandRequest, timeout time.Duration) (*command.Result, error) {
+	resp, err := s.CreateCommand(req)
+	if err != nil {
+		return nil, fmt.Errorf("create command: %w", err)
+	}
+	result, err := s.bus.WaitCommandResult(ctx, resp.CommandID, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("wait command %s: %w", resp.CommandID, err)
+	}
+	return result, nil
+}

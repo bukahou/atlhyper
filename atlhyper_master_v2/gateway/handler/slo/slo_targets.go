@@ -5,10 +5,8 @@ package slo
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
-	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
 )
 
@@ -32,27 +30,14 @@ func (h *SLOHandler) getTargets(w http.ResponseWriter, r *http.Request) {
 		clusterID = h.defaultClusterID(r.Context())
 	}
 
-	targets, err := h.sloRepo.GetTargets(r.Context(), clusterID)
+	targets, err := h.querySvc.GetSLOTargets(r.Context(), clusterID)
 	if err != nil {
 		sloLog.Error("获取 targets 失败", "err", err)
 		handler.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	resp := make([]model.SLOTargetResponse, 0, len(targets))
-	for _, t := range targets {
-		resp = append(resp, model.SLOTargetResponse{
-			ID:                 t.ID,
-			ClusterID:          t.ClusterID,
-			Host:               t.Host,
-			TimeRange:          t.TimeRange,
-			AvailabilityTarget: t.AvailabilityTarget,
-			P95LatencyTarget:   t.P95LatencyTarget,
-			CreatedAt:          t.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt:          t.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		})
-	}
-	handler.WriteJSON(w, http.StatusOK, resp)
+	handler.WriteJSON(w, http.StatusOK, targets)
 }
 
 func (h *SLOHandler) updateTarget(w http.ResponseWriter, r *http.Request) {
@@ -71,18 +56,7 @@ func (h *SLOHandler) updateTarget(w http.ResponseWriter, r *http.Request) {
 		req.ClusterID = h.defaultClusterID(r.Context())
 	}
 
-	now := time.Now()
-	target := &database.SLOTarget{
-		ClusterID:          req.ClusterID,
-		Host:               req.Host,
-		TimeRange:          req.TimeRange,
-		AvailabilityTarget: req.AvailabilityTarget,
-		P95LatencyTarget:   req.P95LatencyTarget,
-		CreatedAt:          now,
-		UpdatedAt:          now,
-	}
-
-	if err := h.sloRepo.UpsertTarget(r.Context(), target); err != nil {
+	if err := h.opsSvc.UpsertSLOTarget(r.Context(), &req); err != nil {
 		sloLog.Error("更新 target 失败", "err", err)
 		handler.WriteError(w, http.StatusInternalServerError, err.Error())
 		return

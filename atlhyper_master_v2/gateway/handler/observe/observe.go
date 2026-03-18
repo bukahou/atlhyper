@@ -14,12 +14,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
@@ -30,16 +30,14 @@ import (
 type ObserveHandler struct {
 	svc      service.Ops
 	querySvc service.Query
-	bus      mq.Producer
 	cache    *observeCache
 }
 
 // NewObserveHandler 创建 ObserveHandler
-func NewObserveHandler(svc service.Ops, querySvc service.Query, bus mq.Producer) *ObserveHandler {
+func NewObserveHandler(svc service.Ops, querySvc service.Query) *ObserveHandler {
 	return &ObserveHandler{
 		svc:      svc,
 		querySvc: querySvc,
-		bus:      bus,
 		cache:    newObserveCache(),
 	}
 }
@@ -150,21 +148,22 @@ func (h *ObserveHandler) executeQuery(
 		return
 	}
 
-	// 2. 创建指令
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	// 2. 同步执行指令（创建 + 等待结果，30 秒超时）
+	result, err := h.svc.ExecuteCommandSync(r.Context(), &model.CreateCommandRequest{
 		ClusterID: clusterID,
 		Action:    action,
 		Params:    params,
 		Source:    "web",
-	})
+	}, 30*time.Second)
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "创建查询指令失败: "+err.Error())
+		if strings.Contains(err.Error(), "create command:") {
+			handler.WriteError(w, http.StatusInternalServerError, "创建查询指令失败: "+err.Error())
+		} else {
+			handler.WriteError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
+		}
 		return
 	}
-
-	// 3. 同步等待结果（30 秒超时）
-	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
-	if err != nil || result == nil {
+	if result == nil {
 		handler.WriteError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
 		return
 	}

@@ -6,10 +6,10 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/model_v3/command"
 )
@@ -17,14 +17,12 @@ import (
 // OpsHandler 操作 Handler
 type OpsHandler struct {
 	svc service.Ops
-	bus mq.Producer
 }
 
 // NewOpsHandler 创建 OpsHandler
-func NewOpsHandler(svc service.Ops, bus mq.Producer) *OpsHandler {
+func NewOpsHandler(svc service.Ops) *OpsHandler {
 	return &OpsHandler{
 		svc: svc,
-		bus: bus,
 	}
 }
 
@@ -123,8 +121,8 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 		params["container"] = req.Container
 	}
 
-	// 1. 创建指令
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	// 同步执行指令（创建 + 等待结果，30秒超时）
+	result, err := h.svc.ExecuteCommandSync(r.Context(), &model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionGetLogs,
 		TargetKind:      "Pod",
@@ -132,16 +130,13 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 		TargetName:      req.Name,
 		Params:          params,
 		Source:          "web",
-	})
+	}, 30*time.Second)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
-		return
-	}
-
-	// 2. 同步等待结果（30秒超时）
-	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
-	if err != nil {
-		writeError(w, http.StatusGatewayTimeout, "获取日志超时")
+		if strings.Contains(err.Error(), "create command:") {
+			writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		} else {
+			writeError(w, http.StatusGatewayTimeout, "获取日志超时")
+		}
 		return
 	}
 	if result == nil {
@@ -432,24 +427,21 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. 创建指令
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	// 同步执行指令（创建 + 等待结果，30秒超时）
+	result, err := h.svc.ExecuteCommandSync(r.Context(), &model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionGetConfigMap,
 		TargetKind:      "ConfigMap",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
 		Source:          "web",
-	})
+	}, 30*time.Second)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
-		return
-	}
-
-	// 2. 同步等待结果（30秒超时）
-	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
-	if err != nil {
-		writeError(w, http.StatusGatewayTimeout, "获取数据超时")
+		if strings.Contains(err.Error(), "create command:") {
+			writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		} else {
+			writeError(w, http.StatusGatewayTimeout, "获取数据超时")
+		}
 		return
 	}
 	if result == nil {
@@ -489,24 +481,21 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. 创建指令
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	// 同步执行指令（创建 + 等待结果，30秒超时）
+	result, err := h.svc.ExecuteCommandSync(r.Context(), &model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionGetSecret,
 		TargetKind:      "Secret",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
 		Source:          "web",
-	})
+	}, 30*time.Second)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
-		return
-	}
-
-	// 2. 同步等待结果（30秒超时）
-	result, err := h.bus.WaitCommandResult(r.Context(), resp.CommandID, 30*time.Second)
-	if err != nil {
-		writeError(w, http.StatusGatewayTimeout, "获取数据超时")
+		if strings.Contains(err.Error(), "create command:") {
+			writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		} else {
+			writeError(w, http.StatusGatewayTimeout, "获取数据超时")
+		}
 		return
 	}
 	if result == nil {

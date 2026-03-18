@@ -185,6 +185,20 @@ type SLOQueryParams struct {
 	Offset    int    `form:"offset"`
 }
 
+// ==================== SLO 路由映射 API 响应类型 ====================
+
+// SLORouteMapping SLO 路由映射（Service 层返回类型，不暴露 database 层）
+type SLORouteMapping struct {
+	Domain      string `json:"domain"`
+	PathPrefix  string `json:"pathPrefix"`
+	IngressName string `json:"ingressName"`
+	Namespace   string `json:"namespace"`
+	TLS         bool   `json:"tls"`
+	ServiceKey  string `json:"serviceKey"`
+	ServiceName string `json:"serviceName"`
+	ServicePort int    `json:"servicePort"`
+}
+
 // ==================== 服务网格 API 响应类型 ====================
 
 // ServiceMeshTopologyResponse 服务拓扑响应

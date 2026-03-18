@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
 	slomodel "AtlHyper/model_v3/slo"
 )
@@ -199,6 +200,89 @@ func totalFromStatusCodes(codes []slomodel.StatusCodeCount) int64 {
 		total += sc.Count
 	}
 	return total
+}
+
+// ==================== SLO DB 查询方法 ====================
+
+// GetSLOTargets 查询 SLO 目标配置（database → model 转换）
+func (q *QueryService) GetSLOTargets(ctx context.Context, clusterID string) ([]model.SLOTargetResponse, error) {
+	targets, err := q.sloRepo.GetTargets(ctx, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]model.SLOTargetResponse, len(targets))
+	for i, t := range targets {
+		result[i] = toModelTargetResponse(t)
+	}
+	return result, nil
+}
+
+// GetSLORouteMappingByServiceKey 按 ServiceKey 查询路由映射
+func (q *QueryService) GetSLORouteMappingByServiceKey(ctx context.Context, clusterID, serviceKey string) (*model.SLORouteMapping, error) {
+	m, err := q.sloRepo.GetRouteMappingByServiceKey(ctx, clusterID, serviceKey)
+	if err != nil {
+		return nil, err
+	}
+	return toModelRouteMapping(m), nil
+}
+
+// GetSLORouteMappingsByDomain 按域名查询路由映射列表
+func (q *QueryService) GetSLORouteMappingsByDomain(ctx context.Context, clusterID, domain string) ([]*model.SLORouteMapping, error) {
+	mappings, err := q.sloRepo.GetRouteMappingsByDomain(ctx, clusterID, domain)
+	if err != nil {
+		return nil, err
+	}
+	return toModelRouteMappings(mappings), nil
+}
+
+// GetSLOAllDomains 查询所有域名
+func (q *QueryService) GetSLOAllDomains(ctx context.Context, clusterID string) ([]string, error) {
+	return q.sloRepo.GetAllDomains(ctx, clusterID)
+}
+
+// ==================== database → model 转换函数 ====================
+
+// toModelTargetResponse 将 database.SLOTarget 转换为 model.SLOTargetResponse
+func toModelTargetResponse(src *database.SLOTarget) model.SLOTargetResponse {
+	return model.SLOTargetResponse{
+		ID:                 src.ID,
+		ClusterID:          src.ClusterID,
+		Host:               src.Host,
+		TimeRange:          src.TimeRange,
+		AvailabilityTarget: src.AvailabilityTarget,
+		P95LatencyTarget:   src.P95LatencyTarget,
+		CreatedAt:          src.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:          src.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+}
+
+// toModelRouteMapping 将 database.SLORouteMapping 转换为 model.SLORouteMapping
+func toModelRouteMapping(src *database.SLORouteMapping) *model.SLORouteMapping {
+	if src == nil {
+		return nil
+	}
+	return &model.SLORouteMapping{
+		Domain:      src.Domain,
+		PathPrefix:  src.PathPrefix,
+		IngressName: src.IngressName,
+		Namespace:   src.Namespace,
+		TLS:         src.TLS,
+		ServiceKey:  src.ServiceKey,
+		ServiceName: src.ServiceName,
+		ServicePort: src.ServicePort,
+	}
+}
+
+// toModelRouteMappings 批量转换
+func toModelRouteMappings(src []*database.SLORouteMapping) []*model.SLORouteMapping {
+	if src == nil {
+		return []*model.SLORouteMapping{}
+	}
+	result := make([]*model.SLORouteMapping, len(src))
+	for i := range src {
+		result[i] = toModelRouteMapping(src[i])
+	}
+	return result
 }
 
 // getTimeStart 根据时间范围计算起始时间

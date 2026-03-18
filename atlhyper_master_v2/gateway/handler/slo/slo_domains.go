@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
-	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/slo"
 	slomodel "AtlHyper/model_v3/slo"
@@ -44,7 +43,7 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 获取目标配置
-	targets, _ := h.sloRepo.GetTargets(ctx, clusterID)
+	targets, _ := h.querySvc.GetSLOTargets(ctx, clusterID)
 	targetMap := buildTargetMap(targets)
 
 	// 优先从 SLOWindows[timeRange] 获取数据
@@ -110,7 +109,7 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildDomainFromIngress 从 IngressSLO 构建 DomainSLO
-func (h *SLOHandler) buildDomainFromIngress(ctx context.Context, clusterID string, ing slomodel.IngressSLO, timeRange string, targetMap map[string]map[string]*database.SLOTarget) model.DomainSLO {
+func (h *SLOHandler) buildDomainFromIngress(ctx context.Context, clusterID string, ing slomodel.IngressSLO, timeRange string, targetMap map[string]map[string]model.SLOTargetResponse) model.DomainSLO {
 	domain := model.DomainSLO{
 		Host:    ing.ServiceKey,
 		Targets: make(map[string]*model.SLOTargetSpec),
@@ -119,7 +118,7 @@ func (h *SLOHandler) buildDomainFromIngress(ctx context.Context, clusterID strin
 	}
 
 	// 获取路由映射元信息
-	mapping, _ := h.sloRepo.GetRouteMappingByServiceKey(ctx, clusterID, ing.ServiceKey)
+	mapping, _ := h.querySvc.GetSLORouteMappingByServiceKey(ctx, clusterID, ing.ServiceKey)
 	if mapping != nil {
 		domain.IngressName = mapping.IngressName
 		domain.Namespace = mapping.Namespace
@@ -144,8 +143,8 @@ func (h *SLOHandler) buildDomainFromIngress(ctx context.Context, clusterID strin
 		domain.Targets["30d"] = &model.SLOTargetSpec{Availability: 97.0, P95Latency: 250}
 	}
 
-	// 计算状态
-	if domain.Current != nil {
+	// 计算状态（无请求时视为 unknown，避免 availability=0 误判为 critical）
+	if domain.Current != nil && ing.TotalRequests > 0 {
 		target := domain.Targets[timeRange]
 		if target == nil {
 			target = domain.Targets["1d"]
@@ -214,14 +213,14 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 获取所有真实域名
-	domainNames, err := h.sloRepo.GetAllDomains(ctx, clusterID)
+	domainNames, err := h.querySvc.GetSLOAllDomains(ctx, clusterID)
 	if err != nil {
 		sloLog.Error("获取域名列表失败", "err", err)
 		handler.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	targets, _ := h.sloRepo.GetTargets(ctx, clusterID)
+	targets, _ := h.querySvc.GetSLOTargets(ctx, clusterID)
 	targetMap := buildTargetMap(targets)
 
 	var domainResponses []model.DomainSLOResponseV2
@@ -291,7 +290,7 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildDomainSLOV2 构建单个域名的 V2 SLO 信息
-func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, timeRange string, targetMap map[string]map[string]*database.SLOTarget, ingressMap, previousMap map[string]slomodel.IngressSLO) model.DomainSLOResponseV2 {
+func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, timeRange string, targetMap map[string]map[string]model.SLOTargetResponse, ingressMap, previousMap map[string]slomodel.IngressSLO) model.DomainSLOResponseV2 {
 	resp := model.DomainSLOResponseV2{
 		Domain: domain,
 		TLS:    true,
@@ -299,7 +298,7 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, ti
 	}
 
 	// 获取该域名下的所有路由映射
-	mappings, err := h.sloRepo.GetRouteMappingsByDomain(ctx, clusterID, domain)
+	mappings, err := h.querySvc.GetSLORouteMappingsByDomain(ctx, clusterID, domain)
 	if err != nil {
 		sloLog.Error("获取路由映射失败", "domain", domain, "err", err)
 		return resp
@@ -310,7 +309,7 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, ti
 	}
 
 	// 按 service_key 分组
-	serviceKeyGroups := make(map[string][]*database.SLORouteMapping)
+	serviceKeyGroups := make(map[string][]*model.SLORouteMapping)
 	for _, mapping := range mappings {
 		serviceKeyGroups[mapping.ServiceKey] = append(serviceKeyGroups[mapping.ServiceKey], mapping)
 	}
@@ -364,12 +363,12 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, ti
 				serviceSLO.Targets["1d"] = &model.SLOTargetSpec{Availability: 95.0, P95Latency: 300}
 			}
 
-			// 计算状态
+			// 计算状态（无请求时视为 unknown，避免 availability=0 误判为 critical）
 			target := serviceSLO.Targets[timeRange]
 			if target == nil {
 				target = serviceSLO.Targets["1d"]
 			}
-			if target != nil {
+			if target != nil && ing.TotalRequests > 0 {
 				serviceSLO.Status = slo.DetermineStatus(serviceSLO.Current.Availability, target.Availability, serviceSLO.Current.P95Latency, target.P95Latency)
 				serviceSLO.ErrorBudget = slo.CalculateErrorBudgetRemaining(serviceSLO.Current.Availability, target.Availability)
 			}
@@ -479,7 +478,7 @@ func (h *SLOHandler) buildDomainSLOV2(ctx context.Context, clusterID, domain, ti
 
 // buildDomainSLOV2Fallback 当路由映射为空时，从单个 IngressSLO 直接构建 V2 响应
 // 以 ServiceKey 作为域名，单个服务条目
-func (h *SLOHandler) buildDomainSLOV2Fallback(ing slomodel.IngressSLO, prevIng slomodel.IngressSLO, timeRange string, targetMap map[string]map[string]*database.SLOTarget) model.DomainSLOResponseV2 {
+func (h *SLOHandler) buildDomainSLOV2Fallback(ing slomodel.IngressSLO, prevIng slomodel.IngressSLO, timeRange string, targetMap map[string]map[string]model.SLOTargetResponse) model.DomainSLOResponseV2 {
 	resp := model.DomainSLOResponseV2{
 		Domain: ing.ServiceKey,
 		TLS:    true,
@@ -513,12 +512,12 @@ func (h *SLOHandler) buildDomainSLOV2Fallback(ing slomodel.IngressSLO, prevIng s
 		serviceSLO.Targets["1d"] = &model.SLOTargetSpec{Availability: 95.0, P95Latency: 300}
 	}
 
-	// 计算状态
+	// 计算状态（无请求时视为 unknown，避免 availability=0 误判为 critical）
 	target := serviceSLO.Targets[timeRange]
 	if target == nil {
 		target = serviceSLO.Targets["1d"]
 	}
-	if target != nil && serviceSLO.Current != nil {
+	if target != nil && serviceSLO.Current != nil && ing.TotalRequests > 0 {
 		serviceSLO.Status = slo.DetermineStatus(serviceSLO.Current.Availability, target.Availability, serviceSLO.Current.P95Latency, target.P95Latency)
 		serviceSLO.ErrorBudget = slo.CalculateErrorBudgetRemaining(serviceSLO.Current.Availability, target.Availability)
 	}
@@ -574,7 +573,7 @@ func (h *SLOHandler) DomainDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targets, _ := h.sloRepo.GetTargets(ctx, clusterID)
+	targets, _ := h.querySvc.GetSLOTargets(ctx, clusterID)
 	targetMap := buildTargetMap(targets)
 
 	// 查找匹配的 IngressSLO
@@ -621,7 +620,7 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// 加载 targets 用于计算 error budget
-	targets, _ := h.sloRepo.GetTargets(ctx, clusterID)
+	targets, _ := h.querySvc.GetSLOTargets(ctx, clusterID)
 	targetMap := buildTargetMap(targets)
 
 	timeRange := r.URL.Query().Get("time_range")
@@ -639,7 +638,7 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 域名 → ServiceKey 映射（与 LatencyDistribution 一致）
-	mappings, _ := h.sloRepo.GetRouteMappingsByDomain(ctx, clusterID, host)
+	mappings, _ := h.querySvc.GetSLORouteMappingsByDomain(ctx, clusterID, host)
 	serviceKeys := make(map[string]bool)
 	for _, m := range mappings {
 		serviceKeys[m.ServiceKey] = true

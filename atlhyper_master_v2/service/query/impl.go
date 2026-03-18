@@ -22,6 +22,7 @@ type QueryService struct {
 	store       datahub.Store
 	bus         mq.Producer
 	eventRepo   database.ClusterEventRepository
+	sloRepo     database.SLORepository
 	aiopsEngine aiops.Engine
 	aiopsAI     *enricher.Enricher
 
@@ -37,42 +38,49 @@ type QueryService struct {
 	aiReportRepo   database.AIReportRepository
 }
 
-// NewQueryService 创建 QueryService 实例
-func NewQueryService(store datahub.Store, bus mq.Producer) *QueryService {
+// AdminRepos 管理查询所需的 Repository 集合
+// 对应 QueryAdmin 接口的所有方法所需依赖
+type AdminRepos struct {
+	Audit      database.AuditRepository
+	Command    database.CommandHistoryRepository
+	Notify     database.NotifyChannelRepository
+	Settings   database.SettingsRepository
+	AIProvider database.AIProviderRepository
+	AISettings database.AISettingsRepository
+	AIModel    database.AIProviderModelRepository
+	AIBudget   database.AIRoleBudgetRepository
+	AIReport   database.AIReportRepository
+}
+
+// QueryServiceDeps QueryService 全部依赖
+// 严格限定：每个字段对应 QueryService 已有的 struct 字段，禁止新增未使用的依赖
+type QueryServiceDeps struct {
+	Store       datahub.Store                   // 必需
+	Bus         mq.Producer                     // 必需
+	EventRepo   database.ClusterEventRepository // 必需（Alert Trends）
+	SLORepo     database.SLORepository          // 必需（Phase 2 新增）
+	AIOpsEngine aiops.Engine                    // 可选，nil = AIOps 查询返回空
+	AIOpsAI     *enricher.Enricher              // 可选，nil = AI 增强禁用
+	AdminRepos  AdminRepos                      // 必需（管理查询）
+}
+
+// NewQueryService 创建 QueryService（全部依赖通过构造函数注入）
+func NewQueryService(deps QueryServiceDeps) *QueryService {
 	return &QueryService{
-		store: store,
-		bus:   bus,
+		store:          deps.Store,
+		bus:            deps.Bus,
+		eventRepo:      deps.EventRepo,
+		sloRepo:        deps.SLORepo,
+		aiopsEngine:    deps.AIOpsEngine,
+		aiopsAI:        deps.AIOpsAI,
+		auditRepo:      deps.AdminRepos.Audit,
+		commandRepo:    deps.AdminRepos.Command,
+		notifyRepo:     deps.AdminRepos.Notify,
+		settingsRepo:   deps.AdminRepos.Settings,
+		aiProviderRepo: deps.AdminRepos.AIProvider,
+		aiSettingsRepo: deps.AdminRepos.AISettings,
+		aiModelRepo:    deps.AdminRepos.AIModel,
+		aiBudgetRepo:   deps.AdminRepos.AIBudget,
+		aiReportRepo:   deps.AdminRepos.AIReport,
 	}
-}
-
-// NewQueryServiceWithEventRepo 创建带事件仓库的 QueryService 实例（用于 Alert Trends）
-func NewQueryServiceWithEventRepo(store datahub.Store, bus mq.Producer, eventRepo database.ClusterEventRepository) *QueryService {
-	return &QueryService{
-		store:     store,
-		bus:       bus,
-		eventRepo: eventRepo,
-	}
-}
-
-// SetAIOpsEngine 注入 AIOps 引擎（可选）
-func (q *QueryService) SetAIOpsEngine(engine aiops.Engine) {
-	q.aiopsEngine = engine
-}
-
-// SetAIOpsAI 注入 AIOps AI 增强服务（可选）
-func (q *QueryService) SetAIOpsAI(e *enricher.Enricher) {
-	q.aiopsAI = e
-}
-
-// SetAdminRepos 注入管理查询所需的 Repository（审计、命令历史、通知、设置、AI Provider）
-func (q *QueryService) SetAdminRepos(db *database.DB) {
-	q.auditRepo = db.Audit
-	q.commandRepo = db.Command
-	q.notifyRepo = db.Notify
-	q.settingsRepo = db.Settings
-	q.aiProviderRepo = db.AIProvider
-	q.aiSettingsRepo = db.AISettings
-	q.aiModelRepo = db.AIModel
-	q.aiBudgetRepo = db.AIRoleBudget
-	q.aiReportRepo = db.AIReport
 }
