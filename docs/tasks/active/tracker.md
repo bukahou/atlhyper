@@ -53,6 +53,73 @@
 
 ---
 
+## Agent 泛用型 Mesh 监控（Kustomize Overlay + OTel Transform + 代码去 Linkerd 化）— 🔄 进行中
+
+> 原设计文档: [agent-mesh-generic-monitoring-design.md](../../design/active/agent-mesh-generic-monitoring-design.md)
+>
+> 实施顺序：**Config 先行，代码后改**。先重构 config 仓库为 base/mesh overlay 结构，切 mesh/none 验证重构→部署 Istio→切 mesh/istio→ClickHouse 确认有 `mesh_request_total`→最后改 Agent 代码查统一名。
+>
+> 跨仓库任务：config 仓库在 `~/AtlHyper/GitHub/config/`，本项目 atlhyper 在 `~/work/github/atlhyper/`。
+
+- Phase 0: 本机工具 — 待办
+  - 下载 istioctl 1.25.1 到 `~/istio-1.25.1/`
+  - 改 `config/local/ubuntu/env/infra.env` 加 ISTIO PATH 导出
+  - 新 shell 验证 `istioctl version` 可用
+- Phase 1: Config 仓库重构（本地完成，**不推送**）— 待办
+  - 建 `config/clusters/zgmf-x10a/apps/atlhyper/base/` + `mesh/{none,linkerd,istio}/`
+  - 拆 OTel：`atlhyper-otel-collector.yaml` 只留 Deployment/Service/RBAC；ConfigMap data 移到各 mesh overlay
+  - 写 3 份 `atlhyper-otel-config.yaml`（none/linkerd/istio，共享基础段 + 各自 mesh 段）
+  - 写 3 份 `mesh/*/kustomization.yaml` 和 `base/kustomization.yaml`
+  - 改顶层 `kustomization.yaml`：`resources: [base, mesh/none]`
+  - 确认 OTel Collector 镜像是 `contrib` 版（transform processor 必需）
+  - 本地 `kustomize build .` 和旧版 diff，确认只有 mesh 相关差异
+- Phase 2: 推送 config + 切 mesh/none 验证 — 待办
+  - 推送 config 仓库 main 分支
+  - 等 Deployer 30-60s 应用
+  - 验证：`kubectl -n atlhyper get cm otel-collector-config -o yaml | grep -E 'linkerd|istio'` 无输出
+  - 业务 Pod 全 Running
+- Phase 3: 部署 Istio — 待办
+  - `istioctl install --set profile=default --skip-confirmation`
+  - `kubectl label ns geass-v2-api istio-injection=enabled`
+  - `kubectl label ns geass-v2-web istio-injection=enabled`
+  - `kubectl -n geass-v2-{api,web} rollout restart deployment`
+  - 验证：Pod 2/2
+- Phase 4: 切 mesh/istio overlay — 待办
+  - 顶层 kustomization 改 `- mesh/istio`
+  - 推送，OTel Collector 自动重启加载新配置
+- Phase 5: ClickHouse 实测 — 待办
+  - 访问 `https://geass-api.bukahou.com` 产生流量
+  - `SELECT count() FROM otel_metrics_sum WHERE MetricName='mesh_request_total'` 应返回 >0
+  - 采集若干行 label，确认 workload/namespace/direction/mtls 等字段正确
+  - 把 Istio 真实 label 反馈到设计文档（万一有字段和预期不同需要微调 transform）
+- Phase 6: Agent 代码改造 — 待办
+  - slo.go：4 处 SQL rename（`mv_linkerd_*` → `mv_mesh_*`、`response_total` → `mesh_request_total`、`deployment` → `workload`、`tls` → `mtls`，删 Linkerd 专属 filter）
+  - summary.go：2 处同类改动
+  - ClickHouse MV DDL：建 `mv_mesh_request_total` + `mv_mesh_latency_bucket`（找到现有 Linkerd MV DDL 存放位置再加）
+  - `go build ./...` + `go test ./atlhyper_agent_v2/repository/ch/query/` PASS
+  - commit + 刷新 Web `/observe/slo` 服务网格 tab 验证
+
+### 验证清单（完整列表见设计文档 §5）
+
+| # | 验证点 | 通过标准 |
+|---|-------|---------|
+| V1 | `which istioctl` | 路径正确 |
+| V2 | `kustomize build .` | 输出合理，diff 只含 mesh 差异 |
+| V3 | mesh/none 切换后 Pod 状态 | 全 Running |
+| V4 | Istio sidecar 注入 | geass-v2-{api,web} Pod 2/2 |
+| V5 | OTel ConfigMap 含 transform | `istio-sidecars` + `transform/istio_to_mesh` 可见 |
+| V6 | ClickHouse 有 mesh_request_total | `count() > 0` |
+| V7 | Agent 编译 + 测试 | PASS |
+| V8 | Web mesh 页面 | 有数据 |
+
+### 关键约束
+
+- OTel Collector 镜像必须是 **contrib 版**（`transform` processor 在 contrib 中），Phase 1 确认
+- ClickHouse MV DDL 当前**不在 atlhyper 项目代码中**，Phase 5-6 前需定位存放位置
+- Phase 3-6 之间 mesh 页面可能暂时空白（OTel 已 rename 但 Agent 还查老名字），用户可接受（集群本来也无 mesh 数据）
+
+---
+
 ## QueryService 拆分重构 — 待办
 
 > 原设计文档: [master-v2-query-service-split-design.md](../../design/active/master-v2-query-service-split-design.md)
