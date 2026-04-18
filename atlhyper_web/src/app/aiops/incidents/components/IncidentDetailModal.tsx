@@ -10,6 +10,7 @@ import { RootCauseCard } from "./RootCauseCard";
 import { TimelineView } from "./TimelineView";
 import { getIncidentDetail } from "@/api/aiops";
 import type { IncidentDetail } from "@/api/aiops";
+import { formatRiskScore } from "@/lib/risk";
 
 const STATE_COLORS: Record<string, string> = {
   warning: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
@@ -117,7 +118,7 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
                         <EntityLink entityKey={e.entityKey} />
                         <span className={`text-xs font-medium ${ROLE_COLORS[e.role] ?? "text-muted"}`}>{e.role}</span>
                         <span className="text-xs text-muted">
-                          R={e.rFinal.toFixed(1)}
+                          R={formatRiskScore(e.rFinal)}
                         </span>
                       </div>
                     ))}

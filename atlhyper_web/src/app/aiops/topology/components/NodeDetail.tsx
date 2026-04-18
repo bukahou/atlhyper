@@ -8,6 +8,7 @@ import { EntityLink } from "@/components/aiops/EntityLink";
 import { CausalTreeNodeView } from "@/components/aiops/CausalTreeNodeView";
 import { getEntityRiskDetail } from "@/api/aiops";
 import type { EntityRiskDetail } from "@/api/aiops";
+import { formatRiskScore } from "@/lib/risk";
 
 interface NodeDetailProps {
   entityKey: string;
@@ -67,7 +68,7 @@ export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted">{t.aiops.rFinal}</span>
-          <span className="text-sm font-mono font-bold text-default">{detail.rFinal.toFixed(1)}</span>
+          <span className="text-sm font-mono font-bold text-default">{formatRiskScore(detail.rFinal)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted">{t.aiops.riskLevelLabel}</span>

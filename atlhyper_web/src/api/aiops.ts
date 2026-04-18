@@ -19,14 +19,27 @@ export interface ClusterRisk {
   updatedAt: number;
 }
 
+/**
+ * EntityRisk 实体风险
+ *
+ * 风险分数单位：所有 rLocal / rWeighted / rFinal 字段均为
+ * **百分制 [0, 100] 整数**（后端 gateway/handler/aiops/scale_risk.go
+ * 已将核心层的 [0, 1] 概率 Scale 为百分制）。
+ *
+ * 前端消费这些字段时必须通过 `@/lib/risk` 的 formatRiskScore / riskColor
+ * / riskLevel 等函数，禁止再 × 100 或按 [0, 1] 写阈值。
+ */
 export interface EntityRisk {
   entityKey: string;
   entityType: string; // "service" | "pod" | "node" | "ingress"
   namespace: string;
   name: string;
+  /** @unit 百分制 [0, 100] 整数 — 本地风险 */
   rLocal: number;
   wTime: number;
+  /** @unit 百分制 [0, 100] 整数 — 时间加权风险 */
   rWeighted: number;
+  /** @unit 百分制 [0, 100] 整数 — 最终风险（含传播） */
   rFinal: number;
   riskLevel: string;
   firstAnomaly: number;
@@ -35,6 +48,7 @@ export interface EntityRisk {
 export interface CausalTreeNode {
   entityKey: string;
   entityType: string;
+  /** @unit 百分制 [0, 100] 整数 */
   rFinal: number;
   edgeType?: string;
   direction?: string;
@@ -121,7 +135,9 @@ export interface IncidentEntity {
   incidentId: string;
   entityKey: string;
   entityType: string;
+  /** @unit 百分制 [0, 100] 整数 */
   rLocal: number;
+  /** @unit 百分制 [0, 100] 整数 */
   rFinal: number;
   role: string;
 }

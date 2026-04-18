@@ -29,6 +29,30 @@
 
 ---
 
+## AIOps 风险分数单位统一 — 🔄 进行中
+
+> 原设计文档: [aiops-risk-score-unify-design.md](../../design/active/aiops-risk-score-unify-design.md)
+>
+> 拓扑图 badge 显示 4500（实际 45%）、节点全红的 bug。根治方案：建立 `lib/risk.ts` 单一信任源，迁移 5 个消费者，补 API 类型注释和后端 scale_risk.go 约定注释。
+
+- Phase 1: 新建 `lib/risk.ts` — 待办
+  - 导出 `RISK_THRESHOLDS` / `riskLevel` / `riskColor` / `formatRiskScore` / `isRisky`
+- Phase 2: 迁移 5 个消费者 — 待办
+  - topology-graph-utils.ts（删本地 riskColor，badge/isAnomaly 改用共享函数 + 阈值常量）
+  - TopologyGraph.tsx tooltip
+  - NodeDetail.tsx 显示
+  - RootCauseCard.tsx 显示 + RiskBadge level 判断
+  - IncidentDetailModal.tsx 显示
+- Phase 3: 补 API + 后端注释 — 待办
+  - api/aiops.ts 四个 rXxx 字段 JSDoc `@unit 百分制 [0,100]`
+  - scale_risk.go 文件头补单位约定注释
+- Phase 4: 编译 + 验证 + commit — 待办
+  - `npm run build` PASS
+  - 浏览器刷新 /aiops/topology，badge 显示 45 而非 4500，染色合理
+  - commit: "fix(aiops): 前端风险分数单位彻底统一（lib/risk 单一信任源）"
+
+---
+
 ## QueryService 拆分重构 — 待办
 
 > 原设计文档: [master-v2-query-service-split-design.md](../../design/active/master-v2-query-service-split-design.md)

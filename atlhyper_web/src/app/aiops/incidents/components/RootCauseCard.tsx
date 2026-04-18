@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n/context";
 import { EntityLink } from "@/components/aiops/EntityLink";
 import { RiskBadge } from "@/components/aiops/RiskBadge";
 import type { IncidentEntity } from "@/api/aiops";
+import { formatRiskScore, RISK_THRESHOLDS } from "@/lib/risk";
 
 interface RootCauseCardProps {
   entity: IncidentEntity | undefined;
@@ -26,9 +27,16 @@ export function RootCauseCard({ entity }: RootCauseCardProps) {
         <EntityLink entityKey={entity.entityKey} />
         <div className="flex items-center gap-2 text-xs text-muted">
           <span>{t.aiops.rFinal}:</span>
-          <span className="font-mono font-semibold text-default">{entity.rFinal.toFixed(1)}</span>
+          <span className="font-mono font-semibold text-default">{formatRiskScore(entity.rFinal)}</span>
         </div>
-        <RiskBadge level={entity.rFinal >= 0.8 ? "critical" : entity.rFinal >= 0.5 ? "warning" : "low"} size="md" />
+        <RiskBadge
+          level={
+            entity.rFinal >= RISK_THRESHOLDS.critical ? "critical"
+            : entity.rFinal >= RISK_THRESHOLDS.warning ? "warning"
+            : "low"
+          }
+          size="md"
+        />
       </div>
       )}
     </div>

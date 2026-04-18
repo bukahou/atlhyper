@@ -1,13 +1,8 @@
 import type { DependencyGraph, EntityRisk } from "@/api/aiops";
+import { riskColor, formatRiskScore, RISK_THRESHOLDS } from "@/lib/risk";
 
-// 节点颜色按风险等级 (rFinal: 0-1)
-export function riskColor(rFinal: number): string {
-  if (rFinal >= 0.8) return "#ef4444";
-  if (rFinal >= 0.5) return "#f97316";
-  if (rFinal >= 0.3) return "#eab308";
-  if (rFinal >= 0.1) return "#3b82f6";
-  return "#22c55e";
-}
+// 重新导出给同目录其他组件复用（TopologyGraph.tsx 等）
+export { riskColor };
 
 // 实体类型 → G6 节点形状
 export const TYPE_SHAPE: Record<string, string> = {
@@ -106,7 +101,7 @@ export function buildG6Data(graph: DependencyGraph, entityRisks: Record<string, 
         iconFontWeight: 700,
         iconFill: color,
         badges: rFinal > 0
-          ? [{ text: (rFinal * 100).toFixed(0), placement: "right-top" as const, backgroundFill: color, fill: "#fff", fontSize: 8 }]
+          ? [{ text: formatRiskScore(rFinal), placement: "right-top" as const, backgroundFill: color, fill: "#fff", fontSize: 8 }]
           : [],
       },
     };
@@ -120,8 +115,8 @@ export function buildG6Data(graph: DependencyGraph, entityRisks: Record<string, 
     edgeSeen.add(eid);
 
     const isAnomaly =
-      (entityRisks[e.from]?.rFinal ?? 0) > 0.5 ||
-      (entityRisks[e.to]?.rFinal ?? 0) > 0.5;
+      (entityRisks[e.from]?.rFinal ?? 0) >= RISK_THRESHOLDS.warning ||
+      (entityRisks[e.to]?.rFinal ?? 0) >= RISK_THRESHOLDS.warning;
     const style = edgeStyle(e.type, isAnomaly);
 
     edges.push({
