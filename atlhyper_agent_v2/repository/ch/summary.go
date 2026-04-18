@@ -68,14 +68,13 @@ func (r *summaryRepository) GetSLOSummary(ctx context.Context) (ingressServices 
 	_ = r.client.QueryRow(ctx, ingressQuery).Scan(&ingressServices, &ingressAvgRPS)
 	ingressAvgRPS = roundF(ingressAvgRPS, 2)
 
-	// Mesh (Linkerd mTLS)
+	// Mesh 概览（通用契约：Linkerd/Istio 均通过 OTel transform 映射到 mesh_request_total）
+	// 从 inbound 视角统计：服务被调用的数量和 mTLS 占比
 	meshQuery := `
-		SELECT count(DISTINCT Attributes['deployment']) AS mesh_services,
-		       sumIf(Value, Attributes['tls'] = 'true') / if(sum(Value) = 0, 1, sum(Value)) AS avg_mtls
-		FROM otel_metrics_gauge
-		WHERE MetricName = 'response_total' AND Attributes['direction'] = 'inbound'
-		  AND Attributes['target_addr'] NOT LIKE '%:4191'
-		  AND Attributes['route_name'] != 'probe'
+		SELECT count(DISTINCT Attributes['workload']) AS mesh_services,
+		       sumIf(Value, Attributes['mtls'] = 'true') / if(sum(Value) = 0, 1, sum(Value)) AS avg_mtls
+		FROM atlhyper.otel_metrics_sum
+		WHERE MetricName = 'mesh_request_total' AND Attributes['direction'] = 'inbound'
 		  AND TimeUnix >= now() - INTERVAL 5 MINUTE
 	`
 	_ = r.client.QueryRow(ctx, meshQuery).Scan(&meshServices, &meshAvgMTLS)

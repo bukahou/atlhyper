@@ -259,28 +259,41 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 }
 
 // ──────────────────────────────────────────────────────────────
-// ListServiceSLO — Linkerd 服务网格
+// ListServiceSLO — 服务网格（通用契约，适配 Linkerd/Istio）
 // ──────────────────────────────────────────────────────────────
 
-// ListServiceSLO 查询 Linkerd 服务网格 SLO
+// ListServiceSLO 查询服务网格 SLO（从 inbound 视角统计：服务作为被调用方）
+//
+// 数据源：mesh_request_total（OTel Collector 在 transform 层把 Linkerd
+// response_total / Istio istio_requests_total 统一重命名为 mesh_request_total，
+// label 归一为 workload / namespace / dst_workload / dst_namespace / direction
+// / status_code / mtls）。详见 atlhyper 主仓库 docs/design/active/
+// agent-mesh-generic-monitoring-design.md
+//
+// 延迟分布（P50/P95/P99）依赖 mesh_request_duration_ms_bucket，当前 OTel
+// Prometheus receiver 对只含 _bucket（无 _count/_sum）的 histogram 会丢弃，
+// 需独立任务修复。本版本延迟分布暂空。
 func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration) ([]slo.ServiceSLO, error) {
 	sec := sinceSeconds(since)
 
-	// response_total: 从预聚合 MV 读取，-Merge 组合器最终化
+	// 请求计数：按 (workload, namespace, status_code, mtls, pod) 最细粒度算
+	// reset-safe delta，再汇总到 (workload, namespace, status_code, mtls)
 	query := fmt.Sprintf(`
-		SELECT deploy, ns, status_code, tls, sum(delta) AS delta
+		SELECT workload, namespace, status_code, mtls, sum(delta) AS delta
 		FROM (
-			SELECT deploy, ns, status_code, tls,
-			       `+gaugeCounterDeltaMerge+` AS delta
-			FROM mv_linkerd_response_total
-			WHERE direction = 'inbound'
-			  AND target_addr NOT LIKE '%%:4191'
-			  AND route_name != 'probe'
-			  AND hour >= toStartOfHour(now() - INTERVAL %d SECOND)
-			GROUP BY deploy, ns, status_code, tls, pod, route_name, target_addr
-			HAVING countMerge(point_cnt) >= 2
+			SELECT Attributes['workload']    AS workload,
+			       Attributes['namespace']   AS namespace,
+			       Attributes['status_code'] AS status_code,
+			       Attributes['mtls']        AS mtls,
+			       `+gaugeCounterDelta+` AS delta
+			FROM atlhyper.otel_metrics_sum
+			WHERE MetricName = 'mesh_request_total'
+			  AND Attributes['direction'] = 'inbound'
+			  AND TimeUnix >= now() - INTERVAL %d SECOND
+			GROUP BY workload, namespace, status_code, mtls, Attributes['pod']
+			HAVING count() >= 2
 		)
-		GROUP BY deploy, ns, status_code, tls
+		GROUP BY workload, namespace, status_code, mtls
 	`, sec)
 
 	rows, err := r.client.Query(ctx, query)
@@ -301,15 +314,15 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 	svcMap := make(map[svcKey]*svcData)
 
 	for rows.Next() {
-		var deploy, ns, code, tls string
+		var workload, namespace, code, mtls string
 		var delta float64
-		if err := rows.Scan(&deploy, &ns, &code, &tls, &delta); err != nil {
+		if err := rows.Scan(&workload, &namespace, &code, &mtls, &delta); err != nil {
 			continue
 		}
 		if delta <= 0 {
 			continue // counter reset 或无增量
 		}
-		key := svcKey{deploy, ns}
+		key := svcKey{workload, namespace}
 		d, ok := svcMap[key]
 		if !ok {
 			d = &svcData{codes: make(map[string]int64)}
@@ -319,35 +332,17 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 		if len(code) > 0 && code[0] != '5' {
 			d.successReqs += delta // 1xx/2xx/3xx/4xx 均视为成功，仅 5xx 计为错误
 		}
-		if tls == "true" {
+		if mtls == "true" {
 			d.mtlsEnabled = true
 		}
 		d.codes[code] += int64(delta)
 	}
 
-	// Linkerd latency buckets: 从预聚合 MV 读取
-	latQuery := fmt.Sprintf(`
-		SELECT deploy, ns, le, sum(delta) AS delta
-		FROM (
-			SELECT deploy, ns, le,
-			       `+gaugeCounterDeltaMerge+` AS delta
-			FROM mv_linkerd_latency_bucket
-			WHERE target_addr NOT LIKE '%%:4191'
-			  AND route_name != 'probe'
-			  AND hour >= toStartOfHour(now() - INTERVAL %d SECOND)
-			GROUP BY deploy, ns, le, pod, status_code, route_name, target_addr
-			HAVING countMerge(point_cnt) >= 2
-		)
-		GROUP BY deploy, ns, le
-		ORDER BY deploy, ns, toFloat64OrNull(le)
-	`, sec)
+	// 延迟分布（histogram）：当前 Prometheus receiver 对只含 _bucket（无 _count/_sum）
+	// 的 histogram 会丢弃，mesh_request_duration_ms_bucket 暂未进入 ClickHouse。
+	// 独立任务修复后可恢复此段查询，暂留空占位。
 
-	latRows, err := r.client.Query(ctx, latQuery)
-	if err != nil {
-		sloLog.Warn("Linkerd latency query failed", "since", since, "err", err)
-		latRows = nil
-	}
-
+	// 延迟桶数据暂为空（histogram 未进 ClickHouse，见上方注释）
 	type latKey struct {
 		name, ns string
 	}
@@ -355,31 +350,6 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 		bounds []float64
 		counts []uint64
 	})
-
-	if latRows != nil {
-		defer latRows.Close()
-		for latRows.Next() {
-			var deploy, ns, le string
-			var delta float64
-			if err := latRows.Scan(&deploy, &ns, &le, &delta); err != nil {
-				continue
-			}
-			if delta < 0 {
-				delta = 0
-			}
-			key := latKey{deploy, ns}
-			data := latBuckets[key]
-			var bound float64
-			if le == "+Inf" {
-				// 最后一个桶
-			} else {
-				fmt.Sscanf(le, "%f", &bound)
-				data.bounds = append(data.bounds, bound)
-			}
-			data.counts = append(data.counts, uint64(delta))
-			latBuckets[key] = data
-		}
-	}
 
 	duration := float64(sec)
 	var result []slo.ServiceSLO
@@ -422,27 +392,30 @@ func (r *sloRepository) ListServiceSLO(ctx context.Context, since time.Duration)
 }
 
 // ──────────────────────────────────────────────────────────────
-// ListServiceEdges — Linkerd 服务间调用拓扑
+// ListServiceEdges — 服务间调用拓扑（通用契约，适配 Linkerd/Istio）
 // ──────────────────────────────────────────────────────────────
 
-// ListServiceEdges 查询 Linkerd 服务间调用拓扑
+// ListServiceEdges 查询服务间调用拓扑（从 outbound 视角：A 调用 B）
 func (r *sloRepository) ListServiceEdges(ctx context.Context, since time.Duration) ([]slo.ServiceEdge, error) {
 	sec := sinceSeconds(since)
 
 	query := fmt.Sprintf(`
-		SELECT deploy, ns, dst_deploy, dst_ns, status_code, sum(delta) AS delta
+		SELECT workload, namespace, dst_workload, dst_namespace, status_code, sum(delta) AS delta
 		FROM (
-			SELECT deploy, ns, dst_deploy, dst_ns, status_code,
-			       `+gaugeCounterDeltaMerge+` AS delta
-			FROM mv_linkerd_response_total
-			WHERE direction = 'outbound'
-			  AND target_addr NOT LIKE '%%:4191'
-			  AND route_name != 'probe'
-			  AND hour >= toStartOfHour(now() - INTERVAL %d SECOND)
-			GROUP BY deploy, ns, dst_deploy, dst_ns, status_code, pod, route_name, target_addr
-			HAVING countMerge(point_cnt) >= 2
+			SELECT Attributes['workload']      AS workload,
+			       Attributes['namespace']     AS namespace,
+			       Attributes['dst_workload']  AS dst_workload,
+			       Attributes['dst_namespace'] AS dst_namespace,
+			       Attributes['status_code']   AS status_code,
+			       `+gaugeCounterDelta+` AS delta
+			FROM atlhyper.otel_metrics_sum
+			WHERE MetricName = 'mesh_request_total'
+			  AND Attributes['direction'] = 'outbound'
+			  AND TimeUnix >= now() - INTERVAL %d SECOND
+			GROUP BY workload, namespace, dst_workload, dst_namespace, status_code, Attributes['pod']
+			HAVING count() >= 2
 		)
-		GROUP BY deploy, ns, dst_deploy, dst_ns, status_code
+		GROUP BY workload, namespace, dst_workload, dst_namespace, status_code
 	`, sec)
 
 	rows, err := r.client.Query(ctx, query)
@@ -509,28 +482,26 @@ func (r *sloRepository) ListServiceEdges(ctx context.Context, since time.Duratio
 func (r *sloRepository) GetSLOTimeSeries(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error) {
 	sec := sinceSeconds(since)
 
-	// 按 5 分钟窗口聚合，子查询隔离每个计数器系列
+	// 按 5 分钟窗口聚合，子查询隔离每个计数器系列（用 pod 做最细粒度）
 	query := fmt.Sprintf(`
 		SELECT ts, code, sum(delta) AS delta
 		FROM (
 			SELECT toStartOfInterval(TimeUnix, INTERVAL 300 SECOND) AS ts,
 			       Attributes['status_code'] AS code,
 			       `+gaugeCounterDelta+` AS delta
-			FROM otel_metrics_gauge
-			WHERE MetricName = 'response_total'
+			FROM atlhyper.otel_metrics_sum
+			WHERE MetricName = 'mesh_request_total'
 			  AND Attributes['direction'] = 'inbound'
-			  AND Attributes['target_addr'] NOT LIKE '%%:4191'
-			  AND Attributes['route_name'] != 'probe'
-			  AND (Attributes['deployment'] = ? OR Attributes['service'] = ?)
+			  AND Attributes['workload'] = ?
 			  AND TimeUnix >= now() - INTERVAL %d SECOND
-			GROUP BY ts, code, `+seriesIsolation+`
+			GROUP BY ts, code, Attributes['pod']
 			HAVING count() >= 2
 		)
 		GROUP BY ts, code
 		ORDER BY ts
 	`, sec)
 
-	rows, err := r.client.Query(ctx, query, name, name)
+	rows, err := r.client.Query(ctx, query, name)
 	if err != nil {
 		return nil, fmt.Errorf("query SLO time series: %w", err)
 	}
