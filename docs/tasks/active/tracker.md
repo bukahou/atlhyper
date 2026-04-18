@@ -60,6 +60,15 @@
 > 实施顺序：**Config 先行，代码后改**。先重构 config 仓库为 base/mesh overlay 结构，切 mesh/none 验证重构→部署 Istio→切 mesh/istio→ClickHouse 确认有 `mesh_request_total`→最后改 Agent 代码查统一名。
 >
 > 跨仓库任务：config 仓库在 `~/AtlHyper/GitHub/config/`，本项目 atlhyper 在 `~/work/github/atlhyper/`。
+>
+> **实施三大步，每步独立可验证闭环**：
+> - **Step 1 修改配置**（Phase 0-2）：config 仓库重构 + 切 mesh/none，集群与现状等价
+> - **Step 2 部署 Istio 并验证**（Phase 3-5）：Istio 装机 + 切 mesh/istio + ClickHouse 实测有 `mesh_request_total`
+> - **Step 3 修改代码并测试**（Phase 6）：Agent 代码去 Linkerd 化 + Web 端到端验证
+
+### Step 1：修改配置（Config 仓库重构 + 切 mesh/none 验证）
+
+> 闭环目标：重构后集群所有业务功能和现状完全等价（零回退），mesh/none 下验证重构本身不破坏链路。
 
 - Phase 0: 本机工具 — 待办
   - 下载 istioctl 1.25.1 到 `~/istio-1.25.1/`
@@ -78,6 +87,12 @@
   - 等 Deployer 30-60s 应用
   - 验证：`kubectl -n atlhyper get cm otel-collector-config -o yaml | grep -E 'linkerd|istio'` 无输出
   - 业务 Pod 全 Running
+  - **Step 1 验证通过后才能进入 Step 2**
+
+### Step 2：部署 Istio 以及验证（Istio 装机 + 切 mesh/istio + ClickHouse 实测）
+
+> 闭环目标：Istio 部署到 geass-v2-{api,web} 两个 ns，OTel Collector 通过新 transform 将 `istio_requests_total` 重命名为 `mesh_request_total` 写入 ClickHouse，SQL 实测能查到数据。
+
 - Phase 3: 部署 Istio — 待办
   - `istioctl install --set profile=default --skip-confirmation`
   - `kubectl label ns geass-v2-api istio-injection=enabled`
@@ -92,6 +107,12 @@
   - `SELECT count() FROM otel_metrics_sum WHERE MetricName='mesh_request_total'` 应返回 >0
   - 采集若干行 label，确认 workload/namespace/direction/mtls 等字段正确
   - 把 Istio 真实 label 反馈到设计文档（万一有字段和预期不同需要微调 transform）
+  - **Step 2 验证通过后才能进入 Step 3**
+
+### Step 3：修改代码，进行测试（Agent 代码去 Linkerd 化 + 端到端验证）
+
+> 闭环目标：Agent SQL 查 `mesh_request_total`，ClickHouse MV 建好，Web `/observe/slo` 服务网格页面显示真实数据。
+
 - Phase 6: Agent 代码改造 — 待办
   - slo.go：4 处 SQL rename（`mv_linkerd_*` → `mv_mesh_*`、`response_total` → `mesh_request_total`、`deployment` → `workload`、`tls` → `mtls`，删 Linkerd 专属 filter）
   - summary.go：2 处同类改动
