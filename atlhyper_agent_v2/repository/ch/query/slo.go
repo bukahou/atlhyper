@@ -118,17 +118,31 @@ func (r *sloRepository) ListIngressSLOPrevious(ctx context.Context, since time.D
 // windowSec: 窗口秒数（用于 RPS 计算）
 func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, windowSec int64) ([]slo.IngressSLO, error) {
 	// ── 请求计数：按 {svc, code, method} 三维分组 ──
-	// 每个组合是独立的累积计数器，必须在最细粒度计算 delta
+	// 每个组合是独立的累积计数器，必须在最细粒度计算 delta。
+	//
+	// 算法等价于 Prometheus rate()/increase() 的 counterCorrection 逻辑：
+	// 用 lagInFrame 取相邻前一样本，对每对相邻样本：
+	//   - v[i] >= v[i-1]: 正常递增，delta = v[i] - v[i-1]
+	//   - v[i] <  v[i-1]: counter reset，delta = v[i]（reset 后从 0 开始）
+	// 最后 sum 得到窗口内的总增量，正确处理任意次数的 reset。
+	// lagInFrame 第三参数 Value 让首行 prevValue = 自身，首行 delta = 0。
 	countQuery := fmt.Sprintf(`
-		SELECT Attributes['service'] AS svc,
-		       Attributes['code'] AS code,
-		       Attributes['method'] AS method,
-		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) AS delta
-		FROM otel_metrics_sum
-		WHERE MetricName = 'traefik_service_requests_total'
-		  %s
+		SELECT svc, code, method,
+		       sum(if(Value >= prevValue, Value - prevValue, Value)) AS delta
+		FROM (
+		    SELECT Attributes['service'] AS svc,
+		           Attributes['code']    AS code,
+		           Attributes['method']  AS method,
+		           Value, TimeUnix,
+		           lagInFrame(Value, 1, Value) OVER
+		               (PARTITION BY Attributes['service'], Attributes['code'], Attributes['method']
+		                ORDER BY TimeUnix) AS prevValue
+		    FROM otel_metrics_sum
+		    WHERE MetricName = 'traefik_service_requests_total'
+		      %s
+		)
 		GROUP BY svc, code, method
-		HAVING count() >= 2
+		HAVING delta > 0
 	`, timeFilter)
 
 	rows, err := r.client.Query(ctx, countQuery)
@@ -651,19 +665,29 @@ func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket 
 	bucketSec := sinceSeconds(bucket)
 
 	// ── 请求计数时序：按 {ts, svc, code, method} 四维分组 ──
+	// 算法同 queryIngressSLO 的 Prometheus rate() 逻辑，但分区键加上桶 ts，
+	// 每个 (svc, code, method, bucket) 内独立做 counter-reset-safe 累加。
 	countQuery := fmt.Sprintf(`
-		SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
-		       Attributes['service'] AS svc,
-		       Attributes['code'] AS code,
-		       Attributes['method'] AS method,
-		       (max(Value) - min(Value)) AS delta
-		FROM otel_metrics_sum
-		WHERE MetricName = 'traefik_service_requests_total'
-		  AND TimeUnix >= now() - INTERVAL %d SECOND
+		SELECT ts, svc, code, method,
+		       sum(if(Value >= prevValue, Value - prevValue, Value)) AS delta
+		FROM (
+		    SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
+		           Attributes['service'] AS svc,
+		           Attributes['code']    AS code,
+		           Attributes['method']  AS method,
+		           Value, TimeUnix,
+		           lagInFrame(Value, 1, Value) OVER
+		               (PARTITION BY Attributes['service'], Attributes['code'], Attributes['method'],
+		                             toStartOfInterval(TimeUnix, INTERVAL %d SECOND)
+		                ORDER BY TimeUnix) AS prevValue
+		    FROM otel_metrics_sum
+		    WHERE MetricName = 'traefik_service_requests_total'
+		      AND TimeUnix >= now() - INTERVAL %d SECOND
+		)
 		GROUP BY ts, svc, code, method
-		HAVING count() >= 2
+		HAVING delta > 0
 		ORDER BY ts
-	`, bucketSec, sec)
+	`, bucketSec, bucketSec, sec)
 
 	rows, err := r.client.Query(ctx, countQuery)
 	if err != nil {
