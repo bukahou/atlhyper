@@ -7,29 +7,29 @@
 
 ---
 
-## Agent SLO Counter Reset 修复 — 🔄 进行中
+## Agent SLO Counter Reset 修复 — 🔄 待端到端验证
 
 > 原设计文档: [agent-slo-counter-reset-fix-design.md](../../design/active/agent-slo-counter-reset-fix-design.md)
 >
-> 背景: Ingress SLO 页面 totalRequests=0、P95/P99=0、错误预算=100% 异常。根因: Traefik 重启导致 counter reset，Agent 原 SQL `argMax-argMin` 产生负值被全部丢弃。修复: 用 ClickHouse window function 实现 Prometheus `rate()/increase()` 等价算法。
+> 代码改动已完成并 commit（`8cb469f` + `712f902`）。剩最后端到端验证一步。
 
-- Phase 1: 前置改动（方案 B Collect/Push 拆 ctx）— ✅ 完成
-  - scheduler.go: Config 新增 SnapshotPushTimeout 字段，collectAndPushSnapshot 拆独立 ctx
-  - agent.go: scheduler.Config 构造时 `SnapshotPushTimeout: cfg.Timeout.HTTPClient`
-  - 编译通过 + scheduler 测试 PASS
-- Phase 2: SLO counter reset SQL 替换 — 待办
-  - slo.go:119-132 `queryIngressSLO` 的 countQuery 替换为 `lagInFrame + sum(if reset)` 的 window function 版本
-  - slo.go:159-162 删除（或保留为防御）`if cnt <= 0 { continue }`
-  - slo.go:660-690 排查 `queryIngressHistorySLO` 是否同类 SQL（若是同步替换）
-  - 验证: ClickHouse 直测 SQL → Agent 启动 → `curl /api/v2/slo/domains/v2` → 前端刷新
-- Phase 3: 清理临时 debug 日志 — 待办
-  - scheduler.go `collectAndPushSnapshot` 中的 [DEBUG] 采集/推送日志
-  - gateway/master_gateway.go `PushSnapshot` 中的 [DEBUG push] fmt.Printf 日志
-  - service/snapshot/snapshot.go `Collect` 中的 [DEBUG] K8s/OTel 日志
-- Phase 4: 编译 + 测试 + commit — 待办
+- Phase 1: Collect/Push 拆独立 ctx — ✅ 完成（commit 8cb469f）
+- Phase 2: SLO counter reset SQL 替换 — ✅ 完成（commit 712f902）
+  - queryIngressSLO countQuery → lagInFrame + sum(if reset) window function
+  - GetIngressSLOHistory countQuery → 同算法 + 加桶 ts 分区
+  - ClickHouse 实测新 SQL：24h 内 atlhyper-web GET 200 = 1564 次（合理）
+- Phase 3: 清理临时 debug 日志 — ✅ 完成（包含在 commit 712f902）
+- Phase 4: 编译 + 测试 + commit — ✅ 完成
   - `go build ./...` PASS
-  - `go test ./atlhyper_agent_v2/repository/ch/query/ -v` PASS
-  - commit: "fix(agent): SLO ingress counter reset 正确处理（Prometheus 算法）"
+  - `go test ./atlhyper_agent_v2/repository/ch/query/ ./scheduler/ ./service/snapshot/` PASS
+  - 2 个 commit 已提交（未 push）
+- Phase 5: 端到端验证 — 待办
+  - 前置：port-forward `svc/clickhouse 9000:9000`
+  - 启 Master: `go run ./cmd/atlhyper_master_v2/main.go`
+  - 启 Agent: `go run ./cmd/atlhyper_agent_v2/main.go`（等 Agent 首次推送成功）
+  - 实测 API: `curl "http://localhost:8080/api/v2/slo/domains/v2?cluster_id=ZGFX-X10A&time_range=1d"` — 期望 totalRequests > 0
+  - 刷新前端 `/observe/slo` — 期望顶部卡片显示真实请求数/P95/P99/错误预算
+  - 验证通过后：本任务归档到 `docs/tasks/archive/`，设计文档从 active 移到 archive
 
 ### 后续 issue（独立任务，不在本次范围）
 
