@@ -82,12 +82,13 @@
   - OTel 镜像确认 contrib 版（0.96.0）
   - `kubectl kustomize .` 输出 23 个资源；mesh/none 与旧版 diff 仅含 linkerd scrape 删除（预期）
   - **附带发现**：Linkerd MV DDL 在 `base/atlhyper-clickhouse.yaml` 的 init-db.sh，Phase 6 在此处添加 mesh MV
-- Phase 2: 推送 config + 切 mesh/none 验证 — 待办
-  - 推送 config 仓库 main 分支
-  - 等 Deployer 30-60s 应用
-  - 验证：`kubectl -n atlhyper get cm otel-collector-config -o yaml | grep -E 'linkerd|istio'` 无输出
-  - 业务 Pod 全 Running
-  - **Step 1 验证通过后才能进入 Step 2**
+- Phase 2: 推送 config + 切 mesh/none 验证 — ✅ 完成
+  - config 仓库已推送到 origin（3 个 commit：5e8f90a / d220dff / 2bd01ce）
+  - `kubectl apply -k .` 手动应用（atlhyper 不在 Deployer 监听范围内）
+  - `rollout restart deploy/otel-collector` 加载新 ConfigMap
+  - 验证：ConfigMap 扫描 linkerd/istio/metricstransform/transform 关键字均无输出
+  - atlhyper ns 所有 Pod Running；OTel 日志「Begin running and processing data」且 scrape 只有 traefik + node-exporter
+  - **Step 1 闭环通过**
 
 ### Step 2：部署 Istio 以及验证（Istio 装机 + 切 mesh/istio + ClickHouse 实测）
 
