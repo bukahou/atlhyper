@@ -7,6 +7,28 @@
 
 ---
 
+## Agent Metrics / Summary Counter Reset 修复 — 🔄 进行中
+
+> 原设计文档: [agent-metrics-counter-reset-fix-design.md](../../design/active/agent-metrics-counter-reset-fix-design.md)
+>
+> 清理 SLO 修复遗留的 7 处裸 `argMax-argMin` rate 计算。5min 短窗口复用 `gaugeCounterDelta`（单次 reset 安全）+ 抽 DRY 常量 `counterRateExpr`。
+
+- Phase 1: 新增 `counterRateExpr` 常量 — 待办
+  - slo.go: `gaugeCounterDelta` 下方追加常量定义 + 说明注释
+- Phase 2: metrics.go 5 处 SQL 替换 — 待办
+  - fillCPU / fillDisks ioQuery / fillNetworks rateQuery / fillPSI / fillVMStat rateQuery 模板
+- Phase 3: summary.go 2 处 SQL 替换 — 待办
+  - GetSLOSummary ingressQuery / GetMetricsSummary cpuQuery
+- Phase 4: 编译 + 测试 + commit — 待办
+  - `go build ./...` PASS
+  - `go test ./atlhyper_agent_v2/repository/ch/...` PASS
+  - commit: "fix(agent): metrics/summary 5min 窗口 rate 计算 counter-reset-safe"
+- Phase 5: 本地端到端验证 — 待办
+  - 节点监控页 CPU/Disk/Network/PSI/VMStat 数据正常
+  - 概览页集群 CPU / Ingress RPS 正常
+
+---
+
 ## QueryService 拆分重构 — 待办
 
 > 原设计文档: [master-v2-query-service-split-design.md](../../design/active/master-v2-query-service-split-design.md)

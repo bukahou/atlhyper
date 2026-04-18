@@ -31,6 +31,14 @@ const gaugeCounterDeltaMerge = `if(maxMerge(peak_val) > argMaxMerge(latest_val),
     (maxMerge(peak_val) - argMinMerge(earliest_val)) + argMaxMerge(latest_val),
     argMaxMerge(latest_val) - argMinMerge(earliest_val))`
 
+// CounterRateExpr 按 counter-reset-safe delta 除以时间跨度，得到 per-second rate。
+// 使用场景：5min 等短窗口，reset 概率极低，单次 reset 处理足够。
+// 对于长窗口（1d/7d/30d），应改用 lagInFrame 的 Prometheus 完整算法
+// （参见 queryIngressSLO 的 countQuery）。
+// 导出为包外可用，供 ch 包内 summary.go 等其他位置共享同一算法。
+const CounterRateExpr = gaugeCounterDelta + ` /
+    (toUnixTimestamp(argMax(TimeUnix, TimeUnix)) - toUnixTimestamp(argMin(TimeUnix, TimeUnix)))`
+
 // sloRepository SLO 查询仓库
 type sloRepository struct {
 	client sdk.ClickHouseClient

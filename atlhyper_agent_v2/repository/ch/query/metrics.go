@@ -312,9 +312,7 @@ func (r *metricsRepository) buildNodeMetrics(ctx context.Context, ip, nodeName s
 func (r *metricsRepository) fillCPU(ctx context.Context, ip string, nm *metrics.NodeMetrics) {
 	// CPU usage from rate of node_cpu_seconds_total
 	query := `
-		SELECT Attributes['mode'] AS mode,
-		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) /
-		       (toUnixTimestamp(argMax(TimeUnix, TimeUnix)) - toUnixTimestamp(argMin(TimeUnix, TimeUnix))) AS rate
+		SELECT Attributes['mode'] AS mode, ` + CounterRateExpr + ` AS rate
 		FROM otel_metrics_sum
 		WHERE MetricName = 'node_cpu_seconds_total'
 		  AND ResourceAttributes['net.host.name'] = ?
@@ -491,9 +489,7 @@ func (r *metricsRepository) fillDisks(ctx context.Context, ip string, nm *metric
 
 	// IO rates (sum)
 	ioQuery := `
-		SELECT Attributes['device'] AS device, MetricName,
-		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) /
-		       (toUnixTimestamp(argMax(TimeUnix, TimeUnix)) - toUnixTimestamp(argMin(TimeUnix, TimeUnix))) AS rate
+		SELECT Attributes['device'] AS device, MetricName, ` + CounterRateExpr + ` AS rate
 		FROM otel_metrics_sum
 		WHERE MetricName IN (
 			'node_disk_read_bytes_total', 'node_disk_written_bytes_total',
@@ -576,9 +572,7 @@ func (r *metricsRepository) fillNetworks(ctx context.Context, ip string, nm *met
 
 	// 网络吞吐 (rate from sum)
 	rateQuery := `
-		SELECT Attributes['device'] AS iface, MetricName,
-		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) /
-		       (toUnixTimestamp(argMax(TimeUnix, TimeUnix)) - toUnixTimestamp(argMin(TimeUnix, TimeUnix))) AS rate
+		SELECT Attributes['device'] AS iface, MetricName, ` + CounterRateExpr + ` AS rate
 		FROM otel_metrics_sum
 		WHERE MetricName IN (
 			'node_network_receive_bytes_total', 'node_network_transmit_bytes_total',
@@ -673,9 +667,7 @@ func (r *metricsRepository) fillTemperature(ctx context.Context, ip string, nm *
 // fillPSI 填充 Pressure Stall Info
 func (r *metricsRepository) fillPSI(ctx context.Context, ip string, nm *metrics.NodeMetrics) {
 	query := `
-		SELECT MetricName,
-		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) /
-		       (toUnixTimestamp(argMax(TimeUnix, TimeUnix)) - toUnixTimestamp(argMin(TimeUnix, TimeUnix))) AS rate
+		SELECT MetricName, ` + CounterRateExpr + ` AS rate
 		FROM otel_metrics_sum
 		WHERE MetricName IN (
 			'node_pressure_cpu_waiting_seconds_total',
@@ -805,9 +797,7 @@ func (r *metricsRepository) fillSystem(ctx context.Context, ip string, nm *metri
 // vmstat 指标在 gauge 表（OTel collector 将其归类为 gauge），softnet 在 sum 表
 func (r *metricsRepository) fillVMStat(ctx context.Context, ip string, nm *metrics.NodeMetrics) {
 	rateQuery := `
-		SELECT MetricName,
-		       (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) /
-		       (toUnixTimestamp(argMax(TimeUnix, TimeUnix)) - toUnixTimestamp(argMin(TimeUnix, TimeUnix))) AS rate
+		SELECT MetricName, ` + CounterRateExpr + ` AS rate
 		FROM %s
 		WHERE MetricName IN (%s)
 		AND ResourceAttributes['net.host.name'] = ?

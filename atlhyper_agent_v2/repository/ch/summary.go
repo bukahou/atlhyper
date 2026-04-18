@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"AtlHyper/atlhyper_agent_v2/repository"
+	"AtlHyper/atlhyper_agent_v2/repository/ch/query"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 )
 
@@ -57,9 +58,7 @@ func (r *summaryRepository) GetSLOSummary(ctx context.Context) (ingressServices 
 	ingressQuery := `
 		SELECT count(DISTINCT svc) AS ingress_services, avg(rate_val) AS avg_rps
 		FROM (
-		    SELECT Attributes['service'] AS svc,
-		           (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) /
-		           (toUnixTimestamp(argMax(TimeUnix, TimeUnix)) - toUnixTimestamp(argMin(TimeUnix, TimeUnix))) AS rate_val
+		    SELECT Attributes['service'] AS svc, ` + query.CounterRateExpr + ` AS rate_val
 		    FROM otel_metrics_sum
 		    WHERE MetricName = 'traefik_service_requests_total'
 		      AND TimeUnix >= now() - INTERVAL 5 MINUTE
@@ -90,9 +89,7 @@ func (r *summaryRepository) GetMetricsSummary(ctx context.Context) (monitoredNod
 	// CPU usage (rate calculation)
 	cpuQuery := `
 		WITH cpu_rate AS (
-		    SELECT ResourceAttributes['net.host.name'] AS ip, Attributes['mode'] AS mode,
-		           (argMax(Value, TimeUnix) - argMin(Value, TimeUnix)) /
-		           (toUnixTimestamp(argMax(TimeUnix, TimeUnix)) - toUnixTimestamp(argMin(TimeUnix, TimeUnix))) AS rate
+		    SELECT ResourceAttributes['net.host.name'] AS ip, Attributes['mode'] AS mode, ` + query.CounterRateExpr + ` AS rate
 		    FROM otel_metrics_sum
 		    WHERE MetricName = 'node_cpu_seconds_total' AND TimeUnix >= now() - INTERVAL 5 MINUTE
 		    GROUP BY ip, Attributes['cpu'], mode HAVING count() >= 2
