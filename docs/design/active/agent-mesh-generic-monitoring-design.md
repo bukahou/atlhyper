@@ -95,12 +95,13 @@ metricstransform/linkerd_to_mesh:
 ```
 
 #### Istio（条件映射，`transform` OTTL processor）
+> 注：OTel Collector v0.96 不支持 `conditions` 字段（v0.99+ 才加入）。每条 statement
+> 用 `where` 子句自带过滤。`attributes["reporter"]` 只在 Istio metric 上存在，非
+> Istio metric 判定自然为 false，语句 no-op。
 ```yaml
 transform/istio_to_mesh:
   metric_statements:
     - context: datapoint
-      conditions:
-        - 'metric.name == "istio_requests_total" or metric.name == "istio_request_duration_milliseconds_bucket"'
       statements:
         - set(attributes["workload"],      attributes["destination_workload"])           where attributes["reporter"] == "destination"
         - set(attributes["namespace"],     attributes["destination_workload_namespace"]) where attributes["reporter"] == "destination"

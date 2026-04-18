@@ -94,21 +94,21 @@
 
 > 闭环目标：Istio 部署到 geass-v2-{api,web} 两个 ns，OTel Collector 通过新 transform 将 `istio_requests_total` 重命名为 `mesh_request_total` 写入 ClickHouse，SQL 实测能查到数据。
 
-- Phase 3: 部署 Istio — 待办
-  - `istioctl install --set profile=default --skip-confirmation`
-  - `kubectl label ns geass-v2-api istio-injection=enabled`
-  - `kubectl label ns geass-v2-web istio-injection=enabled`
-  - `kubectl -n geass-v2-{api,web} rollout restart deployment`
-  - 验证：Pod 2/2
-- Phase 4: 切 mesh/istio overlay — 待办
-  - 顶层 kustomization 改 `- mesh/istio`
-  - 推送，OTel Collector 自动重启加载新配置
-- Phase 5: ClickHouse 实测 — 待办
-  - 访问 `https://geass-api.bukahou.com` 产生流量
-  - `SELECT count() FROM otel_metrics_sum WHERE MetricName='mesh_request_total'` 应返回 >0
-  - 采集若干行 label，确认 workload/namespace/direction/mtls 等字段正确
-  - 把 Istio 真实 label 反馈到设计文档（万一有字段和预期不同需要微调 transform）
-  - **Step 2 验证通过后才能进入 Step 3**
+- Phase 3: 部署 Istio — ✅ 完成
+  - 首装用默认大 sidecar（2000m limits）撞 quota=16 上限
+  - 重装 `--set values.global.proxy.resources.limits.cpu=100m` 小 sidecar
+  - 两个 ns 打 label + rollout restart 触发注入
+  - 临时扩 quota 16→24 让滚动完成；auth/web 再 rollout restart 替换小 sidecar；quota 缩回 16
+  - 最终 geass-v2-api 13 Pod + geass-v2-web 2 Pod 全部 2/2，quota used=12.3 core
+- Phase 4: 切 mesh/istio overlay — ✅ 完成（config 3 个 fix commit）
+  - 97c4749: 顶层 kustomization mesh/none → mesh/istio
+  - 23dca26: 移除 v0.99+ 才支持的 `conditions` 字段，改用每条 statement 自带 where 过滤
+  - 353db81: scrape 走 istio-proxy 声明的 15090 端口 + `metrics_path: /stats/prometheus`
+- Phase 5: ClickHouse 实测 — ✅ 完成
+  - OTel 8889 可见 `otel_mesh_request_total`，7 个统一 label 正确填充（workload / namespace / dst_workload / dst_namespace / direction / status_code / mtls）
+  - ClickHouse 5 min 内有 76 行 `mesh_request_total`，**没有 istio_requests_total**（已被完全重命名）
+  - 附带小噪音：istio-ingressgateway 声明多端口（15021/8443/8080），对这些端口的 scrape 会失败，仅 warn 日志，不影响数据
+  - **Step 2 闭环通过**
 
 ### Step 3：修改代码，进行测试（Agent 代码去 Linkerd 化 + 端到端验证）
 
