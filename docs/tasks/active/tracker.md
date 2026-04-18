@@ -70,18 +70,18 @@
 
 > 闭环目标：重构后集群所有业务功能和现状完全等价（零回退），mesh/none 下验证重构本身不破坏链路。
 
-- Phase 0: 本机工具 — 待办
-  - 下载 istioctl 1.25.1 到 `~/istio-1.25.1/`
-  - 改 `config/local/ubuntu/env/infra.env` 加 ISTIO PATH 导出
-  - 新 shell 验证 `istioctl version` 可用
-- Phase 1: Config 仓库重构（本地完成，**不推送**）— 待办
-  - 建 `config/clusters/zgmf-x10a/apps/atlhyper/base/` + `mesh/{none,linkerd,istio}/`
-  - 拆 OTel：`atlhyper-otel-collector.yaml` 只留 Deployment/Service/RBAC；ConfigMap data 移到各 mesh overlay
-  - 写 3 份 `atlhyper-otel-config.yaml`（none/linkerd/istio，共享基础段 + 各自 mesh 段）
-  - 写 3 份 `mesh/*/kustomization.yaml` 和 `base/kustomization.yaml`
-  - 改顶层 `kustomization.yaml`：`resources: [base, mesh/none]`
-  - 确认 OTel Collector 镜像是 `contrib` 版（transform processor 必需）
-  - 本地 `kustomize build .` 和旧版 diff，确认只有 mesh 相关差异
+- Phase 0: 本机工具 — ✅ 完成
+  - istioctl 1.25.1 已下载到 `~/istio-1.25.1/`
+  - `config/local/ubuntu/env/infra.env` 已加 ISTIO_HOME + PATH（commit `5e8f90a`）
+  - 验证：`istioctl version` = 1.25.1，`istioctl x precheck` = No issues found
+- Phase 1: Config 仓库重构（本地完成，**先不推送**）— ✅ 完成（config 仓库 commit `2bd01ce`）
+  - `base/` 含 9 个 yaml（git rename 100% 相似度）+ kustomization.yaml
+  - `mesh/{none,linkerd,istio}/` 各自 atlhyper-otel-config.yaml + kustomization.yaml
+  - 原 atlhyper-otel-authz.yaml 搬到 mesh/linkerd/（仍保持独立手动 apply）
+  - 顶层 kustomization.yaml 当前 `resources: [base, mesh/none]`
+  - OTel 镜像确认 contrib 版（0.96.0）
+  - `kubectl kustomize .` 输出 23 个资源；mesh/none 与旧版 diff 仅含 linkerd scrape 删除（预期）
+  - **附带发现**：Linkerd MV DDL 在 `base/atlhyper-clickhouse.yaml` 的 init-db.sh，Phase 6 在此处添加 mesh MV
 - Phase 2: 推送 config + 切 mesh/none 验证 — 待办
   - 推送 config 仓库 main 分支
   - 等 Deployer 30-60s 应用
