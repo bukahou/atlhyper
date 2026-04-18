@@ -29,6 +29,10 @@ type Config struct {
 	// SnapshotTimeout 快照采集操作超时
 	SnapshotTimeout time.Duration
 
+	// SnapshotPushTimeout 快照推送操作超时
+	// 独立于 SnapshotTimeout，避免 Collect 慢耗尽 ctx 预算后连累 Push
+	SnapshotPushTimeout time.Duration
+
 	// CommandPollTimeout 指令轮询操作超时
 	CommandPollTimeout time.Duration
 
@@ -137,19 +141,24 @@ func (s *Scheduler) runSnapshotLoop() {
 }
 
 // collectAndPushSnapshot 采集并推送快照
+//
+// Collect 和 Push 使用独立 ctx，互不干扰：
+//   - Collect ctx 超时只影响采集本身
+//   - Push ctx 拥有全新的超时预算，即使 Collect 耗时较长也能正常发送
 func (s *Scheduler) collectAndPushSnapshot() {
-	ctx, cancel := context.WithTimeout(s.ctx, s.config.SnapshotTimeout)
-	defer cancel()
-
-	// 采集快照
-	snapshot, err := s.snapshotSvc.Collect(ctx)
+	// 采集快照（独立超时）
+	collectCtx, cancelCollect := context.WithTimeout(s.ctx, s.config.SnapshotTimeout)
+	snapshot, err := s.snapshotSvc.Collect(collectCtx)
+	cancelCollect()
 	if err != nil {
 		log.Error("采集快照失败", "err", err)
 		return
 	}
 
-	// 推送到 Master
-	if err := s.masterGw.PushSnapshot(ctx, snapshot); err != nil {
+	// 推送到 Master（独立超时，不受 Collect 耗时影响）
+	pushCtx, cancelPush := context.WithTimeout(s.ctx, s.config.SnapshotPushTimeout)
+	defer cancelPush()
+	if err := s.masterGw.PushSnapshot(pushCtx, snapshot); err != nil {
 		log.Error("推送快照失败", "err", err)
 		return
 	}

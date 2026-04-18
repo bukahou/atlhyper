@@ -144,6 +144,7 @@ func New() (*Agent, error) {
 		CommandPollInterval: cfg.Scheduler.CommandPollInterval,
 		HeartbeatInterval:   cfg.Scheduler.HeartbeatInterval,
 		SnapshotTimeout:     cfg.Timeout.SnapshotCollect,
+		SnapshotPushTimeout: cfg.Timeout.HTTPClient,
 		CommandPollTimeout:  cfg.Timeout.CommandPoll,
 		HeartbeatTimeout:    cfg.Timeout.Heartbeat,
 	}
