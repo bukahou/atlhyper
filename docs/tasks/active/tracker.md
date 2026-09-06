@@ -12,6 +12,30 @@
 
 ---
 
+## CI/CD 接入 — ✅ CI 与 dev 环境已完成，prod 等首次 SYNC（2026-09-06）
+
+> 分支流程：`feature/** | fix/**` → `dev`（自动上 dev 环境）→ PR → `main`（prod，人工点 SYNC）。
+> ⛔ **main 是最保守的分支**，本地 main 不得领先远端；新工作一律开分支。
+
+| 项 | 状态 | 位置 |
+|---|---|---|
+| `test.yml` 门禁（go build/vet + next build，不构建镜像） | ✅ | `.github/workflows/test.yml` |
+| `release.yml`（三组件 × amd64/arm64 原生 runner，push-by-digest 合 manifest） | ✅ 已跑通，path filter 已实证 | `.github/workflows/release.yml` |
+| 不可变 tag：dev=`dev-<sha7>`，prod=`v1.0.0-<sha7>`+`latest`（latest 只为清单默认值兜底） | ✅ | 同上 |
+| config 仓拆 `prod/` `dev/` 两套**完全独立**清单（推翻 base+overlays：dev 会改基础配置） | ✅ prod 逐字节等价 | `config/clusters/requiem/apps/atlhyper/` |
+| dev 环境：ns=atlhyper-dev · `atlhyper-dev.bukahou.com` · agent 只读 · 复用 prod ClickHouse · SQLite emptyDir 不钉节点 | ✅ 已上线可访问 | 同上 `dev/` |
+| ArgoCD `atlhyper-dev`（自动+selfHeal） | ✅ Synced | `config/.../argocd/applications/atlhyper-dev.yaml` |
+| ArgoCD `atlhyper-prod`（**手动**，无 automated 块） | ⏳ OutOfSync 等首次 SYNC | 同上 `atlhyper-prod.yaml` |
+
+**待办**
+- [ ] **prod 首次 SYNC**：建议等下次推 main、CI 把 tag 改成 `v1.0.0-<sha7>` 后再点，一次完成接管 + 切不可变 tag。当前 18 个 OutOfSync 是缺 tracking 标记，`kubectl diff` 零差异
+- [ ] `deploy/scripts/_common.sh` 仍推 `latest` 与 CI 并存 → 建议改为只推带 VERSION 的 tag（用户：不急）
+- [ ] dev agent 启动头 20s 曾报 `connect: operation not permitted`（非 refused），后自愈。若再现须查 Cilium 策略
+- [ ] 未推送：dev 分支 1 个提交（latest 策略）
+
+**首跑踩的坑（已修，记 memory）**：`public/` 空目录 CI 检出不存在 · digest 文件名含冒号 upload 失败 ·
+`dorny/paths-filter` base 默认=默认分支致 dev 上过滤失效 · Gateway API 默认值致 ArgoCD 永不收敛
+
 ## 压测暴露的观测缺陷（2026-08-29 geass-v3 压测，阶段 1–4）
 
 > **待优化，均未修复**（除 P0 已扩容）。用户 2026-08-29 指示「先记录，后续需要优化」。
