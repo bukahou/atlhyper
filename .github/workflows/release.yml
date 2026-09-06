@@ -11,8 +11,16 @@
 ##    【公开仓库免费且给 4 vCPU】，所以两边都用原生机器并行跑，再合 manifest。
 ##    代价是 job 数变多，但墙钟时间更短。
 ##
-## ⛔ 不推 latest：tag 必须不可变，否则「线上跑的是哪个 commit」答不出来，
-##    也没法回滚。config 仓里的 tag 就是唯一事实来源。
+## 关于 latest：
+##   ⭐ 只有 main 分支【额外】推一个 latest，dev 分支不推。
+##   理由不是「方便」，而是各 Deployment 清单里写着 `image: ...:latest` 作为默认值 ——
+##   虽然实际部署时会被 kustomization 的 images 段覆盖，但清单本身应当能独立工作
+##   （有人直接 kubectl apply -f master.yaml 时也得拉得到一个可用镜像）。
+##   让 latest 跟随【生产】版本，dev 的实验性构建不污染它。
+##
+##   ⛔ 但部署清单里【绝不能】依赖 latest 做实际版本控制 ——
+##      config 仓 kustomization 里的不可变 tag 才是唯一事实来源，
+##      否则「线上跑的是哪个 commit」答不出来，也没法回滚。
 ## ============================================================
 name: release
 
@@ -202,8 +210,20 @@ jobs:
           TAG: ${{ needs.plan.outputs.tag_prefix }}-${{ steps.sha.outputs.sha7 }}
         run: |
           cd /tmp/digests
+
+          # 不可变 tag 始终推；latest 只在 main 分支【额外】推一个。
+          # latest 的用途是给各 Deployment 清单里的默认 image 值兜底
+          # （清单要能独立 apply），⛔ 不是给部署做版本控制用的。
+          TAGS=(-t "${IMAGE}:${TAG}")
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            TAGS+=(-t "${IMAGE}:latest")
+            echo "main 分支 → 额外推 latest"
+          else
+            echo "非 main 分支 → ⛔ 不动 latest（dev 构建不污染生产别名）"
+          fi
+
           # 文件名是剥了前缀的 digest（见 ② 的说明），这里拼回 sha256:
-          docker buildx imagetools create -t "${IMAGE}:${TAG}" \
+          docker buildx imagetools create "${TAGS[@]}" \
             $(printf "${IMAGE}@sha256:%s " *)
           echo "推送完成: ${IMAGE}:${TAG}"
           docker buildx imagetools inspect "${IMAGE}:${TAG}" | head -20
@@ -258,5 +278,10 @@ jobs:
             echo "| 镜像 | \`${IMAGE_NAMESPACE}/atlhyper-${{ matrix.service }}:${TAG}\` |"
             echo "| 架构 | linux/amd64 + linux/arm64 |"
             echo "| 环境 | ${{ needs.plan.outputs.env_dir }} |"
+            if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+              echo "| latest | 已更新（清单默认值兜底用） |"
+            else
+              echo "| latest | 未动（dev 不污染生产别名） |"
+            fi
             echo "| config | \`apps/atlhyper/${{ needs.plan.outputs.env_dir }}\` 已更新 |"
           } >> "$GITHUB_STEP_SUMMARY"
