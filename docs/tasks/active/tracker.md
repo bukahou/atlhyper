@@ -546,7 +546,13 @@ GROUP BY code;
 
 - 临时打开 query_log 全量记录以归因 SELECT 来源 — ✅ 2026-09-10 22:19 JST 完成
   （config `24f6c71`，`log_queries_min_query_duration_ms` 1000→0，删 Pod 重启，空档约 20s）
-- 归因分析（谁在查、每类查询 CPU/字节、merge vs SELECT 的 CPU 占比）— 🔄 进行中
+- 归因分析 — ✅ 2026-09-11 完成（细节见 git log 与会话记录）
+  - 读者只有 prod/dev 两个 agent，各 8.6 qps / 0.17 核 / 107 MiB/s，一模一样 ⇒ dev 使读负载翻倍
+  - CPU：SELECT 恒定 0.34 核；合并随「链相位」0.01–0.33 核摆动（sum 表两源合并 840/h ↔ 0/h，周期 5–7h）；进程 0.35–1.09 核
+  - ⭐ archangel k10temp 小时均值与 ClickHouse CPU r=0.93，风暴期 68.7°C / 平静期 63.1°C —— 温度问题的根因
+  - 合并机制：小 part 字节占比 0.475%（<1% 剥离阈值）⇒ 每插入一次重写一次大 part（p50 64.8 万行）
+  - 最贵查询：uname 无时间窗（128,789 行/45 MiB，加 15min 窗 −97%）；freshness max(TimeUnix) 9.1M 行（改读 system.parts → 23 行）；ListAllNodeMetrics 每周期跑两遍（otel_collector.go:146/158 + metrics.go:122）
+  - ⚠️ 自我纠错：曾以 kubectl top 瞬时 204m 否定 work 的 0.58 核均值，metric_log 证明 0.58 才接近稳态；已向 work 撤回
 - 🔴 **归因完成后必须改回 1000 并再重启一次 clickhouse-0** — 待办
   ⚠️ 不改回 query_log 会重新长成最大单表（2026-08-25 曾 131 MiB，12:1 于业务数据）
 - 根据归因结果决定：collector batch（512/5s → 对齐 15s scrape）还是 agent 查询裁剪 — 待办
