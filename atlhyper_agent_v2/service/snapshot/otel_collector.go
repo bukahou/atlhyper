@@ -1,9 +1,14 @@
 // Package snapshot OTel 数据采集
 //
 // 本文件实现 OTel 快照的缓存与聚合逻辑：
-//   - 标量摘要（TTL=5min）：TotalServices / RPS / CPU / Mem 等慢变化指标
-//   - Dashboard 列表（TTL=30s）：Services / Topology / Logs 等需要新鲜度的数据
+//   - 标量摘要（TTL=AGENT_OTEL_CACHE_TTL，默认 10s）：TotalServices / RPS / CPU / Mem 等慢变化指标
+//   - Dashboard 列表（TTL=AGENT_OTEL_DASHBOARD_TTL，默认 30s）：Services / Topology / Logs 等需要新鲜度的数据
 //   - Concentrator 时序摄入与输出
+//
+// ⚠️ 每次 Dashboard 刷新对 ClickHouse 是一次全节点扫描（8 节点 × 17 条 SQL）。
+// MetricsSummary / SLOSummary 必须从本周期取回的列表派生（model_v3 的 Summarize*），
+// ⛔ 不得再单独调 GetMetricsSummary / GetSLOSummary —— 它们内部就是同一次扫描，
+// 2026-09-11 前正是这样跑了两遍，占单 agent 查询量 48%。
 package snapshot
 
 import (
@@ -13,18 +18,32 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/config"
 	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/metrics"
+	"AtlHyper/model_v3/slo"
 )
+
+// dashboardTTLOrDefault Dashboard 列表缓存 TTL：AGENT_OTEL_DASHBOARD_TTL，未配置时 30s。
+//
+// 做成可配是为了 dev 环境：它与 prod 共用同一个 ClickHouse，却复制了 prod 的全部查询
+// （实测两者各 8.6 qps，一模一样）。dev 放宽到分钟级就能把它的份额砍掉大半，
+// 而不必让 dev 放弃 OTel 页面。
+func dashboardTTLOrDefault() time.Duration {
+	if ttl := config.GlobalConfig.Scheduler.OTelDashboardTTL; ttl > 0 {
+		return ttl
+	}
+	return 30 * time.Second
+}
 
 // getOTelSnapshot 获取 OTel 快照（分离缓存 TTL）
 //
-// 标量摘要（变化慢）使用 5min TTL，Dashboard 列表（需要新鲜度）使用 30s TTL。
+// 标量摘要（变化慢）与 Dashboard 列表（需要新鲜度）各有独立 TTL。
 // Concentrator 在每次 Dashboard 数据刷新时摄入数据并输出预聚合时序。
 func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnapshot {
 	summaryTTL := config.GlobalConfig.Scheduler.OTelCacheTTL
 	if summaryTTL <= 0 {
 		summaryTTL = 5 * time.Minute
 	}
-	dashboardTTL := 30 * time.Second
+	dashboardTTL := dashboardTTLOrDefault()
 
 	snapshot := &cluster.OTelSnapshot{}
 	now := time.Now()
@@ -127,7 +146,11 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 	} else if s.dashboardRepo != nil {
 		defaultSince := 5 * time.Minute
 
-		wg.Add(9) // RecentLogs 已移除(走 Command 按需查询); SLOServices/SLOEdges 已移除(SLO 去 mesh)
+		// 7 路：APMOperations / MetricsNodes(+Summary) / APMServices / APMTopology /
+		// SLOIngress(+Summary) / RecentTraces / LogsSummary。
+		// RecentLogs 已移除(走 Command 按需查询); SLOServices/SLOEdges 已移除(SLO 去 mesh);
+		// MetricsSummary / SLOSummary 不再单独查（见文件头）。
+		wg.Add(7)
 
 		go func() {
 			defer wg.Done()
@@ -143,18 +166,6 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 
 		go func() {
 			defer wg.Done()
-			result, err := s.dashboardRepo.GetMetricsSummary(ctx)
-			if err != nil {
-				log.Warn("Dashboard MetricsSummary 查询失败", "err", err)
-				return
-			}
-			mu.Lock()
-			snapshot.MetricsSummary = result
-			mu.Unlock()
-		}()
-
-		go func() {
-			defer wg.Done()
 			result, err := s.dashboardRepo.ListAllNodeMetrics(ctx)
 			if err != nil {
 				log.Warn("Dashboard MetricsNodes 查询失败", "err", err)
@@ -162,6 +173,7 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			}
 			mu.Lock()
 			snapshot.MetricsNodes = result
+			snapshot.MetricsSummary = metrics.SummarizeNodes(result) // 同一份数据派生，不再二次扫描
 			mu.Unlock()
 		}()
 
@@ -191,18 +203,6 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 
 		go func() {
 			defer wg.Done()
-			result, err := s.dashboardRepo.GetSLOSummary(ctx)
-			if err != nil {
-				log.Warn("Dashboard SLOSummary 查询失败", "err", err)
-				return
-			}
-			mu.Lock()
-			snapshot.SLOSummary = result
-			mu.Unlock()
-		}()
-
-		go func() {
-			defer wg.Done()
 			result, err := s.dashboardRepo.ListIngressSLO(ctx, defaultSince)
 			if err != nil {
 				log.Warn("Dashboard SLOIngress 查询失败", "err", err)
@@ -211,6 +211,7 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 			mu.Lock()
 			s.applyRouteHostnames(ctx, result)
 			snapshot.SLOIngress = result
+			snapshot.SLOSummary = slo.SummarizeIngress(result) // 同一份数据派生，不再二次查询
 			mu.Unlock()
 		}()
 
