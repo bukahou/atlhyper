@@ -537,3 +537,17 @@ GROUP BY code;
 若要收拾，整包换成现成的 `service.QueryK8s` 即可（一次 sed 改 18 个文件）。
 
 ---
+
+## ClickHouse 负载排查 — 🔄 进行中
+
+> 起因：archangel 温度 55↔65 波动 → work 追到 ClickHouse → 用户指派本会话独立复核。
+> 已实证：合并放大 688×（part_log 6h），根因形态「每次重写约 61 万行只为吸收 274 行」；
+> SELECT 19/s、每次扫 12.2 MB（全库 155 MiB）；merge 95 MB/s vs SELECT 146 MB/s，谁是 CPU 主因未定。
+
+- 临时打开 query_log 全量记录以归因 SELECT 来源 — ✅ 2026-09-10 22:19 JST 完成
+  （config `24f6c71`，`log_queries_min_query_duration_ms` 1000→0，删 Pod 重启，空档约 20s）
+- 归因分析（谁在查、每类查询 CPU/字节、merge vs SELECT 的 CPU 占比）— 🔄 进行中
+- 🔴 **归因完成后必须改回 1000 并再重启一次 clickhouse-0** — 待办
+  ⚠️ 不改回 query_log 会重新长成最大单表（2026-08-25 曾 131 MiB，12:1 于业务数据）
+- 根据归因结果决定：collector batch（512/5s → 对齐 15s scrape）还是 agent 查询裁剪 — 待办
+- ⚠️ 发现：clickhouse-config 以 subPath 挂载 ⇒ 任何配置改动都要重启，注释里「热加载」失效 — 已在 config 注释纠正
