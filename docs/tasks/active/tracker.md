@@ -554,7 +554,11 @@ GROUP BY code;
   - 最贵查询：uname 无时间窗（128,789 行/45 MiB，加 15min 窗 −97%）；freshness max(TimeUnix) 9.1M 行（改读 system.parts → 23 行）；ListAllNodeMetrics 每周期跑两遍（otel_collector.go:146/158 + metrics.go:122）
   - ⚠️ 自我纠错：曾以 kubectl top 瞬时 204m 否定 work 的 0.58 核均值，metric_log 证明 0.58 才接近稳态；已向 work 撤回
 - 改回 query_log 阈值 1000 并重启 clickhouse-0 — ✅ 2026-09-11 06:43 JST（config `2a8725c`，空档 18s，零丢数据；全量 8h 曾长到 207 MiB）
-- 用户裁定顺序：D4 ✅ → D2 ✅ → D1 agent 三处查询修复 + D3 dashboardTTL 可配（待办，feature 分支）
+- 用户裁定顺序：D4 ✅ → D2 ✅ → D1+D3 ✅ 代码完成（分支 `fix/agent-ch-query-load` @ `1cbe23d`，TDD 全绿，未推送/未合并）
+  - D1：Summary 从同周期列表派生（model_v3 SummarizeNodes/SummarizeIngress）· uname 加 15min 窗 · freshness 改读 system.parts
+  - D3：`AGENT_OTEL_DASHBOARD_TTL`（默认 30s）；config dev 已设 2m（`config` 仓，未推送）
+  - 🔴 落地顺序：**D2 对账通过（09-11 16:10 JST 之后）→ 推分支跑 CI → 合 dev（dev agent 也连共用 CH，合 dev 就会改变 SELECT 负载，所以必须等 D2 窗口过完）→ 验证 → main → 用户点 prod
+  - 验收指标：两 agent SELECT 从各 8.6 qps 降到约 4.5；读侧 CPU 0.34 核 → 约 0.12（估算，需 metric_log 实测 ≥8h）
 - D2 collector `batch/metrics` 8192/15s — ✅ 2026-09-11 08:03 JST apply（config `1de4537`，Operator 滚动 13s，新 CM otel-collector-68785788）
   - 🔄 验收：≥8h 后（≈ 09-11 16:00 JST 之后）用 part_log 对账 NewPart/h、两源合并数、merge 墙钟；metric_log 看 CPU 曲线是否压平；k10temp 看小时基线
   - ⛔ 在此之前不落地 D1（避免两次改动的效果混在一个相位窗口里）
