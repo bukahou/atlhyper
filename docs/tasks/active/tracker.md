@@ -554,6 +554,9 @@ GROUP BY code;
   - 最贵查询：uname 无时间窗（128,789 行/45 MiB，加 15min 窗 −97%）；freshness max(TimeUnix) 9.1M 行（改读 system.parts → 23 行）；ListAllNodeMetrics 每周期跑两遍（otel_collector.go:146/158 + metrics.go:122）
   - ⚠️ 自我纠错：曾以 kubectl top 瞬时 204m 否定 work 的 0.58 核均值，metric_log 证明 0.58 才接近稳态；已向 work 撤回
 - 改回 query_log 阈值 1000 并重启 clickhouse-0 — ✅ 2026-09-11 06:43 JST（config `2a8725c`，空档 18s，零丢数据；全量 8h 曾长到 207 MiB）
-- 用户裁定顺序：D4 ✅ → D2 collector batch 对齐 15s（🔄 准备中）→ D1 agent 三处查询修复 + D3 dashboardTTL 可配（待办，feature 分支）
+- 用户裁定顺序：D4 ✅ → D2 ✅ → D1 agent 三处查询修复 + D3 dashboardTTL 可配（待办，feature 分支）
+- D2 collector `batch/metrics` 8192/15s — ✅ 2026-09-11 08:03 JST apply（config `1de4537`，Operator 滚动 13s，新 CM otel-collector-68785788）
+  - 🔄 验收：≥8h 后（≈ 09-11 16:00 JST 之后）用 part_log 对账 NewPart/h、两源合并数、merge 墙钟；metric_log 看 CPU 曲线是否压平；k10temp 看小时基线
+  - ⛔ 在此之前不落地 D1（避免两次改动的效果混在一个相位窗口里）
   ⚠️ D2 与 D1 落地至少隔 ≥8h（一个完整合并链相位），否则前后对账混在一起
 - ⚠️ 发现：clickhouse-config 以 subPath 挂载 ⇒ 任何配置改动都要重启，注释里「热加载」失效 — 已在 config 注释纠正
