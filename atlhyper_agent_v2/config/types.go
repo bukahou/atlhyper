@@ -10,6 +10,7 @@ type SchedulerConfig struct {
 	CommandPollInterval time.Duration // 指令轮询间隔
 	HeartbeatInterval   time.Duration // 心跳间隔
 	OTelCacheTTL        time.Duration // OTel 概览缓存 TTL (默认 5m)
+	OTelDashboardTTL    time.Duration // OTel Dashboard 列表缓存 TTL (默认 30s；dev 可放宽以减轻共用 ClickHouse 压力)
 }
 
 // TimeoutConfig 超时配置

@@ -554,9 +554,31 @@ GROUP BY code;
   - 最贵查询：uname 无时间窗（128,789 行/45 MiB，加 15min 窗 −97%）；freshness max(TimeUnix) 9.1M 行（改读 system.parts → 23 行）；ListAllNodeMetrics 每周期跑两遍（otel_collector.go:146/158 + metrics.go:122）
   - ⚠️ 自我纠错：曾以 kubectl top 瞬时 204m 否定 work 的 0.58 核均值，metric_log 证明 0.58 才接近稳态；已向 work 撤回
 - 改回 query_log 阈值 1000 并重启 clickhouse-0 — ✅ 2026-09-11 06:43 JST（config `2a8725c`，空档 18s，零丢数据；全量 8h 曾长到 207 MiB）
-- 用户裁定顺序：D4 ✅ → D2 ✅ → D1 agent 三处查询修复 + D3 dashboardTTL 可配（待办，feature 分支）
+- 用户裁定顺序：D4 ✅ → D2 ✅ → D1+D3 ✅ 代码完成（分支 `fix/agent-ch-query-load` @ `1cbe23d`，TDD 全绿，未推送/未合并）
+  - D1：Summary 从同周期列表派生（model_v3 SummarizeNodes/SummarizeIngress）· uname 加 15min 窗 · freshness 改读 system.parts
+  - D3：`AGENT_OTEL_DASHBOARD_TTL`（默认 30s）；config dev 已设 2m（`config` 仓，未推送）
+  - 🔴 落地顺序：**D2 对账通过（09-11 16:10 JST 之后）→ 推分支跑 CI → 合 dev（dev agent 也连共用 CH，合 dev 就会改变 SELECT 负载，所以必须等 D2 窗口过完）→ 验证 → main → 用户点 prod
+  - 验收指标：两 agent SELECT 从各 8.6 qps 降到约 4.5；读侧 CPU 0.34 核 → 约 0.12（估算，需 metric_log 实测 ≥8h）
 - D2 collector `batch/metrics` 8192/15s — ✅ 2026-09-11 08:03 JST apply（config `1de4537`，Operator 滚动 13s，新 CM otel-collector-68785788）
-  - 🔄 验收：≥8h 后（≈ 09-11 16:00 JST 之后）用 part_log 对账 NewPart/h、两源合并数、merge 墙钟；metric_log 看 CPU 曲线是否压平；k10temp 看小时基线
+  - 🔴 验收窗作废：09-11 09:25 JST 用户决定全集群关机搬机箱（work 已明确提醒会毁掉本轮测量，用户取舍）。D2 只跑了 1h22m。
+  - ✅ 对账已完成，但**不是用原计划的方式**：`system.part_log`/`metric_log` TTL=3 天，
+    D2 前唯一完整基线日 09-09 在 09-12 00:00 UTC 被删 ⇒ 「等 09-12 整日再对账」到时对照组已不存在。
+    ⇒ 改用 **09-10 23:04–09-11 00:25 的 81 分钟干净自然实验**（D2 已生效、集群未关机、8 节点全在、
+    ClickHouse 热态、agent 未改），与前一天同一时钟窗对比，节点数/缓存/相位/时段四个混杂全部抵消。
+    数值已抢救存档：`docs/tasks/active/clickhouse-d2-baseline.md`
+  - **D2 实测效果（干净窗口）**：进程 CPU 0.5343 → 0.3600 核（**−32.6%**）· 合并 CPU 0.162 → 0.055 核（**÷2.93**）
+    · InsertQuery 0.606 → 0.297/s · SELECT 次数 17.23 → 17.21 qps（**不变**，证明是纯 D2 效果）
+    · 读侧 SelectedRows 2.409 → 1.973 M/s（−18%，part 变少带来的意外收益）
+  - 🔴 **我此前报的数字大部分作废**（时段错配）：「合并墙钟 ÷10.5」「histogram 放大 ÷39」
+    「gauge 两源 811→0」「CPU 0.38–0.83 → 0.35–0.38」「温度下降归因 D2」—— 全部撤回，理由见基线文档。
+    温度下降实为机箱搬动+断电 4h 的全机降温（六个传感器集体降 6–7℃，CPU Tctl 只降 3.6℃）。
+  - ✅ 8T 盘核对通过：UDMA_CRC_Error_Count 仍为 646（与 08-26 同值，本次搬动无新增），
+    重分配/待定/不可纠正扇区全 0，SMART PASSED，ext4 正常 rw 挂载
+  - 🔴 **剩余优化的优先级被推翻**：post-D2 ClickHouse 进程 0.349 核中**合并只剩 0.049 核**
+    （其中约 0.020 核还是 ClickHouse 自己的 system 日志表合并，不受 batch 影响），
+    其余约 0.28–0.30 核全在 **SELECT 通道**（15.5 qps / 200 MiB/s，两个 agent）。
+    ⇒ **D1/D3 的可得收益（约 0.10–0.17 核）是继续调 batch/merge 参数（≤0.028 核）的 4–6 倍。**
+    ⇒ D1/D3 不必再等 D2 对账窗（两者作用在不同计数器：MergeTotalMilliseconds vs SelectQuery/SelectedBytes）
   - ⛔ 在此之前不落地 D1（避免两次改动的效果混在一个相位窗口里）
   ⚠️ D2 与 D1 落地至少隔 ≥8h（一个完整合并链相位），否则前后对账混在一起
 - ⚠️ 发现：clickhouse-config 以 subPath 挂载 ⇒ 任何配置改动都要重启，注释里「热加载」失效 — 已在 config 注释纠正

@@ -118,43 +118,16 @@ func (r *metricsRepository) GetNodeMetricsSeries(ctx context.Context, nodeName s
 }
 
 // GetMetricsSummary 获取集群节点指标概览
+//
+// ⚠️ 这是一次完整的全节点扫描（8 节点 × 17 条 SQL）。快照路径已改为从同周期的
+// ListAllNodeMetrics 结果直接派生（metrics.SummarizeNodes），本方法只留给
+// Command 按需查询；⛔ 不要在同一周期里既调它又调 ListAllNodeMetrics。
 func (r *metricsRepository) GetMetricsSummary(ctx context.Context) (*metrics.Summary, error) {
 	all, err := r.ListAllNodeMetrics(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	s := &metrics.Summary{
-		TotalNodes:  len(all),
-		OnlineNodes: len(all),
-	}
-	if len(all) == 0 {
-		return s, nil
-	}
-
-	var sumCPU, sumMem, maxCPU, maxMem, maxTemp float64
-	for _, nm := range all {
-		sumCPU += nm.CPU.UsagePct
-		sumMem += nm.Memory.UsagePct
-		if nm.CPU.UsagePct > maxCPU {
-			maxCPU = nm.CPU.UsagePct
-		}
-		if nm.Memory.UsagePct > maxMem {
-			maxMem = nm.Memory.UsagePct
-		}
-		if nm.Temperature.CPUTempC > maxTemp {
-			maxTemp = nm.Temperature.CPUTempC
-		}
-	}
-
-	n := float64(len(all))
-	s.AvgCPUPct = roundTo(sumCPU/n, 2)
-	s.AvgMemPct = roundTo(sumMem/n, 2)
-	s.MaxCPUPct = roundTo(maxCPU, 2)
-	s.MaxMemPct = roundTo(maxMem, 2)
-	s.MaxCPUTemp = roundTo(maxTemp, 1)
-
-	return s, nil
+	return metrics.SummarizeNodes(all), nil
 }
 
 // =============================================================================
@@ -1189,19 +1162,28 @@ func (r *metricsRepository) fillVMStat(ctx context.Context, ip string, nm *metri
 	return firstErr
 }
 
+// unameQuery 取某节点最近一条 uname 标签。
+//
+// ⚠️ 必须带时间窗：ORDER BY TimeUnix DESC LIMIT 1 用不上主键（TimeUnix 排在 Map 列之后），
+// 没有时间条件就扫全部 7 天分区 —— 2026-09-11 实测单次 128,789 行 / 45 MiB，
+// 每 30s × 每节点 × 每 agent，是全库扫描量第一名；加 15 分钟窗后 7,349 行 / 1.19 MiB。
+// uname 每 15s 上报一次，15 分钟内必有值；超过 15 分钟没上报时其他指标早已 Unavailable。
+const unameQuery = `
+		SELECT Attributes['release'], Attributes['machine']
+		FROM otel_metrics_gauge
+		WHERE MetricName = 'node_uname_info'
+		  AND ResourceAttributes['net.host.name'] = ?
+		  AND TimeUnix >= now() - INTERVAL 15 MINUTE
+		ORDER BY TimeUnix DESC LIMIT 1
+	`
+
 // fillSystemInfo 填充 Kernel，并返回 uname machine（x86_64 / aarch64，画像识别用）。
 // Uptime 由 fillScalarGauges 从 node_boot_time_seconds 换算。
 func (r *metricsRepository) fillSystemInfo(ctx context.Context, ip string, nm *metrics.NodeMetrics) (string, error) {
 	// Kernel + machine from uname info labels。
 	// 开机时间已并入 fillScalarGauges，这里只剩 uname。
 	var kernel, machine string
-	err := r.client.QueryRow(ctx, `
-		SELECT Attributes['release'], Attributes['machine']
-		FROM otel_metrics_gauge
-		WHERE MetricName = 'node_uname_info'
-		  AND ResourceAttributes['net.host.name'] = ?
-		ORDER BY TimeUnix DESC LIMIT 1
-	`, ip).Scan(&kernel, &machine)
+	err := r.client.QueryRow(ctx, unameQuery, ip).Scan(&kernel, &machine)
 	if err == nil {
 		nm.Kernel = kernel
 	}
