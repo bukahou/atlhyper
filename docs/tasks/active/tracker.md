@@ -560,7 +560,11 @@ GROUP BY code;
   - 🔴 落地顺序：**D2 对账通过（09-11 16:10 JST 之后）→ 推分支跑 CI → 合 dev（dev agent 也连共用 CH，合 dev 就会改变 SELECT 负载，所以必须等 D2 窗口过完）→ 验证 → main → 用户点 prod
   - 验收指标：两 agent SELECT 从各 8.6 qps 降到约 4.5；读侧 CPU 0.34 核 → 约 0.12（估算，需 metric_log 实测 ≥8h）
 - D2 collector `batch/metrics` 8192/15s — ✅ 2026-09-11 08:03 JST apply（config `1de4537`，Operator 滚动 13s，新 CM otel-collector-68785788）
-  - 🔄 验收：≥8h 后（≈ 09-11 16:00 JST 之后）用 part_log 对账 NewPart/h、两源合并数、merge 墙钟；metric_log 看 CPU 曲线是否压平；k10temp 看小时基线
+  - 🔴 验收窗作废：09-11 09:25 JST 用户决定全集群关机搬机箱（work 已明确提醒会毁掉本轮测量，用户取舍）。D2 只跑了 1h22m。
+  - 🔄 验收重排：集群恢复后 **从恢复起至少 1h 再起算**（排除冷启动尖峰：所有 Pod 同时重启、agent 重新轮询，合并/查询形态与稳态完全不同），然后 ≥8h 对账。
+    ⛔ 不得把停机前 1h22m 与恢复后拼接 —— 中间隔一次冷启动，缓存/合并队列/part 分布全变。
+    对账项：NewPart/h、两源合并数**逐小时分布**（双峰=卡 1% 阈值 → 30s；单峰高=15s 不够）、merge 墙钟、metric_log CPU 曲线、k10temp 小时基线
+  - ⚠️ 恢复后先核对 archangel 8T 机械盘（08-26 搬动曾 646 次 CRC + ext4 损坏），work 存有基线
   - ⛔ 在此之前不落地 D1（避免两次改动的效果混在一个相位窗口里）
   ⚠️ D2 与 D1 落地至少隔 ≥8h（一个完整合并链相位），否则前后对账混在一起
 - ⚠️ 发现：clickhouse-config 以 subPath 挂载 ⇒ 任何配置改动都要重启，注释里「热加载」失效 — 已在 config 注释纠正
