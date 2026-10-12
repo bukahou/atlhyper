@@ -106,39 +106,62 @@ func usageCell(pct float64) *model.HardwareUsageCell {
 	return cell
 }
 
-// tempCell 取某一类传感器里最热的一个成格。该类没有传感器 → nil。
+// tempCell 取某一类传感器里最需要关注的一个成格：先按状态取最差，同档再取最热。
+// 该类没有传感器 → nil。
+//
+// 不能只取最热：同一类里各传感器的健康线可以相差 30°C 以上（机械盘 50 / NVMe 84），
+// 55°C 已超线的机械盘会藏在 58°C 仍正常的 NVMe 后面，格子和 overall 一起显示绿色。
 func tempCell(sensors []metrics.TempSensor, class metrics.TempSensorClass, fallback tempThreshold) *model.HardwareTempCell {
-	var hottest *metrics.TempSensor
+	var pick *model.HardwareTempCell
 	for i := range sensors {
-		if sensors[i].Class() != class {
+		s := sensors[i]
+		if s.Class() != class {
 			continue
 		}
-		if hottest == nil || sensors[i].CurrentC > hottest.CurrentC {
-			hottest = &sensors[i]
+		max, crit := resolveTempLimits(s.MaxC, s.CritC, fallback)
+		cell := &model.HardwareTempCell{
+			Value:  s.CurrentC,
+			Max:    max,
+			Crit:   crit,
+			Label:  sensorLabel(s, class),
+			Status: tempStatus(s.CurrentC, max, crit),
+		}
+		if pick == nil || moreConcerning(cell.Status, cell.Value, pick.Status, pick.Value) {
+			pick = cell
 		}
 	}
-	if hottest == nil {
-		return nil
-	}
+	return pick
+}
 
-	max, crit := resolveTempLimits(hottest.MaxC, hottest.CritC, fallback)
-	return &model.HardwareTempCell{
-		Value:  hottest.CurrentC,
-		Max:    max,
-		Crit:   crit,
-		Label:  sensorLabel(*hottest, class),
-		Status: tempStatus(hottest.CurrentC, max, crit),
+// moreConcerning a 是否比 b 更需要关注：状态更差优先，同档比温度
+func moreConcerning(aStatus model.HardwareStatus, aValue float64, bStatus model.HardwareStatus, bValue float64) bool {
+	if ra, rb := statusRank(aStatus), statusRank(bStatus); ra != rb {
+		return ra > rb
+	}
+	return aValue > bValue
+}
+
+func statusRank(s model.HardwareStatus) int {
+	switch s {
+	case model.HardwareCrit:
+		return 2
+	case model.HardwareWarn:
+		return 1
+	default:
+		return 0
 	}
 }
 
 // resolveTempLimits 阈值来源优先级：传感器自报 > 画像表。
 // 只有 crit 没有 max 的传感器（Intel coretemp 常见），把 crit 的 90% 当提前量。
+// 只有 max 没有 crit 时对称处理：crit 至少为 max÷0.9 —— 画像 crit 可能低于自报 max
+// （实测 r8169 网卡自报 max=120，其他档 crit=95），直接套用会得到 120/95，越过 95 就跳过 warn 直接 crit。
 func resolveTempLimits(sensorMax, sensorCrit float64, fallback tempThreshold) (max, crit float64) {
 	switch {
 	case sensorMax > 0 && sensorCrit > 0:
 		return sensorMax, sensorCrit
 	case sensorMax > 0:
-		return sensorMax, fallback.crit
+		return sensorMax, math.Max(fallback.crit, hwRound(sensorMax/0.9, 2))
 	case sensorCrit > 0:
 		return hwRound(sensorCrit*0.9, 2), sensorCrit
 	default:
@@ -311,7 +334,7 @@ func awaitCell(disks []metrics.NodeDisk) *model.HardwareAwaitCell {
 	return worst
 }
 
-// buildHardwareSummary 速览 tile：全集群最热的点、欠压 / 降频节点数、最慢的盘
+// buildHardwareSummary 速览 tile：全集群最需关注的温度点、欠压 / 降频节点数、最慢的盘
 func buildHardwareSummary(nodes []metrics.NodeMetrics, rows []model.HardwareRow) model.HardwareSummary {
 	var s model.HardwareSummary
 	for i := range rows {
@@ -346,8 +369,9 @@ func buildHardwareSummary(nodes []metrics.NodeMetrics, rows []model.HardwareRow)
 	return s
 }
 
+// pickMaxTemp 速览 tile 跨节点、跨类别取最需要关注的温度点（规则同 tempCell：先最差、同档最热）
 func pickMaxTemp(cur *model.HardwareMaxTemp, cell *model.HardwareTempCell, node string) *model.HardwareMaxTemp {
-	if cur != nil && cur.Value >= cell.Value {
+	if cur != nil && !moreConcerning(cell.Status, cell.Value, cur.Status, cur.Value) {
 		return cur
 	}
 	return &model.HardwareMaxTemp{
