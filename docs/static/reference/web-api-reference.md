@@ -51,7 +51,7 @@
 
 ### 无 datasource 代理的模块（直接调用 api/）
 
-`api/auth.ts`, `api/ai.ts`, `api/ai-provider.ts`, `api/settings.ts`, `api/notify.ts`, `api/commands.ts`, `api/cluster.ts`, `api/slo.ts`, `api/apm.ts`, `api/log.ts`, `api/aiops.ts`
+`api/auth.ts`, `api/ai.ts`, `api/ai-provider.ts`, `api/notify.ts`, `api/commands.ts`, `api/cluster.ts`, `api/slo.ts`, `api/apm.ts`, `api/log.ts`, `api/aiops.ts`
 
 ---
 
@@ -480,18 +480,6 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 | DELETE | `/api/v2/ai/providers/{id}` | `deleteProvider(id)` |
 | GET | `/api/v2/ai/active` | `getActiveConfig()` |
 | PUT | `/api/v2/ai/active` | `updateActiveConfig(data)` |
-
----
-
-### 4.13 AI 配置
-
-**文件：** `api/settings.ts`
-
-| 方法 | 路径 | 函数名 |
-|------|------|--------|
-| GET | `/api/v2/settings/ai` | `getAIConfig()` |
-| PUT | `/api/v2/settings/ai/` | `updateAIConfig(data)` |
-| POST | `/api/v2/settings/ai/test` | `testAIConnection()` |
 
 ---
 

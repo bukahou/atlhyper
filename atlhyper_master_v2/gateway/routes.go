@@ -144,7 +144,6 @@ func (r *Router) registerRoutes() {
 	userH := adminHandler.NewUserHandler(r.service, r.service)
 	commandH := adminHandler.NewCommandHandler(r.service)
 	notifyH := adminHandler.NewNotifyHandler(r.service)
-	settingsH := adminHandler.NewSettingsHandler(r.service)
 	aiProviderH := adminHandler.NewAIProviderHandler(r.service)
 	auditH := adminHandler.NewAuditHandler(r.service)
 
@@ -287,7 +286,6 @@ func (r *Router) registerRoutes() {
 	r.routeAudited(pAIAnalyze, "/api/v2/aiops/ai/reports/", "read", "ai_report", aiopsAIH.ReportDetailHandler)
 	r.routeAudited(pAIAnalyze, "/api/v2/aiops/ai/analyze", "execute", "ai_analysis", aiopsAIH.AnalyzeHandler)
 
-	r.route(pAISettingsRead, "/api/v2/settings/ai", settingsH.AIConfigHandler)
 	r.route(pAISettingsRead, "/api/v2/ai/providers", aiProviderH.ProvidersHandler)
 	r.route(pAISettingsRead, "/api/v2/ai/settings", aiProviderH.SettingsHandler)
 	r.route(pAISettingsRead, "/api/v2/ai/roles", aiProviderH.RolesOverviewHandler)
@@ -303,7 +301,6 @@ func (r *Router) registerRoutes() {
 	r.routeAudited(pUserManage, "/api/v2/user/update-status", "update", "user", userH.UpdateStatus)
 	r.routeAudited(pUserManage, "/api/v2/user/delete", "delete", "user", userH.Delete)
 
-	r.routeAudited(pAISettingsWrite, "/api/v2/settings/ai/", "update", "ai_config", settingsH.AIConfigHandler)
 	r.routeAudited(pAISettingsWrite, "/api/v2/ai/providers/", "update", "ai_provider", aiProviderH.ProviderHandler)
 	r.routeAudited(pAISettingsWrite, "/api/v2/ai/settings/", "update", "ai_settings", aiProviderH.SettingsHandler)
 	r.routeAudited(pAISettingsWrite, "/api/v2/ai/budgets/", "update", "ai_budget", aiProviderH.BudgetHandler)

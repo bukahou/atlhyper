@@ -19,7 +19,7 @@ import (
 )
 
 // supportedProviders 支持的提供商 ID 列表
-var supportedProviders = []string{"gemini", "openai", "anthropic", "ollama"}
+var supportedProviders = []string{"gemini", "openai", "anthropic", "ollama", "bedrock"}
 
 // providerNames 提供商名称映射
 var providerNames = map[string]string{
@@ -27,6 +27,7 @@ var providerNames = map[string]string{
 	"openai":    "OpenAI",
 	"anthropic": "Anthropic Claude",
 	"ollama":    "Ollama (本地部署)",
+	"bedrock":   "AWS Bedrock",
 }
 
 // AIProviderHandler AI Provider Handler
@@ -264,10 +265,12 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		UpdatedAt:   now,
 	}
 
+	plainKey := provider.APIKey // repo 保存时原地加密；响应掩码要基于明文
 	if err := h.svc.CreateAIProvider(ctx, provider); err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, "failed to create provider")
 		return
 	}
+	provider.APIKey = plainKey
 
 	handler.WriteJSON(w, http.StatusCreated, toProviderResponse(provider))
 }
@@ -315,6 +318,10 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 		provider.Name = *req.Name
 	}
 	if req.Provider != nil {
+		if !slices.Contains(supportedProviders, *req.Provider) {
+			handler.WriteError(w, http.StatusBadRequest, "unsupported provider type")
+			return
+		}
 		provider.Provider = *req.Provider
 	}
 	if req.APIKey != nil && *req.APIKey != "" {
@@ -331,10 +338,12 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 	}
 	provider.UpdatedAt = time.Now()
 
+	plainKey := provider.APIKey // repo 保存时原地加密；响应掩码要基于明文
 	if err := h.svc.UpdateAIProvider(ctx, provider); err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, "failed to update provider")
 		return
 	}
+	provider.APIKey = plainKey
 
 	handler.WriteJSON(w, http.StatusOK, toProviderResponse(provider))
 }
@@ -904,4 +913,15 @@ func isValidBaseURL(rawURL string) bool {
 		return false
 	}
 	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+// maskAPIKey 展示用掩码：前 4 位 + **** + 后 4 位（≤ 8 位全部遮住）
+func maskAPIKey(key string) string {
+	if key == "" {
+		return ""
+	}
+	if len(key) <= 8 {
+		return "****"
+	}
+	return key[:4] + "****" + key[len(key)-4:]
 }

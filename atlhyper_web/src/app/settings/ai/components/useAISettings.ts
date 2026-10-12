@@ -86,7 +86,8 @@ export function useAISettings() {
       toast.error(aiT.requiredFields);
       return;
     }
-    if (!editingProvider && !formData.apiKey) {
+    // Ollama（自部署）可以不填 key，与后端校验一致
+    if (!editingProvider && !formData.apiKey && formData.provider !== "ollama") {
       toast.error(aiT.apiKeyRequired);
       return;
     }

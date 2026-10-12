@@ -68,6 +68,8 @@ type AIConfig struct {
 	Enabled     bool          // 已废弃（保留用于配置兼容，不再影响逻辑）
 	ToolTimeout time.Duration // Tool 执行超时（默认 30s）
 	Seed        AISeed        // 种子配置：首次启动时自动创建 Provider
+
+	BedrockRegion string // AWS Bedrock 区域（所有 bedrock provider 共用；缺省 ap-northeast-1）
 }
 
 // AISeed AI 种子配置

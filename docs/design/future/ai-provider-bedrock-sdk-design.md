@@ -1,6 +1,6 @@
 # AI Provider：接入 AWS Bedrock + 各家改官方 SDK —— 实施计划
 
-> 状态：计划已裁定（2026-10-12：D1–D8 用户裁定 + work 审阅补充 4 点已并入），待开工；开工时机由用户在 atlhyper 侧决定
+> 状态：计划已裁定（2026-10-12：D1–D8 用户裁定 + work 审阅补充 4 点已并入），PR-A 代码完成（分支 `feat/bedrock-provider`），待推 dev 与冒烟
 > 用户已裁定：① 先 A 后 B，两个 PR　② ~~新增 `region` 字段~~ → **被 D1 推翻：region 不进数据库，写进 Master 配置**　③ 第 1 轮零 tool call 时追加提示要求先取证、最多重试一次（只作用于 analyze，D3）　④ 由 atlhyper 排进 tracker
 > 凭证约束：Bedrock API key 由用户在 Web 设置页填写；⛔ 会话不经手明文，⛔ 不从环境变量 / 凭证文件取
 

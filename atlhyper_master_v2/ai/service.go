@@ -16,7 +16,8 @@ import (
 
 // ServiceConfig AI 服务配置（仅用于 Tool 超时等非敏感配置）
 type ServiceConfig struct {
-	ToolTimeout time.Duration // Tool 执行超时，默认 30s
+	ToolTimeout   time.Duration // Tool 执行超时，默认 30s
+	BedrockRegion string        // Bedrock 区域（Master 配置 MASTER_AI_BEDROCK_REGION；所有 bedrock provider 共用）
 }
 
 // aiServiceImpl AIService 实现
@@ -29,6 +30,8 @@ type aiServiceImpl struct {
 	executor     *toolExecutor
 	convRepo     database.AIConversationRepository
 	msgRepo      database.AIMessageRepository
+
+	bedrockRegion string // 来自 Master 配置，不来自数据库
 }
 
 // CreateConversation 创建对话
@@ -113,8 +116,12 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 		return nil, fmt.Errorf("LLM 调用失败: %w", err)
 	}
 
-	// 收集完整响应
-	text, _, usage := collectStreamResponse(stream)
+	// 收集完整响应（流出错 → 报错，不把半截文本当结果）
+	text, _, usage, err := collectStreamResponse(stream)
+	if err != nil {
+		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("LLM 流错误: %v", err))
+		return nil, fmt.Errorf("LLM 流错误: %w", err)
+	}
 
 	var inputTokens, outputTokens int
 	if usage != nil {

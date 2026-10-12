@@ -44,12 +44,6 @@ func (s *AdminService) UpdateNotifyChannel(ctx context.Context, ch *database.Not
 	return s.notifyRepo.Update(ctx, ch)
 }
 
-// ==================== Settings ====================
-
-func (s *AdminService) SetSetting(ctx context.Context, setting *database.Setting) error {
-	return s.settingsRepo.Set(ctx, setting)
-}
-
 // ==================== AI Provider ====================
 
 func (s *AdminService) CreateAIProvider(ctx context.Context, p *database.AIProvider) error {

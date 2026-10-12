@@ -9,6 +9,7 @@ const providerColors: Record<string, string> = {
   openai: "bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400",
   anthropic: "bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400",
   ollama: "bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400",
+  bedrock: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400",
 };
 
 const providerNames: Record<string, string> = {
@@ -16,6 +17,7 @@ const providerNames: Record<string, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic Claude",
   ollama: "Ollama",
+  bedrock: "AWS Bedrock",
 };
 
 const roleColors: Record<string, string> = {

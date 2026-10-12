@@ -20,7 +20,7 @@ AtlHyper is a next-generation SRE platform for the AI era, adopting a Master-Age
 - **SLO Monitoring** — Dual-layer SLO tracking for Ingress (Traefik) + service mesh (Linkerd): latency distribution, error budget, status code distribution
 - **AIOps Engine** — Dependency graph construction, EMA dynamic baseline, 3-stage risk scoring, state machine, incident lifecycle management
 - **Causal Topology Graph** — Four-layer directed acyclic graph (Ingress -> Service -> Pod -> Node) with risk propagation visualization
-- **AI Assistant** — Multi-model natural language operations (Chat + Tool Use), supports Gemini / OpenAI / Claude / Ollama (local), incident summary and root cause analysis
+- **AI Assistant** — Multi-model natural language operations (Chat + Tool Use), supports Gemini / OpenAI / Claude / Ollama / AWS Bedrock (local), incident summary and root cause analysis
 - **AI Multi-Role Routing** — Three AI roles (background / chat / analysis) with per-role provider routing and daily token/call budget controls
 - **AI Incident Analysis** — Automatic background analysis on incident creation, deep investigation with multi-round Tool Calling (up to 8 rounds), structured reports with confidence scoring
 - **Alert Notifications** — Email (SMTP) and Slack (Webhook) integrations
@@ -38,7 +38,7 @@ AtlHyper is a next-generation SRE platform for the AI era, adopting a Master-Age
 | **Agent** | Go 1.24 + client-go + ClickHouse | Cluster data collection, OTel data query, command execution |
 | **Web** | Next.js 16 + React 19 + Tailwind CSS 4 + ECharts + G6 | Visual management interface |
 | **Observability** | ClickHouse + OTel Collector + Linkerd | Time-series storage, telemetry collection, service mesh |
-| **AI** | Gemini / OpenAI / Claude / Ollama (Chat + Tool Use) | AI conversational operations, multi-role routing, incident analysis |
+| **AI** | Gemini / OpenAI / Claude / Ollama / AWS Bedrock (Chat + Tool Use) | AI conversational operations, multi-role routing, incident analysis |
 
 ---
 
@@ -142,7 +142,7 @@ Four-layer dependency graph (Node -> Pod -> Service -> Ingress) with risk propag
 ![AIOps Topology](docs/static/img/aiops-topology.png)
 
 ### AI Assistant
-Multi-model natural language operations chat (supports Gemini / OpenAI / Claude / Ollama) with Tool Use (incident query, analysis). Three AI roles (background / chat / analysis) with per-role provider routing and budget controls. Automatically outputs structured incident summaries and root cause analysis.
+Multi-model natural language operations chat (supports Gemini / OpenAI / Claude / Ollama / AWS Bedrock) with Tool Use (incident query, analysis). Three AI roles (background / chat / analysis) with per-role provider routing and budget controls. Automatically outputs structured incident summaries and root cause analysis.
 
 ![AI Assistant](docs/static/img/aiops-chat.png)
 
@@ -256,7 +256,7 @@ atlhyper/
 │   ├── agentsdk/           #   Agent Communication Layer
 │   ├── mq/                 #   Message Queue
 │   ├── aiops/              #   AIOps Engine
-│   ├── ai/                 #   AI Assistant (Gemini/OpenAI/Claude/Ollama)
+│   ├── ai/                 #   AI Assistant (Gemini/OpenAI/Claude/Ollama/Bedrock)
 │   ├── slo/                #   SLO Route Updater
 │   ├── notifier/           #   Alert Notifications
 │   └── config/             #   Configuration
@@ -385,7 +385,7 @@ LLM-powered incident analysis with three AI roles:
 | **chat** | User-initiated | Interactive natural language operations with SSE streaming |
 | **analysis** | User-initiated | Deep multi-round investigation (up to 8 rounds x 5 tool calls), structured report with confidence scoring |
 
-- **Multi-Provider**: Gemini / OpenAI / Claude / Ollama (local), each role can route to a different provider
+- **Multi-Provider**: Gemini / OpenAI / Claude / Ollama / AWS Bedrock (local), each role can route to a different provider
 - **Per-Role Budget**: Daily token limit and call limit per role, with fallback provider on budget exhaustion
 - **Report Persistence**: All AI reports (summary, root cause analysis, investigation steps) persisted to SQLite
 

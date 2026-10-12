@@ -110,6 +110,9 @@ func (s *aiServiceImpl) providerToRoleConfig(ctx context.Context, p *database.AI
 		ProviderID:   p.ID,
 		ProviderName: p.Name,
 	}
+	if p.Provider == "bedrock" {
+		cfg.Config.Region = s.bedrockRegion // 区域是部署级配置，不随 provider 存库
+	}
 
 	// 解析有效上下文窗口
 	cfg.ContextWindow = EffectiveContextWindow(ctx, p, s.modelRepo)
