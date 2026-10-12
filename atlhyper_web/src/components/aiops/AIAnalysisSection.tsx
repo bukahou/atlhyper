@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Sparkles, RefreshCw, Loader2, Search, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { useAuthStore } from "@/store/authStore";
 import { getAIReports, summarizeIncident, triggerAnalysis } from "@/api/aiops";
 import type { AIReport } from "@/api/aiops";
 import { AIReportCard } from "./AIReportCard";
+import { useCan } from "@/hooks/useCan";
 
 interface AIAnalysisSectionProps {
   incidentId: string;
@@ -16,7 +16,7 @@ interface AIAnalysisSectionProps {
 export function AIAnalysisSection({ incidentId, incidentState }: AIAnalysisSectionProps) {
   const { t } = useI18n();
   const aiT = t.aiops.ai;
-  const { isAuthenticated } = useAuthStore();
+  const canAnalyze = useCan()("ai.analyze");
   const [reports, setReports] = useState<AIReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -25,7 +25,7 @@ export function AIAnalysisSection({ incidentId, incidentState }: AIAnalysisSecti
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadReports = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!canAnalyze) return;
     try {
       const data = await getAIReports(incidentId);
       setReports(data);
@@ -34,7 +34,7 @@ export function AIAnalysisSection({ incidentId, incidentState }: AIAnalysisSecti
       // silently fail — reports are optional
       return [];
     }
-  }, [incidentId, isAuthenticated]);
+  }, [incidentId, canAnalyze]);
 
   useEffect(() => {
     setLoading(true);

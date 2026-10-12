@@ -3,8 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Bot, Brain, MessageSquare, Users, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { useAuthStore } from "@/store/authStore";
-import { UserRole } from "@/types/auth";
 import { toast } from "@/components/common/Toast";
 import {
   getRolesOverview,
@@ -14,6 +12,7 @@ import {
   type AIProvider,
 } from "@/api/ai-provider";
 import type { AISettingsPageTranslations } from "@/types/i18n";
+import { useCan } from "@/hooks/useCan";
 
 const roleIcons: Record<string, typeof Bot> = {
   background: Brain,
@@ -41,13 +40,14 @@ interface RoleOverviewCardProps {
 export function RoleOverviewCard({ providers, onRoleChanged }: RoleOverviewCardProps) {
   const { t } = useI18n();
   const aiT = t.aiSettingsPage;
-  const { isAuthenticated, user } = useAuthStore();
-  const isAdmin = user?.role === UserRole.ADMIN;
+  const can = useCan();
+  const canViewAI = can("ai.settings.read");
+  const isAdmin = can("ai.settings.write");
   const [roles, setRoles] = useState<RoleOverview[]>([]);
   const [savingRole, setSavingRole] = useState<string | null>(null);
 
   const loadRoles = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!canViewAI) {
       setRoles(mockRolesOverview);
       return;
     }
@@ -57,7 +57,7 @@ export function RoleOverviewCard({ providers, onRoleChanged }: RoleOverviewCardP
     } catch {
       // ignore
     }
-  }, [isAuthenticated]);
+  }, [canViewAI]);
 
   useEffect(() => {
     loadRoles();
@@ -129,7 +129,7 @@ export function RoleOverviewCard({ providers, onRoleChanged }: RoleOverviewCardP
               </div>
 
               {/* Provider selector */}
-              {isAdmin && isAuthenticated ? (
+              {isAdmin && canViewAI ? (
                 <select
                   value={currentProviderId ?? ""}
                   onChange={(e) => {

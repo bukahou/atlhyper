@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 
 import { CommandDetailModal, CommandFilterToolbar, CommandPagination } from "./components";
+import { PermissionLock } from "@/components/common/PermissionLock";
+import { canNow } from "@/hooks/useCan";
 
 // Status config
 const statusConfig: Record<
@@ -77,6 +79,11 @@ export default function CommandsPage() {
 
   const fetchData = useCallback(async () => {
     setError("");
+    // 指令历史是内容级数据（commands.read）；无权限时不发请求，界面由 PermissionLock 占位
+    if (!canNow("commands.read")) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await getCommandHistory({
         clusterId: currentClusterId,
@@ -213,53 +220,57 @@ export default function CommandsPage() {
           autoRefreshSeconds={intervalSeconds}
         />
 
-        <CommandFilterToolbar
-          sourceFilter={sourceFilter}
-          statusFilter={statusFilter}
-          actionFilter={actionFilter}
-          searchTerm={searchTerm}
-          onSourceChange={(v) => { setSourceFilter(v); setPage(0); }}
-          onStatusChange={(v) => { setStatusFilter(v); setPage(0); }}
-          onActionChange={(v) => { setActionFilter(v); setPage(0); }}
-          onSearchChange={(v) => { setSearchTerm(v); setPage(0); }}
-          onClearAll={clearAllFilters}
-          actionOptions={actionOptions}
-          commandCount={commands.length}
-          total={total}
-          t={t}
-        />
+        <PermissionLock permission="commands.read" className="bg-card rounded-xl border border-[var(--border-color)]">
+          <div className="space-y-6">
+          <CommandFilterToolbar
+            sourceFilter={sourceFilter}
+            statusFilter={statusFilter}
+            actionFilter={actionFilter}
+            searchTerm={searchTerm}
+            onSourceChange={(v) => { setSourceFilter(v); setPage(0); }}
+            onStatusChange={(v) => { setStatusFilter(v); setPage(0); }}
+            onActionChange={(v) => { setActionFilter(v); setPage(0); }}
+            onSearchChange={(v) => { setSearchTerm(v); setPage(0); }}
+            onClearAll={clearAllFilters}
+            actionOptions={actionOptions}
+            commandCount={commands.length}
+            total={total}
+            t={t}
+          />
 
-        {/* Data table */}
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          {loading ? (
-            <div className="py-12">
-              <LoadingSpinner />
-            </div>
-          ) : error ? (
-            <div className="text-center py-12 text-red-500">{error}</div>
-          ) : commands.length === 0 ? (
-            <div className="text-center py-12 text-muted">
-              <Terminal className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>{t.commands.noCommands}</p>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={commands}
-              loading={false}
-              error=""
-              keyExtractor={(cmd) => cmd.commandId}
-            />
-          )}
-        </div>
+          {/* Data table */}
+          <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+            {loading ? (
+              <div className="py-12">
+                <LoadingSpinner />
+              </div>
+            ) : error ? (
+              <div className="text-center py-12 text-red-500">{error}</div>
+            ) : commands.length === 0 ? (
+              <div className="text-center py-12 text-muted">
+                <Terminal className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>{t.commands.noCommands}</p>
+              </div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={commands}
+                loading={false}
+                error=""
+                keyExtractor={(cmd) => cmd.commandId}
+              />
+            )}
+          </div>
 
-        <CommandPagination
-          page={page}
-          pageSize={pageSize}
-          total={total}
-          onPageChange={setPage}
-          t={t}
-        />
+          <CommandPagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            t={t}
+          />
+          </div>
+        </PermissionLock>
       </div>
 
       {/* Detail modal */}

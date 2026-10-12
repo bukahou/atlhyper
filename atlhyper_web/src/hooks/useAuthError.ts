@@ -12,9 +12,12 @@
 import { useEffect, useCallback, useState } from "react";
 import { authErrorManager, type AuthError } from "@/api/request";
 import { useAuthStore } from "@/store/authStore";
+import { toast } from "@/components/common/Toast";
+import { useI18n } from "@/i18n/context";
 
 export function useAuthError() {
-  const { openLoginDialog, logout } = useAuthStore();
+  const { openLoginDialog, logout, refreshMe } = useAuthStore();
+  const { t } = useI18n();
   const [lastError, setLastError] = useState<AuthError | null>(null);
 
   const handleAuthError = useCallback(
@@ -26,12 +29,13 @@ export function useAuthError() {
         logout();
         openLoginDialog();
       } else if (error.type === "forbidden") {
-        // 403: 权限不足 - 可以在这里添加 toast 提示
-        // 目前只记录错误，具体 UI 反馈由调用方决定
+        // 403: 已登录但权限不足 —— 提示，并刷新权限（角色可能刚被调整）
         console.warn("[Auth] 权限不足:", error.message);
+        toast.error(t.permission.forbidden);
+        void refreshMe();
       }
     },
-    [logout, openLoginDialog]
+    [logout, openLoginDialog, refreshMe, t]
   );
 
   useEffect(() => {

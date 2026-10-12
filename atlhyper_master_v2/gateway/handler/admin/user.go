@@ -85,7 +85,7 @@ type RegisterRequest struct {
 	Password    string `json:"password"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"email"`
-	Role        int    `json:"role"` // 1=Viewer, 2=Operator, 3=Admin
+	Role        int    `json:"role"` // 0=Member, 1=Viewer, 2=Operator, 3=Admin
 }
 
 // UpdateRoleRequest 更新角色请求
@@ -303,7 +303,7 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Role < 1 || req.Role > 3 {
+	if req.Role < middleware.RoleMember || req.Role > middleware.RoleAdmin {
 		handler.WriteError(w, http.StatusBadRequest, "无效的角色值")
 		return
 	}

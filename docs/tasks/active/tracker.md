@@ -12,7 +12,21 @@
 
 ---
 
-## 硬件健康检测 — 🔄 第 1 期代码完成，待推送（2026-10-12）
+## 权限模型重设计 — 设计已裁定，待实施（2026-10-12）
+
+> 设计文档: [permission-model-design.md](../../design/active/permission-model-design.md)
+
+- 先行项：指令历史只保存执行结论 + 指令查询需登录 — ✅ 已上 dev（`dev-98389b3`，未登录访问两接口实测 401）
+- 规范：CLAUDE.md §4.3 按新模型重写 — ✅
+- 第 1 期：可选认证 + 查库取角色 / 权限表与路由声明 / env 字面值裁剪 / `/auth/me` + 前端 `useCan` / 锁定占位与演示页 — 🔄 代码完成
+  - 后端 ✅（go build / vet / test 全绿；路由层测试经变异验证有效）
+  - 前端 ✅（tsc / next build / vitest 全绿）
+  - 推 dev → dev 验证 待批准
+  - 后续项：角色说明页权限矩阵改为后端生成
+- 第 2 期：成员 0 级 + OIDC 接入（akasha 为首个身份源）— 另起设计
+- prod：⛔ 用户禁止 Claude 推送
+
+## 硬件健康检测 — 🔄 第 1 期已上 dev，待用户验证（2026-10-12）
 
 > 设计文档: [hardware-health-design.md](../../design/active/hardware-health-design.md)
 
@@ -21,7 +35,7 @@
 - 第 1 期：温度判定「先最差、同档最热」+ 只报 max 时对称 crit — 🔄 进行中
   - 代码 + 测试 ✅（分支 `fix/hardware-health-judgement`，本地 commit）
   - 速览 tile 文案改为「最需关注温度」 ✅（用户裁定 B）
-  - 合并 dev → CI → dev 验证（用户已批准）
+  - 合并 dev → CI → dev 部署 `dev-0016fdb` ✅；用户页面验证 待办
   - prod：⛔ 用户禁止 Claude 推送，由用户自行决定
 - 第 2 期：采集面（白名单扩项 / node-exporter systemd + textfile / smartctl_exporter）— 待批准
 - 第 3 期：机械盘健康线 + 盘身份 / SMART 判定 / 持续时长状态机 / 节点详情 v2 — 依赖第 2 期

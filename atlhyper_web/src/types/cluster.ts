@@ -62,6 +62,8 @@ export interface ContainerPort {
 export interface ContainerEnv {
   name: string;
   value?: string;
+  valueFrom?: string;
+  valueHidden?: boolean; // 后端按权限剥掉了字面值（无 workload.env.read）
 }
 
 // Pod 容器挂载
@@ -339,6 +341,7 @@ export interface EnvVarSpec {
   name: string;
   value?: string;
   valueFrom?: string;
+  valueHidden?: boolean; // 后端按权限剥掉了字面值（无 workload.env.read）
 }
 
 // 卷挂载

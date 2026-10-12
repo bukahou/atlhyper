@@ -13,6 +13,7 @@ import { CorrelationsPanel } from "./CorrelationsPanel";
 import { StatusCodeChart } from "./StatusCodeChart";
 import { DBStatsTable } from "./DBStatsTable";
 import { SlowTracesList } from "./SlowTracesList";
+import { PermissionLock } from "@/components/common/PermissionLock";
 
 interface ServiceOverviewProps {
   t: ApmTranslations;
@@ -166,7 +167,10 @@ export function ServiceOverview({
           {/* HTTP Status Code Distribution */}
           <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
             <StatusCodeChart t={t} stats={httpStats} onClickRow={handleStatusCodeClick} />
-            {statusFilter && filteredTraces.length > 0 && (
+            {/* 按状态码筛出的链路属内容级数据（traces.read） */}
+            {statusFilter && (
+              <PermissionLock permission="traces.read">
+                {filteredTraces.length > 0 ? (
               <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
                 <h4 className="text-xs font-medium text-muted mb-2">
                   {statusFilter.code} {statusFilter.method} — {filteredTraces.length} traces
@@ -186,11 +190,12 @@ export function ServiceOverview({
                   ))}
                 </div>
               </div>
-            )}
-            {statusFilter && filteredTraces.length === 0 && (
-              <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
-                <p className="text-xs text-muted text-center py-2">{t.noData}</p>
-              </div>
+                ) : (
+                  <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
+                    <p className="text-xs text-muted text-center py-2">{t.noData}</p>
+                  </div>
+                )}
+              </PermissionLock>
             )}
           </div>
 
@@ -219,7 +224,9 @@ export function ServiceOverview({
 
           {/* Slow Traces */}
           <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
-            <SlowTracesList t={t} traces={slowTraces} onSelectTrace={onSelectTrace} />
+            <PermissionLock permission="traces.read">
+              <SlowTracesList t={t} traces={slowTraces} onSelectTrace={onSelectTrace} />
+            </PermissionLock>
           </div>
         </>
       )}
@@ -249,8 +256,10 @@ export function ServiceOverview({
       {/* Errors Tab */}
       {activeTab === "errors" && (
         <div className="space-y-4">
-          <ErrorTracesList t={t} traces={errorTraces} onSelectTrace={onSelectTrace} />
-          <CorrelationsPanel t={t} clusterId={clusterId} serviceName={serviceName} timeParams={timeParams} />
+          <PermissionLock permission="traces.read" className="border border-[var(--border-color)] rounded-xl bg-card">
+            <ErrorTracesList t={t} traces={errorTraces} onSelectTrace={onSelectTrace} />
+            <CorrelationsPanel t={t} clusterId={clusterId} serviceName={serviceName} timeParams={timeParams} />
+          </PermissionLock>
         </div>
       )}
     </div>

@@ -5,7 +5,7 @@
  */
 
 import { post, get } from "./request";
-import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem } from "@/types/auth";
+import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem, AuthMe } from "@/types/auth";
 
 // ============================================================
 // Master V2 响应类型
@@ -15,6 +15,12 @@ import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem } from "@/
 interface LoginApiResponse {
   message: string;
   data: LoginResponse;
+}
+
+// 当前主体响应
+interface AuthMeApiResponse {
+  message: string;
+  data: AuthMe;
 }
 
 // 用户列表响应
@@ -45,6 +51,14 @@ interface OperationResponse {
  */
 export function login(data: LoginRequest) {
   return post<LoginApiResponse>("/api/v2/user/login", data);
+}
+
+/**
+ * 获取当前主体与权限（无需登录；访客得到 0 级权限）
+ * GET /api/v2/auth/me
+ */
+export function getMe() {
+  return get<AuthMeApiResponse>("/api/v2/auth/me");
 }
 
 /**

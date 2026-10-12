@@ -161,6 +161,7 @@ export const ja: Translations = {
     demoMode: "デモモード",
     demoModeHint: "サンプルデータを表示中です。Operator 権限でログインすると実際の設定を確認できます。",
     demoModeHintAudit: "サンプルデータを表示中です。Operator 権限でログインすると実際の監査ログを確認できます。",
+    demoModeHintUsers: "サンプルデータを表示中です。実際のユーザーの閲覧・管理には Admin 権限が必要です。",
     // 閲覧権限ヒント
     viewOnlyHint: "閲覧のみ可能です。設定を変更するには管理者にお問い合わせください。",
   },
@@ -833,6 +834,14 @@ export const ja: Translations = {
     invalidCredentials: "ユーザー名またはパスワードが間違っています",
     sessionExpired: "セッションが期限切れです。再度ログインしてください",
     pleaseLogin: "ログインしてください",
+  },
+  permission: {
+    lockedTitle: "より高い権限が必要です",
+    hintGuest: "ログインしてください。ログイン後も権限が不足する場合は管理者に昇格を依頼してください",
+    hintMember: "管理者に権限の昇格を依頼してください",
+    loginButton: "ログイン",
+    forbidden: "権限が不足しています。管理者に昇格を依頼してください",
+    envValueHidden: "値は非表示",
   },
   confirm: {
     defaultTitle: "操作の確認",

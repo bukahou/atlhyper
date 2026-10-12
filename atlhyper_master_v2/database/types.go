@@ -47,7 +47,7 @@ type User struct {
 	PasswordHash string
 	DisplayName  string
 	Email        string
-	Role         int // 1=Viewer, 2=Operator, 3=Admin（数值越大权限越高）
+	Role         int // 0=Member（与访客同权）, 1=Viewer, 2=Operator, 3=Admin（数值越大权限越高）
 	Status       int // 1=Active, 0=Disabled
 	CreatedAt    time.Time
 	UpdatedAt    time.Time

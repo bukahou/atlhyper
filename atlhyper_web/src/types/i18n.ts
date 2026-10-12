@@ -166,6 +166,7 @@ export interface CommonTranslations {
   demoMode: string;
   demoModeHint: string;
   demoModeHintAudit: string;
+  demoModeHintUsers: string;
   // 查看权限提示
   viewOnlyHint: string;
 }
@@ -876,6 +877,16 @@ export interface LoginTranslations {
   invalidCredentials: string;
   sessionExpired: string;
   pleaseLogin: string;
+}
+
+// 权限（锁定占位 / 权限不足提示）
+export interface PermissionTranslations {
+  lockedTitle: string;
+  hintGuest: string;
+  hintMember: string;
+  loginButton: string;
+  forbidden: string;
+  envValueHidden: string;
 }
 
 // Confirm Dialog 翻译
@@ -2581,6 +2592,7 @@ export interface Translations {
   agents: AgentsTranslations;
   notifications: NotificationsTranslations;
   login: LoginTranslations;
+  permission: PermissionTranslations;
   confirm: ConfirmTranslations;
   table: TableTranslations;
   daemonset: DaemonSetTranslations;

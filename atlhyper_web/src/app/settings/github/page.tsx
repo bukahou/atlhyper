@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { useAuthStore } from "@/store/authStore";
 import { PageHeader, LoadingSpinner } from "@/components/common";
 import { Eye, Github, Rocket, Clock, AlertTriangle, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 import { ConnectionCard, ReposCard, useGitHubPage } from "./components";
 import { ConfigCard, StatusCard, HistoryCard, useDeployPage } from "@/app/admin/deploy/components";
+import { useCan } from "@/hooks/useCan";
 
 type Tab = "connection" | "deploy" | "history";
 
@@ -17,7 +17,7 @@ export default function GitHubPage() {
   const { t } = useI18n();
   const gt = t.githubPage;
   const dt = t.deployPage;
-  const { isAuthenticated } = useAuthStore();
+  const canManageGitHub = useCan()("github.manage");
   const [activeTab, setActiveTab] = useState<Tab>("connection");
 
   const {
@@ -79,7 +79,7 @@ export default function GitHubPage() {
         />
 
         {/* 演示模式提示 */}
-        {!isAuthenticated && (
+        {!canManageGitHub && (
           <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
             <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             <div>

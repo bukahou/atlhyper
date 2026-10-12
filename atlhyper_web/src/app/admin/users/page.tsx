@@ -4,18 +4,22 @@ import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { useAuthStore } from "@/store/authStore";
-import { PageHeader, LoadingSpinner } from "@/components/common";
+import { PageHeader, LoadingSpinner, DemoBanner } from "@/components/common";
+import { useCan } from "@/hooks/useCan";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getUserList, updateUserStatus } from "@/api/auth";
 import { toast } from "@/components/common";
 import { Plus } from "lucide-react";
 import type { UserListItem } from "@/types/auth";
-import { UserRole } from "@/types/auth";
 
 import { AddUserModal, DeleteUserModal, EditRoleModal, UserRow } from "./components";
+import { MOCK_USERS } from "./components/mock-data";
 
 export default function UsersPage() {
   const { t } = useI18n();
-  const { user: currentUser, isAuthenticated, openLoginDialog } = useAuthStore();
+  const meLoaded = useAuthStore((st) => st.meLoaded);
+  const can = useCan();
+  const requireAuth = useRequireAuth();
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -23,9 +27,18 @@ export default function UsersPage() {
   const [editUser, setEditUser] = useState<UserListItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserListItem | null>(null);
 
-  const isAdmin = currentUser?.role === UserRole.ADMIN;
+  // 用户管理是纯管理功能页：无 user.manage 时整页展示演示数据
+  const isAdmin = can("user.manage");
+  const isDemo = meLoaded && !isAdmin;
 
   const fetchUsers = useCallback(async () => {
+    if (!meLoaded) return;
+    if (!isAdmin) {
+      setUsers(MOCK_USERS);
+      setError("");
+      setLoading(false);
+      return;
+    }
     try {
       const res = await getUserList();
       setUsers(res.data.data || []);
@@ -35,42 +48,26 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [t.common.loadFailed]);
+  }, [t.common.loadFailed, meLoaded, isAdmin]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
   const handleAddUser = () => {
-    if (!isAuthenticated) {
-      openLoginDialog(() => setAddModalOpen(true));
-    } else if (isAdmin) {
-      setAddModalOpen(true);
-    }
+    requireAuth(() => setAddModalOpen(true), "user.manage");
   };
 
   const handleEditRole = (user: UserListItem) => {
-    if (!isAuthenticated) {
-      openLoginDialog(() => setEditUser(user));
-    } else if (isAdmin) {
-      setEditUser(user);
-    }
+    requireAuth(() => setEditUser(user), "user.manage");
   };
 
   const handleDeleteUser = (user: UserListItem) => {
-    if (!isAuthenticated) {
-      openLoginDialog(() => setDeleteTarget(user));
-    } else if (isAdmin) {
-      setDeleteTarget(user);
-    }
+    requireAuth(() => setDeleteTarget(user), "user.manage");
   };
 
   const handleToggleStatus = async (user: UserListItem) => {
-    if (!isAuthenticated) {
-      openLoginDialog(() => handleToggleStatus(user));
-      return;
-    }
-    if (!isAdmin) return;
+    if (!requireAuth(() => {}, "user.manage")) return;
 
     const newStatus = user.status === 1 ? 0 : 1;
     try {
@@ -97,6 +94,8 @@ export default function UsersPage() {
     <Layout>
       <div className="space-y-6">
         <PageHeader title={t.nav.users} description={t.users.pageDescription} actions={addButton} />
+
+        {isDemo && <DemoBanner hint={t.common.demoModeHintUsers} />}
 
         {/* Users Table */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">

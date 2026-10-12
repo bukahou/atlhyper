@@ -9,6 +9,7 @@ import { navGroups, getActiveGroups, loadExpandedGroups, saveExpandedGroups } fr
 import { SidebarNavGroup } from "./SidebarNavGroup";
 import { SidebarClusterSelector } from "./SidebarClusterSelector";
 import { SidebarFooter } from "./SidebarFooter";
+import { useCan } from "@/hooks/useCan";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -18,7 +19,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { isAuthenticated, user } = useAuthStore();
-  const isAdmin = user?.role === 3;
+  const isAdmin = useCan()("user.manage");
   const [expandedGroups, setExpandedGroups] = useState<string[]>(() => loadExpandedGroups(pathname));
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [clusterMenuOpen, setClusterMenuOpen] = useState(false);

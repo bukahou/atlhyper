@@ -1,18 +1,18 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { useAuthStore } from "@/store/authStore";
 import * as githubDS from "@/datasource/github";
 import * as mock from "@/mock/github";
 import type { MockGitHubConnection, MockAuthorizedRepo } from "@/mock/github/data";
+import { useCan } from "@/hooks/useCan";
 
 export function useGitHubPage() {
-  const { isAuthenticated } = useAuthStore();
+  const canManageGitHub = useCan()("github.manage");
   const [loading, setLoading] = useState(true);
   const [connection, setConnection] = useState<MockGitHubConnection | null>(null);
   const [repos, setRepos] = useState<MockAuthorizedRepo[]>([]);
 
   const fetchData = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!canManageGitHub) {
       setConnection(mock.mockGetGitHubConnection());
       setRepos(mock.mockGetAuthorizedRepos());
       setLoading(false);
@@ -36,7 +36,7 @@ export function useGitHubPage() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [canManageGitHub]);
 
   useAutoRefresh(fetchData);
 
