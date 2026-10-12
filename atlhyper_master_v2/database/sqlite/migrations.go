@@ -62,7 +62,7 @@ func migrate(db *sql.DB) error {
 			password_hash TEXT NOT NULL,
 			display_name TEXT,
 			email TEXT,
-			role INTEGER DEFAULT 3,
+			role INTEGER DEFAULT 0,
 			status INTEGER DEFAULT 1,
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL,
