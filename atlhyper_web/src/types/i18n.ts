@@ -2135,6 +2135,10 @@ export interface AIOpsTranslations {
     analyze: string;
     analyzing: string;
     analysisFailed: string;
+    // 按后端错误码给出可操作的提示（gateway/handler/aiops/ai_error.go）
+    errorRoleUnassigned: string;
+    errorBudgetExhausted: string;
+    errorUpstream: string;
     summary: string;
     rootCauseAnalysis: string;
     recommendations: string;
@@ -2143,7 +2147,6 @@ export interface AIOpsTranslations {
     action: string;
     reason: string;
     impact: string;
-    similarity: string;
     noSimilar: string;
     generatedAt: string;
     regenerate: string;

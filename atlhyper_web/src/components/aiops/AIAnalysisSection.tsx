@@ -7,6 +7,7 @@ import { getAIReports, summarizeIncident, triggerAnalysis } from "@/api/aiops";
 import type { AIReport } from "@/api/aiops";
 import { AIReportCard } from "./AIReportCard";
 import { useCan } from "@/hooks/useCan";
+import { aiErrorMessage } from "@/lib/ai-error";
 
 interface AIAnalysisSectionProps {
   incidentId: string;
@@ -50,8 +51,8 @@ export function AIAnalysisSection({ incidentId, incidentState }: AIAnalysisSecti
     try {
       await summarizeIncident(incidentId);
       await loadReports();
-    } catch {
-      setError(aiT.analysisFailed);
+    } catch (err) {
+      setError(aiErrorMessage(err, aiT));
     } finally {
       setGenerating(false);
     }
@@ -74,8 +75,8 @@ export function AIAnalysisSection({ incidentId, incidentState }: AIAnalysisSecti
           setDeepAnalyzing(false);
         }
       }, 5000);
-    } catch {
-      setError(aiT.analysisFailed);
+    } catch (err) {
+      setError(aiErrorMessage(err, aiT));
       setDeepAnalyzing(false);
     }
   };

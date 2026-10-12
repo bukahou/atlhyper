@@ -56,7 +56,7 @@ func (h *AIOpsAIHandler) Summarize(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.SummarizeIncident(r.Context(), req.IncidentID)
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "AI analysis failed: "+err.Error())
+		writeAIError(w, "summarize", err)
 		return
 	}
 
@@ -89,7 +89,7 @@ func (h *AIOpsAIHandler) Recommend(w http.ResponseWriter, r *http.Request) {
 	// 复用 Summarize（Phase 4 不做区分，后续可特化 Prompt）
 	result, err := h.svc.SummarizeIncident(r.Context(), req.IncidentID)
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "AI recommendation failed: "+err.Error())
+		writeAIError(w, "recommend", err)
 		return
 	}
 

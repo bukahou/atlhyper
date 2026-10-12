@@ -209,7 +209,6 @@ export interface Recommendation {
 
 export interface SimilarMatch {
   incidentId: string;
-  similarity: number;
   rootCause: string;
   occurredAt: string;
   durationS: number;
