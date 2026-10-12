@@ -107,6 +107,11 @@ func TestNormalizeAPIKey(t *testing.T) {
 		{"bedrock 含引号 → 拒绝", "bedrock", `"ABSKexample123"`, "", true},
 		{"非 bedrock 不动 Bearer 字样", "openai", "Bearer-like-key", "Bearer-like-key", false},
 		{"空值保持空（由必填校验处理）", "bedrock", "   ", "", false},
+		// 终端折行时复制进中间的换行 / 空格（实测第一次保存后仍报 Base64 decoding failed）
+		{"bedrock 去掉中间夹带的换行与空格", "bedrock", "ABSKexam\nple 123", "ABSKexample123", false},
+		{"bedrock 含非 key 字符 → 拒绝", "bedrock", "ABSK…example", "", true},
+		{"bedrock 允许 base64 / base64url / 短期 key 前缀字符", "bedrock", "bedrock-api-key-YWJj+/_=", "bedrock-api-key-YWJj+/_=", false},
+		{"非 bedrock 不动中间内容", "openai", "sk a", "sk a", false},
 	}
 	for _, c := range cases {
 		got, err := normalizeAPIKey(c.provider, c.raw)
