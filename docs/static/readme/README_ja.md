@@ -20,7 +20,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 - **SLO 監視** — Ingress（Traefik）+ サービスメッシュ（Linkerd）二層 SLO トラッキング、レイテンシ分布、エラーバジェット、ステータスコード分布
 - **AIOps エンジン** — 依存グラフ構築、EMA 動的ベースライン、三段階リスクスコアリング、ステートマシン、インシデントライフサイクル管理
 - **因果トポロジーグラフ** — 四層有向非巡回グラフ（Ingress→Service→Pod→Node）、リスク伝播可視化
-- **AI アシスタント** — マルチモデル駆動の自然言語運用（Chat + Tool Use）、Gemini / OpenAI / Claude / Ollama（ローカル）対応、インシデント要約と根本原因分析
+- **AI アシスタント** — マルチモデル駆動の自然言語運用（Chat + Tool Use）、Gemini / OpenAI / Claude / Ollama / AWS Bedrock（ローカル）対応、インシデント要約と根本原因分析
 - **AI マルチロールルーティング** — 3つの AI ロール（background / chat / analysis）、ロール別プロバイダールーティング、日次トークン/コール予算制御
 - **AI インシデント分析** — インシデント作成時に自動バックグラウンド分析、マルチラウンド Tool Calling による深層調査（最大8ラウンド）、信頼度スコア付き構造化レポート
 - **アラート通知** — メール (SMTP) と Slack (Webhook) に対応
@@ -38,7 +38,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 | **Agent** | Go 1.24 + client-go + ClickHouse | クラスターデータ収集、OTel データクエリ、コマンド実行 |
 | **Web** | Next.js 16 + React 19 + Tailwind CSS 4 + ECharts + G6 | 可視化管理インターフェース |
 | **オブザーバビリティ** | ClickHouse + OTel Collector + Linkerd | 時系列ストレージ、テレメトリ収集、サービスメッシュ |
-| **AI** | Gemini / OpenAI / Claude / Ollama (Chat + Tool Use) | AI チャット運用、マルチロールルーティング、インシデント分析 |
+| **AI** | Gemini / OpenAI / Claude / Ollama / AWS Bedrock (Chat + Tool Use) | AI チャット運用、マルチロールルーティング、インシデント分析 |
 
 ---
 
@@ -141,7 +141,7 @@ AtlHyper は AI 時代の次世代 SRE プラットフォームです。Master-A
 ![AIOps トポロジー](../img/aiops-topology.png)
 
 ### AI アシスタント
-マルチモデル駆動の自然言語運用対話（Gemini / OpenAI / Claude / Ollama 対応）、Tool Use（インシデントクエリ、分析）に対応。3つの AI ロール（background / chat / analysis）によるロール別プロバイダールーティングと予算制御。構造化されたインシデント要約と根本原因分析を自動出力。
+マルチモデル駆動の自然言語運用対話（Gemini / OpenAI / Claude / Ollama / AWS Bedrock 対応）、Tool Use（インシデントクエリ、分析）に対応。3つの AI ロール（background / chat / analysis）によるロール別プロバイダールーティングと予算制御。構造化されたインシデント要約と根本原因分析を自動出力。
 
 ![AI アシスタント](../img/aiops-chat.png)
 
@@ -255,7 +255,7 @@ atlhyper/
 │   ├── agentsdk/           #   Agent 通信層
 │   ├── mq/                 #   メッセージキュー
 │   ├── aiops/              #   AIOps エンジン
-│   ├── ai/                 #   AI アシスタント (Gemini/OpenAI/Claude/Ollama)
+│   ├── ai/                 #   AI アシスタント (Gemini/OpenAI/Claude/Ollama/Bedrock)
 │   ├── slo/                #   SLO ルート更新
 │   ├── notifier/           #   アラート通知
 │   └── config/             #   設定
@@ -383,7 +383,7 @@ LLM 駆動のインシデント分析、3つの AI ロール：
 | **chat** | ユーザー起動 | インタラクティブな自然言語運用、SSE ストリーミング |
 | **analysis** | ユーザー起動 | マルチラウンド深層調査（最大8ラウンド × 5 Tool Call）、信頼度スコア付き構造化レポート |
 
-- **マルチプロバイダー**: Gemini / OpenAI / Claude / Ollama（ローカル）、各ロールは異なるプロバイダーにルーティング可能
+- **マルチプロバイダー**: Gemini / OpenAI / Claude / Ollama / AWS Bedrock（ローカル）、各ロールは異なるプロバイダーにルーティング可能
 - **ロール予算**: ロール毎の日次トークンリミットとコールリミット、予算枯渇時にフォールバックプロバイダーへ切り替え
 - **レポート永続化**: すべての AI レポート（要約、根本原因分析、調査ステップ）を SQLite に永続化
 

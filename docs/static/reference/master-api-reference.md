@@ -351,9 +351,6 @@
 
 | 方法 | 路径 | 权限 | 审计 | Handler |
 |------|------|------|------|---------|
-| GET | `/api/v2/settings/ai` | Operator | — | `SettingsHandler.AIConfigHandler` |
-| PUT | `/api/v2/settings/ai/` | Admin | update / ai_config | `SettingsHandler.AIConfigHandler` |
-| POST | `/api/v2/settings/ai/test` | Admin | update / ai_config | `SettingsHandler.AIConfigHandler` |
 
 ---
 
@@ -373,6 +370,8 @@
 - `GET /api/v2/ai/providers` 和 `POST /api/v2/ai/providers` 在同一个 Handler 中按 Method 分发
 - `ProvidersHandler` 在 Operator 块注册（GET 读取），但 POST 创建在 Handler 内部检查 Admin 权限
 - `ProviderHandler` 在 Admin 审计块注册，GET/PUT/DELETE 都走 Admin 路径
+- 支持的 provider：`gemini` / `openai` / `anthropic` / `ollama` / `bedrock`。`bedrock` 的 API key 以 Bearer 鉴权，区域不随 provider 存储，由 Master 配置 `MASTER_AI_BEDROCK_REGION`（缺省 `ap-northeast-1`）统一指定
+- 旧接口 `/api/v2/settings/ai` 已删除（2026-10，被本节接口取代）
 
 ---
 
@@ -406,7 +405,6 @@
 | `/api/v2/ops/configmaps/data` | read | configmap |
 | `/api/v2/ops/secrets/data` | read | secret |
 | `/api/v2/notify/channels/{type}` | update | notify |
-| `/api/v2/settings/ai/` | update | ai_config |
 | `/api/v2/ai/providers/{id}` | update | ai_provider |
 | `/api/v2/ai/active/` | update | ai_provider |
 | `/api/v2/user/register` | create | user |
