@@ -19,13 +19,14 @@ import type { RecentAlert } from "@/types/overview";
 import type { AIConfigStatus } from "./types";
 import { getMockConversations, getMockMessages } from "./mock-data";
 import { useCan } from "@/hooks/useCan";
+import { toast } from "@/components/common/Toast";
 
 export function useAIChat() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
   const { currentClusterId } = useClusterStore();
-  const { openLoginDialog } = useAuthStore();
+  const { openLoginDialog, isAuthenticated } = useAuthStore();
   const canChat = useCan()("ai.chat");
 
   // 演示模式（无 ai.chat 权限：访客与成员）
@@ -242,10 +243,14 @@ export function useAIChat() {
     router.push("/settings/ai");
   }, [router]);
 
-  // 演示模式下的处理函数
+  // 演示模式下的处理函数：访客弹登录框；已登录但无 ai.chat → 提示联系管理员
   const handleDemoAction = useCallback(() => {
+    if (isAuthenticated) {
+      toast.error(t.permission.forbidden);
+      return;
+    }
     openLoginDialog();
-  }, [openLoginDialog]);
+  }, [isAuthenticated, openLoginDialog, t]);
 
   return {
     aiStatus,
@@ -265,5 +270,6 @@ export function useAIChat() {
     goToSettings,
     handleDemoAction,
     openLoginDialog,
+    isAuthenticated,
   };
 }

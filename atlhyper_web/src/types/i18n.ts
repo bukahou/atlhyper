@@ -167,6 +167,7 @@ export interface CommonTranslations {
   demoModeHint: string;
   demoModeHintAudit: string;
   demoModeHintUsers: string;
+  demoModeHintGitHub: string;
   // 查看权限提示
   viewOnlyHint: string;
 }
@@ -1511,6 +1512,7 @@ export interface AIChatPageTranslations {
   // 演示模式
   demoMode: string;
   demoModeDesc: string;
+  demoModeDescMember: string;
   login: string;
   // 告警分析
   alertAnalysis: string;

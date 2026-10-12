@@ -159,9 +159,10 @@ export const zh: Translations = {
     namespaceName: "命名空间",
     // 演示模式（通用）
     demoMode: "演示模式",
-    demoModeHint: "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实配置。",
-    demoModeHintAudit: "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实审计日志。",
+    demoModeHint: "当前展示的是示例数据。需要 Operator 及以上权限才能查看真实配置。",
+    demoModeHintAudit: "当前展示的是示例数据。需要 Operator 及以上权限才能查看真实审计日志。",
     demoModeHintUsers: "当前展示的是示例数据。需要 Admin 权限才能查看与管理真实用户。",
+    demoModeHintGitHub: "当前展示的是示例数据。需要 Admin 权限才能查看与管理真实的 GitHub 连接。",
     // 查看权限提示
     viewOnlyHint: "您只有查看权限。如需修改配置，请联系管理员。",
   },
@@ -1588,7 +1589,8 @@ export const zh: Translations = {
     goToSettings: "前往设置",
     // 演示模式
     demoMode: "演示模式",
-    demoModeDesc: "展示示例对话，登录后可使用完整功能",
+    demoModeDesc: "展示示例对话；需登录且具备 Viewer 及以上权限才能使用",
+    demoModeDescMember: "展示示例对话；你的账号暂无 AI 对话权限，请联系管理员提升",
     login: "登录",
     // 告警分析
     alertAnalysis: "告警分析",
