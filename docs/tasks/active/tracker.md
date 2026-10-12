@@ -23,7 +23,14 @@
 - PR-A：Bedrock + 配置 region + 循环修复 + 删旧接口 — 🔄 代码完成（分支 `feat/bedrock-provider`，本地 commit）
   - 后端 ✅（go build / vet / test 全绿；Bearer 环境变量覆盖防线经变异验证）；前端 ✅（tsc / next build / vitest）
   - 推 dev — 待批准；之后逐模型冒烟（D8：用户经 Web 填 key，dev 重启后需重填）— 冒烟不过的模型从目录移除
-- PR-B：四家改官方 SDK（特征测试先行）— 待 PR-A 冒烟通过
+- PR-A 冒烟：Qwen3 流式 + 多轮 tool call ✅、深度分析端到端 ✅（5 轮 / 9 tools / 11s）；gpt-oss / MiniMax 待用户切换模型
+- AI 分析质量修复 ✅ 已上 dev：风险刻度 / 相似事件自排除 / 去伪造相似度 / 证据规则 / 失败原因码 / key 清理 / Markdown / Pod LAST-EXIT
+- PR-1（分支 `fix/ai-pr1`，本地 commit）— 🔄 代码完成，推 dev 待批准
+  - C 深度分析状态跟踪（内存 + 状态接口 + 前端按状态轮询 6 分钟）
+  - B2 补强（bedrock key 去中间空白 / 字符集校验）· A6 报告耗时 · A7 证据规则覆盖三角色 · A8 时间线刻度 · A9 实体风险随事件更新
+  - 未做：A10（后台分析上下文加 Pod lastState / 日志尾）待用户决定
+- 测试资源：namespace `atlhyper-smoke`（crashloop-demo 已缩到 0）— 删除待用户确认
+- PR-B：四家改官方 SDK（特征测试先行）— 待 gpt-oss / MiniMax 冒烟
 
 ## 权限模型重设计 — 第 1 期 + OIDC 已上 dev，待用户验证（2026-10-12）
 
