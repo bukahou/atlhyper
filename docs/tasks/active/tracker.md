@@ -25,7 +25,7 @@
   - 后续项：角色说明页权限矩阵改为后端生成
 - 第 2 期：OIDC 接入（akasha 为首个身份源）— 设计已裁定 ✅（附录 A 全按推荐）
   > 设计文档: [oidc-login-design.md](../../design/active/oidc-login-design.md)
-  - A 代码 + 测试（含 Go 1.26 升级）— 🔄 进行中
+  - A 代码 + 测试（含 Go 1.26 升级）— ✅ 本地 commit（go build / vet / test、tsc / next build / vitest 全绿）；未启用时行为不变
   - B akasha 登记 dev client + SYNC — ⚠️ 用户亲自做或单独批准（共享 prod IdP）
   - C dev Secret / env + 推 dev — 待批准
 - prod：⛔ 用户禁止 Claude 推送

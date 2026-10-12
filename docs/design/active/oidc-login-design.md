@@ -1,6 +1,6 @@
 # OIDC 登录接入 设计文档
 
-> 状态：设计已裁定（用户 2026-10-12：附录 A 三项全按推荐），A 期实施中
+> 状态：设计已裁定（用户 2026-10-12：附录 A 三项全按推荐）；A 期代码完成（分支 `feat/oidc-login`，本地 commit），B 期待用户
 > 前置：[permission-model-design.md](permission-model-design.md)（第 1 期已上 dev）—— 本文是其第 2 期
 > 首个身份源：akasha（自研 OIDC IdP）。代码按**通用 OIDC** 写，akasha 只是第一个被配置进来的 issuer
 
@@ -214,6 +214,10 @@ atlhyper_web/src/i18n/                                  [修改]
 - **推荐**：本期不处理；用户列表显示「外部身份」标记即可。若将来变多，再加「N 天未登录的 0 级外部账号自动清理」。
 
 ## 附录 B：约束与风险
+
+- **实施补充**：删用户时一并删除其身份行（否则同一身份再登录会撞唯一键）；
+  保留用户名（admin / administrator / root / system）不直接给外部账号，从 `-2` 起；
+  账号层面的拒绝（禁用 / 准入）经回跳片段传 `disabled` / `rejected`，而非笼统的 `application`。
 
 - **client_id 上线后不可改**：akasha 的 sub 按 client_id 派生（pairwise），改 client_id = 所有外部账号失联。
   dev 与 prod 是两个 client，同一个人在两边是两个账号（与 geass / melete 一致）。
