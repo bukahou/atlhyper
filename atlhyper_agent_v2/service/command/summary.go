@@ -138,6 +138,10 @@ func podColumns() []column {
 			return getPodRestarts(m)
 		}},
 		{"AGE", extractAge},
+		// 最近一次退出：给 AI 的重启原因证据（只有次数时模型会编造原因）
+		{"LAST-EXIT", func(m map[string]interface{}) string {
+			return getPodLastExit(m)
+		}},
 	}
 }
 
@@ -491,6 +495,38 @@ func getPodRestarts(m map[string]interface{}) string {
 		}
 	}
 	return fmt.Sprintf("%d", total)
+}
+
+// getPodLastExit 所有容器中 finishedAt 最晚的 lastState.terminated，格式「原因(退出码) 时间」；无则 "-"
+// finishedAt 为 RFC3339 字符串，同一格式下字典序即时间序
+func getPodLastExit(m map[string]interface{}) string {
+	var latestAt, latest string
+	for _, cs := range nestedSlice(m, "status", "containerStatuses") {
+		csm, ok := cs.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		last, _ := csm["lastState"].(map[string]interface{})
+		term, _ := last["terminated"].(map[string]interface{})
+		if term == nil {
+			continue
+		}
+		at := getStr(term, "finishedAt")
+		if latest != "" && at <= latestAt {
+			continue
+		}
+		reason := getStr(term, "reason")
+		if reason == "" {
+			reason = "Unknown"
+		}
+		code, _ := term["exitCode"].(float64)
+		latestAt = at
+		latest = fmt.Sprintf("%s(%d) %s", reason, int(code), at)
+	}
+	if latest == "" {
+		return "-"
+	}
+	return latest
 }
 
 func getServicePorts(m map[string]interface{}) string {
