@@ -26,8 +26,12 @@
 - 第 2 期：OIDC 接入（akasha 为首个身份源）— 设计已裁定 ✅（附录 A 全按推荐）
   > 设计文档: [oidc-login-design.md](../../design/active/oidc-login-design.md)
   - A 代码 + 测试（含 Go 1.26 升级）— ✅ 本地 commit（go build / vet / test、tsc / next build / vitest 全绿）；未启用时行为不变
-  - B akasha 登记 dev client + SYNC — ⚠️ 用户亲自做或单独批准（共享 prod IdP）
-  - C dev Secret / env + 推 dev — 待批准
+  - 代码已上 dev（`dev-ac5ceb0`，Go 1.26 镜像构建正常）✅
+  - B akasha 登记 `atlhyper-dev`（config `fa6718e`）✅；SYNC 由用户点（Claude 的 kubectl 触发被权限系统拦下）；新副本 2/2 就绪、0 重启；authorize 实测识别
+  - C dev ConfigMap / Secret + controller 配置版本注解（config `de36e45`）✅；实测 providers / start→akasha 302 + 状态 cookie / 坏 state→error=state
+  - 浏览器完整登录（akasha → Google → 回到 atlhyper 为 Member）— 待用户
+  - ⚠️ dev 的 master SQLite 是 emptyDir：每次部署 / 重启后外部账号与提权都会清空（prod 为 PVC，不受影响）
+  - prod：⛔ 用户自行处理（需另登记 `atlhyper` client，回调地址用 prod 域名）
 - prod：⛔ 用户禁止 Claude 推送
 
 ## 硬件健康检测 — 🔄 第 1 期已上 dev，待用户验证（2026-10-12）
