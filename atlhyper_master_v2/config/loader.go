@@ -78,8 +78,9 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.AI = AIConfig{
-		Enabled:     getBool("MASTER_AI_ENABLED"),
-		ToolTimeout: getDuration("MASTER_AI_TOOL_TIMEOUT"),
+		Enabled:       getBool("MASTER_AI_ENABLED"),
+		ToolTimeout:   getDuration("MASTER_AI_TOOL_TIMEOUT"),
+		BedrockRegion: getString("MASTER_AI_BEDROCK_REGION"),
 		Seed: AISeed{
 			Provider: getString("MASTER_AI_SEED_PROVIDER"),
 			Name:     getString("MASTER_AI_SEED_NAME"),

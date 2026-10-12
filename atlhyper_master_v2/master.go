@@ -185,7 +185,8 @@ func NewMaster() (*Master, error) {
 	// 7. 初始化 AI Service（Enricher 依赖 AIService）
 	aiService := ai.NewService(
 		ai.ServiceConfig{
-			ToolTimeout: cfg.AI.ToolTimeout,
+			ToolTimeout:   cfg.AI.ToolTimeout,
+			BedrockRegion: cfg.AI.BedrockRegion,
 		},
 		cmdOps, bus,
 		db.AIProvider, db.AISettings, db.AIModel, db.AIRoleBudget,
