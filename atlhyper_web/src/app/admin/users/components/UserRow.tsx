@@ -21,6 +21,12 @@ const roleConfig = {
     color: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
     icon: Eye,
   },
+  // 成员：与访客权限完全相同（外部身份源首次登录的默认角色）
+  [UserRole.MEMBER]: {
+    label: "Member",
+    color: "bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    icon: Eye,
+  },
 };
 
 interface UserRowProps {
@@ -34,7 +40,7 @@ interface UserRowProps {
 }
 
 export function UserRow({ user, isAdmin, onEditRole, onToggleStatus, onDelete, t, isMobile }: UserRowProps) {
-  const config = roleConfig[user.role as keyof typeof roleConfig] || roleConfig[UserRole.VIEWER];
+  const config = roleConfig[user.role as keyof typeof roleConfig] ?? roleConfig[UserRole.MEMBER];
   const RoleIcon = config.icon;
 
   const formatDate = (dateStr: string | null) => {

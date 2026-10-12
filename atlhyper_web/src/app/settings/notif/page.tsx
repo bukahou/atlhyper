@@ -5,9 +5,7 @@ import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { PageHeader, LoadingSpinner } from "@/components/common";
 import { toast } from "@/components/common/Toast";
-import { useAuthStore } from "@/store/authStore";
 import { AlertTriangle, Eye } from "lucide-react";
-import { UserRole } from "@/types/auth";
 
 import { SlackCard, EmailCard } from "./components";
 import {
@@ -21,13 +19,14 @@ import {
   type EmailConfig,
   type EmailUpdateData,
 } from "@/api/notify";
+import { useCan } from "@/hooks/useCan";
 
 export default function NotificationsPage() {
   const { t } = useI18n();
-  const { user, isAuthenticated } = useAuthStore();
+  const can = useCan();
 
   // 权限判断：Operator 即可查看和修改
-  const hasPermission = isAuthenticated && user && user.role >= UserRole.OPERATOR;
+  const hasPermission = can("notify.manage");
   const isDemo = !hasPermission;
 
   // 状态

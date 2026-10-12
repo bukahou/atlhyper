@@ -1,8 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "@/components/common/Toast";
-import { useAuthStore } from "@/store/authStore";
 import { useI18n } from "@/i18n/context";
-import { UserRole } from "@/types/auth";
 
 import {
   listProviders,
@@ -14,14 +12,15 @@ import {
   type AIProvider,
   type ProviderListResponse,
 } from "@/api/ai-provider";
+import { useCan } from "@/hooks/useCan";
 
 export function useAISettings() {
   const { t } = useI18n();
-  const { user, isAuthenticated } = useAuthStore();
+  const can = useCan();
   const aiT = t.aiSettingsPage;
 
-  const hasViewPermission = isAuthenticated && user && user.role >= UserRole.OPERATOR;
-  const isAdmin = user?.role === UserRole.ADMIN;
+  const hasViewPermission = can("ai.settings.read");
+  const isAdmin = can("ai.settings.write");
   const isDemo = !hasViewPermission;
 
   // State

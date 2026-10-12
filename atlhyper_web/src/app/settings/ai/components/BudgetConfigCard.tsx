@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { useAuthStore } from "@/store/authStore";
-import { UserRole } from "@/types/auth";
 import { toast } from "@/components/common/Toast";
 import { getBudgets, updateBudget, listProviders, mockBudgets, mockProviderList, type RoleBudget, type AIProvider } from "@/api/ai-provider";
+import { useCan } from "@/hooks/useCan";
 
 const ROLE_STYLES: Record<string, string> = {
   background: "border-blue-200 dark:border-blue-800",
@@ -47,8 +46,9 @@ function TokenProgress({ used, limit, label }: { used: number; limit: number; la
 export function BudgetConfigCard() {
   const { t } = useI18n();
   const aiT = t.aiSettingsPage;
-  const { user, isAuthenticated } = useAuthStore();
-  const isAdmin = user?.role === UserRole.ADMIN;
+  const can = useCan();
+  const canViewAI = can("ai.settings.read");
+  const isAdmin = can("ai.settings.write");
   const [budgets, setBudgets] = useState<RoleBudget[]>([]);
   const [providers, setProviders] = useState<AIProvider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +58,7 @@ export function BudgetConfigCard() {
   const [edits, setEdits] = useState<Record<string, Record<string, number | string | null>>>({});
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!canViewAI) {
       setBudgets(mockBudgets);
       setProviders(mockProviderList.providers);
       setLoading(false);
@@ -68,7 +68,7 @@ export function BudgetConfigCard() {
       getBudgets().then((res) => setBudgets(res.data.data)).catch(() => {}),
       listProviders().then((res) => setProviders(res.data.providers)).catch(() => {}),
     ]).finally(() => setLoading(false));
-  }, [isAuthenticated]);
+  }, [canViewAI]);
 
   const getEdit = (role: string, field: string) => edits[role]?.[field];
 

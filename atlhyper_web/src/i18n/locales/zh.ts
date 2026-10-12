@@ -161,6 +161,7 @@ export const zh: Translations = {
     demoMode: "演示模式",
     demoModeHint: "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实配置。",
     demoModeHintAudit: "当前展示的是示例数据。登录并获得 Operator 权限后可查看真实审计日志。",
+    demoModeHintUsers: "当前展示的是示例数据。需要 Admin 权限才能查看与管理真实用户。",
     // 查看权限提示
     viewOnlyHint: "您只有查看权限。如需修改配置，请联系管理员。",
   },
@@ -833,6 +834,14 @@ export const zh: Translations = {
     invalidCredentials: "用户名或密码错误",
     sessionExpired: "会话已过期，请重新登录",
     pleaseLogin: "请先登录",
+  },
+  permission: {
+    lockedTitle: "需要更高权限",
+    hintGuest: "请先登录；登录后如权限不足，请联系管理员提升",
+    hintMember: "请联系管理员提升权限",
+    loginButton: "登录",
+    forbidden: "权限不足，请联系管理员提升权限",
+    envValueHidden: "值已隐藏",
   },
   confirm: {
     defaultTitle: "确认操作",

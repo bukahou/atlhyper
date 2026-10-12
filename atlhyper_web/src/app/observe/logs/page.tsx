@@ -28,6 +28,7 @@ import { LogList } from "./components/LogList";
 import { LogHistogram } from "./components/LogHistogram";
 import { LogDetailDrawer } from "./components/LogDetail";
 import { LogFilterPills } from "./components/LogFilterPills";
+import { PermissionLock } from "@/components/common/PermissionLock";
 
 export default function LogsPage() {
   return (
@@ -286,17 +287,19 @@ function LogsPageContent() {
           )}
 
           <div className="flex-1 min-w-0">
-            <LogList
-              logs={result.logs}
-              total={result.total}
-              page={page}
-              pageSize={PAGE_SIZE}
-              onPageChange={handlePageChange}
-              onSelectEntry={handleSelectEntry}
-              selectedIdx={selectedIdx}
-              searchHighlight={search || undefined}
-              t={tl}
-            />
+            <PermissionLock permission="logs.read" className="bg-card rounded-xl border border-[var(--border-color)]">
+              <LogList
+                logs={result.logs}
+                total={result.total}
+                page={page}
+                pageSize={PAGE_SIZE}
+                onPageChange={handlePageChange}
+                onSelectEntry={handleSelectEntry}
+                selectedIdx={selectedIdx}
+                searchHighlight={search || undefined}
+                t={tl}
+              />
+            </PermissionLock>
           </div>
         </div>
       </div>

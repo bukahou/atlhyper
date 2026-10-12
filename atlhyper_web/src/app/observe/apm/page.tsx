@@ -28,6 +28,7 @@ import { ServiceOverview } from "./components/ServiceOverview";
 import { TraceWaterfall } from "./components/TraceWaterfall";
 import { ServiceTopology } from "./components/ServiceTopology";
 import { isErrorSpan } from "@/lib/otel";
+import { PermissionLock } from "@/components/common/PermissionLock";
 
 type ViewState =
   | { level: "services" }
@@ -263,22 +264,24 @@ function ApmPageContent() {
           />
         )}
 
-        {view.level === "trace-detail" && traceDetail && (
-          <TraceWaterfall
-            key={view.traceId}
-            t={ta}
-            trace={traceDetail}
-            allTraces={operationTraces}
-            currentTraceIndex={view.traceIndex}
-            initialFocusService={view.serviceName}
-            onNavigateTrace={navigateTrace}
-          />
-        )}
-
-        {view.level === "trace-detail" && !traceDetail && (
-          <div className="flex items-center justify-center h-48">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-          </div>
+        {view.level === "trace-detail" && (
+          <PermissionLock permission="traces.read" className="bg-card rounded-xl border border-[var(--border-color)]">
+            {traceDetail ? (
+              <TraceWaterfall
+                key={view.traceId}
+                t={ta}
+                trace={traceDetail}
+                allTraces={operationTraces}
+                currentTraceIndex={view.traceIndex}
+                initialFocusService={view.serviceName}
+                onNavigateTrace={navigateTrace}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+              </div>
+            )}
+          </PermissionLock>
         )}
       </div>
     </Layout>

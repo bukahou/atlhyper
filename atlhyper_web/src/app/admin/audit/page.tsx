@@ -5,25 +5,24 @@ import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { PageHeader, LoadingSpinner } from "@/components/common";
 import { getAuditLogs } from "@/api/auth";
-import { useAuthStore } from "@/store/authStore";
 import { Eye } from "lucide-react";
 import type { AuditLogItem } from "@/types/auth";
-import { UserRole } from "@/types/auth";
 import { MOCK_AUDIT_LOGS } from "./components/mock-data";
 import { AuditItem } from "./components/AuditItem";
 import { AuditFilterBar } from "./components/AuditFilterBar";
 import type { FilterResult } from "./components/AuditFilterBar";
+import { useCan } from "@/hooks/useCan";
 
 export default function AuditPage() {
   const { t } = useI18n();
   const auditT = t.audit;
-  const { isAuthenticated, user } = useAuthStore();
+  const can = useCan();
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // 判断是否有权限查看真实数据（需要 Operator 权限）
-  const hasPermission = isAuthenticated && user && user.role >= UserRole.OPERATOR;
+  const hasPermission = can("audit.read");
   const isDemo = !hasPermission;
 
   // 过滤器状态

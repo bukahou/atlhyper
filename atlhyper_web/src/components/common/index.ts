@@ -14,3 +14,5 @@ export { ToastContainer, toast } from "./Toast";
 export { StatusPage } from "./StatusPage";
 export { TimeRangePicker } from "./TimeRangePicker";
 export { FilterBar } from "./FilterBar";
+export { PermissionLock } from "./PermissionLock";
+export { DemoBanner } from "./DemoBanner";

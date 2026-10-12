@@ -1,11 +1,15 @@
 import { create } from "zustand";
-import type { UserInfo, LoginResponse } from "@/types/auth";
+import type { UserInfo, LoginResponse, Permission } from "@/types/auth";
+import { getMe } from "@/api/auth";
 
 interface AuthStore {
   token: string | null;
   user: UserInfo | null;
   clusterIds: string[];
   isAuthenticated: boolean;
+  // 权限只来自 /api/v2/auth/me（后端唯一权限源）；加载前一律视为无权限
+  permissions: Permission[];
+  meLoaded: boolean;
   isLoginDialogOpen: boolean;
   pendingAction: (() => void) | null;
 
@@ -15,6 +19,7 @@ interface AuthStore {
   setUser: (user: UserInfo) => void;
   setClusterIds: (clusterIds: string[]) => void;
   logout: () => void;
+  refreshMe: () => Promise<void>;
   openLoginDialog: (pendingAction?: () => void) => void;
   closeLoginDialog: () => void;
   executePendingAction: () => void;
@@ -45,6 +50,8 @@ const getInitialState = () => {
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   ...getInitialState(),
+  permissions: [],
+  meLoaded: false,
   isLoginDialogOpen: false,
   pendingAction: null,
 
@@ -58,6 +65,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       clusterIds: data.cluster_ids || [],
       isAuthenticated: true,
     });
+    void get().refreshMe();
   },
 
   setToken: (token: string) => {
@@ -80,6 +88,28 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     localStorage.removeItem("user");
     localStorage.removeItem("clusterIds");
     set({ token: null, user: null, clusterIds: [], isAuthenticated: false });
+    void get().refreshMe(); // 回到访客权限
+  },
+
+  refreshMe: async () => {
+    try {
+      const res = await getMe();
+      const me = res.data.data;
+      if (!me.user && get().token) {
+        // 本地有 token 但后端不认（过期 / 禁用 / 已删除）→ 清掉本地登录态
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("clusterIds");
+        set({ token: null, user: null, clusterIds: [], isAuthenticated: false });
+      } else if (me.user) {
+        localStorage.setItem("user", JSON.stringify(me.user));
+        set({ user: me.user });
+      }
+      set({ permissions: me.permissions ?? [], meLoaded: true });
+    } catch {
+      // 拿不到权限时保持「无权限」：失败即关
+      set({ permissions: [], meLoaded: true });
+    }
   },
 
   openLoginDialog: (pendingAction?: () => void) => {

@@ -7,6 +7,8 @@ import { getNamespaceDetail } from "@/datasource/cluster";
 import { getConfigMaps, getSecrets } from "@/api/namespace";
 import { useClusterStore } from "@/store/clusterStore";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useCan } from "@/hooks/useCan";
+import { PermissionLock } from "@/components/common/PermissionLock";
 import { useI18n } from "@/i18n/context";
 import type { NamespaceDetail, ConfigMapDTO, SecretDTO } from "@/types/cluster";
 import { FolderTree, FileText, Tag, Shield, Lock } from "lucide-react";
@@ -43,6 +45,7 @@ export function NamespaceDetailModal({
   const [secrets, setSecrets] = useState<SecretDTO[]>([]);
   const [secretsLoading, setSecretsLoading] = useState(false);
   const requireAuth = useRequireAuth();
+  const can = useCan();
   const { t } = useI18n();
 
   const fetchDetail = useCallback(async () => {
@@ -112,14 +115,12 @@ export function NamespaceDetailModal({
     }
   }, [activeTab, configMaps.length, configMapsLoading, fetchConfigMaps]);
 
-  // 当切换到 Secrets tab 时加载数据（需要 Operator 权限）
+  // 当切换到 Secrets tab 时加载数据（需要 secret.read；无权限时由 PermissionLock 占位）
   useEffect(() => {
-    if (activeTab === "secrets" && secrets.length === 0 && !secretsLoading) {
-      requireAuth(() => {
-        fetchSecrets();
-      });
+    if (activeTab === "secrets" && secrets.length === 0 && !secretsLoading && can("secret.read")) {
+      fetchSecrets();
     }
-  }, [activeTab, secrets.length, secretsLoading, fetchSecrets, requireAuth]);
+  }, [activeTab, secrets.length, secretsLoading, fetchSecrets, can]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: t.namespace.overview, icon: <FolderTree className="w-4 h-4" /> },
@@ -167,7 +168,9 @@ export function NamespaceDetailModal({
               <ConfigMapsTab configMaps={configMaps} loading={configMapsLoading} requireAuth={requireAuth} namespace={namespaceName} t={t} />
             )}
             {activeTab === "secrets" && (
-              <SecretsTab secrets={secrets} loading={secretsLoading} requireAuth={requireAuth} namespace={namespaceName} t={t} />
+              <PermissionLock permission="secret.read">
+                <SecretsTab secrets={secrets} loading={secretsLoading} requireAuth={requireAuth} namespace={namespaceName} t={t} />
+              </PermissionLock>
             )}
             {activeTab === "labels" && (
               <LabelsTab labels={detail.labels || {}} annotations={detail.annotations || {}} t={t} />
