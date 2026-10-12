@@ -5,6 +5,7 @@
  */
 
 import { get, post } from "./request";
+import type { AnalysisStatus } from "@/lib/analysis-poll";
 
 // ==================== 类型定义 ====================
 
@@ -356,6 +357,11 @@ export async function getAIReportDetail(reportId: number): Promise<AIReportDetai
   return (await get<{ data: AIReportDetail }>(`/api/v2/aiops/ai/reports/${reportId}`)).data.data;
 }
 
-export async function triggerAnalysis(incidentId: string): Promise<{ message: string; reportId: number }> {
-  return (await post<{ message: string; reportId: number }>("/api/v2/aiops/ai/analyze", { incidentId })).data;
+export async function triggerAnalysis(incidentId: string): Promise<{ message: string; alreadyRunning: boolean }> {
+  return (await post<{ message: string; alreadyRunning: boolean }>("/api/v2/aiops/ai/analyze", { incidentId })).data;
+}
+
+/** 深度分析状态（running / succeeded / failed / none）—— GET /api/v2/aiops/ai/analyze/status */
+export async function getAnalysisStatus(incidentId: string): Promise<AnalysisStatus> {
+  return (await get<{ message: string; data: AnalysisStatus }>("/api/v2/aiops/ai/analyze/status", { incidentId })).data.data;
 }

@@ -2113,6 +2113,8 @@ Deployment が更新され、新しい Pod が起動中です
       errorRoleUnassigned: "この機能の AI ロールにプロバイダーが割り当てられていません。「AI 設定 → ロール割り当て」で指定してください",
       errorBudgetExhausted: "この AI ロールの予算を使い切りました。「AI 設定」で予算を調整するか、代替プロバイダーを設定してください",
       errorUpstream: "AI モデルの呼び出しに失敗しました。プロバイダーの API Key と状態を確認するか、後でもう一度お試しください",
+      errorTimeout: "AI 分析がタイムアウトしました（5 分超過）。後でもう一度お試しいただくか、より高速なモデルをご利用ください",
+      analysisInterrupted: "分析が中断されました（サービス再起動）。もう一度実行してください",
       summary: "概要",
       rootCauseAnalysis: "根本原因分析",
       recommendations: "対処提案",
