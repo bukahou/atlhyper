@@ -16,6 +16,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/common/logger"
+	"AtlHyper/model_v3/command"
 )
 
 var cmdHandlerLog = logger.Module("CommandHandler")
@@ -100,7 +101,13 @@ func (h *CommandHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler.WriteJSON(w, http.StatusOK, status)
+	// bus 内存里的结果带 Output（交给同步等待方），返回前换成只含执行结论的副本
+	resp := *status
+	if status.Result != nil {
+		meta := status.Result.Metadata()
+		resp.Result = &meta
+	}
+	handler.WriteJSON(w, http.StatusOK, resp)
 }
 
 // CommandHistoryResponse 命令历史响应
@@ -185,7 +192,7 @@ func (h *CommandHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
 			TargetName:      cmd.TargetName,
 			Params:          cmd.Params,
 			Status:          cmd.Status,
-			Result:          cmd.Result,
+			Result:          command.RedactStoredResult(cmd.Result), // 早期版本写入的行可能含 output
 			ErrorMessage:    cmd.ErrorMessage,
 			CreatedAt:       cmd.CreatedAt,
 			StartedAt:       cmd.StartedAt,
