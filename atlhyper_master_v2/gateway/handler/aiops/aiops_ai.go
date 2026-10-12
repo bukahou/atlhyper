@@ -17,8 +17,8 @@ import (
 
 // AnalyzeTrigger 深度分析触发接口
 type AnalyzeTrigger interface {
-	// TriggerAnalysis 异步启动；同一事件已在分析中返回 false
-	TriggerAnalysis(incidentID string) bool
+	// TriggerAnalysis 异步启动；同一事件已在分析中返回 false；trigger 写入报告
+	TriggerAnalysis(incidentID, trigger string) bool
 	// AnalysisStatus 最近一次分析的状态；查不到返回 false
 	AnalysisStatus(incidentID string) (enricher.AnalysisJob, bool)
 }
@@ -258,7 +258,7 @@ func (h *AIOpsAIHandler) AnalyzeHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	started := h.trigger.TriggerAnalysis(req.IncidentID)
+	started := h.trigger.TriggerAnalysis(req.IncidentID, enricher.TriggerManual)
 
 	msg := "分析已提交"
 	if !started {

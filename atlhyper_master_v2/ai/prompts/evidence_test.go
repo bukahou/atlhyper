@@ -26,3 +26,15 @@ func TestAllRolePrompts_ShareEvidenceRules(t *testing.T) {
 		}
 	}
 }
+
+// A10：Pod 容器状态作为证据段落进入后台分析的用户消息（为空时不出现）
+func TestBackgroundPrompt_IncludesPodStates(t *testing.T) {
+	with := BuildBackgroundPrompt(&IncidentPromptContext{PodStates: "ns/pod/a:\n  容器 app: 当前 waiting(CrashLoopBackOff) | 重启 5 次 | 上次退出: Error\n"})
+	if !strings.Contains(with.User, "## Pod 容器状态") || !strings.Contains(with.User, "上次退出: Error") {
+		t.Errorf("应包含 Pod 容器状态段落：\n%s", with.User)
+	}
+	without := BuildBackgroundPrompt(&IncidentPromptContext{})
+	if strings.Contains(without.User, "## Pod 容器状态") {
+		t.Error("无数据时不应出现该段落")
+	}
+}

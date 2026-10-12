@@ -61,3 +61,29 @@ func TestReports_RecordLLMDuration(t *testing.T) {
 		t.Errorf("耗时未写入报告：%v", got)
 	}
 }
+
+// 自动触发的深度分析曾被标成「手动触发」（TriggerAnalysis 写死了 "manual"）
+func TestTriggerAnalysis_RecordsTriggerSource(t *testing.T) {
+	for _, trigger := range []string{TriggerManual, TriggerAutoEscalation} {
+		repo := &mockIncidentRepo{incident: makeTestIncident(), entities: makeTestEntities(), timeline: makeTestTimeline()}
+		reports := &captureReportRepo{}
+		e := NewEnricher(repo, reports, &durationAIService{newMockAIService(`{}`)})
+
+		if !e.TriggerAnalysis("inc-test-001", trigger) {
+			t.Fatal("应启动")
+		}
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			if st, _ := e.AnalysisStatus("inc-test-001"); st.State != JobRunning {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("分析未结束")
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		if len(reports.saved) != 1 || reports.saved[0].Trigger != trigger {
+			t.Errorf("trigger = %+v，want %s", reports.saved, trigger)
+		}
+	}
+}

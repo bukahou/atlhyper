@@ -2140,6 +2140,8 @@ Deployment 已更新，新的 Pod 正在启动中
       triggerIncidentCreated: "事件创建触发",
       triggerStateChanged: "状态变更触发",
       triggerManual: "手动触发",
+      triggerStateEscalated: "事件升级触发",
+      triggerAutoEscalation: "事件升级自动触发",
       investigationSteps: "调查过程",
       evidenceChain: "证据链",
       round: "轮次",

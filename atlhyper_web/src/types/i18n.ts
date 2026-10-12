@@ -2166,6 +2166,8 @@ export interface AIOpsTranslations {
     triggerIncidentCreated: string;
     triggerStateChanged: string;
     triggerManual: string;
+    triggerStateEscalated: string;
+    triggerAutoEscalation: string;
     investigationSteps: string;
     evidenceChain: string;
     round: string;

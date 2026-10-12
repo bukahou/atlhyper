@@ -16,7 +16,7 @@ type fakeTrigger struct {
 	jobs    map[string]enricher.AnalysisJob
 }
 
-func (f *fakeTrigger) TriggerAnalysis(id string) bool {
+func (f *fakeTrigger) TriggerAnalysis(id, _ string) bool {
 	if f.running[id] {
 		return false
 	}

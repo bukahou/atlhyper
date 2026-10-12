@@ -196,7 +196,7 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 		"mode", mode)
 
 	// 通过 Enricher.TriggerAnalysis 异步执行深度分析
-	bt.enricher.TriggerAnalysis(evt.IncidentID)
+	bt.enricher.TriggerAnalysis(evt.IncidentID, TriggerAutoEscalation)
 }
 
 // isWithinSchedule 检查当前时间是否在定时窗口内（HH:MM 格式，支持跨午夜）

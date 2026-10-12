@@ -2140,6 +2140,8 @@ Deployment が更新され、新しい Pod が起動中です
       triggerIncidentCreated: "インシデント作成トリガー",
       triggerStateChanged: "状態変更トリガー",
       triggerManual: "手動トリガー",
+      triggerStateEscalated: "インシデント昇格でトリガー",
+      triggerAutoEscalation: "インシデント昇格で自動実行",
       investigationSteps: "調査プロセス",
       evidenceChain: "証拠チェーン",
       round: "ラウンド",

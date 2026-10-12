@@ -144,20 +144,26 @@ func (e *Enricher) NotifyIncidentEvent(incidentID, severity, trigger string) {
 	e.bgTrigger.Submit(incidentID, severity, trigger)
 }
 
+// 深度分析触发来源（写入报告的 trigger 字段，前端据此显示「手动触发」/「升级自动触发」）
+const (
+	TriggerManual         = "manual"          // 用户点「深入调查」
+	TriggerAutoEscalation = "auto_escalation" // 事件升级后按角色预算配置自动触发
+)
+
 // TriggerAnalysis 触发深度分析（异步）
 // 同一事件已在分析中则不重复启动，返回 false；状态经 AnalysisStatus 查询
-func (e *Enricher) TriggerAnalysis(incidentID string) bool {
+func (e *Enricher) TriggerAnalysis(incidentID, trigger string) bool {
 	if !e.jobs.start(incidentID) {
 		log.Info("深度分析已在进行，忽略重复触发", "incident", incidentID)
 		return false
 	}
-	log.Info("触发深度分析", "incident", incidentID)
+	log.Info("触发深度分析", "incident", incidentID, "trigger", trigger)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), analysisTimeout)
 		defer cancel()
 
-		err := e.runAnalysis(ctx, incidentID, "manual")
+		err := e.runAnalysis(ctx, incidentID, trigger)
 		e.jobs.finish(incidentID, err)
 		if err != nil {
 			log.Error("深度分析失败", "incident", incidentID, "code", ai.ErrorCode(err), "err", err)
@@ -508,6 +514,7 @@ func (e *Enricher) buildPromptWithTruncation(
 			incidentCtx.RecentErrorTraces = traces
 			incidentCtx.RecentErrorLogs = logs
 			incidentCtx.SLOContext = sloCtx
+			incidentCtx.PodStates = buildPodStateContext(snapshot, entities) // A10：容器状态作为证据
 		}
 	}
 
