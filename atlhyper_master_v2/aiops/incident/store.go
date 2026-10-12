@@ -5,6 +5,7 @@ package incident
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -83,7 +84,10 @@ func (s *Store) UpdateState(ctx context.Context, incidentID string, state aiops.
 		log.Error("更新峰值风险失败", "id", incidentID, "err", err)
 	}
 
-	detail := fmt.Sprintf("状态变更 → %s (R_final=%.3f)", state, risk.RFinal)
+	// 实体风险随事件演进更新（曾停在创建时的值，界面「最终风险」与事件峰值对不上）
+	s.refreshEntityRisk(ctx, incidentID, risk)
+
+	detail := fmt.Sprintf("状态变更 → %s (风险 %s)", state, displayRisk(risk.RFinal))
 	s.addTimeline(ctx, incidentID, now, aiops.TimelineStateChange, risk.EntityKey, detail)
 }
 
@@ -112,7 +116,8 @@ func (s *Store) IncrementRecurrence(ctx context.Context, incidentID string, risk
 		log.Error("递增复发次数失败", "id", incidentID, "err", err)
 		return
 	}
-	detail := fmt.Sprintf("复发 (R_final=%.3f)", risk.RFinal)
+	s.refreshEntityRisk(ctx, incidentID, risk)
+	detail := fmt.Sprintf("复发 (风险 %s)", displayRisk(risk.RFinal))
 	s.addTimeline(ctx, incidentID, now, aiops.TimelineRecurrence, risk.EntityKey, detail)
 }
 
@@ -211,4 +216,28 @@ func toAIOpsTimeline(timeline []*database.AIOpsIncidentTimeline) []*aiops.Incide
 		}
 	}
 	return result
+}
+
+// refreshEntityRisk 更新事件中该实体的风险值，保留其角色与类型；实体不在事件中则不新增
+func (s *Store) refreshEntityRisk(ctx context.Context, incidentID string, risk *aiops.EntityRisk) {
+	entities, err := s.repo.GetEntities(ctx, incidentID)
+	if err != nil {
+		log.Warn("读取事件实体失败", "id", incidentID, "err", err)
+		return
+	}
+	for _, e := range entities {
+		if e.EntityKey != risk.EntityKey {
+			continue
+		}
+		e.RLocal, e.RFinal = risk.RLocal, risk.RFinal
+		if err := s.repo.AddEntity(ctx, e); err != nil { // (incident_id, entity_key) 主键覆盖写
+			log.Error("更新实体风险失败", "id", incidentID, "entity", e.EntityKey, "err", err)
+		}
+		return
+	}
+}
+
+// displayRisk 时间线文字用界面同款 0-100 刻度（核心层为 [0,1]，约定见 gateway/handler/aiops/scale_risk.go）
+func displayRisk(v float64) string {
+	return fmt.Sprintf("%.0f", math.Round(v*100))
 }
