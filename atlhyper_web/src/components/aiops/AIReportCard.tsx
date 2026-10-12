@@ -16,7 +16,8 @@ const TRIGGER_MAP: Record<string, string> = {
   incident_created: "triggerIncidentCreated",
   state_changed: "triggerStateChanged",
   manual: "triggerManual",
-  auto_escalation: "fromAnalysis",
+  state_escalated: "triggerStateEscalated", // 后台分析：事件升级时触发
+  auto_escalation: "triggerAutoEscalation", // 深度分析：事件升级后按角色预算配置自动触发
 };
 
 const PRIORITY_COLORS: Record<number, string> = {
