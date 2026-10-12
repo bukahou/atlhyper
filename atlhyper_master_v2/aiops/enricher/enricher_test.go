@@ -125,7 +125,7 @@ func makeTestIncident() *database.AIOpsIncident {
 		State:     "incident",
 		Severity:  "high",
 		RootCause: "node/worker-3",
-		PeakRisk:  85.0,
+		PeakRisk:  0.85, // 核心层刻度 [0,1]
 		StartedAt: time.Now().Add(-30 * time.Minute),
 		DurationS: 1800,
 		CreatedAt: time.Now().Add(-30 * time.Minute),

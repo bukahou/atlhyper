@@ -5,6 +5,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -233,6 +234,12 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		handler.WriteError(w, http.StatusBadRequest, "unsupported provider type")
 		return
 	}
+	key, err := normalizeAPIKey(req.Provider, req.APIKey)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.APIKey = key
 	// Ollama 不需要 API Key，其他提供商必须
 	if req.APIKey == "" && req.Provider != "ollama" {
 		handler.WriteError(w, http.StatusBadRequest, "api_key is required")
@@ -323,6 +330,14 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		provider.Provider = *req.Provider
+	}
+	if req.APIKey != nil {
+		key, err := normalizeAPIKey(provider.Provider, *req.APIKey)
+		if err != nil {
+			handler.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		*req.APIKey = key
 	}
 	if req.APIKey != nil && *req.APIKey != "" {
 		provider.APIKey = *req.APIKey
@@ -924,4 +939,24 @@ func maskAPIKey(key string) string {
 		return "****"
 	}
 	return key[:4] + "****" + key[len(key)-4:]
+}
+
+// normalizeAPIKey 清理粘贴带入的杂质（用户 2026-10-12 批准 B2）
+//   - 所有 provider：去首尾空白 / 换行
+//   - bedrock：去掉误带的 "Bearer " 前缀（请求头由 SDK 生成）；含引号直接拒绝 ——
+//     引号多来自 `terraform output` 未加 -raw，替用户删掉有误删真实字符的风险
+//
+// 曾因此类杂质得到难以排查的 403「Invalid API Key format: Base64 decoding failed」。
+func normalizeAPIKey(provider, raw string) (string, error) {
+	key := strings.TrimSpace(raw)
+	if provider != "bedrock" {
+		return key, nil
+	}
+	if len(key) >= 7 && strings.EqualFold(key[:7], "bearer ") {
+		key = strings.TrimSpace(key[7:])
+	}
+	if strings.ContainsAny(key, `"'`) {
+		return "", fmt.Errorf("API key 含引号：请粘贴不带引号的纯 key（如用 terraform output -raw）")
+	}
+	return key, nil
 }
