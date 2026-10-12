@@ -12,6 +12,19 @@
 
 ---
 
+## 硬件健康检测 — 🔄 第 1 期代码完成，待推送（2026-10-12）
+
+> 设计文档: [hardware-health-design.md](../../design/active/hardware-health-design.md)
+
+- 第 0 期：设计文档 + tracker — ✅ 完成
+- 第 0 期：7 天温度 / PSI 分布（校准树莓派 CPU 阈值与 PSI 经验值）— 待批准只读通道
+- 第 1 期：温度判定「先最差、同档最热」+ 只报 max 时对称 crit — 🔄 进行中
+  - 代码 + 测试 ✅（分支 `fix/hardware-health-judgement`，本地 commit）
+  - 速览 tile 文案是否改为「最需关注温度」（待用户）
+  - push → CI → dev 验证 → prod（每步待批准）
+- 第 2 期：采集面（白名单扩项 / node-exporter systemd + textfile / smartctl_exporter）— 待批准
+- 第 3 期：机械盘健康线 + 盘身份 / SMART 判定 / 持续时长状态机 / 节点详情 v2 — 依赖第 2 期
+
 ## CI/CD 接入 — ✅ CI 与 dev 环境已完成，prod 等首次 SYNC（2026-09-06）
 
 > 分支流程：`feature/** | fix/**` → `dev`（自动上 dev 环境）→ PR → `main`（prod，人工点 SYNC）。
