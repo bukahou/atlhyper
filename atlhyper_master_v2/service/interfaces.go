@@ -151,7 +151,13 @@ type QueryDeploy interface {
 type QueryUser interface {
 	GetUserByID(ctx context.Context, id int64) (*database.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*database.User, error)
+	// GetUserByUsernameForPasswordLogin 密码登录专用：外部身份账号视为不存在
+	GetUserByUsernameForPasswordLogin(ctx context.Context, username string) (*database.User, error)
 	ListUsers(ctx context.Context) ([]*database.User, error)
+	// FindUserIDByIdentity 按外部身份（issuer + subject）查本地用户 ID
+	FindUserIDByIdentity(ctx context.Context, issuer, subject string) (int64, bool, error)
+	// ListFederatedUserIDs 拥有外部身份的用户 ID 集合
+	ListFederatedUserIDs(ctx context.Context) (map[int64]bool, error)
 }
 
 // OpsAdmin 管理写入操作（通知渠道、设置、AI Provider）
@@ -183,6 +189,8 @@ type OpsUser interface {
 	UpdateUser(ctx context.Context, user *database.User) error
 	DeleteUser(ctx context.Context, id int64) error
 	UpdateUserLastLogin(ctx context.Context, id int64, ip string) error
+	// CreateFederatedUser 同一事务内建用户与外部身份行
+	CreateFederatedUser(ctx context.Context, user *database.User, issuer, subject string) error
 }
 
 // ================================================================

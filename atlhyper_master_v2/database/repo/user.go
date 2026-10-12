@@ -51,6 +51,11 @@ func (r *userRepo) GetByUsername(ctx context.Context, username string) (*databas
 	return r.queryOne(ctx, query, args...)
 }
 
+func (r *userRepo) GetByUsernameForPasswordLogin(ctx context.Context, username string) (*database.User, error) {
+	query, args := r.dialect.SelectByUsernameForPasswordLogin(username)
+	return r.queryOne(ctx, query, args...)
+}
+
 func (r *userRepo) List(ctx context.Context) ([]*database.User, error) {
 	query, args := r.dialect.SelectAll()
 	rows, err := r.db.QueryContext(ctx, query, args...)

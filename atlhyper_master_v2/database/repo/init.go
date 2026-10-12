@@ -26,6 +26,7 @@ func SetEncryptionSecret(secret string) error {
 func Init(db *database.DB, dialect database.Dialect) {
 	db.Audit = newAuditRepo(db.Conn, dialect.Audit())
 	db.User = newUserRepo(db.Conn, dialect.User())
+	db.UserIdentity = newUserIdentityRepo(db.Conn, dialect.User(), dialect.UserIdentity())
 	db.Event = newEventRepo(db.Conn, dialect.Event())
 	db.Notify = newNotifyRepo(db.Conn, dialect.Notify())
 	db.Cluster = newClusterRepo(db.Conn, dialect.Cluster())

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"AtlHyper/atlhyper_master_v2/ai"
@@ -123,5 +124,20 @@ func TestRoutes_OpenRoutesIgnoreBadToken(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Errorf("/health = %d", rec.Code)
+	}
+}
+
+// 未启用 OIDC：providers 返回空列表，start / callback 不存在 —— 对现有部署零影响
+func TestRoutes_OIDCDisabled(t *testing.T) {
+	h := testRouter(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v2/auth/providers", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"data":[]`) {
+		t.Errorf("providers = %d %s", rec.Code, rec.Body.String())
+	}
+	for _, p := range []string{"/api/v2/auth/oidc/start", "/api/v2/auth/oidc/callback"} {
+		if got := call(t, h, http.MethodGet, p, 0); got != http.StatusNotFound {
+			t.Errorf("%s = %d, want 404", p, got)
+		}
 	}
 }

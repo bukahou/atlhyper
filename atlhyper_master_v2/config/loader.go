@@ -110,17 +110,39 @@ func LoadConfig() {
 		CallbackURL:    getString("GITHUB_CALLBACK_URL"),
 	}
 
+	GlobalConfig.OIDC = OIDCConfig{
+		Issuer:       getString("MASTER_OIDC_ISSUER"),
+		ClientID:     getString("MASTER_OIDC_CLIENT_ID"),
+		ClientSecret: getString("MASTER_OIDC_CLIENT_SECRET"),
+		RedirectURL:  getString("MASTER_OIDC_REDIRECT_URL"),
+		CookieSecret: getString("MASTER_OIDC_COOKIE_SECRET"),
+		CookieSecure: getBool("MASTER_OIDC_COOKIE_SECURE"),
+		DisplayName:  getString("MASTER_OIDC_DISPLAY_NAME"),
+	}
+
 	// 关键字段校验
 	validateRequired("MASTER_JWT_SECRET", GlobalConfig.JWT.SecretKey)
 	validateRequired("MASTER_ADMIN_USERNAME", GlobalConfig.Admin.Username)
 	validateRequired("MASTER_ADMIN_PASSWORD", GlobalConfig.Admin.Password)
+	if GlobalConfig.OIDC.Enabled() {
+		// 启用 OIDC 时凭证类配置必填：忘配时启动即失败，优于「默默登不进去」
+		validateRequired("MASTER_OIDC_CLIENT_ID", GlobalConfig.OIDC.ClientID)
+		validateRequired("MASTER_OIDC_CLIENT_SECRET", GlobalConfig.OIDC.ClientSecret)
+		validateRequired("MASTER_OIDC_REDIRECT_URL", GlobalConfig.OIDC.RedirectURL)
+		validateRequired("MASTER_OIDC_COOKIE_SECRET", GlobalConfig.OIDC.CookieSecret)
+		if len(GlobalConfig.OIDC.CookieSecret) < 32 {
+			log.Error("MASTER_OIDC_COOKIE_SECRET 过短（需 ≥ 32 字节）")
+			os.Exit(1)
+		}
+	}
 
 	log.Info("Master 配置加载完成",
 		"gatewayPort", GlobalConfig.Server.GatewayPort,
 		"agentSDKPort", GlobalConfig.Server.AgentSDKPort,
 		"testerPort", GlobalConfig.Server.TesterPort,
 		"dbType", GlobalConfig.Database.Type,
-		"admin", GlobalConfig.Admin.Username)
+		"admin", GlobalConfig.Admin.Username,
+		"oidc", GlobalConfig.OIDC.Enabled())
 }
 
 // validateRequired 校验必需配置项不能为空

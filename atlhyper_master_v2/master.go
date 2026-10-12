@@ -31,6 +31,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 	aiopscore "AtlHyper/atlhyper_master_v2/aiops/core"
 	"AtlHyper/atlhyper_master_v2/aiops/enricher"
+	"AtlHyper/atlhyper_master_v2/auth/oidc"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/database/repo"
@@ -38,6 +39,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway"
+	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
@@ -223,7 +225,8 @@ func NewMaster() (*Master, error) {
 			GitHubInstall: db.GitHubInstall,
 			RepoConfig:    db.RepoConfig,
 		},
-		UserRepo: db.User,
+		UserRepo:     db.User,
+		IdentityRepo: db.UserIdentity,
 	})
 	log.Info("查询层初始化完成")
 
@@ -234,7 +237,7 @@ func NewMaster() (*Master, error) {
 	deployOps := operations.NewDeployService(db.DeployConfig, db.GitHubInstall)
 
 	// 初始化用户写入服务
-	userOps := operations.NewUserService(db.User)
+	userOps := operations.NewUserService(db.User, db.UserIdentity)
 
 	// 组合统一 Service
 	svc := service.NewService(q, cmdOps, adminOps, sloOps, deployOps, userOps)
@@ -552,6 +555,24 @@ func NewMaster() (*Master, error) {
 	}
 
 	// 12. 初始化 Gateway
+	// 12.5 外部身份登录（OIDC，可选）：首登自动建为成员（0 级），由管理员提升
+	var oidcModule *oidc.Module
+	if cfg.OIDC.Enabled() {
+		oidcModule = oidc.NewModule(oidc.Config{
+			Issuer:       cfg.OIDC.Issuer,
+			ClientID:     cfg.OIDC.ClientID,
+			ClientSecret: cfg.OIDC.ClientSecret,
+			RedirectURL:  cfg.OIDC.RedirectURL,
+			CookieSecret: cfg.OIDC.CookieSecret,
+			CookieSecure: cfg.OIDC.CookieSecure,
+			DisplayName:  cfg.OIDC.DisplayName,
+			NewUserRole:  middleware.RoleMember,
+			Accounts:     svc,
+			IssueToken:   middleware.GenerateToken,
+		})
+		log.Info("OIDC 登录已启用（首次使用时连接 issuer）", "issuer", cfg.OIDC.Issuer)
+	}
+
 	gw := gateway.NewServer(gateway.Config{
 		Port:           cfg.Server.GatewayPort,
 		Service:        svc,
@@ -560,6 +581,7 @@ func NewMaster() (*Master, error) {
 		AnalyzeTrigger: aiopsEnricher,
 		GitHubClient:   ghClient,
 		Deployer:       deployerService,
+		OIDC:           oidcModule,
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
 

@@ -70,6 +70,18 @@ func migrate(db *sql.DB) error {
 			last_login_ip TEXT
 		)`,
 
+		// ==================== 外部身份表（OIDC issuer + subject → 用户） ====================
+		// 独立成表而非给 users 加列：已有库执行 CREATE TABLE IF NOT EXISTS 即可，无需迁移
+		`CREATE TABLE IF NOT EXISTS user_identities (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			issuer TEXT NOT NULL,
+			subject TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			UNIQUE (issuer, subject)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id)`,
+
 		// ==================== 集群表 ====================
 		`CREATE TABLE IF NOT EXISTS clusters (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
