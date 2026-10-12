@@ -43,11 +43,10 @@ type Recommendation struct {
 
 // SimilarMatch 相似事件匹配
 type SimilarMatch struct {
-	IncidentID string  `json:"incidentId"`
-	Similarity float64 `json:"similarity"`
-	RootCause  string  `json:"rootCause"`
-	Resolution string  `json:"resolution"`
-	OccurredAt string  `json:"occurredAt"`
+	IncidentID string `json:"incidentId"`
+	RootCause  string `json:"rootCause"`
+	Resolution string `json:"resolution"`
+	OccurredAt string `json:"occurredAt"`
 }
 
 // Token 预估常量
@@ -246,6 +245,7 @@ func (e *Enricher) summarizeCore(ctx context.Context, incidentID string) (*Summa
 	if incident.RootCause != "" {
 		since := time.Now().Add(-90 * 24 * time.Hour)
 		historical, _ = e.incidentRepo.ListByEntity(ctx, incident.RootCause, since)
+		historical = excludeIncident(historical, incident.ID)
 	}
 
 	// 5. 构建 Prompt + 截断
@@ -695,17 +695,23 @@ func buildSimilarMatches(historical []*database.AIOpsIncident) []SimilarMatch {
 	}
 
 	matches := make([]SimilarMatch, 0, len(historical))
-	for i, inc := range historical {
-		similarity := 0.9 - float64(i)*0.1
-		if similarity < 0.3 {
-			similarity = 0.3
-		}
+	for _, inc := range historical {
 		matches = append(matches, SimilarMatch{
 			IncidentID: inc.ID,
-			Similarity: similarity,
 			RootCause:  inc.RootCause,
 			OccurredAt: inc.StartedAt.Format(time.RFC3339),
 		})
 	}
 	return matches
+}
+
+// excludeIncident 从历史列表中去掉当前事件本身（按根因实体查询会把它自己查出来）
+func excludeIncident(list []*database.AIOpsIncident, id string) []*database.AIOpsIncident {
+	out := make([]*database.AIOpsIncident, 0, len(list))
+	for _, inc := range list {
+		if inc.ID != id {
+			out = append(out, inc)
+		}
+	}
+	return out
 }
