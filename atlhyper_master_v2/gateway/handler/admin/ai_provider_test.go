@@ -93,3 +93,46 @@ func TestUpdateProvider_RejectsUnsupportedType(t *testing.T) {
 		t.Errorf("不支持的 provider 类型应 400，得到 %d", rec.Code)
 	}
 }
+
+// 保存前清理粘贴带入的杂质：首尾空白（所有 provider）、bedrock 的 Bearer 前缀；
+// bedrock 的 key 含引号直接拒绝（引号可能来自 `terraform output` 未加 -raw，替用户删风险更大）
+func TestNormalizeAPIKey(t *testing.T) {
+	cases := []struct {
+		name, provider, raw, want string
+		wantErr                   bool
+	}{
+		{"首尾空白与换行", "openai", "  sk-abc123\n", "sk-abc123", false},
+		{"bedrock 去 Bearer 前缀", "bedrock", "Bearer ABSKexample123", "ABSKexample123", false},
+		{"bedrock 去 bearer 前缀（大小写不敏感）+ 空白", "bedrock", " bearer  ABSKexample123 ", "ABSKexample123", false},
+		{"bedrock 含引号 → 拒绝", "bedrock", `"ABSKexample123"`, "", true},
+		{"非 bedrock 不动 Bearer 字样", "openai", "Bearer-like-key", "Bearer-like-key", false},
+		{"空值保持空（由必填校验处理）", "bedrock", "   ", "", false},
+	}
+	for _, c := range cases {
+		got, err := normalizeAPIKey(c.provider, c.raw)
+		if (err != nil) != c.wantErr || got != c.want {
+			t.Errorf("%s: got %q err=%v, want %q wantErr=%v", c.name, got, err, c.want, c.wantErr)
+		}
+	}
+}
+
+func TestCreateProvider_NormalizesKeyBeforeSave(t *testing.T) {
+	svc := &stubProviderSvc{}
+	h := NewAIProviderHandler(svc)
+	rec := postJSON(t, h.ProvidersHandler, http.MethodPost, "/api/v2/ai/providers",
+		`{"name":"b","provider":"bedrock","apiKey":"  Bearer ABSKexamplekey1234\n","model":"m"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("code = %d %s", rec.Code, rec.Body.String())
+	}
+	var resp ProviderResponse
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.APIKeyMasked != "ABSK****1234" {
+		t.Errorf("应保存清理后的 key，掩码 = %q", resp.APIKeyMasked)
+	}
+
+	rec = postJSON(t, h.ProvidersHandler, http.MethodPost, "/api/v2/ai/providers",
+		`{"name":"b","provider":"bedrock","apiKey":"\"ABSKexamplekey1234\"","model":"m"}`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "引号") {
+		t.Errorf("含引号应 400 并提示，得到 %d %s", rec.Code, rec.Body.String())
+	}
+}
