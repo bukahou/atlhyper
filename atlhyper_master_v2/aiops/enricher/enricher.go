@@ -347,6 +347,7 @@ func (e *Enricher) saveAnalysisReport(ctx context.Context, incidentID string, in
 		Model:              result.Model,
 		InputTokens:        result.InputTokens,
 		OutputTokens:       result.OutputTokens,
+		DurationMs:         result.Duration.Milliseconds(),
 		CreatedAt:          time.Now(),
 	}
 
@@ -608,6 +609,7 @@ func (e *Enricher) saveBackgroundReport(ctx context.Context, incident *database.
 		report.Model = cr.Model
 		report.InputTokens = cr.InputTokens
 		report.OutputTokens = cr.OutputTokens
+		report.DurationMs = cr.Duration.Milliseconds()
 	}
 
 	if err := e.reportRepo.Create(ctx, report); err != nil {

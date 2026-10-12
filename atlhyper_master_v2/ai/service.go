@@ -90,6 +90,7 @@ func (s *aiServiceImpl) DeleteConversation(ctx context.Context, conversationID i
 
 // Complete 单轮 LLM 调用（无 Tool，用于 background 摘要等）
 func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*CompleteResult, error) {
+	start := time.Now()
 	role := req.Role
 	if role == "" {
 		role = RoleBackground
@@ -142,6 +143,7 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 		ProviderID:   roleCfg.ProviderID,
 		ProviderName: roleCfg.ProviderName,
 		Model:        roleCfg.Config.Model,
+		Duration:     time.Since(start),
 	}, nil
 }
 
