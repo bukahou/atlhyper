@@ -12,7 +12,7 @@
 
 ---
 
-## AI Provider：接入 AWS Bedrock + 各家改官方 SDK — 计划已裁定，待开工（2026-10-12）
+## AI Provider：接入 AWS Bedrock + 各家改官方 SDK — PR-A 代码完成（2026-10-12）
 
 > 计划: [ai-provider-bedrock-sdk-design.md](../../design/future/ai-provider-bedrock-sdk-design.md)
 > 用户已裁定：先 A 后 B 两个 PR / 新增 region 字段 / 第 1 轮零 tool call 追加取证提示重试一次。开工时机用户在本侧决定
@@ -20,7 +20,9 @@
 - 计划 ✅（只读分析；SDK Bearer 原生支持已查证）；work 审阅补充 4 点已并入
 - 用户裁定 D1–D8 ✅（D1 推翻原裁定②：region 写进 Master 配置 `MASTER_AI_BEDROCK_REGION`，不进库）
 - ⛔ prod settings 表 `ai.*` 残留行清理：单独一步，须用户单独批准
-- PR-A：Bedrock + region + 循环修复 — 待开工
+- PR-A：Bedrock + 配置 region + 循环修复 + 删旧接口 — 🔄 代码完成（分支 `feat/bedrock-provider`，本地 commit）
+  - 后端 ✅（go build / vet / test 全绿；Bearer 环境变量覆盖防线经变异验证）；前端 ✅（tsc / next build / vitest）
+  - 推 dev — 待批准；之后逐模型冒烟（D8：用户经 Web 填 key，dev 重启后需重填）— 冒烟不过的模型从目录移除
 - PR-B：四家改官方 SDK（特征测试先行）— 待 PR-A 冒烟通过
 
 ## 权限模型重设计 — 第 1 期 + OIDC 已上 dev，待用户验证（2026-10-12）
