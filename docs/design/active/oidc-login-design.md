@@ -1,6 +1,6 @@
 # OIDC 登录接入 设计文档
 
-> 状态：设计草案，待用户裁定（附录 A）
+> 状态：设计已裁定（用户 2026-10-12：附录 A 三项全按推荐），A 期实施中
 > 前置：[permission-model-design.md](permission-model-design.md)（第 1 期已上 dev）—— 本文是其第 2 期
 > 首个身份源：akasha（自研 OIDC IdP）。代码按**通用 OIDC** 写，akasha 只是第一个被配置进来的 issuer
 
@@ -186,7 +186,7 @@ atlhyper_web/src/app/auth/callback/page.tsx             [新增]
 atlhyper_web/src/i18n/                                  [修改]
 ```
 
-## 附录 A：待用户裁定
+## 附录 A：裁定项（用户 2026-10-12：全按推荐 —— 1=A 升 1.26 / 2=A 只清本地 / 3=本期不处理）
 
 ### 裁定项 1：Go 版本升级
 
