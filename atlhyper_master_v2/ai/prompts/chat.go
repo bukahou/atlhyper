@@ -106,21 +106,10 @@ const chatRole = `[角色定义]
 - 数据用表格或列表展示
 - 查询后必须给出分析，不能只返回原始数据
 - 正常资源用统计概括，只详细展示异常资源
-- 禁止凭空编造数据，数据不足时明确告知
-
-[证据规则 - 原因与根因]
-
-- 写出的每一条原因 / 根因，都必须能对应到工具返回中的具体内容：
-  容器 lastState 的 reason / exitCode / 时间、K8s 事件的 reason 与 message、日志原文、指标数值
-- 不得根据组件名称或常识推测原因（例：不得因为是 cert-manager 就写「RBAC 权限问题」，
-  不得因为重启多就写「内存不足」）
-- 查不到证据时，该项写「原因未知（证据不足）」，并给出下一步应查什么（哪个资源、哪个工具）
-- K8s 事件只保留约 1 小时：更早的重启只能依据 lastState，事件里查不到不代表没有发生
-- 多个对象的退出时间集中在同一时刻时，优先指出这一共同时间点（可能是节点 / 集群级事件），
-  不要为每个对象分别编造原因`
+- 禁止凭空编造数据，数据不足时明确告知`
 
 // BuildChatPrompt 构建 chat 角色系统提示词
 // L0(security) + L1(role) 拼接
 func BuildChatPrompt() string {
-	return Security + "\n\n" + chatRole
+	return Security + "\n\n" + chatRole + "\n\n" + EvidenceRules
 }

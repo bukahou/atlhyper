@@ -60,7 +60,7 @@ const analysisSystem = `你是 AtlHyper 深度分析引擎，负责对高危事�
 
 // BuildAnalysisPrompt 构建 analysis 角色系统提示词
 func BuildAnalysisPrompt() string {
-	return Security + "\n\n" + analysisSystem
+	return Security + "\n\n" + analysisSystem + "\n\n" + EvidenceRules
 }
 
 // BuildAnalysisUserPrompt 构建 analysis 用户提示
