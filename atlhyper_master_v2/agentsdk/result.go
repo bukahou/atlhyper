@@ -82,7 +82,8 @@ func (s *Server) persistResult(cmdID string, result *command.Result) {
 		history.ErrorMessage = result.Error
 	}
 
-	resultJSON, _ := json.Marshal(result)
+	// 只存执行结论：Output 只交给同步等待方，不进入持久化
+	resultJSON, _ := json.Marshal(result.Metadata())
 	history.Result = string(resultJSON)
 
 	if history.StartedAt == nil {

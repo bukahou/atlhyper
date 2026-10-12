@@ -217,10 +217,6 @@ func (r *Router) registerRoutes() {
 		register("/api/v2/events", eventH.List)
 		register("/api/v2/events/by-resource", eventH.ListByResource)
 
-		// ---------- 指令查询 ----------
-		register("/api/v2/commands/history", commandH.ListHistory)
-		register("/api/v2/commands/", commandH.GetStatus)
-
 		// ---------- SLO 监控查询（只读） ----------
 		register("/api/v2/slo/domains", sloH.Domains)      // V1: 按 service key
 		register("/api/v2/slo/domains/v2", sloH.DomainsV2) // V2: 按真实域名
@@ -316,6 +312,14 @@ func (r *Router) registerRoutes() {
 	// ConfigMap/Secret 数据获取（敏感数据读取需要审计）
 	r.operatorAudited("/api/v2/ops/configmaps/data", "read", "configmap", opsH.ConfigMapData)
 	r.operatorAudited("/api/v2/ops/secrets/data", "read", "secret", opsH.SecretData)
+
+	// ================================================================
+	// 指令查询（需要认证，Viewer+）
+	// 含操作人、目标与执行结论，属内容级数据，不对访客开放
+	// ================================================================
+
+	r.mux.HandleFunc("/api/v2/commands/history", commandH.ListHistory)
+	r.mux.HandleFunc("/api/v2/commands/", commandH.GetStatus)
 
 	// ================================================================
 	// AI 对话（需要认证，Viewer+ 即可使用）
