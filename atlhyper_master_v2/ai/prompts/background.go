@@ -82,7 +82,7 @@ func BuildBackgroundPrompt(ctx *IncidentPromptContext) *PromptPair {
 
 	userContent := fmt.Sprintf(backgroundUserTemplate, content)
 	return &PromptPair{
-		System: backgroundSystem,
+		System: backgroundSystem + "\n\n" + EvidenceRules,
 		User:   userContent,
 	}
 }

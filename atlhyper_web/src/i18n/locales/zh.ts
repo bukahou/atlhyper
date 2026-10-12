@@ -2113,6 +2113,8 @@ Deployment 已更新，新的 Pod 正在启动中
       errorRoleUnassigned: "该功能使用的 AI 角色尚未分配提供商：请到「AI 设置 → 角色分配」为其指定提供商",
       errorBudgetExhausted: "该 AI 角色的预算已用尽：请到「AI 设置」调整预算或配置备用提供商",
       errorUpstream: "调用 AI 模型失败：请检查提供商的 API Key 与状态，或稍后重试",
+      errorTimeout: "AI 分析超时（超过 5 分钟）：可稍后重试，或换用响应更快的模型",
+      analysisInterrupted: "分析已中断（服务重启），请重新发起",
       summary: "摘要",
       rootCauseAnalysis: "根因分析",
       recommendations: "处置建议",

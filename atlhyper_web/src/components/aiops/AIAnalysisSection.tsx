@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Sparkles, RefreshCw, Loader2, Search, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { getAIReports, summarizeIncident, triggerAnalysis } from "@/api/aiops";
+import { getAIReports, summarizeIncident, triggerAnalysis, getAnalysisStatus } from "@/api/aiops";
 import type { AIReport } from "@/api/aiops";
 import { AIReportCard } from "./AIReportCard";
 import { useCan } from "@/hooks/useCan";
-import { aiErrorMessage } from "@/lib/ai-error";
+import { aiErrorMessage, aiCodeMessage } from "@/lib/ai-error";
+import { decideAnalysisPoll, ANALYSIS_POLL_INTERVAL_MS, ANALYSIS_POLL_MAX_MS } from "@/lib/analysis-poll";
 
 interface AIAnalysisSectionProps {
   incidentId: string;
@@ -58,28 +59,68 @@ export function AIAnalysisSection({ incidentId, incidentState }: AIAnalysisSecti
     }
   };
 
+  const stopPolling = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = null;
+  };
+
+  // 按后端分析状态轮询：成功 → 刷新报告；失败 / 中断 / 超时 → 显示具体原因
+  const pollAnalysis = useCallback((startedAtMs: number) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      const elapsed = Date.now() - startedAtMs;
+      let status;
+      try {
+        status = await getAnalysisStatus(incidentId);
+      } catch {
+        // 状态接口暂时不可用：继续等，直到前端时限
+        if (elapsed >= ANALYSIS_POLL_MAX_MS) {
+          stopPolling();
+          setError(aiCodeMessage("ai_timeout", aiT));
+          setDeepAnalyzing(false);
+        }
+        return;
+      }
+      const decision = decideAnalysisPoll(status, elapsed);
+      if (decision.kind === "continue") return;
+      stopPolling();
+      setDeepAnalyzing(false);
+      if (decision.kind === "succeeded") {
+        await loadReports();
+      } else {
+        setError(aiCodeMessage(decision.code, aiT));
+      }
+    }, ANALYSIS_POLL_INTERVAL_MS);
+  }, [incidentId, aiT, loadReports]);
+
   const handleDeepAnalysis = async () => {
     setDeepAnalyzing(true);
     setError(null);
     try {
-      await triggerAnalysis(incidentId);
-      // Poll for new report
-      let attempts = 0;
-      const currentCount = reports.length;
-      pollRef.current = setInterval(async () => {
-        attempts++;
-        const updated = await loadReports();
-        if ((updated && updated.length > currentCount) || attempts >= 12) {
-          if (pollRef.current) clearInterval(pollRef.current);
-          pollRef.current = null;
-          setDeepAnalyzing(false);
-        }
-      }, 5000);
+      await triggerAnalysis(incidentId); // 已在进行中也照常轮询同一个任务
+      pollAnalysis(Date.now());
     } catch (err) {
       setError(aiErrorMessage(err, aiT));
       setDeepAnalyzing(false);
     }
   };
+
+  // 打开详情时若该事件的分析仍在进行（如重新打开弹窗），接着轮询
+  useEffect(() => {
+    if (!canAnalyze) return;
+    let cancelled = false;
+    getAnalysisStatus(incidentId)
+      .then((status) => {
+        if (cancelled || status.state !== "running") return;
+        setDeepAnalyzing(true);
+        const started = status.startedAt ? Date.parse(status.startedAt) : Date.now();
+        pollAnalysis(Number.isNaN(started) ? Date.now() : started);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [incidentId, canAnalyze, pollAnalysis]);
 
   const canDeepAnalyze = incidentState === "warning" || incidentState === "incident";
 

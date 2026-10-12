@@ -10,8 +10,8 @@ import (
 func TestChatPrompt_RequiresEvidenceForCauses(t *testing.T) {
 	p := BuildChatPrompt()
 	for _, must := range []string{
-		"原因未知（证据不足）",       // 查不到时的固定写法
-		"lastState",              // 重启原因的出处
+		"原因未知（证据不足）",      // 查不到时的固定写法
+		"lastState",       // 重启原因的出处
 		"不得根据组件名称或常识推测原因", // 明确禁止的行为
 	} {
 		if !strings.Contains(p, must) {

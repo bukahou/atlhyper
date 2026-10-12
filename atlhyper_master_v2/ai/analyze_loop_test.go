@@ -53,9 +53,9 @@ func runLoop(t *testing.T, client llm.LLMClient, maxRounds int) (*loopOutcome, e
 // ③ 第 1 轮零 tool call → 追加取证提示重试一次；重试轮正常取证后收尾
 func TestRunToolLoop_FirstRoundNoToolCallRetriesWithEvidenceHint(t *testing.T) {
 	llmc := &scriptedLLM{rounds: [][]*llm.Chunk{
-		{text(`{"summary":"guess"}`), done(10, 5)},          // 第 1 轮：直接给结论
+		{text(`{"summary":"guess"}`), done(10, 5)},                    // 第 1 轮：直接给结论
 		{text("let me check"), call("c1", "get_events"), done(20, 5)}, // 重试：去取证
-		{text(`{"summary":"OOM"}`), done(30, 8)},           // 基于证据收尾
+		{text(`{"summary":"OOM"}`), done(30, 8)},                      // 基于证据收尾
 	}}
 	out, err := runLoop(t, llmc, 8)
 	if err != nil {

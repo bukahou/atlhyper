@@ -285,6 +285,7 @@ func (r *Router) registerRoutes() {
 	r.route(pAIAnalyze, "/api/v2/aiops/ai/reports", aiopsAIH.ReportsHandler)
 	r.routeAudited(pAIAnalyze, "/api/v2/aiops/ai/reports/", "read", "ai_report", aiopsAIH.ReportDetailHandler)
 	r.routeAudited(pAIAnalyze, "/api/v2/aiops/ai/analyze", "execute", "ai_analysis", aiopsAIH.AnalyzeHandler)
+	r.route(pAIAnalyze, "/api/v2/aiops/ai/analyze/status", aiopsAIH.AnalyzeStatus)
 
 	r.route(pAISettingsRead, "/api/v2/ai/providers", aiProviderH.ProvidersHandler)
 	r.route(pAISettingsRead, "/api/v2/ai/settings", aiProviderH.SettingsHandler)

@@ -2139,6 +2139,8 @@ export interface AIOpsTranslations {
     errorRoleUnassigned: string;
     errorBudgetExhausted: string;
     errorUpstream: string;
+    errorTimeout: string;
+    analysisInterrupted: string;
     summary: string;
     rootCauseAnalysis: string;
     recommendations: string;

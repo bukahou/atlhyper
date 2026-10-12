@@ -10,10 +10,18 @@ export interface AIErrorTexts {
   errorRoleUnassigned: string;
   errorBudgetExhausted: string;
   errorUpstream: string;
+  errorTimeout: string;
+  analysisInterrupted: string;
 }
 
+/** HTTP 失败（axios 错误）→ 文案 */
 export function aiErrorMessage(err: unknown, texts: AIErrorTexts): string {
   const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+  return aiCodeMessage(code, texts);
+}
+
+/** 错误码 → 文案（HTTP 响应的 code 与深度分析状态的 errorCode 同一套） */
+export function aiCodeMessage(code: string | undefined, texts: AIErrorTexts): string {
   switch (code) {
     case "ai_role_unassigned":
       return texts.errorRoleUnassigned;
@@ -21,6 +29,10 @@ export function aiErrorMessage(err: unknown, texts: AIErrorTexts): string {
       return texts.errorBudgetExhausted;
     case "ai_upstream":
       return texts.errorUpstream;
+    case "ai_timeout":
+      return texts.errorTimeout;
+    case "analysis_interrupted":
+      return texts.analysisInterrupted;
     default:
       return texts.analysisFailed;
   }

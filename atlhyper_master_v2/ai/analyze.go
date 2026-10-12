@@ -20,6 +20,7 @@ const (
 
 // Analyze 执行非交互式多轮 Tool Calling 分析
 func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*AnalyzeResult, error) {
+	start := time.Now()
 	// 默认值
 	maxRounds := req.MaxRounds
 	if maxRounds <= 0 {
@@ -92,5 +93,6 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 		ProviderName: roleCfg.ProviderName,
 		Model:        roleCfg.Config.Model,
 		Steps:        out.Steps,
+		Duration:     time.Since(start),
 	}, nil
 }
