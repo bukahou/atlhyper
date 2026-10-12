@@ -23,7 +23,11 @@
   - 前端 ✅（tsc / next build / vitest 全绿）
   - 已上 dev（`dev-e22ad5a`）✅；未登录 API 实测通过（0 级 200 / 敏感 401 / 40 个 Deployment 详情残留字面值 0）；浏览器核对 待用户
   - 后续项：角色说明页权限矩阵改为后端生成
-- 第 2 期：成员 0 级 + OIDC 接入（akasha 为首个身份源）— 另起设计
+- 第 2 期：OIDC 接入（akasha 为首个身份源）— 设计已裁定 ✅（附录 A 全按推荐）
+  > 设计文档: [oidc-login-design.md](../../design/active/oidc-login-design.md)
+  - A 代码 + 测试（含 Go 1.26 升级）— ✅ 本地 commit（go build / vet / test、tsc / next build / vitest 全绿）；未启用时行为不变
+  - B akasha 登记 dev client + SYNC — ⚠️ 用户亲自做或单独批准（共享 prod IdP）
+  - C dev Secret / env + 推 dev — 待批准
 - prod：⛔ 用户禁止 Claude 推送
 
 ## 硬件健康检测 — 🔄 第 1 期已上 dev，待用户验证（2026-10-12）

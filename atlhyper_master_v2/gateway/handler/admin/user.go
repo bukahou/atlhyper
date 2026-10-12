@@ -24,7 +24,9 @@ var log = logger.Module("UserHandler")
 type UserQuery interface {
 	GetUserByID(ctx context.Context, id int64) (*database.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*database.User, error)
+	GetUserByUsernameForPasswordLogin(ctx context.Context, username string) (*database.User, error)
 	ListUsers(ctx context.Context) ([]*database.User, error)
+	ListFederatedUserIDs(ctx context.Context) (map[int64]bool, error)
 }
 
 type UserOps interface {
@@ -77,6 +79,7 @@ type UserDTO struct {
 	Role        int    `json:"role"`
 	Status      int    `json:"status"` // 1=Active, 0=Disabled
 	CreatedAt   string `json:"createdAt"`
+	Federated   bool   `json:"federated"` // 经外部身份（OIDC）登录建立的账号
 }
 
 // RegisterRequest 注册请求（仅 Admin 可调用）
@@ -127,7 +130,8 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查找用户
-	user, err := h.querySvc.GetUserByUsername(r.Context(), req.Username)
+	// 外部身份账号对密码登录视为不存在（与未知用户名走同一路径）
+	user, err := h.querySvc.GetUserByUsernameForPasswordLogin(r.Context(), req.Username)
 	if err != nil {
 		log.Error("查询用户失败", "err", err)
 		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败: "+err.Error())
@@ -263,6 +267,12 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	federated, err := h.querySvc.ListFederatedUserIDs(r.Context())
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "获取用户列表失败")
+		return
+	}
+
 	// 转换为 UserDTO
 	result := make([]UserDTO, 0, len(users))
 	for _, u := range users {
@@ -274,6 +284,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 			Role:        u.Role,
 			Status:      u.Status,
 			CreatedAt:   u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			Federated:   federated[u.ID],
 		}
 		result = append(result, dto)
 	}

@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	"AtlHyper/atlhyper_master_v2/ai"
+	"AtlHyper/atlhyper_master_v2/auth/oidc"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
@@ -68,7 +69,11 @@ type Router struct {
 	analyzeTrigger aiopsHandler.AnalyzeTrigger
 	ghClient       github.Client
 	deployer       deployer.Deployer
+	oidc           *oidc.Module // 可选，nil = 外部身份登录未启用
 }
+
+// SetOIDC 注入外部身份登录模块（可选）
+func (r *Router) SetOIDC(m *oidc.Module) { r.oidc = m }
 
 // NewRouter 创建路由管理器
 func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client, dep deployer.Deployer) *Router {
@@ -151,6 +156,13 @@ func (r *Router) registerRoutes() {
 	r.open("/health", healthCheck)
 	r.open("/api/v2/auth/me", authMeH.Get)
 	r.openAudited("/api/v2/user/login", "login", "user", userH.Login) // 记录成功 / 失败的登录尝试
+
+	// 外部身份登录（OIDC）：providers 恒注册（未启用时返回空列表，登录框据此隐藏按钮）
+	r.open("/api/v2/auth/providers", r.oidc.Providers)
+	if r.oidc != nil {
+		r.open("/api/v2/auth/oidc/start", r.oidc.Start)
+		r.openAudited("/api/v2/auth/oidc/callback", "login", "user", r.oidc.Callback)
+	}
 
 	// ================================================================
 	// 0 级：集群状态与形状（访客 = 成员）

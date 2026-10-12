@@ -5,7 +5,7 @@
  */
 
 import { post, get } from "./request";
-import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem, AuthMe } from "@/types/auth";
+import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem, AuthMe, AuthProvider } from "@/types/auth";
 
 // ============================================================
 // Master V2 响应类型
@@ -59,6 +59,21 @@ export function login(data: LoginRequest) {
  */
 export function getMe() {
   return get<AuthMeApiResponse>("/api/v2/auth/me");
+}
+
+/**
+ * 外部登录方式（无需登录；未启用时为空列表）
+ * GET /api/v2/auth/providers
+ */
+export function getAuthProviders() {
+  return get<{ message: string; data: AuthProvider[] }>("/api/v2/auth/providers");
+}
+
+/**
+ * 外部登录发起地址（整页跳转，不走 axios）：next 为登录成功后回到的应用内路径
+ */
+export function oidcStartURL(next: string) {
+  return `/api/v2/auth/oidc/start?next=${encodeURIComponent(next)}`;
 }
 
 /**

@@ -39,6 +39,12 @@ func (d *userDialect) SelectByUsername(username string) (string, []any) {
 	return "SELECT " + userColumns + " FROM users WHERE username = ?", []any{username}
 }
 
+// SelectByUsernameForPasswordLogin 排除拥有外部身份的用户：对密码登录而言它们与「不存在」相同
+func (d *userDialect) SelectByUsernameForPasswordLogin(username string) (string, []any) {
+	return "SELECT " + userColumns + " FROM users WHERE username = ?" +
+		" AND NOT EXISTS (SELECT 1 FROM user_identities ui WHERE ui.user_id = users.id)", []any{username}
+}
+
 func (d *userDialect) SelectAll() (string, []any) {
 	return "SELECT " + userColumns + " FROM users", nil
 }

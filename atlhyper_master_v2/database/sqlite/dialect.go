@@ -12,6 +12,7 @@ import (
 type Dialect struct {
 	audit           *auditDialect
 	user            *userDialect
+	userIdentity    *userIdentityDialect
 	event           *eventDialect
 	notify          *notifyDialect
 	cluster         *clusterDialect
@@ -41,6 +42,7 @@ func NewDialect() *Dialect {
 	return &Dialect{
 		audit:           &auditDialect{},
 		user:            &userDialect{},
+		userIdentity:    &userIdentityDialect{},
 		event:           &eventDialect{},
 		notify:          &notifyDialect{},
 		cluster:         &clusterDialect{},
@@ -68,6 +70,7 @@ func NewDialect() *Dialect {
 
 func (d *Dialect) Audit() database.AuditDialect                     { return d.audit }
 func (d *Dialect) User() database.UserDialect                       { return d.user }
+func (d *Dialect) UserIdentity() database.UserIdentityDialect       { return d.userIdentity }
 func (d *Dialect) Event() database.EventDialect                     { return d.event }
 func (d *Dialect) Notify() database.NotifyDialect                   { return d.notify }
 func (d *Dialect) Cluster() database.ClusterDialect                 { return d.cluster }
