@@ -12,7 +12,17 @@
 
 ---
 
-## 权限模型重设计 — 设计已裁定，待实施（2026-10-12）
+## AI Provider：接入 AWS Bedrock + 各家改官方 SDK — 计划送 work 审阅（2026-10-12）
+
+> 计划: [ai-provider-bedrock-sdk-design.md](../../design/future/ai-provider-bedrock-sdk-design.md)
+> 用户已裁定：先 A 后 B 两个 PR / 新增 region 字段 / 第 1 轮零 tool call 追加取证提示重试一次。开工时机用户在本侧决定
+
+- 计划 ✅（只读分析；SDK Bearer 原生支持已查证）→ 送 work 审阅
+- 待用户拍板：D1 现有库加列方式（修订 §1.9）/ D2 目录种子 INSERT OR IGNORE / D3 循环修复是否含对话 / D4 ollama 官方包 / D5 删旧 /settings/ai / D6 置信度另立 / D7 Anthropic 默认模型
+- PR-A：Bedrock + region + 循环修复 — 待开工
+- PR-B：四家改官方 SDK（特征测试先行）— 待 PR-A 冒烟通过
+
+## 权限模型重设计 — 第 1 期 + OIDC 已上 dev，待用户验证（2026-10-12）
 
 > 设计文档: [permission-model-design.md](../../design/active/permission-model-design.md)
 
