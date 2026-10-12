@@ -702,6 +702,8 @@ export interface WorkbenchTranslations {
 // Users 页面翻译
 export interface UsersTranslations {
   pageDescription: string;
+  federated: string;
+  federatedHint: string;
   addUser: string;
   editUser: string;
   deleteUser: string;
@@ -877,6 +879,21 @@ export interface LoginTranslations {
   invalidCredentials: string;
   sessionExpired: string;
   pleaseLogin: string;
+  // 外部身份登录（OIDC）
+  orDivider: string;
+  continueWith: string; // 含 {name} 占位
+  callbackProcessing: string;
+  callbackFailed: string;
+  backHome: string;
+  tryAgain: string;
+  callbackErrors: {
+    cancelled: string;
+    state: string;
+    upstream: string;
+    disabled: string;
+    rejected: string;
+    application: string;
+  };
 }
 
 // 权限（锁定占位 / 权限不足提示）

@@ -34,6 +34,7 @@ export interface UserListItem {
   role: number;
   status: number; // 1=Active, 0=Disabled
   createdAt: string;
+  federated?: boolean; // 经外部身份（OIDC）登录建立
 }
 
 // 审计日志项（匹配后端 AuditLogResponse JSON 格式）
@@ -88,4 +89,10 @@ export interface AuthMe {
   user: UserInfo | null;
   level: number;
   permissions: Permission[];
+}
+
+// 外部登录方式（GET /api/v2/auth/providers；未启用时为空列表）
+export interface AuthProvider {
+  id: string;
+  displayName: string;
 }
