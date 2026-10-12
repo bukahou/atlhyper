@@ -87,7 +87,7 @@ export default function GitHubPage() {
                 {t.common.demoMode}
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t.common.demoModeHint}
+                {t.common.demoModeHintGitHub}
               </p>
             </div>
           </div>

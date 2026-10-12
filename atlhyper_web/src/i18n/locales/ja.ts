@@ -159,9 +159,10 @@ export const ja: Translations = {
     namespaceName: "ネームスペース",
     // デモモード（共通）
     demoMode: "デモモード",
-    demoModeHint: "サンプルデータを表示中です。Operator 権限でログインすると実際の設定を確認できます。",
-    demoModeHintAudit: "サンプルデータを表示中です。Operator 権限でログインすると実際の監査ログを確認できます。",
+    demoModeHint: "サンプルデータを表示中です。実際の設定の閲覧には Operator 以上の権限が必要です。",
+    demoModeHintAudit: "サンプルデータを表示中です。実際の監査ログの閲覧には Operator 以上の権限が必要です。",
     demoModeHintUsers: "サンプルデータを表示中です。実際のユーザーの閲覧・管理には Admin 権限が必要です。",
+    demoModeHintGitHub: "サンプルデータを表示中です。実際の GitHub 連携の閲覧・管理には Admin 権限が必要です。",
     // 閲覧権限ヒント
     viewOnlyHint: "閲覧のみ可能です。設定を変更するには管理者にお問い合わせください。",
   },
@@ -1588,7 +1589,8 @@ export const ja: Translations = {
     goToSettings: "設定へ",
     // デモモード
     demoMode: "デモモード",
-    demoModeDesc: "サンプル会話を表示中、ログインで全機能が使えます",
+    demoModeDesc: "サンプル会話を表示中。利用にはログインと Viewer 以上の権限が必要です",
+    demoModeDescMember: "サンプル会話を表示中。このアカウントには AI チャットの権限がありません。管理者に昇格を依頼してください",
     login: "ログイン",
     // アラート分析
     alertAnalysis: "アラート分析",
