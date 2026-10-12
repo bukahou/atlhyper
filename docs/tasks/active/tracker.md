@@ -25,12 +25,13 @@
   - 推 dev — 待批准；之后逐模型冒烟（D8：用户经 Web 填 key，dev 重启后需重填）— 冒烟不过的模型从目录移除
 - PR-A 冒烟：Qwen3 流式 + 多轮 tool call ✅、深度分析端到端 ✅（5 轮 / 9 tools / 11s）；gpt-oss / MiniMax 待用户切换模型
 - AI 分析质量修复 ✅ 已上 dev：风险刻度 / 相似事件自排除 / 去伪造相似度 / 证据规则 / 失败原因码 / key 清理 / Markdown / Pod LAST-EXIT
-- PR-1（分支 `fix/ai-pr1`，本地 commit）— 🔄 代码完成，推 dev 待批准
+- PR-1 ✅ 已上 dev 并经用户验证（B1 / C 失败提示、C 完整流程、A6 耗时、A7 后台分析不再凭名推测、A8 时间线刻度、A9 实体风险）
   - C 深度分析状态跟踪（内存 + 状态接口 + 前端按状态轮询 6 分钟）
   - B2 补强（bedrock key 去中间空白 / 字符集校验）· A6 报告耗时 · A7 证据规则覆盖三角色 · A8 时间线刻度 · A9 实体风险随事件更新
-  - 未做：A10（后台分析上下文加 Pod lastState / 日志尾）待用户决定
-- 测试资源：namespace `atlhyper-smoke`（crashloop-demo 已缩到 0）— 删除待用户确认
-- PR-B：四家改官方 SDK（特征测试先行）— 待 gpt-oss / MiniMax 冒烟
+- 触发来源标签修复 + A10（后台分析带入 Pod 容器状态，不含日志）✅ 已上 dev（`fcea669`），用户决定不再单独测试
+- 测试资源 `atlhyper-smoke` ✅ 已删除
+- C2 gpt-oss / MiniMax 冒烟 — 用户暂缓
+- PR-B：四家改官方 SDK（特征测试先行）— 待 C2
 
 ## 权限模型重设计 — 第 1 期 + OIDC 已上 dev，待用户验证（2026-10-12）
 
