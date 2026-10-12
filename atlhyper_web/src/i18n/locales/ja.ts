@@ -1916,8 +1916,8 @@ Deployment が更新され、新しい Pod が起動中です
       stopped: "停止",
       threshold: "しきい値",
       tiles: {
-        maxTemp: "最高温度",
-        maxDiskTemp: "最高ディスク温度",
+        maxTemp: "要注意の温度",
+        maxDiskTemp: "要注意のディスク温度",
         undervoltNodes: "電源異常",
         throttledNodes: "周波数低下",
         maxDiskAwait: "最遅ディスク",
