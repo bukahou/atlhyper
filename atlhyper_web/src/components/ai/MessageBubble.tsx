@@ -4,6 +4,7 @@ import { Bot, User } from "lucide-react";
 import { Message, StreamSegment, ChatStats } from "./types";
 import { CommandStatus, Round, isToolResultJSON, parseRoundsFromSegments } from "./command-utils";
 import { ExecutionBlock } from "./ExecutionBlock";
+import { MarkdownContent } from "./MarkdownContent";
 
 // ==================== MessageBubble ====================
 
@@ -73,8 +74,8 @@ export function MessageBubble({ message, stats }: MessageBubbleProps) {
 
         {/* 文本内容 */}
         {content && (
-          <div className="bg-card border border-[var(--border-color)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-default whitespace-pre-wrap">
-            {content}
+          <div className="bg-card border border-[var(--border-color)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-default">
+            <MarkdownContent content={content} />
           </div>
         )}
       </div>
@@ -144,8 +145,8 @@ export function StreamingBubble({ segments, stats, streaming = true }: Streaming
 
         {/* 文本内容 */}
         {finalText && (
-          <div className="bg-card border border-[var(--border-color)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-default whitespace-pre-wrap">
-            {finalText}
+          <div className="bg-card border border-[var(--border-color)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-default">
+            <MarkdownContent content={finalText} />
             <span className="inline-block w-1 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
           </div>
         )}
