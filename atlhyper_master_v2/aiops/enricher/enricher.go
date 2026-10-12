@@ -514,6 +514,7 @@ func (e *Enricher) buildPromptWithTruncation(
 			incidentCtx.RecentErrorTraces = traces
 			incidentCtx.RecentErrorLogs = logs
 			incidentCtx.SLOContext = sloCtx
+			incidentCtx.PodStates = buildPodStateContext(snapshot, entities) // A10：容器状态作为证据
 		}
 	}
 

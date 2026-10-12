@@ -17,6 +17,9 @@ type IncidentPromptContext struct {
 	RecentErrorTraces string // 受影响服务的最近错误 Traces（Top 5）
 	RecentErrorLogs   string // 受影响服务的最近 ERROR 日志（Top 10）
 	SLOContext        string // 受影响服务的 SLO 变化摘要
+
+	// 事件涉及 Pod 的容器状态（来自 Agent 快照：当前状态 / 重启次数 / 上次退出）
+	PodStates string
 }
 
 // PromptPair 系统提示词 + 用户消息
@@ -78,6 +81,9 @@ func BuildBackgroundPrompt(ctx *IncidentPromptContext) *PromptPair {
 	}
 	if ctx.SLOContext != "" {
 		content += "\n\n## SLO 指标\n" + ctx.SLOContext
+	}
+	if ctx.PodStates != "" {
+		content += "\n\n## Pod 容器状态（集群快照）\n" + ctx.PodStates
 	}
 
 	userContent := fmt.Sprintf(backgroundUserTemplate, content)

@@ -44,8 +44,8 @@ func TestAnalysisJobs_FailureCarriesCode(t *testing.T) {
 	j := newAnalysisJobs(time.Now)
 	cases := map[error]string{
 		fmt.Errorf("深度分析失败: AI 配置错误: %w", ai.ErrRoleNotAssigned): "ai_role_unassigned",
-		fmt.Errorf("x: %w", context.DeadlineExceeded):                     "ai_timeout",
-		errors.New("LLM 返回空响应"):                                          "ai_upstream",
+		fmt.Errorf("x: %w", context.DeadlineExceeded):            "ai_timeout",
+		errors.New("LLM 返回空响应"):                                  "ai_upstream",
 	}
 	for err, want := range cases {
 		j.start("inc-x")
