@@ -20,8 +20,9 @@
 - 第 0 期：7 天温度 / PSI 分布（校准树莓派 CPU 阈值与 PSI 经验值）— 待批准只读通道
 - 第 1 期：温度判定「先最差、同档最热」+ 只报 max 时对称 crit — 🔄 进行中
   - 代码 + 测试 ✅（分支 `fix/hardware-health-judgement`，本地 commit）
-  - 速览 tile 文案是否改为「最需关注温度」（待用户）
-  - push → CI → dev 验证 → prod（每步待批准）
+  - 速览 tile 文案改为「最需关注温度」 ✅（用户裁定 B）
+  - 合并 dev → CI → dev 验证（用户已批准）
+  - prod：⛔ 用户禁止 Claude 推送，由用户自行决定
 - 第 2 期：采集面（白名单扩项 / node-exporter systemd + textfile / smartctl_exporter）— 待批准
 - 第 3 期：机械盘健康线 + 盘身份 / SMART 判定 / 持续时长状态机 / 节点详情 v2 — 依赖第 2 期
 

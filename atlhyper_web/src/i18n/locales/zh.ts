@@ -1916,8 +1916,8 @@ Deployment 已更新，新的 Pod 正在启动中
       stopped: "停转",
       threshold: "阈值",
       tiles: {
-        maxTemp: "最高温度",
-        maxDiskTemp: "最高盘温",
+        maxTemp: "最需关注温度",
+        maxDiskTemp: "最需关注盘温",
         undervoltNodes: "供电异常",
         throttledNodes: "降频节点",
         maxDiskAwait: "最慢磁盘",

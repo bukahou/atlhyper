@@ -54,9 +54,9 @@ smartctl_exporter (第 2 期) ─┼─> OTel Collector (白名单) ─> ClickHo
 | 同上节点走 `buildHardwareRow` | diskTemp 与 overall 均为 warn |
 | CPU 74°C good + 另一节点机械盘 55°C warn | tile 指向机械盘 |
 
-**待定（用户）**：速览 tile 文案「最高温度 / 最高盘温」在新规则下语义变为「最需关注的温度点」。
-数值仍是真实读数，但不一定是全集群最高的那个。候选：A 保留文案（颜色说明它为何被选中）；
-B 改为「最需关注温度」。属文案修改，不动布局。
+**速览 tile 文案（用户 2026-10-12 裁定 B）**：新规则下 tile 选中的是「最需关注的温度点」，
+不一定是全集群最高读数 ⇒ 文案改为「最需关注温度 / 最需关注盘温」（ja：要注意の温度 / 要注意のディスク温度），不动布局。
+对照：节点概览 `summary.maxTemp`「最高温度」仍是真实最高 CPU 温度（`SummarizeNodes`），不改。
 
 ## 功能二：只自报 max 时补对称 crit — [✅ 第 1 期]
 
@@ -136,6 +136,7 @@ B 改为「最需关注温度」。属文案修改，不动布局。
 ## 文件变更清单
 
 ```
+atlhyper_web/src/i18n/locales/{zh,ja}.ts      [✅ 修改] 速览 tile 文案
 atlhyper_master_v2/service/query/
 ├── metrics_hardware.go              [✅ 修改] tempCell / pickMaxTemp 先最差；resolveTempLimits 对称 crit；新增 moreConcerning / statusRank
 └── metrics_hardware_worst_test.go   [✅ 新增] 功能一、二的测试
@@ -146,4 +147,4 @@ docs/design/active/hardware-health-design.md  [✅ 新增] 本文件
 
 D1 drivetemp 去留（机械盘可能因每 15 秒读温度而不再休眠）· D2 引入 smartctl_exporter ·
 D3 转速来源 · D5 树莓派降频位 · D6 内核 I/O 报错（journald）· D7 hw-check 与 atlhyper 阈值差异 ·
-D8 两边阈值同步机制 · 速览 tile 文案（功能一）· prod 首次 SYNC。
+D8 两边阈值同步机制 · prod 首次 SYNC（⛔ 用户 2026-10-12：Claude 只允许 dev，禁止推 prod）。
