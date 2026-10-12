@@ -16,9 +16,13 @@
 
 > 设计文档: [permission-model-design.md](../../design/active/permission-model-design.md)
 
-- 先行项：指令历史只保存执行结论 + 指令查询需登录 — 代码 + 测试 ✅（分支 `fix/command-history-output-leak`），推 dev 待批准
+- 先行项：指令历史只保存执行结论 + 指令查询需登录 — ✅ 已上 dev（`dev-98389b3`，未登录访问两接口实测 401）
 - 规范：CLAUDE.md §4.3 按新模型重写 — ✅
-- 第 1 期：可选认证 + 查库取角色 / 权限表与路由声明 / env 字面值裁剪 / `/auth/me` + 前端 `useCan` / 锁定占位与演示页 — 待办
+- 第 1 期：可选认证 + 查库取角色 / 权限表与路由声明 / env 字面值裁剪 / `/auth/me` + 前端 `useCan` / 锁定占位与演示页 — 🔄 代码完成
+  - 后端 ✅（go build / vet / test 全绿；路由层测试经变异验证有效）
+  - 前端 ✅（tsc / next build / vitest 全绿）
+  - 推 dev → dev 验证 待批准
+  - 后续项：角色说明页权限矩阵改为后端生成
 - 第 2 期：成员 0 级 + OIDC 接入（akasha 为首个身份源）— 另起设计
 - prod：⛔ 用户禁止 Claude 推送
 

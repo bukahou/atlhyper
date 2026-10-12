@@ -1,6 +1,6 @@
 # 权限模型 设计文档
 
-> 状态：设计已裁定（用户 2026-10-12），待实施
+> 状态：第 1 期代码完成（分支 `feat/permission-model`，本地 commit），待推 dev
 > 后续：OIDC 接入（akasha 为首个身份源）建立在本设计之上，另起文档
 
 ## 背景 + 目标
@@ -112,12 +112,15 @@
 
 - 资源详情（Pod / Deployment / StatefulSet / DaemonSet / Job / CronJob）的 `envs[].value`：
   无 `workload.env.read` 时置空并标记 `valueHidden: true`；`valueFrom`（如 `secret:xxx`）保留。
-- 裁剪在 handler 层、Convert 之后执行（授权属于网关职责，Convert 不做业务判断）。
+- **实施调整**：各资源详情的容器结构不统一（Pod 强类型，工作负载 template 为 `interface{}`），
+  改为网关层装饰器 `middleware.RedactEnvValues` 在 **JSON 层**处理任意层级的 `envs[]`，
+  套在全部 `cluster.read` 路由上（新增资源类型自动覆盖）；解析失败返回 500（失败即关）。
+  因此 Go 模型**不新增** `ValueHidden` 字段，`valueHidden` 只出现在响应 JSON 与前端类型中。
 
-| 前端 TS | 后端 Go（JSON tag） |
+| 前端 TS（`ContainerEnv` / `EnvVarSpec`） | 响应 JSON |
 |---|---|
-| `EnvVar.value?: string` | `Value string \`json:"value,omitempty"\`` |
-| `EnvVar.valueHidden?: boolean` | `ValueHidden bool \`json:"valueHidden,omitempty"\`` [新增] |
+| `value?: string` | 有权限时原样；无权限时删除 |
+| `valueHidden?: boolean` [新增] | 无权限且原有字面值时为 `true` |
 
 **测试**：level 0 详情无字面值且 `valueHidden=true`、`valueFrom` 保留；level 1 原样。
 
@@ -139,7 +142,9 @@
 已登录时 `user = {id, username, displayName, email, role}`。
 
 - 前端 `authStore` 增 `permissions`；应用启动、登录成功、收到 401/403 时刷新。
-- 新 `hooks/useCan.ts`：`can("logs.read")`。现有 18 个文件的 `isAuthenticated` 判断与 26 处角色数字比较全部改走它。
+- 新 `hooks/useCan.ts`：组件内 `can("logs.read")`；datasource 层用 `canNow(...)`，无权限时**不发请求**。
+  「能看 / 能做」类判断全部改走它；`isAuthenticated` 只保留在「显示登录按钮还是用户菜单」这类身份展示上。
+- `useRequireAuth(action, perm = "cluster.operate")`：有权限执行；访客弹登录框；已登录不足提示联系管理员。
 - 侧栏菜单、操作按钮、页面演示态均由权限驱动。
 
 ## 功能五：无权限时的展示（裁决 3 = C）
@@ -150,7 +155,10 @@
 | 纯管理功能页（AI 设置、审计、通知、用户管理、AI 对话） | 整页演示数据 + 醒目「演示数据」横幅 |
 | 规则 | ⛔ 真实数据与演示数据不出现在同一视图 |
 
-`components/common/PermissionLock.tsx`（新增）统一锁定占位；文案走 i18n。
+`components/common/PermissionLock.tsx`（新增）统一锁定占位；`components/common/DemoBanner.tsx`（新增）统一演示横幅；文案走 i18n。
+锁定占位**不显示所需等级**：那需要前端复制一份权限表，违反「后端唯一权限源」。
+
+已覆盖：日志列表、链路详情 / 慢链路 / 错误链路 / 相关性 / 状态码筛选链路、指令历史页、命名空间 Secret 标签页、用户管理（演示）。
 
 ## 实施阶段
 
@@ -167,26 +175,31 @@
 atlhyper_master_v2/
 ├── gateway/middleware/
 │   ├── auth.go             [修改] Authenticate（可选认证 + 查库）取代 AuthRequired / RequireMinRole
-│   ├── permission.go       [新增] 权限常量 + level → 权限表
-│   └── permission_test.go  [新增]
+│   ├── principal.go        [✅ 新增] Authenticate / RequirePermission / Principal
+│   ├── permission.go       [✅ 新增] 权限常量 + level → 权限表
+│   ├── redact_env.go       [✅ 新增] env 字面值裁剪装饰器
+│   └── *_test.go           [✅ 新增]
 ├── gateway/routes.go       [修改] 全部路由改为声明权限；删除 public/operator/admin 辅助函数
 ├── gateway/handler/
 │   ├── auth_me.go          [新增] GET /api/v2/auth/me
-│   └── redact.go           [新增] env 字面值裁剪
+│   （env 字面值裁剪改在 middleware/redact_env.go，见功能三）
 ├── service/ + database/    [修改] 按 id 取 role/status 的只读查询
 └── database/sqlite/migrations.go [修改] users.role 默认值 3 → 0
-model_v3/cluster/common.go  [修改] EnvVar.ValueHidden
 atlhyper_web/src/
 ├── store/authStore.ts      [修改] permissions
 ├── api/auth.ts             [修改] getMe()
 ├── hooks/useCan.ts         [新增]
 ├── components/common/PermissionLock.tsx [新增]
 ├── i18n/                   [修改] 锁定 / 演示文案
-└── （18 + 26 处判断点）    [修改] 改走 useCan
+├── components/common/DemoBanner.tsx [新增]
+└── （各页面判断点）        [修改] 改走 useCan
 CLAUDE.md §4.3              [✅ 修改] 规范重写
 ```
 
 ## 附录
+
+- **后续项（第 1 期未做）**：角色说明页（`app/admin/roles`）的权限矩阵是手写的，与新权限表不一致且缺「成员」档。
+  建议改为由后端下发权限表生成，避免第二份手写真相。
 
 - `users.role` 列默认值现为 3（Admin）：任何漏传 role 的插入都会得到管理员。改为 0（按 §1.9 直接改建表语句）。
 - 已有用户角色值 1–3 不变；0 为新增档。
