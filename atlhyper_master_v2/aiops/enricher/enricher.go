@@ -100,6 +100,9 @@ type Enricher struct {
 	cache    map[string]*cachedResult
 	maxCache int
 	cacheTTL time.Duration
+
+	// 深度分析状态（内存）
+	jobs *analysisJobs
 }
 
 // NewEnricher 创建 AIOps 事件 AI 增强编排服务
@@ -118,6 +121,7 @@ func NewEnricher(
 		cache:          make(map[string]*cachedResult),
 		maxCache:       defaultMaxCache,
 		cacheTTL:       defaultCacheTTL,
+		jobs:           newAnalysisJobs(time.Now),
 	}
 }
 
@@ -140,20 +144,33 @@ func (e *Enricher) NotifyIncidentEvent(incidentID, severity, trigger string) {
 	e.bgTrigger.Submit(incidentID, severity, trigger)
 }
 
-// TriggerAnalysis 手动触发深度分析（异步）
-func (e *Enricher) TriggerAnalysis(incidentID string) {
+// TriggerAnalysis 触发深度分析（异步）
+// 同一事件已在分析中则不重复启动，返回 false；状态经 AnalysisStatus 查询
+func (e *Enricher) TriggerAnalysis(incidentID string) bool {
+	if !e.jobs.start(incidentID) {
+		log.Info("深度分析已在进行，忽略重复触发", "incident", incidentID)
+		return false
+	}
 	log.Info("触发深度分析", "incident", incidentID)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), analysisTimeout)
 		defer cancel()
 
-		if err := e.runAnalysis(ctx, incidentID, "manual"); err != nil {
-			log.Error("深度分析失败", "incident", incidentID, "err", err)
+		err := e.runAnalysis(ctx, incidentID, "manual")
+		e.jobs.finish(incidentID, err)
+		if err != nil {
+			log.Error("深度分析失败", "incident", incidentID, "code", ai.ErrorCode(err), "err", err)
 		} else {
 			log.Info("深度分析完成", "incident", incidentID)
 		}
 	}()
+	return true
+}
+
+// AnalysisStatus 某事件最近一次深度分析的状态（查不到 = 未触发过，或 Master 重启后已丢失）
+func (e *Enricher) AnalysisStatus(incidentID string) (AnalysisJob, bool) {
+	return e.jobs.get(incidentID)
 }
 
 // Stop 停止后台任务

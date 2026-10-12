@@ -81,6 +81,7 @@ func TestRoutes_LevelZeroCannotReachSensitive(t *testing.T) {
 		{"POST", "/api/v2/ops/pods/logs"},
 		{"POST", "/api/v2/commands"},
 		{"GET", "/api/v2/audit/logs"},
+		{"GET", "/api/v2/aiops/ai/analyze/status?incidentId=x"},
 		{"GET", "/api/v2/ai/providers"},
 		{"GET", "/api/v2/user/list"},
 		{"POST", "/api/v2/user/update-role"},
