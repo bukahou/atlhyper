@@ -512,16 +512,9 @@ func initDefaultAdmin(db *sql.DB) error {
 }
 
 // initDefaultAIModels 初始化默认 AI 模型列表
+// 逐行 INSERT OR IGNORE（用户 2026-10-12 裁定 D2）：每次启动补齐缺失的内置模型，
+// 已有行（含用户改过的）不动。依赖 UNIQUE(provider, model)。
 func initDefaultAIModels(db *sql.DB) error {
-	// 检查是否已有数据
-	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM ai_provider_models").Scan(&count); err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil // 已有数据，跳过
-	}
-
 	now := time.Now().Format(time.RFC3339)
 	models := []struct {
 		provider      string
@@ -555,21 +548,34 @@ func initDefaultAIModels(db *sql.DB) error {
 		{"ollama", "qwen2.5:32b", "Qwen 2.5 32B", 0, 3, 32768},
 		{"ollama", "llama3.1:8b", "Llama 3.1 8B", 0, 4, 131072},
 		{"ollama", "deepseek-r1:14b", "DeepSeek R1 14B", 0, 5, 65536},
+		// AWS Bedrock（东京 In-Region on-demand；context_window 取模型卡标称值的保守整数）
+		// ⚠️ 冒烟（流式 + 多轮 tool call）不通过的模型须从此处移除
+		{"bedrock", "qwen.qwen3-235b-a22b-2507-v1:0", "Qwen3 235B A22B", 1, 1, 256000},
+		{"bedrock", "openai.gpt-oss-120b-1:0", "gpt-oss 120B", 0, 2, 128000},
+		{"bedrock", "minimax.minimax-m2.5", "MiniMax M2.5", 0, 3, 196000},
 	}
 
-	stmt, err := db.Prepare(`INSERT INTO ai_provider_models (provider, model, display_name, is_default, sort_order, context_window, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := db.Prepare(`INSERT OR IGNORE INTO ai_provider_models (provider, model, display_name, is_default, sort_order, context_window, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
+	added := 0
 	for _, m := range models {
-		if _, err := stmt.Exec(m.provider, m.model, m.displayName, m.isDefault, m.sortOrder, m.contextWindow, now); err != nil {
-			log.Warn("插入默认模型失败", "err", err)
+		res, err := stmt.Exec(m.provider, m.model, m.displayName, m.isDefault, m.sortOrder, m.contextWindow, now)
+		if err != nil {
+			log.Warn("插入默认模型失败", "provider", m.provider, "model", m.model, "err", err)
+			continue
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			added++
 		}
 	}
 
-	log.Info("已初始化默认 AI 模型列表")
+	if added > 0 {
+		log.Info("已补齐内置 AI 模型", "added", added)
+	}
 	return nil
 }
 

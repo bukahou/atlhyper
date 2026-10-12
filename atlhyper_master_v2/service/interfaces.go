@@ -114,8 +114,6 @@ type QueryAdmin interface {
 	// Notify
 	ListNotifyChannels(ctx context.Context) ([]*database.NotifyChannel, error)
 	GetNotifyChannelByType(ctx context.Context, channelType string) (*database.NotifyChannel, error)
-	// Settings
-	GetSetting(ctx context.Context, key string) (*database.Setting, error)
 	// AI Provider
 	ListAIProviders(ctx context.Context) ([]*database.AIProvider, error)
 	GetAIProviderByID(ctx context.Context, id int64) (*database.AIProvider, error)
@@ -164,7 +162,6 @@ type QueryUser interface {
 type OpsAdmin interface {
 	CreateNotifyChannel(ctx context.Context, ch *database.NotifyChannel) error
 	UpdateNotifyChannel(ctx context.Context, ch *database.NotifyChannel) error
-	SetSetting(ctx context.Context, setting *database.Setting) error
 	CreateAIProvider(ctx context.Context, p *database.AIProvider) error
 	UpdateAIProvider(ctx context.Context, p *database.AIProvider) error
 	DeleteAIProvider(ctx context.Context, id int64) error

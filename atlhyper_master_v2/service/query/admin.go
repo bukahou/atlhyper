@@ -48,12 +48,6 @@ func (q *QueryService) GetNotifyChannelByType(ctx context.Context, channelType s
 	return q.notifyRepo.GetByType(ctx, channelType)
 }
 
-// ==================== Settings ====================
-
-func (q *QueryService) GetSetting(ctx context.Context, key string) (*database.Setting, error) {
-	return q.settingsRepo.Get(ctx, key)
-}
-
 // ==================== AI Provider ====================
 
 func (q *QueryService) ListAIProviders(ctx context.Context) ([]*database.AIProvider, error) {
