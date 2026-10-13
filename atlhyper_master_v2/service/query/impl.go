@@ -31,7 +31,6 @@ type QueryService struct {
 	auditRepo      database.AuditRepository
 	commandRepo    database.CommandHistoryRepository
 	notifyRepo     database.NotifyChannelRepository
-	settingsRepo   database.SettingsRepository
 	aiProviderRepo database.AIProviderRepository
 	aiSettingsRepo database.AISettingsRepository
 	aiModelRepo    database.AIProviderModelRepository
@@ -55,7 +54,6 @@ type AdminRepos struct {
 	Audit      database.AuditRepository
 	Command    database.CommandHistoryRepository
 	Notify     database.NotifyChannelRepository
-	Settings   database.SettingsRepository
 	AIProvider database.AIProviderRepository
 	AISettings database.AISettingsRepository
 	AIModel    database.AIProviderModelRepository
@@ -99,7 +97,6 @@ func NewQueryService(deps QueryServiceDeps) *QueryService {
 		auditRepo:      deps.AdminRepos.Audit,
 		commandRepo:    deps.AdminRepos.Command,
 		notifyRepo:     deps.AdminRepos.Notify,
-		settingsRepo:   deps.AdminRepos.Settings,
 		aiProviderRepo: deps.AdminRepos.AIProvider,
 		aiSettingsRepo: deps.AdminRepos.AISettings,
 		aiModelRepo:    deps.AdminRepos.AIModel,

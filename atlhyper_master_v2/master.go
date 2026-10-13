@@ -179,7 +179,7 @@ func NewMaster() (*Master, error) {
 
 	// 6. 初始化 Operations（写入路径，AI Service 依赖 cmdOps）
 	cmdOps := operations.NewCommandService(bus, db.Command)
-	adminOps := operations.NewAdminService(db.Notify, db.Settings, db.AIProvider, db.AISettings, db.AIRoleBudget)
+	adminOps := operations.NewAdminService(db.Notify, db.AIProvider, db.AISettings, db.AIRoleBudget)
 	log.Info("操作服务初始化完成")
 
 	// 7. 初始化 AI Service（Enricher 依赖 AIService）
@@ -189,7 +189,7 @@ func NewMaster() (*Master, error) {
 			BedrockRegion: cfg.AI.BedrockRegion,
 		},
 		cmdOps, bus,
-		db.AIProvider, db.AISettings, db.AIModel, db.AIRoleBudget,
+		db.AIProvider, db.AIModel, db.AIRoleBudget,
 		db.AIConversation, db.AIMessage,
 	)
 	log.Info("AI 服务初始化完成 (动态配置)")
@@ -213,7 +213,6 @@ func NewMaster() (*Master, error) {
 			Audit:      db.Audit,
 			Command:    db.Command,
 			Notify:     db.Notify,
-			Settings:   db.Settings,
 			AIProvider: db.AIProvider,
 			AISettings: db.AISettings,
 			AIModel:    db.AIModel,

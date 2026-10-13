@@ -99,7 +99,7 @@ export function useAISettings() {
           name: formData.name,
           provider: formData.provider,
           model: formData.model,
-          baseUrl: formData.baseUrl || undefined,
+          baseUrl: formData.baseUrl.trim(), // 空字符串 = 清空（恢复默认地址），不能转成「不传」
           description: formData.description,
           ...(formData.apiKey ? { apiKey: formData.apiKey } : {}),
         });

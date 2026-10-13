@@ -169,18 +169,6 @@ func (m *mockNotifyRepo) ListEnabled(ctx context.Context) ([]*database.NotifyCha
 	return nil, nil
 }
 
-type mockSettingsRepo struct{}
-
-func (m *mockSettingsRepo) Get(ctx context.Context, key string) (*database.Setting, error) {
-	return nil, nil
-}
-func (m *mockSettingsRepo) GetByPrefix(ctx context.Context, prefix string) ([]*database.Setting, error) {
-	return nil, nil
-}
-func (m *mockSettingsRepo) Set(ctx context.Context, setting *database.Setting) error { return nil }
-func (m *mockSettingsRepo) Delete(ctx context.Context, key string) error             { return nil }
-func (m *mockSettingsRepo) List(ctx context.Context) ([]*database.Setting, error)    { return nil, nil }
-
 type mockAIProviderRepo struct{}
 
 func (m *mockAIProviderRepo) Create(ctx context.Context, p *database.AIProvider) error { return nil }
@@ -287,7 +275,6 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 	auditRepo := &mockAuditRepo{}
 	commandRepo := &mockCommandRepo{}
 	notifyRepo := &mockNotifyRepo{}
-	settingsRepo := &mockSettingsRepo{}
 	aiProviderRepo := &mockAIProviderRepo{}
 	aiSettingsRepo := &mockAISettingsRepo{}
 	aiModelRepo := &mockAIModelRepo{}
@@ -304,7 +291,6 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 			Audit:      auditRepo,
 			Command:    commandRepo,
 			Notify:     notifyRepo,
-			Settings:   settingsRepo,
 			AIProvider: aiProviderRepo,
 			AISettings: aiSettingsRepo,
 			AIModel:    aiModelRepo,
@@ -337,9 +323,6 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 	}
 	if svc.notifyRepo == nil {
 		t.Error("notifyRepo not injected")
-	}
-	if svc.settingsRepo == nil {
-		t.Error("settingsRepo not injected")
 	}
 	if svc.aiProviderRepo == nil {
 		t.Error("aiProviderRepo not injected")
@@ -376,7 +359,6 @@ func TestNewQueryService_OptionalNil(t *testing.T) {
 			Audit:      &mockAuditRepo{},
 			Command:    &mockCommandRepo{},
 			Notify:     &mockNotifyRepo{},
-			Settings:   &mockSettingsRepo{},
 			AIProvider: &mockAIProviderRepo{},
 			AISettings: &mockAISettingsRepo{},
 			AIModel:    &mockAIModelRepo{},

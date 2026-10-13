@@ -154,6 +154,7 @@ func (r *Router) registerRoutes() {
 	// ================================================================
 	r.open("/health", healthCheck)
 	r.open("/api/v2/auth/me", authMeH.Get)
+	r.open("/api/v2/auth/permissions", handler.GetPermissionTable)
 	r.openAudited("/api/v2/user/login", "login", "user", userH.Login) // 记录成功 / 失败的登录尝试
 
 	// 外部身份登录（OIDC）：providers 恒注册（未启用时返回空列表，登录框据此隐藏按钮）

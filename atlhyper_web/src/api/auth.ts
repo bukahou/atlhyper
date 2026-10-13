@@ -5,7 +5,7 @@
  */
 
 import { post, get } from "./request";
-import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem, AuthMe, AuthProvider } from "@/types/auth";
+import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem, AuthMe, AuthProvider, PermissionTable } from "@/types/auth";
 
 // ============================================================
 // Master V2 响应类型
@@ -59,6 +59,14 @@ export function login(data: LoginRequest) {
  */
 export function getMe() {
   return get<AuthMeApiResponse>("/api/v2/auth/me");
+}
+
+/**
+ * 完整权限表（无需登录；角色说明页用）
+ * GET /api/v2/auth/permissions
+ */
+export function getPermissionTable() {
+  return get<{ message: string; data: PermissionTable }>("/api/v2/auth/permissions");
 }
 
 /**

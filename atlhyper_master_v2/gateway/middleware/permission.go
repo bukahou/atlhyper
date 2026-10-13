@@ -86,3 +86,20 @@ func Allowed(level int, perm Permission) bool {
 	}
 	return false
 }
+
+// PermissionGrant 一条权限及授予它的最低等级
+type PermissionGrant struct {
+	Permission Permission
+	MinLevel   int
+}
+
+// PermissionTable 返回完整权限表（按授予等级、再按声明顺序）；角色说明页据此渲染，⛔ 前端不另写一份
+func PermissionTable() []PermissionGrant {
+	table := []PermissionGrant{}
+	for l := RoleMember; l <= RoleAdmin; l++ {
+		for _, p := range levelGrants[l] {
+			table = append(table, PermissionGrant{Permission: p, MinLevel: l})
+		}
+	}
+	return table
+}
