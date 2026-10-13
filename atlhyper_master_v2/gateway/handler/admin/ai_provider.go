@@ -346,6 +346,11 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 		provider.Model = *req.Model
 	}
 	if req.BaseURL != nil {
+		// 空字符串 = 清空（恢复该 provider 的默认地址）；非空与创建同样校验
+		if *req.BaseURL != "" && !isValidBaseURL(*req.BaseURL) {
+			handler.WriteError(w, http.StatusBadRequest, "invalid base_url format")
+			return
+		}
 		provider.BaseURL = *req.BaseURL
 	}
 	if req.Description != nil {

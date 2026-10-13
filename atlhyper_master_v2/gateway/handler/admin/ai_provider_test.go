@@ -141,3 +141,24 @@ func TestCreateProvider_NormalizesKeyBeforeSave(t *testing.T) {
 		t.Errorf("含引号应 400 并提示，得到 %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// BaseURL：传空字符串 = 清空（恢复默认地址）；不传 = 不改；非空须通过与创建相同的格式校验
+func TestUpdateProvider_BaseURL(t *testing.T) {
+	svc := &stubProviderSvc{saved: &database.AIProvider{ID: 1, Provider: "openai", APIKey: "ENC:k", Model: "gpt-4o", BaseURL: "https://old.example.com/v1"}}
+	h := NewAIProviderHandler(svc)
+
+	rec := postJSON(t, h.ProviderHandler, http.MethodPut, "/api/v2/ai/providers/1", `{"model":"gpt-4o-mini"}`)
+	if rec.Code != http.StatusOK || svc.saved.BaseURL != "https://old.example.com/v1" {
+		t.Errorf("不传 baseUrl 应保持原值，得到 %d %q", rec.Code, svc.saved.BaseURL)
+	}
+
+	rec = postJSON(t, h.ProviderHandler, http.MethodPut, "/api/v2/ai/providers/1", `{"baseUrl":"not a url"}`)
+	if rec.Code != http.StatusBadRequest || svc.saved.BaseURL != "https://old.example.com/v1" {
+		t.Errorf("非法 baseUrl 应 400 且不改，得到 %d %q", rec.Code, svc.saved.BaseURL)
+	}
+
+	rec = postJSON(t, h.ProviderHandler, http.MethodPut, "/api/v2/ai/providers/1", `{"baseUrl":""}`)
+	if rec.Code != http.StatusOK || svc.saved.BaseURL != "" {
+		t.Errorf("空 baseUrl 应清空，得到 %d %q", rec.Code, svc.saved.BaseURL)
+	}
+}
