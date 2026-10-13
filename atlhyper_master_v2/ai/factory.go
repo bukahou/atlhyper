@@ -22,7 +22,6 @@ func NewService(
 	ops *operations.CommandService,
 	bus mq.Producer,
 	providerRepo database.AIProviderRepository,
-	settingsRepo database.AISettingsRepository,
 	modelRepo database.AIProviderModelRepository,
 	budgetRepo database.AIRoleBudgetRepository,
 	convRepo database.AIConversationRepository,
@@ -36,7 +35,6 @@ func NewService(
 
 	return &aiServiceImpl{
 		providerRepo: providerRepo,
-		settingsRepo: settingsRepo,
 		modelRepo:    modelRepo,
 		budgetRepo:   budgetRepo,
 		executor:     newToolExecutor(ops, bus, toolTimeout),
