@@ -91,6 +91,17 @@ export interface AuthMe {
   permissions: Permission[];
 }
 
+// 完整权限表（GET /api/v2/auth/permissions）：某一级拥有 minLevel <= 该级的全部权限
+export interface PermissionTableRow {
+  permission: Permission;
+  minLevel: number;
+}
+
+export interface PermissionTable {
+  levels: number[];
+  rows: PermissionTableRow[];
+}
+
 // 外部登录方式（GET /api/v2/auth/providers；未启用时为空列表）
 export interface AuthProvider {
   id: string;
