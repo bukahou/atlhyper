@@ -438,12 +438,15 @@ Traces 查询参数：`service?`, `operation?`, `min_duration?`, `max_duration?`
 | 方法 | 路径 | 函数名 | 说明 |
 |------|------|--------|------|
 | POST | `/api/v2/user/login` | `login(data)` | 登录 |
+| GET | `/api/v2/auth/me` | `getMe()` | 当前主体与权限列表（前端唯一权限来源） |
+| GET | `/api/v2/auth/permissions` | `getPermissionTable()` | 完整权限表（角色说明页） |
+| GET | `/api/v2/auth/providers` | `getAuthProviders()` | 外部登录方式 |
 | GET | `/api/v2/user/list` | `getUserList()` | 用户列表 (Admin) |
 | POST | `/api/v2/user/register` | `registerUser(data)` | 注册用户 (Admin) |
 | POST | `/api/v2/user/update-role` | `updateUserRole(data)` | 更新角色 (Admin) |
 | POST | `/api/v2/user/update-status` | `updateUserStatus(data)` | 更新状态 (Admin) |
 | POST | `/api/v2/user/delete` | `deleteUser(id)` | 删除用户 (Admin) |
-| GET | `/api/v2/audit/logs` | `getAuditLogs(params)` | 审计日志 (Admin) |
+| GET | `/api/v2/audit/logs` | `getAuditLogs(params)` | 审计日志 (Operator) |
 
 审计日志查询参数：`user_id?`, `source?`, `action?`, `since?`, `until?`, `limit?`, `offset?`
 
