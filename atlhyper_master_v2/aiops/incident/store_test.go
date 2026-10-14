@@ -106,3 +106,54 @@ func TestTimelineRiskUsesDisplayScale(t *testing.T) {
 		t.Errorf("不得出现 [0,1] 刻度：%s", joined)
 	}
 }
+
+// 功能二：创建 / 升级 / 复发时追加一条 anomaly_detected，写明触发信号；恢复用 recovery_started
+func TestStore_AppendsSignalTimeline(t *testing.T) {
+	repo := newFakeRepo()
+	s := NewStore(repo)
+	now := time.Now()
+	withSignals := func(local, final float64) *aiops.EntityRisk {
+		r := risk("ns/pod/a", local, final)
+		r.Signals = []aiops.RiskSignal{
+			{Metric: "critical_event", Score: 0.85, Detail: "K8s 事件 Unhealthy: probe"},
+			{Metric: "container_anomaly", Score: 0.6, Detail: "容器 app: NotReady"},
+		}
+		return r
+	}
+
+	id := s.Create(context.Background(), "c1", "ns/pod/a", withSignals(0.6, 0.48), now)
+	s.UpdateState(context.Background(), id, aiops.StateIncident, withSignals(0.7, 0.56), now)
+	s.UpdateState(context.Background(), id, aiops.StateRecovery, risk("ns/pod/a", 0, 0), now)
+	s.IncrementRecurrence(context.Background(), id, withSignals(0.6, 0.48), now)
+
+	var types []string
+	for _, tl := range repo.timeline {
+		types = append(types, tl.EventType)
+	}
+	want := []string{
+		aiops.TimelineStateChange, aiops.TimelineAnomalyDetected, // 创建
+		aiops.TimelineStateChange, aiops.TimelineAnomalyDetected, // 升级
+		aiops.TimelineRecoveryStarted,                           // 恢复：无信号行
+		aiops.TimelineRecurrence, aiops.TimelineAnomalyDetected, // 复发
+	}
+	if strings.Join(types, ",") != strings.Join(want, ",") {
+		t.Fatalf("时间线类型\n got  %v\n want %v", types, want)
+	}
+	sig := repo.timeline[1].Detail
+	if sig != "K8s 事件 Unhealthy: probe；容器 app: NotReady" {
+		t.Errorf("信号行 = %q", sig)
+	}
+	if d := repo.timeline[4].Detail; !strings.HasPrefix(d, "状态变更 → recovery") {
+		t.Errorf("恢复行文案保持不变（旧数据兼容依赖此前缀），got %q", d)
+	}
+}
+
+// 本地无异常、风险全部来自依赖传播 → 明说，而不是空着
+func TestStore_SignalTimelinePropagatedOnly(t *testing.T) {
+	repo := newFakeRepo()
+	s := NewStore(repo)
+	s.Create(context.Background(), "c1", "ns/service/x", &aiops.EntityRisk{EntityKey: "ns/service/x", RLocal: 0, RFinal: 0.3}, time.Now())
+	if len(repo.timeline) != 2 || repo.timeline[1].Detail != "无本地异常信号（风险由依赖传播）" {
+		t.Errorf("got %+v", repo.timeline)
+	}
+}

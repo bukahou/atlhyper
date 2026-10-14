@@ -66,6 +66,7 @@ func (s *Store) Create(ctx context.Context, clusterID, entityKey string, risk *a
 
 	// 添加时间线
 	s.addTimeline(ctx, id, now, aiops.TimelineStateChange, entityKey, "状态变更: healthy → warning")
+	s.addSignalTimeline(ctx, id, now, risk)
 
 	log.Info("事件已创建", "id", id, "entity", entityKey, "severity", severity)
 	return id
@@ -88,7 +89,13 @@ func (s *Store) UpdateState(ctx context.Context, incidentID string, state aiops.
 	s.refreshEntityRisk(ctx, incidentID, risk)
 
 	detail := fmt.Sprintf("状态变更 → %s (风险 %s)", state, displayRisk(risk.RFinal))
+	if state == aiops.StateRecovery {
+		// 独立类型：异常时长据此结构化识别（文案前缀不变，旧数据仍靠它兼容）
+		s.addTimeline(ctx, incidentID, now, aiops.TimelineRecoveryStarted, risk.EntityKey, detail)
+		return
+	}
 	s.addTimeline(ctx, incidentID, now, aiops.TimelineStateChange, risk.EntityKey, detail)
+	s.addSignalTimeline(ctx, incidentID, now, risk)
 }
 
 // Resolve 解决事件
@@ -119,6 +126,7 @@ func (s *Store) IncrementRecurrence(ctx context.Context, incidentID string, risk
 	s.refreshEntityRisk(ctx, incidentID, risk)
 	detail := fmt.Sprintf("复发 (风险 %s)", displayRisk(risk.RFinal))
 	s.addTimeline(ctx, incidentID, now, aiops.TimelineRecurrence, risk.EntityKey, detail)
+	s.addSignalTimeline(ctx, incidentID, now, risk)
 }
 
 // GetIncident 获取事件详情

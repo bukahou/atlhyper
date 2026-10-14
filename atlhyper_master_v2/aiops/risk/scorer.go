@@ -61,6 +61,7 @@ func (s *Scorer) Calculate(
 
 	// 构建 EntityRisk 列表
 	entityRisks := s.buildEntityRisks(graph, localRisks, weightedRisks, finalRisks)
+	attachSignals(entityRisks, anomalies)
 	s.entityMap[clusterID] = entityRisks
 
 	// 聚合 ClusterRisk
@@ -197,4 +198,31 @@ func (s *Scorer) buildEntityRisks(
 	}
 
 	return entityRisks
+}
+
+// maxSignalsPerEntity 每个实体最多挂几条触发信号
+const maxSignalsPerEntity = 3
+
+// attachSignals 把推高本地风险的异常挂到实体上（只取 IsAnomaly，按 Score 倒序，最多 3 条）
+func attachSignals(entityRisks map[string]*aiops.EntityRisk, anomalies []*aiops.AnomalyResult) {
+	byEntity := map[string][]*aiops.AnomalyResult{}
+	for _, a := range anomalies {
+		if a.IsAnomaly {
+			byEntity[a.EntityKey] = append(byEntity[a.EntityKey], a)
+		}
+	}
+	for key, list := range byEntity {
+		er := entityRisks[key]
+		if er == nil {
+			continue
+		}
+		sort.SliceStable(list, func(i, j int) bool { return list[i].Score > list[j].Score })
+		if len(list) > maxSignalsPerEntity {
+			list = list[:maxSignalsPerEntity]
+		}
+		er.Signals = make([]aiops.RiskSignal, len(list))
+		for i, a := range list {
+			er.Signals[i] = aiops.RiskSignal{Metric: a.MetricName, Score: a.Score, Detail: aiops.DescribeAnomaly(a)}
+		}
+	}
 }
