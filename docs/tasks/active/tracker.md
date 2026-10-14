@@ -12,6 +12,20 @@
 
 ---
 
+## AIOps 事件证据补全 — 设计完成，待实施（2026-10-14）
+
+> 设计文档: [aiops-incident-evidence-design.md](../../design/active/aiops-incident-evidence-design.md)
+> 用户裁定：功能一（持久化 event 进 AI 上下文）、二（时间线记录触发信号）、三（异常时长 / 同时段事件 / Pod 归属）一起做。分支 `feat/aiops-incident-evidence`
+
+- 设计文档 ✅
+- 步骤 1：功能二 —— 信号 + `anomaly_detected` 时间线 + recovery 改 `recovery_started`
+- 步骤 2：功能三①③ + 抽出 `assembleIncidentContext`（后台 / 深度两条路径共用）
+- 步骤 3：功能一（event 上下文 + 对话工具 `get_event_history`）+ 功能三②
+- 验收：dev 上对一个超过 1 小时的事件「重新分析」，四项核对（见设计文档）
+- 不在本次范围（待决策）：检测灵敏度（单次探针超时即升级）· 前端持续时间口径 · `/events?source=history` 忽略 namespace
+
+---
+
 ## AI Provider：接入 AWS Bedrock + 各家改官方 SDK — PR-A 代码完成（2026-10-12）
 
 > 计划: [ai-provider-bedrock-sdk-design.md](../../design/future/ai-provider-bedrock-sdk-design.md)
