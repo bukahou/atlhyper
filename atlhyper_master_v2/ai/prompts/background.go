@@ -20,6 +20,11 @@ type IncidentPromptContext struct {
 
 	// 事件涉及 Pod 的容器状态（来自 Agent 快照：当前状态 / 重启次数 / 上次退出）
 	PodStates string
+
+	// 事件时间窗内实体的 K8s Warning 事件（master 持久化，同资源同原因合并为一行）
+	K8sEvents string
+	// 开始时间前后 15 分钟内同集群的其他事件（用于识别共同依赖）
+	ConcurrentIncidents string
 }
 
 // PromptPair 系统提示词 + 用户消息
@@ -65,14 +70,24 @@ const backgroundUserTemplate = `请分析以下 Kubernetes 集群事件:
 
 // BuildBackgroundPrompt 构建 background 角色完整 Prompt
 func BuildBackgroundPrompt(ctx *IncidentPromptContext) *PromptPair {
-	// 基础上下文
+	content := renderIncidentEvidence(ctx)
+
+	userContent := fmt.Sprintf(backgroundUserTemplate, content)
+	return &PromptPair{
+		System: backgroundSystem + "\n\n" + EvidenceRules,
+		User:   userContent,
+	}
+}
+
+// renderIncidentEvidence 事件证据正文（后台摘要与深度分析共用，两边看到的事实一致）
+func renderIncidentEvidence(ctx *IncidentPromptContext) string {
 	content := ctx.IncidentSummary + "\n\n" +
 		ctx.RootCauseEntity + "\n\n" +
 		ctx.AffectedEntities + "\n\n" +
 		ctx.TimelineText + "\n\n" +
 		ctx.HistoricalContext
 
-	// OTel 上下文（非空时追加）
+	// 以下各节非空时追加
 	if ctx.RecentErrorTraces != "" {
 		content += "\n\n## 最近错误 Traces\n" + ctx.RecentErrorTraces
 	}
@@ -85,10 +100,11 @@ func BuildBackgroundPrompt(ctx *IncidentPromptContext) *PromptPair {
 	if ctx.PodStates != "" {
 		content += "\n\n## Pod 容器状态（集群快照）\n" + ctx.PodStates
 	}
-
-	userContent := fmt.Sprintf(backgroundUserTemplate, content)
-	return &PromptPair{
-		System: backgroundSystem + "\n\n" + EvidenceRules,
-		User:   userContent,
+	if ctx.K8sEvents != "" {
+		content += "\n\n## K8s 事件（atlhyper 持久化，同资源同原因合并为一行，次数为累计值）\n" + ctx.K8sEvents
 	}
+	if ctx.ConcurrentIncidents != "" {
+		content += "\n\n## 同时段其他事件\n" + ctx.ConcurrentIncidents
+	}
+	return content
 }

@@ -133,6 +133,10 @@ type AnomalyResult struct {
 	// AbsoluteBreach 表示该值触碰了绝对阈值（见 AbsoluteThresholds），
 	// 与统计偏离无关。上层可据此区分「相对常态异常」与「无论常态如何都不可接受」。
 	AbsoluteBreach bool `json:"absoluteBreach,omitempty"`
+
+	// Detail 人可读的证据（确定性异常由提取器填写，如 event 原文 / 容器原因）；
+	// 统计异常留空，由 DescribeAnomaly 按当前值 / 基线 / 偏离渲染
+	Detail string `json:"detail,omitempty"`
 }
 
 // EntityBaseline 实体基线汇总（API 响应）
@@ -163,6 +167,16 @@ type EntityRisk struct {
 	RFinal       float64 `json:"rFinal"`       // Stage 3: 传播后最终风险 [0, 1]
 	RiskLevel    string  `json:"riskLevel"`    // "healthy" | "low" | "medium" | "high" | "critical"
 	FirstAnomaly int64   `json:"firstAnomaly"` // 首次异常时间 (Unix, 0 = 无异常)
+
+	// Signals 推高本地风险的异常信号（按 Score 倒序，最多 3 条）；传播得来的风险没有本地信号
+	Signals []RiskSignal `json:"signals,omitempty"`
+}
+
+// RiskSignal 实体风险的触发信号（时间线与 AI 上下文用它说清「是什么推上去的」）
+type RiskSignal struct {
+	Metric string  `json:"metric"`
+	Score  float64 `json:"score"`
+	Detail string  `json:"detail"` // 已渲染好的人可读文本
 }
 
 // ClusterRisk 集群整体风险

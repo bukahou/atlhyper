@@ -38,3 +38,67 @@ func TestBackgroundPrompt_IncludesPodStates(t *testing.T) {
 		t.Error("无数据时不应出现该段落")
 	}
 }
+
+// 深度分析与后台分析看到同一份证据（深度分析曾只有概要 / 实体 / 时间线）
+func TestAnalysisUserPrompt_SharesEvidence(t *testing.T) {
+	ctx := &IncidentPromptContext{
+		IncidentSummary:   "事件概要: x",
+		HistoricalContext: "历史相似事件: y",
+		RecentErrorLogs:   "ERROR z",
+		PodStates:         "ns/pod/a:\n  容器 app: 当前 running\n",
+	}
+	got := BuildAnalysisUserPrompt(ctx)
+	for _, want := range []string{"事件概要: x", "历史相似事件: y", "## 最近 ERROR 日志", "## Pod 容器状态", "请开始调查"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("深度分析 user prompt 缺 %q：\n%s", want, got)
+		}
+	}
+}
+
+// 资源名只能照抄上下文（曾把 ReplicaSet 名当成 Deployment 名）
+func TestSystemPrompts_ExactResourceNames(t *testing.T) {
+	for name, sys := range map[string]string{
+		"background": BuildBackgroundPrompt(&IncidentPromptContext{}).System,
+		"analysis":   BuildAnalysisPrompt(),
+	} {
+		if !strings.Contains(sys, "资源名称只能使用上下文中出现的完整名称") {
+			t.Errorf("%s 系统提示词缺资源名规则", name)
+		}
+	}
+}
+
+// 持久化 event 与同时段事件作为证据段落出现（为空时不出现）
+func TestPrompts_RenderEventsAndConcurrent(t *testing.T) {
+	ctx := &IncidentPromptContext{K8sEvents: "- [Pod ns/p] Unhealthy（累计 6 次）", ConcurrentIncidents: "同时段其他事件 (1 个)"}
+	for name, got := range map[string]string{
+		"background": BuildBackgroundPrompt(ctx).User,
+		"analysis":   BuildAnalysisUserPrompt(ctx),
+	} {
+		for _, want := range []string{"## K8s 事件（atlhyper 持久化", "Unhealthy（累计 6 次）", "## 同时段其他事件", "同时段其他事件 (1 个)"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s 缺 %q", name, want)
+			}
+		}
+	}
+	if empty := BuildBackgroundPrompt(&IncidentPromptContext{}).User; strings.Contains(empty, "## K8s 事件") || strings.Contains(empty, "## 同时段") {
+		t.Error("无数据时不应出现这两节")
+	}
+}
+
+// 规则：不再说「事件只保留 1 小时」了事；同时段多工作负载出事要考虑共同依赖且须有证据
+func TestEvidenceRules_PersistedEventsAndCommonDependency(t *testing.T) {
+	for _, want := range []string{"get_event_history", "K8s 事件（atlhyper 持久化）", "共同依赖", "待验证假设"} {
+		if !strings.Contains(EvidenceRules, want) {
+			t.Errorf("EvidenceRules 缺 %q", want)
+		}
+	}
+}
+
+func TestToolDefinitions_IncludeEventHistory(t *testing.T) {
+	for _, d := range GetToolDefinitions() {
+		if d.Name == "get_event_history" {
+			return
+		}
+	}
+	t.Error("工具列表缺 get_event_history")
+}

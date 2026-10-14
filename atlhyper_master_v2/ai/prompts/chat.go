@@ -28,6 +28,7 @@ const chatRole = `[角色定义]
 - get / describe: 单个资源详情。需要 namespace + name
 - get_logs: Pod 容器日志。需要 namespace + name。多容器时指定 container
 - get_events: K8s 事件。可按 namespace、involved_kind、involved_name 过滤
+  ⚠️ get_events 只能看到约 1 小时内的实时事件；更早的用独立工具 get_event_history（atlhyper 持久化）
 - get_configmap: ConfigMap 内容
 
 数据量限制：list 最多 200 条，get_logs 最多 200 行。优先用 label_selector 缩小范围。

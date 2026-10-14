@@ -164,6 +164,7 @@ func ExtractOTelDeterministicAnomalies(otel *cluster.OTelSnapshot) []*aiops.Anom
 				Score:        apmErrorRateScore(errorRate),
 				IsAnomaly:    true,
 				DetectedAt:   now,
+				Detail:       fmt.Sprintf("错误率 %.1f%%", errorRate*100),
 			})
 		}
 
@@ -178,6 +179,7 @@ func ExtractOTelDeterministicAnomalies(otel *cluster.OTelSnapshot) []*aiops.Anom
 				Score:        apmP99Score(svc.P99Ms),
 				IsAnomaly:    true,
 				DetectedAt:   now,
+				Detail:       fmt.Sprintf("P99 %.0fms", svc.P99Ms),
 			})
 		}
 	}
@@ -194,6 +196,7 @@ func ExtractOTelDeterministicAnomalies(otel *cluster.OTelSnapshot) []*aiops.Anom
 				Score:        logErrorScore(errCount),
 				IsAnomaly:    true,
 				DetectedAt:   now,
+				Detail:       fmt.Sprintf("ERROR 日志 %d 条", errCount),
 			})
 		}
 	}
