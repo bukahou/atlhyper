@@ -65,14 +65,24 @@ const backgroundUserTemplate = `请分析以下 Kubernetes 集群事件:
 
 // BuildBackgroundPrompt 构建 background 角色完整 Prompt
 func BuildBackgroundPrompt(ctx *IncidentPromptContext) *PromptPair {
-	// 基础上下文
+	content := renderIncidentEvidence(ctx)
+
+	userContent := fmt.Sprintf(backgroundUserTemplate, content)
+	return &PromptPair{
+		System: backgroundSystem + "\n\n" + EvidenceRules,
+		User:   userContent,
+	}
+}
+
+// renderIncidentEvidence 事件证据正文（后台摘要与深度分析共用，两边看到的事实一致）
+func renderIncidentEvidence(ctx *IncidentPromptContext) string {
 	content := ctx.IncidentSummary + "\n\n" +
 		ctx.RootCauseEntity + "\n\n" +
 		ctx.AffectedEntities + "\n\n" +
 		ctx.TimelineText + "\n\n" +
 		ctx.HistoricalContext
 
-	// OTel 上下文（非空时追加）
+	// 以下各节非空时追加
 	if ctx.RecentErrorTraces != "" {
 		content += "\n\n## 最近错误 Traces\n" + ctx.RecentErrorTraces
 	}
@@ -85,10 +95,5 @@ func BuildBackgroundPrompt(ctx *IncidentPromptContext) *PromptPair {
 	if ctx.PodStates != "" {
 		content += "\n\n## Pod 容器状态（集群快照）\n" + ctx.PodStates
 	}
-
-	userContent := fmt.Sprintf(backgroundUserTemplate, content)
-	return &PromptPair{
-		System: backgroundSystem + "\n\n" + EvidenceRules,
-		User:   userContent,
-	}
+	return content
 }

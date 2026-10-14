@@ -38,3 +38,31 @@ func TestBackgroundPrompt_IncludesPodStates(t *testing.T) {
 		t.Error("无数据时不应出现该段落")
 	}
 }
+
+// 深度分析与后台分析看到同一份证据（深度分析曾只有概要 / 实体 / 时间线）
+func TestAnalysisUserPrompt_SharesEvidence(t *testing.T) {
+	ctx := &IncidentPromptContext{
+		IncidentSummary:   "事件概要: x",
+		HistoricalContext: "历史相似事件: y",
+		RecentErrorLogs:   "ERROR z",
+		PodStates:         "ns/pod/a:\n  容器 app: 当前 running\n",
+	}
+	got := BuildAnalysisUserPrompt(ctx)
+	for _, want := range []string{"事件概要: x", "历史相似事件: y", "## 最近 ERROR 日志", "## Pod 容器状态", "请开始调查"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("深度分析 user prompt 缺 %q：\n%s", want, got)
+		}
+	}
+}
+
+// 资源名只能照抄上下文（曾把 ReplicaSet 名当成 Deployment 名）
+func TestSystemPrompts_ExactResourceNames(t *testing.T) {
+	for name, sys := range map[string]string{
+		"background": BuildBackgroundPrompt(&IncidentPromptContext{}).System,
+		"analysis":   BuildAnalysisPrompt(),
+	} {
+		if !strings.Contains(sys, "资源名称只能使用上下文中出现的完整名称") {
+			t.Errorf("%s 系统提示词缺资源名规则", name)
+		}
+	}
+}

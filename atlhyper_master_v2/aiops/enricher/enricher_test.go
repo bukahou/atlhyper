@@ -633,7 +633,7 @@ func TestPromptTruncation_NormalPrompt(t *testing.T) {
 	timeline := makeTestTimeline()
 
 	e := NewEnricher(nil, nil, nil)
-	prompt := e.buildPromptWithTruncation(inc, entities, timeline, nil)
+	prompt := e.buildPromptWithTruncation(&incidentEvidence{incident: inc, entities: entities, timeline: timeline})
 
 	totalChars := len(prompt.System) + len(prompt.User)
 	if totalChars > MaxPromptChars {
@@ -688,7 +688,7 @@ func TestPromptTruncation_LargePrompt(t *testing.T) {
 	}
 
 	e := NewEnricher(nil, nil, nil)
-	prompt := e.buildPromptWithTruncation(inc, entities, timeline, historical)
+	prompt := e.buildPromptWithTruncation(&incidentEvidence{incident: inc, entities: entities, timeline: timeline, historical: historical})
 
 	totalChars := len(prompt.System) + len(prompt.User)
 	if totalChars > MaxPromptChars {

@@ -29,6 +29,11 @@ func buildPodStateContext(snap *cluster.ClusterSnapshot, entities []*database.AI
 		p := &snap.Pods[i]
 		pods[p.Summary.Namespace+"/"+p.Summary.Name] = p
 	}
+	replicaSets := make(map[string]*cluster.ReplicaSet, len(snap.ReplicaSets))
+	for i := range snap.ReplicaSets {
+		rs := &snap.ReplicaSets[i]
+		replicaSets[rs.Namespace+"/"+rs.Name] = rs
+	}
 
 	var b strings.Builder
 	n := 0
@@ -46,6 +51,9 @@ func buildPodStateContext(snap *cluster.ClusterSnapshot, entities []*database.AI
 		}
 		n++
 		fmt.Fprintf(&b, "%s:\n", e.EntityKey)
+		if owner := describeOwner(pod, replicaSets); owner != "" {
+			b.WriteString("  " + owner + "\n")
+		}
 		for _, c := range pod.Containers {
 			b.WriteString(describeContainer(c))
 		}
@@ -73,4 +81,21 @@ func describeContainer(c cluster.PodContainerDetail) string {
 		}
 	}
 	return line + "\n"
+}
+
+// describeOwner Pod 的归属工作负载：Pod → ReplicaSet → Deployment 按快照逐级解析。
+// 曾把 ReplicaSet 名当成 Deployment 名写进报告；⛔ 解析不到时写「上级未知」，不靠去掉 hash 后缀猜名
+func describeOwner(pod *cluster.Pod, replicaSets map[string]*cluster.ReplicaSet) string {
+	kind, name, ns := pod.Summary.OwnerKind, pod.Summary.OwnerName, pod.Summary.Namespace
+	if kind == "" || name == "" {
+		return ""
+	}
+	if kind != "ReplicaSet" {
+		return fmt.Sprintf("所属: %s %s/%s", kind, ns, name)
+	}
+	rs := replicaSets[ns+"/"+name]
+	if rs == nil || rs.OwnerKind == "" || rs.OwnerName == "" {
+		return fmt.Sprintf("所属: ReplicaSet %s（上级未知）", name)
+	}
+	return fmt.Sprintf("所属: %s %s/%s（经 ReplicaSet %s）", rs.OwnerKind, ns, rs.OwnerName, name)
 }

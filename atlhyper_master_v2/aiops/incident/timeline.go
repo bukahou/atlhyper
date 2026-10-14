@@ -4,6 +4,7 @@ package incident
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -48,4 +49,30 @@ func signalDetail(risk *aiops.EntityRisk) string {
 		parts[i] = sig.Detail
 	}
 	return strings.Join(parts, "；")
+}
+
+// legacyRecoveryPrefix 2026-10-14 之前 recovery 以 state_change 记录，只能靠文案识别
+const legacyRecoveryPrefix = "状态变更 → recovery"
+
+// ActiveWindow 异常段的结束时刻：最后一次复发之后的首个恢复（48h 观察期不算异常）。
+// recovered=false 表示仍在异常中（或时间线未记录恢复）
+func ActiveWindow(timeline []*database.AIOpsIncidentTimeline) (end time.Time, recovered bool) {
+	sorted := make([]*database.AIOpsIncidentTimeline, len(timeline))
+	copy(sorted, timeline)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Timestamp.Before(sorted[j].Timestamp) })
+
+	for _, t := range sorted {
+		switch {
+		case t.EventType == aiops.TimelineRecurrence:
+			end, recovered = time.Time{}, false
+		case !recovered && isRecoveryEntry(t):
+			end, recovered = t.Timestamp, true
+		}
+	}
+	return end, recovered
+}
+
+func isRecoveryEntry(t *database.AIOpsIncidentTimeline) bool {
+	return t.EventType == aiops.TimelineRecoveryStarted ||
+		(t.EventType == aiops.TimelineStateChange && strings.HasPrefix(t.Detail, legacyRecoveryPrefix))
 }

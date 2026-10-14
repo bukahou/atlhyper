@@ -244,35 +244,13 @@ func (e *Enricher) summarizeCore(ctx context.Context, incidentID string) (*Summa
 		return nil, nil, nil, err
 	}
 
-	// 3. 查询事件数据
-	incident, err := e.incidentRepo.GetByID(ctx, incidentID)
+	// 3. 查齐证据 + 构建 Prompt（超限逐档截断）
+	ev, err := e.assembleIncidentContext(ctx, incidentID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("查询事件失败: %w", err)
+		return nil, nil, nil, err
 	}
-	if incident == nil {
-		return nil, nil, nil, fmt.Errorf("事件不存在: %s", incidentID)
-	}
-
-	entities, err := e.incidentRepo.GetEntities(ctx, incidentID)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("查询受影响实体失败: %w", err)
-	}
-
-	timeline, err := e.incidentRepo.GetTimeline(ctx, incidentID)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("查询时间线失败: %w", err)
-	}
-
-	// 4. 查询历史相似事件
-	var historical []*database.AIOpsIncident
-	if incident.RootCause != "" {
-		since := time.Now().Add(-90 * 24 * time.Hour)
-		historical, _ = e.incidentRepo.ListByEntity(ctx, incident.RootCause, since)
-		historical = excludeIncident(historical, incident.ID)
-	}
-
-	// 5. 构建 Prompt + 截断
-	prompt := e.buildPromptWithTruncation(incident, entities, timeline, historical)
+	incident, historical := ev.incident, ev.historical
+	prompt := e.buildPromptWithTruncation(ev)
 
 	// 6. 通过 ai.AIService 调用 LLM（预算扣减在 Complete 内部处理）
 	completeResult, err := e.aiService.Complete(ctx, &ai.CompleteRequest{
@@ -307,17 +285,13 @@ func (e *Enricher) summarizeCore(ctx context.Context, incidentID string) (*Summa
 
 // runAnalysis 执行深度分析（通过 ai.AIService.Analyze）
 func (e *Enricher) runAnalysis(ctx context.Context, incidentID, trigger string) error {
-	// 1. 查询事件数据
-	incident, err := e.incidentRepo.GetByID(ctx, incidentID)
-	if err != nil || incident == nil {
-		return fmt.Errorf("查询事件失败: %w", err)
+	// 1. 查齐证据（与后台摘要同一份；深度分析可调工具，不截断）
+	ev, err := e.assembleIncidentContext(ctx, incidentID)
+	if err != nil {
+		return err
 	}
-
-	entities, _ := e.incidentRepo.GetEntities(ctx, incidentID)
-	timeline, _ := e.incidentRepo.GetTimeline(ctx, incidentID)
-
-	// 2. 构建上下文
-	incidentCtx := BuildIncidentContext(incident, entities, timeline, nil)
+	incident := ev.incident
+	incidentCtx := ev.promptContext(0)
 
 	// 3. 调用 ai.AIService.Analyze（多轮 Tool Calling）
 	result, err := e.aiService.Analyze(ctx, &ai.AnalyzeRequest{
@@ -495,80 +469,32 @@ func (e *Enricher) setCache(incidentID string, resp *SummarizeResponse) {
 
 // ==================== Prompt 构建 ====================
 
-// buildPromptWithTruncation 构建 Prompt，超限时逐步截断
-func (e *Enricher) buildPromptWithTruncation(
-	incident *database.AIOpsIncident,
-	entities []*database.AIOpsIncidentEntity,
-	timeline []*database.AIOpsIncidentTimeline,
-	historical []*database.AIOpsIncident,
-) *prompts.PromptPair {
+// buildPromptWithTruncation 构建 Prompt，超限时逐档截断（档位见 evidence.go truncLevels）
+func (e *Enricher) buildPromptWithTruncation(ev *incidentEvidence) *prompts.PromptPair {
 	maxChars := MaxPromptChars
 	warnChars := maxChars * 3 / 4
 
-	incidentCtx := BuildIncidentContext(incident, entities, timeline, historical)
-
-	// 丰富 OTel 上下文（如果 Store 可用）
-	if e.store != nil && incident.ClusterID != "" {
-		if snapshot, err := e.store.GetSnapshot(incident.ClusterID); err == nil && snapshot != nil {
-			traces, logs, sloCtx := buildOTelContext(snapshot.OTel, entities)
-			incidentCtx.RecentErrorTraces = traces
-			incidentCtx.RecentErrorLogs = logs
-			incidentCtx.SLOContext = sloCtx
-			incidentCtx.PodStates = buildPodStateContext(snapshot, entities) // A10：容器状态作为证据
-		}
-	}
-
-	prompt := prompts.BuildBackgroundPrompt(incidentCtx)
-	totalChars := len(prompt.System) + len(prompt.User)
-
-	if totalChars > warnChars {
-		log.Warn("Prompt 较长", "chars", totalChars, "warn_threshold", warnChars)
-	}
-
-	if totalChars <= maxChars {
-		return prompt
-	}
-
-	// 超限 → 逐步截断: historical → timeline → entities
-	log.Warn("Prompt 超限，开始截断", "chars", totalChars, "max", maxChars)
-
-	truncSteps := []struct{ hist, tl, ent int }{
-		{len(historical) / 2, len(timeline), len(entities)},
-		{len(historical) / 2, len(timeline) / 2, len(entities)},
-		{len(historical) / 2, len(timeline) / 2, len(entities) / 2},
-		{0, len(timeline) / 2, len(entities) / 2},
-		{0, 0, len(entities) / 2},
-		{0, 0, 0},
-	}
-
-	for _, step := range truncSteps {
-		h := truncateSlice(historical, step.hist)
-		t := truncateSlice(timeline, step.tl)
-		en := truncateSlice(entities, step.ent)
-
-		rebuilt := BuildIncidentContext(incident, en, t, h)
-		prompt = prompts.BuildBackgroundPrompt(rebuilt)
+	var prompt *prompts.PromptPair
+	var totalChars int
+	for level := range truncLevels {
+		prompt = prompts.BuildBackgroundPrompt(ev.promptContext(level))
 		totalChars = len(prompt.System) + len(prompt.User)
-
+		if level == 0 && totalChars > warnChars {
+			log.Warn("Prompt 较长", "chars", totalChars, "warn_threshold", warnChars)
+		}
 		if totalChars <= maxChars {
-			log.Info("Prompt 截断成功", "chars", totalChars,
-				"historical", len(h), "timeline", len(t), "entities", len(en))
+			if level > 0 {
+				log.Info("Prompt 截断成功", "chars", totalChars, "level", level)
+			}
 			return prompt
+		}
+		if level == 0 {
+			log.Warn("Prompt 超限，开始截断", "chars", totalChars, "max", maxChars)
 		}
 	}
 
 	log.Warn("Prompt 截断后仍超限（兜底返回）", "chars", totalChars)
 	return prompt
-}
-
-func truncateSlice[T any](s []T, maxLen int) []T {
-	if maxLen <= 0 || len(s) == 0 {
-		return nil
-	}
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen]
 }
 
 // ==================== 报告持久化 ====================
