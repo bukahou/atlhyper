@@ -507,7 +507,7 @@ func (r *metricsRepository) fillCPU(ctx context.Context, ip string, nm *metrics.
 // 为什么值得合：实测每节点 27 个查询、7 个节点串行共享一个 30 秒 ctx，
 // ClickHouse 单实例平均 440ms/查询，后半段节点的查询会被 context 取消。
 // 减少往返次数比调大超时更治本。
-// 详见 config 仓 clusters/incidents/2026-08-24-atlhyper-metrics-blank-page.md
+// 详见 config 仓 global/incidents/2026-08-24-atlhyper-metrics-blank-page.md
 //
 // 一并取 count()：欠压位需要用它区分「没有这个传感器」和「传感器读数为 0」。
 func (r *metricsRepository) fillScalarGauges(ctx context.Context, ip string, nm *metrics.NodeMetrics) error {

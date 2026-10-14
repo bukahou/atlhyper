@@ -74,7 +74,7 @@ client := bedrockruntime.New(bedrockruntime.Options{Region: region},
 已知先例：部分模型在 ConverseStream 带 `toolConfig` 时报「doesn't support tool use in streaming mode」（re:Post，Mistral Large）。
 
 **IAM（work 核对）**：现策略放行 `InvokeModel` / `InvokeModelWithResponseStream` / `CallWithBearerToken`。主方案 ConverseStream 所需的 `InvokeModelWithResponseStream` 已在策略内。
-备选「OpenAI 兼容端点 `/openai/v1`」所需权限**未核实** —— ⛔ 不得假设现有 key 能调；若冒烟后真要走备选，先告知 work 改 Terraform（config 仓 `clusters/platform/ai/bedrock/`）。
+备选「OpenAI 兼容端点 `/openai/v1`」所需权限**未核实** —— ⛔ 不得假设现有 key 能调；若冒烟后真要走备选，先告知 work 改 Terraform（config 仓 `global/platform/aws/bedrock/`）。
 ⇒ **gpt-oss 与 minimax 的「流式 + 工具调用」未经证实**，须逐模型冒烟后才进模型目录（见第四节）。
 
 **四家官方 SDK**（均可在 Go 1.26.6 下构建）：
