@@ -22,6 +22,8 @@ type mockIncidentRepo struct {
 	entities []*database.AIOpsIncidentEntity
 	timeline []*database.AIOpsIncidentTimeline
 	byEntity []*database.AIOpsIncident
+	listed   []*database.AIOpsIncident       // List 的返回
+	listOpts database.AIOpsIncidentQueryOpts // List 收到的条件
 }
 
 func (m *mockIncidentRepo) CreateIncident(ctx context.Context, inc *database.AIOpsIncident) error {
@@ -44,7 +46,8 @@ func (m *mockIncidentRepo) UpdatePeakRisk(ctx context.Context, id string, peakRi
 }
 func (m *mockIncidentRepo) IncrementRecurrence(ctx context.Context, id string) error { return nil }
 func (m *mockIncidentRepo) List(ctx context.Context, opts database.AIOpsIncidentQueryOpts) ([]*database.AIOpsIncident, error) {
-	return nil, nil
+	m.listOpts = opts
+	return m.listed, nil
 }
 func (m *mockIncidentRepo) Count(ctx context.Context, opts database.AIOpsIncidentQueryOpts) (int, error) {
 	return 0, nil

@@ -1,6 +1,6 @@
 # AIOps 事件证据补全 — 设计文档
 
-> 状态：设计已定（2026-10-14 用户裁定「1、2、3 一起做」），待实施
+> 状态：设计已定（2026-10-14 用户裁定「1、2、3 一起做」），代码已完成，待 dev 验收
 > 任务追踪：`docs/tasks/active/tracker.md`「AIOps 事件证据补全」
 
 ## 背景
@@ -96,12 +96,16 @@ Enricher（后台 / 深度两条路径共用一个组装函数）
 
 ### 对话工具：`get_event_history`
 
-- 在 `query_cluster` 的 action 枚举中新增 `get_event_history`。
-- 由 **master 侧直接读库**，不下发 Agent。
+- **独立的自定义工具**，按现有 `RegisterTool` 模式在 master.go 注册，由 **master 侧直接读库**，不下发 Agent。
+  > 实施时调整：原设计是在 `query_cluster` 里加一个 action。改为独立工具是因为：
+  > - `query_cluster` 的 action 全部走 Agent 指令通道，读库的分支混进去会破坏它「一律下发」的单一职责；
+  > - 自定义工具注册表正是为这种 master 侧数据源准备的（`get_deploy_history` 同理）。
 - 参数：
-  - 复用现有 `namespace` / `involved_kind` / `involved_name`；
-  - 新增 `since_minutes`（默认 180，上限 10080）。
-- 工具说明里写明「`get_events` 只能看到约 1 小时；更早的事件用 `get_event_history`」。
+  - `namespace` / `involved_kind` / `involved_name`；
+  - `since_minutes`（默认 180，上限 10080）；
+  - `limit`（默认 30，上限 100）。
+- 工具说明与 chat 提示词都写明「`get_events` 只能看到约 1 小时；更早的事件用 `get_event_history`」。
+- 库中时间为 UTC 的 RFC3339，并按字符串比较，所以查询下界也必须用 UTC。
 - 权限：AI 对话本身要求 Viewer 及以上，event 历史是 0 级可见数据，不放宽任何权限。
 
 ### 后端实现
@@ -113,8 +117,9 @@ Enricher（后台 / 深度两条路径共用一个组装函数）
 | `master.go` [修改] | `aiopsEnricher.SetEventSource(db.Event)` |
 | `ai/prompts/background.go` [修改] | `IncidentPromptContext.K8sEvents`，渲染「K8s 事件」节 |
 | `ai/prompts/analysis.go` [修改] | 深度分析 user prompt 同样渲染该节 |
-| `ai/prompts/tools.go` / `ai/tool.go` [修改] | `get_event_history` action：master 侧读库并格式化 |
-| `ai/factory.go` / `ai/service.go` [修改] | AI Service 注入 `EventHistoryReader`（同一最小接口） |
+| `ai/prompts/tools.go` [修改] | `get_event_history` 工具定义 |
+| `ai/tool_event_history.go` [新增] | `NewEventHistoryHandler(EventLogReader)`：master 侧读库并格式化 |
+| `master.go` [修改] | `RegisterTool("get_event_history", …)` |
 
 ---
 
@@ -269,13 +274,13 @@ system prompt 新增一条规则：
 | `TestBuildConcurrent` | ±15min、排除自身、不同命名空间计数提示 |
 | `TestPodOwner_Resolution` | Pod→RS→Deployment；RS 缺失时写「上级未知」，不猜名 |
 | `TestAssembleIncidentContext_BothPathsShareEvidence` | 后台与深度两条路径的上下文都含新增各节 |
-| `TestToolGetEventHistory` | 参数映射、since 上限、master 侧读库不下发 Agent |
+| `TestEventHistory_ByResource` / `_ByClusterFiltersAndCaps` | 按资源 / 按集群两条查询路径、since 过滤与上限、UTC 下界 |
 
 ## 文件变更清单
 
 ```
 atlhyper_master_v2/
-├── master.go                                   [修改] 注入 EventHistoryReader（enricher + ai）
+├── master.go                                   [修改] enricher.SetEventSource + 注册 get_event_history
 ├── aiops/
 │   ├── types.go                                [修改] AnomalyResult.Detail / RiskSignal / EntityRisk.Signals
 │   ├── baseline/extractor.go                   [修改] 确定性提取器填 Detail
@@ -291,9 +296,9 @@ atlhyper_master_v2/
 └── ai/
     ├── prompts/background.go                   [修改] 新字段、新节、两条规则
     ├── prompts/analysis.go                     [修改] 同上（深度分析）
-    ├── prompts/tools.go                        [修改] get_event_history
-    ├── tool.go                                 [修改] master 侧执行 get_event_history
-    ├── factory.go / service.go                 [修改] 注入 EventHistoryReader
+    ├── prompts/tools.go                        [修改] get_event_history 定义
+    ├── prompts/chat.go                         [修改] 提示 get_events 的 1 小时限制
+    └── tool_event_history.go                   [新增] 持久化事件查询 Tool Handler
 atlhyper_web/                                   无改动（anomaly_detected / recovery_started 已有图标与文案）
 ```
 

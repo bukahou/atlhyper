@@ -25,6 +25,11 @@ type incidentEvidence struct {
 	timeline   []*database.AIOpsIncidentTimeline
 	historical []*database.AIOpsIncident
 	snapshot   *cluster.ClusterSnapshot // 可为 nil（无 Store 或集群离线）
+
+	eventsQueried bool                     // 是否注入了 event 源（未注入则上下文不出现该节）
+	events        []*database.ClusterEvent // 事件窗口内的持久化 event（已排序、已限量）
+	eventsFailed  bool
+	concurrent    []*database.AIOpsIncident // 同时段其他事件
 }
 
 // assembleIncidentContext 查齐一个事件的全部证据
@@ -53,6 +58,13 @@ func (e *Enricher) assembleIncidentContext(ctx context.Context, incidentID strin
 		ev.historical = excludeIncident(historical, incident.ID)
 	}
 
+	if e.events != nil {
+		from, to := eventWindow(incident, timeline, time.Now())
+		ev.eventsQueried = true
+		ev.events, ev.eventsFailed = collectWindowEvents(ctx, e.events, incident.ClusterID, entities, from, to)
+	}
+	ev.concurrent = e.collectConcurrent(ctx, incident)
+
 	if e.store != nil && incident.ClusterID != "" {
 		if snap, err := e.store.GetSnapshot(incident.ClusterID); err == nil {
 			ev.snapshot = snap
@@ -62,9 +74,9 @@ func (e *Enricher) assembleIncidentContext(ctx context.Context, incidentID strin
 }
 
 // truncLevel 截断档位：0 = 完整；越大删得越多。
-// 顺序原则：越是直接证据越晚删（历史模式只是参考，先删）
+// 顺序原则：越是直接证据越晚删 —— 同时段事件 → 历史模式 → K8s event → 时间线 → 实体
 type truncLevel struct {
-	historical, timeline, entities fraction
+	concurrent, historical, events, timeline, entities fraction
 }
 
 // fraction 保留比例
@@ -88,13 +100,15 @@ func applyFraction[T any](s []T, f fraction) []T {
 }
 
 var truncLevels = []truncLevel{
-	{keepAll, keepAll, keepAll},
-	{keepHalf, keepAll, keepAll},
-	{keepNone, keepAll, keepAll},
-	{keepNone, keepHalf, keepAll},
-	{keepNone, keepHalf, keepHalf},
-	{keepNone, keepNone, keepHalf},
-	{keepNone, keepNone, keepNone},
+	{keepAll, keepAll, keepAll, keepAll, keepAll},
+	{keepNone, keepAll, keepAll, keepAll, keepAll},
+	{keepNone, keepHalf, keepAll, keepAll, keepAll},
+	{keepNone, keepNone, keepAll, keepAll, keepAll},
+	{keepNone, keepNone, keepHalf, keepAll, keepAll},
+	{keepNone, keepNone, keepHalf, keepHalf, keepAll},
+	{keepNone, keepNone, keepHalf, keepHalf, keepHalf},
+	{keepNone, keepNone, keepNone, keepNone, keepHalf},
+	{keepNone, keepNone, keepNone, keepNone, keepNone},
 }
 
 // promptContext 按截断档位渲染为 LLM 上下文
@@ -109,6 +123,11 @@ func (ev *incidentEvidence) promptContext(level int) *prompts.IncidentPromptCont
 	)
 	// 异常时长依赖完整时间线：截断时间线不能让「异常持续」变成「未记录」
 	pc.IncidentSummary = buildSummary(ev.incident, ev.timeline)
+
+	if ev.eventsQueried {
+		pc.K8sEvents = renderEvents(applyFraction(ev.events, lv.events), len(ev.events), ev.eventsFailed, ev.incident.StartedAt.Location())
+	}
+	pc.ConcurrentIncidents = buildConcurrent(ev.incident, applyFraction(ev.concurrent, lv.concurrent), len(ev.concurrent))
 
 	// 快照证据各自有条数上限，不参与截断
 	if ev.snapshot != nil {

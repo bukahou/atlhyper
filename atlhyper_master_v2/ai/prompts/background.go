@@ -20,6 +20,11 @@ type IncidentPromptContext struct {
 
 	// 事件涉及 Pod 的容器状态（来自 Agent 快照：当前状态 / 重启次数 / 上次退出）
 	PodStates string
+
+	// 事件时间窗内实体的 K8s Warning 事件（master 持久化，同资源同原因合并为一行）
+	K8sEvents string
+	// 开始时间前后 15 分钟内同集群的其他事件（用于识别共同依赖）
+	ConcurrentIncidents string
 }
 
 // PromptPair 系统提示词 + 用户消息
@@ -94,6 +99,12 @@ func renderIncidentEvidence(ctx *IncidentPromptContext) string {
 	}
 	if ctx.PodStates != "" {
 		content += "\n\n## Pod 容器状态（集群快照）\n" + ctx.PodStates
+	}
+	if ctx.K8sEvents != "" {
+		content += "\n\n## K8s 事件（atlhyper 持久化，同资源同原因合并为一行，次数为累计值）\n" + ctx.K8sEvents
+	}
+	if ctx.ConcurrentIncidents != "" {
+		content += "\n\n## 同时段其他事件\n" + ctx.ConcurrentIncidents
 	}
 	return content
 }

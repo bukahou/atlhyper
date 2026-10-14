@@ -213,6 +213,35 @@ const toolsJSON = `[
     }
   },
   {
+    "name": "get_event_history",
+    "description": "查询 atlhyper 持久化的 K8s Warning 事件（不受 K8s 约 1 小时保留期限制）。query_cluster get_events 只能看到最近约 1 小时；排查更早的问题（如已恢复的事件）用本工具。同资源同原因合并为一行，count 为自首次以来的累计次数。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "按关联资源的命名空间过滤"
+        },
+        "involved_kind": {
+          "type": "string",
+          "description": "关联资源类型，如 Pod、Node（指定 involved_name 时默认 Pod）"
+        },
+        "involved_name": {
+          "type": "string",
+          "description": "关联资源名称（填写时按该资源精确查询）"
+        },
+        "since_minutes": {
+          "type": "integer",
+          "description": "回看多少分钟（按最近一次发生时间），默认 180，最大 10080（7 天）"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "最多返回条数，默认 30，最大 100"
+        }
+      }
+    }
+  },
+  {
     "name": "get_deploy_history",
     "description": "查询指定路径的部署历史，包括 commit SHA、部署状态、触发方式等信息。用于排查部署相关问题时了解最近的变更。",
     "parameters": {

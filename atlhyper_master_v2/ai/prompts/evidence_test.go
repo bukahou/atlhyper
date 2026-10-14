@@ -66,3 +66,39 @@ func TestSystemPrompts_ExactResourceNames(t *testing.T) {
 		}
 	}
 }
+
+// 持久化 event 与同时段事件作为证据段落出现（为空时不出现）
+func TestPrompts_RenderEventsAndConcurrent(t *testing.T) {
+	ctx := &IncidentPromptContext{K8sEvents: "- [Pod ns/p] Unhealthy（累计 6 次）", ConcurrentIncidents: "同时段其他事件 (1 个)"}
+	for name, got := range map[string]string{
+		"background": BuildBackgroundPrompt(ctx).User,
+		"analysis":   BuildAnalysisUserPrompt(ctx),
+	} {
+		for _, want := range []string{"## K8s 事件（atlhyper 持久化", "Unhealthy（累计 6 次）", "## 同时段其他事件", "同时段其他事件 (1 个)"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s 缺 %q", name, want)
+			}
+		}
+	}
+	if empty := BuildBackgroundPrompt(&IncidentPromptContext{}).User; strings.Contains(empty, "## K8s 事件") || strings.Contains(empty, "## 同时段") {
+		t.Error("无数据时不应出现这两节")
+	}
+}
+
+// 规则：不再说「事件只保留 1 小时」了事；同时段多工作负载出事要考虑共同依赖且须有证据
+func TestEvidenceRules_PersistedEventsAndCommonDependency(t *testing.T) {
+	for _, want := range []string{"get_event_history", "K8s 事件（atlhyper 持久化）", "共同依赖", "待验证假设"} {
+		if !strings.Contains(EvidenceRules, want) {
+			t.Errorf("EvidenceRules 缺 %q", want)
+		}
+	}
+}
+
+func TestToolDefinitions_IncludeEventHistory(t *testing.T) {
+	for _, d := range GetToolDefinitions() {
+		if d.Name == "get_event_history" {
+			return
+		}
+	}
+	t.Error("工具列表缺 get_event_history")
+}

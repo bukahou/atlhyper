@@ -83,6 +83,7 @@ type Enricher struct {
 	reportRepo   database.AIReportRepository // 报告持久化（可选）
 	aiService    ai.AIService                // 通过接口调用 AI 能力
 	store        datahub.Store               // 数据存储（读取 OTelSnapshot，可选）
+	events       EventHistoryReader          // 持久化 K8s event（可选）
 
 	// 后台自动触发器（可选）
 	bgTrigger *backgroundTrigger

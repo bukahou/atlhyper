@@ -196,7 +196,8 @@ func NewMaster() (*Master, error) {
 
 	// 7.1 初始化 AIOps Enricher（通过 ai.AIService 接口调用 LLM，不再直接操作 ai/llm）
 	aiopsEnricher := enricher.NewEnricher(db.AIOpsIncident, db.AIReport, aiService)
-	aiopsEnricher.SetStore(store) // OTel 上下文丰富：读取 OTelSnapshot
+	aiopsEnricher.SetStore(store)          // OTel 上下文丰富：读取 OTelSnapshot
+	aiopsEnricher.SetEventSource(db.Event) // 持久化 K8s event 进入分析上下文
 	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
 	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
@@ -265,6 +266,8 @@ func NewMaster() (*Master, error) {
 		data, _ := json.Marshal(result)
 		return string(data), nil
 	})
+
+	aiService.RegisterTool("get_event_history", ai.NewEventHistoryHandler(db.Event))
 
 	aiService.RegisterTool("get_cluster_risk", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		topN := getIntParam(params, "top_n", 10)
