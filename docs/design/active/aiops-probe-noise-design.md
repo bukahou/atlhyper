@@ -1,6 +1,6 @@
 # AIOps 探针噪音治理 — 设计文档
 
-> 状态：设计已定（2026-10-15 用户裁定「按推荐来」），待实现
+> 状态：设计已定（2026-10-15 用户裁定「按推荐来」），代码已完成，待 dev 验收
 > 任务追踪：`docs/tasks/active/tracker.md`「AIOps 探针噪音治理」
 > 前置：[aiops-incident-evidence-design.md](aiops-incident-evidence-design.md)（本设计复用其持久化 event 与触发信号）
 

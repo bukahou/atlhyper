@@ -12,13 +12,13 @@
 
 ---
 
-## AIOps 探针噪音治理 — 设计已定，待实现（2026-10-15）
+## AIOps 探针噪音治理 — 🔄 代码完成，待合 dev 验收（2026-10-15）
 
 > 设计文档: [aiops-probe-noise-design.md](../../design/active/aiops-probe-noise-design.md)
 > 用户裁定（2026-10-15「按推荐来」）：① `Unhealthy` 只当证据、不单独打分（方案 B）② 只改 `Unhealthy` ③ AI 自动触发级别由用户在设置页调为「中」，不改代码
 
 - 设计文档 ✅
-- 测试先行（红灯）→ 实现 → 绿灯
+- 测试先行（红灯：新增 2 个 FAIL）→ 实现 → 绿灯 ✅
 - 合 dev → CI → 部署 — 待批准
 - 验收：dev 观察 24h 事件数量；真实 NotReady / 重启仍进入事件
 - dev → main PR（无表结构变更，不需清库）
