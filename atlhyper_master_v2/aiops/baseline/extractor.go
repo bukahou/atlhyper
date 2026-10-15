@@ -287,7 +287,7 @@ func extractEventAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiops.An
 	var order []string
 	for i := range snap.Events {
 		ev := &snap.Events[i]
-		if !ev.IsCritical() {
+		if !ev.IsCritical() || evidenceOnlyReasons[ev.Reason] {
 			continue
 		}
 		if ev.InvolvedObject.Kind != "Pod" {
@@ -327,6 +327,14 @@ func extractEventAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiops.An
 	}
 
 	return results
+}
+
+// evidenceOnlyReasons 只当证据、不单独打分的 critical 事件原因。
+// Unhealthy = kubelet 每失败一次探针就发一条，此时 Pod 往往仍然 Ready（还没到 failureThreshold）。
+// 真正的影响（摘流量 / 重启）由 classifyContainerAnomaly 从 Pod 实时状态判定（NotReady / RecentCrash）；
+// 事件本身照常持久化，并进入 AI 分析上下文（enricher 直接读 cluster_events）。
+var evidenceOnlyReasons = map[string]bool{
+	"Unhealthy": true,
 }
 
 // maxEventDetailRunes event message 进入信号文本时的截断长度

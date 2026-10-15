@@ -15,8 +15,8 @@ func TestExtractEventAnomalies_DetailUsesLatestEvent(t *testing.T) {
 	now := time.Now()
 	older := makeEvent("Warning", "BackOff", "Pod", "default", "p", now.Add(-4*time.Minute))
 	older.Message = "Back-off restarting failed container"
-	newer := makeEvent("Warning", "Unhealthy", "Pod", "default", "p", now.Add(-1*time.Minute))
-	newer.Message = "Readiness probe failed: " + strings.Repeat("x", 300)
+	newer := makeEvent("Warning", "Failed", "Pod", "default", "p", now.Add(-1*time.Minute))
+	newer.Message = "Failed to pull image: " + strings.Repeat("x", 300)
 	snap := &cluster.ClusterSnapshot{
 		Pods:   []cluster.Pod{makePod("default", "p", "Running", 0, makeContainer("app", "running", "", true, 0, ""))},
 		Events: []cluster.Event{older, newer},
@@ -26,10 +26,10 @@ func TestExtractEventAnomalies_DetailUsesLatestEvent(t *testing.T) {
 	if r == nil {
 		t.Fatal("应生成 critical_event")
 	}
-	if !strings.HasPrefix(r.Detail, "Unhealthy: Readiness probe failed: ") {
+	if !strings.HasPrefix(r.Detail, "Failed: Failed to pull image: ") {
 		t.Errorf("应取最近一条事件，Detail = %q", r.Detail)
 	}
-	if n := len([]rune(r.Detail)); n > 160+len("Unhealthy: ")+1 {
+	if n := len([]rune(r.Detail)); n > 160+len("Failed: ")+1 {
 		t.Errorf("message 应截断，Detail 长 %d", n)
 	}
 }

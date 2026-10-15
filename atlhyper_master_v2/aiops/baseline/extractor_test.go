@@ -3,6 +3,7 @@
 package baseline
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -461,6 +462,49 @@ func TestExtractEventAnomalies_DeduplicatePerPod(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("每个 Pod 只应报告一次 critical_event, got %d", count)
+	}
+}
+
+// Unhealthy = kubelet 每失败一次探针就发一条，Pod 往往仍 Ready（未到 failureThreshold）
+// ⇒ 只当证据，不单独打分；真实影响由 NotReady / RecentCrash 从 Pod 实时状态判定
+func TestExtractEventAnomalies_UnhealthyIsEvidenceOnly(t *testing.T) {
+	now := time.Now()
+	readiness := makeEvent("Warning", "Unhealthy", "Pod", "default", "probe-pod", now.Add(-1*time.Minute))
+	readiness.Message = "Readiness probe failed: context deadline exceeded"
+	liveness := makeEvent("Warning", "Unhealthy", "Pod", "default", "probe-pod-2", now.Add(-1*time.Minute))
+	liveness.Message = "Liveness probe failed: context deadline exceeded"
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
+			makePod("default", "probe-pod", "Running", 0, makeContainer("app", "running", "", true, 0, "")),
+			makePod("default", "probe-pod-2", "Running", 0, makeContainer("app", "running", "", true, 0, "")),
+		},
+		Events: []cluster.Event{readiness, liveness},
+	}
+
+	if results := extractEventAnomalies(snap, now.Unix()); len(results) != 0 {
+		t.Errorf("Pod 仍 Ready 时 Unhealthy 不应产生异常, got %+v", results[0])
+	}
+}
+
+// 证据型事件不参与「取最近一条」：较新的 Unhealthy 不能盖掉较早的 BackOff
+func TestExtractEventAnomalies_UnhealthyDoesNotMaskOtherReasons(t *testing.T) {
+	now := time.Now()
+	snap := &cluster.ClusterSnapshot{
+		Pods: []cluster.Pod{
+			makePod("default", "mixed-pod", "Running", 2, makeContainer("app", "running", "", true, 2, "")),
+		},
+		Events: []cluster.Event{
+			makeEvent("Warning", "BackOff", "Pod", "default", "mixed-pod", now.Add(-3*time.Minute)),
+			makeEvent("Warning", "Unhealthy", "Pod", "default", "mixed-pod", now.Add(-1*time.Minute)),
+		},
+	}
+
+	r := findResult(extractEventAnomalies(snap, now.Unix()), "default/pod/mixed-pod", "critical_event")
+	if r == nil {
+		t.Fatal("BackOff 仍应产生 critical_event")
+	}
+	if !strings.HasPrefix(r.Detail, "BackOff") {
+		t.Errorf("Detail 应取 BackOff 而非 Unhealthy, got %q", r.Detail)
 	}
 }
 
