@@ -86,7 +86,7 @@ func (s *aiServiceImpl) loadAIConfigForRole(ctx context.Context, role string) (*
 							return s.providerToRoleConfig(ctx, fallback), nil
 						}
 					}
-					return nil, fmt.Errorf("角色 %s 预算已用尽", role)
+					return nil, fmt.Errorf("角色 %s: %w", role, ErrBudgetExhausted)
 				}
 			}
 		}
@@ -95,7 +95,7 @@ func (s *aiServiceImpl) loadAIConfigForRole(ctx context.Context, role string) (*
 	}
 
 	// 3. 无角色分配 → 严格模式：返回错误
-	return nil, fmt.Errorf("角色 %s 未分配 Provider，请在 AI 设置中为该角色指定提供商", role)
+	return nil, fmt.Errorf("角色 %s: %w，请在 AI 设置中为该角色指定提供商", role, ErrRoleNotAssigned)
 }
 
 // providerToRoleConfig 将 Provider 转换为 RoleConfig
@@ -109,6 +109,9 @@ func (s *aiServiceImpl) providerToRoleConfig(ctx context.Context, p *database.AI
 		},
 		ProviderID:   p.ID,
 		ProviderName: p.Name,
+	}
+	if p.Provider == "bedrock" {
+		cfg.Config.Region = s.bedrockRegion // 区域是部署级配置，不随 provider 存库
 	}
 
 	// 解析有效上下文窗口

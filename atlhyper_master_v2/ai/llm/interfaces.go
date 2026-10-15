@@ -82,8 +82,9 @@ const (
 
 // Config LLM 配置
 type Config struct {
-	Provider string // gemini / openai / anthropic / ollama
-	APIKey   string // API Key（Ollama 可为空）
+	Provider string // gemini / openai / anthropic / ollama / bedrock
+	APIKey   string // API Key（Ollama 可为空；Bedrock 为 API key，Bearer 鉴权）
 	Model    string // 模型名称 (e.g. gemini-2.0-flash)
 	BaseURL  string // 自定义 API 地址（Ollama 等自部署服务使用）
+	Region   string // 云区域（Bedrock 使用；来自 Master 配置，不来自数据库）
 }

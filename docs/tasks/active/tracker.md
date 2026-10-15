@@ -12,6 +12,102 @@
 
 ---
 
+## AIOps 事件证据补全 — 🔄 代码完成，待合 dev 验收（2026-10-14）
+
+> 设计文档: [aiops-incident-evidence-design.md](../../design/active/aiops-incident-evidence-design.md)
+> 用户裁定：功能一（持久化 event 进 AI 上下文）、二（时间线记录触发信号）、三（异常时长 / 同时段事件 / Pod 归属）一起做。分支 `feat/aiops-incident-evidence`
+
+- 设计文档 ✅
+- 步骤 1：功能二 —— 信号 + `anomaly_detected` 时间线 + recovery 改 `recovery_started` ✅（`333d75b`）
+- 步骤 2：功能三①③ + 抽出 `assembleIncidentContext`（后台 / 深度两条路径共用）✅（`e4c15c1`）
+- 步骤 3：功能一（event 上下文 + 对话工具 `get_event_history`）+ 功能三② ✅
+- 合 dev → CI → 部署 — 待批准
+- 验收：dev 上对一个超过 1 小时的事件「重新分析」，四项核对（见设计文档）
+- 不在本次范围（待决策）：检测灵敏度（单次探针超时即升级）· 前端持续时间口径 · `/events?source=history` 忽略 namespace
+
+---
+
+## AI Provider：接入 AWS Bedrock + 各家改官方 SDK — PR-A 代码完成（2026-10-12）
+
+> 计划: [ai-provider-bedrock-sdk-design.md](../../design/future/ai-provider-bedrock-sdk-design.md)
+> 用户已裁定：先 A 后 B 两个 PR / 新增 region 字段 / 第 1 轮零 tool call 追加取证提示重试一次。开工时机用户在本侧决定
+
+- 计划 ✅（只读分析；SDK Bearer 原生支持已查证）；work 审阅补充 4 点已并入
+- 用户裁定 D1–D8 ✅（D1 推翻原裁定②：region 写进 Master 配置 `MASTER_AI_BEDROCK_REGION`，不进库）
+- ⛔ prod settings 表 `ai.*` 残留行清理：单独一步，须用户单独批准
+- PR-A：Bedrock + 配置 region + 循环修复 + 删旧接口 — 🔄 代码完成（分支 `feat/bedrock-provider`，本地 commit）
+  - 后端 ✅（go build / vet / test 全绿；Bearer 环境变量覆盖防线经变异验证）；前端 ✅（tsc / next build / vitest）
+  - 推 dev — 待批准；之后逐模型冒烟（D8：用户经 Web 填 key，dev 重启后需重填）— 冒烟不过的模型从目录移除
+- PR-A 冒烟：Qwen3 流式 + 多轮 tool call ✅、深度分析端到端 ✅（5 轮 / 9 tools / 11s）；gpt-oss / MiniMax 待用户切换模型
+- AI 分析质量修复 ✅ 已上 dev：风险刻度 / 相似事件自排除 / 去伪造相似度 / 证据规则 / 失败原因码 / key 清理 / Markdown / Pod LAST-EXIT
+- PR-1 ✅ 已上 dev 并经用户验证（B1 / C 失败提示、C 完整流程、A6 耗时、A7 后台分析不再凭名推测、A8 时间线刻度、A9 实体风险）
+  - C 深度分析状态跟踪（内存 + 状态接口 + 前端按状态轮询 6 分钟）
+  - B2 补强（bedrock key 去中间空白 / 字符集校验）· A6 报告耗时 · A7 证据规则覆盖三角色 · A8 时间线刻度 · A9 实体风险随事件更新
+- 触发来源标签修复 + A10（后台分析带入 Pod 容器状态，不含日志）✅ 已上 dev（`fcea669`），用户决定不再单独测试
+- 测试资源 `atlhyper-smoke` ✅ 已删除
+- C2 gpt-oss / MiniMax 冒烟 — 用户暂缓
+- PR-B：四家改官方 SDK（特征测试先行）— 待 C2
+
+## 权限模型重设计 — 第 1 期 + OIDC 已上 dev，待用户验证（2026-10-12）
+
+> 设计文档: [permission-model-design.md](../../design/active/permission-model-design.md)
+
+- 先行项：指令历史只保存执行结论 + 指令查询需登录 — ✅ 已上 dev（`dev-98389b3`，未登录访问两接口实测 401）
+- 规范：CLAUDE.md §4.3 按新模型重写 — ✅
+- 第 1 期：可选认证 + 查库取角色 / 权限表与路由声明 / env 字面值裁剪 / `/auth/me` + 前端 `useCan` / 锁定占位与演示页 — 🔄 代码完成
+  - 后端 ✅（go build / vet / test 全绿；路由层测试经变异验证有效）
+  - 前端 ✅（tsc / next build / vitest 全绿）
+  - 已上 dev（`dev-e22ad5a`）✅；未登录 API 实测通过（0 级 200 / 敏感 401 / 40 个 Deployment 详情残留字面值 0）；浏览器核对 待用户
+  - 后续项：角色说明页权限矩阵改为后端生成
+- 第 2 期：OIDC 接入（akasha 为首个身份源）— 设计已裁定 ✅（附录 A 全按推荐）
+  > 设计文档: [oidc-login-design.md](../../design/active/oidc-login-design.md)
+  - A 代码 + 测试（含 Go 1.26 升级）— ✅ 本地 commit（go build / vet / test、tsc / next build / vitest 全绿）；未启用时行为不变
+  - 代码已上 dev（`dev-ac5ceb0`，Go 1.26 镜像构建正常）✅
+  - B akasha 登记 `atlhyper-dev`（config `fa6718e`）✅；SYNC 由用户点（Claude 的 kubectl 触发被权限系统拦下）；新副本 2/2 就绪、0 重启；authorize 实测识别
+  - C dev ConfigMap / Secret + controller 配置版本注解（config `de36e45`）✅；实测 providers / start→akasha 302 + 状态 cookie / 坏 state→error=state
+  - 浏览器完整登录（akasha → Google → 回到 atlhyper 为 Member）— 待用户
+  - ⚠️ dev 的 master SQLite 是 emptyDir：每次部署 / 重启后外部账号与提权都会清空（prod 为 PVC，不受影响）
+  - prod：⛔ 用户自行处理（需另登记 `atlhyper` client，回调地址用 prod 域名）
+- prod：⛔ 用户禁止 Claude 推送
+
+## 硬件健康检测 — 🔄 第 1 期已上 dev，待用户验证（2026-10-12）
+
+> 设计文档: [hardware-health-design.md](../../design/active/hardware-health-design.md)
+
+- 第 0 期：设计文档 + tracker — ✅ 完成
+- 第 0 期：7 天温度 / PSI 分布（校准树莓派 CPU 阈值与 PSI 经验值）— 待批准只读通道
+- 第 1 期：温度判定「先最差、同档最热」+ 只报 max 时对称 crit — 🔄 进行中
+  - 代码 + 测试 ✅（分支 `fix/hardware-health-judgement`，本地 commit）
+  - 速览 tile 文案改为「最需关注温度」 ✅（用户裁定 B）
+  - 合并 dev → CI → dev 部署 `dev-0016fdb` ✅；用户页面验证 待办
+  - prod：⛔ 用户禁止 Claude 推送，由用户自行决定
+- 第 2 期：采集面（白名单扩项 / node-exporter systemd + textfile / smartctl_exporter）— 待批准
+- 第 3 期：机械盘健康线 + 盘身份 / SMART 判定 / 持续时长状态机 / 节点详情 v2 — 依赖第 2 期
+
+## CI/CD 接入 — ✅ CI 与 dev 环境已完成，prod 等首次 SYNC（2026-09-06）
+
+> 分支流程：`feature/** | fix/**` → `dev`（自动上 dev 环境）→ PR → `main`（prod，人工点 SYNC）。
+> ⛔ **main 是最保守的分支**，本地 main 不得领先远端；新工作一律开分支。
+
+| 项 | 状态 | 位置 |
+|---|---|---|
+| `test.yml` 门禁（go build/vet + next build，不构建镜像） | ✅ | `.github/workflows/test.yml` |
+| `release.yml`（三组件 × amd64/arm64 原生 runner，push-by-digest 合 manifest） | ✅ 已跑通，path filter 已实证 | `.github/workflows/release.yml` |
+| 不可变 tag：dev=`dev-<sha7>`，prod=`v1.0.0-<sha7>`+`latest`（latest 只为清单默认值兜底） | ✅ | 同上 |
+| config 仓拆 `prod/` `dev/` 两套**完全独立**清单（推翻 base+overlays：dev 会改基础配置） | ✅ prod 逐字节等价 | `config/clusters/requiem/apps/atlhyper/` |
+| dev 环境：ns=atlhyper-dev · `atlhyper-dev.bukahou.com` · agent 只读 · 复用 prod ClickHouse · SQLite emptyDir 不钉节点 | ✅ 已上线可访问 | 同上 `dev/` |
+| ArgoCD `atlhyper-dev`（自动+selfHeal） | ✅ Synced | `config/.../argocd/applications/atlhyper-dev.yaml` |
+| ArgoCD `atlhyper-prod`（**手动**，无 automated 块） | ⏳ OutOfSync 等首次 SYNC | 同上 `atlhyper-prod.yaml` |
+
+**待办**
+- [ ] **prod 首次 SYNC**：建议等下次推 main、CI 把 tag 改成 `v1.0.0-<sha7>` 后再点，一次完成接管 + 切不可变 tag。当前 18 个 OutOfSync 是缺 tracking 标记，`kubectl diff` 零差异
+- [ ] `deploy/scripts/_common.sh` 仍推 `latest` 与 CI 并存 → 建议改为只推带 VERSION 的 tag（用户：不急）
+- [ ] dev agent 启动头 20s 曾报 `connect: operation not permitted`（非 refused），后自愈。若再现须查 Cilium 策略
+- [ ] 未推送：dev 分支 1 个提交（latest 策略）
+
+**首跑踩的坑（已修，记 memory）**：`public/` 空目录 CI 检出不存在 · digest 文件名含冒号 upload 失败 ·
+`dorny/paths-filter` base 默认=默认分支致 dev 上过滤失效 · Gateway API 默认值致 ArgoCD 永不收敛
+
 ## 压测暴露的观测缺陷（2026-08-29 geass-v3 压测，阶段 1–4）
 
 > **待优化，均未修复**（除 P0 已扩容）。用户 2026-08-29 指示「先记录，后续需要优化」。
@@ -252,6 +348,141 @@ PVC 已挂载，重启数据零丢失（362 万 traces 完整保留）。
 
 ---
 
+## 🧊 SLO 与告警联合方案 —— 已裁决冻结，未授权动工
+
+> 对线 005（2026-08-31，联合设计质证，四轮收敛，双方分歧为零）
+> 档案：`config/global/cross-exam/2026-08-31-slo-alerting-joint-plan.md`（geass 侧维护，本方不另起避免双源）
+>
+> **geass 侧用户裁决原文：「这个作为task先记下吧」= 方案冻结为待办，未授权动工。**
+> 按协议红线 3（双方同意不构成执行授权），以下四项**不得开始实现**，待明示启动。
+>
+> ⚠️ 该裁决经对方会话转达，属 geass 侧用户裁决；本方用户若另有裁决，以本方为准。
+
+**本方认领的四项（冻结中）**：
+
+| 项 | 性质 |
+|---|---|
+| rollup MV（11 桶 × 8 操作类 × 小时，90 天，约 6 MiB） | 新建。TTL 7 天不足以算 30 天预算 |
+| SLO → notifier 接线 | 补半成品：burnrate 多窗口已实现，零消费者 |
+| OOM 告警走 Pod status | OOMKill 本集群不产生 Event（geass 受控实验证实），须接现有 restart 基线 |
+| ext4 `errors_count` 采集 | 主机层从零到一最小一步（非「已覆盖」，SMART/dmesg 仍空白） |
+
+**远期设计项（能力空白，非接线问题）**：副本间指标离散度、节点贡献度。
+
+**本轮定案的关键事实（供将来复查）**：
+- SLO 数据源是 **cilium-envoy 上报的 Ingress histogram**，非 geass 应用指标；`observe/slo` 是真数据非空壳，但只有域名粒度
+- **Server span 4xx=Unset / Client span 4xx=Error**（OTel 语义）。一期只测 Server span 故 `StatusCode='Error'` 即「404 计成功」；
+  二期若纳入 Client span，同一 404 会得到相反判定，须显式按 `http.response.status_code` 判定
+- CH 迁移丢历史数据系**本方疏漏**（local-path 节点本地卷不随 Pod 迁移，未导出）
+
+---
+
+## AIOps A+B 修复验收 —— ⚠️ 部分未能验证（2026-08-30 夜间压测）
+
+> 判据来源：本文件「AIOps 检测能力修复」节预写的四条。采样覆盖 18:55→04:48 近 10 小时。
+
+| # | 判据 | 结果 |
+|---|---|---|
+| 1 | 节点 CPU ≥90% → 必现 `absoluteBreach` | ⚠️ **未能验证** —— 全程峰值 86%（desk-zero 19:54），硬线未触及 |
+| 2 | 该实体至少变 warning | ✅ 通过 —— 318 次非 healthy 判定，medium/low 分级合理 |
+| 3 | 两指标同时越界 → incident | ⚠️ **未能验证**（前提是判据 1） |
+| 4 | 整场 incident < 20 | ✅ 通过 —— 峰值 **19 条**，压线达标 |
+
+**必须守住的区分**：判据 1/3 是「未能验证」不是「验证通过」。
+硬线全程未触及 → **B（绝对阈值兜底）那条代码路径一次都没执行过**。
+本轮证明的是 A（判定顺序修正）在真实负载下工作正常且未制造噪音，
+B 仍待实战检验 —— 下次压测若仍压不到 90%，需人为制造条件验证。
+
+**判据 4 的隐忧**：19 条对阈值 20 只差 1。且构成里多数不是压测目标
+（akasha ×2、redis-sentinel、raspi4-zero、clickhouse-0 等被动受影响者）。
+下次强度更高极易冲破，该阈值可能需按「是否压测直接目标」重新校准。
+
+**面板抖动修复**：探测器 20:14→04:48 近 9 小时只记 1 行（仅状态变化时写），
+端点稳定在 `200 / 8 行 / 0 nil`，未复现。但该时段负载未高到令查询失败，
+**只能证明没改坏，不能证明修好了**。
+
+---
+
+## 待处理对线 — 005 号会议：本地登录/注册抽为共享模块 — 🧊 **讨论已封存，进入实施**
+
+> **2026-09-04 用户叫停**：案卷 41 轮 / 9254 行，而原始问题（「需要内置什么功能」）十三轮就收敛。
+> ⛔ **不得重开 20–41 轮任何议题**（work 正在筛真产出与自我繁殖，筛选结果待看）。
+> ✅ **第一批实现设计已审**（geass-v3 `pkg/localauth`，其仓 `cad1cce`，上限两轮，我已用完一轮）：
+> 我报 1 条必须改（**IP 维度退避须移到 bcrypt 之前，否则装了守卫库 CPU DoS 面一点没变**；
+> IP 非凭据内容故可提前拒绝，账号是凭据内容故须留在 bcrypt 后）+ 3 条建议（告警轰炸面 /
+> 锁定事件带外通知 / `LookupFunc` 的 err 分支被丢），**geass-v3 全部采纳**，等它改一版。
+> 我方待办：改版出来后接入（须删自家 `user == nil` 早退；种子路径改用 `guard.HashPassword`）。
+>
+> 🔴🔴 **实现时必查（work 2026-09-04 留档，按那版设计实现必然产生）**：
+> 用户不存在时把 hash 换成 dummy 后**照常返回比对结果**，而 **dummy 明文是源码常量**
+> → **拿那个明文当口令可登入任何不存在的用户名 = 认证绕过**。
+> **修法是结构性的，⛔ 不是随机化 dummy**：**记住本次是否走了 dummy 分支，是则无论 verify 返回什么都判失败。**
+> 验收须构造「用 dummy 明文登入不存在用户名」并**见它红一次**。
+> ⚠️ 该缺陷今天不存在于 atlhyper（我今天是 `user == nil` 早退，没有 dummy），**接入时才会引入**。
+> ⚠️ 自省：我审那版设计时报了 4 条（CPU 面 / 告警轰炸 / 带外通知 / err 分支），**没看出这条，而它比那 4 条都严重**——
+> 原因是我沿着设计里已定的四条判据去审，而**那四条全部只管「时序与响应可不可分辨」，没有一条管「代换后的比对结果能否用于通过认证」**。
+
+> 案卷 `config/global/cross-exam/2026-09-03-local-auth-extraction.md`。首轮 1adbb62 / 二轮 eaa592b。
+> **004 已结案**：B 暂缓（用户理由：geass 视频 / melete 学习，目标用户不同，不需跨应用联动）；
+> atlhyper 排除于 B 之外的裁决维持。
+> ⛔ **用户裁决：本案落地前不打临时补丁**（原话「一旦通过，更不能单独实施防护，因为我没有这么多精力重构」）
+> → **atlhyper 登录 P1 三项不得单独修**，随 005 模块一并落地。风险已入档，用户知悉并接受。
+>
+> 我方立场：分两批（守卫+哈希+准入 / refresh+注册）；产品 7 条约束（不依赖 akasha、不要求 Redis、
+> 类型化错误码而非文案、准入策略可插拔等）；补了「JIT 自动建号会绕过白名单」这个判据缺口。
+> 已采纳 geass-v3 两条：存储要笨（lockedUntil 改为派生，不落库）、剥离判据（第二个消费者不加改动接入成功）。
+> 待办：等 melete / akasha 表态；落地后 atlhyper 接入（users 表加失败计数列，759 行认证代码重写）。
+>
+> ⚠️ **三轮自查新发现（比 004 自报的更严重，同样按裁决未修）**：
+> `AuthRequired` 中间件只解析 JWT 不查库，且 role 固化在 claims 里
+> → **`user/update-role` 降权、`user/update-status` 禁用、改密码，在 24h 内均不生效**。
+> admin 降为 viewer 后旧 token 仍持 admin（= 集群级 drain/delete）。这三个管理端点功能上失效。
+> 缓解只需中间件加一次查库，但按裁决不单独修，随 005 落地（抽 refresh 层时必须包含「服务端可主动吊销」）。
+> 排除的岔路：JWT 密钥存放已核实正常（私有 config 仓 + K8s Secret + required 无默认值），非缺陷。
+>
+> ⚠️ **四轮自查再发现（同样按裁决不单独修）**：取客户端 IP 的两处实现不一致 ——
+> `middleware/audit.go` L77 取 `XFF.split(",")[0]`，`handler/admin/user.go` L162 取**整条 XFF 字符串**
+> （`last_login_ip` 存的是整条链）。且两者都直接信任 XFF（客户端可写头）。
+> 入口是 4 跳（CF Tunnel → Gateway → Next.js rewrites → controller），真实 IP 应取 `CF-Connecting-IP`。
+> 未实测项：该链路下 `[0]` 是否确为可伪造值（需发伪造头探测，会话权限已拦，未绕过）。
+> 随 005 守卫库落地时统一（库须拒绝自动探测 + 提供 `TrustCloudflare()` 类具名预设）。
+>
+> ⚠️ **九轮功能盘点新报（按裁决同样不单独修）**：**无任何修改密码的途径** ——
+> 6 个用户端点无改密/重置；种子 admin 有 `count>0` 保护，改 `MASTER_ADMIN_PASSWORD` 不更新已存在账号。
+> → **初始管理员密码永久不可更换**（role=3 = 集群级 drain/delete）。与「降权 24h 空窗」叠加后，
+> **凭证泄漏在 005 落地前无任何应用内处置手段**。
+>
+> ✅ **用户已裁 0.5 = 读法 B：atlhyper 也加邮箱注册**（理由「和 oidc 一样，有白名单兜底」）。
+> 由此我方新增工作量：注册 + 自助找回 + 邮箱验证 + 改邮箱**从零长出**（三家中唯我如此），
+> 且**新增部署依赖：开自助注册需配一个对外 SMTP**（现有 SMTP 是固定收件人告警出口，不可复用）。
+> 设计上由「自助注册默认关」兜住，对现有部署零影响。
+>
+> 🔴 **接入 B 时必查的一条（唯一「自查命令返回空但实际不安全」的情形）**：
+> SSO 建号会产生「账号存在但无本地密码」的行。我方 schema 是 `password_hash TEXT NOT NULL` +
+> Go `string`（非 `*string`），该类账号**只能存空字符串**，而 `bcrypt.CompareHashAndPassword([]byte(""), ...)`
+> **20ns 立即返回**（本机实测，与真 hash 的 36ms/cost10、144ms/cost12 对比 → 用户名枚举预言机）。
+> ⚠️ **NOT NULL 没有防住这个洞，只是让它在代码层没有任何判断可 grep / 可 review**。
+> melete 同款洞用 NULL 存，至少有一行 `== nil` 可被查到；我方查不到。
+> 判据改用：**bcrypt 调用点必须唯一且支配所有返回路径**（今天调用点唯一 ✅ 但不支配 ❌ —— 用户不存在时提前返回）。
+>
+> 🔴🔴 **最高优先级接入必查项（唯一一条「部署者按最佳实践行事就会撞上」的）**：
+> bcrypt 口令上限 72 字节，而全仓**无任何密码长度校验**（只校验非空）。两个触发点：
+> ① `handler/admin/user.go:213` → `WriteError(500, "密码加密失败")`（B 之后自助注册对公网开放）
+> ② `database/sqlite/migrations.go:481` → **服务启动失败**，日志只说「密码加密失败」，指不到「太长」
+> ⚠️ 实测 `openssl rand -base64 64` = **88 字节，正好超限**（`-base64 48` = 64 字节则安全）。
+> 别人照惯例生成强管理员密码放进 Secret → **服务起不来且查不到原因**。
+> 哨兵（不编码「我怀疑是 72 字节」）：**任何长度的口令输入，响应须落在「成功」或「4xx 且错误码指向输入」之一；
+> 5xx 表示服务器自认故障，而输入问题不是故障。**
+
+
+
+> 案卷 `config/global/cross-exam/2026-09-03-akasha-scope-local-auth.md`。首轮已写入（2026-09-03，config bc929f1）。
+> 我方立场：atlhyper 是产品 → B 对我排除；P1 在 atlhyper 同样三项全缺（无限流/时序洞/无锁定）；
+> 威胁模型「自用无地址」不成立；主张「守卫库先行」为 B 前提，A/B 不投票。
+> 二轮已入档：三方已收敛「守卫库立刻做、B 暂缓」；待裁①落点（推荐独立仓）②锁定存储走各家 DB 接口。
+> 待办：裁决后 atlhyper 接入守卫库（users 表加 failed_attempts/locked_until 两列）。
+> ⚠️ 副产物自查项：atlhyper 登录 P1 是自家真缺陷，与 004 结论无关也要修——等 004 定守卫库落点再动，避免先写一版再换。
+
 ## 待处理对线 — geass-v3 电影详情 404（证据已固化，等用户择时发起）
 
 > **状态：仅登记，未发起。** 对线协议只有用户能触发；用户 2026-08-29 指示
@@ -378,3 +609,48 @@ GROUP BY code;
 若要收拾，整包换成现成的 `service.QueryK8s` 即可（一次 sed 改 18 个文件）。
 
 ---
+
+## ClickHouse 负载排查 — 🔄 进行中
+
+> 起因：archangel 温度 55↔65 波动 → work 追到 ClickHouse → 用户指派本会话独立复核。
+> 已实证：合并放大 688×（part_log 6h），根因形态「每次重写约 61 万行只为吸收 274 行」；
+> SELECT 19/s、每次扫 12.2 MB（全库 155 MiB）；merge 95 MB/s vs SELECT 146 MB/s，谁是 CPU 主因未定。
+
+- 临时打开 query_log 全量记录以归因 SELECT 来源 — ✅ 2026-09-10 22:19 JST 完成
+  （config `24f6c71`，`log_queries_min_query_duration_ms` 1000→0，删 Pod 重启，空档约 20s）
+- 归因分析 — ✅ 2026-09-11 完成（细节见 git log 与会话记录）
+  - 读者只有 prod/dev 两个 agent，各 8.6 qps / 0.17 核 / 107 MiB/s，一模一样 ⇒ dev 使读负载翻倍
+  - CPU：SELECT 恒定 0.34 核；合并随「链相位」0.01–0.33 核摆动（sum 表两源合并 840/h ↔ 0/h，周期 5–7h）；进程 0.35–1.09 核
+  - ⭐ archangel k10temp 小时均值与 ClickHouse CPU r=0.93，风暴期 68.7°C / 平静期 63.1°C —— 温度问题的根因
+  - 合并机制：小 part 字节占比 0.475%（<1% 剥离阈值）⇒ 每插入一次重写一次大 part（p50 64.8 万行）
+  - 最贵查询：uname 无时间窗（128,789 行/45 MiB，加 15min 窗 −97%）；freshness max(TimeUnix) 9.1M 行（改读 system.parts → 23 行）；ListAllNodeMetrics 每周期跑两遍（otel_collector.go:146/158 + metrics.go:122）
+  - ⚠️ 自我纠错：曾以 kubectl top 瞬时 204m 否定 work 的 0.58 核均值，metric_log 证明 0.58 才接近稳态；已向 work 撤回
+- 改回 query_log 阈值 1000 并重启 clickhouse-0 — ✅ 2026-09-11 06:43 JST（config `2a8725c`，空档 18s，零丢数据；全量 8h 曾长到 207 MiB）
+- 用户裁定顺序：D4 ✅ → D2 ✅ → D1+D3 ✅ 代码完成（分支 `fix/agent-ch-query-load` @ `1cbe23d`，TDD 全绿，未推送/未合并）
+  - D1：Summary 从同周期列表派生（model_v3 SummarizeNodes/SummarizeIngress）· uname 加 15min 窗 · freshness 改读 system.parts
+  - D3：`AGENT_OTEL_DASHBOARD_TTL`（默认 30s）；config dev 已设 2m（`config` 仓，未推送）
+  - 🔴 落地顺序：**D2 对账通过（09-11 16:10 JST 之后）→ 推分支跑 CI → 合 dev（dev agent 也连共用 CH，合 dev 就会改变 SELECT 负载，所以必须等 D2 窗口过完）→ 验证 → main → 用户点 prod
+  - 验收指标：两 agent SELECT 从各 8.6 qps 降到约 4.5；读侧 CPU 0.34 核 → 约 0.12（估算，需 metric_log 实测 ≥8h）
+- D2 collector `batch/metrics` 8192/15s — ✅ 2026-09-11 08:03 JST apply（config `1de4537`，Operator 滚动 13s，新 CM otel-collector-68785788）
+  - 🔴 验收窗作废：09-11 09:25 JST 用户决定全集群关机搬机箱（work 已明确提醒会毁掉本轮测量，用户取舍）。D2 只跑了 1h22m。
+  - ✅ 对账已完成，但**不是用原计划的方式**：`system.part_log`/`metric_log` TTL=3 天，
+    D2 前唯一完整基线日 09-09 在 09-12 00:00 UTC 被删 ⇒ 「等 09-12 整日再对账」到时对照组已不存在。
+    ⇒ 改用 **09-10 23:04–09-11 00:25 的 81 分钟干净自然实验**（D2 已生效、集群未关机、8 节点全在、
+    ClickHouse 热态、agent 未改），与前一天同一时钟窗对比，节点数/缓存/相位/时段四个混杂全部抵消。
+    数值已抢救存档：`docs/tasks/active/clickhouse-d2-baseline.md`
+  - **D2 实测效果（干净窗口）**：进程 CPU 0.5343 → 0.3600 核（**−32.6%**）· 合并 CPU 0.162 → 0.055 核（**÷2.93**）
+    · InsertQuery 0.606 → 0.297/s · SELECT 次数 17.23 → 17.21 qps（**不变**，证明是纯 D2 效果）
+    · 读侧 SelectedRows 2.409 → 1.973 M/s（−18%，part 变少带来的意外收益）
+  - 🔴 **我此前报的数字大部分作废**（时段错配）：「合并墙钟 ÷10.5」「histogram 放大 ÷39」
+    「gauge 两源 811→0」「CPU 0.38–0.83 → 0.35–0.38」「温度下降归因 D2」—— 全部撤回，理由见基线文档。
+    温度下降实为机箱搬动+断电 4h 的全机降温（六个传感器集体降 6–7℃，CPU Tctl 只降 3.6℃）。
+  - ✅ 8T 盘核对通过：UDMA_CRC_Error_Count 仍为 646（与 08-26 同值，本次搬动无新增），
+    重分配/待定/不可纠正扇区全 0，SMART PASSED，ext4 正常 rw 挂载
+  - 🔴 **剩余优化的优先级被推翻**：post-D2 ClickHouse 进程 0.349 核中**合并只剩 0.049 核**
+    （其中约 0.020 核还是 ClickHouse 自己的 system 日志表合并，不受 batch 影响），
+    其余约 0.28–0.30 核全在 **SELECT 通道**（15.5 qps / 200 MiB/s，两个 agent）。
+    ⇒ **D1/D3 的可得收益（约 0.10–0.17 核）是继续调 batch/merge 参数（≤0.028 核）的 4–6 倍。**
+    ⇒ D1/D3 不必再等 D2 对账窗（两者作用在不同计数器：MergeTotalMilliseconds vs SelectQuery/SelectedBytes）
+  - ⛔ 在此之前不落地 D1（避免两次改动的效果混在一个相位窗口里）
+  ⚠️ D2 与 D1 落地至少隔 ≥8h（一个完整合并链相位），否则前后对账混在一起
+- ⚠️ 发现：clickhouse-config 以 subPath 挂载 ⇒ 任何配置改动都要重启，注释里「热加载」失效 — 已在 config 注释纠正

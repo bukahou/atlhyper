@@ -12,6 +12,7 @@ var defaultDurations = map[string]string{
 	"AGENT_COMMAND_POLL_INTERVAL": "100ms", // 指令轮询间隔（Dashboard 端点走快照直读后，Command 仅用于 Detail 查询，缩短以降低延迟）
 	"AGENT_HEARTBEAT_INTERVAL":    "15s",   // 心跳发送间隔
 	"AGENT_OTEL_CACHE_TTL":        "10s",   // OTel 概览缓存 TTL（与快照间隔一致）
+	"AGENT_OTEL_DASHBOARD_TTL":    "30s",   // OTel Dashboard 列表缓存 TTL（每次刷新 = 8 节点 × 17 条 SQL；dev 建议 2m）
 
 	// -------------------- 超时配置 --------------------
 	"AGENT_TIMEOUT_HTTP_CLIENT":      "90s", // HTTP 客户端超时 (需 > Master 长轮询超时 60s + 网络开销)

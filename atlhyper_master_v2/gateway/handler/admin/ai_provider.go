@@ -5,6 +5,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -19,7 +20,7 @@ import (
 )
 
 // supportedProviders 支持的提供商 ID 列表
-var supportedProviders = []string{"gemini", "openai", "anthropic", "ollama"}
+var supportedProviders = []string{"gemini", "openai", "anthropic", "ollama", "bedrock"}
 
 // providerNames 提供商名称映射
 var providerNames = map[string]string{
@@ -27,6 +28,7 @@ var providerNames = map[string]string{
 	"openai":    "OpenAI",
 	"anthropic": "Anthropic Claude",
 	"ollama":    "Ollama (本地部署)",
+	"bedrock":   "AWS Bedrock",
 }
 
 // AIProviderHandler AI Provider Handler
@@ -232,6 +234,12 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		handler.WriteError(w, http.StatusBadRequest, "unsupported provider type")
 		return
 	}
+	key, err := normalizeAPIKey(req.Provider, req.APIKey)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.APIKey = key
 	// Ollama 不需要 API Key，其他提供商必须
 	if req.APIKey == "" && req.Provider != "ollama" {
 		handler.WriteError(w, http.StatusBadRequest, "api_key is required")
@@ -264,10 +272,12 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		UpdatedAt:   now,
 	}
 
+	plainKey := provider.APIKey // repo 保存时原地加密；响应掩码要基于明文
 	if err := h.svc.CreateAIProvider(ctx, provider); err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, "failed to create provider")
 		return
 	}
+	provider.APIKey = plainKey
 
 	handler.WriteJSON(w, http.StatusCreated, toProviderResponse(provider))
 }
@@ -315,7 +325,19 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 		provider.Name = *req.Name
 	}
 	if req.Provider != nil {
+		if !slices.Contains(supportedProviders, *req.Provider) {
+			handler.WriteError(w, http.StatusBadRequest, "unsupported provider type")
+			return
+		}
 		provider.Provider = *req.Provider
+	}
+	if req.APIKey != nil {
+		key, err := normalizeAPIKey(provider.Provider, *req.APIKey)
+		if err != nil {
+			handler.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		*req.APIKey = key
 	}
 	if req.APIKey != nil && *req.APIKey != "" {
 		provider.APIKey = *req.APIKey
@@ -324,6 +346,11 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 		provider.Model = *req.Model
 	}
 	if req.BaseURL != nil {
+		// 空字符串 = 清空（恢复该 provider 的默认地址）；非空与创建同样校验
+		if *req.BaseURL != "" && !isValidBaseURL(*req.BaseURL) {
+			handler.WriteError(w, http.StatusBadRequest, "invalid base_url format")
+			return
+		}
 		provider.BaseURL = *req.BaseURL
 	}
 	if req.Description != nil {
@@ -331,10 +358,12 @@ func (h *AIProviderHandler) updateProvider(w http.ResponseWriter, r *http.Reques
 	}
 	provider.UpdatedAt = time.Now()
 
+	plainKey := provider.APIKey // repo 保存时原地加密；响应掩码要基于明文
 	if err := h.svc.UpdateAIProvider(ctx, provider); err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, "failed to update provider")
 		return
 	}
+	provider.APIKey = plainKey
 
 	handler.WriteJSON(w, http.StatusOK, toProviderResponse(provider))
 }
@@ -904,4 +933,50 @@ func isValidBaseURL(rawURL string) bool {
 		return false
 	}
 	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+// maskAPIKey 展示用掩码：前 4 位 + **** + 后 4 位（≤ 8 位全部遮住）
+func maskAPIKey(key string) string {
+	if key == "" {
+		return ""
+	}
+	if len(key) <= 8 {
+		return "****"
+	}
+	return key[:4] + "****" + key[len(key)-4:]
+}
+
+// normalizeAPIKey 清理粘贴带入的杂质（用户 2026-10-12 批准 B2）
+//   - 所有 provider：去首尾空白 / 换行
+//   - bedrock：去掉误带的 "Bearer " 前缀（请求头由 SDK 生成）与中间夹带的空白；
+//     字符集外的字符拒绝（⛔ 不做 Base64 试解码：长 / 短期 key 的格式未完整公开，试解码有误拒风险）；
+//     含引号直接拒绝 ——
+//     引号多来自 `terraform output` 未加 -raw，替用户删掉有误删真实字符的风险
+//
+// 曾因此类杂质得到难以排查的 403「Invalid API Key format: Base64 decoding failed」。
+func normalizeAPIKey(provider, raw string) (string, error) {
+	key := strings.TrimSpace(raw)
+	if provider != "bedrock" {
+		return key, nil
+	}
+	if len(key) >= 7 && strings.EqualFold(key[:7], "bearer ") {
+		key = strings.TrimSpace(key[7:])
+	}
+	if strings.ContainsAny(key, `"'`) {
+		return "", fmt.Errorf("API key 含引号：请粘贴不带引号的纯 key（如用 terraform output -raw）")
+	}
+	// key 不含空白：终端折行复制会在中间带进换行 / 空格，一并去掉
+	key = strings.Join(strings.Fields(key), "")
+	// 只允许 base64 / base64url 与短期 key 前缀用到的字符；其余（全角符号、省略号等）多为复制残缺
+	for _, r := range key {
+		if !isBedrockKeyRune(r) {
+			return "", fmt.Errorf("API key 含非法字符 %q：请重新完整复制 key", r)
+		}
+	}
+	return key, nil
+}
+
+func isBedrockKeyRune(r rune) bool {
+	return (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') ||
+		r == '+' || r == '/' || r == '=' || r == '-' || r == '_'
 }

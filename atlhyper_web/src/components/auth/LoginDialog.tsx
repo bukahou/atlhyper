@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { X, LogIn, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, LogIn, Loader2, KeyRound } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { useAuthStore } from "@/store/authStore";
 import { useClusterStore } from "@/store/clusterStore";
-import { login } from "@/api/auth";
+import { login, getAuthProviders, oidcStartURL } from "@/api/auth";
+import type { AuthProvider } from "@/types/auth";
 
 export function LoginDialog() {
   const { t } = useI18n();
@@ -16,6 +17,21 @@ export function LoginDialog() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [providers, setProviders] = useState<AuthProvider[]>([]);
+
+  // 外部登录方式：未启用时为空列表，按钮不显示
+  useEffect(() => {
+    if (!isLoginDialogOpen) return;
+    getAuthProviders()
+      .then((res) => setProviders(res.data.data ?? []))
+      .catch(() => setProviders([]));
+  }, [isLoginDialogOpen]);
+
+  // 整页跳转发起外部登录；登录成功后回到当前页
+  const startExternalLogin = () => {
+    const next = window.location.pathname + window.location.search;
+    window.location.assign(oidcStartURL(next));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,6 +137,27 @@ export function LoginDialog() {
               )}
               {t.common.login}
             </button>
+
+            {providers.length > 0 && (
+              <>
+                <div className="flex items-center gap-3 text-xs text-muted">
+                  <div className="flex-1 h-px bg-[var(--border-color)]" />
+                  {t.login.orDivider}
+                  <div className="flex-1 h-px bg-[var(--border-color)]" />
+                </div>
+                {providers.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={startExternalLogin}
+                    className="w-full py-3 border border-[var(--border-color)] hover-bg text-default font-medium rounded-lg transition-colors flex items-center justify-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    <KeyRound className="w-5 h-5" />
+                    {t.login.continueWith.replace("{name}", p.displayName)}
+                  </button>
+                ))}
+              </>
+            )}
           </form>
         </div>
       </div>

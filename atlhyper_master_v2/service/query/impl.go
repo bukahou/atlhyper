@@ -31,7 +31,6 @@ type QueryService struct {
 	auditRepo      database.AuditRepository
 	commandRepo    database.CommandHistoryRepository
 	notifyRepo     database.NotifyChannelRepository
-	settingsRepo   database.SettingsRepository
 	aiProviderRepo database.AIProviderRepository
 	aiSettingsRepo database.AISettingsRepository
 	aiModelRepo    database.AIProviderModelRepository
@@ -45,7 +44,8 @@ type QueryService struct {
 	repoConfigRepo    database.RepoConfigRepository
 
 	// User repository（用户管理）
-	userRepo database.UserRepository
+	userRepo     database.UserRepository
+	identityRepo database.UserIdentityRepository
 }
 
 // AdminRepos 管理查询所需的 Repository 集合
@@ -54,7 +54,6 @@ type AdminRepos struct {
 	Audit      database.AuditRepository
 	Command    database.CommandHistoryRepository
 	Notify     database.NotifyChannelRepository
-	Settings   database.SettingsRepository
 	AIProvider database.AIProviderRepository
 	AISettings database.AISettingsRepository
 	AIModel    database.AIProviderModelRepository
@@ -74,15 +73,16 @@ type DeployRepos struct {
 // QueryServiceDeps QueryService 全部依赖
 // 严格限定：每个字段对应 QueryService 已有的 struct 字段，禁止新增未使用的依赖
 type QueryServiceDeps struct {
-	Store       datahub.Store                   // 必需
-	Bus         mq.Producer                     // 必需
-	EventRepo   database.ClusterEventRepository // 必需（Alert Trends）
-	SLORepo     database.SLORepository          // 必需（Phase 2 新增）
-	AIOpsEngine aiops.Engine                    // 可选，nil = AIOps 查询返回空
-	AIOpsAI     *enricher.Enricher              // 可选，nil = AI 增强禁用
-	AdminRepos  AdminRepos                      // 必需（管理查询）
-	DeployRepos DeployRepos                     // 可选，未启用 GitOps 时各 repo 为 nil
-	UserRepo    database.UserRepository         // 必需（用户管理）
+	Store        datahub.Store                   // 必需
+	Bus          mq.Producer                     // 必需
+	EventRepo    database.ClusterEventRepository // 必需（Alert Trends）
+	SLORepo      database.SLORepository          // 必需（Phase 2 新增）
+	AIOpsEngine  aiops.Engine                    // 可选，nil = AIOps 查询返回空
+	AIOpsAI      *enricher.Enricher              // 可选，nil = AI 增强禁用
+	AdminRepos   AdminRepos                      // 必需（管理查询）
+	DeployRepos  DeployRepos                     // 可选，未启用 GitOps 时各 repo 为 nil
+	UserRepo     database.UserRepository         // 必需（用户管理）
+	IdentityRepo database.UserIdentityRepository // 必需（外部身份）
 }
 
 // NewQueryService 创建 QueryService（全部依赖通过构造函数注入）
@@ -97,7 +97,6 @@ func NewQueryService(deps QueryServiceDeps) *QueryService {
 		auditRepo:      deps.AdminRepos.Audit,
 		commandRepo:    deps.AdminRepos.Command,
 		notifyRepo:     deps.AdminRepos.Notify,
-		settingsRepo:   deps.AdminRepos.Settings,
 		aiProviderRepo: deps.AdminRepos.AIProvider,
 		aiSettingsRepo: deps.AdminRepos.AISettings,
 		aiModelRepo:    deps.AdminRepos.AIModel,
@@ -109,6 +108,7 @@ func NewQueryService(deps QueryServiceDeps) *QueryService {
 		githubInstallRepo: deps.DeployRepos.GitHubInstall,
 		repoConfigRepo:    deps.DeployRepos.RepoConfig,
 
-		userRepo: deps.UserRepo,
+		userRepo:     deps.UserRepo,
+		identityRepo: deps.IdentityRepo,
 	}
 }

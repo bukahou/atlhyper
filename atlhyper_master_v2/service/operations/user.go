@@ -14,12 +14,13 @@ import (
 
 // UserService 用户写入操作
 type UserService struct {
-	userRepo database.UserRepository
+	userRepo     database.UserRepository
+	identityRepo database.UserIdentityRepository
 }
 
 // NewUserService 创建 UserService
-func NewUserService(userRepo database.UserRepository) *UserService {
-	return &UserService{userRepo: userRepo}
+func NewUserService(userRepo database.UserRepository, identityRepo database.UserIdentityRepository) *UserService {
+	return &UserService{userRepo: userRepo, identityRepo: identityRepo}
 }
 
 func (s *UserService) CreateUser(ctx context.Context, user *database.User) error {
@@ -30,8 +31,18 @@ func (s *UserService) UpdateUser(ctx context.Context, user *database.User) error
 	return s.userRepo.Update(ctx, user)
 }
 
+// DeleteUser 删除用户，并清掉其外部身份行（否则同一身份再登录会撞唯一键）
 func (s *UserService) DeleteUser(ctx context.Context, id int64) error {
-	return s.userRepo.Delete(ctx, id)
+	if err := s.userRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+	return s.identityRepo.DeleteByUserID(ctx, id)
+}
+
+// CreateFederatedUser 同一事务内建用户与外部身份行
+// 身份已存在 → database.ErrIdentityExists；用户名被占 → database.ErrUsernameTaken
+func (s *UserService) CreateFederatedUser(ctx context.Context, user *database.User, issuer, subject string) error {
+	return s.identityRepo.CreateUserWithIdentity(ctx, user, issuer, subject)
 }
 
 func (s *UserService) UpdateUserLastLogin(ctx context.Context, id int64, ip string) error {

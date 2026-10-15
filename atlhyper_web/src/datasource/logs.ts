@@ -9,6 +9,7 @@ import { mockQueryLogs } from "@/mock/logs";
 import type { MockLogQueryParams } from "@/mock/logs";
 import * as observeApi from "@/api/observe-logs";
 import type { LogQueryResult, LogHistogramResult } from "@/types/model/log";
+import { canNow } from "@/hooks/useCan";
 
 export type { MockLogQueryParams } from "@/mock/logs";
 
@@ -57,6 +58,10 @@ export interface LogHistogramParams {
  * 查询日志（列表 + 分面，不含直方图）
  */
 export async function queryLogs(params?: LogQueryParams): Promise<LogQueryResult> {
+  // 日志正文是内容级数据（logs.read）；无权限时不发请求，界面由 PermissionLock 占位
+  if (!canNow("logs.read")) {
+    return { logs: [], total: 0, facets: { services: [], severities: [], scopes: [] } };
+  }
   if (getDataSourceMode("logs") === "mock" || !params?.clusterId) {
     const mock = mockQueryLogs(params);
     return { logs: mock.logs, total: mock.total, facets: mock.facets };

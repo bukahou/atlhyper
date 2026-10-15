@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/navigation/Sidebar";
 import { MobileMenu } from "@/components/navigation/MobileMenu";
 import { LoginDialog } from "@/components/auth/LoginDialog";
 import { ToastContainer } from "@/components/common";
+import { useAuthStore } from "@/store/authStore";
 import { useAuthError } from "@/hooks/useAuthError";
 import { useClusterStore } from "@/store/clusterStore";
 import { getClusterList } from "@/api/cluster";
@@ -21,6 +22,12 @@ export function Layout({ children }: LayoutProps) {
 
   // 全局监听权限错误，自动触发登录对话框
   useAuthError();
+
+  // 拉取当前主体与权限（前端唯一权限来源）；访客同样拿到 0 级权限
+  const refreshMe = useAuthStore((st) => st.refreshMe);
+  useEffect(() => {
+    void refreshMe();
+  }, [refreshMe]);
 
   // 初始化集群列表
   useEffect(() => {

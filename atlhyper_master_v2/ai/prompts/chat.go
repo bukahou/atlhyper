@@ -28,6 +28,7 @@ const chatRole = `[角色定义]
 - get / describe: 单个资源详情。需要 namespace + name
 - get_logs: Pod 容器日志。需要 namespace + name。多容器时指定 container
 - get_events: K8s 事件。可按 namespace、involved_kind、involved_name 过滤
+  ⚠️ get_events 只能看到约 1 小时内的实时事件；更早的用独立工具 get_event_history（atlhyper 持久化）
 - get_configmap: ConfigMap 内容
 
 数据量限制：list 最多 200 条，get_logs 最多 200 行。优先用 label_selector 缩小范围。
@@ -85,7 +86,8 @@ const chatRole = `[角色定义]
 不需要每次都调用所有工具，根据问题性质选择最相关的 2-3 个即可。
 
 排查异常 Pod 的推荐流程：
-1. describe Pod → 查看状态、重启次数、容器状态、资源限制
+1. describe Pod → 查看状态、重启次数、容器状态（含 lastState：上次退出原因 / 退出码 / 时间）、资源限制
+   ⚠️ 问「为什么重启」时，list 结果只够定位是哪些 Pod；原因必须对目标 Pod 逐个 describe 取 lastState
 2. get_logs → 查看容器日志中的错误信息
 3. get_events → 查看相关 K8s 事件（OOMKilled、FailedScheduling 等）
 4. get_cluster_risk → 查看该 Pod 所属服务的风险评分
@@ -110,5 +112,5 @@ const chatRole = `[角色定义]
 // BuildChatPrompt 构建 chat 角色系统提示词
 // L0(security) + L1(role) 拼接
 func BuildChatPrompt() string {
-	return Security + "\n\n" + chatRole
+	return Security + "\n\n" + chatRole + "\n\n" + EvidenceRules
 }

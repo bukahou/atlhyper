@@ -9,6 +9,7 @@ import { navGroups, getActiveGroups, loadExpandedGroups, saveExpandedGroups } fr
 import { SidebarNavGroup } from "./SidebarNavGroup";
 import { SidebarClusterSelector } from "./SidebarClusterSelector";
 import { SidebarFooter } from "./SidebarFooter";
+import { useCan } from "@/hooks/useCan";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -18,7 +19,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { isAuthenticated, user } = useAuthStore();
-  const isAdmin = user?.role === 3;
+  const isAdmin = useCan()("user.manage");
   const [expandedGroups, setExpandedGroups] = useState<string[]>(() => loadExpandedGroups(pathname));
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [clusterMenuOpen, setClusterMenuOpen] = useState(false);
@@ -65,7 +66,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Logo */}
       <div className={`h-14 flex items-center border-b border-[var(--border-color)]/20 ${collapsed ? "justify-center" : "px-3"}`}>
         <Link href="/about" className="flex-shrink-0">
-          <img src="/icon.png" alt="AtlHyper" className="w-8 h-8" />
+          {/* 侧栏 32px：用矢量而非位图，小尺寸下边缘更利落 */}
+          <img src="/icon.svg" alt="AtlHyper" className="w-8 h-8" />
         </Link>
         {!collapsed && (
           <>

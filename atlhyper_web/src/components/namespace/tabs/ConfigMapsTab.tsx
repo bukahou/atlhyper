@@ -1,5 +1,6 @@
 "use client";
 
+import type { Permission } from "@/types/auth";
 import { useState } from "react";
 import { FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -11,7 +12,7 @@ import type { useI18n } from "@/i18n/context";
 interface ConfigMapsTabProps {
   configMaps: ConfigMapDTO[];
   loading: boolean;
-  requireAuth: (action: () => void) => boolean;
+  requireAuth: (action: () => void, permission?: Permission) => boolean;
   namespace: string;
   t: ReturnType<typeof useI18n>["t"];
 }
@@ -63,7 +64,7 @@ export function ConfigMapsTab({
             return next;
           });
         }
-      });
+      }, "secret.read");
     }
   };
 

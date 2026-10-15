@@ -62,15 +62,15 @@ export default function PodPage() {
     setDetailOpen(true);
   };
 
-  // 从详情页打开日志（需要先登录）
+  // 从详情页打开日志（需要 pod.logs.read）
   const handleViewLogs = (containerName: string) => {
     requireAuth(() => {
       setLogsContainer(containerName);
       setLogsOpen(true);
-    });
+    }, "pod.logs.read");
   };
 
-  // 显示重启确认（需要先登录）
+  // 显示重启确认（需要 cluster.operate）
   const handleRestartClick = (pod: PodItem) => {
     requireAuth(() => setRestartTarget(pod));
   };

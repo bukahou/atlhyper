@@ -31,6 +31,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 	aiopscore "AtlHyper/atlhyper_master_v2/aiops/core"
 	"AtlHyper/atlhyper_master_v2/aiops/enricher"
+	"AtlHyper/atlhyper_master_v2/auth/oidc"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/database/repo"
@@ -38,6 +39,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway"
+	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
@@ -177,23 +179,25 @@ func NewMaster() (*Master, error) {
 
 	// 6. 初始化 Operations（写入路径，AI Service 依赖 cmdOps）
 	cmdOps := operations.NewCommandService(bus, db.Command)
-	adminOps := operations.NewAdminService(db.Notify, db.Settings, db.AIProvider, db.AISettings, db.AIRoleBudget)
+	adminOps := operations.NewAdminService(db.Notify, db.AIProvider, db.AISettings, db.AIRoleBudget)
 	log.Info("操作服务初始化完成")
 
 	// 7. 初始化 AI Service（Enricher 依赖 AIService）
 	aiService := ai.NewService(
 		ai.ServiceConfig{
-			ToolTimeout: cfg.AI.ToolTimeout,
+			ToolTimeout:   cfg.AI.ToolTimeout,
+			BedrockRegion: cfg.AI.BedrockRegion,
 		},
 		cmdOps, bus,
-		db.AIProvider, db.AISettings, db.AIModel, db.AIRoleBudget,
+		db.AIProvider, db.AIModel, db.AIRoleBudget,
 		db.AIConversation, db.AIMessage,
 	)
 	log.Info("AI 服务初始化完成 (动态配置)")
 
 	// 7.1 初始化 AIOps Enricher（通过 ai.AIService 接口调用 LLM，不再直接操作 ai/llm）
 	aiopsEnricher := enricher.NewEnricher(db.AIOpsIncident, db.AIReport, aiService)
-	aiopsEnricher.SetStore(store) // OTel 上下文丰富：读取 OTelSnapshot
+	aiopsEnricher.SetStore(store)          // OTel 上下文丰富：读取 OTelSnapshot
+	aiopsEnricher.SetEventSource(db.Event) // 持久化 K8s event 进入分析上下文
 	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
 	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
@@ -210,7 +214,6 @@ func NewMaster() (*Master, error) {
 			Audit:      db.Audit,
 			Command:    db.Command,
 			Notify:     db.Notify,
-			Settings:   db.Settings,
 			AIProvider: db.AIProvider,
 			AISettings: db.AISettings,
 			AIModel:    db.AIModel,
@@ -223,7 +226,8 @@ func NewMaster() (*Master, error) {
 			GitHubInstall: db.GitHubInstall,
 			RepoConfig:    db.RepoConfig,
 		},
-		UserRepo: db.User,
+		UserRepo:     db.User,
+		IdentityRepo: db.UserIdentity,
 	})
 	log.Info("查询层初始化完成")
 
@@ -234,7 +238,7 @@ func NewMaster() (*Master, error) {
 	deployOps := operations.NewDeployService(db.DeployConfig, db.GitHubInstall)
 
 	// 初始化用户写入服务
-	userOps := operations.NewUserService(db.User)
+	userOps := operations.NewUserService(db.User, db.UserIdentity)
 
 	// 组合统一 Service
 	svc := service.NewService(q, cmdOps, adminOps, sloOps, deployOps, userOps)
@@ -262,6 +266,8 @@ func NewMaster() (*Master, error) {
 		data, _ := json.Marshal(result)
 		return string(data), nil
 	})
+
+	aiService.RegisterTool("get_event_history", ai.NewEventHistoryHandler(db.Event))
 
 	aiService.RegisterTool("get_cluster_risk", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		topN := getIntParam(params, "top_n", 10)
@@ -552,6 +558,24 @@ func NewMaster() (*Master, error) {
 	}
 
 	// 12. 初始化 Gateway
+	// 12.5 外部身份登录（OIDC，可选）：首登自动建为成员（0 级），由管理员提升
+	var oidcModule *oidc.Module
+	if cfg.OIDC.Enabled() {
+		oidcModule = oidc.NewModule(oidc.Config{
+			Issuer:       cfg.OIDC.Issuer,
+			ClientID:     cfg.OIDC.ClientID,
+			ClientSecret: cfg.OIDC.ClientSecret,
+			RedirectURL:  cfg.OIDC.RedirectURL,
+			CookieSecret: cfg.OIDC.CookieSecret,
+			CookieSecure: cfg.OIDC.CookieSecure,
+			DisplayName:  cfg.OIDC.DisplayName,
+			NewUserRole:  middleware.RoleMember,
+			Accounts:     svc,
+			IssueToken:   middleware.GenerateToken,
+		})
+		log.Info("OIDC 登录已启用（首次使用时连接 issuer）", "issuer", cfg.OIDC.Issuer)
+	}
+
 	gw := gateway.NewServer(gateway.Config{
 		Port:           cfg.Server.GatewayPort,
 		Service:        svc,
@@ -560,6 +584,7 @@ func NewMaster() (*Master, error) {
 		AnalyzeTrigger: aiopsEnricher,
 		GitHubClient:   ghClient,
 		Deployer:       deployerService,
+		OIDC:           oidcModule,
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
 

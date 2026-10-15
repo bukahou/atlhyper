@@ -21,6 +21,12 @@ const roleConfig = {
     color: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
     icon: Eye,
   },
+  // 成员：与访客权限完全相同（外部身份源首次登录的默认角色）
+  [UserRole.MEMBER]: {
+    label: "Member",
+    color: "bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    icon: Eye,
+  },
 };
 
 interface UserRowProps {
@@ -34,7 +40,7 @@ interface UserRowProps {
 }
 
 export function UserRow({ user, isAdmin, onEditRole, onToggleStatus, onDelete, t, isMobile }: UserRowProps) {
-  const config = roleConfig[user.role as keyof typeof roleConfig] || roleConfig[UserRole.VIEWER];
+  const config = roleConfig[user.role as keyof typeof roleConfig] ?? roleConfig[UserRole.MEMBER];
   const RoleIcon = config.icon;
 
   const formatDate = (dateStr: string | null) => {
@@ -61,6 +67,11 @@ export function UserRow({ user, isAdmin, onEditRole, onToggleStatus, onDelete, t
             <div className="min-w-0 flex-1">
               <div className="font-medium text-default text-sm truncate">
                 {user.username}
+                {user.federated && (
+                  <span title={t.users.federatedHint} className="ml-1.5 inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 align-middle">
+                    {t.users.federated}
+                  </span>
+                )}
                 {user.displayName && <span className="text-muted font-normal ml-1">({user.displayName})</span>}
               </div>
               {user.email && (
@@ -153,7 +164,14 @@ export function UserRow({ user, isAdmin, onEditRole, onToggleStatus, onDelete, t
             <RoleIcon className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <div className="font-medium text-default">{user.username}</div>
+            <div className="font-medium text-default">
+              {user.username}
+              {user.federated && (
+                <span title={t.users.federatedHint} className="ml-1.5 inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 align-middle">
+                  {t.users.federated}
+                </span>
+              )}
+            </div>
             {user.displayName && (
               <div className="text-xs text-muted">{user.displayName}</div>
             )}

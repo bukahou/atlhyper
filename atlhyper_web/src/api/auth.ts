@@ -5,7 +5,7 @@
  */
 
 import { post, get } from "./request";
-import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem } from "@/types/auth";
+import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem, AuthMe, AuthProvider, PermissionTable } from "@/types/auth";
 
 // ============================================================
 // Master V2 响应类型
@@ -15,6 +15,12 @@ import type { LoginRequest, LoginResponse, UserListItem, AuditLogItem } from "@/
 interface LoginApiResponse {
   message: string;
   data: LoginResponse;
+}
+
+// 当前主体响应
+interface AuthMeApiResponse {
+  message: string;
+  data: AuthMe;
 }
 
 // 用户列表响应
@@ -45,6 +51,37 @@ interface OperationResponse {
  */
 export function login(data: LoginRequest) {
   return post<LoginApiResponse>("/api/v2/user/login", data);
+}
+
+/**
+ * 获取当前主体与权限（无需登录；访客得到 0 级权限）
+ * GET /api/v2/auth/me
+ */
+export function getMe() {
+  return get<AuthMeApiResponse>("/api/v2/auth/me");
+}
+
+/**
+ * 完整权限表（无需登录；角色说明页用）
+ * GET /api/v2/auth/permissions
+ */
+export function getPermissionTable() {
+  return get<{ message: string; data: PermissionTable }>("/api/v2/auth/permissions");
+}
+
+/**
+ * 外部登录方式（无需登录；未启用时为空列表）
+ * GET /api/v2/auth/providers
+ */
+export function getAuthProviders() {
+  return get<{ message: string; data: AuthProvider[] }>("/api/v2/auth/providers");
+}
+
+/**
+ * 外部登录发起地址（整页跳转，不走 axios）：next 为登录成功后回到的应用内路径
+ */
+export function oidcStartURL(next: string) {
+  return `/api/v2/auth/oidc/start?next=${encodeURIComponent(next)}`;
 }
 
 /**

@@ -1,8 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "@/components/common/Toast";
-import { useAuthStore } from "@/store/authStore";
 import { useI18n } from "@/i18n/context";
-import { UserRole } from "@/types/auth";
 
 import {
   listProviders,
@@ -14,14 +12,15 @@ import {
   type AIProvider,
   type ProviderListResponse,
 } from "@/api/ai-provider";
+import { useCan } from "@/hooks/useCan";
 
 export function useAISettings() {
   const { t } = useI18n();
-  const { user, isAuthenticated } = useAuthStore();
+  const can = useCan();
   const aiT = t.aiSettingsPage;
 
-  const hasViewPermission = isAuthenticated && user && user.role >= UserRole.OPERATOR;
-  const isAdmin = user?.role === UserRole.ADMIN;
+  const hasViewPermission = can("ai.settings.read");
+  const isAdmin = can("ai.settings.write");
   const isDemo = !hasViewPermission;
 
   // State
@@ -87,7 +86,8 @@ export function useAISettings() {
       toast.error(aiT.requiredFields);
       return;
     }
-    if (!editingProvider && !formData.apiKey) {
+    // Ollama（自部署）可以不填 key，与后端校验一致
+    if (!editingProvider && !formData.apiKey && formData.provider !== "ollama") {
       toast.error(aiT.apiKeyRequired);
       return;
     }
@@ -99,7 +99,7 @@ export function useAISettings() {
           name: formData.name,
           provider: formData.provider,
           model: formData.model,
-          baseUrl: formData.baseUrl || undefined,
+          baseUrl: formData.baseUrl.trim(), // 空字符串 = 清空（恢复默认地址），不能转成「不传」
           description: formData.description,
           ...(formData.apiKey ? { apiKey: formData.apiKey } : {}),
         });

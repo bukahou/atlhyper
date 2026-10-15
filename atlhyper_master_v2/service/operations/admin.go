@@ -1,5 +1,5 @@
 // atlhyper_master_v2/service/operations/admin.go
-// AdminService — 管理写入操作（通知渠道、设置、AI Provider）
+// AdminService — 管理写入操作（通知渠道、AI 设置、AI Provider）
 package operations
 
 import (
@@ -11,7 +11,6 @@ import (
 // AdminService 管理写入服务
 type AdminService struct {
 	notifyRepo     database.NotifyChannelRepository
-	settingsRepo   database.SettingsRepository
 	aiProviderRepo database.AIProviderRepository
 	aiSettingsRepo database.AISettingsRepository
 	aiBudgetRepo   database.AIRoleBudgetRepository
@@ -20,14 +19,12 @@ type AdminService struct {
 // NewAdminService 创建 AdminService
 func NewAdminService(
 	notifyRepo database.NotifyChannelRepository,
-	settingsRepo database.SettingsRepository,
 	aiProviderRepo database.AIProviderRepository,
 	aiSettingsRepo database.AISettingsRepository,
 	aiBudgetRepo database.AIRoleBudgetRepository,
 ) *AdminService {
 	return &AdminService{
 		notifyRepo:     notifyRepo,
-		settingsRepo:   settingsRepo,
 		aiProviderRepo: aiProviderRepo,
 		aiSettingsRepo: aiSettingsRepo,
 		aiBudgetRepo:   aiBudgetRepo,
@@ -42,12 +39,6 @@ func (s *AdminService) CreateNotifyChannel(ctx context.Context, ch *database.Not
 
 func (s *AdminService) UpdateNotifyChannel(ctx context.Context, ch *database.NotifyChannel) error {
 	return s.notifyRepo.Update(ctx, ch)
-}
-
-// ==================== Settings ====================
-
-func (s *AdminService) SetSetting(ctx context.Context, setting *database.Setting) error {
-	return s.settingsRepo.Set(ctx, setting)
 }
 
 // ==================== AI Provider ====================

@@ -158,6 +158,8 @@ export const getRoleName = (role: number): string => {
       return "Operator";
     case UserRole.VIEWER:
       return "Viewer";
+    case UserRole.MEMBER:
+      return "Member";
     default:
       return "User";
   }

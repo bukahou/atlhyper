@@ -51,7 +51,7 @@
 
 ### 无 datasource 代理的模块（直接调用 api/）
 
-`api/auth.ts`, `api/ai.ts`, `api/ai-provider.ts`, `api/settings.ts`, `api/notify.ts`, `api/commands.ts`, `api/cluster.ts`, `api/slo.ts`, `api/apm.ts`, `api/log.ts`, `api/aiops.ts`
+`api/auth.ts`, `api/ai.ts`, `api/ai-provider.ts`, `api/notify.ts`, `api/commands.ts`, `api/cluster.ts`, `api/slo.ts`, `api/apm.ts`, `api/log.ts`, `api/aiops.ts`
 
 ---
 
@@ -438,12 +438,15 @@ Traces 查询参数：`service?`, `operation?`, `min_duration?`, `max_duration?`
 | 方法 | 路径 | 函数名 | 说明 |
 |------|------|--------|------|
 | POST | `/api/v2/user/login` | `login(data)` | 登录 |
+| GET | `/api/v2/auth/me` | `getMe()` | 当前主体与权限列表（前端唯一权限来源） |
+| GET | `/api/v2/auth/permissions` | `getPermissionTable()` | 完整权限表（角色说明页） |
+| GET | `/api/v2/auth/providers` | `getAuthProviders()` | 外部登录方式 |
 | GET | `/api/v2/user/list` | `getUserList()` | 用户列表 (Admin) |
 | POST | `/api/v2/user/register` | `registerUser(data)` | 注册用户 (Admin) |
 | POST | `/api/v2/user/update-role` | `updateUserRole(data)` | 更新角色 (Admin) |
 | POST | `/api/v2/user/update-status` | `updateUserStatus(data)` | 更新状态 (Admin) |
 | POST | `/api/v2/user/delete` | `deleteUser(id)` | 删除用户 (Admin) |
-| GET | `/api/v2/audit/logs` | `getAuditLogs(params)` | 审计日志 (Admin) |
+| GET | `/api/v2/audit/logs` | `getAuditLogs(params)` | 审计日志 (Operator) |
 
 审计日志查询参数：`user_id?`, `source?`, `action?`, `since?`, `until?`, `limit?`, `offset?`
 
@@ -480,18 +483,6 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 | DELETE | `/api/v2/ai/providers/{id}` | `deleteProvider(id)` |
 | GET | `/api/v2/ai/active` | `getActiveConfig()` |
 | PUT | `/api/v2/ai/active` | `updateActiveConfig(data)` |
-
----
-
-### 4.13 AI 配置
-
-**文件：** `api/settings.ts`
-
-| 方法 | 路径 | 函数名 |
-|------|------|--------|
-| GET | `/api/v2/settings/ai` | `getAIConfig()` |
-| PUT | `/api/v2/settings/ai/` | `updateAIConfig(data)` |
-| POST | `/api/v2/settings/ai/test` | `testAIConnection()` |
 
 ---
 

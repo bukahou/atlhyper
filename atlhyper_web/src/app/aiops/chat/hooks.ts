@@ -18,16 +18,19 @@ import { formatAlertsMessage } from "@/lib/alertFormat";
 import type { RecentAlert } from "@/types/overview";
 import type { AIConfigStatus } from "./types";
 import { getMockConversations, getMockMessages } from "./mock-data";
+import { useCan } from "@/hooks/useCan";
+import { toast } from "@/components/common/Toast";
 
 export function useAIChat() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
   const { currentClusterId } = useClusterStore();
-  const { isAuthenticated, openLoginDialog } = useAuthStore();
+  const { openLoginDialog, isAuthenticated } = useAuthStore();
+  const canChat = useCan()("ai.chat");
 
-  // 演示模式（未登录）
-  const isDemo = !isAuthenticated;
+  // 演示模式（无 ai.chat 权限：访客与成员）
+  const isDemo = !canChat;
 
   // AI 配置状态
   const [aiStatus, setAiStatus] = useState<AIConfigStatus>(isDemo ? "ready" : "loading");
@@ -124,18 +127,18 @@ export function useAIChat() {
 
   // 登录后检查 AI 配置状态
   useEffect(() => {
-    if (isAuthenticated) checkAIConfig();
-  }, [isAuthenticated, checkAIConfig]);
+    if (canChat) checkAIConfig();
+  }, [canChat, checkAIConfig]);
 
   // AI 配置就绪后加载对话列表
   useEffect(() => {
-    if (isAuthenticated && aiStatus === "ready") loadConversations();
-  }, [isAuthenticated, aiStatus, loadConversations]);
+    if (canChat && aiStatus === "ready") loadConversations();
+  }, [canChat, aiStatus, loadConversations]);
 
   // 处理从告警页面跳转过来的情况
   useEffect(() => {
     const fromAlerts = searchParams.get("from") === "alerts";
-    if (!fromAlerts || alertsProcessed || !isAuthenticated || aiStatus !== "ready") return;
+    if (!fromAlerts || alertsProcessed || !canChat || aiStatus !== "ready") return;
 
     const stored = sessionStorage.getItem("alertContext");
     if (!stored) return;
@@ -165,7 +168,7 @@ export function useAIChat() {
     } catch {
       sessionStorage.removeItem("alertContext");
     }
-  }, [searchParams, alertsProcessed, isAuthenticated, aiStatus, currentClusterId, loadConversations, sendAndStream]);
+  }, [searchParams, alertsProcessed, canChat, aiStatus, currentClusterId, loadConversations, sendAndStream]);
 
   // 选择对话 -> 加载消息
   const handleSelect = useCallback(async (id: number) => {
@@ -240,10 +243,14 @@ export function useAIChat() {
     router.push("/settings/ai");
   }, [router]);
 
-  // 演示模式下的处理函数
+  // 演示模式下的处理函数：访客弹登录框；已登录但无 ai.chat → 提示联系管理员
   const handleDemoAction = useCallback(() => {
+    if (isAuthenticated) {
+      toast.error(t.permission.forbidden);
+      return;
+    }
     openLoginDialog();
-  }, [openLoginDialog]);
+  }, [isAuthenticated, openLoginDialog, t]);
 
   return {
     aiStatus,
@@ -263,5 +270,6 @@ export function useAIChat() {
     goToSettings,
     handleDemoAction,
     openLoginDialog,
+    isAuthenticated,
   };
 }

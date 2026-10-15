@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai"
+	"AtlHyper/atlhyper_master_v2/auth/oidc"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/deployer"
 	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
@@ -32,6 +33,7 @@ type Server struct {
 	analyzeTrigger aiopsHandler.AnalyzeTrigger
 	ghClient       github.Client
 	deployer       deployer.Deployer
+	oidc           *oidc.Module
 	httpServer     *http.Server
 }
 
@@ -44,6 +46,7 @@ type Config struct {
 	AnalyzeTrigger aiopsHandler.AnalyzeTrigger // 可选，nil 表示深度分析未启用
 	GitHubClient   github.Client               // 可选，nil 表示 GitHub 集成未配置
 	Deployer       deployer.Deployer           // 可选，nil 表示 Deployer 未启用
+	OIDC           *oidc.Module                // 可选，nil 表示外部身份登录未启用
 }
 
 // NewServer 创建 Server
@@ -56,6 +59,7 @@ func NewServer(cfg Config) *Server {
 		analyzeTrigger: cfg.AnalyzeTrigger,
 		ghClient:       cfg.GitHubClient,
 		deployer:       cfg.Deployer,
+		oidc:           cfg.OIDC,
 	}
 }
 
@@ -63,6 +67,7 @@ func NewServer(cfg Config) *Server {
 func (s *Server) Start() error {
 	// 使用 Router 统一管理路由（见 routes.go）
 	router := NewRouter(s.service, s.database, s.aiService, s.analyzeTrigger, s.ghClient, s.deployer)
+	router.SetOIDC(s.oidc)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),

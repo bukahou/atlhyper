@@ -114,6 +114,7 @@ type AnalyzeResult struct {
 	ProviderName string        // Provider 名称
 	Model        string        // 模型名称
 	Steps        []AnalyzeStep // 调查步骤记录
+	Duration     time.Duration // 分析总耗时（含各轮 LLM 调用与工具执行）
 }
 
 // AnalyzeStep 单轮调查步骤
@@ -144,7 +145,8 @@ type CompleteResult struct {
 	Response     string
 	InputTokens  int
 	OutputTokens int
-	ProviderID   int64  // Provider ID（供调用方记录）
-	ProviderName string // Provider 名称（供调用方日志）
-	Model        string // 模型名称
+	ProviderID   int64         // Provider ID（供调用方记录）
+	ProviderName string        // Provider 名称（供调用方日志）
+	Model        string        // 模型名称
+	Duration     time.Duration // LLM 调用耗时
 }

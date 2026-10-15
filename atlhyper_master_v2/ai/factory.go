@@ -6,6 +6,7 @@ import (
 	"time"
 
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/anthropic" // 注册 anthropic provider
+	_ "AtlHyper/atlhyper_master_v2/ai/llm/bedrock"   // 注册 bedrock provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini"    // 注册 gemini provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/ollama"    // 注册 ollama provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/openai"    // 注册 openai provider
@@ -21,7 +22,6 @@ func NewService(
 	ops *operations.CommandService,
 	bus mq.Producer,
 	providerRepo database.AIProviderRepository,
-	settingsRepo database.AISettingsRepository,
 	modelRepo database.AIProviderModelRepository,
 	budgetRepo database.AIRoleBudgetRepository,
 	convRepo database.AIConversationRepository,
@@ -35,11 +35,12 @@ func NewService(
 
 	return &aiServiceImpl{
 		providerRepo: providerRepo,
-		settingsRepo: settingsRepo,
 		modelRepo:    modelRepo,
 		budgetRepo:   budgetRepo,
 		executor:     newToolExecutor(ops, bus, toolTimeout),
 		convRepo:     convRepo,
 		msgRepo:      msgRepo,
+
+		bedrockRegion: cfg.BedrockRegion,
 	}
 }

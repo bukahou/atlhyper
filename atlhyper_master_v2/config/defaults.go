@@ -104,10 +104,21 @@ var defaultStrings = map[string]string{
 	"MASTER_AI_SEED_MODEL":    "", // 种子模型名称
 	"MASTER_AI_SEED_BASE_URL": "", // 种子自定义 API 地址
 
+	// -------------------- AWS Bedrock --------------------
+	"MASTER_AI_BEDROCK_REGION": "ap-northeast-1", // Bedrock 区域（所有 bedrock provider 共用；用户 2026-10-12 裁定走配置不进库）
+
 	// -------------------- GitHub 配置 --------------------
 	"GITHUB_APP_SLUG":         "",                                           // GitHub App URL slug
 	"GITHUB_PRIVATE_KEY_PATH": "",                                           // GitHub Private Key PEM 文件路径
 	"GITHUB_CALLBACK_URL":     "http://localhost:3000/auth/github/callback", // GitHub App 安装回调 URL
+
+	// -------------------- OIDC 登录配置（issuer 为空 = 关闭） --------------------
+	"MASTER_OIDC_ISSUER":        "",    // issuer URL
+	"MASTER_OIDC_CLIENT_ID":     "",    // client_id
+	"MASTER_OIDC_CLIENT_SECRET": "",    // 凭证：无默认值
+	"MASTER_OIDC_REDIRECT_URL":  "",    // 回调地址
+	"MASTER_OIDC_COOKIE_SECRET": "",    // 凭证：无默认值
+	"MASTER_OIDC_DISPLAY_NAME":  "SSO", // 登录按钮文字
 }
 
 // ============================================================
@@ -119,4 +130,7 @@ var defaultBools = map[string]bool{
 
 	// -------------------- Event 告警 --------------------
 	"MASTER_EVENT_ALERT_ENABLED": true, // 是否启用事件告警
+
+	// -------------------- OIDC 登录配置 --------------------
+	"MASTER_OIDC_COOKIE_SECURE": true, // 状态 cookie 仅 HTTPS；仅本机 http 调试时设 false
 }

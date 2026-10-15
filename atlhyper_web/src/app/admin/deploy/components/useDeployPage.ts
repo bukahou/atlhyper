@@ -4,17 +4,17 @@ import * as githubDS from "@/datasource/github";
 import * as deployMock from "@/mock/deploy";
 import * as githubMock from "@/mock/github";
 import { useClusterStore } from "@/store/clusterStore";
-import { useAuthStore } from "@/store/authStore";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type {
   MockDeployConfig,
   MockPathStatus,
   MockDeployRecord,
 } from "@/mock/deploy/data";
+import { useCan } from "@/hooks/useCan";
 
 export function useDeployPage() {
   const clusterId = useClusterStore((s) => s.currentClusterId);
-  const { isAuthenticated } = useAuthStore();
+  const canManageDeploy = useCan()("deploy.manage");
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<MockDeployConfig | null>(null);
   const [statusList, setStatusList] = useState<MockPathStatus[]>([]);
@@ -29,7 +29,7 @@ export function useDeployPage() {
   const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
 
   const loadData = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!canManageDeploy) {
       const connData = githubMock.mockGetGitHubConnection();
       setGithubConnected(connData?.connected ?? false);
       const configData = deployMock.mockGetDeployConfig();
@@ -117,7 +117,7 @@ export function useDeployPage() {
     } finally {
       setLoading(false);
     }
-  }, [clusterId, isAuthenticated]);
+  }, [clusterId, canManageDeploy]);
 
   const { refresh, intervalSeconds } = useAutoRefresh(loadData, { interval: 30000 });
 

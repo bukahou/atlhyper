@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/aiops/enricher"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/service"
@@ -16,7 +17,10 @@ import (
 
 // AnalyzeTrigger 深度分析触发接口
 type AnalyzeTrigger interface {
-	TriggerAnalysis(incidentID string)
+	// TriggerAnalysis 异步启动；同一事件已在分析中返回 false；trigger 写入报告
+	TriggerAnalysis(incidentID, trigger string) bool
+	// AnalysisStatus 最近一次分析的状态；查不到返回 false
+	AnalysisStatus(incidentID string) (enricher.AnalysisJob, bool)
 }
 
 // AIOpsAIHandler AIOps AI 增强 Handler
@@ -56,7 +60,7 @@ func (h *AIOpsAIHandler) Summarize(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.SummarizeIncident(r.Context(), req.IncidentID)
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "AI analysis failed: "+err.Error())
+		writeAIError(w, "summarize", err)
 		return
 	}
 
@@ -89,7 +93,7 @@ func (h *AIOpsAIHandler) Recommend(w http.ResponseWriter, r *http.Request) {
 	// 复用 Summarize（Phase 4 不做区分，后续可特化 Prompt）
 	result, err := h.svc.SummarizeIncident(r.Context(), req.IncidentID)
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "AI recommendation failed: "+err.Error())
+		writeAIError(w, "recommend", err)
 		return
 	}
 
@@ -254,9 +258,41 @@ func (h *AIOpsAIHandler) AnalyzeHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.trigger.TriggerAnalysis(req.IncidentID)
+	started := h.trigger.TriggerAnalysis(req.IncidentID, enricher.TriggerManual)
 
+	msg := "分析已提交"
+	if !started {
+		msg = "分析已在进行中"
+	}
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "分析已提交",
+		"message":        msg,
+		"alreadyRunning": !started,
+	})
+}
+
+// AnalyzeStatus 深度分析状态
+// GET /api/v2/aiops/ai/analyze/status?incidentId=xxx
+// state: running / succeeded / failed / none（未触发过，或 Master 重启后丢失 → 前端提示重试）
+func (h *AIOpsAIHandler) AnalyzeStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if h.trigger == nil {
+		handler.WriteError(w, http.StatusServiceUnavailable, "深度分析服务未启用")
+		return
+	}
+	incidentID := r.URL.Query().Get("incidentId")
+	if incidentID == "" {
+		handler.WriteError(w, http.StatusBadRequest, "incidentId is required")
+		return
+	}
+	job, ok := h.trigger.AnalysisStatus(incidentID)
+	if !ok {
+		job = enricher.AnalysisJob{IncidentID: incidentID, State: "none"}
+	}
+	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "获取成功",
+		"data":    job,
 	})
 }

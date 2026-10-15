@@ -3,6 +3,7 @@
  */
 
 import type { Language } from "./common";
+import type { Permission } from "./auth";
 
 // 导航菜单翻译
 export interface NavTranslations {
@@ -166,6 +167,8 @@ export interface CommonTranslations {
   demoMode: string;
   demoModeHint: string;
   demoModeHintAudit: string;
+  demoModeHintUsers: string;
+  demoModeHintGitHub: string;
   // 查看权限提示
   viewOnlyHint: string;
 }
@@ -701,6 +704,8 @@ export interface WorkbenchTranslations {
 // Users 页面翻译
 export interface UsersTranslations {
   pageDescription: string;
+  federated: string;
+  federatedHint: string;
   addUser: string;
   editUser: string;
   deleteUser: string;
@@ -731,49 +736,26 @@ export interface UsersTranslations {
 // Roles 页面翻译
 export interface RolesTranslations {
   pageDescription: string;
-  // 角色描述
-  adminDescription: string;
-  operatorDescription: string;
+  // 角色（名称 + 描述，按等级 0-3）
+  memberName: string;
+  memberDescription: string;
   viewerDescription: string;
-  // 权限矩阵
+  operatorDescription: string;
+  adminDescription: string;
+  // 权限表
   permissionMatrix: string;
   permissionMatrixDescription: string;
-  resource: string;
-  notes: string;
-  // 分类
-  categorySystem: string;
-  categoryCluster: string;
-  categoryMonitoring: string;
-  categoryAI: string;
-  // 资源
-  userManagement: string;
-  roleAssignment: string;
-  auditLogs: string;
-  notificationConfig: string;
-  aiConfig: string;
-  metricsView: string;
-  logsView: string;
-  alertRules: string;
-  aiDiagnosis: string;
-  aiWorkbench: string;
-  // 权限标签
-  permissionFull: string;
-  permissionReadOnly: string;
-  permissionPartial: string;
-  permissionNone: string;
-  // 权限说明
-  permissionLevelDescription: string;
-  fullPermission: string;
-  fullPermissionDesc: string;
-  readOnlyPermission: string;
-  readOnlyPermissionDesc: string;
-  partialPermission: string;
-  partialPermissionDesc: string;
-  noPermission: string;
-  noPermissionDesc: string;
-  // 备注
-  noteViewUserList: string;
-  noteOperatorSilenceAlert: string;
+  permissionColumn: string;
+  granted: string;
+  notGranted: string;
+  loadFailed: string;
+  // 分组：按授予等级（0-3）
+  tierMember: string;
+  tierViewer: string;
+  tierOperator: string;
+  tierAdmin: string;
+  // 权限名称（键 = 后端权限名；后端新增而这里没有的，页面直接显示权限名）
+  permissionLabels: Partial<Record<Permission, string>>;
 }
 
 // Clusters 页面翻译
@@ -876,6 +858,31 @@ export interface LoginTranslations {
   invalidCredentials: string;
   sessionExpired: string;
   pleaseLogin: string;
+  // 外部身份登录（OIDC）
+  orDivider: string;
+  continueWith: string; // 含 {name} 占位
+  callbackProcessing: string;
+  callbackFailed: string;
+  backHome: string;
+  tryAgain: string;
+  callbackErrors: {
+    cancelled: string;
+    state: string;
+    upstream: string;
+    disabled: string;
+    rejected: string;
+    application: string;
+  };
+}
+
+// 权限（锁定占位 / 权限不足提示）
+export interface PermissionTranslations {
+  lockedTitle: string;
+  hintGuest: string;
+  hintMember: string;
+  loginButton: string;
+  forbidden: string;
+  envValueHidden: string;
 }
 
 // Confirm Dialog 翻译
@@ -1483,6 +1490,7 @@ export interface AIChatPageTranslations {
   // 演示模式
   demoMode: string;
   demoModeDesc: string;
+  demoModeDescMember: string;
   login: string;
   // 告警分析
   alertAnalysis: string;
@@ -1839,6 +1847,7 @@ interface NodeMetricsTranslations extends TimeRangePickerTranslations {
     blocked: string;
     arpEntries: string;
     fileDescriptors: string;
+  unlimited: string;
     conntrackTable: string;
     used: string;
     entropyPool: string;
@@ -2104,6 +2113,12 @@ export interface AIOpsTranslations {
     analyze: string;
     analyzing: string;
     analysisFailed: string;
+    // 按后端错误码给出可操作的提示（gateway/handler/aiops/ai_error.go）
+    errorRoleUnassigned: string;
+    errorBudgetExhausted: string;
+    errorUpstream: string;
+    errorTimeout: string;
+    analysisInterrupted: string;
     summary: string;
     rootCauseAnalysis: string;
     recommendations: string;
@@ -2112,7 +2127,6 @@ export interface AIOpsTranslations {
     action: string;
     reason: string;
     impact: string;
-    similarity: string;
     noSimilar: string;
     generatedAt: string;
     regenerate: string;
@@ -2130,6 +2144,8 @@ export interface AIOpsTranslations {
     triggerIncidentCreated: string;
     triggerStateChanged: string;
     triggerManual: string;
+    triggerStateEscalated: string;
+    triggerAutoEscalation: string;
     investigationSteps: string;
     evidenceChain: string;
     round: string;
@@ -2580,6 +2596,7 @@ export interface Translations {
   agents: AgentsTranslations;
   notifications: NotificationsTranslations;
   login: LoginTranslations;
+  permission: PermissionTranslations;
   confirm: ConfirmTranslations;
   table: TableTranslations;
   daemonset: DaemonSetTranslations;

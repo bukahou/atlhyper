@@ -60,23 +60,14 @@ const analysisSystem = `你是 AtlHyper 深度分析引擎，负责对高危事�
 
 // BuildAnalysisPrompt 构建 analysis 角色系统提示词
 func BuildAnalysisPrompt() string {
-	return Security + "\n\n" + analysisSystem
+	return Security + "\n\n" + analysisSystem + "\n\n" + EvidenceRules
 }
 
 // BuildAnalysisUserPrompt 构建 analysis 用户提示
 func BuildAnalysisUserPrompt(ctx *IncidentPromptContext) string {
 	var b strings.Builder
 	b.WriteString("请对以下事件进行深度调查分析:\n\n")
-	b.WriteString("## 事件概要\n")
-	b.WriteString(ctx.IncidentSummary)
-	b.WriteString("\n\n## 根因实体\n")
-	b.WriteString(ctx.RootCauseEntity)
-	b.WriteString("\n\n## 受影响实体\n")
-	b.WriteString(ctx.AffectedEntities)
-	if ctx.TimelineText != "" {
-		b.WriteString("\n\n## 时间线\n")
-		b.WriteString(ctx.TimelineText)
-	}
+	b.WriteString(renderIncidentEvidence(ctx))
 	b.WriteString("\n\n请开始调查。使用 Tool 查询集群数据以获取更多信息。")
 	return b.String()
 }

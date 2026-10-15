@@ -455,3 +455,48 @@ func TestSummarizeList_GenericUnknownKind(t *testing.T) {
 		t.Errorf("generic output missing item 'cr-1', got:\n%s", output)
 	}
 }
+
+// A4：AI 只拿到重启次数、拿不到退出原因时会编造原因（实测 5 条全错）。
+// Pod 列表摘要要带上「最近一次退出」：所有容器里 finishedAt 最晚的 lastState.terminated
+func TestSummarizeList_PodLastExit(t *testing.T) {
+	pod := func(name string, statuses ...map[string]interface{}) map[string]interface{} {
+		cs := make([]interface{}, len(statuses))
+		for i := range statuses {
+			cs[i] = statuses[i]
+		}
+		return map[string]interface{}{
+			"metadata": map[string]interface{}{"name": name, "namespace": "ns", "creationTimestamp": "2026-09-01T00:00:00Z"},
+			"status":   map[string]interface{}{"phase": "Running", "containerStatuses": cs},
+		}
+	}
+	terminated := func(restarts float64, reason string, code float64, at string) map[string]interface{} {
+		return map[string]interface{}{
+			"restartCount": restarts,
+			"lastState": map[string]interface{}{"terminated": map[string]interface{}{
+				"reason": reason, "exitCode": code, "finishedAt": at,
+			}},
+		}
+	}
+	input := map[string]interface{}{"kind": "PodList", "items": []interface{}{
+		// 两个容器：取 finishedAt 更晚的那个
+		pod("multi", terminated(3, "Error", 1, "2026-09-20T08:00:00Z"), terminated(5, "OOMKilled", 137, "2026-09-28T11:56:24Z")),
+		pod("healthy", map[string]interface{}{"restartCount": float64(0)}),
+	}}
+	data, _ := json.Marshal(input)
+	out := summarizeList(data)
+
+	if !strings.Contains(out, "LAST-EXIT") {
+		t.Fatalf("缺少 LAST-EXIT 列：\n%s", out)
+	}
+	if !strings.Contains(out, "OOMKilled(137) 2026-09-28T11:56:24Z") {
+		t.Errorf("应取最近一次退出：\n%s", out)
+	}
+	if strings.Contains(out, "Error(1) 2026-09-20") {
+		t.Errorf("较早的退出不应出现：\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "healthy") && !strings.HasSuffix(strings.TrimSpace(line), "-") {
+			t.Errorf("无退出记录应为 -：%q", line)
+		}
+	}
+}

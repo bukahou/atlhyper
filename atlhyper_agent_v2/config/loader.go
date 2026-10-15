@@ -36,6 +36,7 @@ func LoadConfig() {
 		CommandPollInterval: getDuration("AGENT_COMMAND_POLL_INTERVAL"),
 		HeartbeatInterval:   getDuration("AGENT_HEARTBEAT_INTERVAL"),
 		OTelCacheTTL:        getDuration("AGENT_OTEL_CACHE_TTL"),
+		OTelDashboardTTL:    getDuration("AGENT_OTEL_DASHBOARD_TTL"),
 	}
 
 	GlobalConfig.Timeout = TimeoutConfig{

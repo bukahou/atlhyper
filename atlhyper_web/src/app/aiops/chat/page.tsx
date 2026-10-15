@@ -29,6 +29,7 @@ export default function AIChatPage() {
     goToSettings,
     handleDemoAction,
     openLoginDialog,
+    isAuthenticated,
   } = useAIChat();
 
   // 非 ready 状态：显示加载中 / 未启用 / 未配置
@@ -47,15 +48,18 @@ export default function AIChatPage() {
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               <span className="text-sm text-amber-800 dark:text-amber-300">
-                {aiChatT.demoMode} - {aiChatT.demoModeDesc}
+                {aiChatT.demoMode} - {isAuthenticated ? aiChatT.demoModeDescMember : aiChatT.demoModeDesc}
               </span>
             </div>
-            <button
-              onClick={() => openLoginDialog()}
-              className="px-3 py-1 text-xs font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
-            >
-              {aiChatT.login}
-            </button>
+            {/* 已登录（成员等）不再提示登录：缺的是权限，不是身份 */}
+            {!isAuthenticated && (
+              <button
+                onClick={() => openLoginDialog()}
+                className="px-3 py-1 text-xs font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+              >
+                {aiChatT.login}
+              </button>
+            )}
           </div>
         )}
         <div className="flex-1 flex">

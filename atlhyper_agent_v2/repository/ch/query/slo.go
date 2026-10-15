@@ -541,47 +541,17 @@ func (r *sloRepository) GetSLOTimeSeries(ctx context.Context, name string, since
 func (r *sloRepository) GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error) {
 	since := 5 * time.Minute
 
-	// 同时获取 Ingress 和 Service SLO
-	type ingressResult struct {
-		data []slo.IngressSLO
-		err  error
-	}
-
 	// SLO 只覆盖 ingress（外部视角）。服务间调用质量由 APM 承担，
 	// 详见 docs/design/active/slo-ingress-contract-design.md 的范围决策。
+	//
+	// ⚠️ 这与 ListIngressSLO(5min) 是同一次查询。快照路径已改为从列表直接派生
+	// （slo.SummarizeIngress），本方法只留给 Command 按需查询。
+	// 查询失败时沿用旧语义：返回全零概览、不返回错误。
 	ingData, ingErr := r.ListIngressSLO(ctx, since)
-
-	summary := &slo.SLOSummary{}
-
-	// 合并统计
-	var totalSuccRate, totalRPS, totalP99 float64
-	var count int
-
-	if ingErr == nil {
-		for _, s := range ingData {
-			count++
-			totalSuccRate += s.SuccessRate
-			totalRPS += s.RPS
-			totalP99 += s.P99Ms
-
-			if s.SuccessRate >= 99.9 {
-				summary.HealthyServices++
-			} else if s.SuccessRate >= 99.0 {
-				summary.WarningServices++
-			} else {
-				summary.CriticalServices++
-			}
-		}
+	if ingErr != nil {
+		return &slo.SLOSummary{}, nil
 	}
-
-	summary.TotalServices = count
-	if count > 0 {
-		summary.AvgSuccessRate = roundTo(totalSuccRate/float64(count), 2)
-		summary.TotalRPS = roundTo(totalRPS, 2)
-		summary.AvgP99Ms = roundTo(totalP99/float64(count), 2)
-	}
-
-	return summary, nil
+	return slo.SummarizeIngress(ingData), nil
 }
 
 // ──────────────────────────────────────────────────────────────

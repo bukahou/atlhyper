@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { Clock, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { useAuthStore } from "@/store/authStore";
 import { getAIReports, mockAIReports, type AIReportItem } from "@/api/ai-provider";
+import { useCan } from "@/hooks/useCan";
 
 const ROLE_COLORS: Record<string, string> = {
   background: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -30,7 +30,7 @@ function formatTokens(n: number): string {
 export function UsageHistoryCard() {
   const { t } = useI18n();
   const aiT = t.aiSettingsPage;
-  const { isAuthenticated } = useAuthStore();
+  const canViewAI = useCan()("ai.settings.read");
   const [reports, setReports] = useState<AIReportItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -38,7 +38,7 @@ export function UsageHistoryCard() {
   const [roleFilter, setRoleFilter] = useState("");
 
   const fetchReports = async (offset: number, append: boolean) => {
-    if (!isAuthenticated) {
+    if (!canViewAI) {
       const filtered = roleFilter
         ? mockAIReports.filter((r) => r.role === roleFilter)
         : mockAIReports;
@@ -68,7 +68,7 @@ export function UsageHistoryCard() {
     setReports([]);
     fetchReports(0, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, roleFilter]);
+  }, [canViewAI, roleFilter]);
 
   const handleLoadMore = () => {
     setLoadingMore(true);

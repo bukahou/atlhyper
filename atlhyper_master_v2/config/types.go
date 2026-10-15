@@ -68,6 +68,8 @@ type AIConfig struct {
 	Enabled     bool          // 已废弃（保留用于配置兼容，不再影响逻辑）
 	ToolTimeout time.Duration // Tool 执行超时（默认 30s）
 	Seed        AISeed        // 种子配置：首次启动时自动创建 Provider
+
+	BedrockRegion string // AWS Bedrock 区域（所有 bedrock provider 共用；缺省 ap-northeast-1）
 }
 
 // AISeed AI 种子配置
@@ -125,6 +127,20 @@ type GitHubConfig struct {
 	CallbackURL    string // App 安装回调 URL
 }
 
+// OIDCConfig 外部身份登录（OIDC）配置；Issuer 为空 = 功能关闭
+type OIDCConfig struct {
+	Issuer       string // issuer URL
+	ClientID     string // 在 issuer 处登记的 client_id（上线后不可改：pairwise sub 按它派生）
+	ClientSecret string // 凭证
+	RedirectURL  string // https://<web-host>/api/v2/auth/oidc/callback，须与登记逐字一致
+	CookieSecret string // 凭证：状态 cookie 签名（≥ 32 字节）
+	CookieSecure bool   // 仅本机 http 调试时为 false
+	DisplayName  string // 登录按钮文字
+}
+
+// Enabled 是否启用
+func (c OIDCConfig) Enabled() bool { return c.Issuer != "" }
+
 // AppConfig Master 顶层配置结构体
 type AppConfig struct {
 	Log            LogConfig
@@ -142,6 +158,7 @@ type AppConfig struct {
 	MetricsPersist MetricsPersistConfig
 	AIOps          AIOpsConfig
 	GitHub         GitHubConfig
+	OIDC           OIDCConfig
 }
 
 // GlobalConfig 全局配置实例

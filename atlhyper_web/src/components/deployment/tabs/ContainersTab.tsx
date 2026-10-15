@@ -132,7 +132,11 @@ export function ContainersTab({
                   <div key={i} className="text-xs font-mono bg-card px-2 py-1 rounded">
                     <span className="text-primary">{env.name}</span>
                     <span className="text-muted">=</span>
-                    <span className="text-default">{env.value || env.valueFrom || '""'}</span>
+                    {env.valueHidden ? (
+                      <span className="text-muted italic">🔒 {t.permission.envValueHidden}</span>
+                    ) : (
+                      <span className="text-default">{env.value || env.valueFrom || '""'}</span>
+                    )}
                   </div>
                 ))}
               </div>

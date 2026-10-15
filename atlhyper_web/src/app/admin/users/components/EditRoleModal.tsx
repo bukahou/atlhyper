@@ -24,6 +24,12 @@ const roleConfig = {
     color: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
     icon: Eye,
   },
+  // 成员：与访客权限完全相同（外部身份源首次登录的默认角色）
+  [UserRole.MEMBER]: {
+    label: "Member",
+    color: "bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    icon: Eye,
+  },
 };
 
 interface EditRoleModalProps {
@@ -34,7 +40,7 @@ interface EditRoleModalProps {
 }
 
 export function EditRoleModal({ user, onClose, onSuccess, t }: EditRoleModalProps) {
-  const [role, setRole] = useState(user?.role || UserRole.VIEWER);
+  const [role, setRole] = useState(user?.role ?? UserRole.MEMBER);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 

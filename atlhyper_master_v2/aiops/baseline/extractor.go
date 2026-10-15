@@ -3,6 +3,7 @@
 package baseline
 
 import (
+	"fmt"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
@@ -136,21 +137,21 @@ func extractNodePressure(snap *cluster.ClusterSnapshot, now int64) []*aiops.Anom
 
 		if node.Metrics.Pressure.MemoryPressure {
 			results = append(results, &aiops.AnomalyResult{
-				EntityKey: key, MetricName: "memory_pressure",
+				EntityKey: key, MetricName: "memory_pressure", Detail: "Node condition MemoryPressure=True",
 				CurrentValue: 1, Baseline: 0, Deviation: 10,
 				Score: 0.85, IsAnomaly: true, DetectedAt: now,
 			})
 		}
 		if node.Metrics.Pressure.DiskPressure {
 			results = append(results, &aiops.AnomalyResult{
-				EntityKey: key, MetricName: "disk_pressure",
+				EntityKey: key, MetricName: "disk_pressure", Detail: "Node condition DiskPressure=True",
 				CurrentValue: 1, Baseline: 0, Deviation: 10,
 				Score: 0.80, IsAnomaly: true, DetectedAt: now,
 			})
 		}
 		if node.Metrics.Pressure.PIDPressure {
 			results = append(results, &aiops.AnomalyResult{
-				EntityKey: key, MetricName: "pid_pressure",
+				EntityKey: key, MetricName: "pid_pressure", Detail: "Node condition PIDPressure=True",
 				CurrentValue: 1, Baseline: 0, Deviation: 10,
 				Score: 0.75, IsAnomaly: true, DetectedAt: now,
 			})
@@ -167,7 +168,7 @@ func extractContainerAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiop
 		pod := &snap.Pods[i]
 		key := aiops.EntityKey(pod.Summary.Namespace, "pod", pod.Summary.Name)
 
-		var worstReason string
+		var worstReason, worstContainer string
 		var worstScore float64
 		for j := range pod.Containers {
 			reason := classifyContainerAnomaly(&pod.Containers[j])
@@ -178,6 +179,7 @@ func extractContainerAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiop
 			if score > worstScore {
 				worstScore = score
 				worstReason = reason
+				worstContainer = pod.Containers[j].Name
 			}
 		}
 
@@ -191,6 +193,7 @@ func extractContainerAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiop
 				Score:        worstScore,
 				IsAnomaly:    true,
 				DetectedAt:   now,
+				Detail:       "容器 " + worstContainer + ": " + worstReason,
 			})
 		}
 	}
@@ -279,10 +282,9 @@ func extractEventAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiops.An
 		podExists[key] = true
 	}
 
-	// 每个 Pod 只报一次
-	reported := make(map[string]bool)
-	var results []*aiops.AnomalyResult
-
+	// 每个 Pod 只报一次，证据取该 Pod 窗口内最近的一条
+	latest := make(map[string]*cluster.Event)
+	var order []string
 	for i := range snap.Events {
 		ev := &snap.Events[i]
 		if !ev.IsCritical() {
@@ -296,11 +298,21 @@ func extractEventAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiops.An
 		}
 
 		key := aiops.EntityKey(ev.InvolvedObject.Namespace, "pod", ev.InvolvedObject.Name)
-		if !podExists[key] || reported[key] {
+		if !podExists[key] {
 			continue
 		}
-		reported[key] = true
+		prev, seen := latest[key]
+		if !seen {
+			order = append(order, key)
+		}
+		if !seen || ev.LastTimestamp.After(prev.LastTimestamp) {
+			latest[key] = ev
+		}
+	}
 
+	results := make([]*aiops.AnomalyResult, 0, len(order))
+	for _, key := range order {
+		ev := latest[key]
 		results = append(results, &aiops.AnomalyResult{
 			EntityKey:    key,
 			MetricName:   "critical_event",
@@ -310,10 +322,23 @@ func extractEventAnomalies(snap *cluster.ClusterSnapshot, now int64) []*aiops.An
 			Score:        0.85,
 			IsAnomaly:    true,
 			DetectedAt:   now,
+			Detail:       ev.Reason + ": " + truncateRunes(ev.Message, maxEventDetailRunes),
 		})
 	}
 
 	return results
+}
+
+// maxEventDetailRunes event message 进入信号文本时的截断长度
+const maxEventDetailRunes = 160
+
+// truncateRunes 按字符截断（不切坏多字节字符）
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }
 
 // deploymentInfo Deployment 不可用比例信息
@@ -362,6 +387,7 @@ func extractDeploymentImpact(snap *cluster.ClusterSnapshot, now int64) []*aiops.
 			Score:        score,
 			IsAnomaly:    true,
 			DetectedAt:   now,
+			Detail:       fmt.Sprintf("Deployment %s/%s 不可用 %.0f%%", info.namespace, info.name, info.unavailableRatio*100),
 		})
 	}
 	return results

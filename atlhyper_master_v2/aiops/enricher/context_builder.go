@@ -4,10 +4,13 @@ package enricher
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/prompts"
+	"AtlHyper/atlhyper_master_v2/aiops"
+	"AtlHyper/atlhyper_master_v2/aiops/incident"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/model_v3/cluster"
 )
@@ -27,7 +30,7 @@ func BuildIncidentContext(
 	historical []*database.AIOpsIncident,
 ) *prompts.IncidentPromptContext {
 	return &prompts.IncidentPromptContext{
-		IncidentSummary:   buildSummary(incident),
+		IncidentSummary:   buildSummary(incident, timeline),
 		RootCauseEntity:   buildRootCause(entities),
 		AffectedEntities:  buildEntities(entities),
 		TimelineText:      buildTimeline(timeline),
@@ -36,31 +39,48 @@ func BuildIncidentContext(
 }
 
 // buildSummary 构建事件概要
-func buildSummary(inc *database.AIOpsIncident) string {
+// 异常时长与恢复观察期分开写：recovery 要观察 48h 才关闭，DurationS 一直累计到当前时刻，
+// 曾被模型当成持续时间（18 分钟的异常写成「约 2.4 小时」）
+func buildSummary(inc *database.AIOpsIncident, timeline []*database.AIOpsIncidentTimeline) string {
 	if inc == nil {
 		return "事件概要: 无数据"
 	}
 
-	duration := formatDuration(inc.DurationS)
-	resolved := "进行中"
-	if inc.ResolvedAt != nil {
-		resolved = fmt.Sprintf("已解决 (%s)", inc.ResolvedAt.Format("2006-01-02 15:04"))
-	}
-
 	return fmt.Sprintf(`事件概要:
   ID: %s
-  状态: %s | 严重度: %s | 持续: %s
+  状态: %s | 严重度: %s
   集群: %s
   开始时间: %s
-  解决状态: %s
-  峰值风险: %.0f | 复发次数: %d`,
+  %s
+  峰值风险: %s（0-100） | 复发次数: %d`,
 		inc.ID,
-		inc.State, inc.Severity, duration,
+		inc.State, inc.Severity,
 		inc.ClusterID,
 		inc.StartedAt.Format("2006-01-02 15:04:05"),
-		resolved,
-		inc.PeakRisk, inc.Recurrence,
+		describeActivePeriod(inc, timeline),
+		riskScore(inc.PeakRisk), inc.Recurrence,
 	)
+}
+
+// describeActivePeriod 「异常持续」一行 + 恢复后的当前阶段
+func describeActivePeriod(inc *database.AIOpsIncident, timeline []*database.AIOpsIncidentTimeline) string {
+	end, recovered := incident.ActiveWindow(timeline)
+	inRecoveryPhase := inc.State == string(aiops.StateRecovery) || inc.State == string(aiops.StateStable)
+
+	switch {
+	case recovered:
+		active := fmt.Sprintf("异常持续: %s（%s → %s）",
+			formatDuration(int64(end.Sub(inc.StartedAt).Seconds())),
+			inc.StartedAt.Format("15:04:05"), end.Format("15:04:05"))
+		if inc.ResolvedAt != nil {
+			return active + fmt.Sprintf("\n  当前: 已关闭（%s）", inc.ResolvedAt.Format("2006-01-02 15:04"))
+		}
+		return active + fmt.Sprintf("\n  当前: 恢复观察期（距开始 %s；48h 内无复发才关闭）", formatDuration(inc.DurationS))
+	case inRecoveryPhase:
+		return "异常持续: 未记录（时间线中没有恢复时刻）"
+	default:
+		return fmt.Sprintf("异常持续: %s（进行中）", formatDuration(inc.DurationS))
+	}
 }
 
 // buildRootCause 构建根因实体描述
@@ -69,8 +89,8 @@ func buildRootCause(entities []*database.AIOpsIncidentEntity) string {
 		if e.Role == "root_cause" {
 			return fmt.Sprintf(`根因实体:
   %s (角色: root_cause)
-  R_local: %.2f | R_final: %.2f`,
-				e.EntityKey, e.RLocal, e.RFinal)
+  R_local: %s | R_final: %s（0-100）`,
+				e.EntityKey, riskScore(e.RLocal), riskScore(e.RFinal))
 		}
 	}
 	return "根因实体: 未识别"
@@ -91,8 +111,8 @@ func buildEntities(entities []*database.AIOpsIncidentEntity) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("受影响实体 (%d 个):\n", total))
 	for i, e := range truncated {
-		b.WriteString(fmt.Sprintf("  %d. %-30s %-12s R=%.2f\n",
-			i+1, e.EntityKey, e.Role, e.RFinal))
+		b.WriteString(fmt.Sprintf("  %d. %-30s %-12s R=%s\n",
+			i+1, e.EntityKey, e.Role, riskScore(e.RFinal)))
 	}
 	if total > MaxEntityEntries {
 		b.WriteString(fmt.Sprintf("  ... 省略 %d 个实体\n", total-MaxEntityEntries))
@@ -285,4 +305,11 @@ func formatDuration(seconds int64) string {
 		return fmt.Sprintf("%d 分钟", int(d.Minutes()))
 	}
 	return fmt.Sprintf("%.1f 小时", d.Hours())
+}
+
+// riskScore 把核心层 [0,1] 风险换成界面同款 [0,100] 整数
+// 提示词必须与用户在界面上看到的刻度一致，否则模型会写出与页面矛盾的数字
+// （刻度约定见 gateway/handler/aiops/scale_risk.go）
+func riskScore(v float64) string {
+	return fmt.Sprintf("%.0f", math.Round(v*100))
 }

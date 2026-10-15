@@ -16,6 +16,7 @@ import (
 type DB struct {
 	Audit          AuditRepository
 	User           UserRepository
+	UserIdentity   UserIdentityRepository
 	Event          ClusterEventRepository
 	Notify         NotifyChannelRepository
 	Cluster        ClusterRepository
@@ -64,8 +65,23 @@ type UserRepository interface {
 	Delete(ctx context.Context, id int64) error
 	GetByID(ctx context.Context, id int64) (*User, error)
 	GetByUsername(ctx context.Context, username string) (*User, error)
+	// GetByUsernameForPasswordLogin 密码登录专用：外部身份账号视为不存在
+	GetByUsernameForPasswordLogin(ctx context.Context, username string) (*User, error)
 	List(ctx context.Context) ([]*User, error)
 	UpdateLastLogin(ctx context.Context, id int64, ip string) error
+}
+
+// UserIdentityRepository 外部身份（OIDC issuer + subject）→ 本地用户
+type UserIdentityRepository interface {
+	// FindUserID 按身份查本地用户 ID
+	FindUserID(ctx context.Context, issuer, subject string) (userID int64, found bool, err error)
+	// CreateUserWithIdentity 同一事务内建 users 行与身份行，成功后回填 user.ID。
+	// 身份已存在 → ErrIdentityExists；用户名被占 → ErrUsernameTaken；失败整笔回滚。
+	CreateUserWithIdentity(ctx context.Context, user *User, issuer, subject string) error
+	// ListFederatedUserIDs 拥有外部身份的用户 ID 集合
+	ListFederatedUserIDs(ctx context.Context) (map[int64]bool, error)
+	// DeleteByUserID 删除用户时一并清掉其身份行（否则同一身份再登录会撞唯一键）
+	DeleteByUserID(ctx context.Context, userID int64) error
 }
 
 // ClusterEventRepository Event 持久化接口
@@ -311,6 +327,7 @@ type DeployHistoryRepository interface {
 type Dialect interface {
 	Audit() AuditDialect
 	User() UserDialect
+	UserIdentity() UserIdentityDialect
 	Event() EventDialect
 	Notify() NotifyDialect
 	Cluster() ClusterDialect
@@ -350,9 +367,20 @@ type UserDialect interface {
 	Delete(id int64) (query string, args []any)
 	SelectByID(id int64) (query string, args []any)
 	SelectByUsername(username string) (query string, args []any)
+	SelectByUsernameForPasswordLogin(username string) (query string, args []any)
 	SelectAll() (query string, args []any)
 	UpdateLastLogin(id int64, ip string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*User, error)
+}
+
+// UserIdentityDialect 外部身份 SQL 方言
+type UserIdentityDialect interface {
+	Insert(userID int64, issuer, subject string) (query string, args []any)
+	SelectUserID(issuer, subject string) (query string, args []any)
+	SelectFederatedUserIDs() (query string, args []any)
+	DeleteByUserID(userID int64) (query string, args []any)
+	// ClassifyInsertError 把约束冲突映射为 ErrIdentityExists / ErrUsernameTaken，其余原样返回
+	ClassifyInsertError(err error) error
 }
 
 // EventDialect 事件 SQL 方言

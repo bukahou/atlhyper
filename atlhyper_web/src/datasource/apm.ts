@@ -8,6 +8,7 @@ import {
 import type { MockTraceQueryParams } from "@/mock/apm";
 import type { APMService, TraceSummary, TraceDetail, Topology, OperationStats, Dependency, APMTimePoint, HTTPStats, DBOperationStats, CorrelationResult, CorrelationMode } from "@/types/model/apm";
 import * as observeApi from "@/api/observe-apm";
+import { canNow } from "@/hooks/useCan";
 
 export type { MockTraceQueryParams } from "@/mock/apm";
 
@@ -29,7 +30,8 @@ export async function getAPMServices(clusterId?: string, time?: TimeParams): Pro
 }
 
 export async function queryTraces(clusterId?: string, params?: MockTraceQueryParams, time?: TimeParams): Promise<{ traces: TraceSummary[]; total: number }> {
-  if (!clusterId) return { traces: [], total: 0 };
+  // 链路列表 / 详情 / 相关性是内容级数据（traces.read）；无权限时不发请求
+  if (!clusterId || !canNow("traces.read")) return { traces: [], total: 0 };
   try {
     const response = await observeApi.getTracesList(clusterId, {
       service: params?.service,
@@ -54,7 +56,7 @@ export async function queryTraces(clusterId?: string, params?: MockTraceQueryPar
 }
 
 export async function getTraceDetail(traceId: string, clusterId?: string): Promise<TraceDetail | null> {
-  if (!clusterId) return null;
+  if (!clusterId || !canNow("traces.read")) return null;
   const response = await observeApi.getTraceDetail(clusterId, traceId);
   return response.data.data || null;
 }
@@ -142,7 +144,7 @@ export async function getCorrelations(
   time?: TimeParams,
   operation?: string,
 ): Promise<CorrelationResult | null> {
-  if (!clusterId) return null;
+  if (!clusterId || !canNow("traces.read")) return null;
   try {
     const response = await observeApi.getTracesCorrelations(clusterId, {
       service: serviceName,

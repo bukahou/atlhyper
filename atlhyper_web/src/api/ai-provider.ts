@@ -418,5 +418,10 @@ export const mockProviderList: ProviderListResponse = {
         "claude-3-haiku-20240307",
       ],
     },
+    {
+      provider: "bedrock",
+      name: "AWS Bedrock",
+      models: ["qwen.qwen3-235b-a22b-2507-v1:0", "openai.gpt-oss-120b-1:0", "minimax.minimax-m2.5"],
+    },
   ],
 };
