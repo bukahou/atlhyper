@@ -126,6 +126,7 @@
 | `deploy.history.read` | GET | `/api/deploy/history` | — | `DeployHandler.History` |
 
 > **AI 工具的权限**（`ai/tool_policy.go`）：每个工具读取的数据所需权限与网关上读同一份数据的接口一致，按「谁会看到结果」授权 —— 对话 = 调用者本人；后台深度分析 = 能看 AI 报告的人（`ai.analyze` 所在等级）。例：读容器日志需 `pod.logs.read`，读 ConfigMap 内容需 `secret.read`，触发事件总结需 `ai.analyze`。调用者没有的工具不发给模型；未登记权限的工具一律拒绝。
+> GitHub 工具（`ai/github_scope.go`）只读公开仓库，以及 `MASTER_AI_GITHUB_PRIVATE_REPOS` 显式列出的私有仓库；读到的 Kubernetes Secret 清单，值一律替换为 `<redacted>`（`ai/github_redact.go`）。
 
 ### 3.4 2 级：凭据与写操作（Operator）
 

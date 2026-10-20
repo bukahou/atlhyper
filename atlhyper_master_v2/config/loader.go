@@ -81,6 +81,8 @@ func LoadConfig() {
 		Enabled:       getBool("MASTER_AI_ENABLED"),
 		ToolTimeout:   getDuration("MASTER_AI_TOOL_TIMEOUT"),
 		BedrockRegion: getString("MASTER_AI_BEDROCK_REGION"),
+		// 逗号分隔；⛔ 不要放存有凭据的仓库（如部署配置仓库）
+		GitHubPrivateRepos: getStringSlice("MASTER_AI_GITHUB_PRIVATE_REPOS"),
 		Seed: AISeed{
 			Provider: getString("MASTER_AI_SEED_PROVIDER"),
 			Name:     getString("MASTER_AI_SEED_NAME"),

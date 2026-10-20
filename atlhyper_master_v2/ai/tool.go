@@ -386,12 +386,16 @@ func NewRollbackHandler(deployRepo database.DeployHistoryRepository) ToolHandler
 }
 
 // NewGitHubReadFileHandler 创建 GitHub 文件读取 Tool Handler
-func NewGitHubReadFileHandler(ghClient github.Client) ToolHandler {
+// 读到的 Kubernetes Secret 清单会被脱敏（github_redact.go）
+func NewGitHubReadFileHandler(ghClient github.Client, scope *GitHubRepoScope) ToolHandler {
 	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		repo := getString(params, "repo")
 		path := getString(params, "path")
 		if repo == "" || path == "" {
 			return "缺少参数 repo 或 path", nil
+		}
+		if err := checkRepoScope(ctx, scope, repo); err != nil {
+			return err.Error(), nil
 		}
 		branch := getString(params, "branch")
 		if branch == "" {
@@ -402,6 +406,7 @@ func NewGitHubReadFileHandler(ghClient github.Client) ToolHandler {
 		if err != nil {
 			return fmt.Sprintf("读取文件失败: %v", err), nil
 		}
+		content = redactSecretManifests(content)
 
 		// 截断过长内容，避免 LLM 上下文爆炸
 		if len(content) > 10000 {
@@ -412,12 +417,15 @@ func NewGitHubReadFileHandler(ghClient github.Client) ToolHandler {
 }
 
 // NewGitHubSearchCodeHandler 创建 GitHub 代码搜索 Tool Handler
-func NewGitHubSearchCodeHandler(ghClient github.Client) ToolHandler {
+func NewGitHubSearchCodeHandler(ghClient github.Client, scope *GitHubRepoScope) ToolHandler {
 	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		repo := getString(params, "repo")
 		query := getString(params, "query")
 		if repo == "" || query == "" {
 			return "缺少参数 repo 或 query", nil
+		}
+		if err := checkRepoScope(ctx, scope, repo); err != nil {
+			return err.Error(), nil
 		}
 
 		results, err := ghClient.SearchCode(ctx, repo, query)
@@ -439,11 +447,14 @@ func NewGitHubSearchCodeHandler(ghClient github.Client) ToolHandler {
 }
 
 // NewGitHubRecentCommitsHandler 创建 GitHub 最近提交查询 Tool Handler
-func NewGitHubRecentCommitsHandler(ghClient github.Client) ToolHandler {
+func NewGitHubRecentCommitsHandler(ghClient github.Client, scope *GitHubRepoScope) ToolHandler {
 	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		repo := getString(params, "repo")
 		if repo == "" {
 			return "缺少参数 repo", nil
+		}
+		if err := checkRepoScope(ctx, scope, repo); err != nil {
+			return err.Error(), nil
 		}
 		limit := getInt(params, "limit", 10)
 
@@ -462,6 +473,14 @@ func NewGitHubRecentCommitsHandler(ghClient github.Client) ToolHandler {
 		})
 		return string(out), nil
 	}
+}
+
+// checkRepoScope 仓库范围校验；未配置范围时一律拒绝
+func checkRepoScope(ctx context.Context, scope *GitHubRepoScope, repo string) error {
+	if scope == nil {
+		return fmt.Errorf("GitHub 工具未配置仓库范围，拒绝读取")
+	}
+	return scope.Check(ctx, repo)
 }
 
 // BlacklistCheck 黑名単校验

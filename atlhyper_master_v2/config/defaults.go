@@ -107,6 +107,9 @@ var defaultStrings = map[string]string{
 	// -------------------- AWS Bedrock --------------------
 	"MASTER_AI_BEDROCK_REGION": "ap-northeast-1", // Bedrock 区域（所有 bedrock provider 共用；用户 2026-10-12 裁定走配置不进库）
 
+	// -------------------- AI 的 GitHub 工具 --------------------
+	"MASTER_AI_GITHUB_PRIVATE_REPOS": "", // AI 可读的私有仓库（owner/repo，逗号分隔）；空 = 只读公开仓库
+
 	// -------------------- GitHub 配置 --------------------
 	"GITHUB_APP_SLUG":         "",                                           // GitHub App URL slug
 	"GITHUB_PRIVATE_KEY_PATH": "",                                           // GitHub Private Key PEM 文件路径

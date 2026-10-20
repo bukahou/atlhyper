@@ -11,6 +11,7 @@ type Client interface {
 
 	// 仓库信息
 	ListRepos(ctx context.Context, installationID int64) ([]Repository, error)
+	IsPrivateRepo(ctx context.Context, repo string) (bool, error)
 	ListTopDirs(ctx context.Context, repo, branch string) ([]string, error)
 	ScanKustomizePaths(ctx context.Context, repo, branch string) ([]string, error)
 

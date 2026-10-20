@@ -549,9 +549,11 @@ func NewMaster() (*Master, error) {
 	if ghClient != nil {
 		aiService.RegisterTool("get_deploy_history", ai.NewDeployHistoryHandler(db.DeployHistory))
 		aiService.RegisterTool("rollback_deployment", ai.NewRollbackHandler(db.DeployHistory))
-		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient))
-		aiService.RegisterTool("github_search_code", ai.NewGitHubSearchCodeHandler(ghClient))
-		aiService.RegisterTool("github_recent_commits", ai.NewGitHubRecentCommitsHandler(ghClient))
+		// GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库（App 的安装范围可能含存有凭据的仓库）
+		repoScope := ai.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
+		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient, repoScope))
+		aiService.RegisterTool("github_search_code", ai.NewGitHubSearchCodeHandler(ghClient, repoScope))
+		aiService.RegisterTool("github_recent_commits", ai.NewGitHubRecentCommitsHandler(ghClient, repoScope))
 		log.Info("GitHub + CD Tool 注册完成 (5 个)")
 	}
 
