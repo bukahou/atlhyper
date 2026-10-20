@@ -51,7 +51,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/query"
 	"AtlHyper/atlhyper_master_v2/service/sync"
 	"AtlHyper/atlhyper_master_v2/slo"
-	"AtlHyper/atlhyper_master_v2/tester"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
 )
@@ -67,7 +66,6 @@ type Master struct {
 	service      service.Service
 	agentSDK     *agentsdk.Server
 	gateway      *gateway.Server
-	testerServer *tester.Server
 	eventPersist *sync.EventPersistService
 	alertManager notifier.AlertManager
 	heartbeat    *trigger.HeartbeatTrigger
@@ -198,6 +196,11 @@ func NewMaster() (*Master, error) {
 	aiopsEnricher := enricher.NewEnricher(db.AIOpsIncident, db.AIReport, aiService)
 	aiopsEnricher.SetStore(store)          // OTel 上下文丰富：读取 OTelSnapshot
 	aiopsEnricher.SetEventSource(db.Event) // 持久化 K8s event 进入分析上下文
+	// 深度分析报告只有拥有 ai.analyze 的人能看：工具按这一级的权限授权，不多给
+	analysisAudience := middleware.MinLevelFor(middleware.PermAIAnalyze)
+	aiopsEnricher.SetAnalysisToolPolicy(func(p string) bool {
+		return middleware.Allowed(analysisAudience, middleware.Permission(p))
+	})
 	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
 	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
@@ -544,9 +547,11 @@ func NewMaster() (*Master, error) {
 	if ghClient != nil {
 		aiService.RegisterTool("get_deploy_history", ai.NewDeployHistoryHandler(db.DeployHistory))
 		aiService.RegisterTool("rollback_deployment", ai.NewRollbackHandler(db.DeployHistory))
-		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient))
-		aiService.RegisterTool("github_search_code", ai.NewGitHubSearchCodeHandler(ghClient))
-		aiService.RegisterTool("github_recent_commits", ai.NewGitHubRecentCommitsHandler(ghClient))
+		// GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库（App 的安装范围可能含存有凭据的仓库）
+		repoScope := ai.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
+		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient, repoScope))
+		aiService.RegisterTool("github_search_code", ai.NewGitHubSearchCodeHandler(ghClient, repoScope))
+		aiService.RegisterTool("github_recent_commits", ai.NewGitHubRecentCommitsHandler(ghClient, repoScope))
 		log.Info("GitHub + CD Tool 注册完成 (5 个)")
 	}
 
@@ -585,15 +590,9 @@ func NewMaster() (*Master, error) {
 		GitHubClient:   ghClient,
 		Deployer:       deployerService,
 		OIDC:           oidcModule,
+		NotifyTester:   alertMgr, // 通知渠道测试发送走网关（同一套权限与审计）
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
-
-	// 13. 初始化 Tester
-	testerServer := tester.NewServer(tester.Config{
-		Port:         cfg.Server.TesterPort,
-		AlertManager: alertMgr,
-	})
-	log.Info("Tester 初始化完成", "port", cfg.Server.TesterPort)
 
 	return &Master{
 		store:        store,
@@ -603,7 +602,6 @@ func NewMaster() (*Master, error) {
 		service:      svc,
 		agentSDK:     agentServer,
 		gateway:      gw,
-		testerServer: testerServer,
 		eventPersist: eventPersist,
 		alertManager: alertMgr,
 		heartbeat:    heartbeat,
@@ -671,11 +669,6 @@ func (m *Master) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start gateway: %w", err)
 	}
 
-	// 启动 Tester
-	if err := m.testerServer.Start(); err != nil {
-		return fmt.Errorf("failed to start tester: %w", err)
-	}
-
 	log.Info("Master 启动成功",
 		"gateway_port", config.GlobalConfig.Server.GatewayPort,
 		"agentsdk_port", config.GlobalConfig.Server.AgentSDKPort,
@@ -693,11 +686,6 @@ func (m *Master) Run(ctx context.Context) error {
 
 // Stop 停止 Master
 func (m *Master) Stop() error {
-	// 停止 Tester
-	if err := m.testerServer.Stop(); err != nil {
-		log.Error("停止 Tester 失败", "err", err)
-	}
-
 	// 停止 Gateway
 	if err := m.gateway.Stop(); err != nil {
 		log.Error("停止 Gateway 失败", "err", err)

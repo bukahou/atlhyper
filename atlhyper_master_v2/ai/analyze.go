@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
-	"AtlHyper/atlhyper_master_v2/ai/prompts"
 )
 
 const (
@@ -61,13 +60,13 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 	)
 
 	exec := func(ctx context.Context, tc *llm.ToolCall) (string, error) {
-		return s.executor.Execute(ctx, req.ClusterID, tc)
+		return s.executor.Execute(ctx, req.ClusterID, req.Allow, tc)
 	}
 	out, err := runToolLoop(ctx, llmClient, exec, loopParams{
 		SystemPrompt:  req.SystemPrompt,
 		UserPrompt:    req.UserPrompt,
 		MaxRounds:     maxRounds,
-		Tools:         prompts.GetToolDefinitions(),
+		Tools:         toolDefsFor(req.Allow),
 		MaxToolResult: toolResultMaxLen(roleCfg.ContextWindow),
 	})
 	s.RecordUsage(ctx, role, roleCfg.ProviderID, out.InputTokens, out.OutputTokens)

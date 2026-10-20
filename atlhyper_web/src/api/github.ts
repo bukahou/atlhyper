@@ -85,10 +85,10 @@ export function callback(installationId: number, setupAction: string) {
 
 /**
  * 断开连接
- * DELETE /api/github/connection
+ * DELETE /api/github/disconnect
  */
 export function disconnect() {
-  return del<{ message: string }>("/api/github/connection");
+  return del<{ message: string }>("/api/github/disconnect");
 }
 
 /**

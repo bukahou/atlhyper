@@ -47,7 +47,6 @@ var defaultInts = map[string]int{
 	// -------------------- 服务器配置 --------------------
 	"MASTER_GATEWAY_PORT":  8080, // Gateway 端口（Web/API）
 	"MASTER_AGENTSDK_PORT": 8081, // AgentSDK 端口（Agent 数据上报）
-	"MASTER_TESTER_PORT":   9080, // Tester 端口（测试服务）
 
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_SNAPSHOT_RETAIN": 10, // 快照保留数量
@@ -106,6 +105,9 @@ var defaultStrings = map[string]string{
 
 	// -------------------- AWS Bedrock --------------------
 	"MASTER_AI_BEDROCK_REGION": "ap-northeast-1", // Bedrock 区域（所有 bedrock provider 共用；用户 2026-10-12 裁定走配置不进库）
+
+	// -------------------- AI 的 GitHub 工具 --------------------
+	"MASTER_AI_GITHUB_PRIVATE_REPOS": "", // AI 可读的私有仓库（owner/repo，逗号分隔）；空 = 只读公开仓库
 
 	// -------------------- GitHub 配置 --------------------
 	"GITHUB_APP_SLUG":         "",                                           // GitHub App URL slug

@@ -15,7 +15,6 @@ import {
   testChannel,
   mockChannels,
   type NotifyChannel,
-  type SlackConfig,
   type EmailConfig,
   type EmailUpdateData,
 } from "@/api/notify";
@@ -159,7 +158,7 @@ export default function NotificationsPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Slack 卡片 */}
             <SlackCard
-              config={(slackChannel?.config as SlackConfig) || { webhookUrl: "" }}
+              webhookConfigured={slackChannel?.configuredSecrets?.includes("webhookUrl") || false}
               enabled={slackChannel?.enabled || false}
               effectiveEnabled={slackChannel?.effectiveEnabled || false}
               validationErrors={slackChannel?.validationErrors || []}

@@ -8,7 +8,6 @@ import "time"
 type ServerConfig struct {
 	GatewayPort  int // Gateway 端口（Web/API）
 	AgentSDKPort int // AgentSDK 端口（Agent 数据上报）
-	TesterPort   int // Tester 端口（测试服务）
 }
 
 // DataHubConfig DataHub 配置
@@ -70,6 +69,9 @@ type AIConfig struct {
 	Seed        AISeed        // 种子配置：首次启动时自动创建 Provider
 
 	BedrockRegion string // AWS Bedrock 区域（所有 bedrock provider 共用；缺省 ap-northeast-1）
+
+	// GitHubPrivateRepos AI 的 GitHub 工具可读的私有仓库（owner/repo）；空 = 只读公开仓库
+	GitHubPrivateRepos []string
 }
 
 // AISeed AI 种子配置

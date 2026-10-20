@@ -16,6 +16,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/auth/oidc"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/deployer"
+	adminHandler "AtlHyper/atlhyper_master_v2/gateway/handler/admin"
 	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
 	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/service"
@@ -34,6 +35,7 @@ type Server struct {
 	ghClient       github.Client
 	deployer       deployer.Deployer
 	oidc           *oidc.Module
+	notifyTester   adminHandler.NotifyTester
 	httpServer     *http.Server
 }
 
@@ -47,6 +49,7 @@ type Config struct {
 	GitHubClient   github.Client               // 可选，nil 表示 GitHub 集成未配置
 	Deployer       deployer.Deployer           // 可选，nil 表示 Deployer 未启用
 	OIDC           *oidc.Module                // 可选，nil 表示外部身份登录未启用
+	NotifyTester   adminHandler.NotifyTester   // 可选，nil 表示通知渠道测试发送不可用
 }
 
 // NewServer 创建 Server
@@ -60,6 +63,7 @@ func NewServer(cfg Config) *Server {
 		ghClient:       cfg.GitHubClient,
 		deployer:       cfg.Deployer,
 		oidc:           cfg.OIDC,
+		notifyTester:   cfg.NotifyTester,
 	}
 }
 
@@ -68,6 +72,7 @@ func (s *Server) Start() error {
 	// 使用 Router 统一管理路由（见 routes.go）
 	router := NewRouter(s.service, s.database, s.aiService, s.analyzeTrigger, s.ghClient, s.deployer)
 	router.SetOIDC(s.oidc)
+	router.SetNotifyTester(s.notifyTester)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),

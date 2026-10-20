@@ -205,6 +205,24 @@ func (c *clientImpl) CompareCommitsDetail(ctx context.Context, repo, base, head 
 	}, nil
 }
 
+// IsPrivateRepo 查询仓库是否私有（GET /repos/{owner}/{repo}）
+func (c *clientImpl) IsPrivateRepo(ctx context.Context, repo string) (bool, error) {
+	data, err := c.apiGet(ctx, "/repos/"+repo)
+	if err != nil {
+		return false, err
+	}
+	var result struct {
+		Private *bool `json:"private"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return false, err
+	}
+	if result.Private == nil {
+		return false, fmt.Errorf("仓库信息里没有 private 字段: %s", repo)
+	}
+	return *result.Private, nil
+}
+
 // ReadFile 读取仓库文件内容
 func (c *clientImpl) ReadFile(ctx context.Context, repo, filePath, ref string) (string, error) {
 	path := fmt.Sprintf("/repos/%s/contents/%s?ref=%s", repo, filePath, url.QueryEscape(ref))

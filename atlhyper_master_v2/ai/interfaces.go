@@ -5,8 +5,6 @@ package ai
 import (
 	"context"
 	"time"
-
-	"AtlHyper/atlhyper_master_v2/ai/llm"
 )
 
 // AIService AI 服务接口
@@ -21,11 +19,11 @@ type AIService interface {
 	// GetConversations 获取用户对话列表
 	GetConversations(ctx context.Context, userID int64, limit, offset int) ([]*Conversation, error)
 
-	// GetMessages 获取对话历史消息
-	GetMessages(ctx context.Context, conversationID int64) ([]*Message, error)
+	// GetMessages 获取对话历史消息（只限会话创建者）
+	GetMessages(ctx context.Context, userID, conversationID int64) ([]*Message, error)
 
 	// DeleteConversation 删除对话及其所有消息
-	DeleteConversation(ctx context.Context, conversationID int64) error
+	DeleteConversation(ctx context.Context, userID, conversationID int64) error
 
 	// RegisterTool 注册自定义 Tool（AIOps 等扩展模块使用）
 	RegisterTool(name string, handler ToolHandler)
@@ -35,20 +33,17 @@ type AIService interface {
 
 	// Complete 单轮 LLM 调用（无 Tool，用于 background 摘要等）
 	Complete(ctx context.Context, req *CompleteRequest) (*CompleteResult, error)
-
-	// GetToolExecuteFunc 获取 Tool 执行函数（供 analysis 深度分析使用）
-	GetToolExecuteFunc() func(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error)
-
-	// GetToolDefinitions 获取 Tool 定义列表
-	GetToolDefs() []llm.ToolDefinition
 }
 
 // ChatRequest 发送消息请求
 type ChatRequest struct {
 	ConversationID int64  // 对话 ID
 	ClusterID      string // 目标集群
-	UserID         int64  // 用户 ID
+	UserID         int64  // 用户 ID（只能续聊自己的会话）
 	Message        string // 用户消息
+
+	// Allow 调用者拥有的权限：工具清单与工具执行都按它过滤；nil = 一律拒绝
+	Allow PermissionCheck
 }
 
 // ChatChunk SSE 流式响应块
@@ -103,6 +98,9 @@ type AnalyzeRequest struct {
 	UserPrompt   string        // 调用方构建的用户提示词
 	MaxRounds    int           // 最大 Tool 调用轮次（默认 8）
 	Timeout      time.Duration // 全局超时（默认 5min）
+
+	// Allow 分析报告读者拥有的权限：工具清单与工具执行都按它过滤；nil = 一律拒绝
+	Allow PermissionCheck
 }
 
 // AnalyzeResult 分析结果
