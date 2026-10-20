@@ -4,7 +4,7 @@
  * 适配 Master V2 API
  */
 
-import { get, put } from "./request";
+import { get, post, put } from "./request";
 
 // ============================================================
 // 类型定义
@@ -15,7 +15,7 @@ export type ChannelType = "slack" | "email";
 
 // Slack 配置
 export interface SlackConfig {
-  webhookUrl: string;
+  webhookUrl: string; // 凭据：查询时恒为空（是否已设置看 configuredSecrets），更新时传入新值
 }
 
 // Email 配置
@@ -23,7 +23,7 @@ export interface EmailConfig {
   smtpHost: string;
   smtpPort: number;
   smtpUser: string;
-  smtpPassword?: string; // 查询时不返回，更新时传入
+  smtpPassword?: string; // 凭据：查询时恒为空（是否已设置看 configuredSecrets），更新时传入新值
   smtpTLS?: boolean;
   fromAddress: string;
   toAddresses: string[];
@@ -38,6 +38,7 @@ export interface NotifyChannel {
   effectiveEnabled: boolean; // 实际可用状态（启用+配置完整）
   validationErrors: string[]; // 配置校验错误
   config: SlackConfig | EmailConfig;
+  configuredSecrets?: string[]; // 已设置的凭据字段名（值不回显）；保存时不传 = 保持不变
   createdAt: string;
   updatedAt: string;
 }
@@ -84,8 +85,8 @@ export function updateSlack(data: { enabled?: boolean; webhookUrl?: string }) {
   if (data.enabled !== undefined) {
     req.enabled = data.enabled;
   }
-  if (data.webhookUrl !== undefined) {
-    req.config = { webhookUrl: data.webhookUrl };
+  if (data.webhookUrl) {
+    req.config = { webhookUrl: data.webhookUrl }; // 留空 = 保持已设置的 webhook 不变
   }
   return put<NotifyChannel>("/api/v2/notify/channels/slack", req);
 }
@@ -130,30 +131,16 @@ export function updateEmail(data: EmailUpdateData) {
 }
 
 /**
- * 测试通知渠道
- * 调用 tester 模块 (端口 9080)
+ * 测试通知渠道：按已保存的配置发一条测试消息
+ * POST /api/v2/notify/channels/{type}/test
  */
 export async function testChannel(type: ChannelType): Promise<{ success: boolean; message: string }> {
-  const testerUrl = process.env.NEXT_PUBLIC_TESTER_URL || "http://localhost:9080";
-
   try {
-    const response = await fetch(`${testerUrl}/test/notifier/${type}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    const data = await response.json();
-    return {
-      success: response.ok && data.success,
-      message: data.message || (response.ok ? "测试消息已发送" : "测试失败"),
-    };
+    const response = await post<{ success: boolean; message: string }>(`/api/v2/notify/channels/${type}/test`);
+    return { success: true, message: response.data.message };
   } catch (error) {
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : "网络错误",
-    };
+    const err = error as { response?: { data?: { error?: string } }; message?: string };
+    return { success: false, message: err.response?.data?.error || err.message || "测试失败" };
   }
 }
 
@@ -169,9 +156,8 @@ export const mockChannels: NotifyChannel[] = [
     enabled: true,
     effectiveEnabled: true,
     validationErrors: [],
-    config: {
-      webhookUrl: "https://hooks.slack.com/services/T****/B****/************",
-    } as SlackConfig,
+    config: { webhookUrl: "" } as SlackConfig,
+    configuredSecrets: ["webhookUrl"],
     createdAt: "2025-01-01T00:00:00Z",
     updatedAt: "2025-01-20T10:30:00Z",
   },

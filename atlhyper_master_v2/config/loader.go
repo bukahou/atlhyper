@@ -26,7 +26,6 @@ func LoadConfig() {
 	GlobalConfig.Server = ServerConfig{
 		GatewayPort:  getInt("MASTER_GATEWAY_PORT"),
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
-		TesterPort:   getInt("MASTER_TESTER_PORT"),
 	}
 
 	GlobalConfig.DataHub = DataHubConfig{
@@ -142,7 +141,6 @@ func LoadConfig() {
 	log.Info("Master 配置加载完成",
 		"gatewayPort", GlobalConfig.Server.GatewayPort,
 		"agentSDKPort", GlobalConfig.Server.AgentSDKPort,
-		"testerPort", GlobalConfig.Server.TesterPort,
 		"dbType", GlobalConfig.Database.Type,
 		"admin", GlobalConfig.Admin.Username,
 		"oidc", GlobalConfig.OIDC.Enabled())

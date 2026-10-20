@@ -90,11 +90,15 @@ type Router struct {
 	analyzeTrigger aiopsHandler.AnalyzeTrigger
 	ghClient       github.Client
 	deployer       deployer.Deployer
-	oidc           *oidc.Module // 可选，nil = 外部身份登录未启用
+	oidc           *oidc.Module              // 可选，nil = 外部身份登录未启用
+	notifyTester   adminHandler.NotifyTester // 可选，nil = 通知渠道测试发送不可用
 }
 
 // SetOIDC 注入外部身份登录模块（可选）
 func (r *Router) SetOIDC(m *oidc.Module) { r.oidc = m }
+
+// SetNotifyTester 注入通知渠道测试发送（可选，由告警模块提供）
+func (r *Router) SetNotifyTester(t adminHandler.NotifyTester) { r.notifyTester = t }
 
 // NewRouter 创建路由管理器
 func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client, dep deployer.Deployer) *Router {
@@ -165,6 +169,9 @@ func (r *Router) registerRoutes() {
 	userH := adminHandler.NewUserHandler(r.service, r.service)
 	commandH := adminHandler.NewCommandHandler(r.service)
 	notifyH := adminHandler.NewNotifyHandler(r.service)
+	if r.notifyTester != nil {
+		notifyH.SetTester(r.notifyTester)
+	}
 	aiProviderH := adminHandler.NewAIProviderHandler(r.service)
 	auditH := adminHandler.NewAuditHandler(r.service)
 

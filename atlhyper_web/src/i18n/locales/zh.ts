@@ -782,6 +782,8 @@ export const zh: Translations = {
     slackConfig: "Slack 配置",
     webhookUrl: "Webhook URL",
     webhookUrlHint: "在 Slack 中创建 Incoming Webhook 应用，并将 Webhook URL 粘贴到此处。",
+    secretConfigured: "已设置（不显示）",
+    secretConfiguredPlaceholder: "已设置（不显示）。留空保持不变，输入新地址则替换",
     channel: "频道",
     // Email
     emailNotify: "邮件通知",

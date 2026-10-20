@@ -782,6 +782,8 @@ export const ja: Translations = {
     slackConfig: "Slack 設定",
     webhookUrl: "Webhook URL",
     webhookUrlHint: "Slack で Incoming Webhook アプリを作成し、Webhook URL をここに貼り付けてください。",
+    secretConfigured: "設定済み（非表示）",
+    secretConfiguredPlaceholder: "設定済み（非表示）。空欄のままなら変更せず、新しい URL を入力すると置き換えます",
     channel: "チャンネル",
     // Email
     emailNotify: "メール通知",

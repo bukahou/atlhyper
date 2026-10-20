@@ -51,7 +51,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/query"
 	"AtlHyper/atlhyper_master_v2/service/sync"
 	"AtlHyper/atlhyper_master_v2/slo"
-	"AtlHyper/atlhyper_master_v2/tester"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
 )
@@ -67,7 +66,6 @@ type Master struct {
 	service      service.Service
 	agentSDK     *agentsdk.Server
 	gateway      *gateway.Server
-	testerServer *tester.Server
 	eventPersist *sync.EventPersistService
 	alertManager notifier.AlertManager
 	heartbeat    *trigger.HeartbeatTrigger
@@ -592,15 +590,9 @@ func NewMaster() (*Master, error) {
 		GitHubClient:   ghClient,
 		Deployer:       deployerService,
 		OIDC:           oidcModule,
+		NotifyTester:   alertMgr, // 通知渠道测试发送走网关（同一套权限与审计）
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
-
-	// 13. 初始化 Tester
-	testerServer := tester.NewServer(tester.Config{
-		Port:         cfg.Server.TesterPort,
-		AlertManager: alertMgr,
-	})
-	log.Info("Tester 初始化完成", "port", cfg.Server.TesterPort)
 
 	return &Master{
 		store:        store,
@@ -610,7 +602,6 @@ func NewMaster() (*Master, error) {
 		service:      svc,
 		agentSDK:     agentServer,
 		gateway:      gw,
-		testerServer: testerServer,
 		eventPersist: eventPersist,
 		alertManager: alertMgr,
 		heartbeat:    heartbeat,
@@ -678,11 +669,6 @@ func (m *Master) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start gateway: %w", err)
 	}
 
-	// 启动 Tester
-	if err := m.testerServer.Start(); err != nil {
-		return fmt.Errorf("failed to start tester: %w", err)
-	}
-
 	log.Info("Master 启动成功",
 		"gateway_port", config.GlobalConfig.Server.GatewayPort,
 		"agentsdk_port", config.GlobalConfig.Server.AgentSDKPort,
@@ -700,11 +686,6 @@ func (m *Master) Run(ctx context.Context) error {
 
 // Stop 停止 Master
 func (m *Master) Stop() error {
-	// 停止 Tester
-	if err := m.testerServer.Stop(); err != nil {
-		log.Error("停止 Tester 失败", "err", err)
-	}
-
 	// 停止 Gateway
 	if err := m.gateway.Stop(); err != nil {
 		log.Error("停止 Gateway 失败", "err", err)
