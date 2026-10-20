@@ -5,6 +5,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -109,90 +110,68 @@ func Audit(repo AuditRepository, config AuditConfig) func(http.HandlerFunc) http
 	}
 }
 
-// sensitiveFields 需要脱敏的敏感字段
-var sensitiveFields = []string{
-	"password",
-	"api_key",
-	"apiKey",
-	"secret",
-	"token",
-	"authorization",
-	"credential",
+// sensitiveKeyParts 键名（小写、去掉 _ 与 -）含这些片段即视为凭据
+var sensitiveKeyParts = []string{
+	"password", "passwd", "secret", "token", "apikey", "accesskey", "privatekey",
+	"credential", "authorization", "cookie", "webhook",
 }
 
-// sanitizeRequestBody 脱敏请求体
-// 移除敏感字段如 password, api_key, secret 等
+const (
+	redactedMark    = "***"
+	maxAuditBodyLen = 500
+)
+
+// sanitizeRequestBody 脱敏请求体后写入审计：按 JSON 解析，任意层级的凭据类键，其字符串值
+// （或整个对象 / 数组）替换为 ***；数字与布尔不是凭据，原样保留（token 用量、上限等）。
+// 不是 JSON 的请求体不记录内容（失败即关）。
 func sanitizeRequestBody(body string) string {
 	if len(body) == 0 {
 		return ""
 	}
-
-	// 脱敏所有敏感字段
-	for _, field := range sensitiveFields {
-		// 处理 "field":"value" 格式
-		if strings.Contains(strings.ToLower(body), strings.ToLower(field)) {
-			body = sanitizeField(body, field)
-		}
+	var parsed interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		return "[非 JSON 请求体，未记录内容]"
 	}
-
-	// 限制长度
-	if len(body) > 500 {
-		body = body[:500] + "..."
+	out, err := json.Marshal(redactCredentials(parsed))
+	if err != nil {
+		return "[请求体无法记录]"
 	}
-
-	return body
+	if len(out) > maxAuditBodyLen {
+		return string(out[:maxAuditBodyLen]) + "..."
+	}
+	return string(out)
 }
 
-// sanitizeField 脱敏单个字段
-func sanitizeField(body, field string) string {
-	// 尝试多种格式的匹配和替换
-	// 格式1: "field":"value"
-	// 格式2: "field": "value"
-	lowerBody := strings.ToLower(body)
-	lowerField := strings.ToLower(field)
-
-	idx := strings.Index(lowerBody, `"`+lowerField+`"`)
-	if idx == -1 {
-		return body
-	}
-
-	// 找到字段后，定位到值的位置并替换
-	// 简单处理：替换整个字段区域
-	result := body[:idx] + `"` + field + `":"***"`
-
-	// 找到值的结束位置（下一个逗号或 }）
-	rest := body[idx:]
-	colonIdx := strings.Index(rest, ":")
-	if colonIdx == -1 {
-		return body
-	}
-
-	afterColon := rest[colonIdx+1:]
-	// 跳过空格
-	afterColon = strings.TrimLeft(afterColon, " ")
-
-	// 找值的结束位置
-	var endIdx int
-	if strings.HasPrefix(afterColon, `"`) {
-		// 字符串值：找下一个未转义的引号
-		endIdx = 1
-		for endIdx < len(afterColon) {
-			if afterColon[endIdx] == '"' && afterColon[endIdx-1] != '\\' {
-				endIdx++
-				break
+// redactCredentials 递归替换凭据类键的值
+func redactCredentials(v interface{}) interface{} {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		for k, val := range t {
+			if isCredentialKey(k) {
+				switch val.(type) {
+				case string, map[string]interface{}, []interface{}:
+					t[k] = redactedMark
+					continue
+				}
 			}
-			endIdx++
+			t[k] = redactCredentials(val)
 		}
-	} else {
-		// 非字符串值：找逗号或 }
-		endIdx = strings.IndexAny(afterColon, ",}")
-		if endIdx == -1 {
-			endIdx = len(afterColon)
+	case []interface{}:
+		for i := range t {
+			t[i] = redactCredentials(t[i])
 		}
 	}
+	return v
+}
 
-	result += afterColon[endIdx:]
-	return result
+func isCredentialKey(key string) bool {
+	k := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(key))
+	for _, part := range sensitiveKeyParts {
+		if strings.Contains(k, part) {
+			return true
+		}
+	}
+	return false
 }
 
 // AuditAction 审计操作常量
