@@ -198,6 +198,11 @@ func NewMaster() (*Master, error) {
 	aiopsEnricher := enricher.NewEnricher(db.AIOpsIncident, db.AIReport, aiService)
 	aiopsEnricher.SetStore(store)          // OTel 上下文丰富：读取 OTelSnapshot
 	aiopsEnricher.SetEventSource(db.Event) // 持久化 K8s event 进入分析上下文
+	// 深度分析报告只有拥有 ai.analyze 的人能看：工具按这一级的权限授权，不多给
+	analysisAudience := middleware.MinLevelFor(middleware.PermAIAnalyze)
+	aiopsEnricher.SetAnalysisToolPolicy(func(p string) bool {
+		return middleware.Allowed(analysisAudience, middleware.Permission(p))
+	})
 	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
 	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")

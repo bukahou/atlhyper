@@ -221,6 +221,19 @@ func TestRoutes_GuestCannotWrite(t *testing.T) {
 	}
 }
 
+// AI 工具按网关权限名授权（ai 包不引用网关包，只用字符串）：名字必须都在权限表里，改名时这里会失败。
+func TestAIToolPermissionsAreGatewayPermissions(t *testing.T) {
+	known := map[string]bool{}
+	for _, g := range middleware.PermissionTable() {
+		known[string(g.Permission)] = true
+	}
+	for _, p := range ai.ToolPermissionNames() {
+		if !known[p] {
+			t.Errorf("AI 工具用到的权限 %q 不在网关权限表里", p)
+		}
+	}
+}
+
 // 2 级及以上（凭据与写操作）的非 GET 路由一律审计。
 func TestRoutes_PrivilegedNonGetAudited(t *testing.T) {
 	r, _ := testRouterWithSpecs(t)

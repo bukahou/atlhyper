@@ -88,6 +88,18 @@ func Allowed(level int, perm Permission) bool {
 	return false
 }
 
+// MinLevelFor 返回授予该权限的最低等级；未登记的权限返回 -1
+func MinLevelFor(perm Permission) int {
+	for l := RoleMember; l <= RoleAdmin; l++ {
+		for _, p := range levelGrants[l] {
+			if p == perm {
+				return l
+			}
+		}
+	}
+	return -1
+}
+
 // PermissionGrant 一条权限及授予它的最低等级
 type PermissionGrant struct {
 	Permission Permission

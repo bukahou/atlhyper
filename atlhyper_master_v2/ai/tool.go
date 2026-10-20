@@ -48,25 +48,26 @@ func (e *toolExecutor) RegisterTool(name string, handler ToolHandler) {
 }
 
 // Execute 执行 Tool Call
-// 1. 解析参数 → 2. 映射 action → 3. Blacklist 校验 → 4. 创建指令 → 5. 等待结果
-func (e *toolExecutor) Execute(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error) {
-	// 0. 先查自定义 Tool
-	if handler, ok := e.customTools[tc.Name]; ok {
-		var params map[string]interface{}
-		if tc.Params != "" {
-			if err := json.Unmarshal([]byte(tc.Params), &params); err != nil {
-				return "", fmt.Errorf("解析参数 JSON 失败: %w", err)
-			}
-		}
-		return handler(ctx, clusterID, params)
-	}
-
-	// 1. 解析参数
+// 1. 解析参数 → 2. 权限校验（allow 为 nil 一律拒绝）→ 3. 自定义 Tool 直接执行；
+// query_cluster：映射 action → Blacklist 校验 → 创建指令 → 等待结果
+func (e *toolExecutor) Execute(ctx context.Context, clusterID string, allow PermissionCheck, tc *llm.ToolCall) (string, error) {
 	var params map[string]interface{}
 	if tc.Params != "" {
 		if err := json.Unmarshal([]byte(tc.Params), &params); err != nil {
 			return "", fmt.Errorf("解析参数 JSON 失败: %w", err)
 		}
+	}
+
+	if err := permits(allow, tc.Name, params); err != nil {
+		toolLog.Warn("工具调用被拒绝", "tool", tc.Name, "err", err)
+		return "", err
+	}
+
+	if handler, ok := e.customTools[tc.Name]; ok {
+		return handler(ctx, clusterID, params)
+	}
+	if tc.Name != "query_cluster" {
+		return "", fmt.Errorf("工具 %s 未启用", tc.Name) // 定义里有、但当前部署没有注册（如未配置 GitHub）
 	}
 
 	action := getString(params, "action")

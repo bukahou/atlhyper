@@ -118,12 +118,14 @@
 | `logs.read` | POST | `/api/v2/observe/logs/query` | — | `ObserveHandler.LogsQuery`（查询条件放请求体） |
 | `traces.read` | GET | `/api/v2/observe/traces` · `/api/v2/observe/traces/` · `/api/v2/observe/traces/correlations` | — | `ObserveHandler.TracesList` / `TracesDetail` / `TracesCorrelations` |
 | `commands.read` | GET | `/api/v2/commands/history` · `/api/v2/commands/` | — | `CommandHandler.ListHistory` / `GetStatus`（不含输出） |
-| `ai.chat` | GET · POST | `/api/v2/ai/conversations` | — | `AIHandler.Conversations` |
-| `ai.chat` | GET | `/api/v2/ai/conversations/` | — | `AIHandler.ConversationByID`（`{id}/messages`） |
-| `ai.chat` | DELETE | `/api/v2/ai/conversations/` | delete / ai_conversation | `AIHandler.ConversationByID`（handler 内另需 Operator） |
-| `ai.chat` | POST | `/api/v2/ai/chat` | — | `AIHandler.Chat`（SSE） |
+| `ai.chat` | GET · POST | `/api/v2/ai/conversations` | — | `AIHandler.Conversations`（只列自己的会话） |
+| `ai.chat` | GET | `/api/v2/ai/conversations/` | — | `AIHandler.ConversationByID`（`{id}/messages`；别人的会话与不存在同样 404） |
+| `ai.chat` | DELETE | `/api/v2/ai/conversations/` | delete / ai_conversation | `AIHandler.ConversationByID`（只能删自己的；handler 内另需 Operator） |
+| `ai.chat` | POST | `/api/v2/ai/chat` | — | `AIHandler.Chat`（SSE；只能续聊自己的会话；工具按调用者本人的权限过滤，见下） |
 | `github.status.read` | GET | `/api/github/connection` | — | `GitHubHandler.Connection` |
 | `deploy.history.read` | GET | `/api/deploy/history` | — | `DeployHandler.History` |
+
+> **AI 工具的权限**（`ai/tool_policy.go`）：每个工具读取的数据所需权限与网关上读同一份数据的接口一致，按「谁会看到结果」授权 —— 对话 = 调用者本人；后台深度分析 = 能看 AI 报告的人（`ai.analyze` 所在等级）。例：读容器日志需 `pod.logs.read`，读 ConfigMap 内容需 `secret.read`，触发事件总结需 `ai.analyze`。调用者没有的工具不发给模型；未登记权限的工具一律拒绝。
 
 ### 3.4 2 级：凭据与写操作（Operator）
 

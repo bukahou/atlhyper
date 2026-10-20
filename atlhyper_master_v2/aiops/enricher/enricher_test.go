@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai"
-	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -90,10 +89,10 @@ func (m *mockAIService) Chat(ctx context.Context, req *ai.ChatRequest) (<-chan *
 func (m *mockAIService) GetConversations(ctx context.Context, userID int64, limit, offset int) ([]*ai.Conversation, error) {
 	return nil, nil
 }
-func (m *mockAIService) GetMessages(ctx context.Context, conversationID int64) ([]*ai.Message, error) {
+func (m *mockAIService) GetMessages(ctx context.Context, userID, conversationID int64) ([]*ai.Message, error) {
 	return nil, nil
 }
-func (m *mockAIService) DeleteConversation(ctx context.Context, conversationID int64) error {
+func (m *mockAIService) DeleteConversation(ctx context.Context, userID, conversationID int64) error {
 	return nil
 }
 func (m *mockAIService) RegisterTool(name string, handler ai.ToolHandler) {}
@@ -114,10 +113,6 @@ func (m *mockAIService) Complete(ctx context.Context, req *ai.CompleteRequest) (
 		Model:        "test-model",
 	}, nil
 }
-func (m *mockAIService) GetToolExecuteFunc() func(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error) {
-	return nil
-}
-func (m *mockAIService) GetToolDefs() []llm.ToolDefinition { return nil }
 
 // ==================== 测试辅助 ====================
 
