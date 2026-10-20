@@ -349,8 +349,9 @@ func (r *Router) registerRoutes() {
 			deployH.SetDeployer(r.deployer)
 		}
 
-		// GitHub OAuth 回调：由 GitHub 回跳，无会话；code 由 GitHub 签发、一次性使用
-		r.openAudited(mPost, "/api/github/callback", "create", "github", githubH.Callback)
+		// GitHub App 安装回调：GitHub 回跳到前端页面，由已登录的 Admin 提交 installation_id；
+		// handler 另校验安装属于 App 所有者账号（登录状态下被诱导打开别人的回调链接也接不进来）
+		r.routeAudited(mPost, pGitHubManage, "/api/github/callback", "create", "github", githubH.Callback)
 
 		r.route(mGet, pGitHubStatusRead, "/api/github/connection", githubH.Connection)
 		r.route(mGet, pDeployHistoryRead, "/api/deploy/history", deployH.History)

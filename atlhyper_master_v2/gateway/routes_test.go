@@ -199,8 +199,7 @@ func TestRoutes_UndeclaredMethodRejected(t *testing.T) {
 func TestRoutes_GuestCannotWrite(t *testing.T) {
 	r, h := testRouterWithSpecs(t)
 	openWrites := map[string]bool{
-		"POST /api/v2/user/login":   true,
-		"POST /api/github/callback": true,
+		"POST /api/v2/user/login": true,
 	}
 	for _, s := range r.specs {
 		if s.method == http.MethodGet {

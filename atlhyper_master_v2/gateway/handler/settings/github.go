@@ -7,13 +7,17 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/github"
+	"AtlHyper/common/logger"
 )
+
+var githubLog = logger.Module("GitHub-Handler")
 
 // GitHubHandler GitHub 连接管理 Handler
 // GitHubQuery / GitHubOps 本 handler 所需的最小 service 能力。
@@ -31,6 +35,7 @@ type GitHubOps interface {
 
 type GitHubHandler struct {
 	ghClient github.Client
+	installs github.InstallationManager // nil = 客户端不支持安装管理
 	querySvc GitHubQuery
 	opsSvc   GitHubOps
 }
@@ -41,11 +46,40 @@ func NewGitHubHandler(
 	querySvc GitHubQuery,
 	opsSvc GitHubOps,
 ) *GitHubHandler {
+	installs, _ := ghClient.(github.InstallationManager)
 	return &GitHubHandler{
 		ghClient: ghClient,
+		installs: installs,
 		querySvc: querySvc,
 		opsSvc:   opsSvc,
 	}
+}
+
+var (
+	errAppOwnerUnavailable = errors.New("无法从 GitHub 确认 App 所有者")
+	errInstallationUnknown = errors.New("GitHub 上找不到这个安装")
+	errInstallationForeign = errors.New("该安装不属于本 GitHub App 的所有者账号")
+)
+
+// verifyOwnerInstallation 确认安装属于 App 所有者账号，返回账号名。
+// 部署（GitOps）与 AI 的 GitHub 工具都以这个安装的身份读仓库，
+// 所以只接入所有者名下的安装：别人账号的安装、随手编的 installation_id 一律拒绝。
+func (h *GitHubHandler) verifyOwnerInstallation(ctx context.Context, installationID int64) (string, error) {
+	owner, err := h.installs.GetAppOwner(ctx)
+	if err != nil {
+		githubLog.Warn("查询 App 所有者失败", "err", err)
+		return "", errAppOwnerUnavailable
+	}
+	account, err := h.installs.GetInstallationAccount(ctx, installationID)
+	if err != nil {
+		githubLog.Warn("查询安装失败", "installation", installationID, "err", err)
+		return "", errInstallationUnknown
+	}
+	if !strings.EqualFold(account, owner) {
+		githubLog.Warn("拒绝接入非所有者账号的安装", "installation", installationID, "account", account)
+		return "", errInstallationForeign
+	}
+	return account, nil
 }
 
 // Connection GET /api/github/connection — 获取连接状态
@@ -83,51 +117,38 @@ func (h *GitHubHandler) Connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 尝试自动检测已有安装
-	lister, ok := h.ghClient.(interface {
-		ListInstallations(ctx context.Context) ([]github.Installation, error)
-	})
-	if ok {
-		installations, err := lister.ListInstallations(r.Context())
-		if err == nil && len(installations) > 0 {
-			// 找到已有安装，直接注册连接
-			inst := installations[0]
-			h.opsSvc.UpsertGitHubInstallation(r.Context(), &database.GitHubInstallation{
-				InstallationID: inst.InstallationID,
-				AccountLogin:   inst.AccountLogin,
-			})
+	if h.installs == nil {
+		handler.WriteError(w, http.StatusInternalServerError, "GitHub App 未配置")
+		return
+	}
 
-			// 设置 Installation ID 供后续 API 调用使用
-			if setter, ok := h.ghClient.(interface{ SetInstallationID(int64) }); ok {
-				setter.SetInstallationID(inst.InstallationID)
-			}
-
-			handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-				"data": github.ConnectionStatus{
-					Connected:      true,
-					AccountLogin:   inst.AccountLogin,
-					AvatarURL:      "https://github.com/" + inst.AccountLogin + ".png",
-					InstallationID: inst.InstallationID,
-				},
-			})
+	// 尝试自动检测已有安装：只认 App 所有者名下的
+	if inst, ok := h.findOwnerInstallation(r.Context()); ok {
+		if err := h.opsSvc.UpsertGitHubInstallation(r.Context(), &database.GitHubInstallation{
+			InstallationID: inst.InstallationID,
+			AccountLogin:   inst.AccountLogin,
+		}); err != nil {
+			handler.WriteError(w, http.StatusInternalServerError, "保存安装记录失败")
 			return
 		}
+		// 设置 Installation ID 供后续 API 调用使用
+		h.installs.SetInstallationID(inst.InstallationID)
+
+		handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+			"data": github.ConnectionStatus{
+				Connected:      true,
+				AccountLogin:   inst.AccountLogin,
+				AvatarURL:      "https://github.com/" + inst.AccountLogin + ".png",
+				InstallationID: inst.InstallationID,
+			},
+		})
+		return
 	}
 
 	// 无已有安装，跳转 GitHub 安装页面
 	stateBytes := make([]byte, 16)
 	rand.Read(stateBytes)
-	state := hex.EncodeToString(stateBytes)
-
-	urlBuilder, ok := h.ghClient.(interface {
-		AuthURL(state string) string
-	})
-	if !ok {
-		handler.WriteError(w, http.StatusInternalServerError, "GitHub App 未配置")
-		return
-	}
-
-	installURL := urlBuilder.AuthURL(state)
+	installURL := h.installs.AuthURL(hex.EncodeToString(stateBytes))
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"data": map[string]string{
 			"authUrl": installURL,
@@ -150,24 +171,25 @@ func (h *GitHubHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		handler.WriteError(w, http.StatusBadRequest, "缺少 installation_id 参数")
 		return
 	}
-
-	// 设置 Installation ID 到 GitHub Client
-	if setter, ok := h.ghClient.(interface{ SetInstallationID(int64) }); ok {
-		setter.SetInstallationID(req.InstallationID)
+	if h.installs == nil {
+		handler.WriteError(w, http.StatusInternalServerError, "GitHub App 未配置")
+		return
 	}
 
-	// 通过 Installation API 获取账号信息
-	accountLogin := ""
-	if getter, ok := h.ghClient.(interface {
-		GetInstallationAccount(ctx context.Context, installationID int64) (string, error)
-	}); ok {
-		login, err := getter.GetInstallationAccount(r.Context(), req.InstallationID)
-		if err == nil {
-			accountLogin = login
-		}
+	// 先校验，校验通过之前不落库、不切换客户端身份
+	accountLogin, err := h.verifyOwnerInstallation(r.Context(), req.InstallationID)
+	switch {
+	case errors.Is(err, errInstallationForeign):
+		handler.WriteError(w, http.StatusForbidden, err.Error())
+		return
+	case errors.Is(err, errInstallationUnknown):
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	case err != nil:
+		handler.WriteError(w, http.StatusBadGateway, err.Error())
+		return
 	}
 
-	// 保存安装记录
 	inst := &database.GitHubInstallation{
 		InstallationID: req.InstallationID,
 		AccountLogin:   accountLogin,
@@ -176,6 +198,7 @@ func (h *GitHubHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		handler.WriteError(w, http.StatusInternalServerError, "保存安装记录失败")
 		return
 	}
+	h.installs.SetInstallationID(req.InstallationID)
 
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"data": github.ConnectionStatus{
@@ -187,7 +210,27 @@ func (h *GitHubHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Disconnect DELETE /api/github/connection — 断开连接
+// findOwnerInstallation 在 App 的全部安装里找 App 所有者名下的那个
+func (h *GitHubHandler) findOwnerInstallation(ctx context.Context) (github.Installation, bool) {
+	owner, err := h.installs.GetAppOwner(ctx)
+	if err != nil {
+		githubLog.Warn("查询 App 所有者失败", "err", err)
+		return github.Installation{}, false
+	}
+	installations, err := h.installs.ListInstallations(ctx)
+	if err != nil {
+		githubLog.Warn("列出安装失败", "err", err)
+		return github.Installation{}, false
+	}
+	for _, inst := range installations {
+		if strings.EqualFold(inst.AccountLogin, owner) {
+			return inst, true
+		}
+	}
+	return github.Installation{}, false
+}
+
+// Disconnect DELETE /api/github/disconnect — 断开连接
 func (h *GitHubHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")

@@ -49,8 +49,8 @@
 | Operator | 2 | 管理员提升 |
 | Admin | 3 | 管理员提升 / 启动种子 |
 
-**无需任何主体的路由**（不进权限表）：`/health`、`/api/v2/user/login`、`/api/github/callback`（第三方回跳）、
-以及后续 OIDC 的 start / callback。
+**无需任何主体的路由**（不进权限表）：`/health`、`/api/v2/user/login`，以及 OIDC 的 start / callback。
+`/api/github/callback`（GitHub App 安装回跳）由已登录的 Admin 在前端页面提交，挂 `github.manage`，且只接受 App 所有者账号名下的安装。
 
 ## 功能一：主体解析与即时生效
 

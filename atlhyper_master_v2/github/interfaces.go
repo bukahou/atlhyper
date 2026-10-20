@@ -27,3 +27,12 @@ type Client interface {
 	GetPRByCommit(ctx context.Context, repo, sha string) (*PullRequest, error)
 	SearchCode(ctx context.Context, repo, query string) ([]CodeSearchResult, error)
 }
+
+// InstallationManager GitHub App 的安装管理（以 App JWT 身份调用，与上面的仓库读取能力分开）
+type InstallationManager interface {
+	AuthURL(state string) string
+	SetInstallationID(id int64)
+	GetAppOwner(ctx context.Context) (string, error) // App 所有者账号：只有它名下的安装才允许接入
+	GetInstallationAccount(ctx context.Context, installationID int64) (string, error)
+	ListInstallations(ctx context.Context) ([]Installation, error)
+}

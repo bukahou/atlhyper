@@ -89,7 +89,6 @@
 | GET | `/api/v2/auth/providers` | — | `oidc.Providers` | 外部登录方式（未启用时为空列表） |
 | GET | `/api/v2/auth/oidc/start` | — | `oidc.Start` | 发起 OIDC 登录（仅启用时注册） |
 | GET | `/api/v2/auth/oidc/callback` | login / user | `oidc.Callback` | OIDC 回调（仅启用时注册） |
-| POST | `/api/github/callback` | create / github | `GitHubHandler.Callback` | GitHub App 安装回跳（仅配置 GitHub 时注册） |
 
 ### 3.2 0 级：集群状态与形状（全部 GET）
 
@@ -166,6 +165,7 @@
 | `ai.settings.write` | PUT · PATCH | `/api/v2/ai/settings` | update / ai_settings | `AIProviderHandler.SettingsHandler` |
 | `ai.settings.write` | PUT | `/api/v2/ai/budgets/` | update / ai_budget | `AIProviderHandler.BudgetHandler` |
 | `github.manage` | POST | `/api/github/connect` | create / github | `GitHubHandler.Connect` |
+| `github.manage` | POST | `/api/github/callback` | create / github | `GitHubHandler.Callback`（GitHub App 安装回跳；只接受 App 所有者账号名下的安装） |
 | `github.manage` | DELETE | `/api/github/disconnect` | delete / github | `GitHubHandler.Disconnect` |
 | `github.manage` | GET | `/api/github/repos` · `/api/github/repos/` | — | `GitHubHandler.Repos` / `RepoSubRoute` |
 | `deploy.manage` | GET | `/api/deploy/{config,kustomize-paths,status}` | — | `DeployHandler.*` |
