@@ -92,19 +92,22 @@
 | | `cluster.operate` | commands（创建）、ops/pods/restart、ops/deployments/*、ops/nodes/* |
 | | `audit.read` | audit/logs |
 | | `notify.manage` | notify/channels（读 + 写） |
+| | `slo.manage` | slo/targets（PUT 写入；读仍是 0 级 `slo.read`） |
 | | `ai.analyze` | aiops/ai/*（summarize / recommend / reports / analyze） |
 | | `ai.settings.read` | settings/ai、ai/providers、ai/settings、ai/roles、ai/budgets、ai/reports（读） |
 | **3** | `user.manage` | user/list、register、update-role、update-status、delete |
-| | `ai.settings.write` | settings/ai/、ai/providers/、ai/settings/、ai/budgets/（写） |
+| | `ai.settings.write` | ai/providers（POST 新建）、ai/providers/、ai/settings（PUT / PATCH）、ai/budgets/（写） |
 | | `github.manage` | github/connect、disconnect、repos* |
 | | `deploy.manage` | deploy/config、kustomize-paths、test-connection、status、sync、rollback |
 
 **分档判据**：0 级只含**集群状态与形状**；内容级数据（可能带业务数据 / 个人信息）≥ 1；凭据与写操作 ≥ 2；系统配置 = 3。
 
-路由注册改为 `r.route(pattern, perm, handler)` / `r.routeAudited(...)`；删除 `public / operator / admin` 系列辅助函数。
+路由注册改为 `r.route(method, perm, path, handler)` / `r.routeAudited(...)`；删除 `public / operator / admin` 系列辅助函数。
+**按（方法，路径）声明权限**：同一路径的读与写各自声明，写方法不继承读方法的权限；没声明的方法由 ServeMux 直接 405。
 
 **测试**：表驱动遍历权限表——每个 level 恰好拥有声明的权限；level 0 不含任何 ≥1 的权限；
-路由层：level 0 访问 `logs.read` 接口得 401，Viewer 访问 `cluster.operate` 得 403。
+路由层：level 0 访问 `logs.read` 接口得 401，Viewer 访问 `cluster.operate` 得 403；
+遍历全部路由声明：未声明的方法一律 405，访客能用的写方法只有登录类入口，2 级及以上的非 GET 路由一律审计。
 
 ## 功能三：响应字段裁剪
 

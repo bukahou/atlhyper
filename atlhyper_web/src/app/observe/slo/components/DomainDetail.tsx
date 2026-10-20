@@ -9,6 +9,7 @@ import { GoodBadCount } from "./GoodBadCount";
 import { LatencyTab } from "./LatencyTab";
 import { SLOTargetModal } from "./SLOTargetModal";
 import { getSLODomainHistory, getSLOLatencyDistribution } from "@/api/slo";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import type { DomainSLOV2, SLOHistoryPoint, LatencyDistributionResponse } from "@/types/slo";
 import type { DomainDetailTranslations } from "./detail-translations";
 
@@ -37,6 +38,7 @@ export function DomainDetail({
 }) {
   const [activeTab, setActiveTab] = useState<"budget" | "latency">("budget");
   const [showTargetModal, setShowTargetModal] = useState(false);
+  const requireAuth = useRequireAuth();
   const [history, setHistory] = useState<SLOHistoryPoint[]>([]);
   const [latencyData, setLatencyData] = useState<LatencyDistributionResponse | null>(null);
 
@@ -103,7 +105,7 @@ export function DomainDetail({
           ))}
         </div>
         <button
-          onClick={() => setShowTargetModal(true)}
+          onClick={() => requireAuth(() => setShowTargetModal(true), "slo.manage")}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-muted hover:text-default hover:bg-[var(--hover-bg)] transition-colors"
         >
           <Settings2 className="w-3.5 h-3.5" />

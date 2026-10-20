@@ -738,6 +738,7 @@ export const zh: Translations = {
       "cluster.operate": "集群操作（重启、扩缩容、改镜像等）",
       "audit.read": "审计日志",
       "notify.manage": "通知渠道",
+      "slo.manage": "SLO 目标设置",
       "ai.analyze": "AI 分析与深度分析",
       "ai.settings.read": "查看 AI 配置",
       "user.manage": "用户管理与提权",

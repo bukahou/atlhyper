@@ -738,6 +738,7 @@ export const ja: Translations = {
       "cluster.operate": "クラスタ操作（再起動、スケール、イメージ変更など）",
       "audit.read": "監査ログ",
       "notify.manage": "通知チャネル",
+      "slo.manage": "SLO 目標の設定",
       "ai.analyze": "AI 分析と詳細分析",
       "ai.settings.read": "AI 設定の閲覧",
       "user.manage": "ユーザー管理と権限昇格",
