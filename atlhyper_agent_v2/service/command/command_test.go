@@ -830,3 +830,54 @@ func TestExecute_ResultFormat_ExecutedAt(t *testing.T) {
 		t.Errorf("expected ExecutedAt between %v and %v, got %v", before, after, result.ExecutedAt)
 	}
 }
+
+// =============================================================================
+// 目标命名校验
+// =============================================================================
+
+// 命名空间 / 名字不符合 K8s 命名规则的指令不执行，任何下游都不应被调用。
+func TestExecute_RejectsMalformedTarget(t *testing.T) {
+	tests := []struct {
+		name      string
+		action    string
+		namespace string
+		target    string
+		params    map[string]any
+	}{
+		{"dynamic：名字带斜杠", command.ActionDynamic, "", "kube-system/secrets",
+			map[string]any{"command": "get", "kind": "Namespace"}},
+		{"dynamic：名字带上级目录片段", command.ActionDynamic, "default", "a/../../nodes",
+			map[string]any{"command": "get", "kind": "Pod"}},
+		{"dynamic：命名空间带斜杠", command.ActionDynamic, "default/secrets", "",
+			map[string]any{"command": "list", "kind": "Pod"}},
+		{"get_logs：名字带斜杠", command.ActionGetLogs, "default", "a/b", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called := false
+			svc := &commandService{
+				podRepo: &mock.PodRepository{},
+				genericRepo: &mock.GenericRepository{
+					ExecuteFn: func(ctx context.Context, req *model.DynamicRequest) (*model.DynamicResponse, error) {
+						called = true
+						return &model.DynamicResponse{StatusCode: 200, Body: []byte(`{}`)}, nil
+					},
+				},
+			}
+			result := svc.Execute(context.Background(), &command.Command{
+				ID:        "cmd-malformed",
+				Action:    tt.action,
+				Namespace: tt.namespace,
+				Name:      tt.target,
+				Source:    "ai",
+				Params:    tt.params,
+			})
+			if result.Success {
+				t.Errorf("期望被拒绝，实际执行成功: %s", result.Output)
+			}
+			if called {
+				t.Error("被拒绝的指令不应到达下游")
+			}
+		})
+	}
+}

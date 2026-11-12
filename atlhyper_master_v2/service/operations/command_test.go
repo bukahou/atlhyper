@@ -214,3 +214,37 @@ func TestExecuteCommandSync_WaitError(t *testing.T) {
 		t.Error("expected WaitCommandResult to be called")
 	}
 }
+
+// 目标的命名空间 / 名字必须符合 K8s 命名规则，否则不入队、不落库。
+func TestCreateCommand_RejectsMalformedTarget(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		target    string
+	}{
+		{"名字带斜杠", "", "kube-system/secrets"},
+		{"名字带上级目录片段", "default", "a/../b"},
+		{"命名空间带斜杠", "default/pods", "x"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			producer := &mockProducer{}
+			svc := NewCommandService(producer, &mockCommandRepo{})
+			_, err := svc.CreateCommand(&model.CreateCommandRequest{
+				ClusterID:       "c1",
+				Action:          command.ActionDynamic,
+				TargetKind:      "Namespace",
+				TargetNamespace: tt.namespace,
+				TargetName:      tt.target,
+				Source:          "ai",
+				Params:          map[string]interface{}{"command": "get", "kind": "Namespace"},
+			})
+			if err == nil {
+				t.Fatal("期望被拒绝，实际创建成功")
+			}
+			if producer.enqueuedCmd != nil {
+				t.Error("被拒绝的指令不应入队")
+			}
+		})
+	}
+}
