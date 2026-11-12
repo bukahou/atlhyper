@@ -1,14 +1,45 @@
 package cluster
 
-// manifestCopyAnnotations 是各类部署工具写在资源上的「整份清单副本」。
+import "strings"
+
+// 部署工具会把资源的「整份清单副本」写在注解里（kubectl apply 的 last-applied-configuration 最常见）。
 //
-// 这类注解把资源的完整清单再存一遍：体积大，内容与快照里的结构化字段完全重复，
+// 这类注解把完整清单再存一遍：体积大，内容与快照里的结构化字段完全重复，
 // 展示与分析都只使用结构化字段。因此不随快照上报，Master 收到快照时也不保留。
+//
+// 判定分三层，命中任一层即视为清单副本：
+//  1. 已知键名：值经过压缩或编码、从内容上认不出来的那几种
+//  2. 键名后缀：各家沿用的 last-applied 命名（kubectl / k0s / 其他部署器）
+//  3. 值的内容：是一份序列化的 K8s 对象 —— 不依赖键名，新工具换个名字也拦得住
 var manifestCopyAnnotations = map[string]struct{}{
-	"kubectl.kubernetes.io/last-applied-configuration": {}, // kubectl apply
-	"kapp.k14s.io/original":                            {}, // Carvel kapp
-	"objectset.rio.cattle.io/applied":                  {}, // Rancher wrangler
-	"banzaicloud.com/last-applied":                     {}, // k8s-objectmatcher
+	"kapp.k14s.io/original":           {}, // Carvel kapp
+	"objectset.rio.cattle.io/applied": {}, // Rancher wrangler（gzip + base64）
+}
+
+var manifestCopySuffixes = []string{
+	"/last-applied-configuration", // kubectl.kubernetes.io/ · k0s.k0sproject.io/ 等
+	"/last-applied",               // banzaicloud.com/ 等
+}
+
+// isManifestCopy 判断一条注解是否是整份清单副本
+func isManifestCopy(key, value string) bool {
+	if _, ok := manifestCopyAnnotations[key]; ok {
+		return true
+	}
+	for _, suffix := range manifestCopySuffixes {
+		if strings.HasSuffix(key, suffix) {
+			return true
+		}
+	}
+	return looksLikeSerializedObject(value)
+}
+
+// looksLikeSerializedObject 值是否像一份 JSON 序列化的 K8s 对象（同时带 apiVersion 与 kind 字段）
+func looksLikeSerializedObject(value string) bool {
+	if !strings.HasPrefix(strings.TrimLeft(value, " \t\r\n"), "{") {
+		return false
+	}
+	return strings.Contains(value, `"apiVersion"`) && strings.Contains(value, `"kind"`)
 }
 
 // ReportableAnnotations 返回可以随快照上报的注解：去掉整份清单副本，其余原样保留。
@@ -16,8 +47,8 @@ var manifestCopyAnnotations = map[string]struct{}{
 // 不修改传入的 map；没有需要去掉的键时直接返回原 map，全部被去掉时返回 nil。
 func ReportableAnnotations(src map[string]string) map[string]string {
 	dropped := 0
-	for key := range src {
-		if _, ok := manifestCopyAnnotations[key]; ok {
+	for key, value := range src {
+		if isManifestCopy(key, value) {
 			dropped++
 		}
 	}
@@ -29,7 +60,7 @@ func ReportableAnnotations(src map[string]string) map[string]string {
 	}
 	kept := make(map[string]string, len(src)-dropped)
 	for key, value := range src {
-		if _, ok := manifestCopyAnnotations[key]; !ok {
+		if !isManifestCopy(key, value) {
 			kept[key] = value
 		}
 	}
@@ -96,7 +127,9 @@ func (s *ClusterSnapshot) DropManifestCopyAnnotations() {
 }
 
 func dropManifestCopies(annotations map[string]string) {
-	for key := range manifestCopyAnnotations {
-		delete(annotations, key)
+	for key, value := range annotations {
+		if isManifestCopy(key, value) {
+			delete(annotations, key)
+		}
 	}
 }

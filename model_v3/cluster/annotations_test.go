@@ -38,6 +38,34 @@ func TestReportableAnnotations(t *testing.T) {
 			want: map[string]string{"team": "platform"},
 		},
 		{
+			name: "发行版自带部署器写的同名后缀注解也去掉",
+			src: map[string]string{
+				"k0s.k0sproject.io/last-applied-configuration": `{"kind":"Deployment"}`,
+				"example.io/last-applied":                      "H4sI",
+				"team":                                         "platform",
+			},
+			want: map[string]string{"team": "platform"},
+		},
+		{
+			name: "键名没见过、但值是一份序列化的 K8s 对象，同样去掉",
+			src: map[string]string{
+				"some-tool.example.io/snapshot": ` {"apiVersion":"apps/v1","kind":"Deployment","spec":{}}`,
+				"team":                          "platform",
+			},
+			want: map[string]string{"team": "platform"},
+		},
+		{
+			name: "值是普通 JSON（不是 K8s 对象）时保留",
+			src: map[string]string{
+				"example.io/config": `{"timeout":"30s","kind":"fast"}`,
+				"example.io/notes":  "apiVersion and kind are mentioned here",
+			},
+			want: map[string]string{
+				"example.io/config": `{"timeout":"30s","kind":"fast"}`,
+				"example.io/notes":  "apiVersion and kind are mentioned here",
+			},
+		},
+		{
 			name: "只有清单副本时返回 nil",
 			src:  map[string]string{lastAppliedKey: "{}"},
 			want: nil,
@@ -76,8 +104,8 @@ func TestDropManifestCopyAnnotations_CoversEveryAnnotationField(t *testing.T) {
 	var visited int
 	walkAnnotationFields(reflect.ValueOf(snapshot).Elem(), "ClusterSnapshot", func(path string, annotations map[string]string) {
 		visited++
-		if _, ok := annotations[lastAppliedKey]; ok {
-			t.Errorf("%s 仍带有清单副本注解", path)
+		if len(annotations) != 1 {
+			t.Errorf("%s 仍带有清单副本注解: %v", path, annotations)
 		}
 		if annotations["team"] != "platform" {
 			t.Errorf("%s 的普通注解丢失: %v", path, annotations)
@@ -110,7 +138,12 @@ func fillAnnotationFields(v reflect.Value, depth int) int {
 				continue
 			}
 			if v.Type().Field(i).Name == "Annotations" && field.Type() == annotationMapType {
-				field.Set(reflect.ValueOf(map[string]string{lastAppliedKey: "{}", "team": "platform"}))
+				field.Set(reflect.ValueOf(map[string]string{
+					lastAppliedKey: "{}",
+					"k0s.k0sproject.io/last-applied-configuration": "{}",
+					"some-tool.example.io/snapshot":                `{"apiVersion":"v1","kind":"Pod"}`,
+					"team":                                         "platform",
+				}))
 				filled++
 				continue
 			}
