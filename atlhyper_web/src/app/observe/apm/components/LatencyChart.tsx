@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
 import type { OperationStats } from "@/types/model/apm";
 import { formatDurationMs } from "@/lib/format";
+import { joinHtml, safeHtml } from "@/lib/safe-html";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -76,11 +77,8 @@ export function LatencyChart({ title, operations }: LatencyChartProps) {
         textStyle: { color: c.tooltipText, fontSize: 12 },
         formatter: (params: { seriesName: string; value: number; dataIndex: number }[]) => {
           const opName = top[params[0]?.dataIndex]?.operationName ?? "";
-          let html = `<div style="font-weight:600;margin-bottom:4px">${opName}</div>`;
-          for (const p of params) {
-            html += `${p.seriesName}: ${formatDurationMs(p.value)}<br/>`;
-          }
-          return html;
+          const lines = params.map((p) => safeHtml`${p.seriesName}: ${formatDurationMs(p.value)}<br/>`);
+          return safeHtml`<div style="font-weight:600;margin-bottom:4px">${opName}</div>${joinHtml(lines, safeHtml``)}`.toString();
         },
       },
       legend: {
