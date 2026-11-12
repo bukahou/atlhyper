@@ -5,7 +5,6 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"AtlHyper/atlhyper_master_v2/service"
 )
@@ -37,32 +36,4 @@ func (h *ClusterHandler) List(w http.ResponseWriter, r *http.Request) {
 		"clusters": clusters,
 		"total":    len(clusters),
 	})
-}
-
-// Get 获取单个集群详情
-func (h *ClusterHandler) Get(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	// 解析 clusterID: /api/v2/clusters/{id}
-	path := strings.TrimPrefix(r.URL.Path, "/api/v2/clusters/")
-	clusterID := strings.TrimSuffix(path, "/")
-	if clusterID == "" {
-		writeError(w, http.StatusBadRequest, "cluster_id required")
-		return
-	}
-
-	detail, err := h.svc.GetCluster(r.Context(), clusterID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get cluster")
-		return
-	}
-	if detail == nil || detail.Snapshot == nil {
-		writeError(w, http.StatusNotFound, "cluster not found")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, detail)
 }

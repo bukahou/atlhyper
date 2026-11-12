@@ -17,18 +17,6 @@ interface ClusterListResponse {
   total: number;
 }
 
-// 集群详情响应（包含完整快照）
-interface ClusterDetailResponse {
-  clusterId: string;
-  status: {
-    clusterId: string;
-    status: string;
-    lastHeartbeat: string;
-    lastSnapshot: string;
-  };
-  snapshot: unknown;
-}
-
 // ============================================================
 // API 方法
 // ============================================================
@@ -39,14 +27,6 @@ interface ClusterDetailResponse {
  */
 export function getClusterList() {
   return get<ClusterListResponse>("/api/v2/clusters");
-}
-
-/**
- * 获取集群详情
- * GET /api/v2/clusters/{cluster_id}
- */
-export function getClusterDetail(clusterId: string) {
-  return get<ClusterDetailResponse>(`/api/v2/clusters/${clusterId}`);
 }
 
 /**

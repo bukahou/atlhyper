@@ -183,7 +183,6 @@ setDataSourceMode(key: string, mode: "mock" | "api"): void
 | 方法 | 路径 | 函数名 | 说明 |
 |------|------|--------|------|
 | GET | `/api/v2/clusters` | `getClusterList()` | 集群列表 |
-| GET | `/api/v2/clusters/{id}` | `getClusterDetail(id)` | 集群详情 |
 
 **文件：** `api/overview.ts`
 

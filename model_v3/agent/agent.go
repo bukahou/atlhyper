@@ -3,8 +3,6 @@ package agent
 
 import (
 	"time"
-
-	"AtlHyper/model_v3/cluster"
 )
 
 // AgentStatus Agent 连接状态
@@ -38,11 +36,4 @@ type ClusterInfo struct {
 	NodeCount     int       `json:"nodeCount"`
 	PodCount      int       `json:"podCount"`
 	OTelAvailable bool      `json:"otelAvailable"`
-}
-
-// ClusterDetail 集群详情
-type ClusterDetail struct {
-	ClusterID string                   `json:"clusterId"`
-	Status    *AgentStatus             `json:"status,omitempty"`
-	Snapshot  *cluster.ClusterSnapshot `json:"snapshot,omitempty"`
 }

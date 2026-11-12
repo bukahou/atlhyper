@@ -277,3 +277,23 @@ func TestRoutes_OIDCDisabled(t *testing.T) {
 		}
 	}
 }
+
+// 整份快照不经任何接口对外返回：资源各走自己的列表 / 详情接口，由各接口按权限裁剪字段。
+func TestRoutes_NoWholeSnapshotEndpoint(t *testing.T) {
+	r, h := testRouterWithSpecs(t)
+	for _, userID := range []int64{0, 1, 2, 3, 4} {
+		if code := call(t, h, http.MethodGet, "/api/v2/clusters/c1", userID); code != http.StatusNotFound {
+			t.Errorf("GET /api/v2/clusters/c1 (user %d) = %d, want 404", userID, code)
+		}
+	}
+	// 集群列表不受影响
+	listDeclared := false
+	for _, s := range r.specs {
+		if s.method == http.MethodGet && s.path == "/api/v2/clusters" {
+			listDeclared = true
+		}
+	}
+	if !listDeclared {
+		t.Error("GET /api/v2/clusters 未登记")
+	}
+}
