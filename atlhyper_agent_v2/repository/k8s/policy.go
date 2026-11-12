@@ -169,7 +169,7 @@ func ConvertResourceQuota(k8sRQ *corev1.ResourceQuota) cluster.ResourceQuota {
 		CreatedAt:   k8sRQ.CreationTimestamp.Format(time.RFC3339),
 		Age:         formatAge(k8sRQ.CreationTimestamp.Time),
 		Labels:      k8sRQ.Labels,
-		Annotations: k8sRQ.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sRQ.Annotations),
 	}
 
 	// 转换 Scopes
@@ -204,7 +204,7 @@ func ConvertLimitRange(k8sLR *corev1.LimitRange) cluster.LimitRange {
 		CreatedAt:   k8sLR.CreationTimestamp.Format(time.RFC3339),
 		Age:         formatAge(k8sLR.CreationTimestamp.Time),
 		Labels:      k8sLR.Labels,
-		Annotations: k8sLR.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sLR.Annotations),
 	}
 
 	// 转换 Items
@@ -269,7 +269,7 @@ func ConvertNetworkPolicy(k8sNP *networkingv1.NetworkPolicy) cluster.NetworkPoli
 		IngressRuleCount: len(k8sNP.Spec.Ingress),
 		EgressRuleCount:  len(k8sNP.Spec.Egress),
 		Labels:           k8sNP.Labels,
-		Annotations:      k8sNP.Annotations,
+		Annotations:      cluster.ReportableAnnotations(k8sNP.Annotations),
 	}
 
 	// Pod Selector - 转换为 JSON 字符串
@@ -378,7 +378,7 @@ func ConvertServiceAccount(k8sSA *corev1.ServiceAccount) cluster.ServiceAccount 
 		ImagePullSecretsCount:        len(k8sSA.ImagePullSecrets),
 		AutomountServiceAccountToken: k8sSA.AutomountServiceAccountToken,
 		Labels:                       k8sSA.Labels,
-		Annotations:                  k8sSA.Annotations,
+		Annotations:                  cluster.ReportableAnnotations(k8sSA.Annotations),
 	}
 
 	// Secret 名称列表

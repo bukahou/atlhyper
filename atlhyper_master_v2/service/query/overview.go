@@ -44,22 +44,6 @@ func (q *QueryService) ListClusters(ctx context.Context) ([]agent.ClusterInfo, e
 	return result, nil
 }
 
-// GetCluster 获取集群详情
-func (q *QueryService) GetCluster(ctx context.Context, clusterID string) (*agent.ClusterDetail, error) {
-	snapshot, err := q.GetSnapshot(ctx, clusterID)
-	if err != nil {
-		return nil, err
-	}
-
-	status, _ := q.GetAgentStatus(ctx, clusterID)
-
-	return &agent.ClusterDetail{
-		ClusterID: clusterID,
-		Status:    status,
-		Snapshot:  snapshot,
-	}, nil
-}
-
 // ==================== Agent 状态查询 ====================
 
 // GetAgentStatus 获取 Agent 状态

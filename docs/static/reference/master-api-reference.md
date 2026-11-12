@@ -95,7 +95,7 @@
 | 权限 | 路径 | Handler |
 |------|------|---------|
 | `cluster.read` | `/api/v2/overview` | `OverviewHandler.Get` |
-| `cluster.read` | `/api/v2/clusters` · `/api/v2/clusters/` | `ClusterHandler.List` / `Get` |
+| `cluster.read` | `/api/v2/clusters` | `ClusterHandler.List` |
 | `cluster.read` | `/api/v2/{pods,nodes,deployments,daemonsets,statefulsets,services,ingresses,jobs,cronjobs,pvs,pvcs,network-policies,resource-quotas,limit-ranges,service-accounts,namespaces}` 及各自 `/` 前缀 | 各资源 `List` / `Get`（env 字面值裁剪） |
 | `cluster.read` | `/api/v2/configmaps` | `ConfigMapHandler.List`（仅名字与键数；详情见 2 级） |
 | `events.read` | `/api/v2/events` · `/api/v2/events/by-resource` | `EventHandler.List` / `ListByResource` |

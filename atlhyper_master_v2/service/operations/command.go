@@ -104,6 +104,11 @@ func (s *CommandService) validateRequest(req *model.CreateCommandRequest) error 
 		return fmt.Errorf("invalid action: %s", req.Action)
 	}
 
+	// 目标的命名空间 / 名字必须是合法的 K8s 资源名
+	if err := command.ValidateTarget(req.TargetNamespace, req.TargetName); err != nil {
+		return err
+	}
+
 	// 某些操作需要目标信息
 	needsTarget := map[string]bool{
 		command.ActionScale:       true,

@@ -3,6 +3,7 @@
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
 import type { SpanTypeBreakdown } from "@/types/model/apm";
+import { joinHtml, safeHtml } from "@/lib/safe-html";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -65,7 +66,10 @@ export function SpanTypeChart({ title, breakdown }: SpanTypeChartProps) {
         borderColor: c.tooltipBorder,
         textStyle: { color: c.tooltipText, fontSize: 12 },
         formatter: (params: { seriesName: string; value: number }[]) =>
-          params.map((p) => `${p.seriesName}: ${p.value.toFixed(1)}%`).join("<br/>"),
+          joinHtml(
+            params.map((p) => safeHtml`${p.seriesName}: ${p.value.toFixed(1)}%`),
+            safeHtml`<br/>`
+          ).toString(),
       },
       legend: {
         data: breakdown.map((b) => b.type),

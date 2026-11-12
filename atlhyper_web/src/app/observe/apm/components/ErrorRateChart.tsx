@@ -3,6 +3,7 @@
 import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
 import type { OperationStats } from "@/types/model/apm";
+import { safeHtml } from "@/lib/safe-html";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -86,8 +87,7 @@ export function ErrorRateChart({ title, operations }: ErrorRateChartProps) {
         formatter: (params: { dataIndex: number; value: number }[]) => {
           const idx = params[0]?.dataIndex ?? 0;
           const op = top[idx];
-          return `<div style="font-weight:600;margin-bottom:4px">${op.operationName}</div>` +
-            `Error rate: ${params[0].value}%`;
+          return safeHtml`<div style="font-weight:600;margin-bottom:4px">${op.operationName}</div>Error rate: ${params[0].value}%`.toString();
         },
       },
       grid: { top: 12, right: 16, bottom: 56, left: 40 },

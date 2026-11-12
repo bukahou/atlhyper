@@ -196,9 +196,8 @@ func (r *Router) registerRoutes() {
 	// 0 级：集群状态与形状（访客 = 成员）
 	// ================================================================
 	for pattern, h := range map[string]http.HandlerFunc{
-		"/api/v2/overview":  overviewH.Get,
-		"/api/v2/clusters":  clusterH.List,
-		"/api/v2/clusters/": clusterH.Get,
+		"/api/v2/overview": overviewH.Get,
+		"/api/v2/clusters": clusterH.List,
 		// 资源列表 / 详情
 		"/api/v2/pods": podH.List, "/api/v2/pods/": podH.Get,
 		"/api/v2/nodes": nodeH.List, "/api/v2/nodes/": nodeH.Get,
