@@ -581,6 +581,12 @@ func (e *engine) reloadActiveIncidents(ctx context.Context) {
 			IncidentID:      inc.ID,
 			LastEvaluatedAt: now.Unix(),
 		}
+		if inc.State == aiops.StateRecovery {
+			// 观察期的起点只在内存里，重启后从时间线取回；取不到时由状态机从现在起计
+			if startedAt, ok := e.incidentStore.RecoveryStartedAt(ctx, inc.ID); ok {
+				entry.RecoveryStartedAt = startedAt.Unix()
+			}
+		}
 		e.sm.RestoreEntry(entry)
 		count++
 	}

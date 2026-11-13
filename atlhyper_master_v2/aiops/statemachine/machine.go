@@ -37,6 +37,7 @@ type StateMachine struct {
 	entries    map[string]*aiops.StateMachineEntry // entityKey -> entry
 	callback   TransitionCallback
 	conditions []transitionCondition
+	now        func() time.Time // 可替换的时钟，测试用它模拟时间流逝
 }
 
 // NewStateMachine 创建状态机
@@ -44,6 +45,7 @@ func NewStateMachine(callback TransitionCallback) *StateMachine {
 	sm := &StateMachine{
 		entries:  make(map[string]*aiops.StateMachineEntry),
 		callback: callback,
+		now:      time.Now,
 	}
 	sm.conditions = []transitionCondition{
 		{
@@ -102,7 +104,7 @@ func (sm *StateMachine) CleanupStaleEntries(ctx context.Context, staleThreshold 
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	now := time.Now()
+	now := sm.now()
 	for entityKey, entry := range sm.entries {
 		if entry.LastEvaluatedAt == 0 {
 			continue

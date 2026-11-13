@@ -76,3 +76,16 @@ func isRecoveryEntry(t *database.AIOpsIncidentTimeline) bool {
 	return t.EventType == aiops.TimelineRecoveryStarted ||
 		(t.EventType == aiops.TimelineStateChange && strings.HasPrefix(t.Detail, legacyRecoveryPrefix))
 }
+
+// RecoveryStartedAt 事件进入恢复观察期的时刻：最后一次复发之后的首个恢复记录。
+// ok=false 表示事件当前不在观察期，或时间线读不到。
+//
+// 状态机的条目只在内存里，Master 重启后据此取回观察期的起点，不从重启那一刻重新计 48 小时。
+func (s *Store) RecoveryStartedAt(ctx context.Context, incidentID string) (startedAt time.Time, ok bool) {
+	timeline, err := s.repo.GetTimeline(ctx, incidentID)
+	if err != nil {
+		log.Warn("读取事件时间线失败", "id", incidentID, "err", err)
+		return time.Time{}, false
+	}
+	return ActiveWindow(timeline)
+}

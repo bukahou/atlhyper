@@ -19,7 +19,7 @@ func (sm *StateMachine) Evaluate(
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	now := time.Now()
+	now := sm.now()
 
 	for entityKey, risk := range entityRisks {
 		entry := sm.getOrCreate(entityKey)
@@ -104,9 +104,11 @@ func (sm *StateMachine) transition(
 		sm.callback.OnStateEscalated(ctx, entry.IncidentID, aiops.StateIncident, risk, now)
 
 	case oldState == aiops.StateIncident && cond.ToState == aiops.StateRecovery:
+		entry.RecoveryStartedAt = now.Unix()
 		sm.callback.OnRecoveryStarted(ctx, entry.IncidentID, risk, now)
 
 	case oldState == aiops.StateRecovery && cond.ToState == aiops.StateWarning:
+		entry.RecoveryStartedAt = 0 // 复发：观察期作废，下次恢复重新计
 		sm.callback.OnRecurrence(ctx, entry.IncidentID, risk, now)
 	}
 
@@ -119,12 +121,15 @@ func (sm *StateMachine) transition(
 }
 
 // CheckRecoveryToStable 检查 Recovery 状态的实体是否可以转为 Stable
-// 条件: 48h 内 R_final 未再 > 0.5
+// 条件: 进入恢复观察期满 48h 且期间没有复发（复发会离开 Recovery 并清空 RecoveryStartedAt）
+//
+// 计时用 RecoveryStartedAt 而不是 ConditionMetSince：观察期内实体仍在每轮被评估，
+// 而评估在「没有出口条件满足」时会把 ConditionMetSince 清零。
 func (sm *StateMachine) CheckRecoveryToStable(ctx context.Context) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	now := time.Now()
+	now := sm.now()
 	stableThreshold := 48 * time.Hour
 
 	for entityKey, entry := range sm.entries {
@@ -132,12 +137,13 @@ func (sm *StateMachine) CheckRecoveryToStable(ctx context.Context) {
 			continue
 		}
 
-		if entry.ConditionMetSince == 0 {
-			entry.ConditionMetSince = now.Unix()
+		if entry.RecoveryStartedAt == 0 {
+			// 恢复时刻未知（重启后时间线里查不到）：从现在起计
+			entry.RecoveryStartedAt = now.Unix()
 			continue
 		}
 
-		duration := time.Duration(now.Unix()-entry.ConditionMetSince) * time.Second
+		duration := time.Duration(now.Unix()-entry.RecoveryStartedAt) * time.Second
 		if duration < stableThreshold {
 			continue
 		}
