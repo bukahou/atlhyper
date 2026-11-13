@@ -186,11 +186,10 @@ func VerifyMetricsCollected(ctx context.Context, client sdk.ClickHouseClient) {
 		}
 	}
 
-	var missing []string
-	for _, m := range NodeExporterMetrics {
-		if _, ok := collected[m]; !ok {
-			missing = append(missing, m)
-		}
+	missing, hardwareAbsent := missingMetrics(collected)
+	if len(hardwareAbsent) > 0 {
+		logger.Info("[契约自检] 部分指标当前节点硬件不提供，对应卡片显示「无数据」",
+			"指标", strings.Join(hardwareAbsent, ","))
 	}
 	if len(missing) > 0 {
 		logger.Error("[契约漂移] Agent 查询的 node-exporter 指标未被采集，对应卡片将空白",
@@ -201,6 +200,23 @@ func VerifyMetricsCollected(ctx context.Context, client sdk.ClickHouseClient) {
 	}
 	logger.Info("[契约自检] 通过", "table", "otel_metrics", "column", "MetricName",
 		"清单", len(NodeExporterMetrics), "缺失", 0)
+}
+
+// missingMetrics 把清单里近期没有数据的指标分成两类：
+//   - drifted：任何节点都应该有，缺了说明 Collector 的 keep regex 与清单漂移
+//   - hardwareAbsent：只有特定硬件才提供，集群里没有这种硬件时必然缺席，不是漂移
+func missingMetrics(collected map[string]struct{}) (drifted, hardwareAbsent []string) {
+	for _, name := range NodeExporterMetrics {
+		if _, ok := collected[name]; ok {
+			continue
+		}
+		if _, hardwareDependent := hardwareDependentMetrics[name]; hardwareDependent {
+			hardwareAbsent = append(hardwareAbsent, name)
+		} else {
+			drifted = append(drifted, name)
+		}
+	}
+	return drifted, hardwareAbsent
 }
 
 // recentMetricNames 取某表近期出现过的 node_* 指标名。
