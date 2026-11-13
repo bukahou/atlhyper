@@ -67,8 +67,13 @@ func (s *Server) persistResult(cmdID string, result *command.Result) {
 
 	// 获取现有记录
 	history, err := s.cmdRepo.GetByCommandID(ctx, cmdID)
-	if err != nil || history == nil {
-		log.Warn("获取指令历史失败或不存在", "cmd", cmdID, "err", err)
+	if err != nil {
+		log.Error("读取指令历史失败，执行结果未记入历史", "cmd", cmdID, "err", err)
+		return
+	}
+	if history == nil {
+		// 不经指令服务下发的指令（如部署器）没有历史记录，无需更新
+		log.Debug("指令没有历史记录，跳过", "cmd", cmdID)
 		return
 	}
 
