@@ -64,6 +64,11 @@ func (e *engine) OnSnapshot(clusterID string) {
 		return
 	}
 
+	// 补上此前没写成的事件写入（写锁被占住时积压的；平时队列为空）
+	if e.incidentStore != nil && e.bgCtx != nil {
+		e.incidentStore.FlushPending(e.bgCtx)
+	}
+
 	// 获取 OTel 数据（直接从 snap.OTel 读取，非 Ring Buffer）
 	otel := snap.OTel
 
@@ -430,6 +435,14 @@ func (e *engine) Stop() error {
 	e.wg.Wait()
 	if e.graphSaver != nil {
 		e.graphSaver.wait()
+	}
+
+	// 退出前再试一次积压的事件写入；仍写不进去的只能丢弃（队列只在内存里）
+	if e.incidentStore != nil {
+		e.incidentStore.FlushPending(context.Background())
+		if left := e.incidentStore.PendingWrites(); left > 0 {
+			log.Error("退出时仍有事件写入未完成，已丢弃", "pending", left)
+		}
 	}
 
 	// 最终 flush

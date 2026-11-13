@@ -12,8 +12,8 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
-// addTimeline 添加时间线条目
-func (s *Store) addTimeline(ctx context.Context, incidentID string, timestamp time.Time, eventType, entityKey, detail string) {
+// timelineWrite 一条时间线写入。timestamp 是事情发生的时刻，重试时不变。
+func (s *Store) timelineWrite(incidentID string, timestamp time.Time, eventType, entityKey, detail string) pendingWrite {
 	entry := &database.AIOpsIncidentTimeline{
 		IncidentID: incidentID,
 		Timestamp:  timestamp,
@@ -21,22 +21,19 @@ func (s *Store) addTimeline(ctx context.Context, incidentID string, timestamp ti
 		EntityKey:  entityKey,
 		Detail:     detail,
 	}
-	if err := s.repo.AddTimeline(ctx, entry); err != nil {
-		log.Error("添加时间线失败", "incident", incidentID, "event", eventType, "err", err)
-	}
+	return pendingWrite{"添加时间线 " + incidentID + " " + eventType, func(ctx context.Context) error {
+		return s.repo.AddTimeline(ctx, entry)
+	}}
 }
 
 // AddTimeline 外部调用添加时间线
 func (s *Store) AddTimeline(ctx context.Context, incidentID string, timestamp time.Time, eventType, entityKey, detail string) {
-	s.addTimeline(ctx, incidentID, timestamp, eventType, entityKey, detail)
+	s.submit(ctx, s.timelineWrite(incidentID, timestamp, eventType, entityKey, detail))
 }
 
-// addSignalTimeline 追加一条「异常检测」：写明本次状态变化由哪些信号推动
-func (s *Store) addSignalTimeline(ctx context.Context, incidentID string, now time.Time, risk *aiops.EntityRisk) {
-	if incidentID == "" || risk == nil {
-		return
-	}
-	s.addTimeline(ctx, incidentID, now, aiops.TimelineAnomalyDetected, risk.EntityKey, signalDetail(risk))
+// signalTimelineWrite 一条「异常检测」时间线：写明本次状态变化由哪些信号推动
+func (s *Store) signalTimelineWrite(incidentID string, now time.Time, risk *aiops.EntityRisk) pendingWrite {
+	return s.timelineWrite(incidentID, now, aiops.TimelineAnomalyDetected, risk.EntityKey, signalDetail(risk))
 }
 
 // signalDetail 信号逐条以「；」连接；本地无异常时说明风险来自依赖传播
