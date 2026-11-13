@@ -142,13 +142,15 @@ func New() (*Agent, error) {
 
 	// 5. 初始化 Scheduler (调度层)
 	schedCfg := scheduler.Config{
-		SnapshotInterval:    cfg.Scheduler.SnapshotInterval,
-		CommandPollInterval: cfg.Scheduler.CommandPollInterval,
-		HeartbeatInterval:   cfg.Scheduler.HeartbeatInterval,
-		SnapshotTimeout:     cfg.Timeout.SnapshotCollect,
-		SnapshotPushTimeout: cfg.Timeout.HTTPClient,
-		CommandPollTimeout:  cfg.Timeout.CommandPoll,
-		HeartbeatTimeout:    cfg.Timeout.Heartbeat,
+		SnapshotInterval:     cfg.Scheduler.SnapshotInterval,
+		CommandPollInterval:  cfg.Scheduler.CommandPollInterval,
+		HeartbeatInterval:    cfg.Scheduler.HeartbeatInterval,
+		SnapshotTimeout:      cfg.Timeout.SnapshotCollect,
+		SnapshotPushTimeout:  cfg.Timeout.HTTPClient,
+		CommandPollTimeout:   cfg.Timeout.CommandPoll,
+		CommandExecTimeout:   cfg.Timeout.CommandExec,
+		CommandReportTimeout: cfg.Timeout.CommandReport,
+		HeartbeatTimeout:     cfg.Timeout.Heartbeat,
 	}
 	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw)
 

@@ -36,6 +36,14 @@ type Config struct {
 	// CommandPollTimeout 指令轮询操作超时
 	CommandPollTimeout time.Duration
 
+	// CommandExecTimeout 单条指令的执行超时
+	// 独立于 CommandPollTimeout：长轮询等了多久，不影响指令能执行多久
+	CommandExecTimeout time.Duration
+
+	// CommandReportTimeout 指令结果回报超时
+	// 独立于执行超时：执行超时后仍要能把结果报回去
+	CommandReportTimeout time.Duration
+
 	// HeartbeatTimeout 心跳操作超时
 	HeartbeatTimeout time.Duration
 }
@@ -249,11 +257,11 @@ func (s *Scheduler) runCommandLoop(topic string) {
 // pollAndExecuteCommands 轮询并执行指令
 // 返回 (hasCommands, isConnError)
 func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, bool) {
-	ctx, cancel := context.WithTimeout(s.ctx, s.config.CommandPollTimeout)
-	defer cancel()
-
-	// 拉取指令
-	commands, err := s.masterGw.PollCommands(ctx, topic)
+	// 三个阶段各用各的时间预算：长轮询可能等到快超时才拿到指令，
+	// 执行与回报不能只剩它用剩下的那点时间。
+	pollCtx, cancelPoll := context.WithTimeout(s.ctx, s.config.CommandPollTimeout)
+	commands, err := s.masterGw.PollCommands(pollCtx, topic)
+	cancelPoll()
 	if err != nil {
 		return false, true
 	}
@@ -270,7 +278,9 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, bool) {
 		go func() {
 			defer wg.Done()
 			start := time.Now()
-			result := s.commandSvc.Execute(ctx, cmd)
+			execCtx, cancelExec := context.WithTimeout(s.ctx, durationOr(s.config.CommandExecTimeout, defaultCommandExecTimeout))
+			result := s.commandSvc.Execute(execCtx, cmd)
+			cancelExec()
 			elapsed := time.Since(start)
 
 			// 构建可读的 action 标识
@@ -279,8 +289,10 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, bool) {
 				action += "/" + sub
 			}
 
-			// 上报结果
-			if err := s.masterGw.ReportResult(ctx, result); err != nil {
+			// 上报结果（独立预算：执行超时后也要能报回去）
+			reportCtx, cancelReport := context.WithTimeout(s.ctx, durationOr(s.config.CommandReportTimeout, defaultCommandReportTimeout))
+			defer cancelReport()
+			if err := s.masterGw.ReportResult(reportCtx, result); err != nil {
 				log.Error("指令失败", "action", action, "elapsed", elapsed.Round(time.Millisecond), "err", err)
 			} else {
 				log.Info("指令完成", "action", action, "elapsed", elapsed.Round(time.Millisecond), "success", result.Success)
@@ -316,4 +328,17 @@ func (s *Scheduler) runHeartbeatLoop() {
 			cancel()
 		}
 	}
+}
+
+// 指令执行 / 回报超时的兜底值（配置未给出时使用）
+const (
+	defaultCommandExecTimeout   = 60 * time.Second
+	defaultCommandReportTimeout = 10 * time.Second
+)
+
+func durationOr(configured, fallback time.Duration) time.Duration {
+	if configured > 0 {
+		return configured
+	}
+	return fallback
 }

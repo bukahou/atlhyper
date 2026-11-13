@@ -18,6 +18,8 @@ var defaultDurations = map[string]string{
 	"AGENT_TIMEOUT_HTTP_CLIENT":      "90s", // HTTP 客户端超时 (需 > Master 长轮询超时 60s + 网络开销)
 	"AGENT_TIMEOUT_SNAPSHOT_COLLECT": "30s", // 快照采集操作超时
 	"AGENT_TIMEOUT_COMMAND_POLL":     "60s", // 指令轮询操作超时 (长轮询)
+	"AGENT_TIMEOUT_COMMAND_EXEC":     "60s", // 单条指令执行超时（独立于长轮询）
+	"AGENT_TIMEOUT_COMMAND_REPORT":   "10s", // 指令结果回报超时
 	"AGENT_TIMEOUT_HEARTBEAT":        "10s", // 心跳操作超时
 
 	// -------------------- ClickHouse 配置 --------------------

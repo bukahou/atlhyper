@@ -241,3 +241,82 @@ func TestPollAndExecuteCommands_ReportError(t *testing.T) {
 		t.Errorf("ReportResultCalls = %d, want 1", gw.ReportResultCalls)
 	}
 }
+
+// =============================================================================
+// 指令各阶段的时间预算
+// =============================================================================
+
+// 长轮询等了很久才等到指令：执行与回报不能只剩轮询剩下的那点时间。
+func TestPollAndExecuteCommands_ExecuteAndReportHaveOwnBudgets(t *testing.T) {
+	var execCtxErr, reportCtxErr error
+	commandSvc := &mock.CommandService{
+		ExecuteFn: func(ctx context.Context, cmd *command.Command) *command.Result {
+			time.Sleep(80 * time.Millisecond) // 执行耗时超过轮询预算剩余的部分
+			execCtxErr = ctx.Err()
+			return &command.Result{CommandID: cmd.ID, Success: true}
+		},
+	}
+	gw := &mock.MasterGateway{
+		PollCommandsFn: func(ctx context.Context, topic string) ([]command.Command, error) {
+			time.Sleep(70 * time.Millisecond) // 指令在长轮询快结束时才到
+			return []command.Command{{ID: "cmd-1", Action: "restart"}}, nil
+		},
+		ReportResultFn: func(ctx context.Context, result *command.Result) error {
+			reportCtxErr = ctx.Err()
+			return nil
+		},
+	}
+
+	s := newTestScheduler(&mock.SnapshotService{}, commandSvc, gw)
+	s.config.CommandPollTimeout = 100 * time.Millisecond
+	s.config.CommandExecTimeout = time.Second
+	s.config.CommandReportTimeout = time.Second
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	defer s.cancel()
+
+	s.pollAndExecuteCommands("ops")
+
+	if execCtxErr != nil {
+		t.Errorf("执行阶段的 ctx 被轮询预算拖着过期了: %v", execCtxErr)
+	}
+	if reportCtxErr != nil {
+		t.Errorf("回报阶段的 ctx 被轮询预算拖着过期了: %v", reportCtxErr)
+	}
+}
+
+// 执行超时后仍要把结果报回去：回报用自己的预算，不沿用已过期的执行 ctx。
+func TestPollAndExecuteCommands_ReportsEvenWhenExecutionTimedOut(t *testing.T) {
+	var reportCtxErr error
+	reported := false
+	commandSvc := &mock.CommandService{
+		ExecuteFn: func(ctx context.Context, cmd *command.Command) *command.Result {
+			<-ctx.Done() // 一直执行到超时
+			return &command.Result{CommandID: cmd.ID, Success: false, Error: ctx.Err().Error()}
+		},
+	}
+	gw := &mock.MasterGateway{
+		PollCommandsFn: func(ctx context.Context, topic string) ([]command.Command, error) {
+			return []command.Command{{ID: "cmd-1", Action: "restart"}}, nil
+		},
+		ReportResultFn: func(ctx context.Context, result *command.Result) error {
+			reported = true
+			reportCtxErr = ctx.Err()
+			return nil
+		},
+	}
+
+	s := newTestScheduler(&mock.SnapshotService{}, commandSvc, gw)
+	s.config.CommandExecTimeout = 50 * time.Millisecond
+	s.config.CommandReportTimeout = time.Second
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	defer s.cancel()
+
+	s.pollAndExecuteCommands("ops")
+
+	if !reported {
+		t.Fatal("执行超时后没有回报结果")
+	}
+	if reportCtxErr != nil {
+		t.Errorf("回报用的 ctx 已过期: %v", reportCtxErr)
+	}
+}
