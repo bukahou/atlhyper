@@ -36,6 +36,7 @@ type engine struct {
 	sm            *statemachine.StateMachine
 	incidentStore *incident.Store
 	graphRepo     database.AIOpsGraphRepository
+	graphSaver    *graphSnapshotSaver // Start 时创建
 	sloRepo       database.SLORepository
 
 	// AI 后台分析通知回调（可选）
@@ -70,19 +71,10 @@ func (e *engine) OnSnapshot(clusterID string) {
 	graph := correlator.BuildFromSnapshot(clusterID, snap, otel)
 	e.corr.Update(clusterID, graph)
 
-	// 持久化图快照（异步，不阻塞主流程）
-	go func() {
-		data, err := correlator.Serialize(graph)
-		if err != nil {
-			log.Error("序列化依赖图失败", "cluster", clusterID, "err", err)
-			return
-		}
-		ctx, cancel := context.WithTimeout(e.bgCtx, 10*time.Second)
-		defer cancel()
-		if err := e.graphRepo.Save(ctx, clusterID, data); err != nil {
-			log.Error("持久化依赖图失败", "cluster", clusterID, "err", err)
-		}
-	}()
+	// 持久化图快照（异步，不阻塞主流程；拓扑没变不写）
+	if e.graphSaver != nil {
+		e.graphSaver.SaveIfChanged(clusterID, graph)
+	}
 
 	// otel 已在上方从 snap.OTel 获取（直接读取，非 Ring Buffer）
 
@@ -416,6 +408,7 @@ func (e *engine) Start(ctx context.Context) error {
 
 	// 4. 启动定期 flush + Recovery→Stable 检查 goroutine
 	e.bgCtx, e.cancel = context.WithCancel(context.Background())
+	e.graphSaver = newGraphSnapshotSaver(e.bgCtx, e.graphRepo)
 
 	e.wg.Add(1)
 	go e.flushLoop(e.bgCtx)
@@ -435,6 +428,9 @@ func (e *engine) Stop() error {
 		e.cancel()
 	}
 	e.wg.Wait()
+	if e.graphSaver != nil {
+		e.graphSaver.wait()
+	}
 
 	// 最终 flush
 	if err := e.stateManager.FlushToDB(context.Background()); err != nil {
