@@ -95,3 +95,23 @@ func (s *Server) persistResult(cmdID string, result *command.Result) {
 		log.Error("更新指令历史失败", "cmd", cmdID, "err", err)
 	}
 }
+
+// persistExpired 把未被执行的过期指令在历史里标成 timeout
+func (s *Server) persistExpired(cmdID, reason string) {
+	if s.cmdRepo == nil {
+		return
+	}
+	ctx := context.Background()
+	history, err := s.cmdRepo.GetByCommandID(ctx, cmdID)
+	if err != nil || history == nil {
+		return // 没有历史记录的指令（读查询）无需更新
+	}
+	now := time.Now()
+	history.Status = command.StatusTimeout
+	history.ErrorMessage = reason
+	history.FinishedAt = &now
+	history.DurationMs = now.Sub(history.CreatedAt).Milliseconds()
+	if err := s.cmdRepo.Update(ctx, history); err != nil {
+		log.Error("更新指令历史失败", "cmd", cmdID, "err", err)
+	}
+}
