@@ -69,6 +69,34 @@ export function toAbsoluteParams(sel: TimeRangeSelection): { startTime?: string;
 }
 
 /**
+ * 查询用的时间范围（会进查询键）。
+ *
+ * 相对范围只有 since，起止时间由后端在收到请求那一刻换算；绝对范围是用户选定的固定起止时间。
+ */
+export interface TimeRangeParams {
+  /** Go duration 字符串，如 "1h" */
+  since?: string;
+  /** ISO 8601 */
+  startTime?: string;
+  /** ISO 8601 */
+  endTime?: string;
+}
+
+/**
+ * 把时间选择换算成查询用的时间范围。
+ *
+ * 相对范围的结果里没有任何时间戳：它会进查询键，要是带上现算的时间戳，
+ * 键每次渲染都不一样，请求就停不下来。结果里也不留值为 undefined 的字段，键才干净。
+ */
+export function toTimeRangeParams(sel: TimeRangeSelection): TimeRangeParams {
+  if (sel.mode === "absolute") {
+    return { startTime: new Date(sel.start).toISOString(), endTime: new Date(sel.end).toISOString() };
+  }
+  // 非 absolute 模式下 toSince 一定有值
+  return { since: toSince(sel) ?? "" };
+}
+
+/**
  * 转换为时间跨度毫秒数（用于直方图 X 轴标签精度判断）
  */
 export function toSpanMs(sel: TimeRangeSelection): number {

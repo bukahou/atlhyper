@@ -1,40 +1,30 @@
 /**
- * 拉取当前集群的信号新鲜度
+ * 当前集群某个信号的新鲜度
  *
  * 四个观测页共用：空数据时用它说清楚是「没有流量」还是「采集异常」。
- * 判定在 Master 完成，这里只负责取数与挑出本页关心的那个信号。
+ * 判定在 Master 完成；取数是共用的一份查询（同一集群只请求一次），这里只挑出本页关心的那个信号。
  */
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useClusterStore } from "@/store/clusterStore";
-import { getSignalFreshness } from "@/datasource/metrics";
-import type { SignalFreshnessItem } from "@/types/observe";
+import { useQuery } from "@tanstack/react-query";
+import { signalFreshnessQuery } from "@/queries/observe-freshness";
+import type { FreshnessResponse, SignalFreshnessItem } from "@/types/observe";
+import { useCurrentCluster } from "./useCurrentCluster";
 
-/** 新鲜度变化很慢，60 秒一次足够，不跟着页面数据的刷新频率走 */
-const REFRESH_MS = 60_000;
+/** 从接口返回的全部信号里挑出一个；没有就是 null（徽章显示「未知」） */
+export function pickSignalFreshness(
+  freshness: FreshnessResponse | null | undefined,
+  signal: SignalFreshnessItem["signal"],
+): SignalFreshnessItem | null {
+  return freshness?.signals?.find((item) => item.signal === signal) ?? null;
+}
 
-export function useSignalFreshness(signal: SignalFreshnessItem["signal"]) {
-  const { currentClusterId } = useClusterStore();
-  const [item, setItem] = useState<SignalFreshnessItem | null>(null);
-
-  const load = useCallback(async () => {
-    if (!currentClusterId) return;
-    try {
-      const res = await getSignalFreshness(currentClusterId);
-      setItem(res?.signals?.find((s) => s.signal === signal) ?? null);
-    } catch {
-      // 取不到就显示「未知」，不影响主体数据 —— 新鲜度是辅助信息，不该让页面报错
-      setItem(null);
-    }
-  }, [currentClusterId, signal]);
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, REFRESH_MS);
-    return () => clearInterval(id);
-  }, [load]);
-
-  return item;
+export function useSignalFreshness(signal: SignalFreshnessItem["signal"]): SignalFreshnessItem | null {
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(signalFreshnessQuery(clusterId));
+  // 最近一次取数失败就显示「未知」，不继续显示上一次的结果：
+  // 新鲜度说的是「现在」，拿不到就是不知道。它是辅助信息，失败不该让页面报错
+  if (query.isError) return null;
+  return pickSignalFreshness(query.data, signal);
 }

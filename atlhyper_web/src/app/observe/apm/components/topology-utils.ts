@@ -1,3 +1,4 @@
+import type { Graph } from "@antv/g6";
 import type { HealthStatus, Topology } from "@/types/model/apm";
 
 /** Health-based ring color (Kibana-style softer palette) */
@@ -98,33 +99,29 @@ export function buildGraphData(topology: Topology) {
   return { nodes, edges };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function addState(g: any, id: string, state: string) {
+export function addState(g: Graph, id: string, state: string) {
   try {
     const cur: string[] = g.getElementState(id);
     if (!cur.includes(state)) g.setElementState(id, [...cur, state]);
   } catch { /* ignore */ }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function removeState(g: any, id: string, state: string) {
+export function removeState(g: Graph, id: string, state: string) {
   try {
     const cur: string[] = g.getElementState(id);
     if (cur.includes(state)) g.setElementState(id, cur.filter((s: string) => s !== state));
   } catch { /* ignore */ }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function applySelection(g: any, nodeId: string | null) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const n of g.getNodeData()) removeState(g, (n as any).id, "selected");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const e of g.getEdgeData()) removeState(g, (e as any).id, "selected");
+export function applySelection(g: Graph, nodeId: string | null) {
+  for (const n of g.getNodeData()) removeState(g, n.id, "selected");
+  for (const e of g.getEdgeData()) {
+    if (e.id !== undefined) removeState(g, e.id, "selected");
+  }
 
   if (!nodeId) return;
 
   addState(g, nodeId, "selected");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const e of g.getEdgeData()) {
     const ed = e as { id: string; source: string; target: string };
     if (ed.source === nodeId || ed.target === nodeId) {

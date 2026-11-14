@@ -1,34 +1,31 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
-import { useI18n } from "@/i18n/context";
-import { useClusterStore } from "@/store/clusterStore";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import {
-  RefreshCw,
-  WifiOff,
-  ChevronRight,
-} from "lucide-react";
-
+import { QueryView, TimeRangePicker } from "@/components/common";
 import { OTelGuard } from "@/components/observe/OTelGuard";
-import { queryLogs, queryLogHistogram } from "@/datasource/logs";
-import { TimeRangePicker } from "@/components/common";
-import { toSince, toAbsoluteParams, toSpanMs } from "@/lib/time-range";
-import { useObserveTimeRange } from "@/hooks/useObserveTimeRange";
-import { useSignalFreshness } from "@/hooks/useSignalFreshness";
 import { SignalFreshnessBadge } from "@/components/observe/SignalFreshnessBadge";
-
-import type { LogEntry, LogQueryResult, LogHistogramBucket } from "@/types/model/log";
-
-import { LogToolbar } from "./components/LogToolbar";
-import { LogFacets } from "./components/LogFacets";
-import { LogList } from "./components/LogList";
-import { LogHistogram } from "./components/LogHistogram";
+import { useCan } from "@/hooks/useCan";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useManualRefetch } from "@/hooks/useManualRefetch";
+import { useObserveTimeRange } from "@/hooks/useObserveTimeRange";
+import { useScopedState } from "@/hooks/useScopedState";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { useSignalFreshness } from "@/hooks/useSignalFreshness";
+import { useI18n } from "@/i18n/context";
+import { toSpanMs, toTimeRangeParams } from "@/lib/time-range";
+import { logsKeys } from "@/queries/keys";
+import { logHistogramQuery, logListQuery, resolveLogListRange, type BrushedBuckets } from "@/queries/observe-logs";
+import { REFRESH } from "@/queries/refresh";
+import type { LogEntry } from "@/types/model/log";
 import { LogDetailDrawer } from "./components/LogDetail";
-import { LogFilterPills } from "./components/LogFilterPills";
-import { PermissionLock } from "@/components/common/PermissionLock";
+import { LogExplorer } from "./components/LogExplorer";
+
+const PAGE_SIZE = 50;
 
 export default function LogsPage() {
   return (
@@ -41,31 +38,68 @@ export default function LogsPage() {
 function LogsPageContent() {
   const { t } = useI18n();
   const tl = t.logs;
-  const { currentClusterId } = useClusterStore();
+  const { clusterId } = useCurrentCluster();
+  // 日志正文需要 logs.read。权限加载完之前一律按没有权限算：不发请求，界面由 PermissionLock 显示加载中
+  const sessionReady = useSessionReady();
+  const can = useCan();
+  const canReadLogs = sessionReady && can("logs.read");
 
-  // URL ?traceId= / ?spanId= params
+  // URL ?trace= / ?spanId= params
   const searchParams = useSearchParams();
   // 参数名统一为 trace —— APM 页与 LogDetail 的跳转链接一直用它，
   // 这里此前读的是 traceId，等于三个地方两套叫法。保留旧名兼容已有链接。
   const urlTraceId = searchParams.get("trace") || searchParams.get("traceId") || undefined;
   const urlSpanId = searchParams.get("spanId") || undefined;
 
-  // Filter state
-  const [search, setSearch] = useState("");
+  // 搜索框里的字随敲随显，进查询键的是去抖后的值：停下来才发请求
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebouncedValue(searchInput);
   // 从其他信号跳转过来时预填过滤条件（如 SLO → 某服务的 ERROR 日志）
   const urlService = searchParams.get("service") || "";
   const urlSeverity = searchParams.get("severity") || "";
   const [selectedServices, setSelectedServices] = useState<string[]>(urlService ? [urlService] : []);
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>(urlSeverity ? [urlSeverity] : []);
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
-  const PAGE_SIZE = 50;
-  const [page, setPage] = useState(1);
 
-  // Facets panel collapse
-  const [facetsCollapsed, setFacetsCollapsed] = useState(false);
+  // 时间轴是全局的 —— 从 APM 切过来时保持同一段时间，不用重选
+  const { selection: timeSelection, setSelection: setTimeSelection } = useObserveTimeRange("full");
+  const freshness = useSignalFreshness("logs");
 
-  // Histogram brush time range
-  const [brushTimeRange, setBrushTimeRange] = useState<[number, number] | null>(null);
+  // 筛选条件 + 时间范围：直方图按它取数，也是 brush 选区与页码所依附的范围
+  const filterParams = useMemo(
+    () => ({
+      search,
+      services: selectedServices,
+      severities: selectedSeverities,
+      scopes: selectedScopes,
+      ...toTimeRangeParams(timeSelection),
+    }),
+    [search, selectedServices, selectedSeverities, selectedScopes, timeSelection],
+  );
+  const filterScope = JSON.stringify(filterParams);
+
+  // 筛选条件一变，brush 选区作废；筛选条件或选区一变，页码回到第一页
+  const [brush, setBrush] = useScopedState<BrushedBuckets | null>(filterScope, null);
+  const [page, setPage] = useScopedState(`${filterScope}|${JSON.stringify(brush)}`, 1);
+
+  const histogramQuery = useQuery(logHistogramQuery(clusterId, filterParams));
+  // 列表的查询条件里没有任何来自直方图返回的东西：选区的桶宽在选中那一刻就存进了 brush，
+  // 所以直方图刷新不会让列表重新请求，首屏两者各发一次
+  const listQuery = useQuery(
+    logListQuery(
+      clusterId,
+      {
+        ...filterParams,
+        ...resolveLogListRange(toTimeRangeParams(timeSelection), brush),
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+        traceId: urlTraceId,
+        spanId: urlSpanId,
+      },
+      canReadLogs,
+    ),
+  );
+  const { refetch: refreshLogs } = useManualRefetch(logsKeys.all);
 
   // Log detail drawer
   const [selectedEntry, setSelectedEntry] = useState<LogEntry | null>(null);
@@ -84,117 +118,10 @@ function LogsPageContent() {
     setSelectedEntry(null);
     setSelectedIdx(null);
   };
-
-  // Time range selection
-  // 时间轴是全局的 —— 从 APM 切过来时保持同一段时间，不用重选
-  const { selection: timeSelection, setSelection: setTimeSelection } = useObserveTimeRange("full");
-  const freshness = useSignalFreshness("logs");
-
-  // Reset page when any filter changes (including brush)
-  useEffect(() => {
-    setPage(1);
-  }, [search, selectedServices, selectedSeverities, selectedScopes, timeSelection, brushTimeRange]);
-
-  // Clear brush when non-brush filters change
-  useEffect(() => {
-    setBrushTimeRange(null);
-  }, [search, selectedServices, selectedSeverities, selectedScopes, timeSelection]);
-
-  // Histogram: independent request
-  const [histogramData, setHistogramData] = useState<LogHistogramBucket[]>([]);
-  const [histogramIntervalMs, setHistogramIntervalMs] = useState(0);
-
-  const loadHistogram = useCallback(async () => {
-    const since = toSince(timeSelection);
-    const abs = toAbsoluteParams(timeSelection);
-    const data = await queryLogHistogram({
-      clusterId: currentClusterId,
-      search,
-      services: selectedServices,
-      severities: selectedSeverities,
-      scopes: selectedScopes,
-      since: since,
-      startTime: abs.startTime,
-      endTime: abs.endTime,
-    });
-    setHistogramData(data.buckets);
-    setHistogramIntervalMs(data.intervalMs);
-  }, [currentClusterId, search, selectedServices, selectedSeverities, selectedScopes, timeSelection]);
-
-  useEffect(() => {
-    loadHistogram();
-  }, [loadHistogram]);
-
-  // Query logs
-  const emptyResult: LogQueryResult = { logs: [], total: 0, facets: { services: [], severities: [], scopes: [] } };
-  const [result, setResult] = useState<LogQueryResult>(emptyResult);
-
-  const loadLogs = useCallback(async () => {
-    const since = toSince(timeSelection);
-    const abs = toAbsoluteParams(timeSelection);
-    const brushActive = brushTimeRange !== null;
-
-    const data = await queryLogs({
-      clusterId: currentClusterId,
-      search,
-      services: selectedServices,
-      severities: selectedSeverities,
-      scopes: selectedScopes,
-      since,
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
-      startTime: brushActive ? brushTimeRange[0] : (abs.startTime ? new Date(abs.startTime).getTime() : undefined),
-      endTime: brushActive ? brushTimeRange[1] + histogramIntervalMs : (abs.endTime ? new Date(abs.endTime).getTime() : undefined),
-      traceId: urlTraceId,
-      spanId: urlSpanId,
-    });
-    setResult(data);
-  }, [currentClusterId, search, selectedServices, selectedSeverities, selectedScopes, timeSelection, page, brushTimeRange, histogramIntervalMs, urlTraceId, urlSpanId]);
-
-  useEffect(() => {
-    loadLogs();
-  }, [loadLogs]);
-
-  // 自动刷新（同时刷新日志列表和直方图）
-  const refreshAll = useCallback(() => {
-    loadLogs();
-    loadHistogram();
-  }, [loadLogs, loadHistogram]);
-
-  const { refresh, intervalSeconds } = useAutoRefresh(refreshAll, {
-    interval: 15000,
-    immediate: false, // loadLogs/loadHistogram 已经由各自的 useEffect 触发初始加载
-  });
-
-  const handlePageChange = (p: number) => {
-    setPage(p);
-    setSelectedEntry(null);
-    setSelectedIdx(null);
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+    handleCloseDrawer();
   };
-
-  // Filter helpers
-  const removeService = (v: string) => setSelectedServices((prev) => prev.filter((s) => s !== v));
-  const removeSeverity = (v: string) => setSelectedSeverities((prev) => prev.filter((s) => s !== v));
-  const removeScope = (v: string) => setSelectedScopes((prev) => prev.filter((s) => s !== v));
-  const clearAllFilters = () => {
-    setSelectedServices([]);
-    setSelectedSeverities([]);
-    setSelectedScopes([]);
-    setBrushTimeRange(null);
-  };
-
-  // No cluster selected
-  if (!currentClusterId) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center h-96 text-center">
-          <WifiOff className="w-12 h-12 mb-4 text-muted" />
-          <p className="text-default font-medium mb-2">{tl.noCluster}</p>
-          <p className="text-sm text-muted">{tl.noClusterDesc}</p>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>
@@ -214,10 +141,10 @@ function LogsPageContent() {
               t={tl}
             />
             <span className="text-xs text-muted bg-[var(--background)] px-2 py-1 rounded">
-              {intervalSeconds}s
+              {REFRESH.moderate / 1000}s
             </span>
             <button
-              onClick={refresh}
+              onClick={refreshLogs}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -226,82 +153,34 @@ function LogsPageContent() {
           </div>
         </div>
 
-        {/* Search toolbar */}
-        <LogToolbar
-          search={search}
-          onSearchChange={setSearch}
-          page={page}
-          pageSize={PAGE_SIZE}
-          total={result.total}
-          t={tl}
-        />
-
-        {/* Filter pills */}
-        <LogFilterPills
-          selectedSeverities={selectedSeverities}
-          selectedServices={selectedServices}
-          selectedScopes={selectedScopes}
-          brushTimeRange={brushTimeRange}
-          urlTraceId={urlTraceId}
-          onRemoveSeverity={removeSeverity}
-          onRemoveService={removeService}
-          onRemoveScope={removeScope}
-          onClearBrushTimeRange={() => setBrushTimeRange(null)}
-          onClearAll={clearAllFilters}
-          clearFiltersLabel={tl.clearFilters}
-        />
-
-        {/* Log volume histogram */}
-        <LogHistogram
-          data={histogramData}
-          intervalMs={histogramIntervalMs}
-          title={tl.logVolume}
-          timeSpanMs={toSpanMs(timeSelection)}
-          selectedTimeRange={brushTimeRange}
-          onTimeRangeSelect={setBrushTimeRange}
-        />
-
-        {/* Main content: facets + log list */}
-        <div className="flex gap-4">
-          {facetsCollapsed ? (
-            <button
-              onClick={() => setFacetsCollapsed(false)}
-              className="w-7 flex-shrink-0 flex flex-col items-center pt-1 rounded-lg border border-[var(--border-color)] bg-card hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
-            >
-              <ChevronRight className="w-3.5 h-3.5 text-muted" />
-            </button>
-          ) : (
-            <LogFacets
-              services={result.facets.services}
-              severities={result.facets.severities}
-              scopes={result.facets.scopes}
+        {/* 直方图只有计数、所有人可见，用它决定整页的加载 / 出错 / 无集群状态 */}
+        <QueryView query={histogramQuery} requireCluster>
+          {(histogram) => (
+            <LogExplorer
+              tl={tl}
+              histogram={histogram}
+              listQuery={listQuery}
+              timeSpanMs={toSpanMs(timeSelection)}
+              searchInput={searchInput}
+              onSearchInputChange={setSearchInput}
+              searchHighlight={search}
               selectedServices={selectedServices}
               selectedSeverities={selectedSeverities}
               selectedScopes={selectedScopes}
               onServicesChange={setSelectedServices}
               onSeveritiesChange={setSelectedSeverities}
               onScopesChange={setSelectedScopes}
-              onCollapse={() => setFacetsCollapsed(true)}
-              t={tl}
+              brush={brush}
+              onBrushChange={setBrush}
+              urlTraceId={urlTraceId}
+              page={page}
+              pageSize={PAGE_SIZE}
+              onPageChange={handlePageChange}
+              selectedIdx={selectedIdx}
+              onSelectEntry={handleSelectEntry}
             />
           )}
-
-          <div className="flex-1 min-w-0">
-            <PermissionLock permission="logs.read" className="bg-card rounded-xl border border-[var(--border-color)]">
-              <LogList
-                logs={result.logs}
-                total={result.total}
-                page={page}
-                pageSize={PAGE_SIZE}
-                onPageChange={handlePageChange}
-                onSelectEntry={handleSelectEntry}
-                selectedIdx={selectedIdx}
-                searchHighlight={search || undefined}
-                t={tl}
-              />
-            </PermissionLock>
-          </div>
-        </div>
+        </QueryView>
       </div>
 
       {/* Log detail drawer */}

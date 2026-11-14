@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   toSLOWindow,
+  toTimeRangeParams,
   formatRangeParam,
   parseRangeParam,
   SLO_WINDOWS,
@@ -86,5 +87,32 @@ describe("URL 参数编解码", () => {
   it("preset 用可读 key，custom 用值+单位 —— URL 要人能看懂", () => {
     expect(formatRangeParam({ mode: "preset", preset: "24h" })).toBe("range=24h");
     expect(formatRangeParam({ mode: "custom", value: 45, unit: "m" })).toBe("range=45m");
+  });
+});
+
+describe("toTimeRangeParams", () => {
+  // 结果会进查询键。相对范围只能带「范围的描述」：要是把现算的起止时间戳放进去，
+  // 键每次渲染都不一样，请求就停不下来。起止时间由后端在收到请求那一刻换算。
+  it("相对范围只带 since，没有时间戳", () => {
+    expect(toTimeRangeParams({ mode: "preset", preset: "1h" })).toEqual({ since: "1h" });
+    expect(toTimeRangeParams({ mode: "preset", preset: "7d" })).toEqual({ since: "168h" });
+    expect(toTimeRangeParams({ mode: "custom", value: 30, unit: "m" })).toEqual({ since: "30m" });
+    expect(Object.keys(toTimeRangeParams({ mode: "preset", preset: "1h" }))).toEqual(["since"]);
+  });
+
+  it("同一个相对范围隔一段时间再换算，结果不变", () => {
+    const first = toTimeRangeParams({ mode: "preset", preset: "15min" });
+    const later = toTimeRangeParams({ mode: "preset", preset: "15min" });
+    expect(first).toEqual(later);
+    expect(JSON.stringify(first)).toBe(JSON.stringify(later));
+  });
+
+  it("用户选的绝对范围带固定的起止时间，没有 since", () => {
+    const start = Date.UTC(2026, 0, 1, 8, 0, 0);
+    const end = Date.UTC(2026, 0, 1, 9, 30, 0);
+    expect(toTimeRangeParams({ mode: "absolute", start, end })).toEqual({
+      startTime: "2026-01-01T08:00:00.000Z",
+      endTime: "2026-01-01T09:30:00.000Z",
+    });
   });
 });

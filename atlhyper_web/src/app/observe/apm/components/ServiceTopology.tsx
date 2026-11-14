@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { useRef, useEffect, useEffectEvent, useMemo, useState } from "react";
 import type { Topology } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs } from "@/lib/format";
-import { ringColor, buildGraphData, addState, removeState, applySelection } from "./topology-utils";
+import { buildGraphData, addState, removeState, applySelection } from "./topology-utils";
+import { buildTopologyTooltip, type TopologyTooltipItem } from "./topology-tooltip";
 import { TopologyHeader, TopologyLegend } from "./TopologyLegend";
-import { safeHtml } from "@/lib/safe-html";
 
 interface ServiceTopologyProps {
   t: ApmTranslations;
@@ -14,7 +14,22 @@ interface ServiceTopologyProps {
   onSelectService: (name: string) => void;
 }
 
+/** G6 图实例里用到的方法（G6 是按需动态加载的，这里只声明用到的部分） */
+interface TopologyGraphInstance {
+  destroy: () => void;
+  updateData: (data: ReturnType<typeof buildGraphData>) => void;
+  draw: () => void;
+  resize: (width: number, height: number) => void;
+  fitView: () => void;
+}
+
+/** G6 指针事件里用到的部分 */
+interface GraphPointerEvent {
+  target?: { id?: string };
+}
+
 export function ServiceTopology({ t, topology, onSelectService }: ServiceTopologyProps) {
+  // 没有节点时不挂图（组件不隐藏，显示空状态）。图拆成子组件，hooks 才不会落在提前返回之后
   if (!topology.nodes || topology.nodes.length === 0) {
     return (
       <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">
@@ -25,16 +40,15 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
       </div>
     );
   }
+  return <ServiceTopologyGraph t={t} topology={topology} onSelectService={onSelectService} />;
+}
 
+function ServiceTopologyGraph({ t, topology, onSelectService }: ServiceTopologyProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const graphRef = useRef<any>(null);
+  const graphRef = useRef<TopologyGraphInstance | null>(null);
   const readyRef = useRef(false);
-  const onSelectRef = useRef(onSelectService);
-  onSelectRef.current = onSelectService;
 
   const [expanded, setExpanded] = useState(false);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const stats = useMemo(() => {
     const nodeCount = topology.nodes.length;
@@ -46,39 +60,40 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
     return { nodeCount, errorNodes, totalCalls, avgP99 };
   }, [topology]);
 
+  // 图的「形状」：节点与边的集合。只有形状变了才重建图；数值变了只更新数据（见下面第二个 effect）
   const topoKey = useMemo(() => {
     const nk = topology.nodes.map((n) => n.id).sort().join(",");
     const ek = topology.edges.map((e) => `${e.source}>${e.target}`).sort().join(",");
     return nk + "||" + ek;
   }, [topology]);
 
-  const buildData = useCallback(() => buildGraphData(topology), [topology]);
+  // 下面三个函数在「重建图」的 effect 里用，但要读的是最新的 topology / t / onSelectService。
+  // 它们不该成为 effect 的依赖 —— 否则每一轮轮询数值一变，整张图就销毁重画、布局重排
+  const buildLatestGraphData = useEffectEvent(() => buildGraphData(topology));
+  const renderTooltip = useEffectEvent((items: TopologyTooltipItem[] | undefined) => buildTopologyTooltip(items, t));
+  const selectServiceNode = useEffectEvent((nodeId: string) => {
+    const node = topology.nodes.find((n) => n.id === nodeId);
+    if (node?.type === "service") onSelectService(node.name);
+  });
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     readyRef.current = false;
-
-    if (graphRef.current) {
-      try { graphRef.current.destroy(); } catch { /* ignore */ }
-      graphRef.current = null;
-    }
     container.innerHTML = "";
 
     let destroyed = false;
 
-    async function createGraph() {
+    async function createGraph(graphContainer: HTMLDivElement) {
       const { Graph } = await import("@antv/g6");
-      if (destroyed || !container) return;
-
-      const data = buildData();
+      if (destroyed) return;
 
       const instance = new Graph({
-        container,
+        container: graphContainer,
         autoFit: "view",
         padding: [24, 40, 24, 40],
-        data,
+        data: buildLatestGraphData(),
         node: {
           style: { cursor: "pointer" as const },
           state: {
@@ -103,65 +118,7 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         plugins: [
           {
             type: "tooltip",
-            getContent: (
-              _event: unknown,
-              items: Array<{
-                id: string;
-                data?: {
-                  rps?: number;
-                  successRate?: number;
-                  p99Ms?: number;
-                  namespace?: string;
-                  type?: string;
-                  callCount?: number;
-                  avgMs?: number;
-                  errorRate?: number;
-                };
-              }>
-            ) => {
-              if (!items?.length) return "";
-              const item = items[0];
-              const d = item.data;
-              if (!d) return safeHtml`${item.id}`.toString();
-
-              // Node tooltip
-              if (d.rps !== undefined) {
-                const color = ringColor(
-                  d.successRate !== undefined && d.successRate < 0.95 ? "critical" : "healthy",
-                  d.successRate ?? 1
-                );
-                return safeHtml`<div style="padding:8px 12px;font-size:12px;border-radius:8px;background:rgba(0,0,0,0.88);color:#fff;min-width:140px;border-left:3px solid ${color}">
-                  <div style="font-weight:600;margin-bottom:4px">${item.id}</div>
-                  ${d.namespace ? safeHtml`<div style="opacity:0.6;margin-bottom:2px">${d.namespace}</div>` : ""}
-                  <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>RPS</span><span>${d.rps?.toFixed(3)}</span>
-                  </div>
-                  <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>${t.successRate}</span><span>${((d.successRate ?? 1) * 100).toFixed(1)}%</span>
-                  </div>
-                  <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>P99</span><span>${formatDurationMs(d.p99Ms ?? 0)}</span>
-                  </div>
-                </div>`.toString();
-              }
-
-              // Edge tooltip
-              if (d.callCount !== undefined) {
-                return safeHtml`<div style="padding:8px 12px;font-size:12px;border-radius:8px;background:rgba(0,0,0,0.88);color:#fff;min-width:120px">
-                  <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>${t.topoCalls}</span><span>${d.callCount}</span>
-                  </div>
-                  <div style="display:flex;justify-content:space-between;gap:12px;opacity:0.8">
-                    <span>${t.topoLatency}</span><span>${formatDurationMs(d.avgMs ?? 0)}</span>
-                  </div>
-                  ${(d.errorRate ?? 0) > 0 ? safeHtml`<div style="display:flex;justify-content:space-between;gap:12px;color:#f87171">
-                    <span>${t.topoErrorRate}</span><span>${((d.errorRate ?? 0) * 100).toFixed(1)}%</span>
-                  </div>` : ""}
-                </div>`.toString();
-              }
-
-              return safeHtml`${item.id}`.toString();
-            },
+            getContent: (_event: unknown, items: TopologyTooltipItem[]) => renderTooltip(items),
           },
         ],
         animation: true,
@@ -169,14 +126,12 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
 
       let hoveredIds: string[] = [];
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      instance.on("node:pointerover", (evt: any) => {
-        const nodeId = evt?.target?.id;
+      instance.on("node:pointerover", (evt) => {
+        const nodeId = (evt as GraphPointerEvent).target?.id;
         if (!nodeId) return;
         hoveredIds = [];
         const activate = (id: string) => { addState(instance, id, "active"); hoveredIds.push(id); };
         activate(nodeId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const e of instance.getEdgeData()) {
           const ed = e as { id: string; source: string; target: string };
           if (ed.source === nodeId || ed.target === nodeId) {
@@ -191,21 +146,15 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         hoveredIds = [];
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      instance.on("node:click", (evt: any) => {
-        const nodeId = evt?.target?.id;
+      instance.on("node:click", (evt) => {
+        const nodeId = (evt as GraphPointerEvent).target?.id;
         if (!nodeId) return;
-        const nodeData = topology.nodes.find((n) => n.id === nodeId);
         try { applySelection(instance, nodeId); } catch { /* ignore */ }
-        setSelectedNode(nodeId);
-        if (nodeData?.type === "service") {
-          onSelectRef.current(nodeData.name);
-        }
+        selectServiceNode(nodeId);
       });
 
       instance.on("canvas:click", () => {
         try { applySelection(instance, null); } catch { /* ignore */ }
-        setSelectedNode(null);
       });
 
       await instance.render();
@@ -219,7 +168,7 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
       readyRef.current = true;
     }
 
-    createGraph();
+    void createGraph(container);
 
     return () => {
       destroyed = true;
@@ -229,18 +178,17 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
         graphRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topoKey]);
 
+  // 形状没变、只是数值变了（轮询刷新）：原地更新数据，不重建图
   useEffect(() => {
     const g = graphRef.current;
     if (!g || !readyRef.current) return;
     try {
-      const data = buildData();
-      g.updateData(data);
+      g.updateData(buildGraphData(topology));
       g.draw();
     } catch { /* ignore */ }
-  }, [buildData]);
+  }, [topology]);
 
   useEffect(() => {
     const g = graphRef.current;
@@ -256,9 +204,6 @@ export function ServiceTopology({ t, topology, onSelectService }: ServiceTopolog
     }, 50);
     return () => clearTimeout(timer);
   }, [expanded]);
-
-  // Suppress unused-var warning — selectedNode is set for future detail panel usage
-  void selectedNode;
 
   return (
     <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">

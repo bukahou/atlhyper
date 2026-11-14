@@ -728,35 +728,16 @@ export interface ConfigMapRequest {
   Namespace: string;
 }
 
-// ConfigMap 数据条目
-export interface ConfigMapDataEntry {
-  key: string;
-  size: number;
-  preview?: string;
-  truncated?: boolean;
-}
-
-// ConfigMap 二进制条目
-export interface ConfigMapBinaryEntry {
-  key: string;
-  size: number;
-}
-
-// ConfigMap DTO
+// ConfigMap 列表项 —— 字段与 GET /api/v2/configmaps 的返回一致。
+// 列表只带键名；键值内容经指令通道单独读取，这里没有大小信息。
 export interface ConfigMapDTO {
   name: string;
   namespace: string;
+  uid?: string;
   createdAt?: string;
-  age?: string;
   immutable?: boolean;
   labels?: Record<string, string>;
-  annotations?: Record<string, string>;
-  keys: number;
-  binaryKeys: number;
-  totalSizeBytes: number;
-  binaryTotalSizeBytes: number;
-  data?: ConfigMapDataEntry[];
-  binary?: ConfigMapBinaryEntry[];
+  dataKeys?: string[]; // 只有键名，不含值
 }
 
 // Secret DTO - 匹配后端 model_v2.Secret

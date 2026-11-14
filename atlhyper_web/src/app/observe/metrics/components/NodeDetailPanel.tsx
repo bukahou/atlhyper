@@ -1,7 +1,11 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { QueryView } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
 import { useI18n } from "@/i18n/context";
-import type { NodeMetrics, Point } from "@/types/node-metrics";
+import { nodeMetricsHistoryQuery } from "@/queries/observe-metrics";
+import type { NodeMetrics } from "@/types/node-metrics";
 import type { HardwareRow } from "@/types/hardware";
 import { ResourceChart } from "./ResourceChart";
 import { CPUCard } from "./CPUCard";
@@ -24,8 +28,9 @@ import { VMStatCard } from "./VMStatCard";
 
 interface NodeDetailPanelProps {
   metrics: NodeMetrics;
-  historyData: Record<string, Point[]>;
   hardware: HardwareRow | null;
+  /** 趋势图取最近多少小时的历史，跟随页面级 TimeRangePicker */
+  historyHours: number;
   /** 趋势图时间窗（毫秒），跟随页面级 TimeRangePicker */
   spanMs: number;
 }
@@ -38,9 +43,13 @@ function uptimeStr(seconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-export function NodeDetailPanel({ metrics, historyData, hardware, spanMs }: NodeDetailPanelProps) {
+export function NodeDetailPanel({ metrics, hardware, historyHours, spanMs }: NodeDetailPanelProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
+  const { clusterId } = useCurrentCluster();
+  // 面板只在行展开时挂载，所以历史只在展开时取；「节点 + 时间范围」各自缓存，
+  // 收起再展开、或这个节点正好在集群趋势图的 top 名单里时，直接用已有的那一份
+  const historyQuery = useQuery(nodeMetricsHistoryQuery(clusterId, metrics.nodeName, historyHours));
 
   return (
     <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-4 sm:space-y-6 bg-[var(--background)]/40">
@@ -52,7 +61,9 @@ export function NodeDetailPanel({ metrics, historyData, hardware, spanMs }: Node
       </div>
 
       {/* 资源趋势图 */}
-      <ResourceChart data={historyData} spanMs={spanMs} />
+      <QueryView query={historyQuery}>
+        {(history) => <ResourceChart data={history} spanMs={spanMs} />}
+      </QueryView>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
         <CPUCard data={metrics.cpu} />
