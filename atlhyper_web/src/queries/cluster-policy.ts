@@ -17,6 +17,7 @@ import {
   getServiceAccountList,
 } from "@/datasource/cluster";
 import { clusterKeys, type NamespacedTarget } from "./keys";
+import { clusterDataAvailable } from "./availability";
 import { REFRESH } from "./refresh";
 
 // ============================================================
@@ -28,7 +29,8 @@ export function networkPolicyListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("netpol", clusterId, getDataSourceMode("netpol")),
     queryFn: ({ signal }) => getNetworkPolicyList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("netpol")),
   });
 }
 
@@ -37,7 +39,7 @@ export function networkPolicyDetailQuery(clusterId: string, target: NamespacedTa
     queryKey: clusterKeys.resourceDetail("netpol", clusterId, getDataSourceMode("netpol"), target),
     queryFn: ({ signal }) =>
       getNetworkPolicyDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("netpol")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -50,7 +52,8 @@ export function resourceQuotaListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("quota", clusterId, getDataSourceMode("quota")),
     queryFn: ({ signal }) => getResourceQuotaList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("quota")),
   });
 }
 
@@ -59,7 +62,7 @@ export function resourceQuotaDetailQuery(clusterId: string, target: NamespacedTa
     queryKey: clusterKeys.resourceDetail("quota", clusterId, getDataSourceMode("quota"), target),
     queryFn: ({ signal }) =>
       getResourceQuotaDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("quota")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -72,7 +75,8 @@ export function limitRangeListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("limit", clusterId, getDataSourceMode("limit")),
     queryFn: ({ signal }) => getLimitRangeList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("limit")),
   });
 }
 
@@ -81,7 +85,7 @@ export function limitRangeDetailQuery(clusterId: string, target: NamespacedTarge
     queryKey: clusterKeys.resourceDetail("limit", clusterId, getDataSourceMode("limit"), target),
     queryFn: ({ signal }) =>
       getLimitRangeDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("limit")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -94,7 +98,8 @@ export function serviceAccountListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("sa", clusterId, getDataSourceMode("sa")),
     queryFn: ({ signal }) => getServiceAccountList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("sa")),
   });
 }
 
@@ -103,6 +108,6 @@ export function serviceAccountDetailQuery(clusterId: string, target: NamespacedT
     queryKey: clusterKeys.resourceDetail("sa", clusterId, getDataSourceMode("sa"), target),
     queryFn: ({ signal }) =>
       getServiceAccountDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("sa")) && target.namespace !== "" && target.name !== "",
   });
 }

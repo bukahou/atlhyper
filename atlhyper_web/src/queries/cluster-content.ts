@@ -8,6 +8,7 @@ import { queryOptions, skipToken } from "@tanstack/react-query";
 import { getDataSourceMode } from "@/config/data-source";
 import { getConfigMapData, getPodLogs, getSecretData } from "@/datasource/cluster";
 import { clusterKeys, type NamespacedTarget, type PodLogStream } from "./keys";
+import { clusterDataAvailable } from "./availability";
 
 const COMMAND_BACKED_READ = { retry: false, refetchOnWindowFocus: false } as const;
 
@@ -35,7 +36,7 @@ export function podLogsQuery(clusterId: string, stream: PodLogStream | null) {
               },
               signal,
             ),
-    enabled: clusterId !== "" && stream !== null && stream.namespace !== "" && stream.podName !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("pod")) && stream !== null && stream.namespace !== "" && stream.podName !== "",
     placeholderData: (previousLogs, previousQuery) => {
       const previous = previousQuery?.queryKey[2];
       const current = queryKey[2];
@@ -62,7 +63,7 @@ export function configMapDataQuery(clusterId: string, target: NamespacedTarget) 
     queryKey: clusterKeys.configMapData(clusterId, getDataSourceMode("namespace"), target),
     queryFn: ({ signal }) =>
       getConfigMapData({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("namespace")) && target.namespace !== "" && target.name !== "",
     staleTime: Infinity,
     gcTime: 0,
     ...COMMAND_BACKED_READ,
@@ -75,7 +76,7 @@ export function secretDataQuery(clusterId: string, target: NamespacedTarget) {
     queryKey: clusterKeys.secretData(clusterId, getDataSourceMode("namespace"), target),
     queryFn: ({ signal }) =>
       getSecretData({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("namespace")) && target.namespace !== "" && target.name !== "",
     staleTime: Infinity,
     gcTime: 0,
     ...COMMAND_BACKED_READ,

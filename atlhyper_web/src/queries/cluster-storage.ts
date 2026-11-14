@@ -13,6 +13,7 @@ import {
   getPVList,
 } from "@/datasource/cluster";
 import { clusterKeys, type NamespacedTarget } from "./keys";
+import { clusterDataAvailable } from "./availability";
 import { REFRESH } from "./refresh";
 
 // ============================================================
@@ -24,7 +25,8 @@ export function pvListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("pv", clusterId, getDataSourceMode("pv")),
     queryFn: ({ signal }) => getPVList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("pv")),
   });
 }
 
@@ -33,7 +35,7 @@ export function pvDetailQuery(clusterId: string, pvName: string) {
   return queryOptions({
     queryKey: clusterKeys.resourceDetail("pv", clusterId, getDataSourceMode("pv"), { name: pvName }),
     queryFn: ({ signal }) => getPVDetail({ ClusterID: clusterId, Name: pvName }, signal),
-    enabled: clusterId !== "" && pvName !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("pv")) && pvName !== "",
   });
 }
 
@@ -46,7 +48,8 @@ export function pvcListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("pvc", clusterId, getDataSourceMode("pvc")),
     queryFn: ({ signal }) => getPVCList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("pvc")),
   });
 }
 
@@ -55,6 +58,6 @@ export function pvcDetailQuery(clusterId: string, target: NamespacedTarget) {
     queryKey: clusterKeys.resourceDetail("pvc", clusterId, getDataSourceMode("pvc"), target),
     queryFn: ({ signal }) =>
       getPVCDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("pvc")) && target.namespace !== "" && target.name !== "",
   });
 }

@@ -27,12 +27,14 @@ export interface ViewStateInput {
  *
  * 「无集群」必须先于「加载中」：没有集群时查询不会启用、一直处于 pending，
  * 顺序反了页面就会永远转圈。集群列表还没加载完时不能断定「无集群」，按加载中处理。
+ *
+ * 已经有数据时不显示「无集群」：演示数据不依赖集群，没有集群也照常显示。
  */
 export function resolveViewState(input: ViewStateInput): ViewState {
-  if (input.requireCluster && !input.hasCluster) {
-    return input.clusterListLoaded ? "no-cluster" : "loading";
-  }
   if (!input.hasData) {
+    if (input.requireCluster && !input.hasCluster) {
+      return input.clusterListLoaded ? "no-cluster" : "loading";
+    }
     if (input.isError) return "error";
     return "loading";
   }

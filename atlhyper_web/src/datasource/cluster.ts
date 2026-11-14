@@ -11,27 +11,20 @@
 
 import { getDataSourceMode } from "@/config/data-source";
 import {
-  mockGetPodList,
   mockGetPodOverview,
   mockGetPodDetail,
-  mockGetNodeList,
   mockGetNodeOverview,
   mockGetNodeDetail,
-  mockGetDeploymentList,
   mockGetDeploymentOverview,
   mockGetDeploymentDetail,
-  mockGetServiceList,
   mockGetServiceOverview,
   mockGetServiceDetail,
-  mockGetNamespaceList,
   mockGetNamespaceOverview,
   mockGetNamespaceDetail,
   mockGetConfigMapList,
   mockGetSecretList,
-  mockGetIngressList,
   mockGetIngressOverview,
   mockGetIngressDetail,
-  mockGetEventList,
   mockGetEventOverview,
 } from "@/mock/cluster";
 import * as podApi from "@/api/pod";
@@ -41,7 +34,7 @@ import * as serviceApi from "@/api/service";
 import * as namespaceApi from "@/api/namespace";
 import * as ingressApi from "@/api/ingress";
 import * as eventApi from "@/api/event";
-import type { NamespacedListParams, NamespacedResourceParams } from "./cluster-params";
+import type { NamespacedResourceParams } from "./cluster-params";
 
 export * from "./cluster-workload";
 export * from "./cluster-storage";
@@ -50,11 +43,6 @@ export * from "./cluster-policy";
 // ============================================================
 // Pod
 // ============================================================
-
-export async function getPodList(params: NamespacedListParams, signal?: AbortSignal) {
-  if (getDataSourceMode("pod") === "mock") return mockGetPodList({ namespace: params.namespace }).data.data;
-  return (await podApi.getPodList(params, signal)).data.data ?? [];
-}
 
 export async function getPodOverview(params: { ClusterID: string }, signal?: AbortSignal) {
   if (getDataSourceMode("pod") === "mock") return mockGetPodOverview().data.data;
@@ -86,11 +74,6 @@ export async function getPodLogs(
 // Node
 // ============================================================
 
-export async function getNodeList(params: { cluster_id: string }, signal?: AbortSignal) {
-  if (getDataSourceMode("node") === "mock") return mockGetNodeList().data.data;
-  return (await nodeApi.getNodeList(params, signal)).data.data ?? [];
-}
-
 export async function getNodeOverview(params: { ClusterID: string }, signal?: AbortSignal) {
   if (getDataSourceMode("node") === "mock") return mockGetNodeOverview().data.data;
   return (await nodeApi.getNodeOverview(params, signal)).data.data;
@@ -104,13 +87,6 @@ export async function getNodeDetail(params: { ClusterID: string; NodeName: strin
 // ============================================================
 // Deployment
 // ============================================================
-
-export async function getDeploymentList(params: NamespacedListParams, signal?: AbortSignal) {
-  if (getDataSourceMode("deployment") === "mock") {
-    return mockGetDeploymentList({ namespace: params.namespace }).data.data;
-  }
-  return (await deploymentApi.getDeploymentList(params, signal)).data.data ?? [];
-}
 
 export async function getDeploymentOverview(params: { ClusterID: string }, signal?: AbortSignal) {
   if (getDataSourceMode("deployment") === "mock") return mockGetDeploymentOverview().data.data;
@@ -128,11 +104,6 @@ export async function getDeploymentDetail(params: NamespacedResourceParams, sign
 // Service
 // ============================================================
 
-export async function getServiceList(params: NamespacedListParams, signal?: AbortSignal) {
-  if (getDataSourceMode("service") === "mock") return mockGetServiceList({ namespace: params.namespace }).data.data;
-  return (await serviceApi.getServiceList(params, signal)).data.data ?? [];
-}
-
 export async function getServiceOverview(params: { ClusterID: string }, signal?: AbortSignal) {
   if (getDataSourceMode("service") === "mock") return mockGetServiceOverview().data.data;
   return (await serviceApi.getServiceOverview(params, signal)).data.data;
@@ -146,11 +117,6 @@ export async function getServiceDetail(params: NamespacedResourceParams, signal?
 // ============================================================
 // Namespace（含其下的 ConfigMap / Secret）
 // ============================================================
-
-export async function getNamespaceList(params: { cluster_id: string }, signal?: AbortSignal) {
-  if (getDataSourceMode("namespace") === "mock") return mockGetNamespaceList().data.data;
-  return (await namespaceApi.getNamespaceList(params, signal)).data.data ?? [];
-}
 
 export async function getNamespaceOverview(params: { ClusterID: string }, signal?: AbortSignal) {
   if (getDataSourceMode("namespace") === "mock") return mockGetNamespaceOverview().data.data;
@@ -186,11 +152,6 @@ export function getSecretData(params: NamespacedResourceParams, signal?: AbortSi
 // Ingress
 // ============================================================
 
-export async function getIngressList(params: NamespacedListParams, signal?: AbortSignal) {
-  if (getDataSourceMode("ingress") === "mock") return mockGetIngressList({ namespace: params.namespace }).data.data;
-  return (await ingressApi.getIngressList(params, signal)).data.data ?? [];
-}
-
 export async function getIngressOverview(params: { ClusterID: string }, signal?: AbortSignal) {
   if (getDataSourceMode("ingress") === "mock") return mockGetIngressOverview().data.data;
   return (await ingressApi.getIngressOverview(params, signal)).data.data;
@@ -204,16 +165,6 @@ export async function getIngressDetail(params: NamespacedResourceParams, signal?
 // ============================================================
 // Event
 // ============================================================
-
-export async function getEventList(
-  params: { cluster_id: string; namespace?: string; type?: string },
-  signal?: AbortSignal,
-) {
-  if (getDataSourceMode("event") === "mock") {
-    return mockGetEventList({ namespace: params.namespace, type: params.type }).data.events;
-  }
-  return (await eventApi.getEventList(params, signal)).data.events ?? [];
-}
 
 /** 事件概览。返回解包后的数据；signal 用于取消请求 */
 export async function getEventOverview(

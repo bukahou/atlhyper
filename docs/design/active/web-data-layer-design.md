@@ -1,6 +1,6 @@
 # 前端数据层：统一用 TanStack Query 取数
 
-> 状态：执行中。「裁决记录」一节的三项已于 2026-11-14 由用户裁定。第 1 期已完成。
+> 状态：执行中。「裁决记录」一节的三项已于 2026-11-14 由用户裁定。第 1、2 期已完成。
 > 本设计只改前端，不新增也不修改任何后端接口，因此没有 API 定义与三层数据对照。
 
 ## 背景
@@ -81,6 +81,13 @@ return <QueryView query={query} empty={...}>{(data) => <EventTable data={data} /
 
 工厂是纯函数，可以不依赖 React 单测（`QueryClient.fetchQuery`）。
 
+工厂的约定（第 2 期定型）：
+
+- 启用条件用 `clusterDataAvailable(clusterId, mode)`：真实接口需要选定集群，演示数据不依赖集群
+- 需要权限的查询，把「有没有权限」作为布尔参数传进工厂（如 `secretListQuery(clusterId, namespace, canReadSecrets)`），工厂本身不读权限状态
+- 轮询查询同时设 `refetchInterval` 与等长的 `staleTime`
+- 详情弹窗用 `DetailQueryView`（保持抽屉原有观感），列表用 `QueryView`
+
 ### 全局默认值
 
 | 项 | 值 | 理由 |
@@ -144,8 +151,8 @@ return <QueryView query={query} empty={...}>{(data) => <EventTable data={data} /
   - `app/` 与 `components/` 下不得值导入 `@/api/*`
   - 不得使用 `useAutoRefresh`
   - 「在 `useEffect` 里取数再 setState」由 lint 规则 `react-hooks/set-state-in-effect` 拦
-  - 迁移期间两份清单标明还没迁的文件：`src/queries/legacy-fetch-files.ts`（守卫测试豁免，第 1 期后 51 个）
-    与 `eslint.legacy-files.mjs`（react-hooks 规则降为警告，第 1 期后 81 个）。每迁一批删一批，最后一期清空
+  - 迁移期间两份清单标明还没迁的文件：`src/queries/legacy-fetch-files.ts`（守卫测试豁免，第 2 期后 30 个）
+    与 `eslint.legacy-files.mjs`（react-hooks 规则降为警告，第 2 期后 47 个）。每迁一批删一批，最后一期清空
 
 ## 功能一：基础设施与样板页（第 1 期）
 

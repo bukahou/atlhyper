@@ -17,6 +17,7 @@ import {
   getStatefulSetList,
 } from "@/datasource/cluster";
 import { clusterKeys, type NamespacedTarget } from "./keys";
+import { clusterDataAvailable } from "./availability";
 import { REFRESH } from "./refresh";
 
 // ============================================================
@@ -28,7 +29,8 @@ export function statefulSetListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("statefulset", clusterId, getDataSourceMode("statefulset")),
     queryFn: ({ signal }) => getStatefulSetList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("statefulset")),
   });
 }
 
@@ -37,7 +39,7 @@ export function statefulSetDetailQuery(clusterId: string, target: NamespacedTarg
     queryKey: clusterKeys.resourceDetail("statefulset", clusterId, getDataSourceMode("statefulset"), target),
     queryFn: ({ signal }) =>
       getStatefulSetDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("statefulset")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -50,7 +52,8 @@ export function daemonSetListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("daemonset", clusterId, getDataSourceMode("daemonset")),
     queryFn: ({ signal }) => getDaemonSetList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("daemonset")),
   });
 }
 
@@ -59,7 +62,7 @@ export function daemonSetDetailQuery(clusterId: string, target: NamespacedTarget
     queryKey: clusterKeys.resourceDetail("daemonset", clusterId, getDataSourceMode("daemonset"), target),
     queryFn: ({ signal }) =>
       getDaemonSetDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("daemonset")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -72,7 +75,8 @@ export function jobListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("job", clusterId, getDataSourceMode("job")),
     queryFn: ({ signal }) => getJobList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("job")),
   });
 }
 
@@ -81,7 +85,7 @@ export function jobDetailQuery(clusterId: string, target: NamespacedTarget) {
     queryKey: clusterKeys.resourceDetail("job", clusterId, getDataSourceMode("job"), target),
     queryFn: ({ signal }) =>
       getJobDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("job")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -94,7 +98,8 @@ export function cronJobListQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("cronjob", clusterId, getDataSourceMode("cronjob")),
     queryFn: ({ signal }) => getCronJobList({ cluster_id: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("cronjob")),
   });
 }
 
@@ -103,6 +108,6 @@ export function cronJobDetailQuery(clusterId: string, target: NamespacedTarget) 
     queryKey: clusterKeys.resourceDetail("cronjob", clusterId, getDataSourceMode("cronjob"), target),
     queryFn: ({ signal }) =>
       getCronJobDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("cronjob")) && target.namespace !== "" && target.name !== "",
   });
 }

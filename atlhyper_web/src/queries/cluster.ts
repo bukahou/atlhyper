@@ -29,6 +29,7 @@ import {
   getServiceOverview,
 } from "@/datasource/cluster";
 import { clusterKeys, type EventSubject, type NamespacedTarget } from "./keys";
+import { clusterDataAvailable } from "./availability";
 import { REFRESH } from "./refresh";
 
 // ============================================================
@@ -41,7 +42,8 @@ export function eventOverviewQuery(clusterId: string) {
     queryKey: clusterKeys.events(clusterId, getDataSourceMode("event")),
     queryFn: ({ signal }) => getEventOverview({ ClusterID: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("event")),
   });
 }
 
@@ -54,7 +56,7 @@ export function resourceEventsQuery(clusterId: string, subject: EventSubject) {
         { cluster_id: clusterId, kind: subject.kind, namespace: subject.namespace, name: subject.name },
         signal,
       ),
-    enabled: clusterId !== "" && subject.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("event")) && subject.name !== "",
   });
 }
 
@@ -67,7 +69,8 @@ export function podOverviewQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("pod", clusterId, getDataSourceMode("pod")),
     queryFn: ({ signal }) => getPodOverview({ ClusterID: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("pod")),
   });
 }
 
@@ -76,7 +79,7 @@ export function podDetailQuery(clusterId: string, target: NamespacedTarget) {
     queryKey: clusterKeys.resourceDetail("pod", clusterId, getDataSourceMode("pod"), target),
     queryFn: ({ signal }) =>
       getPodDetail({ ClusterID: clusterId, Namespace: target.namespace, PodName: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("pod")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -89,7 +92,8 @@ export function nodeOverviewQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("node", clusterId, getDataSourceMode("node")),
     queryFn: ({ signal }) => getNodeOverview({ ClusterID: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("node")),
   });
 }
 
@@ -97,7 +101,7 @@ export function nodeDetailQuery(clusterId: string, nodeName: string) {
   return queryOptions({
     queryKey: clusterKeys.resourceDetail("node", clusterId, getDataSourceMode("node"), { name: nodeName }),
     queryFn: ({ signal }) => getNodeDetail({ ClusterID: clusterId, NodeName: nodeName }, signal),
-    enabled: clusterId !== "" && nodeName !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("node")) && nodeName !== "",
   });
 }
 
@@ -110,7 +114,8 @@ export function deploymentOverviewQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("deployment", clusterId, getDataSourceMode("deployment")),
     queryFn: ({ signal }) => getDeploymentOverview({ ClusterID: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("deployment")),
   });
 }
 
@@ -119,7 +124,7 @@ export function deploymentDetailQuery(clusterId: string, target: NamespacedTarge
     queryKey: clusterKeys.resourceDetail("deployment", clusterId, getDataSourceMode("deployment"), target),
     queryFn: ({ signal }) =>
       getDeploymentDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("deployment")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -132,7 +137,8 @@ export function serviceOverviewQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("service", clusterId, getDataSourceMode("service")),
     queryFn: ({ signal }) => getServiceOverview({ ClusterID: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("service")),
   });
 }
 
@@ -141,7 +147,7 @@ export function serviceDetailQuery(clusterId: string, target: NamespacedTarget) 
     queryKey: clusterKeys.resourceDetail("service", clusterId, getDataSourceMode("service"), target),
     queryFn: ({ signal }) =>
       getServiceDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("service")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -154,7 +160,8 @@ export function ingressOverviewQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("ingress", clusterId, getDataSourceMode("ingress")),
     queryFn: ({ signal }) => getIngressOverview({ ClusterID: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("ingress")),
   });
 }
 
@@ -163,7 +170,7 @@ export function ingressDetailQuery(clusterId: string, target: NamespacedTarget) 
     queryKey: clusterKeys.resourceDetail("ingress", clusterId, getDataSourceMode("ingress"), target),
     queryFn: ({ signal }) =>
       getIngressDetail({ ClusterID: clusterId, Namespace: target.namespace, Name: target.name }, signal),
-    enabled: clusterId !== "" && target.namespace !== "" && target.name !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("ingress")) && target.namespace !== "" && target.name !== "",
   });
 }
 
@@ -176,7 +183,8 @@ export function namespaceOverviewQuery(clusterId: string) {
     queryKey: clusterKeys.resourceList("namespace", clusterId, getDataSourceMode("namespace")),
     queryFn: ({ signal }) => getNamespaceOverview({ ClusterID: clusterId }, signal),
     refetchInterval: REFRESH.standard,
-    enabled: clusterId !== "",
+    staleTime: REFRESH.standard,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("namespace")),
   });
 }
 
@@ -186,7 +194,7 @@ export function namespaceDetailQuery(clusterId: string, namespaceName: string) {
       name: namespaceName,
     }),
     queryFn: ({ signal }) => getNamespaceDetail({ ClusterID: clusterId, Namespace: namespaceName }, signal),
-    enabled: clusterId !== "" && namespaceName !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("namespace")) && namespaceName !== "",
   });
 }
 
@@ -195,7 +203,7 @@ export function configMapListQuery(clusterId: string, namespace: string) {
   return queryOptions({
     queryKey: clusterKeys.configMapList(clusterId, getDataSourceMode("namespace"), namespace),
     queryFn: ({ signal }) => getConfigMapList({ cluster_id: clusterId, namespace }, signal),
-    enabled: clusterId !== "" && namespace !== "",
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("namespace")) && namespace !== "",
   });
 }
 
@@ -209,6 +217,6 @@ export function secretListQuery(clusterId: string, namespace: string, canReadSec
   return queryOptions({
     queryKey: clusterKeys.secretList(clusterId, getDataSourceMode("namespace"), namespace),
     queryFn: ({ signal }) => getSecretList({ cluster_id: clusterId, namespace }, signal),
-    enabled: clusterId !== "" && namespace !== "" && canReadSecrets,
+    enabled: clusterDataAvailable(clusterId, getDataSourceMode("namespace")) && namespace !== "" && canReadSecrets,
   });
 }
