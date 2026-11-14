@@ -60,13 +60,14 @@ interface ClusterResourceParams {
 // API Functions
 // ============================================================
 
-export function getResourceQuotaList(params: ClusterResourceParams) {
-  return get<ListResponse<ResourceQuotaItem>>("/api/v2/resource-quotas", params);
+export function getResourceQuotaList(params: ClusterResourceParams, signal?: AbortSignal) {
+  return get<ListResponse<ResourceQuotaItem>>("/api/v2/resource-quotas", params, signal);
 }
 
-export function getResourceQuotaDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
+export function getResourceQuotaDetail(params: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<DetailResponse<ResourceQuotaDetail>>(
     `/api/v2/resource-quotas/${encodeURIComponent(params.Name)}`,
-    { cluster_id: params.ClusterID, namespace: params.Namespace }
+    { cluster_id: params.ClusterID, namespace: params.Namespace },
+    signal,
   );
 }

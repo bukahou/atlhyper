@@ -1,40 +1,26 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getIngressOverview } from "@/datasource/cluster";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { PageHeader, StatsCard, DataTable, type TableColumn } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
+import { PageHeader, QueryView, StatsCard, DataTable, type TableColumn } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { ingressOverviewQuery } from "@/queries/cluster";
+import { REFRESH } from "@/queries/refresh";
 import { Globe, Lock, Eye } from "lucide-react";
-import type { IngressItem, IngressOverview } from "@/types/cluster";
+import type { IngressItem } from "@/types/cluster";
 import { IngressDetailModal } from "@/components/ingress";
 
 export default function IngressPage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<IngressOverview | null>(null);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(ingressOverviewQuery(clusterId));
+  const data = query.data;
 
   // 详情弹窗状态
   const [selectedIngress, setSelectedIngress] = useState<{ namespace: string; name: string } | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setError("");
-    try {
-      const res = await getIngressOverview({ ClusterID: currentClusterId });
-      setData(res.data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const { refresh, intervalSeconds } = useAutoRefresh(fetchData);
 
   const columns: TableColumn<IngressItem>[] = [
     {
@@ -114,8 +100,8 @@ export default function IngressPage() {
         <PageHeader
           title={t.nav.ingress}
           description={t.ingress.pageDescription}
-          autoRefreshSeconds={intervalSeconds}
-          onRefresh={refresh}
+          autoRefreshSeconds={REFRESH.standard / 1000}
+          onRefresh={() => void query.refetch()}
         />
 
         {data && (
@@ -127,16 +113,20 @@ export default function IngressPage() {
           </div>
         )}
 
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <DataTable
-            columns={columns}
-            data={data?.rows || []}
-            loading={loading}
-            error={error}
-            keyExtractor={(ing, index) => `${index}-${ing.namespace}/${ing.name}/${ing.host}${ing.path}`}
-            onRowClick={handleViewDetail}
-          />
-        </div>
+        <QueryView query={query} requireCluster>
+          {() => (
+            <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={data?.rows || []}
+                loading={false}
+                error=""
+                keyExtractor={(ing, index) => `${index}-${ing.namespace}/${ing.name}/${ing.host}${ing.path}`}
+                onRowClick={handleViewDetail}
+              />
+            </div>
+          )}
+        </QueryView>
       </div>
 
       {/* Ingress 详情弹窗 */}

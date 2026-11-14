@@ -65,13 +65,14 @@ interface ClusterResourceParams {
 // API Functions
 // ============================================================
 
-export function getLimitRangeList(params: ClusterResourceParams) {
-  return get<ListResponse<LimitRangeItem>>("/api/v2/limit-ranges", params);
+export function getLimitRangeList(params: ClusterResourceParams, signal?: AbortSignal) {
+  return get<ListResponse<LimitRangeItem>>("/api/v2/limit-ranges", params, signal);
 }
 
-export function getLimitRangeDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
+export function getLimitRangeDetail(params: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<DetailResponse<LimitRangeDetail>>(
     `/api/v2/limit-ranges/${encodeURIComponent(params.Name)}`,
-    { cluster_id: params.ClusterID, namespace: params.Namespace }
+    { cluster_id: params.ClusterID, namespace: params.Namespace },
+    signal,
   );
 }

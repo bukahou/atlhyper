@@ -1,22 +1,25 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getDaemonSetList } from "@/datasource/cluster";
 import type { DaemonSetListItem } from "@/api/workload";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { PageHeader, StatsCard, DataTable, StatusBadge, FilterBar, type TableColumn } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
+import { PageHeader, QueryView, StatsCard, DataTable, StatusBadge, FilterBar, type TableColumn } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { daemonSetListQuery } from "@/queries/cluster-workload";
+import { REFRESH } from "@/queries/refresh";
 import { Eye } from "lucide-react";
 import { DaemonSetDetailModal } from "@/components/daemonset";
 
+// 还没有数据时始终用同一个空数组：每次渲染换一个新数组会让下面的 useMemo 全部白算
+const NO_ITEMS: DaemonSetListItem[] = [];
+
 export default function DaemonSetPage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<DaemonSetListItem[]>([]);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(daemonSetListQuery(clusterId));
+  const items = query.data ?? NO_ITEMS;
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -27,20 +30,6 @@ export default function DaemonSetPage() {
   // 详情弹窗状态
   const [selectedItem, setSelectedItem] = useState<DaemonSetListItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setError("");
-    try {
-      const res = await getDaemonSetList({ cluster_id: currentClusterId });
-      setItems(res.data.data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 提取唯一的 namespaces
   const namespaces = useMemo(() => {
@@ -144,7 +133,7 @@ export default function DaemonSetPage() {
         <PageHeader
           title={t.nav.daemonset}
           description={t.daemonset.pageDescription}
-          autoRefreshSeconds={intervalSeconds}
+          autoRefreshSeconds={REFRESH.standard / 1000}
         />
 
         {items.length > 0 && (
@@ -163,17 +152,21 @@ export default function DaemonSetPage() {
           searchPlaceholder={t.common.search + " DaemonSet..."}
         />
 
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <DataTable
-            columns={columns}
-            data={filteredItems}
-            loading={loading}
-            error={error}
-            keyExtractor={(d, index) => `${index}-${d.namespace}/${d.name}`}
-            onRowClick={handleViewDetail}
-            pageSize={10}
-          />
-        </div>
+        <QueryView query={query} requireCluster>
+          {() => (
+            <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={filteredItems}
+                loading={false}
+                error=""
+                keyExtractor={(d, index) => `${index}-${d.namespace}/${d.name}`}
+                onRowClick={handleViewDetail}
+                pageSize={10}
+              />
+            </div>
+          )}
+        </QueryView>
       </div>
 
       {selectedItem && (

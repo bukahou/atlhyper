@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getPodOverview, restartPod } from "@/datasource/cluster";
-import { PageHeader, StatsCard, DataTable, ConfirmDialog } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageHeader, QueryView, StatsCard, DataTable, ConfirmDialog } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { useDelayedInvalidate } from "@/hooks/useDelayedInvalidate";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import type { PodItem, PodOverview } from "@/types/cluster";
+import { podOverviewQuery } from "@/queries/cluster";
+import { restartPodMutation } from "@/queries/cluster-mutations";
+import { clusterKeys } from "@/queries/keys";
+import { REFRESH } from "@/queries/refresh";
+import type { PodItem } from "@/types/cluster";
 import { PodDetailModal, PodLogsViewer } from "@/components/pod";
 import { PodFilterBar, type PodFilters } from "./components/PodFilterBar";
 import { getPodColumns } from "./components/PodTableColumns";
@@ -16,10 +20,11 @@ import { getPodColumns } from "./components/PodTableColumns";
 export default function PodPage() {
   const { t } = useI18n();
   const requireAuth = useRequireAuth();
-  const { currentClusterId } = useClusterStore();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<PodOverview | null>(null);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(podOverviewQuery(clusterId));
+  const data = query.data;
+  const restart = useMutation(restartPodMutation(clusterId));
+  const invalidateAfterCommand = useDelayedInvalidate();
 
   // 筛选状态
   const [filters, setFilters] = useState<PodFilters>({
@@ -39,28 +44,12 @@ export default function PodPage() {
 
   // 重启确认状态
   const [restartTarget, setRestartTarget] = useState<PodItem | null>(null);
-  const [restartLoading, setRestartLoading] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    if (!currentClusterId) return;
-    setError("");
-    try {
-      const res = await getPodOverview({ ClusterID: currentClusterId });
-      setData(res.data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentClusterId]);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 打开详情
-  const handleRowClick = (pod: PodItem) => {
+  const handleRowClick = useCallback((pod: PodItem) => {
     setSelectedPod(pod);
     setDetailOpen(true);
-  };
+  }, []);
 
   // 从详情页打开日志（需要 pod.logs.read）
   const handleViewLogs = (containerName: string) => {
@@ -71,28 +60,28 @@ export default function PodPage() {
   };
 
   // 显示重启确认（需要 cluster.operate）
-  const handleRestartClick = (pod: PodItem) => {
-    requireAuth(() => setRestartTarget(pod));
-  };
+  const handleRestartClick = useCallback(
+    (pod: PodItem) => {
+      requireAuth(() => setRestartTarget(pod));
+    },
+    [requireAuth],
+  );
 
   // 确认重启
-  const handleRestartConfirm = async () => {
+  const handleRestartConfirm = () => {
     if (!restartTarget) return;
-    setRestartLoading(true);
-    try {
-      await restartPod({
-        ClusterID: currentClusterId,
-        Namespace: restartTarget.namespace,
-        Pod: restartTarget.name,
-      });
-      setRestartTarget(null);
-      // 延迟2秒后刷新，给后端处理时间
-      setTimeout(() => fetchData(), 2000);
-    } catch (err) {
-      console.error("Restart failed:", err);
-    } finally {
-      setRestartLoading(false);
-    }
+    restart.mutate(
+      { namespace: restartTarget.namespace, name: restartTarget.name },
+      {
+        onSuccess: () => {
+          setRestartTarget(null);
+          // 重启指令由 Agent 异步执行：下发成功时列表已刷新过一次，
+          // 晚一点再刷新一次才看得到 Pod 重建后的状态
+          invalidateAfterCommand(clusterKeys.resourceScope("pod"));
+        },
+        onError: (err) => console.error("Restart failed:", err),
+      },
+    );
   };
 
   // 提取唯一的 namespaces 和 nodes
@@ -139,7 +128,7 @@ export default function PodPage() {
 
   const columns = useMemo(
     () => getPodColumns(t, handleRowClick, handleRestartClick),
-    [t],
+    [t, handleRowClick, handleRestartClick],
   );
 
   const totalPods = data ? (data.cards.running ?? 0) + (data.cards.pending ?? 0) + (data.cards.failed ?? 0) + (data.cards.unknown ?? 0) : 0;
@@ -150,7 +139,7 @@ export default function PodPage() {
         <PageHeader
           title={t.nav.pod}
           description={t.pod.pageDescription}
-          autoRefreshSeconds={intervalSeconds}
+          autoRefreshSeconds={REFRESH.standard / 1000}
         />
 
         {data && (
@@ -172,17 +161,21 @@ export default function PodPage() {
         />
 
         {/* 数据表格 */}
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <DataTable
-            columns={columns}
-            data={filteredPods}
-            loading={loading}
-            error={error}
-            keyExtractor={(pod, index) => `${index}-${pod.namespace}/${pod.name}`}
-            onRowClick={handleRowClick}
-            pageSize={10}
-          />
-        </div>
+        <QueryView query={query} requireCluster>
+          {() => (
+            <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={filteredPods}
+                loading={false}
+                error=""
+                keyExtractor={(pod, index) => `${index}-${pod.namespace}/${pod.name}`}
+                onRowClick={handleRowClick}
+                pageSize={10}
+              />
+            </div>
+          )}
+        </QueryView>
       </div>
 
       {/* Pod 详情弹窗 */}
@@ -216,7 +209,7 @@ export default function PodPage() {
         message={t.pod.restartConfirmMessage.replace("{name}", restartTarget?.name || "")}
         confirmText={t.pod.restart}
         cancelText={t.common.cancel}
-        loading={restartLoading}
+        loading={restart.isPending}
         variant="warning"
       />
     </Layout>

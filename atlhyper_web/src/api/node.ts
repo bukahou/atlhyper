@@ -46,18 +46,19 @@ interface CommandResponse {
  * 获取 Node 列表
  * GET /api/v2/nodes?cluster_id=xxx
  */
-export function getNodeList(params: NodeListParams) {
-  return get<NodeListResponse>("/api/v2/nodes", params);
+export function getNodeList(params: NodeListParams, signal?: AbortSignal) {
+  return get<NodeListResponse>("/api/v2/nodes", params, signal);
 }
 
 /**
  * 获取 Node 详情
  * GET /api/v2/nodes/{name}?cluster_id=xxx
  */
-export async function getNodeDetail(data: { ClusterID: string; NodeName: string }) {
+export async function getNodeDetail(data: { ClusterID: string; NodeName: string }, signal?: AbortSignal) {
   return get<{ message: string; data: NodeDetail }>(
     `/api/v2/nodes/${encodeURIComponent(data.NodeName)}`,
-    { cluster_id: data.ClusterID }
+    { cluster_id: data.ClusterID },
+    signal,
   );
 }
 
@@ -90,8 +91,8 @@ export function uncordonNode(data: { ClusterID: string; Node: string }) {
 /**
  * 获取 Node 概览（包含统计卡片和列表）
  */
-export async function getNodeOverview(data: { ClusterID: string }) {
-  const response = await getNodeList({ cluster_id: data.ClusterID });
+export async function getNodeOverview(data: { ClusterID: string }, signal?: AbortSignal) {
+  const response = await getNodeList({ cluster_id: data.ClusterID }, signal);
   const nodes = response.data.data || [];
 
   let readyNodes = 0;

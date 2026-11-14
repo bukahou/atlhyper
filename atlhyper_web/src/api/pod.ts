@@ -30,11 +30,6 @@ interface PodListResponse {
   total: number;
 }
 
-interface PodDetailResponse {
-  message: string;
-  data: PodDetail;
-}
-
 // ============================================================
 // API 方法
 // ============================================================
@@ -43,8 +38,8 @@ interface PodDetailResponse {
  * 获取 Pod 列表
  * GET /api/v2/pods?cluster_id=xxx&namespace=xxx
  */
-export function getPodList(params: PodListParams) {
-  return get<PodListResponse>("/api/v2/pods", params);
+export function getPodList(params: PodListParams, signal?: AbortSignal) {
+  return get<PodListResponse>("/api/v2/pods", params, signal);
 }
 
 /**
@@ -55,13 +50,14 @@ export async function getPodDetail(params: {
   ClusterID: string;
   Namespace: string;
   PodName: string;
-}) {
+}, signal?: AbortSignal) {
   return get<{ message: string; data: PodDetail }>(
     `/api/v2/pods/${encodeURIComponent(params.PodName)}`,
     {
       cluster_id: params.ClusterID,
       namespace: params.Namespace,
-    }
+    },
+    signal,
   );
 }
 
@@ -83,14 +79,18 @@ export function getPodLogs(data: {
   Container?: string;
   TailLines?: number;
   TimeoutSeconds?: number;
-}) {
-  return post<PodLogsResponse>("/api/v2/ops/pods/logs", {
-    clusterId: data.ClusterID,
-    namespace: data.Namespace,
-    name: data.Pod,
-    container: data.Container,
-    tailLines: data.TailLines,
-  });
+}, signal?: AbortSignal) {
+  return post<PodLogsResponse>(
+    "/api/v2/ops/pods/logs",
+    {
+      clusterId: data.ClusterID,
+      namespace: data.Namespace,
+      name: data.Pod,
+      container: data.Container,
+      tailLines: data.TailLines,
+    },
+    signal,
+  );
 }
 
 /**
@@ -122,8 +122,8 @@ export function restartPod(data: {
 /**
  * 获取 Pod 概览（包含统计卡片和列表）
  */
-export async function getPodOverview(data: { ClusterID: string }) {
-  const response = await getPodList({ cluster_id: data.ClusterID });
+export async function getPodOverview(data: { ClusterID: string }, signal?: AbortSignal) {
+  const response = await getPodList({ cluster_id: data.ClusterID }, signal);
   const pods = response.data.data || [];
 
   let running = 0;
