@@ -2,19 +2,17 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { LEGACY_FETCH_FILES } from "./legacy-fetch-files";
 
 // 页面与组件的读请求一律经 queries/ 下的工厂 + useQuery：
 // 同一份数据只请求一次、后发的结果生效、参数变化或卸载时取消。
 // 自己在 useEffect 里调接口、自己起定时器轮询，这些保证一条都没有。
 //
-// 这里用语法树检查两条规则：
-//   1. app/ 与 components/ 下不得「值导入」@/api/*（只导入类型不算）
-//   2. 不得使用 useAutoRefresh
-// 还没迁移的文件列在 legacy-fetch-files.ts 里，迁一个删一个；⛔ 不得往里加新文件。
+// 这里用语法树检查：app/ 与 components/ 下不得「值导入」@/api/*（只导入类型不算）。
+// 全部页面已迁完，没有「尚未迁移」的豁免；唯一的例外是下面的流式豁免名单。
+// （「在 useEffect 里取数再 setState」由 lint 规则 react-hooks/set-state-in-effect 拦。）
 
 /**
- * 流式请求的固定豁免名单（与「尚未迁移」清单无关，不会清空）。
+ * 流式请求的固定豁免名单。
  *
  * AI 对话的回答是一条持续输出的 SSE 连接，不是「取一份数据」：没有缓存可言，也不该重试或轮询，
  * 所以不走 useQuery，由下面的文件直接调接口。豁免精确到「哪个文件可以从哪个模块导入哪个函数」，
@@ -27,7 +25,6 @@ export const STREAMING_API_IMPORTS: Record<string, { module: string; names: stri
 const SRC_ROOT = path.resolve(__dirname, "..");
 const CHECKED_DIRS = ["app", "components"];
 const API_MODULE = /^@\/api(\/|$)/;
-const POLLING_HOOK = "useAutoRefresh";
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -69,9 +66,6 @@ export function directFetchViolations(
     if (API_MODULE.test(moduleName) && (importsWholeModule || valueNames.length > 0) && !onlyAllowedStreaming) {
       violations.push(`值导入 ${moduleName}`);
     }
-    if (valueNames.includes(POLLING_HOOK) || clause.name?.text === POLLING_HOOK) {
-      violations.push(`使用 ${POLLING_HOOK}`);
-    }
   }
   return violations;
 }
@@ -81,13 +75,10 @@ function relativePath(file: string): string {
 }
 
 describe("检查器自身", () => {
-  it("识别值导入与轮询 hook，放过类型导入", () => {
+  it("识别值导入，放过类型导入", () => {
     expect(directFetchViolations("a.tsx", 'import { getPodList } from "@/api/pod";')).toEqual(["值导入 @/api/pod"]);
     expect(directFetchViolations("a.tsx", 'import * as api from "@/api/pod";')).toEqual(["值导入 @/api/pod"]);
     expect(directFetchViolations("a.tsx", 'import { type Pod, getPodList } from "@/api/pod";')).toEqual(["值导入 @/api/pod"]);
-    expect(directFetchViolations("a.tsx", 'import { useAutoRefresh } from "@/hooks/useAutoRefresh";')).toEqual([
-      "使用 useAutoRefresh",
-    ]);
     expect(directFetchViolations("a.tsx", 'import type { Pod } from "@/api/pod";')).toEqual([]);
     expect(directFetchViolations("a.tsx", 'import { type Pod } from "@/api/pod";')).toEqual([]);
     expect(directFetchViolations("a.tsx", 'import { podListQuery } from "@/queries/cluster";')).toEqual([]);
@@ -116,15 +107,13 @@ describe("流式豁免名单", () => {
 
 describe("页面与组件不绕过数据层", () => {
   const files = CHECKED_DIRS.flatMap((dir) => sourceFiles(path.join(SRC_ROOT, dir)));
-  const legacy = new Set(LEGACY_FETCH_FILES);
 
   it("扫描到了文件（装置有效）", () => {
     expect(files.length).toBeGreaterThan(100);
   });
 
-  it("已迁移的文件没有直接取数的写法", () => {
+  it("没有任何文件直接取数", () => {
     const offenders = files
-      .filter((file) => !legacy.has(relativePath(file)))
       .map((file) => ({
         file: relativePath(file),
         violations: directFetchViolations(file, readFileSync(file, "utf8"), STREAMING_API_IMPORTS[relativePath(file)]),
@@ -132,14 +121,5 @@ describe("页面与组件不绕过数据层", () => {
       .filter((entry) => entry.violations.length > 0)
       .map((entry) => `${entry.file}: ${entry.violations.join("、")}`);
     expect(offenders).toEqual([]);
-  });
-
-  it("「尚未迁移」清单里没有已经迁完或已删除的文件", () => {
-    const scanned = new Map(files.map((file) => [relativePath(file), file]));
-    const stale = LEGACY_FETCH_FILES.filter((entry) => {
-      const file = scanned.get(entry);
-      return file === undefined || directFetchViolations(file, readFileSync(file, "utf8")).length === 0;
-    });
-    expect(stale).toEqual([]);
   });
 });
