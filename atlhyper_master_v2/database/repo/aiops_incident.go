@@ -286,16 +286,16 @@ func (r *aiopsIncidentRepo) TopRootCauses(ctx context.Context, clusterID string,
 	return result, rows.Err()
 }
 
-// ListByEntity 查询与指定实体相关的事件
-func (r *aiopsIncidentRepo) ListByEntity(ctx context.Context, entityKey string, since time.Time) ([]*database.AIOpsIncident, error) {
+// ListByEntity 查询某个集群里与指定实体相关的事件
+func (r *aiopsIncidentRepo) ListByEntity(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*database.AIOpsIncident, error) {
 	sinceStr := since.Format(time.RFC3339)
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT i.id, i.cluster_id, i.state, i.severity, i.root_cause, i.peak_risk, i.started_at, i.resolved_at, i.duration_s, i.recurrence, i.summary, i.created_at
 		FROM aiops_incidents i
 		INNER JOIN aiops_incident_entities e ON i.id = e.incident_id
-		WHERE e.entity_key = ? AND i.started_at >= ?
+		WHERE i.cluster_id = ? AND e.entity_key = ? AND i.started_at >= ?
 		ORDER BY i.started_at DESC`,
-		entityKey, sinceStr)
+		clusterID, entityKey, sinceStr)
 	if err != nil {
 		return nil, err
 	}

@@ -42,6 +42,13 @@ func (m *mockCallback) OnStable(ctx context.Context, incidentID string, entityKe
 	m.stable++
 }
 
+// testCluster 单集群用例统一使用的集群 ID
+const testCluster = "cluster-1"
+
+func testRef(entityKey string) aiops.EntityRef {
+	return aiops.EntityRef{ClusterID: testCluster, EntityKey: entityKey}
+}
+
 func makeEntityRisks(key string, rFinal float64) map[string]*aiops.EntityRisk {
 	return map[string]*aiops.EntityRisk{
 		key: {
@@ -63,7 +70,7 @@ func TestHealthyToWarning(t *testing.T) {
 
 	// 第一次评估：条件满足，开始计时
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateHealthy {
 		t.Fatalf("expected Healthy, got %s", entry.CurrentState)
 	}
@@ -75,7 +82,7 @@ func TestHealthyToWarning(t *testing.T) {
 	entry.ConditionMetSince = time.Now().Add(-3 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
 
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateWarning {
 		t.Fatalf("expected Warning, got %s", entry.CurrentState)
 	}
@@ -98,7 +105,7 @@ func TestWarningToIncident(t *testing.T) {
 
 	// 先到 Warning 状态
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:    entity,
 		CurrentState: aiops.StateWarning,
 		IncidentID:   "inc-1",
@@ -109,7 +116,7 @@ func TestWarningToIncident(t *testing.T) {
 
 	// 第一次：开始计时
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateWarning {
 		t.Fatalf("expected Warning (duration < 5min), got %s", entry.CurrentState)
 	}
@@ -118,7 +125,7 @@ func TestWarningToIncident(t *testing.T) {
 	entry.ConditionMetSince = time.Now().Add(-6 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
 
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateIncident {
 		t.Fatalf("expected Incident, got %s", entry.CurrentState)
 	}
@@ -136,7 +143,7 @@ func TestWarningToIncident_ClusterRiskTrigger(t *testing.T) {
 	entity := "ns/pod/pod-a"
 
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:    entity,
 		CurrentState: aiops.StateWarning,
 		IncidentID:   "inc-2",
@@ -151,11 +158,11 @@ func TestWarningToIncident_ClusterRiskTrigger(t *testing.T) {
 	sm.Evaluate(ctx, "cluster-1", risks, clusterRisk)
 
 	// 模拟 6 分钟后
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	entry.ConditionMetSince = time.Now().Add(-6 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", risks, clusterRisk)
 
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateIncident {
 		t.Fatalf("expected Incident (ClusterRisk trigger), got %s", entry.CurrentState)
 	}
@@ -171,7 +178,7 @@ func TestIncidentToRecovery(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:    entity,
 		CurrentState: aiops.StateIncident,
 		IncidentID:   "inc-3",
@@ -184,11 +191,11 @@ func TestIncidentToRecovery(t *testing.T) {
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
 
 	// 模拟 11 分钟后
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	entry.ConditionMetSince = time.Now().Add(-11 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
 
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateRecovery {
 		t.Fatalf("expected Recovery, got %s", entry.CurrentState)
 	}
@@ -207,7 +214,7 @@ func TestRecoveryToWarning_Recurrence(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:    entity,
 		CurrentState: aiops.StateRecovery,
 		IncidentID:   "inc-4",
@@ -219,7 +226,7 @@ func TestRecoveryToWarning_Recurrence(t *testing.T) {
 	// 立即触发（MinDuration = 0）
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
 
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateWarning {
 		t.Fatalf("expected Warning (recurrence), got %s", entry.CurrentState)
 	}
@@ -242,7 +249,7 @@ func TestDurationNotMet(t *testing.T) {
 		sm.Evaluate(ctx, "cluster-1", risks, nil)
 	}
 
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateHealthy {
 		t.Fatalf("expected Healthy (duration not met), got %s", entry.CurrentState)
 	}
@@ -261,14 +268,14 @@ func TestConditionResets(t *testing.T) {
 
 	// 高风险
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	if entry.ConditionMetSince == 0 {
 		t.Fatal("ConditionMetSince should be set")
 	}
 
 	// 风险降低到阈值以下 → 计时重置
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.1), nil)
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry.ConditionMetSince != 0 {
 		t.Fatal("ConditionMetSince should be reset")
 	}
@@ -282,32 +289,32 @@ func TestShouldSuppress(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	// Healthy → 不抑制
-	if sm.ShouldSuppress(entity) {
+	if sm.ShouldSuppress(testCluster, entity) {
 		t.Fatal("Healthy should not suppress")
 	}
 
 	// 设置为 Incident → 抑制
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:    entity,
 		CurrentState: aiops.StateIncident,
 		IncidentID:   "inc-5",
 	}
 	sm.mu.Unlock()
 
-	if !sm.ShouldSuppress(entity) {
+	if !sm.ShouldSuppress(testCluster, entity) {
 		t.Fatal("Incident should suppress")
 	}
-	if sm.GetActiveIncidentID(entity) != "inc-5" {
+	if sm.GetActiveIncidentID(testCluster, entity) != "inc-5" {
 		t.Fatal("should return active incident ID")
 	}
 
 	// Recovery → 也抑制
 	sm.mu.Lock()
-	sm.entries[entity].CurrentState = aiops.StateRecovery
+	sm.entries[testRef(entity)].CurrentState = aiops.StateRecovery
 	sm.mu.Unlock()
 
-	if !sm.ShouldSuppress(entity) {
+	if !sm.ShouldSuppress(testCluster, entity) {
 		t.Fatal("Recovery should suppress")
 	}
 }
@@ -321,7 +328,7 @@ func TestCheckRecoveryToStable(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:         entity,
 		CurrentState:      aiops.StateRecovery,
 		IncidentID:        "inc-6",
@@ -332,7 +339,7 @@ func TestCheckRecoveryToStable(t *testing.T) {
 	sm.CheckRecoveryToStable(ctx)
 
 	// entry 应该被删除（已稳定）
-	if entry := sm.GetEntry(entity); entry != nil {
+	if entry := sm.GetEntry(testCluster, entity); entry != nil {
 		t.Fatalf("expected entry to be deleted, got state %s", entry.CurrentState)
 	}
 	if cb.stable != 1 {
@@ -349,7 +356,7 @@ func TestCheckRecoveryToStable_NotYet(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:         entity,
 		CurrentState:      aiops.StateRecovery,
 		IncidentID:        "inc-7",
@@ -359,7 +366,7 @@ func TestCheckRecoveryToStable_NotYet(t *testing.T) {
 
 	sm.CheckRecoveryToStable(ctx)
 
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	if entry == nil || entry.CurrentState != aiops.StateRecovery {
 		t.Fatal("should still be in Recovery (< 48h)")
 	}
@@ -378,30 +385,30 @@ func TestFullLifecycle(t *testing.T) {
 
 	// 1. Healthy → Warning (R > 0.2, > 2min)
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	entry.ConditionMetSince = time.Now().Add(-3 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateWarning {
 		t.Fatalf("step 1: expected Warning, got %s", entry.CurrentState)
 	}
 
 	// 2. Warning → Incident (R > 0.5, > 5min)
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.6), nil)
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	entry.ConditionMetSince = time.Now().Add(-6 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.6), nil)
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateIncident {
 		t.Fatalf("step 2: expected Incident, got %s", entry.CurrentState)
 	}
 
 	// 3. Incident → Recovery (R < 0.15, > 10min)
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.1), nil)
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	entry.ConditionMetSince = time.Now().Add(-11 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.1), nil)
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry.CurrentState != aiops.StateRecovery {
 		t.Fatalf("step 3: expected Recovery, got %s", entry.CurrentState)
 	}
@@ -409,7 +416,7 @@ func TestFullLifecycle(t *testing.T) {
 	// 4. Recovery → Stable (48h)
 	entry.RecoveryStartedAt = time.Now().Add(-49 * time.Hour).Unix()
 	sm.CheckRecoveryToStable(ctx)
-	if sm.GetEntry(entity) != nil {
+	if sm.GetEntry(testCluster, entity) != nil {
 		t.Fatal("step 4: expected entry deleted (stable)")
 	}
 
@@ -436,6 +443,7 @@ func TestRestoreEntry(t *testing.T) {
 	sm := NewStateMachine(cb)
 
 	entry := &aiops.StateMachineEntry{
+		ClusterID:       testCluster,
 		EntityKey:       "ns/pod/pod-a",
 		CurrentState:    aiops.StateWarning,
 		IncidentID:      "inc-restore-1",
@@ -444,7 +452,7 @@ func TestRestoreEntry(t *testing.T) {
 
 	sm.RestoreEntry(entry)
 
-	got := sm.GetEntry("ns/pod/pod-a")
+	got := sm.GetEntry(testCluster, "ns/pod/pod-a")
 	if got == nil {
 		t.Fatal("expected entry to exist after RestoreEntry")
 	}
@@ -466,7 +474,7 @@ func TestWarningToHealthy(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:    entity,
 		CurrentState: aiops.StateWarning,
 		IncidentID:   "inc-w2h",
@@ -477,7 +485,7 @@ func TestWarningToHealthy(t *testing.T) {
 
 	// 第一次：条件满足，开始计时
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	if entry == nil || entry.CurrentState != aiops.StateWarning {
 		t.Fatal("should still be Warning (duration < 5min)")
 	}
@@ -487,7 +495,7 @@ func TestWarningToHealthy(t *testing.T) {
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
 
 	// entry 应该被删除（Warning → Healthy → 移除）
-	if sm.GetEntry(entity) != nil {
+	if sm.GetEntry(testCluster, entity) != nil {
 		t.Fatal("expected entry to be deleted after Warning→Healthy")
 	}
 	if cb.stable != 1 {
@@ -505,7 +513,7 @@ func TestWarningToHealthy_NoFalsePositive(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{
 		EntityKey:    entity,
 		CurrentState: aiops.StateWarning,
 		IncidentID:   "inc-nofp",
@@ -517,7 +525,7 @@ func TestWarningToHealthy_NoFalsePositive(t *testing.T) {
 
 	sm.Evaluate(ctx, "cluster-1", risks, nil)
 
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	if entry == nil || entry.CurrentState != aiops.StateWarning {
 		t.Fatal("should stay Warning when 0.15 <= R <= 0.5")
 	}
@@ -537,21 +545,21 @@ func TestCleanupStaleEntries(t *testing.T) {
 
 	// 注入一个 35 分钟前最后评估的条目
 	sm.mu.Lock()
-	sm.entries["ns/pod/stale-pod"] = &aiops.StateMachineEntry{
+	sm.entries[testRef("ns/pod/stale-pod")] = &aiops.StateMachineEntry{
 		EntityKey:       "ns/pod/stale-pod",
 		CurrentState:    aiops.StateWarning,
 		IncidentID:      "inc-stale",
 		LastEvaluatedAt: time.Now().Add(-35 * time.Minute).Unix(),
 	}
 	// 注入一个刚刚评估的条目（不应被清理）
-	sm.entries["ns/pod/fresh-pod"] = &aiops.StateMachineEntry{
+	sm.entries[testRef("ns/pod/fresh-pod")] = &aiops.StateMachineEntry{
 		EntityKey:       "ns/pod/fresh-pod",
 		CurrentState:    aiops.StateWarning,
 		IncidentID:      "inc-fresh",
 		LastEvaluatedAt: time.Now().Unix(),
 	}
 	// 注入一个 LastEvaluatedAt=0 的条目（不应被清理）
-	sm.entries["ns/pod/zero-pod"] = &aiops.StateMachineEntry{
+	sm.entries[testRef("ns/pod/zero-pod")] = &aiops.StateMachineEntry{
 		EntityKey:       "ns/pod/zero-pod",
 		CurrentState:    aiops.StateIncident,
 		IncidentID:      "inc-zero",
@@ -562,15 +570,15 @@ func TestCleanupStaleEntries(t *testing.T) {
 	sm.CleanupStaleEntries(ctx, 30*time.Minute)
 
 	// stale-pod 应被清理
-	if sm.GetEntry("ns/pod/stale-pod") != nil {
+	if sm.GetEntry(testCluster, "ns/pod/stale-pod") != nil {
 		t.Fatal("stale entry should be cleaned up")
 	}
 	// fresh-pod 应保留
-	if sm.GetEntry("ns/pod/fresh-pod") == nil {
+	if sm.GetEntry(testCluster, "ns/pod/fresh-pod") == nil {
 		t.Fatal("fresh entry should NOT be cleaned up")
 	}
 	// zero-pod 应保留（LastEvaluatedAt=0 跳过）
-	if sm.GetEntry("ns/pod/zero-pod") == nil {
+	if sm.GetEntry(testCluster, "ns/pod/zero-pod") == nil {
 		t.Fatal("zero-eval entry should NOT be cleaned up")
 	}
 	if cb.stable != 1 {
@@ -588,11 +596,11 @@ func TestWarningToHealthy_FullCycle(t *testing.T) {
 
 	// 1. Healthy → Warning (R > 0.2, > 2min)
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
-	entry := sm.GetEntry(entity)
+	entry := sm.GetEntry(testCluster, entity)
 	entry.ConditionMetSince = time.Now().Add(-3 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.3), nil)
 
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry == nil || entry.CurrentState != aiops.StateWarning {
 		t.Fatalf("step 1: expected Warning, got %v", entry)
 	}
@@ -602,11 +610,11 @@ func TestWarningToHealthy_FullCycle(t *testing.T) {
 
 	// 2. Warning → Healthy (R < 0.15, > 5min)
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.05), nil)
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	entry.ConditionMetSince = time.Now().Add(-6 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.05), nil)
 
-	if sm.GetEntry(entity) != nil {
+	if sm.GetEntry(testCluster, entity) != nil {
 		t.Fatal("step 2: expected entry deleted after Warning→Healthy")
 	}
 	if cb.stable != 1 {
@@ -615,11 +623,11 @@ func TestWarningToHealthy_FullCycle(t *testing.T) {
 
 	// 3. 再次出现风险 → 应该重新创建（全新 Healthy → Warning 周期）
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.4), nil)
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	entry.ConditionMetSince = time.Now().Add(-3 * time.Minute).Unix()
 	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.4), nil)
 
-	entry = sm.GetEntry(entity)
+	entry = sm.GetEntry(testCluster, entity)
 	if entry == nil || entry.CurrentState != aiops.StateWarning {
 		t.Fatalf("step 3: expected new Warning, got %v", entry)
 	}
@@ -645,19 +653,19 @@ func TestRecoveryToStable_ReachedWhileEntityKeepsBeingEvaluated(t *testing.T) {
 
 	// 事件中 → 风险回落满 10 分钟 → 进入恢复观察期
 	sm.mu.Lock()
-	sm.entries[entity] = &aiops.StateMachineEntry{EntityKey: entity, CurrentState: aiops.StateIncident, IncidentID: "inc-1"}
+	sm.entries[testRef(entity)] = &aiops.StateMachineEntry{EntityKey: entity, CurrentState: aiops.StateIncident, IncidentID: "inc-1"}
 	sm.mu.Unlock()
-	sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.05), nil)
 	clock.Advance(11 * time.Minute)
-	sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
-	if got := sm.GetEntry(entity).CurrentState; got != aiops.StateRecovery {
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.05), nil)
+	if got := sm.GetEntry(testCluster, entity).CurrentState; got != aiops.StateRecovery {
 		t.Fatalf("前置条件：应进入 recovery，实际 %s", got)
 	}
 
 	// 47 小时：持续评估 + 定期检查，不应提前关闭
 	for i := 0; i < 47; i++ {
 		clock.Advance(time.Hour)
-		sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+		sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.05), nil)
 		sm.CheckRecoveryToStable(ctx)
 	}
 	if cb.stable != 0 {
@@ -667,14 +675,14 @@ func TestRecoveryToStable_ReachedWhileEntityKeepsBeingEvaluated(t *testing.T) {
 	// 再过 2 小时：满 48 小时，应关闭
 	for i := 0; i < 2; i++ {
 		clock.Advance(time.Hour)
-		sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+		sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.05), nil)
 		sm.CheckRecoveryToStable(ctx)
 	}
 	if cb.stable != 1 {
 		t.Fatalf("满 48 小时后应关闭 1 次，实际 %d 次", cb.stable)
 	}
 	// 关闭后实体仍在被评估，会重新得到一个健康的条目；不得还挂在 recovery 或带着旧事件号
-	if entry := sm.GetEntry(entity); entry != nil && (entry.CurrentState != aiops.StateHealthy || entry.IncidentID != "") {
+	if entry := sm.GetEntry(testCluster, entity); entry != nil && (entry.CurrentState != aiops.StateHealthy || entry.IncidentID != "") {
 		t.Fatalf("关闭后不应保留旧事件的条目，实际 %+v", entry)
 	}
 }
@@ -689,16 +697,16 @@ func TestRecoveryToStable_RestartsAfterRecurrence(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	sm.RestoreEntry(&aiops.StateMachineEntry{
-		EntityKey: entity, CurrentState: aiops.StateRecovery, IncidentID: "inc-1",
+		ClusterID: testCluster, EntityKey: entity, CurrentState: aiops.StateRecovery, IncidentID: "inc-1",
 		RecoveryStartedAt: clock.Now().Unix(),
 	})
 
 	clock.Advance(40 * time.Hour)
-	sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.9), nil) // 复发 → warning
-	if got := sm.GetEntry(entity).CurrentState; got != aiops.StateWarning {
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.9), nil) // 复发 → warning
+	if got := sm.GetEntry(testCluster, entity).CurrentState; got != aiops.StateWarning {
 		t.Fatalf("前置条件：应复发为 warning，实际 %s", got)
 	}
-	if got := sm.GetEntry(entity).RecoveryStartedAt; got != 0 {
+	if got := sm.GetEntry(testCluster, entity).RecoveryStartedAt; got != 0 {
 		t.Errorf("复发后恢复时刻应清空，实际 %d", got)
 	}
 }
@@ -713,14 +721,46 @@ func TestRecoveryToStable_RestoredEntryKeepsOriginalStart(t *testing.T) {
 	entity := "ns/service/svc-a"
 
 	sm.RestoreEntry(&aiops.StateMachineEntry{
-		EntityKey: entity, CurrentState: aiops.StateRecovery, IncidentID: "inc-1",
+		ClusterID: testCluster, EntityKey: entity, CurrentState: aiops.StateRecovery, IncidentID: "inc-1",
 		RecoveryStartedAt: clock.Now().Add(-47 * time.Hour).Unix(),
 	})
 
 	clock.Advance(2 * time.Hour)
-	sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+	sm.Evaluate(ctx, "cluster-1", makeEntityRisks(entity, 0.05), nil)
 	sm.CheckRecoveryToStable(ctx)
 	if cb.stable != 1 {
 		t.Fatalf("恢复时刻在 49 小时前，应关闭，实际关闭 %d 次", cb.stable)
+	}
+}
+
+// 两个集群里的同名实体各走各的状态转换、各自创建事件；一个关闭不影响另一个。
+func TestEvaluate_SameEntityKeyInTwoClusters_IndependentEntries(t *testing.T) {
+	cb := &mockCallback{}
+	sm := NewStateMachine(cb)
+	clock := &fakeClock{current: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	sm.now = clock.Now
+	ctx := context.Background()
+	entity := "default/pod/nginx"
+
+	// 集群 A 的实体持续高风险 → Warning；集群 B 的同名实体一直健康
+	sm.Evaluate(ctx, "cluster-a", makeEntityRisks(entity, 0.4), nil)
+	sm.Evaluate(ctx, "cluster-b", makeEntityRisks(entity, 0.0), nil)
+	clock.Advance(3 * time.Minute)
+	sm.Evaluate(ctx, "cluster-a", makeEntityRisks(entity, 0.4), nil)
+	sm.Evaluate(ctx, "cluster-b", makeEntityRisks(entity, 0.0), nil)
+
+	entryA := sm.GetEntry("cluster-a", entity)
+	entryB := sm.GetEntry("cluster-b", entity)
+	if entryA == nil || entryA.CurrentState != aiops.StateWarning {
+		t.Fatalf("集群 A 的实体应为 Warning，实际 %+v", entryA)
+	}
+	if entryB == nil || entryB.CurrentState != aiops.StateHealthy || entryB.IncidentID != "" {
+		t.Errorf("集群 B 的同名实体应保持健康且没有事件，实际 %+v", entryB)
+	}
+	if entryA.ClusterID != "cluster-a" || entryB.ClusterID != "cluster-b" {
+		t.Errorf("条目没有带上所属集群: A=%q B=%q", entryA.ClusterID, entryB.ClusterID)
+	}
+	if cb.warningCreated != 1 {
+		t.Errorf("期望只创建 1 个事件，实际 %d 个", cb.warningCreated)
 	}
 }

@@ -316,13 +316,14 @@ func migrate(db *sql.DB) error {
 		// ==================== AIOps: 基线状态表 ====================
 		// 持久化 EMA 状态，用于重启恢复
 		`CREATE TABLE IF NOT EXISTS aiops_baseline_states (
+			cluster_id  TEXT NOT NULL,
 			entity_key  TEXT NOT NULL,
 			metric_name TEXT NOT NULL,
 			ema         REAL NOT NULL,
 			variance    REAL NOT NULL,
 			count       INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,
-			PRIMARY KEY (entity_key, metric_name)
+			PRIMARY KEY (cluster_id, entity_key, metric_name)
 		)`,
 
 		// ==================== AIOps: 依赖图快照表 ====================

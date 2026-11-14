@@ -33,7 +33,7 @@ func (q *QueryService) GetAIOpsBaseline(ctx context.Context, clusterID, entityKe
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
-	return q.aiopsEngine.GetBaseline(entityKey), nil
+	return q.aiopsEngine.GetBaseline(clusterID, entityKey), nil
 }
 
 // GetAIOpsClusterRisk 获取集群风险评分
@@ -85,11 +85,11 @@ func (q *QueryService) GetAIOpsIncidentStats(ctx context.Context, clusterID stri
 }
 
 // GetAIOpsIncidentPatterns 获取历史事件模式
-func (q *QueryService) GetAIOpsIncidentPatterns(ctx context.Context, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error) {
+func (q *QueryService) GetAIOpsIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
-	return q.aiopsEngine.GetIncidentPatterns(ctx, entityKey, since), nil
+	return q.aiopsEngine.GetIncidentPatterns(ctx, clusterID, entityKey, since), nil
 }
 
 // SummarizeIncident AI 增强：生成事件摘要

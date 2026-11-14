@@ -34,7 +34,7 @@ type transitionCondition struct {
 // StateMachine 状态机管理器
 type StateMachine struct {
 	mu         sync.RWMutex
-	entries    map[string]*aiops.StateMachineEntry // entityKey -> entry
+	entries    map[aiops.EntityRef]*aiops.StateMachineEntry // 集群 + 实体键 -> 条目
 	callback   TransitionCallback
 	conditions []transitionCondition
 	now        func() time.Time // 可替换的时钟，测试用它模拟时间流逝
@@ -43,7 +43,7 @@ type StateMachine struct {
 // NewStateMachine 创建状态机
 func NewStateMachine(callback TransitionCallback) *StateMachine {
 	sm := &StateMachine{
-		entries:  make(map[string]*aiops.StateMachineEntry),
+		entries:  make(map[aiops.EntityRef]*aiops.StateMachineEntry),
 		callback: callback,
 		now:      time.Now,
 	}
@@ -85,17 +85,17 @@ func NewStateMachine(callback TransitionCallback) *StateMachine {
 }
 
 // GetEntry 获取指定实体的状态机条目
-func (sm *StateMachine) GetEntry(entityKey string) *aiops.StateMachineEntry {
+func (sm *StateMachine) GetEntry(clusterID, entityKey string) *aiops.StateMachineEntry {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return sm.entries[entityKey]
+	return sm.entries[aiops.EntityRef{ClusterID: clusterID, EntityKey: entityKey}]
 }
 
 // RestoreEntry 从外部注入状态机条目（启动恢复用）
 func (sm *StateMachine) RestoreEntry(entry *aiops.StateMachineEntry) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	sm.entries[entry.EntityKey] = entry
+	sm.entries[aiops.EntityRef{ClusterID: entry.ClusterID, EntityKey: entry.EntityKey}] = entry
 }
 
 // CleanupStaleEntries 清理长时间未评估的过期条目
@@ -105,29 +105,30 @@ func (sm *StateMachine) CleanupStaleEntries(ctx context.Context, staleThreshold 
 	defer sm.mu.Unlock()
 
 	now := sm.now()
-	for entityKey, entry := range sm.entries {
+	for ref, entry := range sm.entries {
 		if entry.LastEvaluatedAt == 0 {
 			continue
 		}
 		age := time.Duration(now.Unix()-entry.LastEvaluatedAt) * time.Second
 		if age > staleThreshold {
 			entry.CurrentState = aiops.StateStable
-			sm.callback.OnStable(ctx, entry.IncidentID, entityKey, now)
-			delete(sm.entries, entityKey)
-			log.Info("自动关闭过期事件", "entity", entityKey, "incident", entry.IncidentID)
+			sm.callback.OnStable(ctx, entry.IncidentID, ref.EntityKey, now)
+			delete(sm.entries, ref)
+			log.Info("自动关闭过期事件", "cluster", ref.ClusterID, "entity", ref.EntityKey, "incident", entry.IncidentID)
 		}
 	}
 }
 
 // getOrCreate 获取或创建状态机条目
-func (sm *StateMachine) getOrCreate(entityKey string) *aiops.StateMachineEntry {
-	entry, ok := sm.entries[entityKey]
+func (sm *StateMachine) getOrCreate(ref aiops.EntityRef) *aiops.StateMachineEntry {
+	entry, ok := sm.entries[ref]
 	if !ok {
 		entry = &aiops.StateMachineEntry{
-			EntityKey:    entityKey,
+			ClusterID:    ref.ClusterID,
+			EntityKey:    ref.EntityKey,
 			CurrentState: aiops.StateHealthy,
 		}
-		sm.entries[entityKey] = entry
+		sm.entries[ref] = entry
 	}
 	return entry
 }

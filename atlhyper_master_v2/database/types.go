@@ -368,6 +368,7 @@ type SLORouteMapping struct {
 
 // AIOpsBaselineState 基线状态数据库模型
 type AIOpsBaselineState struct {
+	ClusterID  string
 	EntityKey  string
 	MetricName string
 	EMA        float64

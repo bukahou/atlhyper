@@ -13,6 +13,18 @@
 
 ---
 
+## AIOps 状态按集群区分 — 🔄 代码完成，待定表结构处理方式后上 dev（2026-11-14）
+
+> 设计文档: [aiops-cluster-scope-design.md](../../design/active/aiops-cluster-scope-design.md)
+
+- 基线按「集群 + 实体键 + 指标」存取；清理只限本集群；已消失实体的库内行随 flush 删除 ✅
+- 状态机条目按「集群 + 实体键」存取 ✅
+- 历史事件模式与 AI 证据里的历史事件按集群过滤；`incidents/patterns` 的 `cluster_id` 必填 ✅
+- **待用户裁决**：基线表多了 `cluster_id` 列且主键变了。按 §1.9 上线要删库重建；是否改为只重建这一张表
+- dev 验收：待上 dev
+
+---
+
 ## AIOps 探针噪音治理 — 🔄 代码完成，待合 dev 验收（2026-10-15）
 
 > 设计文档: [aiops-probe-noise-design.md](../../design/active/aiops-probe-noise-design.md)

@@ -85,7 +85,7 @@ func (e *engine) OnSnapshot(clusterID string) {
 
 	// 2. 清理已不存在于快照中的实体基线状态（防止滚动更新后旧 Pod 状态残留）
 	activeKeys := extractActiveEntityKeys(snap, otel)
-	if removed := e.stateManager.CleanupStaleEntities(activeKeys); removed > 0 {
+	if removed := e.stateManager.CleanupStaleEntities(clusterID, activeKeys); removed > 0 {
 		log.Debug("清理过期基线状态", "cluster", clusterID, "removed", removed)
 	}
 
@@ -95,7 +95,7 @@ func (e *engine) OnSnapshot(clusterID string) {
 		return
 	}
 
-	results := e.stateManager.Update(points)
+	results := e.stateManager.Update(clusterID, points)
 
 	// 路径 B: 确定性异常直注（绕过冷启动）
 	deterministicResults := baseline.ExtractDeterministicAnomalies(snap)
@@ -187,8 +187,8 @@ func (e *engine) GetGraphTrace(clusterID, fromKey, direction string, maxDepth in
 }
 
 // GetBaseline 获取指定实体的基线状态
-func (e *engine) GetBaseline(entityKey string) *aiops.EntityBaseline {
-	return e.stateManager.GetStates(entityKey)
+func (e *engine) GetBaseline(clusterID, entityKey string) *aiops.EntityBaseline {
+	return e.stateManager.GetStates(clusterID, entityKey)
 }
 
 // GetClusterRisk 获取集群风险评分
@@ -374,8 +374,8 @@ func (e *engine) GetIncidentStats(ctx context.Context, clusterID string, since t
 }
 
 // GetIncidentPatterns 获取历史事件模式
-func (e *engine) GetIncidentPatterns(ctx context.Context, entityKey string, since time.Time) []*aiops.IncidentPattern {
-	return e.incidentStore.GetPatterns(ctx, entityKey, since)
+func (e *engine) GetIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*aiops.IncidentPattern {
+	return e.incidentStore.GetPatterns(ctx, clusterID, entityKey, since)
 }
 
 // ==================== 生命周期 ====================
@@ -581,10 +581,11 @@ func (e *engine) reloadActiveIncidents(ctx context.Context) {
 		if inc.State == aiops.StateStable {
 			continue
 		}
-		if existing := e.sm.GetEntry(inc.RootCause); existing != nil {
+		if existing := e.sm.GetEntry(inc.ClusterID, inc.RootCause); existing != nil {
 			continue
 		}
 		entry := &aiops.StateMachineEntry{
+			ClusterID:       inc.ClusterID,
 			EntityKey:       inc.RootCause,
 			CurrentState:    inc.State,
 			IncidentID:      inc.ID,

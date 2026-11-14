@@ -110,6 +110,7 @@ type DiffResult struct {
 
 // BaselineState 基线状态（每个实体-指标对）
 type BaselineState struct {
+	ClusterID       string  `json:"clusterId"`
 	EntityKey       string  `json:"entityKey"`
 	MetricName      string  `json:"metricName"`
 	EMA             float64 `json:"ema"`
@@ -348,6 +349,7 @@ const (
 
 // StateMachineEntry 状态机条目（每个实体一个）
 type StateMachineEntry struct {
+	ClusterID         string      `json:"clusterId"`
 	EntityKey         string      `json:"entityKey"`
 	CurrentState      EntityState `json:"currentState"`
 	IncidentID        string      `json:"incidentId"`

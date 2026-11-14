@@ -77,7 +77,7 @@ type QueryAIOps interface {
 	GetAIOpsIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) ([]*aiops.Incident, int, error)
 	GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error)
 	GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error)
-	GetAIOpsIncidentPatterns(ctx context.Context, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
+	GetAIOpsIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
 	SummarizeIncident(ctx context.Context, incidentID string) (*enricher.SummarizeResponse, error)
 	// AI 报告查询
 	ListAIReports(ctx context.Context, incidentID string) ([]*database.AIReport, error)

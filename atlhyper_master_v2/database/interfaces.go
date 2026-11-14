@@ -252,8 +252,8 @@ type AIReportRepository interface {
 type AIOpsBaselineRepository interface {
 	BatchUpsert(ctx context.Context, states []*AIOpsBaselineState) error
 	ListAll(ctx context.Context) ([]*AIOpsBaselineState, error)
-	ListByEntity(ctx context.Context, entityKey string) ([]*AIOpsBaselineState, error)
-	DeleteByEntity(ctx context.Context, entityKey string) error
+	// DeleteEntities 删除某个集群里若干实体的全部基线行（实体已从集群消失）
+	DeleteEntities(ctx context.Context, clusterID string, entityKeys []string) error
 }
 
 // AIOpsGraphRepository 依赖图快照数据访问接口
@@ -282,7 +282,8 @@ type AIOpsIncidentRepository interface {
 	GetTimeline(ctx context.Context, incidentID string) ([]*AIOpsIncidentTimeline, error)
 	GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*AIOpsIncidentStatsRaw, error)
 	TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]AIOpsRootCauseCount, error)
-	ListByEntity(ctx context.Context, entityKey string, since time.Time) ([]*AIOpsIncident, error)
+	// ListByEntity 某个集群里与指定实体相关的事件（实体键只在集群内唯一）
+	ListByEntity(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*AIOpsIncident, error)
 }
 
 // ==================== GitHub Integration Repository 接口 ====================
@@ -546,8 +547,7 @@ type SLODialect interface {
 type AIOpsBaselineDialect interface {
 	Upsert(state *AIOpsBaselineState) (query string, args []any)
 	SelectAll() (query string, args []any)
-	SelectByEntity(entityKey string) (query string, args []any)
-	DeleteByEntity(entityKey string) (query string, args []any)
+	DeleteEntity(clusterID, entityKey string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*AIOpsBaselineState, error)
 }
 

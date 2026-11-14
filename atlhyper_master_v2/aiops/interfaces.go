@@ -19,7 +19,7 @@ type Engine interface {
 	GetGraphTrace(clusterID, fromKey, direction string, maxDepth int) *TraceResult
 
 	// GetBaseline 获取指定实体的基线状态
-	GetBaseline(entityKey string) *EntityBaseline
+	GetBaseline(clusterID, entityKey string) *EntityBaseline
 
 	// GetClusterRisk 获取集群风险评分
 	GetClusterRisk(clusterID string) *ClusterRisk
@@ -40,7 +40,7 @@ type Engine interface {
 	GetIncidentStats(ctx context.Context, clusterID string, since time.Time) *IncidentStats
 
 	// GetIncidentPatterns 获取历史事件模式
-	GetIncidentPatterns(ctx context.Context, entityKey string, since time.Time) []*IncidentPattern
+	GetIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*IncidentPattern
 
 	// SetIncidentNotify 设置事件通知回调（供 AI 后台自动分析）
 	SetIncidentNotify(fn func(incidentID, severity, trigger string))

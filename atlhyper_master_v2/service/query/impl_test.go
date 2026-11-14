@@ -94,7 +94,9 @@ func (m *mockAIOpsEngine) GetGraph(clusterID string) *aiops.DependencyGraph { re
 func (m *mockAIOpsEngine) GetGraphTrace(clusterID, fromKey, direction string, maxDepth int) *aiops.TraceResult {
 	return nil
 }
-func (m *mockAIOpsEngine) GetBaseline(entityKey string) *aiops.EntityBaseline { return nil }
+func (m *mockAIOpsEngine) GetBaseline(clusterID, entityKey string) *aiops.EntityBaseline {
+	return nil
+}
 func (m *mockAIOpsEngine) GetClusterRisk(clusterID string) *aiops.ClusterRisk { return nil }
 func (m *mockAIOpsEngine) GetEntityRisks(clusterID, sortBy string, limit int) []*aiops.EntityRisk {
 	return nil
@@ -111,7 +113,7 @@ func (m *mockAIOpsEngine) GetIncidentDetail(ctx context.Context, incidentID stri
 func (m *mockAIOpsEngine) GetIncidentStats(ctx context.Context, clusterID string, since time.Time) *aiops.IncidentStats {
 	return nil
 }
-func (m *mockAIOpsEngine) GetIncidentPatterns(ctx context.Context, entityKey string, since time.Time) []*aiops.IncidentPattern {
+func (m *mockAIOpsEngine) GetIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*aiops.IncidentPattern {
 	return nil
 }
 func (m *mockAIOpsEngine) SetIncidentNotify(fn func(incidentID, severity, trigger string)) {}
