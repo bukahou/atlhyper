@@ -16,3 +16,5 @@ export { TimeRangePicker } from "./TimeRangePicker";
 export { FilterBar } from "./FilterBar";
 export { PermissionLock } from "./PermissionLock";
 export { DemoBanner } from "./DemoBanner";
+export { QueryView } from "./QueryView";
+export { NoClusterState } from "./NoClusterState";

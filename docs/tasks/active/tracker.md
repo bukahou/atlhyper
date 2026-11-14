@@ -13,6 +13,17 @@
 
 ---
 
+## 前端数据层（TanStack Query）— 🔄 进行中（2026-11-14）
+
+> 设计文档: [web-data-layer-design.md](../../design/active/web-data-layer-design.md)
+
+- 第 1 期：基础设施 + 样板页（角色页、事件页）+ 会话信息提到根部 + 错误兜底页 + ESLint + CI 加 lint 与单测 — ✅ 代码完成，待 dev 验收
+- 第 2 期：17 个集群资源页 + 17 个详情弹窗 — 待办
+- 第 3 期：指标 / 链路 / 日志 / SLO — 待办
+- 第 4 期：其余页面，删除 useAutoRefresh，切换集群不再整页刷新，两份旧文件清单清空 — 待办
+
+---
+
 ## AIOps 状态按集群区分 — 🔄 代码完成，待定表结构处理方式后上 dev（2026-11-14）
 
 > 设计文档: [aiops-cluster-scope-design.md](../../design/active/aiops-cluster-scope-design.md)
@@ -20,8 +31,8 @@
 - 基线按「集群 + 实体键 + 指标」存取；清理只限本集群；已消失实体的库内行随 flush 删除 ✅
 - 状态机条目按「集群 + 实体键」存取 ✅
 - 历史事件模式与 AI 证据里的历史事件按集群过滤；`incidents/patterns` 的 `cluster_id` 必填 ✅
-- **待用户裁决**：基线表多了 `cluster_id` 列且主键变了。按 §1.9 上线要删库重建；是否改为只重建这一张表
-- dev 验收：待上 dev
+- 表结构处理：用户 2026-11-14 裁定按 §1.9 删库重建（方案 A）。dev 清库待用户说「执行」；prod 在合 main 后由用户清
+- dev 验收：镜像已上 dev（`dev-746e458`），清库后验收
 
 ---
 

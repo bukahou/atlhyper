@@ -125,8 +125,8 @@ export default request;
 /**
  * GET 请求
  */
-export const get = <T>(url: string, params?: object): Promise<AxiosResponse<T>> => {
-  return request.get(url, { params });
+export const get = <T>(url: string, params?: object, signal?: AbortSignal): Promise<AxiosResponse<T>> => {
+  return request.get(url, { params, signal });
 };
 
 /**

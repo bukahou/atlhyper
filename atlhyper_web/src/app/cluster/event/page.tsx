@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getEventOverview } from "@/datasource/cluster";
-import { PageHeader } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import type { EventLog, EventOverview } from "@/types/cluster";
+import { PageHeader, QueryView } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { eventOverviewQuery } from "@/queries/cluster";
+import { REFRESH } from "@/queries/refresh";
+import type { EventLog } from "@/types/cluster";
 import { EventDetailDrawer } from "@/components/event";
 import { EventFilterBar, type EventFilters } from "./components/EventFilterBar";
 import { EventTable, isCriticalEvent } from "./components/EventTable";
@@ -15,10 +16,9 @@ import { EventStatsCards } from "./components/EventStatsCards";
 
 export default function EventPage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<EventOverview | null>(null);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(eventOverviewQuery(clusterId));
+  const data = query.data;
 
   const [filters, setFilters] = useState<EventFilters>({
     search: "",
@@ -29,21 +29,6 @@ export default function EventPage() {
 
   const [selectedEvent, setSelectedEvent] = useState<EventLog | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    if (!currentClusterId) return;
-    setError("");
-    try {
-      const res = await getEventOverview({ ClusterID: currentClusterId });
-      setData(res.data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.event.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentClusterId]);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   const handleRowClick = (event: EventLog) => {
     setSelectedEvent(event);
@@ -104,7 +89,7 @@ export default function EventPage() {
         <PageHeader
           title={t.nav.event}
           description={t.event.pageDescription}
-          autoRefreshSeconds={intervalSeconds}
+          autoRefreshSeconds={REFRESH.standard / 1000}
         />
 
         <EventStatsCards events={data?.rows || []} />
@@ -117,12 +102,9 @@ export default function EventPage() {
           namespaces={namespaces}
         />
 
-        <EventTable
-          events={filteredEvents}
-          loading={loading}
-          error={error}
-          onRowClick={handleRowClick}
-        />
+        <QueryView query={query} requireCluster>
+          {() => <EventTable events={filteredEvents} loading={false} error="" onRowClick={handleRowClick} />}
+        </QueryView>
       </div>
 
       {selectedEvent && (

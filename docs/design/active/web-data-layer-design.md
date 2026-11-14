@@ -1,6 +1,6 @@
 # 前端数据层：统一用 TanStack Query 取数
 
-> 状态：设计稿，待用户裁决「待裁决」一节后动工。
+> 状态：执行中。「裁决记录」一节的三项已于 2026-11-14 由用户裁定。第 1 期已完成。
 > 本设计只改前端，不新增也不修改任何后端接口，因此没有 API 定义与三层数据对照。
 
 ## 背景
@@ -46,7 +46,7 @@ src/datasource/     [整理]  mock / 真实接口切换；统一返回解包后�
 src/api/            [不变]  axios 封装与各资源接口
 ```
 
-页面与组件只导入 `queries/`（读）与 `datasource/`（写操作）。不再直接导入 `api/` 的函数（类型除外）。
+页面与组件只导入 `queries/`：读用 `queryOptions` 工厂，写用 `mutationOptions` 工厂。不再直接导入 `api/` 的函数（类型除外）。
 
 ### 查询键
 
@@ -142,8 +142,10 @@ return <QueryView query={query} empty={...}>{(data) => <EventTable data={data} /
 - `lint` 脚本改为 `eslint .`（`next lint` 在 Next 16 已移除；本机尚未实跑确认）
 - 守卫测试 `src/queries/no-direct-fetch.test.ts`（TypeScript 语法树，沿用 `no-raw-html.test.ts` 的做法）：
   - `app/` 与 `components/` 下不得值导入 `@/api/*`
-  - 不得调用 `useAutoRefresh`；不得在 `useEffect` 里调 datasource 的读函数
-  - 迁移期间用「尚未迁移」清单豁免，每迁一批删一批，最后一期清空
+  - 不得使用 `useAutoRefresh`
+  - 「在 `useEffect` 里取数再 setState」由 lint 规则 `react-hooks/set-state-in-effect` 拦
+  - 迁移期间两份清单标明还没迁的文件：`src/queries/legacy-fetch-files.ts`（守卫测试豁免，第 1 期后 51 个）
+    与 `eslint.legacy-files.mjs`（react-hooks 规则降为警告，第 1 期后 81 个）。每迁一批删一批，最后一期清空
 
 ## 功能一：基础设施与样板页（第 1 期）
 
@@ -211,7 +213,11 @@ return <QueryView query={query} empty={...}>{(data) => <EventTable data={data} /
 每期结束：`tsc`、`vitest`、`eslint`、`next build` 通过，推 dev，在浏览器里逐页核对。
 迁移期间新旧两种写法并存，由守卫测试的豁免清单标明哪些文件还没迁。
 
-## 待裁决
+## 裁决记录（2026-11-14，用户：「按照推荐吧」）
+
+三项均按推荐：新增依赖并由 Claude 在项目内执行安装；四期全做；lint 进 CI 并作为必过项（错误为零，警告不拦）。
+
+以下为裁决时的原始选项。
 
 **1. 新增依赖并在项目里执行 `npm install`**
 

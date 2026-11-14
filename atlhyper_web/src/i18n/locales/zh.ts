@@ -143,6 +143,10 @@ export const zh: Translations = {
     retry: "重试",
     loadFailed: "加载失败",
     noCluster: "暂无可用集群",
+    noClusterDesc: "还没有集群接入。Agent 连上后这里会显示数据。",
+    refreshFailed: "刷新失败，显示的是上一次的数据",
+    pageError: "页面出错了",
+    pageErrorDesc: "这个页面在显示时遇到了问题。可以重试，或回到首页。",
     // OTel 可用性提示
     otelRequired: "此功能需要 OTel 数据",
     otelRequiredDesc: "当前集群未部署 OpenTelemetry + ClickHouse，无法提供可观测性数据（Metrics / APM / Logs / SLO）。",

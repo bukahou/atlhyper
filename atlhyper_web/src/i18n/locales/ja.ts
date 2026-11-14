@@ -143,6 +143,10 @@ export const ja: Translations = {
     retry: "再試行",
     loadFailed: "読み込み失敗",
     noCluster: "利用可能なクラスタがありません",
+    noClusterDesc: "接続済みのクラスタがありません。Agent が接続するとここにデータが表示されます。",
+    refreshFailed: "更新に失敗しました。前回のデータを表示しています",
+    pageError: "ページでエラーが発生しました",
+    pageErrorDesc: "このページの表示中に問題が発生しました。再試行するか、ホームに戻ってください。",
     // OTel 可用性提示
     otelRequired: "この機能には OTel データが必要です",
     otelRequiredDesc: "現在のクラスタに OpenTelemetry + ClickHouse がデプロイされていないため、観測データ（Metrics / APM / Logs / SLO）を提供できません。",

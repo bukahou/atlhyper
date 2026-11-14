@@ -149,6 +149,10 @@ export interface CommonTranslations {
   retry: string;
   loadFailed: string;
   noCluster: string;
+  noClusterDesc: string;
+  refreshFailed: string;
+  pageError: string;
+  pageErrorDesc: string;
   // OTel 可用性提示
   otelRequired: string;
   otelRequiredDesc: string;
