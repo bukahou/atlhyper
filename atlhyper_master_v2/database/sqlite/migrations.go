@@ -83,15 +83,19 @@ func migrate(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id)`,
 
 		// ==================== 集群表 ====================
+		// 集群注册表：管理员登记的集群与它的 Agent 令牌。令牌只存哈希，明文只在签发时返回一次。
 		`CREATE TABLE IF NOT EXISTS clusters (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			cluster_uid TEXT UNIQUE NOT NULL,
-			name TEXT NOT NULL,
-			description TEXT,
-			environment TEXT,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
+			cluster_id      TEXT PRIMARY KEY,
+			name            TEXT NOT NULL DEFAULT '',
+			description     TEXT NOT NULL DEFAULT '',
+			token_hash      TEXT NOT NULL DEFAULT '',
+			token_prefix    TEXT NOT NULL DEFAULT '',
+			token_issued_at TEXT,
+			created_at      TEXT NOT NULL,
+			updated_at      TEXT NOT NULL
 		)`,
+		// 每个请求都按令牌哈希查一次集群；没签发令牌的行哈希为空串，不进索引
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_clusters_token_hash ON clusters(token_hash) WHERE token_hash != ''`,
 
 		// ==================== 审计日志表 ====================
 		`CREATE TABLE IF NOT EXISTS audit_logs (

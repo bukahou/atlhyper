@@ -27,7 +27,7 @@ func (b *fakeBus) WaitCommand(context.Context, string, string, time.Duration) (*
 	return cmd, nil
 }
 
-func (b *fakeBus) AckCommand(cmdID string, result *command.Result) error {
+func (b *fakeBus) AckCommand(_, cmdID string, result *command.Result) error {
 	if b.acked == nil {
 		b.acked = map[string]*command.Result{}
 	}

@@ -122,11 +122,19 @@ type NotifyChannelRepository interface {
 
 // ClusterRepository 集群接口
 type ClusterRepository interface {
+	// Create 登记集群；集群 ID 已存在时返回 ErrClusterExists
 	Create(ctx context.Context, cluster *Cluster) error
-	Update(ctx context.Context, cluster *Cluster) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*Cluster, error)
-	GetByUID(ctx context.Context, uid string) (*Cluster, error)
+	// UpdateProfile 修改显示名与描述；集群未登记时返回 ErrClusterNotFound
+	UpdateProfile(ctx context.Context, clusterID, name, description string) error
+	// SetToken 写入新签发令牌的哈希，旧令牌随之失效；集群未登记时返回 ErrClusterNotFound
+	SetToken(ctx context.Context, clusterID, tokenHash, tokenPrefix string, issuedAt time.Time) error
+	// Delete 删除登记（令牌随之失效）；集群未登记时返回 ErrClusterNotFound
+	Delete(ctx context.Context, clusterID string) error
+	// GetByID 未登记时返回 (nil, nil)
+	GetByID(ctx context.Context, clusterID string) (*Cluster, error)
+	// GetByTokenHash 按令牌哈希查集群；哈希为空或查不到时返回 (nil, nil)
+	GetByTokenHash(ctx context.Context, tokenHash string) (*Cluster, error)
+	// List 全部已登记的集群，按集群 ID 排序
 	List(ctx context.Context) ([]*Cluster, error)
 }
 
@@ -413,13 +421,16 @@ type NotifyDialect interface {
 
 // ClusterDialect 集群 SQL 方言
 type ClusterDialect interface {
-	Insert(cluster *Cluster) (query string, args []any)
-	Update(cluster *Cluster) (query string, args []any)
-	Delete(id int64) (query string, args []any)
-	SelectByID(id int64) (query string, args []any)
-	SelectByUID(uid string) (query string, args []any)
+	Insert(cluster *Cluster, now time.Time) (query string, args []any)
+	UpdateProfile(clusterID, name, description string, now time.Time) (query string, args []any)
+	UpdateToken(clusterID, tokenHash, tokenPrefix string, issuedAt, now time.Time) (query string, args []any)
+	Delete(clusterID string) (query string, args []any)
+	SelectByID(clusterID string) (query string, args []any)
+	SelectByTokenHash(tokenHash string) (query string, args []any)
 	SelectAll() (query string, args []any)
 	ScanRow(rows *sql.Rows) (*Cluster, error)
+	// IsDuplicateKey 判断插入失败是否因为集群 ID 已存在
+	IsDuplicateKey(err error) bool
 }
 
 // CommandDialect 指令历史 SQL 方言

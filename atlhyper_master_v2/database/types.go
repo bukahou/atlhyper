@@ -129,15 +129,16 @@ type EmailConfig struct {
 	ToAddresses  []string `json:"toAddresses"`
 }
 
-// Cluster 集群信息
+// Cluster 集群注册表的一行：管理员登记的集群，以及它的 Agent 令牌（只存哈希）
 type Cluster struct {
-	ID          int64
-	ClusterUID  string // 集群 UID（来自 kube-system）
-	Name        string // 显示名称
-	Description string
-	Environment string // prod / staging / dev
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ClusterID     string // 集群 ID，与 Agent 上报的一致
+	Name          string // 显示名称
+	Description   string
+	TokenHash     string     // 令牌哈希；空串表示尚未签发
+	TokenPrefix   string     // 令牌明文的前几个字符，供界面辨认
+	TokenIssuedAt *time.Time // 最近一次签发时间
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // CommandHistory 指令历史
