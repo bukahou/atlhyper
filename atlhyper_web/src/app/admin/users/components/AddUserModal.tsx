@@ -1,20 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { registerUser } from "@/api/auth";
+import { registerUserMutation } from "@/queries/admin";
 import { toast } from "@/components/common";
 import { UserRole } from "@/types/auth";
 import type { useI18n } from "@/i18n/context";
 
 interface AddUserModalProps {
-  isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
   t: ReturnType<typeof useI18n>["t"];
 }
 
-export function AddUserModal({ isOpen, onClose, onSuccess, t }: AddUserModalProps) {
+/** 新增用户弹窗。由页面在打开时挂载：每次打开都是一张空表单 */
+export function AddUserModal({ onClose, t }: AddUserModalProps) {
   const [form, setForm] = useState<{
     username: string;
     password: string;
@@ -28,34 +28,33 @@ export function AddUserModal({ isOpen, onClose, onSuccess, t }: AddUserModalProp
     email: "",
     role: UserRole.VIEWER,
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  // 成功后用户列表由工厂负责失效重取
+  const register = useMutation(registerUserMutation());
+  const loading = register.isPending;
+  const error = register.isError
+    ? register.error instanceof Error
+      ? register.error.message
+      : t.common.loadFailed
+    : "";
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      await registerUser({
+    register.mutate(
+      {
         username: form.username,
         password: form.password,
         displayName: form.displayName,
         email: form.email,
         role: form.role,
-      });
-      toast.success(t.common.success);
-      onSuccess();
-      onClose();
-      setForm({ username: "", password: "", displayName: "", email: "", role: UserRole.VIEWER });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast.success(t.common.success);
+          onClose();
+        },
+      },
+    );
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">

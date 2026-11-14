@@ -1,105 +1,67 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { PageHeader, LoadingSpinner } from "@/components/common";
-import { getAuditLogs } from "@/api/auth";
-import { Eye } from "lucide-react";
+import { PageHeader, LoadingSpinner, DemoBanner, QueryView } from "@/components/common";
+import { useCan } from "@/hooks/useCan";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { auditLogsQuery } from "@/queries/admin";
 import type { AuditLogItem } from "@/types/auth";
 import { MOCK_AUDIT_LOGS } from "./components/mock-data";
 import { AuditItem } from "./components/AuditItem";
 import { AuditFilterBar } from "./components/AuditFilterBar";
-import type { FilterResult } from "./components/AuditFilterBar";
-import { useCan } from "@/hooks/useCan";
+import { filterAuditLogs, type AuditResultFilter } from "./components/audit-filter";
+
+const NO_AUDIT_LOGS: AuditLogItem[] = [];
 
 export default function AuditPage() {
   const { t } = useI18n();
   const auditT = t.audit;
-  const can = useCan();
-  const [logs, setLogs] = useState<AuditLogItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // 审计是纯管理功能页：权限加载完才决定显示真实数据还是演示数据，之前显示加载中
+  const sessionReady = useSessionReady();
+  const canReadAudit = useCan()("audit.read");
+  const isDemo = sessionReady && !canReadAudit;
 
-  // 判断是否有权限查看真实数据（需要 Operator 权限）
-  const hasPermission = can("audit.read");
-  const isDemo = !hasPermission;
+  const auditQuery = useQuery(auditLogsQuery(canReadAudit));
+  const logs = isDemo ? MOCK_AUDIT_LOGS : (auditQuery.data ?? NO_AUDIT_LOGS);
 
   // 过滤器状态
   const [timeRange, setTimeRange] = useState(24); // 默认 24 小时
   const [filterUser, setFilterUser] = useState("");
-  const [filterResult, setFilterResult] = useState<FilterResult>("all");
+  const [filterResult, setFilterResult] = useState<AuditResultFilter>("all");
 
-  const fetchLogs = useCallback(async () => {
-    // 无权限时使用 mock 数据
-    if (!hasPermission) {
-      setLogs(MOCK_AUDIT_LOGS);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const res = await getAuditLogs();
-      setLogs(res.data.data || []);
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.error);
-    } finally {
-      setLoading(false);
-    }
-  }, [t.common.error, hasPermission]);
-
-  useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
-
-  // 应用过滤器
-  const filteredLogs = logs.filter((log) => {
-    // 时间范围过滤
-    if (timeRange > 0) {
-      const logTime = new Date(log.timestamp).getTime();
-      const cutoff = Date.now() - timeRange * 60 * 60 * 1000;
-      if (logTime < cutoff) return false;
-    }
-
-    // 用户过滤
-    if (filterUser && !log.username.toLowerCase().includes(filterUser.toLowerCase())) {
-      return false;
-    }
-
-    // 结果过滤
-    if (filterResult === "success" && !log.success) return false;
-    if (filterResult === "failed" && log.success) return false;
-
-    return true;
-  });
+  // 「最近 N 小时」的基准：真实数据用取回来的时刻，演示数据用打开页面的时刻
+  const [pageOpenedAt] = useState(() => Date.now());
+  const referenceTime = !isDemo && auditQuery.dataUpdatedAt > 0 ? auditQuery.dataUpdatedAt : pageOpenedAt;
+  const filteredLogs = filterAuditLogs(
+    logs,
+    { timeRangeHours: timeRange, username: filterUser, result: filterResult },
+    referenceTime,
+  );
 
   // 统计
-  const stats = {
-    total: filteredLogs.length,
-    success: filteredLogs.filter((l) => l.success).length,
-    failed: filteredLogs.filter((l) => !l.success).length,
-  };
+  const successCount = filteredLogs.filter((log) => log.success).length;
+  const stats = { total: filteredLogs.length, success: successCount, failed: filteredLogs.length - successCount };
+
+  const logList =
+    filteredLogs.length === 0 ? (
+      <div className="text-center py-12 text-muted">{auditT.noRecords}</div>
+    ) : (
+      <div className="space-y-0">
+        {filteredLogs.map((log) => (
+          <AuditItem key={log.id} log={log} auditT={auditT} />
+        ))}
+      </div>
+    );
 
   return (
     <Layout>
       <div className="space-y-6">
         <PageHeader title={t.nav.audit} description={auditT.description} />
 
-        {/* 演示模式提示 */}
-        {isDemo && (
-          <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-            <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                {t.common.demoMode}
-              </p>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t.common.demoModeHintAudit}
-              </p>
-            </div>
-          </div>
-        )}
+        {isDemo && <DemoBanner hint={t.common.demoModeHintAudit} />}
 
         {/* 过滤器 */}
         <AuditFilterBar
@@ -116,20 +78,14 @@ export default function AuditPage() {
 
         {/* 审计日志列表 */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] p-6">
-          {loading ? (
+          {!sessionReady ? (
             <div className="py-12">
               <LoadingSpinner />
             </div>
-          ) : error ? (
-            <div className="text-center py-12 text-red-500">{error}</div>
-          ) : filteredLogs.length === 0 ? (
-            <div className="text-center py-12 text-muted">{auditT.noRecords}</div>
+          ) : isDemo ? (
+            logList
           ) : (
-            <div className="space-y-0">
-              {filteredLogs.map((log) => (
-                <AuditItem key={log.id} log={log} auditT={auditT} />
-              ))}
-            </div>
+            <QueryView query={auditQuery}>{() => logList}</QueryView>
           )}
         </div>
       </div>

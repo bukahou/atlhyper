@@ -210,6 +210,8 @@ export interface StatusTranslations {
 // 审计翻译
 export interface AuditTranslations {
   description: string;
+  /** 「请求路径」字段的标签 */
+  requestPath: string;
   filterLabel: string;
   timeRange: string;
   user: string;
@@ -776,6 +778,82 @@ export interface ClustersTranslations {
   connected: string;
   disconnected: string;
   noClusters: string;
+}
+
+// 集群管理页（集群注册表与 Agent 令牌）翻译
+export interface ClusterRegistryTranslations {
+  pageDescription: string;
+  demoHint: string;
+  // 表头
+  clusterId: string;
+  displayName: string;
+  description: string;
+  status: string;
+  lastSeen: string;
+  registration: string;
+  token: string;
+  agentAuth: string;
+  // 单元格
+  statusOnline: string;
+  statusOffline: string;
+  statusNever: string;
+  neverReported: string;
+  registered: string;
+  unregistered: string;
+  unregisteredHint: string;
+  tokenNotIssued: string;
+  tokenIssuedAt: string;
+  agentAuthenticated: string;
+  agentUnauthenticated: string;
+  // 操作
+  registerCluster: string;
+  register: string;
+  editProfile: string;
+  issueToken: string;
+  rotateToken: string;
+  unregister: string;
+  empty: string;
+  emptyHint: string;
+  // 登记 / 编辑弹窗
+  registerTitle: string;
+  editTitle: string;
+  clusterIdFormatHint: string;
+  clusterIdMatchHint: string;
+  displayNameHint: string;
+  descriptionHint: string;
+  registering: string;
+  saving: string;
+  // 操作结果
+  registeredToast: string;
+  updatedToast: string;
+  unregisteredToast: string;
+  errors: {
+    idLength: string;
+    idCharset: string;
+    nameRequired: string;
+    nameTooLong: string;
+    descriptionTooLong: string;
+    controlCharacter: string;
+    alreadyRegistered: string;
+    notRegistered: string;
+    invalidInput: string;
+    unknown: string;
+  };
+  // 轮换确认
+  rotateConfirmTitle: string;
+  rotateConfirmMessage: string;
+  // 令牌一次性显示弹窗
+  tokenDialogTitle: string;
+  tokenOnceWarning: string;
+  tokenUsageHint: string;
+  tokenFor: string;
+  copyToken: string;
+  tokenCopied: string;
+  tokenCopyFailed: string;
+  tokenDialogClose: string;
+  // 删除登记确认
+  unregisterConfirmTitle: string;
+  unregisterConfirmMessage: string;
 }
 
 // Agents 页面翻译
@@ -2599,6 +2677,7 @@ export interface Translations {
   users: UsersTranslations;
   roles: RolesTranslations;
   clusters: ClustersTranslations;
+  clusterRegistry: ClusterRegistryTranslations;
   agents: AgentsTranslations;
   notifications: NotificationsTranslations;
   login: LoginTranslations;

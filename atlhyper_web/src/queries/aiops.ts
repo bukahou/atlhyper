@@ -19,23 +19,13 @@ import {
   getIncidentStats,
 } from "@/api/aiops";
 import { aiopsKeys, type GraphTraceDirection } from "./keys";
+import { isQueryOfCluster } from "./previous-data";
 import { REFRESH } from "./refresh";
 
 /** 事件列表一次取多少条 */
 const INCIDENT_PAGE_SIZE = 20;
 /** 依赖追踪沿依赖图走几层 */
 const GRAPH_TRACE_DEPTH = 3;
-
-/**
- * 上一份查询是不是同一个集群的。
- *
- * 换筛选条件时先留着上一份结果（placeholderData），但只在同一个集群内：
- * 换了集群还显示旧集群的数据，等于把别的集群的东西当成当前集群的。
- */
-export function isQueryOfCluster(query: { queryKey: readonly unknown[] } | undefined, clusterId: string): boolean {
-  const scope = query?.queryKey[2] as { clusterId?: string } | undefined;
-  return scope?.clusterId === clusterId;
-}
 
 // ============================================================
 // 风险

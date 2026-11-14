@@ -5,13 +5,7 @@
  * 清单外的文件不得违规；清单里的文件一旦迁完必须从这里删掉。
  */
 export const LEGACY_FETCH_FILES: string[] = [
-  "app/admin/audit/page.tsx",
-  "app/admin/commands/page.tsx",
   "app/admin/deploy/components/useDeployPage.ts",
-  "app/admin/users/components/AddUserModal.tsx",
-  "app/admin/users/components/DeleteUserModal.tsx",
-  "app/admin/users/components/EditRoleModal.tsx",
-  "app/admin/users/page.tsx",
   "app/auth/github/callback/page.tsx",
   "app/settings/ai/components/BudgetConfigCard.tsx",
   "app/settings/ai/components/RoleOverviewCard.tsx",

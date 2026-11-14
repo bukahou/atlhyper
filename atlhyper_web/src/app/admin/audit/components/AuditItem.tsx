@@ -64,6 +64,15 @@ export function AuditItem({ log, auditT }: AuditItemProps) {
             {new Date(log.timestamp).toLocaleString()}
           </div>
           <span>IP: {log.ip}</span>
+          {/* 请求路径：改名、签发令牌、删除登记这类操作的对象（如集群 ID）只出现在路径里 */}
+          {log.path && (
+            <span className="min-w-0">
+              {auditT.requestPath}:{" "}
+              <span className="font-mono text-xs text-default break-all">
+                {log.method} {log.path}
+              </span>
+            </span>
+          )}
         </div>
       </div>
     </div>

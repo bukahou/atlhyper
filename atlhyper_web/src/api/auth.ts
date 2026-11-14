@@ -73,8 +73,8 @@ export function getPermissionTable(signal?: AbortSignal) {
  * 外部登录方式（无需登录；未启用时为空列表）
  * GET /api/v2/auth/providers
  */
-export function getAuthProviders() {
-  return get<{ message: string; data: AuthProvider[] }>("/api/v2/auth/providers");
+export function getAuthProviders(signal?: AbortSignal) {
+  return get<{ message: string; data: AuthProvider[] }>("/api/v2/auth/providers", undefined, signal);
 }
 
 /**
@@ -88,16 +88,19 @@ export function oidcStartURL(next: string) {
  * 获取用户列表（需要 Admin 权限）
  * GET /api/v2/user/list
  */
-export function getUserList() {
-  return get<UserListApiResponse>("/api/v2/user/list");
+export function getUserList(signal?: AbortSignal) {
+  return get<UserListApiResponse>("/api/v2/user/list", undefined, signal);
 }
 
 /**
  * 获取审计日志（需要 Admin 权限）
  * GET /api/v2/audit/logs
  */
-export function getAuditLogs(params?: { userId?: number; source?: string; action?: string; since?: string; until?: string; limit?: number; offset?: number }) {
-  return get<AuditLogsApiResponse>("/api/v2/audit/logs", params);
+export function getAuditLogs(
+  params?: { userId?: number; source?: string; action?: string; since?: string; until?: string; limit?: number; offset?: number },
+  signal?: AbortSignal,
+) {
+  return get<AuditLogsApiResponse>("/api/v2/audit/logs", params, signal);
 }
 
 /**

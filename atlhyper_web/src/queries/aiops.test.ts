@@ -27,7 +27,6 @@ import {
   incidentPatternsQuery,
   incidentsQuery,
   incidentStatsQuery,
-  isQueryOfCluster,
 } from "./aiops";
 import { REFRESH } from "./refresh";
 
@@ -106,15 +105,6 @@ describe("entityRisksQuery", () => {
     const paused = dependencyGraphQuery("c1", false);
     expect(paused.refetchInterval).toBe(false);
     expect(paused.staleTime).toBe(0);
-  });
-});
-
-describe("isQueryOfCluster", () => {
-  it("只有同一个集群的上一份结果才留着用", () => {
-    const previous = { queryKey: ["aiops", "incidents", { clusterId: "c1", state: "" }] };
-    expect(isQueryOfCluster(previous, "c1")).toBe(true);
-    expect(isQueryOfCluster(previous, "c2")).toBe(false);
-    expect(isQueryOfCluster(undefined, "c1")).toBe(false);
   });
 });
 

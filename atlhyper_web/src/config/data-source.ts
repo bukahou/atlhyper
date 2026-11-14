@@ -18,9 +18,10 @@ export const MODULE_REGISTRY: ModuleDataSource[] = [
   // Observe
   { key: "metrics", category: "observe", labelKey: "metrics", hasMock: true, defaultMode: "api" },
   { key: "logs", category: "observe", labelKey: "logs", hasMock: true, defaultMode: "api" },
-  { key: "apm", category: "observe", labelKey: "apm", hasMock: true, defaultMode: "api" },
+  // APM 没有演示数据（datasource/apm.ts 只有真实接口），不能切换
+  { key: "apm", category: "observe", labelKey: "apm", hasMock: false, defaultMode: "api" },
   { key: "slo", category: "observe", labelKey: "slo", hasMock: true, defaultMode: "api" },
-{ key: "overview", category: "observe", labelKey: "overview", hasMock: true, defaultMode: "api" },
+  { key: "overview", category: "observe", labelKey: "overview", hasMock: true, defaultMode: "api" },
   // Cluster
   { key: "pod", category: "cluster", labelKey: "pod", hasMock: true, defaultMode: "api" },
   { key: "node", category: "cluster", labelKey: "node", hasMock: true, defaultMode: "api" },
@@ -79,12 +80,21 @@ function saveConfig(config: Record<string, DataSourceMode>): void {
   }
 }
 
+/**
+ * 某个模块该用哪种数据源：保存过的选择优先，否则用注册表里的默认值。
+ *
+ * 没有演示数据的模块恒为真实接口 —— 即使 localStorage 里留着一条旧的 "mock"
+ * （模块曾经标着可切换），也不会让查询去走一条不存在的演示数据分支。
+ */
+export function resolveDataSourceMode(key: string, savedConfig: Record<string, DataSourceMode>): DataSourceMode {
+  const mod = MODULE_REGISTRY.find((m) => m.key === key);
+  if (mod && !mod.hasMock) return "api";
+  return savedConfig[key] ?? mod?.defaultMode ?? "api";
+}
+
 /** 获取指定模块的数据源模式 */
 export function getDataSourceMode(key: string): DataSourceMode {
-  const config = loadConfig();
-  if (config[key]) return config[key];
-  const mod = MODULE_REGISTRY.find((m) => m.key === key);
-  return mod?.defaultMode ?? "api";
+  return resolveDataSourceMode(key, loadConfig());
 }
 
 /** 设置指定模块的数据源模式 */

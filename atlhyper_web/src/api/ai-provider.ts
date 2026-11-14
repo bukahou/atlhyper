@@ -140,8 +140,8 @@ export interface AIReportItem {
 // ============================================================
 
 // プロバイダー一覧取得
-export function listProviders() {
-  return get<ProviderListResponse>("/api/v2/ai/providers");
+export function listProviders(signal?: AbortSignal) {
+  return get<ProviderListResponse>("/api/v2/ai/providers", undefined, signal);
 }
 
 // プロバイダー作成
@@ -165,8 +165,8 @@ export function deleteProvider(id: number) {
 }
 
 // AI 設定取得
-export function getAISettings() {
-  return get<AISettings>("/api/v2/ai/settings");
+export function getAISettings(signal?: AbortSignal) {
+  return get<AISettings>("/api/v2/ai/settings", undefined, signal);
 }
 
 // AI 設定更新
@@ -183,13 +183,13 @@ export function updateProviderRoles(id: number, roles: string[]) {
 }
 
 // 角色总览
-export function getRolesOverview() {
-  return get<{ message: string; data: RoleOverview[] }>("/api/v2/ai/roles");
+export function getRolesOverview(signal?: AbortSignal) {
+  return get<{ message: string; data: RoleOverview[] }>("/api/v2/ai/roles", undefined, signal);
 }
 
 // 角色预算列表
-export function getBudgets() {
-  return get<{ message: string; data: RoleBudget[] }>("/api/v2/ai/budgets");
+export function getBudgets(signal?: AbortSignal) {
+  return get<{ message: string; data: RoleBudget[] }>("/api/v2/ai/budgets", undefined, signal);
 }
 
 // 角色预算更新
