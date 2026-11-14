@@ -5,6 +5,7 @@ package aiops
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -142,9 +143,15 @@ func (h *AIHandler) getMessages(w http.ResponseWriter, r *http.Request, convID i
 		return
 	}
 
-	msgs, err := h.aiService.GetMessages(r.Context(), convID)
+	userID, ok := middleware.GetUserID(r.Context())
+	if !ok {
+		handler.WriteError(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	msgs, err := h.aiService.GetMessages(r.Context(), userID, convID)
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeConversationError(w, err)
 		return
 	}
 
@@ -160,8 +167,14 @@ func (h *AIHandler) deleteConversation(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
-	if err := h.aiService.DeleteConversation(r.Context(), convID); err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, err.Error())
+	userID, ok := middleware.GetUserID(r.Context())
+	if !ok {
+		handler.WriteError(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	if err := h.aiService.DeleteConversation(r.Context(), userID, convID); err != nil {
+		writeConversationError(w, err)
 		return
 	}
 	handler.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -201,14 +214,19 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 调用 AIService.Chat
+	// 工具结果会出现在回复里，所以工具按调用者本人的权限过滤（与网关同名接口一致）
+	level := middleware.GetPrincipal(r.Context()).Level
 	ch, err := h.aiService.Chat(r.Context(), &aiPkg.ChatRequest{
 		ConversationID: req.ConversationID,
 		ClusterID:      req.ClusterID,
 		UserID:         userID,
 		Message:        req.Message,
+		Allow: func(p string) bool {
+			return middleware.Allowed(level, middleware.Permission(p))
+		},
 	})
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeConversationError(w, err)
 		return
 	}
 
@@ -238,4 +256,13 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	aiLog.Debug("SSE 流结束", "conv", req.ConversationID, "user", userID, "chunks", chunkCount)
+}
+
+// writeConversationError 会话不存在与不属于当前用户同样返回 404（不暴露别人的会话是否存在）
+func writeConversationError(w http.ResponseWriter, err error) {
+	if errors.Is(err, aiPkg.ErrConversationNotFound) {
+		handler.WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	handler.WriteError(w, http.StatusInternalServerError, err.Error())
 }

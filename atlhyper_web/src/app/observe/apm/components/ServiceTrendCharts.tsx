@@ -5,6 +5,7 @@ import * as echarts from "echarts";
 import type { APMTimePoint } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs } from "@/lib/format";
+import { joinHtml, safeHtml, trustedHtml } from "@/lib/safe-html";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -107,9 +108,9 @@ export function ServiceTrendCharts({ t, points }: ServiceTrendChartsProps) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (params: any) => {
           const lines = params.map((p: { marker: string; seriesName: string; value: number }) =>
-            `${p.marker} ${p.seriesName}: ${formatDurationMs(p.value)}`
+            safeHtml`${trustedHtml(p.marker)} ${p.seriesName}: ${formatDurationMs(p.value)}`
           );
-          return `${params[0].axisValue}<br/>${lines.join("<br/>")}`;
+          return safeHtml`${params[0].axisValue}<br/>${joinHtml(lines, safeHtml`<br/>`)}`.toString();
         },
       },
       yAxis: { ...baseAxis.yAxis, axisLabel: { ...baseAxis.yAxis.axisLabel, formatter: (v: number) => formatDurationMs(v) } },
@@ -130,7 +131,7 @@ export function ServiceTrendCharts({ t, points }: ServiceTrendChartsProps) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (params: any) => {
           const p = params[0];
-          return `${p.axisValue}<br/>${p.marker} ${p.value.toFixed(2)} req/s`;
+          return safeHtml`${p.axisValue}<br/>${trustedHtml(p.marker)} ${p.value.toFixed(2)} req/s`.toString();
         },
       },
       yAxis: { ...baseAxis.yAxis, axisLabel: { ...baseAxis.yAxis.axisLabel, formatter: (v: number) => `${v.toFixed(1)}` } },
@@ -158,10 +159,10 @@ export function ServiceTrendCharts({ t, points }: ServiceTrendChartsProps) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (params: any) => {
           const lines = params.map((p: { marker: string; seriesName: string; value: number }) => {
-            if (p.seriesName === t.errorRate) return `${p.marker} ${p.seriesName}: ${p.value.toFixed(2)}%`;
-            return `${p.marker} ${p.seriesName}: ${p.value}`;
+            if (p.seriesName === t.errorRate) return safeHtml`${trustedHtml(p.marker)} ${p.seriesName}: ${p.value.toFixed(2)}%`;
+            return safeHtml`${trustedHtml(p.marker)} ${p.seriesName}: ${p.value}`;
           });
-          return `${params[0].axisValue}<br/>${lines.join("<br/>")}`;
+          return safeHtml`${params[0].axisValue}<br/>${joinHtml(lines, safeHtml`<br/>`)}`.toString();
         },
       },
       yAxis: [

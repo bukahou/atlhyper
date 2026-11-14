@@ -7,6 +7,7 @@ import type { Point } from "@/types/node-metrics";
 import type { TimeWindow, Interval } from "./chartConstants";
 import { PALETTE, INTERVALS_BY_WINDOW, windowForHours } from "./chartConstants";
 import { getThemeColors, aggregatePoints, pickAdaptiveInterval } from "./chartUtils";
+import { joinHtml, safeHtml } from "@/lib/safe-html";
 
 // ==================== Types ====================
 
@@ -174,9 +175,9 @@ export const MetricChart = memo(function MetricChart({
             .filter((item) => item.value?.[1] != null)
             .map(
               (item) =>
-                `<span style="color:${item.color}">●</span> ${item.seriesName}: ${item.value[1].toFixed(1)}${unit}`
+                safeHtml`<span style="color:${item.color}">●</span> ${item.seriesName}: ${item.value[1].toFixed(1)}${unit}`
             );
-          return `${time}<br/>${lines.join("<br/>")}`;
+          return safeHtml`${time}<br/>${joinHtml(lines, safeHtml`<br/>`)}`.toString();
         },
       },
       xAxis: { min: xAxisMin, max: xAxisMax, minInterval: intervalSec * 1000 },

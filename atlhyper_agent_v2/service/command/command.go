@@ -96,6 +96,14 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 	var err error
 	var data any
 
+	// 目标会成为 K8s API 请求的一部分：不是合法资源名的指令不执行
+	if err = command.ValidateTarget(cmd.Namespace, cmd.Name); err != nil {
+		result.Success = false
+		result.Error = err.Error()
+		result.ExecTime = time.Since(start)
+		return result
+	}
+
 	switch cmd.Action {
 	case command.ActionScale:
 		err = s.handleScale(ctx, cmd)

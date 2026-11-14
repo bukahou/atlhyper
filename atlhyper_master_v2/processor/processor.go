@@ -62,12 +62,15 @@ func (p *processorImpl) ProcessSnapshot(clusterID string, snapshot *cluster.Clus
 		return fmt.Errorf("validate snapshot: %w", err)
 	}
 
-	// 2. 写入 DataHub
+	// 2. 清洗：整份清单副本类注解不进入存储（不依赖上报方已经清理过）
+	snapshot.DropManifestCopyAnnotations()
+
+	// 3. 写入 DataHub
 	if err := p.store.SetSnapshot(clusterID, snapshot); err != nil {
 		return fmt.Errorf("set snapshot: %w", err)
 	}
 
-	// 3. 检测资源数量变化，决定日志级别
+	// 4. 检测资源数量变化，决定日志级别
 	current := snapshotCounts{
 		pods:   len(snapshot.Pods),
 		nodes:  len(snapshot.Nodes),
@@ -99,7 +102,7 @@ func (p *processorImpl) ProcessSnapshot(clusterID string, snapshot *cluster.Clus
 		)
 	}
 
-	// 4. 触发回调（Event/Metrics/SLO 持久化）
+	// 5. 触发回调（Event/Metrics/SLO 持久化）
 	if p.onSnapshotReceived != nil {
 		p.onSnapshotReceived(clusterID)
 	}

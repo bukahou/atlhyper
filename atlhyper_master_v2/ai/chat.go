@@ -24,13 +24,9 @@ const maxHistoryMessages = 20       // 最大历史消息加载数
 
 // Chat 发送消息并获取流式响应
 func (s *aiServiceImpl) Chat(ctx context.Context, req *ChatRequest) (<-chan *ChatChunk, error) {
-	// 1. 获取对话信息
-	conv, err := s.convRepo.GetByID(ctx, req.ConversationID)
-	if err != nil {
-		return nil, fmt.Errorf("获取对话失败: %w", err)
-	}
-	if conv == nil {
-		return nil, fmt.Errorf("对话不存在: %d", req.ConversationID)
+	// 1. 获取对话信息（只能续聊自己的会话）
+	if _, err := s.ownedConversation(ctx, req.UserID, req.ConversationID); err != nil {
+		return nil, err
 	}
 
 	// 2. 加载历史消息
@@ -70,14 +66,14 @@ func (s *aiServiceImpl) Chat(ctx context.Context, req *ChatRequest) (<-chan *Cha
 	go func() {
 		defer close(ch)
 		defer cancel()
-		s.chatLoop(chatCtx, req.ClusterID, req.ConversationID, messages, ch)
+		s.chatLoop(chatCtx, req.ClusterID, req.ConversationID, req.Allow, messages, ch)
 	}()
 
 	return ch, nil
 }
 
 // chatLoop 多轮 Tool Calling 循环
-func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID int64, messages []llm.Message, ch chan<- *ChatChunk) {
+func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID int64, allow PermissionCheck, messages []llm.Message, ch chan<- *ChatChunk) {
 	startTime := time.Now()
 
 	// 每次 Chat 从 DB 获取最新配置并创建 LLM Client（支持热更新）
@@ -107,7 +103,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	)
 
 	systemPrompt := prompts.BuildChatPrompt()
-	tools := prompts.GetToolDefinitions()
+	tools := toolDefsFor(allow) // 只给模型调用者有权限用的工具
 
 	var assistantContent string
 	var totalToolCalls int    // 统计总指令数
@@ -221,7 +217,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			}
 
 			// 执行（传递 ctx 以支持全局超时取消）
-			result, err := s.executor.Execute(ctx, clusterID, &tc)
+			result, err := s.executor.Execute(ctx, clusterID, allow, &tc)
 			if err != nil {
 				result = fmt.Sprintf("Tool 执行失败: %v", err)
 			}

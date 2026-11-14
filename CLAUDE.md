@@ -444,7 +444,6 @@ atlhyper_master_v2/
 ├── slo/                # SLO 路由更新器
 ├── deployer/           # GitOps 部署模块 (CD)
 ├── github/             # GitHub API 客户端
-├── tester/             # 内置测试工具
 ├── config/             # 配置
 └── master.go           # 启动入口
 ```

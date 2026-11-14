@@ -5,6 +5,7 @@ import * as echarts from "echarts";
 import { TrendingUp } from "lucide-react";
 import type { Point } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
+import { joinHtml, safeHtml } from "@/lib/safe-html";
 
 interface ResourceChartProps {
   /** Per-metric history: { cpu: Point[], memory: Point[], disk: Point[], temp: Point[] } */
@@ -62,9 +63,10 @@ export const ResourceChart = memo(function ResourceChart({
           const lines = items
             .filter((item) => item.value && item.value[1] != null)
             .map(
-              (item) => `<span style="color:${item.color}">●</span> ${item.seriesName}: ${item.value[1].toFixed(1)}%`
+              (item) =>
+                safeHtml`<span style="color:${item.color}">●</span> ${item.seriesName}: ${item.value[1].toFixed(1)}%`
             );
-          return `${time}<br/>${lines.join("<br/>")}`;
+          return safeHtml`${time}<br/>${joinHtml(lines, safeHtml`<br/>`)}`.toString();
         },
       },
       legend: {

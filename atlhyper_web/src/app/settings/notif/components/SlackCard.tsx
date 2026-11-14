@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react";
 import { MessageSquare, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import type { SlackConfig } from "@/api/notify";
 
 interface SlackCardProps {
-  config: SlackConfig;
+  webhookConfigured: boolean; // 后端已存有 webhook（地址本身不回显）
   enabled: boolean;
   effectiveEnabled: boolean;
   validationErrors: string[];
@@ -16,7 +15,7 @@ interface SlackCardProps {
 }
 
 export function SlackCard({
-  config,
+  webhookConfigured,
   enabled,
   effectiveEnabled,
   validationErrors,
@@ -28,7 +27,8 @@ export function SlackCard({
   const nt = t.notifications;
 
   const [localEnabled, setLocalEnabled] = useState(enabled);
-  const [webhookUrl, setWebhookUrl] = useState(config.webhookUrl || "");
+  // 只放用户新输入的地址：已存的 webhook 不回显，留空 = 保持不变
+  const [webhookUrl, setWebhookUrl] = useState("");
   const [showWebhook, setShowWebhook] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -37,14 +37,12 @@ export function SlackCard({
   // 同步外部状态
   useEffect(() => {
     setLocalEnabled(enabled);
-    setWebhookUrl(config.webhookUrl || "");
-  }, [enabled, config.webhookUrl]);
+  }, [enabled]);
 
   // 检测变化
   useEffect(() => {
-    const changed = localEnabled !== enabled || webhookUrl !== (config.webhookUrl || "");
-    setHasChanges(changed);
-  }, [localEnabled, webhookUrl, enabled, config.webhookUrl]);
+    setHasChanges(localEnabled !== enabled || webhookUrl !== "");
+  }, [localEnabled, webhookUrl, enabled]);
 
   const handleToggle = async () => {
     if (readOnly) return;
@@ -63,7 +61,8 @@ export function SlackCard({
     if (readOnly || !hasChanges) return;
     setSaving(true);
     try {
-      await onSave({ enabled: localEnabled, webhookUrl: webhookUrl });
+      await onSave({ enabled: localEnabled, webhookUrl: webhookUrl || undefined });
+      setWebhookUrl("");
     } finally {
       setSaving(false);
     }
@@ -76,12 +75,6 @@ export function SlackCard({
     } finally {
       setTesting(false);
     }
-  };
-
-  // 隐藏 webhook URL 中间部分
-  const maskWebhook = (url: string) => {
-    if (!url || url.length < 40) return url;
-    return url.slice(0, 35) + "****" + url.slice(-10);
   };
 
   return (
@@ -153,7 +146,7 @@ export function SlackCard({
               type={showWebhook ? "text" : "password"}
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
-              placeholder="https://hooks.slack.com/services/..."
+              placeholder={webhookConfigured ? nt.secretConfiguredPlaceholder : "https://hooks.slack.com/services/..."}
               disabled={readOnly}
               className={`w-full px-3 py-2 pr-10 rounded-lg border text-sm font-mono
                 bg-[var(--bg-primary)] text-default
@@ -169,10 +162,8 @@ export function SlackCard({
               {showWebhook ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-          {readOnly && webhookUrl && (
-            <p className="mt-1 text-xs text-muted font-mono">
-              {maskWebhook(webhookUrl)}
-            </p>
+          {readOnly && webhookConfigured && (
+            <p className="mt-1 text-xs text-muted">{nt.secretConfigured}</p>
           )}
         </div>
 

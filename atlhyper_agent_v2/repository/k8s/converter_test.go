@@ -2514,3 +2514,50 @@ func TestIsPodReady(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// 注解：清单副本不随快照上报
+// =============================================================================
+
+func TestConvert_DropsManifestCopyAnnotations(t *testing.T) {
+	const lastApplied = "kubectl.kubernetes.io/last-applied-configuration"
+	meta := func() metav1.ObjectMeta {
+		return metav1.ObjectMeta{
+			Name:              "demo",
+			Namespace:         "default",
+			CreationTimestamp: metav1.Time{Time: stableTime()},
+			Annotations:       map[string]string{lastApplied: `{"kind":"X"}`, "team": "platform"},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+	}{
+		{"Pod", ConvertPod(&corev1.Pod{ObjectMeta: meta()}).Annotations},
+		{"Deployment", ConvertDeployment(&appsv1.Deployment{ObjectMeta: meta()}).Annotations},
+		{"Deployment 模板", ConvertDeployment(&appsv1.Deployment{
+			ObjectMeta: meta(),
+			Spec:       appsv1.DeploymentSpec{Template: corev1.PodTemplateSpec{ObjectMeta: meta()}},
+		}).Template.Annotations},
+		{"StatefulSet", ConvertStatefulSet(&appsv1.StatefulSet{ObjectMeta: meta()}).Annotations},
+		{"DaemonSet", ConvertDaemonSet(&appsv1.DaemonSet{ObjectMeta: meta()}).Annotations},
+		{"Service", ConvertService(&corev1.Service{ObjectMeta: meta()}).Annotations},
+		{"Namespace", ConvertNamespace(&corev1.Namespace{ObjectMeta: meta()}).Annotations},
+		{"Ingress", ConvertIngress(&networkingv1.Ingress{ObjectMeta: meta()}).Annotations},
+		{"ResourceQuota", ConvertResourceQuota(&corev1.ResourceQuota{ObjectMeta: meta()}).Annotations},
+		{"LimitRange", ConvertLimitRange(&corev1.LimitRange{ObjectMeta: meta()}).Annotations},
+		{"NetworkPolicy", ConvertNetworkPolicy(&networkingv1.NetworkPolicy{ObjectMeta: meta()}).Annotations},
+		{"ServiceAccount", ConvertServiceAccount(&corev1.ServiceAccount{ObjectMeta: meta()}).Annotations},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, ok := tt.annotations[lastApplied]; ok {
+				t.Errorf("清单副本注解被上报")
+			}
+			if tt.annotations["team"] != "platform" {
+				t.Errorf("普通注解丢失: %v", tt.annotations)
+			}
+		})
+	}
+}

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Modal } from "@/components/common/Modal";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { getPodLogs } from "@/api/pod";
 import { useClusterStore } from "@/store/clusterStore";
 import { useI18n } from "@/i18n/context";
+import { splitLogHighlight } from "./log-highlight";
 import {
   RefreshCw,
   Download,
@@ -88,12 +89,8 @@ export function PodLogsViewer({
     URL.revokeObjectURL(url);
   };
 
-  // 高亮搜索文本
-  const highlightLogs = (text: string) => {
-    if (!searchText.trim()) return text;
-    const regex = new RegExp(`(${searchText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
-    return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600">$1</mark>');
-  };
+  // 搜索高亮：切成文本片段，由 React 转义渲染（日志来自容器，不能当 HTML）
+  const logSegments = useMemo(() => splitLogHighlight(logs, searchText), [logs, searchText]);
 
   const tailLinesOptions = [100, 200, 500, 1000, 2000];
 
@@ -213,10 +210,17 @@ export function PodLogsViewer({
             <pre
               ref={logsRef}
               className="h-full overflow-auto p-2 sm:p-4 bg-gray-900 text-gray-100 text-[10px] sm:text-xs font-mono leading-relaxed whitespace-pre-wrap break-all"
-              dangerouslySetInnerHTML={{
-                __html: searchText ? highlightLogs(logs) : logs,
-              }}
-            />
+            >
+              {logSegments.map((seg, i) =>
+                seg.match ? (
+                  <mark key={i} className="bg-yellow-300 dark:bg-yellow-600">
+                    {seg.text}
+                  </mark>
+                ) : (
+                  seg.text
+                )
+              )}
+            </pre>
           )}
         </div>
 

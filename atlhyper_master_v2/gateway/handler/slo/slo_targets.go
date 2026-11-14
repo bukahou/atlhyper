@@ -4,7 +4,10 @@ package slo
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"regexp"
 
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/model"
@@ -47,8 +50,8 @@ func (h *SLOHandler) updateTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Host == "" {
-		handler.WriteError(w, http.StatusBadRequest, "host required")
+	if err := validateTargetRequest(&req); err != nil {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -75,4 +78,38 @@ func (h *SLOHandler) StatusHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	handler.WriteJSON(w, http.StatusOK, []model.SLOStatusHistoryItem{})
+}
+
+// ==================== 写入校验 ====================
+
+// SLO 目标的取值范围，与前端目标弹窗（SLOTargetModal）的选项一致
+const (
+	maxHostLen          = 253 // DNS 名称上限
+	maxClusterIDLen     = 128
+	maxP95LatencyTarget = 600_000 // 10 分钟（毫秒）
+)
+
+// sloWindowOptions 允许的滚动窗口天数；0 = 用默认值
+var sloWindowOptions = map[int]bool{0: true, 1: true, 3: true, 7: true}
+
+// sloHostPattern 域名（可带一层通配前缀 "*."），不含端口与路径
+var sloHostPattern = regexp.MustCompile(`^(\*\.)?([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
+
+// validateTargetRequest 校验 SLO 目标写入请求，返回面向用户的错误说明
+func validateTargetRequest(req *model.UpdateSLOTargetRequest) error {
+	switch {
+	case req.Host == "":
+		return errors.New("host required")
+	case len(req.Host) > maxHostLen || !sloHostPattern.MatchString(req.Host):
+		return errors.New("host 必须是域名")
+	case len(req.ClusterID) > maxClusterIDLen:
+		return errors.New("clusterId 过长")
+	case !sloWindowOptions[req.WindowDays]:
+		return errors.New("windowDays 只能是 1、3 或 7")
+	case req.AvailabilityTarget <= 0 || req.AvailabilityTarget > 100:
+		return errors.New("availabilityTarget 必须在 (0, 100] 之间")
+	case req.P95LatencyTarget <= 0 || req.P95LatencyTarget > maxP95LatencyTarget:
+		return fmt.Errorf("p95LatencyTarget 必须在 1–%d 毫秒之间", maxP95LatencyTarget)
+	}
+	return nil
 }

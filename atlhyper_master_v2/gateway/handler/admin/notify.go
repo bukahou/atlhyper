@@ -5,19 +5,31 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
+	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
+// NotifyTester 发送一条测试通知（由告警模块提供）
+type NotifyTester interface {
+	Test(ctx context.Context, channelType string) error
+}
+
 // NotifyHandler 通知 Handler
 type NotifyHandler struct {
-	svc service.Service
+	svc    service.Service
+	tester NotifyTester // 可选，nil = 测试发送不可用
 }
+
+// SetTester 注入测试发送能力
+func (h *NotifyHandler) SetTester(t NotifyTester) { h.tester = t }
 
 // NewNotifyHandler 创建 NotifyHandler
 func NewNotifyHandler(svc service.Service) *NotifyHandler {
@@ -28,15 +40,16 @@ func NewNotifyHandler(svc service.Service) *NotifyHandler {
 
 // ChannelResponse 渠道响应
 type ChannelResponse struct {
-	ID               int64           `json:"id"`
-	Type             string          `json:"type"`
-	Name             string          `json:"name"`
-	Enabled          bool            `json:"enabled"`          // 用户设置的启用状态
-	EffectiveEnabled bool            `json:"effectiveEnabled"` // 实际可用状态（启用+配置完整）
-	ValidationErrors []string        `json:"validationErrors"` // 配置校验错误
-	Config           json.RawMessage `json:"config"`
-	CreatedAt        time.Time       `json:"createdAt"`
-	UpdatedAt        time.Time       `json:"updatedAt"`
+	ID                int64           `json:"id"`
+	Type              string          `json:"type"`
+	Name              string          `json:"name"`
+	Enabled           bool            `json:"enabled"`          // 用户设置的启用状态
+	EffectiveEnabled  bool            `json:"effectiveEnabled"` // 实际可用状态（启用+配置完整）
+	ValidationErrors  []string        `json:"validationErrors"` // 配置校验错误
+	Config            json.RawMessage `json:"config"`
+	ConfiguredSecrets []string        `json:"configuredSecrets"` // 已设置的凭据字段（值不回显）
+	CreatedAt         time.Time       `json:"createdAt"`
+	UpdatedAt         time.Time       `json:"updatedAt"`
 }
 
 // ListChannels 列出通知渠道
@@ -124,13 +137,6 @@ func (h *NotifyHandler) getChannel(w http.ResponseWriter, r *http.Request, chann
 	handler.WriteJSON(w, http.StatusOK, toChannelResponse(channel))
 }
 
-// UpdateChannel 更新通知渠道（保留用于独立路由）
-func (h *NotifyHandler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v2/notify/channels/")
-	channelType := strings.TrimSuffix(path, "/")
-	h.updateChannel(w, r, channelType)
-}
-
 // updateChannel 更新通知渠道（内部方法）
 func (h *NotifyHandler) updateChannel(w http.ResponseWriter, r *http.Request, channelType string) {
 	if channelType == "" {
@@ -172,7 +178,12 @@ func (h *NotifyHandler) updateChannel(w http.ResponseWriter, r *http.Request, ch
 		existing.Name = req.Name
 	}
 	if req.Config != nil {
-		existing.Config = string(req.Config)
+		merged, err := mergeChannelConfig(channelType, existing.Config, req.Config)
+		if err != nil {
+			handler.WriteError(w, http.StatusBadRequest, "config 必须是 JSON 对象")
+			return
+		}
+		existing.Config = merged
 	}
 
 	// 保存
@@ -189,21 +200,43 @@ func (h *NotifyHandler) updateChannel(w http.ResponseWriter, r *http.Request, ch
 	handler.WriteJSON(w, http.StatusOK, toChannelResponse(existing))
 }
 
-// testChannel 测试通知渠道（内部方法）
-// 已迁移到独立的 tester 模块（端口 9080）
-// 此处保留空实现，返回提示信息
+// testChannel 测试通知渠道：按已保存的配置发一条测试消息
 func (h *NotifyHandler) testChannel(w http.ResponseWriter, r *http.Request, channelType string) {
 	if r.Method != http.MethodPost {
 		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	if !isValidChannelType(channelType) {
+		handler.WriteError(w, http.StatusBadRequest, "invalid channel type")
+		return
+	}
+	if h.tester == nil {
+		handler.WriteError(w, http.StatusServiceUnavailable, "通知模块未启用")
+		return
+	}
 
-	// 测试功能已迁移到独立端口
-	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "测试功能已迁移到 :9080/test/notifier/" + channelType,
-		"channel": channelType,
-		"success": false,
-	})
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	err := h.tester.Test(ctx, channelType)
+	switch {
+	case err == nil:
+		handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
+			"success": true,
+			"message": "测试消息已发送",
+			"channel": channelType,
+		})
+	case errors.Is(err, notifier.ErrChannelNotFound):
+		handler.WriteError(w, http.StatusNotFound, "渠道尚未配置")
+	case errors.Is(err, notifier.ErrChannelDisabled):
+		handler.WriteError(w, http.StatusConflict, "渠道未启用，启用后再测试")
+	case errors.Is(err, notifier.ErrInvalidConfig):
+		handler.WriteError(w, http.StatusBadRequest, "渠道配置不完整")
+	case errors.Is(err, notifier.ErrUnsupportedChannel):
+		handler.WriteError(w, http.StatusBadRequest, "该渠道类型暂不支持发送")
+	default:
+		handler.WriteError(w, http.StatusBadGateway, "发送失败: "+err.Error())
+	}
 }
 
 // ==================== 辅助函数 ====================
@@ -291,20 +324,75 @@ func validateChannelConfig(channelType, config string) []string {
 	return errors
 }
 
-// toChannelResponse 转换为响应结构（含校验）
+// channelSecretFields 各渠道配置里的凭据字段：查询时不回显，保存时不传或为空 = 保留原值
+var channelSecretFields = map[string][]string{
+	"slack":    {"webhookUrl"},
+	"email":    {"smtpPassword"},
+	"mail":     {"smtpPassword"},
+	"webhook":  {"url"},
+	"dingtalk": {"webhook_url"},
+}
+
+// redactChannelConfig 把凭据字段的值置空，返回脱敏后的配置与已设置的凭据字段名。
+// 解析不了的配置不原样返回（失败即关）。
+func redactChannelConfig(channelType, config string) (json.RawMessage, []string) {
+	configured := []string{}
+	var fields map[string]interface{}
+	if err := json.Unmarshal([]byte(config), &fields); err != nil || fields == nil {
+		return json.RawMessage("{}"), configured
+	}
+	for _, f := range channelSecretFields[channelType] {
+		if v, ok := fields[f].(string); ok && v != "" {
+			configured = append(configured, f)
+			fields[f] = ""
+		}
+	}
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return json.RawMessage("{}"), []string{}
+	}
+	return out, configured
+}
+
+// mergeChannelConfig 以请求为准，但凭据字段没传或为空时保留原值（前端从不拿到凭据，也就无从回传）
+func mergeChannelConfig(channelType, existing string, incoming json.RawMessage) (string, error) {
+	var next map[string]interface{}
+	if err := json.Unmarshal(incoming, &next); err != nil || next == nil {
+		return "", fmt.Errorf("config 不是 JSON 对象")
+	}
+	var prev map[string]interface{}
+	_ = json.Unmarshal([]byte(existing), &prev) // 原配置坏了就当没有
+	for _, f := range channelSecretFields[channelType] {
+		if v, ok := next[f].(string); ok && v != "" {
+			continue
+		}
+		if old, ok := prev[f]; ok {
+			next[f] = old
+		}
+	}
+	out, err := json.Marshal(next)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+// toChannelResponse 转换为响应结构（含校验；凭据不回显）
 func toChannelResponse(ch *database.NotifyChannel) ChannelResponse {
 	validationErrors := validateChannelConfig(ch.Type, ch.Config)
 	effectiveEnabled := ch.Enabled && len(validationErrors) == 0
+	config, configuredSecrets := redactChannelConfig(ch.Type, ch.Config)
 
 	return ChannelResponse{
-		ID:               ch.ID,
-		Type:             ch.Type,
-		Name:             ch.Name,
-		Enabled:          ch.Enabled,
-		EffectiveEnabled: effectiveEnabled,
-		ValidationErrors: validationErrors,
-		Config:           json.RawMessage(ch.Config),
-		CreatedAt:        ch.CreatedAt,
-		UpdatedAt:        ch.UpdatedAt,
+		ID:                ch.ID,
+		Type:              ch.Type,
+		Name:              ch.Name,
+		Enabled:           ch.Enabled,
+		EffectiveEnabled:  effectiveEnabled,
+		ValidationErrors:  validationErrors,
+		Config:            config,
+		ConfiguredSecrets: configuredSecrets,
+		CreatedAt:         ch.CreatedAt,
+		UpdatedAt:         ch.UpdatedAt,
 	}
 }

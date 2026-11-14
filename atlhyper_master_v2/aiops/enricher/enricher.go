@@ -104,6 +104,9 @@ type Enricher struct {
 
 	// 深度分析状态（内存）
 	jobs *analysisJobs
+
+	// 深度分析的工具授权：按报告读者的权限（nil = 工具一律拒绝）
+	analysisAllow ai.PermissionCheck
 }
 
 // NewEnricher 创建 AIOps 事件 AI 增强编排服务
@@ -129,6 +132,11 @@ func NewEnricher(
 // SetStore 设置数据存储（用于读取 OTelSnapshot 丰富事件上下文）
 func (e *Enricher) SetStore(store datahub.Store) {
 	e.store = store
+}
+
+// SetAnalysisToolPolicy 设置深度分析的工具授权（由组装方按「谁能看 AI 报告」决定）
+func (e *Enricher) SetAnalysisToolPolicy(allow ai.PermissionCheck) {
+	e.analysisAllow = allow
 }
 
 // EnableBackgroundTrigger 启用后台自动触发器
@@ -300,6 +308,7 @@ func (e *Enricher) runAnalysis(ctx context.Context, incidentID, trigger string) 
 		Role:         ai.RoleAnalysis,
 		SystemPrompt: prompts.BuildAnalysisPrompt(),
 		UserPrompt:   prompts.BuildAnalysisUserPrompt(incidentCtx),
+		Allow:        e.analysisAllow,
 	})
 	if err != nil {
 		return fmt.Errorf("深度分析失败: %w", err)

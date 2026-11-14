@@ -33,7 +33,13 @@ type clientImpl struct {
 	installationID  int64
 	installToken    string
 	installTokenExp time.Time
+	appOwner        string // GetAppOwner 的缓存
 }
+
+var (
+	_ Client              = (*clientImpl)(nil)
+	_ InstallationManager = (*clientImpl)(nil)
+)
 
 // NewClient 创建 GitHub 客户端
 func NewClient(cfg Config) (Client, error) {
@@ -150,38 +156,78 @@ func (c *clientImpl) refreshInstallationToken(ctx context.Context) (string, erro
 	return c.installToken, nil
 }
 
-// GetInstallationAccount 通过 App JWT 查询 Installation 关联的账号
-func (c *clientImpl) GetInstallationAccount(ctx context.Context, installationID int64) (string, error) {
+// appAPIGet 以 App JWT 身份调用 GitHub API（/app/... 系列端点），返回响应体
+func (c *clientImpl) appAPIGet(ctx context.Context, url string) ([]byte, error) {
 	jwtToken, err := c.signJWT()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	url := fmt.Sprintf("https://api.github.com/app/installations/%d", installationID)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+jwtToken)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("获取 installation 信息失败: %d %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("GET %s: %d %s", url, resp.StatusCode, string(body))
+	}
+	return body, nil
+}
+
+// GetAppOwner 查询 App 的所有者账号（GET /app）；所有者不会变，成功后缓存
+func (c *clientImpl) GetAppOwner(ctx context.Context) (string, error) {
+	c.mu.RLock()
+	cached := c.appOwner
+	c.mu.RUnlock()
+	if cached != "" {
+		return cached, nil
 	}
 
+	body, err := c.appAPIGet(ctx, "https://api.github.com/app")
+	if err != nil {
+		return "", fmt.Errorf("获取 App 信息失败: %w", err)
+	}
+	var result struct {
+		Owner struct {
+			Login string `json:"login"`
+		} `json:"owner"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
+	if result.Owner.Login == "" {
+		return "", fmt.Errorf("App 信息里没有所有者账号")
+	}
+
+	c.mu.Lock()
+	c.appOwner = result.Owner.Login
+	c.mu.Unlock()
+	return result.Owner.Login, nil
+}
+
+// GetInstallationAccount 通过 App JWT 查询 Installation 关联的账号
+func (c *clientImpl) GetInstallationAccount(ctx context.Context, installationID int64) (string, error) {
+	body, err := c.appAPIGet(ctx, fmt.Sprintf("https://api.github.com/app/installations/%d", installationID))
+	if err != nil {
+		return "", fmt.Errorf("获取 installation 信息失败: %w", err)
+	}
 	var result struct {
 		Account struct {
 			Login string `json:"login"`
 		} `json:"account"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(body, &result); err != nil {
 		return "", err
 	}
 	return result.Account.Login, nil
@@ -189,36 +235,17 @@ func (c *clientImpl) GetInstallationAccount(ctx context.Context, installationID 
 
 // ListInstallations 通过 App JWT 查询所有安装（用于自动检测已有安装）
 func (c *clientImpl) ListInstallations(ctx context.Context) ([]Installation, error) {
-	jwtToken, err := c.signJWT()
+	body, err := c.appAPIGet(ctx, "https://api.github.com/app/installations")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("获取 installations 列表失败: %w", err)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/app/installations", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+jwtToken)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("获取 installations 列表失败: %d %s", resp.StatusCode, string(body))
-	}
-
 	var raw []struct {
 		ID      int64 `json:"id"`
 		Account struct {
 			Login string `json:"login"`
 		} `json:"account"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
 	}
 

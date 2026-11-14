@@ -87,7 +87,6 @@ type QueryAIOps interface {
 // QueryOverview 集群概览、Agent 状态、事件、单资源查询
 type QueryOverview interface {
 	ListClusters(ctx context.Context) ([]agent.ClusterInfo, error)
-	GetCluster(ctx context.Context, clusterID string) (*agent.ClusterDetail, error)
 	GetAgentStatus(ctx context.Context, clusterID string) (*agent.AgentStatus, error)
 	GetCommandStatus(ctx context.Context, commandID string) (*command.Status, error)
 	GetOverview(ctx context.Context, clusterID string) (*cluster.ClusterOverview, error)

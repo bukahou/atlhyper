@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import * as echarts from "echarts";
 import { useI18n } from "@/i18n/context";
 import type { LatencyBucket } from "@/types/model/apm";
+import { safeHtml } from "@/lib/safe-html";
 
 function getThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
@@ -162,7 +163,7 @@ export function LatencyDistribution({
               bucket.rangeEnd === Infinity
                 ? "+"
                 : formatBucketLabel(bucket.rangeEnd);
-            return `${formatBucketLabel(bucket.rangeStart)} – ${rangeEnd}<br/>${p.value} trace(s)`;
+            return safeHtml`${formatBucketLabel(bucket.rangeStart)} – ${rangeEnd}<br/>${p.value} trace(s)`.toString();
           },
         },
         grid: { top: 16, right: 24, bottom: 40, left: 45 },

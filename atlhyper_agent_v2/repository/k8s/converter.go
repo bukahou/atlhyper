@@ -137,7 +137,7 @@ func ConvertPod(k8sPod *corev1.Pod) cluster.Pod {
 
 		// Labels & Annotations
 		Labels:      k8sPod.Labels,
-		Annotations: k8sPod.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sPod.Annotations),
 	}
 
 	// Spec 补充字段
@@ -513,7 +513,7 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) cluster.Deployment {
 			Selector:    selectorStr,
 		},
 		Labels:      k8sDeploy.Labels,
-		Annotations: k8sDeploy.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sDeploy.Annotations),
 	}
 
 	// Spec
@@ -578,7 +578,7 @@ func ConvertDeployment(k8sDeploy *appsv1.Deployment) cluster.Deployment {
 	// Template
 	deploy.Template = convertPodTemplate(&k8sDeploy.Spec.Template.Spec)
 	deploy.Template.Labels = k8sDeploy.Spec.Template.Labels
-	deploy.Template.Annotations = k8sDeploy.Spec.Template.Annotations
+	deploy.Template.Annotations = cluster.ReportableAnnotations(k8sDeploy.Spec.Template.Annotations)
 
 	// Rollout phase
 	deploy.Rollout = determineRolloutPhase(k8sDeploy)
@@ -860,7 +860,7 @@ func ConvertService(k8sSvc *corev1.Service) cluster.Service {
 
 		// 元数据
 		Labels:      k8sSvc.Labels,
-		Annotations: k8sSvc.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sSvc.Annotations),
 	}
 
 	// 端口
@@ -1029,7 +1029,7 @@ func ConvertNamespace(k8sNs *corev1.Namespace) cluster.Namespace {
 			Phase: string(k8sNs.Status.Phase),
 		},
 		Labels:      k8sNs.Labels,
-		Annotations: k8sNs.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sNs.Annotations),
 	}
 
 	return ns
@@ -1133,7 +1133,7 @@ func ConvertIngress(k8sIng *networkingv1.Ingress) cluster.Ingress {
 			IngressClassName: ingressClass,
 		},
 		Labels:      k8sIng.Labels,
-		Annotations: k8sIng.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sIng.Annotations),
 	}
 
 	// 默认后端
@@ -1269,7 +1269,7 @@ func ConvertStatefulSet(k8sSts *appsv1.StatefulSet) cluster.StatefulSet {
 
 		// 元数据
 		Labels:      k8sSts.Labels,
-		Annotations: k8sSts.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sSts.Annotations),
 	}
 
 	return sts
@@ -1447,7 +1447,7 @@ func ConvertDaemonSet(k8sDs *appsv1.DaemonSet) cluster.DaemonSet {
 
 		// 元数据
 		Labels:      k8sDs.Labels,
-		Annotations: k8sDs.Annotations,
+		Annotations: cluster.ReportableAnnotations(k8sDs.Annotations),
 	}
 
 	return ds

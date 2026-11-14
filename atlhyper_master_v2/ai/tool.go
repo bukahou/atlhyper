@@ -48,25 +48,26 @@ func (e *toolExecutor) RegisterTool(name string, handler ToolHandler) {
 }
 
 // Execute 执行 Tool Call
-// 1. 解析参数 → 2. 映射 action → 3. Blacklist 校验 → 4. 创建指令 → 5. 等待结果
-func (e *toolExecutor) Execute(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error) {
-	// 0. 先查自定义 Tool
-	if handler, ok := e.customTools[tc.Name]; ok {
-		var params map[string]interface{}
-		if tc.Params != "" {
-			if err := json.Unmarshal([]byte(tc.Params), &params); err != nil {
-				return "", fmt.Errorf("解析参数 JSON 失败: %w", err)
-			}
-		}
-		return handler(ctx, clusterID, params)
-	}
-
-	// 1. 解析参数
+// 1. 解析参数 → 2. 权限校验（allow 为 nil 一律拒绝）→ 3. 自定义 Tool 直接执行；
+// query_cluster：映射 action → Blacklist 校验 → 创建指令 → 等待结果
+func (e *toolExecutor) Execute(ctx context.Context, clusterID string, allow PermissionCheck, tc *llm.ToolCall) (string, error) {
 	var params map[string]interface{}
 	if tc.Params != "" {
 		if err := json.Unmarshal([]byte(tc.Params), &params); err != nil {
 			return "", fmt.Errorf("解析参数 JSON 失败: %w", err)
 		}
+	}
+
+	if err := permits(allow, tc.Name, params); err != nil {
+		toolLog.Warn("工具调用被拒绝", "tool", tc.Name, "err", err)
+		return "", err
+	}
+
+	if handler, ok := e.customTools[tc.Name]; ok {
+		return handler(ctx, clusterID, params)
+	}
+	if tc.Name != "query_cluster" {
+		return "", fmt.Errorf("工具 %s 未启用", tc.Name) // 定义里有、但当前部署没有注册（如未配置 GitHub）
 	}
 
 	action := getString(params, "action")
@@ -385,12 +386,16 @@ func NewRollbackHandler(deployRepo database.DeployHistoryRepository) ToolHandler
 }
 
 // NewGitHubReadFileHandler 创建 GitHub 文件读取 Tool Handler
-func NewGitHubReadFileHandler(ghClient github.Client) ToolHandler {
+// 读到的 Kubernetes Secret 清单会被脱敏（github_redact.go）
+func NewGitHubReadFileHandler(ghClient github.Client, scope *GitHubRepoScope) ToolHandler {
 	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		repo := getString(params, "repo")
 		path := getString(params, "path")
 		if repo == "" || path == "" {
 			return "缺少参数 repo 或 path", nil
+		}
+		if err := checkRepoScope(ctx, scope, repo); err != nil {
+			return err.Error(), nil
 		}
 		branch := getString(params, "branch")
 		if branch == "" {
@@ -401,6 +406,7 @@ func NewGitHubReadFileHandler(ghClient github.Client) ToolHandler {
 		if err != nil {
 			return fmt.Sprintf("读取文件失败: %v", err), nil
 		}
+		content = redactSecretManifests(content)
 
 		// 截断过长内容，避免 LLM 上下文爆炸
 		if len(content) > 10000 {
@@ -411,12 +417,15 @@ func NewGitHubReadFileHandler(ghClient github.Client) ToolHandler {
 }
 
 // NewGitHubSearchCodeHandler 创建 GitHub 代码搜索 Tool Handler
-func NewGitHubSearchCodeHandler(ghClient github.Client) ToolHandler {
+func NewGitHubSearchCodeHandler(ghClient github.Client, scope *GitHubRepoScope) ToolHandler {
 	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		repo := getString(params, "repo")
 		query := getString(params, "query")
 		if repo == "" || query == "" {
 			return "缺少参数 repo 或 query", nil
+		}
+		if err := checkRepoScope(ctx, scope, repo); err != nil {
+			return err.Error(), nil
 		}
 
 		results, err := ghClient.SearchCode(ctx, repo, query)
@@ -438,11 +447,14 @@ func NewGitHubSearchCodeHandler(ghClient github.Client) ToolHandler {
 }
 
 // NewGitHubRecentCommitsHandler 创建 GitHub 最近提交查询 Tool Handler
-func NewGitHubRecentCommitsHandler(ghClient github.Client) ToolHandler {
+func NewGitHubRecentCommitsHandler(ghClient github.Client, scope *GitHubRepoScope) ToolHandler {
 	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		repo := getString(params, "repo")
 		if repo == "" {
 			return "缺少参数 repo", nil
+		}
+		if err := checkRepoScope(ctx, scope, repo); err != nil {
+			return err.Error(), nil
 		}
 		limit := getInt(params, "limit", 10)
 
@@ -461,6 +473,14 @@ func NewGitHubRecentCommitsHandler(ghClient github.Client) ToolHandler {
 		})
 		return string(out), nil
 	}
+}
+
+// checkRepoScope 仓库范围校验；未配置范围时一律拒绝
+func checkRepoScope(ctx context.Context, scope *GitHubRepoScope, repo string) error {
+	if scope == nil {
+		return fmt.Errorf("GitHub 工具未配置仓库范围，拒绝读取")
+	}
+	return scope.Check(ctx, repo)
 }
 
 // BlacklistCheck 黑名単校验

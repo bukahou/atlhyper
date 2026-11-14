@@ -797,6 +797,8 @@ export interface NotificationsTranslations {
   slackConfig: string;
   webhookUrl: string;
   webhookUrlHint: string;
+  secretConfigured: string; // 凭据已设置（不回显）
+  secretConfiguredPlaceholder: string; // 已设置时输入框的占位提示
   channel: string;
   // Email
   emailNotify: string;

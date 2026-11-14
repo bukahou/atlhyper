@@ -12,6 +12,8 @@ var (
 	ErrRoleNotAssigned = errors.New("角色未分配 Provider")
 	// ErrBudgetExhausted 角色预算已用尽且无可用的 fallback Provider
 	ErrBudgetExhausted = errors.New("角色预算已用尽")
+	// ErrConversationNotFound 会话不存在或不属于当前用户（两者不区分，避免借此探测别人的会话）
+	ErrConversationNotFound = errors.New("对话不存在")
 )
 
 // 错误码（网关响应、深度分析状态共用；前端 i18n 按码给出可操作提示）

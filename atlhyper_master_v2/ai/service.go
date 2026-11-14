@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
-	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -65,8 +64,23 @@ func (s *aiServiceImpl) GetConversations(ctx context.Context, userID int64, limi
 	return result, nil
 }
 
+// ownedConversation 取会话并确认属于 userID；不存在与不属于同样返回 ErrConversationNotFound
+func (s *aiServiceImpl) ownedConversation(ctx context.Context, userID, conversationID int64) (*database.AIConversation, error) {
+	conv, err := s.convRepo.GetByID(ctx, conversationID)
+	if err != nil {
+		return nil, fmt.Errorf("获取对话失败: %w", err)
+	}
+	if conv == nil || conv.UserID != userID {
+		return nil, ErrConversationNotFound
+	}
+	return conv, nil
+}
+
 // GetMessages 获取对话历史消息
-func (s *aiServiceImpl) GetMessages(ctx context.Context, conversationID int64) ([]*Message, error) {
+func (s *aiServiceImpl) GetMessages(ctx context.Context, userID, conversationID int64) ([]*Message, error) {
+	if _, err := s.ownedConversation(ctx, userID, conversationID); err != nil {
+		return nil, err
+	}
 	msgs, err := s.msgRepo.ListByConversation(ctx, conversationID)
 	if err != nil {
 		return nil, err
@@ -79,7 +93,10 @@ func (s *aiServiceImpl) GetMessages(ctx context.Context, conversationID int64) (
 }
 
 // DeleteConversation 删除对话及其所有消息
-func (s *aiServiceImpl) DeleteConversation(ctx context.Context, conversationID int64) error {
+func (s *aiServiceImpl) DeleteConversation(ctx context.Context, userID, conversationID int64) error {
+	if _, err := s.ownedConversation(ctx, userID, conversationID); err != nil {
+		return err
+	}
 	// 先删消息再删对话
 	if err := s.msgRepo.DeleteByConversation(ctx, conversationID); err != nil {
 		return err
@@ -149,16 +166,6 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 // RegisterTool 注册自定义 Tool
 func (s *aiServiceImpl) RegisterTool(name string, handler ToolHandler) {
 	s.executor.RegisterTool(name, handler)
-}
-
-// GetToolExecuteFunc 获取 Tool 执行函数
-func (s *aiServiceImpl) GetToolExecuteFunc() func(ctx context.Context, clusterID string, tc *llm.ToolCall) (string, error) {
-	return s.executor.Execute
-}
-
-// GetToolDefs 获取 Tool 定义列表
-func (s *aiServiceImpl) GetToolDefs() []llm.ToolDefinition {
-	return prompts.GetToolDefinitions()
 }
 
 // toConversation 转换 DB 模型为 API 类型

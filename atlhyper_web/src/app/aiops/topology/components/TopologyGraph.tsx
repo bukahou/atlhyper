@@ -4,6 +4,7 @@ import { useRef, useEffect, useCallback, useMemo } from "react";
 import type { DependencyGraph, EntityRisk } from "@/api/aiops";
 import { addState, removeState, applySelection, buildG6Data } from "./topology-graph-utils";
 import { formatRiskScore } from "@/lib/risk";
+import { safeHtml } from "@/lib/safe-html";
 
 interface TopologyGraphProps {
   graph: DependencyGraph;
@@ -113,13 +114,12 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
               if (!items?.length) return "";
               const item = items[0];
               const d = item.data;
-              if (!d) return item.id;
-              // tooltip 数据来源为内部依赖图计算结果（非用户输入），无 XSS 风险
+              if (!d) return safeHtml`${item.id}`.toString();
               const riskLabel = d.rFinal ? ` | R: ${formatRiskScore(d.rFinal)}` : "";
-              return `<div style="padding:6px 10px;font-size:12px;border-radius:6px;background:rgba(0,0,0,0.8);color:#fff">
+              return safeHtml`<div style="padding:6px 10px;font-size:12px;border-radius:6px;background:rgba(0,0,0,0.8);color:#fff">
                 <b>${item.id.split("/").pop()}</b><br/>
                 <span style="opacity:0.7">${d.type ?? ""}${d.namespace ? ` · ${d.namespace}` : ""}${riskLabel}</span>
-              </div>`;
+              </div>`.toString();
             },
           },
           { type: "minimap", size: [120, 80] },
