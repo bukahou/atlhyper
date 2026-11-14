@@ -873,7 +873,6 @@ export interface AgentsTranslations {
 // Notifications 页面翻译
 export interface NotificationsTranslations {
   pageDescription: string;
-  loadFailed: string;
   // Slack
   slackNotify: string;
   slackConfig: string;
@@ -1251,7 +1250,6 @@ export interface SLOTranslations extends TimeRangePickerTranslations {
   refreshing: string;
   lastUpdated: string;
   loadFailed: string;
-  noCluster: string;
   // 状态
   healthy: string;
   warning: string;
@@ -1487,7 +1485,6 @@ export interface AISettingsPageTranslations {
   save: string;
   saving: string;
   // Toast 消息
-  loadFailed: string;
   requiredFields: string;
   apiKeyRequired: string;
   providerUpdated: string;
@@ -1809,8 +1806,6 @@ interface NodeMetricsTranslations extends TimeRangePickerTranslations {
   pageDescription: string;
   lastUpdate: string;
   retry: string;
-  noCluster: string;
-  noClusterDesc: string;
   noMetricsData: string;
   noMetricsDesc: string;
   loadFailed: string;
@@ -2183,8 +2178,6 @@ export interface AIOpsTranslations {
   loading: string;
   autoRefresh: string;
   lastUpdate: string;
-  noCluster: string;
-  noClusterDesc: string;
   loadFailed: string;
   retry: string;
   minutesAgo: string;
@@ -2309,8 +2302,6 @@ export interface LogTranslations extends TimeRangePickerTranslations {
   noLogs: string;
   loading: string;
   loadFailed: string;
-  noCluster: string;
-  noClusterDesc: string;
   // 直方图 / 过滤器
   logVolume: string;
   clearFilters: string;
@@ -2437,8 +2428,6 @@ export interface ApmTranslations extends TimeRangePickerTranslations {
   // states
   loading: string;
   loadFailed: string;
-  noCluster: string;
-  noClusterDesc: string;
   // trend charts
   latencyTrend: string;
   throughputTrend: string;

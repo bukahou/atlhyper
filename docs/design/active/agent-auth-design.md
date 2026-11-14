@@ -144,7 +144,7 @@ DELETE /api/v2/admin/clusters/{clusterId}
 **前端实现**
 
 - `app/admin/clusters/page.tsx` [新增]：表格 + 登记弹窗 + 签发令牌弹窗（一次性显示、可复制）
-- `queries/admin.ts`：`clusterRegistryQuery` 与四个 mutation
+- `queries/cluster-registry.ts`：`clusterRegistryQuery` 与四个 mutation（令牌明文不作为 mutation 的返回值，直接交给页面的本地状态）
 - 导航增加「集群管理」；zh / ja 文案
 
 ## 功能二：AgentSDK 认证
@@ -221,6 +221,6 @@ atlhyper_agent_v2/
 └── scheduler/scheduler.go           [修改] 日志区分身份被拒与网络故障
 atlhyper_web/
 ├── src/app/admin/clusters/          [新增]
-├── src/queries/admin.ts             [修改]
+├── src/queries/cluster-registry.ts  [新增]
 └── i18n、导航                        [修改]
 ```
