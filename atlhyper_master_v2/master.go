@@ -80,6 +80,14 @@ type Master struct {
 func NewMaster() (*Master, error) {
 	cfg := &config.GlobalConfig
 
+	// 0. 校验 Agent 入口配置：认证模式写错时在打开任何资源之前就失败
+	agentEntry, err := resolveAgentEntrySettings(cfg.AgentSDK)
+	if err != nil {
+		return nil, fmt.Errorf("Agent 入口配置无效: %w", err)
+	}
+	// 各集群最近一次上报是否带了有效令牌：Agent 入口写，集群管理页读
+	agentAuthStatus := agentsdk.NewAuthStatusTracker()
+
 	// 1. 初始化 Store (数据存储)
 	store := datahub.NewStore(datahub.Config{
 		Type:              cfg.DataHub.Type,
@@ -231,6 +239,9 @@ func NewMaster() (*Master, error) {
 		},
 		UserRepo:     db.User,
 		IdentityRepo: db.UserIdentity,
+
+		ClusterRepo:       db.Cluster,
+		ClusterAuthStatus: agentAuthStatus,
 	})
 	log.Info("查询层初始化完成")
 
@@ -243,8 +254,11 @@ func NewMaster() (*Master, error) {
 	// 初始化用户写入服务
 	userOps := operations.NewUserService(db.User, db.UserIdentity)
 
+	// 初始化集群注册表写入服务（登记、签发 Agent 令牌）
+	clusterRegistryOps := operations.NewClusterRegistryService(db.Cluster)
+
 	// 组合统一 Service
-	svc := service.NewService(q, cmdOps, adminOps, sloOps, deployOps, userOps)
+	svc := service.NewService(q, cmdOps, adminOps, sloOps, deployOps, userOps, clusterRegistryOps)
 
 	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{
@@ -253,8 +267,16 @@ func NewMaster() (*Master, error) {
 		Bus:            bus,
 		Processor:      proc,
 		CmdRepo:        db.Command,
+
+		AuthMode:         agentEntry.authMode,
+		Clusters:         db.Cluster,
+		AuthStatus:       agentAuthStatus,
+		MaxSnapshotBytes: agentEntry.maxSnapshotBytes,
 	})
-	log.Info("AgentSDK 初始化完成", "port", cfg.Server.AgentSDKPort)
+	log.Info("AgentSDK 初始化完成",
+		"port", cfg.Server.AgentSDKPort,
+		"authMode", agentEntry.authMode,
+		"maxSnapshotMB", cfg.AgentSDK.MaxSnapshotMB)
 
 	// 9. 注册 AIOps Tool（AI Chat 中使用）
 	aiService.RegisterTool("analyze_incident", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {

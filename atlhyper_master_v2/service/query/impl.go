@@ -8,6 +8,7 @@
 //	overview.go   — 集群概览、Agent 状态、事件、单资源查询
 //	slo.go        — SLO 服务网格查询
 //	aiops.go      — AIOps 查询与 AI 增强
+//	cluster_registry.go — 集群管理页列表（注册表 + 在线状态 + 认证状态）
 package query
 
 import (
@@ -46,6 +47,10 @@ type QueryService struct {
 	// User repository（用户管理）
 	userRepo     database.UserRepository
 	identityRepo database.UserIdentityRepository
+
+	// 集群注册表（只读）与各集群的认证状态
+	clusterRepo       ClusterRegistryReader
+	clusterAuthStatus ClusterAuthStatus
 }
 
 // AdminRepos 管理查询所需的 Repository 集合
@@ -83,6 +88,9 @@ type QueryServiceDeps struct {
 	DeployRepos  DeployRepos                     // 可选，未启用 GitOps 时各 repo 为 nil
 	UserRepo     database.UserRepository         // 必需（用户管理）
 	IdentityRepo database.UserIdentityRepository // 必需（外部身份）
+
+	ClusterRepo       ClusterRegistryReader // 必需（集群管理页）
+	ClusterAuthStatus ClusterAuthStatus     // 可选，nil = 认证状态一律显示为未认证
 }
 
 // NewQueryService 创建 QueryService（全部依赖通过构造函数注入）
@@ -110,5 +118,8 @@ func NewQueryService(deps QueryServiceDeps) *QueryService {
 
 		userRepo:     deps.UserRepo,
 		identityRepo: deps.IdentityRepo,
+
+		clusterRepo:       deps.ClusterRepo,
+		clusterAuthStatus: deps.ClusterAuthStatus,
 	}
 }

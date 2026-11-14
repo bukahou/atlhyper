@@ -28,6 +28,11 @@ func LoadConfig() {
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
 	}
 
+	GlobalConfig.AgentSDK = AgentSDKConfig{
+		AuthMode:      getString("MASTER_AGENT_AUTH_MODE"),
+		MaxSnapshotMB: getInt("MASTER_AGENTSDK_MAX_SNAPSHOT_MB"),
+	}
+
 	GlobalConfig.DataHub = DataHubConfig{
 		Type:              getString("MASTER_DATAHUB_TYPE"),
 		EventRetention:    getDuration("MASTER_DATAHUB_EVENT_RETENTION"),

@@ -60,6 +60,7 @@ const (
 	pAISettingsWrite = middleware.PermAISettingsWrite
 	pGitHubManage    = middleware.PermGitHubManage
 	pDeployManage    = middleware.PermDeployManage
+	pClustersManage  = middleware.PermClustersManage
 )
 
 // 方法别名，同上
@@ -174,6 +175,7 @@ func (r *Router) registerRoutes() {
 	}
 	aiProviderH := adminHandler.NewAIProviderHandler(r.service)
 	auditH := adminHandler.NewAuditHandler(r.service)
+	clusterRegistryH := adminHandler.NewClusterRegistryHandler(r.service, r.service)
 
 	authMeH := handler.NewAuthMeHandler(r.service)
 
@@ -345,6 +347,14 @@ func (r *Router) registerRoutes() {
 	r.routeAudited(mPut, pAISettingsWrite, "/api/v2/ai/settings", "update", "ai_settings", aiProviderH.SettingsHandler)
 	r.routeAudited(mPatch, pAISettingsWrite, "/api/v2/ai/settings", "update", "ai_settings", aiProviderH.SettingsHandler)
 	r.routeAudited(mPut, pAISettingsWrite, "/api/v2/ai/budgets/", "update", "ai_budget", aiProviderH.BudgetHandler)
+
+	// 集群注册表与 Agent 令牌。路径参数 {clusterId} 由 handler 用 PathValue 取出；
+	// 签发令牌的响应体带明文，审计只记请求体与状态码，不记响应体
+	r.route(mGet, pClustersManage, "/api/v2/admin/clusters", clusterRegistryH.List)
+	r.routeAudited(mPost, pClustersManage, "/api/v2/admin/clusters", "create", "cluster", clusterRegistryH.Register)
+	r.routeAudited(mPut, pClustersManage, "/api/v2/admin/clusters/{clusterId}", "update", "cluster", clusterRegistryH.UpdateProfile)
+	r.routeAudited(mDelete, pClustersManage, "/api/v2/admin/clusters/{clusterId}", "delete", "cluster", clusterRegistryH.Unregister)
+	r.routeAudited(mPost, pClustersManage, "/api/v2/admin/clusters/{clusterId}/token", "create", "cluster_token", clusterRegistryH.IssueToken)
 
 	// GitHub 集成与部署
 	if r.ghClient != nil {

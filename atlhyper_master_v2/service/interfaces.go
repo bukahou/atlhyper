@@ -157,6 +157,27 @@ type QueryUser interface {
 	ListFederatedUserIDs(ctx context.Context) (map[int64]bool, error)
 }
 
+// QueryClusterRegistry 集群管理页的读取能力
+type QueryClusterRegistry interface {
+	// ListClusterRegistry 全部行（已登记的 + 正在上报但未登记的），按集群 ID 排序
+	ListClusterRegistry(ctx context.Context) ([]model.ClusterRegistryItem, error)
+	// GetClusterRegistryItem 单个集群的那一行；既没登记也没上报过时返回 (nil, nil)
+	GetClusterRegistryItem(ctx context.Context, clusterID string) (*model.ClusterRegistryItem, error)
+}
+
+// OpsClusterRegistry 集群注册表的写入能力。
+//
+// 输入不合规 → model.ErrInvalidClusterInput；集群 ID 已登记 → database.ErrClusterExists；
+// 集群未登记 → database.ErrClusterNotFound
+type OpsClusterRegistry interface {
+	RegisterCluster(ctx context.Context, req *model.RegisterClusterRequest) error
+	UpdateClusterProfile(ctx context.Context, clusterID string, req *model.UpdateClusterProfileRequest) error
+	// IssueClusterToken 签发（或轮换）集群令牌；明文只在返回值里出现这一次
+	IssueClusterToken(ctx context.Context, clusterID string) (*model.ClusterTokenIssued, error)
+	// UnregisterCluster 删除登记，令牌随之失效；不删除该集群的历史数据
+	UnregisterCluster(ctx context.Context, clusterID string) error
+}
+
 // OpsAdmin 管理写入操作（通知渠道、设置、AI Provider）
 type OpsAdmin interface {
 	CreateNotifyChannel(ctx context.Context, ch *database.NotifyChannel) error
@@ -203,6 +224,7 @@ type Query interface {
 	QueryAdmin
 	QueryDeploy
 	QueryUser
+	QueryClusterRegistry
 }
 
 // OpsSLO SLO 写入操作
@@ -219,6 +241,7 @@ type Ops interface {
 	ExecuteCommandSync(ctx context.Context, req *model.CreateCommandRequest, timeout time.Duration) (*command.Result, error)
 	OpsAdmin
 	OpsSLO
+	OpsClusterRegistry
 }
 
 // Service 组合接口 (master.go 持有)
