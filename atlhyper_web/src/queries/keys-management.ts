@@ -50,8 +50,12 @@ export const githubKeys = {
 export const deployKeys = {
   all: ["deploy"] as const,
   config: (clusterId: string, mode: DataSourceMode) => ["deploy", "config", { clusterId, mode }] as const,
+  /** 全部同步状态查询的前缀（不分数据源）。只用来按前缀失效 */
+  statuses: ["deploy", "status"] as const,
   /** 同步状态由后端按它自己的部署配置返回，接口不分集群 */
   status: (mode: DataSourceMode) => ["deploy", "status", { mode }] as const,
+  /** 全部部署历史查询的前缀（不分集群与数据源）。只用来按前缀失效 */
+  histories: ["deploy", "history"] as const,
   history: (clusterId: string, mode: DataSourceMode) => ["deploy", "history", { clusterId, mode }] as const,
   kustomizePaths: (mode: DataSourceMode, repo: string) => ["deploy", "kustomize-paths", { mode, repo }] as const,
 };

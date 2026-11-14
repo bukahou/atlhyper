@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { PageHeader, LoadingSpinner } from "@/components/common";
-import { Eye, Github, Rocket, Clock, AlertTriangle, ExternalLink } from "lucide-react";
-import Link from "next/link";
+import { PageHeader, LoadingSpinner, DemoBanner } from "@/components/common";
+import { Github, Rocket, Clock, AlertTriangle, ExternalLink } from "lucide-react";
 
 import { ConnectionCard, ReposCard, useGitHubPage } from "./components";
 import { ConfigCard, StatusCard, HistoryCard, useDeployPage } from "@/app/admin/deploy/components";
-import { useCan } from "@/hooks/useCan";
 
 type Tab = "connection" | "deploy" | "history";
 
@@ -17,10 +15,10 @@ export default function GitHubPage() {
   const { t } = useI18n();
   const gt = t.githubPage;
   const dt = t.deployPage;
-  const canManageGitHub = useCan()("github.manage");
   const [activeTab, setActiveTab] = useState<Tab>("connection");
 
   const {
+    isDemo: githubDemo,
     loading: githubLoading,
     connection,
     repos,
@@ -29,6 +27,7 @@ export default function GitHubPage() {
   } = useGitHubPage();
 
   const {
+    isDemo: deployDemo,
     loading: deployLoading,
     githubConnected,
     config,
@@ -78,20 +77,8 @@ export default function GitHubPage() {
           onRefresh={activeTab !== "connection" ? refresh : undefined}
         />
 
-        {/* 演示模式提示 */}
-        {!canManageGitHub && (
-          <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-            <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                {t.common.demoMode}
-              </p>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t.common.demoModeHintGitHub}
-              </p>
-            </div>
-          </div>
-        )}
+        {/* 两部分的权限同级；任一部分是演示数据就标注 */}
+        {(githubDemo || deployDemo) && <DemoBanner hint={t.common.demoModeHintGitHub} />}
 
         {/* Tab 切换 */}
         <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">

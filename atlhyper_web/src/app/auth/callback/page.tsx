@@ -10,32 +10,35 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
+import { useHydrated } from "@/hooks/useHydrated";
 import { useI18n } from "@/i18n/context";
 import { useAuthStore } from "@/store/authStore";
-import { parseAuthCallbackFragment, type AuthCallbackReason } from "@/lib/auth-callback";
+import { parseAuthCallbackFragment, type AuthCallbackResult } from "@/lib/auth-callback";
 
 export default function AuthCallbackPage() {
   const { t } = useI18n();
   const router = useRouter();
   const handledRef = useRef(false);
-  const [reason, setReason] = useState<AuthCallbackReason | null>(null);
+  // 片段只在浏览器里读得到：挂载时读一次并留在状态里（随后 effect 会把它从地址栏抹掉）
+  const [callbackResult] = useState<AuthCallbackResult | null>(() =>
+    typeof window === "undefined" ? null : parseAuthCallbackFragment(window.location.hash),
+  );
+  // 服务端渲染与水合那一帧读不到片段，统一显示「处理中」，水合之后才显示失败原因
+  const hydrated = useHydrated();
+  const reason = hydrated && callbackResult?.kind === "error" ? callbackResult.reason : null;
 
   useEffect(() => {
-    if (handledRef.current) return;
+    if (handledRef.current || callbackResult === null) return;
     handledRef.current = true;
 
-    const result = parseAuthCallbackFragment(window.location.hash);
     // 片段里有 token：读完立刻从地址栏和历史记录里抹掉
     window.history.replaceState(null, "", window.location.pathname);
 
-    if (result.kind === "error") {
-      setReason(result.reason);
-      return;
-    }
+    if (callbackResult.kind === "error") return;
     const { setToken, refreshMe } = useAuthStore.getState();
-    setToken(result.token);
-    void refreshMe().then(() => router.replace(result.next));
-  }, [router]);
+    setToken(callbackResult.token);
+    void refreshMe().then(() => router.replace(callbackResult.next));
+  }, [router, callbackResult]);
 
   const lt = t.login;
 

@@ -60,8 +60,8 @@ interface RepoDirsResponse {
  * 获取 GitHub 连接状态
  * GET /api/github/connection
  */
-export function getConnection() {
-  return get<ConnectionResponse>("/api/github/connection");
+export function getConnection(signal?: AbortSignal) {
+  return get<ConnectionResponse>("/api/github/connection", undefined, signal);
 }
 
 /**
@@ -95,8 +95,8 @@ export function disconnect() {
  * 获取已授权仓库列表
  * GET /api/github/repos
  */
-export function getRepos() {
-  return get<ReposResponse>("/api/github/repos");
+export function getRepos(signal?: AbortSignal) {
+  return get<ReposResponse>("/api/github/repos", undefined, signal);
 }
 
 /**

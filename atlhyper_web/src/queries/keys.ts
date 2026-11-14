@@ -12,6 +12,8 @@ import type { TimeRangeParams } from "@/lib/time-range";
 
 export const sessionKeys = {
   clusterList: () => ["session", "cluster-list"] as const,
+  /** 外部登录方式（OIDC）。登录前就要用，与当前主体无关 */
+  authProviders: () => ["session", "auth-providers"] as const,
 };
 
 // 其余域的键按域分文件，统一从这里导出：使用方只认 keys.ts 这一个入口

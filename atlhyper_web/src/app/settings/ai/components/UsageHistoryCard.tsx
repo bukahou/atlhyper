@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Clock, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { getAIReports, mockAIReports, type AIReportItem } from "@/api/ai-provider";
-import { useCan } from "@/hooks/useCan";
+import { mockAIReports } from "@/mock/ai-settings";
+import { aiUsageReportsQuery } from "@/queries/ai-settings";
 
 const ROLE_COLORS: Record<string, string> = {
   background: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
   chat: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
   analysis: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
 };
-
-const PAGE_SIZE = 10;
 
 function formatDuration(ms: number): string {
   if (ms <= 0) return "-";
@@ -27,55 +26,32 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-export function UsageHistoryCard() {
+interface UsageHistoryCardProps {
+  /** 演示模式（没有 ai.settings.read）：显示演示数据，不发请求 */
+  demo: boolean;
+}
+
+export function UsageHistoryCard({ demo }: UsageHistoryCardProps) {
   const { t } = useI18n();
   const aiT = t.aiSettingsPage;
-  const canViewAI = useCan()("ai.settings.read");
-  const [reports, setReports] = useState<AIReportItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [roleFilter, setRoleFilter] = useState("");
 
-  const fetchReports = async (offset: number, append: boolean) => {
-    if (!canViewAI) {
-      const filtered = roleFilter
-        ? mockAIReports.filter((r) => r.role === roleFilter)
-        : mockAIReports;
-      setReports(filtered);
-      setTotal(filtered.length);
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await getAIReports({ role: roleFilter || undefined, limit: PAGE_SIZE, offset });
-      if (append) {
-        setReports((prev) => [...prev, ...res.data.data]);
-      } else {
-        setReports(res.data.data || []);
-      }
-      setTotal(res.data.total);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  };
-
-  useEffect(() => {
-    setLoading(true);
-    setReports([]);
-    fetchReports(0, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canViewAI, roleFilter]);
-
-  const handleLoadMore = () => {
-    setLoadingMore(true);
-    fetchReports(reports.length, true);
-  };
-
-  const hasMore = reports.length < total;
+  // 角色进键：换角色就是另一份记录，从第一页重新开始；「加载更多」往后取下一页
+  const reportsQuery = useInfiniteQuery(aiUsageReportsQuery(roleFilter, !demo));
+  const loadedPages = reportsQuery.data?.pages;
+  const demoReports = useMemo(
+    () => (roleFilter ? mockAIReports.filter((report) => report.role === roleFilter) : mockAIReports),
+    [roleFilter],
+  );
+  const reports = useMemo(
+    () => (demo ? demoReports : (loadedPages ?? []).flatMap((page) => page.reports)),
+    [demo, demoReports, loadedPages],
+  );
+  const total = demo ? demoReports.length : (loadedPages?.[loadedPages.length - 1]?.total ?? 0);
+  const loading = !demo && reportsQuery.isPending;
+  const loadingMore = reportsQuery.isFetchingNextPage;
+  const hasMore = !demo && reportsQuery.hasNextPage;
+  const handleLoadMore = () => void reportsQuery.fetchNextPage();
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">

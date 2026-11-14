@@ -64,8 +64,8 @@ interface UpdateChannelRequest {
  * 获取所有通知渠道
  * GET /api/v2/notify/channels
  */
-export function listChannels() {
-  return get<ListChannelsResponse>("/api/v2/notify/channels");
+export function listChannels(signal?: AbortSignal) {
+  return get<ListChannelsResponse>("/api/v2/notify/channels", undefined, signal);
 }
 
 /**
@@ -143,39 +143,3 @@ export async function testChannel(type: ChannelType): Promise<{ success: boolean
     return { success: false, message: err.response?.data?.error || err.message || "测试失败" };
   }
 }
-
-// ============================================================
-// Mock 数据（Guest 用户使用）
-// ============================================================
-
-export const mockChannels: NotifyChannel[] = [
-  {
-    id: 1,
-    type: "slack",
-    name: "Slack",
-    enabled: true,
-    effectiveEnabled: true,
-    validationErrors: [],
-    config: { webhookUrl: "" } as SlackConfig,
-    configuredSecrets: ["webhookUrl"],
-    createdAt: "2025-01-01T00:00:00Z",
-    updatedAt: "2025-01-20T10:30:00Z",
-  },
-  {
-    id: 2,
-    type: "email",
-    name: "Email",
-    enabled: false,
-    effectiveEnabled: false,
-    validationErrors: ["smtpUser 未配置", "smtpPassword 未配置"],
-    config: {
-      smtpHost: "smtp.example.com",
-      smtpPort: 587,
-      smtpUser: "",
-      fromAddress: "alerts@example.com",
-      toAddresses: ["admin@example.com", "ops@example.com"],
-    } as EmailConfig,
-    createdAt: "2025-01-01T00:00:00Z",
-    updatedAt: "2025-01-15T14:20:00Z",
-  },
-];
