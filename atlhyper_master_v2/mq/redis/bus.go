@@ -153,7 +153,7 @@ func (b *RedisBus) updateCommandStatus(cmdID, status string) {
 }
 
 // AckCommand 确认指令完成
-func (b *RedisBus) AckCommand(cmdID string, result *command.Result) error {
+func (b *RedisBus) AckCommand(clusterID, cmdID string, result *command.Result) error {
 	ctx := context.Background()
 
 	data, err := b.client.Get(ctx, keyCmd+cmdID).Bytes()
@@ -164,6 +164,9 @@ func (b *RedisBus) AckCommand(cmdID string, result *command.Result) error {
 	var cs command.Status
 	if err := json.Unmarshal(data, &cs); err != nil {
 		return nil
+	}
+	if clusterID != "" && cs.ClusterID != "" && cs.ClusterID != clusterID {
+		return command.ErrNotOwnedByCluster
 	}
 
 	now := time.Now()

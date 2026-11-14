@@ -9,4 +9,8 @@ var (
 	ErrIdentityExists = errors.New("外部身份已存在")
 	// ErrUsernameTaken 用户名已被占用
 	ErrUsernameTaken = errors.New("用户名已被占用")
+	// ErrClusterExists 集群 ID 已登记
+	ErrClusterExists = errors.New("集群已登记")
+	// ErrClusterNotFound 集群未登记
+	ErrClusterNotFound = errors.New("集群未登记")
 )

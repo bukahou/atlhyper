@@ -18,6 +18,12 @@ export function SidebarClusterSelector({
 
   if (clusterIds.length === 0) return null;
 
+  // 不整页刷新：查询键里带集群，切换即换成新集群的数据
+  const selectCluster = (id: string) => {
+    setCurrentCluster(id);
+    onSetClusterMenuOpen(false);
+  };
+
   return (
     <div className={`relative border-b border-[var(--border-color)]/20 ${collapsed ? "py-2 flex justify-center" : "px-3 py-2"}`}>
       {collapsed ? (
@@ -38,7 +44,7 @@ export function SidebarClusterSelector({
                 {clusterIds.map((id) => (
                   <button
                     key={id}
-                    onClick={() => { setCurrentCluster(id); window.location.reload(); }}
+                    onClick={() => selectCluster(id)}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm transition-all ${
                       id === currentClusterId ? "text-primary bg-primary/10" : "text-secondary hover:bg-white/5"
                     }`}
@@ -70,7 +76,7 @@ export function SidebarClusterSelector({
               {clusterIds.map((id) => (
                 <button
                   key={id}
-                  onClick={() => { setCurrentCluster(id); onSetClusterMenuOpen(false); window.location.reload(); }}
+                  onClick={() => selectCluster(id)}
                   className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm transition-all ${
                     id === currentClusterId ? "text-primary" : "text-secondary hover:bg-white/5"
                   }`}

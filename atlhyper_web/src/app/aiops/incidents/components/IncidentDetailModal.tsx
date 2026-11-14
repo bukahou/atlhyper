@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { X, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { RiskBadge } from "@/components/aiops/RiskBadge";
@@ -8,9 +8,9 @@ import { EntityLink } from "@/components/aiops/EntityLink";
 import { AIAnalysisSection } from "@/components/aiops/AIAnalysisSection";
 import { RootCauseCard } from "./RootCauseCard";
 import { TimelineView } from "./TimelineView";
-import { getIncidentDetail, getIncidentPatterns } from "@/api/aiops";
-import { useClusterStore } from "@/store/clusterStore";
-import type { IncidentDetail, IncidentPattern } from "@/api/aiops";
+import type { IncidentPattern } from "@/api/aiops";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { incidentDetailQuery, incidentPatternsQuery } from "@/queries/aiops";
 import { formatRiskScore } from "@/lib/risk";
 
 const STATE_COLORS: Record<string, string> = {
@@ -40,38 +40,32 @@ const ROLE_COLORS: Record<string, string> = {
   symptom: "text-blue-500",
 };
 
+/**
+ * 根因实体的历史模式：undefined = 还在查；null = 没有同类事件史（没有根因、或查询失败也按没有算）。
+ */
+function resolveRootCausePattern(
+  detailLoaded: boolean,
+  rootCauseKey: string,
+  patternsQuery: UseQueryResult<IncidentPattern[]>,
+): IncidentPattern | null | undefined {
+  if (!detailLoaded) return undefined;
+  if (rootCauseKey === "" || patternsQuery.isError) return null;
+  if (patternsQuery.data === undefined) return undefined;
+  return patternsQuery.data.find((candidate) => candidate.entityKey === rootCauseKey) ?? null;
+}
 
 export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetailModalProps) {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [detail, setDetail] = useState<IncidentDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  // 历史模式（G2）：拿到详情后按 rootCause 实体查同类事件史
-  const [pattern, setPattern] = useState<IncidentPattern | null | undefined>(undefined);
+  const { clusterId } = useCurrentCluster();
+  // 弹窗关着时不取：incidentId 传空串，查询不启用
+  const detailQuery = useQuery(incidentDetailQuery(open && incidentId ? incidentId : ""));
+  const detail = detailQuery.data;
+  const loading = detailQuery.isPending;
 
-  useEffect(() => {
-    if (!incidentId || !open) {
-      setDetail(null);
-      return;
-    }
-
-    setLoading(true);
-    setPattern(undefined);
-    getIncidentDetail(incidentId)
-      .then((d) => {
-        setDetail(d);
-        // rootCause 字段即实体 key；查 30 天内同实体的事件史
-        if (d?.rootCause) {
-          getIncidentPatterns(currentClusterId, d.rootCause)
-            .then((ps) => setPattern(ps.find((p) => p.entityKey === d.rootCause) ?? null))
-            .catch(() => setPattern(null));
-        } else {
-          setPattern(null);
-        }
-      })
-      .catch((err) => console.error("Failed to load incident detail:", err))
-      .finally(() => setLoading(false));
-  }, [incidentId, open, currentClusterId]);
+  // 历史模式（G2）：拿到详情后按 rootCause 实体（字段值即实体 key）查 30 天内同实体的事件史
+  const rootCauseKey = detail?.rootCause ?? "";
+  const patternsQuery = useQuery(incidentPatternsQuery(clusterId, rootCauseKey));
+  const pattern = resolveRootCausePattern(detail !== undefined, rootCauseKey, patternsQuery);
 
   if (!open) return null;
 

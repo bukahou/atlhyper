@@ -210,6 +210,8 @@ export interface StatusTranslations {
 // 审计翻译
 export interface AuditTranslations {
   description: string;
+  /** 「请求路径」字段的标签 */
+  requestPath: string;
   filterLabel: string;
   timeRange: string;
   user: string;
@@ -257,6 +259,8 @@ export interface AuditTranslations {
     secret: string;
     command: string;
     notify: string;
+    cluster: string;
+    cluster_token: string;
   };
   // 操作+资源组合标签
   actionLabels: {
@@ -778,6 +782,82 @@ export interface ClustersTranslations {
   noClusters: string;
 }
 
+// 集群管理页（集群注册表与 Agent 令牌）翻译
+export interface ClusterRegistryTranslations {
+  pageDescription: string;
+  demoHint: string;
+  // 表头
+  clusterId: string;
+  displayName: string;
+  description: string;
+  status: string;
+  lastSeen: string;
+  registration: string;
+  token: string;
+  agentAuth: string;
+  // 单元格
+  statusOnline: string;
+  statusOffline: string;
+  statusNever: string;
+  neverReported: string;
+  registered: string;
+  unregistered: string;
+  unregisteredHint: string;
+  tokenNotIssued: string;
+  tokenIssuedAt: string;
+  agentAuthenticated: string;
+  agentUnauthenticated: string;
+  // 操作
+  registerCluster: string;
+  register: string;
+  editProfile: string;
+  issueToken: string;
+  rotateToken: string;
+  unregister: string;
+  empty: string;
+  emptyHint: string;
+  // 登记 / 编辑弹窗
+  registerTitle: string;
+  editTitle: string;
+  clusterIdFormatHint: string;
+  clusterIdMatchHint: string;
+  displayNameHint: string;
+  descriptionHint: string;
+  registering: string;
+  saving: string;
+  // 操作结果
+  registeredToast: string;
+  updatedToast: string;
+  unregisteredToast: string;
+  errors: {
+    idLength: string;
+    idCharset: string;
+    nameRequired: string;
+    nameTooLong: string;
+    descriptionTooLong: string;
+    controlCharacter: string;
+    alreadyRegistered: string;
+    notRegistered: string;
+    invalidInput: string;
+    unknown: string;
+  };
+  // 轮换确认
+  rotateConfirmTitle: string;
+  rotateConfirmMessage: string;
+  // 令牌一次性显示弹窗
+  tokenDialogTitle: string;
+  tokenOnceWarning: string;
+  tokenUsageHint: string;
+  tokenFor: string;
+  copyToken: string;
+  tokenCopied: string;
+  tokenCopyFailed: string;
+  tokenDialogClose: string;
+  // 删除登记确认
+  unregisterConfirmTitle: string;
+  unregisterConfirmMessage: string;
+}
+
 // Agents 页面翻译
 export interface AgentsTranslations {
   pageDescription: string;
@@ -795,7 +875,6 @@ export interface AgentsTranslations {
 // Notifications 页面翻译
 export interface NotificationsTranslations {
   pageDescription: string;
-  loadFailed: string;
   // Slack
   slackNotify: string;
   slackConfig: string;
@@ -1173,7 +1252,6 @@ export interface SLOTranslations extends TimeRangePickerTranslations {
   refreshing: string;
   lastUpdated: string;
   loadFailed: string;
-  noCluster: string;
   // 状态
   healthy: string;
   warning: string;
@@ -1409,7 +1487,6 @@ export interface AISettingsPageTranslations {
   save: string;
   saving: string;
   // Toast 消息
-  loadFailed: string;
   requiredFields: string;
   apiKeyRequired: string;
   providerUpdated: string;
@@ -1731,8 +1808,6 @@ interface NodeMetricsTranslations extends TimeRangePickerTranslations {
   pageDescription: string;
   lastUpdate: string;
   retry: string;
-  noCluster: string;
-  noClusterDesc: string;
   noMetricsData: string;
   noMetricsDesc: string;
   loadFailed: string;
@@ -2105,8 +2180,6 @@ export interface AIOpsTranslations {
   loading: string;
   autoRefresh: string;
   lastUpdate: string;
-  noCluster: string;
-  noClusterDesc: string;
   loadFailed: string;
   retry: string;
   minutesAgo: string;
@@ -2231,8 +2304,6 @@ export interface LogTranslations extends TimeRangePickerTranslations {
   noLogs: string;
   loading: string;
   loadFailed: string;
-  noCluster: string;
-  noClusterDesc: string;
   // 直方图 / 过滤器
   logVolume: string;
   clearFilters: string;
@@ -2359,8 +2430,6 @@ export interface ApmTranslations extends TimeRangePickerTranslations {
   // states
   loading: string;
   loadFailed: string;
-  noCluster: string;
-  noClusterDesc: string;
   // trend charts
   latencyTrend: string;
   throughputTrend: string;
@@ -2599,6 +2668,7 @@ export interface Translations {
   users: UsersTranslations;
   roles: RolesTranslations;
   clusters: ClustersTranslations;
+  clusterRegistry: ClusterRegistryTranslations;
   agents: AgentsTranslations;
   notifications: NotificationsTranslations;
   login: LoginTranslations;

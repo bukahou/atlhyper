@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getCommandHistory, type CommandHistory } from "@/api/commands";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import {
-  PageHeader,
-  DataTable,
-  StatusBadge,
-  type TableColumn,
-  LoadingSpinner,
-} from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
+import type { CommandHistory } from "@/api/commands";
+import { PageHeader, DataTable, QueryView, StatusBadge, type TableColumn } from "@/components/common";
+import { useCan } from "@/hooks/useCan";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useScopedState } from "@/hooks/useScopedState";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { commandHistoryQuery } from "@/queries/admin";
+import { REFRESH } from "@/queries/refresh";
 import {
   Terminal,
   Bot,
@@ -27,7 +27,9 @@ import {
 
 import { CommandDetailModal, CommandFilterToolbar, CommandPagination } from "./components";
 import { PermissionLock } from "@/components/common/PermissionLock";
-import { canNow } from "@/hooks/useCan";
+
+const PAGE_SIZE = 20;
+const NO_COMMANDS: CommandHistory[] = [];
 
 // Status config
 const statusConfig: Record<
@@ -49,21 +51,40 @@ const sourceIcons: Record<string, typeof Terminal> = {
 
 export default function CommandsPage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [loading, setLoading] = useState(true);
-  const [commands, setCommands] = useState<CommandHistory[]>([]);
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  // 指令历史是内容级数据（commands.read）。权限加载完之前按没有权限算：不发请求，界面由 PermissionLock 占位
+  const sessionReady = useSessionReady();
+  const can = useCan();
+  const canReadCommands = sessionReady && can("commands.read");
 
   // Filter state
   const [sourceFilter, setSourceFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
+  // 搜索框里的字随敲随显，进查询键的是去抖后的值：停下来才发请求
+  const [searchInput, setSearchInput] = useState("");
+  const searchTerm = useDebouncedValue(searchInput);
 
-  // Pagination
-  const [page, setPage] = useState(0);
-  const pageSize = 20;
+  // 页码依附于筛选条件：条件一变回到第一页
+  const filterScope = JSON.stringify([sourceFilter, statusFilter, actionFilter, searchTerm]);
+  const [page, setPage] = useScopedState(filterScope, 0);
+
+  const historyQuery = useQuery(
+    commandHistoryQuery(
+      clusterId,
+      {
+        source: sourceFilter,
+        status: statusFilter,
+        action: actionFilter,
+        search: searchTerm,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      },
+      canReadCommands,
+    ),
+  );
+  const commands = historyQuery.data?.commands ?? NO_COMMANDS;
+  const total = historyQuery.data?.total ?? 0;
 
   // Detail modal
   const [selectedCommand, setSelectedCommand] = useState<CommandHistory | null>(null);
@@ -73,37 +94,8 @@ export default function CommandsPage() {
     setSourceFilter("");
     setStatusFilter("");
     setActionFilter("");
-    setSearchTerm("");
-    setPage(0);
+    setSearchInput("");
   };
-
-  const fetchData = useCallback(async () => {
-    setError("");
-    // 指令历史是内容级数据（commands.read）；无权限时不发请求，界面由 PermissionLock 占位
-    if (!canNow("commands.read")) {
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await getCommandHistory({
-        clusterId: currentClusterId,
-        source: sourceFilter,
-        status: statusFilter,
-        action: actionFilter,
-        search: searchTerm,
-        limit: pageSize,
-        offset: page * pageSize,
-      });
-      setCommands(res.data.commands || []);
-      setTotal(res.data.total || 0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [sourceFilter, statusFilter, actionFilter, searchTerm, page, t.common.loadFailed]);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   const actionOptions = useMemo(() => {
     const actions = Object.entries(t.commands.actions) as [string, string][];
@@ -217,7 +209,7 @@ export default function CommandsPage() {
         <PageHeader
           title={t.nav.commands}
           description={t.commands.pageDescription}
-          autoRefreshSeconds={intervalSeconds}
+          autoRefreshSeconds={REFRESH.standard / 1000}
         />
 
         <PermissionLock permission="commands.read" className="bg-card rounded-xl border border-[var(--border-color)]">
@@ -226,11 +218,11 @@ export default function CommandsPage() {
             sourceFilter={sourceFilter}
             statusFilter={statusFilter}
             actionFilter={actionFilter}
-            searchTerm={searchTerm}
-            onSourceChange={(v) => { setSourceFilter(v); setPage(0); }}
-            onStatusChange={(v) => { setStatusFilter(v); setPage(0); }}
-            onActionChange={(v) => { setActionFilter(v); setPage(0); }}
-            onSearchChange={(v) => { setSearchTerm(v); setPage(0); }}
+            searchTerm={searchInput}
+            onSourceChange={setSourceFilter}
+            onStatusChange={setStatusFilter}
+            onActionChange={setActionFilter}
+            onSearchChange={setSearchInput}
             onClearAll={clearAllFilters}
             actionOptions={actionOptions}
             commandCount={commands.length}
@@ -240,31 +232,31 @@ export default function CommandsPage() {
 
           {/* Data table */}
           <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-            {loading ? (
-              <div className="py-12">
-                <LoadingSpinner />
-              </div>
-            ) : error ? (
-              <div className="text-center py-12 text-red-500">{error}</div>
-            ) : commands.length === 0 ? (
-              <div className="text-center py-12 text-muted">
-                <Terminal className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>{t.commands.noCommands}</p>
-              </div>
-            ) : (
-              <DataTable
-                columns={columns}
-                data={commands}
-                loading={false}
-                error=""
-                keyExtractor={(cmd) => cmd.commandId}
-              />
-            )}
+            <QueryView
+              query={historyQuery}
+              isEmpty={(history) => history.commands.length === 0}
+              empty={
+                <div className="text-center py-12 text-muted">
+                  <Terminal className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>{t.commands.noCommands}</p>
+                </div>
+              }
+            >
+              {(history) => (
+                <DataTable
+                  columns={columns}
+                  data={history.commands}
+                  loading={false}
+                  error=""
+                  keyExtractor={(cmd) => cmd.commandId}
+                />
+              )}
+            </QueryView>
           </div>
 
           <CommandPagination
             page={page}
-            pageSize={pageSize}
+            pageSize={PAGE_SIZE}
             total={total}
             onPageChange={setPage}
             t={t}

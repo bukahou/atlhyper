@@ -1,191 +1,125 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { PageHeader, LoadingSpinner } from "@/components/common";
+import { PageHeader, LoadingSpinner, DemoBanner, QueryView } from "@/components/common";
 import { toast } from "@/components/common/Toast";
-import { AlertTriangle, Eye } from "lucide-react";
 
 import { SlackCard, EmailCard } from "./components";
-import {
-  listChannels,
-  updateSlack,
-  updateEmail,
-  testChannel,
-  mockChannels,
-  type NotifyChannel,
-  type EmailConfig,
-  type EmailUpdateData,
-} from "@/api/notify";
+import type { ChannelType, EmailConfig, EmailUpdateData, NotifyChannel } from "@/api/notify";
 import { useCan } from "@/hooks/useCan";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { mockChannels } from "@/mock/notify";
+import {
+  notifyChannelsQuery,
+  testNotifyChannelMutation,
+  updateEmailChannelMutation,
+  updateSlackChannelMutation,
+} from "@/queries/notify";
+
+/** 还没配置过邮件渠道时表单用的空配置 */
+const EMPTY_EMAIL_CONFIG: EmailConfig = {
+  smtpHost: "",
+  smtpPort: 587,
+  smtpUser: "",
+  fromAddress: "",
+  toAddresses: [],
+};
 
 export default function NotificationsPage() {
   const { t } = useI18n();
-  const can = useCan();
+  // 通知设置是纯管理功能页：权限加载完才决定显示真实配置还是演示数据（Operator 即可查看和修改）
+  const sessionReady = useSessionReady();
+  const canManageNotifications = useCan()("notify.manage");
+  const isDemo = sessionReady && !canManageNotifications;
 
-  // 权限判断：Operator 即可查看和修改
-  const hasPermission = can("notify.manage");
-  const isDemo = !hasPermission;
+  const channelsQuery = useQuery(notifyChannelsQuery(canManageNotifications));
+  // 保存成功后工厂把接口带回的渠道换进列表，这里只管提示
+  const saveSlack = useMutation(updateSlackChannelMutation());
+  const saveEmail = useMutation(updateEmailChannelMutation());
+  const testChannel = useMutation(testNotifyChannelMutation());
 
-  // 状态
-  const [loading, setLoading] = useState(true);
-  const [channels, setChannels] = useState<NotifyChannel[]>([]);
-
-  // 加载数据
-  useEffect(() => {
-    if (isDemo) {
-      // 无权限时使用 mock 数据
-      setChannels(mockChannels);
-      setLoading(false);
-      return;
+  // 保存 Slack 配置（失败时抛给卡片，卡片据此保留用户的输入）
+  const handleSaveSlack = async (data: { enabled?: boolean; webhookUrl?: string }) => {
+    try {
+      await saveSlack.mutateAsync(data);
+      toast.success(t.notifications.slackSaved);
+    } catch (err) {
+      console.error("Failed to save Slack config:", err);
+      toast.error(t.notifications.saveFailed);
+      throw err;
     }
-
-    // 加载真实数据
-    listChannels()
-      .then((res) => {
-        setChannels(res.data.channels || []);
-      })
-      .catch((err) => {
-        console.error("Failed to load channels:", err);
-        toast.error(t.notifications.loadFailed);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [isDemo]);
-
-  // 获取渠道配置
-  const getSlackChannel = useCallback(() => {
-    return channels.find((ch) => ch.type === "slack");
-  }, [channels]);
-
-  const getEmailChannel = useCallback(() => {
-    return channels.find((ch) => ch.type === "email");
-  }, [channels]);
-
-  // 保存 Slack 配置
-  const handleSaveSlack = useCallback(
-    async (data: { enabled?: boolean; webhookUrl?: string }) => {
-      try {
-        const res = await updateSlack(data);
-        // 更新本地状态
-        setChannels((prev) =>
-          prev.map((ch) => (ch.type === "slack" ? res.data : ch))
-        );
-        toast.success(t.notifications.slackSaved);
-      } catch (err) {
-        console.error("Failed to save Slack config:", err);
-        toast.error(t.notifications.saveFailed);
-        throw err;
-      }
-    },
-    [t]
-  );
+  };
 
   // 保存 Email 配置
-  const handleSaveEmail = useCallback(async (data: EmailUpdateData) => {
+  const handleSaveEmail = async (data: EmailUpdateData) => {
     try {
-      const res = await updateEmail(data);
-      // 更新本地状态
-      setChannels((prev) =>
-        prev.map((ch) => (ch.type === "email" ? res.data : ch))
-      );
+      await saveEmail.mutateAsync(data);
       toast.success(t.notifications.emailSaved);
     } catch (err) {
       console.error("Failed to save Email config:", err);
       toast.error(t.notifications.saveFailed);
       throw err;
     }
-  }, [t]);
+  };
 
-  // 测试 Slack
-  const handleTestSlack = useCallback(async () => {
-    const result = await testChannel("slack");
+  // 测试渠道：按已保存的配置发一条测试消息
+  const handleTestChannel = async (channelType: ChannelType) => {
+    const result = await testChannel.mutateAsync(channelType);
     if (result.success) {
       toast.success(result.message);
     } else {
       toast.error(result.message);
     }
     return result;
-  }, []);
+  };
 
-  // 测试 Email
-  const handleTestEmail = useCallback(async () => {
-    const result = await testChannel("email");
-    if (result.success) {
-      toast.success(result.message);
-    } else {
-      toast.error(result.message);
-    }
-    return result;
-  }, []);
+  const renderChannelCards = (channels: NotifyChannel[]) => {
+    const slackChannel = channels.find((channel) => channel.type === "slack");
+    const emailChannel = channels.find((channel) => channel.type === "email");
+    return (
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Slack 卡片 */}
+        <SlackCard
+          webhookConfigured={slackChannel?.configuredSecrets?.includes("webhookUrl") || false}
+          enabled={slackChannel?.enabled || false}
+          effectiveEnabled={slackChannel?.effectiveEnabled || false}
+          validationErrors={slackChannel?.validationErrors || []}
+          readOnly={isDemo}
+          onSave={handleSaveSlack}
+          onTest={() => handleTestChannel("slack")}
+        />
 
-  // 渲染
-  const slackChannel = getSlackChannel();
-  const emailChannel = getEmailChannel();
+        {/* Email 卡片 */}
+        <EmailCard
+          config={(emailChannel?.config as EmailConfig) || EMPTY_EMAIL_CONFIG}
+          enabled={emailChannel?.enabled || false}
+          effectiveEnabled={emailChannel?.effectiveEnabled || false}
+          validationErrors={emailChannel?.validationErrors || []}
+          readOnly={isDemo}
+          onSave={handleSaveEmail}
+          onTest={() => handleTestChannel("email")}
+        />
+      </div>
+    );
+  };
 
   return (
     <Layout>
       <div className="space-y-6">
-        <PageHeader
-          title={t.nav.notifications}
-          description={t.notifications.pageDescription}
-        />
+        <PageHeader title={t.nav.notifications} description={t.notifications.pageDescription} />
 
-        {/* 演示模式提示 */}
-        {isDemo && (
-          <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-            <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                {t.common.demoMode}
-              </p>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t.common.demoModeHint}
-              </p>
-            </div>
-          </div>
-        )}
+        {isDemo && <DemoBanner hint={t.common.demoModeHint} />}
 
-
-        {/* 加载状态 */}
-        {loading ? (
+        {!sessionReady ? (
           <div className="flex items-center justify-center py-12">
             <LoadingSpinner />
           </div>
+        ) : isDemo ? (
+          renderChannelCards(mockChannels)
         ) : (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Slack 卡片 */}
-            <SlackCard
-              webhookConfigured={slackChannel?.configuredSecrets?.includes("webhookUrl") || false}
-              enabled={slackChannel?.enabled || false}
-              effectiveEnabled={slackChannel?.effectiveEnabled || false}
-              validationErrors={slackChannel?.validationErrors || []}
-              readOnly={isDemo}
-              onSave={handleSaveSlack}
-              onTest={handleTestSlack}
-            />
-
-            {/* Email 卡片 */}
-            <EmailCard
-              config={
-                (emailChannel?.config as EmailConfig) || {
-                  smtpHost: "",
-                  smtpPort: 587,
-                  smtpUser: "",
-                  fromAddress: "",
-                  toAddresses: [],
-                }
-              }
-              enabled={emailChannel?.enabled || false}
-              effectiveEnabled={emailChannel?.effectiveEnabled || false}
-              validationErrors={emailChannel?.validationErrors || []}
-              readOnly={isDemo}
-              onSave={handleSaveEmail}
-              onTest={handleTestEmail}
-            />
-          </div>
+          <QueryView query={channelsQuery}>{renderChannelCards}</QueryView>
         )}
       </div>
     </Layout>

@@ -230,6 +230,8 @@ npm install && npm run dev
 | `MASTER_JWT_SECRET` | Yes | - | JWT signing key |
 | `MASTER_GATEWAY_PORT` | No | `8080` | Web/API port |
 | `MASTER_AGENTSDK_PORT` | No | `8081` | Agent data port |
+| `MASTER_AGENT_AUTH_MODE` | No | `warn` | Agent token authentication: `off` / `warn` (accept requests without a valid token, log a warning) / `enforce` (reject them). Any other value fails startup |
+| `MASTER_AGENTSDK_MAX_SNAPSHOT_MB` | No | `256` | Maximum size of a single snapshot in MB (applies before and after decompression) |
 | `MASTER_LOG_LEVEL` | No | `info` | Log level |
 
 #### Agent Environment Variables
@@ -237,6 +239,7 @@ npm install && npm run dev
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `AGENT_MASTER_URL` | Yes | - | Master AgentSDK URL |
+| `AGENT_MASTER_TOKEN` | No | - | Cluster token issued by Master (Admin → cluster registry). Sent as `Authorization: Bearer` on every request; required when Master runs in `enforce` mode. Treat as a credential |
 | `AGENT_CLUSTER_ID` | No | Auto-detected | Unique cluster identifier (defaults to kube-system UID) |
 | `AGENT_CLICKHOUSE_DSN` | No | - | ClickHouse connection URL (enables OTel queries) |
 

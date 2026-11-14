@@ -33,6 +33,9 @@ import (
 //   - 拉取待执行指令
 //   - 上报执行结果
 //   - 心跳保活
+//
+// 配置了集群令牌时，每个请求都带 Authorization: Bearer 头。
+// Master 以 401 / 403 拒绝时，各方法返回的错误可用 errors.Is(err, ErrMasterRejectedIdentity) 识别。
 type MasterGateway interface {
 	// PushSnapshot 推送集群快照到 Master
 	//

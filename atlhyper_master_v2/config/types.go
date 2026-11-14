@@ -10,6 +10,12 @@ type ServerConfig struct {
 	AgentSDKPort int // AgentSDK 端口（Agent 数据上报）
 }
 
+// AgentSDKConfig Agent 入口（AgentSDK）的认证与限额配置
+type AgentSDKConfig struct {
+	AuthMode      string // Agent 令牌认证模式: off / warn / enforce（默认 warn；启动时校验，未知值启动失败）
+	MaxSnapshotMB int    // 单份快照的大小上限（MB，压缩前后都适用，默认 256）
+}
+
 // DataHubConfig DataHub 配置
 type DataHubConfig struct {
 	Type              string        // 类型: memory / redis
@@ -147,6 +153,7 @@ func (c OIDCConfig) Enabled() bool { return c.Issuer != "" }
 type AppConfig struct {
 	Log            LogConfig
 	Server         ServerConfig
+	AgentSDK       AgentSDKConfig
 	DataHub        DataHubConfig
 	Database       DatabaseConfig
 	Redis          RedisConfig

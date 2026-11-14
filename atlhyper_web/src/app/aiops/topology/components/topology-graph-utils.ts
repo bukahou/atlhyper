@@ -1,3 +1,5 @@
+// 只导入类型：G6 本体在 TopologyGraph 里按需动态加载，不进首屏包
+import type { Graph } from "@antv/g6";
 import type { DependencyGraph, EntityRisk } from "@/api/aiops";
 import { riskColor, formatRiskScore, RISK_THRESHOLDS } from "@/lib/risk";
 
@@ -26,39 +28,33 @@ export function edgeStyle(type: string, isAnomaly: boolean) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function addState(g: any, id: string, state: string) {
+export function addState(g: Graph, id: string, state: string) {
   const cur: string[] = g.getElementState(id);
   if (!cur.includes(state)) {
-    g.setElementState(id, [...cur, state]);
+    void g.setElementState(id, [...cur, state]);
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function removeState(g: any, id: string, state: string) {
+export function removeState(g: Graph, id: string, state: string) {
   const cur: string[] = g.getElementState(id);
   if (cur.includes(state)) {
-    g.setElementState(id, cur.filter((s: string) => s !== state));
+    void g.setElementState(id, cur.filter((s: string) => s !== state));
   }
 }
 
 /** 清除所有元素的 "selected" 状态，再为选中节点 + 关联边添加 "selected" */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function applySelection(g: any, nodeId: string | null) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const n of g.getNodeData()) removeState(g, (n as any).id, "selected");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const e of g.getEdgeData()) removeState(g, (e as any).id, "selected");
+export function applySelection(g: Graph, nodeId: string | null) {
+  for (const n of g.getNodeData()) removeState(g, n.id, "selected");
+  for (const e of g.getEdgeData()) {
+    if (e.id !== undefined) removeState(g, e.id, "selected");
+  }
 
   if (!nodeId) return;
 
   addState(g, nodeId, "selected");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const e of g.getEdgeData()) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ed = e as any;
-    if (ed.source === nodeId || ed.target === nodeId) {
-      addState(g, ed.id, "selected");
+    if (e.id !== undefined && (e.source === nodeId || e.target === nodeId)) {
+      addState(g, e.id, "selected");
     }
   }
 }

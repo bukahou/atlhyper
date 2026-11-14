@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { useAuthStore } from "@/store/authStore";
-import { PageHeader, LoadingSpinner, DemoBanner } from "@/components/common";
+import { PageHeader, LoadingSpinner, DemoBanner, QueryView } from "@/components/common";
 import { useCan } from "@/hooks/useCan";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { getUserList, updateUserStatus } from "@/api/auth";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { updateUserStatusMutation, userListQuery } from "@/queries/admin";
 import { toast } from "@/components/common";
 import { Plus } from "lucide-react";
 import type { UserListItem } from "@/types/auth";
@@ -17,42 +18,20 @@ import { MOCK_USERS } from "./components/mock-data";
 
 export default function UsersPage() {
   const { t } = useI18n();
-  const meLoaded = useAuthStore((st) => st.meLoaded);
+  const sessionReady = useSessionReady();
   const can = useCan();
   const requireAuth = useRequireAuth();
-  const [users, setUsers] = useState<UserListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserListItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserListItem | null>(null);
 
-  // 用户管理是纯管理功能页：无 user.manage 时整页展示演示数据
+  // 用户管理是纯管理功能页：权限加载完才决定显示真实数据还是演示数据；无 user.manage 时整页展示演示数据
   const isAdmin = can("user.manage");
-  const isDemo = meLoaded && !isAdmin;
+  const isDemo = sessionReady && !isAdmin;
 
-  const fetchUsers = useCallback(async () => {
-    if (!meLoaded) return;
-    if (!isAdmin) {
-      setUsers(MOCK_USERS);
-      setError("");
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await getUserList();
-      setUsers(res.data.data || []);
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [t.common.loadFailed, meLoaded, isAdmin]);
-
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+  const usersQuery = useQuery(userListQuery(isAdmin));
+  // 用户变了之后列表由工厂负责失效重取，这里只管提示
+  const updateStatus = useMutation(updateUserStatusMutation());
 
   const handleAddUser = () => {
     requireAuth(() => setAddModalOpen(true), "user.manage");
@@ -66,18 +45,75 @@ export default function UsersPage() {
     requireAuth(() => setDeleteTarget(user), "user.manage");
   };
 
-  const handleToggleStatus = async (user: UserListItem) => {
+  const handleToggleStatus = (user: UserListItem) => {
     if (!requireAuth(() => {}, "user.manage")) return;
 
     const newStatus = user.status === 1 ? 0 : 1;
-    try {
-      await updateUserStatus({ userId: user.id, status: newStatus });
-      toast.success(newStatus === 1 ? t.users.enable : t.users.disable);
-      fetchUsers();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t.common.loadFailed);
-    }
+    updateStatus.mutate(
+      { userId: user.id, status: newStatus },
+      {
+        onSuccess: () => toast.success(newStatus === 1 ? t.users.enable : t.users.disable),
+        onError: (err) => toast.error(err instanceof Error ? err.message : t.common.loadFailed),
+      },
+    );
   };
+
+  const renderUsers = (users: UserListItem[]) => (
+    <>
+      {/* 移动端卡片视图 */}
+      <div className="md:hidden divide-y divide-[var(--border-color)]">
+        {users.map((user) => (
+          <UserRow
+            key={user.id}
+            user={user}
+            isAdmin={isAdmin}
+            onEditRole={handleEditRole}
+            onToggleStatus={handleToggleStatus}
+            onDelete={handleDeleteUser}
+            t={t}
+            isMobile
+          />
+        ))}
+        {users.length === 0 && <div className="px-4 py-12 text-center text-muted">{t.common.noData}</div>}
+      </div>
+
+      {/* 桌面端表格视图 */}
+      <table className="w-full hidden md:table">
+        <thead className="bg-[var(--background)]">
+          <tr>
+            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.username}</th>
+            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.email}</th>
+            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.role}</th>
+            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.status}</th>
+            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.createdAt}</th>
+            {isAdmin && (
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.common.action}</th>
+            )}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border-color)]">
+          {users.map((user) => (
+            <UserRow
+              key={user.id}
+              user={user}
+              isAdmin={isAdmin}
+              onEditRole={handleEditRole}
+              onToggleStatus={handleToggleStatus}
+              onDelete={handleDeleteUser}
+              t={t}
+            />
+          ))}
+          {users.length === 0 && (
+            <tr>
+              <td colSpan={isAdmin ? 6 : 5} className="px-4 py-12 text-center text-muted">
+                {t.common.noData}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </>
+  );
 
   const addButton = isAdmin ? (
     <button
@@ -99,94 +135,24 @@ export default function UsersPage() {
 
         {/* Users Table */}
         <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          {loading ? (
+          {!sessionReady ? (
             <div className="py-12">
               <LoadingSpinner />
             </div>
-          ) : error ? (
-            <div className="text-center py-12 text-red-500">{error}</div>
+          ) : isDemo ? (
+            renderUsers(MOCK_USERS)
           ) : (
-            <>
-              {/* 移动端卡片视图 */}
-              <div className="md:hidden divide-y divide-[var(--border-color)]">
-                {users.map((user) => (
-                  <UserRow
-                    key={user.id}
-                    user={user}
-                    isAdmin={isAdmin}
-                    onEditRole={handleEditRole}
-                    onToggleStatus={handleToggleStatus}
-                    onDelete={handleDeleteUser}
-                    t={t}
-                    isMobile
-                  />
-                ))}
-                {users.length === 0 && (
-                  <div className="px-4 py-12 text-center text-muted">
-                    {t.common.noData}
-                  </div>
-                )}
-              </div>
-
-              {/* 桌面端表格视图 */}
-              <table className="w-full hidden md:table">
-                <thead className="bg-[var(--background)]">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.username}</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.email}</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.role}</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.status}</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.users.createdAt}</th>
-                    {isAdmin && (
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">{t.common.action}</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border-color)]">
-                  {users.map((user) => (
-                    <UserRow
-                      key={user.id}
-                      user={user}
-                      isAdmin={isAdmin}
-                      onEditRole={handleEditRole}
-                      onToggleStatus={handleToggleStatus}
-                      onDelete={handleDeleteUser}
-                      t={t}
-                    />
-                  ))}
-                  {users.length === 0 && (
-                    <tr>
-                      <td colSpan={isAdmin ? 6 : 5} className="px-4 py-12 text-center text-muted">
-                        {t.common.noData}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </>
+            <QueryView query={usersQuery}>{renderUsers}</QueryView>
           )}
         </div>
       </div>
 
-      {/* Modals */}
-      <AddUserModal
-        isOpen={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        onSuccess={fetchUsers}
-        t={t}
-      />
-      <EditRoleModal
-        user={editUser}
-        onClose={() => setEditUser(null)}
-        onSuccess={fetchUsers}
-        t={t}
-      />
-      <DeleteUserModal
-        user={deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onSuccess={fetchUsers}
-        t={t}
-      />
+      {/* Modals：打开时才挂载，表单与上一次的错误随关闭丢弃 */}
+      {addModalOpen && <AddUserModal onClose={() => setAddModalOpen(false)} t={t} />}
+      {editUser && <EditRoleModal key={editUser.id} user={editUser} onClose={() => setEditUser(null)} t={t} />}
+      {deleteTarget && (
+        <DeleteUserModal key={deleteTarget.id} user={deleteTarget} onClose={() => setDeleteTarget(null)} t={t} />
+      )}
     </Layout>
   );
 }

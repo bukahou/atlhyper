@@ -47,16 +47,20 @@ export interface CommandListResponse {
 /**
  * 获取命令历史列表
  */
-export function getCommandHistory(params: CommandQueryParams = {}) {
-  return get<CommandListResponse>("/api/v2/commands/history", {
-    clusterId: params.clusterId || "",
-    source: params.source || "",
-    status: params.status || "",
-    action: params.action || "",
-    search: params.search || "",
-    limit: params.limit || 20,
-    offset: params.offset || 0,
-  });
+export function getCommandHistory(params: CommandQueryParams = {}, signal?: AbortSignal) {
+  return get<CommandListResponse>(
+    "/api/v2/commands/history",
+    {
+      clusterId: params.clusterId || "",
+      source: params.source || "",
+      status: params.status || "",
+      action: params.action || "",
+      search: params.search || "",
+      limit: params.limit || 20,
+      offset: params.offset || 0,
+    },
+    signal,
+  );
 }
 
 /**

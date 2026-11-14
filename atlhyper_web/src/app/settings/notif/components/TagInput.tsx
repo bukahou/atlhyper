@@ -48,7 +48,7 @@ export function TagInput({
     onChange([...value, trimmed]);
     setInputValue("");
     setError("");
-  }, [inputValue, value, onChange, validator]);
+  }, [inputValue, value, onChange, validator, duplicateMessage, invalidFormatMessage]);
 
   const removeTag = useCallback(
     (tagToRemove: string) => {

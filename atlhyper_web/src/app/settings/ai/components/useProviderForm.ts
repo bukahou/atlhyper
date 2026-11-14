@@ -1,113 +1,59 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import type { AIProvider, ProviderModelInfo } from "@/api/ai-provider";
+import {
+  initialProviderForm,
+  presetModelsOf,
+  withCustomModelToggled,
+  withProviderVendor,
+  type ProviderFormDraft,
+} from "./provider-form";
 
 interface UseProviderFormOptions {
-  isOpen: boolean;
   editingProvider: AIProvider | null;
   models: ProviderModelInfo[];
 }
 
-export function useProviderForm({ isOpen, editingProvider, models }: UseProviderFormOptions) {
-  const [formName, setFormName] = useState("");
-  const [formProvider, setFormProvider] = useState("gemini");
-  const [formApiKey, setFormApiKey] = useState("");
-  const [formModel, setFormModel] = useState("");
-  const [formCustomModel, setFormCustomModel] = useState("");
-  const [formUseCustomModel, setFormUseCustomModel] = useState(false);
-  const [formBaseUrl, setFormBaseUrl] = useState("");
-  const [formDescription, setFormDescription] = useState("");
+/**
+ * Provider 弹窗的表单状态。
+ *
+ * 表单只在弹窗打开期间存在（ProviderModal 关着时不挂载它），所以初始值在挂载时算一次就够，
+ * 不需要「弹窗一打开就用 effect 把各字段重置一遍」。
+ */
+export function useProviderForm({ editingProvider, models }: UseProviderFormOptions) {
+  const [draft, setDraft] = useState<ProviderFormDraft>(() => initialProviderForm(editingProvider, models));
   const [showApiKey, setShowApiKey] = useState(false);
 
-  const getModelsForProvider = useCallback(
-    (provider: string): string[] => {
-      const info = models.find((m) => m.provider === provider);
-      return info?.models || [];
-    },
-    [models]
-  );
-
-  // Initialize form when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      if (editingProvider) {
-        setFormName(editingProvider.name);
-        setFormProvider(editingProvider.provider);
-        setFormApiKey("");
-        setFormBaseUrl(editingProvider.baseUrl || "");
-        setFormDescription(editingProvider.description);
-        setShowApiKey(false);
-
-        const presetModels = getModelsForProvider(editingProvider.provider);
-        if (presetModels.includes(editingProvider.model)) {
-          setFormModel(editingProvider.model);
-          setFormUseCustomModel(false);
-          setFormCustomModel("");
-        } else {
-          setFormModel("");
-          setFormUseCustomModel(true);
-          setFormCustomModel(editingProvider.model);
-        }
-      } else {
-        setFormName("");
-        setFormProvider("gemini");
-        setFormApiKey("");
-        setFormModel(getModelsForProvider("gemini")[0] || "");
-        setFormCustomModel("");
-        setFormUseCustomModel(false);
-        setFormBaseUrl("");
-        setFormDescription("");
-        setShowApiKey(false);
-      }
-    }
-  }, [isOpen, editingProvider, getModelsForProvider]);
-
-  // Update model when provider changes
-  useEffect(() => {
-    if (isOpen && !formUseCustomModel) {
-      const providerModels = getModelsForProvider(formProvider);
-      if (providerModels.length > 0 && !providerModels.includes(formModel)) {
-        setFormModel(providerModels[0]);
-      }
-    }
-  }, [formProvider, isOpen, formUseCustomModel, getModelsForProvider, formModel]);
-
-  const handleToggleCustomModel = (checked: boolean) => {
-    setFormUseCustomModel(checked);
-    if (!checked) {
-      const providerModels = getModelsForProvider(formProvider);
-      if (providerModels.length > 0) setFormModel(providerModels[0]);
-    }
-  };
-
-  const getFormData = () => ({
-    name: formName,
-    provider: formProvider,
-    apiKey: formApiKey,
-    model: formUseCustomModel ? formCustomModel : formModel,
-    baseUrl: formBaseUrl,
-    description: formDescription,
-  });
+  const updateDraft = (changes: Partial<ProviderFormDraft>) => setDraft((current) => ({ ...current, ...changes }));
 
   return {
-    formName,
-    setFormName,
-    formProvider,
-    setFormProvider,
-    formApiKey,
-    setFormApiKey,
-    formModel,
-    setFormModel,
-    formCustomModel,
-    setFormCustomModel,
-    formUseCustomModel,
-    handleToggleCustomModel,
-    formBaseUrl,
-    setFormBaseUrl,
-    formDescription,
-    setFormDescription,
+    formName: draft.name,
+    setFormName: (name: string) => updateDraft({ name }),
+    formProvider: draft.provider,
+    // 换厂商时顺带把预设模型换成新厂商的（见 withProviderVendor）
+    setFormProvider: (provider: string) => setDraft((current) => withProviderVendor(current, provider, models)),
+    formApiKey: draft.apiKey,
+    setFormApiKey: (apiKey: string) => updateDraft({ apiKey }),
+    formModel: draft.model,
+    setFormModel: (model: string) => updateDraft({ model }),
+    formCustomModel: draft.customModel,
+    setFormCustomModel: (customModel: string) => updateDraft({ customModel }),
+    formUseCustomModel: draft.useCustomModel,
+    handleToggleCustomModel: (checked: boolean) =>
+      setDraft((current) => withCustomModelToggled(current, checked, models)),
+    formBaseUrl: draft.baseUrl,
+    setFormBaseUrl: (baseUrl: string) => updateDraft({ baseUrl }),
+    formDescription: draft.description,
+    setFormDescription: (description: string) => updateDraft({ description }),
     showApiKey,
     setShowApiKey,
-    getModelsForProvider,
-    getFormData,
+    getModelsForProvider: (provider: string) => presetModelsOf(models, provider),
+    getFormData: () => ({
+      name: draft.name,
+      provider: draft.provider,
+      apiKey: draft.apiKey,
+      model: draft.useCustomModel ? draft.customModel : draft.model,
+      baseUrl: draft.baseUrl,
+      description: draft.description,
+    }),
   };
 }

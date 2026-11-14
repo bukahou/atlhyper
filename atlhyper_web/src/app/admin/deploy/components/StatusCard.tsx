@@ -12,13 +12,6 @@ interface StatusCardProps {
   syncingPaths?: Set<string>;
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 const STATUS_PAGE_SIZE = 5;
 

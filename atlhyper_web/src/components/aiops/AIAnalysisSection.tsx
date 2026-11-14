@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Sparkles, RefreshCw, Loader2, Search, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { getAIReports, summarizeIncident, triggerAnalysis, getAnalysisStatus } from "@/api/aiops";
-import type { AIReport } from "@/api/aiops";
 import { AIReportCard } from "./AIReportCard";
 import { useCan } from "@/hooks/useCan";
+import { useSessionReady } from "@/hooks/useSessionReady";
 import { aiErrorMessage, aiCodeMessage } from "@/lib/ai-error";
-import { decideAnalysisPoll, ANALYSIS_POLL_INTERVAL_MS, ANALYSIS_POLL_MAX_MS } from "@/lib/analysis-poll";
+import {
+  aiReportsQuery,
+  analysisWatchQuery,
+  summarizeIncidentMutation,
+  triggerAnalysisMutation,
+} from "@/queries/aiops-ai";
 
 interface AIAnalysisSectionProps {
   incidentId: string;
@@ -18,109 +22,42 @@ interface AIAnalysisSectionProps {
 export function AIAnalysisSection({ incidentId, incidentState }: AIAnalysisSectionProps) {
   const { t } = useI18n();
   const aiT = t.aiops.ai;
+  // 报告与分析都需要 ai.analyze；权限加载完之前按没有权限算，不发请求
+  const sessionReady = useSessionReady();
   const canAnalyze = useCan()("ai.analyze");
-  const [reports, setReports] = useState<AIReport[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [deepAnalyzing, setDeepAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const loadReports = useCallback(async () => {
-    if (!canAnalyze) return;
-    try {
-      const data = await getAIReports(incidentId);
-      setReports(data);
-      return data;
-    } catch {
-      // silently fail — reports are optional
-      return [];
-    }
-  }, [incidentId, canAnalyze]);
+  const reportsQuery = useQuery(aiReportsQuery(incidentId, canAnalyze));
+  const reports = reportsQuery.data ?? [];
+  // 报告是可有可无的补充：取不到就当没有，不单独报错
+  const loading = !sessionReady || (canAnalyze && reportsQuery.isPending);
 
-  useEffect(() => {
-    setLoading(true);
-    loadReports().finally(() => setLoading(false));
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [loadReports]);
+  // 深度分析的跟踪：在跑的时候每 5 秒查一次，完成、失败或超时即停，离开详情自动停。
+  // 打开详情时分析仍在进行（如重新打开弹窗）也会接着跟
+  const analysisWatch = useQuery(analysisWatchQuery(incidentId, canAnalyze)).data;
+  const summarize = useMutation(summarizeIncidentMutation(incidentId));
+  const triggerDeepAnalysis = useMutation(triggerAnalysisMutation(incidentId));
 
-  const handleGenerate = async () => {
-    setGenerating(true);
-    setError(null);
-    try {
-      await summarizeIncident(incidentId);
-      await loadReports();
-    } catch (err) {
-      setError(aiErrorMessage(err, aiT));
-    } finally {
-      setGenerating(false);
-    }
+  const generating = summarize.isPending;
+  const deepAnalyzing = triggerDeepAnalysis.isPending || analysisWatch?.phase === "running";
+
+  // 最近一次操作的失败原因：生成总结失败、触发分析失败、或分析以失败 / 中断 / 超时结束
+  const error = summarize.isError
+    ? aiErrorMessage(summarize.error, aiT)
+    : triggerDeepAnalysis.isError
+      ? aiErrorMessage(triggerDeepAnalysis.error, aiT)
+      : analysisWatch?.phase === "failed"
+        ? aiCodeMessage(analysisWatch.errorCode, aiT)
+        : null;
+
+  const handleGenerate = () => {
+    triggerDeepAnalysis.reset();
+    summarize.mutate();
   };
 
-  const stopPolling = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = null;
+  const handleDeepAnalysis = () => {
+    summarize.reset();
+    triggerDeepAnalysis.mutate(); // 已在进行中也照常跟踪同一个任务
   };
-
-  // 按后端分析状态轮询：成功 → 刷新报告；失败 / 中断 / 超时 → 显示具体原因
-  const pollAnalysis = useCallback((startedAtMs: number) => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      const elapsed = Date.now() - startedAtMs;
-      let status;
-      try {
-        status = await getAnalysisStatus(incidentId);
-      } catch {
-        // 状态接口暂时不可用：继续等，直到前端时限
-        if (elapsed >= ANALYSIS_POLL_MAX_MS) {
-          stopPolling();
-          setError(aiCodeMessage("ai_timeout", aiT));
-          setDeepAnalyzing(false);
-        }
-        return;
-      }
-      const decision = decideAnalysisPoll(status, elapsed);
-      if (decision.kind === "continue") return;
-      stopPolling();
-      setDeepAnalyzing(false);
-      if (decision.kind === "succeeded") {
-        await loadReports();
-      } else {
-        setError(aiCodeMessage(decision.code, aiT));
-      }
-    }, ANALYSIS_POLL_INTERVAL_MS);
-  }, [incidentId, aiT, loadReports]);
-
-  const handleDeepAnalysis = async () => {
-    setDeepAnalyzing(true);
-    setError(null);
-    try {
-      await triggerAnalysis(incidentId); // 已在进行中也照常轮询同一个任务
-      pollAnalysis(Date.now());
-    } catch (err) {
-      setError(aiErrorMessage(err, aiT));
-      setDeepAnalyzing(false);
-    }
-  };
-
-  // 打开详情时若该事件的分析仍在进行（如重新打开弹窗），接着轮询
-  useEffect(() => {
-    if (!canAnalyze) return;
-    let cancelled = false;
-    getAnalysisStatus(incidentId)
-      .then((status) => {
-        if (cancelled || status.state !== "running") return;
-        setDeepAnalyzing(true);
-        const started = status.startedAt ? Date.parse(status.startedAt) : Date.now();
-        pollAnalysis(Number.isNaN(started) ? Date.now() : started);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [incidentId, canAnalyze, pollAnalysis]);
 
   const canDeepAnalyze = incidentState === "warning" || incidentState === "incident";
 

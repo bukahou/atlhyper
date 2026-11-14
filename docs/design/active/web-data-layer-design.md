@@ -1,6 +1,6 @@
 # 前端数据层：统一用 TanStack Query 取数
 
-> 状态：执行中。「裁决记录」一节的三项已于 2026-11-14 由用户裁定。第 1、2、3 期已完成。
+> 状态：执行中。「裁决记录」一节的三项已于 2026-11-14 由用户裁定。四期代码均已完成，待 dev 验收。
 > 本设计只改前端，不新增也不修改任何后端接口，因此没有 API 定义与三层数据对照。
 
 ## 背景
@@ -90,6 +90,16 @@ return <QueryView query={query} empty={...}>{(data) => <EventTable data={data} /
 - 相对时间范围进键时用范围的描述（`{ since: "1h" }`），绝对起止时间在取数那一刻再算；用 `lib/time-range.ts` 的 `toTimeRangeParams`
 - 搜索框这类连续输入先经 `useDebouncedValue` 再进键
 
+第 4 期补充：
+
+- 没有 datasource 的域（管理、AIOps、AI 设置、通知、AI 对话）由工厂直接调用 `src/api/*`；
+  已有 datasource 的域（总览、GitHub、部署）照旧经 datasource
+- 纯管理页的演示数据由页面直接取（`src/mock/`），不经过查询：查询只在有权限时启用，
+  页面在 `useSessionReady()` 为真之后才决定显示真实数据还是演示数据
+- 键按域分文件（`keys-aiops.ts`、`keys-management.ts`），统一从 `keys.ts` 导出
+- 换筛选条件、翻页时用 `placeholderData` 留着上一份结果，但只在同一个集群内（`previous-data.ts` 的 `isQueryOfCluster`）
+- 需要「看到结果就停」的轮询用 `refetchInterval` 的函数形式（深度分析的跟踪，见 `aiops-ai.ts` 与 `lib/analysis-poll.ts`）
+
 ### 全局默认值
 
 | 项 | 值 | 理由 |
@@ -151,10 +161,11 @@ return <QueryView query={query} empty={...}>{(data) => <EventTable data={data} /
 - `lint` 脚本改为 `eslint .`（`next lint` 在 Next 16 已移除；本机尚未实跑确认）
 - 守卫测试 `src/queries/no-direct-fetch.test.ts`（TypeScript 语法树，沿用 `no-raw-html.test.ts` 的做法）：
   - `app/` 与 `components/` 下不得值导入 `@/api/*`
-  - 不得使用 `useAutoRefresh`
   - 「在 `useEffect` 里取数再 setState」由 lint 规则 `react-hooks/set-state-in-effect` 拦
-  - 迁移期间两份清单标明还没迁的文件：`src/queries/legacy-fetch-files.ts`（守卫测试豁免，第 3 期后 24 个）
-    与 `eslint.legacy-files.mjs`（react-hooks 规则降为警告，第 3 期后 32 个）。每迁一批删一批，最后一期清空
+  - 唯一的例外是流式豁免名单（`STREAMING_API_IMPORTS`）：AI 对话的 SSE 由 `app/aiops/chat/useChatStream.ts`
+    直接调用 `streamChat`，豁免精确到「哪个文件可以从哪个模块导入哪个函数」
+  - 迁移期间的两份「尚未迁移」清单（`legacy-fetch-files.ts`、`eslint.legacy-files.mjs`）已在第 4 期清空并删除，
+    lint 对全部文件按 error 执行
 
 ## 功能一：基础设施与样板页（第 1 期）
 
@@ -203,6 +214,8 @@ return <QueryView query={query} empty={...}>{(data) => <EventTable data={data} /
 - 删除 `useAutoRefresh`、未被使用的 `useApiCall`
 - 去掉集群切换时的 `window.location.reload()`
 - 守卫测试的豁免清单清空
+- 新增 `queries/`：`overview` / `aiops` / `aiops-ai` / `ai-chat` / `admin` / `ai-settings` / `notify` / `gitops` / `cluster-registry`；
+  `session` 增加登录与外部登录方式
 
 **一并修复**：risk / topology / incidents / metrics 没有集群时永远转圈；9 个管理页先闪演示数据；settings/ai 页重复请求 Provider 列表。
 

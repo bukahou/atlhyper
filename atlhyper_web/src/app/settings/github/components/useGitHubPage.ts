@@ -1,77 +1,49 @@
-import { useEffect, useState, useCallback } from "react";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import * as githubDS from "@/datasource/github";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import * as mock from "@/mock/github";
 import type { MockGitHubConnection, MockAuthorizedRepo } from "@/mock/github/data";
 import { useCan } from "@/hooks/useCan";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { connectGitHubMutation, disconnectGitHubMutation, githubConnectionQuery, githubReposQuery } from "@/queries/gitops";
+
+/** 连接状态取不到时按「未连接」显示（没有配置 GitHub App 的部署里，这些接口根本不存在） */
+const NOT_CONNECTED: MockGitHubConnection = { connected: false, accountLogin: "", avatarUrl: "", installationId: 0 };
+const NO_REPOS: MockAuthorizedRepo[] = [];
 
 export function useGitHubPage() {
+  // GitHub 连接是纯管理功能页：权限加载完才决定显示真实连接还是演示数据
+  const sessionReady = useSessionReady();
   const canManageGitHub = useCan()("github.manage");
-  const [loading, setLoading] = useState(true);
-  const [connection, setConnection] = useState<MockGitHubConnection | null>(null);
-  const [repos, setRepos] = useState<MockAuthorizedRepo[]>([]);
+  const isDemo = sessionReady && !canManageGitHub;
 
-  const fetchData = useCallback(async () => {
-    if (!canManageGitHub) {
-      setConnection(mock.mockGetGitHubConnection());
-      setRepos(mock.mockGetAuthorizedRepos());
-      setLoading(false);
-      return;
-    }
-    try {
-      const connData = await githubDS.getGitHubConnection();
-      setConnection(connData);
+  const connectionQuery = useQuery(githubConnectionQuery(canManageGitHub));
+  const realConnection = connectionQuery.data ?? NOT_CONNECTED;
+  const reposQuery = useQuery(githubReposQuery(canManageGitHub, realConnection.connected));
 
-      if (!connData?.connected) {
-        setRepos([]);
-        return;
-      }
+  const connect = useMutation(connectGitHubMutation());
+  const disconnect = useMutation(disconnectGitHubMutation());
 
-      const reposData = await githubDS.getAuthorizedRepos();
-      setRepos(reposData);
-    } catch (err) {
-      console.error("Failed to load GitHub data:", err);
-      setConnection({ connected: false, accountLogin: "", avatarUrl: "", installationId: 0 });
-      setRepos([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [canManageGitHub]);
-
-  useAutoRefresh(fetchData);
-
-  const handleConnect = useCallback(async () => {
-    try {
-      const data = await githubDS.connectGitHub();
-      if (data?.connected) {
-        await fetchData();
-      } else if (data?.authUrl) {
-        window.location.href = data.authUrl;
-      }
-    } catch (err) {
-      console.error("Failed to initiate GitHub connection:", err);
-    }
-  }, [fetchData]);
-
-  const handleDisconnect = useCallback(async () => {
-    try {
-      await githubDS.disconnectGitHub();
-    } catch (err) {
-      console.error("Failed to disconnect:", err);
-    }
-    setConnection({
-      connected: false,
-      accountLogin: "",
-      avatarUrl: "",
-      installationId: 0,
+  const handleConnect = () => {
+    connect.mutate(undefined, {
+      // 已经装过 App 时后端直接返回 connected（工厂会让连接状态重新取数）；否则跳转到 GitHub 的授权页
+      onSuccess: (connectResult) => {
+        if (!connectResult?.connected && connectResult?.authUrl) window.location.href = connectResult.authUrl;
+      },
+      onError: (err) => console.error("Failed to initiate GitHub connection:", err),
     });
-    setRepos([]);
-  }, []);
+  };
+
+  const handleDisconnect = () => {
+    disconnect.mutate(undefined, {
+      onError: (err) => console.error("Failed to disconnect:", err),
+    });
+  };
 
   return {
-    loading,
-    connection,
-    repos,
+    isDemo,
+    // 权限没加载完、或真实的连接状态还没回来
+    loading: !sessionReady || (canManageGitHub && connectionQuery.isPending),
+    connection: isDemo ? mock.mockGetGitHubConnection() : realConnection,
+    repos: isDemo ? mock.mockGetAuthorizedRepos() : realConnection.connected ? (reposQuery.data ?? NO_REPOS) : NO_REPOS,
     handleConnect,
     handleDisconnect,
   };

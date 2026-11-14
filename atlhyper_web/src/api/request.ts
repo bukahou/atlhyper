@@ -48,6 +48,21 @@ class AuthErrorEventManager {
 export const authErrorManager = new AuthErrorEventManager();
 
 // ============================================================
+// 失败的请求要不要上报（记日志、广播权限事件）
+// ============================================================
+
+/**
+ * 请求失败后要不要上报。
+ *
+ * 数据层在查询参数变化、组件卸载时会主动取消还没返回的请求 —— 这是正常行为，
+ * 不该在控制台留下一条 error，更不该被当成 401 / 403 去弹登录框。
+ */
+export function shouldReportRequestFailure(error: unknown): boolean {
+  if (axios.isCancel(error)) return false;
+  return (error as { code?: unknown } | null | undefined)?.code !== "ERR_CANCELED";
+}
+
+// ============================================================
 // Axios 实例配置
 // ============================================================
 const request: AxiosInstance = axios.create({
@@ -83,6 +98,9 @@ request.interceptors.response.use(
     return response;
   },
   (error: AxiosError<{ error?: string; message?: string }>) => {
+    // 被取消的请求不是失败：不记日志、不广播权限事件，照样 reject 交给调用方（TanStack Query）处理
+    if (!shouldReportRequestFailure(error)) return Promise.reject(error);
+
     const status = error.response?.status;
     const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message;
 

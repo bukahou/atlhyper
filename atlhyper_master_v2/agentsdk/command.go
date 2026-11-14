@@ -28,7 +28,8 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clusterID := r.URL.Query().Get("cluster_id")
+	// 已认证时只取令牌所属集群的指令；否则沿用查询参数里自报的
+	clusterID := clusterFor(r, r.URL.Query().Get("cluster_id"))
 	if clusterID == "" {
 		http.Error(w, "cluster_id is required", http.StatusBadRequest)
 		return
@@ -99,7 +100,7 @@ func (s *Server) expireCommand(cmd *command.Command, age time.Duration) {
 	log.Warn("丢弃过期指令", "cmd", cmd.ID, "cluster", cmd.ClusterID, "action", cmd.Action, "age", age.Round(time.Second))
 
 	result := &command.Result{CommandID: cmd.ID, Success: false, Error: reason}
-	if err := s.bus.AckCommand(cmd.ID, result); err != nil {
+	if err := s.bus.AckCommand(cmd.ClusterID, cmd.ID, result); err != nil {
 		log.Error("确认过期指令失败", "cmd", cmd.ID, "err", err)
 	}
 	s.persistExpired(cmd.ID, reason)

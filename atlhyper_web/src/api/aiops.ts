@@ -250,22 +250,27 @@ export interface IncidentListParams {
 }
 
 // ==================== API 方法 ====================
+// 读函数最后一个参数是可选的 AbortSignal：查询被取消（参数变化、组件卸载）时中止请求
 
 // 风险
-export async function getClusterRisk(cluster: string): Promise<ClusterRisk> {
-  const data = (await get<ClusterRisk | null>("/api/v2/aiops/risk/cluster", { cluster })).data;
+export async function getClusterRisk(cluster: string, signal?: AbortSignal): Promise<ClusterRisk> {
+  const data = (await get<ClusterRisk | null>("/api/v2/aiops/risk/cluster", { cluster }, signal)).data;
   return data ?? {
     clusterId: cluster, risk: 0, level: "healthy",
     topEntities: [], totalEntities: 0, anomalyCount: 0, updatedAt: Date.now(),
   };
 }
 
-export async function getEntityRisks(cluster: string, sort = "r_final", limit = 20): Promise<EntityRisk[]> {
-  return (await get<EntityRisk[] | null>("/api/v2/aiops/risk/entities", { cluster, sort, limit })).data ?? [];
+export async function getEntityRisks(
+  cluster: string, sort = "r_final", limit = 20, signal?: AbortSignal
+): Promise<EntityRisk[]> {
+  return (await get<EntityRisk[] | null>("/api/v2/aiops/risk/entities", { cluster, sort, limit }, signal)).data ?? [];
 }
 
-export async function getEntityRiskDetail(cluster: string, entityKey: string): Promise<EntityRiskDetail> {
-  const detail = (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster, entity: entityKey })).data;
+export async function getEntityRiskDetail(
+  cluster: string, entityKey: string, signal?: AbortSignal
+): Promise<EntityRiskDetail> {
+  const detail = (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster, entity: entityKey }, signal)).data;
   // Go nil slice → JSON null，兜底为空数组
   detail.metrics = detail.metrics ?? [];
   detail.propagation = detail.propagation ?? [];
@@ -274,8 +279,10 @@ export async function getEntityRiskDetail(cluster: string, entityKey: string): P
 }
 
 // 实体基线（EMA 学习状态）
-export async function getEntityBaseline(cluster: string, entityKey: string): Promise<EntityBaseline> {
-  const data = (await get<EntityBaseline>("/api/v2/aiops/baseline", { cluster_id: cluster, entity: entityKey })).data;
+export async function getEntityBaseline(
+  cluster: string, entityKey: string, signal?: AbortSignal
+): Promise<EntityBaseline> {
+  const data = (await get<EntityBaseline>("/api/v2/aiops/baseline", { cluster_id: cluster, entity: entityKey }, signal)).data;
   return { ...data, states: data.states ?? [] };
 }
 
@@ -291,22 +298,23 @@ export async function getGraphTrace(
   cluster: string,
   fromKey: string,
   direction: "upstream" | "downstream",
-  depth = 3
+  depth = 3,
+  signal?: AbortSignal
 ): Promise<GraphTraceResult> {
   const data = (await get<GraphTraceResult>("/api/v2/aiops/graph/trace", {
     cluster_id: cluster, from: fromKey, direction, depth,
-  })).data;
+  }, signal)).data;
   return { nodes: data.nodes ?? [], edges: data.edges ?? [], depth: data.depth ?? 0 };
 }
 
 // 依赖图
-export async function getGraph(cluster: string): Promise<DependencyGraph> {
-  return (await get<DependencyGraph>("/api/v2/aiops/graph", { cluster })).data;
+export async function getGraph(cluster: string, signal?: AbortSignal): Promise<DependencyGraph> {
+  return (await get<DependencyGraph>("/api/v2/aiops/graph", { cluster }, signal)).data;
 }
 
 // 事件
-export async function getIncidents(params: IncidentListParams): Promise<Incident[]> {
-  const resp = (await get<{ data: Incident[]; total: number }>("/api/v2/aiops/incidents", params)).data;
+export async function getIncidents(params: IncidentListParams, signal?: AbortSignal): Promise<Incident[]> {
+  const resp = (await get<{ data: Incident[]; total: number }>("/api/v2/aiops/incidents", params, signal)).data;
   return resp?.data ?? [];
 }
 
@@ -322,20 +330,20 @@ export interface IncidentPattern {
 }
 
 export async function getIncidentPatterns(
-  cluster: string, entityKey: string, period = "30d"
+  cluster: string, entityKey: string, period = "30d", signal?: AbortSignal
 ): Promise<IncidentPattern[]> {
   const data = (await get<IncidentPattern[]>("/api/v2/aiops/incidents/patterns", {
     cluster_id: cluster, entity: entityKey, period,
-  })).data;
+  }, signal)).data;
   return data ?? [];
 }
 
-export async function getIncidentDetail(id: string): Promise<IncidentDetail> {
-  return (await get<IncidentDetail>(`/api/v2/aiops/incidents/${encodeURIComponent(id)}`)).data;
+export async function getIncidentDetail(id: string, signal?: AbortSignal): Promise<IncidentDetail> {
+  return (await get<IncidentDetail>(`/api/v2/aiops/incidents/${encodeURIComponent(id)}`, undefined, signal)).data;
 }
 
-export async function getIncidentStats(cluster: string, period = "7d"): Promise<IncidentStats> {
-  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { cluster, period })).data;
+export async function getIncidentStats(cluster: string, period = "7d", signal?: AbortSignal): Promise<IncidentStats> {
+  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { cluster, period }, signal)).data;
 }
 
 // AI 增强
@@ -348,13 +356,13 @@ export async function recommendActions(incidentId: string): Promise<SummarizeRes
 }
 
 // AI 报告
-export async function getAIReports(incidentId: string): Promise<AIReport[]> {
-  const resp = (await get<{ data: AIReport[] }>(`/api/v2/aiops/ai/reports`, { incident_id: incidentId })).data;
+export async function getAIReports(incidentId: string, signal?: AbortSignal): Promise<AIReport[]> {
+  const resp = (await get<{ data: AIReport[] }>(`/api/v2/aiops/ai/reports`, { incident_id: incidentId }, signal)).data;
   return resp?.data ?? [];
 }
 
-export async function getAIReportDetail(reportId: number): Promise<AIReportDetail> {
-  return (await get<{ data: AIReportDetail }>(`/api/v2/aiops/ai/reports/${reportId}`)).data.data;
+export async function getAIReportDetail(reportId: number, signal?: AbortSignal): Promise<AIReportDetail> {
+  return (await get<{ data: AIReportDetail }>(`/api/v2/aiops/ai/reports/${reportId}`, undefined, signal)).data.data;
 }
 
 export async function triggerAnalysis(incidentId: string): Promise<{ message: string; alreadyRunning: boolean }> {
@@ -362,6 +370,6 @@ export async function triggerAnalysis(incidentId: string): Promise<{ message: st
 }
 
 /** 深度分析状态（running / succeeded / failed / none）—— GET /api/v2/aiops/ai/analyze/status */
-export async function getAnalysisStatus(incidentId: string): Promise<AnalysisStatus> {
-  return (await get<{ message: string; data: AnalysisStatus }>("/api/v2/aiops/ai/analyze/status", { incidentId })).data.data;
+export async function getAnalysisStatus(incidentId: string, signal?: AbortSignal): Promise<AnalysisStatus> {
+  return (await get<{ message: string; data: AnalysisStatus }>("/api/v2/aiops/ai/analyze/status", { incidentId }, signal)).data.data;
 }

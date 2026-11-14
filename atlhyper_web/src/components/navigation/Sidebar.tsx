@@ -6,6 +6,7 @@ import { Github } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { navGroups, getActiveGroups, loadExpandedGroups, saveExpandedGroups } from "./SidebarTypes";
+import { withGroupsExpanded } from "./expanded-groups";
 import { SidebarNavGroup } from "./SidebarNavGroup";
 import { SidebarClusterSelector } from "./SidebarClusterSelector";
 import { SidebarFooter } from "./SidebarFooter";
@@ -18,26 +19,19 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const isAdmin = useCan()("user.manage");
   const [expandedGroups, setExpandedGroups] = useState<string[]>(() => loadExpandedGroups(pathname));
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [clusterMenuOpen, setClusterMenuOpen] = useState(false);
 
-  // 路由变化时，确保当前激活的组被展开（但不收起其他组）
-  useEffect(() => {
-    const activeGroups = getActiveGroups(pathname);
-    setExpandedGroups((prev) => {
-      const newGroups = [...prev];
-      for (const group of activeGroups) {
-        if (!newGroups.includes(group)) {
-          newGroups.push(group);
-        }
-      }
-      saveExpandedGroups(newGroups);
-      return newGroups;
-    });
-  }, [pathname]);
+  // 路由变化时，确保当前激活的组被展开（但不收起其他组）。
+  // 在渲染期间按「路由变了」调整展开状态，而不是等 effect：少渲染一轮，也不会先画出一帧没展开的侧栏
+  const [expandedForPathname, setExpandedForPathname] = useState(pathname);
+  if (expandedForPathname !== pathname) {
+    setExpandedForPathname(pathname);
+    setExpandedGroups((groups) => withGroupsExpanded(groups, getActiveGroups(pathname)));
+  }
 
   // 展开/收起状态变化时保存到 localStorage
   useEffect(() => {

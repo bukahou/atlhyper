@@ -1,7 +1,6 @@
 import { Filter } from "lucide-react";
 import type { AuditTranslations, CommonTranslations } from "@/types/i18n";
-
-export type FilterResult = "all" | "success" | "failed";
+import type { AuditResultFilter } from "./audit-filter";
 
 interface AuditFilterBarProps {
   auditT: AuditTranslations;
@@ -10,8 +9,8 @@ interface AuditFilterBarProps {
   onTimeRangeChange: (value: number) => void;
   filterUser: string;
   onFilterUserChange: (value: string) => void;
-  filterResult: FilterResult;
-  onFilterResultChange: (value: FilterResult) => void;
+  filterResult: AuditResultFilter;
+  onFilterResultChange: (value: AuditResultFilter) => void;
   stats: { total: number; success: number; failed: number };
 }
 
@@ -74,7 +73,7 @@ export function AuditFilterBar({
           <label className="block text-xs text-muted mb-1">{auditT.result}</label>
           <select
             value={filterResult}
-            onChange={(e) => onFilterResultChange(e.target.value as FilterResult)}
+            onChange={(e) => onFilterResultChange(e.target.value as AuditResultFilter)}
             className="px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--background)] text-default text-sm focus:ring-2 focus:ring-primary outline-none"
           >
             <option value="all">{auditT.all}</option>

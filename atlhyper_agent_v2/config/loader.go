@@ -24,7 +24,8 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.Master = MasterConfig{
-		URL: getString("AGENT_MASTER_URL"),
+		URL:   getString("AGENT_MASTER_URL"),
+		Token: loadMasterToken(),
 	}
 
 	GlobalConfig.Kubernetes = KubernetesConfig{
@@ -54,9 +55,25 @@ func LoadConfig() {
 		Timeout:  getDuration("AGENT_CLICKHOUSE_TIMEOUT"),
 	}
 
-	log.Printf("[config] Agent 配置加载完成: ClusterID=%s, MasterURL=%s, CH=%s/%s",
+	// 令牌是凭证：日志只说明有没有配置，不打印内容
+	log.Printf("[config] Agent 配置加载完成: ClusterID=%s, MasterURL=%s, MasterToken=%s, CH=%s/%s",
 		GlobalConfig.Agent.ClusterID, GlobalConfig.Master.URL,
+		describeSecretPresence(GlobalConfig.Master.Token),
 		GlobalConfig.ClickHouse.Endpoint, GlobalConfig.ClickHouse.Database)
+}
+
+// loadMasterToken 读取集群令牌，去掉首尾空白。
+// 从文件或 Secret 注入的值常带换行，而带换行的值放不进请求头。
+func loadMasterToken() string {
+	return strings.TrimSpace(getString("AGENT_MASTER_TOKEN"))
+}
+
+// describeSecretPresence 凭证类配置在日志里的写法：只有「已配置 / 未配置」
+func describeSecretPresence(value string) string {
+	if value == "" {
+		return "未配置"
+	}
+	return "已配置"
 }
 
 // ==================== 工具函数 ====================

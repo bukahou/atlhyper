@@ -45,6 +45,7 @@ const (
 	PermAISettingsWrite Permission = "ai.settings.write" // AI 配置写入
 	PermGitHubManage    Permission = "github.manage"     // GitHub 连接与仓库
 	PermDeployManage    Permission = "deploy.manage"     // 部署配置与操作
+	PermClustersManage  Permission = "clusters.manage"   // 集群注册表：登记、改名、签发 Agent 令牌、删除登记
 )
 
 // levelGrants 每一级新增的权限（高级自动继承低级，见 PermissionsFor）
@@ -63,6 +64,7 @@ var levelGrants = map[int][]Permission{
 	},
 	RoleAdmin: {
 		PermUserManage, PermAISettingsWrite, PermGitHubManage, PermDeployManage,
+		PermClustersManage,
 	},
 }
 

@@ -27,7 +27,20 @@ type Server struct {
 	cmdRepo    database.CommandHistoryRepository
 	cmdTTL     time.Duration // 指令有效期，0 表示用默认值
 	httpServer *http.Server
+
+	authMode         AuthMode
+	clusters         ClusterDirectory
+	warnings         *warnLimiter
+	authStatus       *AuthStatusTracker
+	maxSnapshotBytes int64 // 快照压缩前后的大小上限
 }
+
+const (
+	// defaultMaxSnapshotBytes 快照大小上限的默认值
+	defaultMaxSnapshotBytes = 256 << 20
+	// unauthenticatedWarnWindow 同一集群同一原因的「未认证」告警最短间隔
+	unauthenticatedWarnWindow = time.Minute
+)
 
 // Config Server 配置
 type Config struct {
@@ -36,43 +49,61 @@ type Config struct {
 	Bus            mq.Consumer
 	Processor      processor.Processor
 	CmdRepo        database.CommandHistoryRepository
+
+	// AuthMode 认证模式；空值等同 off
+	AuthMode AuthMode
+	// Clusters 集群注册表；AuthMode 不是 off 时必须提供
+	Clusters ClusterDirectory
+	// AuthStatus 记录各集群是否已带令牌（可选，供管理页显示）
+	AuthStatus *AuthStatusTracker
+	// MaxSnapshotBytes 快照大小上限；0 表示用默认值
+	MaxSnapshotBytes int64
 }
 
 // NewServer 创建 Server
 func NewServer(cfg Config) *Server {
+	maxSnapshotBytes := cfg.MaxSnapshotBytes
+	if maxSnapshotBytes <= 0 {
+		maxSnapshotBytes = defaultMaxSnapshotBytes
+	}
 	return &Server{
-		port:      cfg.Port,
-		timeout:   cfg.CommandTimeout,
-		bus:       cfg.Bus,
-		processor: cfg.Processor,
-		cmdRepo:   cfg.CmdRepo,
+		port:             cfg.Port,
+		timeout:          cfg.CommandTimeout,
+		bus:              cfg.Bus,
+		processor:        cfg.Processor,
+		cmdRepo:          cfg.CmdRepo,
+		authMode:         cfg.AuthMode,
+		clusters:         cfg.Clusters,
+		warnings:         newWarnLimiter(unauthenticatedWarnWindow, time.Now),
+		authStatus:       cfg.AuthStatus,
+		maxSnapshotBytes: maxSnapshotBytes,
 	}
 }
 
-// Start 启动 Server
-func (s *Server) Start() error {
+// routes 注册全部入口。四条 Agent 通道都先经过认证中间件；健康检查不需要令牌。
+func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
-
-	// 注册路由
-	mux.HandleFunc("/agent/snapshot", s.handleSnapshot)
-	mux.HandleFunc("/agent/heartbeat", s.handleHeartbeat)
-	mux.HandleFunc("/agent/commands", s.handleCommands)
-	mux.HandleFunc("/agent/result", s.handleResult)
-
-	// 健康检查
+	mux.HandleFunc("/agent/snapshot", s.authenticateAgent(s.handleSnapshot))
+	mux.HandleFunc("/agent/heartbeat", s.authenticateAgent(s.handleHeartbeat))
+	mux.HandleFunc("/agent/commands", s.authenticateAgent(s.handleCommands))
+	mux.HandleFunc("/agent/result", s.authenticateAgent(s.handleResult))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
+	return mux
+}
 
+// Start 启动 Server
+func (s *Server) Start() error {
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),
-		Handler:      mux,
+		Handler:      s.routes(),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: s.timeout + 10*time.Second, // 长轮询需要更长的写超时
 	}
 
-	log.Info("启动服务器", "port", s.port)
+	log.Info("启动服务器", "port", s.port, "authMode", s.authMode)
 
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

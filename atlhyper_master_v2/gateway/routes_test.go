@@ -12,13 +12,20 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/github"
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service"
 )
 
 // 只实现主体解析需要的方法；受限路由在权限检查处就被拦下，不会走到 handler。
 type stubRouterSvc struct {
 	service.Service
-	users map[int64]*database.User
+	users          map[int64]*database.User
+	tokenIssuedFor []string // 记录签发令牌时收到的集群 ID
+}
+
+func (s *stubRouterSvc) IssueClusterToken(_ context.Context, clusterID string) (*model.ClusterTokenIssued, error) {
+	s.tokenIssuedFor = append(s.tokenIssuedFor, clusterID)
+	return &model.ClusterTokenIssued{Token: "atlk_placeholder-not-a-real-token", TokenPrefix: "atlk_pla"}, nil
 }
 
 func (s *stubRouterSvc) GetUserByID(_ context.Context, id int64) (*database.User, error) {
@@ -41,6 +48,13 @@ func testRouter(t *testing.T) http.Handler {
 // testRouterWithSpecs 同 testRouter，另返回 Router 本身，供遍历已注册的路由声明
 func testRouterWithSpecs(t *testing.T) (*Router, http.Handler) {
 	t.Helper()
+	r, h, _ := testRouterWithStub(t)
+	return r, h
+}
+
+// testRouterWithStub 同 testRouterWithSpecs，另返回 service 替身，供核对 handler 收到的参数
+func testRouterWithStub(t *testing.T) (*Router, http.Handler, *stubRouterSvc) {
+	t.Helper()
 	prev := config.GlobalConfig.JWT
 	config.GlobalConfig.JWT.SecretKey = "test-secret-not-real"
 	t.Cleanup(func() { config.GlobalConfig.JWT = prev })
@@ -52,7 +66,7 @@ func testRouterWithSpecs(t *testing.T) (*Router, http.Handler) {
 		4: {ID: 4, Username: "admin", Role: middleware.RoleAdmin, Status: 1},
 	}}
 	r := NewRouter(svc, &database.DB{Audit: stubAudit{}}, stubAI{}, nil, stubGitHub{}, nil)
-	return r, r.Handler()
+	return r, r.Handler(), svc
 }
 
 // probePath 把注册路径换成能命中它的具体请求路径（子树模式 "/x/" 补一段）
@@ -102,6 +116,11 @@ func TestRoutes_LevelZeroCannotReachSensitive(t *testing.T) {
 		{"GET", "/api/v2/ai/providers"},
 		{"GET", "/api/v2/user/list"},
 		{"POST", "/api/v2/user/update-role"},
+		{"GET", "/api/v2/admin/clusters"},
+		{"POST", "/api/v2/admin/clusters"},
+		{"PUT", "/api/v2/admin/clusters/c1"},
+		{"POST", "/api/v2/admin/clusters/c1/token"},
+		{"DELETE", "/api/v2/admin/clusters/c1"},
 	}
 	for _, c := range sensitive {
 		if got := call(t, h, c.method, c.path, 0); got != http.StatusUnauthorized {
@@ -125,6 +144,10 @@ func TestRoutes_LevelBoundaries(t *testing.T) {
 		{"POST", "/api/v2/ops/deployments/scale", 2, http.StatusForbidden},
 		{"GET", "/api/v2/user/list", 3, http.StatusForbidden},
 		{"PUT", "/api/v2/ai/providers/1", 3, http.StatusForbidden},
+		// 集群注册表与令牌签发只给 Admin：Operator 看不到列表，也签发不了令牌
+		{"GET", "/api/v2/admin/clusters", 3, http.StatusForbidden},
+		{"POST", "/api/v2/admin/clusters/c1/token", 3, http.StatusForbidden},
+		{"DELETE", "/api/v2/admin/clusters/c1", 3, http.StatusForbidden},
 	}
 	for _, c := range cases {
 		if got := call(t, h, c.method, c.path, c.userID); got != c.want {
@@ -295,5 +318,50 @@ func TestRoutes_NoWholeSnapshotEndpoint(t *testing.T) {
 	}
 	if !listDeclared {
 		t.Error("GET /api/v2/clusters 未登记")
+	}
+}
+
+// 集群注册表的五个接口都已登记，全部要求 clusters.manage，写方法一律审计。
+func TestRoutes_ClusterRegistryDeclared(t *testing.T) {
+	r, _ := testRouterWithSpecs(t)
+	want := map[string]bool{ // 方法 路径 → 是否审计
+		"GET /api/v2/admin/clusters":                    false,
+		"POST /api/v2/admin/clusters":                   true,
+		"PUT /api/v2/admin/clusters/{clusterId}":        true,
+		"POST /api/v2/admin/clusters/{clusterId}/token": true,
+		"DELETE /api/v2/admin/clusters/{clusterId}":     true,
+	}
+	found := map[string]bool{}
+	for _, s := range r.specs {
+		key := s.method + " " + s.path
+		audited, expected := want[key]
+		if !expected {
+			continue
+		}
+		found[key] = true
+		if s.perm != middleware.PermClustersManage {
+			t.Errorf("%s 的权限 = %q, want clusters.manage", key, s.perm)
+		}
+		if s.audited != audited {
+			t.Errorf("%s 的审计 = %v, want %v", key, s.audited, audited)
+		}
+	}
+	for key := range want {
+		if !found[key] {
+			t.Errorf("路由未登记: %s", key)
+		}
+	}
+}
+
+// 路径里的集群 ID 穿过审计与权限两层包装后原样到达 handler（含带点的 ID）。
+func TestRoutes_ClusterRegistryPathParamReachesHandler(t *testing.T) {
+	_, h, svc := testRouterWithStub(t)
+	for _, clusterID := range []string{"prod-1", "prod.tokyo"} {
+		if got := call(t, h, http.MethodPost, "/api/v2/admin/clusters/"+clusterID+"/token", 4); got != http.StatusOK {
+			t.Fatalf("Admin 签发 %s 的令牌 = %d, want 200", clusterID, got)
+		}
+	}
+	if len(svc.tokenIssuedFor) != 2 || svc.tokenIssuedFor[0] != "prod-1" || svc.tokenIssuedFor[1] != "prod.tokyo" {
+		t.Errorf("handler 收到的集群 ID = %v", svc.tokenIssuedFor)
 	}
 }

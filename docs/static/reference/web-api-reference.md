@@ -529,6 +529,25 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 
 ---
 
+### 4.17 集群注册表与 Agent 令牌
+
+**文件：** `api/cluster-registry.ts`（页面 `app/admin/clusters/`，查询与写操作工厂 `queries/cluster-registry.ts`；所需权限 `clusters.manage`，3 级）
+
+| 方法 | 路径 | 函数名 | 说明 |
+|------|------|--------|------|
+| GET | `/api/v2/admin/clusters` | `getClusterRegistry(signal?)` | 集群列表：已登记的 + 正在上报但未登记的 (Admin) |
+| POST | `/api/v2/admin/clusters` | `registerCluster(registration)` | 登记集群，成功返回 201 (Admin) |
+| PUT | `/api/v2/admin/clusters/{clusterId}` | `updateClusterProfile(clusterId, profile)` | 修改显示名与描述 (Admin) |
+| POST | `/api/v2/admin/clusters/{clusterId}/token` | `issueClusterToken(clusterId)` | 签发 / 轮换令牌；明文只在本次响应里出现 (Admin) |
+| DELETE | `/api/v2/admin/clusters/{clusterId}` | `unregisterCluster(clusterId)` | 删除登记 (Admin) |
+
+列表项字段：`clusterId`, `name`, `description`, `registered`, `tokenIssued`, `tokenPrefix`, `tokenIssuedAt`, `status`（`online` / `offline` / `never`）, `lastSeen`, `authenticated`。
+签发令牌的响应：`token`, `tokenPrefix`, `tokenIssuedAt`。请求体与状态码见 `master-api-reference.md` §3.6。
+
+令牌明文在前端只存在于签发弹窗的本地状态里（不进查询缓存与 mutation 缓存、不写 localStorage、不打日志），关闭弹窗即丢弃。
+
+---
+
 ## 5. 前端 API 文件索引
 
 ### api/ 目录 (22 个文件)

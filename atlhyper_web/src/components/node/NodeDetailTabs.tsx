@@ -92,44 +92,46 @@ export function OverviewTab({ detail, t }: { detail: NodeDetail; t: Translations
   );
 }
 
+// 资源使用条（已用 / 总量 + 百分比）。定义在组件外：放在 ResourcesTab 里每次渲染都会得到一个新的组件类型，
+// React 会把它当成另一个组件整棵卸载重建
+function ResourceBar({
+  label,
+  icon,
+  used,
+  total,
+  unit,
+  color,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  used: number;
+  total: number;
+  unit: string;
+  color: string;
+}) {
+  const percent = total > 0 ? (used / total) * 100 : 0;
+  return (
+    <div className="bg-[var(--background)] rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-3">
+        {icon}
+        <span className="text-sm font-medium text-default">{label}</span>
+      </div>
+      <div className="text-lg font-semibold text-default mb-2">
+        {used.toFixed(1)} / {total.toFixed(1)} {unit}
+      </div>
+      <div className="h-2 bg-[var(--border-color)] rounded-full overflow-hidden">
+        <div
+          className={`h-full transition-all duration-300 ${color}`}
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
+      </div>
+      <div className="text-xs text-muted mt-1">{percent.toFixed(1)}%</div>
+    </div>
+  );
+}
+
 // 资源 Tab
 export function ResourcesTab({ detail, t }: { detail: NodeDetail; t: Translations }) {
-  const ResourceBar = ({
-    label,
-    icon,
-    used,
-    total,
-    unit,
-    color,
-  }: {
-    label: string;
-    icon: React.ReactNode;
-    used: number;
-    total: number;
-    unit: string;
-    color: string;
-  }) => {
-    const percent = total > 0 ? (used / total) * 100 : 0;
-    return (
-      <div className="bg-[var(--background)] rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-3">
-          {icon}
-          <span className="text-sm font-medium text-default">{label}</span>
-        </div>
-        <div className="text-lg font-semibold text-default mb-2">
-          {used.toFixed(1)} / {total.toFixed(1)} {unit}
-        </div>
-        <div className="h-2 bg-[var(--border-color)] rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all duration-300 ${color}`}
-            style={{ width: `${Math.min(percent, 100)}%` }}
-          />
-        </div>
-        <div className="text-xs text-muted mt-1">{percent.toFixed(1)}%</div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6">
       {/* 使用情况 */}
