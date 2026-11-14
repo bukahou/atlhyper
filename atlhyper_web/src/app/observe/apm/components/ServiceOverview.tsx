@@ -1,27 +1,39 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
-import type { OperationStats, Topology, APMTimePoint, TraceSummary, HTTPStats, DBOperationStats } from "@/types/model/apm";
+import { useMemo, useState } from "react";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import type { OperationStats, Topology } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
-import { getDependenciesFromTopology, getServiceTimeSeries, getHTTPStats, getDBStats, queryTraces, type TimeParams } from "@/datasource/apm";
+import { QueryView } from "@/components/common";
+import { getDependenciesFromTopology } from "@/datasource/apm";
 import { formatDurationMs } from "@/lib/format";
+import type { TimeRangeParams } from "@/lib/time-range";
+import { apmDbStatsQuery, apmServiceSeriesQuery, apmTracesQuery } from "@/queries/observe-apm";
 import { TransactionsTable } from "./TransactionsTable";
 import { DependenciesTable } from "./DependenciesTable";
 import { ServiceTrendCharts } from "./ServiceTrendCharts";
 import { ErrorTracesList } from "./ErrorTracesList";
 import { CorrelationsPanel } from "./CorrelationsPanel";
-import { StatusCodeChart } from "./StatusCodeChart";
+import { StatusCodeSection } from "./StatusCodeSection";
 import { DBStatsTable } from "./DBStatsTable";
 import { SlowTracesList } from "./SlowTracesList";
 import { PermissionLock } from "@/components/common/PermissionLock";
+
+/** 取该服务最近多少条链路，用来挑出错的与最慢的 */
+const SERVICE_TRACE_LIMIT = 200;
+/** 「慢链路」列表显示最慢的多少条 */
+const SLOW_TRACE_COUNT = 20;
 
 interface ServiceOverviewProps {
   t: ApmTranslations;
   serviceName: string;
   operations: OperationStats[];
-  topology: Topology | null;
-  clusterId?: string;
-  timeParams?: TimeParams;
+  /** 服务拓扑的查询：依赖列表从它派生，取不到时依赖列表处显示出错而不是「没有依赖」 */
+  topologyQuery: UseQueryResult<Topology>;
+  clusterId: string;
+  timeRange: TimeRangeParams;
+  /** 是否有 traces.read；链路列表与相关性是内容级数据，没有权限就不发请求 */
+  canReadTraces: boolean;
   onSelectOperation: (operation: string) => void;
   onNavigateToService?: (serviceName: string) => void;
   onSelectTrace?: (traceId: string) => void;
@@ -53,20 +65,23 @@ export function ServiceOverview({
   t,
   serviceName,
   operations,
-  topology,
+  topologyQuery,
   clusterId,
-  timeParams,
+  timeRange,
+  canReadTraces,
   onSelectOperation,
   onNavigateToService,
   onSelectTrace,
 }: ServiceOverviewProps) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
-  const [trendPoints, setTrendPoints] = useState<APMTimePoint[]>([]);
-  const [serviceTraces, setServiceTraces] = useState<TraceSummary[]>([]);
-  const [httpStats, setHttpStats] = useState<HTTPStats[]>([]);
-  const [dbStats, setDbStats] = useState<DBOperationStats[]>([]);
-  const [statusFilter, setStatusFilter] = useState<{ code: number; method: string } | null>(null);
-  const [filteredTraces, setFilteredTraces] = useState<TraceSummary[]>([]);
+
+  // 这个服务自己的数据：趋势、数据库统计、最近的链路。各是一个查询，服务或时间范围变了各自重取
+  const trendQuery = useQuery(apmServiceSeriesQuery(clusterId, serviceName, timeRange));
+  const dbStatsQuery = useQuery(apmDbStatsQuery(clusterId, serviceName, timeRange));
+  const serviceTracesQuery = useQuery(
+    apmTracesQuery(clusterId, { service: serviceName, limit: SERVICE_TRACE_LIMIT }, timeRange, canReadTraces),
+  );
+  const serviceTraces = serviceTracesQuery.data?.traces;
 
   const serviceOperations = useMemo(
     () => operations.filter((op) => op.serviceName === serviceName),
@@ -75,48 +90,28 @@ export function ServiceOverview({
 
   const metrics = useMemo(() => aggregateMetrics(serviceOperations), [serviceOperations]);
 
-  const dependencies = useMemo(
-    () => getDependenciesFromTopology(serviceName, topology),
-    [serviceName, topology]
-  );
-
   const errorTraces = useMemo(
-    () => serviceTraces.filter((tr) => tr.hasError),
+    () => (serviceTraces ?? []).filter((tr) => tr.hasError),
     [serviceTraces]
   );
 
   const slowTraces = useMemo(
-    () => [...serviceTraces].sort((a, b) => b.durationMs - a.durationMs).slice(0, 20),
+    () => [...(serviceTraces ?? [])].sort((a, b) => b.durationMs - a.durationMs).slice(0, SLOW_TRACE_COUNT),
     [serviceTraces]
   );
 
-  // Load trend data + service traces + HTTP stats + DB stats
-  useEffect(() => {
-    if (!clusterId) return;
-    getServiceTimeSeries(clusterId, serviceName, timeParams?.since || "15m").then(setTrendPoints);
-    queryTraces(clusterId, { service: serviceName, limit: 200 }, timeParams).then((r) => setServiceTraces(r.traces));
-    getHTTPStats(clusterId, serviceName, timeParams).then(setHttpStats);
-    getDBStats(clusterId, serviceName, timeParams).then(setDbStats);
-    setStatusFilter(null);
-    setFilteredTraces([]);
-  }, [clusterId, serviceName, timeParams]);
-
-  // Click HTTP status code row → query filtered traces
-  const handleStatusCodeClick = useCallback((code: number, method: string) => {
-    if (!clusterId) return;
-    if (statusFilter?.code === code && statusFilter?.method === method) {
-      setStatusFilter(null);
-      setFilteredTraces([]);
-      return;
-    }
-    setStatusFilter({ code, method });
-    queryTraces(clusterId, {
-      service: serviceName,
-      limit: 100,
-      status_code: String(code),
-      method,
-    }, timeParams).then((r) => setFilteredTraces(r.traces));
-  }, [clusterId, serviceName, timeParams, statusFilter]);
+  // 依赖列表在「概览」与「依赖」两个 tab 里各出现一次
+  const dependenciesTable = (
+    <QueryView query={topologyQuery}>
+      {(topology) => (
+        <DependenciesTable
+          t={t}
+          dependencies={getDependenciesFromTopology(serviceName, topology)}
+          onSelectDependency={onNavigateToService}
+        />
+      )}
+    </QueryView>
+  );
 
   const tabLabels: Record<TabType, string> = {
     overview: t.overview,
@@ -162,42 +157,19 @@ export function ServiceOverview({
           </div>
 
           {/* Trend charts */}
-          <ServiceTrendCharts t={t} points={trendPoints} />
+          <QueryView query={trendQuery}>
+            {(points) => <ServiceTrendCharts t={t} points={points} />}
+          </QueryView>
 
           {/* HTTP Status Code Distribution */}
-          <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
-            <StatusCodeChart t={t} stats={httpStats} onClickRow={handleStatusCodeClick} />
-            {/* 按状态码筛出的链路属内容级数据（traces.read） */}
-            {statusFilter && (
-              <PermissionLock permission="traces.read">
-                {filteredTraces.length > 0 ? (
-              <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
-                <h4 className="text-xs font-medium text-muted mb-2">
-                  {statusFilter.code} {statusFilter.method} — {filteredTraces.length} traces
-                </h4>
-                <div className="space-y-1 max-h-64 overflow-y-auto">
-                  {filteredTraces.map((tr) => (
-                    <div
-                      key={tr.traceId}
-                      onClick={() => onSelectTrace?.(tr.traceId)}
-                      className="flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                    >
-                      <span className="font-mono text-muted">{tr.traceId.slice(0, 16)}...</span>
-                      <span className="text-default">{tr.rootOperation}</span>
-                      <span className="text-muted">{formatDurationMs(tr.durationMs)}</span>
-                      <span className="text-muted">{new Date(tr.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-                ) : (
-                  <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
-                    <p className="text-xs text-muted text-center py-2">{t.noData}</p>
-                  </div>
-                )}
-              </PermissionLock>
-            )}
-          </div>
+          <StatusCodeSection
+            t={t}
+            clusterId={clusterId}
+            serviceName={serviceName}
+            timeRange={timeRange}
+            canReadTraces={canReadTraces}
+            onSelectTrace={onSelectTrace}
+          />
 
           {/* Transactions table */}
           <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
@@ -210,22 +182,22 @@ export function ServiceOverview({
 
           {/* Dependencies */}
           <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
-            <DependenciesTable
-              t={t}
-              dependencies={dependencies}
-              onSelectDependency={onNavigateToService}
-            />
+            {dependenciesTable}
           </div>
 
           {/* DB Stats */}
           <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
-            <DBStatsTable t={t} stats={dbStats} />
+            <QueryView query={dbStatsQuery}>
+              {(stats) => <DBStatsTable t={t} stats={stats} />}
+            </QueryView>
           </div>
 
           {/* Slow Traces */}
           <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
             <PermissionLock permission="traces.read">
-              <SlowTracesList t={t} traces={slowTraces} onSelectTrace={onSelectTrace} />
+              <QueryView query={serviceTracesQuery}>
+                {() => <SlowTracesList t={t} traces={slowTraces} onSelectTrace={onSelectTrace} />}
+              </QueryView>
             </PermissionLock>
           </div>
         </>
@@ -245,11 +217,7 @@ export function ServiceOverview({
       {/* Dependencies Tab */}
       {activeTab === "dependencies" && (
         <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
-          <DependenciesTable
-            t={t}
-            dependencies={dependencies}
-            onSelectDependency={onNavigateToService}
-          />
+          {dependenciesTable}
         </div>
       )}
 
@@ -257,8 +225,16 @@ export function ServiceOverview({
       {activeTab === "errors" && (
         <div className="space-y-4">
           <PermissionLock permission="traces.read" className="border border-[var(--border-color)] rounded-xl bg-card">
-            <ErrorTracesList t={t} traces={errorTraces} onSelectTrace={onSelectTrace} />
-            <CorrelationsPanel t={t} clusterId={clusterId} serviceName={serviceName} timeParams={timeParams} />
+            <QueryView query={serviceTracesQuery}>
+              {() => <ErrorTracesList t={t} traces={errorTraces} onSelectTrace={onSelectTrace} />}
+            </QueryView>
+            <CorrelationsPanel
+              t={t}
+              clusterId={clusterId}
+              serviceName={serviceName}
+              timeRange={timeRange}
+              canReadTraces={canReadTraces}
+            />
           </PermissionLock>
         </div>
       )}

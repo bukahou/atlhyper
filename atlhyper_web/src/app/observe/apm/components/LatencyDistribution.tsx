@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useEffectEvent } from "react";
 import * as echarts from "echarts";
 import { useI18n } from "@/i18n/context";
 import type { LatencyBucket } from "@/types/model/apm";
@@ -48,11 +48,16 @@ export function LatencyDistribution({
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
-  // brush 回调里要读最新的 buckets/onSelectRange，但不想因此重建图表
-  const bucketsRef = useRef(buckets);
-  bucketsRef.current = buckets;
-  const onSelectRef = useRef(onSelectRange);
-  onSelectRef.current = onSelectRange;
+  // brush 事件是创建图表时注册一次的；回调里要读最新的 buckets / onSelectRange，但不想因此重建图表
+  const reportBrushedBuckets = useEffectEvent((coordRange: [number, number] | undefined) => {
+    if (!onSelectRange) return;
+    if (!coordRange) { onSelectRange(null); return; }
+    const lo = Math.max(0, Math.ceil(coordRange[0]));
+    const hi = Math.min(buckets.length - 1, Math.floor(coordRange[1]));
+    if (lo > hi || !buckets[lo]) { onSelectRange(null); return; }
+    const end = buckets[hi].rangeEnd === Infinity ? Number.MAX_VALUE : buckets[hi].rangeEnd;
+    onSelectRange({ startMs: buckets[lo].rangeStart, endMs: end });
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -67,16 +72,7 @@ export function LatencyDistribution({
     });
     chart.on("brushEnd", (raw: unknown) => {
       const params = raw as { areas?: { coordRange?: [number, number] }[] };
-      const cb = onSelectRef.current;
-      if (!cb) return;
-      const area = params.areas?.[0];
-      if (!area?.coordRange) { cb(null); return; }
-      const bks = bucketsRef.current;
-      const lo = Math.max(0, Math.ceil(area.coordRange[0]));
-      const hi = Math.min(bks.length - 1, Math.floor(area.coordRange[1]));
-      if (lo > hi || !bks[lo]) { cb(null); return; }
-      const end = bks[hi].rangeEnd === Infinity ? Number.MAX_VALUE : bks[hi].rangeEnd;
-      cb({ startMs: bks[lo].rangeStart, endMs: end });
+      reportBrushedBuckets(params.areas?.[0]?.coordRange);
     });
 
     const handleResize = () => chart.resize();

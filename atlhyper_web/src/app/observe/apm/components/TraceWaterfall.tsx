@@ -1,26 +1,21 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import {
-  ChevronRight,
-  ChevronLeft,
-  ChevronsLeft,
-  ChevronsRight,
-  Copy,
-  Check,
-} from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import type { TraceDetail, TraceSummary, Span } from "@/types/model/apm";
 import Link from "next/link";
 import { ScrollText } from "lucide-react";
 import { logsLinkForTrace } from "@/lib/signal-link";
 import type { ApmTranslations } from "@/types/i18n";
-import { formatDurationMs, formatTimeAgo } from "@/lib/format";
+import { formatDurationMs } from "@/lib/format";
 import { getLatencyDistribution } from "@/datasource/apm";
+import type { LatencyRange } from "../apm-view";
 import { LatencyDistribution } from "./LatencyDistribution";
 import { SERVICE_COLORS, buildSpanTree, flattenTree, focusSpanIds } from "./waterfall-utils";
 import { SpanRow } from "./SpanRow";
 import { SpanDrawer } from "./SpanDrawer";
 import { SpanLogs } from "./SpanLogs";
+import { ServiceFocusLegend, TraceSampleNavigator } from "./TraceWaterfallControls";
 import { TraceMetadata } from "./TraceMetadata";
 
 interface TraceWaterfallProps {
@@ -31,6 +26,12 @@ interface TraceWaterfallProps {
   /** 进入路径的服务：作为初始 focus（高亮该服务的入口 span 及后代，其余淡化） */
   initialFocusService?: string;
   onNavigateTrace: (index: number) => void;
+  /**
+   * 延迟分布 brush 选区：样本导航只在选中区间内的 trace 上移动（ES 同款下钻）。
+   * 由上层持有 —— 本组件按 traceId 重新挂载，选区要是存在这里，翻到下一条样本就丢了
+   */
+  latencyFilter: LatencyRange | null;
+  onLatencyFilterChange: (range: LatencyRange | null) => void;
 }
 
 export function TraceWaterfall({
@@ -40,6 +41,8 @@ export function TraceWaterfall({
   currentTraceIndex,
   initialFocusService,
   onNavigateTrace,
+  latencyFilter,
+  onLatencyFilterChange,
 }: TraceWaterfallProps) {
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
@@ -48,8 +51,6 @@ export function TraceWaterfall({
   // focus = 高亮而非裁剪：完整树永远渲染，非 focus 服务淡化。
   // 初始值来自进入路径（从哪个服务点进来就聚焦谁），图例可切换/清除。
   const [focusService, setFocusService] = useState<string | null>(initialFocusService ?? null);
-  // 延迟分布 brush 选区：样本导航只在选中区间内的 trace 上移动（ES 同款下钻）
-  const [latencyFilter, setLatencyFilter] = useState<{ startMs: number; endMs: number } | null>(null);
 
   const serviceColorMap = useMemo(() => {
     const services = [...new Set(trace.spans.map((s) => s.serviceName))];
@@ -122,8 +123,8 @@ export function TraceWaterfall({
   }, [allTraces, latencyFilter]);
   const samplePos = sampleEntries.findIndex((e) => e.i === currentTraceIndex);
 
-  const handleBrushRange = useCallback((range: { startMs: number; endMs: number } | null) => {
-    setLatencyFilter(range);
+  const handleBrushRange = useCallback((range: LatencyRange | null) => {
+    onLatencyFilterChange(range);
     if (range) {
       // 当前样本不在选区内时跳到选区内第一条
       const first = allTraces.findIndex(
@@ -133,7 +134,7 @@ export function TraceWaterfall({
       const inRange = cur && cur.durationMs >= range.startMs && cur.durationMs < range.endMs;
       if (!inRange && first >= 0) onNavigateTrace(first);
     }
-  }, [allTraces, currentTraceIndex, onNavigateTrace]);
+  }, [allTraces, currentTraceIndex, onNavigateTrace, onLatencyFilterChange]);
 
   const highlightBucket = useMemo(() => {
     if (allTraces.length === 0 || currentTraceIndex < 0) return undefined;
@@ -159,8 +160,6 @@ export function TraceWaterfall({
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  const currentTraceSummary = allTraces[currentTraceIndex];
-
   const tickCount = 6;
   const ticks = Array.from({ length: tickCount }, (_, i) => (i / (tickCount - 1)) * traceDurationMs);
 
@@ -181,7 +180,7 @@ export function TraceWaterfall({
               {t.latencyFilterActive}: {formatDurationMs(latencyFilter.startMs)} – {latencyFilter.endMs === Number.MAX_VALUE ? "∞" : formatDurationMs(latencyFilter.endMs)}
               <span className="text-muted ml-1.5">({sampleEntries.length} traces)</span>
             </span>
-            <button onClick={() => setLatencyFilter(null)} className="text-muted hover:text-default underline">
+            <button onClick={() => onLatencyFilterChange(null)} className="text-muted hover:text-default underline">
               {t.clearFilter}
             </button>
           </div>
@@ -189,33 +188,13 @@ export function TraceWaterfall({
       </div>
 
       {/* Trace sample navigation */}
-      <div className="flex items-center justify-between border border-[var(--border-color)] rounded-xl px-4 py-3 bg-card">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-default">{t.traceSample}</span>
-          <div className="flex items-center gap-1">
-            <button onClick={() => sampleEntries.length > 0 && onNavigateTrace(sampleEntries[0].i)} disabled={samplePos <= 0} className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors">
-              <ChevronsLeft className="w-4 h-4 text-muted" />
-            </button>
-            <button onClick={() => samplePos > 0 && onNavigateTrace(sampleEntries[samplePos - 1].i)} disabled={samplePos <= 0} className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors">
-              <ChevronLeft className="w-4 h-4 text-muted" />
-            </button>
-            <span className="text-sm text-default px-2 min-w-[60px] text-center">
-              {samplePos >= 0 ? samplePos + 1 : "–"} / {sampleEntries.length}
-            </span>
-            <button onClick={() => samplePos >= 0 && samplePos < sampleEntries.length - 1 && onNavigateTrace(sampleEntries[samplePos + 1].i)} disabled={samplePos < 0 || samplePos >= sampleEntries.length - 1} className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors">
-              <ChevronRight className="w-4 h-4 text-muted" />
-            </button>
-            <button onClick={() => sampleEntries.length > 0 && onNavigateTrace(sampleEntries[sampleEntries.length - 1].i)} disabled={samplePos < 0 || samplePos >= sampleEntries.length - 1} className="p-1 rounded hover:bg-[var(--hover-bg)] disabled:opacity-30 transition-colors">
-              <ChevronsRight className="w-4 h-4 text-muted" />
-            </button>
-          </div>
-        </div>
-        {currentTraceSummary && (
-          <div className="text-xs text-muted">
-            {formatTimeAgo(currentTraceSummary.timestamp)} | {formatDurationMs(currentTraceSummary.durationMs)}
-          </div>
-        )}
-      </div>
+      <TraceSampleNavigator
+        t={t}
+        sampleEntries={sampleEntries}
+        samplePos={samplePos}
+        currentTraceSummary={allTraces[currentTraceIndex]}
+        onNavigateTrace={onNavigateTrace}
+      />
 
       {/* Trace waterfall */}
       <div className="border border-[var(--border-color)] rounded-xl bg-card overflow-hidden">
@@ -272,57 +251,14 @@ export function TraceWaterfall({
         {/* Timeline tab content */}
         {activeTab === 0 && <>
         {/* Service legend —— 可点击控件：toggle 服务 focus */}
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-[var(--border-color)]">
-          {[...serviceColorMap.entries()].map(([svc, color]) => {
-            const isFocused = focusService === svc;
-            const isDimmed = focusService !== null && !isFocused;
-            return (
-              <button
-                key={svc}
-                onClick={() => setFocusService(isFocused ? null : svc)}
-                title={t.focusLegendHint}
-                className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
-                  isFocused
-                    ? "border-primary shadow-[inset_0_0_0_1px_var(--primary)]"
-                    : "border-[var(--border-color)] hover:border-[var(--text-muted)]"
-                } ${isDimmed ? "opacity-40" : ""}`}
-              >
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                <span className="text-default">{svc}</span>
-                <span className="text-[10px] text-muted font-mono tabular-nums">
-                  {formatDurationMs(serviceStats.get(svc)?.selfMs ?? 0)}
-                  {grandSelfMs > 0 && (
-                    <span className="ml-1 opacity-70">
-                      {Math.round(((serviceStats.get(svc)?.selfMs ?? 0) / grandSelfMs) * 100)}%
-                    </span>
-                  )}
-                </span>
-              </button>
-            );
-          })}
-          {/* 明暗编码说明：亮 = 自己在干活，暗 = 在等下游（那段时间的活在子行里） */}
-          <div className="flex items-center gap-3 ml-auto text-[10px] text-muted">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-2.5 rounded-sm" style={{ background: "var(--text-secondary)" }} />
-              {t.legendSelfTime}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className="w-3 h-2.5 rounded-sm"
-                style={{ background: "color-mix(in srgb, var(--text-secondary) 35%, transparent)" }}
-              />
-              {t.legendWaiting}
-            </span>
-            {focusService && (
-              <button
-                onClick={() => setFocusService(null)}
-                className="text-xs text-primary hover:underline"
-              >
-                {t.viewFullTrace}
-              </button>
-            )}
-          </div>
-        </div>
+        <ServiceFocusLegend
+          t={t}
+          serviceColorMap={serviceColorMap}
+          serviceStats={serviceStats}
+          grandSelfMs={grandSelfMs}
+          focusService={focusService}
+          onFocusServiceChange={setFocusService}
+        />
 
         {/* Timeline header —— 与 SpanRow 的轨道共用坐标系。
             左侧留出与最浅层缩进相同的宽度（折叠控件 22px + padding 8px）；
