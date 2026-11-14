@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Mail, Loader2, AlertCircle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { getSmtpPresets } from "./smtp-presets";
 import { EmailFormFields } from "./EmailFormFields";
+import { emailFormFromSaved, emailFormHasChanges, type EmailFormDraft } from "./email-form";
 import type { EmailConfig, EmailUpdateData } from "@/api/notify";
 
 interface EmailCardProps {
@@ -30,62 +31,40 @@ export function EmailCard({
   const nt = t.notifications;
   const SMTP_PRESETS = getSmtpPresets(nt.smtpPresets);
 
+  // 已保存的配置的指纹：内容变了才算「外部状态变了」。
+  // 不看对象引用 —— 上层每次渲染都可能传来一个内容相同的新对象，那不该冲掉正在编辑的内容
+  const savedFingerprint = JSON.stringify({ enabled, config });
+  const draftFromSaved = () =>
+    emailFormFromSaved(
+      config,
+      enabled,
+      SMTP_PRESETS.map((preset) => preset.value),
+    );
+
   // 表单状态
-  const [localEnabled, setLocalEnabled] = useState(enabled);
-  const [smtpHost, setSmtpHost] = useState(config.smtpHost || "");
-  const [smtpPort, setSmtpPort] = useState(config.smtpPort || 587);
-  const [smtpUser, setSmtpUser] = useState(config.smtpUser || "");
-  const [smtpPassword, setSmtpPassword] = useState("");
-  const [smtpTls, setSmtpTls] = useState(config.smtpTLS ?? true);
-  const [recipients, setRecipients] = useState<string[]>(config.toAddresses || []);
+  const [draft, setDraft] = useState<EmailFormDraft>(draftFromSaved);
+  const updateDraft = (changes: Partial<EmailFormDraft>) => setDraft((current) => ({ ...current, ...changes }));
 
   // UI 状态
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isCustomSmtp, setIsCustomSmtp] = useState(false);
 
-  // 同步外部状态
-  useEffect(() => {
-    setLocalEnabled(enabled);
-    setSmtpHost(config.smtpHost || "");
-    setSmtpPort(config.smtpPort || 587);
-    setSmtpUser(config.smtpUser || "");
-    setSmtpTls(config.smtpTLS ?? true);
-    setRecipients(config.toAddresses || []);
-    setSmtpPassword(""); // 密码不从后端加载
-    // 判断是否为自定义 SMTP
-    const isPreset = SMTP_PRESETS.some((p) => p.value === config.smtpHost);
-    setIsCustomSmtp(config.smtpHost !== "" && !isPreset);
-  }, [enabled, config]);
+  // 同步外部状态：已保存的配置变了（保存成功、别处修改），表单重新按它填（密码不从后端加载，一并清空）。
+  // 在渲染期间按「外部值变了」调整，而不是等 effect：不会先画出一帧旧内容
+  const [syncedFingerprint, setSyncedFingerprint] = useState(savedFingerprint);
+  if (syncedFingerprint !== savedFingerprint) {
+    setSyncedFingerprint(savedFingerprint);
+    setDraft(draftFromSaved());
+  }
 
-  // 检测变化
-  useEffect(() => {
-    const originalRecipients = config.toAddresses || [];
-    const recipientsChanged =
-      recipients.length !== originalRecipients.length ||
-      recipients.some((r, i) => r !== originalRecipients[i]);
-
-    const changed =
-      localEnabled !== enabled ||
-      smtpHost !== (config.smtpHost || "") ||
-      smtpPort !== (config.smtpPort || 587) ||
-      smtpUser !== (config.smtpUser || "") ||
-      smtpPassword !== "" || // 密码有输入即视为变化
-      smtpTls !== (config.smtpTLS ?? true) ||
-      recipientsChanged;
-
-    setHasChanges(changed);
-  }, [
-    localEnabled, smtpHost, smtpPort, smtpUser,
-    smtpPassword, smtpTls, recipients, enabled, config,
-  ]);
+  // 有没有未保存的修改：由草稿与已保存的配置直接算出，不另存一份状态
+  const hasChanges = emailFormHasChanges(draft, config, enabled);
 
   const handleToggle = async () => {
     if (readOnly) return;
-    const newEnabled = !localEnabled;
-    setLocalEnabled(newEnabled);
+    const newEnabled = !draft.enabled;
+    updateDraft({ enabled: newEnabled });
     setSaving(true);
     try {
       await onSave({ enabled: newEnabled });
@@ -99,20 +78,20 @@ export function EmailCard({
     setSaving(true);
     try {
       const data: EmailUpdateData = {
-        enabled: localEnabled,
-        smtpHost: smtpHost,
-        smtpPort: smtpPort,
-        smtpUser: smtpUser,
-        smtpTLS: smtpTls,
-        fromAddress: smtpUser, // 发件人地址与用户名相同
-        toAddresses: recipients,
+        enabled: draft.enabled,
+        smtpHost: draft.smtpHost,
+        smtpPort: draft.smtpPort,
+        smtpUser: draft.smtpUser,
+        smtpTLS: draft.smtpTls,
+        fromAddress: draft.smtpUser, // 发件人地址与用户名相同
+        toAddresses: draft.recipients,
       };
       // 只有输入了密码才更新
-      if (smtpPassword) {
-        data.smtpPassword = smtpPassword;
+      if (draft.smtpPassword) {
+        data.smtpPassword = draft.smtpPassword;
       }
       await onSave(data);
-      setSmtpPassword(""); // 保存后清空密码输入
+      updateDraft({ smtpPassword: "" }); // 保存后清空密码输入
     } finally {
       setSaving(false);
     }
@@ -128,11 +107,7 @@ export function EmailCard({
   };
 
   const handleSmtpHostChange = (host: string, isCustom: boolean, port?: number) => {
-    setIsCustomSmtp(isCustom);
-    setSmtpHost(host);
-    if (port !== undefined) {
-      setSmtpPort(port);
-    }
+    updateDraft({ isCustomSmtp: isCustom, smtpHost: host, ...(port !== undefined ? { smtpPort: port } : {}) });
   };
 
   return (
@@ -148,7 +123,7 @@ export function EmailCard({
             <p className="text-sm text-muted">
               {effectiveEnabled ? (
                 <span className="text-green-600">{nt.statusEnabled}</span>
-              ) : localEnabled ? (
+              ) : draft.enabled ? (
                 <span className="text-yellow-600">{nt.statusIncomplete}</span>
               ) : (
                 nt.statusDisabled
@@ -162,12 +137,12 @@ export function EmailCard({
           onClick={handleToggle}
           disabled={readOnly || saving}
           className={`relative w-12 h-6 rounded-full transition-colors ${
-            localEnabled ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
+            draft.enabled ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
           } ${readOnly ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
         >
           <span
             className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              localEnabled ? "translate-x-6" : "translate-x-0"
+              draft.enabled ? "translate-x-6" : "translate-x-0"
             }`}
           />
         </button>
@@ -193,21 +168,21 @@ export function EmailCard({
       {/* SMTP 配置表单 */}
       <EmailFormFields
         smtpPresets={SMTP_PRESETS}
-        isCustomSmtp={isCustomSmtp}
-        smtpHost={smtpHost}
-        smtpPort={smtpPort}
-        smtpUser={smtpUser}
-        smtpPassword={smtpPassword}
-        smtpTls={smtpTls}
-        recipients={recipients}
+        isCustomSmtp={draft.isCustomSmtp}
+        smtpHost={draft.smtpHost}
+        smtpPort={draft.smtpPort}
+        smtpUser={draft.smtpUser}
+        smtpPassword={draft.smtpPassword}
+        smtpTls={draft.smtpTls}
+        recipients={draft.recipients}
         showPassword={showPassword}
         readOnly={readOnly}
         onSmtpHostChange={handleSmtpHostChange}
-        onSmtpPortChange={setSmtpPort}
-        onSmtpUserChange={setSmtpUser}
-        onSmtpPasswordChange={setSmtpPassword}
-        onSmtpTlsToggle={() => setSmtpTls(!smtpTls)}
-        onRecipientsChange={setRecipients}
+        onSmtpPortChange={(smtpPort) => updateDraft({ smtpPort })}
+        onSmtpUserChange={(smtpUser) => updateDraft({ smtpUser })}
+        onSmtpPasswordChange={(smtpPassword) => updateDraft({ smtpPassword })}
+        onSmtpTlsToggle={() => updateDraft({ smtpTls: !draft.smtpTls })}
+        onRecipientsChange={(recipients) => updateDraft({ recipients })}
         onShowPasswordToggle={() => setShowPassword(!showPassword)}
         labels={{
           smtpServer: nt.smtpServer,

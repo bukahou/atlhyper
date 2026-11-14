@@ -1,51 +1,36 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import type { Language } from "@/types/common";
-import type { Translations, I18nContextType } from "@/types/i18n";
-import { getTranslations, defaultLanguage } from "./index";
+import type { I18nContextType } from "@/types/i18n";
+import { useHydrated } from "@/hooks/useHydrated";
+import { getTranslations } from "./index";
+import { languagePreferenceStore } from "./language-preference";
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
-const STORAGE_KEY = "atlhyper-language";
-
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(defaultLanguage);
-  const [mounted, setMounted] = useState(false);
+  // 语言偏好存在 localStorage 里（React 之外的状态），直接订阅它，不在 effect 里读出来再 setState
+  const language = useSyncExternalStore(
+    languagePreferenceStore.subscribe,
+    languagePreferenceStore.getSnapshot,
+    languagePreferenceStore.getServerSnapshot,
+  );
+  const hydrated = useHydrated();
 
-  useEffect(() => {
-    // 优先使用用户手动选择的语言
-    const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
-    if (stored && (stored === "zh" || stored === "ja")) {
-      setLanguageState(stored);
-    } else {
-      // 未手动选择时，跟随浏览器语言
-      const browserLang = navigator.language || (navigator as unknown as { userLanguage?: string }).userLanguage || "";
-      // 检测是否为日语（ja, ja-JP 等）
-      if (browserLang.toLowerCase().startsWith("ja")) {
-        setLanguageState("ja");
-      }
-      // 其他情况默认中文（defaultLanguage）
-    }
-    setMounted(true);
-  }, []);
+  const setLanguage = useCallback((newLanguage: Language) => languagePreferenceStore.set(newLanguage), []);
+  const contextValue = useMemo(
+    () => ({ language, setLanguage, t: getTranslations(language) }),
+    [language, setLanguage],
+  );
 
-  const setLanguage = (newLanguage: Language) => {
-    setLanguageState(newLanguage);
-    localStorage.setItem(STORAGE_KEY, newLanguage);
-  };
-
-  const t = getTranslations(language);
-
-  if (!mounted) {
+  // 水合完成前不渲染页面：语言、登录态、当前集群都存在 localStorage 里，
+  // 服务端读不到，先渲染会与客户端的首帧不一致
+  if (!hydrated) {
     return null;
   }
 
-  return (
-    <I18nContext.Provider value={{ language, setLanguage, t }}>
-      {children}
-    </I18nContext.Provider>
-  );
+  return <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n(): I18nContextType {

@@ -1,81 +1,53 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import type { Theme } from "@/types/common";
+import { useHydrated } from "@/hooks/useHydrated";
+import {
+  resolveTheme,
+  subscribeToSystemScheme,
+  systemPrefersDark,
+  themePreferenceStore,
+  type ResolvedTheme,
+} from "./theme-preference";
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  resolvedTheme: "light" | "dark";
+  resolvedTheme: ResolvedTheme;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const STORAGE_KEY = "atlhyper-theme";
-
-function getSystemTheme(): "light" | "dark" {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
+/** 服务端不知道用户系统的亮暗色，按亮色算 */
+const serverPrefersDark = () => false;
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
-  const [mounted, setMounted] = useState(false);
+  // 主题偏好（localStorage）与系统亮暗色（媒体查询）都是 React 之外的状态：
+  // 直接订阅，生效的主题由两者算出来，不再各存一份 state 再用 effect 同步
+  const theme = useSyncExternalStore(
+    themePreferenceStore.subscribe,
+    themePreferenceStore.getSnapshot,
+    themePreferenceStore.getServerSnapshot,
+  );
+  const prefersDark = useSyncExternalStore(subscribeToSystemScheme, systemPrefersDark, serverPrefersDark);
+  const resolvedTheme = resolveTheme(theme, prefersDark);
+  const hydrated = useHydrated();
 
+  // 样式靠 <html> 上的 dark 类切换，这里把生效的主题同步过去
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    if (stored && (stored === "light" || stored === "dark" || stored === "system")) {
-      setThemeState(stored);
-    }
-    setMounted(true);
-  }, []);
+    document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
+  }, [resolvedTheme]);
 
-  useEffect(() => {
-    const resolved = theme === "system" ? getSystemTheme() : theme;
-    setResolvedTheme(resolved);
+  const setTheme = useCallback((newTheme: Theme) => themePreferenceStore.set(newTheme), []);
+  const contextValue = useMemo(() => ({ theme, setTheme, resolvedTheme }), [theme, setTheme, resolvedTheme]);
 
-    // 更新 document class
-    if (resolved === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [theme]);
-
-  useEffect(() => {
-    // 监听系统主题变化
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleChange = () => {
-      if (theme === "system") {
-        const resolved = getSystemTheme();
-        setResolvedTheme(resolved);
-        if (resolved === "dark") {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
-      }
-    };
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [theme]);
-
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-    localStorage.setItem(STORAGE_KEY, newTheme);
-  };
-
-  if (!mounted) {
+  // 水合完成前不渲染页面：主题存在 localStorage 里，服务端读不到，先渲染会与客户端的首帧不一致
+  if (!hydrated) {
     return null;
   }
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextType {

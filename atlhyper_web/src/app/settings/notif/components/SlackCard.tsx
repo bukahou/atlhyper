@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { MessageSquare, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
@@ -32,17 +32,17 @@ export function SlackCard({
   const [showWebhook, setShowWebhook] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
 
-  // 同步外部状态
-  useEffect(() => {
+  // 同步外部状态：后端的开关状态变了（保存成功、别处修改），本地开关跟上。
+  // 在渲染期间按「外部值变了」调整，而不是等 effect：不会先画出一帧旧状态
+  const [syncedEnabled, setSyncedEnabled] = useState(enabled);
+  if (syncedEnabled !== enabled) {
+    setSyncedEnabled(enabled);
     setLocalEnabled(enabled);
-  }, [enabled]);
+  }
 
-  // 检测变化
-  useEffect(() => {
-    setHasChanges(localEnabled !== enabled || webhookUrl !== "");
-  }, [localEnabled, webhookUrl, enabled]);
+  // 有没有未保存的修改：由当前输入直接算出，不另存一份状态
+  const hasChanges = localEnabled !== enabled || webhookUrl !== "";
 
   const handleToggle = async () => {
     if (readOnly) return;
