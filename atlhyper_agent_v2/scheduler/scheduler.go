@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -167,7 +168,7 @@ func (s *Scheduler) collectAndPushSnapshot() {
 	pushCtx, cancelPush := context.WithTimeout(s.ctx, s.config.SnapshotPushTimeout)
 	defer cancelPush()
 	if err := s.masterGw.PushSnapshot(pushCtx, snapshot); err != nil {
-		log.Error("推送快照失败", "err", err)
+		log.Error(masterFailureMessage("推送快照失败", err), "err", err)
 		return
 	}
 
@@ -221,18 +222,20 @@ func (s *Scheduler) runCommandLoop(topic string) {
 		case <-s.ctx.Done():
 			return
 		default:
-			ok, connErr := s.pollAndExecuteCommands(topic)
+			ok, pollErr := s.pollAndExecuteCommands(topic)
 			if ok {
 				backoff = s.config.CommandPollInterval
 				failCount = 0
 				continue // 有指令，立即再 poll（排空队列）
 			}
 
-			if connErr {
+			if pollErr != nil {
 				failCount++
-				// 首次失败 + 之后每 30s 打一次 WARN，避免刷屏
+				// 首次失败 + 之后每 30s 打一次 WARN，避免刷屏。
+				// 身份被拒也只记录并继续重试、不退出：令牌在 Master 侧补签或登记后即可自行恢复
 				if failCount == 1 || time.Since(lastWarnTime) >= 30*time.Second {
-					log.Warn("拉取指令失败，等待重连", "topic", topic, "consecutiveFails", failCount)
+					log.Warn(masterFailureMessage("拉取指令失败，等待重试", pollErr),
+						"topic", topic, "consecutiveFails", failCount, "err", pollErr)
 					lastWarnTime = time.Now()
 				}
 				// 指数退避: 100ms → 200ms → 400ms → ... → 30s
@@ -255,19 +258,19 @@ func (s *Scheduler) runCommandLoop(topic string) {
 }
 
 // pollAndExecuteCommands 轮询并执行指令
-// 返回 (hasCommands, isConnError)
-func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, bool) {
+// 返回 (hasCommands, pollErr)；pollErr 非 nil 表示这一轮没能从 Master 拉到指令，由调用方限频记录并退避
+func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, error) {
 	// 三个阶段各用各的时间预算：长轮询可能等到快超时才拿到指令，
 	// 执行与回报不能只剩它用剩下的那点时间。
 	pollCtx, cancelPoll := context.WithTimeout(s.ctx, s.config.CommandPollTimeout)
 	commands, err := s.masterGw.PollCommands(pollCtx, topic)
 	cancelPoll()
 	if err != nil {
-		return false, true
+		return false, err
 	}
 
 	if len(commands) == 0 {
-		return false, false
+		return false, nil
 	}
 
 	// 并发执行所有指令
@@ -293,14 +296,14 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, bool) {
 			reportCtx, cancelReport := context.WithTimeout(s.ctx, durationOr(s.config.CommandReportTimeout, defaultCommandReportTimeout))
 			defer cancelReport()
 			if err := s.masterGw.ReportResult(reportCtx, result); err != nil {
-				log.Error("指令失败", "action", action, "elapsed", elapsed.Round(time.Millisecond), "err", err)
+				log.Error(masterFailureMessage("指令结果回报失败", err), "action", action, "elapsed", elapsed.Round(time.Millisecond), "err", err)
 			} else {
 				log.Info("指令完成", "action", action, "elapsed", elapsed.Round(time.Millisecond), "success", result.Success)
 			}
 		}()
 	}
 	wg.Wait()
-	return true, false
+	return true, nil
 }
 
 // =============================================================================
@@ -323,7 +326,7 @@ func (s *Scheduler) runHeartbeatLoop() {
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(s.ctx, s.config.HeartbeatTimeout)
 			if err := s.masterGw.Heartbeat(ctx); err != nil {
-				log.Warn("心跳发送失败", "err", err)
+				log.Warn(masterFailureMessage("心跳发送失败", err), "err", err)
 			}
 			cancel()
 		}
@@ -341,4 +344,15 @@ func durationOr(configured, fallback time.Duration) time.Duration {
 		return configured
 	}
 	return fallback
+}
+
+// masterFailureMessage 给「与 Master 通信失败」配日志文案。
+//
+// 身份被拒（401 / 403）与网络故障的处理办法完全不同：前者要去检查令牌与集群登记，
+// 后者等网络恢复即可。文案里直接点明，排查时不必去读错误详情。
+func masterFailureMessage(action string, err error) string {
+	if errors.Is(err, gateway.ErrMasterRejectedIdentity) {
+		return action + "：Master 拒绝了本 Agent 的身份（认证问题，不是网络故障）"
+	}
+	return action
 }

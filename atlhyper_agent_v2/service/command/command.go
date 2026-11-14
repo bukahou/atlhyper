@@ -14,6 +14,7 @@
 //   - apply_manifests: 应用多文档 YAML (Server-Side Apply)
 //
 // 执行流程:
+//  0. 核对指令所属的集群与本 Agent 一致，再核对目标是合法的资源名
 //  1. 根据 Action 分发到对应的 handler
 //  2. 解析 Params 中的参数
 //  3. 调用 Repository 执行操作
@@ -45,6 +46,7 @@ import (
 //   - metricsQueryRepo: Metrics 按需查询 (ClickHouse, 可选)
 //   - sloQueryRepo: SLO 按需查询 (ClickHouse, 可选)
 type commandService struct {
+	clusterID   string // 本 Agent 所属的集群；只执行属于它的指令
 	k8sClient   sdk.K8sClient
 	podRepo     repository.PodRepository
 	genericRepo repository.GenericRepository
@@ -57,7 +59,10 @@ type commandService struct {
 }
 
 // NewCommandService 创建指令服务
+//
+// clusterID 是本 Agent 所属的集群：指令带着它所属的集群，两者不一致的指令不执行。
 func NewCommandService(
+	clusterID string,
 	k8sClient sdk.K8sClient,
 	podRepo repository.PodRepository,
 	genericRepo repository.GenericRepository,
@@ -67,6 +72,7 @@ func NewCommandService(
 	sloQueryRepo repository.SLOQueryRepository,
 ) service.CommandService {
 	return &commandService{
+		clusterID:        clusterID,
 		k8sClient:        k8sClient,
 		podRepo:          podRepo,
 		genericRepo:      genericRepo,
@@ -95,6 +101,15 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 
 	var err error
 	var data any
+
+	// 指令带着它所属的集群：不是发给本集群的指令不执行，回报失败让 Master 知道它没有生效。
+	// 没带集群的指令照常执行（早于本字段的 Master 不填它）
+	if cmd.ClusterID != "" && cmd.ClusterID != s.clusterID {
+		result.Success = false
+		result.Error = fmt.Sprintf("指令属于集群 %q，本 Agent 属于集群 %q，集群不符，未执行", cmd.ClusterID, s.clusterID)
+		result.ExecTime = time.Since(start)
+		return result
+	}
 
 	// 目标会成为 K8s API 请求的一部分：不是合法资源名的指令不执行
 	if err = command.ValidateTarget(cmd.Namespace, cmd.Name); err != nil {

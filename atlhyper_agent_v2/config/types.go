@@ -25,7 +25,8 @@ type TimeoutConfig struct {
 
 // MasterConfig Master 通信配置
 type MasterConfig struct {
-	URL string // Master 服务地址
+	URL   string // Master 服务地址
+	Token string // 集群令牌（Master 签发）；空则不带认证头。⛔ 凭证，不得写入日志
 }
 
 // KubernetesConfig Kubernetes 连接配置
