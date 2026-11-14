@@ -65,8 +65,8 @@ export function getMe() {
  * 完整权限表（无需登录；角色说明页用）
  * GET /api/v2/auth/permissions
  */
-export function getPermissionTable() {
-  return get<{ message: string; data: PermissionTable }>("/api/v2/auth/permissions");
+export function getPermissionTable(signal?: AbortSignal) {
+  return get<{ message: string; data: PermissionTable }>("/api/v2/auth/permissions", undefined, signal);
 }
 
 /**

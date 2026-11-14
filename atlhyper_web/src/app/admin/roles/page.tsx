@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { PageHeader } from "@/components/common";
-import { getPermissionTable } from "@/api/auth";
-import type { PermissionTable } from "@/types/auth";
+import { permissionTableQuery } from "@/queries/admin";
 import { PermissionMatrix } from "./PermissionMatrix";
 import { getRoles } from "./roles";
 
@@ -15,13 +14,7 @@ export default function RolesPage() {
   const roles = getRoles(rolesT);
 
   // 权限表由后端下发（唯一权限源），页面不另写一份
-  const [table, setTable] = useState<PermissionTable | null>(null);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    getPermissionTable()
-      .then((res) => setTable(res.data.data))
-      .catch(() => setError(true));
-  }, []);
+  const { data: table, isError } = useQuery(permissionTableQuery());
 
   return (
     <Layout>
@@ -49,7 +42,7 @@ export default function RolesPage() {
           })}
         </div>
 
-        <PermissionMatrix roles={roles} table={table} error={error} t={rolesT} />
+        <PermissionMatrix roles={roles} table={table ?? null} error={isError} t={rolesT} />
       </div>
     </Layout>
   );

@@ -261,9 +261,13 @@ export function getEventList(params: { cluster_id: string; namespace?: string; t
   return apiGetEventList(params);
 }
 
-export function getEventOverview(params: { ClusterID: string; Namespace?: string; Type?: string }) {
-  if (getDataSourceMode("event") === "mock") return mockGetEventOverview();
-  return apiGetEventOverview(params);
+/** 事件概览。返回解包后的数据；signal 用于取消请求 */
+export async function getEventOverview(
+  params: { ClusterID: string; Namespace?: string; Type?: string },
+  signal?: AbortSignal,
+) {
+  if (getDataSourceMode("event") === "mock") return mockGetEventOverview().data.data;
+  return (await apiGetEventOverview(params, signal)).data.data;
 }
 
 // ============================================================

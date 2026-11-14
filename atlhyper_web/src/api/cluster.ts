@@ -25,8 +25,8 @@ interface ClusterListResponse {
  * 获取集群列表
  * GET /api/v2/clusters
  */
-export function getClusterList() {
-  return get<ClusterListResponse>("/api/v2/clusters");
+export function getClusterList(signal?: AbortSignal) {
+  return get<ClusterListResponse>("/api/v2/clusters", undefined, signal);
 }
 
 /**

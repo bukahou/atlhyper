@@ -94,8 +94,8 @@ export function getEventsByResource(params: {
   return get<{ events: EventLog[] }>("/api/v2/events/by-resource", { ...params });
 }
 
-export function getEventList(params: EventListParams) {
-  return get<EventListResponse>("/api/v2/events", params);
+export function getEventList(params: EventListParams, signal?: AbortSignal) {
+  return get<EventListResponse>("/api/v2/events", params, signal);
 }
 
 /**
@@ -112,12 +112,18 @@ export function getAlertList(params: EventListParams) {
 /**
  * 获取事件概览（实时，从 DataHub）
  */
-export async function getEventOverview(data: { ClusterID: string; Namespace?: string; Type?: string }) {
-  const response = await getEventList({
-    cluster_id: data.ClusterID,
-    namespace: data.Namespace,
-    type: data.Type,
-  });
+export async function getEventOverview(
+  data: { ClusterID: string; Namespace?: string; Type?: string },
+  signal?: AbortSignal,
+) {
+  const response = await getEventList(
+    {
+      cluster_id: data.ClusterID,
+      namespace: data.Namespace,
+      type: data.Type,
+    },
+    signal,
+  );
 
   const events = response.data.events || [];
 

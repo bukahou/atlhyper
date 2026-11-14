@@ -33,7 +33,7 @@ export function MessageBubble({ message, stats }: MessageBubbleProps) {
   const content = message.content && !isToolResultJSON(message.content) ? message.content : "";
 
   // 从 toolCalls 解析 rounds（每3个 tool_call 为一轮，模拟多轮思考）
-  let rounds: Round[] = [];
+  const rounds: Round[] = [];
   if (message.toolCalls) {
     try {
       const toolCalls = JSON.parse(message.toolCalls);
