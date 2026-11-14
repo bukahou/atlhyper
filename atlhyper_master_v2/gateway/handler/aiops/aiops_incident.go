@@ -131,13 +131,19 @@ func (h *AIOpsIncidentHandler) Stats(w http.ResponseWriter, r *http.Request) {
 }
 
 // Patterns 历史事件模式
-// GET /api/v2/aiops/incidents/patterns?entity={key}&period=30d
+// GET /api/v2/aiops/incidents/patterns?cluster_id={id}&entity={key}&period=30d
 func (h *AIOpsIncidentHandler) Patterns(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
+	// 实体键只在集群内唯一，必须指明集群
+	clusterID := r.URL.Query().Get("cluster_id")
+	if clusterID == "" {
+		handler.WriteError(w, http.StatusBadRequest, "missing cluster_id parameter")
+		return
+	}
 	entityKey := r.URL.Query().Get("entity")
 	if entityKey == "" {
 		handler.WriteError(w, http.StatusBadRequest, "missing entity parameter")
@@ -146,7 +152,7 @@ func (h *AIOpsIncidentHandler) Patterns(w http.ResponseWriter, r *http.Request) 
 
 	since := parsePeriod(r.URL.Query().Get("period"))
 
-	patterns, err := h.svc.GetAIOpsIncidentPatterns(r.Context(), entityKey, since)
+	patterns, err := h.svc.GetAIOpsIncidentPatterns(r.Context(), clusterID, entityKey, since)
 	if err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, err.Error())
 		return

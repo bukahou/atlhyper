@@ -69,7 +69,7 @@ func (m *mockIncidentRepo) GetIncidentStats(ctx context.Context, clusterID strin
 func (m *mockIncidentRepo) TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]database.AIOpsRootCauseCount, error) {
 	return nil, nil
 }
-func (m *mockIncidentRepo) ListByEntity(ctx context.Context, entityKey string, since time.Time) ([]*database.AIOpsIncident, error) {
+func (m *mockIncidentRepo) ListByEntity(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*database.AIOpsIncident, error) {
 	return m.byEntity, nil
 }
 

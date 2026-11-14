@@ -22,11 +22,12 @@ func (sm *StateMachine) Evaluate(
 	now := sm.now()
 
 	for entityKey, risk := range entityRisks {
-		entry := sm.getOrCreate(entityKey)
+		ref := aiops.EntityRef{ClusterID: clusterID, EntityKey: entityKey}
+		entry := sm.getOrCreate(ref)
 		entry.LastRFinal = risk.RFinal
 		entry.LastEvaluatedAt = now.Unix()
 
-		sm.evaluateEntity(ctx, clusterID, entry, risk, clusterRisk, now)
+		sm.evaluateEntity(ctx, ref, entry, risk, clusterRisk, now)
 	}
 }
 
@@ -34,7 +35,7 @@ func (sm *StateMachine) Evaluate(
 // 对同一状态的多个出口条件，只匹配第一个满足的条件
 func (sm *StateMachine) evaluateEntity(
 	ctx context.Context,
-	clusterID string,
+	ref aiops.EntityRef,
 	entry *aiops.StateMachineEntry,
 	risk *aiops.EntityRisk,
 	clusterRisk *aiops.ClusterRisk,
@@ -74,7 +75,7 @@ func (sm *StateMachine) evaluateEntity(
 
 	duration := time.Duration(now.Unix()-entry.ConditionMetSince) * time.Second
 	if duration >= matched.MinDuration {
-		sm.transition(ctx, clusterID, entry, risk, *matched, now)
+		sm.transition(ctx, ref, entry, risk, *matched, now)
 		entry.ConditionMetSince = 0
 	}
 }
@@ -82,7 +83,7 @@ func (sm *StateMachine) evaluateEntity(
 // transition 执行状态转换
 func (sm *StateMachine) transition(
 	ctx context.Context,
-	clusterID string,
+	ref aiops.EntityRef,
 	entry *aiops.StateMachineEntry,
 	risk *aiops.EntityRisk,
 	cond transitionCondition,
@@ -93,12 +94,12 @@ func (sm *StateMachine) transition(
 
 	switch {
 	case oldState == aiops.StateHealthy && cond.ToState == aiops.StateWarning:
-		incidentID := sm.callback.OnWarningCreated(ctx, clusterID, entry.EntityKey, risk, now)
+		incidentID := sm.callback.OnWarningCreated(ctx, ref.ClusterID, ref.EntityKey, risk, now)
 		entry.IncidentID = incidentID
 
 	case oldState == aiops.StateWarning && cond.ToState == aiops.StateHealthy:
-		sm.callback.OnStable(ctx, entry.IncidentID, entry.EntityKey, now)
-		delete(sm.entries, entry.EntityKey)
+		sm.callback.OnStable(ctx, entry.IncidentID, ref.EntityKey, now)
+		delete(sm.entries, ref)
 
 	case oldState == aiops.StateWarning && cond.ToState == aiops.StateIncident:
 		sm.callback.OnStateEscalated(ctx, entry.IncidentID, aiops.StateIncident, risk, now)
@@ -113,7 +114,8 @@ func (sm *StateMachine) transition(
 	}
 
 	log.Info("状态转换",
-		"entity", entry.EntityKey,
+		"cluster", ref.ClusterID,
+		"entity", ref.EntityKey,
 		"from", oldState,
 		"to", cond.ToState,
 		"rFinal", risk.RFinal,
@@ -132,7 +134,7 @@ func (sm *StateMachine) CheckRecoveryToStable(ctx context.Context) {
 	now := sm.now()
 	stableThreshold := 48 * time.Hour
 
-	for entityKey, entry := range sm.entries {
+	for ref, entry := range sm.entries {
 		if entry.CurrentState != aiops.StateRecovery {
 			continue
 		}
@@ -149,9 +151,9 @@ func (sm *StateMachine) CheckRecoveryToStable(ctx context.Context) {
 		}
 
 		entry.CurrentState = aiops.StateStable
-		sm.callback.OnStable(ctx, entry.IncidentID, entityKey, now)
+		sm.callback.OnStable(ctx, entry.IncidentID, ref.EntityKey, now)
 
-		log.Info("事件已关闭", "entity", entityKey, "incident", entry.IncidentID)
-		delete(sm.entries, entityKey)
+		log.Info("事件已关闭", "cluster", ref.ClusterID, "entity", ref.EntityKey, "incident", entry.IncidentID)
+		delete(sm.entries, ref)
 	}
 }

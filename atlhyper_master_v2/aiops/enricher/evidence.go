@@ -54,7 +54,7 @@ func (e *Enricher) assembleIncidentContext(ctx context.Context, incidentID strin
 	ev := &incidentEvidence{incident: incident, entities: entities, timeline: timeline}
 
 	if incident.RootCause != "" {
-		historical, _ := e.incidentRepo.ListByEntity(ctx, incident.RootCause, time.Now().Add(-historyLookback))
+		historical, _ := e.incidentRepo.ListByEntity(ctx, incident.ClusterID, incident.RootCause, time.Now().Add(-historyLookback))
 		ev.historical = excludeIncident(historical, incident.ID)
 	}
 

@@ -58,31 +58,25 @@ func (r *aiopsBaselineRepo) ListAll(ctx context.Context) ([]*database.AIOpsBasel
 	return result, rows.Err()
 }
 
-// ListByEntity 按实体查询基线状态
-func (r *aiopsBaselineRepo) ListByEntity(ctx context.Context, entityKey string) ([]*database.AIOpsBaselineState, error) {
-	query, args := r.dialect.SelectByEntity(entityKey)
-	rows, err := r.db.QueryContext(ctx, query, args...)
+// DeleteEntities 删除某个集群里若干实体的全部基线行，一个事务内完成
+func (r *aiopsBaselineRepo) DeleteEntities(ctx context.Context, clusterID string, entityKeys []string) error {
+	if len(entityKeys) == 0 {
+		return nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer rows.Close()
+	defer tx.Rollback()
 
-	var result []*database.AIOpsBaselineState
-	for rows.Next() {
-		s, err := r.dialect.ScanRow(rows)
-		if err != nil {
-			return nil, err
+	for _, entityKey := range entityKeys {
+		query, args := r.dialect.DeleteEntity(clusterID, entityKey)
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+			return err
 		}
-		result = append(result, s)
 	}
-	return result, rows.Err()
-}
 
-// DeleteByEntity 按实体删除基线状态
-func (r *aiopsBaselineRepo) DeleteByEntity(ctx context.Context, entityKey string) error {
-	query, args := r.dialect.DeleteByEntity(entityKey)
-	_, err := r.db.ExecContext(ctx, query, args...)
-	return err
+	return tx.Commit()
 }
 
 // 确保实现了接口
