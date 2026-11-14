@@ -14,8 +14,8 @@ import { Conversation, Message, StreamSegment, ChatStats } from "@/components/ai
 // ============================================================
 
 /** 获取对话列表 */
-export function getConversations(limit = 20, offset = 0) {
-  return get<Conversation[]>("/api/v2/ai/conversations", { limit, offset });
+export function getConversations(limit = 20, offset = 0, signal?: AbortSignal) {
+  return get<Conversation[]>("/api/v2/ai/conversations", { limit, offset }, signal);
 }
 
 /** 创建对话 */
@@ -32,8 +32,8 @@ export function deleteConversation(id: number) {
 }
 
 /** 获取对话消息历史 */
-export function getMessages(conversationId: number) {
-  return get<Message[]>(`/api/v2/ai/conversations/${conversationId}/messages`);
+export function getMessages(conversationId: number, signal?: AbortSignal) {
+  return get<Message[]>(`/api/v2/ai/conversations/${conversationId}/messages`, undefined, signal);
 }
 
 // ============================================================

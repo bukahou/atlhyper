@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { getAIReportDetail } from "@/api/aiops";
-import type { AIReport, AIReportDetail, Recommendation, SimilarMatch } from "@/api/aiops";
+import type { AIReport, Recommendation, SimilarMatch } from "@/api/aiops";
+import { aiReportDetailQuery } from "@/queries/aiops-ai";
 import { InvestigationTimeline } from "./InvestigationTimeline";
 
 const ROLE_STYLES: Record<string, string> = {
@@ -43,23 +44,12 @@ export function AIReportCard({ report }: AIReportCardProps) {
   const { t } = useI18n();
   const aiT = t.aiops.ai;
   const [expanded, setExpanded] = useState(false);
-  const [detail, setDetail] = useState<AIReportDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  // 正文只在展开时取；报告生成后不再变化，再次展开直接用缓存。取不到时退回显示摘要
+  const detailQuery = useQuery(aiReportDetailQuery(report.id, expanded));
+  const detail = detailQuery.data;
+  const loadingDetail = expanded && detailQuery.isPending;
 
-  const handleToggle = async () => {
-    if (!expanded && !detail) {
-      setLoadingDetail(true);
-      try {
-        const d = await getAIReportDetail(report.id);
-        setDetail(d);
-      } catch (err) {
-        console.error("Failed to load report detail:", err);
-      } finally {
-        setLoadingDetail(false);
-      }
-    }
-    setExpanded(!expanded);
-  };
+  const handleToggle = () => setExpanded((current) => !current);
 
   const triggerKey = TRIGGER_MAP[report.trigger] || report.trigger;
   const triggerLabel = (aiT as Record<string, string>)[triggerKey] || report.trigger;

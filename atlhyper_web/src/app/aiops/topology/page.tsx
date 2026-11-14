@@ -1,36 +1,47 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
+import { QueryView } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { useManualRefetch } from "@/hooks/useManualRefetch";
+import { useScopedState } from "@/hooks/useScopedState";
 import { useI18n } from "@/i18n/context";
-import { useClusterStore } from "@/store/clusterStore";
-import { RefreshCw, Loader2, WifiOff, AlertTriangle, CheckCircle2, Pause, Play } from "lucide-react";
+import { dependencyGraphQuery, entityRisksQuery } from "@/queries/aiops";
+import { aiopsKeys } from "@/queries/keys";
+import { REFRESH } from "@/queries/refresh";
+import { RefreshCw, CheckCircle2, Pause, Play } from "lucide-react";
 
 import { TopologyGraph } from "./components/TopologyGraph";
 import { NodeDetail } from "./components/NodeDetail";
 import { TopologyToolbar } from "./components/TopologyToolbar";
 import { useFilteredGraph } from "./components/useFilteredGraph";
 
-import { getGraph, getEntityRisks } from "@/api/aiops";
-import type { DependencyGraph, EntityRisk } from "@/api/aiops";
+import type { EntityRisk } from "@/api/aiops";
 
 type ViewMode = "service" | "anomaly" | "full";
 
+/** 拓扑页给节点着色用的风险实体数：取风险最高的前 100 个 */
+const TOPOLOGY_RISK_ENTITY_LIMIT = 100;
+const NO_ENTITY_RISKS: EntityRisk[] = [];
+const NO_NAMESPACE_FILTER = new Set<string>();
+
 export default function TopologyPage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
+  const { clusterId } = useCurrentCluster();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-
-  const [graph, setGraph] = useState<DependencyGraph | null>(null);
-  const [entityRisks, setEntityRisks] = useState<EntityRisk[]>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("anomaly");
-  const [nsFilter, setNsFilter] = useState<Set<string>>(new Set());
   const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // 自动刷新：默认 10 秒；暂停后不再轮询，手动刷新照常可用
+  const pollInterval = autoRefresh ? REFRESH.fast : false;
+  const graphQuery = useQuery(dependencyGraphQuery(clusterId, pollInterval));
+  const risksQuery = useQuery(entityRisksQuery(clusterId, TOPOLOGY_RISK_ENTITY_LIMIT, pollInterval));
+  const { refetch: refreshTopology, isRefetching } = useManualRefetch(aiopsKeys.all);
+  const graph = graphQuery.data ?? null;
+  const entityRisks = risksQuery.data ?? NO_ENTITY_RISKS;
 
   // entityRisks 数组 -> map
   const riskMap = useMemo(() => {
@@ -53,113 +64,31 @@ export default function TopologyPage() {
     return [...nsSet].sort();
   }, [graph]);
 
-  const toggleNs = useCallback((ns: string) => {
-    setNsFilter((prev) => {
-      const next = new Set(prev);
+  // namespace 筛选依附于视图：换视图就作废。用户没动过筛选（null）时用该视图的默认值 ——
+  // Full 视图默认只看第一个 namespace，避免全量展示节点过多；其余视图不筛选
+  const [chosenNamespaces, setChosenNamespaces] = useScopedState<Set<string> | null>(viewMode, null);
+  const firstNamespace = allNamespaces[0];
+  const defaultNamespaces = useMemo(
+    () => (viewMode === "full" && firstNamespace !== undefined ? new Set([firstNamespace]) : NO_NAMESPACE_FILTER),
+    [viewMode, firstNamespace],
+  );
+  const nsFilter = chosenNamespaces ?? defaultNamespaces;
+
+  const toggleNs = useCallback(
+    (ns: string) => {
+      const next = new Set(nsFilter);
       if (next.has(ns)) next.delete(ns);
       else next.add(ns);
-      return next;
-    });
-  }, []);
-
-  // Full 视图默认选中第一个 namespace，避免全量展示节点过多
-  const fullInitedRef = useRef(false);
-  useEffect(() => {
-    if (viewMode === "full") {
-      if (!fullInitedRef.current && allNamespaces.length > 0) {
-        fullInitedRef.current = true;
-        setNsFilter(new Set([allNamespaces[0]]));
-      }
-    } else {
-      fullInitedRef.current = false;
-      setNsFilter(new Set());
-    }
-  }, [viewMode, allNamespaces]);
+      setChosenNamespaces(next);
+    },
+    [nsFilter, setChosenNamespaces],
+  );
 
   // 按视图模式过滤图数据
   const filteredGraph = useFilteredGraph(graph, entityRisks, viewMode, nsFilter);
 
-  // 切换视图时，如果选中节点不在新视图中，清除选中
-  useEffect(() => {
-    if (selectedNode && filteredGraph && !filteredGraph.nodes[selectedNode]) {
-      setSelectedNode(null);
-    }
-  }, [filteredGraph, selectedNode]);
-
-  const loadData = useCallback(
-    async (showLoading = true) => {
-      if (!currentClusterId) return;
-      if (showLoading) setIsRefreshing(true);
-
-      try {
-        const [graphData, risks] = await Promise.all([
-          getGraph(currentClusterId),
-          getEntityRisks(currentClusterId, "r_final", 100),
-        ]);
-        setGraph(graphData);
-        setEntityRisks(risks);
-        setError(null);
-        setLastUpdate(new Date());
-      } catch (err) {
-        console.error("Failed to load topology:", err);
-        setError(t.aiops.loadFailed);
-      } finally {
-        setLoading(false);
-        setIsRefreshing(false);
-      }
-    },
-    [currentClusterId, t.aiops.loadFailed]
-  );
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // 自动刷新：默认 10s 间隔
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(() => loadData(false), 10_000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, loadData]);
-
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center h-96">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-        </div>
-      </Layout>
-    );
-  }
-
-  if (!currentClusterId) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center h-96 text-center">
-          <WifiOff className="w-12 h-12 mb-4 text-muted" />
-          <p className="text-default font-medium mb-2">{t.aiops.noCluster}</p>
-          <p className="text-sm text-muted">{t.aiops.noClusterDesc}</p>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (error && !graph) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center h-96 text-center">
-          <AlertTriangle className="w-12 h-12 mb-4 text-yellow-500" />
-          <p className="text-default font-medium mb-2">{error}</p>
-          <button
-            onClick={() => loadData(true)}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            {t.aiops.retry}
-          </button>
-        </div>
-      </Layout>
-    );
-  }
+  // 选中的节点不在当前视图里（切了视图、或它从图里消失了）就当作没有选中
+  const visibleSelectedNode = selectedNode && filteredGraph?.nodes[selectedNode] ? selectedNode : null;
 
   const showEmptyAnomaly =
     viewMode === "anomaly" &&
@@ -176,9 +105,11 @@ export default function TopologyPage() {
             <p className="text-xs sm:text-sm text-muted mt-1">{t.aiops.dependencyGraph}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            <span className="text-[10px] sm:text-xs text-muted hidden sm:block">
-              {t.aiops.lastUpdate}: {lastUpdate.toLocaleTimeString()}
-            </span>
+            {graphQuery.dataUpdatedAt > 0 && (
+              <span className="text-[10px] sm:text-xs text-muted hidden sm:block">
+                {t.aiops.lastUpdate}: {new Date(graphQuery.dataUpdatedAt).toLocaleTimeString()}
+              </span>
+            )}
             <button
               onClick={() => setAutoRefresh((v) => !v)}
               className={`p-2 rounded-lg hover:bg-[var(--hover-bg)] transition-colors ${
@@ -189,54 +120,64 @@ export default function TopologyPage() {
               {autoRefresh ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             </button>
             <button
-              onClick={() => loadData(true)}
-              disabled={isRefreshing}
+              onClick={refreshTopology}
+              disabled={isRefetching}
+              title={t.common.refresh}
               className="p-2 rounded-lg hover:bg-[var(--hover-bg)] text-muted hover:text-default transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
 
-        {/* 视图切换 + 图例 + Namespace 筛选 */}
-        <TopologyToolbar
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          allNamespaces={allNamespaces}
-          nsFilter={nsFilter}
-          onToggleNs={toggleNs}
-          onResetNsFilter={() => setNsFilter(new Set())}
-        />
+        <QueryView query={graphQuery} requireCluster>
+          {() => (
+            <>
+              {/* 视图切换 + 图例 + Namespace 筛选 */}
+              <TopologyToolbar
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                allNamespaces={allNamespaces}
+                nsFilter={nsFilter}
+                onToggleNs={toggleNs}
+                onResetNsFilter={() => setChosenNamespaces(NO_NAMESPACE_FILTER)}
+              />
 
-        {/* Anomaly 空状态 */}
-        {showEmptyAnomaly && (
-          <div className="flex flex-col items-center justify-center h-96 text-center">
-            <CheckCircle2 className="w-12 h-12 mb-4 text-emerald-500" />
-            <p className="text-default font-medium">{t.aiops.noAnomalies}</p>
-          </div>
-        )}
-
-        {/* 主体: 图 + 详情 */}
-        {filteredGraph && !showEmptyAnomaly && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4" style={{ height: "calc(100vh - 300px)" }}>
-            <TopologyGraph
-              graph={filteredGraph}
-              entityRisks={riskMap}
-              selectedNode={selectedNode}
-              onNodeSelect={setSelectedNode}
-            />
-
-            <div className="bg-card rounded-xl border border-[var(--border-color)] p-4 overflow-y-auto">
-              {selectedNode ? (
-                <NodeDetail entityKey={selectedNode} clusterId={currentClusterId} />
-              ) : (
-                <div className="flex items-center justify-center h-full text-sm text-muted">
-                  {t.aiops.selectNode}
+              {/* Anomaly 空状态 */}
+              {showEmptyAnomaly && (
+                <div className="flex flex-col items-center justify-center h-96 text-center">
+                  <CheckCircle2 className="w-12 h-12 mb-4 text-emerald-500" />
+                  <p className="text-default font-medium">{t.aiops.noAnomalies}</p>
                 </div>
               )}
-            </div>
-          </div>
-        )}
+
+              {/* 主体: 图 + 详情 */}
+              {filteredGraph && !showEmptyAnomaly && (
+                <div
+                  className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4"
+                  style={{ height: "calc(100vh - 300px)" }}
+                >
+                  <TopologyGraph
+                    graph={filteredGraph}
+                    entityRisks={riskMap}
+                    selectedNode={visibleSelectedNode}
+                    onNodeSelect={setSelectedNode}
+                  />
+
+                  <div className="bg-card rounded-xl border border-[var(--border-color)] p-4 overflow-y-auto">
+                    {visibleSelectedNode ? (
+                      <NodeDetail entityKey={visibleSelectedNode} clusterId={clusterId} />
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-sm text-muted">
+                        {t.aiops.selectNode}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </QueryView>
       </div>
     </Layout>
   );
