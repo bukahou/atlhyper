@@ -2,73 +2,63 @@
 
 import type { Permission } from "@/types/auth";
 import { useState } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { getSecretData } from "@/api/namespace";
-import { useClusterStore } from "@/store/clusterStore";
-import type { SecretDTO } from "@/types/cluster";
+import { useCan } from "@/hooks/useCan";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { secretListQuery } from "@/queries/cluster";
+import { secretDataQuery } from "@/queries/cluster-content";
 import type { useI18n } from "@/i18n/context";
 
 interface SecretsTabProps {
-  secrets: SecretDTO[];
-  loading: boolean;
   requireAuth: (action: () => void, permission?: Permission) => boolean;
   namespace: string;
   t: ReturnType<typeof useI18n>["t"];
 }
 
-export function SecretsTab({
-  secrets,
-  loading,
-  requireAuth,
-  namespace,
-  t,
-}: SecretsTabProps) {
-  const { currentClusterId } = useClusterStore();
-  const [expandedSecrets, setExpandedSecrets] = useState<Set<string>>(new Set());
-  const [secretDataMap, setSecretDataMap] = useState<Record<string, Record<string, string>>>({});
-  const [loadingSecrets, setLoadingSecrets] = useState<Set<string>>(new Set());
+export function SecretsTab({ requireAuth, namespace, t }: SecretsTabProps) {
+  const { clusterId } = useCurrentCluster();
+  const can = useCan();
+  const listQuery = useQuery(secretListQuery(clusterId, namespace, can("secret.read")));
+  const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
+  // 展开过的 Secret。内容的查询按这份名单挂着，所以收起再展开不会重新取；
+  // 离开本标签页时名单随组件销毁，内容也随之从缓存丢弃
+  const [requestedNames, setRequestedNames] = useState<string[]>([]);
+  const contentQueries = useQueries({
+    queries: requestedNames.map((name) => secretDataQuery(clusterId, { namespace, name })),
+  });
+  const contentQueryOf = (name: string) => {
+    const position = requestedNames.indexOf(name);
+    return position === -1 ? undefined : contentQueries[position];
+  };
 
-  const toggleExpand = async (name: string) => {
-    const isExpanded = expandedSecrets.has(name);
-    if (isExpanded) {
-      setExpandedSecrets((prev) => {
+  const toggleExpand = (name: string) => {
+    if (expandedNames.has(name)) {
+      setExpandedNames((prev) => {
         const next = new Set(prev);
         next.delete(name);
         return next;
       });
-    } else {
-      requireAuth(async () => {
-        setExpandedSecrets((prev) => {
-          const next = new Set(prev);
-          next.add(name);
-          return next;
-        });
-
-        if (secretDataMap[name]) return;
-
-        setLoadingSecrets((prev) => new Set(prev).add(name));
-        try {
-          const data = await getSecretData({
-            ClusterID: currentClusterId,
-            Namespace: namespace,
-            Name: name,
-          });
-          setSecretDataMap((prev) => ({ ...prev, [name]: data }));
-        } catch (err) {
-          console.error("Failed to fetch Secret data:", err);
-        } finally {
-          setLoadingSecrets((prev) => {
-            const next = new Set(prev);
-            next.delete(name);
-            return next;
-          });
-        }
-      }, "secret.read");
+      return;
     }
+    requireAuth(() => {
+      setExpandedNames((prev) => new Set(prev).add(name));
+      const contentQuery = contentQueryOf(name);
+      if (contentQuery === undefined) {
+        setRequestedNames((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      } else if (contentQuery.isError) {
+        // 上次没取到的，再展开时重新取一次
+        void contentQuery.refetch();
+      }
+    }, "secret.read");
   };
 
-  if (loading) {
+  const secrets = listQuery.data;
+  if (secrets === undefined) {
+    if (listQuery.isError) {
+      return <div className="text-center py-8 text-muted">{t.common.loadFailed}</div>;
+    }
     return (
       <div className="py-8">
         <LoadingSpinner />
@@ -83,9 +73,10 @@ export function SecretsTab({
   return (
     <div className="space-y-3">
       {secrets.map((secret) => {
-        const isExpanded = expandedSecrets.has(secret.name);
-        const isLoadingData = loadingSecrets.has(secret.name);
-        const secretData = secretDataMap[secret.name];
+        const isExpanded = expandedNames.has(secret.name);
+        const contentQuery = contentQueryOf(secret.name);
+        const isLoadingData = contentQuery?.isFetching ?? false;
+        const secretData = contentQuery?.data;
 
         return (
           <div key={secret.name} className="bg-[var(--background)] rounded-lg overflow-hidden">

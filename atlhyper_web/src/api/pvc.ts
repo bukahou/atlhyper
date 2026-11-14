@@ -68,13 +68,14 @@ interface ClusterResourceParams {
 // API Functions
 // ============================================================
 
-export function getPVCList(params: ClusterResourceParams) {
-  return get<ListResponse<PVCItem>>("/api/v2/pvcs", params);
+export function getPVCList(params: ClusterResourceParams, signal?: AbortSignal) {
+  return get<ListResponse<PVCItem>>("/api/v2/pvcs", params, signal);
 }
 
-export function getPVCDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
+export function getPVCDetail(params: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<DetailResponse<PVCDetail>>(
     `/api/v2/pvcs/${encodeURIComponent(params.Name)}`,
-    { cluster_id: params.ClusterID, namespace: params.Namespace }
+    { cluster_id: params.ClusterID, namespace: params.Namespace },
+    signal,
   );
 }

@@ -74,13 +74,14 @@ interface ClusterResourceParams {
 // API Functions
 // ============================================================
 
-export function getCronJobList(params: ClusterResourceParams) {
-  return get<ListResponse<CronJobItem>>("/api/v2/cronjobs", params);
+export function getCronJobList(params: ClusterResourceParams, signal?: AbortSignal) {
+  return get<ListResponse<CronJobItem>>("/api/v2/cronjobs", params, signal);
 }
 
-export function getCronJobDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
+export function getCronJobDetail(params: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<DetailResponse<CronJobDetail>>(
     `/api/v2/cronjobs/${encodeURIComponent(params.Name)}`,
-    { cluster_id: params.ClusterID, namespace: params.Namespace }
+    { cluster_id: params.ClusterID, namespace: params.Namespace },
+    signal,
   );
 }

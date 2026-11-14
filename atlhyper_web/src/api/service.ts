@@ -36,21 +36,22 @@ interface ServiceListResponse {
  * 获取 Service 列表
  * GET /api/v2/services?cluster_id=xxx&namespace=xxx
  */
-export function getServiceList(params: ServiceListParams) {
-  return get<ServiceListResponse>("/api/v2/services", params);
+export function getServiceList(params: ServiceListParams, signal?: AbortSignal) {
+  return get<ServiceListResponse>("/api/v2/services", params, signal);
 }
 
 /**
  * 获取 Service 详情
  * GET /api/v2/services/{name}?cluster_id=xxx&namespace=xxx
  */
-export async function getServiceDetail(data: { ClusterID: string; Namespace: string; Name: string }) {
+export async function getServiceDetail(data: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<{ message: string; data: ServiceDetail }>(
     `/api/v2/services/${encodeURIComponent(data.Name)}`,
     {
       cluster_id: data.ClusterID,
       namespace: data.Namespace,
-    }
+    },
+    signal,
   );
 }
 
@@ -61,8 +62,8 @@ export async function getServiceDetail(data: { ClusterID: string; Namespace: str
 /**
  * 获取 Service 概览（包含统计卡片和列表）
  */
-export async function getServiceOverview(data: { ClusterID: string }) {
-  const response = await getServiceList({ cluster_id: data.ClusterID });
+export async function getServiceOverview(data: { ClusterID: string }, signal?: AbortSignal) {
+  const response = await getServiceList({ cluster_id: data.ClusterID }, signal);
   const items = response.data.data || [];
 
   let externalServices = 0;

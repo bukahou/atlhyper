@@ -1,265 +1,170 @@
 /**
- * Cluster 数据源代理
+ * Cluster 数据源代理 —— 核心资源（Pod / Node / Deployment / Service / Namespace / Ingress / Event）
  *
- * 根据中心配置自动切换 mock / api
+ * 根据中心配置自动切换 mock / api。约定：
+ * - 读函数返回解包后的数据（查询工厂与页面不碰 axios 响应），mock 分支返回相同形态
+ * - 读函数最后一个参数是可选的 AbortSignal，原样交给 api 层，用于取消请求
+ *
+ * 工作负载 / 存储 / 策略类资源按侧边栏分组放在 cluster-*.ts，从这里统一再导出，
+ * 所以 `@/datasource/cluster` 仍然是集群数据的唯一入口。
  */
 
 import { getDataSourceMode } from "@/config/data-source";
-
-// ============================================================
-// Mock imports
-// ============================================================
-
 import {
-  mockGetPodList,
   mockGetPodOverview,
   mockGetPodDetail,
-  mockGetNodeList,
   mockGetNodeOverview,
   mockGetNodeDetail,
-  mockGetDeploymentList,
   mockGetDeploymentOverview,
   mockGetDeploymentDetail,
-  mockGetServiceList,
   mockGetServiceOverview,
   mockGetServiceDetail,
-  mockGetNamespaceList,
   mockGetNamespaceOverview,
   mockGetNamespaceDetail,
   mockGetConfigMapList,
   mockGetSecretList,
-  mockGetIngressList,
   mockGetIngressOverview,
   mockGetIngressDetail,
-  mockGetEventList,
   mockGetEventOverview,
-  mockGetStatefulSetList,
-  mockGetStatefulSetDetail,
-  mockGetDaemonSetList,
-  mockGetDaemonSetDetail,
-  mockGetJobList,
-  mockGetJobDetail,
-  mockGetCronJobList,
-  mockGetCronJobDetail,
-  mockGetPVList,
-  mockGetPVDetail,
-  mockGetPVCList,
-  mockGetPVCDetail,
-  mockGetNetworkPolicyList,
-  mockGetNetworkPolicyDetail,
-  mockGetResourceQuotaList,
-  mockGetResourceQuotaDetail,
-  mockGetLimitRangeList,
-  mockGetLimitRangeDetail,
-  mockGetServiceAccountList,
-  mockGetServiceAccountDetail,
 } from "@/mock/cluster";
+import * as podApi from "@/api/pod";
+import * as nodeApi from "@/api/node";
+import * as deploymentApi from "@/api/deployment";
+import * as serviceApi from "@/api/service";
+import * as namespaceApi from "@/api/namespace";
+import * as ingressApi from "@/api/ingress";
+import * as eventApi from "@/api/event";
+import type { NamespacedResourceParams } from "./cluster-params";
 
-// ============================================================
-// API imports
-// ============================================================
-
-import {
-  getPodList as apiGetPodList,
-  getPodOverview as apiGetPodOverview,
-  getPodDetail as apiGetPodDetail,
-} from "@/api/pod";
-
-import {
-  getNodeList as apiGetNodeList,
-  getNodeOverview as apiGetNodeOverview,
-  getNodeDetail as apiGetNodeDetail,
-} from "@/api/node";
-
-import {
-  getDeploymentList as apiGetDeploymentList,
-  getDeploymentOverview as apiGetDeploymentOverview,
-  getDeploymentDetail as apiGetDeploymentDetail,
-} from "@/api/deployment";
-
-import {
-  getServiceList as apiGetServiceList,
-  getServiceOverview as apiGetServiceOverview,
-  getServiceDetail as apiGetServiceDetail,
-} from "@/api/service";
-
-import {
-  getNamespaceList as apiGetNamespaceList,
-  getNamespaceOverview as apiGetNamespaceOverview,
-  getNamespaceDetail as apiGetNamespaceDetail,
-  getConfigMapList as apiGetConfigMapList,
-  getSecretList as apiGetSecretList,
-} from "@/api/namespace";
-
-import {
-  getIngressList as apiGetIngressList,
-  getIngressOverview as apiGetIngressOverview,
-  getIngressDetail as apiGetIngressDetail,
-} from "@/api/ingress";
-
-import {
-  getEventList as apiGetEventList,
-  getEventOverview as apiGetEventOverview,
-} from "@/api/event";
-
-import {
-  getStatefulSetList as apiGetStatefulSetList,
-  getStatefulSetDetail as apiGetStatefulSetDetail,
-  getDaemonSetList as apiGetDaemonSetList,
-  getDaemonSetDetail as apiGetDaemonSetDetail,
-} from "@/api/workload";
-
-import {
-  getJobList as apiGetJobList,
-  getJobDetail as apiGetJobDetail,
-  getCronJobList as apiGetCronJobList,
-  getCronJobDetail as apiGetCronJobDetail,
-  getPVList as apiGetPVList,
-  getPVDetail as apiGetPVDetail,
-  getPVCList as apiGetPVCList,
-  getPVCDetail as apiGetPVCDetail,
-  getNetworkPolicyList as apiGetNetworkPolicyList,
-  getNetworkPolicyDetail as apiGetNetworkPolicyDetail,
-  getResourceQuotaList as apiGetResourceQuotaList,
-  getResourceQuotaDetail as apiGetResourceQuotaDetail,
-  getLimitRangeList as apiGetLimitRangeList,
-  getLimitRangeDetail as apiGetLimitRangeDetail,
-  getServiceAccountList as apiGetServiceAccountList,
-  getServiceAccountDetail as apiGetServiceAccountDetail,
-} from "@/api/cluster-resources";
+export * from "./cluster-workload";
+export * from "./cluster-storage";
+export * from "./cluster-policy";
 
 // ============================================================
 // Pod
 // ============================================================
 
-export function getPodList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("pod") === "mock") return mockGetPodList({ namespace: params.namespace });
-  return apiGetPodList(params);
+export async function getPodOverview(params: { ClusterID: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("pod") === "mock") return mockGetPodOverview().data.data;
+  return (await podApi.getPodOverview(params, signal)).data.data;
 }
 
-export function getPodOverview(params: { ClusterID: string }) {
-  if (getDataSourceMode("pod") === "mock") return mockGetPodOverview();
-  return apiGetPodOverview(params);
+/** Pod 详情。演示数据里找不到该 Pod 时返回 null */
+export async function getPodDetail(
+  params: { ClusterID: string; Namespace: string; PodName: string },
+  signal?: AbortSignal,
+) {
+  if (getDataSourceMode("pod") === "mock") return mockGetPodDetail(params.PodName, params.Namespace).data.data;
+  return (await podApi.getPodDetail(params, signal)).data.data;
 }
 
-export function getPodDetail(params: { ClusterID: string; Namespace: string; PodName: string }) {
-  if (getDataSourceMode("pod") === "mock") return mockGetPodDetail(params.PodName, params.Namespace);
-  return apiGetPodDetail(params);
+/**
+ * Pod 日志文本（没有日志时为空串）。
+ *
+ * 没有演示数据：日志由 Agent 现场读取容器输出，经指令通道同步返回。
+ */
+export async function getPodLogs(
+  params: { ClusterID: string; Namespace: string; Pod: string; Container?: string; TailLines?: number },
+  signal?: AbortSignal,
+) {
+  return (await podApi.getPodLogs(params, signal)).data.data?.logs ?? "";
 }
 
 // ============================================================
 // Node
 // ============================================================
 
-export function getNodeList(params: { cluster_id: string }) {
-  if (getDataSourceMode("node") === "mock") return mockGetNodeList();
-  return apiGetNodeList(params);
+export async function getNodeOverview(params: { ClusterID: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("node") === "mock") return mockGetNodeOverview().data.data;
+  return (await nodeApi.getNodeOverview(params, signal)).data.data;
 }
 
-export function getNodeOverview(params: { ClusterID: string }) {
-  if (getDataSourceMode("node") === "mock") return mockGetNodeOverview();
-  return apiGetNodeOverview(params);
-}
-
-export function getNodeDetail(params: { ClusterID: string; NodeName: string }) {
-  if (getDataSourceMode("node") === "mock") return mockGetNodeDetail(params.NodeName);
-  return apiGetNodeDetail(params);
+export async function getNodeDetail(params: { ClusterID: string; NodeName: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("node") === "mock") return mockGetNodeDetail(params.NodeName).data.data;
+  return (await nodeApi.getNodeDetail(params, signal)).data.data;
 }
 
 // ============================================================
 // Deployment
 // ============================================================
 
-export function getDeploymentList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("deployment") === "mock") return mockGetDeploymentList({ namespace: params.namespace });
-  return apiGetDeploymentList(params);
+export async function getDeploymentOverview(params: { ClusterID: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("deployment") === "mock") return mockGetDeploymentOverview().data.data;
+  return (await deploymentApi.getDeploymentOverview(params, signal)).data.data;
 }
 
-export function getDeploymentOverview(params: { ClusterID: string }) {
-  if (getDataSourceMode("deployment") === "mock") return mockGetDeploymentOverview();
-  return apiGetDeploymentOverview(params);
-}
-
-export function getDeploymentDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("deployment") === "mock") return mockGetDeploymentDetail(params.Name, params.Namespace);
-  return apiGetDeploymentDetail(params);
+export async function getDeploymentDetail(params: NamespacedResourceParams, signal?: AbortSignal) {
+  if (getDataSourceMode("deployment") === "mock") {
+    return mockGetDeploymentDetail(params.Name, params.Namespace).data.data;
+  }
+  return (await deploymentApi.getDeploymentDetail(params, signal)).data.data;
 }
 
 // ============================================================
 // Service
 // ============================================================
 
-export function getServiceList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("service") === "mock") return mockGetServiceList({ namespace: params.namespace });
-  return apiGetServiceList(params);
+export async function getServiceOverview(params: { ClusterID: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("service") === "mock") return mockGetServiceOverview().data.data;
+  return (await serviceApi.getServiceOverview(params, signal)).data.data;
 }
 
-export function getServiceOverview(params: { ClusterID: string }) {
-  if (getDataSourceMode("service") === "mock") return mockGetServiceOverview();
-  return apiGetServiceOverview(params);
-}
-
-export function getServiceDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("service") === "mock") return mockGetServiceDetail(params.Name, params.Namespace);
-  return apiGetServiceDetail(params);
+export async function getServiceDetail(params: NamespacedResourceParams, signal?: AbortSignal) {
+  if (getDataSourceMode("service") === "mock") return mockGetServiceDetail(params.Name, params.Namespace).data.data;
+  return (await serviceApi.getServiceDetail(params, signal)).data.data;
 }
 
 // ============================================================
-// Namespace
+// Namespace（含其下的 ConfigMap / Secret）
 // ============================================================
 
-export function getNamespaceList(params: { cluster_id: string }) {
-  if (getDataSourceMode("namespace") === "mock") return mockGetNamespaceList();
-  return apiGetNamespaceList(params);
+export async function getNamespaceOverview(params: { ClusterID: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("namespace") === "mock") return mockGetNamespaceOverview().data.data;
+  return (await namespaceApi.getNamespaceOverview(params, signal)).data.data;
 }
 
-export function getNamespaceOverview(params: { ClusterID: string }) {
-  if (getDataSourceMode("namespace") === "mock") return mockGetNamespaceOverview();
-  return apiGetNamespaceOverview(params);
+export async function getNamespaceDetail(params: { ClusterID: string; Namespace: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("namespace") === "mock") return mockGetNamespaceDetail(params.Namespace).data.data;
+  return (await namespaceApi.getNamespaceDetail(params, signal)).data.data;
 }
 
-export function getNamespaceDetail(params: { ClusterID: string; Namespace: string }) {
-  if (getDataSourceMode("namespace") === "mock") return mockGetNamespaceDetail(params.Namespace);
-  return apiGetNamespaceDetail(params);
+export async function getConfigMapList(params: { cluster_id: string; namespace: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("namespace") === "mock") return mockGetConfigMapList(params.namespace).data.data;
+  return (await namespaceApi.getConfigMapList(params, signal)).data.data ?? [];
 }
 
-export function getConfigMapList(params: { cluster_id: string; namespace: string }) {
-  if (getDataSourceMode("namespace") === "mock") return mockGetConfigMapList(params.namespace);
-  return apiGetConfigMapList(params);
+export async function getSecretList(params: { cluster_id: string; namespace: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("namespace") === "mock") return mockGetSecretList(params.namespace).data.data;
+  return (await namespaceApi.getSecretList(params, signal)).data.data ?? [];
 }
 
-export function getSecretList(params: { cluster_id: string; namespace: string }) {
-  if (getDataSourceMode("namespace") === "mock") return mockGetSecretList(params.namespace);
-  return apiGetSecretList(params);
+/** ConfigMap 的键值内容。没有演示数据：内容经指令通道由 Agent 现场读取 */
+export function getConfigMapData(params: NamespacedResourceParams, signal?: AbortSignal) {
+  return namespaceApi.getConfigMapData(params, signal);
+}
+
+/** Secret 的键值内容。没有演示数据：内容经指令通道由 Agent 现场读取 */
+export function getSecretData(params: NamespacedResourceParams, signal?: AbortSignal) {
+  return namespaceApi.getSecretData(params, signal);
 }
 
 // ============================================================
 // Ingress
 // ============================================================
 
-export function getIngressList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("ingress") === "mock") return mockGetIngressList({ namespace: params.namespace });
-  return apiGetIngressList(params);
+export async function getIngressOverview(params: { ClusterID: string }, signal?: AbortSignal) {
+  if (getDataSourceMode("ingress") === "mock") return mockGetIngressOverview().data.data;
+  return (await ingressApi.getIngressOverview(params, signal)).data.data;
 }
 
-export function getIngressOverview(params: { ClusterID: string }) {
-  if (getDataSourceMode("ingress") === "mock") return mockGetIngressOverview();
-  return apiGetIngressOverview(params);
-}
-
-export function getIngressDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("ingress") === "mock") return mockGetIngressDetail(params.Name, params.Namespace);
-  return apiGetIngressDetail(params);
+export async function getIngressDetail(params: NamespacedResourceParams, signal?: AbortSignal) {
+  if (getDataSourceMode("ingress") === "mock") return mockGetIngressDetail(params.Name, params.Namespace).data.data;
+  return (await ingressApi.getIngressDetail(params, signal)).data.data;
 }
 
 // ============================================================
 // Event
 // ============================================================
-
-export function getEventList(params: { cluster_id: string; namespace?: string; type?: string }) {
-  if (getDataSourceMode("event") === "mock") return mockGetEventList({ namespace: params.namespace, type: params.type });
-  return apiGetEventList(params);
-}
 
 /** 事件概览。返回解包后的数据；signal 用于取消请求 */
 export async function getEventOverview(
@@ -267,127 +172,23 @@ export async function getEventOverview(
   signal?: AbortSignal,
 ) {
   if (getDataSourceMode("event") === "mock") return mockGetEventOverview().data.data;
-  return (await apiGetEventOverview(params, signal)).data.data;
+  return (await eventApi.getEventOverview(params, signal)).data.data;
+}
+
+/**
+ * 某个资源自己的事件时间线（资源详情里的「事件」标签页用）。
+ *
+ * 没有演示数据：演示用的事件不按资源归档。
+ */
+export async function getEventsByResource(
+  params: { cluster_id: string; kind: string; namespace?: string; name: string },
+  signal?: AbortSignal,
+) {
+  return (await eventApi.getEventsByResource(params, signal)).data.events ?? [];
 }
 
 // ============================================================
-// StatefulSet / DaemonSet
-// ============================================================
-
-export function getStatefulSetList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("statefulset") === "mock") return mockGetStatefulSetList({ namespace: params.namespace });
-  return apiGetStatefulSetList(params);
-}
-
-export function getStatefulSetDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("statefulset") === "mock") return mockGetStatefulSetDetail(params.Name, params.Namespace);
-  return apiGetStatefulSetDetail(params);
-}
-
-export function getDaemonSetList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("daemonset") === "mock") return mockGetDaemonSetList({ namespace: params.namespace });
-  return apiGetDaemonSetList(params);
-}
-
-export function getDaemonSetDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("daemonset") === "mock") return mockGetDaemonSetDetail(params.Name, params.Namespace);
-  return apiGetDaemonSetDetail(params);
-}
-
-// ============================================================
-// Job / CronJob
-// ============================================================
-
-export function getJobList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("job") === "mock") return mockGetJobList({ namespace: params.namespace });
-  return apiGetJobList(params);
-}
-
-export function getJobDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("job") === "mock") return mockGetJobDetail(params.Name, params.Namespace);
-  return apiGetJobDetail(params);
-}
-
-export function getCronJobList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("cronjob") === "mock") return mockGetCronJobList({ namespace: params.namespace });
-  return apiGetCronJobList(params);
-}
-
-export function getCronJobDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("cronjob") === "mock") return mockGetCronJobDetail(params.Name, params.Namespace);
-  return apiGetCronJobDetail(params);
-}
-
-// ============================================================
-// Storage (PV / PVC)
-// ============================================================
-
-export function getPVList(params: { cluster_id: string }) {
-  if (getDataSourceMode("pv") === "mock") return mockGetPVList();
-  return apiGetPVList(params);
-}
-
-export function getPVDetail(params: { ClusterID: string; Name: string }) {
-  if (getDataSourceMode("pv") === "mock") return mockGetPVDetail(params.Name);
-  return apiGetPVDetail(params);
-}
-
-export function getPVCList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("pvc") === "mock") return mockGetPVCList({ namespace: params.namespace });
-  return apiGetPVCList(params);
-}
-
-export function getPVCDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("pvc") === "mock") return mockGetPVCDetail(params.Name, params.Namespace);
-  return apiGetPVCDetail(params);
-}
-
-// ============================================================
-// Policy (NetworkPolicy / ResourceQuota / LimitRange / ServiceAccount)
-// ============================================================
-
-export function getNetworkPolicyList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("netpol") === "mock") return mockGetNetworkPolicyList({ namespace: params.namespace });
-  return apiGetNetworkPolicyList(params);
-}
-
-export function getNetworkPolicyDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("netpol") === "mock") return mockGetNetworkPolicyDetail(params.Name, params.Namespace);
-  return apiGetNetworkPolicyDetail(params);
-}
-
-export function getResourceQuotaList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("quota") === "mock") return mockGetResourceQuotaList({ namespace: params.namespace });
-  return apiGetResourceQuotaList(params);
-}
-
-export function getResourceQuotaDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("quota") === "mock") return mockGetResourceQuotaDetail(params.Name, params.Namespace);
-  return apiGetResourceQuotaDetail(params);
-}
-
-export function getLimitRangeList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("limit") === "mock") return mockGetLimitRangeList({ namespace: params.namespace });
-  return apiGetLimitRangeList(params);
-}
-
-export function getLimitRangeDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("limit") === "mock") return mockGetLimitRangeDetail(params.Name, params.Namespace);
-  return apiGetLimitRangeDetail(params);
-}
-
-export function getServiceAccountList(params: { cluster_id: string; namespace?: string }) {
-  if (getDataSourceMode("sa") === "mock") return mockGetServiceAccountList({ namespace: params.namespace });
-  return apiGetServiceAccountList(params);
-}
-
-export function getServiceAccountDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
-  if (getDataSourceMode("sa") === "mock") return mockGetServiceAccountDetail(params.Name, params.Namespace);
-  return apiGetServiceAccountDetail(params);
-}
-
-// ============================================================
-// Write operations — always use real API (no mock needed)
+// 写操作 —— 一律走真实接口（指令下发，没有演示数据）
 // ============================================================
 
 export { restartPod } from "@/api/pod";

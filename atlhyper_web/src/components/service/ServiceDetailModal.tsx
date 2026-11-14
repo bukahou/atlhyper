@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Drawer } from "@/components/common/Drawer";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { DetailQueryView } from "@/components/common/DetailQueryView";
 import { StatusBadge } from "@/components/common";
-import { getServiceDetail } from "@/datasource/cluster";
-import { useClusterStore } from "@/store/clusterStore";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { serviceDetailQuery } from "@/queries/cluster";
 import { useI18n } from "@/i18n/context";
-import type { ServiceDetail, ServicePort, BackendEndpoint } from "@/types/cluster";
+import type { ServicePort, BackendEndpoint } from "@/types/cluster";
 import { ServiceOverviewTab } from "./ServiceOverviewTab";
 import {
   Globe,
@@ -27,43 +28,24 @@ interface ServiceDetailModalProps {
 
 type TabType = "overview" | "ports" | "endpoints" | "selector";
 
-export function ServiceDetailModal({
-  isOpen,
-  onClose,
-  namespace,
-  serviceName,
-}: ServiceDetailModalProps) {
+export function ServiceDetailModal({ isOpen, onClose, namespace, serviceName }: ServiceDetailModalProps) {
+  // 关着时整个抽屉不挂载：详情查询只在打开期间存在，标签页等界面状态随关闭丢弃
+  if (!isOpen) return null;
+  return (
+    <ServiceDetailDrawer
+      key={`${namespace}/${serviceName}`}
+      onClose={onClose}
+      namespace={namespace}
+      serviceName={serviceName}
+    />
+  );
+}
+
+function ServiceDetailDrawer({ onClose, namespace, serviceName }: Omit<ServiceDetailModalProps, "isOpen">) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [detail, setDetail] = useState<ServiceDetail | null>(null);
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-
-  const fetchDetail = useCallback(async () => {
-    if (!serviceName || !namespace) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await getServiceDetail({
-        ClusterID: currentClusterId,
-        Namespace: namespace,
-        Name: serviceName,
-      });
-      setDetail(res.data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.service.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [namespace, serviceName, t.service.loadFailed]);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchDetail();
-      setActiveTab("overview");
-    }
-  }, [isOpen, fetchDetail]);
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(serviceDetailQuery(clusterId, { namespace, name: serviceName }));
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: t.service.overview, icon: <Globe className="w-4 h-4" /> },
@@ -73,42 +55,38 @@ export function ServiceDetailModal({
   ];
 
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title={`Service: ${serviceName}`} size="xl">
-      {loading ? (
-        <div className="py-12">
-          <LoadingSpinner />
-        </div>
-      ) : error ? (
-        <div className="p-6 text-center text-red-500">{error}</div>
-      ) : detail ? (
-        <div className="flex flex-col h-full">
-          {/* Tabs */}
-          <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted hover:text-default"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
+    <Drawer isOpen onClose={onClose} title={`Service: ${serviceName}`} size="xl">
+      <DetailQueryView query={query} errorFallback={t.service.loadFailed}>
+        {(detail) => (
+          <div className="flex flex-col h-full">
+            {/* Tabs */}
+            <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === tab.key
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted hover:text-default"
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Tab Content */}
-          <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <ServiceOverviewTab detail={detail} t={t} />}
-            {activeTab === "ports" && <PortsTab ports={detail.ports || []} t={t} />}
-            {activeTab === "endpoints" && <EndpointsTab backends={detail.backends} t={t} />}
-            {activeTab === "selector" && <SelectorTab selector={detail.selector || {}} t={t} />}
+            {/* Tab Content */}
+            <div className="flex-1 overflow-auto p-6">
+              {activeTab === "overview" && <ServiceOverviewTab detail={detail} t={t} />}
+              {activeTab === "ports" && <PortsTab ports={detail.ports || []} t={t} />}
+              {activeTab === "endpoints" && <EndpointsTab backends={detail.backends} t={t} />}
+              {activeTab === "selector" && <SelectorTab selector={detail.selector || {}} t={t} />}
+            </div>
           </div>
-        </div>
-      ) : null}
+        )}
+      </DetailQueryView>
     </Drawer>
   );
 }

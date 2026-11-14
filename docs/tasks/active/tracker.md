@@ -18,7 +18,7 @@
 > 设计文档: [web-data-layer-design.md](../../design/active/web-data-layer-design.md)
 
 - 第 1 期：基础设施 + 样板页（角色页、事件页）+ 会话信息提到根部 + 错误兜底页 + ESLint + CI 加 lint 与单测 — ✅ 代码完成，待 dev 验收
-- 第 2 期：17 个集群资源页 + 17 个详情弹窗 — 待办
+- 第 2 期：16 个集群资源页 + 16 个详情弹窗 + 资源事件 / Pod 日志 + 写操作改 useMutation — ✅ 代码完成，待 dev 验收（写操作需登录后人工点验）
 - 第 3 期：指标 / 链路 / 日志 / SLO — 待办
 - 第 4 期：其余页面，删除 useAutoRefresh，切换集群不再整页刷新，两份旧文件清单清空 — 待办
 

@@ -2,73 +2,61 @@
 
 import type { Permission } from "@/types/auth";
 import { useState } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { getConfigMapData } from "@/api/namespace";
-import { useClusterStore } from "@/store/clusterStore";
-import type { ConfigMapDTO } from "@/types/cluster";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { configMapListQuery } from "@/queries/cluster";
+import { configMapDataQuery } from "@/queries/cluster-content";
 import type { useI18n } from "@/i18n/context";
 
 interface ConfigMapsTabProps {
-  configMaps: ConfigMapDTO[];
-  loading: boolean;
   requireAuth: (action: () => void, permission?: Permission) => boolean;
   namespace: string;
   t: ReturnType<typeof useI18n>["t"];
 }
 
-export function ConfigMapsTab({
-  configMaps,
-  loading,
-  requireAuth,
-  namespace,
-  t,
-}: ConfigMapsTabProps) {
-  const { currentClusterId } = useClusterStore();
-  const [expandedCMs, setExpandedCMs] = useState<Set<string>>(new Set());
-  const [cmDataMap, setCmDataMap] = useState<Record<string, Record<string, string>>>({});
-  const [loadingCMs, setLoadingCMs] = useState<Set<string>>(new Set());
+export function ConfigMapsTab({ requireAuth, namespace, t }: ConfigMapsTabProps) {
+  const { clusterId } = useCurrentCluster();
+  const listQuery = useQuery(configMapListQuery(clusterId, namespace));
+  const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
+  // 展开过的 ConfigMap。内容的查询按这份名单挂着，所以收起再展开不会重新取；
+  // 离开本标签页时名单随组件销毁，内容也随之从缓存丢弃
+  const [requestedNames, setRequestedNames] = useState<string[]>([]);
+  const contentQueries = useQueries({
+    queries: requestedNames.map((name) => configMapDataQuery(clusterId, { namespace, name })),
+  });
+  const contentQueryOf = (name: string) => {
+    const position = requestedNames.indexOf(name);
+    return position === -1 ? undefined : contentQueries[position];
+  };
 
-  const toggleExpand = async (name: string) => {
-    const isExpanded = expandedCMs.has(name);
-    if (isExpanded) {
-      setExpandedCMs((prev) => {
+  const toggleExpand = (name: string) => {
+    if (expandedNames.has(name)) {
+      setExpandedNames((prev) => {
         const next = new Set(prev);
         next.delete(name);
         return next;
       });
-    } else {
-      requireAuth(async () => {
-        setExpandedCMs((prev) => {
-          const next = new Set(prev);
-          next.add(name);
-          return next;
-        });
-
-        if (cmDataMap[name]) return;
-
-        setLoadingCMs((prev) => new Set(prev).add(name));
-        try {
-          const data = await getConfigMapData({
-            ClusterID: currentClusterId,
-            Namespace: namespace,
-            Name: name,
-          });
-          setCmDataMap((prev) => ({ ...prev, [name]: data }));
-        } catch (err) {
-          console.error("Failed to fetch ConfigMap data:", err);
-        } finally {
-          setLoadingCMs((prev) => {
-            const next = new Set(prev);
-            next.delete(name);
-            return next;
-          });
-        }
-      }, "secret.read");
+      return;
     }
+    requireAuth(() => {
+      setExpandedNames((prev) => new Set(prev).add(name));
+      const contentQuery = contentQueryOf(name);
+      if (contentQuery === undefined) {
+        setRequestedNames((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      } else if (contentQuery.isError) {
+        // 上次没取到的，再展开时重新取一次
+        void contentQuery.refetch();
+      }
+    }, "secret.read");
   };
 
-  if (loading) {
+  const configMaps = listQuery.data;
+  if (configMaps === undefined) {
+    if (listQuery.isError) {
+      return <div className="text-center py-8 text-muted">{t.common.loadFailed}</div>;
+    }
     return (
       <div className="py-8">
         <LoadingSpinner />
@@ -91,9 +79,10 @@ export function ConfigMapsTab({
   return (
     <div className="space-y-3">
       {configMaps.map((cm) => {
-        const isExpanded = expandedCMs.has(cm.name);
-        const isLoadingData = loadingCMs.has(cm.name);
-        const cmData = cmDataMap[cm.name];
+        const isExpanded = expandedNames.has(cm.name);
+        const contentQuery = contentQueryOf(cm.name);
+        const isLoadingData = contentQuery?.isFetching ?? false;
+        const cmData = contentQuery?.data;
 
         return (
           <div key={cm.name} className="bg-[var(--background)] rounded-lg overflow-hidden">

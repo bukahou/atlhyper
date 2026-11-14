@@ -1,23 +1,26 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getJobList } from "@/datasource/cluster";
 import type { JobItem } from "@/api/cluster-resources";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
+import { PageHeader, QueryView, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { jobListQuery } from "@/queries/cluster-workload";
+import { REFRESH } from "@/queries/refresh";
 import { Eye } from "lucide-react";
 import { JobDetailModal } from "@/components/job";
 import { JobFilterBar } from "./components/JobFilterBar";
 
+// 还没有数据时始终用同一个空数组：每次渲染换一个新数组会让下面的 useMemo 全部白算
+const NO_ITEMS: JobItem[] = [];
+
 export default function JobPage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [items, setItems] = useState<JobItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(jobListQuery(clusterId));
+  const items = query.data ?? NO_ITEMS;
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -28,20 +31,6 @@ export default function JobPage() {
   // Detail modal state
   const [selectedItem, setSelectedItem] = useState<JobItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setError("");
-    try {
-      const res = await getJobList({ cluster_id: currentClusterId });
-      setItems(res.data.data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // Extract unique namespaces
   const namespaces = useMemo(() => {
@@ -171,7 +160,7 @@ export default function JobPage() {
         <PageHeader
           title={t.nav.job}
           description={t.job.pageDescription}
-          autoRefreshSeconds={intervalSeconds}
+          autoRefreshSeconds={REFRESH.standard / 1000}
         />
 
         {items.length > 0 && (
@@ -189,17 +178,21 @@ export default function JobPage() {
           onFilterChange={handleFilterChange}
         />
 
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <DataTable
-            columns={columns}
-            data={filteredItems}
-            loading={loading}
-            error={error}
-            keyExtractor={(d, index) => `${index}-${d.namespace}/${d.name}`}
-            onRowClick={handleViewDetail}
-            pageSize={10}
-          />
-        </div>
+        <QueryView query={query} requireCluster>
+          {() => (
+            <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={filteredItems}
+                loading={false}
+                error=""
+                keyExtractor={(d, index) => `${index}-${d.namespace}/${d.name}`}
+                onRowClick={handleViewDetail}
+                pageSize={10}
+              />
+            </div>
+          )}
+        </QueryView>
       </div>
 
       {selectedItem && (

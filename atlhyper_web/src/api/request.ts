@@ -132,8 +132,8 @@ export const get = <T>(url: string, params?: object, signal?: AbortSignal): Prom
 /**
  * POST 请求
  */
-export const post = <T>(url: string, data?: object): Promise<AxiosResponse<T>> => {
-  return request.post(url, data);
+export const post = <T>(url: string, data?: object, signal?: AbortSignal): Promise<AxiosResponse<T>> => {
+  return request.post(url, data, { signal });
 };
 
 /**

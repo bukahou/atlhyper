@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Drawer } from "@/components/common/Drawer";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { getStatefulSetDetail } from "@/datasource/cluster";
-import type { StatefulSetDetail } from "@/api/workload";
-import { useClusterStore } from "@/store/clusterStore";
+import { DetailQueryView } from "@/components/common/DetailQueryView";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { statefulSetDetailQuery } from "@/queries/cluster-workload";
 import { Server, Box, Settings, Database, Tag } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
@@ -20,43 +20,24 @@ interface StatefulSetDetailModalProps {
 
 type TabType = "overview" | "containers" | "strategy" | "storage" | "labels";
 
-export function StatefulSetDetailModal({
-  isOpen,
-  onClose,
-  namespace,
-  name,
-}: StatefulSetDetailModalProps) {
+export function StatefulSetDetailModal({ isOpen, onClose, namespace, name }: StatefulSetDetailModalProps) {
+  // 关着时整个抽屉不挂载：详情查询只在打开期间存在，标签页等界面状态随关闭丢弃
+  if (!isOpen) return null;
+  return (
+    <StatefulSetDetailDrawer
+      key={`${namespace}/${name}`}
+      onClose={onClose}
+      namespace={namespace}
+      name={name}
+    />
+  );
+}
+
+function StatefulSetDetailDrawer({ onClose, namespace, name }: Omit<StatefulSetDetailModalProps, "isOpen">) {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(statefulSetDetailQuery(clusterId, { namespace, name }));
   const [activeTab, setActiveTab] = useState<TabType>("overview");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [detail, setDetail] = useState<StatefulSetDetail | null>(null);
-
-  const fetchDetail = useCallback(async () => {
-    if (!name || !namespace) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await getStatefulSetDetail({
-        ClusterID: currentClusterId,
-        Namespace: namespace,
-        Name: name,
-      });
-      setDetail(res.data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.statefulset.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [namespace, name]);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchDetail();
-      setActiveTab("overview");
-    }
-  }, [isOpen, fetchDetail]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: t.statefulset.overview, icon: <Server className="w-4 h-4" /> },
@@ -67,43 +48,39 @@ export function StatefulSetDetailModal({
   ];
 
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title={`StatefulSet: ${name}`} size="xl">
-      {loading ? (
-        <div className="py-12">
-          <LoadingSpinner />
-        </div>
-      ) : error ? (
-        <div className="p-6 text-center text-red-500">{error}</div>
-      ) : detail ? (
-        <div className="flex flex-col h-full">
-          {/* Tabs */}
-          <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted hover:text-default"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
+    <Drawer isOpen onClose={onClose} title={`StatefulSet: ${name}`} size="xl">
+      <DetailQueryView query={query} errorFallback={t.statefulset.loadFailed}>
+        {(detail) => (
+          <div className="flex flex-col h-full">
+            {/* Tabs */}
+            <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === tab.key
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted hover:text-default"
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Tab Content */}
-          <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
-            {activeTab === "containers" && <ContainersTab detail={detail} t={t} />}
-            {activeTab === "strategy" && <StrategyTab detail={detail} t={t} />}
-            {activeTab === "storage" && <StorageTab detail={detail} t={t} />}
-            {activeTab === "labels" && <LabelsTab detail={detail} t={t} />}
+            {/* Tab Content */}
+            <div className="flex-1 overflow-auto p-6">
+              {activeTab === "overview" && <OverviewTab detail={detail} t={t} />}
+              {activeTab === "containers" && <ContainersTab detail={detail} t={t} />}
+              {activeTab === "strategy" && <StrategyTab detail={detail} t={t} />}
+              {activeTab === "storage" && <StorageTab detail={detail} t={t} />}
+              {activeTab === "labels" && <LabelsTab detail={detail} t={t} />}
+            </div>
           </div>
-        </div>
-      ) : null}
+        )}
+      </DetailQueryView>
     </Drawer>
   );
 }

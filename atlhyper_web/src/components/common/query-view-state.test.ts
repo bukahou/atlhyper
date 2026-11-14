@@ -25,6 +25,10 @@ describe("resolveViewState", () => {
     expect(resolveViewState({ ...base, requireCluster: false, hasCluster: false, isPending: true })).toBe("loading");
   });
 
+  it("没有集群但已有数据（演示数据不依赖集群）：照常显示", () => {
+    expect(resolveViewState({ ...base, hasCluster: false, hasData: true })).toBe("ready");
+  });
+
   it("首次加载还没有数据：加载中", () => {
     expect(resolveViewState({ ...base, isPending: true })).toBe("loading");
   });

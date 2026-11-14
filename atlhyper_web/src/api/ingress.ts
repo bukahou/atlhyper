@@ -36,21 +36,22 @@ interface IngressListResponse {
  * 获取 Ingress 列表（已按 host×path 展开为多行）
  * GET /api/v2/ingresses?cluster_id=xxx&namespace=xxx
  */
-export function getIngressList(params: IngressListParams) {
-  return get<IngressListResponse>("/api/v2/ingresses", params);
+export function getIngressList(params: IngressListParams, signal?: AbortSignal) {
+  return get<IngressListResponse>("/api/v2/ingresses", params, signal);
 }
 
 /**
  * 获取 Ingress 详情
  * GET /api/v2/ingresses/{name}?cluster_id=xxx&namespace=xxx
  */
-export async function getIngressDetail(data: { ClusterID: string; Namespace: string; Name: string }) {
+export async function getIngressDetail(data: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<{ message: string; data: IngressDetail }>(
     `/api/v2/ingresses/${encodeURIComponent(data.Name)}`,
     {
       cluster_id: data.ClusterID,
       namespace: data.Namespace,
-    }
+    },
+    signal,
   );
 }
 
@@ -61,8 +62,8 @@ export async function getIngressDetail(data: { ClusterID: string; Namespace: str
 /**
  * 获取 Ingress 概览（包含统计卡片和列表）
  */
-export async function getIngressOverview(data: { ClusterID: string }) {
-  const response = await getIngressList({ cluster_id: data.ClusterID });
+export async function getIngressOverview(data: { ClusterID: string }, signal?: AbortSignal) {
+  const response = await getIngressList({ cluster_id: data.ClusterID }, signal);
   const rows = response.data.data || [];
 
   const hostsSet = new Set<string>();
