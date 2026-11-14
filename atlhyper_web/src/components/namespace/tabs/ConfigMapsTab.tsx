@@ -68,14 +68,6 @@ export function ConfigMapsTab({ requireAuth, namespace, t }: ConfigMapsTabProps)
     return <div className="text-center py-8 text-muted">{t.namespace.noConfigMaps}</div>;
   }
 
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-  };
-
   return (
     <div className="space-y-3">
       {configMaps.map((cm) => {
@@ -95,7 +87,7 @@ export function ConfigMapsTab({ requireAuth, namespace, t }: ConfigMapsTabProps)
                 <div className="text-left">
                   <div className="font-medium text-default">{cm.name}</div>
                   <div className="text-xs text-muted">
-                    {cm.keys} keys · {formatBytes(cm.totalSizeBytes)}
+                    {cm.dataKeys?.length ?? 0} keys
                     {cm.immutable && <span className="ml-2 text-yellow-500">(Immutable)</span>}
                   </div>
                 </div>
