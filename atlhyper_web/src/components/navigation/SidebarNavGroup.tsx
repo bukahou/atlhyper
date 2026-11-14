@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import type { NavGroup } from "./SidebarTypes";
+import { useCan } from "@/hooks/useCan";
+import type { NavChild, NavGroup } from "./SidebarTypes";
 
 interface SidebarNavGroupProps {
   group: NavGroup;
@@ -29,6 +30,10 @@ export function SidebarNavGroup({
   onHoverGroup,
 }: SidebarNavGroupProps) {
   const { t } = useI18n();
+  const can = useCan();
+  // 导航项声明了所需权限就按权限显示；adminOnly 是早先的写法（由外层按 user.manage 判断），两者都要满足
+  const isChildVisible = (child: NavChild) =>
+    (!child.adminOnly || isAdmin) && (child.permission === undefined || can(child.permission));
   const Icon = group.icon;
   const hasChildren = !!group.children;
 
@@ -69,7 +74,7 @@ export function SidebarNavGroup({
                 {t.nav[group.key as keyof typeof t.nav]}
               </div>
               {group.children!
-                .filter((child) => !child.adminOnly || isAdmin)
+                .filter(isChildVisible)
                 .map((child, idx) => {
                   const ChildIcon = child.icon;
                   return (
@@ -121,7 +126,7 @@ export function SidebarNavGroup({
         {isExpanded && (
           <div className="mt-1 ml-2 pl-4 border-l-2 border-primary/20">
             {group.children!
-              .filter((child) => !child.adminOnly || isAdmin)
+              .filter(isChildVisible)
               .map((child, idx) => {
                 const ChildIcon = child.icon;
                 return (
