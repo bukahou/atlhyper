@@ -14,9 +14,9 @@ interface LogDetailDrawerProps {
 }
 
 export function LogDetailDrawer({ entry, onClose, t }: LogDetailDrawerProps) {
+  const { t: i18n } = useI18n();
   if (!entry) return null;
 
-  const { t: i18n } = useI18n();
   const attrs = Object.entries(entry.attributes);
   const res = Object.entries(entry.resource);
 

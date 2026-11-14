@@ -1,28 +1,20 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useEffectEvent } from "react";
 import * as echarts from "echarts";
+import { useI18n } from "@/i18n/context";
 import type { LogHistogramBucket } from "@/types/model/log";
+import {
+  SEVERITY_COLORS,
+  SEVERITY_ORDER,
+  buildFullTimeline,
+  formatBucketLabels,
+  getThemeColors,
+} from "./log-histogram-utils";
 
-const SEVERITY_COLORS: Record<string, string> = {
-  ERROR: "#ef4444",
-  WARN: "#f59e0b",
-  INFO: "#3b82f6",
-  DEBUG: "#6b7280",
-};
-
-const SEVERITY_ORDER = ["DEBUG", "INFO", "WARN", "ERROR"];
-
-function getThemeColors() {
-  const isDark = document.documentElement.classList.contains("dark");
-  return {
-    textColor: isDark ? "#9ca3af" : "#6b7280",
-    lineColor: isDark ? "#374151" : "#e5e7eb",
-    splitLineColor: isDark ? "#1f2937" : "#f3f4f6",
-    tooltipBg: isDark ? "#1f2937" : "#fff",
-    tooltipBorder: isDark ? "#374151" : "#e5e7eb",
-    tooltipText: isDark ? "#e5e7eb" : "#111827",
-  };
+/** ECharts brush / brushEnd 事件里用到的部分 */
+interface BrushEventParams {
+  areas?: { coordRange: [number, number] }[];
 }
 
 interface LogHistogramProps {
@@ -36,122 +28,97 @@ interface LogHistogramProps {
   onTimeRangeSelect?: (range: [number, number] | null) => void;
 }
 
-/**
- * Build full timeline with empty buckets filled in.
- *
- * ClickHouse GROUP BY only returns non-empty buckets.
- * We need ALL buckets (including zeros) for the category axis to be uniformly spaced,
- * so brush selection accurately maps to time ranges.
- */
-function buildFullTimeline(
-  data: LogHistogramBucket[],
-  intervalMs: number,
-): { allTimes: number[]; countMap: Map<string, number> } {
-  // Collect data points
-  const countMap = new Map<string, number>();
-  let minTime = Infinity;
-  let maxTime = -Infinity;
-  for (const b of data) {
-    const ts = new Date(b.timestamp).getTime();
-    if (ts < minTime) minTime = ts;
-    if (ts > maxTime) maxTime = ts;
-    const key = `${ts}|${b.severity.toUpperCase()}`;
-    countMap.set(key, (countMap.get(key) ?? 0) + b.count);
+export function LogHistogram(props: LogHistogramProps) {
+  const { t } = useI18n();
+
+  // 没有可画的数据时不挂图表，只留标题与占位（组件不隐藏）。
+  // 图表拆成子组件：容器在才创建、不在就销毁，创建与清理都在同一个 effect 里
+  if (props.data.length === 0 || props.intervalMs <= 0) {
+    return (
+      <div>
+        <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
+          {props.title}
+        </h4>
+        <div className="w-full h-[120px] flex items-center justify-center text-sm text-muted border border-dashed border-[var(--border-color)] rounded-lg">
+          {t.common.noData}
+        </div>
+      </div>
+    );
   }
 
-  // Generate all bucket timestamps from min to max (fill gaps)
-  const allTimes: number[] = [];
-  for (let t = minTime; t <= maxTime; t += intervalMs) {
-    allTimes.push(t);
-  }
-  // Edge case: ensure at least the data points are present
-  if (allTimes.length === 0 && data.length > 0) {
-    allTimes.push(minTime);
-  }
-
-  return { allTimes, countMap };
+  return <LogHistogramChart {...props} />;
 }
 
-export function LogHistogram({ data, intervalMs, title, timeSpanMs, selectedTimeRange, onTimeRangeSelect }: LogHistogramProps) {
+function LogHistogramChart({ data, intervalMs, title, timeSpanMs, selectedTimeRange, onTimeRangeSelect }: LogHistogramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
   const bucketDataRef = useRef<{ times: number[]; intervalMs: number }>({ times: [], intervalMs: 0 });
-  const callbackRef = useRef(onTimeRangeSelect);
-  callbackRef.current = onTimeRangeSelect;
   /** Suppress callback when programmatically manipulating brush */
   const suppressCallbackRef = useRef(false);
 
-  // Resize + theme observer (attached once per chart instance)
-  const listenersRef = useRef<{ resize: (() => void) | null; observer: MutationObserver | null }>({
-    resize: null,
-    observer: null,
+  // 图表事件是在创建图表时注册一次的，回调里要读到最新的 onTimeRangeSelect，又不能因此重建图表
+  const reportBrushedRange = useEffectEvent((range: [number, number] | null) => {
+    if (suppressCallbackRef.current) return;
+    onTimeRangeSelect?.(range);
   });
 
   // =========================================================================
-  // Effect 1: Chart init + data rendering (does NOT depend on selectedTimeRange)
+  // Effect 1: 创建图表（只在挂载时）；卸载时一并清理监听与图表实例
   // =========================================================================
   useEffect(() => {
-    if (!containerRef.current || data.length === 0 || intervalMs <= 0) return;
+    if (!containerRef.current) return;
+    const chart = echarts.init(containerRef.current);
+    chartRef.current = chart;
 
-    // Initialize chart if not yet created, or if container DOM changed
-    if (chartRef.current && chartRef.current.getDom() !== containerRef.current) {
-      if (listenersRef.current.resize) {
-        window.removeEventListener("resize", listenersRef.current.resize);
-        listenersRef.current.resize = null;
+    const handleResize = () => chart.resize();
+    window.addEventListener("resize", handleResize);
+
+    // Theme observer
+    const themeObserver = new MutationObserver(() => {
+      const c = getThemeColors();
+      chart.setOption({
+        tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
+        xAxis: { axisLine: { lineStyle: { color: c.lineColor } }, axisLabel: { color: c.textColor } },
+        yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
+      });
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+
+    // brushEnd — only fires when user releases mouse (finished selecting)
+    chart.on("brushEnd", (rawParams: unknown) => {
+      const areas = (rawParams as BrushEventParams).areas;
+      if (!areas || areas.length === 0) {
+        reportBrushedRange(null);
+        return;
       }
-      listenersRef.current.observer?.disconnect();
-      listenersRef.current.observer = null;
-      chartRef.current.dispose();
+      const [startIdx, endIdx] = areas[0].coordRange;
+      const { times } = bucketDataRef.current;
+      if (times.length === 0) return;
+      const s = Math.max(0, Math.round(startIdx));
+      const e = Math.min(times.length - 1, Math.round(endIdx));
+      reportBrushedRange([times[s], times[e]]);
+    });
+
+    // brush with empty areas — user clicks to clear selection
+    chart.on("brush", (rawParams: unknown) => {
+      const areas = (rawParams as BrushEventParams).areas;
+      if (!areas || areas.length === 0) reportBrushedRange(null);
+    });
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      themeObserver.disconnect();
+      chart.dispose();
       chartRef.current = null;
-    }
-    if (!chartRef.current) {
-      const chart = echarts.init(containerRef.current);
-      chartRef.current = chart;
+    };
+  }, []);
 
-      const handleResize = () => chart.resize();
-      window.addEventListener("resize", handleResize);
-      listenersRef.current.resize = handleResize;
-
-      // Theme observer
-      const observer = new MutationObserver(() => {
-        if (!chartRef.current) return;
-        const c = getThemeColors();
-        chartRef.current.setOption({
-          tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
-          xAxis: { axisLine: { lineStyle: { color: c.lineColor } }, axisLabel: { color: c.textColor } },
-          yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
-        });
-      });
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-      listenersRef.current.observer = observer;
-
-      // brushEnd — only fires when user releases mouse (finished selecting)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chart.on("brushEnd", (params: any) => {
-        if (suppressCallbackRef.current) return;
-        const areas = params.areas;
-        if (!areas || areas.length === 0) {
-          callbackRef.current?.(null);
-          return;
-        }
-        const [startIdx, endIdx] = areas[0].coordRange;
-        const { times, intervalMs: intMs } = bucketDataRef.current;
-        if (times.length === 0) return;
-        const s = Math.max(0, Math.round(startIdx));
-        const e = Math.min(times.length - 1, Math.round(endIdx));
-        callbackRef.current?.([times[s], times[e]]);
-      });
-
-      // brush with empty areas — user clicks to clear selection
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chart.on("brush", (params: any) => {
-        if (suppressCallbackRef.current) return;
-        const areas = params.areas;
-        if (!areas || areas.length === 0) {
-          callbackRef.current?.(null);
-        }
-      });
-    }
+  // =========================================================================
+  // Effect 2: 数据渲染（不依赖 selectedTimeRange）
+  // =========================================================================
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
 
     // Suppress all brush callbacks during chart rebuild
     suppressCallbackRef.current = true;
@@ -170,23 +137,7 @@ export function LogHistogram({ data, intervalMs, title, timeSpanMs, selectedTime
 
     // Adaptive label precision
     const viewSpanMs = timeSpanMs || (allTimes.length > 1 ? allTimes[allTimes.length - 1] - allTimes[0] : 0);
-    const FIVE_MIN = 5 * 60_000;
-    const ONE_DAY = 86_400_000;
-    const THIRTY_DAYS = 30 * ONE_DAY;
-    const xLabels = allTimes.map((t) => {
-      const d = new Date(t);
-      if (viewSpanMs < FIVE_MIN) {
-        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      }
-      if (viewSpanMs < ONE_DAY) {
-        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      }
-      if (viewSpanMs < THIRTY_DAYS) {
-        const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        return `${d.getMonth() + 1}/${d.getDate()} ${time}`;
-      }
-      return `${d.getMonth() + 1}/${d.getDate()}`;
-    });
+    const xLabels = formatBucketLabels(allTimes, viewSpanMs);
 
     const series = SEVERITY_ORDER.map((sev) => ({
       name: sev,
@@ -200,7 +151,7 @@ export function LogHistogram({ data, intervalMs, title, timeSpanMs, selectedTime
     // Round top corners on the topmost visible series
     series[series.length - 1].itemStyle.borderRadius = [2, 2, 0, 0] as unknown as number;
 
-    chartRef.current.setOption(
+    chart.setOption(
       {
         tooltip: {
           trigger: "axis",
@@ -247,7 +198,7 @@ export function LogHistogram({ data, intervalMs, title, timeSpanMs, selectedTime
     );
 
     // Activate brush mode so user can drag immediately
-    chartRef.current.dispatchAction({
+    chart.dispatchAction({
       type: "takeGlobalCursor",
       key: "brush",
       brushOption: { brushType: "lineX", brushMode: "single" },
@@ -255,12 +206,12 @@ export function LogHistogram({ data, intervalMs, title, timeSpanMs, selectedTime
 
     // Re-enable callbacks after ECharts processes dispatches
     requestAnimationFrame(() => { suppressCallbackRef.current = false; });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, intervalMs, timeSpanMs]);
 
   // =========================================================================
-  // Effect 2: Brush sync — re-apply brush highlight when selectedTimeRange
-  //           changes externally (e.g. filter pill removed).
+  // Effect 3: Brush sync — 选区从外部变化（比如点掉筛选标签）或图表重画之后，
+  //           把选区的高亮重新画上去。数据 effect 是整体重设图表的，会把高亮一起清掉，
+  //           所以这里也要跟着 data 重跑（依赖里的 data / intervalMs 就是为此）。
   // =========================================================================
   useEffect(() => {
     const chart = chartRef.current;
@@ -269,13 +220,13 @@ export function LogHistogram({ data, intervalMs, title, timeSpanMs, selectedTime
     suppressCallbackRef.current = true;
 
     if (selectedTimeRange) {
-      const { times, intervalMs: intMs } = bucketDataRef.current;
-      if (times.length > 0 && intMs > 0) {
+      const { times, intervalMs: bucketMs } = bucketDataRef.current;
+      if (times.length > 0 && bucketMs > 0) {
         const [selStart, selEnd] = selectedTimeRange;
         let startIdx = 0;
         let endIdx = times.length - 1;
         for (let i = 0; i < times.length; i++) {
-          if (times[i] + intMs > selStart) { startIdx = i; break; }
+          if (times[i] + bucketMs > selStart) { startIdx = i; break; }
         }
         for (let i = times.length - 1; i >= 0; i--) {
           if (times[i] <= selEnd) { endIdx = i; break; }
@@ -290,32 +241,7 @@ export function LogHistogram({ data, intervalMs, title, timeSpanMs, selectedTime
     }
 
     requestAnimationFrame(() => { suppressCallbackRef.current = false; });
-  }, [selectedTimeRange]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (listenersRef.current.resize) {
-        window.removeEventListener("resize", listenersRef.current.resize);
-      }
-      listenersRef.current.observer?.disconnect();
-      chartRef.current?.dispose();
-      chartRef.current = null;
-    };
-  }, []);
-
-  if (data.length === 0) {
-    return (
-      <div>
-        <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
-          {title}
-        </h4>
-        <div className="w-full h-[120px] flex items-center justify-center text-sm text-muted border border-dashed border-[var(--border-color)] rounded-lg">
-          No data
-        </div>
-      </div>
-    );
-  }
+  }, [selectedTimeRange, data, intervalMs]);
 
   return (
     <div>
