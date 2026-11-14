@@ -229,6 +229,8 @@ npm install && npm run dev
 | `MASTER_JWT_SECRET` | 是 | - | JWT 签名密钥 |
 | `MASTER_GATEWAY_PORT` | 否 | `8080` | Web/API 端口 |
 | `MASTER_AGENTSDK_PORT` | 否 | `8081` | Agent 数据端口 |
+| `MASTER_AGENT_AUTH_MODE` | 否 | `warn` | Agent 令牌认证模式：`off` / `warn`（没带有效令牌的请求照常接收并记告警）/ `enforce`（拒绝）。其他取值启动失败 |
+| `MASTER_AGENTSDK_MAX_SNAPSHOT_MB` | 否 | `256` | 单份快照的大小上限（MB，压缩前后都适用） |
 | `MASTER_LOG_LEVEL` | 否 | `info` | 日志级别 |
 
 #### Agent 环境变量
@@ -236,6 +238,7 @@ npm install && npm run dev
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
 | `AGENT_MASTER_URL` | 是 | - | Master AgentSDK 地址 |
+| `AGENT_MASTER_TOKEN` | 否 | - | Master 签发的集群令牌（管理员在集群注册表里签发）。每个请求以 `Authorization: Bearer` 携带；Master 为 `enforce` 模式时必填。属于凭证 |
 | `AGENT_CLUSTER_ID` | 否 | 自动检测 | 集群唯一标识（默认使用 kube-system UID） |
 | `AGENT_CLICKHOUSE_DSN` | 否 | - | ClickHouse 连接地址（启用 OTel 查询） |
 

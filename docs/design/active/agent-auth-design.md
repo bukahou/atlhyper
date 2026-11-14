@@ -111,7 +111,9 @@ DELETE /api/v2/admin/clusters/{clusterId}
 - `status`：`online` / `offline` / `never`（登记了但从未上报）
 - `authenticated`：该集群最近一次请求是否带了有效令牌
 - `registered: false` 的行来自正在上报但未登记的集群（`off` / `warn` 模式下才会出现），可以直接登记收编
-- 集群 ID 的格式：1–63 个字符，小写字母、数字、`-`、`.`
+- 集群 ID 的格式：1–63 个字符，小写字母、数字、`-`、`.`，首尾必须是字母或数字
+- 显示名必填、不超过 64 个字；描述不超过 256 个字
+- 登记与修改成功时 `data` 带回该集群最新的一行；签发令牌的响应带 `Cache-Control: no-store`
 
 **数据对照**
 
@@ -132,8 +134,9 @@ DELETE /api/v2/admin/clusters/{clusterId}
 
 - `database/`：`ClusterRepository` 改为 `Create / Update / Delete / GetByID / GetByTokenHash / List / SetToken`
 - `agentsdk/clustertoken/`：令牌生成、哈希、常数时间比较（纯函数）
-- `service/operations/cluster_registry.go`：登记、改名、签发、删除；`service/query/`：列表（注册表 + 在线状态合并）
-- `gateway/handler/cluster_registry.go` + `routes.go` + 权限表
+- `service/operations/cluster_registry.go`：登记、改名、签发、删除；`service/query/cluster_registry.go`：列表（注册表 + 在线状态 + 认证状态合并）
+- `model/cluster_registry.go`（请求 / 响应模型与输入校验）、`model/convert/cluster_registry.go`
+- `gateway/handler/admin/cluster_registry.go` + `routes.go` + 权限表
 
 **前端实现**
 
@@ -153,7 +156,8 @@ DELETE /api/v2/admin/clusters/{clusterId}
 - `mq/`：`AckCommand` 增加集群参数（memory / redis 两个实现）
 - `datahub`：`AgentInfo` 记录最近一次请求是否已认证
 - `config/`：`MASTER_AGENT_AUTH_MODE`、`MASTER_AGENTSDK_MAX_SNAPSHOT_MB`
-- Agent：`config/`（`AGENT_MASTER_TOKEN`）、`gateway/master_gateway.go`、`scheduler/`（核对指令的集群）
+- Agent：`config/`（`AGENT_MASTER_TOKEN`）、`gateway/master_gateway.go`、`service/command/`（核对指令的集群）、`scheduler/`（日志区分身份被拒与网络故障）
+  - 集群核对放在指令服务的 `Execute` 入口，与「目标是否合法资源名」的核对在同一处：调度层只管编排，是否执行一条指令由指令服务判断
 
 **边界**
 
@@ -199,14 +203,19 @@ atlhyper_master_v2/
 ├── mq/interfaces.go, memory/bus.go, redis/bus.go                          [修改]
 ├── datahub/                         [修改] AgentInfo 记录是否已认证
 ├── database/                        [修改] clusters 表、ClusterRepository
-├── service/operations/cluster_registry.go, service/query/               [新增/修改]
-├── gateway/handler/cluster_registry.go, routes.go, middleware/permission.go [新增/修改]
-├── model/                           [新增] ClusterRegistryItem
-└── config/                          [修改]
+├── service/operations/cluster_registry.go, service/query/cluster_registry.go [新增]
+├── service/interfaces.go, factory.go, query/impl.go                       [修改]
+├── gateway/handler/admin/cluster_registry.go                              [新增]
+├── gateway/routes.go, middleware/permission.go                            [修改]
+├── model/cluster_registry.go, cluster_registry_validation.go, convert/cluster_registry.go [新增]
+├── config/                          [修改] MASTER_AGENT_AUTH_MODE、MASTER_AGENTSDK_MAX_SNAPSHOT_MB
+├── agent_entry_settings.go          [新增] 启动时校验 Agent 入口配置
+└── master.go                        [修改] 装配
 atlhyper_agent_v2/
 ├── config/                          [修改] AGENT_MASTER_TOKEN
-├── gateway/master_gateway.go        [修改]
-└── scheduler/scheduler.go           [修改]
+├── gateway/master_gateway.go, errors.go [修改/新增]
+├── service/command/command.go       [修改] 执行前核对指令所属集群
+└── scheduler/scheduler.go           [修改] 日志区分身份被拒与网络故障
 atlhyper_web/
 ├── src/app/admin/clusters/          [新增]
 ├── src/queries/admin.ts             [修改]
