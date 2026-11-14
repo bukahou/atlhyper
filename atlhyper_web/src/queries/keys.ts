@@ -6,6 +6,9 @@
  * - mode 进键：真实数据与演示数据永不共用缓存
  */
 import type { DataSourceMode } from "@/config/data-source";
+import type { CorrelationSubject, TraceFilter } from "@/datasource/apm";
+import type { LogHistogramParams, LogQueryParams } from "@/datasource/logs";
+import type { TimeRangeParams } from "@/lib/time-range";
 
 export const sessionKeys = {
   clusterList: () => ["session", "cluster-list"] as const,
@@ -115,4 +118,85 @@ export const clusterKeys = {
         tailLines: stream?.tailLines ?? 0,
       },
     ] as const,
+};
+
+// ============================================================
+// 观测信号（Metrics / Logs / APM / SLO）
+//
+// 每个信号一个域，`all` 是该域的前缀：页头的手动刷新与写操作后的失效按它匹配。
+// 时间范围进键时用 TimeRangeParams —— 相对范围只有描述（"1h"），没有现算的时间戳，键才稳定。
+// ============================================================
+
+export const observeKeys = {
+  /** 各信号的数据新鲜度。不分信号：四个观测页共用同一份 */
+  signalFreshness: (clusterId: string, mode: DataSourceMode) =>
+    ["observe", "signal-freshness", { clusterId, mode }] as const,
+};
+
+export const metricsKeys = {
+  all: ["metrics"] as const,
+  snapshot: (clusterId: string, mode: DataSourceMode) => ["metrics", "snapshot", { clusterId, mode }] as const,
+  hardware: (clusterId: string, mode: DataSourceMode) => ["metrics", "hardware", { clusterId, mode }] as const,
+  /** 节点与小时数进键：每个「节点 + 时间范围」各自缓存 */
+  nodeHistory: (clusterId: string, mode: DataSourceMode, nodeName: string, hours: number) =>
+    ["metrics", "node-history", { clusterId, mode, nodeName, hours }] as const,
+};
+
+export const logsKeys = {
+  all: ["logs"] as const,
+  list: (clusterId: string, mode: DataSourceMode, params: LogQueryParams) =>
+    ["logs", "list", { clusterId, mode, ...params }] as const,
+  histogram: (clusterId: string, mode: DataSourceMode, params: LogHistogramParams) =>
+    ["logs", "histogram", { clusterId, mode, ...params }] as const,
+  /** 某条链路关联的日志（链路详情里的「日志」标签页） */
+  traceLogs: (clusterId: string, mode: DataSourceMode, traceId: string, limit: number) =>
+    ["logs", "trace-logs", { clusterId, mode, traceId, limit }] as const,
+};
+
+export const apmKeys = {
+  all: ["apm"] as const,
+  services: (clusterId: string, mode: DataSourceMode, range: TimeRangeParams) =>
+    ["apm", "services", { clusterId, mode, ...range }] as const,
+  topology: (clusterId: string, mode: DataSourceMode, range: TimeRangeParams) =>
+    ["apm", "topology", { clusterId, mode, ...range }] as const,
+  operations: (clusterId: string, mode: DataSourceMode, range: TimeRangeParams) =>
+    ["apm", "operations", { clusterId, mode, ...range }] as const,
+  traces: (clusterId: string, mode: DataSourceMode, filter: TraceFilter, range: TimeRangeParams) =>
+    ["apm", "traces", { clusterId, mode, ...filter, ...range }] as const,
+  /** 某个操作的链路样本序列（链路详情里前后翻样本用） */
+  operationSamples: (clusterId: string, mode: DataSourceMode, filter: TraceFilter, range: TimeRangeParams) =>
+    ["apm", "operation-samples", { clusterId, mode, ...filter, ...range }] as const,
+  /** traceId 进键：快速切换链路时，显示的一定是最后点的那条 */
+  traceDetail: (clusterId: string, mode: DataSourceMode, traceId: string) =>
+    ["apm", "trace-detail", { clusterId, mode, traceId }] as const,
+  serviceSeries: (clusterId: string, mode: DataSourceMode, serviceName: string, range: TimeRangeParams) =>
+    ["apm", "service-series", { clusterId, mode, serviceName, ...range }] as const,
+  httpStats: (clusterId: string, mode: DataSourceMode, serviceName: string, range: TimeRangeParams) =>
+    ["apm", "http-stats", { clusterId, mode, serviceName, ...range }] as const,
+  dbStats: (clusterId: string, mode: DataSourceMode, serviceName: string, range: TimeRangeParams) =>
+    ["apm", "db-stats", { clusterId, mode, serviceName, ...range }] as const,
+  correlations: (clusterId: string, mode: DataSourceMode, subject: CorrelationSubject, range: TimeRangeParams) =>
+    [
+      "apm",
+      "correlations",
+      {
+        clusterId,
+        mode,
+        serviceName: subject.serviceName,
+        correlationMode: subject.correlationMode,
+        operation: subject.operation ?? "",
+        ...range,
+      },
+    ] as const,
+};
+
+export const sloKeys = {
+  all: ["slo"] as const,
+  /** window 是 SLO 的预聚合窗口（1h / 6h / 24h / 3d / 7d），不是任意时间范围 */
+  domains: (clusterId: string, mode: DataSourceMode, window: string) =>
+    ["slo", "domains", { clusterId, mode, window }] as const,
+  domainHistory: (clusterId: string, mode: DataSourceMode, host: string, window: string) =>
+    ["slo", "domain-history", { clusterId, mode, host, window }] as const,
+  latency: (clusterId: string, mode: DataSourceMode, domain: string, window: string) =>
+    ["slo", "latency", { clusterId, mode, domain, window }] as const,
 };

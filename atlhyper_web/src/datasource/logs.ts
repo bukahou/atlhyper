@@ -1,92 +1,76 @@
 /**
  * Logs 数据源代理
  *
- * 根据中心配置自动切换 mock / api
+ * 根据中心配置自动切换 mock / api。约定同 datasource/cluster.ts：
+ * - 读函数返回解包后的数据，mock 分支返回相同形态
+ * - 读函数最后一个参数是可选的 AbortSignal，原样交给 api 层，用于取消请求
+ *
+ * 这里不判断权限：日志正文需要 logs.read，由查询工厂的 enabled 把关（没有权限就不发请求）。
  */
 
 import { getDataSourceMode } from "@/config/data-source";
 import { mockQueryLogs } from "@/mock/logs";
-import type { MockLogQueryParams } from "@/mock/logs";
 import * as observeApi from "@/api/observe-logs";
+import type { TimeRangeParams } from "@/lib/time-range";
 import type { LogQueryResult, LogHistogramResult } from "@/types/model/log";
-import { canNow } from "@/hooks/useCan";
 
-export type { MockLogQueryParams } from "@/mock/logs";
+/** 日志的筛选条件 + 时间范围（直方图与列表共用的部分） */
+export interface LogHistogramParams extends TimeRangeParams {
+  search?: string;
+  services?: string[];
+  severities?: string[];
+  scopes?: string[];
+}
 
-/** timeRange 字符串 → since duration (保留给 mock 模式兼容) */
-const SINCE_MAP: Record<string, string> = {
-  "15min": "15m",
-  "1h": "1h",
-  "24h": "24h",
-  "7d": "168h",
-  "15d": "360h",
-  "30d": "720h",
-};
-
-/** 查询参数（API 模式需要 clusterId） */
-export interface LogQueryParams extends MockLogQueryParams {
-  clusterId?: string;
-  /** Go duration 字符串（直传 since 参数） */
-  since?: string;
-  /** Brush 选区开始时间 (epoch ms) */
-  startTime?: number;
-  /** Brush 选区结束时间 (epoch ms) */
-  endTime?: number;
+/** 日志列表的查询条件：在筛选条件之上再加分页与跨信号关联 */
+export interface LogQueryParams extends LogHistogramParams {
+  limit?: number;
+  offset?: number;
   /** 跨信号关联：按 TraceId 过滤 */
   traceId?: string;
   /** 跨信号关联：按 SpanId 过滤 */
   spanId?: string;
 }
 
-/** 直方图查询参数 */
-export interface LogHistogramParams {
-  clusterId?: string;
-  search?: string;
-  services?: string[];
-  severities?: string[];
-  scopes?: string[];
-  timeRange?: string;
-  /** Go duration 字符串（直传 since） */
-  since?: string;
-  /** 绝对开始时间 ISO 字符串 */
-  startTime?: string;
-  /** 绝对结束时间 ISO 字符串 */
-  endTime?: string;
+/** 后端的多选筛选目前只支持单值：恰好选了一个才下推，否则不过滤 */
+function singleSelected(values?: string[]): string | undefined {
+  return values?.length === 1 ? values[0] : undefined;
 }
 
-/**
- * 查询日志（列表 + 分面，不含直方图）
- */
-export async function queryLogs(params?: LogQueryParams): Promise<LogQueryResult> {
-  // 日志正文是内容级数据（logs.read）；无权限时不发请求，界面由 PermissionLock 占位
-  if (!canNow("logs.read")) {
-    return { logs: [], total: 0, facets: { services: [], severities: [], scopes: [] } };
-  }
-  if (getDataSourceMode("logs") === "mock" || !params?.clusterId) {
-    const mock = mockQueryLogs(params);
-    return { logs: mock.logs, total: mock.total, facets: mock.facets };
+/** 查询日志（列表 + 分面，不含直方图） */
+export async function queryLogs(
+  clusterId: string,
+  params: LogQueryParams,
+  signal?: AbortSignal,
+): Promise<LogQueryResult> {
+  if (getDataSourceMode("logs") === "mock") {
+    const { logs, total, facets } = mockQueryLogs(params);
+    return { logs, total, facets };
   }
 
-  const response = await observeApi.queryLogs({
-    cluster_id: params.clusterId,
-    query: params.search,
-    level: params.severities?.length === 1 ? params.severities[0] : undefined,
-    service: params.services?.length === 1 ? params.services[0] : undefined,
-    scope: params.scopes?.length === 1 ? params.scopes[0] : undefined,
-    limit: params.limit,
-    offset: params.offset,
-    since: params.since || (params.timeRange ? SINCE_MAP[params.timeRange] : undefined),
-    start_time: params.startTime ? new Date(params.startTime).toISOString() : undefined,
-    end_time: params.endTime ? new Date(params.endTime).toISOString() : undefined,
-    trace_id: params.traceId,
-    span_id: params.spanId,
-  });
+  const response = await observeApi.queryLogs(
+    {
+      cluster_id: clusterId,
+      query: params.search,
+      level: singleSelected(params.severities),
+      service: singleSelected(params.services),
+      scope: singleSelected(params.scopes),
+      limit: params.limit,
+      offset: params.offset,
+      since: params.since,
+      start_time: params.startTime,
+      end_time: params.endTime,
+      trace_id: params.traceId,
+      span_id: params.spanId,
+    },
+    signal,
+  );
 
-  const data = response.data.data;
+  const page = response.data.data;
   return {
-    logs: data.logs || [],
-    total: data.total || 0,
-    facets: data.facets || { services: [], severities: [], scopes: [] },
+    logs: page?.logs || [],
+    total: page?.total || 0,
+    facets: page?.facets || { services: [], severities: [], scopes: [] },
   };
 }
 
@@ -96,33 +80,37 @@ export async function queryLogs(params?: LogQueryParams): Promise<LogQueryResult
  * mock 模式: 从 mock 日志数据生成客户端桶
  * api  模式: 直接调用 /histogram 端点获取服务端预聚合数据
  */
-export async function queryLogHistogram(params?: LogHistogramParams): Promise<LogHistogramResult> {
-  if (getDataSourceMode("logs") === "mock" || !params?.clusterId) {
-    return mockLogHistogram(params);
-  }
+export async function queryLogHistogram(
+  clusterId: string,
+  params: LogHistogramParams,
+  signal?: AbortSignal,
+): Promise<LogHistogramResult> {
+  if (getDataSourceMode("logs") === "mock") return mockLogHistogram(params);
 
-  const response = await observeApi.getLogsHistogram({
-    cluster_id: params.clusterId,
-    query: params.search,
-    level: params.severities?.length === 1 ? params.severities[0] : undefined,
-    service: params.services?.length === 1 ? params.services[0] : undefined,
-    scope: params.scopes?.length === 1 ? params.scopes[0] : undefined,
-    since: params.since || (params.timeRange ? SINCE_MAP[params.timeRange] : undefined),
-    start_time: params.startTime,
-    end_time: params.endTime,
-  });
+  const response = await observeApi.getLogsHistogram(
+    {
+      cluster_id: clusterId,
+      query: params.search,
+      level: singleSelected(params.severities),
+      service: singleSelected(params.services),
+      scope: singleSelected(params.scopes),
+      since: params.since,
+      start_time: params.startTime,
+      end_time: params.endTime,
+    },
+    signal,
+  );
 
-  const data = response.data.data;
+  const histogram = response.data.data;
   return {
-    buckets: data?.buckets || [],
-    intervalMs: data?.intervalMs || 0,
+    buckets: histogram?.buckets || [],
+    intervalMs: histogram?.intervalMs || 0,
   };
 }
 
 /** Mock 直方图：从 mock 日志数据客户端分桶 */
-function mockLogHistogram(params?: LogHistogramParams): LogHistogramResult {
-  const mock = mockQueryLogs(params);
-  const logs = mock.logs;
+function mockLogHistogram(params: LogHistogramParams): LogHistogramResult {
+  const logs = mockQueryLogs(params).logs;
   if (logs.length === 0) {
     return { buckets: [], intervalMs: 0 };
   }
@@ -135,15 +123,15 @@ function mockLogHistogram(params?: LogHistogramParams): LogHistogramResult {
   const bucketCount = Math.min(30, Math.max(5, sorted.length));
   const intervalMs = Math.max(Math.ceil((maxTime - minTime) / bucketCount), 1000);
 
-  const map = new Map<string, number>();
+  const countByBucket = new Map<string, number>();
   for (const entry of sorted) {
     const ts = new Date(entry.timestamp).getTime();
     const bucketStart = minTime + Math.min(Math.floor((ts - minTime) / intervalMs), bucketCount - 1) * intervalMs;
     const key = `${bucketStart}|${entry.severity}`;
-    map.set(key, (map.get(key) ?? 0) + 1);
+    countByBucket.set(key, (countByBucket.get(key) ?? 0) + 1);
   }
 
-  const buckets = Array.from(map.entries()).map(([key, count]) => {
+  const buckets = Array.from(countByBucket.entries()).map(([key, count]) => {
     const [ts, severity] = key.split("|");
     return { timestamp: new Date(Number(ts)).toISOString(), severity, count };
   });

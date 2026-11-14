@@ -27,8 +27,8 @@ export function queryLogs(params: {
   since?: string;
   start_time?: string;
   end_time?: string;
-}) {
-  return post<ObserveResponse<LogQueryResponse>>("/api/v2/observe/logs/query", params);
+}, signal?: AbortSignal) {
+  return post<ObserveResponse<LogQueryResponse>>("/api/v2/observe/logs/query", params, signal);
 }
 
 /** 查询日志直方图 (GET, ClickHouse 聚合) */
@@ -41,8 +41,8 @@ export function getLogsHistogram(params: {
   query?: string;
   start_time?: string;
   end_time?: string;
-}) {
-  return get<ObserveResponse<LogHistogramResult>>("/api/v2/observe/logs/histogram", params);
+}, signal?: AbortSignal) {
+  return get<ObserveResponse<LogHistogramResult>>("/api/v2/observe/logs/histogram", params, signal);
 }
 
 // ── G5 接线（2026-08-29 能力盘点）────────────────────────────

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminKeys, clusterKeys } from "./keys";
+import { adminKeys, apmKeys, clusterKeys, logsKeys, metricsKeys, observeKeys, sloKeys } from "./keys";
 
 describe("clusterKeys", () => {
   it("不同集群的键不同：切换集群即切换缓存", () => {
@@ -71,5 +71,41 @@ describe("clusterKeys", () => {
 describe("adminKeys", () => {
   it("权限表不属于任何集群", () => {
     expect(adminKeys.permissionTable()).toEqual(["admin", "permission-table"]);
+  });
+});
+
+describe("观测信号的键", () => {
+  it("每个信号一个域，域的前缀能覆盖该信号的全部查询（手动刷新与写操作后的失效用）", () => {
+    expect(metricsKeys.snapshot("c1", "api").slice(0, 1)).toEqual(metricsKeys.all);
+    expect(metricsKeys.nodeHistory("c1", "api", "node-1", 1).slice(0, 1)).toEqual(metricsKeys.all);
+    expect(logsKeys.histogram("c1", "api", { since: "1h" }).slice(0, 1)).toEqual(logsKeys.all);
+    expect(apmKeys.traceDetail("c1", "api", "t1").slice(0, 1)).toEqual(apmKeys.all);
+    expect(sloKeys.domains("c1", "api", "1h").slice(0, 1)).toEqual(sloKeys.all);
+  });
+
+  it("键的形状与集群资源一致：[域, 资源, { clusterId, mode, ...参数 }]", () => {
+    expect(apmKeys.services("c1", "api", { since: "1h" })).toEqual([
+      "apm",
+      "services",
+      { clusterId: "c1", mode: "api", since: "1h" },
+    ]);
+    expect(sloKeys.domainHistory("c1", "mock", "a.example.com", "6h")).toEqual([
+      "slo",
+      "domain-history",
+      { clusterId: "c1", mode: "mock", host: "a.example.com", window: "6h" },
+    ]);
+  });
+
+  it("真实数据与演示数据的键不同", () => {
+    expect(metricsKeys.snapshot("c1", "api")).not.toEqual(metricsKeys.snapshot("c1", "mock"));
+    expect(logsKeys.list("c1", "api", { since: "1h" })).not.toEqual(logsKeys.list("c1", "mock", { since: "1h" }));
+  });
+
+  it("信号新鲜度不属于某一个信号：四个观测页共用一份", () => {
+    expect(observeKeys.signalFreshness("c1", "api")).toEqual([
+      "observe",
+      "signal-freshness",
+      { clusterId: "c1", mode: "api" },
+    ]);
   });
 });
