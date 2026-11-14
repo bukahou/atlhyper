@@ -11,8 +11,8 @@ export interface MockGitHubConnection {
 
 export const MOCK_GITHUB_CONNECTION: MockGitHubConnection = {
   connected: true,
-  accountLogin: "wuxiafeng",
-  avatarUrl: "https://github.com/wuxiafeng.png",
+  accountLogin: "example-org",
+  avatarUrl: "",
   installationId: 12345678,
 };
 
@@ -30,14 +30,14 @@ export interface MockAuthorizedRepo {
 }
 
 export const MOCK_AUTHORIZED_REPOS: MockAuthorizedRepo[] = [
-  { fullName: "wuxiafeng/Config", defaultBranch: "main", private: true },
-  { fullName: "wuxiafeng/Geass", defaultBranch: "main", private: false },
-  { fullName: "wuxiafeng/atlhyper", defaultBranch: "main", private: false },
+  { fullName: "example-org/cluster-config", defaultBranch: "main", private: true },
+  { fullName: "example-org/demo-app", defaultBranch: "main", private: false },
+  { fullName: "example-org/atlhyper", defaultBranch: "main", private: false },
 ];
 
 // 仓库顶层目录（GitHub API ListTopDirs 返回）
 export const MOCK_REPO_DIRS: Record<string, string[]> = {
-  "wuxiafeng/Geass": [
+  "example-org/demo-app": [
     "geass_auth/",
     "geass_gateway/",
     "geass_media/",
@@ -47,7 +47,7 @@ export const MOCK_REPO_DIRS: Record<string, string[]> = {
     "geass_web/",
     "geass_common/",
   ],
-  "wuxiafeng/atlhyper": [
+  "example-org/atlhyper": [
     "atlhyper_master_v2/",
     "atlhyper_agent_v2/",
     "atlhyper_web/",

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/authStore";
 import { useClusterStore } from "@/store/clusterStore";
 import { clusterListQuery } from "@/queries/session";
+import { resetQueriesWhenIdentityChanges } from "@/queries/session-reset";
 
 /**
  * 加载会话级数据：当前主体的权限、已接入的集群。
@@ -17,6 +18,10 @@ export function SessionLoader() {
   useEffect(() => {
     void refreshMe();
   }, [refreshMe]);
+
+  // 换了登录身份，按旧身份取回来的缓存一律作废
+  const queryClient = useQueryClient();
+  useEffect(() => resetQueriesWhenIdentityChanges(queryClient), [queryClient]);
 
   const setClusterIds = useClusterStore((state) => state.setClusterIds);
   const setOTelAvailableMap = useClusterStore((state) => state.setOTelAvailableMap);
