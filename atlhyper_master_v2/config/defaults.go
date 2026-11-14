@@ -48,6 +48,9 @@ var defaultInts = map[string]int{
 	"MASTER_GATEWAY_PORT":  8080, // Gateway 端口（Web/API）
 	"MASTER_AGENTSDK_PORT": 8081, // AgentSDK 端口（Agent 数据上报）
 
+	// -------------------- Agent 入口配置 --------------------
+	"MASTER_AGENTSDK_MAX_SNAPSHOT_MB": 256, // 单份快照的大小上限（MB，压缩前后都适用）
+
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_SNAPSHOT_RETAIN": 10, // 快照保留数量
 
@@ -75,6 +78,9 @@ var defaultStrings = map[string]string{
 	// -------------------- 日志配置 --------------------
 	"MASTER_LOG_LEVEL":  "info", // 日志级别: debug / info / warn / error
 	"MASTER_LOG_FORMAT": "text", // 日志格式: text / json
+
+	// -------------------- Agent 入口配置 --------------------
+	"MASTER_AGENT_AUTH_MODE": "warn", // Agent 令牌认证模式: off / warn / enforce
 
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_TYPE": "memory", // DataHub 类型

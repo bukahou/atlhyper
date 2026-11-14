@@ -19,8 +19,8 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 从 Header 获取 ClusterID（与其他 API 保持一致）
-	clusterID := r.Header.Get("X-Cluster-ID")
+	// 已认证时用令牌的集群；否则沿用请求头里自报的
+	clusterID := clusterFor(r, r.Header.Get("X-Cluster-ID"))
 	if clusterID == "" {
 		http.Error(w, "X-Cluster-ID header is required", http.StatusBadRequest)
 		return
@@ -32,6 +32,8 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
+
+	s.authStatus.record(clusterID, identityFrom(r).authenticated)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(HeartbeatResponse{Status: "ok"})

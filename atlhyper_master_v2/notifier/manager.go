@@ -6,6 +6,7 @@ package notifier
 import (
 	"context"
 	"sync"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/notifier/channel"
@@ -15,11 +16,18 @@ import (
 
 var log = logger.Module("Notifier")
 
+// noChannelWarnWindow 「没有启用任何通知渠道」这条日志，同一个告警标题的最短间隔。
+// 没配渠道是一个持续的状态，而告警按检测周期不断产生；逐条记录只会刷屏
+const noChannelWarnWindow = 10 * time.Minute
+
 // Manager 告警管理器
 type Manager struct {
 	notifyRepo database.NotifyChannelRepository
 	factory    *channel.Factory
 	renderer   *template.Renderer
+
+	// noChannelWarnings 「没有启用任何通知渠道」日志的限频（按告警标题）
+	noChannelWarnings *repeatLogLimiter
 
 	mu sync.RWMutex
 }
@@ -35,6 +43,8 @@ func NewManager(notifyRepo database.NotifyChannelRepository) (*Manager, error) {
 		notifyRepo: notifyRepo,
 		factory:    channel.NewFactory(),
 		renderer:   renderer,
+
+		noChannelWarnings: newRepeatLogLimiter(noChannelWarnWindow, time.Now),
 	}, nil
 }
 
@@ -61,7 +71,7 @@ func (m *Manager) SendWithTemplate(templateName string, data *template.AlertData
 	}
 
 	if len(channels) == 0 {
-		log.Warn("没有启用任何通知渠道，告警未发送", "title", data.Title)
+		m.warnNoChannel(data.Title)
 		return nil
 	}
 
@@ -98,6 +108,19 @@ func (m *Manager) SendWithTemplate(templateName string, data *template.AlertData
 	wg.Wait()
 
 	return nil
+}
+
+// warnNoChannel 记录「告警因没有启用任何通知渠道而未发送」。
+// 同一个标题在一个时间窗内只记一次；droppedSinceLastLog 是上一条日志之后同标题未发送、也未记录的条数
+func (m *Manager) warnNoChannel(title string) {
+	allowed, dropped := m.noChannelWarnings.allow(title)
+	if !allowed {
+		return
+	}
+	log.Warn("没有启用任何通知渠道，告警未发送",
+		"title", title,
+		"droppedSinceLastLog", dropped,
+		"logInterval", noChannelWarnWindow.String())
 }
 
 // Test 测试指定渠道

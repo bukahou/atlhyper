@@ -26,7 +26,7 @@
 | **0** | 访客（未登录）= 新注册成员 | `cluster.read` `events.read` `metrics.read` `slo.read` `apm.summary.read` `logs.stats.read` `aiops.read` |
 | **1** | Viewer | `workload.env.read` `logs.read` `traces.read` `commands.read` `deploy.history.read` `github.status.read` `ai.chat` |
 | **2** | Operator | `secret.read` `pod.logs.read` `cluster.operate` `audit.read` `notify.manage` `slo.manage` `ai.analyze` `ai.settings.read` |
-| **3** | Admin | `user.manage` `ai.settings.write` `github.manage` `deploy.manage` |
+| **3** | Admin | `user.manage` `ai.settings.write` `github.manage` `deploy.manage` `clusters.manage` |
 
 高等级自动继承低等级的全部权限。新注册账号（含 OIDC 自动建立的账号）默认 0 级，由 Admin 在用户管理中提升。
 
@@ -174,8 +174,73 @@
 | `deploy.manage` | GET | `/api/deploy/{config,kustomize-paths,status}` | — | `DeployHandler.*` |
 | `deploy.manage` | PUT | `/api/deploy/config` | update / deploy_config | `DeployHandler.Config` |
 | `deploy.manage` | POST | `/api/deploy/{test-connection,sync,rollback}` | execute / deploy | `DeployHandler.TestConnection` / `SyncNow` / `Rollback` |
+| `clusters.manage` | GET | `/api/v2/admin/clusters` | — | `ClusterRegistryHandler.List` |
+| `clusters.manage` | POST | `/api/v2/admin/clusters` | create / cluster | `ClusterRegistryHandler.Register` |
+| `clusters.manage` | PUT | `/api/v2/admin/clusters/{clusterId}` | update / cluster | `ClusterRegistryHandler.UpdateProfile` |
+| `clusters.manage` | DELETE | `/api/v2/admin/clusters/{clusterId}` | delete / cluster | `ClusterRegistryHandler.Unregister` |
+| `clusters.manage` | POST | `/api/v2/admin/clusters/{clusterId}/token` | create / cluster_token | `ClusterRegistryHandler.IssueToken` |
 
 > GitHub / 部署类路由仅在配置了 GitHub 客户端时注册；AI 对话路由仅在 AI 服务启用时注册。
+
+### 3.6 集群注册表与 Agent 令牌（`clusters.manage`）
+
+集群是管理员登记的对象；每个集群一枚令牌，Agent 用它向 Master 证明自己属于哪个集群。设计见 `docs/design/active/agent-auth-design.md`。
+
+**列表** `GET /api/v2/admin/clusters`
+
+返回已登记的集群，以及正在上报但尚未登记的集群（`registered: false`，可直接登记收编），按集群 ID 排序。
+
+```json
+{ "message": "获取成功", "data": [
+    { "clusterId": "c1", "name": "生产", "description": "",
+      "registered": true, "tokenIssued": true, "tokenPrefix": "atlk_Ab3", "tokenIssuedAt": "2026-11-14T10:00:00Z",
+      "status": "online", "lastSeen": "2026-11-14T10:05:00Z", "authenticated": true }
+  ], "total": 1 }
+```
+
+| 字段 | 说明 |
+|------|------|
+| `registered` | 是否已登记。未登记的行 `name` / `description` 为空 |
+| `tokenIssued` / `tokenPrefix` / `tokenIssuedAt` | 是否已签发令牌、令牌开头的几个字符（供辨认）、最近一次签发时间。未签发时后两项为空串 |
+| `status` | `online` / `offline` / `never`（登记了但从未上报） |
+| `lastSeen` | 最近一次心跳或快照的时间；从未上报时为空串 |
+| `authenticated` | 该集群最近一次上报是否带了有效令牌 |
+
+时间一律是 UTC 的 RFC 3339 字符串。
+
+**登记** `POST /api/v2/admin/clusters`
+
+```json
+{ "clusterId": "c1", "name": "生产", "description": "" }
+```
+
+→ `201 { "message": "已登记", "data": { ...同列表的一行... } }`
+
+- `clusterId`：1–63 个字符，只允许小写字母、数字、`-`、`.`，首尾必须是字母或数字；须与 Agent 上报的集群 ID 逐字一致
+- `name`：必填，不超过 64 个字；`description`：可空，不超过 256 个字；两者首尾空白会被去掉，不能含控制字符
+- 输入不合规 → 400；集群 ID 已登记 → 409
+
+**修改显示名与描述** `PUT /api/v2/admin/clusters/{clusterId}`
+
+```json
+{ "name": "生产", "description": "东京" }
+```
+
+→ `200 { "message": "已更新", "data": { ...修改后的一行... } }`；输入不合规 → 400；集群未登记 → 404
+
+**签发令牌** `POST /api/v2/admin/clusters/{clusterId}/token`（无请求体）
+
+```json
+{ "message": "已签发", "data": { "token": "atlk_...", "tokenPrefix": "atlk_Ab3", "tokenIssuedAt": "2026-11-14T10:00:00Z" } }
+```
+
+- 令牌明文**只在这一次响应里出现**：库里只保存哈希与前缀，之后任何接口都取不回明文。响应带 `Cache-Control: no-store`
+- 对已有令牌的集群再次签发即为轮换，旧令牌立即失效
+- 集群未登记 → 404
+
+**删除登记** `DELETE /api/v2/admin/clusters/{clusterId}`
+
+→ `200 { "message": "已删除登记" }`；集群未登记 → 404。令牌随之失效；该集群的历史数据（事件、指令历史、SLO 等）不受影响。
 
 ---
 
@@ -186,9 +251,11 @@
 - **登录**：本地登录、OIDC 回调
 - **敏感读**：ConfigMap / Secret 内容、Pod 日志、AI 报告详情
 - **写操作**：指令下发、Pod / Deployment / Node 操作、通知渠道（含测试发送）、SLO 目标、AI 总结 / 建议 / 分析触发、删除 AI 会话
-- **系统配置**：用户管理、AI Provider / 设置 / 预算、GitHub 连接（含安装回跳）、部署配置 / 同步 / 回滚 / 连接测试
+- **系统配置**：用户管理、AI Provider / 设置 / 预算、GitHub 连接（含安装回跳）、部署配置 / 同步 / 回滚 / 连接测试、集群注册表（登记 / 修改 / 删除登记 / 签发令牌）
 
 规则（`routes_test.go` 守住）：2 级及以上的非 GET 路由一律审计。
+
+审计记录的内容：操作人、动作与资源类型、HTTP 方法、脱敏后的请求体（凭据类键的值替换为 `***`，最多 500 字符）、状态码、来源 IP 与 User-Agent、耗时。**不记录响应体** —— 签发令牌接口返回的令牌明文不会进入审计日志。
 
 ---
 
@@ -220,7 +287,7 @@
 { "error": "错误信息" }
 ```
 
-HTTP 状态码：200 成功，400 参数错误，401 未登录且所需权限高于 0 级，403 已登录但权限不足，404 未找到，409 配置冲突（如 AI 角色未分配 Provider），500 内部错误，502 上游失败，504 超时。
+HTTP 状态码：200 成功，201 已创建（登记集群），400 参数错误，401 未登录且所需权限高于 0 级，403 已登录但权限不足，404 未找到，409 配置冲突（如 AI 角色未分配 Provider、集群 ID 已登记），500 内部错误，502 上游失败，504 超时。
 
 AI 类接口失败时另带稳定错误码 `code`（`ai_role_unassigned` / `ai_budget_exhausted` / `ai_timeout` / `ai_upstream`），前端按码显示文案。
 
@@ -229,6 +296,7 @@ AI 类接口失败时另带稳定错误码 `code`（`ai_role_unassigned` / `ai_b
 Go `http.ServeMux` 的匹配规则（Go 1.22 起的「方法 路径」模式）：
 - `GET /api/v2/pods` — 精确匹配列表路由；GET 模式同时匹配 HEAD
 - `GET /api/v2/pods/` — 前缀匹配，捕获 `/api/v2/pods/{name}`
+- `PUT /api/v2/admin/clusters/{clusterId}` — 通配段匹配单个路径段，handler 用 `r.PathValue("clusterId")` 取值（集群注册表接口使用）
 - 路径命中但方法没声明 → ServeMux 返回 405（带 `Allow` 头），请求到不了 handler
 - `/x` 没声明某方法、而 `/x/` 声明了 → ServeMux 307 到 `/x/`，仍落在已声明的路由上
 
@@ -245,7 +313,7 @@ Handler 内部从 URL 路径提取资源名称：`strings.TrimPrefix(r.URL.Path,
 | `observe/` | ClickHouse 按需查询：Metrics / Logs / Traces / SLO、节点硬件指标、数据新鲜度 |
 | `slo/` | SLO 域名、延迟分布、目标、状态历史 |
 | `aiops/` | 依赖图、基线、风险、事件、AI 增强与深度分析、AI 对话、AI 错误码 |
-| `admin/` | 用户、指令、通知、AI Provider / 设置 / 预算 / 报告、审计、部署 |
+| `admin/` | 用户、指令、通知、AI Provider / 设置 / 预算 / 报告、审计、部署、集群注册表与 Agent 令牌 |
 | `settings/` | GitHub 连接与仓库 |
 
 OIDC 端点的实现在 `atlhyper_master_v2/auth/oidc/`，由 Router 注入。

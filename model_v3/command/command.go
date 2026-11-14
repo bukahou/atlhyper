@@ -1,7 +1,10 @@
 // Package command 定义 Master → Agent 指令模型
 package command
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // Command 操作指令（Master 下发给 Agent）
 type Command struct {
@@ -30,12 +33,16 @@ type Result struct {
 // Status 指令状态查询
 type Status struct {
 	CommandID  string     `json:"commandId"`
+	ClusterID  string     `json:"clusterId,omitempty"` // 指令所属的集群；回报结果时据此核对
 	Status     string     `json:"status"`
 	Result     *Result    `json:"result,omitempty"`
 	CreatedAt  time.Time  `json:"createdAt"`
 	StartedAt  *time.Time `json:"startedAt,omitempty"`
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 }
+
+// ErrNotOwnedByCluster 回报结果的集群不是这条指令所属的集群
+var ErrNotOwnedByCluster = errors.New("指令不属于回报结果的集群")
 
 // 指令状态常量
 const (

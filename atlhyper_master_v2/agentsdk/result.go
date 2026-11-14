@@ -5,6 +5,7 @@ package agentsdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -41,8 +42,14 @@ func (s *Server) handleResult(w http.ResponseWriter, r *http.Request) {
 		Error:     req.Error,
 	}
 
-	// 确认指令完成
-	if err := s.bus.AckCommand(req.CommandID, result); err != nil {
+	// 确认指令完成。回报方的集群交给队列核对：指令不属于它时不写入结果
+	reporter := clusterFor(r, r.Header.Get("X-Cluster-ID"))
+	if err := s.bus.AckCommand(reporter, req.CommandID, result); err != nil {
+		if errors.Is(err, command.ErrNotOwnedByCluster) {
+			log.Warn("拒绝回报不属于自己集群的指令结果", "cmd", req.CommandID, "reporter", reporter)
+			http.Error(w, "command does not belong to this cluster", http.StatusForbidden)
+			return
+		}
 		log.Error("确认指令完成失败", "err", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return

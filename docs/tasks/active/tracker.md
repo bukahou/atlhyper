@@ -24,6 +24,23 @@
 
 ---
 
+## 集群注册表与 Agent 认证 — 🔄 进行中（2026-11-14）
+
+> 设计文档: [agent-auth-design.md](../../design/active/agent-auth-design.md)
+> 分支 `feat/agent-auth`（本地提交，未推送）
+
+- 令牌生成与校验、注册表存储、AgentSDK 认证中间件与三档模式、指令结果按集群核对、快照大小上限 ✅
+- Master 配置与装配：`MASTER_AGENT_AUTH_MODE`（默认 `warn`，取值写错启动失败）、`MASTER_AGENTSDK_MAX_SNAPSHOT_MB`（默认 256）✅
+- 权限 `clusters.manage`（3 级）+ 集群注册表管理接口（列表 / 登记 / 改显示名与描述 / 签发令牌 / 删除登记）✅
+- Agent：`AGENT_MASTER_TOKEN`、四条通道携带令牌、拉指令参数转义、执行前核对指令所属集群、日志区分身份被拒与网络故障 ✅
+- 通知：「没有启用任何通知渠道」日志按告警标题限频 ✅
+- 文档：两份 API 参考、README 环境变量表、权限设计文档 ✅
+- 前端「集群管理」页：表格 + 登记弹窗 + 签发令牌弹窗（一次性显示、可复制）、导航、zh / ja 文案；`Permission` 类型与权限文案补 `clusters.manage` — 待办
+- config 仓的部署清单：Agent 专用账号与权限、其余组件不挂载集群凭据、NetworkPolicy、令牌经 Secret 注入 `AGENT_MASTER_TOKEN` — 待办
+- dev 验收：`clusters` 表结构有变更，上线需清库；登记集群 → 签发令牌 → 配进 Agent → 确认已认证 → 切 `enforce` — 待办
+
+---
+
 ## AIOps 状态按集群区分 — 🔄 代码完成，待定表结构处理方式后上 dev（2026-11-14）
 
 > 设计文档: [aiops-cluster-scope-design.md](../../design/active/aiops-cluster-scope-design.md)

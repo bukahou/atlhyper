@@ -99,6 +99,7 @@
 | | `ai.settings.write` | ai/providers（POST 新建）、ai/providers/、ai/settings（PUT / PATCH）、ai/budgets/（写） |
 | | `github.manage` | github/connect、disconnect、repos* |
 | | `deploy.manage` | deploy/config、kustomize-paths、test-connection、status、sync、rollback |
+| | `clusters.manage` | admin/clusters（列表、登记、修改、删除登记、签发 Agent 令牌） |
 
 **分档判据**：0 级只含**集群状态与形状**；内容级数据（可能带业务数据 / 个人信息）≥ 1；凭据与写操作 ≥ 2；系统配置 = 3。
 

@@ -229,6 +229,8 @@ npm install && npm run dev
 | `MASTER_JWT_SECRET` | はい | - | JWT 署名キー |
 | `MASTER_GATEWAY_PORT` | いいえ | `8080` | Web/API ポート |
 | `MASTER_AGENTSDK_PORT` | いいえ | `8081` | Agent データポート |
+| `MASTER_AGENT_AUTH_MODE` | いいえ | `warn` | Agent トークン認証モード：`off` / `warn`（有効なトークンのないリクエストも受け付け、警告を記録）/ `enforce`（拒否）。それ以外の値は起動失敗 |
+| `MASTER_AGENTSDK_MAX_SNAPSHOT_MB` | いいえ | `256` | スナップショット 1 件のサイズ上限（MB、圧縮前後の両方に適用） |
 | `MASTER_LOG_LEVEL` | いいえ | `info` | ログレベル |
 
 #### Agent 環境変数
@@ -236,6 +238,7 @@ npm install && npm run dev
 | 変数 | 必須 | デフォルト | 説明 |
 |------|------|-----------|------|
 | `AGENT_MASTER_URL` | はい | - | Master AgentSDK アドレス |
+| `AGENT_MASTER_TOKEN` | いいえ | - | Master が発行するクラスタートークン（管理者がクラスターレジストリで発行）。すべてのリクエストに `Authorization: Bearer` として付与。Master が `enforce` モードの場合は必須。認証情報として扱うこと |
 | `AGENT_CLUSTER_ID` | いいえ | 自動検出 | クラスター固有識別子（デフォルトは kube-system UID を使用） |
 | `AGENT_CLICKHOUSE_DSN` | いいえ | - | ClickHouse 接続アドレス（OTel クエリを有効化） |
 

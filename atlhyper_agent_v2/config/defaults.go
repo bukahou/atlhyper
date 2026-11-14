@@ -38,7 +38,8 @@ var defaultStrings = map[string]string{
 	"AGENT_CLUSTER_ID": "", // 集群唯一标识，空则自动获取集群 UID
 
 	// -------------------- Master 通信 --------------------
-	"AGENT_MASTER_URL": "http://localhost:8081", // Master AgentSDK 端口（非 Gateway 端口）
+	"AGENT_MASTER_URL":   "http://localhost:8081", // Master AgentSDK 端口（非 Gateway 端口）
+	"AGENT_MASTER_TOKEN": "",                      // 集群令牌（Master 签发）；凭证，无默认值，空则不带认证头
 
 	// -------------------- Kubernetes 配置 --------------------
 	"AGENT_KUBECONFIG": "", // kubeconfig 文件路径，空则使用 InCluster 模式
