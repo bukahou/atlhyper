@@ -259,6 +259,8 @@ export interface AuditTranslations {
     secret: string;
     command: string;
     notify: string;
+    cluster: string;
+    cluster_token: string;
   };
   // 操作+资源组合标签
   actionLabels: {

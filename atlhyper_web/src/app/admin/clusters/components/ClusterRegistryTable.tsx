@@ -23,6 +23,9 @@ const STATUS_BADGE_TYPE: Record<ClusterRegistryStatus, "success" | "error" | "de
   never: "default",
 };
 
+/** 列多、屏幕窄时徽标里的字会被挤成一字一行：不让它换行，表格自己横向滚动 */
+const BADGE_CELL_CLASS = "whitespace-nowrap";
+
 const ACTION_BUTTON_CLASS =
   "p-2 rounded-lg hover-bg text-muted hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted";
 
@@ -80,7 +83,9 @@ export function ClusterRegistryTable({
       key: "status",
       header: t.status,
       render: (cluster) => (
-        <StatusBadge status={statusLabel[cluster.status] ?? cluster.status} type={STATUS_BADGE_TYPE[cluster.status]} />
+        <span className={BADGE_CELL_CLASS}>
+          <StatusBadge status={statusLabel[cluster.status] ?? cluster.status} type={STATUS_BADGE_TYPE[cluster.status]} />
+        </span>
       ),
     },
     {
@@ -98,9 +103,11 @@ export function ClusterRegistryTable({
       header: t.registration,
       render: (cluster) =>
         cluster.registered ? (
-          <StatusBadge status={t.registered} type="info" />
+          <span className={BADGE_CELL_CLASS}>
+            <StatusBadge status={t.registered} type="info" />
+          </span>
         ) : (
-          <span title={t.unregisteredHint}>
+          <span className={BADGE_CELL_CLASS} title={t.unregisteredHint}>
             <StatusBadge status={t.unregistered} type="warning" />
           </span>
         ),
@@ -125,13 +132,16 @@ export function ClusterRegistryTable({
     {
       key: "agentAuth",
       header: t.agentAuth,
-      render: (cluster) =>
-        cluster.authenticated ? (
-          <StatusBadge status={t.agentAuthenticated} type="success" />
-        ) : (
-          // 在线却没带令牌才值得警示；不在线的集群没带令牌是理所当然
-          <StatusBadge status={t.agentUnauthenticated} type={cluster.status === "online" ? "warning" : "default"} />
-        ),
+      render: (cluster) => (
+        <span className={BADGE_CELL_CLASS}>
+          {cluster.authenticated ? (
+            <StatusBadge status={t.agentAuthenticated} type="success" />
+          ) : (
+            // 在线却没带令牌才值得警示；不在线的集群没带令牌是理所当然
+            <StatusBadge status={t.agentUnauthenticated} type={cluster.status === "online" ? "warning" : "default"} />
+          )}
+        </span>
+      ),
     },
     {
       key: "actions",

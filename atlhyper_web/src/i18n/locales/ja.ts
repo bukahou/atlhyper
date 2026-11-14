@@ -246,6 +246,8 @@ export const ja: Translations = {
       secret: "Secret",
       command: "コマンド",
       notify: "通知",
+      cluster: "クラスタ",
+      cluster_token: "クラスタトークン",
     },
     actionLabels: {
       loginUser: "ユーザーログイン",

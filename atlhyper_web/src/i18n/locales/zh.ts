@@ -246,6 +246,8 @@ export const zh: Translations = {
       secret: "Secret",
       command: "指令",
       notify: "通知",
+      cluster: "集群",
+      cluster_token: "集群令牌",
     },
     actionLabels: {
       loginUser: "用户登录",
