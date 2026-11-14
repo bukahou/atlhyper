@@ -108,6 +108,7 @@ func migrate(db *sql.DB) error {
 			action TEXT,
 			resource TEXT,
 			method TEXT,
+			path TEXT NOT NULL DEFAULT '',
 			request_body TEXT,
 			status_code INTEGER,
 			success INTEGER,

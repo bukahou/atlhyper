@@ -20,6 +20,7 @@ type AuditLog struct {
 	Action       string
 	Resource     string
 	Method       string
+	Path         string // 请求路径（不含查询串）：被操作的对象常常只出现在路径里
 	RequestBody  string
 	StatusCode   int
 	Success      bool

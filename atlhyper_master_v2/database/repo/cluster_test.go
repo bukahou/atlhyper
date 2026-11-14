@@ -160,3 +160,25 @@ func TestClusterList_OrderedByID(t *testing.T) {
 		t.Errorf("期望按集群 ID 排序的两行，实际 %+v", clusters)
 	}
 }
+
+// 审计记录的请求路径要能存取：被操作的对象常常只出现在路径里。
+func TestAuditLog_PathRoundTrip(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	err := db.Audit.Create(ctx, &database.AuditLog{
+		Timestamp: time.Now(), Username: "admin", Action: "execute", Resource: "cluster",
+		Method: "POST", Path: "/api/v2/admin/clusters/c1/token", StatusCode: 200, Success: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	logs, err := db.Audit.List(ctx, database.AuditQueryOpts{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 1 || logs[0].Path != "/api/v2/admin/clusters/c1/token" {
+		t.Fatalf("路径没有存取成功: %+v", logs)
+	}
+}

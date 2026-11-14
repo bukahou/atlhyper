@@ -64,7 +64,7 @@ Web（3 级） ──► /api/v2/admin/clusters ──► service ──► data
 `mq.Consumer.AckCommand` 增加集群参数，由队列自己核对指令归属：
 
 ```go
-// clusterID 非空时，指令必须属于该集群，否则返回 ErrCommandNotOwned
+// clusterID 非空时，指令必须属于该集群，否则返回 command.ErrNotOwnedByCluster
 AckCommand(clusterID, cmdID string, result *command.Result) error
 ```
 
@@ -138,6 +138,9 @@ DELETE /api/v2/admin/clusters/{clusterId}
 - `model/cluster_registry.go`（请求 / 响应模型与输入校验）、`model/convert/cluster_registry.go`
 - `gateway/handler/admin/cluster_registry.go` + `routes.go` + 权限表
 
+- 审计：写操作全部审计。审计记录新增 `path` 列（请求路径，不含查询串），
+  因为改名、签发令牌、删除登记的集群 ID 只出现在路径里
+
 **前端实现**
 
 - `app/admin/clusters/page.tsx` [新增]：表格 + 登记弹窗 + 签发令牌弹窗（一次性显示、可复制）
@@ -154,7 +157,8 @@ DELETE /api/v2/admin/clusters/{clusterId}
 - `agentsdk/auth.go` [新增]：`authenticateAgent` 中间件、`agentIdentity`、限频日志
 - `agentsdk/{snapshot,heartbeat,command,result}.go`：改用已认证的集群
 - `mq/`：`AckCommand` 增加集群参数（memory / redis 两个实现）
-- `datahub`：`AgentInfo` 记录最近一次请求是否已认证
+- `agentsdk.AuthStatusTracker`：记录各集群最近一次上报是否带了有效令牌，供管理页显示。
+  只在进程内存里：Master 重启后先显示「未认证」，下一次上报（10 秒内）恢复；多副本之间不共享
 - `config/`：`MASTER_AGENT_AUTH_MODE`、`MASTER_AGENTSDK_MAX_SNAPSHOT_MB`
 - Agent：`config/`（`AGENT_MASTER_TOKEN`）、`gateway/master_gateway.go`、`service/command/`（核对指令的集群）、`scheduler/`（日志区分身份被拒与网络故障）
   - 集群核对放在指令服务的 `Execute` 入口，与「目标是否合法资源名」的核对在同一处：调度层只管编排，是否执行一条指令由指令服务判断
@@ -201,7 +205,6 @@ atlhyper_master_v2/
 │   ├── clustertoken/token.go        [新增]
 │   ├── server.go / snapshot.go / heartbeat.go / command.go / result.go   [修改]
 ├── mq/interfaces.go, memory/bus.go, redis/bus.go                          [修改]
-├── datahub/                         [修改] AgentInfo 记录是否已认证
 ├── database/                        [修改] clusters 表、ClusterRepository
 ├── service/operations/cluster_registry.go, service/query/cluster_registry.go [新增]
 ├── service/interfaces.go, factory.go, query/impl.go                       [修改]

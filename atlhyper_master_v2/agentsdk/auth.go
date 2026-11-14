@@ -197,17 +197,27 @@ func NewAuthStatusTracker() *AuthStatusTracker {
 	return &AuthStatusTracker{authenticated: make(map[string]bool)}
 }
 
+// authStatusMaxClusters 记录的集群数上限。告警模式下集群 ID 是请求自报的，
+// 超过上限时清空重来（各集群下一次上报就会重新记上），防止任意 ID 把表撑大。
+const authStatusMaxClusters = 4096
+
 func (t *AuthStatusTracker) record(clusterID string, authenticated bool) {
 	if t == nil || clusterID == "" {
 		return
 	}
 	t.mu.Lock()
+	defer t.mu.Unlock()
+	if _, known := t.authenticated[clusterID]; !known && len(t.authenticated) >= authStatusMaxClusters {
+		t.authenticated = make(map[string]bool)
+	}
 	t.authenticated[clusterID] = authenticated
-	t.mu.Unlock()
 }
 
 // IsAuthenticated 该集群最近一次上报是否带了有效令牌；known 为假表示它还没上报过
 func (t *AuthStatusTracker) IsAuthenticated(clusterID string) (authenticated, known bool) {
+	if t == nil {
+		return false, false
+	}
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	authenticated, known = t.authenticated[clusterID]
