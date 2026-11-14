@@ -57,16 +57,9 @@ func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.
 		CreatedAt: time.Now(),
 	}
 
-	// 4. 写入 MQ（按来源路由 topic）
-	topic := mq.TopicOps
-	if req.Source == "ai" {
-		topic = mq.TopicAI
-	}
-	if err := s.bus.EnqueueCommand(req.ClusterID, topic, cmd); err != nil {
-		return nil, fmt.Errorf("enqueue command: %w", err)
-	}
-
-	// 5. 持久化指令历史
+	// 4. 先持久化指令历史。
+	// 指令一入队 Agent 就可能立刻执行并回报结果，回报时要找得到这条历史；
+	// 若先入队后写历史，结果先到就对不上，历史会永远停在 pending。
 	paramsJSON, _ := json.Marshal(req.Params)
 	history := &database.CommandHistory{
 		CommandID:       commandID,
@@ -80,14 +73,38 @@ func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.
 		Status:          command.StatusPending,
 		CreatedAt:       cmd.CreatedAt,
 	}
-	if err := s.cmdRepo.Create(context.Background(), history); err != nil {
-		log.Error("指令历史持久化失败", "err", err)
+	historyErr := s.cmdRepo.Create(context.Background(), history)
+	if historyErr != nil {
+		log.Error("指令历史持久化失败", "err", historyErr)
+	}
+
+	// 5. 写入 MQ（按来源路由 topic）
+	topic := mq.TopicOps
+	if req.Source == "ai" {
+		topic = mq.TopicAI
+	}
+	if err := s.bus.EnqueueCommand(req.ClusterID, topic, cmd); err != nil {
+		if historyErr == nil {
+			s.markHistoryFailed(history, err)
+		}
+		return nil, fmt.Errorf("enqueue command: %w", err)
 	}
 
 	return &model.CreateCommandResponse{
 		CommandID: commandID,
 		Status:    "pending",
 	}, nil
+}
+
+// markHistoryFailed 指令没能入队时，把已写下的历史标成失败
+func (s *CommandService) markHistoryFailed(history *database.CommandHistory, cause error) {
+	now := time.Now()
+	history.Status = command.StatusFailed
+	history.ErrorMessage = "指令未能入队: " + cause.Error()
+	history.FinishedAt = &now
+	if err := s.cmdRepo.Update(context.Background(), history); err != nil {
+		log.Error("更新指令历史失败", "cmd", history.CommandID, "err", err)
+	}
 }
 
 // validateRequest 校验请求

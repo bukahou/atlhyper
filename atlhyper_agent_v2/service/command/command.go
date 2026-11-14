@@ -210,13 +210,7 @@ func (s *commandService) handleUncordon(ctx context.Context, cmd *command.Comman
 
 // handleGetLogs 处理获取日志指令
 func (s *commandService) handleGetLogs(ctx context.Context, cmd *command.Command) (string, error) {
-	var params struct {
-		Container    string `json:"container,omitempty"`
-		TailLines    int64  `json:"tailLines,omitempty"`
-		SinceSeconds int64  `json:"sinceSeconds,omitempty"`
-		Timestamps   bool   `json:"timestamps,omitempty"`
-		Previous     bool   `json:"previous,omitempty"`
-	}
+	var params command.GetLogsParams
 	if cmd.Params != nil {
 		if err := s.parseParams(cmd.Params, &params); err != nil {
 			return "", fmt.Errorf("invalid log params: %w", err)

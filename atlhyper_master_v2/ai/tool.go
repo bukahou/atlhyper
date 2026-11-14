@@ -18,6 +18,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/common/logger"
+	"AtlHyper/model_v3/command"
 )
 
 var toolLog = logger.Module("AI-Tool")
@@ -124,9 +125,10 @@ func mapToInternalAction(action string, params map[string]interface{}) (string, 
 	switch action {
 	case "get_logs":
 		// 直接使用 get_logs action
-		cmdParams["container"] = getString(params, "container")
-		cmdParams["tail_lines"] = getInt(params, "tail_lines", 100)
-		return "get_logs", cmdParams
+		return command.ActionGetLogs, command.GetLogsParams{
+			Container: getString(params, "container"),
+			TailLines: int64(getInt(params, "tail_lines", 100)),
+		}.ToParams()
 
 	case "get_configmap":
 		// 直接使用 get_configmap action

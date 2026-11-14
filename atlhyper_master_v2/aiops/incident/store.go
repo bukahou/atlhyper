@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,14 +23,21 @@ var log = logger.Module("AIOps.Incident")
 // Store 事件存储
 type Store struct {
 	repo database.AIOpsIncidentRepository
+
+	// 写入的重试队列（见 write_queue.go）
+	writeMu    sync.Mutex
+	pending    []pendingWrite
+	retryAfter time.Time        // 上次暂时性失败后，到这个时刻之前不再尝试写库
+	now        func() time.Time // 可替换的时钟，测试用
 }
 
 // NewStore 创建事件存储
 func NewStore(repo database.AIOpsIncidentRepository) *Store {
-	return &Store{repo: repo}
+	return &Store{repo: repo, now: time.Now}
 }
 
-// Create 创建事件
+// Create 创建事件。
+// 事件号在本地生成并立即返回；写库走重试队列，状态机据此关联这条事件之后的变化。
 func (s *Store) Create(ctx context.Context, clusterID, entityKey string, risk *aiops.EntityRisk, now time.Time) string {
 	seq := incidentSeq.Add(1)
 	id := fmt.Sprintf("inc-%d%04d", now.UnixMilli(), seq%10000)
@@ -45,13 +53,7 @@ func (s *Store) Create(ctx context.Context, clusterID, entityKey string, risk *a
 		StartedAt: now,
 		CreatedAt: now,
 	}
-
-	if err := s.repo.CreateIncident(ctx, inc); err != nil {
-		log.Error("创建事件失败", "id", id, "err", err)
-		return ""
-	}
-
-	// 添加触发实体
+	// 触发实体
 	entity := &database.AIOpsIncidentEntity{
 		IncidentID: id,
 		EntityKey:  entityKey,
@@ -60,13 +62,13 @@ func (s *Store) Create(ctx context.Context, clusterID, entityKey string, risk *a
 		RFinal:     risk.RFinal,
 		Role:       "root_cause",
 	}
-	if err := s.repo.AddEntity(ctx, entity); err != nil {
-		log.Error("添加事件实体失败", "id", id, "entity", entityKey, "err", err)
-	}
 
-	// 添加时间线
-	s.addTimeline(ctx, id, now, aiops.TimelineStateChange, entityKey, "状态变更: healthy → warning")
-	s.addSignalTimeline(ctx, id, now, risk)
+	s.submit(ctx,
+		pendingWrite{"创建事件 " + id, func(ctx context.Context) error { return s.repo.CreateIncident(ctx, inc) }},
+		pendingWrite{"添加事件实体 " + id, func(ctx context.Context) error { return s.repo.AddEntity(ctx, entity) }},
+		s.timelineWrite(id, now, aiops.TimelineStateChange, entityKey, "状态变更: healthy → warning"),
+		s.signalTimelineWrite(id, now, risk),
+	)
 
 	log.Info("事件已创建", "id", id, "entity", entityKey, "severity", severity)
 	return id
@@ -74,59 +76,71 @@ func (s *Store) Create(ctx context.Context, clusterID, entityKey string, risk *a
 
 // UpdateState 更新事件状态
 func (s *Store) UpdateState(ctx context.Context, incidentID string, state aiops.EntityState, risk *aiops.EntityRisk, now time.Time) {
-	severity := aiops.SeverityFromRisk(risk.RFinal)
-	if err := s.repo.UpdateState(ctx, incidentID, string(state), severity); err != nil {
-		log.Error("更新事件状态失败", "id", incidentID, "err", err)
+	if incidentID == "" {
 		return
 	}
-
-	// 更新峰值风险
-	if err := s.repo.UpdatePeakRisk(ctx, incidentID, risk.RFinal); err != nil {
-		log.Error("更新峰值风险失败", "id", incidentID, "err", err)
-	}
-
-	// 实体风险随事件演进更新（曾停在创建时的值，界面「最终风险」与事件峰值对不上）
-	s.refreshEntityRisk(ctx, incidentID, risk)
-
+	severity := aiops.SeverityFromRisk(risk.RFinal)
 	detail := fmt.Sprintf("状态变更 → %s (风险 %s)", state, displayRisk(risk.RFinal))
+
+	writes := []pendingWrite{
+		{"更新事件状态 " + incidentID, func(ctx context.Context) error {
+			return s.repo.UpdateState(ctx, incidentID, string(state), severity)
+		}},
+		{"更新峰值风险 " + incidentID, func(ctx context.Context) error {
+			return s.repo.UpdatePeakRisk(ctx, incidentID, risk.RFinal)
+		}},
+		// 实体风险随事件演进更新（曾停在创建时的值，界面「最终风险」与事件峰值对不上）
+		s.entityRiskWrite(incidentID, risk),
+	}
 	if state == aiops.StateRecovery {
 		// 独立类型：异常时长据此结构化识别（文案前缀不变，旧数据仍靠它兼容）
-		s.addTimeline(ctx, incidentID, now, aiops.TimelineRecoveryStarted, risk.EntityKey, detail)
-		return
+		writes = append(writes, s.timelineWrite(incidentID, now, aiops.TimelineRecoveryStarted, risk.EntityKey, detail))
+	} else {
+		writes = append(writes,
+			s.timelineWrite(incidentID, now, aiops.TimelineStateChange, risk.EntityKey, detail),
+			s.signalTimelineWrite(incidentID, now, risk),
+		)
 	}
-	s.addTimeline(ctx, incidentID, now, aiops.TimelineStateChange, risk.EntityKey, detail)
-	s.addSignalTimeline(ctx, incidentID, now, risk)
+	s.submit(ctx, writes...)
 }
 
 // Resolve 解决事件
 func (s *Store) Resolve(ctx context.Context, incidentID, entityKey string, now time.Time) {
-	if err := s.repo.UpdateState(ctx, incidentID, string(aiops.StateStable), ""); err != nil {
-		log.Error("解决事件失败", "id", incidentID, "err", err)
-		return
+	if incidentID == "" {
+		return // 从未建过事件的实体（一直健康）被清理时，没有可关闭的事件
 	}
-	if err := s.repo.Resolve(ctx, incidentID, now); err != nil {
-		log.Error("设置解决时间失败", "id", incidentID, "err", err)
-	}
-	s.addTimeline(ctx, incidentID, now, aiops.TimelineStateChange, entityKey, "事件已解决: recovery → stable")
+	s.submit(ctx,
+		pendingWrite{"关闭事件 " + incidentID, func(ctx context.Context) error {
+			return s.repo.UpdateState(ctx, incidentID, string(aiops.StateStable), "")
+		}},
+		pendingWrite{"设置解决时间 " + incidentID, func(ctx context.Context) error {
+			return s.repo.Resolve(ctx, incidentID, now)
+		}},
+		s.timelineWrite(incidentID, now, aiops.TimelineStateChange, entityKey, "事件已解决: recovery → stable"),
+	)
 }
 
 // UpdateRootCause 更新根因实体
 func (s *Store) UpdateRootCause(ctx context.Context, incidentID, rootCause string) {
-	if err := s.repo.UpdateRootCause(ctx, incidentID, rootCause); err != nil {
-		log.Error("更新根因失败", "id", incidentID, "err", err)
-	}
+	s.submit(ctx, pendingWrite{"更新根因 " + incidentID, func(ctx context.Context) error {
+		return s.repo.UpdateRootCause(ctx, incidentID, rootCause)
+	}})
 }
 
 // IncrementRecurrence 递增复发次数
 func (s *Store) IncrementRecurrence(ctx context.Context, incidentID string, risk *aiops.EntityRisk, now time.Time) {
-	if err := s.repo.IncrementRecurrence(ctx, incidentID); err != nil {
-		log.Error("递增复发次数失败", "id", incidentID, "err", err)
+	if incidentID == "" {
 		return
 	}
-	s.refreshEntityRisk(ctx, incidentID, risk)
 	detail := fmt.Sprintf("复发 (风险 %s)", displayRisk(risk.RFinal))
-	s.addTimeline(ctx, incidentID, now, aiops.TimelineRecurrence, risk.EntityKey, detail)
-	s.addSignalTimeline(ctx, incidentID, now, risk)
+	s.submit(ctx,
+		pendingWrite{"递增复发次数 " + incidentID, func(ctx context.Context) error {
+			return s.repo.IncrementRecurrence(ctx, incidentID)
+		}},
+		s.entityRiskWrite(incidentID, risk),
+		s.timelineWrite(incidentID, now, aiops.TimelineRecurrence, risk.EntityKey, detail),
+		s.signalTimelineWrite(incidentID, now, risk),
+	)
 }
 
 // GetIncident 获取事件详情
@@ -226,23 +240,22 @@ func toAIOpsTimeline(timeline []*database.AIOpsIncidentTimeline) []*aiops.Incide
 	return result
 }
 
-// refreshEntityRisk 更新事件中该实体的风险值，保留其角色与类型；实体不在事件中则不新增
-func (s *Store) refreshEntityRisk(ctx context.Context, incidentID string, risk *aiops.EntityRisk) {
-	entities, err := s.repo.GetEntities(ctx, incidentID)
-	if err != nil {
-		log.Warn("读取事件实体失败", "id", incidentID, "err", err)
-		return
-	}
-	for _, e := range entities {
-		if e.EntityKey != risk.EntityKey {
-			continue
+// entityRiskWrite 更新事件中该实体的风险值，保留其角色与类型；实体不在事件中则不新增
+func (s *Store) entityRiskWrite(incidentID string, risk *aiops.EntityRisk) pendingWrite {
+	return pendingWrite{"更新实体风险 " + incidentID, func(ctx context.Context) error {
+		entities, err := s.repo.GetEntities(ctx, incidentID)
+		if err != nil {
+			return err
 		}
-		e.RLocal, e.RFinal = risk.RLocal, risk.RFinal
-		if err := s.repo.AddEntity(ctx, e); err != nil { // (incident_id, entity_key) 主键覆盖写
-			log.Error("更新实体风险失败", "id", incidentID, "entity", e.EntityKey, "err", err)
+		for _, e := range entities {
+			if e.EntityKey != risk.EntityKey {
+				continue
+			}
+			e.RLocal, e.RFinal = risk.RLocal, risk.RFinal
+			return s.repo.AddEntity(ctx, e) // (incident_id, entity_key) 主键覆盖写
 		}
-		return
-	}
+		return nil
+	}}
 }
 
 // displayRisk 时间线文字用界面同款 0-100 刻度（核心层为 [0,1]，约定见 gateway/handler/aiops/scale_risk.go）

@@ -25,6 +25,7 @@ type Server struct {
 	bus        mq.Consumer
 	processor  processor.Processor
 	cmdRepo    database.CommandHistoryRepository
+	cmdTTL     time.Duration // 指令有效期，0 表示用默认值
 	httpServer *http.Server
 }
 

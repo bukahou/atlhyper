@@ -43,6 +43,8 @@ func LoadConfig() {
 		HTTPClient:      getDuration("AGENT_TIMEOUT_HTTP_CLIENT"),
 		SnapshotCollect: getDuration("AGENT_TIMEOUT_SNAPSHOT_COLLECT"),
 		CommandPoll:     getDuration("AGENT_TIMEOUT_COMMAND_POLL"),
+		CommandExec:     getDuration("AGENT_TIMEOUT_COMMAND_EXEC"),
+		CommandReport:   getDuration("AGENT_TIMEOUT_COMMAND_REPORT"),
 		Heartbeat:       getDuration("AGENT_TIMEOUT_HEARTBEAT"),
 	}
 

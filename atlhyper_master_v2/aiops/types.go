@@ -354,6 +354,9 @@ type StateMachineEntry struct {
 	ConditionMetSince int64       `json:"conditionMetSince"`
 	LastRFinal        float64     `json:"lastRFinal"`
 	LastEvaluatedAt   int64       `json:"lastEvaluatedAt"`
+	// RecoveryStartedAt 进入恢复观察期的时刻（Unix 秒），0 表示不在观察期。
+	// 与 ConditionMetSince 分开：后者在每次评估「没有出口条件满足」时清零，不能用来计 48 小时。
+	RecoveryStartedAt int64 `json:"recoveryStartedAt,omitempty"`
 }
 
 // ==================== 事件类型 ====================

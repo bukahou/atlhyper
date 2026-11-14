@@ -157,3 +157,47 @@ func TestStore_SignalTimelinePropagatedOnly(t *testing.T) {
 		t.Errorf("got %+v", repo.timeline)
 	}
 }
+
+func (f *fakeIncidentRepo) GetTimeline(context.Context, string) ([]*database.AIOpsIncidentTimeline, error) {
+	return f.timeline, nil
+}
+
+// 重启后要从时间线取回「进入恢复观察期的时刻」：最后一次复发之后的那条恢复记录。
+func TestRecoveryStartedAt(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	entry := func(offset time.Duration, eventType string) *database.AIOpsIncidentTimeline {
+		return &database.AIOpsIncidentTimeline{IncidentID: "inc-1", Timestamp: base.Add(offset), EventType: eventType}
+	}
+
+	tests := []struct {
+		name     string
+		timeline []*database.AIOpsIncidentTimeline
+		want     time.Time
+		wantOK   bool
+	}{
+		{"没有恢复记录", []*database.AIOpsIncidentTimeline{entry(0, aiops.TimelineStateChange)}, time.Time{}, false},
+		{"恢复一次", []*database.AIOpsIncidentTimeline{
+			entry(0, aiops.TimelineStateChange),
+			entry(time.Hour, aiops.TimelineRecoveryStarted),
+		}, base.Add(time.Hour), true},
+		{"复发后再次恢复，取后一次", []*database.AIOpsIncidentTimeline{
+			entry(time.Hour, aiops.TimelineRecoveryStarted),
+			entry(2*time.Hour, aiops.TimelineRecurrence),
+			entry(3*time.Hour, aiops.TimelineRecoveryStarted),
+		}, base.Add(3 * time.Hour), true},
+		{"复发后尚未恢复", []*database.AIOpsIncidentTimeline{
+			entry(time.Hour, aiops.TimelineRecoveryStarted),
+			entry(2*time.Hour, aiops.TimelineRecurrence),
+		}, time.Time{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			repo.timeline = tt.timeline
+			got, ok := NewStore(repo).RecoveryStartedAt(context.Background(), "inc-1")
+			if ok != tt.wantOK || !got.Equal(tt.want) {
+				t.Errorf("RecoveryStartedAt() = %v, %v; want %v, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}

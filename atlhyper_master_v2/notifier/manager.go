@@ -61,7 +61,7 @@ func (m *Manager) SendWithTemplate(templateName string, data *template.AlertData
 	}
 
 	if len(channels) == 0 {
-		log.Info("无可用渠道，告警未发送", "title", data.Title)
+		log.Warn("没有启用任何通知渠道，告警未发送", "title", data.Title)
 		return nil
 	}
 

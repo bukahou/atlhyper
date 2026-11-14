@@ -325,7 +325,7 @@ func TestCheckRecoveryToStable(t *testing.T) {
 		EntityKey:         entity,
 		CurrentState:      aiops.StateRecovery,
 		IncidentID:        "inc-6",
-		ConditionMetSince: time.Now().Add(-49 * time.Hour).Unix(), // 超过 48h
+		RecoveryStartedAt: time.Now().Add(-49 * time.Hour).Unix(), // 超过 48h
 	}
 	sm.mu.Unlock()
 
@@ -353,7 +353,7 @@ func TestCheckRecoveryToStable_NotYet(t *testing.T) {
 		EntityKey:         entity,
 		CurrentState:      aiops.StateRecovery,
 		IncidentID:        "inc-7",
-		ConditionMetSince: time.Now().Add(-24 * time.Hour).Unix(), // 只有 24h
+		RecoveryStartedAt: time.Now().Add(-24 * time.Hour).Unix(), // 只有 24h
 	}
 	sm.mu.Unlock()
 
@@ -407,7 +407,7 @@ func TestFullLifecycle(t *testing.T) {
 	}
 
 	// 4. Recovery → Stable (48h)
-	entry.ConditionMetSince = time.Now().Add(-49 * time.Hour).Unix()
+	entry.RecoveryStartedAt = time.Now().Add(-49 * time.Hour).Unix()
 	sm.CheckRecoveryToStable(ctx)
 	if sm.GetEntry(entity) != nil {
 		t.Fatal("step 4: expected entry deleted (stable)")
@@ -625,5 +625,102 @@ func TestWarningToHealthy_FullCycle(t *testing.T) {
 	}
 	if cb.warningCreated != 2 {
 		t.Fatalf("expected 2 warningCreated, got %d", cb.warningCreated)
+	}
+}
+
+// fakeClock 可手动拨动的时钟
+type fakeClock struct{ current time.Time }
+
+func (c *fakeClock) Now() time.Time          { return c.current }
+func (c *fakeClock) Advance(d time.Duration) { c.current = c.current.Add(d) }
+
+// 恢复观察期内实体仍在每 10 秒被评估一次；评估不得打断 48 小时的计时。
+func TestRecoveryToStable_ReachedWhileEntityKeepsBeingEvaluated(t *testing.T) {
+	cb := &mockCallback{}
+	sm := NewStateMachine(cb)
+	clock := &fakeClock{current: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	sm.now = clock.Now
+	ctx := context.Background()
+	entity := "ns/service/svc-a"
+
+	// 事件中 → 风险回落满 10 分钟 → 进入恢复观察期
+	sm.mu.Lock()
+	sm.entries[entity] = &aiops.StateMachineEntry{EntityKey: entity, CurrentState: aiops.StateIncident, IncidentID: "inc-1"}
+	sm.mu.Unlock()
+	sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+	clock.Advance(11 * time.Minute)
+	sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+	if got := sm.GetEntry(entity).CurrentState; got != aiops.StateRecovery {
+		t.Fatalf("前置条件：应进入 recovery，实际 %s", got)
+	}
+
+	// 47 小时：持续评估 + 定期检查，不应提前关闭
+	for i := 0; i < 47; i++ {
+		clock.Advance(time.Hour)
+		sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+		sm.CheckRecoveryToStable(ctx)
+	}
+	if cb.stable != 0 {
+		t.Fatalf("未满 48 小时就关闭了")
+	}
+
+	// 再过 2 小时：满 48 小时，应关闭
+	for i := 0; i < 2; i++ {
+		clock.Advance(time.Hour)
+		sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+		sm.CheckRecoveryToStable(ctx)
+	}
+	if cb.stable != 1 {
+		t.Fatalf("满 48 小时后应关闭 1 次，实际 %d 次", cb.stable)
+	}
+	// 关闭后实体仍在被评估，会重新得到一个健康的条目；不得还挂在 recovery 或带着旧事件号
+	if entry := sm.GetEntry(entity); entry != nil && (entry.CurrentState != aiops.StateHealthy || entry.IncidentID != "") {
+		t.Fatalf("关闭后不应保留旧事件的条目，实际 %+v", entry)
+	}
+}
+
+// 观察期内复发后再次恢复：48 小时从新的恢复时刻重新计。
+func TestRecoveryToStable_RestartsAfterRecurrence(t *testing.T) {
+	cb := &mockCallback{}
+	sm := NewStateMachine(cb)
+	clock := &fakeClock{current: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	sm.now = clock.Now
+	ctx := context.Background()
+	entity := "ns/service/svc-a"
+
+	sm.RestoreEntry(&aiops.StateMachineEntry{
+		EntityKey: entity, CurrentState: aiops.StateRecovery, IncidentID: "inc-1",
+		RecoveryStartedAt: clock.Now().Unix(),
+	})
+
+	clock.Advance(40 * time.Hour)
+	sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.9), nil) // 复发 → warning
+	if got := sm.GetEntry(entity).CurrentState; got != aiops.StateWarning {
+		t.Fatalf("前置条件：应复发为 warning，实际 %s", got)
+	}
+	if got := sm.GetEntry(entity).RecoveryStartedAt; got != 0 {
+		t.Errorf("复发后恢复时刻应清空，实际 %d", got)
+	}
+}
+
+// 重启后恢复的条目带着原来的恢复时刻：不从重启那一刻重新计 48 小时。
+func TestRecoveryToStable_RestoredEntryKeepsOriginalStart(t *testing.T) {
+	cb := &mockCallback{}
+	sm := NewStateMachine(cb)
+	clock := &fakeClock{current: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)}
+	sm.now = clock.Now
+	ctx := context.Background()
+	entity := "ns/service/svc-a"
+
+	sm.RestoreEntry(&aiops.StateMachineEntry{
+		EntityKey: entity, CurrentState: aiops.StateRecovery, IncidentID: "inc-1",
+		RecoveryStartedAt: clock.Now().Add(-47 * time.Hour).Unix(),
+	})
+
+	clock.Advance(2 * time.Hour)
+	sm.Evaluate(ctx, "c1", makeEntityRisks(entity, 0.05), nil)
+	sm.CheckRecoveryToStable(ctx)
+	if cb.stable != 1 {
+		t.Fatalf("恢复时刻在 49 小时前，应关闭，实际关闭 %d 次", cb.stable)
 	}
 }

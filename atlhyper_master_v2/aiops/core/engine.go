@@ -36,6 +36,7 @@ type engine struct {
 	sm            *statemachine.StateMachine
 	incidentStore *incident.Store
 	graphRepo     database.AIOpsGraphRepository
+	graphSaver    *graphSnapshotSaver // Start 时创建
 	sloRepo       database.SLORepository
 
 	// AI 后台分析通知回调（可选）
@@ -63,6 +64,11 @@ func (e *engine) OnSnapshot(clusterID string) {
 		return
 	}
 
+	// 补上此前没写成的事件写入（写锁被占住时积压的；平时队列为空）
+	if e.incidentStore != nil && e.bgCtx != nil {
+		e.incidentStore.FlushPending(e.bgCtx)
+	}
+
 	// 获取 OTel 数据（直接从 snap.OTel 读取，非 Ring Buffer）
 	otel := snap.OTel
 
@@ -70,19 +76,10 @@ func (e *engine) OnSnapshot(clusterID string) {
 	graph := correlator.BuildFromSnapshot(clusterID, snap, otel)
 	e.corr.Update(clusterID, graph)
 
-	// 持久化图快照（异步，不阻塞主流程）
-	go func() {
-		data, err := correlator.Serialize(graph)
-		if err != nil {
-			log.Error("序列化依赖图失败", "cluster", clusterID, "err", err)
-			return
-		}
-		ctx, cancel := context.WithTimeout(e.bgCtx, 10*time.Second)
-		defer cancel()
-		if err := e.graphRepo.Save(ctx, clusterID, data); err != nil {
-			log.Error("持久化依赖图失败", "cluster", clusterID, "err", err)
-		}
-	}()
+	// 持久化图快照（异步，不阻塞主流程；拓扑没变不写）
+	if e.graphSaver != nil {
+		e.graphSaver.SaveIfChanged(clusterID, graph)
+	}
 
 	// otel 已在上方从 snap.OTel 获取（直接读取，非 Ring Buffer）
 
@@ -416,6 +413,7 @@ func (e *engine) Start(ctx context.Context) error {
 
 	// 4. 启动定期 flush + Recovery→Stable 检查 goroutine
 	e.bgCtx, e.cancel = context.WithCancel(context.Background())
+	e.graphSaver = newGraphSnapshotSaver(e.bgCtx, e.graphRepo)
 
 	e.wg.Add(1)
 	go e.flushLoop(e.bgCtx)
@@ -435,6 +433,17 @@ func (e *engine) Stop() error {
 		e.cancel()
 	}
 	e.wg.Wait()
+	if e.graphSaver != nil {
+		e.graphSaver.wait()
+	}
+
+	// 退出前再试一次积压的事件写入；仍写不进去的只能丢弃（队列只在内存里）
+	if e.incidentStore != nil {
+		e.incidentStore.FlushPending(context.Background())
+		if left := e.incidentStore.PendingWrites(); left > 0 {
+			log.Error("退出时仍有事件写入未完成，已丢弃", "pending", left)
+		}
+	}
 
 	// 最终 flush
 	if err := e.stateManager.FlushToDB(context.Background()); err != nil {
@@ -580,6 +589,12 @@ func (e *engine) reloadActiveIncidents(ctx context.Context) {
 			CurrentState:    inc.State,
 			IncidentID:      inc.ID,
 			LastEvaluatedAt: now.Unix(),
+		}
+		if inc.State == aiops.StateRecovery {
+			// 观察期的起点只在内存里，重启后从时间线取回；取不到时由状态机从现在起计
+			if startedAt, ok := e.incidentStore.RecoveryStartedAt(ctx, inc.ID); ok {
+				entry.RecoveryStartedAt = startedAt.Unix()
+			}
 		}
 		e.sm.RestoreEntry(entry)
 		count++
