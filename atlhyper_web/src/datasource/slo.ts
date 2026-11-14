@@ -24,15 +24,6 @@ export async function getSLODomains(params: SLODomainsParams, signal?: AbortSign
   return (await api.getSLODomainsV2(params, signal)).data;
 }
 
-/**
- * 域名 SLO 清单 —— 旧形态（返回 { data }，不接收取消信号）。
- *
- * 只剩总览页还在用：总览页在第 4 期迁到数据层，迁完后删掉这个函数，统一用 getSLODomains。
- */
-export async function getSLODomainsV2(params?: SLODomainsParams) {
-  return { data: await getSLODomains(params ?? {}) };
-}
-
 /** 某个域名的 SLO 历史（预算与延迟的趋势图用） */
 export async function getSLODomainHistory(
   params: SLODomainHistoryParams,
