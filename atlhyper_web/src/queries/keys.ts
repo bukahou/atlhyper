@@ -14,8 +14,12 @@ export const sessionKeys = {
   clusterList: () => ["session", "cluster-list"] as const,
 };
 
-export const adminKeys = {
-  permissionTable: () => ["admin", "permission-table"] as const,
+// 其余域的键按域分文件，统一从这里导出：使用方只认 keys.ts 这一个入口
+export * from "./keys-aiops";
+export * from "./keys-management";
+
+export const overviewKeys = {
+  cluster: (clusterId: string, mode: DataSourceMode) => ["overview", "cluster", { clusterId, mode }] as const,
 };
 
 /**
