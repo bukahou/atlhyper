@@ -155,10 +155,31 @@ func BuildEvidenceStatus(evidence []aiops.IncidentEvidence, timeline []*aiops.In
 	return aiops.EvidenceNotRecorded
 }
 
-// BuildHeadline 结论的主证据：分数最高的一条；没有证据时为 nil
+// causeSignals 说明「怎么坏的」的信号：结论里优先用它们，工作负载不可用作为影响跟在后面
+var causeSignals = map[string]bool{aiops.SignalContainerCrash: true, aiops.SignalNotReady: true, aiops.SignalRestarts: true}
+
+// BuildHeadline 结论的素材：主证据取分数最高的一条；
+// 同时有「工作负载不可用」与「原因」类信号时，主证据换成原因、不可用比例作为影响带上。没有证据时为 nil
 func BuildHeadline(evidence []aiops.IncidentEvidence, totalMembers int) *aiops.IncidentHeadline {
 	if len(evidence) == 0 {
 		return nil
+	}
+	var unavailable *int
+	for _, e := range evidence {
+		if e.Signal == aiops.SignalWorkloadUnavailable {
+			if percent, err := strconv.Atoi(e.Reason); err == nil {
+				unavailable = &percent
+			}
+			break
+		}
+	}
+	if unavailable != nil {
+		for _, e := range evidence {
+			if causeSignals[e.Signal] {
+				return &aiops.IncidentHeadline{Signal: e.Signal, Reason: e.Reason, AffectedMembers: e.AffectedMembers,
+					TotalMembers: totalMembers, UnavailablePercent: unavailable}
+			}
+		}
 	}
 	top := evidence[0]
 	return &aiops.IncidentHeadline{Signal: top.Signal, Reason: top.Reason, AffectedMembers: top.AffectedMembers, TotalMembers: totalMembers}

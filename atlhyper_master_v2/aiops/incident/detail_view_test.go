@@ -198,3 +198,20 @@ func TestBuildEvidenceStatus(t *testing.T) {
 		}
 	}
 }
+
+// 工作负载不可用排在最前、同时有容器崩溃：结论用崩溃作主证据，不可用比例作为影响带上
+func TestBuildHeadline_CauseWithImpact(t *testing.T) {
+	evidence := []aiops.IncidentEvidence{
+		{Signal: aiops.SignalWorkloadUnavailable, Reason: "100", AffectedMembers: 3, MaxScore: 0.95},
+		{Signal: aiops.SignalContainerCrash, Reason: "CrashLoopBackOff", AffectedMembers: 3, MaxScore: 0.9},
+		{Signal: aiops.SignalK8sEvent, Reason: "BackOff", AffectedMembers: 3, MaxScore: 0.85},
+	}
+	got := BuildHeadline(evidence, 3)
+	if got.Signal != aiops.SignalContainerCrash || got.Reason != "CrashLoopBackOff" || got.UnavailablePercent == nil || *got.UnavailablePercent != 100 {
+		t.Errorf("应以崩溃为主证据并带上不可用 100%%: %+v", got)
+	}
+	onlyUnavailable := BuildHeadline(evidence[:1], 3)
+	if onlyUnavailable.Signal != aiops.SignalWorkloadUnavailable || onlyUnavailable.UnavailablePercent != nil {
+		t.Errorf("只有不可用时照旧: %+v", onlyUnavailable)
+	}
+}
