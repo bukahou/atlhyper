@@ -86,9 +86,20 @@ func (s *Store) annotateLinks(ctx context.Context, clusterID string, incidents [
 		rootOf[link.IncidentID] = link.RootIncidentID
 		children[link.RootIncidentID] = append(children[link.RootIncidentID], link)
 	}
+	rootRefs := map[string]*aiops.IncidentLinkRef{} // 同一页里多个受影响事件常指向同一个源头：只读一次
 	for _, inc := range incidents {
 		inc.RootIncidentID = rootOf[inc.ID]
 		inc.LinkedCount = len(children[inc.ID])
+		if inc.RootIncidentID != "" {
+			ref, cached := rootRefs[inc.RootIncidentID]
+			if !cached {
+				if refs := s.linkRefs(ctx, []aiops.IncidentLink{{IncidentID: inc.RootIncidentID}}, false); len(refs) == 1 {
+					ref = &refs[0]
+				}
+				rootRefs[inc.RootIncidentID] = ref
+			}
+			inc.Root = ref
+		}
 		if grouped && inc.LinkedCount > 0 {
 			inc.Impacted = s.linkRefs(ctx, children[inc.ID], false)
 		}
@@ -125,6 +136,7 @@ func (s *Store) linkRefs(ctx context.Context, links []aiops.IncidentLink, withPa
 		view := toAIOpsIncident(inc)
 		ref := aiops.IncidentLinkRef{
 			IncidentID: view.ID, Subject: view.Subject, SubjectType: view.SubjectType,
+			SubjectNamespace: view.SubjectNamespace, SubjectName: view.SubjectName,
 			State: view.State, Severity: view.Severity,
 		}
 		if withPath {

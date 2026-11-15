@@ -25,6 +25,7 @@ export function withListGroupingDefaults<T extends Partial<IncidentListGrouping>
   return {
     ...incident,
     rootIncidentId: incident.rootIncidentId ?? "",
+    root: incident.root ?? null,
     linkedCount: incident.linkedCount ?? 0,
     impacted: incident.impacted ?? [],
   };
@@ -46,12 +47,13 @@ export function withDetailGroupingDefaults<T extends Partial<IncidentDetailGroup
 
 /** 关联另一端的事件只给了主体键与类型：拆出命名空间与名称，拼成显示主体用的形状 */
 export function linkSubjectSource(link: IncidentLinkSummary): IncidentSubjectSource {
-  const { namespace, name } = parseEntityKey(link.subject);
+  // 以后端给的命名空间 / 名称为准；老版本后端没给时才从主体键拆
+  const parsed = parseEntityKey(link.subject);
   return {
     subject: link.subject,
     subjectType: link.subjectType,
-    subjectNamespace: namespace,
-    subjectName: name,
+    subjectNamespace: link.subjectNamespace ?? parsed.namespace,
+    subjectName: link.subjectName ?? parsed.name,
     rootCause: "",
   };
 }
@@ -70,17 +72,21 @@ export interface IncidentListRowView {
  * 列表的行：补齐缺省字段，给受影响事件配上源头小标签。
  *
  * grouped=true 时后端已把受影响事件折叠进源头，这里不会出现 rootIncidentId 非空的行；
- * 平铺时才有。源头的主体只在本页响应里查，查不到就只显示事件号（契约问题见汇报）。
+ * 平铺时才有。源头的主体取后端给的 root 概要；老版本后端没给时在本页响应里查，查不到只显示事件号。
  */
 export function incidentListRows(incidents: Incident[]): IncidentListRowView[] {
   const normalized = incidents.map(withListGroupingDefaults);
   const byId = new Map(normalized.map((incident) => [incident.id, incident]));
   return normalized.map((incident) => {
     if (incident.rootIncidentId === "") return { incident, rootTag: null };
-    const root = byId.get(incident.rootIncidentId);
+    // 后端给了源头概要就用它；老版本后端没给时，源头恰好在本页才知道主体
+    if (incident.root) {
+      return { incident, rootTag: { incidentId: incident.rootIncidentId, subject: incidentSubject(linkSubjectSource(incident.root)) } };
+    }
+    const sameRow = byId.get(incident.rootIncidentId);
     return {
       incident,
-      rootTag: { incidentId: incident.rootIncidentId, subject: root ? incidentSubject(root) : null },
+      rootTag: { incidentId: incident.rootIncidentId, subject: sameRow ? incidentSubject(sameRow) : null },
     };
   });
 }

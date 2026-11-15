@@ -22,6 +22,10 @@ export interface IncidentLinkSummary {
   /** 主体键，如 shop/service/api */
   subject: string;
   subjectType: string;
+  /** 后端由 subject 解析出的命名空间（集群级对象为空串）；老版本后端没有时从主体键拆 */
+  subjectNamespace?: string;
+  /** 后端由 subject 解析出的名称；老版本后端没有时从主体键拆 */
+  subjectName?: string;
   state: string;
   severity: string;
 }
@@ -37,6 +41,8 @@ export interface IncidentLinkDetail extends IncidentLinkSummary {
 export interface IncidentListGrouping {
   /** 受影响事件：归到的源头事件号；不是受影响事件时为空串 */
   rootIncidentId: string;
+  /** 受影响事件：源头的概要（平铺时「源头：<主体>」用）；否则 null */
+  root: IncidentLinkSummary | null;
   /** 源头事件：当前归到它下面的受影响事件数；否则 0 */
   linkedCount: number;
   /** 只在 grouped=true 且本条是源头时给出，否则为空数组 */

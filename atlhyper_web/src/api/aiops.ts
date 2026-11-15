@@ -183,8 +183,9 @@ export interface Incident extends IncidentListGrouping {
  * 事件详情：事件本身 + 原有的实体与原始时间线 + 改版新增的展示字段（见 types/incident-view.ts）
  * + 拓扑归并的源头 / 影响范围（见 types/incident-grouping.ts；详情里的 impacted 带依赖路径）
  */
-export interface IncidentDetail extends Incident, IncidentDetailView, IncidentDetailGrouping {
-  /** 列表与详情都有 impacted：详情里的条目多了依赖路径与归入时刻 */
+export interface IncidentDetail extends Omit<Incident, "root" | "impacted">, IncidentDetailView, IncidentDetailGrouping {
+  /** 列表与详情都有 root / impacted：详情里的多了依赖路径与归入时刻 */
+  root: IncidentDetailGrouping["root"];
   impacted: IncidentDetailGrouping["impacted"];
   entities: IncidentEntity[];
   timeline: IncidentTimeline[];

@@ -470,19 +470,22 @@ type Incident struct {
 
 	// 拓扑归并（当前有效的关联）
 	RootIncidentID string            `json:"rootIncidentId"` // 受影响事件：归到的源头；否则空串
+	Root           *IncidentLinkRef  `json:"root"`           // 受影响事件：源头的摘要（详情里带路径）；否则 nil
 	LinkedCount    int               `json:"linkedCount"`    // 源头事件：归到它下面的受影响事件数；否则 0
 	Impacted       []IncidentLinkRef `json:"impacted"`       // 源头事件：受影响事件（列表只在 grouped 时给，详情总是给，带路径）
 }
 
 // IncidentLinkRef 关联另一端的事件摘要
 type IncidentLinkRef struct {
-	IncidentID  string         `json:"incidentId"`
-	Subject     string         `json:"subject"`
-	SubjectType string         `json:"subjectType"`
-	State       EntityState    `json:"state"`
-	Severity    string         `json:"severity"`
-	Path        []LinkPathStep `json:"path,omitempty"`     // 详情里给：从受影响事件走到源头的依赖路径
-	LinkedAt    *time.Time     `json:"linkedAt,omitempty"` // 详情里给
+	IncidentID       string         `json:"incidentId"`
+	Subject          string         `json:"subject"`
+	SubjectType      string         `json:"subjectType"`
+	SubjectNamespace string         `json:"subjectNamespace"`
+	SubjectName      string         `json:"subjectName"`
+	State            EntityState    `json:"state"`
+	Severity         string         `json:"severity"`
+	Path             []LinkPathStep `json:"path,omitempty"`     // 详情里给：从受影响事件走到源头的依赖路径
+	LinkedAt         *time.Time     `json:"linkedAt,omitempty"` // 详情里给
 }
 
 // IncidentEntity 受影响实体
@@ -532,9 +535,6 @@ type IncidentDetail struct {
 
 	// 以下为详情页的展示形态（见设计文档「功能四：事件详情页改版」）。
 	// Headline / Evidence / TimelineView 由事件存储按库里的记录算出；Impact / Members 由查询层按当前快照补上
-	// Root 本事件归到某个源头时给出（带路径），否则 nil；归到它下面的受影响事件在 Incident.Impacted
-	Root *IncidentLinkRef `json:"root"`
-
 	Headline *IncidentHeadline `json:"headline"` // nil = 没有证据（原因见 EvidenceStatus）
 	// EvidenceStatus 证据的情况：recorded = 有证据；propagation_only = 只有依赖传播、本主体没有本地异常；
 	// not_recorded = 改版前的事件，当时没有记录证据

@@ -24,7 +24,7 @@ function incident(overrides: Partial<Incident>): Incident {
     subject: "shop/service/api", subjectType: "service", subjectNamespace: "shop", subjectName: "api",
     rootCause: "shop/service/api", peakRisk: 50, startedAt: "2026-11-15T07:00:00Z", resolvedAt: null,
     escalatedAt: null, closeReason: "", durationS: 60, recurrence: 0, createdAt: "2026-11-15T07:00:00Z",
-    rootIncidentId: "", linkedCount: 0, impacted: [],
+    rootIncidentId: "", root: null, linkedCount: 0, impacted: [],
     ...overrides,
   };
 }
@@ -44,7 +44,7 @@ describe("withListGroupingDefaults", () => {
   it("老版本后端没有三项时按「不是受影响事件、没有关联」补齐", () => {
     const { rootIncidentId: _root, linkedCount: _count, impacted: _impacted, ...legacy } = incident({});
     expect(withListGroupingDefaults<Partial<Incident>>(legacy)).toMatchObject({
-      rootIncidentId: "", linkedCount: 0, impacted: [],
+      rootIncidentId: "", root: null, linkedCount: 0, impacted: [],
     });
   });
 
@@ -169,5 +169,22 @@ describe("pathSegments / pathText", () => {
 
   it("空路径没有段", () => {
     expect(pathSegments([], zhIncidentGrouping, TYPE_LABELS, true)).toEqual([]);
+  });
+});
+
+describe("incidentListRows：源头概要来自后端", () => {
+  it("受影响事件带了 root 概要时，源头小标签用它，不依赖源头是否在本页", () => {
+    const rows = incidentListRows([
+      incident({
+        id: "inc-svc", rootIncidentId: "inc-db",
+        root: {
+          incidentId: "inc-db", subject: "shop/statefulset/db", subjectType: "statefulset",
+          subjectNamespace: "shop", subjectName: "db", state: "incident", severity: "critical",
+        },
+      }),
+    ]);
+    expect(rows[0].rootTag?.incidentId).toBe("inc-db");
+    expect(rows[0].rootTag?.subject?.name).toBe("db");
+    expect(rows[0].rootTag?.subject?.type).toBe("statefulset");
   });
 });

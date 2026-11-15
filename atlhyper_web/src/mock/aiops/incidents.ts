@@ -9,6 +9,7 @@
  */
 import type { Incident, IncidentListParams, IncidentStats } from "@/api/aiops";
 import { parseEntityKey } from "@/lib/entity-key";
+import type { IncidentLinkSummary } from "@/types/incident-grouping";
 import { linkOfIncident, linkSummaryOf, linksToRoot } from "./incident-links";
 
 /** 相对现在往前若干分钟的时刻 */
@@ -21,7 +22,7 @@ export interface MockIncidentSeed {
   incident: Omit<
     Incident,
     | "clusterId" | "rootCause" | "createdAt" | "subjectNamespace" | "subjectName"
-    | "rootIncidentId" | "linkedCount" | "impacted"
+    | "rootIncidentId" | "root" | "linkedCount" | "impacted"
   >;
   /** 成员实体：键、类型、风险（百分制）。第一个是领头实体 */
   members: { entityKey: string; entityType: string; rLocal: number; rFinal: number }[];
@@ -214,6 +215,7 @@ export function incidentOf(seed: MockIncidentSeed, clusterId: string): Incident 
     createdAt: seed.incident.startedAt,
     // 拓扑归并：平铺形态（impacted 只在 grouped=true 的列表里给）
     rootIncidentId: linkOfIncident(seed.incident.id)?.rootIncidentId ?? "",
+    root: rootSummaryOf(seed.incident.id),
     linkedCount: linksToRoot(seed.incident.id).length,
     impacted: [],
   };
@@ -221,7 +223,7 @@ export function incidentOf(seed: MockIncidentSeed, clusterId: string): Incident 
 
 /**
  * 列表。grouped=true 时照契约折叠：受影响事件不单独出现，源头带上 impacted。
- * 状态筛选作用在折叠后的行上（源头的 impacted 不按状态筛）——契约没写，见汇报。
+ * 状态筛选作用在折叠后的行上（源头的 impacted 不按状态筛），与后端一致。
  */
 export function mockIncidents(params: IncidentListParams): Incident[] {
   const offset = params.offset ?? 0;
@@ -254,5 +256,17 @@ export function mockIncidentStats(_cluster: string): IncidentStats {
       { entityKey: "shop/deployment/api", count: 3 },
       { entityKey: "_cluster/node/worker-1", count: 2 },
     ],
+  };
+}
+
+/** 受影响事件的源头概要（真实接口里由后端给出）；不是受影响事件时为 null */
+function rootSummaryOf(incidentId: string): IncidentLinkSummary | null {
+  const rootId = linkOfIncident(incidentId)?.rootIncidentId;
+  const rootSeed = rootId ? INCIDENT_SEEDS.find((seed) => seed.incident.id === rootId) : undefined;
+  if (!rootSeed) return null;
+  const { namespace, name } = parseEntityKey(rootSeed.incident.subject);
+  return {
+    incidentId: rootSeed.incident.id, subject: rootSeed.incident.subject, subjectType: rootSeed.incident.subjectType,
+    subjectNamespace: namespace, subjectName: name, state: rootSeed.incident.state, severity: rootSeed.incident.severity,
   };
 }

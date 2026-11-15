@@ -41,6 +41,10 @@ func TestLinks_ListAndDetail(t *testing.T) {
 	if byID["inc-svc"].RootIncidentID != "inc-root" || byID["inc-root"].LinkedCount != 1 || byID["inc-solo"].LinkedCount != 0 {
 		t.Errorf("平铺时的关联标注不对: svc=%+v root=%d", byID["inc-svc"].RootIncidentID, byID["inc-root"].LinkedCount)
 	}
+	if root := byID["inc-svc"].Root; root == nil || root.Subject != "shop/deployment/api" || root.SubjectName != "api" ||
+		root.SubjectNamespace != "shop" || root.Path != nil {
+		t.Errorf("受影响事件的列表项应带源头摘要（不带路径）: %+v", root)
+	}
 	if byID["inc-root"].Impacted == nil || len(byID["inc-root"].Impacted) != 0 {
 		t.Errorf("平铺时 impacted 应是空数组: %+v", byID["inc-root"].Impacted)
 	}
