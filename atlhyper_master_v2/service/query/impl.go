@@ -24,6 +24,16 @@ import (
 
 // ==================== 领域小服务（迁移中，按领域逐个加入） ====================
 
+// OTelQuery OTel 快照 / 时间线与据此算出的指标视图：硬件健康、节点对比、信号新鲜度（满足 service.QueryOTel）
+type OTelQuery struct {
+	store datahub.Store
+}
+
+// NewOTelQuery 创建 OTelQuery
+func NewOTelQuery(store datahub.Store) *OTelQuery {
+	return &OTelQuery{store: store}
+}
+
 // K8sQuery K8s 资源快照查询（满足 service.QueryK8s）
 type K8sQuery struct {
 	store datahub.Store
@@ -36,6 +46,7 @@ func NewK8sQuery(store datahub.Store) *K8sQuery {
 
 // QueryService Query 层实现
 type QueryService struct {
+	*OTelQuery
 	*K8sQuery
 	store       datahub.Store
 	bus         mq.Producer
@@ -116,6 +127,7 @@ type QueryServiceDeps struct {
 // NewQueryService 创建 QueryService（全部依赖通过构造函数注入）
 func NewQueryService(deps QueryServiceDeps) *QueryService {
 	return &QueryService{
+		OTelQuery:      NewOTelQuery(deps.Store),
 		K8sQuery:       NewK8sQuery(deps.Store),
 		store:          deps.Store,
 		bus:            deps.Bus,

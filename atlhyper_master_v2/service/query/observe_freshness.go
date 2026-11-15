@@ -26,7 +26,7 @@ const (
 //
 // 快照缺失或旧版 Agent 未上报时，返回三个 absent 占位而不是报错 ——
 // 页面需要知道「查不到」，这本身就是有用的信息。
-func (q *QueryService) GetSignalFreshness(ctx context.Context, clusterID string) (*model.FreshnessResponse, error) {
+func (q *OTelQuery) GetSignalFreshness(ctx context.Context, clusterID string) (*model.FreshnessResponse, error) {
 	otel, err := q.GetOTelSnapshot(ctx, clusterID)
 	if err != nil {
 		return nil, err

@@ -893,7 +893,7 @@ func TestGetOTelSnapshot_Found(t *testing.T) {
 			"cluster-1": {OTel: otel},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "cluster-1")
 	if err != nil {
@@ -919,7 +919,7 @@ func TestGetOTelSnapshot_NoOTel(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "cluster-1")
 	if err != nil {
@@ -932,7 +932,7 @@ func TestGetOTelSnapshot_NoOTel(t *testing.T) {
 
 func TestGetOTelSnapshot_NoSnapshot(t *testing.T) {
 	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "unknown-cluster")
 	if err != nil {
@@ -956,7 +956,7 @@ func TestGetOTelTimeline_Delegate(t *testing.T) {
 		},
 	}
 	store := &mockStoreForOverview{otelTimeline: entries}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelTimeline(context.Background(), "cluster-1", now.Add(-10*time.Minute))
 	if err != nil {
@@ -972,7 +972,7 @@ func TestGetOTelTimeline_Delegate(t *testing.T) {
 
 func TestGetOTelTimeline_Empty(t *testing.T) {
 	store := &mockStoreForOverview{otelTimeline: nil}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelTimeline(context.Background(), "cluster-1", time.Now().Add(-1*time.Hour))
 	if err != nil {
