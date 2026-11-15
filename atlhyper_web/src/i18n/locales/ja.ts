@@ -1,5 +1,6 @@
 import type { Translations } from "@/types/i18n";
 import { jaNotifications } from "./notify-ja";
+import { jaIncidentDetail } from "./incident-ja";
 
 export const ja: Translations = {
   locale: "ja",
@@ -2065,10 +2066,6 @@ Deployment が更新され、新しい Pod が起動中です
     },
     memberEntities: "メンバーエンティティ",
     noMemberEntities: "メンバーエンティティはありません",
-    entityRole: {
-      root_cause: "根本原因",
-      affected: "メンバー",
-    },
     escalatedAt: "エスカレーション時刻",
     notEscalated: "未エスカレーション",
     closeReason: "クローズ理由",
@@ -2112,15 +2109,7 @@ Deployment が更新され、新しい Pod が起動中です
       bySeverity: "重要度別",
       topRootCauses: "頻出根本原因",
     },
-    timelineEvent: {
-      anomaly_detected: "異常検知",
-      state_change: "状態変更",
-      metric_spike: "メトリクス急上昇",
-      root_cause_identified: "根本原因特定",
-      recovery_started: "復旧開始",
-      recurrence: "再発",
-      severity_raised: "重要度上昇",
-    },
+    detail: jaIncidentDetail,
     dependencyGraph: "依存関係グラフ",
     nodeDetail: "ノード詳細",
     upstream: "アップストリーム",

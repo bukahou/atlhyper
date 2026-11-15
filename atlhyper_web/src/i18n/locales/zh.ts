@@ -1,5 +1,6 @@
 import type { Translations } from "@/types/i18n";
 import { zhNotifications } from "./notify-zh";
+import { zhIncidentDetail } from "./incident-zh";
 
 export const zh: Translations = {
   locale: "zh",
@@ -2065,10 +2066,6 @@ Deployment 已更新，新的 Pod 正在启动中
     },
     memberEntities: "成员实体",
     noMemberEntities: "暂无成员实体",
-    entityRole: {
-      root_cause: "根因",
-      affected: "成员",
-    },
     escalatedAt: "升级时间",
     notEscalated: "未升级",
     closeReason: "关闭原因",
@@ -2112,15 +2109,7 @@ Deployment 已更新，新的 Pod 正在启动中
       bySeverity: "按严重度",
       topRootCauses: "高频根因",
     },
-    timelineEvent: {
-      anomaly_detected: "异常检测",
-      state_change: "状态变更",
-      metric_spike: "指标飙升",
-      root_cause_identified: "根因识别",
-      recovery_started: "开始恢复",
-      recurrence: "复发",
-      severity_raised: "严重度升高",
-    },
+    detail: zhIncidentDetail,
     dependencyGraph: "依赖关系图",
     nodeDetail: "节点详情",
     upstream: "上游",

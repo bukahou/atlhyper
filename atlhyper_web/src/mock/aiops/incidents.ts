@@ -4,25 +4,26 @@
  * 结构与 docs/design/active/incident-notification-design.md「功能零」一致：事件以主体为单位，
  * 同一工作负载的 Pod 归到一个事件；严重度是峰值，关闭后保留；警告级的反复也计入复发次数。
  * 六条覆盖每一种主体类型、每一种状态与两种关闭原因。
+ * 详情（功能四的结论、证据、成员状态、时间线展示形态）在 incident-detail.ts。
  */
-import type { Incident, IncidentDetail, IncidentEntity, IncidentListParams, IncidentStats, IncidentTimeline } from "@/api/aiops";
+import type { Incident, IncidentListParams, IncidentStats } from "@/api/aiops";
 import { parseEntityKey } from "@/lib/entity-key";
 
 /** 相对现在往前若干分钟的时刻 */
-function minutesAgo(minutes: number): string {
+export function minutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
 
 /** 一条演示事件：事件本身 + 它的成员实体（第一个是领头实体） */
-interface MockIncidentSeed {
+export interface MockIncidentSeed {
   incident: Omit<Incident, "clusterId" | "rootCause" | "createdAt" | "subjectNamespace" | "subjectName">;
   /** 成员实体：键、类型、风险（百分制）。第一个是领头实体 */
   members: { entityKey: string; entityType: string; rLocal: number; rFinal: number }[];
 }
 
-const INCIDENT_SEEDS: MockIncidentSeed[] = [
+export const INCIDENT_SEEDS: MockIncidentSeed[] = [
   {
-    // Deployment 的三个 Pod 同时探针失败：一个事件，已升级
+    // Deployment 的三个 Pod 同时反复崩溃：一个事件，已升级
     incident: {
       id: "inc-001",
       state: "incident",
@@ -137,7 +138,7 @@ const INCIDENT_SEEDS: MockIncidentSeed[] = [
   },
 ];
 
-function incidentOf(seed: MockIncidentSeed, clusterId: string): Incident {
+export function incidentOf(seed: MockIncidentSeed, clusterId: string): Incident {
   // 真实接口里这两项由后端给出；演示数据从主体键里拆
   const { namespace, name } = parseEntityKey(seed.incident.subject);
   return {
@@ -157,36 +158,6 @@ export function mockIncidents(params: IncidentListParams): Incident[] {
   return INCIDENT_SEEDS.map((seed) => incidentOf(seed, params.cluster))
     .filter((incident) => !params.state || incident.state === params.state)
     .slice(offset, offset + limit);
-}
-
-export function mockIncidentDetail(id: string): IncidentDetail {
-  const seed = INCIDENT_SEEDS.find((candidate) => candidate.incident.id === id) ?? INCIDENT_SEEDS[0];
-  const incident = incidentOf(seed, "demo");
-  const leadKey = incident.rootCause;
-
-  const entities: IncidentEntity[] = seed.members.map((member, index) => ({
-    incidentId: incident.id,
-    ...member,
-    namespace: parseEntityKey(member.entityKey).namespace,
-    name: parseEntityKey(member.entityKey).name,
-    role: index === 0 ? "root_cause" : "affected",
-  }));
-
-  const timeline: IncidentTimeline[] = [
-    { id: 1, incidentId: incident.id, timestamp: incident.startedAt, eventType: "anomaly_detected", entityKey: leadKey, detail: "deviation 3.2σ from baseline" },
-    { id: 2, incidentId: incident.id, timestamp: incident.startedAt, eventType: "state_change", entityKey: incident.subject, detail: "healthy → warning" },
-  ];
-  if (incident.escalatedAt) {
-    timeline.push({ id: 3, incidentId: incident.id, timestamp: incident.escalatedAt, eventType: "state_change", entityKey: incident.subject, detail: "warning → incident" });
-  }
-  if (incident.escalatedAt && (incident.severity === "high" || incident.severity === "critical")) {
-    timeline.push({ id: 5, incidentId: incident.id, timestamp: incident.escalatedAt, eventType: "severity_raised", entityKey: incident.subject, detail: `medium \u2192 ${incident.severity}` });
-  }
-  if (incident.state === "recovery" || incident.closeReason === "recovered") {
-    timeline.push({ id: 4, incidentId: incident.id, timestamp: incident.resolvedAt ?? minutesAgo(5), eventType: "recovery_started", entityKey: incident.subject, detail: "risk back under threshold" });
-  }
-
-  return { ...incident, entities, timeline };
 }
 
 export function mockIncidentStats(_cluster: string): IncidentStats {
