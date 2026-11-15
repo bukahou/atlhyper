@@ -1,4 +1,5 @@
 import type { Translations } from "@/types/i18n";
+import { zhNotifications } from "./notify-zh";
 
 export const zh: Translations = {
   locale: "zh",
@@ -848,62 +849,7 @@ export const zh: Translations = {
     disconnected: "已断开",
     noAgents: "暂无 Agent",
   },
-  notifications: {
-    pageDescription: "配置告警通知渠道",
-    // Slack
-    slackNotify: "Slack 通知",
-    slackConfig: "Slack 配置",
-    webhookUrl: "Webhook URL",
-    webhookUrlHint: "在 Slack 中创建 Incoming Webhook 应用，并将 Webhook URL 粘贴到此处。",
-    secretConfigured: "已设置（不显示）",
-    secretConfiguredPlaceholder: "已设置（不显示）。留空保持不变，输入新地址则替换",
-    channel: "频道",
-    // Email
-    emailNotify: "邮件通知",
-    smtpServer: "SMTP 服务器",
-    smtpServerPlaceholder: "请选择...",
-    smtpCustom: "自定义...",
-    smtpCustomPlaceholder: "输入 SMTP 服务器地址",
-    port: "端口",
-    portHint: "常用: 587 (TLS) / 465 (SSL) / 25",
-    emailAccount: "邮箱账号",
-    emailAccountHint: "同时作为发件人地址",
-    password: "密码",
-    passwordPlaceholder: "留空则不修改",
-    tlsEncryption: "TLS 加密",
-    tlsHint: "推荐启用，确保传输安全",
-    recipients: "收件人",
-    recipientsPlaceholder: "输入邮箱地址后按 Enter 添加",
-    // 状态
-    statusEnabled: "已启用",
-    statusIncomplete: "配置不完整",
-    statusDisabled: "已禁用",
-    configIncomplete: "配置不完整",
-    // 操作
-    enabled: "启用",
-    test: "测试",
-    save: "保存",
-    testMessage: "发送测试消息",
-    testSuccess: "测试消息发送成功",
-    testFailed: "测试消息发送失败",
-    saveSuccess: "保存成功",
-    saveFailed: "保存失败",
-    slackSaved: "Slack 配置已保存",
-    emailSaved: "邮件配置已保存",
-    // SMTP 预设标签
-    smtpPresets: {
-      qq: "QQ 邮箱",
-      netease163: "163 邮箱",
-      netease126: "126 邮箱",
-      tencentEnterprise: "腾讯企业邮",
-      aliEnterprise: "阿里企业邮",
-      feishu: "飞书邮箱",
-    },
-    // TagInput 消息
-    tagInputPlaceholder: "输入后按 Enter 添加",
-    tagInputDuplicate: "已存在",
-    tagInputInvalidFormat: "格式无效",
-  },
+  notifications: zhNotifications,
   login: {
     title: "登录",
     subtitle: "AtlHyper 集群管理平台",

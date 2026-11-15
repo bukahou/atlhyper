@@ -4,7 +4,9 @@
  * 约定同 keys.ts。这些页面在没有权限时整页显示演示数据，演示数据由页面直接取，不经过查询，
  * 所以大多数键里不带 mode；只有带数据源开关的 GitHub 与部署带 mode。
  */
+import type { NotifyAlertListParams, NotifyDeliveryListParams } from "@/api/notify";
 import type { DataSourceMode } from "@/config/data-source";
+import type { NotifySilenceState } from "@/types/notify";
 
 /** 指令历史的筛选条件 + 分页 */
 export interface CommandHistoryFilter {
@@ -38,7 +40,16 @@ export const aiSettingsKeys = {
 };
 
 export const notifyKeys = {
-  channels: () => ["notify", "channels"] as const,
+  /** 整个通知域的前缀：页头的手动刷新按它匹配 */
+  all: ["notify"] as const,
+  policy: () => ["notify", "policy"] as const,
+  alerts: (filter: NotifyAlertListParams) => ["notify", "alerts", { ...filter }] as const,
+  deliveries: (filter: NotifyDeliveryListParams) => ["notify", "deliveries", { ...filter }] as const,
+  receivers: () => ["notify", "receivers"] as const,
+  rules: () => ["notify", "rules"] as const,
+  /** 全部静默列表查询的前缀（不分状态）。只用来按前缀失效 */
+  silenceLists: ["notify", "silences"] as const,
+  silences: (state: NotifySilenceState) => ["notify", "silences", { state }] as const,
 };
 
 export const githubKeys = {

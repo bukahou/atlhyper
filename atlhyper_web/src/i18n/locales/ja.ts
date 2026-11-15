@@ -1,4 +1,5 @@
 import type { Translations } from "@/types/i18n";
+import { jaNotifications } from "./notify-ja";
 
 export const ja: Translations = {
   locale: "ja",
@@ -848,62 +849,7 @@ export const ja: Translations = {
     disconnected: "切断",
     noAgents: "Agent がありません",
   },
-  notifications: {
-    pageDescription: "アラート通知チャンネルを設定",
-    // Slack
-    slackNotify: "Slack 通知",
-    slackConfig: "Slack 設定",
-    webhookUrl: "Webhook URL",
-    webhookUrlHint: "Slack で Incoming Webhook アプリを作成し、Webhook URL をここに貼り付けてください。",
-    secretConfigured: "設定済み（非表示）",
-    secretConfiguredPlaceholder: "設定済み（非表示）。空欄のままなら変更せず、新しい URL を入力すると置き換えます",
-    channel: "チャンネル",
-    // Email
-    emailNotify: "メール通知",
-    smtpServer: "SMTP サーバー",
-    smtpServerPlaceholder: "選択してください...",
-    smtpCustom: "カスタム...",
-    smtpCustomPlaceholder: "SMTP サーバーアドレスを入力",
-    port: "ポート",
-    portHint: "一般的なポート: 587 (TLS) / 465 (SSL) / 25",
-    emailAccount: "メールアカウント",
-    emailAccountHint: "送信者アドレスとしても使用されます",
-    password: "パスワード",
-    passwordPlaceholder: "空欄の場合は変更しません",
-    tlsEncryption: "TLS 暗号化",
-    tlsHint: "セキュリティのため有効化を推奨",
-    recipients: "受信者",
-    recipientsPlaceholder: "メールアドレスを入力して Enter で追加",
-    // 状態
-    statusEnabled: "有効",
-    statusIncomplete: "設定が不完全",
-    statusDisabled: "無効",
-    configIncomplete: "設定が不完全",
-    // 操作
-    enabled: "有効",
-    test: "テスト",
-    save: "保存",
-    testMessage: "テストメッセージを送信",
-    testSuccess: "テストメッセージを送信しました",
-    testFailed: "テストメッセージの送信に失敗しました",
-    saveSuccess: "保存しました",
-    saveFailed: "保存に失敗しました",
-    slackSaved: "Slack 設定を保存しました",
-    emailSaved: "メール設定を保存しました",
-    // SMTP プリセットラベル
-    smtpPresets: {
-      qq: "QQ メール",
-      netease163: "163 メール",
-      netease126: "126 メール",
-      tencentEnterprise: "テンセント企業メール",
-      aliEnterprise: "アリババ企業メール",
-      feishu: "Feishu メール",
-    },
-    // TagInput メッセージ
-    tagInputPlaceholder: "入力して Enter で追加",
-    tagInputDuplicate: "既に存在します",
-    tagInputInvalidFormat: "形式が無効です",
-  },
+  notifications: jaNotifications,
   login: {
     title: "ログイン",
     subtitle: "AtlHyper クラスタ管理プラットフォーム",

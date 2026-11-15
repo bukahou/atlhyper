@@ -76,7 +76,7 @@ export function EmailFormFields({
   labels,
 }: EmailFormFieldsProps) {
   return (
-    <div className="px-6 py-4 space-y-4">
+    <div className="space-y-4">
       {/* SMTP 服务器 */}
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -187,6 +187,8 @@ export function EmailFormFields({
           <p className="text-xs text-muted">{labels.tlsHint}</p>
         </div>
         <button
+          // 这个表单现在放在 <form> 里：不写 type 的按钮默认是提交
+          type="button"
           onClick={() => !readOnly && onSmtpTlsToggle()}
           disabled={readOnly}
           className={`relative w-12 h-6 rounded-full transition-colors ${
