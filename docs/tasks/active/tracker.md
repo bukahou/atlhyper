@@ -13,6 +13,15 @@
 
 ---
 
+## AIOps 拓扑归并 — 🔄 设计中，待用户裁决 D1–D6（2026-11-15）
+
+> 设计文档: [aiops-topology-grouping-design.md](../../design/active/aiops-topology-grouping-design.md)
+
+- 设计文档 ✅；用户裁决 — 待办
+- 后端 / 通知 / 接口与前端 / dev 验证 — 待办
+
+---
+
 ## 前端数据层（TanStack Query）— 🔄 四期都已上 dev，待用户登录后点验（2026-11-15 核对）
 
 > 设计文档: [web-data-layer-design.md](../../design/active/web-data-layer-design.md)
