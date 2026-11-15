@@ -6,6 +6,7 @@
  * 六条覆盖每一种主体类型、每一种状态与两种关闭原因。
  */
 import type { Incident, IncidentDetail, IncidentEntity, IncidentListParams, IncidentStats, IncidentTimeline } from "@/api/aiops";
+import { parseEntityKey } from "@/lib/entity-key";
 
 /** 相对现在往前若干分钟的时刻 */
 function minutesAgo(minutes: number): string {
@@ -14,7 +15,7 @@ function minutesAgo(minutes: number): string {
 
 /** 一条演示事件：事件本身 + 它的成员实体（第一个是领头实体） */
 interface MockIncidentSeed {
-  incident: Omit<Incident, "clusterId" | "rootCause" | "createdAt">;
+  incident: Omit<Incident, "clusterId" | "rootCause" | "createdAt" | "subjectNamespace" | "subjectName">;
   /** 成员实体：键、类型、风险（百分制）。第一个是领头实体 */
   members: { entityKey: string; entityType: string; rLocal: number; rFinal: number }[];
 }
@@ -86,7 +87,7 @@ const INCIDENT_SEEDS: MockIncidentSeed[] = [
       id: "inc-004",
       state: "stable",
       severity: "critical",
-      subject: "cluster/demo/node/worker-1",
+      subject: "_cluster/node/worker-1",
       subjectType: "node",
       peakRisk: 93.5,
       startedAt: minutesAgo(60 * 80),
@@ -96,7 +97,7 @@ const INCIDENT_SEEDS: MockIncidentSeed[] = [
       durationS: 2 * 60 * 60,
       recurrence: 1,
     },
-    members: [{ entityKey: "cluster/demo/node/worker-1", entityType: "node", rLocal: 90, rFinal: 94 }],
+    members: [{ entityKey: "_cluster/node/worker-1", entityType: "node", rLocal: 90, rFinal: 94 }],
   },
   {
     // CronJob 的 Pod 已经不存在：失联关闭，并不是真的恢复了
@@ -137,8 +138,12 @@ const INCIDENT_SEEDS: MockIncidentSeed[] = [
 ];
 
 function incidentOf(seed: MockIncidentSeed, clusterId: string): Incident {
+  // 真实接口里这两项由后端给出；演示数据从主体键里拆
+  const { namespace, name } = parseEntityKey(seed.incident.subject);
   return {
     ...seed.incident,
+    subjectNamespace: namespace,
+    subjectName: name,
     clusterId,
     // 领头实体 = 成员里风险最高的那个
     rootCause: seed.members[0].entityKey,
@@ -162,6 +167,8 @@ export function mockIncidentDetail(id: string): IncidentDetail {
   const entities: IncidentEntity[] = seed.members.map((member, index) => ({
     incidentId: incident.id,
     ...member,
+    namespace: parseEntityKey(member.entityKey).namespace,
+    name: parseEntityKey(member.entityKey).name,
     role: index === 0 ? "root_cause" : "affected",
   }));
 
@@ -194,7 +201,7 @@ export function mockIncidentStats(_cluster: string): IncidentStats {
     // 键是主体键，不是具体的 Pod
     topRootCauses: [
       { entityKey: "shop/deployment/api", count: 3 },
-      { entityKey: "cluster/demo/node/worker-1", count: 2 },
+      { entityKey: "_cluster/node/worker-1", count: 2 },
     ],
   };
 }

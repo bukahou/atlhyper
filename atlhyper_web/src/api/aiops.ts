@@ -153,6 +153,10 @@ export interface Incident {
   subject: string;
   /** 主体的类型，由后端从 subject 解析：deployment / statefulset / daemonset / job / cronjob / pod / service / node / ingress … */
   subjectType: string;
+  /** 主体的命名空间，由后端从 subject 解析；节点等集群级对象为空串 */
+  subjectNamespace: string;
+  /** 主体的名称，由后端从 subject 解析 */
+  subjectName: string;
   /** 当前的领头实体（成员里风险最高的那个）的键；Pod 重建后会更新 */
   rootCause: string;
   /** @unit 百分制 [0, 100] —— 列表、详情、事件模式里口径一致，前端不换算 */
@@ -181,6 +185,10 @@ export interface IncidentEntity {
   incidentId: string;
   entityKey: string;
   entityType: string;
+  /** 由后端从 entityKey 解析；集群级对象为空串 */
+  namespace: string;
+  /** 由后端从 entityKey 解析 */
+  name: string;
   /** @unit 百分制 [0, 100] 整数 */
   rLocal: number;
   /** @unit 百分制 [0, 100] 整数 */

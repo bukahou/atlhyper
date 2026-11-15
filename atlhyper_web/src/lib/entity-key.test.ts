@@ -15,7 +15,11 @@ describe("parseEntityKey", () => {
     expect(parseEntityKey(entityKey)).toEqual(expected);
   });
 
-  it("节点的键带集群前缀，没有命名空间", () => {
+  it("节点等集群级对象：命名空间位置是占位 _cluster，拆出来的命名空间为空", () => {
+    expect(parseEntityKey("_cluster/node/worker-1")).toEqual({ namespace: "", type: "node", name: "worker-1" });
+  });
+
+  it("旧格式的节点键（带集群前缀）仍然认得", () => {
     expect(parseEntityKey("cluster/prod/node/worker-1")).toEqual({ namespace: "", type: "node", name: "worker-1" });
   });
 
@@ -34,32 +38,40 @@ describe("parseEntityKey", () => {
 });
 
 describe("incidentSubject", () => {
-  it("工作负载主体：类型取后端给的 subjectType，命名空间与名称从主体键里拆", () => {
+  it("工作负载主体：类型、命名空间、名称都用后端给的", () => {
     expect(
       incidentSubject({
         subject: "shop/deployment/api",
         subjectType: "deployment",
+        subjectNamespace: "shop",
+        subjectName: "api",
         rootCause: "shop/pod/api-7b5d4f8c9-x2k4j",
       }),
     ).toEqual({ key: "shop/deployment/api", namespace: "shop", type: "deployment", name: "api" });
   });
 
-  it("主体就是实体自身（节点、服务、裸 Pod）", () => {
+  it("主体是节点：后端给的命名空间是空串", () => {
     expect(
       incidentSubject({
-        subject: "cluster/prod/node/worker-1",
+        subject: "_cluster/node/worker-1",
         subjectType: "node",
-        rootCause: "cluster/prod/node/worker-1",
+        subjectNamespace: "",
+        subjectName: "worker-1",
+        rootCause: "_cluster/node/worker-1",
       }),
-    ).toEqual({ key: "cluster/prod/node/worker-1", namespace: "", type: "node", name: "worker-1" });
+    ).toEqual({ key: "_cluster/node/worker-1", namespace: "", type: "node", name: "worker-1" });
   });
 
-  it("后端没给 subjectType 时用键里拆出来的类型", () => {
-    expect(incidentSubject({ subject: "shop/cronjob/report", subjectType: "", rootCause: "" }).type).toBe("cronjob");
+  it("后端没给名称时从主体键里拆", () => {
+    expect(
+      incidentSubject({ subject: "shop/cronjob/report", subjectType: "", subjectNamespace: "", subjectName: "", rootCause: "" }),
+    ).toEqual({ key: "shop/cronjob/report", namespace: "shop", type: "cronjob", name: "report" });
   });
 
   it("主体键为空时退回到根因实体，类型也按根因实体算", () => {
-    expect(incidentSubject({ subject: "", subjectType: "deployment", rootCause: "shop/pod/api-x2k4j" })).toEqual({
+    expect(
+      incidentSubject({ subject: "", subjectType: "deployment", subjectNamespace: "", subjectName: "", rootCause: "shop/pod/api-x2k4j" }),
+    ).toEqual({
       key: "shop/pod/api-x2k4j",
       namespace: "shop",
       type: "pod",
