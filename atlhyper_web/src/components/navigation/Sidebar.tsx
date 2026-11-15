@@ -61,6 +61,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <div className={`h-14 flex items-center border-b border-[var(--border-color)]/20 ${collapsed ? "justify-center" : "px-3"}`}>
         <Link href="/about" className="flex-shrink-0">
           {/* 侧栏 32px：用矢量而非位图，小尺寸下边缘更利落 */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- 矢量图标，next/image 的位图优化对它没有意义 */}
           <img src="/icon.svg" alt="AtlHyper" className="w-8 h-8" />
         </Link>
         {!collapsed && (

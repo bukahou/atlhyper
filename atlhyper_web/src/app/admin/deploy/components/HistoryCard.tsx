@@ -235,6 +235,7 @@ function DetailModal({
             <DetailRow label={dt.detailAuthor}>
               <div className="flex items-center gap-2">
                 {record.commitAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- GitHub 头像的外链地址随提交而变，不走 next/image 的域名白名单与优化
                   <img
                     src={record.commitAvatarUrl}
                     alt={record.commitAuthor}

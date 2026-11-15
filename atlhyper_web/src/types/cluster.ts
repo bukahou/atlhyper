@@ -2,7 +2,7 @@
  * 集群相关类型定义
  */
 
-import type { ClusterRequest, NamespaceRequest, ResourceStatus, NodeStatus } from "./common";
+import type { ClusterRequest, NamespaceRequest } from "./common";
 
 // 集群信息（Master V2 使用 camelCase）
 export interface ClusterInfo {
