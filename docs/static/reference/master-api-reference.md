@@ -142,8 +142,9 @@
 | `cluster.operate` | POST | `/api/v2/ops/deployments/{scale,restart,image}` | execute / deployment | `OpsHandler.Deployment*` |
 | `cluster.operate` | POST | `/api/v2/ops/nodes/{cordon,uncordon}` | execute / node | `OpsHandler.NodeCordon` / `NodeUncordon` |
 | `audit.read` | GET | `/api/v2/audit/logs` | — | `AuditHandler.List` |
-| `notify.manage` | GET | `/api/v2/notify/policy` · `/alerts` · `/deliveries` · `/receivers` · `/rules` · `/silences` | — | `NotifyHandler.GetPolicy` / `ListAlerts` / `ListDeliveries` / `ListReceivers` / `ListRules` / `ListSilences` |
+| `notify.manage` | GET | `/api/v2/notify/policy` · `/smtp` · `/alerts` · `/deliveries` · `/receivers` · `/rules` · `/silences` | — | `NotifyHandler.GetPolicy` / `GetSMTP` / `ListAlerts` / `ListDeliveries` / `ListReceivers` / `ListRules` / `ListSilences` |
 | `notify.manage` | PUT | `/api/v2/notify/policy` | update / notify_policy | `NotifyHandler.UpdatePolicy` |
+| `notify.manage` | PUT | `/api/v2/notify/smtp` | update / notify_smtp | `NotifyHandler.UpdateSMTP` |
 | `notify.manage` | POST | `/api/v2/notify/receivers` | create / notify_receiver | `NotifyHandler.CreateReceiver` |
 | `notify.manage` | PUT · DELETE | `/api/v2/notify/receivers/{id}` | update · delete / notify_receiver | `NotifyHandler.UpdateReceiver` / `DeleteReceiver` |
 | `notify.manage` | POST | `/api/v2/notify/receivers/{id}/test` | execute / notify_test | `NotifyHandler.TestReceiver` |
@@ -298,7 +299,7 @@
 设计见 `docs/design/active/incident-notification-design.md`。
 
 通用约定：时间一律是 UTC 的 RFC 3339 字符串，「没有」时为空串；列表的 `data` 恒为数组、`total` 恒为数字；
-错误响应为 `{ "error": "..." }`。**接收人的凭据（Webhook 地址、SMTP 密码）加密存储，任何接口都不返回，只返回是否已配置。**
+错误响应为 `{ "error": "..." }`。**凭据（接收人的 Webhook 地址、发件设置的 SMTP 密码）加密存储，任何接口都不返回，只返回是否已配置。**
 
 **策略** `GET /api/v2/notify/policy` · `PUT /api/v2/notify/policy`
 
@@ -356,6 +357,22 @@
 - 发送失败按 30 秒、2 分钟、10 分钟重试三次。`lastError` 是失败原因，**不含 Webhook 地址与密码**
 - 送达记录与已结束的告警保留 30 天
 
+**发件设置** `GET /api/v2/notify/smtp` · `PUT /api/v2/notify/smtp`
+
+邮件从哪台服务器、用哪个账号发，全局只配一次，所有邮件接收人共用。
+
+```json
+{ "message": "获取成功", "data": {
+    "configured": true, "host": "smtp.example.com", "port": 587, "user": "ops@example.com",
+    "tls": true, "fromAddress": "", "passwordConfigured": true, "updatedAt": "2026-11-15T10:00:00Z" } }
+```
+
+- `configured`：主机、端口、账号、密码都已配置；从没保存过时为 `false`，`updatedAt` 为 `null`
+- 保存的请求体：`{ "host", "port", "user", "password", "tls", "fromAddress" }`（整体替换）→ `200 { "message": "已保存", "data": { ...同上... } }`
+- 校验：主机、端口（1–65535）、账号必填；`fromAddress` 可空（用 `user`），填了必须是纯邮箱地址；
+  `password` **留空 = 保持原值**，第一次保存必须填写 → 400
+- 改完立即生效：每次发邮件时读取，不用重启
+
 **接收人** `GET /api/v2/notify/receivers` · `POST /api/v2/notify/receivers` · `PUT|DELETE /api/v2/notify/receivers/{id}` · `POST /api/v2/notify/receivers/{id}/test`
 
 ```json
@@ -363,8 +380,7 @@
     { "id": 1, "name": "值班频道", "type": "slack", "enabled": true,
       "slack": { "webhookConfigured": true }, "createdAt": "...", "updatedAt": "..." },
     { "id": 2, "name": "运维邮件", "type": "email", "enabled": true,
-      "email": { "smtpHost": "smtp.example.com", "smtpPort": 587, "smtpUser": "ops@example.com", "smtpTLS": true,
-                 "fromAddress": "ops@example.com", "toAddresses": ["a@example.com"], "passwordConfigured": true },
+      "email": { "toAddresses": ["a@example.com"] },
       "createdAt": "...", "updatedAt": "..." }
   ], "total": 2 }
 ```
@@ -373,19 +389,18 @@
 
 ```json
 { "name": "值班频道", "type": "slack", "enabled": true, "slack": { "webhookUrl": "https://..." } }
-{ "name": "运维邮件", "type": "email", "enabled": true,
-  "email": { "smtpHost": "smtp.example.com", "smtpPort": 587, "smtpUser": "ops@example.com", "smtpPassword": "...",
-             "smtpTLS": true, "fromAddress": "ops@example.com", "toAddresses": ["a@example.com"] } }
+{ "name": "运维邮件", "type": "email", "enabled": true, "email": { "toAddresses": ["a@example.com"] } }
 ```
 
 - 新建 → `201 { "message": "已创建", "data": { ...同列表项... } }`；名称重复 → 409；没传 `enabled` 时为启用
-- 校验：名称必填、不超过 64 字；Slack 的 `webhookUrl` 必须是 `https://` 地址；邮件的主机、端口（1–65535）、账号、密码、至少一个收件人必填，
-  收发件人必须是纯邮箱地址；`fromAddress` 可空（用 `smtpUser`）
-- 修改时 `webhookUrl` / `smtpPassword` **留空 = 保持原值**；不带 `slack` / `email` 段 = 整段配置保持原值；没传 `enabled` = 保持原值。
+- 校验：名称必填、不超过 64 字；Slack 的 `webhookUrl` 必须是 `https://` 地址；邮件至少一个收件人，必须是纯邮箱地址。
+  邮件接收人只有收件人，发件服务器用上面的发件设置
+- 修改时 `webhookUrl` **留空 = 保持原值**；不带 `slack` / `email` 段 = 整段配置保持原值；没传 `enabled` = 保持原值。
   启停没有单独接口：原样带上其余字段、凭据传空串即可。换类型时必须给出新类型的完整配置
 - 删除 → `200`；仍被路由规则或默认策略引用 → 409，错误文字写明被谁引用
 - 测试发送：按已保存的配置发一条测试消息（不管是否启用；不产生告警、不留送达记录）→ `200 { "message": "测试消息已发送" }`；
-  接收人不存在 → 404；配置不完整 → 400；发送失败 → 502，错误文字带原因（不含 Webhook 地址与密码）
+  接收人不存在 → 404；配置不完整 → 400，错误文字写明缺什么（Webhook 地址 / 收件人 / 发件设置）；
+  发送失败 → 502，错误文字带原因（不含 Webhook 地址与密码）
 
 **路由规则** `GET /api/v2/notify/rules` · `POST /api/v2/notify/rules` · `PUT|DELETE /api/v2/notify/rules/{id}` · `PUT /api/v2/notify/rules/order` · `POST /api/v2/notify/rules/match`
 
