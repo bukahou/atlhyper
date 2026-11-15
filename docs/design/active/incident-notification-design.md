@@ -538,6 +538,93 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 - `database/`：表与仓库；`notifier/silence/` [新增]：匹配（纯函数）
 - 前端：页签「静默」（列表 + 新建弹窗 + 提前结束）；「当前告警」里标出「已静默」「已抑制」
 
+## 功能四：事件详情页改版（2026-11-15 追加）
+
+**用户故事**：从通知里的链接点进来，第一眼就知道出了什么事、多严重、去哪查；时间线只在需要时展开。
+效果图：`~/work/设计/atlhyper-事件详情页/01-事件详情页-方案.html`（用户已确认「按这个做」）。
+
+**页面结构**（从上到下）：结论（状态 · 严重度 · 已持续 · 开始 / 升级时间 + 一句话 + 影响数字）→ 关键证据（按信号去重）→ 下一步 →
+成员表（状态、重启、风险，「风险最高」标记）→ 时间线（默认折叠，同类检测合并）→ 历史与 AI 分析。
+
+**API**：`GET /api/v2/aiops/incidents/{id}` 的响应在原有字段（事件本身 + `entities` + `timeline`）之外新增四项。原有字段保持不变。
+
+```json
+{
+  "...": "原有字段",
+  "headline": {                       // 结论那一句话的素材；null = 没有证据（如只有依赖传播）
+    "signal": "container_crash",      // 主证据的信号类型（见下表）
+    "reason": "CrashLoopBackOff",     // 信号的原因码 / 取值；没有时为空串
+    "affectedMembers": 3, "totalMembers": 3
+  },
+  "impact": {                         // 影响数字；不适用的项为 null
+    "desiredReplicas": 3, "availableReplicas": 0,   // 只对 Deployment / StatefulSet / DaemonSet 主体
+    "restartsTotal": 18                              // 当前仍存在的成员 Pod 的重启次数之和
+  },
+  "evidence": [                       // 按信号类型去重，按最高分数从高到低
+    { "signal": "container_crash", "reason": "CrashLoopBackOff", "affectedMembers": 3,
+      "detail": "容器 crasher: CrashLoopBackOff",   // 最近一次的原文（去掉 Pod UID 等噪音），供展开查看
+      "firstSeen": "2026-11-15T05:52:50Z", "lastSeen": "2026-11-15T06:00:20Z", "hits": 15, "maxScore": 0.9 }
+  ],
+  "members": [                        // 与 entities 一一对应，补上当前快照里的状态
+    { "entityKey": "atlhyper-dev/pod/x", "entityType": "pod", "namespace": "atlhyper-dev", "name": "x",
+      "role": "root_cause", "rFinal": 0.9, "isLead": true,
+      "present": true,                // 当前快照里还在；false 时以下三项为空
+      "status": "CrashLoopBackOff", "restarts": 6, "ready": "0/1" }
+  ],
+  "timelineView": [                   // 时间线的展示形态：状态与严重度的变化 + 合并后的检测记录
+    { "at": "...", "kind": "created", "risk": 58, "severity": "medium" },
+    { "at": "...", "kind": "severity_raised", "risk": 77, "severity": "high" },
+    { "at": "...", "kind": "escalated", "risk": 88 },
+    { "at": "...", "kind": "anomaly", "count": 5, "firstAt": "...", "lastAt": "..." }
+  ]
+}
+```
+
+- `kind`：`created` / `escalated` / `severity_raised` / `recovery_started` / `recurred` / `closed` / `closed_stale` / `anomaly`
+- 风险一律 0–100 整数；时间一律 UTC（RFC 3339），前端按浏览器时区显示
+- **一句话、信号名称、状态名都由前端按 i18n（中 / 日）渲染**，后端只给结构化的码与数值（项目要求界面文字走 i18n，后端拼好的中文句子在日文界面里会是错的）
+- 「下一步」的按钮由前端按主体类型拼出页面链接，按权限显示锁定；不由后端下发（页面路由是前端的事）
+
+**信号类型**（由基线 / 风险模块的指标名归类，`signal` 字段）：
+
+| signal | 来自指标 | 说明 |
+|---|---|---|
+| `container_crash` | `container_anomaly` | 容器异常（CrashLoopBackOff / OOMKilled / 拉镜像失败等），`reason` 为原因码 |
+| `workload_unavailable` | `deployment_impact` | 工作负载不可用比例，`reason` 为百分比整数 |
+| `k8s_event` | `critical_event` | 关键 K8s 事件，`reason` 为事件原因（BackOff 等） |
+| `restarts` | `restart_count` / `max_container_restarts` | 重启次数异常 |
+| `not_ready` | `not_ready_containers` / `is_running` | 容器未就绪 / 未运行 |
+| `resource` | `cpu_usage` / `memory_usage` / `disk_usage` / `psi_*` | 资源使用异常 |
+| `node_pressure` | `memory_pressure` / `disk_pressure` / `pid_pressure` | 节点压力 |
+| `apm_errors` / `apm_latency` | `apm_*error*` / `apm_*latency*` | 链路错误率 / 延迟 |
+| `log_errors` | `log_error_*` | 错误日志激增 |
+| `other` | 其余 | 兜底 |
+
+**数据来源**
+
+- 证据：新表 `aiops_incident_signals`，每次写「异常检测」时间线时按（事件, 成员, 指标）累计：首次 / 最近时刻、次数、最高分、最近原文。
+  新表用 `CREATE TABLE IF NOT EXISTS`，**不用清库**；改版前已有的事件没有这张表的数据，证据为空数组
+- 成员状态、重启、影响数字：查询时取当前集群快照（成员已不存在时 `present: false`）
+- 时间线展示形态：由时间线原始记录转换（`incident` 包内自己写、自己解析固定格式），检测记录合并成一条
+- 结论的主证据：`evidence` 里分数最高的一条
+
+**数据对照**
+
+| API JSON | Go | 表 `aiops_incident_signals` |
+|---|---|---|
+| — | `IncidentSignal.IncidentID` / `EntityKey` / `Metric` | `incident_id` / `entity_key` / `metric`（三列联合主键） |
+| `firstSeen` / `lastSeen` | `FirstSeen` / `LastSeen` | `first_seen` / `last_seen`（TEXT，UTC） |
+| `hits` | `Hits` | `hits INTEGER` |
+| `maxScore` | `MaxScore` | `max_score REAL` |
+| `detail` | `Detail` | `detail TEXT`（最近一次原文） |
+
+**实现**
+
+- `database/`：新表、仓库（`Upsert` 累计、`ListByIncident`）
+- `aiops/incident/`：写检测时间线时一并累计信号；`BuildDetailView`（证据归类与去重、时间线转换、结论主证据）为纯函数
+- `service/query/`：事件详情补上成员状态与影响数字（读快照），组合成 `model` 下的详情响应
+- 前端：`app/aiops/incidents/components/` 按效果图重排；i18n 补信号名称与结论句式（中 / 日）；演示数据同步
+
 ## 实施阶段
 
 ```
