@@ -18,7 +18,12 @@ type DB struct {
 	User           UserRepository
 	UserIdentity   UserIdentityRepository
 	Event          ClusterEventRepository
-	Notify         NotifyChannelRepository
+	NotifyPolicy   NotifyPolicyRepository // 通知模块六个仓库的接口定义见 interfaces_notify.go
+	NotifyAlert    NotifyAlertRepository
+	NotifyDelivery NotifyDeliveryRepository
+	NotifyReceiver NotifyReceiverRepository
+	NotifyRule     NotifyRuleRepository
+	NotifySilence  NotifySilenceRepository
 	Cluster        ClusterRepository
 	Command        CommandHistoryRepository
 	Settings       SettingsRepository
@@ -107,17 +112,6 @@ type ClusterEventRepository interface {
 	CountByCluster(ctx context.Context, clusterID string) (int64, error)
 	CountByHour(ctx context.Context, clusterID string, hours int) ([]HourlyEventCount, error)
 	CountByHourAndKind(ctx context.Context, clusterID string, hours int) ([]HourlyKindCount, error)
-}
-
-// NotifyChannelRepository 通知渠道接口
-type NotifyChannelRepository interface {
-	Create(ctx context.Context, channel *NotifyChannel) error
-	Update(ctx context.Context, channel *NotifyChannel) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*NotifyChannel, error)
-	GetByType(ctx context.Context, channelType string) (*NotifyChannel, error)
-	List(ctx context.Context) ([]*NotifyChannel, error)
-	ListEnabled(ctx context.Context) ([]*NotifyChannel, error)
 }
 
 // ClusterRepository 集群接口
@@ -347,7 +341,12 @@ type Dialect interface {
 	User() UserDialect
 	UserIdentity() UserIdentityDialect
 	Event() EventDialect
-	Notify() NotifyDialect
+	NotifyPolicy() NotifyPolicyDialect
+	NotifyAlert() NotifyAlertDialect
+	NotifyDelivery() NotifyDeliveryDialect
+	NotifyReceiver() NotifyReceiverDialect
+	NotifyRule() NotifyRuleDialect
+	NotifySilence() NotifySilenceDialect
 	Cluster() ClusterDialect
 	Command() CommandDialect
 	Settings() SettingsDialect
@@ -414,18 +413,6 @@ type EventDialect interface {
 	ScanRow(rows *sql.Rows) (*ClusterEvent, error)
 	ScanHourlyCount(rows *sql.Rows) (*HourlyEventCount, error)
 	ScanHourlyKindCount(rows *sql.Rows) (*HourlyKindCount, error)
-}
-
-// NotifyDialect 通知渠道 SQL 方言
-type NotifyDialect interface {
-	Insert(ch *NotifyChannel) (query string, args []any)
-	Update(ch *NotifyChannel) (query string, args []any)
-	Delete(id int64) (query string, args []any)
-	SelectByID(id int64) (query string, args []any)
-	SelectByType(channelType string) (query string, args []any)
-	SelectAll() (query string, args []any)
-	SelectEnabled() (query string, args []any)
-	ScanRow(rows *sql.Rows) (*NotifyChannel, error)
 }
 
 // ClusterDialect 集群 SQL 方言

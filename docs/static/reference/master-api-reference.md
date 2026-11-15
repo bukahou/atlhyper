@@ -142,9 +142,17 @@
 | `cluster.operate` | POST | `/api/v2/ops/deployments/{scale,restart,image}` | execute / deployment | `OpsHandler.Deployment*` |
 | `cluster.operate` | POST | `/api/v2/ops/nodes/{cordon,uncordon}` | execute / node | `OpsHandler.NodeCordon` / `NodeUncordon` |
 | `audit.read` | GET | `/api/v2/audit/logs` | — | `AuditHandler.List` |
-| `notify.manage` | GET | `/api/v2/notify/channels` · `/api/v2/notify/channels/` | — | `NotifyHandler.ListChannels` / `ChannelHandler` |
-| `notify.manage` | PUT · PATCH | `/api/v2/notify/channels/` | update / notify | `NotifyHandler.ChannelHandler` |
-| `notify.manage` | POST | `/api/v2/notify/channels/` | execute / notify_test | `NotifyHandler.ChannelHandler`（`{type}/test`） |
+| `notify.manage` | GET | `/api/v2/notify/policy` · `/alerts` · `/deliveries` · `/receivers` · `/rules` · `/silences` | — | `NotifyHandler.GetPolicy` / `ListAlerts` / `ListDeliveries` / `ListReceivers` / `ListRules` / `ListSilences` |
+| `notify.manage` | PUT | `/api/v2/notify/policy` | update / notify_policy | `NotifyHandler.UpdatePolicy` |
+| `notify.manage` | POST | `/api/v2/notify/receivers` | create / notify_receiver | `NotifyHandler.CreateReceiver` |
+| `notify.manage` | PUT · DELETE | `/api/v2/notify/receivers/{id}` | update · delete / notify_receiver | `NotifyHandler.UpdateReceiver` / `DeleteReceiver` |
+| `notify.manage` | POST | `/api/v2/notify/receivers/{id}/test` | execute / notify_test | `NotifyHandler.TestReceiver` |
+| `notify.manage` | POST | `/api/v2/notify/rules` | create / notify_rule | `NotifyHandler.CreateRule` |
+| `notify.manage` | PUT · DELETE | `/api/v2/notify/rules/{id}` | update · delete / notify_rule | `NotifyHandler.UpdateRule` / `DeleteRule` |
+| `notify.manage` | PUT | `/api/v2/notify/rules/order` | update / notify_rule_order | `NotifyHandler.ReorderRules` |
+| `notify.manage` | POST | `/api/v2/notify/rules/match` | read / notify_rule_match | `NotifyHandler.MatchRule`（试匹配，只读） |
+| `notify.manage` | POST | `/api/v2/notify/silences` | create / notify_silence | `NotifyHandler.CreateSilence` |
+| `notify.manage` | POST | `/api/v2/notify/silences/{id}/expire` | update / notify_silence | `NotifyHandler.ExpireSilence` |
 | `slo.manage` | PUT | `/api/v2/slo/targets` | update / slo_target | `SLOHandler.Targets`（host / 窗口 / 目标值校验） |
 | `ai.analyze` | POST | `/api/v2/aiops/ai/summarize` | execute / ai_summary | `AIOpsAIHandler.Summarize` |
 | `ai.analyze` | POST | `/api/v2/aiops/ai/recommend` | execute / ai_recommendation | `AIOpsAIHandler.Recommend` |
@@ -283,13 +291,157 @@
 
 ---
 
+### 3.8 通知设置（`notify.manage`）
+
+事件、Agent 心跳、（可选的）K8s Warning 事件先变成统一的告警，再经同一条管道通知到人：
+路由规则选出接收人 → 静默 → 抑制（集群离线时压住该集群的其他告警）→ 分组 → 重复提醒 → 发送与重试 → 送达记录。
+设计见 `docs/design/active/incident-notification-design.md`。
+
+通用约定：时间一律是 UTC 的 RFC 3339 字符串，「没有」时为空串；列表的 `data` 恒为数组、`total` 恒为数字；
+错误响应为 `{ "error": "..." }`。**接收人的凭据（Webhook 地址、SMTP 密码）加密存储，任何接口都不返回，只返回是否已配置。**
+
+**策略** `GET /api/v2/notify/policy` · `PUT /api/v2/notify/policy`
+
+```json
+{ "message": "获取成功", "data": {
+    "incidentAlertsEnabled": true, "minSeverity": "low", "notifyResolved": true,
+    "warningFlapThreshold": 3, "groupWaitSeconds": 30, "groupIntervalSeconds": 300,
+    "repeatIntervalSeconds": 14400, "k8sEventAlertsEnabled": false, "defaultReceiverIds": [] } }
+```
+
+| 字段 | 说明 | 取值 |
+|------|------|------|
+| `incidentAlertsEnabled` | 事件是否产生告警（心跳告警不受影响） | — |
+| `minSeverity` | 没有规则命中时，低于此严重度的告警不通知 | `low` / `medium` / `high` / `critical` |
+| `notifyResolved` | 是否发恢复通知 | — |
+| `warningFlapThreshold` | 只到「警告」的事件 24 小时内发生几次才通知；0 = 不通知 | 0–20 |
+| `groupWaitSeconds` | 分组等待：同一集群的告警在这段时间内合并成一条 | 0–600 |
+| `groupIntervalSeconds` | 分组间隔：同一组两条消息的最短间隔 | 30–86400 |
+| `repeatIntervalSeconds` | 持续未结束的告警多久再提醒一次 | 300–604800 |
+| `k8sEventAlertsEnabled` | 旧的逐条 K8s 事件告警 | 默认 `false` |
+| `defaultReceiverIds` | 没有规则命中时发给谁；空 = 全部已启用的接收人 | 必须都存在 |
+
+`PUT` 是整体替换：九个字段都必须给出，缺任何一个 → 400（少传一个开关不会被当成把它关掉）。成功 → `200 { "message": "已保存", "data": { ... } }`。
+
+**当前告警** `GET /api/v2/notify/alerts?status=firing|resolved&cluster_id=&limit=&offset=`
+
+```json
+{ "message": "获取成功", "data": [
+    { "fingerprint": "incident:inc-123", "source": "incident", "clusterId": "prod",
+      "severity": "high", "status": "firing", "kind": "firing",
+      "title": "shop/deployment/api 风险异常", "summary": "风险持续偏高，已升级为事件（峰值风险 72）",
+      "subject": "shop/deployment/api", "incidentId": "inc-123",
+      "startsAt": "2026-11-15T10:00:00Z", "endsAt": "", "lastNotifiedAt": "2026-11-15T10:00:30Z", "notifyCount": 2,
+      "suppressedBy": "", "silencedBy": 0 }
+  ], "total": 1 }
+```
+
+- `source`：`incident` / `heartbeat` / `k8s_event`；`kind`（最近一次变化）：`firing` / `escalated` / `recurred` / `flapping` / `resolved`
+- `suppressedBy`：`cluster-offline` 表示该集群的 Agent 离线告警在持续，这条被压住没发；`silencedBy`：命中的静默 id，0 = 没有
+- 不带 `status` = 全部；`limit` 默认 50、上限 200；开始时间新的在前；`total` 是符合条件的总数
+
+**送达记录** `GET /api/v2/notify/deliveries?fingerprint=&status=&limit=&offset=`
+
+```json
+{ "message": "获取成功", "data": [
+    { "id": 1, "batchId": "b-3f9a0c1d2e4b5a67", "fingerprint": "incident:inc-123", "alertTitle": "shop/deployment/api 风险异常",
+      "receiverId": 2, "receiverName": "值班频道", "receiverType": "slack",
+      "kind": "firing", "status": "success", "attempts": 1, "lastError": "",
+      "createdAt": "2026-11-15T10:00:30Z", "updatedAt": "2026-11-15T10:00:30Z" }
+  ], "total": 1 }
+```
+
+- `kind`：告警的五种变化，另加 `repeat`（重复提醒）
+- `status`：`pending`（待发）/ `success` / `failed`（等待重试）/ `abandoned`（重试用尽，或接收人已删除 / 停用）/ `no-receiver`（没有任何可用接收人；此时 `receiverId` 为 0、名称与类型为空串）
+- 发送失败按 30 秒、2 分钟、10 分钟重试三次。`lastError` 是失败原因，**不含 Webhook 地址与密码**
+- 送达记录与已结束的告警保留 30 天
+
+**接收人** `GET /api/v2/notify/receivers` · `POST /api/v2/notify/receivers` · `PUT|DELETE /api/v2/notify/receivers/{id}` · `POST /api/v2/notify/receivers/{id}/test`
+
+```json
+{ "message": "获取成功", "data": [
+    { "id": 1, "name": "值班频道", "type": "slack", "enabled": true,
+      "slack": { "webhookConfigured": true }, "createdAt": "...", "updatedAt": "..." },
+    { "id": 2, "name": "运维邮件", "type": "email", "enabled": true,
+      "email": { "smtpHost": "smtp.example.com", "smtpPort": 587, "smtpUser": "ops@example.com", "smtpTLS": true,
+                 "fromAddress": "ops@example.com", "toAddresses": ["a@example.com"], "passwordConfigured": true },
+      "createdAt": "...", "updatedAt": "..." }
+  ], "total": 2 }
+```
+
+新建 / 修改的请求体：
+
+```json
+{ "name": "值班频道", "type": "slack", "enabled": true, "slack": { "webhookUrl": "https://..." } }
+{ "name": "运维邮件", "type": "email", "enabled": true,
+  "email": { "smtpHost": "smtp.example.com", "smtpPort": 587, "smtpUser": "ops@example.com", "smtpPassword": "...",
+             "smtpTLS": true, "fromAddress": "ops@example.com", "toAddresses": ["a@example.com"] } }
+```
+
+- 新建 → `201 { "message": "已创建", "data": { ...同列表项... } }`；名称重复 → 409；没传 `enabled` 时为启用
+- 校验：名称必填、不超过 64 字；Slack 的 `webhookUrl` 必须是 `https://` 地址；邮件的主机、端口（1–65535）、账号、密码、至少一个收件人必填，
+  收发件人必须是纯邮箱地址；`fromAddress` 可空（用 `smtpUser`）
+- 修改时 `webhookUrl` / `smtpPassword` **留空 = 保持原值**；不带 `slack` / `email` 段 = 整段配置保持原值；没传 `enabled` = 保持原值。
+  启停没有单独接口：原样带上其余字段、凭据传空串即可。换类型时必须给出新类型的完整配置
+- 删除 → `200`；仍被路由规则或默认策略引用 → 409，错误文字写明被谁引用
+- 测试发送：按已保存的配置发一条测试消息（不管是否启用；不产生告警、不留送达记录）→ `200 { "message": "测试消息已发送" }`；
+  接收人不存在 → 404；配置不完整 → 400；发送失败 → 502，错误文字带原因（不含 Webhook 地址与密码）
+
+**路由规则** `GET /api/v2/notify/rules` · `POST /api/v2/notify/rules` · `PUT|DELETE /api/v2/notify/rules/{id}` · `PUT /api/v2/notify/rules/order` · `POST /api/v2/notify/rules/match`
+
+```json
+{ "message": "获取成功", "data": [
+    { "id": 1, "name": "生产高严重度", "position": 1, "enabled": true,
+      "clusterIds": ["prod"], "sources": ["incident"], "minSeverity": "high", "receiverIds": [1, 2],
+      "groupWaitSeconds": null, "groupIntervalSeconds": null, "repeatIntervalSeconds": 3600,
+      "createdAt": "...", "updatedAt": "..." }
+  ], "total": 1 }
+```
+
+- 按 `position` 从小到大匹配（列表也按此顺序返回）：第一条已启用且条件全部满足的规则生效，不再往下；都不命中用默认策略
+- 条件：集群在 `clusterIds` 里（空 = 全部）、来源在 `sources` 里（空 = 全部）、严重度不低于 `minSeverity`（没填 = `low`）
+- `receiverIds` 必须都存在；可以为空 —— 命中这条规则的告警不发给任何人（送达记录记 `no-receiver`）
+- 三个时间参数的取值范围与策略里的同名项相同；`null` = 用策略里的全局值
+- 新建不带 `id` / `position`，新规则排在最后 → 201；修改不改位置
+- 重排 `PUT /rules/order`，请求体 `{ "ids": [3, 1, 2] }`，必须恰好是全部规则的一个排列，否则 400 → `200 { "message": "已保存", "data": [ ...重排后的列表... ] }`
+- 试匹配 `POST /rules/match`，请求体 `{ "clusterId": "prod", "source": "incident", "severity": "high" }`：
+
+```json
+{ "message": "匹配完成", "data": {
+    "matchedRule": { "id": 1, "name": "生产高严重度" },
+    "receivers": [ { "id": 1, "name": "值班频道", "type": "slack", "enabled": true } ],
+    "belowMinSeverity": false } }
+```
+
+  `matchedRule` 为 `null` = 走默认策略；`receivers` 含已停用的接收人（`enabled: false`，实际不会收到）；
+  `belowMinSeverity` 为真 = 默认策略下严重度不到 `minSeverity`，不会发送。试匹配与真实发送用的是同一个路由函数
+
+**静默** `GET /api/v2/notify/silences?state=active|pending|expired` · `POST /api/v2/notify/silences` · `POST /api/v2/notify/silences/{id}/expire`
+
+```json
+{ "message": "获取成功", "data": [
+    { "id": 1, "clusterId": "prod", "namespace": "shop", "subject": "",
+      "startsAt": "2026-11-15T10:00:00Z", "endsAt": "2026-11-15T12:00:00Z",
+      "comment": "数据库升级", "createdBy": "admin", "createdAt": "2026-11-15T09:58:00Z", "state": "active" }
+  ], "total": 1 }
+```
+
+- 三个条件为空 = 不限；`subject` 填了则精确匹配主体键。心跳告警没有命名空间与主体，只有不限定这两项的静默才会压住它
+- 命中静默的告警照常落库与显示（`silencedBy` 记下静默 id），不发；静默结束时仍在持续的按新告警发出；静默期间结束的告警不补发触发、也不发恢复
+- 新建请求体同上（不带 `id` / `createdBy` / `createdAt` / `state`；`startsAt` 留空 = 现在）→ 201。
+  校验：`endsAt` 晚于 `startsAt` 且晚于现在；时长不超过 30 天；`comment` 必填、不超过 256 字。创建人取自当前登录的用户
+- 提前结束 `POST /silences/{id}/expire`：结束时间置为现在 → 200，带回该静默。还没开始的静默也可以结束（建错了撤销），之后它的状态是 `expired`、不再生效
+- 静默不删除，只会过期；过期的保留 30 天
+
+---
+
 ## 4. 审计覆盖
 
 审计记录无论成功还是权限不足都会写入。覆盖范围 = 上表「审计」列非空的路由：
 
 - **登录**：本地登录、OIDC 回调
 - **敏感读**：ConfigMap / Secret 内容、Pod 日志、AI 报告详情
-- **写操作**：指令下发、Pod / Deployment / Node 操作、通知渠道（含测试发送）、SLO 目标、AI 总结 / 建议 / 分析触发、删除 AI 会话
+- **写操作**：指令下发、Pod / Deployment / Node 操作、通知设置（策略、接收人含测试发送、路由规则含重排与试匹配、静默）、SLO 目标、AI 总结 / 建议 / 分析触发、删除 AI 会话
 - **系统配置**：用户管理、AI Provider / 设置 / 预算、GitHub 连接（含安装回跳）、部署配置 / 同步 / 回滚 / 连接测试、集群注册表（登记 / 修改 / 删除登记 / 签发令牌）
 
 规则（`routes_test.go` 守住）：2 级及以上的非 GET 路由一律审计。
@@ -326,7 +478,7 @@
 { "error": "错误信息" }
 ```
 
-HTTP 状态码：200 成功，201 已创建（登记集群），400 参数错误，401 未登录且所需权限高于 0 级，403 已登录但权限不足，404 未找到，409 配置冲突（如 AI 角色未分配 Provider、集群 ID 已登记），500 内部错误，502 上游失败，504 超时。
+HTTP 状态码：200 成功，201 已创建（登记集群、新建通知接收人 / 规则 / 静默），400 参数错误，401 未登录且所需权限高于 0 级，403 已登录但权限不足，404 未找到，409 配置冲突（如 AI 角色未分配 Provider、集群 ID 已登记、接收人重名或仍被引用），500 内部错误，502 上游失败，504 超时。
 
 AI 类接口失败时另带稳定错误码 `code`（`ai_role_unassigned` / `ai_budget_exhausted` / `ai_timeout` / `ai_upstream`），前端按码显示文案。
 
@@ -335,7 +487,9 @@ AI 类接口失败时另带稳定错误码 `code`（`ai_role_unassigned` / `ai_b
 Go `http.ServeMux` 的匹配规则（Go 1.22 起的「方法 路径」模式）：
 - `GET /api/v2/pods` — 精确匹配列表路由；GET 模式同时匹配 HEAD
 - `GET /api/v2/pods/` — 前缀匹配，捕获 `/api/v2/pods/{name}`
-- `PUT /api/v2/admin/clusters/{clusterId}` — 通配段匹配单个路径段，handler 用 `r.PathValue("clusterId")` 取值（集群注册表接口使用）
+- `PUT /api/v2/admin/clusters/{clusterId}` — 通配段匹配单个路径段，handler 用 `r.PathValue("clusterId")` 取值（集群注册表、通知设置接口使用）
+- 固定路径与同级的通配路径并存时（`/api/v2/notify/rules/order` 与 `/api/v2/notify/rules/{id}`），固定路径优先；
+  固定路径没声明的方法由通配路由接走（如 `DELETE /rules/order` 落到 `DELETE /rules/{id}`，id 不是数字 → 400）
 - 路径命中但方法没声明 → ServeMux 返回 405（带 `Allow` 头），请求到不了 handler
 - `/x` 没声明某方法、而 `/x/` 声明了 → ServeMux 307 到 `/x/`，仍落在已声明的路由上
 

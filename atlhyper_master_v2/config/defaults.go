@@ -19,8 +19,8 @@ var defaultDurations = map[string]string{
 	// -------------------- Event 持久化 --------------------
 	"MASTER_EVENT_CLEANUP_INTERVAL": "1h", // 清理检查间隔
 
-	// -------------------- Event 告警 --------------------
-	"MASTER_EVENT_ALERT_INTERVAL": "30s", // 告警检测间隔
+	// -------------------- 旧的逐条 K8s 事件告警（开关在通知策略里，默认关）--------------------
+	"MASTER_EVENT_ALERT_INTERVAL": "30s", // 轮询间隔
 
 	// -------------------- JWT 配置 --------------------
 	"MASTER_JWT_TOKEN_EXPIRY": "24h", // Token 有效期
@@ -79,6 +79,9 @@ var defaultStrings = map[string]string{
 	"MASTER_LOG_LEVEL":  "info", // 日志级别: debug / info / warn / error
 	"MASTER_LOG_FORMAT": "text", // 日志格式: text / json
 
+	// -------------------- 服务器配置 --------------------
+	"MASTER_PUBLIC_URL": "", // 对外访问地址（通知里的页面链接用）；不配则通知不带链接
+
 	// -------------------- Agent 入口配置 --------------------
 	"MASTER_AGENT_AUTH_MODE": "warn", // Agent 令牌认证模式: off / warn / enforce
 
@@ -135,9 +138,6 @@ var defaultStrings = map[string]string{
 var defaultBools = map[string]bool{
 	// -------------------- AI 配置 --------------------
 	"MASTER_AI_ENABLED": false, // 是否启用 AI 功能（Web UI 配置）
-
-	// -------------------- Event 告警 --------------------
-	"MASTER_EVENT_ALERT_ENABLED": true, // 是否启用事件告警
 
 	// -------------------- OIDC 登录配置 --------------------
 	"MASTER_OIDC_COOKIE_SECURE": true, // 状态 cookie 仅 HTTPS；仅本机 http 调试时设 false

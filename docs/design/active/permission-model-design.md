@@ -91,7 +91,7 @@
 | | `pod.logs.read` | ops/pods/logs |
 | | `cluster.operate` | commands（创建）、ops/pods/restart、ops/deployments/*、ops/nodes/* |
 | | `audit.read` | audit/logs |
-| | `notify.manage` | notify/channels（读 + 写） |
+| | `notify.manage` | notify/policy、alerts、deliveries、receivers、rules、silences（读 + 写；含接收人测试发送与规则试匹配） |
 | | `slo.manage` | slo/targets（PUT 写入；读仍是 0 级 `slo.read`） |
 | | `ai.analyze` | aiops/ai/*（summarize / recommend / reports / analyze） |
 | | `ai.settings.read` | settings/ai、ai/providers、ai/settings、ai/roles、ai/budgets、ai/reports（读） |

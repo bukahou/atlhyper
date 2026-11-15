@@ -230,6 +230,7 @@ npm install && npm run dev
 | `MASTER_JWT_SECRET` | Yes | - | JWT signing key |
 | `MASTER_GATEWAY_PORT` | No | `8080` | Web/API port |
 | `MASTER_AGENTSDK_PORT` | No | `8081` | Agent data port |
+| `MASTER_PUBLIC_URL` | No | - | Address users open this system at (e.g. `https://atlhyper.example.com`). Used to put an incident link in notifications; when unset, notifications carry no link |
 | `MASTER_AGENT_AUTH_MODE` | No | `warn` | Agent token authentication: `off` / `warn` (accept requests without a valid token, log a warning) / `enforce` (reject them). Any other value fails startup |
 | `MASTER_AGENTSDK_MAX_SNAPSHOT_MB` | No | `256` | Maximum size of a single snapshot in MB (applies before and after decompression) |
 | `MASTER_LOG_LEVEL` | No | `info` | Log level |
