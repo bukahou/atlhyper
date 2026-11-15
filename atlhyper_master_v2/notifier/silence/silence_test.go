@@ -85,3 +85,16 @@ func TestMatch_PicksLowestIDAmongMatches(t *testing.T) {
 		t.Errorf("没有静默时应返回 0，实际 %d", got)
 	}
 }
+
+// 还没开始就被提前结束的静默（建错了撤销）：结束时间早于开始时间，任何时刻都是「已结束」，不再生效
+func TestState_ExpiredBeforeStart(t *testing.T) {
+	cancelled := &database.NotifySilence{ID: 1, StartsAt: t0.Add(time.Hour), EndsAt: t0}
+	for _, at := range []time.Time{t0, t0.Add(30 * time.Minute), t0.Add(time.Hour), t0.Add(2 * time.Hour)} {
+		if got := State(cancelled, at); got != StateExpired {
+			t.Errorf("State(%v) = %q，期望 expired", at.Sub(t0), got)
+		}
+		if Matches(cancelled, incidentAlert("prod", "shop", "shop/deployment/api"), at) {
+			t.Errorf("被撤销的静默不应生效（%v）", at.Sub(t0))
+		}
+	}
+}

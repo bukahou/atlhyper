@@ -16,15 +16,17 @@ const (
 	StateExpired = "expired" // 已结束
 )
 
-// State 静默在给定时刻的状态。区间是 [StartsAt, EndsAt)：结束时刻本身已不在静默内
+// State 静默在给定时刻的状态。区间是 [StartsAt, EndsAt)：结束时刻本身已不在静默内。
+//
+// 先看结束时间：还没开始就被提前结束的静默（EndsAt 早于 StartsAt）是「已结束」，不会再生效
 func State(silence *database.NotifySilence, now time.Time) string {
 	switch {
+	case !now.Before(silence.EndsAt):
+		return StateExpired
 	case now.Before(silence.StartsAt):
 		return StatePending
-	case now.Before(silence.EndsAt):
-		return StateActive
 	default:
-		return StateExpired
+		return StateActive
 	}
 }
 

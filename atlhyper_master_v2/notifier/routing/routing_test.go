@@ -142,3 +142,22 @@ func TestRoute_OrdersByPositionNotSliceOrder(t *testing.T) {
 		t.Errorf("应命中位置靠前的规则 2，实际 %d", decision.RuleID())
 	}
 }
+
+func TestReceiversForRule(t *testing.T) {
+	policy := database.DefaultNotifyPolicy()
+	rules := []*database.NotifyRule{{ID: 7, Enabled: true, ReceiverIDs: []int64{3, 2}}}
+
+	if got := receiverIDs(ReceiversForRule(policy, rules, testReceivers(), 7)); !sameIDs(got, 2) {
+		t.Errorf("规则的接收人里只有启用的会收到，实际 %v", got)
+	}
+	if got := receiverIDs(ReceiversForRule(policy, rules, testReceivers(), 0)); !sameIDs(got, 1, 2) {
+		t.Errorf("默认策略：全部已启用的接收人，实际 %v", got)
+	}
+	if got := receiverIDs(ReceiversForRule(policy, rules, testReceivers(), 99)); !sameIDs(got, 1, 2) {
+		t.Errorf("规则已不存在时退回默认策略，实际 %v", got)
+	}
+	policy.DefaultReceiverIDs = []int64{2}
+	if got := receiverIDs(ReceiversForRule(policy, nil, testReceivers(), 0)); !sameIDs(got, 2) {
+		t.Errorf("默认策略指定了接收人时只发给它们，实际 %v", got)
+	}
+}

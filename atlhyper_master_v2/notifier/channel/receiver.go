@@ -3,6 +3,7 @@
 package channel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -45,4 +46,24 @@ func NewReceiverNotifier(receiver *database.NotifyReceiver) (Notifier, error) {
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedReceiverType, receiver.Type)
 	}
+}
+
+// ReceiverSender 把消息发给一个接收人：按它的类型与配置创建发送器并发送。
+//
+// 返回的错误已经去掉该接收人的凭据（Webhook 地址、SMTP 密码），可以直接写日志与送达记录
+type ReceiverSender struct{}
+
+// NewReceiverSender 创建 ReceiverSender
+func NewReceiverSender() *ReceiverSender { return &ReceiverSender{} }
+
+// Send 发送一条消息
+func (s *ReceiverSender) Send(ctx context.Context, receiver *database.NotifyReceiver, msg *Message) error {
+	notifier, err := NewReceiverNotifier(receiver)
+	if err != nil {
+		return err
+	}
+	if err := notifier.Send(ctx, msg); err != nil {
+		return errors.New(ScrubSecrets(err.Error(), ReceiverSecrets(receiver)...))
+	}
+	return nil
 }

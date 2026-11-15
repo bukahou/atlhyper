@@ -156,3 +156,28 @@ func ruleTiming(policy *database.NotifyPolicy, rule *database.NotifyRule) Timing
 }
 
 func seconds(value int) time.Duration { return time.Duration(value) * time.Second }
+
+// ReceiversForRule 一条规则此刻会发给哪些接收人（只含已启用的）；ruleID 为 0、或规则已不存在时取默认策略的接收人。
+//
+// 供管道在分组发出时使用：从告警入组到发出之间配置可能改过，以发出时的配置为准
+func ReceiversForRule(policy *database.NotifyPolicy, rules []*database.NotifyRule, receivers []*database.NotifyReceiver, ruleID int64) []*database.NotifyReceiver {
+	decision := Decision{}
+	matched := false
+	if ruleID != 0 {
+		for _, rule := range rules {
+			if rule.ID == ruleID {
+				decision.Receivers = pickReceivers(receivers, rule.ReceiverIDs)
+				matched = true
+				break
+			}
+		}
+	}
+	if !matched {
+		if len(policy.DefaultReceiverIDs) == 0 {
+			decision.Receivers = receivers
+		} else {
+			decision.Receivers = pickReceivers(receivers, policy.DefaultReceiverIDs)
+		}
+	}
+	return decision.Deliverable()
+}
