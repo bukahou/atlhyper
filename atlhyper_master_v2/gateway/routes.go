@@ -92,13 +92,13 @@ type Router struct {
 	ghClient       github.Client
 	deployer       deployer.Deployer
 	oidc           *oidc.Module              // 可选，nil = 外部身份登录未启用
-	notifyTester   adminHandler.NotifyTester // 可选，nil = 通知渠道测试发送不可用
+	notifyTester   adminHandler.NotifyTester // 可选，nil = 接收人测试发送不可用
 }
 
 // SetOIDC 注入外部身份登录模块（可选）
 func (r *Router) SetOIDC(m *oidc.Module) { r.oidc = m }
 
-// SetNotifyTester 注入通知渠道测试发送（可选，由告警模块提供）
+// SetNotifyTester 注入接收人测试发送（可选，由通知模块提供）
 func (r *Router) SetNotifyTester(t adminHandler.NotifyTester) { r.notifyTester = t }
 
 // NewRouter 创建路由管理器
@@ -169,7 +169,7 @@ func (r *Router) registerRoutes() {
 	// 创建 Handlers — 管理 (package admin)
 	userH := adminHandler.NewUserHandler(r.service, r.service)
 	commandH := adminHandler.NewCommandHandler(r.service)
-	notifyH := adminHandler.NewNotifyHandler(r.service)
+	notifyH := adminHandler.NewNotifyHandler(r.service, r.service)
 	if r.notifyTester != nil {
 		notifyH.SetTester(r.notifyTester)
 	}
@@ -308,11 +308,25 @@ func (r *Router) registerRoutes() {
 
 	r.route(mGet, pAuditRead, "/api/v2/audit/logs", auditH.List)
 
-	r.route(mGet, pNotifyManage, "/api/v2/notify/channels", notifyH.ListChannels)
-	r.route(mGet, pNotifyManage, "/api/v2/notify/channels/", notifyH.ChannelHandler)
-	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/channels/", "update", "notify", notifyH.ChannelHandler)
-	r.routeAudited(mPatch, pNotifyManage, "/api/v2/notify/channels/", "update", "notify", notifyH.ChannelHandler)
-	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/channels/", "execute", "notify_test", notifyH.ChannelHandler) // {type}/test
+	// 通知设置：策略、当前告警、送达记录、接收人、路由规则、静默（读写同一权限；非 GET 一律审计）
+	r.route(mGet, pNotifyManage, "/api/v2/notify/policy", notifyH.GetPolicy)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/policy", "update", "notify_policy", notifyH.UpdatePolicy)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/alerts", notifyH.ListAlerts)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/deliveries", notifyH.ListDeliveries)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/receivers", notifyH.ListReceivers)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/receivers", "create", "notify_receiver", notifyH.CreateReceiver)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/receivers/{id}", "update", "notify_receiver", notifyH.UpdateReceiver)
+	r.routeAudited(mDelete, pNotifyManage, "/api/v2/notify/receivers/{id}", "delete", "notify_receiver", notifyH.DeleteReceiver)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/receivers/{id}/test", "execute", "notify_test", notifyH.TestReceiver)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/rules", notifyH.ListRules)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/rules", "create", "notify_rule", notifyH.CreateRule)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/rules/order", "update", "notify_rule_order", notifyH.ReorderRules)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/rules/match", "read", "notify_rule_match", notifyH.MatchRule)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/rules/{id}", "update", "notify_rule", notifyH.UpdateRule)
+	r.routeAudited(mDelete, pNotifyManage, "/api/v2/notify/rules/{id}", "delete", "notify_rule", notifyH.DeleteRule)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/silences", notifyH.ListSilences)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/silences", "create", "notify_silence", notifyH.CreateSilence)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/silences/{id}/expire", "update", "notify_silence", notifyH.ExpireSilence)
 
 	r.routeAudited(mPut, pSLOManage, "/api/v2/slo/targets", "update", "slo_target", sloH.Targets)
 

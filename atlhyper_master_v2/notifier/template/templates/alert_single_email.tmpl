@@ -1,0 +1,5 @@
+{{.Title}}
+{{with index .Items 0}}{{range .Fields}}
+{{.Label}}: {{.Value}}{{end}}{{if .Link}}
+
+事件详情: {{.Link}}{{end}}{{end}}

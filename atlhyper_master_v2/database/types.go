@@ -103,33 +103,6 @@ type HourlyKindCount struct {
 	Count int
 }
 
-// NotifyChannel 通知渠道
-type NotifyChannel struct {
-	ID        int64
-	Type      string // slack / email（UNIQUE，一个类型一条记录）
-	Name      string // 显示名称
-	Enabled   bool   // 是否启用（默认 false）
-	Config    string // JSON 配置
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// SlackConfig Slack 配置
-type SlackConfig struct {
-	WebhookURL string `json:"webhookUrl"`
-}
-
-// EmailConfig Email 配置
-type EmailConfig struct {
-	SMTPHost     string   `json:"smtpHost"`
-	SMTPPort     int      `json:"smtpPort"`
-	SMTPUser     string   `json:"smtpUser"`
-	SMTPPassword string   `json:"smtpPassword"`
-	SMTPTLS      bool     `json:"smtpTLS"`
-	FromAddress  string   `json:"fromAddress"`
-	ToAddresses  []string `json:"toAddresses"`
-}
-
 // Cluster 集群注册表的一行：管理员登记的集群，以及它的 Agent 令牌（只存哈希）
 type Cluster struct {
 	ClusterID     string // 集群 ID，与 Agent 上报的一致
@@ -383,18 +356,21 @@ type AIOpsBaselineState struct {
 
 // AIOpsIncident 事件数据库模型
 type AIOpsIncident struct {
-	ID         string
-	ClusterID  string
-	State      string
-	Severity   string
-	RootCause  string
-	PeakRisk   float64
-	StartedAt  time.Time
-	ResolvedAt *time.Time
-	DurationS  int64
-	Recurrence int
-	Summary    string
-	CreatedAt  time.Time
+	ID          string
+	ClusterID   string
+	State       string
+	Severity    string // 峰值严重度：只升不降，关闭后保留
+	Subject     string // 主体键：工作负载，或实体自身
+	RootCause   string // 领头实体
+	PeakRisk    float64
+	StartedAt   time.Time
+	EscalatedAt *time.Time // 首次升级到「事件中」的时刻；从未升级为 nil
+	ResolvedAt  *time.Time
+	CloseReason string // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
+	DurationS   int64
+	Recurrence  int
+	Summary     string
+	CreatedAt   time.Time
 }
 
 // AIOpsIncidentEntity 受影响实体数据库模型

@@ -86,6 +86,40 @@ func scaleCausalTree(nodes []*aiops.CausalTreeNode) []*aiops.CausalTreeNode {
 	return result
 }
 
+// ScaleIncidents 转换事件列表里的峰值风险
+func ScaleIncidents(src []*aiops.Incident) []*aiops.Incident {
+	if src == nil {
+		return nil
+	}
+	result := make([]*aiops.Incident, len(src))
+	for i, inc := range src {
+		if inc == nil {
+			continue
+		}
+		cp := *inc
+		cp.PeakRisk = toPercent(cp.PeakRisk)
+		result[i] = &cp
+	}
+	return result
+}
+
+// ScaleIncidentPatterns 转换事件模式里各事件的峰值风险
+func ScaleIncidentPatterns(src []*aiops.IncidentPattern) []*aiops.IncidentPattern {
+	if src == nil {
+		return nil
+	}
+	result := make([]*aiops.IncidentPattern, len(src))
+	for i, pattern := range src {
+		if pattern == nil {
+			continue
+		}
+		cp := *pattern
+		cp.Incidents = ScaleIncidents(pattern.Incidents)
+		result[i] = &cp
+	}
+	return result
+}
+
 // ScaleIncidentDetail 转换事件详情中的实体分数
 func ScaleIncidentDetail(src *aiops.IncidentDetail) *aiops.IncidentDetail {
 	if src == nil {

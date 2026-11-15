@@ -36,8 +36,14 @@ func (f *flakyRepo) write(name string) error {
 func (f *flakyRepo) CreateIncident(_ context.Context, inc *database.AIOpsIncident) error {
 	return f.write("create:" + inc.ID)
 }
-func (f *flakyRepo) UpdateState(_ context.Context, id, state, _ string) error {
+func (f *flakyRepo) UpdateState(_ context.Context, id, state string) error {
 	return f.write("state:" + id + ":" + state)
+}
+func (f *flakyRepo) RaiseSeverity(_ context.Context, id, _ string, _ float64) error {
+	return f.write("severity:" + id)
+}
+func (f *flakyRepo) MarkEscalated(_ context.Context, id string, _ time.Time) error {
+	return f.write("escalated:" + id)
 }
 func (f *flakyRepo) UpdatePeakRisk(_ context.Context, id string, _ float64) error {
 	return f.write("peak:" + id)
@@ -45,7 +51,9 @@ func (f *flakyRepo) UpdatePeakRisk(_ context.Context, id string, _ float64) erro
 func (f *flakyRepo) IncrementRecurrence(_ context.Context, id string) error {
 	return f.write("recurrence:" + id)
 }
-func (f *flakyRepo) Resolve(_ context.Context, id string, _ time.Time) error {
+func (f *flakyRepo) SetAnomalyDuration(context.Context, string, time.Time) error { return nil }
+
+func (f *flakyRepo) Resolve(_ context.Context, id string, _ time.Time, _ string) error {
 	return f.write("resolve:" + id)
 }
 func (f *flakyRepo) UpdateRootCause(_ context.Context, id, _ string) error {
@@ -73,6 +81,16 @@ func newRetryFixture() (*Store, *flakyRepo, *time.Time) {
 	return store, repo, &current
 }
 
+// retryChange 拼一条给重试用例用的事件变化（主体即实体自身）
+func retryChange(kind aiops.TransitionKind, incidentID string, at time.Time, rFinal float64) (aiops.IncidentTransition, *aiops.SubjectRisk) {
+	risk := selfSubject("default/pod/a", rFinal, rFinal)
+	return aiops.IncidentTransition{
+		Kind: kind, IncidentID: incidentID, ClusterID: "c1", SubjectKey: risk.SubjectKey,
+		RootCause: risk.Lead.EntityKey, Severity: aiops.SeverityFromRisk(rFinal),
+		RFinal: rFinal, PeakRisk: rFinal, At: at,
+	}, risk
+}
+
 func stateWrites(writes []string) []string {
 	var out []string
 	for _, w := range writes {
@@ -90,8 +108,8 @@ func TestStore_TransientFailureIsRetriedInOrder(t *testing.T) {
 	occurredAt := *clock
 
 	repo.failNext = 1
-	store.IncrementRecurrence(ctx, "inc-1", risk("default/pod/a", 0.6, 0.6), occurredAt)
-	store.UpdateState(ctx, "inc-1", aiops.StateWarning, risk("default/pod/a", 0.6, 0.6), occurredAt)
+	recurred, risk := retryChange(aiops.TransitionRecurred, "inc-1", occurredAt, 0.6)
+	store.ApplyTransition(ctx, recurred, risk)
 
 	if got := stateWrites(repo.writes); len(got) != 0 {
 		t.Fatalf("写锁被占期间不应有写入成功，实际 %v", got)
@@ -124,11 +142,13 @@ func TestStore_NoWriteAttemptsDuringBackoff(t *testing.T) {
 	ctx := context.Background()
 
 	repo.failNext = 100
-	store.UpdateState(ctx, "inc-1", aiops.StateIncident, risk("default/pod/a", 0.8, 0.8), time.Now())
+	escalated, risk := retryChange(aiops.TransitionEscalated, "inc-1", time.Now(), 0.8)
+	store.ApplyTransition(ctx, escalated, risk)
 	attemptsAfterFirst := repo.attempts
 
 	for i := 0; i < 5; i++ {
-		store.UpdateState(ctx, fmt.Sprintf("inc-%d", i+2), aiops.StateIncident, risk("default/pod/a", 0.8, 0.8), time.Now())
+		escalated, risk := retryChange(aiops.TransitionEscalated, fmt.Sprintf("inc-%d", i+2), time.Now(), 0.8)
+		store.ApplyTransition(ctx, escalated, risk)
 	}
 	if repo.attempts != attemptsAfterFirst {
 		t.Errorf("退避期间又尝试了 %d 次写入，want 0", repo.attempts-attemptsAfterFirst)
@@ -145,10 +165,10 @@ func TestStore_PermanentErrorDoesNotBlockQueue(t *testing.T) {
 
 	repo.failNext = 1
 	repo.failWith = errors.New("constraint failed: UNIQUE constraint failed (1555)")
-	store.UpdateRootCause(ctx, "inc-1", "default/pod/a")
-	store.UpdateRootCause(ctx, "inc-2", "default/pod/b")
+	store.AddTimeline(ctx, "inc-1", time.Now(), aiops.TimelineStateChange, "default/pod/a", "")
+	store.AddTimeline(ctx, "inc-2", time.Now(), aiops.TimelineStateChange, "default/pod/b", "")
 
-	if fmt.Sprint(repo.writes) != fmt.Sprint([]string{"rootcause:inc-2"}) {
+	if fmt.Sprint(repo.writes) != fmt.Sprint([]string{"timeline:inc-2:state_change"}) {
 		t.Errorf("writes = %v, want 只有 inc-2 成功", repo.writes)
 	}
 	if store.PendingWrites() != 0 {
@@ -156,18 +176,18 @@ func TestStore_PermanentErrorDoesNotBlockQueue(t *testing.T) {
 	}
 }
 
-// 创建事件时写库失败：事件号照常返回（状态机要用它关联后续变化），创建本身稍后补上，
-// 而且排在这条事件后续的状态变化之前。
-func TestStore_CreateReturnsIDAndIsRetriedBeforeLaterWrites(t *testing.T) {
+// 创建事件时写库失败：创建本身稍后补上，而且排在这条事件后续的状态变化之前。
+// （事件号由状态机在建事件时就定下，不依赖写库成功。）
+func TestStore_CreateIsRetriedBeforeLaterWrites(t *testing.T) {
 	store, repo, clock := newRetryFixture()
 	ctx := context.Background()
+	id := "inc-1"
 
 	repo.failNext = 1
-	id := store.Create(ctx, "c1", "default/pod/a", risk("default/pod/a", 0.3, 0.3), *clock)
-	if id == "" {
-		t.Fatal("写库失败时也应返回事件号")
-	}
-	store.UpdateState(ctx, id, aiops.StateIncident, risk("default/pod/a", 0.8, 0.8), *clock)
+	created, risk := retryChange(aiops.TransitionCreated, id, *clock, 0.3)
+	store.ApplyTransition(ctx, created, risk)
+	escalated, risk := retryChange(aiops.TransitionEscalated, id, *clock, 0.8)
+	store.ApplyTransition(ctx, escalated, risk)
 
 	*clock = clock.Add(time.Minute)
 	store.FlushPending(ctx)
@@ -186,18 +206,9 @@ func TestStore_PendingQueueIsBounded(t *testing.T) {
 
 	repo.failNext = 1 << 30
 	for i := 0; i < maxPendingWrites+50; i++ {
-		store.UpdateRootCause(ctx, fmt.Sprintf("inc-%d", i), "default/pod/a")
+		store.AddTimeline(ctx, fmt.Sprintf("inc-%d", i), time.Now(), aiops.TimelineStateChange, "default/pod/a", "")
 	}
 	if got := store.PendingWrites(); got != maxPendingWrites {
 		t.Errorf("队列长度 = %d, want 上限 %d", got, maxPendingWrites)
-	}
-}
-
-// 没有事件号的条目（从未建过事件的实体）关闭时不写任何东西
-func TestStore_ResolveWithoutIncidentWritesNothing(t *testing.T) {
-	store, repo, _ := newRetryFixture()
-	store.Resolve(context.Background(), "", "default/pod/a", time.Now())
-	if repo.attempts != 0 {
-		t.Errorf("没有事件号时不应写库，实际尝试 %d 次: %v", repo.attempts, repo.writes)
 	}
 }

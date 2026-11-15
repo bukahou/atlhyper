@@ -26,6 +26,7 @@ func LoadConfig() {
 	GlobalConfig.Server = ServerConfig{
 		GatewayPort:  getInt("MASTER_GATEWAY_PORT"),
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
+		PublicURL:    getString("MASTER_PUBLIC_URL"),
 	}
 
 	GlobalConfig.AgentSDK = AgentSDKConfig{
@@ -61,7 +62,6 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.EventAlert = EventAlertConfig{
-		Enabled:       getBool("MASTER_EVENT_ALERT_ENABLED"),
 		CheckInterval: getDuration("MASTER_EVENT_ALERT_INTERVAL"),
 	}
 

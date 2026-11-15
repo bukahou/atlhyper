@@ -44,7 +44,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/notifier"
-	"AtlHyper/atlhyper_master_v2/notifier/trigger"
+	"AtlHyper/atlhyper_master_v2/notifier/pipeline"
 	"AtlHyper/atlhyper_master_v2/processor"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/atlhyper_master_v2/service/operations"
@@ -68,8 +68,6 @@ type Master struct {
 	gateway      *gateway.Server
 	eventPersist *sync.EventPersistService
 	alertManager notifier.AlertManager
-	heartbeat    *trigger.HeartbeatTrigger
-	eventTrigger *trigger.EventTrigger
 	// AIOps 引擎
 	aiopsEngine aiops.Engine
 	// Deployer（GitOps CD）
@@ -185,7 +183,7 @@ func NewMaster() (*Master, error) {
 
 	// 6. 初始化 Operations（写入路径，AI Service 依赖 cmdOps）
 	cmdOps := operations.NewCommandService(bus, db.Command)
-	adminOps := operations.NewAdminService(db.Notify, db.AIProvider, db.AISettings, db.AIRoleBudget)
+	adminOps := operations.NewAdminService(db.AIProvider, db.AISettings, db.AIRoleBudget)
 	log.Info("操作服务初始化完成")
 
 	// 7. 初始化 AI Service（Enricher 依赖 AIService）
@@ -210,7 +208,7 @@ func NewMaster() (*Master, error) {
 		return middleware.Allowed(analysisAudience, middleware.Permission(p))
 	})
 	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
-	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
+	aiopsEngine.SubscribeTransitions(aiopsEnricher.OnIncidentTransition)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
 
 	// 8. 初始化 Query（读取路径）— 全部依赖通过构造函数注入
@@ -224,7 +222,6 @@ func NewMaster() (*Master, error) {
 		AdminRepos: query.AdminRepos{
 			Audit:      db.Audit,
 			Command:    db.Command,
-			Notify:     db.Notify,
 			AIProvider: db.AIProvider,
 			AISettings: db.AISettings,
 			AIModel:    db.AIModel,
@@ -242,6 +239,11 @@ func NewMaster() (*Master, error) {
 
 		ClusterRepo:       db.Cluster,
 		ClusterAuthStatus: agentAuthStatus,
+
+		NotifyRepos: query.NotifyRepos{
+			Policy: db.NotifyPolicy, Alerts: db.NotifyAlert, Deliveries: db.NotifyDelivery,
+			Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
+		},
 	})
 	log.Info("查询层初始化完成")
 
@@ -257,8 +259,13 @@ func NewMaster() (*Master, error) {
 	// 初始化集群注册表写入服务（登记、签发 Agent 令牌）
 	clusterRegistryOps := operations.NewClusterRegistryService(db.Cluster)
 
+	// 初始化通知设置写入服务（策略、接收人、路由规则、静默）
+	notifyOps := operations.NewNotifyService(operations.NotifyRepos{
+		Policy: db.NotifyPolicy, Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
+	})
+
 	// 组合统一 Service
-	svc := service.NewService(q, cmdOps, adminOps, sloOps, deployOps, userOps, clusterRegistryOps)
+	svc := service.NewService(q, cmdOps, adminOps, sloOps, deployOps, userOps, clusterRegistryOps, notifyOps)
 
 	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{
@@ -511,33 +518,25 @@ func NewMaster() (*Master, error) {
 
 	log.Info("AI Tool 注册完成 (8 个基础)")
 
-	// 10. 初始化 AlertManager（告警管理器）
-	alertMgr, err := notifier.NewManager(db.Notify)
+	// 10. 初始化通知模块：告警来源（事件变化、Agent 心跳、K8s 事件）→ 管道 → 发送
+	alertMgr, err := notifier.NewAlertManager(notifier.Config{
+		Repos: pipeline.Repos{
+			Policy: db.NotifyPolicy, Alerts: db.NotifyAlert, Deliveries: db.NotifyDelivery,
+			Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
+		},
+		Events:                 db.Event,
+		Agents:                 store,
+		PublicURL:              cfg.Server.PublicURL,
+		HeartbeatCheckInterval: cfg.DataHub.HeartbeatExpire / 2,
+		HeartbeatOfflineAfter:  cfg.DataHub.HeartbeatExpire,
+		K8sEventCheckInterval:  cfg.EventAlert.CheckInterval,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to init alert manager: %w", err)
 	}
-	log.Info("告警管理器初始化完成")
-
-	// 11. 初始化 HeartbeatTrigger（心跳检测触发器）
-	heartbeat := trigger.NewHeartbeatTrigger(store, alertMgr, trigger.HeartbeatConfig{
-		CheckInterval: cfg.DataHub.HeartbeatExpire / 2,
-		OfflineAfter:  cfg.DataHub.HeartbeatExpire,
-	})
-	log.Info("心跳检测触发器初始化完成")
-
-	// 11.1 初始化 EventTrigger（事件告警触发器，可选）
-	var eventTrigger *trigger.EventTrigger
-	if cfg.EventAlert.Enabled {
-		eventTrigger = trigger.NewEventTrigger(
-			db.Event,
-			q,
-			alertMgr,
-			trigger.EventConfig{
-				CheckInterval: cfg.EventAlert.CheckInterval,
-			},
-		)
-		log.Info("事件告警触发器初始化完成")
-	}
+	// 事件变化交给通知模块。回调只入队：引擎在持有状态机锁时调用它
+	aiopsEngine.SubscribeTransitions(alertMgr.OnIncidentTransition)
+	log.Info("通知模块初始化完成")
 
 	// 11.5 初始化 GitHub Client（可选，未配置则跳过）
 	var ghClient github.Client
@@ -612,7 +611,7 @@ func NewMaster() (*Master, error) {
 		GitHubClient:   ghClient,
 		Deployer:       deployerService,
 		OIDC:           oidcModule,
-		NotifyTester:   alertMgr, // 通知渠道测试发送走网关（同一套权限与审计）
+		NotifyTester:   alertMgr, // 接收人测试发送走网关（同一套权限与审计）
 	})
 	log.Info("Gateway 初始化完成", "port", cfg.Server.GatewayPort)
 
@@ -626,8 +625,6 @@ func NewMaster() (*Master, error) {
 		gateway:      gw,
 		eventPersist: eventPersist,
 		alertManager: alertMgr,
-		heartbeat:    heartbeat,
-		eventTrigger: eventTrigger,
 		aiopsEngine:  aiopsEngine,
 		deployer:     deployerService,
 	}, nil
@@ -650,21 +647,9 @@ func (m *Master) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start event persist: %w", err)
 	}
 
-	// 启动 AlertManager
+	// 启动通知模块（管道恢复状态 + 心跳与 K8s 事件两个轮询来源）；先于 AIOps 引擎，事件变化一发布就有人接
 	if err := m.alertManager.Start(); err != nil {
 		return fmt.Errorf("failed to start alert manager: %w", err)
-	}
-
-	// 启动 HeartbeatTrigger
-	if err := m.heartbeat.Start(); err != nil {
-		return fmt.Errorf("failed to start heartbeat trigger: %w", err)
-	}
-
-	// 启动 EventTrigger
-	if m.eventTrigger != nil {
-		if err := m.eventTrigger.Start(); err != nil {
-			return fmt.Errorf("failed to start event trigger: %w", err)
-		}
 	}
 
 	// 启动 AIOps 引擎
@@ -718,18 +703,6 @@ func (m *Master) Stop() error {
 		log.Error("停止 AgentSDK 失败", "err", err)
 	}
 
-	// 停止 HeartbeatTrigger
-	if err := m.heartbeat.Stop(); err != nil {
-		log.Error("停止心跳检测触发器失败", "err", err)
-	}
-
-	// 停止 EventTrigger
-	if m.eventTrigger != nil {
-		if err := m.eventTrigger.Stop(); err != nil {
-			log.Error("停止事件告警触发器失败", "err", err)
-		}
-	}
-
 	// 停止 AIOps 引擎
 	if m.aiopsEngine != nil {
 		if err := m.aiopsEngine.Stop(); err != nil {
@@ -744,7 +717,7 @@ func (m *Master) Stop() error {
 		}
 	}
 
-	// 停止 AlertManager
+	// 停止通知模块（两个轮询来源与管道）
 	m.alertManager.Stop()
 
 	// 停止 EventPersistService

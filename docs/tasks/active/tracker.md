@@ -24,6 +24,20 @@
 
 ---
 
+## 事件通知：从检测到通知 — 🔄 进行中（2026-11-15）
+
+> 设计文档: [incident-notification-design.md](../../design/active/incident-notification-design.md)
+> 分支 `feat/incident-notification`
+
+- 功能零 事件按主体收敛（同一工作负载的 Pod 归一个事件、反复并入同一事件、严重度保留为峰值、事件变化统一发布）— ✅ 代码完成，待 dev 验收
+- 第 1 期 事件通知闭环（统一告警对象、管道：分组 / 抑制 / 重复 / 重试 / 送达记录；策略、当前告警、送达记录三个接口与页签）— ✅ 代码完成，待 dev 验收
+- 第 2 期 接收人与路由规则（多个接收人、按集群与严重度分流、试匹配；接收人配置整体加密；原渠道表与渠道接口已删除）— ✅ 代码完成，待 dev 验收
+- 第 3 期 静默 — ✅ 代码完成，待 dev 验收
+- 前端：通知设置六个页签与事件页按主体显示 — ✅ 代码完成，待 dev 验收
+- dev 验收：各期都有表结构变更，上线需清库 — 待办
+
+---
+
 ## 集群注册表与 Agent 认证 — 🔄 进行中（2026-11-14）
 
 > 设计文档: [agent-auth-design.md](../../design/active/agent-auth-design.md)
@@ -36,8 +50,8 @@
 - 通知：「没有启用任何通知渠道」日志按告警标题限频 ✅
 - 文档：两份 API 参考、README 环境变量表、权限设计文档 ✅
 - 前端「集群管理」页：表格 + 登记弹窗 + 签发令牌弹窗（一次性显示、可复制）、导航、zh / ja 文案；`Permission` 类型与权限文案补 `clusters.manage` — ✅ 代码完成，待 dev 验收（随 `feat/web-data-layer-p4`）
-- config 仓的部署清单：Agent 专用账号与权限、其余组件不挂载集群凭据、NetworkPolicy、令牌经 Secret 注入 `AGENT_MASTER_TOKEN` — 待办
-- dev 验收：`clusters` 表结构有变更，上线需清库；登记集群 → 签发令牌 → 配进 Agent → 确认已认证 → 切 `enforce` — 待办
+- config 仓的部署清单（dev）：Agent 专用账号与权限、其余组件不挂载集群凭据、NetworkPolicy、令牌经 Secret 注入 `AGENT_MASTER_TOKEN` ✅；prod 清单待发布时处理
+- dev 验收：登记集群 → 签发令牌 → 配进 Agent → 确认已认证 → 切 `enforce` ✅（2026-11-15）
 
 ---
 

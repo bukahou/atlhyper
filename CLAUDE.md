@@ -440,7 +440,7 @@ atlhyper_master_v2/
 ├── model/              # Master API 响应模型 + Convert 层
 ├── ai/                 # AI 模块 (LLM 集成 + 工具调用)
 ├── aiops/              # AIOps 模块 (基线/关联/风险/事件/状态机)
-├── notifier/           # 通知模块 (触发/分发/丰富)
+├── notifier/           # 通知模块 (告警来源 → 管道: 路由/静默/抑制/分组/重试 → 发送)
 ├── slo/                # SLO 路由更新器
 ├── deployer/           # GitOps 部署模块 (CD)
 ├── github/             # GitHub API 客户端

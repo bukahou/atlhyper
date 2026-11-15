@@ -1,6 +1,6 @@
 // atlhyper_master_v2/aiops/enricher/background.go
 // 后台自动分析触发器
-// 监听事件创建/升级，根据严重度阈值自动触发 AI 分析
+// 订阅事件变化（建事件 / 升级），根据严重度阈值自动触发 AI 分析
 package enricher
 
 import (
@@ -34,7 +34,7 @@ type backgroundTrigger struct {
 type triggerEvent struct {
 	IncidentID string
 	Severity   string
-	Trigger    string // "incident_created" / "state_escalated"
+	Trigger    string // TriggerIncidentCreated / TriggerStateEscalated
 }
 
 // newBackgroundTrigger 创建后台触发器

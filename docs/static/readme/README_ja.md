@@ -229,6 +229,7 @@ npm install && npm run dev
 | `MASTER_JWT_SECRET` | はい | - | JWT 署名キー |
 | `MASTER_GATEWAY_PORT` | いいえ | `8080` | Web/API ポート |
 | `MASTER_AGENTSDK_PORT` | いいえ | `8081` | Agent データポート |
+| `MASTER_PUBLIC_URL` | いいえ | - | ユーザーがブラウザで本システムを開くアドレス（例：`https://atlhyper.example.com`）。通知にインシデントページへのリンクを付けるために使用。未設定の場合、通知にリンクは付きません |
 | `MASTER_AGENT_AUTH_MODE` | いいえ | `warn` | Agent トークン認証モード：`off` / `warn`（有効なトークンのないリクエストも受け付け、警告を記録）/ `enforce`（拒否）。それ以外の値は起動失敗 |
 | `MASTER_AGENTSDK_MAX_SNAPSHOT_MB` | いいえ | `256` | スナップショット 1 件のサイズ上限（MB、圧縮前後の両方に適用） |
 | `MASTER_LOG_LEVEL` | いいえ | `info` | ログレベル |

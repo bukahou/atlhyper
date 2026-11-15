@@ -3,17 +3,10 @@
 import { AlertTriangle, Activity, Clock, RotateCcw } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import type { IncidentStats as IncidentStatsType } from "@/api/aiops";
+import { formatDuration } from "./incident-format";
 
 interface IncidentStatsProps {
   stats: IncidentStatsType;
-}
-
-function formatMTTR(seconds: number, minuteLabel: string): string {
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} ${minuteLabel}`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
 }
 
 export function IncidentStats({ stats }: IncidentStatsProps) {
@@ -35,7 +28,7 @@ export function IncidentStats({ stats }: IncidentStatsProps) {
     {
       icon: Clock,
       label: t.aiops.stats.mttr,
-      value: formatMTTR(stats.mttr, t.aiops.minutes),
+      value: formatDuration(stats.mttr, t.aiops.minutes),
       color: "bg-yellow-500/10 text-yellow-500",
     },
     {

@@ -7,7 +7,5 @@ export {
   mockEntityRisks,
   mockEntityRiskDetail,
   mockDependencyGraph,
-  mockIncidents,
-  mockIncidentDetail,
-  mockIncidentStats,
 } from "./data";
+export { mockIncidents, mockIncidentDetail, mockIncidentStats } from "./incidents";

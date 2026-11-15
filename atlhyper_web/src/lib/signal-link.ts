@@ -55,3 +55,8 @@ export function logsLinkForService(
 export function logsLinkForTrace(traceId: string): string {
   return buildLink("/observe/logs", { trace: traceId });
 }
+
+/** 通知设置页的告警 → AIOps 事件页，直接打开这个事件的详情 */
+export function incidentLink(incidentId: string): string {
+  return buildLink("/aiops/incidents", { incident: incidentId });
+}

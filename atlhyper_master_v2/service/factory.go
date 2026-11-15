@@ -16,6 +16,7 @@ type serviceImpl struct {
 	*operations.DeployService
 	*operations.UserService
 	*operations.ClusterRegistryService
+	*operations.NotifyService
 }
 
 // NewService 创建统一 Service 实例
@@ -27,6 +28,7 @@ func NewService(
 	deploy *operations.DeployService,
 	user *operations.UserService,
 	clusterRegistry *operations.ClusterRegistryService,
+	notify *operations.NotifyService,
 ) Service {
 	return &serviceImpl{
 		QueryService:   q,
@@ -37,5 +39,6 @@ func NewService(
 		UserService:    user,
 
 		ClusterRegistryService: clusterRegistry,
+		NotifyService:          notify,
 	}
 }

@@ -485,16 +485,32 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 
 ---
 
-### 4.14 通知渠道
+### 4.14 通知设置
 
-**文件：** `api/notify.ts`
+**文件：** `api/notify.ts`（类型在 `types/notify.ts`）。权限均为 `notify.manage`。字段与取值见 `master-api-reference.md` §3.8。
 
 | 方法 | 路径 | 函数名 |
 |------|------|--------|
-| GET | `/api/v2/notify/channels` | `listChannels()` |
-| GET | `/api/v2/notify/channels/{type}` | `getChannel(type)` |
-| PUT | `/api/v2/notify/channels/slack` | `updateSlack({ enabled?, webhook_url? })` |
-| PUT | `/api/v2/notify/channels/email` | `updateEmail(data)` |
+| GET | `/api/v2/notify/policy` | `getNotifyPolicy()` |
+| PUT | `/api/v2/notify/policy` | `updateNotifyPolicy(policy)` |
+| GET | `/api/v2/notify/alerts` | `getNotifyAlerts({ status, limit, offset })` |
+| GET | `/api/v2/notify/deliveries` | `getNotifyDeliveries({ status?, limit, offset })` |
+| GET | `/api/v2/notify/receivers` | `getNotifyReceivers()` |
+| POST | `/api/v2/notify/receivers` | `createNotifyReceiver(receiver)` |
+| PUT | `/api/v2/notify/receivers/{id}` | `updateNotifyReceiver(id, receiver)` |
+| DELETE | `/api/v2/notify/receivers/{id}` | `deleteNotifyReceiver(id)` |
+| POST | `/api/v2/notify/receivers/{id}/test` | `testNotifyReceiver(id)` |
+| GET | `/api/v2/notify/rules` | `getNotifyRules()` |
+| POST | `/api/v2/notify/rules` | `createNotifyRule(rule)` |
+| PUT | `/api/v2/notify/rules/{id}` | `updateNotifyRule(id, rule)` |
+| DELETE | `/api/v2/notify/rules/{id}` | `deleteNotifyRule(id)` |
+| PUT | `/api/v2/notify/rules/order` | `reorderNotifyRules(ids)` |
+| POST | `/api/v2/notify/rules/match` | `matchNotifyRules(alert)` |
+| GET | `/api/v2/notify/silences` | `getNotifySilences(state)` |
+| POST | `/api/v2/notify/silences` | `createNotifySilence(silence)` |
+| POST | `/api/v2/notify/silences/{id}/expire` | `expireNotifySilence(id)` |
+
+接收人的凭据（Webhook 地址、SMTP 密码）只写不读：接口只返回「是否已配置」，更新时留空表示保持原值。
 
 ---
 
@@ -526,6 +542,12 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 | GET | `/api/v2/aiops/incidents/stats` | `getIncidentStats(cluster, period)` | 事件统计 |
 | POST | `/api/v2/aiops/ai/summarize` | `summarizeIncident(incidentId)` | AI 事件总结 |
 | POST | `/api/v2/aiops/ai/recommend` | `recommendActions(incidentId)` | AI 行动建议 |
+
+事件对象（列表项与详情顶层）字段：`id`, `clusterId`, `state`, `severity`（峰值，关闭后保留）, `subject`, `subjectType`, `subjectNamespace`, `subjectName`（后两项由后端从主体键解析，节点等集群级对象的命名空间为空串）, `rootCause`, `peakRisk`,
+`startedAt`, `escalatedAt`（从未升级为 `null`）, `resolvedAt`, `closeReason`（`""` / `recovered` / `stale`）, `durationS`, `recurrence`, `summary`, `createdAt`。
+`peakRisk` 是 0–100；`durationS` 是异常持续的秒数，不含恢复观察期。统计接口里 `activeIncidents` 只数警告与事件中，`topRootCauses` 按主体归并。
+事件以主体为单位（同一工作负载的 Pod 归一个事件），详情的 `entities` 列出成员实体。字段含义与时间线的事件类型见 `master-api-reference.md` §3.7。
+> 后端已返回 `subject` / `subjectType` / `escalatedAt` / `closeReason` 与时间线类型 `severity_raised`；`api/aiops.ts` 的类型与页面展示尚未跟上（随「事件通知」的前端部分处理）。
 
 ---
 

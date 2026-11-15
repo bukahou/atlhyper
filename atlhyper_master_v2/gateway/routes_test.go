@@ -179,8 +179,12 @@ func TestRoutes_WritePermissionIndependentOfRead(t *testing.T) {
 }
 
 // 路由按（方法，路径）注册：没声明的方法由 ServeMux 直接 405（带 Allow 头），到不了 handler。
-// 唯一例外是 ServeMux 的子树补斜杠重定向：/x 没声明该方法、而 /x/ 声明了，就 307 到 /x/，
-// 落到的仍是一条已声明（自带权限检查）的路由。用 Admin 请求，排除权限的干扰。
+// 例外有两种，落到的都仍是一条已声明（自带权限检查）的路由：
+//  1. ServeMux 的子树补斜杠重定向：/x 没声明该方法、而 /x/ 声明了，就 307 到 /x/
+//  2. 固定路径与同级的通配路径并存（/rules/order 与 /rules/{id}）：固定路径没声明的方法，
+//     由通配路径接走，路径的最后一段被当成 id（见 wildcardSiblingDeclares）
+//
+// 用 Admin 请求，排除权限的干扰。
 func TestRoutes_UndeclaredMethodRejected(t *testing.T) {
 	r, h := testRouterWithSpecs(t)
 	if len(r.specs) == 0 {
@@ -211,11 +215,30 @@ func TestRoutes_UndeclaredMethodRejected(t *testing.T) {
 			if redirect && declared[path+"/"][m] && rec.Header().Get("Location") == path+"/" {
 				continue
 			}
+			if wildcardSiblingDeclares(declared, path, m) && rec.Code != http.StatusOK {
+				continue
+			}
 			if rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") == "" {
 				t.Errorf("%s %s = %d (Allow=%q), want 405 由 ServeMux 拒绝", m, path, rec.Code, rec.Header().Get("Allow"))
 			}
 		}
 	}
+}
+
+// wildcardSiblingDeclares 与 path 同级、最后一段是通配符的路径（如 /rules/{id} 之于 /rules/order）是否声明了该方法。
+// 是的话，这个方法的请求会被那条通配路由接走，而不是 405
+func wildcardSiblingDeclares(declared map[string]map[string]bool, path, method string) bool {
+	parent := path[:strings.LastIndex(path, "/")+1]
+	if strings.HasSuffix(path, "}") {
+		return false // path 自己就是通配路径
+	}
+	for candidate, methods := range declared {
+		lastSegment := strings.TrimPrefix(candidate, parent)
+		if strings.HasPrefix(candidate, parent) && strings.HasPrefix(lastSegment, "{") && strings.HasSuffix(lastSegment, "}") && methods[method] {
+			return true
+		}
+	}
+	return false
 }
 
 // 访客能用的写方法只有登录类入口；挂了权限的写方法不得是 0 级权限，访客一律 401。

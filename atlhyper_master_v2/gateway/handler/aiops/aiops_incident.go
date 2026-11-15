@@ -71,7 +71,7 @@ func (h *AIOpsIncidentHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	handler.WriteJSON(w, http.StatusOK, map[string]any{
 		"message": "获取成功",
-		"data":    incidents,
+		"data":    ScaleIncidents(incidents),
 		"total":   total,
 	})
 }
@@ -158,7 +158,7 @@ func (h *AIOpsIncidentHandler) Patterns(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	handler.WriteJSON(w, http.StatusOK, patterns)
+	handler.WriteJSON(w, http.StatusOK, ScaleIncidentPatterns(patterns))
 }
 
 // parsePeriod 解析时间周期字符串（如 "7d", "30d", "24h"）

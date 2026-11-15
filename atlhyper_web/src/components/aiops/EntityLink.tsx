@@ -1,40 +1,22 @@
 "use client";
 
-import { Box, Server, Network, Globe } from "lucide-react";
+import { Box, CalendarClock, Database, Globe, Layers, LayoutGrid, Network, Play, Server } from "lucide-react";
 import { useEntityDetail } from "@/components/common/entity-detail";
+import { parseEntityKey } from "@/lib/entity-key";
 import type { EntityType } from "@/types/entity-detail";
 
+// 实体（pod / node / service / ingress）与工作负载主体（事件按主体收敛后，主体键也会出现在这里）
 const TYPE_ICONS: Record<string, typeof Box> = {
   pod: Box,
   node: Server,
   service: Network,
   ingress: Globe,
+  deployment: Layers,
+  statefulset: Database,
+  daemonset: LayoutGrid,
+  job: Play,
+  cronjob: CalendarClock,
 };
-
-/**
- * 解析 entityKey 格式:
- * - "namespace/type/name" (标准格式)
- * - "cluster/clusterId/node/name" (节点格式)
- */
-function parseEntityKey(entityKey: string): {
-  namespace: string;
-  type: string;
-  name: string;
-} {
-  const parts = entityKey.split("/");
-  if (parts.length >= 4 && parts[0] === "cluster") {
-    // cluster/{clusterId}/node/{name}
-    return { namespace: "", type: parts[2], name: parts[3] };
-  }
-  if (parts.length >= 3) {
-    // namespace/type/name
-    return { namespace: parts[0], type: parts[1], name: parts.slice(2).join("/") };
-  }
-  if (parts.length === 2) {
-    return { namespace: "", type: parts[0], name: parts[1] };
-  }
-  return { namespace: "", type: "unknown", name: entityKey };
-}
 
 interface EntityLinkProps {
   entityKey: string;

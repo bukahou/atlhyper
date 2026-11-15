@@ -1,0 +1,7 @@
+*{{.Title}}*
+{{range .Items}}
+• *{{.Head}}*
+    {{.Brief}}{{if .Link}}
+    <{{.Link}}|查看事件详情>{{end}}
+{{end}}{{if .Omitted}}
+另有 {{.Omitted}} 条未列出{{end}}

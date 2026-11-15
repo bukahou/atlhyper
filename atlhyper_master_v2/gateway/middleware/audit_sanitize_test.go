@@ -73,3 +73,32 @@ func TestSanitizeRequestBody_Truncates(t *testing.T) {
 		t.Errorf("超长请求体应截断到 500 字节：len=%d", len(got))
 	}
 }
+
+// 通知接收人的写请求会进审计日志：请求体里的 Webhook 地址与 SMTP 密码必须打码，其余字段留作审计证据
+func TestSanitizeRequestBody_NotifyReceiverCredentials(t *testing.T) {
+	cases := []struct {
+		name, body string
+		leaked     []string
+		kept       []string
+	}{
+		{"Slack 接收人",
+			`{"name":"值班频道","type":"slack","enabled":true,"slack":{"webhookUrl":"https://hooks.example.com/services/T000/B000/placeholder-not-real"}}`,
+			[]string{"hooks.example.com", "placeholder-not-real"}, []string{"值班频道", "slack"}},
+		{"邮件接收人",
+			`{"name":"运维邮件","type":"email","email":{"smtpHost":"smtp.example.com","smtpPort":587,"smtpUser":"ops@example.com","smtpPassword":"placeholder-not-a-real-password","toAddresses":["a@example.com"]}}`,
+			[]string{"placeholder-not-a-real-password"}, []string{"运维邮件", "smtp.example.com", "a@example.com"}},
+	}
+	for _, c := range cases {
+		got := sanitizeRequestBody(c.body)
+		for _, v := range c.leaked {
+			if strings.Contains(got, v) {
+				t.Errorf("%s：审计里出现了凭据 %q：%s", c.name, v, got)
+			}
+		}
+		for _, v := range c.kept {
+			if !strings.Contains(got, v) {
+				t.Errorf("%s：审计里应保留 %q：%s", c.name, v, got)
+			}
+		}
+	}
+}

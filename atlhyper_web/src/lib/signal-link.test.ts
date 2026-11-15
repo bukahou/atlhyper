@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { serviceKeyToOTelName, apmLinkForService, logsLinkForService, logsLinkForTrace } from "./signal-link";
+import {
+  serviceKeyToOTelName,
+  apmLinkForService,
+  incidentLink,
+  logsLinkForService,
+  logsLinkForTrace,
+} from "./signal-link";
 
 describe("serviceKeyToOTelName", () => {
   // SLO 用 {namespace}/{service}，APM/Logs 用 OTel 资源属性里的 ServiceName。
@@ -54,5 +60,16 @@ describe("跨信号跳转链接", () => {
   it("空服务名返回目标页而不带参数 —— 宁可跳过去看全部，也不要一个坏链接", () => {
     expect(apmLinkForService("")).toBe("/observe/apm");
     expect(logsLinkForTrace("")).toBe("/observe/logs");
+  });
+});
+
+describe("incidentLink", () => {
+  it("告警 → 事件页，带事件号直接打开详情", () => {
+    expect(incidentLink("inc-123")).toBe("/aiops/incidents?incident=inc-123");
+  });
+
+  it("事件号含特殊字符时正确编码；没有事件号时落到事件列表", () => {
+    expect(incidentLink("a/b c")).toBe("/aiops/incidents?incident=a%2Fb+c");
+    expect(incidentLink("")).toBe("/aiops/incidents");
   });
 });
