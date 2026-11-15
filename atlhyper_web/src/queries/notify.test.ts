@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/api/notify", () => api);
 
+import type { NotifyAlertListParams } from "@/api/notify";
 import type { NotifyPolicy } from "@/types/notify";
 import { notifyKeys } from "./keys";
 import {
@@ -151,6 +152,17 @@ describe("notifyAlertsQuery", () => {
     api.getNotifyAlerts.mockResolvedValue({ data: { message: "获取成功", data: null, total: 0 } });
 
     expect(await new QueryClient().fetchQuery(notifyAlertsQuery(firstPage, true))).toEqual({ items: [], total: 0 });
+  });
+
+  it("翻页时留着上一页，换状态不留：「已结束」下不会先显示一屏「持续中」的告警", () => {
+    const previousPage = { items: [alert], total: 41 };
+    const previousQuery = { queryKey: notifyAlertsQuery(firstPage, true).queryKey };
+    type KeepPreviousPage = (previous: unknown, query: unknown) => unknown;
+    const placeholderFor = (filter: NotifyAlertListParams) =>
+      (notifyAlertsQuery(filter, true).placeholderData as unknown as KeepPreviousPage)(previousPage, previousQuery);
+
+    expect(placeholderFor({ ...firstPage, offset: 20 })).toBe(previousPage);
+    expect(placeholderFor({ status: "resolved", limit: 20, offset: 0 })).toBeUndefined();
   });
 
   it("轮询与保鲜时间等长：告警会自己触发与结束", () => {

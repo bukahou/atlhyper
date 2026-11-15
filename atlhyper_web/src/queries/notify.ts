@@ -6,7 +6,7 @@
  *
  * 接收人与路由规则在 notify-routing.ts。
  */
-import { keepPreviousData, mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import {
   createNotifySilence,
   expireNotifySilence,
@@ -20,6 +20,7 @@ import {
 } from "@/api/notify";
 import type { NotifyPolicy, NotifySilenceBody, NotifySilenceState } from "@/types/notify";
 import { notifyKeys } from "./keys";
+import { isSameFilterOtherPage } from "./previous-data";
 import { REFRESH } from "./refresh";
 
 // ============================================================
@@ -52,7 +53,7 @@ export function saveNotifyPolicyMutation() {
 /**
  * 告警列表（按状态筛选 + 分页）。
  *
- * 慢速轮询：告警会自己触发、结束、被再次通知。翻页、换状态时先留着上一份结果，界面不闪。
+ * 慢速轮询：告警会自己触发、结束、被再次通知。翻页时先留着上一页，界面不闪；换状态不留。
  */
 export function notifyAlertsQuery(filter: NotifyAlertListParams, canManageNotifications: boolean) {
   return queryOptions({
@@ -63,7 +64,8 @@ export function notifyAlertsQuery(filter: NotifyAlertListParams, canManageNotifi
     },
     refetchInterval: REFRESH.slow,
     staleTime: REFRESH.slow,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousPage, previousQuery) =>
+      isSameFilterOtherPage(previousQuery, filter) ? previousPage : undefined,
     enabled: canManageNotifications,
   });
 }
@@ -78,7 +80,8 @@ export function notifyDeliveriesQuery(filter: NotifyDeliveryListParams, canManag
     },
     refetchInterval: REFRESH.slow,
     staleTime: REFRESH.slow,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousPage, previousQuery) =>
+      isSameFilterOtherPage(previousQuery, filter) ? previousPage : undefined,
     enabled: canManageNotifications,
   });
 }
