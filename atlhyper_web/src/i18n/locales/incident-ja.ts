@@ -136,7 +136,7 @@ export const jaIncidentGrouping: IncidentGroupingTranslations = {
     runs_on: "稼働先",
     routes_to: "ルーティング",
   },
-  pathGap: "…（{count} 個）…",
+  pathGap: "（{count} 個省略）",
   pathExpand: "経路を展開",
   pathCollapse: "経路を折りたたむ",
   pathEmpty: "経路の記録なし",

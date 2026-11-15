@@ -149,7 +149,7 @@ describe("pathSegments / pathText", () => {
     expect(isPathCollapsible(LONG_PATH.slice(0, 3))).toBe(false);
     expect(isPathCollapsible(LONG_PATH)).toBe(true);
     const collapsed = pathSegments(LONG_PATH, zhIncidentGrouping, TYPE_LABELS, true);
-    expect(pathText(collapsed, zhIncidentGrouping)).toBe("payment (Service) → …（2 个）… → 选中 → db-0 (Pod)");
+    expect(pathText(collapsed, zhIncidentGrouping)).toBe("payment (Service) → （省略 2 个） → 选中 → db-0 (Pod)");
   });
 
   it("展开时给出完整路径", () => {

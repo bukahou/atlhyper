@@ -136,7 +136,7 @@ export const zhIncidentGrouping: IncidentGroupingTranslations = {
     runs_on: "运行在",
     routes_to: "路由到",
   },
-  pathGap: "…（{count} 个）…",
+  pathGap: "（省略 {count} 个）",
   pathExpand: "展开路径",
   pathCollapse: "收起路径",
   pathEmpty: "没有记录路径",
