@@ -125,6 +125,7 @@ func (sm *StateMachine) transition(
 		entry.ReachedIncident = false
 		entry.Recurrence = 0
 		entry.OccurrenceTimes = []int64{now.Unix()}
+		entry.EpisodeStartedAt = now.Unix()
 
 	case to == aiops.StateIncident:
 		kind = aiops.TransitionEscalated
@@ -139,6 +140,7 @@ func (sm *StateMachine) transition(
 		entry.RecoveryStartedAt = 0 // 复发：观察期作废，下次恢复重新计
 		entry.Recurrence++
 		entry.OccurrenceTimes = append(recentOccurrences(entry.OccurrenceTimes, now), now.Unix())
+		entry.EpisodeStartedAt = now.Unix()
 	}
 
 	if kind != aiops.TransitionRecoveryStarted {
@@ -215,6 +217,9 @@ func (sm *StateMachine) emit(
 		Occurrences24h:  len(entry.OccurrenceTimes),
 		ReachedIncident: entry.ReachedIncident,
 		At:              now,
+	}
+	if entry.EpisodeStartedAt != 0 {
+		transition.EpisodeStartedAt = time.Unix(entry.EpisodeStartedAt, 0).In(now.Location())
 	}
 	if risk != nil {
 		transition.RFinal = risk.RFinal

@@ -371,6 +371,9 @@ type StateMachineEntry struct {
 	RootCause       string  `json:"rootCause"`       // 最近一次风险抬升时的领头实体
 	// OccurrenceTimes 近 24 小时内每次「发生」的时刻（Unix 秒）：建事件 + 每次复发
 	OccurrenceTimes []int64 `json:"occurrenceTimes,omitempty"`
+	// EpisodeStartedAt 这一轮异常开始的时刻（Unix 秒）：建事件或最近一次复发。
+	// 不从 OccurrenceTimes 推：那里只留 24 小时，持续更久的异常会丢掉起点
+	EpisodeStartedAt int64 `json:"episodeStartedAt,omitempty"`
 }
 
 // ==================== 主体与事件变化 ====================
@@ -413,7 +416,9 @@ type IncidentTransition struct {
 	Recurrence      int
 	Occurrences24h  int // 近 24 小时内的发生次数（含本次）
 	ReachedIncident bool
-	At              time.Time
+	// EpisodeStartedAt 这一轮异常开始的时刻（建事件或最近一次复发）；通知里的开始时间与持续时间按它算
+	EpisodeStartedAt time.Time
+	At               time.Time
 }
 
 // ==================== 事件类型 ====================

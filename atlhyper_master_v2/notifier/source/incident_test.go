@@ -141,6 +141,24 @@ func TestIncidentAlert_Content(t *testing.T) {
 }
 
 // 关闭类的变化不带成员：结束告警时不能把成员数、根因这些已有的详情冲成空
+// 告警的开始时间是这一轮异常开始的时刻（建事件或复发），不是升级那一刻：通知里的持续时间按它算
+func TestIncidentAlert_StartsAtEpisodeStart(t *testing.T) {
+	episodeStart := sourceNow.Add(-6 * time.Minute)
+	escalated := transition(aiops.TransitionEscalated, func(t *aiops.IncidentTransition) {
+		t.ReachedIncident, t.EpisodeStartedAt = true, episodeStart
+	})
+	got, ok := IncidentAlert(escalated, database.DefaultNotifyPolicy())
+	if !ok || !got.StartsAt.Equal(episodeStart) {
+		t.Errorf("开始时间应是这一轮异常的起点 %v，实际 %v", episodeStart, got.StartsAt)
+	}
+
+	// 没有起点（旧数据等）：退回到这条变化的时刻
+	noStart := transition(aiops.TransitionEscalated, func(t *aiops.IncidentTransition) { t.ReachedIncident = true })
+	if got, _ := IncidentAlert(noStart, database.DefaultNotifyPolicy()); !got.StartsAt.Equal(sourceNow) {
+		t.Errorf("没有起点时应用变化的时刻，实际 %v", got.StartsAt)
+	}
+}
+
 func TestIncidentAlert_ClosingTransitionOmitsEmptyDetails(t *testing.T) {
 	closed := transition(aiops.TransitionClosed, func(t *aiops.IncidentTransition) { t.Members, t.RootCause = nil, "" })
 	got, _ := IncidentAlert(closed, database.DefaultNotifyPolicy())

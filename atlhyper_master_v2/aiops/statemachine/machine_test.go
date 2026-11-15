@@ -169,21 +169,22 @@ func TestHealthyToWarning_CreatesIncidentAfterTwoMinutes(t *testing.T) {
 
 	f.wantKinds(aiops.TransitionCreated)
 	want := aiops.IncidentTransition{
-		Kind:            aiops.TransitionCreated,
-		IncidentID:      "inc-1",
-		ClusterID:       testCluster,
-		SubjectKey:      api,
-		RootCause:       "shop/pod/api-b",
-		Members:         []string{"shop/pod/api-b", "shop/pod/api-a"},
-		FromState:       aiops.StateHealthy,
-		ToState:         aiops.StateWarning,
-		Severity:        "low",
-		RFinal:          0.45,
-		PeakRisk:        0.45,
-		Recurrence:      0,
-		Occurrences24h:  1,
-		ReachedIncident: false,
-		At:              testEpoch.Add(2 * time.Minute),
+		Kind:             aiops.TransitionCreated,
+		IncidentID:       "inc-1",
+		ClusterID:        testCluster,
+		SubjectKey:       api,
+		RootCause:        "shop/pod/api-b",
+		Members:          []string{"shop/pod/api-b", "shop/pod/api-a"},
+		FromState:        aiops.StateHealthy,
+		ToState:          aiops.StateWarning,
+		Severity:         "low",
+		RFinal:           0.45,
+		PeakRisk:         0.45,
+		Recurrence:       0,
+		Occurrences24h:   1,
+		ReachedIncident:  false,
+		EpisodeStartedAt: testEpoch.Add(2 * time.Minute),
+		At:               testEpoch.Add(2 * time.Minute),
 	}
 	if got := f.handler.last(t); !reflect.DeepEqual(got, want) {
 		t.Errorf("建事件的变化\n got  %+v\n want %+v", got, want)
@@ -828,5 +829,49 @@ func TestFullLifecycle(t *testing.T) {
 	}
 	if got := f.handler.last(t); got.Severity != "high" || got.Recurrence != 1 || got.PeakRisk != 0.75 {
 		t.Errorf("关闭时应保留峰值严重度、复发次数、峰值风险: %+v", got)
+	}
+}
+
+// ==================== 这一轮异常的起点 ====================
+
+// 升级、恢复等后续变化都带着这一轮异常的起点（建事件的时刻），通知据此算持续时间；复发时起点换成复发的时刻
+func TestEpisodeStartedAt_CarriedThroughAndResetOnRecurrence(t *testing.T) {
+	f := newFixture(t)
+	f.openWarning(svc, 0.6)
+	created := f.handler.last(t)
+	if created.EpisodeStartedAt.IsZero() || !created.EpisodeStartedAt.Equal(created.At) {
+		t.Fatalf("建事件时起点应是建事件的时刻: %+v", created)
+	}
+
+	f.hold(5*time.Minute, selfRisk(svc, 0.6))
+	escalated := f.handler.last(t)
+	if escalated.Kind != aiops.TransitionEscalated || !escalated.EpisodeStartedAt.Equal(created.At) {
+		t.Fatalf("升级应沿用建事件的起点，实际 %v（建事件 %v）", escalated.EpisodeStartedAt, created.At)
+	}
+
+	f.recover(svc, 10*time.Minute)
+	if got := f.handler.last(t); !got.EpisodeStartedAt.Equal(created.At) {
+		t.Errorf("恢复的变化仍带这一轮的起点，实际 %v", got.EpisodeStartedAt)
+	}
+
+	f.clock.Advance(time.Hour)
+	f.evaluate(selfRisk(svc, 0.3))
+	recurred := f.handler.last(t)
+	if recurred.Kind != aiops.TransitionRecurred || !recurred.EpisodeStartedAt.Equal(recurred.At) {
+		t.Errorf("复发后起点应换成复发的时刻: %+v", recurred)
+	}
+}
+
+// 异常持续超过 24 小时：近 24 小时的发生次数滑出窗口，但起点不丢
+func TestEpisodeStartedAt_SurvivesBeyondTwentyFourHours(t *testing.T) {
+	f := newFixture(t)
+	f.openIncident(svc, 0.6)
+	start := f.sm.GetEntry(testCluster, svc).EpisodeStartedAt
+
+	f.hold(30*time.Hour, selfRisk(svc, 0.6))
+	f.recover(svc, 10*time.Minute)
+	got := f.handler.last(t)
+	if got.Kind != aiops.TransitionRecoveryStarted || got.EpisodeStartedAt.Unix() != start {
+		t.Errorf("30 小时后的恢复仍应带原来的起点 %d，实际 %v（%+v）", start, got.EpisodeStartedAt.Unix(), got)
 	}
 }

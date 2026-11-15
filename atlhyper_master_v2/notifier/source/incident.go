@@ -111,7 +111,12 @@ func openingAlert(transition aiops.IncidentTransition, policy *database.NotifyPo
 		return alert.Alert{}, false
 	}
 	base := incidentAlertBase(transition)
-	base.Status, base.Kind, base.Summary, base.StartsAt = alert.StatusFiring, kind, summary, transition.At
+	// 开始时间是这一轮异常开始的时刻，不是这条变化（如升级）发生的时刻：通知里的持续时间按它算
+	startsAt := transition.EpisodeStartedAt
+	if startsAt.IsZero() {
+		startsAt = transition.At
+	}
+	base.Status, base.Kind, base.Summary, base.StartsAt = alert.StatusFiring, kind, summary, startsAt
 	return base, true
 }
 

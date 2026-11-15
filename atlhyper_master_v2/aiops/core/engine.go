@@ -589,6 +589,10 @@ func (e *engine) reloadActiveIncidents(ctx context.Context) {
 			RootCause:       inc.RootCause,
 			OccurrenceTimes: e.incidentStore.OccurrenceTimes(ctx, inc.ID, inc.StartedAt),
 		}
+		// 这一轮异常的起点 = 最近一次「发生」（建事件或复发）；时间线里取全量，不受 24 小时窗口影响
+		if n := len(entry.OccurrenceTimes); n > 0 {
+			entry.EpisodeStartedAt = entry.OccurrenceTimes[n-1]
+		}
 		if inc.State == aiops.StateRecovery {
 			// 观察期的起点只在内存里，重启后从时间线取回；取不到时由状态机从现在起计
 			if startedAt, ok := e.incidentStore.RecoveryStartedAt(ctx, inc.ID); ok {
