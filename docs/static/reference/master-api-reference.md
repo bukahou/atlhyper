@@ -242,6 +242,44 @@
 
 → `200 { "message": "已删除登记" }`；集群未登记 → 404。令牌随之失效；该集群的历史数据（事件、指令历史、SLO 等）不受影响。
 
+### 3.7 AIOps 事件的响应字段（`aiops.read`）
+
+事件以「主体」为单位：有上级工作负载的 Pod 归到工作负载，同一个工作负载的几个 Pod 同时出问题只有一个事件；
+反复触发并入同一个事件并计数。设计见 `docs/design/active/incident-notification-design.md`「功能零」。
+
+**列表** `GET /api/v2/aiops/incidents?cluster=&state=&severity=&from=&to=&limit=&offset=`
+
+```json
+{ "message": "获取成功", "data": [
+    { "id": "inc-17672544000000001", "clusterId": "c1", "state": "recovery", "severity": "high",
+      "subject": "shop/deployment/api", "subjectType": "deployment", "rootCause": "shop/pod/api-7d9f-abc",
+      "peakRisk": 0.75, "startedAt": "2026-01-01T08:00:00Z", "escalatedAt": "2026-01-01T08:07:00Z",
+      "resolvedAt": null, "closeReason": "", "durationS": 3600, "recurrence": 2, "summary": "",
+      "createdAt": "2026-01-01T08:00:00Z" }
+  ], "total": 1 }
+```
+
+**详情** `GET /api/v2/aiops/incidents/{id}`：上面的事件字段直接位于响应顶层（不包 `data`），另有 `entities`（成员实体）与 `timeline`。
+
+| 字段 | 说明 |
+|------|------|
+| `subject` | 主体键 `<命名空间>/<类型>/<名字>`。Pod 归到所属的 Deployment / StatefulSet / DaemonSet / CronJob（Job 没有 CronJob 上级时归到 Job）；没有上级或上级不在快照里的 Pod，以及 service、node、ingress、logs，主体就是实体自身 |
+| `subjectType` | 由 `subject` 解析出的类型：`deployment` / `statefulset` / `daemonset` / `cronjob` / `job` / `pod` / `service` / `node` / `ingress` / `logs` |
+| `rootCause` | 领头实体：主体的成员里风险最高的那个。建事件、升级、严重度升高、复发时跟到当前的领头 |
+| `state` | `warning` 警告 / `incident` 事件中 / `recovery` 恢复观察 / `stable` 已关闭。只到警告的事件恢复后同样先进入恢复观察 |
+| `severity` | **峰值**严重度 `low` / `medium` / `high` / `critical`：只升不降，事件关闭后保留，可用于筛选与统计已关闭的事件 |
+| `escalatedAt` | 首次升级到「事件中」的时刻；从未升级为 `null`。升级过的事件恢复观察 48 小时、观察期内复发立即生效；没升级过的观察 6 小时、需风险持续 2 分钟才算复发 |
+| `closeReason` | 未关闭为空串；`recovered` 恢复观察期满；`stale` 失联（主体 30 分钟没有数据：对象已删除或 Agent 断连，并不代表真的恢复了） |
+| `recurrence` | 复发次数。只到警告级的反复也计入 |
+| `peakRisk` | 事件至今的最高风险。详情里是 [0, 100]（经 `ScaleIncidentDetail` 换算）；**列表里目前未换算，是 [0, 1]** |
+
+详情的 `entities[]`：`entityKey`、`entityType`、`rLocal`、`rFinal`（均为 [0, 100]）、`role`。领头实体 `role = "root_cause"`（始终只有一个），其余成员 `"affected"`；
+成员在建事件及之后每次风险抬升类的变化时写入：已有的更新为当时的风险值，新出现的补进去，已不在当轮的保留最后一次的值。
+
+详情的 `timeline[].eventType`：`state_change`（建事件、升级、关闭）、`anomaly_detected`（领头实体的触发信号）、`severity_raised`（严重度升高）、`recovery_started`、`recurrence`。条目的 `entityKey` 是当时的领头实体。
+
+`GET /api/v2/aiops/incidents/patterns?cluster_id=&entity=&period=` 的 `entity` 既可以传主体键，也可以传成员实体键：主体是它、或成员里有它的事件都会返回。
+
 ---
 
 ## 4. 审计覆盖

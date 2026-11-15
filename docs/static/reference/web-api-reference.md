@@ -527,6 +527,11 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 | POST | `/api/v2/aiops/ai/summarize` | `summarizeIncident(incidentId)` | AI 事件总结 |
 | POST | `/api/v2/aiops/ai/recommend` | `recommendActions(incidentId)` | AI 行动建议 |
 
+事件对象（列表项与详情顶层）字段：`id`, `clusterId`, `state`, `severity`（峰值，关闭后保留）, `subject`, `subjectType`, `rootCause`, `peakRisk`,
+`startedAt`, `escalatedAt`（从未升级为 `null`）, `resolvedAt`, `closeReason`（`""` / `recovered` / `stale`）, `durationS`, `recurrence`, `summary`, `createdAt`。
+事件以主体为单位（同一工作负载的 Pod 归一个事件），详情的 `entities` 列出成员实体。字段含义与时间线的事件类型见 `master-api-reference.md` §3.7。
+> 后端已返回 `subject` / `subjectType` / `escalatedAt` / `closeReason` 与时间线类型 `severity_raised`；`api/aiops.ts` 的类型与页面展示尚未跟上（随「事件通知」的前端部分处理）。
+
 ---
 
 ### 4.17 集群注册表与 Agent 令牌
