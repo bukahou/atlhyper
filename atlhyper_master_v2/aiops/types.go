@@ -426,6 +426,23 @@ type IncidentTransition struct {
 	At          time.Time
 }
 
+// ==================== 拓扑归并（见 aiops-topology-grouping-design.md） ====================
+
+// LinkPathStep 归组依据路径上的一步：从受影响事件的成员沿依赖走到源头事件的成员
+type LinkPathStep struct {
+	EntityKey string `json:"entityKey"`
+	Edge      string `json:"edge"` // 到达这一步经过的边：""（起点）/ calls / selects / runs_on / routes_to
+}
+
+// IncidentLink 受影响事件归到源头事件
+type IncidentLink struct {
+	ClusterID      string         `json:"clusterId"`
+	IncidentID     string         `json:"incidentId"`     // 受影响事件
+	RootIncidentID string         `json:"rootIncidentId"` // 源头事件；空 = 解除关联
+	Path           []LinkPathStep `json:"path"`
+	At             time.Time      `json:"at"`
+}
+
 // ==================== 事件类型 ====================
 
 // Incident 事件
