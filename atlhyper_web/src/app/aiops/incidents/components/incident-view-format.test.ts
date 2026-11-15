@@ -45,7 +45,7 @@ describe("signalReasonText", () => {
 });
 
 describe("headlineSentence", () => {
-  const base = { impact: NO_IMPACT, subjectType: "deployment", subjectTypeLabel: "Deployment" };
+  const base = { impact: NO_IMPACT, subjectType: "deployment", subjectTypeLabel: "Deployment", hasDetections: true };
 
   it("成员全部中招：N 个 Pod 全部 + 信号说法 + 原因码", () => {
     expect(headlineSentence({ ...base, headline: headline({}) }, zhIncidentDetail)).toBe(
@@ -88,6 +88,7 @@ describe("headlineSentence", () => {
           impact: NO_IMPACT,
           subjectType: "node",
           subjectTypeLabel: "Node",
+          hasDetections: true,
           headline: headline({ signal: "node_pressure", reason: "MemoryPressure", affectedMembers: 1, totalMembers: 1 }),
         },
         zhIncidentDetail,
@@ -101,8 +102,14 @@ describe("headlineSentence", () => {
     ).toBe("3 个成员全部容器异常（CrashLoopBackOff）。");
   });
 
-  it("headline 为 null：说明没有本地异常信号", () => {
-    expect(headlineSentence({ ...base, headline: null }, zhIncidentDetail)).toBe(zhIncidentDetail.headline.none);
+  it("headline 为 null、也没有检测记录：说明没有本地异常信号（依赖传播）", () => {
+    expect(headlineSentence({ ...base, hasDetections: false, headline: null }, zhIncidentDetail)).toBe(
+      zhIncidentDetail.headline.none,
+    );
+  });
+
+  it("headline 为 null、但有检测记录：是改版前的事件，不说成依赖传播", () => {
+    expect(headlineSentence({ ...base, headline: null }, zhIncidentDetail)).toBe(zhIncidentDetail.headline.legacy);
   });
 
   it("日文模板同样填满，没有遗留占位", () => {

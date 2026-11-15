@@ -31,7 +31,8 @@ export function IncidentHistory({ incident }: IncidentHistoryProps) {
   // 后端按实体查历史时同时匹配主体与成员实体。没有主体键时退回到领头实体
   const historyKey = incident.subject || incident.rootCause || "";
   const patternsQuery = useQuery(incidentPatternsQuery(clusterId, historyKey));
-  const pattern = resolveSubjectPattern(historyKey, patternsQuery);
+  // 还没有当前集群时查询不启用，按没有事件史算，免得一直显示「…」
+  const pattern = resolveSubjectPattern(clusterId === "" ? "" : historyKey, patternsQuery);
 
   return (
     <div className="rounded-xl border border-dashed border-[var(--border-color)] px-3 py-2.5 text-xs text-muted">

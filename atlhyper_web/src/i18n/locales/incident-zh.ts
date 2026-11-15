@@ -21,6 +21,7 @@ export const zhIncidentDetail: IncidentDetailTranslations = {
     noAvailableReplicas: "，{type} 已无可用副本",
     end: "。",
     none: "没有本地异常信号：风险来自依赖传播（上下游的异常），本主体自身没有检测到异常。",
+    legacy: "改版前的事件没有记录证据，无法给出结论；检测记录见下方时间线。",
     // 西文单词两侧带空格，中文名词不带
     podNoun: " Pod ",
     memberNoun: "成员",

@@ -14,6 +14,7 @@ import { IncidentNextSteps } from "./IncidentNextSteps";
 import { IncidentVerdict } from "./IncidentVerdict";
 import { SubjectTitle } from "./SubjectTitle";
 import { TimelineView } from "./TimelineView";
+import { hasMergedDetections } from "./incident-timeline-format";
 import { fillTemplate, withDetailViewDefaults } from "./incident-view-format";
 
 interface IncidentDetailModalProps {
@@ -33,6 +34,7 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
   const detail = detailQuery.data ? withDetailViewDefaults(detailQuery.data) : undefined;
   const loading = detailQuery.isPending;
   const aiSectionRef = useRef<HTMLDivElement>(null);
+  const hasDetections = detail ? hasMergedDetections(detail.timelineView) : false;
 
   if (!open) return null;
 
@@ -75,13 +77,13 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
           ) : detail ? (
             <>
               {/* 结论：状态、严重度、时长、一句话、影响数字 */}
-              <IncidentVerdict incident={detail} />
+              <IncidentVerdict incident={detail} hasDetections={hasDetections} />
 
               {/* 关键证据：按信号去重 */}
               <IncidentEvidence
                 evidence={detail.evidence}
                 totalMembers={detail.headline?.totalMembers ?? detail.members.length}
-                hasDetections={detail.timelineView.some((item) => item.kind === "anomaly" && (item.count ?? 0) > 0)}
+                hasDetections={hasDetections}
               />
 
               {/* 下一步：去哪查 */}

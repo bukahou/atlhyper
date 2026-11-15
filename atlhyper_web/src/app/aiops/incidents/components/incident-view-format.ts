@@ -48,13 +48,15 @@ export interface HeadlineInput {
   subjectType: string;
   /** 主体类型的显示名（Deployment 等） */
   subjectTypeLabel: string;
+  /** 时间线里有合并的检测记录：headline 为 null 时据此区分「改版前的事件」与「只有依赖传播」 */
+  hasDetections: boolean;
 }
 
 /** 结论的一句话：主证据 + 中招成员数 + 主体类型，按模板拼；headline 为 null 时给出「没有本地异常信号」的说明 */
 export function headlineSentence(input: HeadlineInput, texts: IncidentDetailTranslations): string {
-  const { headline, impact, subjectType, subjectTypeLabel } = input;
+  const { headline, impact, subjectType, subjectTypeLabel, hasDetections } = input;
   const tpl = texts.headline;
-  if (headline === null) return tpl.none;
+  if (headline === null) return hasDetections ? tpl.legacy : tpl.none;
 
   let sentence: string;
   if (headline.signal === "workload_unavailable") {

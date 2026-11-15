@@ -20,6 +20,11 @@ export function timelineSummary(items: IncidentTimelineItem[]): { changes: numbe
   return { changes, merged };
 }
 
+/** 有没有合并的检测记录：证据为空时用来区分「改版前的事件」与「确实没有本地信号」 */
+export function hasMergedDetections(items: IncidentTimelineItem[]): boolean {
+  return items.some((item) => item.kind === "anomaly" && (item.count ?? 0) > 0);
+}
+
 /** 一条时间线的显示：主文案 + 补充说明（风险、严重度、合并范围） */
 export interface TimelineLine {
   label: string;

@@ -21,6 +21,7 @@ export const jaIncidentDetail: IncidentDetailTranslations = {
     noAvailableReplicas: "、{type} の利用可能なレプリカは 0",
     end: "。",
     none: "ローカルな異常シグナルはありません：リスクは依存関係からの伝播（上流・下流の異常）によるもので、この対象自体には異常が検出されていません。",
+    legacy: "改修前のインシデントのため根拠が記録されておらず、結論を出せません。検知記録は下のタイムラインを参照してください。",
     // 西文単語は前後に空白を入れる
     podNoun: " Pod ",
     memberNoun: "メンバー",

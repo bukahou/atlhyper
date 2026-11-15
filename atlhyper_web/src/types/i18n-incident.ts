@@ -35,6 +35,8 @@ export interface IncidentDetailTranslations {
     end: string;
     /** headline 为 null */
     none: string;
+    /** headline 为 null、但时间线里有检测记录：改版前的事件 */
+    legacy: string;
     podNoun: string;
     memberNoun: string;
   };

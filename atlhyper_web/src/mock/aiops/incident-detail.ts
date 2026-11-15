@@ -36,7 +36,7 @@ const DETAIL_SEEDS: Record<string, DetailSeed> = {
   // 三个 Pod 全部反复崩溃，Deployment 已无可用副本
   "inc-001": {
     evidence: [
-      { signal: "container_crash", reason: "CrashLoopBackOff", affectedMembers: 3, detail: "容器 api: CrashLoopBackOff（退出码 1）", hits: 15, maxScore: 0.9, firstMin: 43, lastMin: 1 },
+      { signal: "container_crash", reason: "CrashLoopBackOff", affectedMembers: 3, detail: "容器 api: CrashLoopBackOff（退出码 1）", hits: 15, maxScore: 0.9, firstMin: 42, lastMin: 1 },
       { signal: "workload_unavailable", reason: "100", affectedMembers: 3, detail: "Deployment shop/api 不可用 100%（期望 3，可用 0）", hits: 9, maxScore: 0.85, firstMin: 41, lastMin: 1 },
       { signal: "k8s_event", reason: "BackOff", affectedMembers: 3, detail: "Back-off restarting failed container api", hits: 21, maxScore: 0.6, firstMin: 42, lastMin: 2 },
     ],
@@ -99,6 +99,10 @@ const GONE: MemberState = { status: "", restarts: null, ready: "" };
 
 /** 时间线展示形态：按事件的字段排出状态与严重度的变化，检测记录合并成最后一条 */
 function timelineViewOf(detail: ReturnType<typeof incidentOf>, anomalyCount: number): IncidentTimelineItem[] {
+  // 各时刻都落在事件自己的时间范围里：异常从开始持续 durationS，之后进入恢复观察
+  const startMs = Date.parse(detail.startedAt);
+  const abnormalEnd = new Date(startMs + detail.durationS * 1000).toISOString();
+  const recurredAt = new Date(startMs + detail.durationS * 600).toISOString();
   const items: IncidentTimelineItem[] = [
     { at: detail.startedAt, kind: "created", risk: Math.round(detail.peakRisk * 0.7), severity: "medium" },
   ];
@@ -106,15 +110,15 @@ function timelineViewOf(detail: ReturnType<typeof incidentOf>, anomalyCount: num
     items.push({ at: detail.escalatedAt ?? detail.startedAt, kind: "severity_raised", risk: Math.round(detail.peakRisk * 0.9), severity: detail.severity });
   }
   if (detail.escalatedAt) items.push({ at: detail.escalatedAt, kind: "escalated", risk: Math.round(detail.peakRisk) });
-  if (detail.recurrence > 0) items.push({ at: minutesAgo(30), kind: "recurred", risk: Math.round(detail.peakRisk * 0.8) });
+  if (detail.recurrence > 0) items.push({ at: recurredAt, kind: "recurred", risk: Math.round(detail.peakRisk * 0.8) });
   if (detail.state === "recovery" || detail.closeReason !== "") {
-    items.push({ at: minutesAgo(95), kind: "recovery_started", risk: 20 });
+    items.push({ at: abnormalEnd, kind: "recovery_started", risk: 20 });
   }
   if (detail.closeReason !== "" && detail.resolvedAt) {
     items.push({ at: detail.resolvedAt, kind: detail.closeReason === "stale" ? "closed_stale" : "closed" });
   }
   if (anomalyCount > 0) {
-    items.push({ at: detail.startedAt, kind: "anomaly", count: anomalyCount, firstAt: detail.startedAt, lastAt: minutesAgo(1) });
+    items.push({ at: detail.startedAt, kind: "anomaly", count: anomalyCount, firstAt: detail.startedAt, lastAt: abnormalEnd });
   }
   return items;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { jaIncidentDetail } from "@/i18n/locales/incident-ja";
 import { zhIncidentDetail } from "@/i18n/locales/incident-zh";
 import type { IncidentTimelineItem, IncidentTimelineKind } from "@/types/incident-view";
-import { timelineLine, timelineSummary } from "./incident-timeline-format";
+import { hasMergedDetections, timelineLine, timelineSummary } from "./incident-timeline-format";
 
 const SEVERITY_ZH = { low: "低", medium: "中", high: "高", critical: "严重" };
 const AT = new Date(2026, 10, 15, 14, 53).toISOString();
@@ -22,6 +22,15 @@ describe("timelineSummary", () => {
 
   it("空列表", () => {
     expect(timelineSummary([])).toEqual({ changes: 0, merged: 0 });
+  });
+});
+
+describe("hasMergedDetections", () => {
+  it("有次数大于 0 的检测条目才算", () => {
+    expect(hasMergedDetections([{ at: AT, kind: "anomaly", count: 2 }])).toBe(true);
+    expect(hasMergedDetections([{ at: AT, kind: "anomaly", count: 0 }])).toBe(false);
+    expect(hasMergedDetections([{ at: AT, kind: "created", risk: 50 }])).toBe(false);
+    expect(hasMergedDetections([])).toBe(false);
   });
 });
 

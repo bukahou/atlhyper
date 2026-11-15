@@ -17,10 +17,12 @@ const VERDICT_TONES: Record<string, string> = {
 
 interface IncidentVerdictProps {
   incident: IncidentDetail;
+  /** 时间线里有合并的检测记录（见 headlineSentence） */
+  hasDetections: boolean;
 }
 
 /** 结论：状态 · 严重度 · 已持续 · 开始 / 升级时间，一句话说清出了什么事，再给影响数字 */
-export function IncidentVerdict({ incident }: IncidentVerdictProps) {
+export function IncidentVerdict({ incident, hasDetections }: IncidentVerdictProps) {
   const { t } = useI18n();
   const texts = t.aiops.detail;
   const subject = incidentSubject(incident);
@@ -37,6 +39,7 @@ export function IncidentVerdict({ incident }: IncidentVerdictProps) {
       impact: incident.impact,
       subjectType: subject.type,
       subjectTypeLabel: typeLabels[subject.type] ?? subject.type,
+      hasDetections,
     },
     texts,
   );
