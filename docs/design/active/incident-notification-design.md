@@ -542,6 +542,7 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 
 **用户故事**：从通知里的链接点进来，第一眼就知道出了什么事、多严重、去哪查；时间线只在需要时展开。
 效果图：`~/work/设计/atlhyper-事件详情页/01-事件详情页-方案.html`（用户已确认「按这个做」）。
+效果图底部「数据从哪来」写的 `summary` / `actions[]` 是初稿，以本节契约为准（`headline` 由前端渲染句子、下一步的链接由前端拼）。
 
 **页面结构**（从上到下）：结论（状态 · 严重度 · 已持续 · 开始 / 升级时间 + 一句话 + 影响数字）→ 关键证据（按信号去重）→ 下一步 →
 成员表（状态、重启、风险，「风险最高」标记）→ 时间线（默认折叠，同类检测合并）→ 历史与 AI 分析。
@@ -580,7 +581,12 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 }
 ```
 
-- `kind`：`created` / `escalated` / `severity_raised` / `recovery_started` / `recurred` / `closed` / `closed_stale` / `anomaly`
+- `kind`：`created` / `escalated` / `severity_raised` / `recovery_started` / `recurred` / `closed` / `closed_stale` / `anomaly` / `note`（旧版本写下的记录，原文在 `detail`）
+- `timelineView` 里不适用的字段（`risk` / `severity` / `count` / `firstAt` / `lastAt` / `detail`）**省略**，不给 null；`created` 不带风险（原始记录里没有）
+- `evidence.maxScore` 是信号分数（0–1），只用于排序，前端不展示；页面上的风险一律 0–100 整数
+- `members` 在 `present: false` 时 `status` / `ready` 为空串、`restarts` 为 `null`；`impact.restartsTotal` 在没有任何仍存在的成员 Pod 时为 `null`
+- `members` 与 `entities` 一一对应；`headline.totalMembers` 等于成员数
+- 改版前的事件与「只有依赖传播」都表现为 `evidence` 为空、`headline` 为 null；前端按时间线里有没有合并的检测记录区分（有 = 改版前的事件）
 - 风险一律 0–100 整数；时间一律 UTC（RFC 3339），前端按浏览器时区显示
 - **一句话、信号名称、状态名都由前端按 i18n（中 / 日）渲染**，后端只给结构化的码与数值（项目要求界面文字走 i18n，后端拼好的中文句子在日文界面里会是错的）
 - 「下一步」的按钮由前端按主体类型拼出页面链接，按权限显示锁定；不由后端下发（页面路由是前端的事）
@@ -693,6 +699,13 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 - 事件时长是「异常持续了多久」，不含恢复观察期；活跃事件只数警告与事件中；出事件最多的对象按主体归并
 - 告警的开始时间是「这一轮异常开始的时刻」（建事件或最近一次复发），不是这条变化（如升级）的时刻；通知里的持续时间按它算。
   起点记在状态机条目里，重启后取时间线里最近一次「发生」（dev 验收时发现：升级通知曾显示「持续时间：不到 1 分钟」）
+
+事件详情页落地时的选择：
+
+- 资源没有独立的详情页路由：「查看 Deployment / Node」打开现有的资源详情弹窗；「查看 N 个 Pod」「相关 K8s 事件」跳到列表页并用 URL 参数预填筛选（两个列表页为此支持了 `namespace` / `node` / `search` 参数）
+- 容器日志按 `pod.logs.read` 锁定，打开风险最高且仍存在的那个 Pod 的日志；「生成 AI 分析」按 `ai.analyze` 锁定
+- 历史与 AI 分析改为上下两张全宽卡（AI 报告可能很长）；严重度徽章沿用现有组件；事件列表里的「根因」暂未改名
+- 证据卡的色条按信号类型固定配色，不按分数
 
 全局发件设置落地时的选择：
 
