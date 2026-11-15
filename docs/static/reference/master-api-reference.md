@@ -268,12 +268,19 @@
   ], "total": 1 }
 ```
 
+**拓扑归并**：依赖链上同一次故障的事件归为一组（受影响事件挂到最上游的源头事件下，见设计文档 `aiops-topology-grouping-design.md`）。
+列表的每条事件带 `rootIncidentId`（受影响事件归到的源头，否则空串）与 `linkedCount`（源头下的受影响事件数）；
+查询参数 `grouped=true` 时受影响事件不单独出现，折叠进源头的 `impacted`（摘要，不带路径），`total` 按折叠后的条数算。
+只反映当前有效的关联：源头恢复或受影响事件结束后关联解除。
+
 **详情** `GET /api/v2/aiops/incidents/{id}`：上面的事件字段直接位于响应顶层（不包 `data`），另有 `entities`（成员实体）与 `timeline`，
 以及详情页用的五项（字段与示例见设计文档 `incident-notification-design.md`「功能四：事件详情页改版」）：
 
 | 字段 | 说明 |
 |------|------|
 | `headline` | 结论的素材：主证据的 `signal` / `reason` / `affectedMembers` / `totalMembers`（当前还在的成员数）；没有证据时为 `null`。句子由前端按语言渲染 |
+| `root` | 拓扑归并：本事件归到某个源头时为 `{ incidentId, subject, subjectType, state, severity, path, linkedAt }`，否则 `null`。`path` 是归组依据：从本事件的成员沿依赖走到源头成员的 `[{ entityKey, edge }]`（`edge`：`""` 起点 / `calls` / `selects` / `runs_on` / `routes_to`） |
+| `impacted` | 拓扑归并：本事件是源头时，归到它下面的受影响事件（同上，带 `path`）；否则空数组 |
 | `evidenceStatus` | `recorded`（有证据）/ `propagation_only`（只有依赖传播，本主体没有本地异常）/ `not_recorded`（改版前的事件，当时没有记录证据） |
 | `impact` | 影响数字 `desiredReplicas` / `availableReplicas`（只对 Deployment / StatefulSet / DaemonSet 主体）、`restartsTotal`；不适用的项为 `null`，集群快照不可用时整项为 `null` |
 | `evidence` | 关键证据：按信号类型（`container_crash` / `workload_unavailable` / `k8s_event` / `restarts` / `not_ready` / `resource` / `node_pressure` / `apm_errors` / `apm_latency` / `log_errors` / `other`）去重，含中招成员数、首次 / 最近时刻、次数、最高分、最近原文；按最高分从高到低。改版前的事件为空数组 |
