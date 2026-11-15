@@ -130,6 +130,31 @@ func BuildEvidence(signals []*database.AIOpsIncidentSignal) []aiops.IncidentEvid
 	return result
 }
 
+// propagationOnlyDetail 领头实体没有本地信号时「异常检测」时间线的原文（写与读都用它）
+const propagationOnlyDetail = "无本地异常信号（风险由依赖传播）"
+
+// BuildEvidenceStatus 证据的情况：有证据；没有证据时按时间线里的检测记录区分
+// 「只有依赖传播」（检测记录全是传播）与「改版前的事件」（有本地信号的检测记录、或根本没有检测记录，但没有证据行）
+func BuildEvidenceStatus(evidence []aiops.IncidentEvidence, timeline []*aiops.IncidentTimeline) string {
+	if len(evidence) > 0 {
+		return aiops.EvidenceRecorded
+	}
+	sawDetection := false
+	for _, t := range timeline {
+		if t.EventType != aiops.TimelineAnomalyDetected {
+			continue
+		}
+		sawDetection = true
+		if t.Detail != propagationOnlyDetail {
+			return aiops.EvidenceNotRecorded
+		}
+	}
+	if sawDetection {
+		return aiops.EvidencePropagationOnly
+	}
+	return aiops.EvidenceNotRecorded
+}
+
 // BuildHeadline 结论的主证据：分数最高的一条；没有证据时为 nil
 func BuildHeadline(evidence []aiops.IncidentEvidence, totalMembers int) *aiops.IncidentHeadline {
 	if len(evidence) == 0 {

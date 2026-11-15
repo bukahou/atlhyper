@@ -101,10 +101,18 @@ export interface IncidentTimelineItem {
   reason?: string | null;
 }
 
-/** 详情响应在原有字段之外新增的四项 */
+/**
+ * 证据的情况：recorded = 有证据；propagation_only = 只有依赖传播、本主体没有本地异常；
+ * not_recorded = 改版前的事件，当时没有记录证据
+ */
+export type IncidentEvidenceStatus = "recorded" | "propagation_only" | "not_recorded";
+
+/** 详情响应在原有字段之外新增的几项 */
 export interface IncidentDetailView {
-  /** null = 没有证据（如只有依赖传播） */
+  /** null = 没有证据（原因见 evidenceStatus） */
   headline: IncidentHeadline | null;
+  evidenceStatus: IncidentEvidenceStatus;
+  /** 后端在集群快照不可用时给 null；经 withDetailViewDefaults 补成全部为 null 的影响项 */
   impact: IncidentImpact;
   evidence: IncidentEvidence[];
   members: IncidentMember[];

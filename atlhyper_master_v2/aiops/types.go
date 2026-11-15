@@ -498,12 +498,22 @@ type IncidentDetail struct {
 
 	// 以下为详情页的展示形态（见设计文档「功能四：事件详情页改版」）。
 	// Headline / Evidence / TimelineView 由事件存储按库里的记录算出；Impact / Members 由查询层按当前快照补上
-	Headline     *IncidentHeadline      `json:"headline"`     // nil = 没有证据（如只有依赖传播）
-	Impact       *IncidentImpact        `json:"impact"`       // nil = 查询层没有补（如集群快照不可用）
-	Evidence     []IncidentEvidence     `json:"evidence"`     // 按信号类型去重，最高分从高到低
-	Members      []IncidentMember       `json:"members"`      // 与 Entities 一一对应，带当前快照里的状态
-	TimelineView []IncidentTimelineItem `json:"timelineView"` // 状态与严重度的变化 + 合并后的检测记录
+	Headline *IncidentHeadline `json:"headline"` // nil = 没有证据（原因见 EvidenceStatus）
+	// EvidenceStatus 证据的情况：recorded = 有证据；propagation_only = 只有依赖传播、本主体没有本地异常；
+	// not_recorded = 改版前的事件，当时没有记录证据
+	EvidenceStatus string                 `json:"evidenceStatus"`
+	Impact         *IncidentImpact        `json:"impact"`       // nil = 查询层没有补（如集群快照不可用）
+	Evidence       []IncidentEvidence     `json:"evidence"`     // 按信号类型去重，最高分从高到低
+	Members        []IncidentMember       `json:"members"`      // 与 Entities 一一对应，带当前快照里的状态
+	TimelineView   []IncidentTimelineItem `json:"timelineView"` // 状态与严重度的变化 + 合并后的检测记录
 }
+
+// 证据的情况（IncidentDetail.EvidenceStatus）
+const (
+	EvidenceRecorded        = "recorded"
+	EvidencePropagationOnly = "propagation_only"
+	EvidenceNotRecorded     = "not_recorded"
+)
 
 // 证据的信号类型（由指标名归类）
 const (

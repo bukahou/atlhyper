@@ -14,7 +14,6 @@ import { IncidentNextSteps } from "./IncidentNextSteps";
 import { IncidentVerdict } from "./IncidentVerdict";
 import { SubjectTitle } from "./SubjectTitle";
 import { TimelineView } from "./TimelineView";
-import { hasMergedDetections } from "./incident-timeline-format";
 import { fillTemplate, withDetailViewDefaults } from "./incident-view-format";
 
 interface IncidentDetailModalProps {
@@ -34,7 +33,8 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
   const detail = detailQuery.data ? withDetailViewDefaults(detailQuery.data) : undefined;
   const loading = detailQuery.isPending;
   const aiSectionRef = useRef<HTMLDivElement>(null);
-  const hasDetections = detail ? hasMergedDetections(detail.timelineView) : false;
+  // 没有证据时区分「改版前的事件」与「只有依赖传播」：由后端判定（evidenceStatus）
+  const hasDetections = detail?.evidenceStatus === "not_recorded";
 
   if (!open) return null;
 

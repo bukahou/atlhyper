@@ -39,7 +39,7 @@ func (s *Store) signalTimelineWrite(incidentID string, now time.Time, risk *aiop
 // signalDetail 信号逐条以「；」连接；本地无异常时说明风险来自依赖传播
 func signalDetail(risk *aiops.EntityRisk) string {
 	if risk.RLocal == 0 || len(risk.Signals) == 0 {
-		return "无本地异常信号（风险由依赖传播）"
+		return propagationOnlyDetail
 	}
 	parts := make([]string, len(risk.Signals))
 	for i, sig := range risk.Signals {

@@ -193,11 +193,17 @@ describe("withDetailViewDefaults", () => {
     expect(withDetailViewDefaults(legacyResponse)).toEqual({
       id: "inc-1",
       headline: null,
+      evidenceStatus: "not_recorded",
       impact: NO_IMPACT,
       evidence: [],
       members: [],
       timelineView: [],
     });
+  });
+
+  it("后端给了证据情况就用后端的；没给时按有没有证据推断", () => {
+    expect(withDetailViewDefaults({ evidenceStatus: "propagation_only" }).evidenceStatus).toBe("propagation_only");
+    expect(withDetailViewDefaults({ evidence: [] }).evidenceStatus).toBe("not_recorded");
   });
 
   it("已有的字段原样保留", () => {
