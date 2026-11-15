@@ -13,7 +13,7 @@
 
 ---
 
-## 前端数据层（TanStack Query）— 🔄 进行中（2026-11-14）
+## 前端数据层（TanStack Query）— 🔄 四期都已上 dev，待用户登录后点验（2026-11-15 核对）
 
 > 设计文档: [web-data-layer-design.md](../../design/active/web-data-layer-design.md)
 
@@ -42,10 +42,10 @@
 
 ---
 
-## 集群注册表与 Agent 认证 — 🔄 进行中（2026-11-14）
+## 集群注册表与 Agent 认证 — ✅ dev 验收通过（2026-11-15），随下次发布上 prod
 
 > 设计文档: [agent-auth-design.md](../../design/active/agent-auth-design.md)
-> 分支 `feat/agent-auth`（本地提交，未推送）
+> 已合 dev（`a23fc90`）
 
 - 令牌生成与校验、注册表存储、AgentSDK 认证中间件与三档模式、指令结果按集群核对、快照大小上限 ✅
 - Master 配置与装配：`MASTER_AGENT_AUTH_MODE`（默认 `warn`，取值写错启动失败）、`MASTER_AGENTSDK_MAX_SNAPSHOT_MB`（默认 256）✅
@@ -53,38 +53,38 @@
 - Agent：`AGENT_MASTER_TOKEN`、四条通道携带令牌、拉指令参数转义、执行前核对指令所属集群、日志区分身份被拒与网络故障 ✅
 - 通知：「没有启用任何通知渠道」日志按告警标题限频 ✅
 - 文档：两份 API 参考、README 环境变量表、权限设计文档 ✅
-- 前端「集群管理」页：表格 + 登记弹窗 + 签发令牌弹窗（一次性显示、可复制）、导航、zh / ja 文案；`Permission` 类型与权限文案补 `clusters.manage` — ✅ 代码完成，待 dev 验收（随 `feat/web-data-layer-p4`）
+- 前端「集群管理」页：表格 + 登记弹窗 + 签发令牌弹窗（一次性显示、可复制）、导航、zh / ja 文案；`Permission` 类型与权限文案补 `clusters.manage` — ✅ 用户已在 dev 上用它登记集群、签发令牌
 - config 仓的部署清单（dev）：Agent 专用账号与权限、其余组件不挂载集群凭据、NetworkPolicy、令牌经 Secret 注入 `AGENT_MASTER_TOKEN` ✅；prod 清单待发布时处理
 - dev 验收：登记集群 → 签发令牌 → 配进 Agent → 确认已认证 → 切 `enforce` ✅（2026-11-15）
 
 ---
 
-## AIOps 状态按集群区分 — 🔄 代码完成，待定表结构处理方式后上 dev（2026-11-14）
+## AIOps 状态按集群区分 — 🔄 已上 dev 且已清库（2026-11-15 核对）；dev 只有一个集群，跨集群行为待多集群环境验证
 
 > 设计文档: [aiops-cluster-scope-design.md](../../design/active/aiops-cluster-scope-design.md)
 
 - 基线按「集群 + 实体键 + 指标」存取；清理只限本集群；已消失实体的库内行随 flush 删除 ✅
 - 状态机条目按「集群 + 实体键」存取 ✅
 - 历史事件模式与 AI 证据里的历史事件按集群过滤；`incidents/patterns` 的 `cluster_id` 必填 ✅
-- 表结构处理：用户 2026-11-14 裁定按 §1.9 删库重建（方案 A）。dev 清库待用户说「执行」；prod 在合 main 后由用户清
+- 表结构处理：用户 2026-11-14 裁定按 §1.9 删库重建（方案 A）。dev 已清库 ✅；prod 在合 main 后由用户清
 - dev 验收：镜像已上 dev（`dev-746e458`），清库后验收
 
 ---
 
-## AIOps 探针噪音治理 — 🔄 代码完成，待合 dev 验收（2026-10-15）
+## AIOps 探针噪音治理 — 🔄 已合 dev（`964f961`），待观察验收（2026-11-15 核对）
 
 > 设计文档: [aiops-probe-noise-design.md](../../design/active/aiops-probe-noise-design.md)
 > 用户裁定（2026-10-15「按推荐来」）：① `Unhealthy` 只当证据、不单独打分（方案 B）② 只改 `Unhealthy` ③ AI 自动触发级别由用户在设置页调为「中」，不改代码
 
 - 设计文档 ✅
 - 测试先行（红灯：新增 2 个 FAIL）→ 实现 → 绿灯 ✅
-- 合 dev → CI → 部署 — 待批准
-- 验收：dev 观察 24h 事件数量；真实 NotReady / 重启仍进入事件
+- 合 dev → CI → 部署 ✅（`964f961`）
+- 验收：dev 观察 24h 事件数量；真实 NotReady / 重启仍进入事件 —— 后者已由 2026-11-15 的崩溃测试覆盖（CrashLoopBackOff 正常开事件）；24h 噪音观察待做
 - dev → main PR（无表结构变更，不需清库）
 
 ---
 
-## AIOps 事件证据补全 — 🔄 代码完成，待合 dev 验收（2026-10-14）
+## AIOps 事件证据补全 — 🔄 已合 dev（`3799762`），待「重新分析」验收（需先在 dev 配 AI 提供商）
 
 > 设计文档: [aiops-incident-evidence-design.md](../../design/active/aiops-incident-evidence-design.md)
 > 用户裁定：功能一（持久化 event 进 AI 上下文）、二（时间线记录触发信号）、三（异常时长 / 同时段事件 / Pod 归属）一起做。分支 `feat/aiops-incident-evidence`
@@ -93,8 +93,8 @@
 - 步骤 1：功能二 —— 信号 + `anomaly_detected` 时间线 + recovery 改 `recovery_started` ✅（`333d75b`）
 - 步骤 2：功能三①③ + 抽出 `assembleIncidentContext`（后台 / 深度两条路径共用）✅（`e4c15c1`）
 - 步骤 3：功能一（event 上下文 + 对话工具 `get_event_history`）+ 功能三② ✅
-- 合 dev → CI → 部署 — 待批准
-- 验收：dev 上对一个超过 1 小时的事件「重新分析」，四项核对（见设计文档）
+- 合 dev → CI → 部署 ✅（`3799762`）
+- 验收：dev 上对一个超过 1 小时的事件「重新分析」，四项核对（见设计文档）—— 待用户在 dev 配好 AI 提供商
 - 不在本次范围（待决策）：检测灵敏度（单次探针超时即升级）· 前端持续时间口径 · `/events?source=history` 忽略 namespace
 
 ---
@@ -107,9 +107,9 @@
 - 计划 ✅（只读分析；SDK Bearer 原生支持已查证）；work 审阅补充 4 点已并入
 - 用户裁定 D1–D8 ✅（D1 推翻原裁定②：region 写进 Master 配置 `MASTER_AI_BEDROCK_REGION`，不进库）
 - ⛔ prod settings 表 `ai.*` 残留行清理：单独一步，须用户单独批准
-- PR-A：Bedrock + 配置 region + 循环修复 + 删旧接口 — 🔄 代码完成（分支 `feat/bedrock-provider`，本地 commit）
+- PR-A：Bedrock + 配置 region + 循环修复 + 删旧接口 — ✅ 已合 dev（`64c2ea4`）
   - 后端 ✅（go build / vet / test 全绿；Bearer 环境变量覆盖防线经变异验证）；前端 ✅（tsc / next build / vitest）
-  - 推 dev — 待批准；之后逐模型冒烟（D8：用户经 Web 填 key，dev 重启后需重填）— 冒烟不过的模型从目录移除
+  - 推 dev ✅；之后逐模型冒烟（D8：用户经 Web 填 key，dev 重启后需重填）— 冒烟不过的模型从目录移除
 - PR-A 冒烟：Qwen3 流式 + 多轮 tool call ✅、深度分析端到端 ✅（5 轮 / 9 tools / 11s）；gpt-oss / MiniMax 待用户切换模型
 - AI 分析质量修复 ✅ 已上 dev：风险刻度 / 相似事件自排除 / 去伪造相似度 / 证据规则 / 失败原因码 / key 清理 / Markdown / Pod LAST-EXIT
 - PR-1 ✅ 已上 dev 并经用户验证（B1 / C 失败提示、C 完整流程、A6 耗时、A7 后台分析不再凭名推测、A8 时间线刻度、A9 实体风险）
@@ -130,7 +130,7 @@
   - 后端 ✅（go build / vet / test 全绿；路由层测试经变异验证有效）
   - 前端 ✅（tsc / next build / vitest 全绿）
   - 已上 dev（`dev-e22ad5a`）✅；未登录 API 实测通过（0 级 200 / 敏感 401 / 40 个 Deployment 详情残留字面值 0）；浏览器核对 待用户
-  - 后续项：角色说明页权限矩阵改为后端生成
+  - 后续项：角色说明页权限矩阵改为后端生成 ✅（`e86acde`）
 - 第 2 期：OIDC 接入（akasha 为首个身份源）— 设计已裁定 ✅（附录 A 全按推荐）
   > 设计文档: [oidc-login-design.md](../../design/active/oidc-login-design.md)
   - A 代码 + 测试（含 Go 1.26 升级）— ✅ 本地 commit（go build / vet / test、tsc / next build / vitest 全绿）；未启用时行为不变
@@ -138,7 +138,7 @@
   - B akasha 登记 `atlhyper-dev`（config `fa6718e`）✅；SYNC 由用户点（Claude 的 kubectl 触发被权限系统拦下）；新副本 2/2 就绪、0 重启；authorize 实测识别
   - C dev ConfigMap / Secret + controller 配置版本注解（config `de36e45`）✅；实测 providers / start→akasha 302 + 状态 cookie / 坏 state→error=state
   - 浏览器完整登录（akasha → Google → 回到 atlhyper 为 Member）— 待用户
-  - ⚠️ dev 的 master SQLite 是 emptyDir：每次部署 / 重启后外部账号与提权都会清空（prod 为 PVC，不受影响）
+  - dev 的 master SQLite 已改为 PVC `atlhyper-controller-db`（2026-11-15 核对），重启不再丢账号；表结构变更时仍需清库
   - prod：⛔ 用户自行处理（需另登记 `atlhyper` client，回调地址用 prod 域名）
 - prod：⛔ 用户禁止 Claude 推送
 
@@ -151,7 +151,7 @@
 - 第 1 期：温度判定「先最差、同档最热」+ 只报 max 时对称 crit — 🔄 进行中
   - 代码 + 测试 ✅（分支 `fix/hardware-health-judgement`，本地 commit）
   - 速览 tile 文案改为「最需关注温度」 ✅（用户裁定 B）
-  - 合并 dev → CI → dev 部署 `dev-0016fdb` ✅；用户页面验证 待办
+  - 合并 dev → CI → dev 部署 `dev-0016fdb` ✅（`0016fdb`）；用户页面验证 待办
   - prod：⛔ 用户禁止 Claude 推送，由用户自行决定
 - 第 2 期：采集面（白名单扩项 / node-exporter systemd + textfile / smartctl_exporter）— 待批准
 - 第 3 期：机械盘健康线 + 盘身份 / SMART 判定 / 持续时长状态机 / 节点详情 v2 — 依赖第 2 期
