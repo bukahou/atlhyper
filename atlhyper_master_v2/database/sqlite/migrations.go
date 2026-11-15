@@ -345,11 +345,14 @@ func migrate(db *sql.DB) error {
 			id TEXT PRIMARY KEY,
 			cluster_id TEXT NOT NULL,
 			state TEXT NOT NULL DEFAULT 'firing',
-			severity TEXT NOT NULL DEFAULT 'warning',
+			severity TEXT NOT NULL DEFAULT 'low',
+			subject TEXT NOT NULL,
 			root_cause TEXT,
 			peak_risk REAL NOT NULL DEFAULT 0,
 			started_at TEXT NOT NULL,
+			escalated_at TEXT,
 			resolved_at TEXT,
+			close_reason TEXT NOT NULL DEFAULT '',
 			duration_s INTEGER NOT NULL DEFAULT 0,
 			recurrence INTEGER NOT NULL DEFAULT 0,
 			summary TEXT,
@@ -357,6 +360,7 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incidents_cluster ON aiops_incidents(cluster_id, started_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incidents_state ON aiops_incidents(state)`,
+		`CREATE INDEX IF NOT EXISTS idx_aiops_incidents_subject ON aiops_incidents(cluster_id, subject, started_at DESC)`,
 
 		// ==================== AIOps: 事件受影响实体表 ====================
 		// 事件关联的实体信息（风险分数、角色等）

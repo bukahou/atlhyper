@@ -4,6 +4,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
@@ -12,25 +13,54 @@ import (
 // aIOpsIncidentDialect AIOps 事件 SQLite 方言
 type aIOpsIncidentDialect struct{}
 
+// incidentColumns 事件表的列，顺序与 ScanIncident 一致
+var incidentColumns = []string{
+	"id", "cluster_id", "state", "severity", "subject", "root_cause", "peak_risk",
+	"started_at", "escalated_at", "resolved_at", "close_reason", "duration_s", "recurrence", "summary", "created_at",
+}
+
+// severityRankSQL 把严重度列（或占位符）映射为可比较的档位
+func severityRankSQL(expr string) string {
+	return "CASE " + expr + " WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END"
+}
+
+func (d *aIOpsIncidentDialect) IncidentColumns(prefix string) string {
+	return prefix + strings.Join(incidentColumns, ", "+prefix)
+}
+
 func (d *aIOpsIncidentDialect) InsertIncident(inc *database.AIOpsIncident) (string, []any) {
-	return `INSERT INTO aiops_incidents (id, cluster_id, state, severity, root_cause, peak_risk, started_at, resolved_at, duration_s, recurrence, summary, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		[]any{inc.ID, inc.ClusterID, inc.State, inc.Severity, inc.RootCause, inc.PeakRisk,
-			inc.StartedAt.Format(time.RFC3339), nil, 0, 0, inc.Summary, inc.CreatedAt.Format(time.RFC3339)}
+	return `INSERT INTO aiops_incidents (id, cluster_id, state, severity, subject, root_cause, peak_risk, started_at, summary, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[]any{inc.ID, inc.ClusterID, inc.State, inc.Severity, inc.Subject, inc.RootCause, inc.PeakRisk,
+			inc.StartedAt.Format(time.RFC3339), inc.Summary, inc.CreatedAt.Format(time.RFC3339)}
 }
 
 func (d *aIOpsIncidentDialect) SelectByID(id string) (string, []any) {
-	return `SELECT id, cluster_id, state, severity, root_cause, peak_risk, started_at, resolved_at, duration_s, recurrence, summary, created_at
-		FROM aiops_incidents WHERE id = ?`, []any{id}
+	return `SELECT ` + d.IncidentColumns("") + ` FROM aiops_incidents WHERE id = ?`, []any{id}
 }
 
-func (d *aIOpsIncidentDialect) UpdateState(id, state, severity string) (string, []any) {
-	return `UPDATE aiops_incidents SET state = ?, severity = ? WHERE id = ?`, []any{state, severity, id}
+func (d *aIOpsIncidentDialect) UpdateState(id, state string) (string, []any) {
+	return `UPDATE aiops_incidents SET state = ? WHERE id = ?`, []any{state, id}
 }
 
-func (d *aIOpsIncidentDialect) Resolve(id string, resolvedAt time.Time) (string, []any) {
-	return `UPDATE aiops_incidents SET state = 'stable', resolved_at = ?, duration_s = CAST((julianday(?) - julianday(started_at)) * 86400 AS INTEGER) WHERE id = ?`,
-		[]any{resolvedAt.Format(time.RFC3339), resolvedAt.Format(time.RFC3339), id}
+func (d *aIOpsIncidentDialect) RaiseSeverity(id, severity string, peakRisk float64) (string, []any) {
+	return `UPDATE aiops_incidents SET
+			severity = CASE WHEN ` + severityRankSQL("?") + ` > ` + severityRankSQL("severity") + ` THEN ? ELSE severity END,
+			peak_risk = MAX(peak_risk, ?)
+		WHERE id = ?`, []any{severity, severity, peakRisk, id}
+}
+
+func (d *aIOpsIncidentDialect) MarkEscalated(id string, escalatedAt time.Time) (string, []any) {
+	return `UPDATE aiops_incidents SET escalated_at = ? WHERE id = ? AND escalated_at IS NULL`,
+		[]any{escalatedAt.Format(time.RFC3339), id}
+}
+
+func (d *aIOpsIncidentDialect) Resolve(id string, resolvedAt time.Time, reason string) (string, []any) {
+	// 时长按整秒相减：julianday 相减再乘 86400 是浮点运算，截断后会少 1 秒
+	return `UPDATE aiops_incidents SET state = 'stable', resolved_at = ?, close_reason = ?,
+			duration_s = CAST(strftime('%s', ?) AS INTEGER) - CAST(strftime('%s', started_at) AS INTEGER)
+		WHERE id = ?`,
+		[]any{resolvedAt.Format(time.RFC3339), reason, resolvedAt.Format(time.RFC3339), id}
 }
 
 func (d *aIOpsIncidentDialect) UpdateRootCause(id, rootCause string) (string, []any) {
@@ -70,14 +100,19 @@ func (d *aIOpsIncidentDialect) SelectTimeline(incidentID string) (string, []any)
 func (d *aIOpsIncidentDialect) ScanIncident(rows *sql.Rows) (*database.AIOpsIncident, error) {
 	inc := &database.AIOpsIncident{}
 	var startedAt, createdAt string
-	var resolvedAt sql.NullString
-	err := rows.Scan(&inc.ID, &inc.ClusterID, &inc.State, &inc.Severity, &inc.RootCause, &inc.PeakRisk,
-		&startedAt, &resolvedAt, &inc.DurationS, &inc.Recurrence, &inc.Summary, &createdAt)
+	var escalatedAt, resolvedAt, rootCause, summary sql.NullString
+	err := rows.Scan(&inc.ID, &inc.ClusterID, &inc.State, &inc.Severity, &inc.Subject, &rootCause, &inc.PeakRisk,
+		&startedAt, &escalatedAt, &resolvedAt, &inc.CloseReason, &inc.DurationS, &inc.Recurrence, &summary, &createdAt)
 	if err != nil {
 		return nil, err
 	}
+	inc.RootCause, inc.Summary = rootCause.String, summary.String
 	inc.StartedAt, _ = time.Parse(time.RFC3339, startedAt)
 	inc.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	if escalatedAt.Valid {
+		t, _ := time.Parse(time.RFC3339, escalatedAt.String)
+		inc.EscalatedAt = &t
+	}
 	if resolvedAt.Valid {
 		t, _ := time.Parse(time.RFC3339, resolvedAt.String)
 		inc.ResolvedAt = &t

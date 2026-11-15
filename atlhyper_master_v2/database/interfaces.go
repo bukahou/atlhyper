@@ -277,8 +277,14 @@ type AIOpsGraphRepository interface {
 type AIOpsIncidentRepository interface {
 	CreateIncident(ctx context.Context, inc *AIOpsIncident) error
 	GetByID(ctx context.Context, id string) (*AIOpsIncident, error)
-	UpdateState(ctx context.Context, id, state, severity string) error
-	Resolve(ctx context.Context, id string, resolvedAt time.Time) error
+	// UpdateState 只改状态；严重度是峰值，由 RaiseSeverity 单独维护
+	UpdateState(ctx context.Context, id, state string) error
+	// RaiseSeverity 严重度与峰值风险只升不降：传入更低的值不改动
+	RaiseSeverity(ctx context.Context, id, severity string, peakRisk float64) error
+	// MarkEscalated 记下首次升级到「事件中」的时刻；已有值时不覆盖
+	MarkEscalated(ctx context.Context, id string, escalatedAt time.Time) error
+	// Resolve 关闭事件：状态置为 stable，写结束时间、时长与关闭原因；严重度保留
+	Resolve(ctx context.Context, id string, resolvedAt time.Time, reason string) error
 	UpdateRootCause(ctx context.Context, id, rootCause string) error
 	UpdatePeakRisk(ctx context.Context, id string, peakRisk float64) error
 	IncrementRecurrence(ctx context.Context, id string) error
@@ -290,7 +296,7 @@ type AIOpsIncidentRepository interface {
 	GetTimeline(ctx context.Context, incidentID string) ([]*AIOpsIncidentTimeline, error)
 	GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*AIOpsIncidentStatsRaw, error)
 	TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]AIOpsRootCauseCount, error)
-	// ListByEntity 某个集群里与指定实体相关的事件（实体键只在集群内唯一）
+	// ListByEntity 某个集群里与指定实体相关的事件：主体是它，或成员实体里有它（键只在集群内唯一）
 	ListByEntity(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*AIOpsIncident, error)
 }
 
@@ -576,8 +582,10 @@ type AIOpsGraphDialect interface {
 type AIOpsIncidentDialect interface {
 	InsertIncident(inc *AIOpsIncident) (string, []any)
 	SelectByID(id string) (string, []any)
-	UpdateState(id, state, severity string) (string, []any)
-	Resolve(id string, resolvedAt time.Time) (string, []any)
+	UpdateState(id, state string) (string, []any)
+	RaiseSeverity(id, severity string, peakRisk float64) (string, []any)
+	MarkEscalated(id string, escalatedAt time.Time) (string, []any)
+	Resolve(id string, resolvedAt time.Time, reason string) (string, []any)
 	UpdateRootCause(id, rootCause string) (string, []any)
 	UpdatePeakRisk(id string, peakRisk float64) (string, []any)
 	IncrementRecurrence(id string) (string, []any)
@@ -585,6 +593,8 @@ type AIOpsIncidentDialect interface {
 	SelectEntities(incidentID string) (string, []any)
 	InsertTimeline(entry *AIOpsIncidentTimeline) (string, []any)
 	SelectTimeline(incidentID string) (string, []any)
+	// IncidentColumns 事件表的列清单（逗号分隔），顺序与 ScanIncident 一致；prefix 为表别名（如 "i."），可为空
+	IncidentColumns(prefix string) string
 	ScanIncident(rows *sql.Rows) (*AIOpsIncident, error)
 	ScanEntity(rows *sql.Rows) (*AIOpsIncidentEntity, error)
 	ScanTimeline(rows *sql.Rows) (*AIOpsIncidentTimeline, error)

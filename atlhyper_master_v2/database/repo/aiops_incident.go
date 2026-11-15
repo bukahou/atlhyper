@@ -45,16 +45,30 @@ func (r *aiopsIncidentRepo) GetByID(ctx context.Context, id string) (*database.A
 	return r.dialect.ScanIncident(rows)
 }
 
-// UpdateState 更新事件状态和严重程度
-func (r *aiopsIncidentRepo) UpdateState(ctx context.Context, id, state, severity string) error {
-	query, args := r.dialect.UpdateState(id, state, severity)
+// UpdateState 更新事件状态（不动严重度）
+func (r *aiopsIncidentRepo) UpdateState(ctx context.Context, id, state string) error {
+	query, args := r.dialect.UpdateState(id, state)
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
-// Resolve 解决事件（设置结束时间，计算持续时长）
-func (r *aiopsIncidentRepo) Resolve(ctx context.Context, id string, resolvedAt time.Time) error {
-	query, args := r.dialect.Resolve(id, resolvedAt)
+// RaiseSeverity 抬高峰值严重度与峰值风险（只升不降）
+func (r *aiopsIncidentRepo) RaiseSeverity(ctx context.Context, id, severity string, peakRisk float64) error {
+	query, args := r.dialect.RaiseSeverity(id, severity, peakRisk)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// MarkEscalated 记下首次升级时间（已有值时不覆盖）
+func (r *aiopsIncidentRepo) MarkEscalated(ctx context.Context, id string, escalatedAt time.Time) error {
+	query, args := r.dialect.MarkEscalated(id, escalatedAt)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// Resolve 关闭事件（状态、结束时间、持续时长、关闭原因；严重度保留）
+func (r *aiopsIncidentRepo) Resolve(ctx context.Context, id string, resolvedAt time.Time, reason string) error {
+	query, args := r.dialect.Resolve(id, resolvedAt, reason)
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
@@ -82,7 +96,7 @@ func (r *aiopsIncidentRepo) IncrementRecurrence(ctx context.Context, id string) 
 
 // List 按条件查询事件列表
 func (r *aiopsIncidentRepo) List(ctx context.Context, opts database.AIOpsIncidentQueryOpts) ([]*database.AIOpsIncident, error) {
-	query, args := buildIncidentListQuery(opts, false)
+	query, args := buildIncidentListQuery(r.dialect.IncidentColumns(""), opts, false)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -102,7 +116,7 @@ func (r *aiopsIncidentRepo) List(ctx context.Context, opts database.AIOpsInciden
 
 // Count 按条件统计事件数量
 func (r *aiopsIncidentRepo) Count(ctx context.Context, opts database.AIOpsIncidentQueryOpts) (int, error) {
-	query, args := buildIncidentListQuery(opts, true)
+	query, args := buildIncidentListQuery("", opts, true)
 	var count int
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
@@ -286,16 +300,17 @@ func (r *aiopsIncidentRepo) TopRootCauses(ctx context.Context, clusterID string,
 	return result, rows.Err()
 }
 
-// ListByEntity 查询某个集群里与指定实体相关的事件
+// ListByEntity 查询某个集群里与指定实体相关的事件：主体是它，或成员实体里有它
 func (r *aiopsIncidentRepo) ListByEntity(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*database.AIOpsIncident, error) {
 	sinceStr := since.Format(time.RFC3339)
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT i.id, i.cluster_id, i.state, i.severity, i.root_cause, i.peak_risk, i.started_at, i.resolved_at, i.duration_s, i.recurrence, i.summary, i.created_at
+		`SELECT `+r.dialect.IncidentColumns("i.")+`
 		FROM aiops_incidents i
-		INNER JOIN aiops_incident_entities e ON i.id = e.incident_id
-		WHERE i.cluster_id = ? AND e.entity_key = ? AND i.started_at >= ?
+		WHERE i.cluster_id = ? AND i.started_at >= ?
+			AND (i.subject = ? OR EXISTS (
+				SELECT 1 FROM aiops_incident_entities e WHERE e.incident_id = i.id AND e.entity_key = ?))
 		ORDER BY i.started_at DESC`,
-		clusterID, entityKey, sinceStr)
+		clusterID, sinceStr, entityKey, entityKey)
 	if err != nil {
 		return nil, err
 	}
@@ -312,8 +327,8 @@ func (r *aiopsIncidentRepo) ListByEntity(ctx context.Context, clusterID, entityK
 	return result, rows.Err()
 }
 
-// buildIncidentListQuery 构建事件列表查询（动态 WHERE 条件）
-func buildIncidentListQuery(opts database.AIOpsIncidentQueryOpts, countOnly bool) (string, []any) {
+// buildIncidentListQuery 构建事件列表查询（动态 WHERE 条件）；columns 为方言给出的列清单，只统计数量时不用
+func buildIncidentListQuery(columns string, opts database.AIOpsIncidentQueryOpts, countOnly bool) (string, []any) {
 	var conditions []string
 	var args []any
 
@@ -347,8 +362,7 @@ func buildIncidentListQuery(opts database.AIOpsIncidentQueryOpts, countOnly bool
 		return "SELECT COUNT(*) FROM aiops_incidents" + where, args
 	}
 
-	query := `SELECT id, cluster_id, state, severity, root_cause, peak_risk, started_at, resolved_at, duration_s, recurrence, summary, created_at
-		FROM aiops_incidents` + where + ` ORDER BY started_at DESC`
+	query := `SELECT ` + columns + ` FROM aiops_incidents` + where + ` ORDER BY started_at DESC`
 
 	if opts.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", opts.Limit)

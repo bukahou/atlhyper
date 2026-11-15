@@ -36,16 +36,16 @@ func (f *flakyRepo) write(name string) error {
 func (f *flakyRepo) CreateIncident(_ context.Context, inc *database.AIOpsIncident) error {
 	return f.write("create:" + inc.ID)
 }
-func (f *flakyRepo) UpdateState(_ context.Context, id, state, _ string) error {
+func (f *flakyRepo) UpdateState(_ context.Context, id, state string) error {
 	return f.write("state:" + id + ":" + state)
 }
-func (f *flakyRepo) UpdatePeakRisk(_ context.Context, id string, _ float64) error {
+func (f *flakyRepo) RaiseSeverity(_ context.Context, id, _ string, _ float64) error {
 	return f.write("peak:" + id)
 }
 func (f *flakyRepo) IncrementRecurrence(_ context.Context, id string) error {
 	return f.write("recurrence:" + id)
 }
-func (f *flakyRepo) Resolve(_ context.Context, id string, _ time.Time) error {
+func (f *flakyRepo) Resolve(_ context.Context, id string, _ time.Time, _ string) error {
 	return f.write("resolve:" + id)
 }
 func (f *flakyRepo) UpdateRootCause(_ context.Context, id, _ string) error {

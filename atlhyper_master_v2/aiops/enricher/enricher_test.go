@@ -31,10 +31,16 @@ func (m *mockIncidentRepo) CreateIncident(ctx context.Context, inc *database.AIO
 func (m *mockIncidentRepo) GetByID(ctx context.Context, id string) (*database.AIOpsIncident, error) {
 	return m.incident, nil
 }
-func (m *mockIncidentRepo) UpdateState(ctx context.Context, id, state, severity string) error {
+func (m *mockIncidentRepo) UpdateState(ctx context.Context, id, state string) error {
 	return nil
 }
-func (m *mockIncidentRepo) Resolve(ctx context.Context, id string, resolvedAt time.Time) error {
+func (m *mockIncidentRepo) RaiseSeverity(ctx context.Context, id, severity string, peakRisk float64) error {
+	return nil
+}
+func (m *mockIncidentRepo) MarkEscalated(ctx context.Context, id string, escalatedAt time.Time) error {
+	return nil
+}
+func (m *mockIncidentRepo) Resolve(ctx context.Context, id string, resolvedAt time.Time, reason string) error {
 	return nil
 }
 func (m *mockIncidentRepo) UpdateRootCause(ctx context.Context, id, rootCause string) error {

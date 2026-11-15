@@ -383,18 +383,21 @@ type AIOpsBaselineState struct {
 
 // AIOpsIncident 事件数据库模型
 type AIOpsIncident struct {
-	ID         string
-	ClusterID  string
-	State      string
-	Severity   string
-	RootCause  string
-	PeakRisk   float64
-	StartedAt  time.Time
-	ResolvedAt *time.Time
-	DurationS  int64
-	Recurrence int
-	Summary    string
-	CreatedAt  time.Time
+	ID          string
+	ClusterID   string
+	State       string
+	Severity    string // 峰值严重度：只升不降，关闭后保留
+	Subject     string // 主体键：工作负载，或实体自身
+	RootCause   string // 领头实体
+	PeakRisk    float64
+	StartedAt   time.Time
+	EscalatedAt *time.Time // 首次升级到「事件中」的时刻；从未升级为 nil
+	ResolvedAt  *time.Time
+	CloseReason string // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
+	DurationS   int64
+	Recurrence  int
+	Summary     string
+	CreatedAt   time.Time
 }
 
 // AIOpsIncidentEntity 受影响实体数据库模型

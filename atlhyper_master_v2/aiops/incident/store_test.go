@@ -23,9 +23,9 @@ func newFakeRepo() *fakeIncidentRepo {
 }
 
 func (f *fakeIncidentRepo) CreateIncident(context.Context, *database.AIOpsIncident) error { return nil }
-func (f *fakeIncidentRepo) UpdateState(context.Context, string, string, string) error     { return nil }
+func (f *fakeIncidentRepo) UpdateState(context.Context, string, string) error             { return nil }
 func (f *fakeIncidentRepo) IncrementRecurrence(context.Context, string) error             { return nil }
-func (f *fakeIncidentRepo) UpdatePeakRisk(_ context.Context, _ string, v float64) error {
+func (f *fakeIncidentRepo) RaiseSeverity(_ context.Context, _, _ string, v float64) error {
 	if v > f.peak {
 		f.peak = v
 	}

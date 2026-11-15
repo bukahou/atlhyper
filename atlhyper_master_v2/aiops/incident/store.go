@@ -84,10 +84,10 @@ func (s *Store) UpdateState(ctx context.Context, incidentID string, state aiops.
 
 	writes := []pendingWrite{
 		{"更新事件状态 " + incidentID, func(ctx context.Context) error {
-			return s.repo.UpdateState(ctx, incidentID, string(state), severity)
+			return s.repo.UpdateState(ctx, incidentID, string(state))
 		}},
-		{"更新峰值风险 " + incidentID, func(ctx context.Context) error {
-			return s.repo.UpdatePeakRisk(ctx, incidentID, risk.RFinal)
+		{"更新峰值严重度 " + incidentID, func(ctx context.Context) error {
+			return s.repo.RaiseSeverity(ctx, incidentID, severity, risk.RFinal)
 		}},
 		// 实体风险随事件演进更新（曾停在创建时的值，界面「最终风险」与事件峰值对不上）
 		s.entityRiskWrite(incidentID, risk),
@@ -111,10 +111,7 @@ func (s *Store) Resolve(ctx context.Context, incidentID, entityKey string, now t
 	}
 	s.submit(ctx,
 		pendingWrite{"关闭事件 " + incidentID, func(ctx context.Context) error {
-			return s.repo.UpdateState(ctx, incidentID, string(aiops.StateStable), "")
-		}},
-		pendingWrite{"设置解决时间 " + incidentID, func(ctx context.Context) error {
-			return s.repo.Resolve(ctx, incidentID, now)
+			return s.repo.Resolve(ctx, incidentID, now, "recovered")
 		}},
 		s.timelineWrite(incidentID, now, aiops.TimelineStateChange, entityKey, "事件已解决: recovery → stable"),
 	)
