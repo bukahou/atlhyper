@@ -2044,7 +2044,7 @@ Deployment が更新され、新しい Pod が起動中です
     incidentId: "インシデント ID",
     incidentState: "インシデント状態",
     severity: "重要度",
-    rootCause: "根本原因",
+    leadMember: "最高リスク",
     peakRisk: "ピークリスク",
     startedAt: "開始時刻",
     resolvedAt: "解決時刻",

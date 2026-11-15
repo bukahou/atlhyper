@@ -2044,7 +2044,7 @@ Deployment 已更新，新的 Pod 正在启动中
     incidentId: "事件 ID",
     incidentState: "事件状态",
     severity: "严重度",
-    rootCause: "根因",
+    leadMember: "风险最高",
     peakRisk: "峰值风险",
     startedAt: "开始时间",
     resolvedAt: "解决时间",

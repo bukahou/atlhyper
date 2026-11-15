@@ -2038,7 +2038,8 @@ export interface AIOpsTranslations {
   incidentId: string;
   incidentState: string;
   severity: string;
-  rootCause: string;
+  /** 事件列表里主体下方那一行：风险最高的成员（不是分析出来的原因） */
+  leadMember: string;
   peakRisk: string;
   startedAt: string;
   resolvedAt: string;
