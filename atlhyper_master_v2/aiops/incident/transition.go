@@ -74,6 +74,10 @@ func (s *Store) createdWrites(t aiops.IncidentTransition, risk *aiops.SubjectRis
 		StartedAt: t.At,
 		CreatedAt: t.At,
 	}
+	// 事件的开始时间 = 异常的起点（条件开始满足的时刻），开事件的时刻记在 CreatedAt
+	if !t.EpisodeStartedAt.IsZero() {
+		inc.StartedAt = t.EpisodeStartedAt
+	}
 	if inc.State == "" {
 		inc.State = string(aiops.StateWarning)
 	}

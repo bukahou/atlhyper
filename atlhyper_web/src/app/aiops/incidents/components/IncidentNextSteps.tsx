@@ -27,13 +27,15 @@ const STEP_PERMISSIONS: Partial<Record<IncidentNextStep["kind"], Permission>> = 
 
 interface IncidentNextStepsProps {
   subject: IncidentSubject;
+  /** 主体的对象已删除：「查看 …」按钮不可用，旁边写「已删除」 */
+  subjectGone?: boolean;
   members: IncidentMember[];
   /** 跳到弹窗底部的 AI 分析区 */
   onOpenAIAnalysis: () => void;
 }
 
 /** 下一步：去主体详情、Pod 列表、相关 K8s 事件、容器日志、AI 分析。无权限的显示锁定，点了按权限提示登录或联系管理员 */
-export function IncidentNextSteps({ subject, members, onOpenAIAnalysis }: IncidentNextStepsProps) {
+export function IncidentNextSteps({ subject, subjectGone, members, onOpenAIAnalysis }: IncidentNextStepsProps) {
   const { t } = useI18n();
   const texts = t.aiops.detail;
   const can = useCan();
@@ -75,6 +77,14 @@ export function IncidentNextSteps({ subject, members, onOpenAIAnalysis }: Incide
     }
     switch (step.kind) {
       case "subject":
+        if (subjectGone) {
+          return (
+            <button key={step.kind} type="button" className={LOCKED} disabled>
+              {label}
+              <span className="text-[11px] text-muted">{texts.subjectGone}</span>
+            </button>
+          );
+        }
         return (
           <button key={step.kind} type="button" className={PRIMARY} onClick={() => openEntityDetail(step.target)}>
             {label}

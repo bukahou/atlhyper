@@ -147,6 +147,7 @@ export const ja: Translations = {
     noCluster: "利用可能なクラスタがありません",
     noClusterDesc: "接続済みのクラスタがありません。Agent が接続するとここにデータが表示されます。",
     refreshFailed: "更新に失敗しました。前回のデータを表示しています",
+    resourceNotFound: "このリソースは存在しません（削除された可能性があります）",
     pageError: "ページでエラーが発生しました",
     pageErrorDesc: "このページの表示中に問題が発生しました。再試行するか、ホームに戻ってください。",
     // OTel 可用性提示

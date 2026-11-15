@@ -103,6 +103,7 @@ export function IncidentDetailModal({ incidentId, open, onClose, onSelectInciden
               {/* 下一步：去哪查 */}
               <IncidentNextSteps
                 subject={incidentSubject(detail)}
+                subjectGone={detail.subjectPresent === false}
                 members={detail.members}
                 onOpenAIAnalysis={scrollToAIAnalysis}
               />

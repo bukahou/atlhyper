@@ -46,6 +46,19 @@ func TestEnrichIncidentDetail_MembersAndImpact(t *testing.T) {
 	if gone := detail.Members[2]; gone.Present || gone.Status != "" || gone.Restarts != nil {
 		t.Errorf("已删除的 Pod 应标 present=false 且不带状态: %+v", gone)
 	}
+	if detail.SubjectPresent == nil || !*detail.SubjectPresent {
+		t.Errorf("Deployment 在快照里，subjectPresent 应为 true: %v", detail.SubjectPresent)
+	}
+	gone := detailWithMembers("shop/deployment/deleted")
+	enrichIncidentDetail(gone, snap)
+	if gone.SubjectPresent == nil || *gone.SubjectPresent {
+		t.Errorf("已删除的 Deployment，subjectPresent 应为 false: %v", gone.SubjectPresent)
+	}
+	unknown := detailWithMembers("shop/logs/x")
+	enrichIncidentDetail(unknown, snap)
+	if unknown.SubjectPresent != nil {
+		t.Errorf("快照里没有的类型应为 nil（不知道）: %v", *unknown.SubjectPresent)
+	}
 	impact := detail.Impact
 	if impact == nil || impact.RestartsTotal == nil || *impact.RestartsTotal != 10 ||
 		impact.DesiredReplicas == nil || *impact.DesiredReplicas != 3 || impact.AvailableReplicas == nil || *impact.AvailableReplicas != 0 {

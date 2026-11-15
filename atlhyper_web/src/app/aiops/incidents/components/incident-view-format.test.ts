@@ -211,3 +211,19 @@ describe("withDetailViewDefaults", () => {
     expect(withDetailViewDefaults({ impact, headline: headline({}) }).impact).toBe(impact);
   });
 });
+
+describe("headlineSentence：原因 + 证据里记下的不可用比例", () => {
+  const base = { impact: NO_IMPACT, subjectType: "deployment", subjectTypeLabel: "Deployment", hasDetections: true };
+
+  it("对象已删除、拿不到副本数时，用证据里的不可用比例补半句（100% = 已无可用副本）", () => {
+    expect(headlineSentence({ ...base, headline: headline({ unavailablePercent: 100 }) }, zhIncidentDetail)).toBe(
+      "3 个 Pod 全部容器异常（CrashLoopBackOff），Deployment 已无可用副本。",
+    );
+  });
+
+  it("部分不可用写比例", () => {
+    expect(headlineSentence({ ...base, headline: headline({ unavailablePercent: 67 }) }, zhIncidentDetail)).toBe(
+      "3 个 Pod 全部容器异常（CrashLoopBackOff），Deployment 不可用 67%。",
+    );
+  });
+});

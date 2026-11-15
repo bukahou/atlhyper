@@ -66,7 +66,8 @@ func baseMembers(entities []*aiops.IncidentEntity) []aiops.IncidentMember {
 	for _, e := range entities {
 		members = append(members, aiops.IncidentMember{
 			EntityKey: e.EntityKey, EntityType: e.EntityType, Namespace: e.Namespace, Name: e.Name,
-			Role: e.Role, RFinal: e.RFinal, IsLead: e.Role == roleRootCause,
+			// 风险按 0–100 给前端（契约「风险一律 0–100」）；实体表里存的是 0–1
+			Role: e.Role, RFinal: math.Round(e.RFinal * 100), IsLead: e.Role == roleRootCause,
 		})
 	}
 	return members

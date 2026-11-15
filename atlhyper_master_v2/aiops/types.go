@@ -538,7 +538,9 @@ type IncidentDetail struct {
 	Headline *IncidentHeadline `json:"headline"` // nil = 没有证据（原因见 EvidenceStatus）
 	// EvidenceStatus 证据的情况：recorded = 有证据；propagation_only = 只有依赖传播、本主体没有本地异常；
 	// not_recorded = 改版前的事件，当时没有记录证据
-	EvidenceStatus string                 `json:"evidenceStatus"`
+	EvidenceStatus string `json:"evidenceStatus"`
+	// SubjectPresent 主体的对象在当前快照里是否还在（已删除时「下一步」里的查看按钮不可用）；nil = 不知道（快照不可用或类型不在快照里）
+	SubjectPresent *bool                  `json:"subjectPresent"`
 	Impact         *IncidentImpact        `json:"impact"`       // nil = 查询层没有补（如集群快照不可用）
 	Evidence       []IncidentEvidence     `json:"evidence"`     // 按信号类型去重，最高分从高到低
 	Members        []IncidentMember       `json:"members"`      // 与 Entities 一一对应，带当前快照里的状态
@@ -573,6 +575,9 @@ type IncidentHeadline struct {
 	Reason          string `json:"reason"` // 原因码 / 取值；没有时为空串
 	AffectedMembers int    `json:"affectedMembers"`
 	TotalMembers    int    `json:"totalMembers"`
+	// UnavailablePercent 主证据是「原因」类信号（容器崩溃 / 未就绪 / 重启）且同时有工作负载不可用时，带上不可用比例，
+	// 结论写成「N 个 Pod …，工作负载不可用 X%」；否则 nil
+	UnavailablePercent *int `json:"unavailablePercent"`
 }
 
 // IncidentImpact 影响数字；不适用的项为 nil
@@ -601,7 +606,7 @@ type IncidentMember struct {
 	Namespace  string  `json:"namespace"`
 	Name       string  `json:"name"`
 	Role       string  `json:"role"`
-	RFinal     float64 `json:"rFinal"`
+	RFinal     float64 `json:"rFinal"`  // 0–100
 	IsLead     bool    `json:"isLead"`  // 风险最高的成员（事件的 root_cause）
 	Present    bool    `json:"present"` // 当前快照里还在；false 时以下三项为空
 	Status     string  `json:"status"`

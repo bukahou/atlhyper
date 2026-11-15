@@ -147,6 +147,7 @@ export const zh: Translations = {
     noCluster: "暂无可用集群",
     noClusterDesc: "还没有集群接入。Agent 连上后这里会显示数据。",
     refreshFailed: "刷新失败，显示的是上一次的数据",
+    resourceNotFound: "该资源已不存在（可能已被删除）",
     pageError: "页面出错了",
     pageErrorDesc: "这个页面在显示时遇到了问题。可以重试，或回到首页。",
     // OTel 可用性提示

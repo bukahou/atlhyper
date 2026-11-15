@@ -48,6 +48,11 @@ func TestDetailView_SignalsFromTransitionsAndRecording(t *testing.T) {
 	if len(detail.Members) != 3 {
 		t.Errorf("进行中新出现的成员（podC）应进成员表，实际 %d 个", len(detail.Members))
 	}
+	for _, m := range detail.Members {
+		if m.EntityKey == podA && m.RFinal != 90 {
+			t.Errorf("成员风险应按 0–100 给出（0.9 → 90），实际 %v", m.RFinal)
+		}
+	}
 }
 
 // 没有本地信号的成员（风险来自依赖传播）不记证据

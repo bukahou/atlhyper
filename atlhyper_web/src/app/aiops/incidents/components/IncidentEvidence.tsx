@@ -58,7 +58,6 @@ export function IncidentEvidence({ evidence, totalMembers, hasDetections }: Inci
                 <div className="flex-shrink-0 text-right text-xs text-muted tabular-nums whitespace-nowrap">
                   <div>{fillTemplate(texts.evidenceFirstSeen, { time: formatShortTime(item.firstSeen) })}</div>
                   <div>{fillTemplate(texts.evidenceLastSeen, { time: formatShortTime(item.lastSeen) })}</div>
-                  <div>{fillTemplate(texts.evidenceHits, { count: item.hits })}</div>
                 </div>
               </div>
             );

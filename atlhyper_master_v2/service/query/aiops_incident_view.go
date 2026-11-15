@@ -62,6 +62,42 @@ func enrichIncidentDetail(detail *aiops.IncidentDetail, snap *cluster.ClusterSna
 	}
 	impact.DesiredReplicas, impact.AvailableReplicas = workloadReplicas(detail.Subject, snap)
 	detail.Impact = impact
+	detail.SubjectPresent = subjectPresent(detail.Subject, snap)
+}
+
+// subjectPresent 主体的对象在快照里还在不在；类型不在快照里（如 logs）时为 nil（不知道）
+func subjectPresent(subjectKey string, snap *cluster.ClusterSnapshot) *bool {
+	namespace, subjectType, name := aiops.SplitEntityKey(subjectKey)
+	found := false
+	switch subjectType {
+	case "deployment":
+		for _, d := range snap.Deployments {
+			found = found || (d.Summary.Namespace == namespace && d.Summary.Name == name)
+		}
+	case "statefulset":
+		for _, s := range snap.StatefulSets {
+			found = found || (s.Summary.Namespace == namespace && s.Summary.Name == name)
+		}
+	case "daemonset":
+		for _, d := range snap.DaemonSets {
+			found = found || (d.Summary.Namespace == namespace && d.Summary.Name == name)
+		}
+	case "pod":
+		for _, p := range snap.Pods {
+			found = found || (p.Summary.Namespace == namespace && p.Summary.Name == name)
+		}
+	case "service":
+		for _, s := range snap.Services {
+			found = found || (s.Summary.Namespace == namespace && s.Summary.Name == name)
+		}
+	case "node":
+		for _, n := range snap.Nodes {
+			found = found || n.Summary.Name == name
+		}
+	default:
+		return nil
+	}
+	return &found
 }
 
 // podDisplayStatus 与 kubectl 的 STATUS 一列相近：容器在等待且有原因时用原因（CrashLoopBackOff 等），否则用 Pod 的原因或阶段

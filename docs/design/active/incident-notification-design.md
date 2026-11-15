@@ -586,6 +586,12 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 - `evidence.maxScore` 是信号分数（0–1），只用于排序，前端不展示；页面上的风险一律 0–100 整数
 - `members` 在 `present: false` 时 `status` / `ready` 为空串、`restarts` 为 `null`；`impact.restartsTotal` 在没有任何仍存在的成员 Pod 时为 `null`
 - `members` 与 `entities` 一一对应；`headline.totalMembers` 等于成员数
+- 2026-11-15 页面复查后的调整（用户「都按推荐做」）：
+  - `members[].rFinal` 按 0–100 给出（原为 0–1，页面显示成 1）
+  - 新增 `subjectPresent`：主体的对象在快照里是否还在；false 时「查看 …」按钮不可用并标「已删除」；资源详情抽屉遇 404 显示「该资源已不存在」
+  - `headline.unavailablePercent`：同时有工作负载不可用与原因类信号（容器崩溃 / 未就绪 / 重启）时，主证据取原因，结论补半句影响（100% 写「已无可用副本」）
+  - 证据卡不再显示 `hits`（按成员每分钟累计的检测次数，容易被读成「出了 N 次问题」）；字段保留
+  - 事件的开始时间改为异常起点（条件开始满足的时刻，比开事件早 2 分钟）：通知、详情页、AI 上下文的开始 / 持续时间一致；AI 不再拿到「持续 7 秒」这种开事件那一刻的时长
 - `evidenceStatus`：`recorded`（有证据）/ `propagation_only`（检测记录全是依赖传播，本主体没有本地异常）/ `not_recorded`（改版前的事件，当时没有记录证据）。
   后两种的 `evidence` 都为空、`headline` 都为 null，由这个字段区分（2026-11-15 补；此前前端按时间线推测）
 - 风险一律 0–100 整数；时间一律 UTC（RFC 3339），前端按浏览器时区显示

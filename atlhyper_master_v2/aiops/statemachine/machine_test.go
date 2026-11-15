@@ -183,7 +183,7 @@ func TestHealthyToWarning_CreatesIncidentAfterTwoMinutes(t *testing.T) {
 		Recurrence:       0,
 		Occurrences24h:   1,
 		ReachedIncident:  false,
-		EpisodeStartedAt: testEpoch.Add(2 * time.Minute),
+		EpisodeStartedAt: testEpoch, // 异常起点 = 条件开始满足的时刻（比开事件早 2 分钟）
 		At:               testEpoch.Add(2 * time.Minute),
 	}
 	if got := f.handler.last(t); !reflect.DeepEqual(got, want) {
@@ -840,18 +840,18 @@ func TestEpisodeStartedAt_CarriedThroughAndResetOnRecurrence(t *testing.T) {
 	f := newFixture(t)
 	f.openWarning(svc, 0.6)
 	created := f.handler.last(t)
-	if created.EpisodeStartedAt.IsZero() || !created.EpisodeStartedAt.Equal(created.At) {
-		t.Fatalf("建事件时起点应是建事件的时刻: %+v", created)
+	if !created.EpisodeStartedAt.Equal(created.At.Add(-2 * time.Minute)) {
+		t.Fatalf("建事件时起点应是条件开始满足的时刻（开事件前 2 分钟）: %+v", created)
 	}
 
 	f.hold(5*time.Minute, selfRisk(svc, 0.6))
 	escalated := f.handler.last(t)
-	if escalated.Kind != aiops.TransitionEscalated || !escalated.EpisodeStartedAt.Equal(created.At) {
-		t.Fatalf("升级应沿用建事件的起点，实际 %v（建事件 %v）", escalated.EpisodeStartedAt, created.At)
+	if escalated.Kind != aiops.TransitionEscalated || !escalated.EpisodeStartedAt.Equal(created.EpisodeStartedAt) {
+		t.Fatalf("升级应沿用建事件的起点，实际 %v（建事件 %v）", escalated.EpisodeStartedAt, created.EpisodeStartedAt)
 	}
 
 	f.recover(svc, 10*time.Minute)
-	if got := f.handler.last(t); !got.EpisodeStartedAt.Equal(created.At) {
+	if got := f.handler.last(t); !got.EpisodeStartedAt.Equal(created.EpisodeStartedAt) {
 		t.Errorf("恢复的变化仍带这一轮的起点，实际 %v", got.EpisodeStartedAt)
 	}
 

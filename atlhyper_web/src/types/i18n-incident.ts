@@ -31,6 +31,8 @@ export interface IncidentDetailTranslations {
     withReason: string;
     /** 期望副本 > 0 而可用为 0 时补一句：{type} */
     noAvailableReplicas: string;
+    /** 原因之后补半句：工作负载部分不可用 */
+    unavailablePercent: string;
     /** 一句话的结尾标点 */
     end: string;
     /** headline 为 null */
@@ -55,13 +57,14 @@ export interface IncidentDetailTranslations {
   evidenceAffected: string;
   evidenceFirstSeen: string;
   evidenceLastSeen: string;
-  evidenceHits: string;
   evidenceLegacy: string;
   evidenceNone: string;
 
   // 下一步
   nextStepsTitle: string;
   viewSubject: string;
+  /** 主体的对象已删除时，「查看 …」按钮旁的说明 */
+  subjectGone: string;
   viewPods: string;
   viewNodePods: string;
   relatedEvents: string;

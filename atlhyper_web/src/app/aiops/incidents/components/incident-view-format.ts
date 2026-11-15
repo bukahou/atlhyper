@@ -82,9 +82,14 @@ export function headlineSentence(input: HeadlineInput, texts: IncidentDetailTran
         what,
       });
     }
-    // 主证据不是「不可用」本身、而工作负载已经一个可用副本都没有：补半句，免得读的人还要看影响数字
+    // 主证据是原因（如容器崩溃）时，补半句影响：先看当前快照（副本数），对象已删除等拿不到时用证据里记下的不可用比例
+    const percent = headline.unavailablePercent ?? null;
     if (impact.desiredReplicas !== null && impact.desiredReplicas > 0 && impact.availableReplicas === 0) {
       sentence += fillTemplate(tpl.noAvailableReplicas, { type: subjectTypeLabel });
+    } else if (percent !== null && percent >= 100) {
+      sentence += fillTemplate(tpl.noAvailableReplicas, { type: subjectTypeLabel });
+    } else if (percent !== null && percent > 0) {
+      sentence += fillTemplate(tpl.unavailablePercent, { type: subjectTypeLabel, percent });
     }
   }
   return sentence + tpl.end;

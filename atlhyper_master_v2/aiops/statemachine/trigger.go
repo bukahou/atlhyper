@@ -158,6 +158,13 @@ func (sm *StateMachine) transition(
 	from := entry.CurrentState
 	entry.CurrentState = to
 
+	// 异常的起点是条件开始满足的时刻（建事件要持续 2 分钟，起点比开事件早 2 分钟），不是开事件这一刻。
+	// 通知、详情页与 AI 上下文的「开始时间 / 持续时间」都按它算
+	onset := now.Unix()
+	if entry.ConditionMetSince != 0 && entry.ConditionMetSince < onset {
+		onset = entry.ConditionMetSince
+	}
+
 	var kind aiops.TransitionKind
 	switch {
 	case from == aiops.StateHealthy && to == aiops.StateWarning:
@@ -168,7 +175,7 @@ func (sm *StateMachine) transition(
 		entry.ReachedIncident = false
 		entry.Recurrence = 0
 		entry.OccurrenceTimes = []int64{now.Unix()}
-		entry.EpisodeStartedAt = now.Unix()
+		entry.EpisodeStartedAt = onset
 
 	case to == aiops.StateIncident:
 		kind = aiops.TransitionEscalated
@@ -183,7 +190,7 @@ func (sm *StateMachine) transition(
 		entry.RecoveryStartedAt = 0 // 复发：观察期作废，下次恢复重新计
 		entry.Recurrence++
 		entry.OccurrenceTimes = append(recentOccurrences(entry.OccurrenceTimes, now), now.Unix())
-		entry.EpisodeStartedAt = now.Unix()
+		entry.EpisodeStartedAt = onset
 	}
 
 	if kind != aiops.TransitionRecoveryStarted {
