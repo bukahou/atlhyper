@@ -36,13 +36,10 @@ func ScrubSecrets(text string, secrets ...string) string {
 //
 // Slack 的 Webhook 地址整体就是凭据；除完整地址外，主机与路径也单独列出 ——
 // 底层网络库的报错常常只带其中一段（如 "lookup <主机>"、"dial tcp <主机:端口>"）。
-// 邮件只有 SMTP 密码是凭据，主机与账号在接口里本来就可见
+// 邮件接收人自身没有凭据：SMTP 密码在全局发件设置里，由 ReceiverSender 发送时一并去掉
 func ReceiverSecrets(receiver *database.NotifyReceiver) []string {
-	switch {
-	case receiver.Slack != nil && receiver.Slack.WebhookURL != "":
+	if receiver.Slack != nil && receiver.Slack.WebhookURL != "" {
 		return webhookSecrets(receiver.Slack.WebhookURL)
-	case receiver.Email != nil && receiver.Email.SMTPPassword != "":
-		return []string{receiver.Email.SMTPPassword}
 	}
 	return nil
 }

@@ -1,8 +1,8 @@
 /**
  * 通知 API（均需要 notify.manage）
  *
- * 策略、当前告警、送达记录、接收人、路由规则、静默。
- * 接口规格见 docs/design/active/incident-notification-design.md 功能一 / 二 / 三。
+ * 策略、当前告警、送达记录、接收人、全局发件设置、路由规则、静默。
+ * 接口规格见 docs/design/active/incident-notification-design.md 功能一 / 二（含「全局发件设置」）/ 三。
  * 类型在 types/notify.ts。
  */
 
@@ -22,6 +22,8 @@ import type {
   NotifySilence,
   NotifySilenceBody,
   NotifySilenceState,
+  NotifySMTP,
+  NotifySMTPBody,
 } from "@/types/notify";
 
 // ============================================================
@@ -115,7 +117,7 @@ export function createNotifyReceiver(receiver: NotifyReceiverBody) {
   return post<ItemResponse<NotifyReceiver>>("/api/v2/notify/receivers", receiver);
 }
 
-/** PUT /api/v2/notify/receivers/{id}（webhookUrl / smtpPassword 留空 = 保持原值） */
+/** PUT /api/v2/notify/receivers/{id}（webhookUrl 留空 = 保持原值） */
 export function updateNotifyReceiver(receiverId: number, receiver: NotifyReceiverBody) {
   return put<ItemResponse<NotifyReceiver>>(`/api/v2/notify/receivers/${idSegment(receiverId)}`, receiver);
 }
@@ -128,6 +130,20 @@ export function deleteNotifyReceiver(receiverId: number) {
 /** POST /api/v2/notify/receivers/{id}/test（按已保存的配置发一条测试消息；发送失败 502，带原因） */
 export function testNotifyReceiver(receiverId: number) {
   return post<MessageResponse>(`/api/v2/notify/receivers/${idSegment(receiverId)}/test`);
+}
+
+// ============================================================
+// 全局发件设置
+// ============================================================
+
+/** GET /api/v2/notify/smtp（密码不返回，只有「是否已配置」） */
+export function getNotifySMTP(signal?: AbortSignal) {
+  return get<ItemResponse<NotifySMTP>>("/api/v2/notify/smtp", undefined, signal);
+}
+
+/** PUT /api/v2/notify/smtp（password 留空 = 保持原值；第一次保存不填密码 400）；返回保存后的设置 */
+export function updateNotifySMTP(smtp: NotifySMTPBody) {
+  return put<ItemResponse<NotifySMTP>>("/api/v2/notify/smtp", smtp);
 }
 
 // ============================================================

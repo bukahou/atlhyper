@@ -119,7 +119,7 @@ const (
 
 // NotifyReceiver 接收人。
 //
-// Slack / Email 里有凭据（Webhook 地址、SMTP 密码）：整份配置加密后落库，仓库读出时解密。
+// 配置整份加密后落库，仓库读出时解密（Slack 的 Webhook 地址是凭据）。
 // 两者按 Type 只有一个非 nil；配置解不开时两者都为 nil
 type NotifyReceiver struct {
 	ID        int64
@@ -137,15 +137,25 @@ type SlackConfig struct {
 	WebhookURL string `json:"webhookUrl"`
 }
 
-// EmailConfig Email 配置
+// EmailConfig 邮件接收人的配置：只有收件人。发件服务器见全局发件设置 NotifySMTP
 type EmailConfig struct {
-	SMTPHost     string   `json:"smtpHost"`
-	SMTPPort     int      `json:"smtpPort"`
-	SMTPUser     string   `json:"smtpUser"`
-	SMTPPassword string   `json:"smtpPassword"`
-	SMTPTLS      bool     `json:"smtpTLS"`
-	FromAddress  string   `json:"fromAddress"`
-	ToAddresses  []string `json:"toAddresses"`
+	ToAddresses []string `json:"toAddresses"`
+}
+
+// NotifySMTP 全局发件设置（单行）。整份加密后落库，仓库读出时解密
+type NotifySMTP struct {
+	Host        string    `json:"host"`
+	Port        int       `json:"port"`
+	User        string    `json:"user"`
+	Password    string    `json:"password"`
+	TLS         bool      `json:"tls"`
+	FromAddress string    `json:"fromAddress"` // 空 = 使用 User
+	UpdatedAt   time.Time `json:"-"`
+}
+
+// Configured 主机、端口、账号、密码都已配置，才能发信
+func (s *NotifySMTP) Configured() bool {
+	return s != nil && s.Host != "" && s.Port != 0 && s.User != "" && s.Password != ""
 }
 
 // NotifyRule 路由规则

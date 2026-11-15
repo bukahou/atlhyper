@@ -107,19 +107,16 @@ export interface NotifyPage<T> {
 
 export type NotifyReceiverType = "slack" | "email";
 
-/** 邮件接收人里可以读回的部分（不含密码） */
-export interface NotifyEmailSettings {
-  smtpHost: string;
-  smtpPort: number;
-  smtpUser: string;
-  smtpTLS: boolean;
-  fromAddress: string;
+/**
+ * 邮件接收人的设置：只有收件人。
+ * 从哪台服务器、用哪个账号发由全局发件设置决定（见下方 NotifySMTP）。
+ */
+export interface NotifyEmailRecipients {
   toAddresses: string[];
 }
 
 /**
- * 接收人（列表项）。凭据只写不读：Webhook 地址与 SMTP 密码永不返回，
- * 只返回「是否已配置」。
+ * 接收人（列表项）。凭据只写不读：Webhook 地址永不返回，只返回「是否已配置」。
  */
 export interface NotifyReceiver {
   id: number;
@@ -127,7 +124,7 @@ export interface NotifyReceiver {
   type: NotifyReceiverType;
   enabled: boolean;
   slack?: { webhookConfigured: boolean };
-  email?: NotifyEmailSettings & { passwordConfigured: boolean };
+  email?: NotifyEmailRecipients;
   createdAt: string;
   updatedAt: string;
 }
@@ -135,12 +132,45 @@ export interface NotifyReceiver {
 /**
  * 新建 / 修改接收人的请求体。
  *
- * ⛔ webhookUrl / smtpPassword 是凭据明文：只在发请求的那一刻存在，不得放进查询缓存。
- * 修改时留空 = 保持原值。
+ * ⛔ webhookUrl 是凭据明文：只在发请求的那一刻存在，不得放进查询缓存。
+ * 修改时留空 = 保持原值。邮件接收人没有凭据。
  */
 export type NotifyReceiverBody =
   | { name: string; type: "slack"; enabled: boolean; slack: { webhookUrl: string } }
-  | { name: string; type: "email"; enabled: boolean; email: NotifyEmailSettings & { smtpPassword: string } };
+  | { name: string; type: "email"; enabled: boolean; email: NotifyEmailRecipients };
+
+// ============================================================
+// 全局发件设置（邮件接收人共用）
+// ============================================================
+
+/** 发件设置里可以读回、可以留存的部分（不含密码） */
+export interface NotifySMTPSettings {
+  host: string;
+  port: number;
+  user: string;
+  tls: boolean;
+  /** 空 = 使用 user 作为发件地址 */
+  fromAddress: string;
+}
+
+/** GET / PUT /api/v2/notify/smtp 的 data。密码只写不读，只返回「是否已配置」 */
+export interface NotifySMTP extends NotifySMTPSettings {
+  /** 主机、端口、账号、密码都已配置 */
+  configured: boolean;
+  passwordConfigured: boolean;
+  /** 从没保存过 = null（与本文件「没有用空串」的约定不同，以接口契约为准） */
+  updatedAt: string | null;
+}
+
+/**
+ * PUT /api/v2/notify/smtp 的请求体。
+ *
+ * ⛔ password 是凭据明文：只在发请求的那一刻存在，不得放进查询缓存。
+ * 留空 = 保持原值；第一次保存必须填写（否则后端 400）。
+ */
+export interface NotifySMTPBody extends NotifySMTPSettings {
+  password: string;
+}
 
 // ============================================================
 // 路由规则

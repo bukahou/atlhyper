@@ -50,6 +50,11 @@ type NotifySilenceReader interface {
 	List(ctx context.Context) ([]*database.NotifySilence, error)
 }
 
+// NotifySMTPReader 全局发件设置（只读）。没有设置时返回 (nil, nil)
+type NotifySMTPReader interface {
+	Get(ctx context.Context) (*database.NotifySMTP, error)
+}
+
 // NotifyRepos 通知查询所需的仓库集合，对应 QueryNotify 接口
 type NotifyRepos struct {
 	Policy     NotifyPolicyReader
@@ -58,6 +63,7 @@ type NotifyRepos struct {
 	Receivers  NotifyReceiverReader
 	Rules      NotifyRuleReader
 	Silences   NotifySilenceReader
+	SMTP       NotifySMTPReader
 }
 
 // GetNotifyPolicy 当前的通知策略
@@ -68,6 +74,16 @@ func (q *QueryService) GetNotifyPolicy(ctx context.Context) (*model.NotifyPolicy
 	}
 	item := convert.NotifyPolicy(policy)
 	return &item, nil
+}
+
+// GetNotifySMTP 全局发件设置（不含密码）。从没保存过时返回空设置
+func (q *QueryService) GetNotifySMTP(ctx context.Context) (*model.NotifySMTP, error) {
+	settings, err := q.notify.SMTP.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	view := convert.NotifySMTPView(settings)
+	return &view, nil
 }
 
 // ListNotifyAlerts 告警列表（开始时间新的在前）与符合条件的总数

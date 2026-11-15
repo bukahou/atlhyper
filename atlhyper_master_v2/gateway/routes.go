@@ -313,6 +313,8 @@ func (r *Router) registerRoutes() {
 	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/policy", "update", "notify_policy", notifyH.UpdatePolicy)
 	r.route(mGet, pNotifyManage, "/api/v2/notify/alerts", notifyH.ListAlerts)
 	r.route(mGet, pNotifyManage, "/api/v2/notify/deliveries", notifyH.ListDeliveries)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/smtp", notifyH.GetSMTP)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/smtp", "update", "notify_smtp", notifyH.UpdateSMTP)
 	r.route(mGet, pNotifyManage, "/api/v2/notify/receivers", notifyH.ListReceivers)
 	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/receivers", "create", "notify_receiver", notifyH.CreateReceiver)
 	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/receivers/{id}", "update", "notify_receiver", notifyH.UpdateReceiver)

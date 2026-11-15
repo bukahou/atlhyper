@@ -64,24 +64,21 @@ func TestNotifyDeliveryItem_NoReceiver(t *testing.T) {
 // 凭据永不出库：响应里只有「是否已配置」
 func TestNotifyReceiverItem_NeverExposesSecrets(t *testing.T) {
 	const webhook = "https://hooks.example.com/services/T000/B000/placeholder-not-real"
-	const password = "placeholder-not-a-real-password"
 
 	slack := NotifyReceiverItem(&database.NotifyReceiver{ID: 1, Name: "值班频道", Type: "slack", Enabled: true,
 		Slack: &database.SlackConfig{WebhookURL: webhook}, CreatedAt: notifyAt, UpdatedAt: notifyAt})
 	email := NotifyReceiverItem(&database.NotifyReceiver{ID: 2, Name: "运维邮件", Type: "email", Enabled: true,
-		Email: &database.EmailConfig{SMTPHost: "smtp.example.com", SMTPPort: 587, SMTPUser: "ops@example.com", SMTPPassword: password,
-			SMTPTLS: true, FromAddress: "ops@example.com", ToAddresses: []string{"a@example.com"}}})
+		Email: &database.EmailConfig{ToAddresses: []string{"a@example.com"}}})
 
 	if slack.Slack == nil || !slack.Slack.WebhookConfigured || slack.Email != nil {
 		t.Errorf("Slack 接收人转换不对: %+v", slack)
 	}
-	if email.Email == nil || !email.Email.PasswordConfigured || email.Email.SMTPHost != "smtp.example.com" ||
-		email.Email.ToAddresses[0] != "a@example.com" || email.Slack != nil {
+	if email.Email == nil || len(email.Email.ToAddresses) != 1 || email.Email.ToAddresses[0] != "a@example.com" || email.Slack != nil {
 		t.Errorf("邮件接收人转换不对: %+v", email)
 	}
 	for _, item := range []any{slack, email} {
 		encoded, _ := json.Marshal(item)
-		for _, secret := range []string{webhook, "hooks.example.com", password} {
+		for _, secret := range []string{webhook, "hooks.example.com"} {
 			if strings.Contains(string(encoded), secret) {
 				t.Errorf("响应里出现了凭据 %q: %s", secret, encoded)
 			}
@@ -95,9 +92,36 @@ func TestNotifyReceiverItem_UnconfiguredSecrets(t *testing.T) {
 	if unreadable.Slack == nil || unreadable.Slack.WebhookConfigured {
 		t.Errorf("配置解不开的 Slack 接收人应标成未配置: %+v", unreadable.Slack)
 	}
-	noPassword := NotifyReceiverItem(&database.NotifyReceiver{ID: 2, Name: "运维邮件", Type: "email", Email: &database.EmailConfig{SMTPHost: "smtp.example.com"}})
-	if noPassword.Email == nil || noPassword.Email.PasswordConfigured || noPassword.Email.ToAddresses == nil {
-		t.Errorf("没有密码的邮件接收人应标成未配置，收件人为空数组: %+v", noPassword.Email)
+	unreadableEmail := NotifyReceiverItem(&database.NotifyReceiver{ID: 2, Name: "运维邮件", Type: "email"})
+	if unreadableEmail.Email == nil || unreadableEmail.Email.ToAddresses == nil || len(unreadableEmail.Email.ToAddresses) != 0 {
+		t.Errorf("配置解不开的邮件接收人收件人应为空数组: %+v", unreadableEmail.Email)
+	}
+}
+
+// 发件设置：密码永不出库，只有「是否已配置」；从没保存过时是空设置、updatedAt 为 null
+func TestNotifySMTPView(t *testing.T) {
+	const password = "placeholder-not-a-real-password"
+	view := NotifySMTPView(&database.NotifySMTP{Host: "smtp.example.com", Port: 587, User: "ops@example.com",
+		Password: password, TLS: true, FromAddress: "alerts@example.com", UpdatedAt: notifyAt})
+	if !view.Configured || !view.PasswordConfigured || view.Host != "smtp.example.com" || view.Port != 587 ||
+		view.User != "ops@example.com" || !view.TLS || view.FromAddress != "alerts@example.com" ||
+		view.UpdatedAt == nil || *view.UpdatedAt == "" {
+		t.Errorf("发件设置转换不对: %+v", view)
+	}
+	encoded, _ := json.Marshal(view)
+	if strings.Contains(string(encoded), password) {
+		t.Errorf("响应里出现了密码: %s", encoded)
+	}
+
+	noPassword := NotifySMTPView(&database.NotifySMTP{Host: "smtp.example.com", Port: 587, User: "ops@example.com", UpdatedAt: notifyAt})
+	if noPassword.Configured || noPassword.PasswordConfigured {
+		t.Errorf("没有密码时应标成未配置: %+v", noPassword)
+	}
+
+	empty := NotifySMTPView(nil)
+	encoded, _ = json.Marshal(empty)
+	if empty.Configured || !strings.Contains(string(encoded), `"updatedAt":null`) {
+		t.Errorf("从没保存过应是空设置、updatedAt 为 null: %s", encoded)
 	}
 }
 

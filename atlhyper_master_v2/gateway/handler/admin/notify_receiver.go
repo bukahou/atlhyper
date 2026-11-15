@@ -98,7 +98,8 @@ func (h *NotifyHandler) TestReceiver(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, notifier.ErrReceiverNotFound):
 		handler.WriteError(w, http.StatusNotFound, "接收人不存在")
 	case errors.Is(err, notifier.ErrReceiverConfigIncomplete):
-		handler.WriteError(w, http.StatusBadRequest, "接收人配置不完整，请先补全后再测试")
+		// 文案由通知模块用固定文字拼成（缺 Webhook 地址 / 收件人 / 发件设置），不含配置内容
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, notifier.ErrUnsupportedReceiverType):
 		handler.WriteError(w, http.StatusBadRequest, "该接收人类型暂不支持发送")
 	default:

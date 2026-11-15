@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { Modal, toast } from "@/components/common";
 import { notifyFailureText } from "@/lib/notify-failure";
 import { sealCredential } from "@/lib/notify-receiver-input";
 import { saveNotifyReceiverMutation } from "@/queries/notify-routing";
 import type { CommonTranslations, NotificationsTranslations } from "@/types/i18n";
 import type { NotifyReceiver, NotifyReceiverType } from "@/types/notify";
-import { EmailFormFields } from "../EmailFormFields";
-import type { EmailFormDraft } from "../email-form";
 import {
   FIELD_ERROR_CLASS,
   HINT_CLASS,
@@ -21,7 +19,7 @@ import {
   SELECT_CLASS,
 } from "../shared/form-styles";
 import { Switch } from "../shared/Switch";
-import { getSmtpPresets } from "../smtp-presets";
+import { TagInput, emailValidator } from "../TagInput";
 import {
   receiverCredentialFromForm,
   receiverFormFrom,
@@ -33,6 +31,8 @@ import {
 interface ReceiverModalProps {
   /** 要编辑的接收人；null = 新建 */
   editing: NotifyReceiver | null;
+  /** 全局发件设置还没配置：邮件接收人发不出去，表单里给出提示 */
+  smtpMissing: boolean;
   onClose: () => void;
   t: NotificationsTranslations;
   commonT: CommonTranslations;
@@ -43,17 +43,12 @@ interface ReceiverModalProps {
  *
  * 由外层按目标整个重新挂载（key），所以表单初值直接取自 editing。
  * 凭据只写不读：编辑时输入框是空的，留空则保持已存的值不变。
+ * 邮件接收人只填收件人：发件服务器与账号是全局的邮件发件设置。
  */
-export function ReceiverModal({ editing, onClose, t, commonT }: ReceiverModalProps) {
+export function ReceiverModal({ editing, smtpMissing, onClose, t, commonT }: ReceiverModalProps) {
   const receiversT = t.receivers;
-  const smtpPresets = getSmtpPresets(receiversT.smtpPresets);
-  const [draft, setDraft] = useState<ReceiverFormDraft>(() =>
-    receiverFormFrom(
-      editing,
-      smtpPresets.map((preset) => preset.value),
-    ),
-  );
-  // Webhook 地址与 SMTP 密码默认遮住，可以点开核对
+  const [draft, setDraft] = useState<ReceiverFormDraft>(() => receiverFormFrom(editing));
+  // Webhook 地址默认遮住，可以点开核对
   const [showCredential, setShowCredential] = useState(false);
   // 没点过提交就不报错：一打开就满屏红字没有意义
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -63,12 +58,9 @@ export function ReceiverModal({ editing, onClose, t, commonT }: ReceiverModalPro
   const saveReceiver = useMutation(saveNotifyReceiverMutation());
 
   const updateDraft = (changes: Partial<ReceiverFormDraft>) => setDraft((current) => ({ ...current, ...changes }));
-  const updateEmail = (changes: Partial<EmailFormDraft>) =>
-    setDraft((current) => ({ ...current, email: { ...current.email, ...changes } }));
 
   const problems = receiverFormProblems(draft, editing);
   const webhookAlreadySet = editing?.slack?.webhookConfigured === true;
-  const passwordAlreadySet = editing?.email?.passwordConfigured === true;
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -79,7 +71,7 @@ export function ReceiverModal({ editing, onClose, t, commonT }: ReceiverModalPro
     saveReceiver.mutate(
       {
         receiverId: editing?.id,
-        settings: receiverSettingsFromForm(draft, editing),
+        settings: receiverSettingsFromForm(draft),
         // 明文装进一次性的盒子：请求发出即清空，不留在 mutation 缓存里
         takeCredential: sealCredential(receiverCredentialFromForm(draft)),
       },
@@ -165,31 +157,25 @@ export function ReceiverModal({ editing, onClose, t, commonT }: ReceiverModalPro
             <p className={HINT_CLASS}>{receiversT.webhookUrlHint}</p>
           </div>
         ) : (
-          <EmailFormFields
-            smtpPresets={smtpPresets}
-            isCustomSmtp={draft.email.isCustomSmtp}
-            smtpHost={draft.email.smtpHost}
-            smtpPort={draft.email.smtpPort}
-            smtpUser={draft.email.smtpUser}
-            smtpPassword={draft.email.smtpPassword}
-            smtpTls={draft.email.smtpTls}
-            recipients={draft.email.recipients}
-            showPassword={showCredential}
-            readOnly={false}
-            onSmtpHostChange={(smtpHost, isCustomSmtp, port) =>
-              updateEmail({ smtpHost, isCustomSmtp, ...(port !== undefined ? { smtpPort: port } : {}) })
-            }
-            onSmtpPortChange={(smtpPort) => updateEmail({ smtpPort })}
-            onSmtpUserChange={(smtpUser) => updateEmail({ smtpUser })}
-            onSmtpPasswordChange={(smtpPassword) => updateEmail({ smtpPassword })}
-            onSmtpTlsToggle={() => updateEmail({ smtpTls: !draft.email.smtpTls })}
-            onRecipientsChange={(recipients) => updateEmail({ recipients })}
-            onShowPasswordToggle={() => setShowCredential((shown) => !shown)}
-            labels={{
-              ...receiversT,
-              passwordPlaceholder: passwordAlreadySet ? receiversT.credentialKeepHint : receiversT.passwordPlaceholder,
-            }}
-          />
+          <div className="space-y-2">
+            {/* TagInput 不接受 id，标签无法用 htmlFor 关联，用普通文字 */}
+            <span className={LABEL_CLASS}>{receiversT.recipients} *</span>
+            <TagInput
+              value={draft.recipients}
+              onChange={(recipients) => updateDraft({ recipients })}
+              placeholder={receiversT.recipientsPlaceholder}
+              validator={emailValidator}
+              duplicateMessage={receiversT.tagInputDuplicate}
+              invalidFormatMessage={receiversT.tagInputInvalidFormat}
+            />
+            <p className={HINT_CLASS}>{receiversT.emailSenderHint}</p>
+            {smtpMissing && (
+              <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400" role="status">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                {t.smtp.notConfigured}
+              </p>
+            )}
+          </div>
         )}
 
         {submitAttempted && problems.length > 0 && (

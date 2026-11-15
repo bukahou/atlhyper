@@ -259,15 +259,11 @@ func slackReceiver(name string) *database.NotifyReceiver {
 func emailReceiver(name string) *database.NotifyReceiver {
 	return &database.NotifyReceiver{
 		Name: name, Type: database.NotifyReceiverEmail, Enabled: true,
-		Email: &database.EmailConfig{
-			SMTPHost: "smtp.example.com", SMTPPort: 587, SMTPUser: "ops@example.com",
-			SMTPPassword: testSMTPPassword, SMTPTLS: true,
-			FromAddress: "ops@example.com", ToAddresses: []string{"a@example.com"},
-		},
+		Email: &database.EmailConfig{ToAddresses: []string{"a@example.com"}},
 	}
 }
 
-// 凭据不得以明文落库：直接读 config 列，里面不能有 Webhook 地址、SMTP 密码，也不能有主机名这类明文字段
+// 凭据不得以明文落库：直接读 config 列，里面不能有 Webhook 地址，也不能有收件人这类明文字段
 func TestNotifyReceiver_ConfigEncryptedAtRest(t *testing.T) {
 	db := openNotifyTestDB(t)
 	ctx := context.Background()
@@ -289,7 +285,7 @@ func TestNotifyReceiver_ConfigEncryptedAtRest(t *testing.T) {
 			t.Fatal(err)
 		}
 		seen++
-		for _, secret := range []string{testWebhookURL, "hooks.example.com", testSMTPPassword, "smtp.example.com", "webhookUrl"} {
+		for _, secret := range []string{testWebhookURL, "hooks.example.com", "a@example.com", "webhookUrl"} {
 			if strings.Contains(stored, secret) {
 				t.Errorf("config 列里出现了明文 %q", secret)
 			}
@@ -310,7 +306,7 @@ func TestNotifyReceiver_ConfigEncryptedAtRest(t *testing.T) {
 	if list[0].Slack == nil || list[0].Slack.WebhookURL != testWebhookURL || list[0].Email != nil {
 		t.Errorf("Slack 接收人解密后不对: %+v", list[0])
 	}
-	if list[1].Email == nil || list[1].Email.SMTPPassword != testSMTPPassword || list[1].Email.ToAddresses[0] != "a@example.com" {
+	if list[1].Email == nil || len(list[1].Email.ToAddresses) != 1 || list[1].Email.ToAddresses[0] != "a@example.com" {
 		t.Errorf("邮件接收人解密后不对: %+v", list[1])
 	}
 }

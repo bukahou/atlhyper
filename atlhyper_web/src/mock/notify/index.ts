@@ -5,4 +5,5 @@ export {
   MOCK_NOTIFY_RECEIVERS,
   MOCK_NOTIFY_RULES,
   MOCK_NOTIFY_SILENCES,
+  MOCK_NOTIFY_SMTP,
 } from "./routing";

@@ -33,6 +33,7 @@ const (
 // NotifyQuery / NotifyOps 本 handler 所需的最小 service 能力
 type NotifyQuery interface {
 	GetNotifyPolicy(ctx context.Context) (*model.NotifyPolicy, error)
+	GetNotifySMTP(ctx context.Context) (*model.NotifySMTP, error)
 	ListNotifyAlerts(ctx context.Context, opts model.NotifyAlertQuery) ([]model.NotifyAlert, int, error)
 	ListNotifyDeliveries(ctx context.Context, opts model.NotifyDeliveryQuery) ([]model.NotifyDelivery, int, error)
 	ListNotifyReceivers(ctx context.Context) ([]model.NotifyReceiver, error)
@@ -46,6 +47,7 @@ type NotifyQuery interface {
 
 type NotifyOps interface {
 	UpdateNotifyPolicy(ctx context.Context, req *model.UpdateNotifyPolicyRequest) error
+	UpdateNotifySMTP(ctx context.Context, req *model.UpdateNotifySMTPRequest) error
 	CreateNotifyReceiver(ctx context.Context, req *model.NotifyReceiverRequest) (int64, error)
 	UpdateNotifyReceiver(ctx context.Context, id int64, req *model.NotifyReceiverRequest) error
 	DeleteNotifyReceiver(ctx context.Context, id int64) error

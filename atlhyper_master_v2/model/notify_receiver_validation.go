@@ -1,7 +1,7 @@
 // atlhyper_master_v2/model/notify_receiver_validation.go
 // 通知接收人的输入校验（纯函数）。
 //
-// ⛔ 错误文案会原样返回给调用方：只说哪一项不对，不回显用户填的 Webhook 地址或密码
+// ⛔ 错误文案会原样返回给调用方：只说哪一项不对，不回显用户填的 Webhook 地址或 SMTP 密码
 package model
 
 import (
@@ -14,7 +14,7 @@ import (
 
 // ValidateNotifyReceiver 校验接收人。
 //
-// requireSecret 为真（新建，或修改时换了类型）时凭据必填；为假（修改）时凭据留空 = 保持原值，
+// requireSecret 为真（新建，或修改时换了类型）时配置必填；为假（修改）时 Webhook 地址留空 = 保持原值，
 // 不带 slack / email 段 = 整段配置保持原值
 func ValidateNotifyReceiver(req *NotifyReceiverRequest, requireSecret bool) error {
 	if err := validateNotifyName(req.Name); err != nil {
@@ -54,40 +54,50 @@ func validateNotifySlack(input *NotifySlackInput, requireSecret bool) error {
 	return nil
 }
 
-func validateNotifyEmail(input *NotifyEmailInput, requireSecret bool) error {
+// validateNotifyEmail 邮件接收人只有收件人；新建时必须带，修改时不带 = 保持原值
+func validateNotifyEmail(input *NotifyEmailInput, requireConfig bool) error {
 	if input == nil {
-		if requireSecret {
-			return invalidNotify("邮件接收人必须填写 SMTP 配置")
+		if requireConfig {
+			return invalidNotify("邮件接收人必须填写收件人")
 		}
 		return nil
 	}
 	switch {
-	case input.SMTPHost == "":
-		return invalidNotify("SMTP 主机不能为空")
-	case len(input.SMTPHost) > maxNotifyMatcherLength || strings.ContainsAny(input.SMTPHost, " \t/") || containsControlRune(input.SMTPHost):
-		return invalidNotify("SMTP 主机不合法")
-	case input.SMTPPort < 1 || input.SMTPPort > 65535:
-		return invalidNotify("SMTP 端口须在 1–65535 之间")
-	case input.SMTPUser == "":
-		return invalidNotify("SMTP 账号不能为空")
-	case len(input.SMTPUser) > maxNotifyMatcherLength || containsControlRune(input.SMTPUser):
-		return invalidNotify("SMTP 账号不合法")
-	case requireSecret && input.SMTPPassword == "":
-		return invalidNotify("邮件接收人必须填写 SMTP 密码")
-	case len(input.SMTPPassword) > maxNotifySecretLength:
-		return invalidNotify("SMTP 密码过长")
 	case len(input.ToAddresses) == 0:
 		return invalidNotify("至少需要一个收件人")
 	case len(input.ToAddresses) > maxNotifyRecipients:
 		return invalidNotify("收件人不能超过 %d 个", maxNotifyRecipients)
 	}
-	if input.FromAddress != "" && !isPlainMailAddress(input.FromAddress) {
-		return invalidNotify("发件人地址不是合法的邮箱")
-	}
 	for _, recipient := range input.ToAddresses {
 		if !isPlainMailAddress(recipient) {
 			return invalidNotify("收件人地址不是合法的邮箱")
 		}
+	}
+	return nil
+}
+
+// ValidateNotifySMTP 校验全局发件设置。
+//
+// requirePassword 为真（库里还没有密码）时密码必填；为假时留空 = 保持原值
+func ValidateNotifySMTP(req *UpdateNotifySMTPRequest, requirePassword bool) error {
+	switch {
+	case req.Host == "":
+		return invalidNotify("SMTP 主机不能为空")
+	case len(req.Host) > maxNotifyMatcherLength || strings.ContainsAny(req.Host, " \t/") || containsControlRune(req.Host):
+		return invalidNotify("SMTP 主机不合法")
+	case req.Port < 1 || req.Port > 65535:
+		return invalidNotify("SMTP 端口须在 1–65535 之间")
+	case req.User == "":
+		return invalidNotify("SMTP 账号不能为空")
+	case len(req.User) > maxNotifyMatcherLength || containsControlRune(req.User):
+		return invalidNotify("SMTP 账号不合法")
+	case requirePassword && req.Password == "":
+		return invalidNotify("第一次保存发件设置必须填写 SMTP 密码")
+	case len(req.Password) > maxNotifySecretLength:
+		return invalidNotify("SMTP 密码过长")
+	}
+	if req.FromAddress != "" && !isPlainMailAddress(req.FromAddress) {
+		return invalidNotify("发件人地址不是合法的邮箱")
 	}
 	return nil
 }

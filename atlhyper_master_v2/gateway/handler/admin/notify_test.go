@@ -13,6 +13,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/notifier"
+	"AtlHyper/atlhyper_master_v2/notifier/channel"
 )
 
 // 占位凭据：不是任何真实系统的地址或密码
@@ -36,6 +37,8 @@ type stubNotifyService struct {
 
 	receiverRequest *model.NotifyReceiverRequest
 	policyRequest   *model.UpdateNotifyPolicyRequest
+	smtp            *model.NotifySMTP
+	smtpRequest     *model.UpdateNotifySMTPRequest
 	reorderedIDs    []int64
 	silenceCreator  string
 	expiredID       int64
@@ -47,6 +50,22 @@ type stubNotifyService struct {
 
 func (s *stubNotifyService) GetNotifyPolicy(context.Context) (*model.NotifyPolicy, error) {
 	return s.policy, nil
+}
+func (s *stubNotifyService) GetNotifySMTP(context.Context) (*model.NotifySMTP, error) {
+	if s.smtp == nil {
+		return &model.NotifySMTP{}, nil
+	}
+	return s.smtp, nil
+}
+func (s *stubNotifyService) UpdateNotifySMTP(_ context.Context, req *model.UpdateNotifySMTPRequest) error {
+	if s.opsErr != nil {
+		return s.opsErr
+	}
+	s.smtpRequest = req
+	updatedAt := "2026-11-15T10:00:00Z"
+	s.smtp = &model.NotifySMTP{Configured: true, Host: req.Host, Port: req.Port, User: req.User, TLS: req.TLS,
+		FromAddress: req.FromAddress, PasswordConfigured: true, UpdatedAt: &updatedAt}
+	return nil
 }
 func (s *stubNotifyService) ListNotifyAlerts(_ context.Context, opts model.NotifyAlertQuery) ([]model.NotifyAlert, int, error) {
 	s.alertQuery = opts
@@ -268,6 +287,42 @@ func TestNotifyPolicy_GetAndUpdate(t *testing.T) {
 	}
 }
 
+// ==================== 发件设置 ====================
+
+func TestNotifySMTP_GetAndUpdate(t *testing.T) {
+	svc := newStubNotifyService()
+	h := NewNotifyHandler(svc, svc)
+
+	rec := notifyCall(h.GetSMTP, http.MethodGet, "/api/v2/notify/smtp", "", "")
+	data, _ := notifyBody(t, rec)["data"].(map[string]any)
+	if rec.Code != http.StatusOK || data == nil || data["configured"] != false || data["updatedAt"] != nil {
+		t.Errorf("从没保存过应返回未配置、updatedAt 为 null: %d %s", rec.Code, rec.Body.String())
+	}
+
+	const password = "placeholder-not-a-real-password"
+	rec = notifyCall(h.UpdateSMTP, http.MethodPut, "/api/v2/notify/smtp", "",
+		`{"host":"smtp.example.com","port":587,"user":"ops@example.com","password":"`+password+`","tls":true,"fromAddress":""}`)
+	if rec.Code != http.StatusOK || svc.smtpRequest == nil || svc.smtpRequest.Password != password || svc.smtpRequest.Port != 587 {
+		t.Fatalf("保存发件设置不对: %d %+v", rec.Code, rec.Body.String())
+	}
+	body := notifyBody(t, rec)
+	if body["message"] != "已保存" || body["data"].(map[string]any)["configured"] != true {
+		t.Errorf("保存后应带回当前设置: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), password) {
+		t.Errorf("响应里不能有密码: %s", rec.Body.String())
+	}
+
+	svc.opsErr = errors.Join(model.ErrInvalidNotifyInput, errors.New("第一次保存发件设置必须填写 SMTP 密码"))
+	if rec := notifyCall(h.UpdateSMTP, http.MethodPut, "/api/v2/notify/smtp", "", `{}`); rec.Code != http.StatusBadRequest ||
+		!strings.Contains(rec.Body.String(), "SMTP 密码") {
+		t.Errorf("校验错误应是 400 并带出原因: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := notifyCall(h.UpdateSMTP, http.MethodPut, "/api/v2/notify/smtp", "", `not json`); rec.Code != http.StatusBadRequest {
+		t.Errorf("请求体不是 JSON 应是 400，实际 %d", rec.Code)
+	}
+}
+
 // ==================== 接收人 ====================
 
 func TestCreateReceiver(t *testing.T) {
@@ -361,6 +416,7 @@ func TestTestReceiver(t *testing.T) {
 		{"成功", nil, http.StatusOK, "测试消息已发送"},
 		{"接收人不存在", notifier.ErrReceiverNotFound, http.StatusNotFound, "不存在"},
 		{"配置不完整", notifier.ErrReceiverConfigIncomplete, http.StatusBadRequest, "不完整"},
+		{"未配置发件设置：说明缺的是什么", channel.ErrSMTPNotConfigured, http.StatusBadRequest, "未配置发件设置"},
 		{"发送失败：502 带原因", errors.New("Slack 返回状态码 404: no_service"), http.StatusBadGateway, "no_service"},
 	}
 	for _, c := range cases {

@@ -87,7 +87,7 @@ func NotifyDeliveryItems(src []*database.NotifyDelivery) []model.NotifyDelivery 
 
 // NotifyReceiverItem 一个接收人。
 //
-// ⛔ 凭据不写入结果：Webhook 地址与 SMTP 密码只用来判断「是否已配置」
+// ⛔ 凭据不写入结果：Webhook 地址只用来判断「是否已配置」
 func NotifyReceiverItem(src *database.NotifyReceiver) model.NotifyReceiver {
 	item := model.NotifyReceiver{
 		ID:        src.ID,
@@ -103,17 +103,31 @@ func NotifyReceiverItem(src *database.NotifyReceiver) model.NotifyReceiver {
 	case database.NotifyReceiverEmail:
 		email := &model.NotifyEmailConfig{ToAddresses: []string{}}
 		if src.Email != nil {
-			email.SMTPHost = src.Email.SMTPHost
-			email.SMTPPort = src.Email.SMTPPort
-			email.SMTPUser = src.Email.SMTPUser
-			email.SMTPTLS = src.Email.SMTPTLS
-			email.FromAddress = src.Email.FromAddress
 			email.ToAddresses = nonNilStrings(src.Email.ToAddresses)
-			email.PasswordConfigured = src.Email.SMTPPassword != ""
 		}
 		item.Email = email
 	}
 	return item
+}
+
+// NotifySMTPView 全局发件设置。src 为 nil（从没保存过）时返回空设置。
+//
+// ⛔ 密码不写入结果，只用来判断「是否已配置」
+func NotifySMTPView(src *database.NotifySMTP) model.NotifySMTP {
+	if src == nil {
+		return model.NotifySMTP{}
+	}
+	updatedAt := formatUTC(src.UpdatedAt)
+	return model.NotifySMTP{
+		Configured:         src.Configured(),
+		Host:               src.Host,
+		Port:               src.Port,
+		User:               src.User,
+		TLS:                src.TLS,
+		FromAddress:        src.FromAddress,
+		PasswordConfigured: src.Password != "",
+		UpdatedAt:          &updatedAt,
+	}
 }
 
 // NotifyReceiverItems 批量转换

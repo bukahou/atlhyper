@@ -17,6 +17,7 @@ func (d *Dialect) NotifyDelivery() database.NotifyDeliveryDialect { return &noti
 func (d *Dialect) NotifyReceiver() database.NotifyReceiverDialect { return &notifyReceiverDialect{} }
 func (d *Dialect) NotifyRule() database.NotifyRuleDialect         { return &notifyRuleDialect{} }
 func (d *Dialect) NotifySilence() database.NotifySilenceDialect   { return &notifySilenceDialect{} }
+func (d *Dialect) NotifySMTP() database.NotifySMTPDialect         { return &notifySMTPDialect{} }
 
 // utcStamp 时间 → 列值
 func utcStamp(at time.Time) string { return at.UTC().Format(time.RFC3339) }

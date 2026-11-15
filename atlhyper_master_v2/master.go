@@ -243,6 +243,7 @@ func NewMaster() (*Master, error) {
 		NotifyRepos: query.NotifyRepos{
 			Policy: db.NotifyPolicy, Alerts: db.NotifyAlert, Deliveries: db.NotifyDelivery,
 			Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
+			SMTP: db.NotifySMTP,
 		},
 	})
 	log.Info("查询层初始化完成")
@@ -259,9 +260,10 @@ func NewMaster() (*Master, error) {
 	// 初始化集群注册表写入服务（登记、签发 Agent 令牌）
 	clusterRegistryOps := operations.NewClusterRegistryService(db.Cluster)
 
-	// 初始化通知设置写入服务（策略、接收人、路由规则、静默）
+	// 初始化通知设置写入服务（策略、接收人、发件设置、路由规则、静默）
 	notifyOps := operations.NewNotifyService(operations.NotifyRepos{
 		Policy: db.NotifyPolicy, Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
+		SMTP: db.NotifySMTP,
 	})
 
 	// 组合统一 Service
@@ -524,6 +526,7 @@ func NewMaster() (*Master, error) {
 			Policy: db.NotifyPolicy, Alerts: db.NotifyAlert, Deliveries: db.NotifyDelivery,
 			Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
 		},
+		SMTP:                   db.NotifySMTP,
 		Events:                 db.Event,
 		Agents:                 store,
 		PublicURL:              cfg.Server.PublicURL,

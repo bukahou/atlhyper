@@ -136,6 +136,13 @@ func migrate(db *sql.DB) error {
 		)`,
 
 		// ==================== 通知：静默（不删除，只会过期）====================
+		// 全局发件设置（单行）：配置 JSON 整体加密。独立成表：已有库执行 CREATE TABLE IF NOT EXISTS 即可，无需清库
+		`CREATE TABLE IF NOT EXISTS notify_smtp (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			config TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+
 		`CREATE TABLE IF NOT EXISTS notify_silences (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			cluster_id TEXT NOT NULL DEFAULT '',

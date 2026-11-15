@@ -500,6 +500,8 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 | PUT | `/api/v2/notify/receivers/{id}` | `updateNotifyReceiver(id, receiver)` |
 | DELETE | `/api/v2/notify/receivers/{id}` | `deleteNotifyReceiver(id)` |
 | POST | `/api/v2/notify/receivers/{id}/test` | `testNotifyReceiver(id)` |
+| GET | `/api/v2/notify/smtp` | `getNotifySMTP()` |
+| PUT | `/api/v2/notify/smtp` | `updateNotifySMTP(smtp)` |
 | GET | `/api/v2/notify/rules` | `getNotifyRules()` |
 | POST | `/api/v2/notify/rules` | `createNotifyRule(rule)` |
 | PUT | `/api/v2/notify/rules/{id}` | `updateNotifyRule(id, rule)` |
@@ -510,7 +512,8 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 | POST | `/api/v2/notify/silences` | `createNotifySilence(silence)` |
 | POST | `/api/v2/notify/silences/{id}/expire` | `expireNotifySilence(id)` |
 
-接收人的凭据（Webhook 地址、SMTP 密码）只写不读：接口只返回「是否已配置」，更新时留空表示保持原值。
+凭据（接收人的 Webhook 地址、全局发件设置的 SMTP 密码）只写不读：接口只返回「是否已配置」，更新时留空表示保持原值。
+邮件接收人只有收件人；发件服务器与账号在全局发件设置里，全局只配一次（查询与保存见 `queries/notify-smtp.ts`）。
 
 ---
 

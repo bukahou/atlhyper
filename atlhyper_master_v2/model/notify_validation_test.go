@@ -64,9 +64,7 @@ func slackRequest(webhookURL string) *NotifyReceiverRequest {
 }
 
 func emailRequest(change func(*NotifyEmailInput)) *NotifyReceiverRequest {
-	email := &NotifyEmailInput{SMTPHost: "smtp.example.com", SMTPPort: 587, SMTPUser: "ops@example.com",
-		SMTPPassword: "placeholder-not-a-real-password", SMTPTLS: true, FromAddress: "ops@example.com",
-		ToAddresses: []string{"a@example.com"}}
+	email := &NotifyEmailInput{ToAddresses: []string{"a@example.com"}}
 	if change != nil {
 		change(email)
 	}
@@ -92,19 +90,17 @@ func TestValidateNotifyReceiver(t *testing.T) {
 		{"名称过长", &NotifyReceiverRequest{Name: strings.Repeat("长", 65), Type: "slack", Slack: &NotifySlackInput{WebhookURL: "https://hooks.example.com/x"}}, true, false},
 		{"类型不支持", &NotifyReceiverRequest{Name: "钉钉", Type: "dingtalk"}, true, false},
 		{"邮件", emailRequest(nil), true, true},
-		{"邮件：发件人为空（用 SMTP 账号）", emailRequest(func(e *NotifyEmailInput) { e.FromAddress = "" }), true, true},
-		{"邮件：新建时必须有密码", emailRequest(func(e *NotifyEmailInput) { e.SMTPPassword = "" }), true, false},
-		{"邮件：更新时密码留空 = 保持原值", emailRequest(func(e *NotifyEmailInput) { e.SMTPPassword = "" }), false, true},
-		{"邮件：没有主机", emailRequest(func(e *NotifyEmailInput) { e.SMTPHost = "" }), true, false},
-		{"邮件：主机里有空白", emailRequest(func(e *NotifyEmailInput) { e.SMTPHost = "smtp.example.com\r\nX: y" }), true, false},
-		{"邮件：端口越界", emailRequest(func(e *NotifyEmailInput) { e.SMTPPort = 70000 }), true, false},
-		{"邮件：端口为 0", emailRequest(func(e *NotifyEmailInput) { e.SMTPPort = 0 }), true, false},
-		{"邮件：没有账号", emailRequest(func(e *NotifyEmailInput) { e.SMTPUser = "" }), true, false},
 		{"邮件：没有收件人", emailRequest(func(e *NotifyEmailInput) { e.ToAddresses = nil }), true, false},
 		{"邮件：收件人不是邮箱", emailRequest(func(e *NotifyEmailInput) { e.ToAddresses = []string{"not-an-address"} }), true, false},
 		{"邮件：收件人里夹带换行（伪造邮件头）", emailRequest(func(e *NotifyEmailInput) { e.ToAddresses = []string{"a@example.com\r\nBcc: b@example.com"} }), true, false},
-		{"邮件：发件人不是邮箱", emailRequest(func(e *NotifyEmailInput) { e.FromAddress = "ops" }), true, false},
+		{"邮件：收件人超过上限", emailRequest(func(e *NotifyEmailInput) {
+			e.ToAddresses = make([]string, maxNotifyRecipients+1)
+			for i := range e.ToAddresses {
+				e.ToAddresses[i] = "a@example.com"
+			}
+		}), true, false},
 		{"邮件：新建时不带 email 段", &NotifyReceiverRequest{Name: "运维邮件", Type: "email"}, true, false},
+		{"邮件：更新时不带 email 段 = 保持原值", &NotifyReceiverRequest{Name: "运维邮件", Type: "email"}, false, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -126,8 +122,53 @@ func TestValidateNotifyReceiver_ErrorsDoNotEchoSecrets(t *testing.T) {
 	if err == nil || strings.Contains(err.Error(), "placeholder-not-real") || strings.Contains(err.Error(), "hooks.example.com") {
 		t.Errorf("错误文案不应回显 Webhook 地址: %v", err)
 	}
-	withPassword := emailRequest(func(e *NotifyEmailInput) { e.SMTPPort = 0 })
-	err = ValidateNotifyReceiver(withPassword, true)
+}
+
+func smtpRequest(change func(*UpdateNotifySMTPRequest)) *UpdateNotifySMTPRequest {
+	req := &UpdateNotifySMTPRequest{Host: "smtp.example.com", Port: 587, User: "ops@example.com",
+		Password: "placeholder-not-a-real-password", TLS: true, FromAddress: "alerts@example.com"}
+	if change != nil {
+		change(req)
+	}
+	return req
+}
+
+func TestValidateNotifySMTP(t *testing.T) {
+	cases := []struct {
+		name            string
+		req             *UpdateNotifySMTPRequest
+		requirePassword bool
+		wantOK          bool
+	}{
+		{"完整", smtpRequest(nil), true, true},
+		{"发件地址为空（用账号）", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.FromAddress = "" }), true, true},
+		{"第一次保存必须有密码", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Password = "" }), true, false},
+		{"已有密码时留空 = 保持原值", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Password = "" }), false, true},
+		{"密码过长", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Password = strings.Repeat("x", maxNotifySecretLength+1) }), true, false},
+		{"没有主机", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Host = "" }), true, false},
+		{"主机里有换行", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Host = "smtp.example.com\r\nX: y" }), true, false},
+		{"主机里有斜杠", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Host = "smtp.example.com/x" }), true, false},
+		{"端口越界", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Port = 70000 }), true, false},
+		{"端口为 0", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Port = 0 }), true, false},
+		{"没有账号", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.User = "" }), true, false},
+		{"账号里有控制字符", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.User = "ops\x00" }), true, false},
+		{"发件地址不是邮箱", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.FromAddress = "ops" }), true, false},
+		{"发件地址夹带换行", smtpRequest(func(r *UpdateNotifySMTPRequest) { r.FromAddress = "a@example.com\r\nBcc: b@example.com" }), true, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := ValidateNotifySMTP(c.req, c.requirePassword)
+			if (err == nil) != c.wantOK {
+				t.Fatalf("err = %v，期望通过 = %v", err, c.wantOK)
+			}
+			if err != nil && !errors.Is(err, ErrInvalidNotifyInput) {
+				t.Errorf("校验错误应是 ErrInvalidNotifyInput，实际 %v", err)
+			}
+		})
+	}
+
+	// 错误文案不回显密码
+	err := ValidateNotifySMTP(smtpRequest(func(r *UpdateNotifySMTPRequest) { r.Port = 0 }), true)
 	if err == nil || strings.Contains(err.Error(), "placeholder-not-a-real-password") {
 		t.Errorf("错误文案不应回显密码: %v", err)
 	}

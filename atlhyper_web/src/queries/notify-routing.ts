@@ -1,8 +1,9 @@
 /**
  * 通知设置页的取数与写操作描述：接收人、路由规则
  *
- * 约定同 notify.ts。接收人的凭据（Webhook 地址、SMTP 密码）只写不读：
+ * 约定同 notify.ts。接收人的凭据（Slack 的 Webhook 地址）只写不读：
  * 接口不返回，这里也不让明文留在查询缓存或 mutation 缓存里。
+ * 邮件接收人只有收件人；SMTP 服务器与密码是全局发件设置，在 notify-smtp.ts。
  */
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import {
@@ -46,7 +47,7 @@ export interface NotifyReceiverSave {
   /** 不含凭据的部分 */
   settings: NotifyReceiverSettings;
   /**
-   * 取凭据明文（Slack 的 Webhook 地址 / 邮件的 SMTP 密码）；修改时取到空串 = 保持原值。
+   * 取凭据明文（Slack 的 Webhook 地址；邮件接收人没有凭据，传 sealCredential("")）；修改时取到空串 = 保持原值。
    * 只在发请求的那一刻被调用一次。用 lib/notify-receiver-input 的 sealCredential 生成：取过即清空。
    */
   takeCredential: () => string;
