@@ -527,7 +527,7 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 | POST | `/api/v2/aiops/ai/summarize` | `summarizeIncident(incidentId)` | AI 事件总结 |
 | POST | `/api/v2/aiops/ai/recommend` | `recommendActions(incidentId)` | AI 行动建议 |
 
-事件对象（列表项与详情顶层）字段：`id`, `clusterId`, `state`, `severity`（峰值，关闭后保留）, `subject`, `subjectType`, `rootCause`, `peakRisk`,
+事件对象（列表项与详情顶层）字段：`id`, `clusterId`, `state`, `severity`（峰值，关闭后保留）, `subject`, `subjectType`, `subjectNamespace`, `subjectName`（后两项由后端从主体键解析，节点等集群级对象的命名空间为空串）, `rootCause`, `peakRisk`,
 `startedAt`, `escalatedAt`（从未升级为 `null`）, `resolvedAt`, `closeReason`（`""` / `recovered` / `stale`）, `durationS`, `recurrence`, `summary`, `createdAt`。
 `peakRisk` 是 0–100；`durationS` 是异常持续的秒数，不含恢复观察期。统计接口里 `activeIncidents` 只数警告与事件中，`topRootCauses` 按主体归并。
 事件以主体为单位（同一工作负载的 Pod 归一个事件），详情的 `entities` 列出成员实体。字段含义与时间线的事件类型见 `master-api-reference.md` §3.7。

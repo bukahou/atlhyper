@@ -83,33 +83,39 @@ func (s *Store) GetIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) 
 // ==================== 类型转换 ====================
 
 func toAIOpsIncident(inc *database.AIOpsIncident) aiops.Incident {
+	subjectNamespace, subjectType, subjectName := aiops.SplitEntityKey(inc.Subject)
 	return aiops.Incident{
-		ID:          inc.ID,
-		ClusterID:   inc.ClusterID,
-		State:       aiops.EntityState(inc.State),
-		Severity:    inc.Severity,
-		Subject:     inc.Subject,
-		SubjectType: aiops.ExtractEntityType(inc.Subject),
-		RootCause:   inc.RootCause,
-		PeakRisk:    inc.PeakRisk,
-		StartedAt:   inc.StartedAt,
-		EscalatedAt: inc.EscalatedAt,
-		ResolvedAt:  inc.ResolvedAt,
-		CloseReason: inc.CloseReason,
-		DurationS:   inc.DurationS,
-		Recurrence:  inc.Recurrence,
-		Summary:     inc.Summary,
-		CreatedAt:   inc.CreatedAt,
+		ID:               inc.ID,
+		ClusterID:        inc.ClusterID,
+		State:            aiops.EntityState(inc.State),
+		Severity:         inc.Severity,
+		Subject:          inc.Subject,
+		SubjectType:      subjectType,
+		SubjectNamespace: subjectNamespace,
+		SubjectName:      subjectName,
+		RootCause:        inc.RootCause,
+		PeakRisk:         inc.PeakRisk,
+		StartedAt:        inc.StartedAt,
+		EscalatedAt:      inc.EscalatedAt,
+		ResolvedAt:       inc.ResolvedAt,
+		CloseReason:      inc.CloseReason,
+		DurationS:        inc.DurationS,
+		Recurrence:       inc.Recurrence,
+		Summary:          inc.Summary,
+		CreatedAt:        inc.CreatedAt,
 	}
 }
 
 func toAIOpsEntities(entities []*database.AIOpsIncidentEntity) []*aiops.IncidentEntity {
 	result := make([]*aiops.IncidentEntity, len(entities))
 	for i, e := range entities {
+		namespace, _, name := aiops.SplitEntityKey(e.EntityKey)
 		result[i] = &aiops.IncidentEntity{
 			IncidentID: e.IncidentID,
 			EntityKey:  e.EntityKey,
 			EntityType: e.EntityType,
+			Namespace:  namespace,
+			Name:       name,
 			RLocal:     e.RLocal,
 			RFinal:     e.RFinal,
 			Role:       e.Role,

@@ -163,7 +163,7 @@ SubscribeTransitions(fn func(IncidentTransition))
 | API JSON（事件） | Go（`aiops.Incident`） | 表 `aiops_incidents` |
 |---|---|---|
 | `subject` | `Subject` | `subject TEXT NOT NULL` **[新增]** |
-| `subjectType` | 由 `Subject` 解析 | — |
+| `subjectType` / `subjectNamespace` / `subjectName` | 由 `Subject` 解析（集群级对象的命名空间为空串） | — |
 | `rootCause` | `RootCause` | `root_cause TEXT`（领头实体，不变） |
 | `severity` | `Severity` | `severity TEXT NOT NULL DEFAULT 'low'`（峰值，关闭时保留） |
 | `escalatedAt` | `EscalatedAt *time.Time` | `escalated_at TEXT` **[新增]** |

@@ -426,16 +426,19 @@ type Incident struct {
 	Severity    string      `json:"severity"`    // 峰值严重度：只升不降，关闭后保留
 	Subject     string      `json:"subject"`     // 主体键 "<ns>/<类型>/<名字>"：工作负载，或实体自身
 	SubjectType string      `json:"subjectType"` // 由 Subject 解析：deployment / statefulset / daemonset / cronjob / job / pod / service / node / ingress / logs
-	RootCause   string      `json:"rootCause"`   // 领头实体：主体的成员里风险最高的
-	PeakRisk    float64     `json:"peakRisk"`
-	StartedAt   time.Time   `json:"startedAt"`
-	EscalatedAt *time.Time  `json:"escalatedAt"` // 首次升级到「事件中」的时刻；从未升级为 null
-	ResolvedAt  *time.Time  `json:"resolvedAt"`
-	CloseReason string      `json:"closeReason"` // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
-	DurationS   int64       `json:"durationS"`
-	Recurrence  int         `json:"recurrence"`
-	Summary     string      `json:"summary"`
-	CreatedAt   time.Time   `json:"createdAt"`
+	// SubjectNamespace / SubjectName 由 Subject 解析，页面直接显示；集群级对象（节点）的命名空间为空串
+	SubjectNamespace string     `json:"subjectNamespace"`
+	SubjectName      string     `json:"subjectName"`
+	RootCause        string     `json:"rootCause"` // 领头实体：主体的成员里风险最高的
+	PeakRisk         float64    `json:"peakRisk"`
+	StartedAt        time.Time  `json:"startedAt"`
+	EscalatedAt      *time.Time `json:"escalatedAt"` // 首次升级到「事件中」的时刻；从未升级为 null
+	ResolvedAt       *time.Time `json:"resolvedAt"`
+	CloseReason      string     `json:"closeReason"` // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
+	DurationS        int64      `json:"durationS"`
+	Recurrence       int        `json:"recurrence"`
+	Summary          string     `json:"summary"`
+	CreatedAt        time.Time  `json:"createdAt"`
 }
 
 // IncidentEntity 受影响实体
@@ -443,6 +446,8 @@ type IncidentEntity struct {
 	IncidentID string  `json:"incidentId"`
 	EntityKey  string  `json:"entityKey"`
 	EntityType string  `json:"entityType"`
+	Namespace  string  `json:"namespace"` // 由 EntityKey 解析；集群级对象为空串
+	Name       string  `json:"name"`      // 由 EntityKey 解析
 	RLocal     float64 `json:"rLocal"`
 	RFinal     float64 `json:"rFinal"`
 	Role       string  `json:"role"`
