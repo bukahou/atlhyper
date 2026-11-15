@@ -416,7 +416,7 @@ POST /api/v2/notify/rules/match        { "clusterId": "prod", "source": "inciden
 - 条件：集群在 `clusterIds` 里（空 = 全部）、来源在 `sources` 里（空 = 全部）、严重度 ≥ `minSeverity`
 - 规则的三个时间参数为 `null` 时用策略里的全局值
 - 都不命中：用默认策略（`minSeverity` + `defaultReceiverIds`）
-- 接收人的凭据（Webhook 地址、SMTP 密码）加密存储，接口永不返回原值
+- 接收人的凭据（Webhook 地址）与发件设置的 SMTP 密码加密存储，接口永不返回原值
 
 **数据对照**
 
@@ -609,6 +609,8 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 - 接收人不能覆盖全局发件设置（暂不需要；接收人配置是 JSON，以后要加不涉及表结构）
 - 不另设「测试发件设置」接口：建一个邮件接收人后用它的测试发送即可验证
 - 界面放在「接收人」页签顶部，不新开页签：发件设置只服务于邮件接收人
+- 前端：卡片分查看 / 编辑两态；「需要先配置发件设置」在卡片、列表的邮件接收人行、新建 / 编辑弹窗三处提示，
+  只在接口明确返回 `configured: false` 时提示；首次保存不填密码在前端先拦下；`updatedAt` 用 `null` 表示从没保存过
 
 ## 文件变更清单
 
