@@ -124,3 +124,21 @@ func TestIncidentList_OpenIncidentHasNullEscalatedAt(t *testing.T) {
 		t.Errorf("closeReason 应存在且为空串，实际 %v（存在=%v）", value, ok)
 	}
 }
+
+// 列表与事件模式里的峰值风险和详情用同一个 0-100 刻度
+func TestScaleIncidents_PeakRiskToPercent(t *testing.T) {
+	src := []*aiops.Incident{{ID: "inc-1", PeakRisk: 0.75}}
+
+	scaled := ScaleIncidents(src)
+	if scaled[0].PeakRisk != 75 {
+		t.Errorf("列表的 peakRisk = %v，期望 75", scaled[0].PeakRisk)
+	}
+	if src[0].PeakRisk != 0.75 {
+		t.Errorf("换算不应改动原对象，实际 %v", src[0].PeakRisk)
+	}
+
+	patterns := ScaleIncidentPatterns([]*aiops.IncidentPattern{{EntityKey: "shop/deployment/api", Incidents: src}})
+	if patterns[0].Incidents[0].PeakRisk != 75 {
+		t.Errorf("事件模式的 peakRisk = %v，期望 75", patterns[0].Incidents[0].PeakRisk)
+	}
+}

@@ -40,6 +40,9 @@ func (m *mockIncidentRepo) RaiseSeverity(ctx context.Context, id, severity strin
 func (m *mockIncidentRepo) MarkEscalated(ctx context.Context, id string, escalatedAt time.Time) error {
 	return nil
 }
+func (m *mockIncidentRepo) SetAnomalyDuration(ctx context.Context, id string, endedAt time.Time) error {
+	return nil
+}
 func (m *mockIncidentRepo) Resolve(ctx context.Context, id string, resolvedAt time.Time, reason string) error {
 	return nil
 }

@@ -117,6 +117,8 @@ func (s *Store) severityRaisedWrites(t aiops.IncidentTransition, risk *aiops.Sub
 func (s *Store) recoveryStartedWrites(t aiops.IncidentTransition) []pendingWrite {
 	id := t.IncidentID
 	return []pendingWrite{
+		// 时长先于状态写：读的一方把「恢复观察中且时长已记」当成时长已定
+		{"记录异常时长 " + id, func(ctx context.Context) error { return s.repo.SetAnomalyDuration(ctx, id, t.At) }},
 		s.stateWrite(id, aiops.StateRecovery),
 		s.peakRiskWrite(t),
 		// 独立类型：异常时长据此结构化识别（文案前缀不变，旧数据仍靠它兼容）

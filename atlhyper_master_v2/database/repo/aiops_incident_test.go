@@ -203,3 +203,81 @@ func TestIncidentListByEntity_MatchesSubjectAndMembers(t *testing.T) {
 		})
 	}
 }
+
+// 时长是「异常持续了多久」：进入恢复观察期时定下，观察期满关闭不再改
+func TestIncidentDuration_ExcludesObservationPeriod(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	storeSubjectIncident(t, db, "inc-1", "c1", "shop/deployment/api", "low")
+
+	recoveredAt := incidentStartedAt.Add(6 * time.Minute)
+	if err := db.AIOpsIncident.SetAnomalyDuration(ctx, "inc-1", recoveredAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AIOpsIncident.UpdateState(ctx, "inc-1", "recovery"); err != nil {
+		t.Fatal(err)
+	}
+	if observing := loadIncident(t, db, "inc-1"); observing.DurationS != 360 {
+		t.Errorf("恢复观察中的时长应是进入观察期时记下的 360 秒，实际 %d", observing.DurationS)
+	}
+
+	if err := db.AIOpsIncident.Resolve(ctx, "inc-1", recoveredAt.Add(6*time.Hour), "recovered"); err != nil {
+		t.Fatal(err)
+	}
+	if closed := loadIncident(t, db, "inc-1"); closed.DurationS != 360 {
+		t.Errorf("观察期满关闭后时长应仍是 360 秒，实际 %d", closed.DurationS)
+	}
+}
+
+// 还在异常中就失联关闭的事件，时长算到关闭时刻
+func TestIncidentDuration_StaleCloseWhileActiveCountsToClose(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	storeSubjectIncident(t, db, "inc-1", "c1", "shop/deployment/api", "low")
+
+	// 之前恢复过一次（时长已记），随后复发回到警告
+	if err := db.AIOpsIncident.SetAnomalyDuration(ctx, "inc-1", incidentStartedAt.Add(6*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AIOpsIncident.UpdateState(ctx, "inc-1", "warning"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AIOpsIncident.Resolve(ctx, "inc-1", incidentStartedAt.Add(time.Hour), "stale"); err != nil {
+		t.Fatal(err)
+	}
+	if closed := loadIncident(t, db, "inc-1"); closed.DurationS != 3600 {
+		t.Errorf("时长应算到关闭时刻 3600 秒，实际 %d", closed.DurationS)
+	}
+}
+
+// 活跃事件只数仍在异常中的；出事件最多的对象按主体归并
+func TestIncidentStats_ActiveExcludesRecoveryAndTopGroupsBySubject(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	storeSubjectIncident(t, db, "inc-1", "c1", "shop/deployment/api", "low")
+	storeSubjectIncident(t, db, "inc-2", "c1", "shop/deployment/api", "low")
+	storeSubjectIncident(t, db, "inc-3", "c1", "shop/deployment/web", "low")
+	if err := db.AIOpsIncident.UpdateState(ctx, "inc-2", "recovery"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AIOpsIncident.UpdateState(ctx, "inc-3", "incident"); err != nil {
+		t.Fatal(err)
+	}
+
+	since := incidentStartedAt.Add(-time.Hour)
+	stats, err := db.AIOpsIncident.GetIncidentStats(ctx, "c1", since)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.TotalIncidents != 3 || stats.ActiveIncidents != 2 {
+		t.Errorf("期望共 3 个、活跃 2 个（警告 + 事件中），实际 %d / %d", stats.TotalIncidents, stats.ActiveIncidents)
+	}
+
+	top, err := db.AIOpsIncident.TopRootCauses(ctx, "c1", since, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(top) != 2 || top[0].EntityKey != "shop/deployment/api" || top[0].Count != 2 {
+		t.Errorf("期望按主体归并且 api 居首（2 次），实际 %+v", top)
+	}
+}

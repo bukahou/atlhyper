@@ -66,7 +66,14 @@ func (r *aiopsIncidentRepo) MarkEscalated(ctx context.Context, id string, escala
 	return err
 }
 
-// Resolve 关闭事件（状态、结束时间、持续时长、关闭原因；严重度保留）
+// SetAnomalyDuration 记下异常持续到 endedAt 为止的时长
+func (r *aiopsIncidentRepo) SetAnomalyDuration(ctx context.Context, id string, endedAt time.Time) error {
+	query, args := r.dialect.SetAnomalyDuration(id, endedAt)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// Resolve 关闭事件（状态、结束时间、关闭原因；严重度保留；时长见方言注释）
 func (r *aiopsIncidentRepo) Resolve(ctx context.Context, id string, resolvedAt time.Time, reason string) error {
 	query, args := r.dialect.Resolve(id, resolvedAt, reason)
 	_, err := r.db.ExecContext(ctx, query, args...)
@@ -192,10 +199,10 @@ func (r *aiopsIncidentRepo) GetIncidentStats(ctx context.Context, clusterID stri
 		return nil, fmt.Errorf("统计总事件数失败: %w", err)
 	}
 
-	// 活跃事件数
+	// 活跃事件数：仍在异常中的（警告 / 事件中）。恢复观察中的事件问题已经消失，不算活跃
 	var activeIncidents int
 	err = r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM aiops_incidents WHERE cluster_id = ? AND started_at >= ? AND state != 'stable'`,
+		`SELECT COUNT(*) FROM aiops_incidents WHERE cluster_id = ? AND started_at >= ? AND state IN ('warning', 'incident')`,
 		clusterID, sinceStr).Scan(&activeIncidents)
 	if err != nil {
 		return nil, fmt.Errorf("统计活跃事件数失败: %w", err)
@@ -276,13 +283,14 @@ func (r *aiopsIncidentRepo) GetIncidentStats(ctx context.Context, clusterID stri
 	}, nil
 }
 
-// TopRootCauses 查询频率最高的根因实体
+// TopRootCauses 出事件最多的主体。
+// 按主体而不是领头实体分组：Pod 重建会换名字，按 Pod 分组会把同一个工作负载拆散
 func (r *aiopsIncidentRepo) TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]database.AIOpsRootCauseCount, error) {
 	sinceStr := since.Format(time.RFC3339)
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT root_cause, COUNT(*) as cnt FROM aiops_incidents
-		WHERE cluster_id = ? AND started_at >= ? AND root_cause != '' AND root_cause IS NOT NULL
-		GROUP BY root_cause ORDER BY cnt DESC LIMIT ?`,
+		`SELECT subject, COUNT(*) as cnt FROM aiops_incidents
+		WHERE cluster_id = ? AND started_at >= ? AND subject != ''
+		GROUP BY subject ORDER BY cnt DESC LIMIT ?`,
 		clusterID, sinceStr, limit)
 	if err != nil {
 		return nil, err

@@ -55,12 +55,24 @@ func (d *aIOpsIncidentDialect) MarkEscalated(id string, escalatedAt time.Time) (
 		[]any{escalatedAt.Format(time.RFC3339), id}
 }
 
-func (d *aIOpsIncidentDialect) Resolve(id string, resolvedAt time.Time, reason string) (string, []any) {
-	// 时长按整秒相减：julianday 相减再乘 86400 是浮点运算，截断后会少 1 秒
-	return `UPDATE aiops_incidents SET state = 'stable', resolved_at = ?, close_reason = ?,
+// SetAnomalyDuration 时长按整秒相减：julianday 相减再乘 86400 是浮点运算，截断后会少 1 秒
+func (d *aIOpsIncidentDialect) SetAnomalyDuration(id string, endedAt time.Time) (string, []any) {
+	return `UPDATE aiops_incidents SET
 			duration_s = CAST(strftime('%s', ?) AS INTEGER) - CAST(strftime('%s', started_at) AS INTEGER)
 		WHERE id = ?`,
-		[]any{resolvedAt.Format(time.RFC3339), reason, resolvedAt.Format(time.RFC3339), id}
+		[]any{endedAt.Format(time.RFC3339), id}
+}
+
+// Resolve 时长是「异常持续了多久」，不含恢复观察期：
+// 从观察期关闭的事件沿用进入观察期时记下的值（CASE 里读到的是更新前的 state）；
+// 其余（失联关闭时还在警告 / 事件中）算到关闭时刻。
+func (d *aIOpsIncidentDialect) Resolve(id string, resolvedAt time.Time, reason string) (string, []any) {
+	return `UPDATE aiops_incidents SET
+			duration_s = CASE WHEN state = 'recovery' AND duration_s > 0 THEN duration_s
+				ELSE CAST(strftime('%s', ?) AS INTEGER) - CAST(strftime('%s', started_at) AS INTEGER) END,
+			state = 'stable', resolved_at = ?, close_reason = ?
+		WHERE id = ?`,
+		[]any{resolvedAt.Format(time.RFC3339), resolvedAt.Format(time.RFC3339), reason, id}
 }
 
 func (d *aIOpsIncidentDialect) UpdateRootCause(id, rootCause string) (string, []any) {
@@ -117,8 +129,9 @@ func (d *aIOpsIncidentDialect) ScanIncident(rows *sql.Rows) (*database.AIOpsInci
 		t, _ := time.Parse(time.RFC3339, resolvedAt.String)
 		inc.ResolvedAt = &t
 	}
-	// 活跃事件：动态计算持续时间（DB 中只有 Resolve 时才写入 duration_s）
-	if inc.ResolvedAt == nil {
+	// 时长是「异常持续了多久」：仍在异常中的事件按当前时刻动态算；
+	// 恢复观察中的事件用进入观察期时记下的值（观察期不算异常时长）
+	if inc.ResolvedAt == nil && !(inc.State == "recovery" && inc.DurationS > 0) {
 		inc.DurationS = int64(time.Since(inc.StartedAt).Seconds())
 	}
 	return inc, nil

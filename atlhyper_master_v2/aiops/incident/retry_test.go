@@ -51,6 +51,8 @@ func (f *flakyRepo) UpdatePeakRisk(_ context.Context, id string, _ float64) erro
 func (f *flakyRepo) IncrementRecurrence(_ context.Context, id string) error {
 	return f.write("recurrence:" + id)
 }
+func (f *flakyRepo) SetAnomalyDuration(context.Context, string, time.Time) error { return nil }
+
 func (f *flakyRepo) Resolve(_ context.Context, id string, _ time.Time, _ string) error {
 	return f.write("resolve:" + id)
 }

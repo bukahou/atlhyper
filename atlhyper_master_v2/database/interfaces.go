@@ -283,7 +283,10 @@ type AIOpsIncidentRepository interface {
 	RaiseSeverity(ctx context.Context, id, severity string, peakRisk float64) error
 	// MarkEscalated 记下首次升级到「事件中」的时刻；已有值时不覆盖
 	MarkEscalated(ctx context.Context, id string, escalatedAt time.Time) error
-	// Resolve 关闭事件：状态置为 stable，写结束时间、时长与关闭原因；严重度保留
+	// SetAnomalyDuration 记下异常持续到 endedAt 为止的时长（进入恢复观察期时调用）
+	SetAnomalyDuration(ctx context.Context, id string, endedAt time.Time) error
+	// Resolve 关闭事件：状态置为 stable，写结束时间与关闭原因；严重度保留。
+	// 时长：从恢复观察期关闭的沿用进入观察期时记下的值，其余算到关闭时刻
 	Resolve(ctx context.Context, id string, resolvedAt time.Time, reason string) error
 	UpdateRootCause(ctx context.Context, id, rootCause string) error
 	UpdatePeakRisk(ctx context.Context, id string, peakRisk float64) error
@@ -585,6 +588,7 @@ type AIOpsIncidentDialect interface {
 	UpdateState(id, state string) (string, []any)
 	RaiseSeverity(id, severity string, peakRisk float64) (string, []any)
 	MarkEscalated(id string, escalatedAt time.Time) (string, []any)
+	SetAnomalyDuration(id string, endedAt time.Time) (string, []any)
 	Resolve(id string, resolvedAt time.Time, reason string) (string, []any)
 	UpdateRootCause(id, rootCause string) (string, []any)
 	UpdatePeakRisk(id string, peakRisk float64) (string, []any)

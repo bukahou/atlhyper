@@ -253,7 +253,7 @@
 { "message": "获取成功", "data": [
     { "id": "inc-17672544000000001", "clusterId": "c1", "state": "recovery", "severity": "high",
       "subject": "shop/deployment/api", "subjectType": "deployment", "rootCause": "shop/pod/api-7d9f-abc",
-      "peakRisk": 0.75, "startedAt": "2026-01-01T08:00:00Z", "escalatedAt": "2026-01-01T08:07:00Z",
+      "peakRisk": 75, "startedAt": "2026-01-01T08:00:00Z", "escalatedAt": "2026-01-01T08:07:00Z",
       "resolvedAt": null, "closeReason": "", "durationS": 3600, "recurrence": 2, "summary": "",
       "createdAt": "2026-01-01T08:00:00Z" }
   ], "total": 1 }
@@ -271,7 +271,8 @@
 | `escalatedAt` | 首次升级到「事件中」的时刻；从未升级为 `null`。升级过的事件恢复观察 48 小时、观察期内复发立即生效；没升级过的观察 6 小时、需风险持续 2 分钟才算复发 |
 | `closeReason` | 未关闭为空串；`recovered` 恢复观察期满；`stale` 失联（主体 30 分钟没有数据：对象已删除或 Agent 断连，并不代表真的恢复了） |
 | `recurrence` | 复发次数。只到警告级的反复也计入 |
-| `peakRisk` | 事件至今的最高风险。详情里是 [0, 100]（经 `ScaleIncidentDetail` 换算）；**列表里目前未换算，是 [0, 1]** |
+| `peakRisk` | 事件至今的最高风险，[0, 100]（列表、详情、事件模式同一刻度） |
+| `durationS` | 异常持续了多久（秒），不含恢复观察期：仍在异常中的按当前时刻算；进入恢复观察期时定下；还在异常中就失联关闭的算到关闭时刻 |
 
 详情的 `entities[]`：`entityKey`、`entityType`、`rLocal`、`rFinal`（均为 [0, 100]）、`role`。领头实体 `role = "root_cause"`（始终只有一个），其余成员 `"affected"`；
 成员在建事件及之后每次风险抬升类的变化时写入：已有的更新为当时的风险值，新出现的补进去，已不在当轮的保留最后一次的值。
