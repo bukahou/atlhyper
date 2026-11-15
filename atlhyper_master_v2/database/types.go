@@ -425,6 +425,8 @@ type AIOpsIncidentQueryOpts struct {
 	To        time.Time
 	Limit     int
 	Offset    int
+	// ExcludeLinked 不列出当前归到源头下的受影响事件（拓扑归并的折叠视图）
+	ExcludeLinked bool
 }
 
 // AIOpsIncidentStatsRaw Repository 层返回的统计原始数据

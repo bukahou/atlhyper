@@ -43,6 +43,10 @@ type engine struct {
 	// 事件变化的订阅者（Start 之前注册，之后只读）
 	transitionSubscribers []func(aiops.IncidentTransition)
 
+	// 拓扑归并：各集群当前有效的关联与关联变化的订阅者
+	links           linkState
+	linkSubscribers []func(aiops.IncidentLink)
+
 	// 异常结果缓存（供风险详情查询）
 	anomalyCache map[string][]*aiops.AnomalyResult // clusterID -> anomalies
 	anomalyMu    sync.RWMutex
@@ -155,9 +159,12 @@ func (e *engine) evaluateSubjects(
 	entityRisks map[string]*aiops.EntityRisk,
 	clusterRisk *aiops.ClusterRisk,
 ) {
-	subjectRisks := subject.AggregateBySubject(entityRisks, subject.ResolveSubjects(snap))
+	subjects := subject.ResolveSubjects(snap)
+	subjectRisks := subject.AggregateBySubject(entityRisks, subjects)
 	e.sm.Evaluate(e.bgCtx, clusterID, subjectRisks, clusterRisk)
-	e.recordActiveSignals(clusterID, subjectRisks, time.Now())
+	now := time.Now()
+	e.recordActiveSignals(clusterID, subjectRisks, now)
+	e.updateLinks(clusterID, subjects, now)
 }
 
 // ==================== TransitionHandler 实现 ====================
@@ -409,6 +416,9 @@ func (e *engine) Start(ctx context.Context) error {
 	// 4. 启动定期 flush + Recovery→Stable 检查 goroutine
 	e.bgCtx, e.cancel = context.WithCancel(context.Background())
 	e.graphSaver = newGraphSnapshotSaver(e.bgCtx, e.graphRepo)
+
+	// 5. 恢复拓扑归并的有效关联（订阅者据此重建抑制）
+	e.reloadLinks()
 
 	e.wg.Add(1)
 	go e.flushLoop(e.bgCtx)

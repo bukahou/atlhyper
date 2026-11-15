@@ -421,6 +421,9 @@ func buildIncidentListQuery(columns string, opts database.AIOpsIncidentQueryOpts
 		conditions = append(conditions, "started_at <= ?")
 		args = append(args, opts.To.Format(time.RFC3339))
 	}
+	if opts.ExcludeLinked {
+		conditions = append(conditions, "id NOT IN (SELECT incident_id FROM aiops_incident_links WHERE unlinked_at IS NULL)")
+	}
 
 	where := ""
 	if len(conditions) > 0 {

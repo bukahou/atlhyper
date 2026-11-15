@@ -47,6 +47,10 @@ type Engine interface {
 	// 各次调用先后有序、不会并发。只允许做「放进队列」这类不阻塞的事
 	SubscribeTransitions(fn func(IncidentTransition))
 
+	// SubscribeLinks 订阅拓扑归并的关联变化（须在 Start 之前调用）：受影响事件归到源头、换源头、解除（RootIncidentID 为空）。
+	// Start 时会把库里恢复的有效关联逐条发一次，订阅者据此重建状态。约束同 SubscribeTransitions
+	SubscribeLinks(fn func(IncidentLink))
+
 	// Start 启动引擎（加载 DB 状态 + 定时 flush + Recovery 检查）
 	Start(ctx context.Context) error
 

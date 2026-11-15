@@ -4,6 +4,7 @@ package statemachine
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -77,6 +78,23 @@ func (sm *StateMachine) GetEntry(clusterID, subjectKey string) *aiops.StateMachi
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.entries[subjectRef{clusterID, subjectKey}]
+}
+
+// ActiveIncidents 某个集群里处于警告 / 事件中的条目（副本，按主体键排序）
+func (sm *StateMachine) ActiveIncidents(clusterID string) []aiops.StateMachineEntry {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	var active []aiops.StateMachineEntry
+	for ref, entry := range sm.entries {
+		if ref.clusterID != clusterID || entry.IncidentID == "" {
+			continue
+		}
+		if entry.CurrentState == aiops.StateWarning || entry.CurrentState == aiops.StateIncident {
+			active = append(active, *entry)
+		}
+	}
+	sort.Slice(active, func(i, j int) bool { return active[i].SubjectKey < active[j].SubjectKey })
+	return active
 }
 
 // RestoreEntry 从外部注入状态机条目（启动恢复用）
