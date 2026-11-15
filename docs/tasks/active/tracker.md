@@ -613,7 +613,7 @@ GROUP BY code;
 
 ---
 
-## QueryService 拆分重构 — 待办
+## QueryService 拆分重构 — 🔄 进行中（2026-11-15 按修订方案：保留入口、内部按 10 个领域拆小服务、不分子目录）
 
 > 原设计文档: [master-v2-query-service-split-design.md](../../design/active/master-v2-query-service-split-design.md)
 
