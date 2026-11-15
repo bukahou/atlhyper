@@ -139,6 +139,47 @@ func (d *aIOpsIncidentDialect) ScanSignal(rows *sql.Rows) (*database.AIOpsIncide
 	return s, nil
 }
 
+func (d *aIOpsIncidentDialect) SaveLink(link *database.AIOpsIncidentLink) (string, []any) {
+	return `INSERT INTO aiops_incident_links (incident_id, cluster_id, root_incident_id, path, linked_at, unlinked_at)
+		VALUES (?, ?, ?, ?, ?, NULL)
+		ON CONFLICT(incident_id) DO UPDATE SET
+			cluster_id = excluded.cluster_id,
+			root_incident_id = excluded.root_incident_id,
+			path = excluded.path,
+			linked_at = excluded.linked_at,
+			unlinked_at = NULL`,
+		[]any{link.IncidentID, link.ClusterID, link.RootIncidentID, link.Path, link.LinkedAt.UTC().Format(time.RFC3339)}
+}
+
+func (d *aIOpsIncidentDialect) UnlinkIncident(incidentID string, at time.Time) (string, []any) {
+	return `UPDATE aiops_incident_links SET unlinked_at = ? WHERE incident_id = ? AND unlinked_at IS NULL`,
+		[]any{at.UTC().Format(time.RFC3339), incidentID}
+}
+
+func (d *aIOpsIncidentDialect) SelectActiveLinks(clusterID string) (string, []any) {
+	query := `SELECT incident_id, cluster_id, root_incident_id, path, linked_at, unlinked_at
+		FROM aiops_incident_links WHERE unlinked_at IS NULL`
+	if clusterID == "" {
+		return query + ` ORDER BY linked_at`, nil
+	}
+	return query + ` AND cluster_id = ? ORDER BY linked_at`, []any{clusterID}
+}
+
+func (d *aIOpsIncidentDialect) ScanLink(rows *sql.Rows) (*database.AIOpsIncidentLink, error) {
+	link := &database.AIOpsIncidentLink{}
+	var linkedAt string
+	var unlinkedAt sql.NullString
+	if err := rows.Scan(&link.IncidentID, &link.ClusterID, &link.RootIncidentID, &link.Path, &linkedAt, &unlinkedAt); err != nil {
+		return nil, err
+	}
+	link.LinkedAt, _ = time.Parse(time.RFC3339, linkedAt)
+	if unlinkedAt.Valid {
+		t, _ := time.Parse(time.RFC3339, unlinkedAt.String)
+		link.UnlinkedAt = &t
+	}
+	return link, nil
+}
+
 func (d *aIOpsIncidentDialect) ScanIncident(rows *sql.Rows) (*database.AIOpsIncident, error) {
 	inc := &database.AIOpsIncident{}
 	var startedAt, createdAt string

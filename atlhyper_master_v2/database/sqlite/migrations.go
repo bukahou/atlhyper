@@ -489,6 +489,18 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_timeline_inc ON aiops_incident_timeline(incident_id, timestamp ASC)`,
 
+		// 拓扑归并：受影响事件归到源头事件（以受影响事件为键）。新表，已有库执行 CREATE TABLE IF NOT EXISTS 即可，无需清库
+		`CREATE TABLE IF NOT EXISTS aiops_incident_links (
+			incident_id TEXT PRIMARY KEY,
+			cluster_id TEXT NOT NULL,
+			root_incident_id TEXT NOT NULL,
+			path TEXT NOT NULL DEFAULT '[]',
+			linked_at TEXT NOT NULL,
+			unlinked_at TEXT,
+			FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_links_active ON aiops_incident_links(cluster_id, unlinked_at)`,
+
 		// 事件的信号累计（关键证据）：按（事件, 成员, 指标）一行。新表，已有库执行 CREATE TABLE IF NOT EXISTS 即可，无需清库
 		`CREATE TABLE IF NOT EXISTS aiops_incident_signals (
 			incident_id TEXT NOT NULL,

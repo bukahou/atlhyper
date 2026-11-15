@@ -213,6 +213,40 @@ func (r *aiopsIncidentRepo) GetSignals(ctx context.Context, incidentID string) (
 	return result, rows.Err()
 }
 
+// SaveLink 写入或更新一条关联
+func (r *aiopsIncidentRepo) SaveLink(ctx context.Context, link *database.AIOpsIncidentLink) error {
+	query, args := r.dialect.SaveLink(link)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// UnlinkIncident 解除受影响事件的关联
+func (r *aiopsIncidentRepo) UnlinkIncident(ctx context.Context, incidentID string, at time.Time) error {
+	query, args := r.dialect.UnlinkIncident(incidentID, at)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// ListActiveLinks 当前有效的关联
+func (r *aiopsIncidentRepo) ListActiveLinks(ctx context.Context, clusterID string) ([]*database.AIOpsIncidentLink, error) {
+	query, args := r.dialect.SelectActiveLinks(clusterID)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := []*database.AIOpsIncidentLink{}
+	for rows.Next() {
+		link, err := r.dialect.ScanLink(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, link)
+	}
+	return result, rows.Err()
+}
+
 // GetIncidentStats 获取事件统计信息
 func (r *aiopsIncidentRepo) GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*database.AIOpsIncidentStatsRaw, error) {
 	sinceStr := since.Format(time.RFC3339)
