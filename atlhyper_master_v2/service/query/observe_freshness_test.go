@@ -9,9 +9,9 @@ import (
 	"AtlHyper/model_v3/cluster"
 )
 
-func freshnessSvc(t *testing.T, f *cluster.SignalFreshness) *QueryService {
+func freshnessSvc(t *testing.T, f *cluster.SignalFreshness) *OTelQuery {
 	t.Helper()
-	return &QueryService{store: &mockStoreForOverview{
+	return &OTelQuery{store: &mockStoreForOverview{
 		snapshots: map[string]*cluster.ClusterSnapshot{
 			"c1": {OTel: &cluster.OTelSnapshot{Freshness: f}},
 		},
@@ -137,7 +137,7 @@ func TestGetSignalFreshness_NilFromOldAgent(t *testing.T) {
 
 // 快照不存在（集群刚接入）
 func TestGetSignalFreshness_NoSnapshot(t *testing.T) {
-	svc := &QueryService{store: &mockStoreForOverview{}}
+	svc := &OTelQuery{store: &mockStoreForOverview{}}
 	resp, err := svc.GetSignalFreshness(context.Background(), "nope")
 	if err != nil {
 		t.Fatalf("缺快照不该报错: %v", err)

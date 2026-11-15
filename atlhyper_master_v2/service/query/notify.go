@@ -67,7 +67,7 @@ type NotifyRepos struct {
 }
 
 // GetNotifyPolicy 当前的通知策略
-func (q *QueryService) GetNotifyPolicy(ctx context.Context) (*model.NotifyPolicy, error) {
+func (q *NotifyQuery) GetNotifyPolicy(ctx context.Context) (*model.NotifyPolicy, error) {
 	policy, err := q.notify.Policy.Get(ctx)
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func (q *QueryService) GetNotifyPolicy(ctx context.Context) (*model.NotifyPolicy
 }
 
 // GetNotifySMTP 全局发件设置（不含密码）。从没保存过时返回空设置
-func (q *QueryService) GetNotifySMTP(ctx context.Context) (*model.NotifySMTP, error) {
+func (q *NotifyQuery) GetNotifySMTP(ctx context.Context) (*model.NotifySMTP, error) {
 	settings, err := q.notify.SMTP.Get(ctx)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (q *QueryService) GetNotifySMTP(ctx context.Context) (*model.NotifySMTP, er
 }
 
 // ListNotifyAlerts 告警列表（开始时间新的在前）与符合条件的总数
-func (q *QueryService) ListNotifyAlerts(ctx context.Context, opts model.NotifyAlertQuery) ([]model.NotifyAlert, int, error) {
+func (q *NotifyQuery) ListNotifyAlerts(ctx context.Context, opts model.NotifyAlertQuery) ([]model.NotifyAlert, int, error) {
 	filter := database.NotifyAlertQueryOpts{Status: opts.Status, ClusterID: opts.ClusterID, Limit: opts.Limit, Offset: opts.Offset}
 	rows, err := q.notify.Alerts.List(ctx, filter)
 	if err != nil {
@@ -101,7 +101,7 @@ func (q *QueryService) ListNotifyAlerts(ctx context.Context, opts model.NotifyAl
 }
 
 // ListNotifyDeliveries 送达记录（新的在前）与符合条件的总数
-func (q *QueryService) ListNotifyDeliveries(ctx context.Context, opts model.NotifyDeliveryQuery) ([]model.NotifyDelivery, int, error) {
+func (q *NotifyQuery) ListNotifyDeliveries(ctx context.Context, opts model.NotifyDeliveryQuery) ([]model.NotifyDelivery, int, error) {
 	filter := database.NotifyDeliveryQueryOpts{Fingerprint: opts.Fingerprint, Status: opts.Status, Limit: opts.Limit, Offset: opts.Offset}
 	rows, err := q.notify.Deliveries.List(ctx, filter)
 	if err != nil {
@@ -115,7 +115,7 @@ func (q *QueryService) ListNotifyDeliveries(ctx context.Context, opts model.Noti
 }
 
 // ListNotifyReceivers 全部接收人。凭据不在结果里
-func (q *QueryService) ListNotifyReceivers(ctx context.Context) ([]model.NotifyReceiver, error) {
+func (q *NotifyQuery) ListNotifyReceivers(ctx context.Context) ([]model.NotifyReceiver, error) {
 	receivers, err := q.notify.Receivers.List(ctx)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (q *QueryService) ListNotifyReceivers(ctx context.Context) ([]model.NotifyR
 }
 
 // GetNotifyReceiver 单个接收人；不存在时返回 (nil, nil)
-func (q *QueryService) GetNotifyReceiver(ctx context.Context, id int64) (*model.NotifyReceiver, error) {
+func (q *NotifyQuery) GetNotifyReceiver(ctx context.Context, id int64) (*model.NotifyReceiver, error) {
 	receiver, err := q.notify.Receivers.GetByID(ctx, id)
 	if err != nil || receiver == nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (q *QueryService) GetNotifyReceiver(ctx context.Context, id int64) (*model.
 }
 
 // ListNotifyRules 全部路由规则，按 position 从小到大
-func (q *QueryService) ListNotifyRules(ctx context.Context) ([]model.NotifyRule, error) {
+func (q *NotifyQuery) ListNotifyRules(ctx context.Context) ([]model.NotifyRule, error) {
 	rules, err := q.notify.Rules.List(ctx)
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (q *QueryService) ListNotifyRules(ctx context.Context) ([]model.NotifyRule,
 }
 
 // GetNotifyRule 单条路由规则；不存在时返回 (nil, nil)
-func (q *QueryService) GetNotifyRule(ctx context.Context, id int64) (*model.NotifyRule, error) {
+func (q *NotifyQuery) GetNotifyRule(ctx context.Context, id int64) (*model.NotifyRule, error) {
 	rule, err := q.notify.Rules.GetByID(ctx, id)
 	if err != nil || rule == nil {
 		return nil, err
@@ -153,7 +153,7 @@ func (q *QueryService) GetNotifyRule(ctx context.Context, id int64) (*model.Noti
 }
 
 // ListNotifySilences 静默列表（开始时间新的在前）。state 为 pending / active / expired 时只返回该状态的，空 = 全部
-func (q *QueryService) ListNotifySilences(ctx context.Context, state string) ([]model.NotifySilence, error) {
+func (q *NotifyQuery) ListNotifySilences(ctx context.Context, state string) ([]model.NotifySilence, error) {
 	silences, err := q.notify.Silences.List(ctx)
 	if err != nil {
 		return nil, err
@@ -172,7 +172,7 @@ func (q *QueryService) ListNotifySilences(ctx context.Context, state string) ([]
 }
 
 // GetNotifySilence 单条静默；不存在时返回 (nil, nil)
-func (q *QueryService) GetNotifySilence(ctx context.Context, id int64) (*model.NotifySilence, error) {
+func (q *NotifyQuery) GetNotifySilence(ctx context.Context, id int64) (*model.NotifySilence, error) {
 	silence, err := q.notify.Silences.GetByID(ctx, id)
 	if err != nil || silence == nil {
 		return nil, err
@@ -184,7 +184,7 @@ func (q *QueryService) GetNotifySilence(ctx context.Context, id int64) (*model.N
 // MatchNotifyRule 试匹配：这样一条告警会命中哪条规则、发给谁。
 //
 // 用的是通知管道同一个路由函数，结果与真实发送一致。输入不合规 → model.ErrInvalidNotifyInput
-func (q *QueryService) MatchNotifyRule(ctx context.Context, req *model.NotifyRuleMatchRequest) (*model.NotifyRuleMatchResult, error) {
+func (q *NotifyQuery) MatchNotifyRule(ctx context.Context, req *model.NotifyRuleMatchRequest) (*model.NotifyRuleMatchResult, error) {
 	if err := model.ValidateNotifyRuleMatch(req); err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (q *QueryService) MatchNotifyRule(ctx context.Context, req *model.NotifyRul
 }
 
 // currentTime 当前时间；时钟可替换，便于测试
-func (q *QueryService) currentTime() time.Time {
+func (q *NotifyQuery) currentTime() time.Time {
 	if q.now != nil {
 		return q.now()
 	}

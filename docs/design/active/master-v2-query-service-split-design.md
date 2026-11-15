@@ -1,5 +1,48 @@
 # QueryService 拆分设计
 
+## 2026-11-15 修订（以本节为准）
+
+> 原设计写于 2026-03，之后新增了部署、用户、集群登记、通知四个功能域。本节按现状重写目标结构；
+> 下文「目标拆分结构」「接口层演化」「分阶段重构方案」中与本节冲突的部分（删除 QueryService、改 factory 与 master.go 的装配）作废，保留作背景。
+
+**现状**：`QueryService` 持有 22 个依赖字段、86 个方法，横跨 10 个功能域。各功能域之间几乎不互相调用
+（唯一例外：OTel 域内的指标对比、硬件健康、信号新鲜度都读 OTel 快照）。测试里有 50 余处直接写 `&QueryService{store: ...}`。
+
+**裁决（用户 2026-11-15「都按推荐做」）**
+
+| 事项 | 背景 | 裁定 |
+|------|------|------|
+| 拆完后对外入口 | 原设计删掉 `QueryService`、在 `service/factory.go` 逐个嵌入小服务，`NewService` 与 `master.go` 都要跟着改，以后每加一个域都要再改 | **保留入口，内部拆分**：`query.NewQueryService(deps)` 与 `*QueryService` 不变，作为对外唯一入口（Facade）；内部由 10 个小服务组合，各自只持有用到的依赖、有自己的构造函数。`master.go`、`factory.go`、其他包的测试不动 |
+| 是否分子目录 | `service/query/` 平铺 17 个实现文件，超出规范建议；分子目录要移动文件，且每个子目录是独立包，改动约翻倍 | **这次不分**：同一包内按领域拆成独立小服务（文件本已按领域命名）。边界清楚后要不要分子目录另行决定 |
+
+**目标结构**（同一个包 `service/query`）
+
+| 小服务 | 满足的子接口 | 依赖 | 文件 |
+|---|---|---|---|
+| `K8sQuery` | `QueryK8s` | store | k8s.go |
+| `OTelQuery` | `QueryOTel` | store | otel.go、metrics_*.go、observe_freshness.go |
+| `SLOQuery` | `QuerySLO` | sloRepo | slo.go |
+| `AIOpsQuery` | `QueryAIOps` | store、aiopsEngine、aiopsAI、aiReportRepo | aiops.go、aiops_incident_view.go |
+| `OverviewQuery` | `QueryOverview` | store、bus、eventRepo | overview.go |
+| `AdminQuery` | `QueryAdmin` | eventRepo、auditRepo、commandRepo、5 个 AI 仓库 | admin.go |
+| `DeployQuery` | `QueryDeploy` | 4 个部署 / GitHub 仓库 | deploy.go |
+| `UserQuery` | `QueryUser` | userRepo、identityRepo | user.go |
+| `ClusterRegistryQuery` | `QueryClusterRegistry` | store、clusterRepo、clusterAuthStatus | cluster_registry.go |
+| `NotifyQuery` | `QueryNotify` | notify（NotifyRepos）、now | notify.go |
+
+```go
+// impl.go —— 对外唯一入口：组合 10 个小服务，方法经嵌入提升
+type QueryService struct {
+    *K8sQuery; *OTelQuery; *SLOQuery; *AIOpsQuery; *OverviewQuery
+    *AdminQuery; *DeployQuery; *UserQuery; *ClusterRegistryQuery; *NotifyQuery
+}
+func NewQueryService(deps QueryServiceDeps) *QueryService  // 签名不变
+```
+
+**做法**：每个方法只换接收者，方法体不动（小服务里的字段名沿用原名）；测试改为直接构造用到的小服务
+（如 `&K8sQuery{store: store}`），构造函数测试改为逐个小服务核对依赖。每个领域迁完跑全部测试并提交，不改任何行为。
+编译期断言每个小服务满足对应子接口、`*QueryService` 满足 `service.Query`。
+
 ## 背景与问题定义
 
 ### 现状

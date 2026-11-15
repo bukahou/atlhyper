@@ -81,7 +81,7 @@ func TestGetNodeComparison_ResourceCells(t *testing.T) {
 }
 
 func TestGetNodeComparison_NoSnapshot(t *testing.T) {
-	svc := &QueryService{store: &mockStoreForOverview{}}
+	svc := &OTelQuery{store: &mockStoreForOverview{}}
 	resp, err := svc.GetNodeComparison(context.Background(), "nope")
 	if err != nil {
 		t.Fatalf("缺快照不应报错: %v", err)

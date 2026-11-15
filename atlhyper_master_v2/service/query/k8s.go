@@ -12,12 +12,12 @@ import (
 // ==================== 快照查询 ====================
 
 // GetSnapshot 获取集群快照
-func (q *QueryService) GetSnapshot(ctx context.Context, clusterID string) (*cluster.ClusterSnapshot, error) {
+func (q *K8sQuery) GetSnapshot(ctx context.Context, clusterID string) (*cluster.ClusterSnapshot, error) {
 	return q.store.GetSnapshot(clusterID)
 }
 
 // GetPods 获取 Pod 列表
-func (q *QueryService) GetPods(ctx context.Context, clusterID string, opts model.PodQueryOpts) ([]cluster.Pod, error) {
+func (q *K8sQuery) GetPods(ctx context.Context, clusterID string, opts model.PodQueryOpts) ([]cluster.Pod, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (q *QueryService) GetPods(ctx context.Context, clusterID string, opts model
 }
 
 // GetNodes 获取 Node 列表
-func (q *QueryService) GetNodes(ctx context.Context, clusterID string) ([]cluster.Node, error) {
+func (q *K8sQuery) GetNodes(ctx context.Context, clusterID string) ([]cluster.Node, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (q *QueryService) GetNodes(ctx context.Context, clusterID string) ([]cluste
 }
 
 // GetDeployments 获取 Deployment 列表
-func (q *QueryService) GetDeployments(ctx context.Context, clusterID string, namespace string) ([]cluster.Deployment, error) {
+func (q *K8sQuery) GetDeployments(ctx context.Context, clusterID string, namespace string) ([]cluster.Deployment, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -84,7 +84,7 @@ func (q *QueryService) GetDeployments(ctx context.Context, clusterID string, nam
 }
 
 // GetServices 获取 Service 列表
-func (q *QueryService) GetServices(ctx context.Context, clusterID string, namespace string) ([]cluster.Service, error) {
+func (q *K8sQuery) GetServices(ctx context.Context, clusterID string, namespace string) ([]cluster.Service, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (q *QueryService) GetServices(ctx context.Context, clusterID string, namesp
 }
 
 // GetIngresses 获取 Ingress 列表
-func (q *QueryService) GetIngresses(ctx context.Context, clusterID string, namespace string) ([]cluster.Ingress, error) {
+func (q *K8sQuery) GetIngresses(ctx context.Context, clusterID string, namespace string) ([]cluster.Ingress, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (q *QueryService) GetIngresses(ctx context.Context, clusterID string, names
 }
 
 // GetConfigMaps 获取 ConfigMap 列表
-func (q *QueryService) GetConfigMaps(ctx context.Context, clusterID string, namespace string) ([]cluster.ConfigMap, error) {
+func (q *K8sQuery) GetConfigMaps(ctx context.Context, clusterID string, namespace string) ([]cluster.ConfigMap, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (q *QueryService) GetConfigMaps(ctx context.Context, clusterID string, name
 }
 
 // GetSecrets 获取 Secret 列表
-func (q *QueryService) GetSecrets(ctx context.Context, clusterID string, namespace string) ([]cluster.Secret, error) {
+func (q *K8sQuery) GetSecrets(ctx context.Context, clusterID string, namespace string) ([]cluster.Secret, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -164,7 +164,7 @@ func (q *QueryService) GetSecrets(ctx context.Context, clusterID string, namespa
 }
 
 // GetNamespaces 获取 Namespace 列表
-func (q *QueryService) GetNamespaces(ctx context.Context, clusterID string) ([]cluster.Namespace, error) {
+func (q *K8sQuery) GetNamespaces(ctx context.Context, clusterID string) ([]cluster.Namespace, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -173,7 +173,7 @@ func (q *QueryService) GetNamespaces(ctx context.Context, clusterID string) ([]c
 }
 
 // GetDaemonSets 获取 DaemonSet 列表
-func (q *QueryService) GetDaemonSets(ctx context.Context, clusterID string, namespace string) ([]cluster.DaemonSet, error) {
+func (q *K8sQuery) GetDaemonSets(ctx context.Context, clusterID string, namespace string) ([]cluster.DaemonSet, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -193,7 +193,7 @@ func (q *QueryService) GetDaemonSets(ctx context.Context, clusterID string, name
 }
 
 // GetStatefulSets 获取 StatefulSet 列表
-func (q *QueryService) GetStatefulSets(ctx context.Context, clusterID string, namespace string) ([]cluster.StatefulSet, error) {
+func (q *K8sQuery) GetStatefulSets(ctx context.Context, clusterID string, namespace string) ([]cluster.StatefulSet, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -213,7 +213,7 @@ func (q *QueryService) GetStatefulSets(ctx context.Context, clusterID string, na
 }
 
 // GetJobs 获取 Job 列表
-func (q *QueryService) GetJobs(ctx context.Context, clusterID string, namespace string) ([]cluster.Job, error) {
+func (q *K8sQuery) GetJobs(ctx context.Context, clusterID string, namespace string) ([]cluster.Job, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -233,7 +233,7 @@ func (q *QueryService) GetJobs(ctx context.Context, clusterID string, namespace 
 }
 
 // GetCronJobs 获取 CronJob 列表
-func (q *QueryService) GetCronJobs(ctx context.Context, clusterID string, namespace string) ([]cluster.CronJob, error) {
+func (q *K8sQuery) GetCronJobs(ctx context.Context, clusterID string, namespace string) ([]cluster.CronJob, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -253,7 +253,7 @@ func (q *QueryService) GetCronJobs(ctx context.Context, clusterID string, namesp
 }
 
 // GetPersistentVolumes 获取 PV 列表（集群级，无 namespace）
-func (q *QueryService) GetPersistentVolumes(ctx context.Context, clusterID string) ([]cluster.PersistentVolume, error) {
+func (q *K8sQuery) GetPersistentVolumes(ctx context.Context, clusterID string) ([]cluster.PersistentVolume, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -262,7 +262,7 @@ func (q *QueryService) GetPersistentVolumes(ctx context.Context, clusterID strin
 }
 
 // GetPersistentVolumeClaims 获取 PVC 列表
-func (q *QueryService) GetPersistentVolumeClaims(ctx context.Context, clusterID string, namespace string) ([]cluster.PersistentVolumeClaim, error) {
+func (q *K8sQuery) GetPersistentVolumeClaims(ctx context.Context, clusterID string, namespace string) ([]cluster.PersistentVolumeClaim, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -282,7 +282,7 @@ func (q *QueryService) GetPersistentVolumeClaims(ctx context.Context, clusterID 
 }
 
 // GetNetworkPolicies 获取 NetworkPolicy 列表
-func (q *QueryService) GetNetworkPolicies(ctx context.Context, clusterID string, namespace string) ([]cluster.NetworkPolicy, error) {
+func (q *K8sQuery) GetNetworkPolicies(ctx context.Context, clusterID string, namespace string) ([]cluster.NetworkPolicy, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -302,7 +302,7 @@ func (q *QueryService) GetNetworkPolicies(ctx context.Context, clusterID string,
 }
 
 // GetResourceQuotas 获取 ResourceQuota 列表
-func (q *QueryService) GetResourceQuotas(ctx context.Context, clusterID string, namespace string) ([]cluster.ResourceQuota, error) {
+func (q *K8sQuery) GetResourceQuotas(ctx context.Context, clusterID string, namespace string) ([]cluster.ResourceQuota, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -322,7 +322,7 @@ func (q *QueryService) GetResourceQuotas(ctx context.Context, clusterID string, 
 }
 
 // GetLimitRanges 获取 LimitRange 列表
-func (q *QueryService) GetLimitRanges(ctx context.Context, clusterID string, namespace string) ([]cluster.LimitRange, error) {
+func (q *K8sQuery) GetLimitRanges(ctx context.Context, clusterID string, namespace string) ([]cluster.LimitRange, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err
@@ -342,7 +342,7 @@ func (q *QueryService) GetLimitRanges(ctx context.Context, clusterID string, nam
 }
 
 // GetServiceAccounts 获取 ServiceAccount 列表
-func (q *QueryService) GetServiceAccounts(ctx context.Context, clusterID string, namespace string) ([]cluster.ServiceAccount, error) {
+func (q *K8sQuery) GetServiceAccounts(ctx context.Context, clusterID string, namespace string) ([]cluster.ServiceAccount, error) {
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil || snapshot == nil {
 		return nil, err

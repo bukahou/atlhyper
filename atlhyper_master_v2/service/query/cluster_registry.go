@@ -30,7 +30,7 @@ type ClusterAuthStatus interface {
 //
 // 行的来源是两侧的并集：已登记的集群（无论是否上报过），以及正在上报但尚未登记的集群
 // （后者 Registered 为假，管理员可以直接登记收编）。
-func (q *QueryService) ListClusterRegistry(ctx context.Context) ([]model.ClusterRegistryItem, error) {
+func (q *ClusterRegistryQuery) ListClusterRegistry(ctx context.Context) ([]model.ClusterRegistryItem, error) {
 	registered, err := q.clusterRepo.List(ctx)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func (q *QueryService) ListClusterRegistry(ctx context.Context) ([]model.Cluster
 }
 
 // GetClusterRegistryItem 取单个集群的那一行；既没登记也没上报过时返回 (nil, nil)
-func (q *QueryService) GetClusterRegistryItem(ctx context.Context, clusterID string) (*model.ClusterRegistryItem, error) {
+func (q *ClusterRegistryQuery) GetClusterRegistryItem(ctx context.Context, clusterID string) (*model.ClusterRegistryItem, error) {
 	registered, err := q.clusterRepo.GetByID(ctx, clusterID)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (q *QueryService) GetClusterRegistryItem(ctx context.Context, clusterID str
 }
 
 // clusterRegistryItem 补上认证状态后交给转换层。registered 与 presence 至少有一个非 nil
-func (q *QueryService) clusterRegistryItem(registered *database.Cluster, presence *agentmodel.AgentInfo) model.ClusterRegistryItem {
+func (q *ClusterRegistryQuery) clusterRegistryItem(registered *database.Cluster, presence *agentmodel.AgentInfo) model.ClusterRegistryItem {
 	clusterID := ""
 	switch {
 	case registered != nil:
@@ -97,7 +97,7 @@ func (q *QueryService) clusterRegistryItem(registered *database.Cluster, presenc
 }
 
 // isClusterAuthenticated 没上报过、或没有接入认证状态时一律为假
-func (q *QueryService) isClusterAuthenticated(clusterID string) bool {
+func (q *ClusterRegistryQuery) isClusterAuthenticated(clusterID string) bool {
 	if q.clusterAuthStatus == nil {
 		return false
 	}

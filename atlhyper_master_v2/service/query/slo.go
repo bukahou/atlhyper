@@ -37,7 +37,7 @@ func totalFromStatusCodes(codes []slomodel.StatusCodeCount) int64 {
 // ==================== SLO DB 查询方法 ====================
 
 // GetSLOTargets 查询 SLO 目标配置（database → model 转换）
-func (q *QueryService) GetSLOTargets(ctx context.Context, clusterID string) ([]model.SLOTargetResponse, error) {
+func (q *SLOQuery) GetSLOTargets(ctx context.Context, clusterID string) ([]model.SLOTargetResponse, error) {
 	targets, err := q.sloRepo.GetTargets(ctx, clusterID)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (q *QueryService) GetSLOTargets(ctx context.Context, clusterID string) ([]m
 }
 
 // GetSLORouteMappingByServiceKey 按 ServiceKey 查询路由映射
-func (q *QueryService) GetSLORouteMappingByServiceKey(ctx context.Context, clusterID, serviceKey string) (*model.SLORouteMapping, error) {
+func (q *SLOQuery) GetSLORouteMappingByServiceKey(ctx context.Context, clusterID, serviceKey string) (*model.SLORouteMapping, error) {
 	m, err := q.sloRepo.GetRouteMappingByServiceKey(ctx, clusterID, serviceKey)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (q *QueryService) GetSLORouteMappingByServiceKey(ctx context.Context, clust
 }
 
 // GetSLORouteMappingsByDomain 按域名查询路由映射列表
-func (q *QueryService) GetSLORouteMappingsByDomain(ctx context.Context, clusterID, domain string) ([]*model.SLORouteMapping, error) {
+func (q *SLOQuery) GetSLORouteMappingsByDomain(ctx context.Context, clusterID, domain string) ([]*model.SLORouteMapping, error) {
 	mappings, err := q.sloRepo.GetRouteMappingsByDomain(ctx, clusterID, domain)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (q *QueryService) GetSLORouteMappingsByDomain(ctx context.Context, clusterI
 }
 
 // GetSLOAllDomains 查询所有域名
-func (q *QueryService) GetSLOAllDomains(ctx context.Context, clusterID string) ([]string, error) {
+func (q *SLOQuery) GetSLOAllDomains(ctx context.Context, clusterID string) ([]string, error) {
 	return q.sloRepo.GetAllDomains(ctx, clusterID)
 }
 

@@ -53,10 +53,10 @@ func hardwareFixtureSnapshot() *cluster.ClusterSnapshot {
 	}}}
 }
 
-func hardwareService(t *testing.T) *QueryService {
+func hardwareService(t *testing.T) *OTelQuery {
 	t.Helper()
 	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{"c1": hardwareFixtureSnapshot()}}
-	return &QueryService{store: store}
+	return &OTelQuery{store: store}
 }
 
 func findRow(t *testing.T, resp *model.HardwareHealthResponse, node string) model.HardwareRow {
@@ -182,7 +182,7 @@ func TestGetHardwareHealth_Summary(t *testing.T) {
 }
 
 func TestGetHardwareHealth_NoSnapshot(t *testing.T) {
-	svc := &QueryService{store: &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{}}}
+	svc := &OTelQuery{store: &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{}}}
 	resp, err := svc.GetHardwareHealth(context.Background(), "nope")
 	if err != nil {
 		t.Fatalf("缺快照不应报错: %v", err)

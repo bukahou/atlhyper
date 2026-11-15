@@ -119,7 +119,7 @@ func TestGetEvents_NoFilter(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEvents(context.Background(), "cluster-1", model.EventQueryOpts{})
 	if err != nil {
@@ -135,7 +135,7 @@ func TestGetEvents_TypeFilter(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEvents(context.Background(), "cluster-1", model.EventQueryOpts{Type: "Warning"})
 	if err != nil {
@@ -156,7 +156,7 @@ func TestGetEvents_ReasonFilter(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEvents(context.Background(), "cluster-1", model.EventQueryOpts{Reason: "OOMKilled"})
 	if err != nil {
@@ -175,7 +175,7 @@ func TestGetEvents_SinceFilter(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	// Since = 1.5h ago → should get evt-1 (now) and evt-2 (1h ago), exclude evt-3 (2h ago) and evt-4 (3h ago)
 	since := time.Date(2025, 6, 1, 10, 30, 0, 0, time.UTC) // 1.5h before now
@@ -193,7 +193,7 @@ func TestGetEvents_Pagination(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	// Offset=1, Limit=2 → skip first, take next 2
 	result, err := svc.GetEvents(context.Background(), "cluster-1", model.EventQueryOpts{Offset: 1, Limit: 2})
@@ -211,7 +211,7 @@ func TestGetEvents_Pagination(t *testing.T) {
 
 func TestGetEvents_NoSnapshot(t *testing.T) {
 	store := &mockStoreForOverview{events: map[string][]cluster.Event{}}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEvents(context.Background(), "unknown-cluster", model.EventQueryOpts{})
 	if err != nil {
@@ -229,7 +229,7 @@ func TestGetEventsByResource_Found(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEventsByResource(context.Background(), "cluster-1", "Pod", "default", "nginx")
 	if err != nil {
@@ -251,7 +251,7 @@ func TestGetEventsByResource_NotFound(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEventsByResource(context.Background(), "cluster-1", "Deployment", "prod", "nonexistent")
 	if err != nil {
@@ -277,7 +277,7 @@ func TestGetAgentStatus_Delegate(t *testing.T) {
 			"cluster-1": injectedStatus,
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	status, err := svc.GetAgentStatus(context.Background(), "cluster-1")
 	if err != nil {
@@ -305,7 +305,7 @@ func TestGetCommandStatus_Delegate(t *testing.T) {
 		CreatedAt: now,
 	}
 	bus := &mockBusForOverview{status: injectedStatus}
-	svc := &QueryService{bus: bus}
+	svc := &OverviewQuery{bus: bus}
 
 	status, err := svc.GetCommandStatus(context.Background(), "cmd-123")
 	if err != nil {
@@ -358,7 +358,7 @@ func TestListClusters_WithSnapshots(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.ListClusters(context.Background())
 	if err != nil {
@@ -401,7 +401,7 @@ func TestListClusters_WithSnapshots(t *testing.T) {
 
 func TestListClusters_Empty(t *testing.T) {
 	store := &mockStoreForOverview{agents: []agentmodel.AgentInfo{}}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.ListClusters(context.Background())
 	if err != nil {
@@ -462,7 +462,7 @@ func (m *mockEventRepoForOverview) CountByHourAndKind(ctx context.Context, clust
 
 func TestGetOverview_NoSnapshot(t *testing.T) {
 	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "unknown-cluster")
 	if err != nil {
@@ -502,7 +502,7 @@ func TestGetOverview_BasicCards(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -573,7 +573,7 @@ func TestGetOverview_WorkloadStats(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -673,7 +673,7 @@ func TestGetOverview_NodeUsageAndPeak(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -738,7 +738,7 @@ func TestGetOverview_NoMetrics(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -802,7 +802,7 @@ func TestGetOverview_AlertsFromDB(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store, eventRepo: eventRepo}
+	svc := &OverviewQuery{store: store, eventRepo: eventRepo}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -854,7 +854,7 @@ func TestGetOverview_NilEventRepo(t *testing.T) {
 		},
 	}
 	// eventRepo = nil
-	svc := &QueryService{store: store, eventRepo: nil}
+	svc := &OverviewQuery{store: store, eventRepo: nil}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -893,7 +893,7 @@ func TestGetOTelSnapshot_Found(t *testing.T) {
 			"cluster-1": {OTel: otel},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "cluster-1")
 	if err != nil {
@@ -919,7 +919,7 @@ func TestGetOTelSnapshot_NoOTel(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "cluster-1")
 	if err != nil {
@@ -932,7 +932,7 @@ func TestGetOTelSnapshot_NoOTel(t *testing.T) {
 
 func TestGetOTelSnapshot_NoSnapshot(t *testing.T) {
 	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "unknown-cluster")
 	if err != nil {
@@ -956,7 +956,7 @@ func TestGetOTelTimeline_Delegate(t *testing.T) {
 		},
 	}
 	store := &mockStoreForOverview{otelTimeline: entries}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelTimeline(context.Background(), "cluster-1", now.Add(-10*time.Minute))
 	if err != nil {
@@ -972,7 +972,7 @@ func TestGetOTelTimeline_Delegate(t *testing.T) {
 
 func TestGetOTelTimeline_Empty(t *testing.T) {
 	store := &mockStoreForOverview{otelTimeline: nil}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelTimeline(context.Background(), "cluster-1", time.Now().Add(-1*time.Hour))
 	if err != nil {
