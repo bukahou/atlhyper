@@ -13,11 +13,11 @@
 
 ---
 
-## AIOps 拓扑归并 — 🔄 设计中，待用户裁决 D1–D6（2026-11-15）
+## AIOps 拓扑归并 — 🔄 实施中（2026-11-15 用户裁决 D1–D6 都按推荐）
 
 > 设计文档: [aiops-topology-grouping-design.md](../../design/active/aiops-topology-grouping-design.md)
 
-- 设计文档 ✅；用户裁决 — 待办
+- 设计文档 ✅；用户裁决 ✅
 - 后端 / 通知 / 接口与前端 / dev 验证 — 待办
 
 ---
