@@ -2043,9 +2043,37 @@ export interface AIOpsTranslations {
   resolvedAt: string;
   duration: string;
   recurrence: string;
-  affectedEntities: string;
   timeline: string;
   role: string;
+
+  // 事件的主体与成员（事件按主体收敛：同一工作负载的 Pod 归到一个事件）
+  subject: string;
+  subjectTypeLabel: {
+    pod: string;
+    node: string;
+    service: string;
+    ingress: string;
+    deployment: string;
+    statefulset: string;
+    daemonset: string;
+    job: string;
+    cronjob: string;
+  };
+  memberEntities: string;
+  noMemberEntities: string;
+  entityRole: {
+    root_cause: string;
+    affected: string;
+  };
+  escalatedAt: string;
+  notEscalated: string;
+  closeReason: string;
+  closeReasonLabel: {
+    open: string;
+    recovered: string;
+    stale: string;
+  };
+  closeReasonStaleHint: string;
 
   // 事件状态
   state: {
@@ -2095,6 +2123,7 @@ export interface AIOpsTranslations {
     root_cause_identified: string;
     recovery_started: string;
     recurrence: string;
+    severity_raised: string;
   };
 
   // 拓扑图

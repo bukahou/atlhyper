@@ -140,16 +140,34 @@ export interface GraphEdge {
 }
 
 // 事件相关
+/** 事件为什么关闭：空串 = 还没关闭；recovered = 观察期满未复发；stale = 主体失联（对象已删除或 Agent 断连） */
+export type IncidentCloseReason = "" | "recovered" | "stale";
+
 export interface Incident {
   id: string;
   clusterId: string;
   state: string;
+  /** 峰值严重度（low / medium / high / critical）：只升不降，关闭后保留 */
   severity: string;
+  /** 主体键：同一工作负载的 Pod 归到一个主体，如 shop/deployment/api；其他实体的主体就是它自己 */
+  subject: string;
+  /** 主体的类型，由后端从 subject 解析：deployment / statefulset / daemonset / job / cronjob / pod / service / node / ingress … */
+  subjectType: string;
+  /** 当前的领头实体（成员里风险最高的那个）的键；Pod 重建后会更新 */
   rootCause: string;
+  /** @unit 百分制 [0, 100] —— 列表、详情、事件模式里口径一致，前端不换算 */
   peakRisk: number;
   startedAt: string;
   resolvedAt: string | null;
+  /** 首次升级为「事件中」的时间；没升级过为 null */
+  escalatedAt: string | null;
+  closeReason: IncidentCloseReason;
+  /**
+   * 异常持续了多久（秒），不含恢复观察期：警告 / 事件中时由后端按当前时刻给出，
+   * 进入恢复观察时定下不再增长。直接显示，⛔ 不要用 startedAt 到现在自己算。
+   */
   durationS: number;
+  /** 复发次数；警告级的反复也计入 */
   recurrence: number;
   createdAt: string;
 }
@@ -167,6 +185,7 @@ export interface IncidentEntity {
   rLocal: number;
   /** @unit 百分制 [0, 100] 整数 */
   rFinal: number;
+  /** root_cause = 领头实体（一个事件里始终只有一个）；affected = 主体的其余成员 */
   role: string;
 }
 
@@ -181,11 +200,13 @@ export interface IncidentTimeline {
 
 export interface IncidentStats {
   totalIncidents: number;
+  /** 只数警告与事件中；恢复观察不算活跃 */
   activeIncidents: number;
   mttr: number;
   recurrenceRate: number;
   bySeverity: Record<string, number>;
   byState: Record<string, number>;
+  /** entityKey 是主体键（如 shop/deployment/api）：显示时按主体解析类型与名称（lib/entity-key） */
   topRootCauses: { entityKey: string; count: number }[];
 }
 
