@@ -24,6 +24,8 @@ type backgroundTrigger struct {
 	enricher   *Enricher
 	budgetRepo db.AIRoleBudgetRepository
 
+	unconfigured unconfiguredNotice // AI 没配时只提示一次
+
 	queue chan triggerEvent
 	seen  map[string]time.Time // incidentID → 最后触发时间
 	mu    sync.Mutex
@@ -134,9 +136,16 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 
 	result, err := bt.enricher.SummarizeBackground(ctx, evt.IncidentID, evt.Trigger)
 	if err != nil {
-		log.Error("后台分析失败", "incident", evt.IncidentID, "err", err)
+		switch bt.unconfigured.levelFor(err) {
+		case failureLevelWarnOnce:
+			log.Warn("后台分析跳过：AI 未配置（background 角色未分配提供商）。在「AI 设置」里配置后自动恢复，之后不再重复提示",
+				"incident", evt.IncidentID)
+		case failureLevelError:
+			log.Error("后台分析失败", "incident", evt.IncidentID, "err", err)
+		}
 		return
 	}
+	bt.unconfigured.succeeded()
 
 	log.Info("后台分析完成", "incident", evt.IncidentID, "summary_len", len(result.Summary))
 

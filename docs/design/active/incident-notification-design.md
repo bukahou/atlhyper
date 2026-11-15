@@ -586,7 +586,8 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 - `evidence.maxScore` 是信号分数（0–1），只用于排序，前端不展示；页面上的风险一律 0–100 整数
 - `members` 在 `present: false` 时 `status` / `ready` 为空串、`restarts` 为 `null`；`impact.restartsTotal` 在没有任何仍存在的成员 Pod 时为 `null`
 - `members` 与 `entities` 一一对应；`headline.totalMembers` 等于成员数
-- 改版前的事件与「只有依赖传播」都表现为 `evidence` 为空、`headline` 为 null；前端按时间线里有没有合并的检测记录区分（有 = 改版前的事件）
+- `evidenceStatus`：`recorded`（有证据）/ `propagation_only`（检测记录全是依赖传播，本主体没有本地异常）/ `not_recorded`（改版前的事件，当时没有记录证据）。
+  后两种的 `evidence` 都为空、`headline` 都为 null，由这个字段区分（2026-11-15 补；此前前端按时间线推测）
 - 风险一律 0–100 整数；时间一律 UTC（RFC 3339），前端按浏览器时区显示
 - **一句话、信号名称、状态名都由前端按 i18n（中 / 日）渲染**，后端只给结构化的码与数值（项目要求界面文字走 i18n，后端拼好的中文句子在日文界面里会是错的）
 - 「下一步」的按钮由前端按主体类型拼出页面链接，按权限显示锁定；不由后端下发（页面路由是前端的事）

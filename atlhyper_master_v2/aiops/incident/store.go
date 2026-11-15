@@ -53,6 +53,7 @@ func (s *Store) GetIncident(ctx context.Context, incidentID string) *aiops.Incid
 	}
 	detail.Evidence = BuildEvidence(signals)
 	detail.Headline = BuildHeadline(detail.Evidence, len(detail.Entities))
+	detail.EvidenceStatus = BuildEvidenceStatus(detail.Evidence, detail.Timeline)
 	detail.TimelineView = BuildTimelineView(detail.Timeline)
 	detail.Members = baseMembers(detail.Entities)
 	return detail

@@ -110,7 +110,7 @@ export function TraceMetadata({ t, trace }: TraceMetadataProps) {
             <span className="text-right">{t.instanceCount}</span>
           </div>
           {services.map((svc) => (
-            <ServiceRow key={svc.name} svc={svc} t={t} />
+            <ServiceRow key={svc.name} svc={svc} />
           ))}
         </div>
       </section>
@@ -183,7 +183,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ServiceRow({ svc, t }: { svc: ServiceAgg; t: ApmTranslations }) {
+function ServiceRow({ svc }: { svc: ServiceAgg }) {
   return (
     <div className="grid grid-cols-[1fr_80px_140px_80px_80px] gap-2 px-3 py-2 text-xs border-t border-[var(--border-color)] hover:bg-[var(--hover-bg)] transition-colors">
       <div className="flex items-center gap-2 min-w-0">

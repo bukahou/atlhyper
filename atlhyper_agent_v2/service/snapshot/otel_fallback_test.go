@@ -28,8 +28,8 @@ import (
 
 func TestRestoreMissingFromPrev_FillsOnlyNilFields(t *testing.T) {
 	prev := &cluster.OTelSnapshot{
-		MetricsNodes:  []metrics.NodeMetrics{{NodeName: "old-node"}},
-		APMServices:   []apm.APMService{{Name: "old-svc"}},
+		MetricsNodes:   []metrics.NodeMetrics{{NodeName: "old-node"}},
+		APMServices:    []apm.APMService{{Name: "old-svc"}},
 		MetricsSummary: &metrics.Summary{TotalNodes: 7},
 	}
 	// 本轮：MetricsNodes 查询失败(nil)，APMServices 成功
@@ -82,8 +82,8 @@ func TestRestoreMissingFromPrev_ReportsRestoredSignals(t *testing.T) {
 		APMServices:  []apm.APMService{{Name: "old-svc"}},
 	}
 	fresh := &cluster.OTelSnapshot{
-		MetricsNodes: nil,                                  // 失败 → 回退
-		APMServices:  []apm.APMService{{Name: "new-svc"}},   // 成功
+		MetricsNodes: nil,                                 // 失败 → 回退
+		APMServices:  []apm.APMService{{Name: "new-svc"}}, // 成功
 	}
 	r := restoreMissingFromPrev(fresh, prev)
 

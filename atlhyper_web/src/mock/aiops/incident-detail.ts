@@ -171,6 +171,7 @@ export function mockIncidentDetail(id: string): IncidentDetail {
     headline: lead
       ? { signal: lead.signal, reason: lead.reason, affectedMembers: lead.affectedMembers, totalMembers: members.length }
       : null,
+    evidenceStatus: evidence.length > 0 ? "recorded" : "not_recorded",
     impact: detailSeed.impact,
     evidence,
     members,

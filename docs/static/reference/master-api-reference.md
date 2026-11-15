@@ -273,7 +273,8 @@
 
 | 字段 | 说明 |
 |------|------|
-| `headline` | 结论的素材：主证据的 `signal` / `reason` / `affectedMembers` / `totalMembers`；没有证据时为 `null`。句子由前端按语言渲染 |
+| `headline` | 结论的素材：主证据的 `signal` / `reason` / `affectedMembers` / `totalMembers`（当前还在的成员数）；没有证据时为 `null`。句子由前端按语言渲染 |
+| `evidenceStatus` | `recorded`（有证据）/ `propagation_only`（只有依赖传播，本主体没有本地异常）/ `not_recorded`（改版前的事件，当时没有记录证据） |
 | `impact` | 影响数字 `desiredReplicas` / `availableReplicas`（只对 Deployment / StatefulSet / DaemonSet 主体）、`restartsTotal`；不适用的项为 `null`，集群快照不可用时整项为 `null` |
 | `evidence` | 关键证据：按信号类型（`container_crash` / `workload_unavailable` / `k8s_event` / `restarts` / `not_ready` / `resource` / `node_pressure` / `apm_errors` / `apm_latency` / `log_errors` / `other`）去重，含中招成员数、首次 / 最近时刻、次数、最高分、最近原文；按最高分从高到低。改版前的事件为空数组 |
 | `members` | 与 `entities` 对应，补上 `isLead`（风险最高的成员）、`present`（当前快照里是否还在）、`status`、`restarts`、`ready` |

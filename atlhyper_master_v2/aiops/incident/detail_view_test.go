@@ -174,3 +174,27 @@ func TestBuildTimelineView(t *testing.T) {
 		t.Errorf("没有时间线时应是空切片，实际 %v", got)
 	}
 }
+
+func TestBuildEvidenceStatus(t *testing.T) {
+	recorded := []aiops.IncidentEvidence{{Signal: aiops.SignalContainerCrash}}
+	propagation := entry(0, aiops.TimelineAnomalyDetected, propagationOnlyDetail)
+	local := entry(0, aiops.TimelineAnomalyDetected, "容器异常: 容器 app: CrashLoopBackOff")
+	state := entry(0, aiops.TimelineStateChange, "状态变更: healthy → warning")
+
+	cases := []struct {
+		name     string
+		evidence []aiops.IncidentEvidence
+		timeline []*aiops.IncidentTimeline
+		want     string
+	}{
+		{"有证据", recorded, []*aiops.IncidentTimeline{local}, aiops.EvidenceRecorded},
+		{"检测记录全是依赖传播", nil, []*aiops.IncidentTimeline{state, propagation, propagation}, aiops.EvidencePropagationOnly},
+		{"有本地信号的检测记录但没有证据行：改版前", nil, []*aiops.IncidentTimeline{propagation, local}, aiops.EvidenceNotRecorded},
+		{"连检测记录都没有：更早的事件", nil, []*aiops.IncidentTimeline{state}, aiops.EvidenceNotRecorded},
+	}
+	for _, c := range cases {
+		if got := BuildEvidenceStatus(c.evidence, c.timeline); got != c.want {
+			t.Errorf("%s：得到 %s，期望 %s", c.name, got, c.want)
+		}
+	}
+}

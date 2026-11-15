@@ -98,7 +98,6 @@ func hasGzipEncoding(v string) bool {
 	return false
 }
 
-
 // 复合 ReadCloser：
 // - Read 从内部 reader 读取（可能是 gzip.Reader 或 bufio.Reader）
 // - Close 依次关闭所有底层 io.Closer（先解压器，再原始 body）

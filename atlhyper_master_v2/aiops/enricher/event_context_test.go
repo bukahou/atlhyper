@@ -36,7 +36,7 @@ func evRow(kind, ns, name, reason string, first, last time.Time, count int32) *d
 }
 
 var (
-	winFrom = time.Date(2026, 10, 14, 9, 6, 34, 0, time.UTC) // 开始前 15 分钟
+	winFrom = time.Date(2026, 10, 14, 9, 6, 34, 0, time.UTC)  // 开始前 15 分钟
 	winTo   = time.Date(2026, 10, 14, 9, 44, 14, 0, time.UTC) // 恢复后 5 分钟
 )
 

@@ -18,6 +18,8 @@ export function withDetailViewDefaults<T extends Partial<IncidentDetailView>>(de
   return {
     ...detail,
     headline: detail.headline ?? null,
+    // 老版本 Master 没有这个字段：有证据算 recorded，没有按「改版前」处理
+    evidenceStatus: detail.evidenceStatus ?? ((detail.evidence ?? []).length > 0 ? "recorded" : "not_recorded"),
     impact: detail.impact ?? NO_IMPACT,
     evidence: detail.evidence ?? [],
     members: detail.members ?? [],

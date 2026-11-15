@@ -20,7 +20,6 @@ import type {
 // ==================== 常量 ====================
 
 const NODES = ["atlas-master", "atlas-worker-1", "atlas-worker-2"];
-const NAMESPACES = ["default", "kube-system", "linkerd", "monitoring", "app"];
 const SERVICES = [
   { ns: "default", name: "api-server" },
   { ns: "default", name: "web-frontend" },
@@ -49,7 +48,6 @@ const INGRESSES = [
   { ns: "monitoring", name: "grafana-ingress" },
 ];
 
-const RISK_LEVELS = ["healthy", "low", "warning", "critical"] as const;
 const METRICS = [
   "cpu_usage_percent",
   "memory_usage_percent",
