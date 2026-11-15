@@ -392,7 +392,7 @@ func parseAnalysisResult(raw, incidentID string) *SummarizeResponse {
 		Confidence float64 `json:"confidence"`
 	}
 
-	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+	if err := unmarshalLLMJSON(jsonStr, &parsed); err != nil {
 		return &SummarizeResponse{
 			IncidentID:  incidentID,
 			Summary:     raw,
@@ -608,7 +608,7 @@ func parseResponse(raw string, incidentID string, historical []*database.AIOpsIn
 		SimilarPattern string `json:"similarPattern"`
 	}
 
-	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+	if err := unmarshalLLMJSON(jsonStr, &parsed); err != nil {
 		return &SummarizeResponse{
 			IncidentID:       incidentID,
 			Summary:          raw,
