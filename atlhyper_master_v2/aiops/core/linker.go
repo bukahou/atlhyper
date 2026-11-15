@@ -64,7 +64,7 @@ func (s *linkState) restore(links []aiops.IncidentLink) {
 
 // updateLinks 本轮评估之后对本集群的活跃事件归组，变化落库并发布
 func (e *engine) updateLinks(clusterID string, subjects map[string]string, now time.Time) {
-	if e.sm == nil || e.incidentStore == nil {
+	if e.sm == nil || e.incidentStore == nil || e.corr == nil {
 		return
 	}
 	graph := e.corr.GetGraph(clusterID)
