@@ -438,6 +438,7 @@ type LinkPathStep struct {
 type IncidentLink struct {
 	ClusterID      string         `json:"clusterId"`
 	IncidentID     string         `json:"incidentId"`     // 受影响事件
+	Subject        string         `json:"subject"`        // 受影响事件的主体（通知里列影响范围用）
 	RootIncidentID string         `json:"rootIncidentId"` // 源头事件；空 = 解除关联
 	Path           []LinkPathStep `json:"path"`
 	At             time.Time      `json:"at"`

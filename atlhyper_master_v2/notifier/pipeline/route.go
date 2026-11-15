@@ -70,8 +70,11 @@ func (p *AlertPipeline) alreadyNotified(state *alertState, kind alert.Kind, timi
 func (p *AlertPipeline) updateHold(state *alertState, current *settings, now time.Time) bool {
 	silencedBy := silence.Match(current.silences, &state.alert, now)
 	suppressedBy := ""
-	if state.alert.Source != alert.SourceHeartbeat && p.clusterOffline(state.alert.ClusterID) {
+	switch {
+	case state.alert.Source != alert.SourceHeartbeat && p.clusterOffline(state.alert.ClusterID):
 		suppressedBy = SuppressedByClusterOffline
+	case p.rootFiring(state.alert.Fingerprint):
+		suppressedBy = SuppressedByRootIncident
 	}
 	if silencedBy != state.silencedBy || suppressedBy != state.suppressedBy {
 		state.silencedBy, state.suppressedBy = silencedBy, suppressedBy

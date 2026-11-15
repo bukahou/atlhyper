@@ -73,6 +73,13 @@ func (e *engine) updateLinks(clusterID string, subjects map[string]string, now t
 	}
 	candidates := linkCandidates(e.sm.ActiveIncidents(clusterID), subjectMembers(graph, subjects), now)
 	changes := e.links.diff(clusterID, grouping.Group(candidates, graph), now)
+	subjectOf := make(map[string]string, len(candidates))
+	for _, c := range candidates {
+		subjectOf[c.IncidentID] = c.SubjectKey
+	}
+	for i := range changes {
+		changes[i].Subject = subjectOf[changes[i].IncidentID]
+	}
 	if len(changes) == 0 {
 		return
 	}
@@ -132,7 +139,7 @@ func (e *engine) reloadLinks() {
 	if e.incidentStore == nil {
 		return
 	}
-	links := e.incidentStore.ActiveLinks(e.bgCtx)
+	links := e.incidentStore.ActiveLinksWithSubjects(e.bgCtx)
 	e.links.restore(links)
 	for _, link := range links {
 		e.publishLink(link)

@@ -21,6 +21,8 @@ type AlertManager interface {
 	Stop()
 	// OnIncidentTransition AIOps 引擎的订阅回调。只入队、立即返回；队列满时丢弃并计数
 	OnIncidentTransition(transition aiops.IncidentTransition)
+	// OnIncidentLink AIOps 引擎的拓扑归并订阅回调：受影响事件归到源头时，源头告警持续期间它的告警被抑制。只入队
+	OnIncidentLink(link aiops.IncidentLink)
 	// TestReceiver 给指定接收人发一条测试消息（不管它是否启用）。
 	// 接收人不存在 → ErrReceiverNotFound；配置不完整 → ErrReceiverConfigIncomplete；
 	// 其余错误是发送失败的原因，不含 Webhook 地址与密码，可以直接展示

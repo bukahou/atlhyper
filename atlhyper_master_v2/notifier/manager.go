@@ -11,6 +11,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/notifier/alert"
 	"AtlHyper/atlhyper_master_v2/notifier/channel"
 	"AtlHyper/atlhyper_master_v2/notifier/pipeline"
 	"AtlHyper/atlhyper_master_v2/notifier/source"
@@ -125,6 +126,15 @@ func (m *Manager) Stop() {
 // OnIncidentTransition 事件变化的订阅回调：只入队
 func (m *Manager) OnIncidentTransition(transition aiops.IncidentTransition) {
 	m.incidents.OnTransition(transition)
+}
+
+// OnIncidentLink 拓扑归并的关联变化：只入队
+func (m *Manager) OnIncidentLink(link aiops.IncidentLink) {
+	root := ""
+	if link.RootIncidentID != "" {
+		root = alert.IncidentFingerprint(link.RootIncidentID)
+	}
+	m.pipeline.SubmitLink(alert.IncidentFingerprint(link.IncidentID), root, link.Subject)
 }
 
 // TestReceiver 给指定接收人发一条测试消息。不经过管道：不产生告警，也不留送达记录

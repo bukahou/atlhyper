@@ -12,7 +12,9 @@ import (
 func TestLinkState_Diff(t *testing.T) {
 	var state linkState
 	now := time.Date(2026, 11, 15, 7, 0, 0, 0, time.UTC)
-	path := func(edge string) []aiops.LinkPathStep { return []aiops.LinkPathStep{{EntityKey: "a"}, {EntityKey: "b", Edge: edge}} }
+	path := func(edge string) []aiops.LinkPathStep {
+		return []aiops.LinkPathStep{{EntityKey: "a"}, {EntityKey: "b", Edge: edge}}
+	}
 
 	changes := state.diff("c1", map[string]grouping.Link{"inc-a": {RootIncidentID: "inc-r", Path: path("selects")}}, now)
 	if len(changes) != 1 || changes[0].IncidentID != "inc-a" || changes[0].RootIncidentID != "inc-r" || changes[0].ClusterID != "c1" {

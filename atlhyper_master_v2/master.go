@@ -540,6 +540,7 @@ func NewMaster() (*Master, error) {
 	}
 	// 事件变化交给通知模块。回调只入队：引擎在持有状态机锁时调用它
 	aiopsEngine.SubscribeTransitions(alertMgr.OnIncidentTransition)
+	aiopsEngine.SubscribeLinks(alertMgr.OnIncidentLink)
 	log.Info("通知模块初始化完成")
 
 	// 11.5 初始化 GitHub Client（可选，未配置则跳过）

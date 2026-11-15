@@ -53,6 +53,17 @@ func (s *Store) activeLinks(ctx context.Context, clusterID string) []aiops.Incid
 	return links
 }
 
+// ActiveLinksWithSubjects 同 ActiveLinks，并补上受影响事件的主体（启动时发给订阅者：通知里列影响范围要用）
+func (s *Store) ActiveLinksWithSubjects(ctx context.Context) []aiops.IncidentLink {
+	links := s.activeLinks(ctx, "")
+	for i := range links {
+		if inc, err := s.repo.GetByID(ctx, links[i].IncidentID); err == nil && inc != nil {
+			links[i].Subject = inc.Subject
+		}
+	}
+	return links
+}
+
 func toAIOpsLink(row *database.AIOpsIncidentLink) aiops.IncidentLink {
 	var path []aiops.LinkPathStep
 	if err := json.Unmarshal([]byte(row.Path), &path); err != nil || path == nil {
