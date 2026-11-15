@@ -1,5 +1,5 @@
 // atlhyper_master_v2/aiops/core/signal_recorder.go
-// 事件进行中（警告 / 事件中）按轮累计成员的信号，作为详情页的关键证据。
+// 事件进行中（警告 / 事件中）按轮记录：成员表跟上当前成员，累计成员的信号作为详情页的关键证据。
 //
 // 每次快照都会评估一轮，但证据不需要那么密：同一个事件最多每分钟记一次
 package core
@@ -40,7 +40,7 @@ func (t *signalThrottle) due(incidentID string, now time.Time) bool {
 	return true
 }
 
-// recordActiveSignals 对本轮仍在警告 / 事件中的事件累计成员信号
+// recordActiveSignals 对本轮仍在警告 / 事件中的事件记录成员与信号
 func (e *engine) recordActiveSignals(clusterID string, subjectRisks map[string]*aiops.SubjectRisk, now time.Time) {
 	if e.incidentStore == nil || e.sm == nil {
 		return
@@ -54,6 +54,6 @@ func (e *engine) recordActiveSignals(clusterID string, subjectRisks map[string]*
 		if !e.signalThrottle.due(entry.IncidentID, now) {
 			continue
 		}
-		e.incidentStore.RecordSignals(e.bgCtx, entry.IncidentID, risk.Members, now)
+		e.incidentStore.RecordActivity(e.bgCtx, entry.IncidentID, risk, now)
 	}
 }

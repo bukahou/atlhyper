@@ -52,23 +52,28 @@ func cleanSignalDetail(detail string) string {
 	return strings.TrimSpace(podUIDPattern.ReplaceAllString(detail, ""))
 }
 
-var unavailablePercent = regexp.MustCompile(`不可用 (\d+)%`)
+// 原文由基线模块写出，再经 aiops.DescribeAnomaly 加上类别前缀（如「容器异常: 」「K8s 事件 」），按片段匹配而不是按开头
+var (
+	containerReason    = regexp.MustCompile(`容器 [^:]+: (\S+)`)           // 「容器 <名>: <原因>」
+	unavailablePercent = regexp.MustCompile(`不可用 (\d+)%`)                // 「Deployment <ns>/<名> 不可用 <N>%」
+	eventReason        = regexp.MustCompile(`(?:^|K8s 事件 )([A-Za-z]+):`) // 「<原因>: <消息>」
+)
 
-// signalReason 从原文里取出原因码 / 取值（原文由基线模块按固定格式写出）；取不到时为空串
+// signalReason 从原文里取出原因码 / 取值；取不到时为空串
 func signalReason(signal, detail string) string {
+	var pattern *regexp.Regexp
 	switch signal {
-	case aiops.SignalContainerCrash: // 「容器 <名>: <原因>」
-		if _, reason, found := strings.Cut(detail, ": "); found && strings.HasPrefix(detail, "容器 ") {
-			return strings.TrimSpace(reason)
-		}
-	case aiops.SignalWorkloadUnavailable: // 「Deployment <ns>/<名> 不可用 <N>%」
-		if match := unavailablePercent.FindStringSubmatch(detail); match != nil {
-			return match[1]
-		}
-	case aiops.SignalK8sEvent: // 「<原因>: <消息>」
-		if reason, _, found := strings.Cut(detail, ":"); found && !strings.Contains(reason, " ") {
-			return reason
-		}
+	case aiops.SignalContainerCrash:
+		pattern = containerReason
+	case aiops.SignalWorkloadUnavailable:
+		pattern = unavailablePercent
+	case aiops.SignalK8sEvent:
+		pattern = eventReason
+	default:
+		return ""
+	}
+	if match := pattern.FindStringSubmatch(detail); match != nil {
+		return match[1]
 	}
 	return ""
 }
@@ -207,11 +212,19 @@ func signalRecord(incidentID string, member *aiops.EntityRisk, signal aiops.Risk
 	}
 }
 
-// RecordSignals 累计一批成员的信号（关键证据）。没有本地信号的成员（风险来自依赖传播）不记
-func (s *Store) RecordSignals(ctx context.Context, incidentID string, members []*aiops.EntityRisk, at time.Time) {
-	if writes := s.memberSignalWrites(incidentID, members, at); len(writes) > 0 {
-		s.submit(ctx, writes...)
+// RecordActivity 事件进行中（两次状态变化之间）的一轮记录：
+// 成员表跟上当前成员与领头（Pod 重建换了名字的新成员也能进来），并累计成员的信号（关键证据）。
+// 没有本地信号的成员（风险来自依赖传播）不记证据
+func (s *Store) RecordActivity(ctx context.Context, incidentID string, risk *aiops.SubjectRisk, at time.Time) {
+	if risk == nil || len(risk.Members) == 0 {
+		return
 	}
+	lead := aiops.IncidentTransition{IncidentID: incidentID}
+	if risk.Lead != nil {
+		lead.RootCause = risk.Lead.EntityKey
+	}
+	writes := append(s.leadWrites(lead, risk), s.memberSignalWrites(incidentID, risk.Members, at)...)
+	s.submit(ctx, writes...)
 }
 
 // memberSignalWrites 每个成员的每条信号一步累计写入

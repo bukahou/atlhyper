@@ -47,6 +47,10 @@ func TestSignalReason(t *testing.T) {
 		{aiops.SignalWorkloadUnavailable, "Deployment atlhyper-dev/x 不可用 67%", "67"},
 		{aiops.SignalK8sEvent, "BackOff: Back-off restarting failed container", "BackOff"},
 		{aiops.SignalResource, "CPU 92%", ""},
+		// 实际落库的原文带类别前缀（aiops.DescribeAnomaly 加的）
+		{aiops.SignalContainerCrash, "容器异常: 容器 crasher: CrashLoopBackOff", "CrashLoopBackOff"},
+		{aiops.SignalWorkloadUnavailable, "Deployment 影响: Deployment atlhyper-dev/x 不可用 100%", "100"},
+		{aiops.SignalK8sEvent, "K8s 事件 BackOff: Back-off restarting failed container crasher in pod a_ns", "BackOff"},
 		{aiops.SignalContainerCrash, "看不懂的格式", ""},
 	}
 	for _, c := range cases {

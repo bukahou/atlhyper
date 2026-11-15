@@ -25,7 +25,7 @@ func TestDetailView_SignalsFromTransitionsAndRecording(t *testing.T) {
 	s.ApplyTransition(ctx, change(aiops.TransitionCreated, transitionEpoch, risk), risk)
 
 	later := transitionEpoch.Add(3 * time.Minute)
-	s.RecordSignals(ctx, "inc-1", []*aiops.EntityRisk{crashingPod(podA, 0.9), crashingPod(podB, 0.8), crashingPod(podC, 0.8)}, later)
+	s.RecordActivity(ctx, "inc-1", workloadRisk(crashingPod(podA, 0.9), crashingPod(podB, 0.8), crashingPod(podC, 0.8)), later)
 
 	detail := loadDetail(t, s)
 	if len(detail.Evidence) != 2 {
@@ -45,15 +45,18 @@ func TestDetailView_SignalsFromTransitionsAndRecording(t *testing.T) {
 	if detail.Members == nil || detail.Evidence == nil {
 		t.Error("成员与证据在 JSON 里应是数组，不是 null")
 	}
+	if len(detail.Members) != 3 {
+		t.Errorf("进行中新出现的成员（podC）应进成员表，实际 %d 个", len(detail.Members))
+	}
 }
 
 // 没有本地信号的成员（风险来自依赖传播）不记证据
-func TestRecordSignals_SkipsMembersWithoutLocalSignals(t *testing.T) {
+func TestRecordActivity_SkipsMembersWithoutLocalSignals(t *testing.T) {
 	s, _ := openSQLiteStore(t)
 	ctx := context.Background()
 	risk := workloadRisk(podRisk(podA, 0.6))
 	s.ApplyTransition(ctx, change(aiops.TransitionCreated, transitionEpoch, risk), risk)
-	s.RecordSignals(ctx, "inc-1", []*aiops.EntityRisk{{EntityKey: podB, RFinal: 0.4}}, transitionEpoch.Add(time.Minute))
+	s.RecordActivity(ctx, "inc-1", workloadRisk(&aiops.EntityRisk{EntityKey: podB, RFinal: 0.4}), transitionEpoch.Add(time.Minute))
 
 	detail := loadDetail(t, s)
 	if len(detail.Evidence) != 0 || detail.Headline != nil {
