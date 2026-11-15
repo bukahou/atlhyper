@@ -24,7 +24,7 @@ func enrichIncidentDetail(detail *aiops.IncidentDetail, snap *cluster.ClusterSna
 		nodes[aiops.EntityKey("", "node", node.Summary.Name)] = node
 	}
 
-	restartsTotal, anyPod := 0, false
+	restartsTotal, anyPod, presentCount := 0, false, 0
 	for i := range detail.Members {
 		member := &detail.Members[i]
 		switch member.EntityType {
@@ -45,6 +45,15 @@ func enrichIncidentDetail(detail *aiops.IncidentDetail, snap *cluster.ClusterSna
 			// 服务等其他类型：快照里没有可展示的状态，按仍存在处理
 			member.Present = true
 		}
+		if member.Present {
+			presentCount++
+		}
+	}
+
+	// 结论里的「N / 总数」：成员表会留着已删除的旧 Pod（重建前的名字），总数按当前还在的成员算，
+	// 否则会出现「3 / 6 个 Pod」这种把旧名字算进去的说法
+	if detail.Headline != nil && presentCount > 0 {
+		detail.Headline.TotalMembers = max(presentCount, detail.Headline.AffectedMembers)
 	}
 
 	impact := &aiops.IncidentImpact{}

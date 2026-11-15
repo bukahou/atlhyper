@@ -33,7 +33,11 @@ func TestEnrichIncidentDetail_MembersAndImpact(t *testing.T) {
 		aiops.IncidentMember{EntityKey: "shop/pod/api-b", EntityType: "pod"},
 		aiops.IncidentMember{EntityKey: "shop/pod/api-gone", EntityType: "pod"},
 	)
+	detail.Headline = &aiops.IncidentHeadline{Signal: aiops.SignalContainerCrash, AffectedMembers: 2, TotalMembers: 3}
 	enrichIncidentDetail(detail, snap)
+	if detail.Headline.TotalMembers != 2 {
+		t.Errorf("结论的总数应按当前还在的成员算（已删除的旧 Pod 不算），实际 %d", detail.Headline.TotalMembers)
+	}
 
 	a := detail.Members[0]
 	if !a.Present || a.Status != "CrashLoopBackOff" || a.Restarts == nil || *a.Restarts != 6 || a.Ready != "0/1" {
