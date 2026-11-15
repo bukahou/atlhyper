@@ -373,20 +373,16 @@ GET /api/v2/notify/receivers
         "slack": { "webhookConfigured": true },
         "createdAt": "...", "updatedAt": "..." },
       { "id": 2, "name": "运维邮件", "type": "email", "enabled": true,
-        "email": { "smtpHost": "smtp.example.com", "smtpPort": 587, "smtpUser": "ops@example.com",
-                   "smtpTLS": true, "fromAddress": "ops@example.com",
-                   "toAddresses": ["a@example.com"], "passwordConfigured": true },
+        "email": { "toAddresses": ["a@example.com"] },      // 发件服务器见「全局发件设置」
         "createdAt": "...", "updatedAt": "..." }
   ], "total": 2 }
 
 POST /api/v2/notify/receivers
   { "name": "值班频道", "type": "slack", "enabled": true, "slack": { "webhookUrl": "https://..." } }
-  { "name": "运维邮件", "type": "email", "enabled": true,
-    "email": { "smtpHost": "...", "smtpPort": 587, "smtpUser": "...", "smtpPassword": "...",
-               "smtpTLS": true, "fromAddress": "...", "toAddresses": ["..."] } }
+  { "name": "运维邮件", "type": "email", "enabled": true, "email": { "toAddresses": ["..."] } }
 → 201 { "message": "已创建", "data": { ...同列表项... } }        # 名称重复 → 409
 
-PUT /api/v2/notify/receivers/{id}      （同创建；webhookUrl / smtpPassword 留空 = 保持原值）→ 200
+PUT /api/v2/notify/receivers/{id}      （同创建；webhookUrl 留空 = 保持原值）→ 200
 DELETE /api/v2/notify/receivers/{id}   → 200；仍被规则或默认策略引用 → 409，message 写明被谁引用
 POST /api/v2/notify/receivers/{id}/test → 200 { "message": "测试消息已发送" }；发送失败 → 502，message 带原因
 
@@ -446,6 +442,53 @@ POST /api/v2/notify/rules/match        { "clusterId": "prod", "source": "inciden
 - `notifier/routing/` [新增]：规则匹配（纯函数）
 - `service/`、`gateway/handler/admin/`：接口
 - 前端：页签「接收人」（列表 + 新建 / 编辑弹窗 + 测试发送）、「路由规则」（可上下调序 + 试匹配）
+
+### 全局发件设置（2026-11-15 追加）
+
+**用户故事**：邮件从哪台服务器、用哪个账号发，全局只配一次；每个邮件接收人只填收件人。
+换密码只改一处。与 Alertmanager / Grafana 的做法一致（全局 SMTP，接收人只写收件地址）。
+
+**API**
+
+```
+GET /api/v2/notify/smtp
+→ { "message": "获取成功", "data": {
+      "configured": true,                 // 主机、端口、账号、密码都已配置
+      "host": "smtp.example.com", "port": 587, "user": "ops@example.com",
+      "tls": true, "fromAddress": "ops@example.com",   // 空 = 使用 user
+      "passwordConfigured": true,
+      "updatedAt": "..."                  // 从没保存过 = null
+  } }
+
+PUT /api/v2/notify/smtp
+  { "host": "smtp.example.com", "port": 587, "user": "ops@example.com", "password": "...",
+    "tls": true, "fromAddress": "" }
+→ 200 { "message": "已保存", "data": { ...同 GET... } }
+  # password 留空 = 保持原值；第一次保存必须填写 → 400
+```
+
+权限同其他通知接口（`notify.manage`）；PUT 记审计（`update` / `notify_smtp`，请求体里的 password 由审计脱敏）。
+
+**发送**
+
+- 邮件接收人发送时，每次从库里读发件设置（单行，读取很轻），改完立即生效，不用重启
+- 发件设置没配齐 → 送达失败，原因写「未配置发件设置」；测试发送同样返回这条原因
+- 发送失败的原因里去掉 SMTP 密码
+
+**数据对照**
+
+| API JSON | Go（`model.NotifySMTP` / `database.NotifySMTP`） | 表 `notify_smtp` |
+|---|---|---|
+| `host` / `port` / `user` / `tls` / `fromAddress` | `Host` / `Port` / `User` / `TLS` / `FromAddress` | `config TEXT NOT NULL`（JSON，整体加密） |
+| `password`（只写） / `passwordConfigured`（只读） | `Password` | 同上 |
+| `configured` | 派生：主机、端口、账号、密码都非空 | — |
+| `updatedAt` | `UpdatedAt` | `updated_at TEXT NOT NULL` |
+
+表是单行（`id INTEGER PRIMARY KEY CHECK (id = 1)`）。新表用 `CREATE TABLE IF NOT EXISTS`，已有的库启动时自动建出，**不用清库**；
+接收人配置本来就整份加密存在 `config` 一列，去掉其中的 SMTP 字段不涉及表结构。
+
+**前端**：页签「接收人」顶部加一块「邮件发件设置」（查看 / 编辑，密码只写不读）；邮件接收人的表单只剩收件人；
+发件设置没配时，接收人页签提示「邮件接收人需要先配置发件设置」。
 
 ## 功能三：静默（第 3 期）
 
@@ -522,6 +565,7 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 | 什么时候通知 | 「警告」「事件中」都是风险分数切出来的档位 | 进入「事件中」立即通知；只到「警告」的，同一主体 24 小时内反复到阈值才通知一次 |
 | 旧的逐条 K8s 事件告警 | 与事件通知并行会重复 | 默认关闭，保留开关 |
 | 做几期 | 三期都要改表 | 三期全做，一次发布 |
+| 邮件发件设置放哪里 | 原实现每个邮件接收人各填一套 SMTP；用户预期「发件人配一次，接收人只填收件人」，主流系统也是全局 SMTP | 改成全局只配一次（2026-11-15 追加裁定） |
 
 ### 工程选择（由实现方决定，供查阅）
 
@@ -559,6 +603,13 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 - 环境变量 `MASTER_EVENT_ALERT_ENABLED` 删除，改由策略里的 `k8sEventAlertsEnabled` 控制；旧的事件告警消息里的资源状态补充信息不再提供
 - 事件时长是「异常持续了多久」，不含恢复观察期；活跃事件只数警告与事件中；出事件最多的对象按主体归并
 
+全局发件设置落地时的选择：
+
+- 单独一张单行表 `notify_smtp`，不放进 `notify_policy`：凭据要整体加密，策略表是明文列；新表也免去清库
+- 接收人不能覆盖全局发件设置（暂不需要；接收人配置是 JSON，以后要加不涉及表结构）
+- 不另设「测试发件设置」接口：建一个邮件接收人后用它的测试发送即可验证
+- 界面放在「接收人」页签顶部，不新开页签：发件设置只服务于邮件接收人
+
 ## 文件变更清单
 
 ```
@@ -579,7 +630,7 @@ atlhyper_master_v2/
 │   ├── channel/                                 [修改]
 │   └── manager.go, interfaces.go, alert.go      [重写 / 删除]
 ├── database/                                    [修改] 事件表三列；notify_policy / alerts / notify_deliveries /
-│                                                        notify_receivers / notify_rules / notify_silences；删除 notify_channels
+│                                                        notify_receivers / notify_rules / notify_silences / notify_smtp；删除 notify_channels
 ├── model/, model/convert/                       [新增] notify_*.go；[修改] aiops 事件模型
 ├── service/{interfaces.go,query/,operations/}   [修改]
 ├── gateway/{routes.go,handler/admin/,handler/aiops/} [修改]
