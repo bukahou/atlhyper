@@ -39,13 +39,13 @@ describe("按集群取数的查询", () => {
     expect(clusterRiskQuery("").enabled).toBe(false);
     expect(entityRisksQuery("", 20, REFRESH.slow).enabled).toBe(false);
     expect(dependencyGraphQuery("", REFRESH.fast).enabled).toBe(false);
-    expect(incidentsQuery("", "").enabled).toBe(false);
+    expect(incidentsQuery("", "", true).enabled).toBe(false);
     expect(incidentStatsQuery("").enabled).toBe(false);
 
     expect(clusterRiskQuery("c1").enabled).toBe(true);
     expect(entityRisksQuery("c1", 20, REFRESH.slow).enabled).toBe(true);
     expect(dependencyGraphQuery("c1", REFRESH.fast).enabled).toBe(true);
-    expect(incidentsQuery("c1", "").enabled).toBe(true);
+    expect(incidentsQuery("c1", "", true).enabled).toBe(true);
     expect(incidentStatsQuery("c1").enabled).toBe(true);
   });
 
@@ -113,18 +113,28 @@ describe("incidentsQuery", () => {
     api.getIncidents.mockResolvedValue([]);
     const client = new QueryClient();
 
-    await client.fetchQuery(incidentsQuery("c1", ""));
-    await client.fetchQuery(incidentsQuery("c1", "warning"));
+    await client.fetchQuery(incidentsQuery("c1", "", true));
+    await client.fetchQuery(incidentsQuery("c1", "warning", true));
 
-    expect(incidentsQuery("c1", "").queryKey).not.toEqual(incidentsQuery("c1", "warning").queryKey);
-    expect(api.getIncidents.mock.calls[0][0]).toEqual({ cluster: "c1", state: undefined, limit: 20 });
-    expect(api.getIncidents.mock.calls[1][0]).toEqual({ cluster: "c1", state: "warning", limit: 20 });
+    expect(incidentsQuery("c1", "", true).queryKey).not.toEqual(incidentsQuery("c1", "warning", true).queryKey);
+    expect(api.getIncidents.mock.calls[0][0]).toEqual({ cluster: "c1", state: undefined, limit: 20, grouped: true });
+    expect(api.getIncidents.mock.calls[1][0]).toEqual({ cluster: "c1", state: "warning", limit: 20, grouped: true });
     expect(api.getIncidents.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
   });
 
+  it("按组折叠 / 平铺进键，并原样交给接口（平铺 = grouped: false）", async () => {
+    api.getIncidents.mockResolvedValue([]);
+    const client = new QueryClient();
+
+    await client.fetchQuery(incidentsQuery("c1", "", false));
+
+    expect(incidentsQuery("c1", "", true).queryKey).not.toEqual(incidentsQuery("c1", "", false).queryKey);
+    expect(api.getIncidents.mock.calls.at(-1)?.[0]).toEqual({ cluster: "c1", state: undefined, limit: 20, grouped: false });
+  });
+
   it("30 秒轮询，保鲜时间等长", () => {
-    expect(incidentsQuery("c1", "").refetchInterval).toBe(REFRESH.slow);
-    expect(incidentsQuery("c1", "").staleTime).toBe(REFRESH.slow);
+    expect(incidentsQuery("c1", "", true).refetchInterval).toBe(REFRESH.slow);
+    expect(incidentsQuery("c1", "", true).staleTime).toBe(REFRESH.slow);
   });
 });
 

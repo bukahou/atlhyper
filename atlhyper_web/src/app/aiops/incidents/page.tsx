@@ -15,6 +15,7 @@ import { RefreshCw } from "lucide-react";
 import { IncidentStats } from "./components/IncidentStats";
 import { IncidentList } from "./components/IncidentList";
 import { IncidentDetailModal } from "./components/IncidentDetailModal";
+import { IncidentGroupingToggle } from "./components/IncidentGroupingToggle";
 
 /** 状态筛选：全部 / 警告 / 事件中 / 恢复观察 / 已关闭。取值是后端的状态名 */
 const STATE_FILTERS = ["", "warning", "incident", "recovery", "stable"] as const;
@@ -23,6 +24,8 @@ export default function IncidentsPage() {
   const { t } = useI18n();
   const { clusterId } = useCurrentCluster();
   const [stateFilter, setStateFilter] = useState("");
+  // 拓扑归并：默认按组折叠（受影响事件由后端折叠进源头），可切全部平铺；与状态筛选一样放本地状态
+  const [grouped, setGrouped] = useState(true);
   // 跨页跳转：URL ?incident=xxx 直接打开这个事件的详情（通知设置页的告警从这里进来）
   const linkedIncidentId = useSearchParams().get("incident") ?? "";
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(linkedIncidentId || null);
@@ -35,7 +38,7 @@ export default function IncidentsPage() {
   }
 
   const statsQuery = useQuery(incidentStatsQuery(clusterId));
-  const listQuery = useQuery(incidentsQuery(clusterId, stateFilter));
+  const listQuery = useQuery(incidentsQuery(clusterId, stateFilter, grouped));
   const { refetch: refreshIncidents, isRefetching } = useManualRefetch(aiopsKeys.all);
 
   return (
@@ -70,8 +73,8 @@ export default function IncidentsPage() {
               {/* 统计卡片 */}
               <IncidentStats stats={stats} />
 
-              {/* 过滤栏 */}
-              <div className="flex flex-wrap gap-2">
+              {/* 过滤栏：状态筛选；右侧切换按组折叠 / 全部平铺 */}
+              <div className="flex flex-wrap items-center gap-2">
                 {STATE_FILTERS.map((s) => (
                   <button
                     key={s || "all"}
@@ -86,21 +89,26 @@ export default function IncidentsPage() {
                     {s ? (t.aiops.state[s as keyof typeof t.aiops.state] ?? s) : t.common.all}
                   </button>
                 ))}
+                <div className="ml-auto">
+                  <IncidentGroupingToggle grouped={grouped} onChange={setGrouped} />
+                </div>
               </div>
 
               {/* 事件列表：换状态筛选时先留着上一份，新结果到了再换 */}
               <QueryView query={listQuery}>
-                {(incidents) => <IncidentList incidents={incidents} onSelect={setSelectedIncidentId} />}
+                {(incidents) => <IncidentList incidents={incidents} onSelect={setSelectedIncidentId} grouped={grouped} />}
               </QueryView>
             </>
           )}
         </QueryView>
 
-        {/* 详情弹窗 */}
+        {/* 详情弹窗：在源头 / 受影响事件之间切换时按事件号重建，滚动回到顶部 */}
         <IncidentDetailModal
+          key={selectedIncidentId ?? ""}
           incidentId={selectedIncidentId}
           open={!!selectedIncidentId}
           onClose={() => setSelectedIncidentId(null)}
+          onSelectIncident={setSelectedIncidentId}
         />
       </div>
     </Layout>

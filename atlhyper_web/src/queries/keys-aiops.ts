@@ -24,8 +24,9 @@ export const aiopsKeys = {
   graphTrace: (clusterId: string, entityKey: string, direction: GraphTraceDirection) =>
     ["aiops", "graph-trace", { clusterId, entityKey, direction }] as const,
 
-  /** state 为空串 = 不按状态过滤 */
-  incidents: (clusterId: string, state: string) => ["aiops", "incidents", { clusterId, state }] as const,
+  /** state 为空串 = 不按状态过滤；grouped = 受影响事件折叠进源头（false 为平铺），两种视图各用各的缓存 */
+  incidents: (clusterId: string, state: string, grouped: boolean) =>
+    ["aiops", "incidents", { clusterId, state, grouped }] as const,
   incidentStats: (clusterId: string) => ["aiops", "incident-stats", { clusterId }] as const,
   incidentDetail: (incidentId: string) => ["aiops", "incident-detail", { incidentId }] as const,
   incidentPatterns: (clusterId: string, entityKey: string) =>

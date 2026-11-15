@@ -1,4 +1,4 @@
-import type { IncidentDetailTranslations } from "@/types/i18n-incident";
+import type { IncidentDetailTranslations, IncidentGroupingTranslations } from "@/types/i18n-incident";
 
 /** 事件详情弹窗的日文文案 */
 export const jaIncidentDetail: IncidentDetailTranslations = {
@@ -107,4 +107,37 @@ export const jaIncidentDetail: IncidentDetailTranslations = {
   timelineEmpty: "タイムラインの記録なし",
 
   historyTitle: "履歴",
+};
+
+/** トポロジー集約（一覧のグループ折りたたみ、詳細の発生源と影響範囲）の日本語文言 */
+export const jaIncidentGrouping: IncidentGroupingTranslations = {
+  groupedView: "グループ表示",
+  flatView: "すべて表示",
+  viewToggleHint: "グループ表示：依存チェーン上の同じ障害で影響を受けたインシデントを発生源の下にまとめます。すべて表示：インシデントごとに 1 行",
+  linkedCount: "関連 {count} 件",
+  linkedCountHint: "依存チェーン上でこのインシデントの影響を受け、配下にまとめられたインシデント。クリックで展開 / 折りたたみ",
+  linkedCountFlatHint: "依存チェーン上でこのインシデントの影響を受け、配下にまとめられたインシデントの数（すべて表示ではそれぞれ別の行）",
+  impactedBadge: "影響先",
+  rootTag: "発生源：{subject}",
+  rootTagHint: "このインシデントは依存チェーン上流の発生源インシデントの配下にまとめられています。クリックで発生源を表示",
+
+  rootLabel: "発生源：",
+  via: "経路",
+  rootLinkHint: "このインシデントは依存チェーン上流の発生源インシデントの配下にまとめられています（経路がまとめた根拠）。クリックで発生源インシデントを表示",
+  linkedAt: "{time} に集約",
+
+  impactTitle: "影響範囲（{count}）",
+  impactHint: "依存チェーン上でこのインシデントの影響を受け、配下にまとめられたインシデント。経路がまとめた根拠です",
+  impactOpenHint: "クリックでこのインシデントを表示",
+
+  edge: {
+    calls: "呼び出し",
+    selects: "セレクト",
+    runs_on: "稼働先",
+    routes_to: "ルーティング",
+  },
+  pathGap: "…（{count} 個）…",
+  pathExpand: "経路を展開",
+  pathCollapse: "経路を折りたたむ",
+  pathEmpty: "経路の記録なし",
 };

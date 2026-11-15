@@ -1,6 +1,6 @@
 import type { Translations } from "@/types/i18n";
 import { zhNotifications } from "./notify-zh";
-import { zhIncidentDetail } from "./incident-zh";
+import { zhIncidentDetail, zhIncidentGrouping } from "./incident-zh";
 
 export const zh: Translations = {
   locale: "zh",
@@ -2110,6 +2110,7 @@ Deployment 已更新，新的 Pod 正在启动中
       topRootCauses: "高频根因",
     },
     detail: zhIncidentDetail,
+    grouping: zhIncidentGrouping,
     dependencyGraph: "依赖关系图",
     nodeDetail: "节点详情",
     upstream: "上游",

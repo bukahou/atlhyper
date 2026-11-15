@@ -6,6 +6,7 @@
 
 import { get, post } from "./request";
 import type { AnalysisStatus } from "@/lib/analysis-poll";
+import type { IncidentDetailGrouping, IncidentListGrouping } from "@/types/incident-grouping";
 import type { IncidentDetailView } from "@/types/incident-view";
 
 // ==================== 类型定义 ====================
@@ -144,7 +145,8 @@ export interface GraphEdge {
 /** 事件为什么关闭：空串 = 还没关闭；recovered = 观察期满未复发；stale = 主体失联（对象已删除或 Agent 断连） */
 export type IncidentCloseReason = "" | "recovered" | "stale";
 
-export interface Incident {
+/** 列表里的事件；拓扑归并新增的 rootIncidentId / linkedCount / impacted 见 types/incident-grouping.ts */
+export interface Incident extends IncidentListGrouping {
   id: string;
   clusterId: string;
   state: string;
@@ -177,8 +179,13 @@ export interface Incident {
   createdAt: string;
 }
 
-/** 事件详情：事件本身 + 原有的实体与原始时间线 + 改版新增的展示字段（见 types/incident-view.ts） */
-export interface IncidentDetail extends Incident, IncidentDetailView {
+/**
+ * 事件详情：事件本身 + 原有的实体与原始时间线 + 改版新增的展示字段（见 types/incident-view.ts）
+ * + 拓扑归并的源头 / 影响范围（见 types/incident-grouping.ts；详情里的 impacted 带依赖路径）
+ */
+export interface IncidentDetail extends Incident, IncidentDetailView, IncidentDetailGrouping {
+  /** 列表与详情都有 impacted：详情里的条目多了依赖路径与归入时刻 */
+  impacted: IncidentDetailGrouping["impacted"];
   entities: IncidentEntity[];
   timeline: IncidentTimeline[];
 }
@@ -278,6 +285,8 @@ export interface IncidentListParams {
   to?: string;
   limit?: number;
   offset?: number;
+  /** true：受影响事件折叠进源头的 impacted，不单独出现；不传或 false 时平铺 */
+  grouped?: boolean;
 }
 
 // ==================== API 方法 ====================
