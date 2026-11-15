@@ -45,8 +45,8 @@ func NewEngine(cfg EngineConfig) aiops.Engine {
 		flushInterval: cfg.FlushInterval,
 	}
 
-	// 创建状态机，engine 本身作为 TransitionCallback
-	e.sm = statemachine.NewStateMachine(e)
+	// 创建状态机，engine 本身作为 TransitionHandler；事件号由事件存储一侧分配
+	e.sm = statemachine.NewStateMachine(e, incident.NewIncidentID)
 
 	return e
 }

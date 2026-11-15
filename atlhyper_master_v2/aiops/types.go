@@ -347,18 +347,30 @@ const (
 	StateStable   EntityState = "stable"
 )
 
-// StateMachineEntry 状态机条目（每个实体一个）
+// StateMachineEntry 状态机条目（每个主体一个）
 type StateMachineEntry struct {
-	ClusterID         string      `json:"clusterId"`
-	EntityKey         string      `json:"entityKey"`
-	CurrentState      EntityState `json:"currentState"`
-	IncidentID        string      `json:"incidentId"`
+	ClusterID    string      `json:"clusterId"`
+	SubjectKey   string      `json:"subjectKey"`
+	CurrentState EntityState `json:"currentState"`
+	IncidentID   string      `json:"incidentId"`
+	// ConditionMetSince 当前出口条件开始连续满足的时刻（Unix 秒），0 表示没有条件在计时；
+	// ConditionTarget 是该条件通往的状态：同一状态有两个出口时，各计各的时
 	ConditionMetSince int64       `json:"conditionMetSince"`
+	ConditionTarget   EntityState `json:"conditionTarget,omitempty"`
 	LastRFinal        float64     `json:"lastRFinal"`
 	LastEvaluatedAt   int64       `json:"lastEvaluatedAt"`
 	// RecoveryStartedAt 进入恢复观察期的时刻（Unix 秒），0 表示不在观察期。
-	// 与 ConditionMetSince 分开：后者在每次评估「没有出口条件满足」时清零，不能用来计 48 小时。
+	// 与 ConditionMetSince 分开：后者在每次评估「没有出口条件满足」时清零，不能用来计观察期。
 	RecoveryStartedAt int64 `json:"recoveryStartedAt,omitempty"`
+
+	// 以下随事件走，重启后从库里取回（见 core/engine.go 的 reloadActiveIncidents）
+	ReachedIncident bool    `json:"reachedIncident"` // 是否升级到过「事件中」：决定观察期长短与复发是否立即生效
+	PeakRisk        float64 `json:"peakRisk"`        // 事件至今的最高风险
+	Severity        string  `json:"severity"`        // 峰值严重度，只升不降
+	Recurrence      int     `json:"recurrence"`      // 复发次数
+	RootCause       string  `json:"rootCause"`       // 最近一次风险抬升时的领头实体
+	// OccurrenceTimes 近 24 小时内每次「发生」的时刻（Unix 秒）：建事件 + 每次复发
+	OccurrenceTimes []int64 `json:"occurrenceTimes,omitempty"`
 }
 
 // ==================== 主体与事件变化 ====================
@@ -408,18 +420,22 @@ type IncidentTransition struct {
 
 // Incident 事件
 type Incident struct {
-	ID         string      `json:"id"`
-	ClusterID  string      `json:"clusterId"`
-	State      EntityState `json:"state"`
-	Severity   string      `json:"severity"`
-	RootCause  string      `json:"rootCause"`
-	PeakRisk   float64     `json:"peakRisk"`
-	StartedAt  time.Time   `json:"startedAt"`
-	ResolvedAt *time.Time  `json:"resolvedAt"`
-	DurationS  int64       `json:"durationS"`
-	Recurrence int         `json:"recurrence"`
-	Summary    string      `json:"summary"`
-	CreatedAt  time.Time   `json:"createdAt"`
+	ID          string      `json:"id"`
+	ClusterID   string      `json:"clusterId"`
+	State       EntityState `json:"state"`
+	Severity    string      `json:"severity"`    // 峰值严重度：只升不降，关闭后保留
+	Subject     string      `json:"subject"`     // 主体键 "<ns>/<类型>/<名字>"：工作负载，或实体自身
+	SubjectType string      `json:"subjectType"` // 由 Subject 解析：deployment / statefulset / daemonset / cronjob / job / pod / service / node / ingress / logs
+	RootCause   string      `json:"rootCause"`   // 领头实体：主体的成员里风险最高的
+	PeakRisk    float64     `json:"peakRisk"`
+	StartedAt   time.Time   `json:"startedAt"`
+	EscalatedAt *time.Time  `json:"escalatedAt"` // 首次升级到「事件中」的时刻；从未升级为 null
+	ResolvedAt  *time.Time  `json:"resolvedAt"`
+	CloseReason string      `json:"closeReason"` // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
+	DurationS   int64       `json:"durationS"`
+	Recurrence  int         `json:"recurrence"`
+	Summary     string      `json:"summary"`
+	CreatedAt   time.Time   `json:"createdAt"`
 }
 
 // IncidentEntity 受影响实体
@@ -450,6 +466,13 @@ const (
 	TimelineRootCauseIdentified = "root_cause_identified"
 	TimelineRecoveryStarted     = "recovery_started"
 	TimelineRecurrence          = "recurrence"
+	TimelineSeverityRaised      = "severity_raised"
+)
+
+// 事件的关闭原因（aiops_incidents.close_reason）；未关闭为空串
+const (
+	CloseReasonRecovered = "recovered" // 恢复观察期满
+	CloseReasonStale     = "stale"     // 失联：主体长时间没有被评估（对象已删除或 Agent 断连）
 )
 
 // IncidentDetail 事件详情（API 响应）
@@ -508,5 +531,21 @@ func SeverityFromRisk(rFinal float64) string {
 		return "medium"
 	default:
 		return "low"
+	}
+}
+
+// SeverityRank 严重度的档位，越大越严重；未知值为 0
+func SeverityRank(severity string) int {
+	switch severity {
+	case "critical":
+		return 4
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	case "low":
+		return 1
+	default:
+		return 0
 	}
 }

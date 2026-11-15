@@ -1,5 +1,5 @@
 // atlhyper_master_v2/aiops/statemachine/trigger.go
-// 状态评估 + 转换触发
+// 状态评估 + 转换触发 + 事件变化的组装
 package statemachine
 
 import (
@@ -9,11 +9,11 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 )
 
-// Evaluate 评估所有实体的状态转换
+// Evaluate 评估一个集群里所有主体的状态转换
 func (sm *StateMachine) Evaluate(
 	ctx context.Context,
 	clusterID string,
-	entityRisks map[string]*aiops.EntityRisk,
+	subjectRisks map[string]*aiops.SubjectRisk,
 	clusterRisk *aiops.ClusterRisk,
 ) {
 	sm.mu.Lock()
@@ -21,139 +21,207 @@ func (sm *StateMachine) Evaluate(
 
 	now := sm.now()
 
-	for entityKey, risk := range entityRisks {
-		ref := aiops.EntityRef{ClusterID: clusterID, EntityKey: entityKey}
-		entry := sm.getOrCreate(ref)
+	for subjectKey, risk := range subjectRisks {
+		if risk == nil {
+			continue
+		}
+		entry := sm.getOrCreate(subjectRef{clusterID, subjectKey})
 		entry.LastRFinal = risk.RFinal
 		entry.LastEvaluatedAt = now.Unix()
 
-		sm.evaluateEntity(ctx, ref, entry, risk, clusterRisk, now)
+		sm.evaluateSubject(ctx, entry, risk, clusterRisk, now)
 	}
 }
 
-// evaluateEntity 评估单个实体的状态转换
-// 对同一状态的多个出口条件，只匹配第一个满足的条件
-func (sm *StateMachine) evaluateEntity(
+// exitCondition 当前状态下正在满足的出口条件
+type exitCondition struct {
+	to          aiops.EntityState
+	minDuration time.Duration
+}
+
+// matchExitCondition 当前状态下第一个满足的出口条件；都不满足返回 nil。
+// 警告有两个出口，先看恢复再看升级：风险已回落时，集群风险再高也不升级这个主体。
+func matchExitCondition(entry *aiops.StateMachineEntry, rFinal float64, clusterRisk *aiops.ClusterRisk) *exitCondition {
+	switch entry.CurrentState {
+	case aiops.StateHealthy:
+		if rFinal > riskRaised {
+			return &exitCondition{aiops.StateWarning, raisedHold}
+		}
+	case aiops.StateWarning:
+		if rFinal < riskCleared {
+			return &exitCondition{aiops.StateRecovery, warningClearedHold}
+		}
+		if rFinal > riskEscalated || (clusterRisk != nil && clusterRisk.Risk > clusterRiskEscalated) {
+			return &exitCondition{aiops.StateIncident, escalatedHold}
+		}
+	case aiops.StateIncident:
+		if rFinal < riskCleared {
+			return &exitCondition{aiops.StateRecovery, incidentClearedHold}
+		}
+	case aiops.StateRecovery:
+		if rFinal > riskRaised {
+			if entry.ReachedIncident {
+				return &exitCondition{aiops.StateWarning, 0} // 升级过的事件：复发立即生效
+			}
+			return &exitCondition{aiops.StateWarning, raisedHold}
+		}
+	}
+	return nil
+}
+
+// evaluateSubject 评估单个主体：先看状态转换，没有转换再看严重度是否升档
+func (sm *StateMachine) evaluateSubject(
 	ctx context.Context,
-	ref aiops.EntityRef,
 	entry *aiops.StateMachineEntry,
-	risk *aiops.EntityRisk,
+	risk *aiops.SubjectRisk,
 	clusterRisk *aiops.ClusterRisk,
 	now time.Time,
 ) {
-	// 查找当前状态下第一个满足的转换条件
-	var matched *transitionCondition
-	for i := range sm.conditions {
-		cond := &sm.conditions[i]
-		if entry.CurrentState != cond.FromState {
-			continue
+	if entry.IncidentID != "" && risk.RFinal > entry.PeakRisk {
+		entry.PeakRisk = risk.RFinal
+	}
+
+	cond := matchExitCondition(entry, risk.RFinal, clusterRisk)
+	if cond == nil {
+		entry.ConditionMetSince, entry.ConditionTarget = 0, ""
+	} else {
+		if entry.ConditionMetSince == 0 || entry.ConditionTarget != cond.to {
+			entry.ConditionMetSince, entry.ConditionTarget = now.Unix(), cond.to
 		}
-
-		conditionMet := cond.RiskCheck(risk.RFinal)
-
-		// 特殊处理: Warning → Incident 也可由 ClusterRisk > 80 触发
-		if cond.FromState == aiops.StateWarning && cond.ToState == aiops.StateIncident {
-			if clusterRisk != nil && clusterRisk.Risk > 80 {
-				conditionMet = true
-			}
-		}
-
-		if conditionMet {
-			matched = cond
-			break
+		if now.Sub(time.Unix(entry.ConditionMetSince, 0)) >= cond.minDuration {
+			sm.transition(ctx, entry, risk, cond.to, now)
+			entry.ConditionMetSince, entry.ConditionTarget = 0, ""
+			return
 		}
 	}
 
-	if matched == nil {
-		entry.ConditionMetSince = 0
-		return
-	}
-
-	if entry.ConditionMetSince == 0 {
-		entry.ConditionMetSince = now.Unix()
-	}
-
-	duration := time.Duration(now.Unix()-entry.ConditionMetSince) * time.Second
-	if duration >= matched.MinDuration {
-		sm.transition(ctx, ref, entry, risk, *matched, now)
-		entry.ConditionMetSince = 0
+	// 严重度是峰值：警告 / 事件中时，本轮风险落入更高一档就升档
+	if entry.CurrentState == aiops.StateWarning || entry.CurrentState == aiops.StateIncident {
+		if raiseSeverity(entry, risk) {
+			entry.RootCause = leadKey(risk, entry.RootCause)
+			sm.emit(ctx, aiops.TransitionSeverityRaised, entry, entry.CurrentState, risk, now)
+		}
 	}
 }
 
-// transition 执行状态转换
+// transition 执行状态转换并发出对应的事件变化
 func (sm *StateMachine) transition(
 	ctx context.Context,
-	ref aiops.EntityRef,
 	entry *aiops.StateMachineEntry,
-	risk *aiops.EntityRisk,
-	cond transitionCondition,
+	risk *aiops.SubjectRisk,
+	to aiops.EntityState,
 	now time.Time,
 ) {
-	oldState := entry.CurrentState
-	entry.CurrentState = cond.ToState
+	from := entry.CurrentState
+	entry.CurrentState = to
 
+	var kind aiops.TransitionKind
 	switch {
-	case oldState == aiops.StateHealthy && cond.ToState == aiops.StateWarning:
-		incidentID := sm.callback.OnWarningCreated(ctx, ref.ClusterID, ref.EntityKey, risk, now)
-		entry.IncidentID = incidentID
+	case from == aiops.StateHealthy && to == aiops.StateWarning:
+		kind = aiops.TransitionCreated
+		entry.IncidentID = sm.newIncidentID(now)
+		entry.PeakRisk = risk.RFinal
+		entry.Severity = ""
+		entry.ReachedIncident = false
+		entry.Recurrence = 0
+		entry.OccurrenceTimes = []int64{now.Unix()}
 
-	case oldState == aiops.StateWarning && cond.ToState == aiops.StateHealthy:
-		sm.callback.OnStable(ctx, entry.IncidentID, ref.EntityKey, now)
-		delete(sm.entries, ref)
+	case to == aiops.StateIncident:
+		kind = aiops.TransitionEscalated
+		entry.ReachedIncident = true
 
-	case oldState == aiops.StateWarning && cond.ToState == aiops.StateIncident:
-		sm.callback.OnStateEscalated(ctx, entry.IncidentID, aiops.StateIncident, risk, now)
-
-	case oldState == aiops.StateIncident && cond.ToState == aiops.StateRecovery:
+	case to == aiops.StateRecovery:
+		kind = aiops.TransitionRecoveryStarted
 		entry.RecoveryStartedAt = now.Unix()
-		sm.callback.OnRecoveryStarted(ctx, entry.IncidentID, risk, now)
 
-	case oldState == aiops.StateRecovery && cond.ToState == aiops.StateWarning:
+	case from == aiops.StateRecovery && to == aiops.StateWarning:
+		kind = aiops.TransitionRecurred
 		entry.RecoveryStartedAt = 0 // 复发：观察期作废，下次恢复重新计
-		sm.callback.OnRecurrence(ctx, entry.IncidentID, risk, now)
+		entry.Recurrence++
+		entry.OccurrenceTimes = append(recentOccurrences(entry.OccurrenceTimes, now), now.Unix())
 	}
 
+	if kind != aiops.TransitionRecoveryStarted {
+		// 风险抬升类的转换：严重度升档并在这条变化里带出，不另发 severity_raised
+		raiseSeverity(entry, risk)
+		entry.RootCause = leadKey(risk, entry.RootCause)
+	}
+
+	sm.emit(ctx, kind, entry, from, risk, now)
+
 	log.Info("状态转换",
-		"cluster", ref.ClusterID,
-		"entity", ref.EntityKey,
-		"from", oldState,
-		"to", cond.ToState,
+		"cluster", entry.ClusterID,
+		"subject", entry.SubjectKey,
+		"incident", entry.IncidentID,
+		"from", from,
+		"to", to,
 		"rFinal", risk.RFinal,
 	)
 }
 
-// CheckRecoveryToStable 检查 Recovery 状态的实体是否可以转为 Stable
-// 条件: 进入恢复观察期满 48h 且期间没有复发（复发会离开 Recovery 并清空 RecoveryStartedAt）
-//
-// 计时用 RecoveryStartedAt 而不是 ConditionMetSince：观察期内实体仍在每轮被评估，
-// 而评估在「没有出口条件满足」时会把 ConditionMetSince 清零。
-func (sm *StateMachine) CheckRecoveryToStable(ctx context.Context) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	now := sm.now()
-	stableThreshold := 48 * time.Hour
-
-	for ref, entry := range sm.entries {
-		if entry.CurrentState != aiops.StateRecovery {
-			continue
-		}
-
-		if entry.RecoveryStartedAt == 0 {
-			// 恢复时刻未知（重启后时间线里查不到）：从现在起计
-			entry.RecoveryStartedAt = now.Unix()
-			continue
-		}
-
-		duration := time.Duration(now.Unix()-entry.RecoveryStartedAt) * time.Second
-		if duration < stableThreshold {
-			continue
-		}
-
-		entry.CurrentState = aiops.StateStable
-		sm.callback.OnStable(ctx, entry.IncidentID, ref.EntityKey, now)
-
-		log.Info("事件已关闭", "cluster", ref.ClusterID, "entity", ref.EntityKey, "incident", entry.IncidentID)
-		delete(sm.entries, ref)
+// raiseSeverity 本轮风险对应的严重度高于已记录的峰值时升档，返回是否升了
+func raiseSeverity(entry *aiops.StateMachineEntry, risk *aiops.SubjectRisk) bool {
+	current := aiops.SeverityFromRisk(risk.RFinal)
+	if aiops.SeverityRank(current) <= aiops.SeverityRank(entry.Severity) {
+		return false
 	}
+	entry.Severity = current
+	return true
+}
+
+// leadKey 本轮的领头实体；本轮没有带风险的领头时沿用之前记下的
+func leadKey(risk *aiops.SubjectRisk, previous string) string {
+	if risk.Lead != nil && risk.Lead.RFinal > 0 {
+		return risk.Lead.EntityKey
+	}
+	return previous
+}
+
+// recentOccurrences 去掉滑出 24 小时窗口的发生时刻
+func recentOccurrences(times []int64, now time.Time) []int64 {
+	cutoff := now.Add(-occurrenceWindow).Unix()
+	recent := make([]int64, 0, len(times)+1)
+	for _, at := range times {
+		if at > cutoff {
+			recent = append(recent, at)
+		}
+	}
+	return recent
+}
+
+// emit 组装一条字段齐全的事件变化交给处理方。risk 为 nil 表示没有对应的评估（关闭类）
+func (sm *StateMachine) emit(
+	ctx context.Context,
+	kind aiops.TransitionKind,
+	entry *aiops.StateMachineEntry,
+	from aiops.EntityState,
+	risk *aiops.SubjectRisk,
+	now time.Time,
+) {
+	entry.OccurrenceTimes = recentOccurrences(entry.OccurrenceTimes, now)
+
+	transition := aiops.IncidentTransition{
+		Kind:            kind,
+		IncidentID:      entry.IncidentID,
+		ClusterID:       entry.ClusterID,
+		SubjectKey:      entry.SubjectKey,
+		RootCause:       entry.RootCause,
+		FromState:       from,
+		ToState:         entry.CurrentState,
+		Severity:        entry.Severity,
+		RFinal:          entry.LastRFinal,
+		PeakRisk:        entry.PeakRisk,
+		Recurrence:      entry.Recurrence,
+		Occurrences24h:  len(entry.OccurrenceTimes),
+		ReachedIncident: entry.ReachedIncident,
+		At:              now,
+	}
+	if risk != nil {
+		transition.RFinal = risk.RFinal
+		for _, member := range risk.Members {
+			transition.Members = append(transition.Members, member.EntityKey)
+		}
+	}
+
+	sm.handler.OnTransition(ctx, transition, risk)
 }

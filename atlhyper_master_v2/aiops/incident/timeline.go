@@ -51,7 +51,7 @@ func signalDetail(risk *aiops.EntityRisk) string {
 // legacyRecoveryPrefix 2026-10-14 之前 recovery 以 state_change 记录，只能靠文案识别
 const legacyRecoveryPrefix = "状态变更 → recovery"
 
-// ActiveWindow 异常段的结束时刻：最后一次复发之后的首个恢复（48h 观察期不算异常）。
+// ActiveWindow 异常段的结束时刻：最后一次复发之后的首个恢复（恢复观察期不算异常）。
 // recovered=false 表示仍在异常中（或时间线未记录恢复）
 func ActiveWindow(timeline []*database.AIOpsIncidentTimeline) (end time.Time, recovered bool) {
 	sorted := make([]*database.AIOpsIncidentTimeline, len(timeline))
@@ -77,7 +77,7 @@ func isRecoveryEntry(t *database.AIOpsIncidentTimeline) bool {
 // RecoveryStartedAt 事件进入恢复观察期的时刻：最后一次复发之后的首个恢复记录。
 // ok=false 表示事件当前不在观察期，或时间线读不到。
 //
-// 状态机的条目只在内存里，Master 重启后据此取回观察期的起点，不从重启那一刻重新计 48 小时。
+// 状态机的条目只在内存里，Master 重启后据此取回观察期的起点，不从重启那一刻重新计观察期。
 func (s *Store) RecoveryStartedAt(ctx context.Context, incidentID string) (startedAt time.Time, ok bool) {
 	timeline, err := s.repo.GetTimeline(ctx, incidentID)
 	if err != nil {
@@ -85,4 +85,24 @@ func (s *Store) RecoveryStartedAt(ctx context.Context, incidentID string) (start
 		return time.Time{}, false
 	}
 	return ActiveWindow(timeline)
+}
+
+// OccurrenceTimes 事件每次「发生」的时刻（Unix 秒，从早到晚）：建事件的时刻 + 时间线里每次复发的时刻。
+//
+// Master 重启后状态机据此接着数「近 24 小时发生次数」；只留窗口内的由状态机负责。
+// 时间线读不到时只返回建事件的时刻。
+func (s *Store) OccurrenceTimes(ctx context.Context, incidentID string, startedAt time.Time) []int64 {
+	times := []int64{startedAt.Unix()}
+	timeline, err := s.repo.GetTimeline(ctx, incidentID)
+	if err != nil {
+		log.Warn("读取事件时间线失败", "id", incidentID, "err", err)
+		return times
+	}
+	for _, entry := range timeline {
+		if entry.EventType == aiops.TimelineRecurrence {
+			times = append(times, entry.Timestamp.Unix())
+		}
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i] < times[j] })
+	return times
 }

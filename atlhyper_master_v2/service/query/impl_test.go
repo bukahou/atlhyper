@@ -117,7 +117,6 @@ func (m *mockAIOpsEngine) GetIncidentPatterns(ctx context.Context, clusterID, en
 	return nil
 }
 func (m *mockAIOpsEngine) SubscribeTransitions(func(aiops.IncidentTransition)) {}
-func (m *mockAIOpsEngine) SetIncidentNotify(fn func(incidentID, severity, trigger string)) {}
 func (m *mockAIOpsEngine) Start(ctx context.Context) error                                 { return nil }
 func (m *mockAIOpsEngine) Stop() error                                                     { return nil }
 

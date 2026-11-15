@@ -210,7 +210,7 @@ func NewMaster() (*Master, error) {
 		return middleware.Allowed(analysisAudience, middleware.Permission(p))
 	})
 	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
-	aiopsEngine.SetIncidentNotify(aiopsEnricher.NotifyIncidentEvent)
+	aiopsEngine.SubscribeTransitions(aiopsEnricher.OnIncidentTransition)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
 
 	// 8. 初始化 Query（读取路径）— 全部依赖通过构造函数注入
