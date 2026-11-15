@@ -17,7 +17,7 @@ import (
 // ==================== 集群查询 ====================
 
 // ListClusters 列出所有集群
-func (q *QueryService) ListClusters(ctx context.Context) ([]agent.ClusterInfo, error) {
+func (q *OverviewQuery) ListClusters(ctx context.Context) ([]agent.ClusterInfo, error) {
 	agents, err := q.store.ListAgents()
 	if err != nil {
 		return nil, err
@@ -47,21 +47,21 @@ func (q *QueryService) ListClusters(ctx context.Context) ([]agent.ClusterInfo, e
 // ==================== Agent 状态查询 ====================
 
 // GetAgentStatus 获取 Agent 状态
-func (q *QueryService) GetAgentStatus(ctx context.Context, clusterID string) (*agent.AgentStatus, error) {
+func (q *OverviewQuery) GetAgentStatus(ctx context.Context, clusterID string) (*agent.AgentStatus, error) {
 	return q.store.GetAgentStatus(clusterID)
 }
 
 // ==================== 指令状态查询 ====================
 
 // GetCommandStatus 获取指令状态
-func (q *QueryService) GetCommandStatus(ctx context.Context, commandID string) (*command.Status, error) {
+func (q *OverviewQuery) GetCommandStatus(ctx context.Context, commandID string) (*command.Status, error) {
 	return q.bus.GetCommandStatus(commandID)
 }
 
 // ==================== Event 查询 ====================
 
 // GetEvents 获取实时 Events
-func (q *QueryService) GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]cluster.Event, error) {
+func (q *OverviewQuery) GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]cluster.Event, error) {
 	events, err := q.store.GetEvents(clusterID)
 	if err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func (q *QueryService) GetEvents(ctx context.Context, clusterID string, opts mod
 }
 
 // GetEventsByResource 按资源查询 Events
-func (q *QueryService) GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]cluster.Event, error) {
+func (q *OverviewQuery) GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]cluster.Event, error) {
 	events, err := q.store.GetEvents(clusterID)
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func (q *QueryService) GetEventsByResource(ctx context.Context, clusterID, kind,
 // ==================== 概览查询 ====================
 
 // GetOverview 获取集群概览
-func (q *QueryService) GetOverview(ctx context.Context, clusterID string) (*cluster.ClusterOverview, error) {
+func (q *OverviewQuery) GetOverview(ctx context.Context, clusterID string) (*cluster.ClusterOverview, error) {
 	// 获取快照
 	snapshot, err := q.store.GetSnapshot(clusterID)
 	if err != nil {

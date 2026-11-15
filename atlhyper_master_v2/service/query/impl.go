@@ -24,6 +24,28 @@ import (
 
 // ==================== 领域小服务（迁移中，按领域逐个加入） ====================
 
+// OverviewQuery 集群概览、Agent 状态、指令状态与 K8s 事件查询（满足 service.QueryOverview）
+type OverviewQuery struct {
+	store     datahub.Store
+	bus       mq.Producer
+	eventRepo database.ClusterEventRepository
+}
+
+// NewOverviewQuery 创建 OverviewQuery
+func NewOverviewQuery(store datahub.Store, bus mq.Producer, eventRepo database.ClusterEventRepository) *OverviewQuery {
+	return &OverviewQuery{store: store, bus: bus, eventRepo: eventRepo}
+}
+
+// SLOQuery SLO 服务网格与路由映射查询（满足 service.QuerySLO）
+type SLOQuery struct {
+	sloRepo database.SLORepository
+}
+
+// NewSLOQuery 创建 SLOQuery
+func NewSLOQuery(sloRepo database.SLORepository) *SLOQuery {
+	return &SLOQuery{sloRepo: sloRepo}
+}
+
 // OTelQuery OTel 快照 / 时间线与据此算出的指标视图：硬件健康、节点对比、信号新鲜度（满足 service.QueryOTel）
 type OTelQuery struct {
 	store datahub.Store
@@ -46,6 +68,8 @@ func NewK8sQuery(store datahub.Store) *K8sQuery {
 
 // QueryService Query 层实现
 type QueryService struct {
+	*OverviewQuery
+	*SLOQuery
 	*OTelQuery
 	*K8sQuery
 	store       datahub.Store
@@ -127,6 +151,8 @@ type QueryServiceDeps struct {
 // NewQueryService 创建 QueryService（全部依赖通过构造函数注入）
 func NewQueryService(deps QueryServiceDeps) *QueryService {
 	return &QueryService{
+		OverviewQuery:  NewOverviewQuery(deps.Store, deps.Bus, deps.EventRepo),
+		SLOQuery:       NewSLOQuery(deps.SLORepo),
 		OTelQuery:      NewOTelQuery(deps.Store),
 		K8sQuery:       NewK8sQuery(deps.Store),
 		store:          deps.Store,

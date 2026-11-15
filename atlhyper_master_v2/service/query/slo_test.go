@@ -74,7 +74,7 @@ func TestGetSLOTargets_Success(t *testing.T) {
 	}
 
 	// QueryService 在 package query 内部，可以直接构造
-	svc := &QueryService{sloRepo: repo}
+	svc := &SLOQuery{sloRepo: repo}
 
 	results, err := svc.GetSLOTargets(context.Background(), "cluster-1")
 	if err != nil {
@@ -104,7 +104,7 @@ func TestGetSLOTargets_Success(t *testing.T) {
 
 func TestGetSLOTargets_Empty(t *testing.T) {
 	repo := &mockSLORepo{targets: []*database.SLOTarget{}}
-	svc := &QueryService{sloRepo: repo}
+	svc := &SLOQuery{sloRepo: repo}
 
 	results, err := svc.GetSLOTargets(context.Background(), "cluster-1")
 	if err != nil {
@@ -129,7 +129,7 @@ func TestGetSLORouteMappingsByDomain_Success(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{sloRepo: repo}
+	svc := &SLOQuery{sloRepo: repo}
 
 	results, err := svc.GetSLORouteMappingsByDomain(context.Background(), "cluster-1", "example.com")
 	if err != nil {
@@ -156,7 +156,7 @@ func TestGetSLOAllDomains_Success(t *testing.T) {
 	repo := &mockSLORepo{
 		domains: []string{"example.com", "api.example.com"},
 	}
-	svc := &QueryService{sloRepo: repo}
+	svc := &SLOQuery{sloRepo: repo}
 
 	results, err := svc.GetSLOAllDomains(context.Background(), "cluster-1")
 	if err != nil {
@@ -172,7 +172,7 @@ func TestGetSLOAllDomains_Success(t *testing.T) {
 
 func TestGetSLORouteMappingByServiceKey_NotFound(t *testing.T) {
 	repo := &mockSLORepo{mappings: nil}
-	svc := &QueryService{sloRepo: repo}
+	svc := &SLOQuery{sloRepo: repo}
 
 	result, err := svc.GetSLORouteMappingByServiceKey(context.Background(), "cluster-1", "nonexistent@kubernetes")
 	if err != nil {
