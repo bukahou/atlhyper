@@ -114,22 +114,6 @@ type NotifyChannel struct {
 	UpdatedAt time.Time
 }
 
-// SlackConfig Slack 配置
-type SlackConfig struct {
-	WebhookURL string `json:"webhookUrl"`
-}
-
-// EmailConfig Email 配置
-type EmailConfig struct {
-	SMTPHost     string   `json:"smtpHost"`
-	SMTPPort     int      `json:"smtpPort"`
-	SMTPUser     string   `json:"smtpUser"`
-	SMTPPassword string   `json:"smtpPassword"`
-	SMTPTLS      bool     `json:"smtpTLS"`
-	FromAddress  string   `json:"fromAddress"`
-	ToAddresses  []string `json:"toAddresses"`
-}
-
 // Cluster 集群注册表的一行：管理员登记的集群，以及它的 Agent 令牌（只存哈希）
 type Cluster struct {
 	ClusterID     string // 集群 ID，与 Agent 上报的一致

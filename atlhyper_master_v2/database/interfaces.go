@@ -14,11 +14,20 @@ import (
 // DB 数据库统一访问点
 // 通过 New() 工厂函数创建，repo.Init() 注入 Repository 实例
 type DB struct {
-	Audit          AuditRepository
-	User           UserRepository
-	UserIdentity   UserIdentityRepository
-	Event          ClusterEventRepository
-	Notify         NotifyChannelRepository
+	Audit        AuditRepository
+	User         UserRepository
+	UserIdentity UserIdentityRepository
+	Event        ClusterEventRepository
+	Notify       NotifyChannelRepository
+
+	// 通知模块（接口定义见 interfaces_notify.go）
+	NotifyPolicy   NotifyPolicyRepository
+	NotifyAlert    NotifyAlertRepository
+	NotifyDelivery NotifyDeliveryRepository
+	NotifyReceiver NotifyReceiverRepository
+	NotifyRule     NotifyRuleRepository
+	NotifySilence  NotifySilenceRepository
+
 	Cluster        ClusterRepository
 	Command        CommandHistoryRepository
 	Settings       SettingsRepository
@@ -339,6 +348,12 @@ type Dialect interface {
 	UserIdentity() UserIdentityDialect
 	Event() EventDialect
 	Notify() NotifyDialect
+	NotifyPolicy() NotifyPolicyDialect
+	NotifyAlert() NotifyAlertDialect
+	NotifyDelivery() NotifyDeliveryDialect
+	NotifyReceiver() NotifyReceiverDialect
+	NotifyRule() NotifyRuleDialect
+	NotifySilence() NotifySilenceDialect
 	Cluster() ClusterDialect
 	Command() CommandDialect
 	Settings() SettingsDialect
