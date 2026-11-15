@@ -6,6 +6,7 @@
 
 import { get, post } from "./request";
 import type { AnalysisStatus } from "@/lib/analysis-poll";
+import type { IncidentDetailView } from "@/types/incident-view";
 
 // ==================== 类型定义 ====================
 
@@ -176,7 +177,8 @@ export interface Incident {
   createdAt: string;
 }
 
-export interface IncidentDetail extends Incident {
+/** 事件详情：事件本身 + 原有的实体与原始时间线 + 改版新增的展示字段（见 types/incident-view.ts） */
+export interface IncidentDetail extends Incident, IncidentDetailView {
   entities: IncidentEntity[];
   timeline: IncidentTimeline[];
 }

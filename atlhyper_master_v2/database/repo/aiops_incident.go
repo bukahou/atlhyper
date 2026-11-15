@@ -186,6 +186,33 @@ func (r *aiopsIncidentRepo) GetTimeline(ctx context.Context, incidentID string) 
 	return result, rows.Err()
 }
 
+// UpsertSignal 累计一条信号记录
+func (r *aiopsIncidentRepo) UpsertSignal(ctx context.Context, signal *database.AIOpsIncidentSignal) error {
+	query, args := r.dialect.UpsertSignal(signal)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// GetSignals 某个事件的全部信号记录（最高分从高到低）
+func (r *aiopsIncidentRepo) GetSignals(ctx context.Context, incidentID string) ([]*database.AIOpsIncidentSignal, error) {
+	query, args := r.dialect.SelectSignals(incidentID)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := []*database.AIOpsIncidentSignal{}
+	for rows.Next() {
+		signal, err := r.dialect.ScanSignal(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, signal)
+	}
+	return result, rows.Err()
+}
+
 // GetIncidentStats 获取事件统计信息
 func (r *aiopsIncidentRepo) GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*database.AIOpsIncidentStatsRaw, error) {
 	sinceStr := since.Format(time.RFC3339)

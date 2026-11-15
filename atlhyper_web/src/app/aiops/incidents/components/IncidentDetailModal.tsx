@@ -1,18 +1,21 @@
 "use client";
 
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { X, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { AIAnalysisSection } from "@/components/aiops/AIAnalysisSection";
-import { IncidentFacts } from "./IncidentFacts";
+import { incidentSubject } from "@/lib/entity-key";
+import { incidentDetailQuery } from "@/queries/aiops";
+import { IncidentEvidence } from "./IncidentEvidence";
+import { IncidentHistory } from "./IncidentHistory";
 import { IncidentMembers } from "./IncidentMembers";
-import { RootCauseCard } from "./RootCauseCard";
+import { IncidentNextSteps } from "./IncidentNextSteps";
+import { IncidentVerdict } from "./IncidentVerdict";
 import { SubjectTitle } from "./SubjectTitle";
 import { TimelineView } from "./TimelineView";
-import { formatDuration } from "./incident-format";
-import type { IncidentPattern } from "@/api/aiops";
-import { useCurrentCluster } from "@/hooks/useCurrentCluster";
-import { incidentDetailQuery, incidentPatternsQuery } from "@/queries/aiops";
+import { hasMergedDetections } from "./incident-timeline-format";
+import { fillTemplate, withDetailViewDefaults } from "./incident-view-format";
 
 interface IncidentDetailModalProps {
   incidentId: string | null;
@@ -21,37 +24,21 @@ interface IncidentDetailModalProps {
 }
 
 /**
- * 这个主体的历史模式：undefined = 还在查；null = 没有同类事件史（没有主体键、或查询失败也按没有算）。
+ * 事件详情（docs/design/active/incident-notification-design.md「功能四」）。从上到下：
+ * 结论 → 关键证据 → 下一步 → 成员 → 时间线（默认折叠）→ 历史与 AI 分析。
  */
-function resolveSubjectPattern(
-  detailLoaded: boolean,
-  historyKey: string,
-  patternsQuery: UseQueryResult<IncidentPattern[]>,
-): IncidentPattern | null | undefined {
-  if (!detailLoaded) return undefined;
-  if (historyKey === "" || patternsQuery.isError) return null;
-  if (patternsQuery.data === undefined) return undefined;
-  return patternsQuery.data.find((candidate) => candidate.entityKey === historyKey) ?? null;
-}
-
 export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetailModalProps) {
   const { t } = useI18n();
-  const { clusterId } = useCurrentCluster();
   // 弹窗关着时不取：incidentId 传空串，查询不启用
   const detailQuery = useQuery(incidentDetailQuery(open && incidentId ? incidentId : ""));
-  const detail = detailQuery.data;
+  const detail = detailQuery.data ? withDetailViewDefaults(detailQuery.data) : undefined;
   const loading = detailQuery.isPending;
-
-  // 历史模式（G2）：拿到详情后按主体查 30 天内的事件史。
-  // 按主体而不是根因实体查：根因实体是具体的 Pod，Pod 重建后换了名字，按它查历史会断；
-  // 后端按实体查历史时同时匹配主体与成员实体。没有主体键时退回到根因实体
-  const historyKey = detail?.subject || detail?.rootCause || "";
-  const patternsQuery = useQuery(incidentPatternsQuery(clusterId, historyKey));
-  const pattern = resolveSubjectPattern(detail !== undefined, historyKey, patternsQuery);
+  const aiSectionRef = useRef<HTMLDivElement>(null);
+  const hasDetections = detail ? hasMergedDetections(detail.timelineView) : false;
 
   if (!open) return null;
 
-  const rootCauseEntity = detail?.entities?.find((entity) => entity.role === "root_cause");
+  const scrollToAIAnalysis = () => aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -61,7 +48,7 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
       {/* 弹窗 */}
       <div className="relative bg-card border border-[var(--border-color)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4">
         {/* 头部 */}
-        <div className="sticky top-0 bg-card border-b border-[var(--border-color)] px-6 py-4 flex items-center justify-between rounded-t-2xl">
+        <div className="sticky top-0 z-10 bg-card border-b border-[var(--border-color)] px-6 py-4 flex items-center justify-between rounded-t-2xl">
           {/* 标题是主体（类型 + 命名空间 + 名称）；详情还没回来时只有事件号 */}
           <div className="min-w-0">
             {detail && (
@@ -71,6 +58,9 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
             )}
             <p className={detail ? "text-xs text-muted mt-0.5" : "text-base font-bold text-default"}>
               {t.aiops.incidentId} <span className="font-mono">{detail?.id ?? incidentId}</span>
+              {detail && detail.clusterId !== "" && (
+                <> · {fillTemplate(t.aiops.detail.clusterLabel, { cluster: detail.clusterId })}</>
+              )}
             </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-[var(--hover-bg)] text-muted hover:text-default transition-colors">
@@ -86,49 +76,37 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
             </div>
           ) : detail ? (
             <>
-              {/* 概况：状态、峰值严重度、时长、复发次数、升级时间、关闭原因 */}
-              <IncidentFacts incident={detail} />
+              {/* 结论：状态、严重度、时长、一句话、影响数字 */}
+              <IncidentVerdict incident={detail} hasDetections={hasDetections} />
 
-              {/* 根因卡片：领头实体（成员里风险最高的那个） */}
-              <RootCauseCard entity={rootCauseEntity} />
+              {/* 关键证据：按信号去重 */}
+              <IncidentEvidence
+                evidence={detail.evidence}
+                totalMembers={detail.headline?.totalMembers ?? detail.members.length}
+                hasDetections={hasDetections}
+              />
 
-              {/* 成员实体：这个主体下涉及哪几个实体 */}
-              <IncidentMembers entities={detail.entities ?? []} />
+              {/* 下一步：去哪查 */}
+              <IncidentNextSteps
+                subject={incidentSubject(detail)}
+                members={detail.members}
+                onOpenAIAnalysis={scrollToAIAnalysis}
+              />
 
-              {/* 时间线 */}
-              <TimelineView timeline={detail.timeline ?? []} />
+              {/* 成员：状态、重启、风险；「风险最高」标记 */}
+              <IncidentMembers members={detail.members} />
 
-              {/* 历史模式（G2）：这个问题是不是老毛病 */}
-              <div>
-                <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                  {t.aiops.patternTitle}
-                </h4>
-                {pattern === undefined ? (
-                  <div className="text-xs text-muted opacity-60">…</div>
-                ) : pattern === null || pattern.patternCount <= 1 ? (
-                  <div className="text-xs text-muted">{t.aiops.patternFirst}</div>
-                ) : (
-                  <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
-                    <span className="text-muted">
-                      {t.aiops.patternRecur}:{" "}
-                      <span className="text-default font-medium tabular-nums">{pattern.patternCount}</span>
-                    </span>
-                    <span className="text-muted">
-                      {t.aiops.patternAvgDuration}:{" "}
-                      <span className="text-default tabular-nums">
-                        {formatDuration(pattern.avgDuration, t.aiops.minutes)}
-                      </span>
-                    </span>
-                    <span className="text-muted">
-                      {t.aiops.patternLast}:{" "}
-                      <span className="text-default">{new Date(pattern.lastOccurrence).toLocaleString()}</span>
-                    </span>
-                  </div>
-                )}
+              {/* 时间线：默认折叠 */}
+              <TimelineView items={detail.timelineView} />
+
+              {/* 收尾：历史与 AI 分析 */}
+              <IncidentHistory incident={detail} />
+              <div
+                ref={aiSectionRef}
+                className="scroll-mt-24 rounded-xl border border-dashed border-[var(--border-color)] px-3 py-2.5"
+              >
+                <AIAnalysisSection incidentId={detail.id} incidentState={detail.state} />
               </div>
-
-              {/* AI 分析报告 */}
-              <AIAnalysisSection incidentId={detail.id} incidentState={detail.state} />
             </>
           ) : (
             <div className="py-8 text-center text-sm text-muted">{t.aiops.noData}</div>

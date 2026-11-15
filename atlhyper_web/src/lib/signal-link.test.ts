@@ -5,7 +5,22 @@ import {
   incidentLink,
   logsLinkForService,
   logsLinkForTrace,
+  podListLink,
+  eventListLink,
 } from "./signal-link";
+
+describe("podListLink / eventListLink", () => {
+  it("按给出的条件带参数，空的不带", () => {
+    expect(podListLink({ namespace: "shop", search: "api" })).toBe("/cluster/pod?namespace=shop&search=api");
+    expect(podListLink({ node: "worker-1" })).toBe("/cluster/pod?node=worker-1");
+    expect(eventListLink({ namespace: "", search: "worker-1" })).toBe("/cluster/event?search=worker-1");
+  });
+
+  it("没有条件时落到列表本身", () => {
+    expect(podListLink({})).toBe("/cluster/pod");
+    expect(eventListLink({})).toBe("/cluster/event");
+  });
+});
 
 describe("serviceKeyToOTelName", () => {
   // SLO 用 {namespace}/{service}，APM/Logs 用 OTel 资源属性里的 ServiceName。

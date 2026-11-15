@@ -490,6 +490,96 @@ type IncidentDetail struct {
 	Incident
 	Entities []*IncidentEntity   `json:"entities"`
 	Timeline []*IncidentTimeline `json:"timeline"`
+
+	// 以下为详情页的展示形态（见设计文档「功能四：事件详情页改版」）。
+	// Headline / Evidence / TimelineView 由事件存储按库里的记录算出；Impact / Members 由查询层按当前快照补上
+	Headline     *IncidentHeadline      `json:"headline"`     // nil = 没有证据（如只有依赖传播）
+	Impact       *IncidentImpact        `json:"impact"`       // nil = 查询层没有补（如集群快照不可用）
+	Evidence     []IncidentEvidence     `json:"evidence"`     // 按信号类型去重，最高分从高到低
+	Members      []IncidentMember       `json:"members"`      // 与 Entities 一一对应，带当前快照里的状态
+	TimelineView []IncidentTimelineItem `json:"timelineView"` // 状态与严重度的变化 + 合并后的检测记录
+}
+
+// 证据的信号类型（由指标名归类）
+const (
+	SignalContainerCrash      = "container_crash"
+	SignalWorkloadUnavailable = "workload_unavailable"
+	SignalK8sEvent            = "k8s_event"
+	SignalRestarts            = "restarts"
+	SignalNotReady            = "not_ready"
+	SignalResource            = "resource"
+	SignalNodePressure        = "node_pressure"
+	SignalAPMErrors           = "apm_errors"
+	SignalAPMLatency          = "apm_latency"
+	SignalLogErrors           = "log_errors"
+	SignalOther               = "other"
+)
+
+// IncidentHeadline 结论那一句话的素材：主证据（分数最高的一条）
+type IncidentHeadline struct {
+	Signal          string `json:"signal"`
+	Reason          string `json:"reason"` // 原因码 / 取值；没有时为空串
+	AffectedMembers int    `json:"affectedMembers"`
+	TotalMembers    int    `json:"totalMembers"`
+}
+
+// IncidentImpact 影响数字；不适用的项为 nil
+type IncidentImpact struct {
+	DesiredReplicas   *int `json:"desiredReplicas"`   // 只对 Deployment / StatefulSet / DaemonSet 主体
+	AvailableReplicas *int `json:"availableReplicas"` // 同上
+	RestartsTotal     *int `json:"restartsTotal"`     // 当前仍存在的成员 Pod 的重启次数之和
+}
+
+// IncidentEvidence 一类信号的证据
+type IncidentEvidence struct {
+	Signal          string    `json:"signal"`
+	Reason          string    `json:"reason"`
+	AffectedMembers int       `json:"affectedMembers"`
+	Detail          string    `json:"detail"` // 最近一次的原文（已去掉 Pod UID 等噪音）
+	FirstSeen       time.Time `json:"firstSeen"`
+	LastSeen        time.Time `json:"lastSeen"`
+	Hits            int       `json:"hits"`
+	MaxScore        float64   `json:"maxScore"`
+}
+
+// IncidentMember 成员实体 + 当前快照里的状态
+type IncidentMember struct {
+	EntityKey  string  `json:"entityKey"`
+	EntityType string  `json:"entityType"`
+	Namespace  string  `json:"namespace"`
+	Name       string  `json:"name"`
+	Role       string  `json:"role"`
+	RFinal     float64 `json:"rFinal"`
+	IsLead     bool    `json:"isLead"`  // 风险最高的成员（事件的 root_cause）
+	Present    bool    `json:"present"` // 当前快照里还在；false 时以下三项为空
+	Status     string  `json:"status"`
+	Restarts   *int    `json:"restarts"`
+	Ready      string  `json:"ready"`
+}
+
+// 时间线展示条目的种类
+const (
+	TimelineItemCreated         = "created"
+	TimelineItemEscalated       = "escalated"
+	TimelineItemSeverityRaised  = "severity_raised"
+	TimelineItemRecoveryStarted = "recovery_started"
+	TimelineItemRecurred        = "recurred"
+	TimelineItemClosed          = "closed"
+	TimelineItemClosedStale     = "closed_stale"
+	TimelineItemAnomaly         = "anomaly" // 合并后的检测记录
+	TimelineItemNote            = "note"    // 其余（旧版本写下的类型），原文放在 Detail
+)
+
+// IncidentTimelineItem 时间线的一条展示记录
+type IncidentTimelineItem struct {
+	At       time.Time  `json:"at"`
+	Kind     string     `json:"kind"`
+	Risk     *int       `json:"risk,omitempty"`     // 0–100
+	Severity string     `json:"severity,omitempty"` // severity_raised 的新档位
+	Count    int        `json:"count,omitempty"`    // anomaly：合并了几条
+	FirstAt  *time.Time `json:"firstAt,omitempty"`  // anomaly：第一条
+	LastAt   *time.Time `json:"lastAt,omitempty"`   // anomaly：最后一条
+	Detail   string     `json:"detail,omitempty"`   // note：原文
 }
 
 // IncidentStats 事件统计

@@ -5,6 +5,7 @@
 import type { Language } from "./common";
 import type { Permission } from "./auth";
 import type { NotificationsTranslations } from "./i18n-notify";
+import type { IncidentDetailTranslations } from "./i18n-incident";
 
 // 导航菜单翻译
 export interface NavTranslations {
@@ -2061,10 +2062,6 @@ export interface AIOpsTranslations {
   };
   memberEntities: string;
   noMemberEntities: string;
-  entityRole: {
-    root_cause: string;
-    affected: string;
-  };
   escalatedAt: string;
   notEscalated: string;
   closeReason: string;
@@ -2115,16 +2112,8 @@ export interface AIOpsTranslations {
     topRootCauses: string;
   };
 
-  // 时间线事件类型
-  timelineEvent: {
-    anomaly_detected: string;
-    state_change: string;
-    metric_spike: string;
-    root_cause_identified: string;
-    recovery_started: string;
-    recurrence: string;
-    severity_raised: string;
-  };
+  // 事件详情弹窗（结论、证据、下一步、成员、时间线）：文案量大，单放在 i18n-incident.ts
+  detail: IncidentDetailTranslations;
 
   // 拓扑图
   dependencyGraph: string;

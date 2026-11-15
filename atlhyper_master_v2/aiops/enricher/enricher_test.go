@@ -69,6 +69,12 @@ func (m *mockIncidentRepo) GetEntities(ctx context.Context, incidentID string) (
 func (m *mockIncidentRepo) AddTimeline(ctx context.Context, entry *database.AIOpsIncidentTimeline) error {
 	return nil
 }
+func (m *mockIncidentRepo) UpsertSignal(ctx context.Context, signal *database.AIOpsIncidentSignal) error {
+	return nil
+}
+func (m *mockIncidentRepo) GetSignals(ctx context.Context, incidentID string) ([]*database.AIOpsIncidentSignal, error) {
+	return nil, nil
+}
 func (m *mockIncidentRepo) GetTimeline(ctx context.Context, incidentID string) ([]*database.AIOpsIncidentTimeline, error) {
 	return m.timeline, nil
 }

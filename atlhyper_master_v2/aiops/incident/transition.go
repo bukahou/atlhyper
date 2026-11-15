@@ -188,7 +188,8 @@ func (s *Store) leadSignalWrites(incidentID string, at time.Time, risk *aiops.Su
 	if risk == nil || risk.Lead == nil {
 		return nil
 	}
-	return []pendingWrite{s.signalTimelineWrite(incidentID, at, risk.Lead)}
+	// 时间线只写领头；证据记下全部成员的信号（成员各自中了什么、几个中招）
+	return append([]pendingWrite{s.signalTimelineWrite(incidentID, at, risk.Lead)}, s.memberSignalWrites(incidentID, risk.Members, at)...)
 }
 
 // memberWrites 把本轮有风险的成员写进事件实体表：领头为 root_cause，其余为 affected。

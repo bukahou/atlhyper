@@ -393,6 +393,19 @@ type AIOpsIncidentTimeline struct {
 	Detail     string
 }
 
+// AIOpsIncidentSignal 事件里某个成员的某个指标的累计异常记录（关键证据的来源）。
+// 每次写「异常检测」时间线时按（事件, 成员, 指标）累计
+type AIOpsIncidentSignal struct {
+	IncidentID string
+	EntityKey  string
+	Metric     string
+	FirstSeen  time.Time
+	LastSeen   time.Time
+	Hits       int
+	MaxScore   float64
+	Detail     string // 最近一次的原文
+}
+
 // AIOpsIncidentQueryOpts 事件查询选项
 type AIOpsIncidentQueryOpts struct {
 	ClusterID string

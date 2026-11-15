@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { PageHeader, QueryView } from "@/components/common";
@@ -20,12 +21,14 @@ export default function EventPage() {
   const query = useQuery(eventOverviewQuery(clusterId));
   const data = query.data;
 
-  const [filters, setFilters] = useState<EventFilters>({
-    search: "",
+  // 跨页跳转（如事件详情的「下一步」）可用 ?namespace=&search= 预填筛选
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<EventFilters>(() => ({
+    search: searchParams.get("search") ?? "",
     severity: "",
     kind: "",
-    namespace: "",
-  });
+    namespace: searchParams.get("namespace") ?? "",
+  }));
 
   const [selectedEvent, setSelectedEvent] = useState<EventLog | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);

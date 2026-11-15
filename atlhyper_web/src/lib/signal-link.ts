@@ -60,3 +60,23 @@ export function logsLinkForTrace(traceId: string): string {
 export function incidentLink(incidentId: string): string {
   return buildLink("/aiops/incidents", { incident: incidentId });
 }
+
+/**
+ * 事件详情的「下一步」→ Pod 列表，带上筛选条件（命名空间 / 节点 / 名称关键字）。
+ * Pod 列表页按同名参数预填筛选栏；参数为空时落到全部 Pod
+ */
+export function podListLink(filters: { namespace?: string; node?: string; search?: string }): string {
+  return buildLink("/cluster/pod", {
+    namespace: filters.namespace ?? "",
+    node: filters.node ?? "",
+    search: filters.search ?? "",
+  });
+}
+
+/** 事件详情的「下一步」→ K8s 事件列表，按命名空间与名称关键字预填筛选栏 */
+export function eventListLink(filters: { namespace?: string; search?: string }): string {
+  return buildLink("/cluster/event", {
+    namespace: filters.namespace ?? "",
+    search: filters.search ?? "",
+  });
+}

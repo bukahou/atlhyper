@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { PageHeader, QueryView, StatsCard, DataTable, ConfirmDialog } from "@/components/common";
@@ -26,13 +27,14 @@ export default function PodPage() {
   const restart = useMutation(restartPodMutation(clusterId));
   const invalidateAfterCommand = useDelayedInvalidate();
 
-  // 筛选状态
-  const [filters, setFilters] = useState<PodFilters>({
-    namespace: "",
-    node: "",
+  // 筛选状态：跨页跳转（如事件详情的「下一步」）可用 ?namespace=&node=&search= 预填
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<PodFilters>(() => ({
+    namespace: searchParams.get("namespace") ?? "",
+    node: searchParams.get("node") ?? "",
     status: "",
-    search: "",
-  });
+    search: searchParams.get("search") ?? "",
+  }));
 
   // 详情弹窗状态
   const [selectedPod, setSelectedPod] = useState<PodItem | null>(null);

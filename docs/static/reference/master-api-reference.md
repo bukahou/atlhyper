@@ -268,7 +268,18 @@
   ], "total": 1 }
 ```
 
-**详情** `GET /api/v2/aiops/incidents/{id}`：上面的事件字段直接位于响应顶层（不包 `data`），另有 `entities`（成员实体）与 `timeline`。
+**详情** `GET /api/v2/aiops/incidents/{id}`：上面的事件字段直接位于响应顶层（不包 `data`），另有 `entities`（成员实体）与 `timeline`，
+以及详情页用的五项（字段与示例见设计文档 `incident-notification-design.md`「功能四：事件详情页改版」）：
+
+| 字段 | 说明 |
+|------|------|
+| `headline` | 结论的素材：主证据的 `signal` / `reason` / `affectedMembers` / `totalMembers`；没有证据时为 `null`。句子由前端按语言渲染 |
+| `impact` | 影响数字 `desiredReplicas` / `availableReplicas`（只对 Deployment / StatefulSet / DaemonSet 主体）、`restartsTotal`；不适用的项为 `null`，集群快照不可用时整项为 `null` |
+| `evidence` | 关键证据：按信号类型（`container_crash` / `workload_unavailable` / `k8s_event` / `restarts` / `not_ready` / `resource` / `node_pressure` / `apm_errors` / `apm_latency` / `log_errors` / `other`）去重，含中招成员数、首次 / 最近时刻、次数、最高分、最近原文；按最高分从高到低。改版前的事件为空数组 |
+| `members` | 与 `entities` 对应，补上 `isLead`（风险最高的成员）、`present`（当前快照里是否还在）、`status`、`restarts`、`ready` |
+| `timelineView` | 时间线的结构化形态：`kind` 为 `created` / `escalated` / `severity_raised` / `recovery_started` / `recurred` / `closed` / `closed_stale` / `anomaly`（检测记录合并成一条，带 `count` / `firstAt` / `lastAt`）/ `note`（旧记录，原文在 `detail`） |
+
+事件字段：
 
 | 字段 | 说明 |
 |------|------|
