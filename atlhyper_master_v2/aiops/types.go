@@ -361,6 +361,49 @@ type StateMachineEntry struct {
 	RecoveryStartedAt int64 `json:"recoveryStartedAt,omitempty"`
 }
 
+// ==================== 主体与事件变化 ====================
+
+// SubjectRisk 一个主体在本轮评估中的风险。
+// 主体是状态机与事件的单位：有上级工作负载的 Pod 归到工作负载，其余实体的主体就是自身。
+type SubjectRisk struct {
+	SubjectKey string
+	RFinal     float64       // = Lead.RFinal
+	Lead       *EntityRisk   // 风险最高的成员
+	Members    []*EntityRisk // RFinal > 0 的成员，按风险从高到低（含 Lead）
+}
+
+// TransitionKind 事件变化的种类
+type TransitionKind string
+
+const (
+	TransitionCreated         TransitionKind = "created"          // 健康 → 警告
+	TransitionEscalated       TransitionKind = "escalated"        // 警告 → 事件中
+	TransitionSeverityRaised  TransitionKind = "severity_raised"  // 严重度升高一档以上
+	TransitionRecoveryStarted TransitionKind = "recovery_started" // → 恢复观察
+	TransitionRecurred        TransitionKind = "recurred"         // 恢复观察 → 警告
+	TransitionClosed          TransitionKind = "closed"           // 观察期满
+	TransitionClosedStale     TransitionKind = "closed_stale"     // 失联关闭
+)
+
+// IncidentTransition 一次事件变化，由引擎发给订阅者（AI 后台分析、通知）
+type IncidentTransition struct {
+	Kind            TransitionKind
+	IncidentID      string
+	ClusterID       string
+	SubjectKey      string
+	RootCause       string   // 领头实体
+	Members         []string // 本轮有风险的成员实体键
+	FromState       EntityState
+	ToState         EntityState
+	Severity        string // 峰值严重度
+	RFinal          float64
+	PeakRisk        float64
+	Recurrence      int
+	Occurrences24h  int // 近 24 小时内的发生次数（含本次）
+	ReachedIncident bool
+	At              time.Time
+}
+
 // ==================== 事件类型 ====================
 
 // Incident 事件

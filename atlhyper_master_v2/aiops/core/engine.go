@@ -42,6 +42,9 @@ type engine struct {
 	// AI 后台分析通知回调（可选）
 	incidentNotify IncidentNotifyFunc
 
+	// 事件变化的订阅者（Start 之前注册，之后只读）
+	transitionSubscribers []func(aiops.IncidentTransition)
+
 	// 异常结果缓存（供风险详情查询）
 	anomalyCache map[string][]*aiops.AnomalyResult // clusterID -> anomalies
 	anomalyMu    sync.RWMutex
@@ -55,6 +58,21 @@ type engine struct {
 // SetIncidentNotify 设置事件通知回调
 func (e *engine) SetIncidentNotify(fn func(incidentID, severity, trigger string)) {
 	e.incidentNotify = IncidentNotifyFunc(fn)
+}
+
+// SubscribeTransitions 订阅事件变化（须在 Start 之前调用）
+func (e *engine) SubscribeTransitions(fn func(aiops.IncidentTransition)) {
+	if fn == nil {
+		return
+	}
+	e.transitionSubscribers = append(e.transitionSubscribers, fn)
+}
+
+// publishTransition 把一次事件变化发给全部订阅者
+func (e *engine) publishTransition(t aiops.IncidentTransition) {
+	for _, fn := range e.transitionSubscribers {
+		fn(t)
+	}
 }
 
 // OnSnapshot 快照更新时触发

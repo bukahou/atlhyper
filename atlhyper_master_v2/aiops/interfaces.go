@@ -42,6 +42,10 @@ type Engine interface {
 	// GetIncidentPatterns 获取历史事件模式
 	GetIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*IncidentPattern
 
+	// SubscribeTransitions 订阅事件变化。
+	// 订阅者在快照处理主路径上被同步调用，只允许做「放进队列」这类不阻塞的事
+	SubscribeTransitions(fn func(IncidentTransition))
+
 	// SetIncidentNotify 设置事件通知回调（供 AI 后台自动分析）
 	SetIncidentNotify(fn func(incidentID, severity, trigger string))
 
