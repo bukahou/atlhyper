@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/notifier/alert"
 )
@@ -177,10 +178,6 @@ func (s *K8sEventSource) recentOccurrence(ctx context.Context, row *database.Not
 // K8sEventAlert 一条 K8s Warning 事件 → 告警
 func K8sEventAlert(event *database.ClusterEvent) alert.Alert {
 	kind, namespace, name := event.InvolvedKind, event.InvolvedNamespace, event.InvolvedName
-	subjectNamespace := namespace
-	if subjectNamespace == "" {
-		subjectNamespace = clusterScopeNamespace
-	}
 	subjectType := strings.ToLower(kind)
 
 	resource := name
@@ -198,7 +195,7 @@ func K8sEventAlert(event *database.ClusterEvent) alert.Alert {
 		Summary:     truncateRunes(event.Message, maxEventSummaryRunes),
 		Labels: map[string]string{
 			alert.LabelNamespace:   namespace,
-			alert.LabelSubject:     subjectNamespace + "/" + subjectType + "/" + name,
+			alert.LabelSubject:     aiops.EntityKey(namespace, subjectType, name),
 			alert.LabelSubjectType: subjectType,
 		},
 		Details: map[string]string{

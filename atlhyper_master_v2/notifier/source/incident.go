@@ -15,8 +15,6 @@ import (
 )
 
 const (
-	// clusterScopeNamespace 集群级实体（节点等）的键里占命名空间位置的那一段
-	clusterScopeNamespace = "_cluster"
 	// maxListedMembers 告警详情里最多列出多少个成员实体，其余只计数
 	maxListedMembers = 10
 )
@@ -128,7 +126,7 @@ func closingAlert(transition aiops.IncidentTransition, summary string, quiet boo
 // incidentAlertBase 各种变化共用的部分。
 // 指纹用事件号（一个事件一条告警）；标题与标签用主体键 —— 领头实体会随 Pod 重建变化，主体不会
 func incidentAlertBase(transition aiops.IncidentTransition) alert.Alert {
-	namespace, subjectType := subjectParts(transition.SubjectKey)
+	namespace, subjectType, _ := aiops.SplitEntityKey(transition.SubjectKey)
 	details := map[string]string{
 		alert.DetailIncidentID:     transition.IncidentID,
 		alert.DetailPeakRisk:       strconv.Itoa(riskPercent(transition.PeakRisk)),
@@ -164,19 +162,6 @@ func incidentSeverity(text string) alert.Severity {
 		return severity
 	}
 	return alert.SeverityLow
-}
-
-// subjectParts 从主体键 <命名空间>/<类型>/<名字> 取出命名空间与类型；集群级主体没有命名空间
-func subjectParts(subjectKey string) (namespace, subjectType string) {
-	parts := strings.SplitN(subjectKey, "/", 3)
-	if len(parts) < 3 {
-		return "", ""
-	}
-	namespace, subjectType = parts[0], parts[1]
-	if namespace == clusterScopeNamespace {
-		namespace = ""
-	}
-	return namespace, subjectType
 }
 
 // listMembers 成员实体键，逗号分隔；过多时只列前几个

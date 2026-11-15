@@ -485,16 +485,32 @@ SSE 事件类型：`text`, `tool_call`, `tool_result`, `done`, `error`
 
 ---
 
-### 4.14 通知渠道
+### 4.14 通知设置
 
-**文件：** `api/notify.ts`
+**文件：** `api/notify.ts`（类型在 `types/notify.ts`）。权限均为 `notify.manage`。字段与取值见 `master-api-reference.md` §3.8。
 
 | 方法 | 路径 | 函数名 |
 |------|------|--------|
-| GET | `/api/v2/notify/channels` | `listChannels()` |
-| GET | `/api/v2/notify/channels/{type}` | `getChannel(type)` |
-| PUT | `/api/v2/notify/channels/slack` | `updateSlack({ enabled?, webhook_url? })` |
-| PUT | `/api/v2/notify/channels/email` | `updateEmail(data)` |
+| GET | `/api/v2/notify/policy` | `getNotifyPolicy()` |
+| PUT | `/api/v2/notify/policy` | `updateNotifyPolicy(policy)` |
+| GET | `/api/v2/notify/alerts` | `getNotifyAlerts({ status, limit, offset })` |
+| GET | `/api/v2/notify/deliveries` | `getNotifyDeliveries({ status?, limit, offset })` |
+| GET | `/api/v2/notify/receivers` | `getNotifyReceivers()` |
+| POST | `/api/v2/notify/receivers` | `createNotifyReceiver(receiver)` |
+| PUT | `/api/v2/notify/receivers/{id}` | `updateNotifyReceiver(id, receiver)` |
+| DELETE | `/api/v2/notify/receivers/{id}` | `deleteNotifyReceiver(id)` |
+| POST | `/api/v2/notify/receivers/{id}/test` | `testNotifyReceiver(id)` |
+| GET | `/api/v2/notify/rules` | `getNotifyRules()` |
+| POST | `/api/v2/notify/rules` | `createNotifyRule(rule)` |
+| PUT | `/api/v2/notify/rules/{id}` | `updateNotifyRule(id, rule)` |
+| DELETE | `/api/v2/notify/rules/{id}` | `deleteNotifyRule(id)` |
+| PUT | `/api/v2/notify/rules/order` | `reorderNotifyRules(ids)` |
+| POST | `/api/v2/notify/rules/match` | `matchNotifyRules(alert)` |
+| GET | `/api/v2/notify/silences` | `getNotifySilences(state)` |
+| POST | `/api/v2/notify/silences` | `createNotifySilence(silence)` |
+| POST | `/api/v2/notify/silences/{id}/expire` | `expireNotifySilence(id)` |
+
+接收人的凭据（Webhook 地址、SMTP 密码）只写不读：接口只返回「是否已配置」，更新时留空表示保持原值。
 
 ---
 

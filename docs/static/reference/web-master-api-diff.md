@@ -43,7 +43,7 @@ Master 注册了路由，但前端 `api/` 和 `datasource/` 中无对应调用�
 | `/health` | GET | Public | `healthCheck` | 健康检查（基础设施用） |
 | `/api/v2/events/by-resource` | GET | Public | `EventHandler.ListByResource` | 按资源查询事件 |
 | `/api/v2/commands` | POST | Operator | `CommandHandler.Create` | 通用指令下发 |
-| `/api/v2/notify/channels/{type}/test` | POST | Operator | `NotifyHandler.ChannelHandler` | 测试通知渠道 |
+| `/api/v2/notify/receivers/{id}/test` | POST | Operator | `NotifyReceiverHandler` | 向接收人发送测试消息 |
 | `/api/v2/configmaps/{uid}` | GET | Operator | `ConfigMapHandler.Get` | ConfigMap 详情 |
 | `/api/v2/aiops/graph/trace` | GET | Public | `AIOpsGraphHandler.Trace` | 依赖图追踪 |
 | `/api/v2/aiops/baseline` | GET | Public | `AIOpsBaselineHandler.Baseline` | 基线查询 |
@@ -64,7 +64,7 @@ Master 注册了路由，但前端 `api/` 和 `datasource/` 中无对应调用�
 |------|-------------|----------------|---------|
 | `GET /api/v2/audit/logs` | Admin | **Operator** | Web 标记为 Admin，Master 实际 Operator 即可访问 |
 | `GET /api/v2/secrets` | 无标注（与 configmaps 并列） | **Operator** | Web 将其与 Public 的 configmaps 放在同一节，未标注权限要求 |
-| `GET /api/v2/notify/channels` | 无标注 | **Operator** | Web 未说明需要认证 |
+| `GET /api/v2/notify/*` | 无标注 | **Operator** | 通知设置的全部接口都需要 `notify.manage` |
 | `GET /api/v2/commands/history` | 无标注 | **Public** | 一致，但 Web 未显式说明 |
 
 ---

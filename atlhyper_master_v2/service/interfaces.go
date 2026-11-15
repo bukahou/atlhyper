@@ -92,11 +92,6 @@ type QueryOverview interface {
 	GetOverview(ctx context.Context, clusterID string) (*cluster.ClusterOverview, error)
 	GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]cluster.Event, error)
 	GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]cluster.Event, error)
-	// 单资源查询 (Event Alert Enrichment)
-	GetPod(ctx context.Context, clusterID, namespace, name string) (*cluster.Pod, error)
-	GetNode(ctx context.Context, clusterID, name string) (*cluster.Node, error)
-	GetDeployment(ctx context.Context, clusterID, namespace, name string) (*cluster.Deployment, error)
-	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*cluster.Deployment, error)
 }
 
 // QueryAdmin 管理查询（审计日志、命令历史、事件历史、设置、AI Provider）
