@@ -153,6 +153,8 @@ export interface CommonTranslations {
   noCluster: string;
   noClusterDesc: string;
   refreshFailed: string;
+  /** 详情查询返回 404：资源已不存在（多半已被删除） */
+  resourceNotFound: string;
   pageError: string;
   pageErrorDesc: string;
   // OTel 可用性提示

@@ -27,6 +27,11 @@ export interface IncidentHeadline {
   reason: string;
   affectedMembers: number;
   totalMembers: number;
+  /**
+   * 主证据是原因类信号（容器崩溃 / 未就绪 / 重启）且同时有工作负载不可用时的不可用比例（0–100），否则 null。
+   * 老版本后端没有这个字段
+   */
+  unavailablePercent?: number | null;
 }
 
 /** 影响数字；不适用的项为 null */
@@ -112,6 +117,8 @@ export interface IncidentDetailView {
   /** null = 没有证据（原因见 evidenceStatus） */
   headline: IncidentHeadline | null;
   evidenceStatus: IncidentEvidenceStatus;
+  /** 主体的对象在当前快照里是否还在；false = 已删除；null / 缺省 = 不知道 */
+  subjectPresent?: boolean | null;
   /** 后端在集群快照不可用时给 null；经 withDetailViewDefaults 补成全部为 null 的影响项 */
   impact: IncidentImpact;
   evidence: IncidentEvidence[];

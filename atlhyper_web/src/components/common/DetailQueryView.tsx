@@ -22,6 +22,11 @@ interface DetailQueryViewProps<T> {
  * 16 个弹窗不再各写一套 loading 与 error 分支。详情一定是从某个集群的列表点进来的，
  * 所以这里没有「无集群」状态。
  */
+/** 请求返回 404（axios 的错误对象带 response.status） */
+export function isNotFound(error: unknown): boolean {
+  return (error as { response?: { status?: number } } | null)?.response?.status === 404;
+}
+
 export function DetailQueryView<T>({ query, errorFallback, children }: DetailQueryViewProps<T>) {
   const { t } = useI18n();
   const detail = query.data;
@@ -38,6 +43,10 @@ export function DetailQueryView<T>({ query, errorFallback, children }: DetailQue
   });
 
   if (state === "error") {
+    // 404：资源已不存在（多半已被删除，例如从事件详情点进一个已删除的 Deployment），不当作出错显示
+    if (isNotFound(query.error)) {
+      return <div className="p-6 text-center text-sm text-muted">{t.common.resourceNotFound}</div>;
+    }
     return (
       <div className="p-6 text-center text-red-500">
         {query.error instanceof Error ? query.error.message : errorFallback}
