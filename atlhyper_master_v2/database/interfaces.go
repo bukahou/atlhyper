@@ -24,6 +24,7 @@ type DB struct {
 	NotifyReceiver NotifyReceiverRepository
 	NotifyRule     NotifyRuleRepository
 	NotifySilence  NotifySilenceRepository
+	NotifySMTP     NotifySMTPRepository
 	Cluster        ClusterRepository
 	Command        CommandHistoryRepository
 	Settings       SettingsRepository
@@ -347,6 +348,7 @@ type Dialect interface {
 	NotifyReceiver() NotifyReceiverDialect
 	NotifyRule() NotifyRuleDialect
 	NotifySilence() NotifySilenceDialect
+	NotifySMTP() NotifySMTPDialect
 	Cluster() ClusterDialect
 	Command() CommandDialect
 	Settings() SettingsDialect

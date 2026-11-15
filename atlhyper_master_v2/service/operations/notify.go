@@ -1,7 +1,7 @@
 // atlhyper_master_v2/service/operations/notify.go
 // OpsNotify 实现 — 通知设置的写入：策略、接收人、路由规则、静默
 //
-// ⛔ 接收人的凭据（Webhook 地址、SMTP 密码）不写日志；校验错误的文案不回显它们
+// ⛔ 凭据（Webhook 地址、SMTP 密码）不写日志；校验错误的文案不回显它们
 package operations
 
 import (
@@ -23,6 +23,7 @@ type NotifyRepos struct {
 	Receivers database.NotifyReceiverRepository
 	Rules     database.NotifyRuleRepository
 	Silences  database.NotifySilenceRepository
+	SMTP      database.NotifySMTPRepository
 }
 
 // NotifyService 通知设置写入操作
@@ -109,7 +110,7 @@ func (s *NotifyService) CreateNotifyReceiver(ctx context.Context, req *model.Not
 
 // UpdateNotifyReceiver 修改接收人。
 //
-// 凭据（webhookUrl / smtpPassword）留空 = 保持原值；不带 slack / email 段 = 整段配置保持原值；
+// 凭据（webhookUrl）留空 = 保持原值；不带 slack / email 段 = 整段配置保持原值；
 // 没传 enabled = 保持原值。换了类型时旧配置作废，必须给出新类型的完整配置。
 // 不存在 → database.ErrNotifyReceiverNotFound；名称重复 → database.ErrNotifyReceiverNameTaken
 func (s *NotifyService) UpdateNotifyReceiver(ctx context.Context, id int64, req *model.NotifyReceiverRequest) error {
@@ -154,21 +155,9 @@ func applyReceiverConfig(receiver *database.NotifyReceiver, req *model.NotifyRec
 		if req.Email == nil {
 			return
 		}
-		password := req.Email.SMTPPassword
-		if password == "" && receiver.Email != nil {
-			password = receiver.Email.SMTPPassword
-		}
 		recipients := make([]string, len(req.Email.ToAddresses))
 		copy(recipients, req.Email.ToAddresses)
-		receiver.Email = &database.EmailConfig{
-			SMTPHost:     req.Email.SMTPHost,
-			SMTPPort:     req.Email.SMTPPort,
-			SMTPUser:     req.Email.SMTPUser,
-			SMTPPassword: password,
-			SMTPTLS:      req.Email.SMTPTLS,
-			FromAddress:  req.Email.FromAddress,
-			ToAddresses:  recipients,
-		}
+		receiver.Email = &database.EmailConfig{ToAddresses: recipients}
 	}
 }
 

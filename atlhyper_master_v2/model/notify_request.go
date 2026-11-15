@@ -36,7 +36,7 @@ type NotifyDeliveryQuery struct {
 
 // NotifyReceiverRequest 新建 / 修改接收人。
 //
-// 凭据（webhookUrl / smtpPassword）在修改时留空 = 保持原值；修改时不带 slack / email 段 = 整段配置保持原值
+// 凭据（webhookUrl）在修改时留空 = 保持原值；修改时不带 slack / email 段 = 整段配置保持原值
 type NotifyReceiverRequest struct {
 	Name    string            `json:"name"`
 	Type    string            `json:"type"`    // slack / email
@@ -50,15 +50,19 @@ type NotifySlackInput struct {
 	WebhookURL string `json:"webhookUrl"`
 }
 
-// NotifyEmailInput 邮件接收人的配置
+// NotifyEmailInput 邮件接收人的配置：只有收件人
 type NotifyEmailInput struct {
-	SMTPHost     string   `json:"smtpHost"`
-	SMTPPort     int      `json:"smtpPort"`
-	SMTPUser     string   `json:"smtpUser"`
-	SMTPPassword string   `json:"smtpPassword"`
-	SMTPTLS      bool     `json:"smtpTLS"`
-	FromAddress  string   `json:"fromAddress"` // 空 = 使用 smtpUser
-	ToAddresses  []string `json:"toAddresses"`
+	ToAddresses []string `json:"toAddresses"`
+}
+
+// UpdateNotifySMTPRequest 保存全局发件设置（整体替换）。password 留空 = 保持原值；第一次保存必须填写
+type UpdateNotifySMTPRequest struct {
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	User        string `json:"user"`
+	Password    string `json:"password"`
+	TLS         bool   `json:"tls"`
+	FromAddress string `json:"fromAddress"` // 空 = 使用 user
 }
 
 // NotifyRuleRequest 新建 / 修改路由规则（不带 id 与 position）

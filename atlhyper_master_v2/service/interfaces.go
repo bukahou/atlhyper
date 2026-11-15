@@ -173,6 +173,7 @@ type OpsClusterRegistry interface {
 // QueryNotify 通知设置页的读取能力。时间一律 RFC 3339（UTC），列表恒为非 nil；凭据不在任何返回值里
 type QueryNotify interface {
 	GetNotifyPolicy(ctx context.Context) (*model.NotifyPolicy, error)
+	GetNotifySMTP(ctx context.Context) (*model.NotifySMTP, error)
 	// ListNotifyAlerts / ListNotifyDeliveries 返回当前页与符合条件的总数
 	ListNotifyAlerts(ctx context.Context, opts model.NotifyAlertQuery) ([]model.NotifyAlert, int, error)
 	ListNotifyDeliveries(ctx context.Context, opts model.NotifyDeliveryQuery) ([]model.NotifyDelivery, int, error)
@@ -195,6 +196,7 @@ type QueryNotify interface {
 // 接收人重名 → database.ErrNotifyReceiverNameTaken；删除仍被引用的接收人 → *model.NotifyReceiverInUseError
 type OpsNotify interface {
 	UpdateNotifyPolicy(ctx context.Context, req *model.UpdateNotifyPolicyRequest) error
+	UpdateNotifySMTP(ctx context.Context, req *model.UpdateNotifySMTPRequest) error
 	CreateNotifyReceiver(ctx context.Context, req *model.NotifyReceiverRequest) (int64, error)
 	// UpdateNotifyReceiver 凭据留空 = 保持原值
 	UpdateNotifyReceiver(ctx context.Context, id int64, req *model.NotifyReceiverRequest) error

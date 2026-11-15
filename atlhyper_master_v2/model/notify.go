@@ -56,7 +56,7 @@ type NotifyDelivery struct {
 
 // NotifyReceiver 一个接收人。
 //
-// ⛔ 凭据（Webhook 地址、SMTP 密码）不在其中：只说明是否已配置
+// ⛔ 凭据（Webhook 地址）不在其中：只说明是否已配置
 type NotifyReceiver struct {
 	ID        int64              `json:"id"`
 	Name      string             `json:"name"`
@@ -73,15 +73,21 @@ type NotifySlackConfig struct {
 	WebhookConfigured bool `json:"webhookConfigured"`
 }
 
-// NotifyEmailConfig 邮件接收人的可见配置
+// NotifyEmailConfig 邮件接收人的可见配置：只有收件人（发件服务器见 NotifySMTP）
 type NotifyEmailConfig struct {
-	SMTPHost           string   `json:"smtpHost"`
-	SMTPPort           int      `json:"smtpPort"`
-	SMTPUser           string   `json:"smtpUser"`
-	SMTPTLS            bool     `json:"smtpTLS"`
-	FromAddress        string   `json:"fromAddress"`
-	ToAddresses        []string `json:"toAddresses"`
-	PasswordConfigured bool     `json:"passwordConfigured"`
+	ToAddresses []string `json:"toAddresses"`
+}
+
+// NotifySMTP 全局发件设置。⛔ 密码不在其中：只说明是否已配置
+type NotifySMTP struct {
+	Configured         bool    `json:"configured"` // 主机、端口、账号、密码都已配置
+	Host               string  `json:"host"`
+	Port               int     `json:"port"`
+	User               string  `json:"user"`
+	TLS                bool    `json:"tls"`
+	FromAddress        string  `json:"fromAddress"` // 空 = 使用 user
+	PasswordConfigured bool    `json:"passwordConfigured"`
+	UpdatedAt          *string `json:"updatedAt"` // 从没保存过 = null
 }
 
 // NotifyRule 一条路由规则

@@ -149,7 +149,7 @@ func TestTestReceiver(t *testing.T) {
 // 测试发送失败的原因会原样返回给界面：里面不能有 Webhook 地址（用真实的发送器、连不上的本机地址）
 func TestTestReceiver_FailureDoesNotLeakWebhookURL(t *testing.T) {
 	manager, db, _ := newTestManager(t, "")
-	manager.sender = channel.NewReceiverSender()
+	manager.sender = channel.NewReceiverSender(db.NotifySMTP)
 
 	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	webhookURL := closed.URL + "/services/T000/B000/placeholder-not-real"
@@ -170,7 +170,7 @@ func TestTestReceiver_FailureDoesNotLeakWebhookURL(t *testing.T) {
 // 配置解不开或不完整的接收人：报配置不完整，不去发送
 func TestTestReceiver_IncompleteConfig(t *testing.T) {
 	manager, db, _ := newTestManager(t, "")
-	manager.sender = channel.NewReceiverSender()
+	manager.sender = channel.NewReceiverSender(db.NotifySMTP)
 	receiverID := addTestReceiver(t, db, "")
 
 	if err := manager.TestReceiver(context.Background(), receiverID); !errors.Is(err, ErrReceiverConfigIncomplete) {

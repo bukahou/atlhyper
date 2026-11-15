@@ -36,6 +36,7 @@ func newNotifyTestService(t *testing.T) (*NotifyService, *database.DB) {
 
 	svc := NewNotifyService(NotifyRepos{
 		Policy: db.NotifyPolicy, Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
+		SMTP: db.NotifySMTP,
 	})
 	svc.now = func() time.Time { return notifyTestNow }
 	return svc, db
@@ -50,8 +51,7 @@ func slackReceiverRequest(name string) *model.NotifyReceiverRequest {
 
 func emailReceiverRequest(name string) *model.NotifyReceiverRequest {
 	return &model.NotifyReceiverRequest{Name: name, Type: "email", Email: &model.NotifyEmailInput{
-		SMTPHost: "smtp.example.com", SMTPPort: 587, SMTPUser: "ops@example.com", SMTPPassword: notifyTestPassword,
-		SMTPTLS: true, FromAddress: "ops@example.com", ToAddresses: []string{"a@example.com"}}}
+		ToAddresses: []string{"a@example.com"}}}
 }
 
 func mustCreateReceiver(t *testing.T, svc *NotifyService, req *model.NotifyReceiverRequest) int64 {
@@ -125,7 +125,7 @@ func TestCreateNotifyReceiver(t *testing.T) {
 	disabled.Enabled = notifyBool(false)
 	emailID := mustCreateReceiver(t, svc, disabled)
 	storedEmail, _ := db.NotifyReceiver.GetByID(ctx, emailID)
-	if storedEmail.Enabled || storedEmail.Email.SMTPPassword != notifyTestPassword || storedEmail.Email.ToAddresses[0] != "a@example.com" {
+	if storedEmail.Enabled || storedEmail.Email == nil || storedEmail.Email.ToAddresses[0] != "a@example.com" {
 		t.Errorf("新建的邮件接收人不对: %+v", storedEmail)
 	}
 
@@ -157,15 +157,15 @@ func TestUpdateNotifyReceiver_BlankSecretKeepsStoredValue(t *testing.T) {
 		t.Errorf("凭据留空应保持原值: %+v", slack)
 	}
 
-	// 邮件：改主机与收件人，密码留空
+	// 邮件：改收件人
 	update := emailReceiverRequest("运维邮件")
-	update.Email.SMTPHost, update.Email.SMTPPassword, update.Email.ToAddresses = "smtp2.example.com", "", []string{"b@example.com", "c@example.com"}
+	update.Email.ToAddresses = []string{"b@example.com", "c@example.com"}
 	if err := svc.UpdateNotifyReceiver(ctx, emailID, update); err != nil {
 		t.Fatal(err)
 	}
 	email, _ := db.NotifyReceiver.GetByID(ctx, emailID)
-	if email.Email.SMTPHost != "smtp2.example.com" || email.Email.SMTPPassword != notifyTestPassword || len(email.Email.ToAddresses) != 2 || !email.Enabled {
-		t.Errorf("邮件接收人更新不对（密码应保持、没传 enabled 应保持）: %+v", email)
+	if len(email.Email.ToAddresses) != 2 || !email.Enabled {
+		t.Errorf("邮件接收人更新不对（收件人应替换、没传 enabled 应保持）: %+v", email)
 	}
 
 	// 不带 email 段：整段配置保持原值
@@ -173,7 +173,7 @@ func TestUpdateNotifyReceiver_BlankSecretKeepsStoredValue(t *testing.T) {
 		t.Fatal(err)
 	}
 	email, _ = db.NotifyReceiver.GetByID(ctx, emailID)
-	if email.Enabled || email.Email.SMTPHost != "smtp2.example.com" || email.Email.SMTPPassword != notifyTestPassword {
+	if email.Enabled || len(email.Email.ToAddresses) != 2 {
 		t.Errorf("不带配置段时配置应整段保持: %+v", email)
 	}
 

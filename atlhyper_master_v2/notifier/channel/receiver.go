@@ -13,13 +13,21 @@ import (
 var (
 	// ErrReceiverConfigIncomplete 接收人的配置缺少必填项（含配置解密失败后为空的情况）
 	ErrReceiverConfigIncomplete = errors.New("接收人配置不完整")
+	// ErrSMTPNotConfigured 邮件接收人要用的全局发件设置还没配齐。也算「配置不完整」
+	ErrSMTPNotConfigured = fmt.Errorf("%w：未配置发件设置（通知设置 → 接收人 → 邮件发件设置）", ErrReceiverConfigIncomplete)
 	// ErrUnsupportedReceiverType 没有对应发送器的接收人类型
 	ErrUnsupportedReceiverType = errors.New("不支持的接收人类型")
 )
 
+// SMTPSettingsReader 读全局发件设置。没有设置时返回 (nil, nil)
+type SMTPSettingsReader interface {
+	Get(ctx context.Context) (*database.NotifySMTP, error)
+}
+
 // NewReceiverNotifier 按接收人的类型与配置创建发送器。
+// 邮件接收人用全局发件设置 smtpSettings（Slack 不需要，可传 nil）。
 // 错误信息只说明缺什么，不带配置内容
-func NewReceiverNotifier(receiver *database.NotifyReceiver) (Notifier, error) {
+func NewReceiverNotifier(receiver *database.NotifyReceiver, smtpSettings *database.NotifySMTP) (Notifier, error) {
 	switch receiver.Type {
 	case database.NotifyReceiverSlack:
 		if receiver.Slack == nil || receiver.Slack.WebhookURL == "" {
@@ -28,19 +36,20 @@ func NewReceiverNotifier(receiver *database.NotifyReceiver) (Notifier, error) {
 		return NewSlackNotifier(receiver.Slack.WebhookURL), nil
 
 	case database.NotifyReceiverEmail:
-		config := receiver.Email
-		if config == nil || config.SMTPHost == "" || config.SMTPPort == 0 || config.SMTPUser == "" ||
-			config.SMTPPassword == "" || len(config.ToAddresses) == 0 {
-			return nil, fmt.Errorf("%w：SMTP 主机、端口、账号、密码与收件人都必须配置", ErrReceiverConfigIncomplete)
+		if receiver.Email == nil || len(receiver.Email.ToAddresses) == 0 {
+			return nil, fmt.Errorf("%w：未配置收件人", ErrReceiverConfigIncomplete)
+		}
+		if !smtpSettings.Configured() {
+			return nil, ErrSMTPNotConfigured
 		}
 		return NewEmailNotifier(EmailConfig{
-			SMTPHost:     config.SMTPHost,
-			SMTPPort:     config.SMTPPort,
-			SMTPUser:     config.SMTPUser,
-			SMTPPassword: config.SMTPPassword,
-			UseTLS:       config.SMTPTLS,
-			FromAddress:  config.FromAddress,
-			ToAddresses:  config.ToAddresses,
+			SMTPHost:     smtpSettings.Host,
+			SMTPPort:     smtpSettings.Port,
+			SMTPUser:     smtpSettings.User,
+			SMTPPassword: smtpSettings.Password,
+			UseTLS:       smtpSettings.TLS,
+			FromAddress:  smtpSettings.FromAddress,
+			ToAddresses:  receiver.Email.ToAddresses,
 		}), nil
 
 	default:
@@ -49,21 +58,38 @@ func NewReceiverNotifier(receiver *database.NotifyReceiver) (Notifier, error) {
 }
 
 // ReceiverSender 把消息发给一个接收人：按它的类型与配置创建发送器并发送。
+// 邮件接收人每次发送时读一次全局发件设置（单行，读取很轻），改完设置立即生效。
 //
-// 返回的错误已经去掉该接收人的凭据（Webhook 地址、SMTP 密码），可以直接写日志与送达记录
-type ReceiverSender struct{}
+// 返回的错误已经去掉凭据（Webhook 地址、SMTP 密码），可以直接写日志与送达记录
+type ReceiverSender struct {
+	smtp SMTPSettingsReader
+}
 
 // NewReceiverSender 创建 ReceiverSender
-func NewReceiverSender() *ReceiverSender { return &ReceiverSender{} }
+func NewReceiverSender(smtp SMTPSettingsReader) *ReceiverSender {
+	return &ReceiverSender{smtp: smtp}
+}
 
 // Send 发送一条消息
 func (s *ReceiverSender) Send(ctx context.Context, receiver *database.NotifyReceiver, msg *Message) error {
-	notifier, err := NewReceiverNotifier(receiver)
+	var smtpSettings *database.NotifySMTP
+	if receiver.Type == database.NotifyReceiverEmail {
+		settings, err := s.smtp.Get(ctx)
+		if err != nil {
+			return fmt.Errorf("读取发件设置失败: %w", err)
+		}
+		smtpSettings = settings
+	}
+	notifier, err := NewReceiverNotifier(receiver, smtpSettings)
 	if err != nil {
 		return err
 	}
 	if err := notifier.Send(ctx, msg); err != nil {
-		return errors.New(ScrubSecrets(err.Error(), ReceiverSecrets(receiver)...))
+		secrets := ReceiverSecrets(receiver)
+		if smtpSettings != nil && smtpSettings.Password != "" {
+			secrets = append(secrets, smtpSettings.Password)
+		}
+		return errors.New(ScrubSecrets(err.Error(), secrets...))
 	}
 	return nil
 }

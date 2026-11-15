@@ -34,6 +34,7 @@ func Init(db *database.DB, dialect database.Dialect) {
 	db.NotifyReceiver = newNotifyReceiverRepo(db.Conn, dialect.NotifyReceiver())
 	db.NotifyRule = newNotifyRuleRepo(db.Conn, dialect.NotifyRule())
 	db.NotifySilence = newNotifySilenceRepo(db.Conn, dialect.NotifySilence())
+	db.NotifySMTP = newNotifySMTPRepo(db.Conn, dialect.NotifySMTP())
 	db.Cluster = newClusterRepo(db.Conn, dialect.Cluster())
 	db.Command = newCommandRepo(db.Conn, dialect.Command())
 	db.Settings = newSettingsRepo(db.Conn, dialect.Settings())

@@ -21,9 +21,10 @@ var log = logger.Module("Notifier")
 
 // Config 通知模块的依赖与参数
 type Config struct {
-	Repos  pipeline.Repos            // 通知各表的仓库
-	Events source.ClusterEventReader // 持久化的 K8s Warning 事件（旧的逐条事件告警用）
-	Agents source.AgentLister        // 各集群 Agent 的在线状态（心跳告警用）
+	Repos  pipeline.Repos             // 通知各表的仓库
+	SMTP   channel.SMTPSettingsReader // 全局发件设置（邮件接收人发送时读取）
+	Events source.ClusterEventReader  // 持久化的 K8s Warning 事件（旧的逐条事件告警用）
+	Agents source.AgentLister         // 各集群 Agent 的在线状态（心跳告警用）
 
 	// PublicURL Master 的对外地址（MASTER_PUBLIC_URL）；空或不合法时通知里不带页面链接
 	PublicURL string
@@ -66,7 +67,7 @@ func NewAlertManager(cfg Config) (*Manager, error) {
 	}
 	sender := cfg.Sender
 	if sender == nil {
-		sender = channel.NewReceiverSender()
+		sender = channel.NewReceiverSender(cfg.SMTP)
 	}
 
 	alertPipeline := pipeline.NewAlertPipeline(pipeline.Config{

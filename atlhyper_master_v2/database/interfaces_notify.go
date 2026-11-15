@@ -56,6 +56,14 @@ type NotifyReceiverRepository interface {
 	List(ctx context.Context) ([]*NotifyReceiver, error)
 }
 
+// NotifySMTPRepository 全局发件设置（单行）。配置整体加密落库，读出时解密
+type NotifySMTPRepository interface {
+	// Get 库里还没有设置时返回 (nil, nil)；解不开（密钥换过、数据损坏）时也按没有设置处理
+	Get(ctx context.Context) (*NotifySMTP, error)
+	// Save 整体替换；加密器不可用时返回 ErrNotifyEncryptionUnavailable，不落明文
+	Save(ctx context.Context, settings *NotifySMTP) error
+}
+
 // NotifyRuleRepository 路由规则
 type NotifyRuleRepository interface {
 	// Create 新规则排在最后；成功后回填 ID、Position 与时间
@@ -92,6 +100,13 @@ type NotifyPolicyDialect interface {
 	Select() (query string, args []any)
 	Upsert(policy *NotifyPolicy, now time.Time) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*NotifyPolicy, error)
+}
+
+// NotifySMTPDialect 全局发件设置 SQL 方言（单行表，配置列是密文）
+type NotifySMTPDialect interface {
+	Select() (query string, args []any)
+	Upsert(encryptedConfig string, now time.Time) (query string, args []any)
+	ScanRow(rows *sql.Rows) (encryptedConfig string, updatedAt time.Time, err error)
 }
 
 // NotifyAlertDialect 告警 SQL 方言
