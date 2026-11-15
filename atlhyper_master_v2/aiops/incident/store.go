@@ -41,12 +41,33 @@ func (s *Store) GetIncident(ctx context.Context, incidentID string) *aiops.Incid
 
 	entities, _ := s.repo.GetEntities(ctx, incidentID)
 	timeline, _ := s.repo.GetTimeline(ctx, incidentID)
+	signals, err := s.repo.GetSignals(ctx, incidentID)
+	if err != nil {
+		log.Warn("读取事件证据失败", "id", incidentID, "err", err)
+	}
 
-	return &aiops.IncidentDetail{
+	detail := &aiops.IncidentDetail{
 		Incident: toAIOpsIncident(inc),
 		Entities: toAIOpsEntities(entities),
 		Timeline: toAIOpsTimeline(timeline),
 	}
+	detail.Evidence = BuildEvidence(signals)
+	detail.Headline = BuildHeadline(detail.Evidence, len(detail.Entities))
+	detail.TimelineView = BuildTimelineView(detail.Timeline)
+	detail.Members = baseMembers(detail.Entities)
+	return detail
+}
+
+// baseMembers 成员的基础信息（来自实体表）；当前状态由查询层按快照补上
+func baseMembers(entities []*aiops.IncidentEntity) []aiops.IncidentMember {
+	members := make([]aiops.IncidentMember, 0, len(entities))
+	for _, e := range entities {
+		members = append(members, aiops.IncidentMember{
+			EntityKey: e.EntityKey, EntityType: e.EntityType, Namespace: e.Namespace, Name: e.Name,
+			Role: e.Role, RFinal: e.RFinal, IsLead: e.Role == roleRootCause,
+		})
+	}
+	return members
 }
 
 // GetIncidents 查询事件列表

@@ -489,6 +489,20 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_timeline_inc ON aiops_incident_timeline(incident_id, timestamp ASC)`,
 
+		// 事件的信号累计（关键证据）：按（事件, 成员, 指标）一行。新表，已有库执行 CREATE TABLE IF NOT EXISTS 即可，无需清库
+		`CREATE TABLE IF NOT EXISTS aiops_incident_signals (
+			incident_id TEXT NOT NULL,
+			entity_key TEXT NOT NULL,
+			metric TEXT NOT NULL,
+			first_seen TEXT NOT NULL,
+			last_seen TEXT NOT NULL,
+			hits INTEGER NOT NULL DEFAULT 1,
+			max_score REAL NOT NULL DEFAULT 0,
+			detail TEXT NOT NULL DEFAULT '',
+			PRIMARY KEY (incident_id, entity_key, metric),
+			FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
+		)`,
+
 		// ==================== GitHub App 安装记录（单行）====================
 		`CREATE TABLE IF NOT EXISTS github_installations (
 			id              INTEGER PRIMARY KEY,

@@ -37,6 +37,9 @@ type engine struct {
 	graphSaver    *graphSnapshotSaver // Start 时创建
 	sloRepo       database.SLORepository
 
+	// 事件进行中累计证据的节流（同一事件每分钟最多一次）
+	signalThrottle signalThrottle
+
 	// 事件变化的订阅者（Start 之前注册，之后只读）
 	transitionSubscribers []func(aiops.IncidentTransition)
 
@@ -154,6 +157,7 @@ func (e *engine) evaluateSubjects(
 ) {
 	subjectRisks := subject.AggregateBySubject(entityRisks, subject.ResolveSubjects(snap))
 	e.sm.Evaluate(e.bgCtx, clusterID, subjectRisks, clusterRisk)
+	e.recordActiveSignals(clusterID, subjectRisks, time.Now())
 }
 
 // ==================== TransitionHandler 实现 ====================

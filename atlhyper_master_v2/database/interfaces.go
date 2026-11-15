@@ -292,6 +292,10 @@ type AIOpsIncidentRepository interface {
 	GetEntities(ctx context.Context, incidentID string) ([]*AIOpsIncidentEntity, error)
 	AddTimeline(ctx context.Context, entry *AIOpsIncidentTimeline) error
 	GetTimeline(ctx context.Context, incidentID string) ([]*AIOpsIncidentTimeline, error)
+	// UpsertSignal 累计一条信号记录：首次插入，之后更新最近时刻、次数 +1、最高分取大、原文换成最新
+	UpsertSignal(ctx context.Context, signal *AIOpsIncidentSignal) error
+	// GetSignals 某个事件的全部信号记录
+	GetSignals(ctx context.Context, incidentID string) ([]*AIOpsIncidentSignal, error)
 	GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*AIOpsIncidentStatsRaw, error)
 	TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]AIOpsRootCauseCount, error)
 	// ListByEntity 某个集群里与指定实体相关的事件：主体是它，或成员实体里有它（键只在集群内唯一）
@@ -586,6 +590,9 @@ type AIOpsIncidentDialect interface {
 	SelectEntities(incidentID string) (string, []any)
 	InsertTimeline(entry *AIOpsIncidentTimeline) (string, []any)
 	SelectTimeline(incidentID string) (string, []any)
+	UpsertSignal(signal *AIOpsIncidentSignal) (string, []any)
+	SelectSignals(incidentID string) (string, []any)
+	ScanSignal(rows *sql.Rows) (*AIOpsIncidentSignal, error)
 	// IncidentColumns 事件表的列清单（逗号分隔），顺序与 ScanIncident 一致；prefix 为表别名（如 "i."），可为空
 	IncidentColumns(prefix string) string
 	ScanIncident(rows *sql.Rows) (*AIOpsIncident, error)

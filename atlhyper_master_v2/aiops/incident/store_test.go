@@ -28,7 +28,7 @@ func (f *fakeIncidentRepo) MarkEscalated(context.Context, string, time.Time) err
 func (f *fakeIncidentRepo) UpdatePeakRisk(context.Context, string, float64) error         { return nil }
 func (f *fakeIncidentRepo) UpdateRootCause(context.Context, string, string) error         { return nil }
 func (f *fakeIncidentRepo) IncrementRecurrence(context.Context, string) error             { return nil }
-func (f *fakeIncidentRepo) SetAnomalyDuration(context.Context, string, time.Time) error { return nil }
+func (f *fakeIncidentRepo) SetAnomalyDuration(context.Context, string, time.Time) error   { return nil }
 func (f *fakeIncidentRepo) Resolve(context.Context, string, time.Time, string) error      { return nil }
 func (f *fakeIncidentRepo) AddEntity(_ context.Context, e *database.AIOpsIncidentEntity) error {
 	cp := *e
@@ -44,6 +44,9 @@ func (f *fakeIncidentRepo) GetEntities(_ context.Context, id string) ([]*databas
 		}
 	}
 	return out, nil
+}
+func (f *fakeIncidentRepo) UpsertSignal(context.Context, *database.AIOpsIncidentSignal) error {
+	return nil
 }
 func (f *fakeIncidentRepo) AddTimeline(_ context.Context, t *database.AIOpsIncidentTimeline) error {
 	f.timeline = append(f.timeline, t)

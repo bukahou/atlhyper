@@ -109,6 +109,36 @@ func (d *aIOpsIncidentDialect) SelectTimeline(incidentID string) (string, []any)
 		FROM aiops_incident_timeline WHERE incident_id = ? ORDER BY timestamp ASC`, []any{incidentID}
 }
 
+func (d *aIOpsIncidentDialect) UpsertSignal(signal *database.AIOpsIncidentSignal) (string, []any) {
+	return `INSERT INTO aiops_incident_signals
+			(incident_id, entity_key, metric, first_seen, last_seen, hits, max_score, detail)
+		VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+		ON CONFLICT(incident_id, entity_key, metric) DO UPDATE SET
+			last_seen = excluded.last_seen,
+			hits = aiops_incident_signals.hits + 1,
+			max_score = MAX(aiops_incident_signals.max_score, excluded.max_score),
+			detail = excluded.detail`,
+		[]any{signal.IncidentID, signal.EntityKey, signal.Metric,
+			signal.LastSeen.UTC().Format(time.RFC3339), signal.LastSeen.UTC().Format(time.RFC3339),
+			signal.MaxScore, signal.Detail}
+}
+
+func (d *aIOpsIncidentDialect) SelectSignals(incidentID string) (string, []any) {
+	return `SELECT incident_id, entity_key, metric, first_seen, last_seen, hits, max_score, detail
+		FROM aiops_incident_signals WHERE incident_id = ? ORDER BY max_score DESC, metric, entity_key`, []any{incidentID}
+}
+
+func (d *aIOpsIncidentDialect) ScanSignal(rows *sql.Rows) (*database.AIOpsIncidentSignal, error) {
+	s := &database.AIOpsIncidentSignal{}
+	var firstSeen, lastSeen string
+	if err := rows.Scan(&s.IncidentID, &s.EntityKey, &s.Metric, &firstSeen, &lastSeen, &s.Hits, &s.MaxScore, &s.Detail); err != nil {
+		return nil, err
+	}
+	s.FirstSeen, _ = time.Parse(time.RFC3339, firstSeen)
+	s.LastSeen, _ = time.Parse(time.RFC3339, lastSeen)
+	return s, nil
+}
+
 func (d *aIOpsIncidentDialect) ScanIncident(rows *sql.Rows) (*database.AIOpsIncident, error) {
 	inc := &database.AIOpsIncident{}
 	var startedAt, createdAt string

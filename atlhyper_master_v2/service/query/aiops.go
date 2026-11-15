@@ -68,12 +68,19 @@ func (q *QueryService) GetAIOpsIncidents(ctx context.Context, opts aiops.Inciden
 	return q.aiopsEngine.GetIncidents(ctx, opts)
 }
 
-// GetAIOpsIncidentDetail 获取事件详情
+// GetAIOpsIncidentDetail 获取事件详情：事件存储给出记录与证据，这里再按当前快照补上成员状态与影响数字
 func (q *QueryService) GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
-	return q.aiopsEngine.GetIncidentDetail(ctx, incidentID), nil
+	detail := q.aiopsEngine.GetIncidentDetail(ctx, incidentID)
+	if detail != nil && q.store != nil {
+		// 快照读不到不影响详情本身：成员状态与影响数字留空
+		if snap, err := q.store.GetSnapshot(detail.ClusterID); err == nil {
+			enrichIncidentDetail(detail, snap)
+		}
+	}
+	return detail, nil
 }
 
 // GetAIOpsIncidentStats 获取事件统计
