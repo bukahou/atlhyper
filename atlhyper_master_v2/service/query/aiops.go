@@ -13,7 +13,7 @@ import (
 )
 
 // GetAIOpsGraph 获取指定集群的依赖图
-func (q *QueryService) GetAIOpsGraph(ctx context.Context, clusterID string) (*aiops.DependencyGraph, error) {
+func (q *AIOpsQuery) GetAIOpsGraph(ctx context.Context, clusterID string) (*aiops.DependencyGraph, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
@@ -21,7 +21,7 @@ func (q *QueryService) GetAIOpsGraph(ctx context.Context, clusterID string) (*ai
 }
 
 // GetAIOpsGraphTrace 追踪指定实体的上下游链路
-func (q *QueryService) GetAIOpsGraphTrace(ctx context.Context, clusterID, fromKey, direction string, maxDepth int) (*aiops.TraceResult, error) {
+func (q *AIOpsQuery) GetAIOpsGraphTrace(ctx context.Context, clusterID, fromKey, direction string, maxDepth int) (*aiops.TraceResult, error) {
 	if q.aiopsEngine == nil {
 		return &aiops.TraceResult{}, nil
 	}
@@ -29,7 +29,7 @@ func (q *QueryService) GetAIOpsGraphTrace(ctx context.Context, clusterID, fromKe
 }
 
 // GetAIOpsBaseline 获取指定实体的基线状态
-func (q *QueryService) GetAIOpsBaseline(ctx context.Context, clusterID, entityKey string) (*aiops.EntityBaseline, error) {
+func (q *AIOpsQuery) GetAIOpsBaseline(ctx context.Context, clusterID, entityKey string) (*aiops.EntityBaseline, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
@@ -37,7 +37,7 @@ func (q *QueryService) GetAIOpsBaseline(ctx context.Context, clusterID, entityKe
 }
 
 // GetAIOpsClusterRisk 获取集群风险评分
-func (q *QueryService) GetAIOpsClusterRisk(ctx context.Context, clusterID string) (*aiops.ClusterRisk, error) {
+func (q *AIOpsQuery) GetAIOpsClusterRisk(ctx context.Context, clusterID string) (*aiops.ClusterRisk, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
@@ -45,7 +45,7 @@ func (q *QueryService) GetAIOpsClusterRisk(ctx context.Context, clusterID string
 }
 
 // GetAIOpsEntityRisks 获取实体风险列表
-func (q *QueryService) GetAIOpsEntityRisks(ctx context.Context, clusterID, sortBy string, limit int) ([]*aiops.EntityRisk, error) {
+func (q *AIOpsQuery) GetAIOpsEntityRisks(ctx context.Context, clusterID, sortBy string, limit int) ([]*aiops.EntityRisk, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
@@ -53,7 +53,7 @@ func (q *QueryService) GetAIOpsEntityRisks(ctx context.Context, clusterID, sortB
 }
 
 // GetAIOpsEntityRisk 获取单个实体的风险详情
-func (q *QueryService) GetAIOpsEntityRisk(ctx context.Context, clusterID, entityKey string) (*aiops.EntityRiskDetail, error) {
+func (q *AIOpsQuery) GetAIOpsEntityRisk(ctx context.Context, clusterID, entityKey string) (*aiops.EntityRiskDetail, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
@@ -61,7 +61,7 @@ func (q *QueryService) GetAIOpsEntityRisk(ctx context.Context, clusterID, entity
 }
 
 // GetAIOpsIncidents 查询事件列表
-func (q *QueryService) GetAIOpsIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) ([]*aiops.Incident, int, error) {
+func (q *AIOpsQuery) GetAIOpsIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) ([]*aiops.Incident, int, error) {
 	if q.aiopsEngine == nil {
 		return nil, 0, nil
 	}
@@ -69,7 +69,7 @@ func (q *QueryService) GetAIOpsIncidents(ctx context.Context, opts aiops.Inciden
 }
 
 // GetAIOpsIncidentDetail 获取事件详情：事件存储给出记录与证据，这里再按当前快照补上成员状态与影响数字
-func (q *QueryService) GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error) {
+func (q *AIOpsQuery) GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
@@ -84,7 +84,7 @@ func (q *QueryService) GetAIOpsIncidentDetail(ctx context.Context, incidentID st
 }
 
 // GetAIOpsIncidentStats 获取事件统计
-func (q *QueryService) GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error) {
+func (q *AIOpsQuery) GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
@@ -92,7 +92,7 @@ func (q *QueryService) GetAIOpsIncidentStats(ctx context.Context, clusterID stri
 }
 
 // GetAIOpsIncidentPatterns 获取历史事件模式
-func (q *QueryService) GetAIOpsIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error) {
+func (q *AIOpsQuery) GetAIOpsIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error) {
 	if q.aiopsEngine == nil {
 		return nil, nil
 	}
@@ -100,7 +100,7 @@ func (q *QueryService) GetAIOpsIncidentPatterns(ctx context.Context, clusterID, 
 }
 
 // SummarizeIncident AI 增强：生成事件摘要
-func (q *QueryService) SummarizeIncident(ctx context.Context, incidentID string) (*enricher.SummarizeResponse, error) {
+func (q *AIOpsQuery) SummarizeIncident(ctx context.Context, incidentID string) (*enricher.SummarizeResponse, error) {
 	if q.aiopsAI == nil {
 		return nil, fmt.Errorf("AI 增强服务未启用")
 	}
@@ -110,11 +110,11 @@ func (q *QueryService) SummarizeIncident(ctx context.Context, incidentID string)
 // ==================== AI Report ====================
 
 // ListAIReports 查询事件的 AI 分析报告列表
-func (q *QueryService) ListAIReports(ctx context.Context, incidentID string) ([]*database.AIReport, error) {
+func (q *AIOpsQuery) ListAIReports(ctx context.Context, incidentID string) ([]*database.AIReport, error) {
 	return q.aiReportRepo.ListByIncident(ctx, incidentID)
 }
 
 // GetAIReport 获取单个 AI 报告详情
-func (q *QueryService) GetAIReport(ctx context.Context, id int64) (*database.AIReport, error) {
+func (q *AIOpsQuery) GetAIReport(ctx context.Context, id int64) (*database.AIReport, error) {
 	return q.aiReportRepo.GetByID(ctx, id)
 }

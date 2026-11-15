@@ -14,26 +14,26 @@ import (
 
 // ==================== Deploy Config ====================
 
-func (q *QueryService) GetDeployConfig(ctx context.Context, clusterID string) (*database.DeployConfig, error) {
+func (q *DeployQuery) GetDeployConfig(ctx context.Context, clusterID string) (*database.DeployConfig, error) {
 	return q.deployConfigRepo.GetByCluster(ctx, clusterID)
 }
 
 // ==================== Deploy History ====================
 
-func (q *QueryService) ListDeployHistory(ctx context.Context, opts database.DeployHistoryQueryOpts) ([]*database.DeployHistory, error) {
+func (q *DeployQuery) ListDeployHistory(ctx context.Context, opts database.DeployHistoryQueryOpts) ([]*database.DeployHistory, error) {
 	return q.deployHistoryRepo.List(ctx, opts)
 }
 
-func (q *QueryService) CountDeployHistory(ctx context.Context, opts database.DeployHistoryQueryOpts) (int, error) {
+func (q *DeployQuery) CountDeployHistory(ctx context.Context, opts database.DeployHistoryQueryOpts) (int, error) {
 	return q.deployHistoryRepo.Count(ctx, opts)
 }
 
 // ==================== GitHub 集成 ====================
 
-func (q *QueryService) GetGitHubInstallation(ctx context.Context) (*database.GitHubInstallation, error) {
+func (q *DeployQuery) GetGitHubInstallation(ctx context.Context) (*database.GitHubInstallation, error) {
 	return q.githubInstallRepo.Get(ctx)
 }
 
-func (q *QueryService) ListRepoConfigs(ctx context.Context) ([]*database.RepoConfig, error) {
+func (q *DeployQuery) ListRepoConfigs(ctx context.Context) ([]*database.RepoConfig, error) {
 	return q.repoConfigRepo.List(ctx)
 }

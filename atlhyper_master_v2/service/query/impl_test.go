@@ -281,42 +281,36 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 		},
 	})
 
-	// 验证所有字段正确注入（在 package query 内部可访问未导出字段）
-	if svc.store == nil {
-		t.Error("store not injected")
+	// 每个功能域小服务都拿到了自己的依赖（在 package query 内部可访问未导出字段）
+	checks := map[string]bool{
+		"K8sQuery.store":            svc.K8sQuery.store == store,
+		"OTelQuery.store":           svc.OTelQuery.store == store,
+		"SLOQuery.sloRepo":          svc.SLOQuery.sloRepo == sloRepo,
+		"AIOpsQuery.store":          svc.AIOpsQuery.store == store,
+		"AIOpsQuery.aiopsEngine":    svc.AIOpsQuery.aiopsEngine == engine,
+		"AIOpsQuery.aiReportRepo":   svc.AIOpsQuery.aiReportRepo == aiReportRepo,
+		"OverviewQuery.store":       svc.OverviewQuery.store == store,
+		"OverviewQuery.bus":         svc.OverviewQuery.bus == bus,
+		"OverviewQuery.eventRepo":   svc.OverviewQuery.eventRepo == eventRepo,
+		"AdminQuery.eventRepo":      svc.AdminQuery.eventRepo == eventRepo,
+		"AdminQuery.auditRepo":      svc.AdminQuery.auditRepo == auditRepo,
+		"AdminQuery.commandRepo":    svc.AdminQuery.commandRepo == commandRepo,
+		"AdminQuery.aiProviderRepo": svc.AdminQuery.aiProviderRepo == aiProviderRepo,
+		"AdminQuery.aiSettingsRepo": svc.AdminQuery.aiSettingsRepo == aiSettingsRepo,
+		"AdminQuery.aiModelRepo":    svc.AdminQuery.aiModelRepo == aiModelRepo,
+		"AdminQuery.aiBudgetRepo":   svc.AdminQuery.aiBudgetRepo == aiBudgetRepo,
+		"AdminQuery.aiReportRepo":   svc.AdminQuery.aiReportRepo == aiReportRepo,
 	}
-	if svc.bus == nil {
-		t.Error("bus not injected")
+	for name, ok := range checks {
+		if !ok {
+			t.Errorf("%s 没有注入", name)
+		}
 	}
-	if svc.eventRepo == nil {
-		t.Error("eventRepo not injected")
-	}
-	if svc.sloRepo == nil {
-		t.Error("sloRepo not injected")
-	}
-	if svc.aiopsEngine == nil {
-		t.Error("aiopsEngine not injected")
-	}
-	if svc.auditRepo == nil {
-		t.Error("auditRepo not injected")
-	}
-	if svc.commandRepo == nil {
-		t.Error("commandRepo not injected")
-	}
-	if svc.aiProviderRepo == nil {
-		t.Error("aiProviderRepo not injected")
-	}
-	if svc.aiSettingsRepo == nil {
-		t.Error("aiSettingsRepo not injected")
-	}
-	if svc.aiModelRepo == nil {
-		t.Error("aiModelRepo not injected")
-	}
-	if svc.aiBudgetRepo == nil {
-		t.Error("aiBudgetRepo not injected")
-	}
-	if svc.aiReportRepo == nil {
-		t.Error("aiReportRepo not injected")
+	// 10 个小服务都已构造（方法经嵌入提升，任何一个为 nil 都会在调用时 panic）
+	if svc.K8sQuery == nil || svc.OTelQuery == nil || svc.SLOQuery == nil || svc.AIOpsQuery == nil ||
+		svc.OverviewQuery == nil || svc.AdminQuery == nil || svc.DeployQuery == nil || svc.UserQuery == nil ||
+		svc.ClusterRegistryQuery == nil || svc.NotifyQuery == nil {
+		t.Error("有功能域小服务没有构造")
 	}
 }
 
@@ -345,25 +339,17 @@ func TestNewQueryService_OptionalNil(t *testing.T) {
 		},
 	})
 
-	// 必需字段正确注入
-	if svc.store == nil {
-		t.Error("store not injected")
-	}
-	if svc.bus == nil {
-		t.Error("bus not injected")
-	}
-	if svc.eventRepo == nil {
-		t.Error("eventRepo not injected")
-	}
-	if svc.sloRepo == nil {
-		t.Error("sloRepo not injected")
+	// 必需依赖正确注入
+	if svc.K8sQuery.store != store || svc.OverviewQuery.bus != bus || svc.OverviewQuery.eventRepo != eventRepo ||
+		svc.SLOQuery.sloRepo != sloRepo {
+		t.Error("必需依赖没有注入")
 	}
 
-	// 可选字段为 nil，不 panic
-	if svc.aiopsEngine != nil {
+	// 可选依赖为 nil，不 panic
+	if svc.AIOpsQuery.aiopsEngine != nil {
 		t.Error("aiopsEngine should be nil when not provided")
 	}
-	if svc.aiopsAI != nil {
+	if svc.AIOpsQuery.aiopsAI != nil {
 		t.Error("aiopsAI should be nil when not provided")
 	}
 }

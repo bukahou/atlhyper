@@ -507,13 +507,17 @@ AgentSDK
 ```go
 // service/interfaces.go — 接口隔离（Query 按功能域拆分子接口）
 
-// 子接口（6 个）
-type QueryK8s interface { ... }       // K8s 资源快照查询 (19 方法)
-type QueryOTel interface { ... }      // OTel 快照/时间线查询 (2 方法)
-type QuerySLO interface { ... }       // SLO 服务网格查询 (2 方法)
-type QueryAIOps interface { ... }     // AIOps 查询与 AI 增强 (13 方法)
-type QueryOverview interface { ... }  // 集群概览/Agent/事件/单资源 (11 方法)
-type QueryAdmin interface { ... }     // 管理查询: 审计/指令/通知/设置/AI (18 方法)
+// 子接口（10 个，按功能域）
+type QueryK8s interface { ... }             // K8s 资源快照查询
+type QueryOTel interface { ... }            // OTel 快照/时间线 + 硬件健康、节点对比、信号新鲜度
+type QuerySLO interface { ... }             // SLO 服务网格查询
+type QueryAIOps interface { ... }           // AIOps 查询与 AI 增强
+type QueryOverview interface { ... }        // 集群概览/Agent/指令状态/事件
+type QueryAdmin interface { ... }           // 管理查询: 审计/指令历史/事件历史/AI 设置
+type QueryDeploy interface { ... }          // 部署配置/历史、GitHub 集成
+type QueryUser interface { ... }            // 用户与外部身份
+type QueryClusterRegistry interface { ... } // 集群管理页
+type QueryNotify interface { ... }          // 通知设置页
 
 // 写入接口
 type OpsAdmin interface { ... }       // 管理写入: 通知/设置/AI Provider (9 方法)
@@ -525,6 +529,7 @@ type Ops interface {                  // 组合写入接口
 // 组合接口
 type Query interface {                // 组合所有只读子接口
     QueryK8s; QueryOTel; QuerySLO; QueryAIOps; QueryOverview; QueryAdmin
+    QueryDeploy; QueryUser; QueryClusterRegistry; QueryNotify
 }
 type Service interface {              // 组合接口 (master.go / Router 持有)
     Query; Ops
@@ -533,8 +538,12 @@ type Service interface {              // 组合接口 (master.go / Router 持有
 // service/factory.go — 工厂函数
 func NewService(q *query.QueryService, cmd *operations.CommandService, admin *operations.AdminService) Service { ... }
 
-// service/query/ — 读取实现（按职责拆分文件）
-// impl.go (QueryService struct), k8s.go, otel.go, slo.go, aiops.go, overview.go, admin.go, metrics_format.go
+// service/query/ — 读取实现：对外唯一入口 + 内部按功能域拆成小服务
+// impl.go: NewQueryService(deps) *QueryService（Facade，调用方只认它）；QueryService 嵌入 10 个小服务
+//          K8sQuery / OTelQuery / SLOQuery / AIOpsQuery / OverviewQuery / AdminQuery /
+//          DeployQuery / UserQuery / ClusterRegistryQuery / NotifyQuery，各自只持有用到的依赖
+// 各域实现在同名文件（k8s.go、otel.go、aiops.go …）；service/query_contract.go 编译期核对各小服务满足对应子接口
+// 新增查询功能域：新增一个小服务 + 子接口，在 impl.go 嵌入一行；测试直接构造该小服务
 ```
 
 Gateway Handler 按需依赖最小接口：查询用 `service.Query`（或子接口），操作用 `service.Ops`。

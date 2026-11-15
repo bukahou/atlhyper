@@ -10,60 +10,60 @@ import (
 
 // ==================== Audit ====================
 
-func (q *QueryService) ListAuditLogs(ctx context.Context, opts database.AuditQueryOpts) ([]*database.AuditLog, error) {
+func (q *AdminQuery) ListAuditLogs(ctx context.Context, opts database.AuditQueryOpts) ([]*database.AuditLog, error) {
 	return q.auditRepo.List(ctx, opts)
 }
 
-func (q *QueryService) CountAuditLogs(ctx context.Context, opts database.AuditQueryOpts) (int64, error) {
+func (q *AdminQuery) CountAuditLogs(ctx context.Context, opts database.AuditQueryOpts) (int64, error) {
 	return q.auditRepo.Count(ctx, opts)
 }
 
 // ==================== Command History ====================
 
-func (q *QueryService) ListCommandHistory(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error) {
+func (q *AdminQuery) ListCommandHistory(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error) {
 	return q.commandRepo.List(ctx, opts)
 }
 
-func (q *QueryService) CountCommandHistory(ctx context.Context, opts database.CommandQueryOpts) (int64, error) {
+func (q *AdminQuery) CountCommandHistory(ctx context.Context, opts database.CommandQueryOpts) (int64, error) {
 	return q.commandRepo.Count(ctx, opts)
 }
 
 // ==================== Event History ====================
 
-func (q *QueryService) ListEventHistory(ctx context.Context, clusterID string, opts database.EventQueryOpts) ([]*database.ClusterEvent, error) {
+func (q *AdminQuery) ListEventHistory(ctx context.Context, clusterID string, opts database.EventQueryOpts) ([]*database.ClusterEvent, error) {
 	return q.eventRepo.ListByCluster(ctx, clusterID, opts)
 }
 
-func (q *QueryService) CountEventHistory(ctx context.Context, clusterID string) (int64, error) {
+func (q *AdminQuery) CountEventHistory(ctx context.Context, clusterID string) (int64, error) {
 	return q.eventRepo.CountByCluster(ctx, clusterID)
 }
 
 // ==================== AI Provider ====================
 
-func (q *QueryService) ListAIProviders(ctx context.Context) ([]*database.AIProvider, error) {
+func (q *AdminQuery) ListAIProviders(ctx context.Context) ([]*database.AIProvider, error) {
 	return q.aiProviderRepo.List(ctx)
 }
 
-func (q *QueryService) GetAIProviderByID(ctx context.Context, id int64) (*database.AIProvider, error) {
+func (q *AdminQuery) GetAIProviderByID(ctx context.Context, id int64) (*database.AIProvider, error) {
 	return q.aiProviderRepo.GetByID(ctx, id)
 }
 
-func (q *QueryService) GetAISettings(ctx context.Context) (*database.AISettings, error) {
+func (q *AdminQuery) GetAISettings(ctx context.Context) (*database.AISettings, error) {
 	return q.aiSettingsRepo.Get(ctx)
 }
 
-func (q *QueryService) ListAIModels(ctx context.Context) ([]*database.AIProviderModel, error) {
+func (q *AdminQuery) ListAIModels(ctx context.Context) ([]*database.AIProviderModel, error) {
 	return q.aiModelRepo.ListAll(ctx)
 }
 
 // ==================== AI Role Budget ====================
 
-func (q *QueryService) ListAIRoleBudgets(ctx context.Context) ([]*database.AIRoleBudget, error) {
+func (q *AdminQuery) ListAIRoleBudgets(ctx context.Context) ([]*database.AIRoleBudget, error) {
 	return q.aiBudgetRepo.ListAll(ctx)
 }
 
 // ==================== AI Reports ====================
 
-func (q *QueryService) ListRecentAIReports(ctx context.Context, role string, limit, offset int) ([]*database.AIReport, int, error) {
+func (q *AdminQuery) ListRecentAIReports(ctx context.Context, role string, limit, offset int) ([]*database.AIReport, int, error) {
 	return q.aiReportRepo.ListRecent(ctx, role, limit, offset)
 }
