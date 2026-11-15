@@ -37,7 +37,7 @@ func heartbeatItem() Item {
 
 func mustRenderer(t *testing.T, publicURL string) *AlertRenderer {
 	t.Helper()
-	renderer, err := NewAlertRenderer(publicURL)
+	renderer, err := NewAlertRenderer(publicURL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestRender_LinkOnlyWhenPublicURLConfiguredAndIncident(t *testing.T) {
 	if heartbeat.Subject != "[prod] 严重 · Agent 离线 · Agent 心跳超时，可能已离线或网络异常" {
 		t.Errorf("没有主体的告警用告警标题占位，实际 %q", heartbeat.Subject)
 	}
-	assertContains(t, heartbeat.Body, "*最后心跳:* 2026-11-15T11:58:00Z")
+	assertContains(t, heartbeat.Body, "*最后心跳:* 2026-11-15 11:58:00 UTC")
 }
 
 func TestRender_Group(t *testing.T) {
@@ -208,4 +208,33 @@ func TestRenderTest(t *testing.T) {
 	msg := mustRenderer(t, "").RenderTest("值班频道", renderNow)
 	assertContains(t, msg.Subject, "测试")
 	assertContains(t, msg.Body, "值班频道")
+}
+
+// 显示时区：开始时间、测试消息的发送时间、最后心跳都按给定时区显示，并带时区缩写
+func TestAlertRenderer_DisplayTimezone(t *testing.T) {
+	tokyo, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		t.Skip("运行环境没有时区库")
+	}
+	renderer, err := NewAlertRenderer("", tokyo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// renderNow 是 12:05 UTC = 21:05 JST
+	test := renderer.RenderTest("值班频道", renderNow)
+	assertContains(t, test.Body, "2026-11-15 21:05:00 JST")
+
+	msg, err := renderer.Render("slack", []Item{heartbeatItem()}, renderNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, msg.Body, "2026-11-15 21:03:00 JST", "2026-11-15 20:58:00 JST")
+	if strings.Contains(msg.Body, "UTC") {
+		t.Errorf("给了时区后不应再出现 UTC: %s", msg.Body)
+	}
+}
+
+// 没给时区：按 UTC 显示
+func TestAlertRenderer_DefaultsToUTC(t *testing.T) {
+	assertContains(t, mustRenderer(t, "").RenderTest("值班频道", renderNow).Body, "2026-11-15 12:05:00 UTC")
 }

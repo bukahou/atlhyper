@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	_ "time/tzdata" // 镜像里不一定有系统时区库：内嵌一份，MASTER_TIMEZONE 才可用
 
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/database"
@@ -28,6 +29,8 @@ type Config struct {
 
 	// PublicURL Master 的对外地址（MASTER_PUBLIC_URL）；空或不合法时通知里不带页面链接
 	PublicURL string
+	// Timezone 通知里时间的显示时区（MASTER_TIMEZONE，IANA 名）；空或不合法时用 UTC
+	Timezone string
 
 	HeartbeatCheckInterval time.Duration // 心跳检测间隔；0 = 30 秒
 	HeartbeatOfflineAfter  time.Duration // 心跳多久没更新算离线；0 = 60 秒
@@ -61,7 +64,7 @@ func NewAlertManager(cfg Config) (*Manager, error) {
 	if cfg.PublicURL != "" && publicURL == "" {
 		log.Warn("MASTER_PUBLIC_URL 不是合法的 http(s) 地址，通知里不会带页面链接")
 	}
-	renderer, err := template.NewAlertRenderer(publicURL)
+	renderer, err := template.NewAlertRenderer(publicURL, displayLocation(cfg.Timezone))
 	if err != nil {
 		return nil, err
 	}
@@ -150,3 +153,17 @@ func sanitizePublicURL(raw string) string {
 }
 
 var _ AlertManager = (*Manager)(nil)
+
+// displayLocation 解析显示时区；空或不合法时用 UTC（不合法时记一条警告）
+func displayLocation(name string) *time.Location {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return time.UTC
+	}
+	location, err := time.LoadLocation(name)
+	if err != nil {
+		log.Warn("MASTER_TIMEZONE 不是合法的时区名，通知里的时间按 UTC 显示", "timezone", name)
+		return time.UTC
+	}
+	return location
+}

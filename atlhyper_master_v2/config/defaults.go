@@ -80,7 +80,8 @@ var defaultStrings = map[string]string{
 	"MASTER_LOG_FORMAT": "text", // 日志格式: text / json
 
 	// -------------------- 服务器配置 --------------------
-	"MASTER_PUBLIC_URL": "", // 对外访问地址（通知里的页面链接用）；不配则通知不带链接
+	"MASTER_PUBLIC_URL": "",    // 对外访问地址（通知里的页面链接用）；不配则通知不带链接
+	"MASTER_TIMEZONE":   "UTC", // 通知消息里时间的显示时区（IANA 名，如 Asia/Tokyo）；不合法时退回 UTC
 
 	// -------------------- Agent 入口配置 --------------------
 	"MASTER_AGENT_AUTH_MODE": "warn", // Agent 令牌认证模式: off / warn / enforce

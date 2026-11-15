@@ -37,9 +37,13 @@ type Item struct {
 
 // AlertRenderer 告警消息渲染器
 type AlertRenderer struct {
-	publicURL string // Master 的对外地址；空 = 消息里不带页面链接
+	publicURL string         // Master 的对外地址；空 = 消息里不带页面链接
+	location  *time.Location // 消息里时间的显示时区
 	templates map[string]*template.Template
 }
+
+// displayTimeLayout 消息里的时间格式：带时区缩写（如 JST / UTC），读的人不用猜是哪个时区
+const displayTimeLayout = "2006-01-02 15:04:05 MST"
 
 // messageView 模板的输入：一条消息
 type messageView struct {
@@ -61,10 +65,14 @@ type fieldView struct {
 	Value string
 }
 
-// NewAlertRenderer 创建告警消息渲染器。publicURL 为空时消息里不带页面链接
-func NewAlertRenderer(publicURL string) (*AlertRenderer, error) {
+// NewAlertRenderer 创建告警消息渲染器。publicURL 为空时消息里不带页面链接；location 为 nil 时按 UTC 显示时间
+func NewAlertRenderer(publicURL string, location *time.Location) (*AlertRenderer, error) {
+	if location == nil {
+		location = time.UTC
+	}
 	renderer := &AlertRenderer{
 		publicURL: strings.TrimRight(strings.TrimSpace(publicURL), "/"),
+		location:  location,
 		templates: make(map[string]*template.Template),
 	}
 	for _, layout := range []string{"single", "group"} {
@@ -128,7 +136,7 @@ func (r *AlertRenderer) RenderTest(receiverName string, now time.Time) *channel.
 	return &channel.Message{
 		Subject: "AtlHyper 测试通知",
 		Body: fmt.Sprintf("这是一条测试消息，用于验证接收人「%s」的配置是否正确。\n发送时间: %s",
-			escapeSlack(receiverName), now.UTC().Format("2006-01-02 15:04:05 MST")),
+			escapeSlack(receiverName), r.formatTime(now)),
 		Format: "text",
 	}
 }
@@ -178,10 +186,10 @@ func (r *AlertRenderer) itemView(item Item, now time.Time, escape func(string) s
 	if item.Kind == alert.KindFlapping {
 		add("近 24 小时发生次数", a.Detail(alert.DetailOccurrences24h))
 	}
-	add("最后心跳", a.Detail(alert.DetailLastHeartbeat))
+	add("最后心跳", r.formatStamp(a.Detail(alert.DetailLastHeartbeat)))
 	add("事件原因", a.Detail(alert.DetailEventReason))
 	add("事件次数", a.Detail(alert.DetailEventCount))
-	add("开始时间", a.StartsAt.UTC().Format("2006-01-02 15:04:05 MST"))
+	add("开始时间", r.formatTime(a.StartsAt))
 
 	// 分组消息里每条只占一行：变化、根因、峰值风险、持续时间
 	var brief []string
@@ -289,4 +297,18 @@ func truncateRunes(text string, limit int) string {
 		return text
 	}
 	return string(runes[:limit-1]) + "…"
+}
+
+// formatTime 按显示时区格式化时间
+func (r *AlertRenderer) formatTime(at time.Time) string {
+	return at.In(r.location).Format(displayTimeLayout)
+}
+
+// formatStamp 把 RFC 3339 时间串换成显示时区；解析不了（或为空）时原样返回
+func (r *AlertRenderer) formatStamp(stamp string) string {
+	at, err := time.Parse(time.RFC3339, stamp)
+	if err != nil {
+		return stamp
+	}
+	return r.formatTime(at)
 }

@@ -207,3 +207,15 @@ func TestStartStopIsIdempotent(t *testing.T) {
 	manager.Stop()
 	manager.Stop()
 }
+
+func TestDisplayLocation(t *testing.T) {
+	if got := displayLocation(""); got != time.UTC {
+		t.Errorf("空时区应为 UTC，实际 %v", got)
+	}
+	if got := displayLocation("Not/AZone"); got != time.UTC {
+		t.Errorf("不合法的时区应退回 UTC，实际 %v", got)
+	}
+	if got := displayLocation(" Asia/Tokyo "); got.String() != "Asia/Tokyo" {
+		t.Errorf("应解析出 Asia/Tokyo，实际 %v", got)
+	}
+}

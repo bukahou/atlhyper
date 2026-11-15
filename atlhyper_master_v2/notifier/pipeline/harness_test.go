@@ -123,7 +123,7 @@ func newHarness(t *testing.T) *harness {
 }
 
 func (h *harness) newPipeline() *AlertPipeline {
-	renderer, err := template.NewAlertRenderer("")
+	renderer, err := template.NewAlertRenderer("", nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}

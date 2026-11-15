@@ -248,6 +248,7 @@ type Alert struct {
 - 标题：`[集群] 严重度 · 主体 · 一句话摘要`；分组时：`[集群] N 条告警（最高严重度）`
 - 正文：变化（触发 / 升级 / 复发 / 反复 / 恢复）、主体、根因实体、成员数、峰值风险、持续时间、复发次数
 - 页面链接：配置了 `MASTER_PUBLIC_URL` 时带上事件详情页的链接
+- 时间：按 `MASTER_TIMEZONE`（IANA 名，默认 UTC）显示并带时区缩写，如 `2026-11-15 14:58:29 JST`；只影响消息里的显示（2026-11-15 追加裁定：dev 与 prod 都设 `Asia/Tokyo`）
 - 邮件主题按 RFC 2047 编码
 
 ## 功能一：事件通知闭环（第 1 期）
@@ -342,7 +343,7 @@ GET /api/v2/notify/deliveries?fingerprint=&status=&limit=&offset=
 - `notifier/template/`：告警消息的模板（单条 / 分组，Slack / 邮件）；旧的三组模板删除
 - `notifier/channel/`：发送器按接收人创建；SMTP 加超时
 - `database/`：`notify_policy`、`alerts`、`notify_deliveries` 三张表与仓库
-- `config/`：`MASTER_PUBLIC_URL`（可空）
+- `config/`：`MASTER_PUBLIC_URL`（可空）、`MASTER_TIMEZONE`（默认 UTC）
 - `service/`、`gateway/handler/admin/`：上述接口
 
 **前端实现**
@@ -565,6 +566,7 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 | 什么时候通知 | 「警告」「事件中」都是风险分数切出来的档位 | 进入「事件中」立即通知；只到「警告」的，同一主体 24 小时内反复到阈值才通知一次 |
 | 旧的逐条 K8s 事件告警 | 与事件通知并行会重复 | 默认关闭，保留开关 |
 | 做几期 | 三期都要改表 | 三期全做，一次发布 |
+| 通知里的时间显示 | 原来统一 UTC，读的人要自己换算 | 加 `MASTER_TIMEZONE`，dev 与 prod 都设 `Asia/Tokyo`（2026-11-15 追加裁定） |
 | 邮件发件设置放哪里 | 原实现每个邮件接收人各填一套 SMTP；用户预期「发件人配一次，接收人只填收件人」，主流系统也是全局 SMTP | 改成全局只配一次（2026-11-15 追加裁定） |
 
 ### 工程选择（由实现方决定，供查阅）

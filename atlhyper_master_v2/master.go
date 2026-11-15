@@ -530,6 +530,7 @@ func NewMaster() (*Master, error) {
 		Events:                 db.Event,
 		Agents:                 store,
 		PublicURL:              cfg.Server.PublicURL,
+		Timezone:               cfg.Server.Timezone,
 		HeartbeatCheckInterval: cfg.DataHub.HeartbeatExpire / 2,
 		HeartbeatOfflineAfter:  cfg.DataHub.HeartbeatExpire,
 		K8sEventCheckInterval:  cfg.EventAlert.CheckInterval,

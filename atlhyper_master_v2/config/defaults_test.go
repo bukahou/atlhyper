@@ -35,3 +35,14 @@ func TestLoad_PublicURL(t *testing.T) {
 		t.Errorf("MASTER_PUBLIC_URL = %q", got)
 	}
 }
+
+// 通知的显示时区默认 UTC，可由环境变量给出
+func TestLoad_Timezone(t *testing.T) {
+	if got, defined := defaultStrings["MASTER_TIMEZONE"]; !defined || got != "UTC" {
+		t.Errorf("MASTER_TIMEZONE 默认应为 UTC，得到 (%q, %v)", got, defined)
+	}
+	t.Setenv("MASTER_TIMEZONE", "Asia/Tokyo")
+	if got := getString("MASTER_TIMEZONE"); got != "Asia/Tokyo" {
+		t.Errorf("MASTER_TIMEZONE = %q", got)
+	}
+}

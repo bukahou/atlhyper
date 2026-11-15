@@ -11,6 +11,8 @@ type ServerConfig struct {
 	// PublicURL 用户从浏览器访问本系统的地址（如 https://atlhyper.example.com），用来在通知里生成页面链接。
 	// 可空：不配时通知里不带链接
 	PublicURL string
+	// Timezone 通知消息里时间的显示时区（IANA 名，如 Asia/Tokyo）。只影响显示，存储与接口一律 UTC
+	Timezone string
 }
 
 // AgentSDKConfig Agent 入口（AgentSDK）的认证与限额配置

@@ -230,6 +230,7 @@ npm install && npm run dev
 | `MASTER_GATEWAY_PORT` | 否 | `8080` | Web/API 端口 |
 | `MASTER_AGENTSDK_PORT` | 否 | `8081` | Agent 数据端口 |
 | `MASTER_PUBLIC_URL` | 否 | - | 用户从浏览器访问本系统的地址（如 `https://atlhyper.example.com`）。用于在通知里带上事件页面的链接；不配则通知不带链接 |
+| `MASTER_TIMEZONE` | 否 | `UTC` | 通知消息里时间的显示时区（IANA 名，如 `Asia/Tokyo`）。存储与接口一律 UTC；不合法时按 UTC 显示 |
 | `MASTER_AGENT_AUTH_MODE` | 否 | `warn` | Agent 令牌认证模式：`off` / `warn`（没带有效令牌的请求照常接收并记告警）/ `enforce`（拒绝）。其他取值启动失败 |
 | `MASTER_AGENTSDK_MAX_SNAPSHOT_MB` | 否 | `256` | 单份快照的大小上限（MB，压缩前后都适用） |
 | `MASTER_LOG_LEVEL` | 否 | `info` | 日志级别 |

@@ -27,6 +27,7 @@ func LoadConfig() {
 		GatewayPort:  getInt("MASTER_GATEWAY_PORT"),
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
 		PublicURL:    getString("MASTER_PUBLIC_URL"),
+		Timezone:     getString("MASTER_TIMEZONE"),
 	}
 
 	GlobalConfig.AgentSDK = AgentSDKConfig{
