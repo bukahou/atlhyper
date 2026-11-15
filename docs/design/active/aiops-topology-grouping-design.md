@@ -122,10 +122,50 @@
 - 源头告警的消息里加「影响范围：N 个对象」与前几个对象名
 - 解除抑制（源头先恢复）时，仍在持续的受影响告警按「触发」发一次（与「静默到期」同一规则）
 
-### 接口
+### 接口（契约）
 
-- 事件列表：每条带 `rootIncidentId`（受影响时）与 `linkedCount`（源头时）；查询参数 `grouped=true` 时只返回源头与独立事件
-- 事件详情：源头带 `impacted[]`（事件号、主体、状态、路径）；受影响带 `root`（事件号、主体、路径）
+**事件列表** `GET /api/v2/aiops/incidents`：每条事件新增
+
+```json
+{
+  "...": "原有字段",
+  "rootIncidentId": "inc-123",          // 受影响事件：归到的源头事件号；不是受影响事件时为空串
+  "linkedCount": 2,                     // 源头事件：当前归到它下面的受影响事件数；否则 0
+  "impacted": [                         // 只在 grouped=true 且本条是源头时给出，否则为空数组
+    { "incidentId": "inc-124", "subject": "shop/service/api", "subjectType": "service",
+      "state": "warning", "severity": "medium" }
+  ]
+}
+```
+
+查询参数 `grouped=true`：受影响事件（`rootIncidentId` 非空）不单独出现，折叠在源头的 `impacted` 里；`total` 按折叠后的条数算。
+不传或 `grouped=false` 时照旧平铺。
+
+**事件详情** `GET /api/v2/aiops/incidents/{id}`：新增
+
+```json
+{
+  "...": "原有字段",
+  "root": {                             // 本事件归到某个源头时给出，否则 null
+    "incidentId": "inc-123", "subject": "shop/statefulset/db", "subjectType": "statefulset",
+    "state": "incident", "severity": "critical",
+    "path": [                           // 归组依据：从本事件的成员沿依赖走到源头的成员
+      { "entityKey": "shop/service/api", "edge": "" },
+      { "entityKey": "shop/service/db",  "edge": "calls" },
+      { "entityKey": "shop/pod/db-0",    "edge": "selects" }
+    ],
+    "linkedAt": "2026-11-15T07:00:00Z"
+  },
+  "impacted": [                         // 本事件是源头时：归到它下面的受影响事件；否则空数组
+    { "incidentId": "inc-124", "subject": "shop/service/api", "subjectType": "service",
+      "state": "warning", "severity": "medium", "path": [ "...同上，从受影响事件走到本事件..." ],
+      "linkedAt": "..." }
+  ]
+}
+```
+
+- `edge` 取值：`""`（起点）/ `calls` / `selects` / `runs_on` / `routes_to`，前端按 i18n 显示（调用 / 选中 / 运行在 / 路由到）
+- 只给当前有效的关联（源头恢复或受影响事件结束后，关联解除，不再出现）
 - 风险与结论的文字仍由前端按 i18n 渲染
 
 ### 验证
