@@ -22,8 +22,21 @@ import (
 	"AtlHyper/atlhyper_master_v2/mq"
 )
 
+// ==================== 领域小服务（迁移中，按领域逐个加入） ====================
+
+// K8sQuery K8s 资源快照查询（满足 service.QueryK8s）
+type K8sQuery struct {
+	store datahub.Store
+}
+
+// NewK8sQuery 创建 K8sQuery
+func NewK8sQuery(store datahub.Store) *K8sQuery {
+	return &K8sQuery{store: store}
+}
+
 // QueryService Query 层实现
 type QueryService struct {
+	*K8sQuery
 	store       datahub.Store
 	bus         mq.Producer
 	eventRepo   database.ClusterEventRepository
@@ -103,6 +116,7 @@ type QueryServiceDeps struct {
 // NewQueryService 创建 QueryService（全部依赖通过构造函数注入）
 func NewQueryService(deps QueryServiceDeps) *QueryService {
 	return &QueryService{
+		K8sQuery:       NewK8sQuery(deps.Store),
 		store:          deps.Store,
 		bus:            deps.Bus,
 		eventRepo:      deps.EventRepo,
