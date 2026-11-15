@@ -70,7 +70,7 @@ func TestDetect_AbsoluteGuard_Boundaries(t *testing.T) {
 		want   bool
 	}{
 		{"cpu_usage", 89, false},
-		{"cpu_usage", 90, true},  // 边界：达到即触发
+		{"cpu_usage", 90, true}, // 边界：达到即触发
 		{"memory_usage", 95, true},
 		{"memory_usage", 80, false},
 		{"disk_usage", 90, true},
@@ -151,7 +151,7 @@ func TestDetect_AbsoluteGuard_ScoreReflectsSeverity(t *testing.T) {
 	}
 
 	// 超得越多分越高
-	mild := mk("cpu_usage", 60, 400, 90)   // 恰好触线
+	mild := mk("cpu_usage", 60, 400, 90)    // 恰好触线
 	severe := mk("cpu_usage", 60, 400, 100) // 满载
 	if severe.Score <= mild.Score {
 		t.Errorf("超线越多分应越高：90%%→%.4f, 100%%→%.4f", mild.Score, severe.Score)

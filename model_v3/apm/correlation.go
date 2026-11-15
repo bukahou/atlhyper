@@ -33,9 +33,9 @@ const (
 
 // CorrelationResult 一次相关性分析的结果
 type CorrelationResult struct {
-	Mode            string            `json:"mode"`
-	ForegroundCount int64             `json:"foregroundCount"`
-	BackgroundCount int64             `json:"backgroundCount"`
+	Mode            string `json:"mode"`
+	ForegroundCount int64  `json:"foregroundCount"`
+	BackgroundCount int64  `json:"backgroundCount"`
 	// LowSample 前景样本 < 5：结果仅供参考，前端必须标注 —— 2 条失败请求
 	// 里 100% 是 iPhone 不构成统计显著，但作为线索仍有价值
 	LowSample   bool              `json:"lowSample"`
