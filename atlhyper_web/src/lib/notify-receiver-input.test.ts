@@ -17,15 +17,7 @@ const emailReceiver: NotifyReceiver = {
   name: "运维邮件",
   type: "email",
   enabled: false,
-  email: {
-    smtpHost: "smtp.example.com",
-    smtpPort: 587,
-    smtpUser: "ops@example.com",
-    smtpTLS: true,
-    fromAddress: "ops@example.com",
-    toAddresses: ["a@example.com"],
-    passwordConfigured: true,
-  },
+  email: { toAddresses: ["a@example.com"] },
   createdAt: "2026-11-01T00:00:00Z",
   updatedAt: "2026-11-01T00:00:00Z",
 };
@@ -35,25 +27,18 @@ describe("receiverSettingsOf", () => {
     expect(receiverSettingsOf(slackReceiver)).toEqual({ name: "值班频道", type: "slack", enabled: true });
   });
 
-  it("邮件：带上 SMTP 各项与收件人，不带「密码是否已配置」这个只读标记", () => {
+  it("邮件：只带收件人", () => {
     expect(receiverSettingsOf(emailReceiver)).toEqual({
       name: "运维邮件",
       type: "email",
       enabled: false,
-      email: {
-        smtpHost: "smtp.example.com",
-        smtpPort: 587,
-        smtpUser: "ops@example.com",
-        smtpTLS: true,
-        fromAddress: "ops@example.com",
-        toAddresses: ["a@example.com"],
-      },
+      email: { toAddresses: ["a@example.com"] },
     });
   });
 
-  it("邮件接收人缺 email 段时按空设置处理，不抛错", () => {
+  it("邮件接收人缺 email 段时收件人为空数组，不抛错", () => {
     const settings = receiverSettingsOf({ ...emailReceiver, email: undefined });
-    expect(settings).toMatchObject({ type: "email", email: { smtpHost: "", smtpPort: 587, toAddresses: [] } });
+    expect(settings).toMatchObject({ type: "email", email: { toAddresses: [] } });
   });
 });
 
@@ -67,26 +52,19 @@ describe("receiverRequestBody", () => {
     });
   });
 
-  it("邮件：凭据放进 email.smtpPassword，其余各项原样带上", () => {
-    expect(receiverRequestBody(receiverSettingsOf(emailReceiver), "new-password")).toEqual({
+  it("邮件：请求体的 email 只有收件人；传进来的凭据不会出现在请求体里", () => {
+    const body = receiverRequestBody(receiverSettingsOf(emailReceiver), "should-not-appear");
+    expect(body).toEqual({
       name: "运维邮件",
       type: "email",
       enabled: false,
-      email: {
-        smtpHost: "smtp.example.com",
-        smtpPort: 587,
-        smtpUser: "ops@example.com",
-        smtpTLS: true,
-        fromAddress: "ops@example.com",
-        toAddresses: ["a@example.com"],
-        smtpPassword: "new-password",
-      },
+      email: { toAddresses: ["a@example.com"] },
     });
+    expect(JSON.stringify(body)).not.toContain("should-not-appear");
   });
 
-  it("凭据为空串时照样带上空串：接口约定留空 = 保持原值", () => {
+  it("Slack 凭据为空串时照样带上空串：接口约定留空 = 保持原值", () => {
     expect(receiverRequestBody(receiverSettingsOf(slackReceiver), "")).toMatchObject({ slack: { webhookUrl: "" } });
-    expect(receiverRequestBody(receiverSettingsOf(emailReceiver), "")).toMatchObject({ email: { smtpPassword: "" } });
   });
 });
 

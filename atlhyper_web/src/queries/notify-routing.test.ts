@@ -36,18 +36,10 @@ const emailSettings: NotifyReceiverSettings & { type: "email" } = {
   name: "运维邮件",
   type: "email",
   enabled: true,
-  email: {
-    smtpHost: "smtp.example.com",
-    smtpPort: 587,
-    smtpUser: "ops@example.com",
-    smtpTLS: true,
-    fromAddress: "ops@example.com",
-    toAddresses: ["a@example.com"],
-  },
+  email: { toAddresses: ["a@example.com"] },
 };
 // 测试用的假凭据：只要是在别处不会出现的字符串即可
 const WEBHOOK_PLAINTEXT = "https://hooks.example.com/services/not-a-real-webhook";
-const PASSWORD_PLAINTEXT = "not-a-real-smtp-password";
 
 function clientWithCachedLists(): QueryClient {
   const client = new QueryClient();
@@ -120,7 +112,22 @@ describe("saveNotifyReceiverMutation", () => {
     expect(isInvalidated(client, receiversKey)).toBe(true);
   });
 
-  it("带 id = 修改：凭据留空则请求体里是空串（保持原值）", async () => {
+  it("带 id = 修改：Slack 凭据留空则请求体里是空串（保持原值）", async () => {
+    api.updateNotifyReceiver.mockResolvedValue({ data: { message: "已保存", data: slackReceiver } });
+    const client = clientWithCachedLists();
+
+    await runMutation(client, saveNotifyReceiverMutation(), {
+      receiverId: 1,
+      settings: slackSettings,
+      takeCredential: sealCredential(""),
+    });
+
+    expect(api.updateNotifyReceiver).toHaveBeenCalledWith(1, { ...slackSettings, slack: { webhookUrl: "" } });
+    expect(api.createNotifyReceiver).not.toHaveBeenCalled();
+    expect(isInvalidated(client, receiversKey)).toBe(true);
+  });
+
+  it("邮件接收人：请求体的 email 只有收件人", async () => {
     api.updateNotifyReceiver.mockResolvedValue({ data: { message: "已保存", data: slackReceiver } });
     const client = clientWithCachedLists();
 
@@ -134,7 +141,7 @@ describe("saveNotifyReceiverMutation", () => {
       name: "运维邮件",
       type: "email",
       enabled: true,
-      email: { ...emailSettings.email, smtpPassword: "" },
+      email: { toAddresses: ["a@example.com"] },
     });
     expect(api.createNotifyReceiver).not.toHaveBeenCalled();
     expect(isInvalidated(client, receiversKey)).toBe(true);
@@ -150,17 +157,16 @@ describe("saveNotifyReceiverMutation", () => {
       takeCredential: sealCredential(WEBHOOK_PLAINTEXT),
     });
     await runMutation(client, saveNotifyReceiverMutation(), {
-      receiverId: 2,
-      settings: emailSettings,
-      takeCredential: sealCredential(PASSWORD_PLAINTEXT),
+      receiverId: 1,
+      settings: slackSettings,
+      takeCredential: sealCredential(WEBHOOK_PLAINTEXT),
     });
 
     // 两条 mutation 此刻仍在缓存里（页面挂着时就是这样），正是要检查的状态
     expect(client.getMutationCache().getAll()).toHaveLength(2);
     const cached = everyCachedString(client);
-    expect(cached).toContain("运维邮件");
+    expect(cached).toContain("值班频道");
     expect(cached).not.toContain(WEBHOOK_PLAINTEXT);
-    expect(cached).not.toContain(PASSWORD_PLAINTEXT);
   });
 
   it("保存失败（如 409 名称重复）不动列表缓存，缓存里同样没有明文", async () => {

@@ -10,6 +10,8 @@ import { Switch } from "../shared/Switch";
 
 interface ReceiversTableProps {
   receivers: NotifyReceiver[];
+  /** 全局发件设置还没配置：邮件接收人那几行标出「发不出去」 */
+  smtpMissing: boolean;
   /** 演示数据：开关与操作按钮照常显示但不可用 */
   readOnly: boolean;
   /** 正在发测试消息的接收人；null = 没有 */
@@ -26,8 +28,19 @@ interface ReceiversTableProps {
   actionLabel: string;
 }
 
-/** 发到哪里：只有「凭据是否已配置」，凭据本身接口不返回 */
-function ReceiverTarget({ receiver, t }: { receiver: NotifyReceiver; t: NotificationsTranslations["receivers"] }) {
+/**
+ * 发到哪里。Slack 只有「Webhook 是否已配置」，地址本身接口不返回；
+ * 邮件只显示收件人（发件服务器与账号是全局的发件设置，不属于某个接收人）。
+ */
+function ReceiverTarget({
+  receiver,
+  smtpMissing,
+  t,
+}: {
+  receiver: NotifyReceiver;
+  smtpMissing: boolean;
+  t: NotificationsTranslations["receivers"];
+}) {
   const warning = (text: string) => (
     <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
       <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
@@ -42,14 +55,12 @@ function ReceiverTarget({ receiver, t }: { receiver: NotifyReceiver; t: Notifica
       warning(t.webhookNotConfigured)
     );
   }
-  const email = receiver.email;
+  const toAddresses = receiver.email?.toAddresses ?? [];
   return (
     <div className="space-y-0.5">
-      <div className="text-sm text-default break-all">{email?.smtpUser || "-"}</div>
-      <div className="text-xs text-muted">
-        {t.recipientsCount.replace("{count}", String(email?.toAddresses?.length ?? 0))}
-      </div>
-      {email?.passwordConfigured !== true && warning(t.passwordNotConfigured)}
+      <div className="text-sm text-default break-all">{toAddresses.length > 0 ? toAddresses.join(", ") : "-"}</div>
+      <div className="text-xs text-muted">{t.recipientsCount.replace("{count}", String(toAddresses.length))}</div>
+      {smtpMissing && warning(t.smtpNotConfigured)}
     </div>
   );
 }
@@ -57,6 +68,7 @@ function ReceiverTarget({ receiver, t }: { receiver: NotifyReceiver; t: Notifica
 /** 接收人列表：一行一个接收人，可启停、测试发送、编辑、删除 */
 export function ReceiversTable({
   receivers,
+  smtpMissing,
   readOnly,
   testingReceiverId,
   toggling,
@@ -93,7 +105,7 @@ export function ReceiversTable({
     {
       key: "target",
       header: receiversT.target,
-      render: (receiver) => <ReceiverTarget receiver={receiver} t={receiversT} />,
+      render: (receiver) => <ReceiverTarget receiver={receiver} smtpMissing={smtpMissing} t={receiversT} />,
     },
     {
       key: "enabled",

@@ -2,9 +2,9 @@
  * 通知设置页的演示数据：策略、接收人、路由规则、静默（没有 notify.manage 权限时整页展示，均为虚构）
  *
  * 字段与 docs/design/active/incident-notification-design.md 的接口契约逐字一致。
- * 接收人只有「凭据是否已配置」，没有任何凭据值。
+ * 接收人与发件设置只有「凭据是否已配置」，没有任何凭据值。
  */
-import type { NotifyPolicy, NotifyReceiver, NotifyRule, NotifySilence } from "@/types/notify";
+import type { NotifyPolicy, NotifyReceiver, NotifyRule, NotifySilence, NotifySMTP } from "@/types/notify";
 
 /** 相对现在偏移若干分钟的时刻（负数 = 过去）：静默的状态由起止时间决定，必须相对现在 */
 function minutesFromNow(minutes: number): string {
@@ -42,15 +42,7 @@ export const MOCK_NOTIFY_RECEIVERS: NotifyReceiver[] = [
     name: "Ops mail",
     type: "email",
     enabled: true,
-    email: {
-      smtpHost: "smtp.example.com",
-      smtpPort: 587,
-      smtpUser: "ops@example.com",
-      smtpTLS: true,
-      fromAddress: "ops@example.com",
-      toAddresses: ["oncall@example.com", "sre@example.com"],
-      passwordConfigured: true,
-    },
+    email: { toAddresses: ["oncall@example.com", "sre@example.com"] },
     createdAt: "2026-10-01T09:05:00Z",
     updatedAt: "2026-10-20T02:30:00Z",
   },
@@ -64,6 +56,18 @@ export const MOCK_NOTIFY_RECEIVERS: NotifyReceiver[] = [
     updatedAt: "2026-10-12T04:00:00Z",
   },
 ];
+
+/** 全局发件设置：已配置，发件地址留空（= 使用账号） */
+export const MOCK_NOTIFY_SMTP: NotifySMTP = {
+  configured: true,
+  host: "smtp.example.com",
+  port: 587,
+  user: "ops@example.com",
+  tls: true,
+  fromAddress: "",
+  passwordConfigured: true,
+  updatedAt: "2026-10-01T08:55:00Z",
+};
 
 export const MOCK_NOTIFY_RULES: NotifyRule[] = [
   {

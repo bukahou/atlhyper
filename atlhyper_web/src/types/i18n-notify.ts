@@ -16,14 +16,10 @@ import type {
 } from "./notify";
 
 /** 接收人表单里可能出现的问题 */
-export type NotifyReceiverProblemKey =
-  | "nameRequired"
-  | "webhookRequired"
-  | "smtpHostRequired"
-  | "smtpPortInvalid"
-  | "smtpUserRequired"
-  | "passwordRequired"
-  | "recipientsRequired";
+export type NotifyReceiverProblemKey = "nameRequired" | "webhookRequired" | "recipientsRequired";
+
+/** 邮件发件设置表单里可能出现的问题 */
+export type NotifySMTPProblemKey = "hostRequired" | "portInvalid" | "userRequired" | "passwordRequired" | "fromAddressInvalid";
 
 export interface NotifyAlertsTabTranslations {
   statusFiring: string;
@@ -79,9 +75,12 @@ export interface NotifyReceiversTabTranslations {
   webhookUrlHint: string;
   webhookConfigured: string;
   webhookNotConfigured: string;
-  passwordNotConfigured: string;
+  /** 列表里邮件接收人的提示：全局发件设置还没配置，发不出去 */
+  smtpNotConfigured: string;
   /** 编辑时凭据输入框的提示：已配置，留空则保持不变 */
   credentialKeepHint: string;
+  /** 邮件接收人表单里的说明：发件服务器与账号用全局的邮件发件设置 */
+  emailSenderHint: string;
   /** {count} */
   recipientsCount: string;
   test: string;
@@ -95,24 +94,50 @@ export interface NotifyReceiversTabTranslations {
   empty: string;
   emptyHint: string;
   problems: Record<NotifyReceiverProblemKey, string>;
-  // 邮件表单（EmailFormFields / TagInput 的文案）
-  smtpServer: string;
-  smtpServerPlaceholder: string;
-  smtpCustom: string;
-  smtpCustomPlaceholder: string;
-  port: string;
-  portHint: string;
-  emailAccount: string;
-  emailAccountHint: string;
-  password: string;
-  passwordPlaceholder: string;
-  tlsEncryption: string;
-  tlsHint: string;
+  // 邮件收件人（TagInput 的文案）
   recipients: string;
   recipientsPlaceholder: string;
   tagInputDuplicate: string;
   tagInputInvalidFormat: string;
-  smtpPresets: {
+}
+
+/** 「接收人」页签顶部的邮件发件设置（全局 SMTP） */
+export interface NotifySMTPTranslations {
+  title: string;
+  description: string;
+  /** 还没配置时的醒目提示 */
+  notConfigured: string;
+  notConfiguredHint: string;
+  configure: string;
+  // 字段（查看与编辑共用；EmailFormFields 的文案）
+  server: string;
+  serverPlaceholder: string;
+  custom: string;
+  customPlaceholder: string;
+  port: string;
+  portHint: string;
+  account: string;
+  accountHint: string;
+  password: string;
+  passwordPlaceholder: string;
+  /** 编辑时密码框的提示：已配置，留空则保持不变 */
+  passwordKeepHint: string;
+  passwordConfigured: string;
+  passwordNotConfigured: string;
+  tls: string;
+  tlsHint: string;
+  tlsOn: string;
+  tlsOff: string;
+  fromAddress: string;
+  fromAddressPlaceholder: string;
+  fromAddressHint: string;
+  /** {user} —— 发件地址留空时的显示 */
+  fromAddressUsesAccount: string;
+  updatedAt: string;
+  neverSaved: string;
+  savedToast: string;
+  problems: Record<NotifySMTPProblemKey, string>;
+  presets: {
     qq: string;
     netease163: string;
     netease126: string;
@@ -262,6 +287,7 @@ export interface NotificationsTranslations {
   alerts: NotifyAlertsTabTranslations;
   deliveries: NotifyDeliveriesTabTranslations;
   receivers: NotifyReceiversTabTranslations;
+  smtp: NotifySMTPTranslations;
   rules: NotifyRulesTabTranslations;
   silences: NotifySilencesTabTranslations;
   policy: NotifyPolicyTabTranslations;

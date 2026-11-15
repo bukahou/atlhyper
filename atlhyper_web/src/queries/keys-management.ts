@@ -46,6 +46,8 @@ export const notifyKeys = {
   alerts: (filter: NotifyAlertListParams) => ["notify", "alerts", { ...filter }] as const,
   deliveries: (filter: NotifyDeliveryListParams) => ["notify", "deliveries", { ...filter }] as const,
   receivers: () => ["notify", "receivers"] as const,
+  /** 全局发件设置（单行） */
+  smtp: () => ["notify", "smtp"] as const,
   rules: () => ["notify", "rules"] as const,
   /** 全部静默列表查询的前缀（不分状态）。只用来按前缀失效 */
   silenceLists: ["notify", "silences"] as const,
