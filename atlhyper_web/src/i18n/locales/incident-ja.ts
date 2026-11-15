@@ -99,6 +99,7 @@ export const jaIncidentDetail: IncidentDetailTranslations = {
     anomaly: "異常検知",
   },
   timelineUnknownKind: "その他の変化",
+  timelineRecoverySubjectDeleted: "オブジェクトが削除されたため回復観察へ",
   timelineSeverityRaisedTo: "深刻度が {severity} に上昇",
   timelineSeverity: "深刻度 {severity}",
   timelineRisk: "リスク {risk}",

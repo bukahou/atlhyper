@@ -116,14 +116,17 @@ func (s *Store) severityRaisedWrites(t aiops.IncidentTransition, risk *aiops.Sub
 // recoveryStartedWrites → 恢复观察：状态、至今的峰值风险、时间线。成员不动（这一轮的风险已经回落）
 func (s *Store) recoveryStartedWrites(t aiops.IncidentTransition) []pendingWrite {
 	id := t.IncidentID
+	detail := fmt.Sprintf("状态变更 → %s (风险 %s)", aiops.StateRecovery, displayRisk(t.RFinal))
+	if t.SubjectGone {
+		detail = fmt.Sprintf("状态变更 → %s (%s)", aiops.StateRecovery, subjectGoneNote)
+	}
 	return []pendingWrite{
 		// 时长先于状态写：读的一方把「恢复观察中且时长已记」当成时长已定
 		{"记录异常时长 " + id, func(ctx context.Context) error { return s.repo.SetAnomalyDuration(ctx, id, t.At) }},
 		s.stateWrite(id, aiops.StateRecovery),
 		s.peakRiskWrite(t),
 		// 独立类型：异常时长据此结构化识别（文案前缀不变，旧数据仍靠它兼容）
-		s.timelineWrite(id, t.At, aiops.TimelineRecoveryStarted, t.RootCause,
-			fmt.Sprintf("状态变更 → %s (风险 %s)", aiops.StateRecovery, displayRisk(t.RFinal))),
+		s.timelineWrite(id, t.At, aiops.TimelineRecoveryStarted, t.RootCause, detail),
 	}
 }
 

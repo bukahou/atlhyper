@@ -97,6 +97,8 @@ export interface IncidentTimelineItem {
   firstAt?: string | null;
   /** anomaly：合并范围的末条时刻 */
   lastAt?: string | null;
+  /** recovery_started：subject_deleted = 对象已删除（不是风险回落） */
+  reason?: string | null;
 }
 
 /** 详情响应在原有字段之外新增的四项 */

@@ -99,6 +99,7 @@ export const zhIncidentDetail: IncidentDetailTranslations = {
     anomaly: "异常检测",
   },
   timelineUnknownKind: "其他变化",
+  timelineRecoverySubjectDeleted: "对象已删除，进入恢复观察",
   timelineSeverityRaisedTo: "严重度升到 {severity}",
   timelineSeverity: "严重度 {severity}",
   timelineRisk: "风险 {risk}",

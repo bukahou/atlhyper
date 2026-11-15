@@ -131,7 +131,7 @@ func TestBuildTimelineView(t *testing.T) {
 		entry(30*time.Second, aiops.TimelineAnomalyDetected, "x"),
 		entry(5*time.Minute, aiops.TimelineStateChange, "状态变更 → incident (风险 88)"),
 		entry(5*time.Minute, aiops.TimelineAnomalyDetected, "x"),
-		entry(15*time.Minute, aiops.TimelineRecoveryStarted, "状态变更 → recovery (风险 3)"),
+		entry(15*time.Minute, aiops.TimelineRecoveryStarted, "状态变更 → recovery (对象已删除)"),
 		entry(20*time.Minute, aiops.TimelineRecurrence, "复发 (风险 60)"),
 		entry(25*time.Minute, aiops.TimelineRootCauseIdentified, "旧版本写下的记录"),
 		entry(30*time.Minute, aiops.TimelineStateChange, "事件已关闭: 恢复观察期满"),
@@ -154,6 +154,9 @@ func TestBuildTimelineView(t *testing.T) {
 	}
 	if view[2].Risk == nil || *view[2].Risk != 88 || view[4].Risk == nil || *view[4].Risk != 60 {
 		t.Errorf("升级 / 复发应带风险: %+v %+v", view[2], view[4])
+	}
+	if view[3].Reason != TimelineReasonSubjectDeleted || view[3].Risk != nil {
+		t.Errorf("对象删除引起的恢复应带原因码、不带风险: %+v", view[3])
 	}
 	if view[0].Risk != nil {
 		t.Errorf("开事件的记录里没有风险，不应编一个: %+v", view[0])

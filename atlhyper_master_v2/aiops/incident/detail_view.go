@@ -139,6 +139,12 @@ func BuildHeadline(evidence []aiops.IncidentEvidence, totalMembers int) *aiops.I
 	return &aiops.IncidentHeadline{Signal: top.Signal, Reason: top.Reason, AffectedMembers: top.AffectedMembers, TotalMembers: totalMembers}
 }
 
+// subjectGoneNote 对象删除引起的恢复观察，在时间线原文里的标记（写与读都用它）
+const subjectGoneNote = "对象已删除"
+
+// TimelineReasonSubjectDeleted 时间线展示记录的原因码：主体的对象已被删除
+const TimelineReasonSubjectDeleted = "subject_deleted"
+
 var timelineRisk = regexp.MustCompile(`风险 (\d+)\)`)
 var raisedSeverity = regexp.MustCompile(`严重度升高 → (\w+)`)
 
@@ -176,6 +182,9 @@ func timelineItem(t *aiops.IncidentTimeline) aiops.IncidentTimelineItem {
 		}
 	case t.EventType == aiops.TimelineRecoveryStarted || (t.EventType == aiops.TimelineStateChange && strings.HasPrefix(t.Detail, legacyRecoveryPrefix)):
 		item.Kind = aiops.TimelineItemRecoveryStarted
+		if strings.Contains(t.Detail, subjectGoneNote) {
+			item.Reason = TimelineReasonSubjectDeleted
+		}
 	case t.EventType == aiops.TimelineRecurrence:
 		item.Kind = aiops.TimelineItemRecurred
 	case t.EventType == aiops.TimelineStateChange && strings.Contains(t.Detail, "healthy → warning"):

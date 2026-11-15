@@ -371,6 +371,9 @@ type StateMachineEntry struct {
 	RootCause       string  `json:"rootCause"`       // 最近一次风险抬升时的领头实体
 	// OccurrenceTimes 近 24 小时内每次「发生」的时刻（Unix 秒）：建事件 + 每次复发
 	OccurrenceTimes []int64 `json:"occurrenceTimes,omitempty"`
+	// GoneSince 主体从评估里消失（对象已删除）的起始时刻（Unix 秒），0 = 本轮还在。
+	// 连续消失满一段时间才认定已删除，避免一次不完整的快照被当成删除
+	GoneSince int64 `json:"goneSince,omitempty"`
 	// EpisodeStartedAt 这一轮异常开始的时刻（Unix 秒）：建事件或最近一次复发。
 	// 不从 OccurrenceTimes 推：那里只留 24 小时，持续更久的异常会丢掉起点
 	EpisodeStartedAt int64 `json:"episodeStartedAt,omitempty"`
@@ -418,7 +421,9 @@ type IncidentTransition struct {
 	ReachedIncident bool
 	// EpisodeStartedAt 这一轮异常开始的时刻（建事件或最近一次复发）；通知里的开始时间与持续时间按它算
 	EpisodeStartedAt time.Time
-	At               time.Time
+	// SubjectGone 这次进入恢复观察是因为主体的对象已被删除（不是风险回落）
+	SubjectGone bool
+	At          time.Time
 }
 
 // ==================== 事件类型 ====================
@@ -580,6 +585,7 @@ type IncidentTimelineItem struct {
 	FirstAt  *time.Time `json:"firstAt,omitempty"`  // anomaly：第一条
 	LastAt   *time.Time `json:"lastAt,omitempty"`   // anomaly：最后一条
 	Detail   string     `json:"detail,omitempty"`   // note：原文
+	Reason   string     `json:"reason,omitempty"`   // recovery_started：subject_deleted = 对象已删除（不是风险回落）
 }
 
 // IncidentStats 事件统计

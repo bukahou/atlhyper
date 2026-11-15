@@ -1,6 +1,7 @@
 package source
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -256,5 +257,16 @@ func TestIncidentSource_OnTransitionOnlyEnqueues(t *testing.T) {
 	src.OnTransition(transition(aiops.TransitionEscalated, nil))
 	if time.Since(start) > time.Second {
 		t.Error("队列满时回调应立即返回")
+	}
+}
+
+// 对象删除引起的恢复：照常结束告警（发恢复通知），摘要写明是删除
+func TestIncidentAlert_RecoveryBecauseSubjectDeleted(t *testing.T) {
+	gone := transition(aiops.TransitionRecoveryStarted, func(t *aiops.IncidentTransition) {
+		t.ReachedIncident, t.SubjectGone = true, true
+	})
+	got, ok := IncidentAlert(gone, database.DefaultNotifyPolicy())
+	if !ok || got.Status != alert.StatusResolved || got.Quiet || !strings.Contains(got.Summary, "对象已删除") {
+		t.Errorf("对象删除应发恢复通知并写明原因: ok=%v %+v", ok, got)
 	}
 }

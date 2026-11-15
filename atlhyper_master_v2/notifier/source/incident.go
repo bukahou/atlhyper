@@ -91,6 +91,9 @@ func IncidentAlert(transition aiops.IncidentTransition, policy *database.NotifyP
 		if !transition.ReachedIncident {
 			return alert.Alert{}, false
 		}
+		if transition.SubjectGone {
+			return closingAlert(transition, "对象已删除，进入恢复观察（同名对象再出问题会按复发通知）", false), true
+		}
 		return closingAlert(transition, "风险已回落，进入恢复观察", false), true
 
 	case aiops.TransitionClosed:

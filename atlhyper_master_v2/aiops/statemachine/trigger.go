@@ -28,8 +28,51 @@ func (sm *StateMachine) Evaluate(
 		entry := sm.getOrCreate(subjectRef{clusterID, subjectKey})
 		entry.LastRFinal = risk.RFinal
 		entry.LastEvaluatedAt = now.Unix()
+		entry.GoneSince = 0
 
 		sm.evaluateSubject(ctx, entry, risk, clusterRisk, now)
+	}
+
+	sm.handleGoneSubjects(ctx, clusterID, subjectRisks, now)
+}
+
+// handleGoneSubjects 本集群里这一轮评估没出现的主体：对象已被删除。
+//
+// 能跑到这里说明 Agent 还在上报，所以「不在」本身就是确定的信息：
+//   - 刷新 LastEvaluatedAt，不让它被当成失联关闭（失联只留给 Agent 断连）
+//   - 连续消失满 goneHold：警告 / 事件中的进入恢复观察（标明对象已删除）；没有事件的条目直接清掉；
+//     已在恢复观察的照常等观察期满
+//
+// 这一轮一个主体都没有时（快照异常）不做判断
+func (sm *StateMachine) handleGoneSubjects(ctx context.Context, clusterID string, subjectRisks map[string]*aiops.SubjectRisk, now time.Time) {
+	if len(subjectRisks) == 0 {
+		return
+	}
+	for ref, entry := range sm.entries {
+		if ref.clusterID != clusterID {
+			continue
+		}
+		if _, present := subjectRisks[ref.subjectKey]; present {
+			continue
+		}
+		entry.LastEvaluatedAt = now.Unix()
+		if entry.GoneSince == 0 {
+			entry.GoneSince = now.Unix()
+		}
+		if now.Sub(time.Unix(entry.GoneSince, 0)) < goneHold {
+			continue
+		}
+		switch {
+		case entry.IncidentID == "":
+			delete(sm.entries, ref)
+		case entry.CurrentState == aiops.StateWarning || entry.CurrentState == aiops.StateIncident:
+			from := entry.CurrentState
+			entry.CurrentState = aiops.StateRecovery
+			entry.RecoveryStartedAt = now.Unix()
+			entry.ConditionMetSince, entry.ConditionTarget = 0, ""
+			sm.emit(ctx, aiops.TransitionRecoveryStarted, entry, from, nil, now, func(t *aiops.IncidentTransition) { t.SubjectGone = true })
+			log.Info("主体的对象已删除，进入恢复观察", "cluster", clusterID, "subject", ref.subjectKey, "incident", entry.IncidentID)
+		}
 	}
 }
 
@@ -199,6 +242,7 @@ func (sm *StateMachine) emit(
 	from aiops.EntityState,
 	risk *aiops.SubjectRisk,
 	now time.Time,
+	adjust ...func(*aiops.IncidentTransition),
 ) {
 	entry.OccurrenceTimes = recentOccurrences(entry.OccurrenceTimes, now)
 
@@ -228,5 +272,8 @@ func (sm *StateMachine) emit(
 		}
 	}
 
+	for _, fn := range adjust {
+		fn(&transition)
+	}
 	sm.handler.OnTransition(ctx, transition, risk)
 }

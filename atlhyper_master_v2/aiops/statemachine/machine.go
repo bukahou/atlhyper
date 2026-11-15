@@ -40,6 +40,9 @@ const (
 	observationEscalated      = 48 * time.Hour
 	observationNeverEscalated = 6 * time.Hour
 
+	// goneHold 主体连续不在评估里多久才认定对象已删除
+	goneHold = 2 * time.Minute
+
 	// occurrenceWindow 「近 24 小时发生次数」的窗口
 	occurrenceWindow = 24 * time.Hour
 )

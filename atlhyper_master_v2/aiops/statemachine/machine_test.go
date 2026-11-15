@@ -759,16 +759,17 @@ func TestCleanupStaleEntries_ClosesAsStale(t *testing.T) {
 	f.openIncident(svc, 0.6)
 	f.evaluate(selfRisk("shop/pod/healthy", 0)) // 一直健康、没有事件的主体
 
-	// 35 分钟里只有另一个主体还在被评估
+	// 35 分钟里本集群没有任何评估（Agent 断连）；只有另一个集群还在上报。
+	// 本集群还在上报、只是主体不在了的情况是「对象已删除」，见 subject_gone_test.go
 	f.clock.Advance(35 * time.Minute)
-	f.evaluate(selfRisk("shop/service/fresh", 0.3))
+	f.evaluateIn("cluster-2", nil, selfRisk("shop/service/fresh", 0.3))
 
 	f.sm.CleanupStaleEntries(f.ctx, 30*time.Minute)
 
 	if f.sm.GetEntry(testCluster, svc) != nil || f.sm.GetEntry(testCluster, "shop/pod/healthy") != nil {
 		t.Fatal("失联的条目应清掉")
 	}
-	if f.sm.GetEntry(testCluster, "shop/service/fresh") == nil {
+	if f.sm.GetEntry("cluster-2", "shop/service/fresh") == nil {
 		t.Fatal("仍在被评估的条目不应清掉")
 	}
 	if n := f.handler.count(aiops.TransitionClosedStale); n != 1 {

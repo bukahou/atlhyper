@@ -62,6 +62,10 @@ export function timelineLine(
 
   const notes: string[] = [];
   let label = kindLabels[item.kind] ?? texts.timelineUnknownKind;
+  if (item.kind === "recovery_started" && item.reason === "subject_deleted") {
+    // 对象被删除引起的恢复观察：不是风险回落，文案区分开
+    label = texts.timelineRecoverySubjectDeleted;
+  }
   if (item.kind === "severity_raised" && severity !== "") {
     // 「严重度升高」带上升到哪一档，严重度不再单独列
     label = fillTemplate(texts.timelineSeverityRaisedTo, { severity });

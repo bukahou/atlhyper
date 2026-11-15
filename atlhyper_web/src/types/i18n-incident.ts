@@ -86,6 +86,8 @@ export interface IncidentDetailTranslations {
   timelineCollapse: string;
   timelineKind: Record<IncidentTimelineKind, string>;
   timelineUnknownKind: string;
+  /** recovery_started 且原因是对象已删除时的文案 */
+  timelineRecoverySubjectDeleted: string;
   timelineSeverityRaisedTo: string;
   timelineSeverity: string;
   timelineRisk: string;

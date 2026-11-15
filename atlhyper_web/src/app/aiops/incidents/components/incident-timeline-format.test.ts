@@ -96,3 +96,15 @@ describe("timelineLine", () => {
     }
   });
 });
+
+describe("timelineLine：对象已删除引起的恢复观察", () => {
+  it("原因码 subject_deleted 时换成删除的文案，中日都有", () => {
+    const item: IncidentTimelineItem = { at: AT, kind: "recovery_started", reason: "subject_deleted" };
+    expect(timelineLine(item, zhIncidentDetail, SEVERITY_ZH).label).toBe(zhIncidentDetail.timelineRecoverySubjectDeleted);
+    expect(timelineLine(item, jaIncidentDetail, SEVERITY_ZH).label).toBe(jaIncidentDetail.timelineRecoverySubjectDeleted);
+  });
+  it("没有原因码时仍是风险回落", () => {
+    const item: IncidentTimelineItem = { at: AT, kind: "recovery_started", risk: 3 };
+    expect(timelineLine(item, zhIncidentDetail, SEVERITY_ZH).label).toBe(zhIncidentDetail.timelineKind.recovery_started);
+  });
+});
