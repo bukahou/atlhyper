@@ -13,12 +13,15 @@
 
 ---
 
-## AIOps 拓扑归并 — 🔄 实施中（2026-11-15 用户裁决 D1–D6 都按推荐）
+## AIOps 拓扑归并 — ✅ 已合 dev 并实测（2026-11-15），待用户登录后过目页面
 
 > 设计文档: [aiops-topology-grouping-design.md](../../design/active/aiops-topology-grouping-design.md)
 
 - 设计文档 ✅；用户裁决 ✅
-- 后端 / 通知 / 接口与前端 / dev 验证 — 待办
+- 后端（归组纯函数、关联表、引擎每轮归组并发布变化）✅ · 通知（源头抑制下游、源头消息带影响范围）✅ · 接口与前端（列表按组折叠、详情源头 / 影响范围）✅
+- dev 实测 ✅：崩溃 Deployment + Service → Service 的事件 30 秒内归到 Deployment 下；折叠视图一行「关联 1 个」；
+  Slack 只收到 Deployment 的告警，带「影响范围：1 个对象：…/service/aiops-group-test」；开始时间 17:35:08 JST、持续 5 分钟（开始时间修复同时得到验证）
+- 未实测：受影响事件自身升级后被源头压住不发（本次 Service 只到警告）——单测覆盖
 
 ---
 
