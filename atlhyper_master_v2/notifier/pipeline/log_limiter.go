@@ -1,6 +1,6 @@
-// atlhyper_master_v2/notifier/log_limiter.go
+// atlhyper_master_v2/notifier/pipeline/log_limiter.go
 // 重复日志限频：同一件事在一段时间内只记一次，并记下期间压下了多少条
-package notifier
+package pipeline
 
 import (
 	"sync"
@@ -8,7 +8,7 @@ import (
 )
 
 // repeatLogLimiterMaxKeys 记录的键数上限。
-// 键是告警标题，标题里带资源名、种类不受控；超过上限时先清掉过期的键，仍超过则整表清空
+// 键由调用方给出（如集群 ID），种类不受控；超过上限时先清掉过期的键，仍超过则整表清空
 const repeatLogLimiterMaxKeys = 1024
 
 // repeatLogLimiter 同一个键在一个时间窗内只放行一次。

@@ -1,20 +1,10 @@
-package notifier
+package pipeline
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
-
-	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/notifier/template"
 )
-
-// fakeClock 可拨动的时钟
-type fakeClock struct{ current time.Time }
-
-func (c *fakeClock) now() time.Time          { return c.current }
-func (c *fakeClock) advance(d time.Duration) { c.current = c.current.Add(d) }
 
 func newFakeClock() *fakeClock {
 	return &fakeClock{current: time.Date(2026, 11, 14, 10, 0, 0, 0, time.UTC)}
@@ -120,57 +110,5 @@ func TestRepeatLogLimiter_EvictsExpiredFirst(t *testing.T) {
 	}
 	if got := len(limiter.entries); got != 2 {
 		t.Errorf("清理后应只剩 2 个键，实际 %d", got)
-	}
-}
-
-// ==================== Manager：没有启用任何渠道时的限频 ====================
-
-type noChannelRepo struct {
-	database.NotifyChannelRepository
-	listCalls int
-}
-
-func (r *noChannelRepo) ListEnabled(context.Context) ([]*database.NotifyChannel, error) {
-	r.listCalls++
-	return nil, nil
-}
-
-func TestSendWithTemplate_NoChannel_WarnsOncePerTitlePerWindow(t *testing.T) {
-	repo := &noChannelRepo{}
-	manager, err := NewManager(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	clock := newFakeClock()
-	manager.noChannelWarnings = newRepeatLogLimiter(noChannelWarnWindow, clock.now)
-
-	send := func(title string) {
-		t.Helper()
-		if err := manager.SendWithTemplate("heartbeat_offline", &template.AlertData{Title: title}); err != nil {
-			t.Fatalf("没有渠道不算错误，实际 %v", err)
-		}
-	}
-
-	// 7 分钟里同一标题来了 22 条（测试环境里见到的量级），另一标题 1 条
-	for i := 0; i < 22; i++ {
-		send("Agent 离线")
-		clock.advance(19 * time.Second)
-	}
-	send("Pod 重启")
-
-	if repo.listCalls != 23 {
-		t.Errorf("限频只影响日志，不应跳过渠道查询：查了 %d 次", repo.listCalls)
-	}
-	if got := manager.noChannelWarnings.entries["Agent 离线"].dropped; got != 21 {
-		t.Errorf("「Agent 离线」22 条里应记 1 条、压下 21 条，实际压下 %d", got)
-	}
-	if got := manager.noChannelWarnings.entries["Pod 重启"].dropped; got != 0 {
-		t.Errorf("另一个标题的第一条应照常记录，实际压下 %d", got)
-	}
-
-	// 时间窗过后的下一条重新记录，并带出期间压下的条数
-	clock.advance(noChannelWarnWindow)
-	if allow, dropped := manager.noChannelWarnings.allow("Agent 离线"); !allow || dropped != 21 {
-		t.Errorf("时间窗过后 got (%v, %d), want (true, 21)", allow, dropped)
 	}
 }

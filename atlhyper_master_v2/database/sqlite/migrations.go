@@ -44,17 +44,6 @@ func migrate(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_events_involved ON cluster_events(cluster_id, involved_kind, involved_namespace, involved_name)`,
 		`CREATE INDEX IF NOT EXISTS idx_events_reason ON cluster_events(cluster_id, reason, last_timestamp DESC)`,
 
-		// ==================== 通知渠道表 ====================
-		`CREATE TABLE IF NOT EXISTS notify_channels (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			type TEXT UNIQUE NOT NULL,
-			name TEXT NOT NULL,
-			enabled INTEGER DEFAULT 0,
-			config TEXT,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)`,
-
 		// ==================== 通知：全局策略（单行，id 恒为 1）====================
 		`CREATE TABLE IF NOT EXISTS notify_policy (
 			id INTEGER PRIMARY KEY CHECK (id = 1),

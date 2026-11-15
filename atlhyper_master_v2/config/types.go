@@ -8,6 +8,9 @@ import "time"
 type ServerConfig struct {
 	GatewayPort  int // Gateway 端口（Web/API）
 	AgentSDKPort int // AgentSDK 端口（Agent 数据上报）
+	// PublicURL 用户从浏览器访问本系统的地址（如 https://atlhyper.example.com），用来在通知里生成页面链接。
+	// 可空：不配时通知里不带链接
+	PublicURL string
 }
 
 // AgentSDKConfig Agent 入口（AgentSDK）的认证与限额配置
@@ -91,10 +94,10 @@ type AISeed struct {
 	BaseURL  string // 自定义 API 地址（Ollama 使用）
 }
 
-// EventAlertConfig 事件告警配置
+// EventAlertConfig 旧的逐条 K8s 事件告警的配置。
+// 是否开启不在这里：由通知策略里的 k8sEventAlertsEnabled 控制（设置页可改，默认关）
 type EventAlertConfig struct {
-	Enabled       bool          // 是否启用事件告警
-	CheckInterval time.Duration // 检测间隔
+	CheckInterval time.Duration // 轮询间隔
 }
 
 // LogConfig 日志配置

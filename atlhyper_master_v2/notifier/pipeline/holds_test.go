@@ -257,3 +257,25 @@ func TestSubmissionBuiltFromCurrentPolicy(t *testing.T) {
 		t.Errorf("构造函数说不产生告警时不应落库: %+v", row)
 	}
 }
+
+// 没配接收人是持续的状态：同一个集群的「没有接收人」日志在时间窗内只记一次，但每条告警都有送达记录
+func TestNoReceiverWarningIsRateLimitedPerCluster(t *testing.T) {
+	h := newHarness(t)
+	h.submit(incidentAlert("api", "prod", alert.SeverityHigh))
+	h.advance(groupWait) // prod 第 1 次：记日志
+	h.submit(incidentAlert("db", "prod", alert.SeverityHigh))
+	h.advance(groupInterval) // prod 第 2 次，距上一条日志 5 分钟：压下
+	h.submit(incidentAlert("cache", "test", alert.SeverityHigh))
+	h.advance(groupWait) // 另一个集群：照常记
+
+	prod, test := h.p.noReceiverWarnings.entries["prod"], h.p.noReceiverWarnings.entries["test"]
+	if prod == nil || test == nil {
+		t.Fatalf("两个集群都应记过日志: prod=%v test=%v", prod, test)
+	}
+	if prod.dropped != 1 || test.dropped != 0 {
+		t.Errorf("prod 应压下 1 条、test 压下 0 条，实际 %d / %d", prod.dropped, test.dropped)
+	}
+	for _, id := range []string{"api", "db", "cache"} {
+		h.wantDeliveries("incident:"+id, "firing/no-receiver")
+	}
+}

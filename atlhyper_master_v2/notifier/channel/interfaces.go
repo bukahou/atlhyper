@@ -1,69 +1,18 @@
-// atlhyper_master_v2/notifier/channel/interface.go
-// 通知渠道接口与工厂
+// atlhyper_master_v2/notifier/channel/interfaces.go
+// 通知渠道：消息与发送器接口。发送器按接收人创建，见 receiver.go
 package channel
 
-import (
-	"context"
-	"encoding/json"
-	"errors"
-
-	"AtlHyper/atlhyper_master_v2/database"
-)
+import "context"
 
 // Message 渲染后的消息
 type Message struct {
-	Subject string // 主题（Email 用）
+	Subject string // 标题（邮件主题 / Slack 的纯文本摘要）
 	Body    string // 正文
-	Format  string // 格式：text, markdown, html
+	Format  string // 格式：text / markdown
 }
 
-// Notifier 通知器接口
+// Notifier 发送器：把一条消息发到一个具体的地址
 type Notifier interface {
 	Name() string
 	Send(ctx context.Context, msg *Message) error
-}
-
-// Factory 通知器工厂
-type Factory struct{}
-
-// NewFactory 创建工厂
-func NewFactory() *Factory {
-	return &Factory{}
-}
-
-// Create 根据渠道配置创建 Notifier
-func (f *Factory) Create(ch *database.NotifyChannel) (Notifier, error) {
-	switch ch.Type {
-	case "slack":
-		var cfg database.SlackConfig
-		if err := json.Unmarshal([]byte(ch.Config), &cfg); err != nil {
-			return nil, errors.New("invalid slack config")
-		}
-		if cfg.WebhookURL == "" {
-			return nil, errors.New("slack webhook url required")
-		}
-		return NewSlackNotifier(cfg.WebhookURL), nil
-
-	case "email":
-		var cfg database.EmailConfig
-		if err := json.Unmarshal([]byte(ch.Config), &cfg); err != nil {
-			return nil, errors.New("invalid email config")
-		}
-		// 完整性验证：host、user、password、recipients 都必须配置
-		if cfg.SMTPHost == "" || cfg.SMTPUser == "" || cfg.SMTPPassword == "" || len(cfg.ToAddresses) == 0 {
-			return nil, errors.New("email config incomplete: smtp_host, smtp_user, smtp_password, to_addresses required")
-		}
-		return NewEmailNotifier(EmailConfig{
-			SMTPHost:     cfg.SMTPHost,
-			SMTPPort:     cfg.SMTPPort,
-			SMTPUser:     cfg.SMTPUser,
-			SMTPPassword: cfg.SMTPPassword,
-			UseTLS:       cfg.SMTPTLS,
-			FromAddress:  cfg.FromAddress,
-			ToAddresses:  cfg.ToAddresses,
-		}), nil
-
-	default:
-		return nil, errors.New("unsupported channel type: " + ch.Type)
-	}
 }

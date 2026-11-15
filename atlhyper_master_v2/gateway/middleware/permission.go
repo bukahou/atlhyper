@@ -35,7 +35,7 @@ const (
 	PermPodLogsRead    Permission = "pod.logs.read"    // Pod 容器日志
 	PermClusterOperate Permission = "cluster.operate"  // 指令下发、重启、扩缩容、改镜像、cordon
 	PermAuditRead      Permission = "audit.read"       // 审计日志
-	PermNotifyManage   Permission = "notify.manage"    // 通知渠道（读 + 写）
+	PermNotifyManage   Permission = "notify.manage"    // 通知设置：策略、告警、送达记录、接收人、规则、静默（读 + 写）
 	PermSLOManage      Permission = "slo.manage"       // SLO 目标写入（运维配置，与通知渠道同档）
 	PermAIAnalyze      Permission = "ai.analyze"       // AIOps AI 总结 / 建议 / 报告 / 深度分析
 	PermAISettingsRead Permission = "ai.settings.read" // AI 配置查看

@@ -24,3 +24,14 @@ func TestLoad_AgentEntryFromEnv(t *testing.T) {
 		t.Errorf("MASTER_AGENTSDK_MAX_SNAPSHOT_MB = %d, want 64", got)
 	}
 }
+
+// 对外访问地址不是凭据，默认为空（通知里不带页面链接）；可由环境变量给出。
+func TestLoad_PublicURL(t *testing.T) {
+	if got, defined := defaultStrings["MASTER_PUBLIC_URL"]; !defined || got != "" {
+		t.Errorf("MASTER_PUBLIC_URL 应有空的默认值，得到 (%q, %v)", got, defined)
+	}
+	t.Setenv("MASTER_PUBLIC_URL", "https://atlhyper.example.com")
+	if got := getString("MASTER_PUBLIC_URL"); got != "https://atlhyper.example.com" {
+		t.Errorf("MASTER_PUBLIC_URL = %q", got)
+	}
+}

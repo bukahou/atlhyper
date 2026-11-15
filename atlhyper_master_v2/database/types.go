@@ -103,17 +103,6 @@ type HourlyKindCount struct {
 	Count int
 }
 
-// NotifyChannel 通知渠道
-type NotifyChannel struct {
-	ID        int64
-	Type      string // slack / email（UNIQUE，一个类型一条记录）
-	Name      string // 显示名称
-	Enabled   bool   // 是否启用（默认 false）
-	Config    string // JSON 配置
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 // Cluster 集群注册表的一行：管理员登记的集群，以及它的 Agent 令牌（只存哈希）
 type Cluster struct {
 	ClusterID     string // 集群 ID，与 Agent 上报的一致

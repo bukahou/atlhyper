@@ -28,7 +28,6 @@ func Init(db *database.DB, dialect database.Dialect) {
 	db.User = newUserRepo(db.Conn, dialect.User())
 	db.UserIdentity = newUserIdentityRepo(db.Conn, dialect.User(), dialect.UserIdentity())
 	db.Event = newEventRepo(db.Conn, dialect.Event())
-	db.Notify = newNotifyRepo(db.Conn, dialect.Notify())
 	db.NotifyPolicy = newNotifyPolicyRepo(db.Conn, dialect.NotifyPolicy())
 	db.NotifyAlert = newNotifyAlertRepo(db.Conn, dialect.NotifyAlert())
 	db.NotifyDelivery = newNotifyDeliveryRepo(db.Conn, dialect.NotifyDelivery())

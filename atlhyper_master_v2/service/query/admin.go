@@ -1,5 +1,5 @@
 // atlhyper_master_v2/service/query/admin.go
-// QueryAdmin 实现 — 管理查询（审计日志、命令历史、事件历史、通知渠道、设置、AI Provider）
+// QueryAdmin 实现 — 管理查询（审计日志、命令历史、事件历史、设置、AI Provider）
 package query
 
 import (
@@ -36,16 +36,6 @@ func (q *QueryService) ListEventHistory(ctx context.Context, clusterID string, o
 
 func (q *QueryService) CountEventHistory(ctx context.Context, clusterID string) (int64, error) {
 	return q.eventRepo.CountByCluster(ctx, clusterID)
-}
-
-// ==================== Notify ====================
-
-func (q *QueryService) ListNotifyChannels(ctx context.Context) ([]*database.NotifyChannel, error) {
-	return q.notifyRepo.List(ctx)
-}
-
-func (q *QueryService) GetNotifyChannelByType(ctx context.Context, channelType string) (*database.NotifyChannel, error) {
-	return q.notifyRepo.GetByType(ctx, channelType)
 }
 
 // ==================== AI Provider ====================

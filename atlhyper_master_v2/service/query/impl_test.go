@@ -116,7 +116,7 @@ func (m *mockAIOpsEngine) GetIncidentStats(ctx context.Context, clusterID string
 func (m *mockAIOpsEngine) GetIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*aiops.IncidentPattern {
 	return nil
 }
-func (m *mockAIOpsEngine) SubscribeTransitions(func(aiops.IncidentTransition)) {}
+func (m *mockAIOpsEngine) SubscribeTransitions(func(aiops.IncidentTransition))             {}
 func (m *mockAIOpsEngine) SetIncidentNotify(fn func(incidentID, severity, trigger string)) {}
 func (m *mockAIOpsEngine) Start(ctx context.Context) error                                 { return nil }
 func (m *mockAIOpsEngine) Stop() error                                                     { return nil }
@@ -152,24 +152,6 @@ func (m *mockCommandRepo) List(ctx context.Context, opts database.CommandQueryOp
 }
 func (m *mockCommandRepo) Count(ctx context.Context, opts database.CommandQueryOpts) (int64, error) {
 	return 0, nil
-}
-
-type mockNotifyRepo struct{}
-
-func (m *mockNotifyRepo) Create(ctx context.Context, ch *database.NotifyChannel) error { return nil }
-func (m *mockNotifyRepo) Update(ctx context.Context, ch *database.NotifyChannel) error { return nil }
-func (m *mockNotifyRepo) Delete(ctx context.Context, id int64) error                   { return nil }
-func (m *mockNotifyRepo) GetByID(ctx context.Context, id int64) (*database.NotifyChannel, error) {
-	return nil, nil
-}
-func (m *mockNotifyRepo) GetByType(ctx context.Context, channelType string) (*database.NotifyChannel, error) {
-	return nil, nil
-}
-func (m *mockNotifyRepo) List(ctx context.Context) ([]*database.NotifyChannel, error) {
-	return nil, nil
-}
-func (m *mockNotifyRepo) ListEnabled(ctx context.Context) ([]*database.NotifyChannel, error) {
-	return nil, nil
 }
 
 type mockAIProviderRepo struct{}
@@ -277,7 +259,6 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 
 	auditRepo := &mockAuditRepo{}
 	commandRepo := &mockCommandRepo{}
-	notifyRepo := &mockNotifyRepo{}
 	aiProviderRepo := &mockAIProviderRepo{}
 	aiSettingsRepo := &mockAISettingsRepo{}
 	aiModelRepo := &mockAIModelRepo{}
@@ -293,7 +274,6 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 		AdminRepos: AdminRepos{
 			Audit:      auditRepo,
 			Command:    commandRepo,
-			Notify:     notifyRepo,
 			AIProvider: aiProviderRepo,
 			AISettings: aiSettingsRepo,
 			AIModel:    aiModelRepo,
@@ -323,9 +303,6 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 	}
 	if svc.commandRepo == nil {
 		t.Error("commandRepo not injected")
-	}
-	if svc.notifyRepo == nil {
-		t.Error("notifyRepo not injected")
 	}
 	if svc.aiProviderRepo == nil {
 		t.Error("aiProviderRepo not injected")
@@ -361,7 +338,6 @@ func TestNewQueryService_OptionalNil(t *testing.T) {
 		AdminRepos: AdminRepos{
 			Audit:      &mockAuditRepo{},
 			Command:    &mockCommandRepo{},
-			Notify:     &mockNotifyRepo{},
 			AIProvider: &mockAIProviderRepo{},
 			AISettings: &mockAISettingsRepo{},
 			AIModel:    &mockAIModelRepo{},

@@ -9,9 +9,12 @@
 //	slo.go        — SLO 服务网格查询
 //	aiops.go      — AIOps 查询与 AI 增强
 //	cluster_registry.go — 集群管理页列表（注册表 + 在线状态 + 认证状态）
+//	notify.go     — 通知设置页（策略、告警、送达记录、接收人、路由规则、静默）
 package query
 
 import (
+	"time"
+
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/aiops/enricher"
 	"AtlHyper/atlhyper_master_v2/database"
@@ -31,7 +34,6 @@ type QueryService struct {
 	// Admin repositories（管理查询）
 	auditRepo      database.AuditRepository
 	commandRepo    database.CommandHistoryRepository
-	notifyRepo     database.NotifyChannelRepository
 	aiProviderRepo database.AIProviderRepository
 	aiSettingsRepo database.AISettingsRepository
 	aiModelRepo    database.AIProviderModelRepository
@@ -51,6 +53,10 @@ type QueryService struct {
 	// 集群注册表（只读）与各集群的认证状态
 	clusterRepo       ClusterRegistryReader
 	clusterAuthStatus ClusterAuthStatus
+
+	// 通知设置页（只读）；now 为空时用 time.Now，测试里替换
+	notify NotifyRepos
+	now    func() time.Time
 }
 
 // AdminRepos 管理查询所需的 Repository 集合
@@ -58,7 +64,6 @@ type QueryService struct {
 type AdminRepos struct {
 	Audit      database.AuditRepository
 	Command    database.CommandHistoryRepository
-	Notify     database.NotifyChannelRepository
 	AIProvider database.AIProviderRepository
 	AISettings database.AISettingsRepository
 	AIModel    database.AIProviderModelRepository
@@ -91,6 +96,8 @@ type QueryServiceDeps struct {
 
 	ClusterRepo       ClusterRegistryReader // 必需（集群管理页）
 	ClusterAuthStatus ClusterAuthStatus     // 可选，nil = 认证状态一律显示为未认证
+
+	NotifyRepos NotifyRepos // 必需（通知设置页）
 }
 
 // NewQueryService 创建 QueryService（全部依赖通过构造函数注入）
@@ -104,7 +111,6 @@ func NewQueryService(deps QueryServiceDeps) *QueryService {
 		aiopsAI:        deps.AIOpsAI,
 		auditRepo:      deps.AdminRepos.Audit,
 		commandRepo:    deps.AdminRepos.Command,
-		notifyRepo:     deps.AdminRepos.Notify,
 		aiProviderRepo: deps.AdminRepos.AIProvider,
 		aiSettingsRepo: deps.AdminRepos.AISettings,
 		aiModelRepo:    deps.AdminRepos.AIModel,
@@ -121,5 +127,7 @@ func NewQueryService(deps QueryServiceDeps) *QueryService {
 
 		clusterRepo:       deps.ClusterRepo,
 		clusterAuthStatus: deps.ClusterAuthStatus,
+
+		notify: deps.NotifyRepos,
 	}
 }

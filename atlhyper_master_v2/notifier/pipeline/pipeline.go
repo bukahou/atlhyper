@@ -39,6 +39,8 @@ const (
 	dropLogInterval = time.Minute
 	// maxLastErrorLength 写进送达记录的错误信息的长度上限
 	maxLastErrorLength = 500
+	// noReceiverWarnWindow 「没有任何可用的接收人」这条日志，同一个集群的最短间隔
+	noReceiverWarnWindow = 10 * time.Minute
 
 	// SuppressedByClusterOffline 抑制原因：该集群的 Agent 离线告警正在持续
 	SuppressedByClusterOffline = "cluster-offline"
@@ -113,6 +115,9 @@ type AlertPipeline struct {
 	batches       map[string]*batchState   // 还没有定论的批次（待发 / 等重试）
 	batchSeq      int                      // 批次的创建序号，保证处理顺序稳定
 	lastCleanupAt time.Time
+
+	// noReceiverWarnings 「没有任何可用的接收人」日志的限频（按集群）
+	noReceiverWarnings *repeatLogLimiter
 }
 
 // NewAlertPipeline 创建通知管道
@@ -142,6 +147,8 @@ func NewAlertPipeline(cfg Config) *AlertPipeline {
 		alerts:          make(map[string]*alertState),
 		groups:          make(map[groupKey]*groupState),
 		batches:         make(map[string]*batchState),
+
+		noReceiverWarnings: newRepeatLogLimiter(noReceiverWarnWindow, cfg.Now),
 	}
 }
 

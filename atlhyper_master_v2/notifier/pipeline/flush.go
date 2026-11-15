@@ -39,7 +39,7 @@ func (p *AlertPipeline) flushGroup(key groupKey, group *groupState, current *set
 	receivers := routing.ReceiversForRule(current.policy, current.rules, current.receivers, key.ruleID)
 	if len(receivers) == 0 {
 		p.recordDeliveries(newBatchID(), nil, items, database.NotifyDeliveryNoReceiver, now)
-		log.Warn("没有任何可用的接收人，告警未发送", "cluster", key.clusterID, "alerts", len(items))
+		p.warnNoReceiver(key.clusterID, len(items))
 	}
 	for _, receiver := range receivers {
 		batchID := newBatchID()
@@ -82,4 +82,18 @@ func (p *AlertPipeline) recordDeliveries(batchID string, receiver *database.Noti
 			log.Error("送达记录落库失败", "fingerprint", item.fingerprint, "err", err)
 		}
 	}
+}
+
+// warnNoReceiver 记录「没有任何可用的接收人」。
+//
+// 没配接收人是一个持续的状态，而告警不断产生：同一个集群在一个时间窗内只记一次，
+// droppedSinceLastLog 是上一条日志之后同集群未发送、也未记录的次数。每条告警本身都有 no-receiver 的送达记录可查
+func (p *AlertPipeline) warnNoReceiver(clusterID string, alerts int) {
+	allowed, dropped := p.noReceiverWarnings.allow(clusterID)
+	if !allowed {
+		return
+	}
+	log.Warn("没有任何可用的接收人，告警未发送",
+		"cluster", clusterID, "alerts", alerts,
+		"droppedSinceLastLog", dropped, "logInterval", noReceiverWarnWindow.String())
 }
