@@ -4,6 +4,7 @@
 
 import type { Language } from "./common";
 import type { Permission } from "./auth";
+import type { NotificationsTranslations } from "./i18n-notify";
 
 // 导航菜单翻译
 export interface NavTranslations {
@@ -872,63 +873,8 @@ export interface AgentsTranslations {
   noAgents: string;
 }
 
-// Notifications 页面翻译
-export interface NotificationsTranslations {
-  pageDescription: string;
-  // Slack
-  slackNotify: string;
-  slackConfig: string;
-  webhookUrl: string;
-  webhookUrlHint: string;
-  secretConfigured: string; // 凭据已设置（不回显）
-  secretConfiguredPlaceholder: string; // 已设置时输入框的占位提示
-  channel: string;
-  // Email
-  emailNotify: string;
-  smtpServer: string;
-  smtpServerPlaceholder: string;
-  smtpCustom: string;
-  smtpCustomPlaceholder: string;
-  port: string;
-  portHint: string;
-  emailAccount: string;
-  emailAccountHint: string;
-  password: string;
-  passwordPlaceholder: string;
-  tlsEncryption: string;
-  tlsHint: string;
-  recipients: string;
-  recipientsPlaceholder: string;
-  // 状态
-  statusEnabled: string;
-  statusIncomplete: string;
-  statusDisabled: string;
-  configIncomplete: string;
-  // 操作
-  enabled: string;
-  test: string;
-  save: string;
-  testMessage: string;
-  testSuccess: string;
-  testFailed: string;
-  saveSuccess: string;
-  saveFailed: string;
-  slackSaved: string;
-  emailSaved: string;
-  // SMTP 预设标签
-  smtpPresets: {
-    qq: string;
-    netease163: string;
-    netease126: string;
-    tencentEnterprise: string;
-    aliEnterprise: string;
-    feishu: string;
-  };
-  // TagInput 消息
-  tagInputPlaceholder: string;
-  tagInputDuplicate: string;
-  tagInputInvalidFormat: string;
-}
+// Notifications 页面翻译：文案量大，单放在 i18n-notify.ts
+export type { NotificationsTranslations } from "./i18n-notify";
 
 // Login 页面翻译
 export interface LoginTranslations {
@@ -2097,9 +2043,37 @@ export interface AIOpsTranslations {
   resolvedAt: string;
   duration: string;
   recurrence: string;
-  affectedEntities: string;
   timeline: string;
   role: string;
+
+  // 事件的主体与成员（事件按主体收敛：同一工作负载的 Pod 归到一个事件）
+  subject: string;
+  subjectTypeLabel: {
+    pod: string;
+    node: string;
+    service: string;
+    ingress: string;
+    deployment: string;
+    statefulset: string;
+    daemonset: string;
+    job: string;
+    cronjob: string;
+  };
+  memberEntities: string;
+  noMemberEntities: string;
+  entityRole: {
+    root_cause: string;
+    affected: string;
+  };
+  escalatedAt: string;
+  notEscalated: string;
+  closeReason: string;
+  closeReasonLabel: {
+    open: string;
+    recovered: string;
+    stale: string;
+  };
+  closeReasonStaleHint: string;
 
   // 事件状态
   state: {
@@ -2149,6 +2123,7 @@ export interface AIOpsTranslations {
     root_cause_identified: string;
     recovery_started: string;
     recurrence: string;
+    severity_raised: string;
   };
 
   // 拓扑图

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { EmailConfig } from "@/api/notify";
-import { emailFormFromSaved, emailFormHasChanges } from "./email-form";
+import type { NotifyEmailSettings } from "@/types/notify";
+import { emailFormFromSaved, emailSettingsFromDraft } from "./email-form";
 
 const PRESET_HOSTS = ["smtp.gmail.com", "smtp.qq.com"];
 
-const savedConfig: EmailConfig = {
+const savedSettings: NotifyEmailSettings = {
   smtpHost: "smtp.gmail.com",
   smtpPort: 465,
   smtpUser: "alerts@example.com",
@@ -14,9 +14,8 @@ const savedConfig: EmailConfig = {
 };
 
 describe("emailFormFromSaved", () => {
-  it("用已保存的配置填表单；密码不回显，恒为空", () => {
-    expect(emailFormFromSaved(savedConfig, true, PRESET_HOSTS)).toEqual({
-      enabled: true,
+  it("用已保存的设置填表单；密码不回显，恒为空", () => {
+    expect(emailFormFromSaved(savedSettings, PRESET_HOSTS)).toEqual({
       smtpHost: "smtp.gmail.com",
       smtpPort: 465,
       smtpUser: "alerts@example.com",
@@ -27,9 +26,9 @@ describe("emailFormFromSaved", () => {
     });
   });
 
-  it("还没配置过时用默认值：端口 587、开启 TLS、不算手填服务器", () => {
-    const emptyConfig = { smtpHost: "", smtpPort: 0, smtpUser: "", fromAddress: "", toAddresses: [] };
-    expect(emailFormFromSaved(emptyConfig, false, PRESET_HOSTS)).toMatchObject({
+  it("还没配置过时用默认值：端口 587、不算手填服务器", () => {
+    const emptySettings = { ...savedSettings, smtpHost: "", smtpPort: 0, smtpUser: "", smtpTLS: true, toAddresses: [] };
+    expect(emailFormFromSaved(emptySettings, PRESET_HOSTS)).toMatchObject({
       smtpHost: "",
       smtpPort: 587,
       smtpTls: true,
@@ -38,38 +37,43 @@ describe("emailFormFromSaved", () => {
   });
 
   it("已存的服务器不在预设列表里：算手填", () => {
-    const customConfig = { ...savedConfig, smtpHost: "mail.example.com" };
-    expect(emailFormFromSaved(customConfig, true, PRESET_HOSTS).isCustomSmtp).toBe(true);
+    const customSettings = { ...savedSettings, smtpHost: "mail.example.com" };
+    expect(emailFormFromSaved(customSettings, PRESET_HOSTS).isCustomSmtp).toBe(true);
   });
 });
 
-describe("emailFormHasChanges", () => {
-  const untouched = emailFormFromSaved(savedConfig, true, PRESET_HOSTS);
+describe("emailSettingsFromDraft", () => {
+  const draft = emailFormFromSaved(savedSettings, PRESET_HOSTS);
 
-  it("刚填好的表单没有改动", () => {
-    expect(emailFormHasChanges(untouched, savedConfig, true)).toBe(false);
+  it("新建：邮箱账号同时作为发件人地址；结果里没有密码", () => {
+    expect(emailSettingsFromDraft({ ...draft, smtpPassword: "typed-password" }, null)).toEqual({
+      smtpHost: "smtp.gmail.com",
+      smtpPort: 465,
+      smtpUser: "alerts@example.com",
+      smtpTLS: false,
+      fromAddress: "alerts@example.com",
+      toAddresses: ["ops@example.com"],
+    });
   });
 
-  it("任何一项与已保存的不同都算改动", () => {
-    expect(emailFormHasChanges({ ...untouched, enabled: false }, savedConfig, true)).toBe(true);
-    expect(emailFormHasChanges({ ...untouched, smtpHost: "smtp.qq.com" }, savedConfig, true)).toBe(true);
-    expect(emailFormHasChanges({ ...untouched, smtpPort: 587 }, savedConfig, true)).toBe(true);
-    expect(emailFormHasChanges({ ...untouched, smtpUser: "other@example.com" }, savedConfig, true)).toBe(true);
-    expect(emailFormHasChanges({ ...untouched, smtpTls: true }, savedConfig, true)).toBe(true);
+  it("服务器地址与账号去掉首尾空白", () => {
+    const padded = { ...draft, smtpHost: " mail.example.com ", smtpUser: " alerts@example.com " };
+    expect(emailSettingsFromDraft(padded, null)).toMatchObject({
+      smtpHost: "mail.example.com",
+      smtpUser: "alerts@example.com",
+      fromAddress: "alerts@example.com",
+    });
   });
 
-  it("密码只要有输入就算改动", () => {
-    expect(emailFormHasChanges({ ...untouched, smtpPassword: "x" }, savedConfig, true)).toBe(true);
+  it("已保存的发件人与账号不同、账号没改：保留已保存的发件人", () => {
+    const separateSender = { ...savedSettings, fromAddress: "noreply@example.com" };
+    expect(emailSettingsFromDraft(draft, separateSender).fromAddress).toBe("noreply@example.com");
   });
 
-  it("收件人增删、换顺序都算改动", () => {
-    expect(emailFormHasChanges({ ...untouched, recipients: [] }, savedConfig, true)).toBe(true);
-    expect(
-      emailFormHasChanges({ ...untouched, recipients: ["ops@example.com", "sre@example.com"] }, savedConfig, true),
-    ).toBe(true);
-    const twoRecipients = { ...savedConfig, toAddresses: ["a@example.com", "b@example.com"] };
-    expect(
-      emailFormHasChanges({ ...untouched, recipients: ["b@example.com", "a@example.com"] }, twoRecipients, true),
-    ).toBe(true);
+  it("账号改了：发件人跟着新账号走", () => {
+    const separateSender = { ...savedSettings, fromAddress: "noreply@example.com" };
+    expect(emailSettingsFromDraft({ ...draft, smtpUser: "other@example.com" }, separateSender).fromAddress).toBe(
+      "other@example.com",
+    );
   });
 });

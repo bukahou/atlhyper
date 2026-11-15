@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { QueryView } from "@/components/common";
@@ -15,13 +16,23 @@ import { IncidentStats } from "./components/IncidentStats";
 import { IncidentList } from "./components/IncidentList";
 import { IncidentDetailModal } from "./components/IncidentDetailModal";
 
+/** 状态筛选：全部 / 警告 / 事件中 / 恢复观察 / 已关闭。取值是后端的状态名 */
 const STATE_FILTERS = ["", "warning", "incident", "recovery", "stable"] as const;
 
 export default function IncidentsPage() {
   const { t } = useI18n();
   const { clusterId } = useCurrentCluster();
   const [stateFilter, setStateFilter] = useState("");
-  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+  // 跨页跳转：URL ?incident=xxx 直接打开这个事件的详情（通知设置页的告警从这里进来）
+  const linkedIncidentId = useSearchParams().get("incident") ?? "";
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(linkedIncidentId || null);
+  // 停在本页期间 ?incident= 变了（浏览器前进 / 后退）：跟着打开新的那个。
+  // 记住处理过的值，用户关掉弹窗后不会被再次拉开
+  const [handledLinkedIncidentId, setHandledLinkedIncidentId] = useState(linkedIncidentId);
+  if (linkedIncidentId !== handledLinkedIncidentId) {
+    setHandledLinkedIncidentId(linkedIncidentId);
+    if (linkedIncidentId) setSelectedIncidentId(linkedIncidentId);
+  }
 
   const statsQuery = useQuery(incidentStatsQuery(clusterId));
   const listQuery = useQuery(incidentsQuery(clusterId, stateFilter));

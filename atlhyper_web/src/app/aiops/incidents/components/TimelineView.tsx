@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, TrendingUp, Target, CheckCircle, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronsUp, TrendingUp, Target, CheckCircle, RotateCcw } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { EntityLink } from "@/components/aiops/EntityLink";
 import type { IncidentTimeline } from "@/api/aiops";
@@ -12,6 +12,8 @@ const EVENT_ICONS: Record<string, { icon: typeof AlertTriangle; color: string }>
   root_cause_identified: { icon: Target, color: "text-purple-500 bg-purple-500/10" },
   recovery_started: { icon: CheckCircle, color: "text-emerald-500 bg-emerald-500/10" },
   recurrence: { icon: RotateCcw, color: "text-orange-500 bg-orange-500/10" },
+  // 严重度升高：事件期间风险落入比已记录更高的一档
+  severity_raised: { icon: ChevronsUp, color: "text-red-500 bg-red-500/10" },
 };
 
 interface TimelineViewProps {
