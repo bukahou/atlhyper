@@ -4,7 +4,7 @@
  * 结构与 docs/design/active/incident-notification-design.md「功能四：事件详情页改版」一致：
  * 原有字段（事件本身 + entities + timeline）之外，补上 headline / impact / evidence / members / timelineView。
  * 六个事件分别覆盖：成员全部中招、部分中招、只有一个成员、节点主体、改版前的事件（没有证据、成员已不存在）、
- * 只有依赖传播（headline 为 null）。
+ * 只有依赖传播（headline 为 null）；后三个是拓扑归并的一组（源头带 impacted，受影响带 root，见 incident-links.ts）。
  */
 import type { IncidentDetail, IncidentEntity, IncidentTimeline } from "@/api/aiops";
 import { parseEntityKey } from "@/lib/entity-key";
@@ -15,6 +15,7 @@ import type {
   IncidentTimelineItem,
 } from "@/types/incident-view";
 import { INCIDENT_SEEDS, incidentOf, minutesAgo } from "./incidents";
+import { linkDetailOf, linkOfIncident, linksToRoot } from "./incident-links";
 
 /** 证据的种子：时刻用「多少分钟前」表示 */
 type EvidenceSeed = Omit<IncidentEvidence, "firstSeen" | "lastSeen"> & { firstMin: number; lastMin: number };
@@ -93,6 +94,35 @@ const DETAIL_SEEDS: Record<string, DetailSeed> = {
     memberStates: { "shop/service/checkout": { status: "", restarts: null, ready: "" } },
     anomalyCount: 0,
   },
+  // 拓扑归并的源头：数据库的两个 Pod 都被 OOMKill 后反复重启
+  "inc-007": {
+    evidence: [
+      { signal: "container_crash", reason: "OOMKilled", affectedMembers: 2, detail: "容器 postgres: OOMKilled（退出码 137）", hits: 8, maxScore: 0.91, firstMin: 18, lastMin: 1 },
+      { signal: "workload_unavailable", reason: "100", affectedMembers: 2, detail: "StatefulSet shop/db 不可用 100%（期望 2，可用 0）", hits: 6, maxScore: 0.88, firstMin: 17, lastMin: 1 },
+    ],
+    impact: { desiredReplicas: 2, availableReplicas: 0, restartsTotal: 9 },
+    memberStates: {
+      "shop/pod/db-0": { status: "CrashLoopBackOff", restarts: 5, ready: "0/1" },
+      "shop/pod/db-1": { status: "CrashLoopBackOff", restarts: 4, ready: "0/1" },
+    },
+    anomalyCount: 8,
+  },
+  // 受影响：数据库的 Service，只有依赖传播
+  "inc-008": {
+    evidence: [],
+    impact: NO_IMPACT,
+    memberStates: { "shop/service/db": { status: "", restarts: null, ready: "" } },
+    anomalyCount: 0,
+  },
+  // 受影响：调用方自己的错误率上升（本地信号），根因在上游的数据库
+  "inc-009": {
+    evidence: [
+      { signal: "apm_errors", reason: "", affectedMembers: 1, detail: "错误率 12.4%（基线 0.3%）", hits: 5, maxScore: 0.58, firstMin: 16, lastMin: 1 },
+    ],
+    impact: NO_IMPACT,
+    memberStates: { "shop/service/payment": { status: "", restarts: null, ready: "" } },
+    anomalyCount: 5,
+  },
 };
 
 const GONE: MemberState = { status: "", restarts: null, ready: "" };
@@ -121,6 +151,26 @@ function timelineViewOf(detail: ReturnType<typeof incidentOf>, anomalyCount: num
     items.push({ at: detail.startedAt, kind: "anomaly", count: anomalyCount, firstAt: detail.startedAt, lastAt: abnormalEnd });
   }
   return items;
+}
+
+/** 演示集群里的事件（列表形态），按事件号取 */
+function mockIncidentById(id: string) {
+  const seed = INCIDENT_SEEDS.find((candidate) => candidate.incident.id === id);
+  return seed ? incidentOf(seed, "demo") : undefined;
+}
+
+/** 拓扑归并的两项：受影响事件给 root，源头给 impacted（各带依赖路径） */
+function groupingOf(incidentId: string): Pick<IncidentDetail, "root" | "impacted"> {
+  const link = linkOfIncident(incidentId);
+  const rootIncident = link ? mockIncidentById(link.rootIncidentId) : undefined;
+  const impacted = linksToRoot(incidentId).flatMap((child) => {
+    const childIncident = mockIncidentById(child.incidentId);
+    return childIncident ? [linkDetailOf(childIncident, child, minutesAgo(child.linkedMin))] : [];
+  });
+  return {
+    root: link && rootIncident ? linkDetailOf(rootIncident, link, minutesAgo(link.linkedMin)) : null,
+    impacted,
+  };
 }
 
 export function mockIncidentDetail(id: string): IncidentDetail {
@@ -171,10 +221,12 @@ export function mockIncidentDetail(id: string): IncidentDetail {
     headline: lead
       ? { signal: lead.signal, reason: lead.reason, affectedMembers: lead.affectedMembers, totalMembers: members.length }
       : null,
-    evidenceStatus: evidence.length > 0 ? "recorded" : "not_recorded",
+    // 没有证据时：有检测记录 = 改版前的事件；连检测记录也没有 = 只有依赖传播
+    evidenceStatus: evidence.length > 0 ? "recorded" : detailSeed.anomalyCount > 0 ? "not_recorded" : "propagation_only",
     impact: detailSeed.impact,
     evidence,
     members,
     timelineView: timelineViewOf(incident, detailSeed.anomalyCount),
+    ...groupingOf(incident.id),
   };
 }

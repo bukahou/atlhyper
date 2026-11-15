@@ -1,6 +1,6 @@
 import type { Translations } from "@/types/i18n";
 import { jaNotifications } from "./notify-ja";
-import { jaIncidentDetail } from "./incident-ja";
+import { jaIncidentDetail, jaIncidentGrouping } from "./incident-ja";
 
 export const ja: Translations = {
   locale: "ja",
@@ -2110,6 +2110,7 @@ Deployment が更新され、新しい Pod が起動中です
       topRootCauses: "頻出根本原因",
     },
     detail: jaIncidentDetail,
+    grouping: jaIncidentGrouping,
     dependencyGraph: "依存関係グラフ",
     nodeDetail: "ノード詳細",
     upstream: "アップストリーム",

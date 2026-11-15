@@ -69,7 +69,7 @@ func (p *AlertPipeline) renderItems(batch *batchState) []template.Item {
 	items := make([]template.Item, 0, len(batch.items))
 	for _, item := range batch.items {
 		if state := p.alerts[item.fingerprint]; state != nil {
-			items = append(items, template.Item{Alert: state.alert, Kind: item.kind})
+			items = append(items, template.Item{Alert: state.alert, Kind: item.kind, Impacted: p.impactedSubjects(item.fingerprint)})
 			continue
 		}
 		row, err := p.repos.Alerts.Get(ctx, item.fingerprint)

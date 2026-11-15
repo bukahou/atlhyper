@@ -44,6 +44,8 @@ const (
 
 	// SuppressedByClusterOffline 抑制原因：该集群的 Agent 离线告警正在持续
 	SuppressedByClusterOffline = "cluster-offline"
+	// SuppressedByRootIncident 抑制原因：拓扑归并里它归到的源头事件的告警正在持续
+	SuppressedByRootIncident = "root-incident"
 )
 
 // retryBackoff 发送失败后的重试间隔：30 秒、2 分钟、10 分钟；三次重试都失败即放弃
@@ -88,6 +90,14 @@ type Config struct {
 type submission struct {
 	alert *alert.Alert
 	build func(policy *database.NotifyPolicy) (alert.Alert, bool)
+	link  *linkUpdate
+}
+
+// linkUpdate 拓扑归并的关联变化：child 归到 root（root 为空 = 解除）。subject 是受影响事件的主体，用于源头消息的影响范围
+type linkUpdate struct {
+	child   string // 受影响事件的告警指纹
+	root    string // 源头事件的告警指纹
+	subject string
 }
 
 // AlertPipeline 通知管道
@@ -115,6 +125,9 @@ type AlertPipeline struct {
 	batches       map[string]*batchState   // 还没有定论的批次（待发 / 等重试）
 	batchSeq      int                      // 批次的创建序号，保证处理顺序稳定
 	lastCleanupAt time.Time
+
+	// inhibitors 拓扑归并：受影响告警指纹 → 归到的源头（与受影响主体）。源头告警持续时，受影响告警被抑制
+	inhibitors map[string]linkUpdate
 
 	// noReceiverWarnings 「没有任何可用的接收人」日志的限频（按集群）
 	noReceiverWarnings *repeatLogLimiter
@@ -147,6 +160,7 @@ func NewAlertPipeline(cfg Config) *AlertPipeline {
 		alerts:          make(map[string]*alertState),
 		groups:          make(map[groupKey]*groupState),
 		batches:         make(map[string]*batchState),
+		inhibitors:      make(map[string]linkUpdate),
 
 		noReceiverWarnings: newRepeatLogLimiter(noReceiverWarnWindow, cfg.Now),
 	}
@@ -210,6 +224,11 @@ func (p *AlertPipeline) SubmitDeferred(build func(policy *database.NotifyPolicy)
 	return p.offer(submission{build: build})
 }
 
+// SubmitLink 提交一条拓扑归并的关联变化（root 为空 = 解除）。只做入队
+func (p *AlertPipeline) SubmitLink(child, root, subject string) bool {
+	return p.offer(submission{link: &linkUpdate{child: child, root: root, subject: subject}})
+}
+
 // Dropped 因队列已满（或管道已停止）而丢弃的提交总数
 func (p *AlertPipeline) Dropped() uint64 { return p.dropped.Load() }
 
@@ -242,6 +261,11 @@ func (p *AlertPipeline) recordDrop() {
 
 // process 处理队列里的一项：落成告警状态，然后对有变化的告警做路由
 func (p *AlertPipeline) process(item submission) {
+	if item.link != nil {
+		// 只记下关联；抑制在下一轮定时检查里统一重新判断（同静默、集群离线）
+		p.applyLink(*item.link)
+		return
+	}
 	now := p.now()
 	current, err := p.loadSettings()
 

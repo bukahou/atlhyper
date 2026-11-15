@@ -406,6 +406,16 @@ type AIOpsIncidentSignal struct {
 	Detail     string // 最近一次的原文
 }
 
+// AIOpsIncidentLink 拓扑归并：受影响事件归到源头事件。UnlinkedAt 为空表示关联仍有效
+type AIOpsIncidentLink struct {
+	IncidentID     string
+	ClusterID      string
+	RootIncidentID string
+	Path           string // JSON：依赖路径（aiops.LinkPathStep 数组）
+	LinkedAt       time.Time
+	UnlinkedAt     *time.Time
+}
+
 // AIOpsIncidentQueryOpts 事件查询选项
 type AIOpsIncidentQueryOpts struct {
 	ClusterID string
@@ -415,6 +425,8 @@ type AIOpsIncidentQueryOpts struct {
 	To        time.Time
 	Limit     int
 	Offset    int
+	// ExcludeLinked 不列出当前归到源头下的受影响事件（拓扑归并的折叠视图）
+	ExcludeLinked bool
 }
 
 // AIOpsIncidentStatsRaw Repository 层返回的统计原始数据

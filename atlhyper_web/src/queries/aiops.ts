@@ -105,12 +105,15 @@ export function graphTraceQuery(clusterId: string, entityKey: string, direction:
 // 事件
 // ============================================================
 
-/** 事件列表。state 为空串 = 全部状态 */
-export function incidentsQuery(clusterId: string, state: string) {
+/**
+ * 事件列表。state 为空串 = 全部状态。
+ * grouped = true：受影响事件由后端折叠进源头的 impacted（拓扑归并）；false：平铺
+ */
+export function incidentsQuery(clusterId: string, state: string, grouped: boolean) {
   return queryOptions({
-    queryKey: aiopsKeys.incidents(clusterId, state),
+    queryKey: aiopsKeys.incidents(clusterId, state, grouped),
     queryFn: ({ signal }) =>
-      getIncidents({ cluster: clusterId, state: state || undefined, limit: INCIDENT_PAGE_SIZE }, signal),
+      getIncidents({ cluster: clusterId, state: state || undefined, limit: INCIDENT_PAGE_SIZE, grouped }, signal),
     refetchInterval: REFRESH.slow,
     staleTime: REFRESH.slow,
     placeholderData: (previousIncidents, previousQuery) =>

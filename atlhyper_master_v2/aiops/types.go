@@ -426,6 +426,24 @@ type IncidentTransition struct {
 	At          time.Time
 }
 
+// ==================== 拓扑归并（见 aiops-topology-grouping-design.md） ====================
+
+// LinkPathStep 归组依据路径上的一步：从受影响事件的成员沿依赖走到源头事件的成员
+type LinkPathStep struct {
+	EntityKey string `json:"entityKey"`
+	Edge      string `json:"edge"` // 到达这一步经过的边：""（起点）/ calls / selects / runs_on / routes_to
+}
+
+// IncidentLink 受影响事件归到源头事件
+type IncidentLink struct {
+	ClusterID      string         `json:"clusterId"`
+	IncidentID     string         `json:"incidentId"`     // 受影响事件
+	Subject        string         `json:"subject"`        // 受影响事件的主体（通知里列影响范围用）
+	RootIncidentID string         `json:"rootIncidentId"` // 源头事件；空 = 解除关联
+	Path           []LinkPathStep `json:"path"`
+	At             time.Time      `json:"at"`
+}
+
 // ==================== 事件类型 ====================
 
 // Incident 事件
@@ -449,6 +467,25 @@ type Incident struct {
 	Recurrence       int        `json:"recurrence"`
 	Summary          string     `json:"summary"`
 	CreatedAt        time.Time  `json:"createdAt"`
+
+	// 拓扑归并（当前有效的关联）
+	RootIncidentID string            `json:"rootIncidentId"` // 受影响事件：归到的源头；否则空串
+	Root           *IncidentLinkRef  `json:"root"`           // 受影响事件：源头的摘要（详情里带路径）；否则 nil
+	LinkedCount    int               `json:"linkedCount"`    // 源头事件：归到它下面的受影响事件数；否则 0
+	Impacted       []IncidentLinkRef `json:"impacted"`       // 源头事件：受影响事件（列表只在 grouped 时给，详情总是给，带路径）
+}
+
+// IncidentLinkRef 关联另一端的事件摘要
+type IncidentLinkRef struct {
+	IncidentID       string         `json:"incidentId"`
+	Subject          string         `json:"subject"`
+	SubjectType      string         `json:"subjectType"`
+	SubjectNamespace string         `json:"subjectNamespace"`
+	SubjectName      string         `json:"subjectName"`
+	State            EntityState    `json:"state"`
+	Severity         string         `json:"severity"`
+	Path             []LinkPathStep `json:"path,omitempty"`     // 详情里给：从受影响事件走到源头的依赖路径
+	LinkedAt         *time.Time     `json:"linkedAt,omitempty"` // 详情里给
 }
 
 // IncidentEntity 受影响实体
@@ -634,6 +671,8 @@ type IncidentQueryOpts struct {
 	To        time.Time
 	Limit     int
 	Offset    int
+	// Grouped 受影响事件不单独列出（折叠到源头的 Impacted 里）
+	Grouped bool
 }
 
 // SeverityFromRisk 从 R_final 映射严重度

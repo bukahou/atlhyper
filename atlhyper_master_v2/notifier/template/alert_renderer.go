@@ -33,6 +33,8 @@ const (
 type Item struct {
 	Alert alert.Alert
 	Kind  alert.Kind
+	// Impacted 拓扑归并：归到这条告警（源头）下面的受影响主体；消息里写成「影响范围」
+	Impacted []string
 }
 
 // AlertRenderer 告警消息渲染器
@@ -190,6 +192,7 @@ func (r *AlertRenderer) itemView(item Item, now time.Time, escape func(string) s
 	add("事件原因", a.Detail(alert.DetailEventReason))
 	add("事件次数", a.Detail(alert.DetailEventCount))
 	add("开始时间", r.formatTime(a.StartsAt))
+	add("影响范围", impactedText(item.Impacted))
 
 	// 分组消息里每条只占一行：变化、根因、峰值风险、持续时间
 	var brief []string
@@ -311,4 +314,20 @@ func (r *AlertRenderer) formatStamp(stamp string) string {
 		return stamp
 	}
 	return r.formatTime(at)
+}
+
+// maxImpactedListed 影响范围里最多列几个对象，其余写「等」
+const maxImpactedListed = 5
+
+// impactedText 「N 个对象：a、b、c 等」；没有时为空串（不显示这一行）
+func impactedText(subjects []string) string {
+	if len(subjects) == 0 {
+		return ""
+	}
+	listed := subjects
+	suffix := ""
+	if len(listed) > maxImpactedListed {
+		listed, suffix = listed[:maxImpactedListed], " 等"
+	}
+	return fmt.Sprintf("%d 个对象：%s%s", len(subjects), strings.Join(listed, "、"), suffix)
 }

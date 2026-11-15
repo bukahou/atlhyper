@@ -36,6 +36,8 @@ func (h *AIOpsIncidentHandler) List(w http.ResponseWriter, r *http.Request) {
 		ClusterID: q.Get("cluster"),
 		State:     q.Get("state"),
 		Severity:  q.Get("severity"),
+		// 拓扑归并：grouped=true 时受影响事件折叠到源头的 impacted 里，不单独列出
+		Grouped: q.Get("grouped") == "true",
 	}
 
 	if from := q.Get("from"); from != "" {

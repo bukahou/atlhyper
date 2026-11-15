@@ -56,6 +56,7 @@ func (s *Store) GetIncident(ctx context.Context, incidentID string) *aiops.Incid
 	detail.EvidenceStatus = BuildEvidenceStatus(detail.Evidence, detail.Timeline)
 	detail.TimelineView = BuildTimelineView(detail.Timeline)
 	detail.Members = baseMembers(detail.Entities)
+	s.annotateDetailLinks(ctx, detail)
 	return detail
 }
 
@@ -81,6 +82,8 @@ func (s *Store) GetIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) 
 		To:        opts.To,
 		Limit:     opts.Limit,
 		Offset:    opts.Offset,
+
+		ExcludeLinked: opts.Grouped,
 	}
 
 	incidents, err := s.repo.List(ctx, dbOpts)
@@ -98,6 +101,7 @@ func (s *Store) GetIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) 
 		v := toAIOpsIncident(inc)
 		result[i] = &v
 	}
+	s.annotateLinks(ctx, opts.ClusterID, result, opts.Grouped)
 
 	return result, total, nil
 }
@@ -107,6 +111,7 @@ func (s *Store) GetIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) 
 func toAIOpsIncident(inc *database.AIOpsIncident) aiops.Incident {
 	subjectNamespace, subjectType, subjectName := aiops.SplitEntityKey(inc.Subject)
 	return aiops.Incident{
+		Impacted:         []aiops.IncidentLinkRef{},
 		ID:               inc.ID,
 		ClusterID:        inc.ClusterID,
 		State:            aiops.EntityState(inc.State),

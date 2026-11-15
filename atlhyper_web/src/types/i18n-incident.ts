@@ -97,3 +97,46 @@ export interface IncidentDetailTranslations {
   // 底部
   historyTitle: string;
 }
+
+/**
+ * 拓扑归并（事件列表的按组折叠、详情的源头与影响范围）的翻译类型，挂在 t.aiops.grouping 下。
+ * 契约：docs/design/active/aiops-topology-grouping-design.md
+ */
+export interface IncidentGroupingTranslations {
+  // 列表
+  groupedView: string;
+  flatView: string;
+  viewToggleHint: string;
+  /** 源头行的「关联 N 个」：{count} */
+  linkedCount: string;
+  linkedCountHint: string;
+  /** 平铺时源头行的「关联 N 个」不能展开（受影响事件各自单独列出） */
+  linkedCountFlatHint: string;
+  /** 展开后受影响事件行前的小标签 */
+  impactedBadge: string;
+  /** 平铺时受影响事件的小标签：{subject} */
+  rootTag: string;
+  rootTagHint: string;
+
+  // 详情：受影响事件
+  rootLabel: string;
+  via: string;
+  rootLinkHint: string;
+  /** 归入时刻：{time} */
+  linkedAt: string;
+
+  // 详情：源头事件
+  /** {count} */
+  impactTitle: string;
+  impactHint: string;
+  impactOpenHint: string;
+
+  // 依赖路径
+  /** 边类型的文案；起点（空串）没有边 */
+  edge: Record<"calls" | "selects" | "runs_on" | "routes_to", string>;
+  /** 折叠起来的中间实体：{count} */
+  pathGap: string;
+  pathExpand: string;
+  pathCollapse: string;
+  pathEmpty: string;
+}

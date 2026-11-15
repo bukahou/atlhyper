@@ -5,7 +5,7 @@
 import type { Language } from "./common";
 import type { Permission } from "./auth";
 import type { NotificationsTranslations } from "./i18n-notify";
-import type { IncidentDetailTranslations } from "./i18n-incident";
+import type { IncidentDetailTranslations, IncidentGroupingTranslations } from "./i18n-incident";
 
 // 导航菜单翻译
 export interface NavTranslations {
@@ -2115,6 +2115,8 @@ export interface AIOpsTranslations {
 
   // 事件详情弹窗（结论、证据、下一步、成员、时间线）：文案量大，单放在 i18n-incident.ts
   detail: IncidentDetailTranslations;
+  // 拓扑归并：列表按组折叠、详情的源头与影响范围
+  grouping: IncidentGroupingTranslations;
 
   // 拓扑图
   dependencyGraph: string;

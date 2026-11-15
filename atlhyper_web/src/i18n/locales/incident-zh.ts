@@ -1,4 +1,4 @@
-import type { IncidentDetailTranslations } from "@/types/i18n-incident";
+import type { IncidentDetailTranslations, IncidentGroupingTranslations } from "@/types/i18n-incident";
 
 /** 事件详情弹窗的中文文案 */
 export const zhIncidentDetail: IncidentDetailTranslations = {
@@ -107,4 +107,37 @@ export const zhIncidentDetail: IncidentDetailTranslations = {
   timelineEmpty: "暂无时间线记录",
 
   historyTitle: "历史",
+};
+
+/** 拓扑归并（列表按组折叠、详情的源头与影响范围）的中文文案 */
+export const zhIncidentGrouping: IncidentGroupingTranslations = {
+  groupedView: "按组折叠",
+  flatView: "全部平铺",
+  viewToggleHint: "按组折叠：依赖链上同一次故障的受影响事件折叠在源头事件下面；全部平铺：每个事件各占一行",
+  linkedCount: "关联 {count} 个",
+  linkedCountHint: "依赖链上受它影响、归到它下面的事件。点击展开 / 收起",
+  linkedCountFlatHint: "依赖链上受它影响、归到它下面的事件数（平铺时各自单独列出）",
+  impactedBadge: "受影响",
+  rootTag: "源头：{subject}",
+  rootTagHint: "这个事件归到了依赖链上游的源头事件之下。点击查看源头",
+
+  rootLabel: "源头：",
+  via: "经",
+  rootLinkHint: "这个事件归到了依赖链上游的源头事件之下（路径是归组依据）。点击查看源头事件",
+  linkedAt: "{time} 归入",
+
+  impactTitle: "影响范围（{count}）",
+  impactHint: "依赖链上受这个事件影响、归到它下面的事件；路径是归组依据",
+  impactOpenHint: "点击查看这个事件",
+
+  edge: {
+    calls: "调用",
+    selects: "选中",
+    runs_on: "运行在",
+    routes_to: "路由到",
+  },
+  pathGap: "（省略 {count} 个）",
+  pathExpand: "展开路径",
+  pathCollapse: "收起路径",
+  pathEmpty: "没有记录路径",
 };
