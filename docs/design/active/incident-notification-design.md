@@ -530,6 +530,21 @@ POST /api/v2/notify/silences/{id}/expire → 200      # 提前结束：endsAt �
 - 三期一次发布，接收人表直接取代渠道表，不做过渡形态
 - 旧的 K8s 事件告警改走同一条管道，开启后也有分组与去重
 
+功能零落地时的选择：
+
+- 状态机只认一个处理方 `TransitionHandler.OnTransition(ctx, transition, risk)`（引擎实现：先落库、再发给订阅者）；
+  事件号在建事件时由状态机通过注入的 `incident.NewIncidentID` 分配，不等写库
+- 状态机条目除表中三项外，还带 `Severity`、`Recurrence`、`RootCause`（分别来自 `severity`、`recurrence`、`root_cause`），
+  用来把每条变化的字段填齐；键由实体改为主体（`SubjectKey`）
+- `root_cause` 跟随当前领头：建事件、升级、严重度升高、复发时，如果领头换了（Pod 重建换了名字等），
+  事件的 `root_cause` 与实体表的角色一起换，原领头降为 `affected`；恢复与关闭类的变化沿用最近一次记下的领头
+- `peak_risk` 在每次变化时都写库（含恢复与关闭），两次变化之间涨上去的部分只在内存里
+- 时间线新增类型 `severity_raised`；关闭的条目仍是 `state_change`，文案区分观察期满与失联
+- 同一状态的两个出口条件各计各的时（条目新增 `ConditionTarget`）：原来共用一个计时起点，
+  「风险先低后高」时会把低风险攒下的时间算给升级
+- 属于 ReplicaSet、而该 ReplicaSet 不属于任何 Deployment 的 Pod，按「其他 Pod」处理，主体是自身
+- 事件的 API 响应直接是 `aiops.Incident`（`subjectType` 在事件存储的类型转换里由 `subject` 解析），没有另设 `model/` 下的响应模型
+
 ## 文件变更清单
 
 ```
