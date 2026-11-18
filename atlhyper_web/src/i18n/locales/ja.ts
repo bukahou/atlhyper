@@ -1988,6 +1988,7 @@ Deployment が更新され、新しい Pod が起動中です
       title: "クラスターリソース傾向",
       top5: "Top 5 ノード",
       noData: "履歴データなし",
+      loadFailed: "履歴データの取得に失敗しました",
     },
   },
   aiops: {
