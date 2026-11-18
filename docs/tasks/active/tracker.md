@@ -36,10 +36,10 @@
 
 ---
 
-## 事件通知：从检测到通知 — 🔄 进行中（2026-11-15）
+## 事件通知：从检测到通知 — ✅ 已合 dev 并实测（2026-11-15），待用户登录过目页面，随下次发布上 prod
 
 > 设计文档: [incident-notification-design.md](../../design/active/incident-notification-design.md)
-> 分支 `feat/incident-notification`
+> 已合 dev
 
 - 功能零 事件按主体收敛（同一工作负载的 Pod 归一个事件、反复并入同一事件、严重度保留为峰值、事件变化统一发布）— ✅ 代码完成，待 dev 验收
 - 第 1 期 事件通知闭环（统一告警对象、管道：分组 / 抑制 / 重复 / 重试 / 送达记录；策略、当前告警、送达记录三个接口与页签）— ✅ 代码完成，待 dev 验收
@@ -106,7 +106,7 @@
 - 步骤 2：功能三①③ + 抽出 `assembleIncidentContext`（后台 / 深度两条路径共用）✅（`e4c15c1`）
 - 步骤 3：功能一（event 上下文 + 对话工具 `get_event_history`）+ 功能三② ✅
 - 合 dev → CI → 部署 ✅（`3799762`）
-- 验收：dev 上对一个超过 1 小时的事件「重新分析」，四项核对（见设计文档）—— 待用户在 dev 配好 AI 提供商
+- 验收：dev 上对一个超过 1 小时的事件「重新分析」，四项核对（见设计文档）—— dev 已配好 AI 提供商（gpt-oss，2026-11-15），可以做了：用户点「重新分析」，Claude 核对四项
 - 不在本次范围（待决策）：检测灵敏度（单次探针超时即升级）· 前端持续时间口径 · `/events?source=history` 忽略 namespace
 
 ---
@@ -129,7 +129,7 @@
   - B2 补强（bedrock key 去中间空白 / 字符集校验）· A6 报告耗时 · A7 证据规则覆盖三角色 · A8 时间线刻度 · A9 实体风险随事件更新
 - 触发来源标签修复 + A10（后台分析带入 Pod 容器状态，不含日志）✅ 已上 dev（`fcea669`），用户决定不再单独测试
 - 测试资源 `atlhyper-smoke` ✅ 已删除
-- C2 gpt-oss / MiniMax 冒烟 — 用户暂缓
+- C2 gpt-oss / MiniMax 冒烟 — gpt-oss 已在 dev 实际使用（2026-11-15：后台分析与深度调查 5 轮 / 39k token 均完成；暴露的「JSON 字段名带 Markdown 加粗」已修 `d6cce82`）；MiniMax 仍未测
 - PR-B：四家改官方 SDK（特征测试先行）— 待 C2
 
 ## 权限模型重设计 — 第 1 期 + OIDC 已上 dev，待用户验证（2026-10-12）
@@ -168,7 +168,7 @@
 - 第 2 期：采集面（白名单扩项 / node-exporter systemd + textfile / smartctl_exporter）— 待批准
 - 第 3 期：机械盘健康线 + 盘身份 / SMART 判定 / 持续时长状态机 / 节点详情 v2 — 依赖第 2 期
 
-## CI/CD 接入 — ✅ CI 与 dev 环境已完成，prod 等首次 SYNC（2026-09-06）
+## CI/CD 接入 — ✅ CI、dev 与 prod 均已接管（prod 首次 SYNC 已于 2026-11-14 随 `v1.0.0-2718a6f` 完成）
 
 > 分支流程：`feature/** | fix/**` → `dev`（自动上 dev 环境）→ PR → `main`（prod，人工点 SYNC）。
 > ⛔ **main 是最保守的分支**，本地 main 不得领先远端；新工作一律开分支。
@@ -184,7 +184,7 @@
 | ArgoCD `atlhyper-prod`（**手动**，无 automated 块） | ⏳ OutOfSync 等首次 SYNC | 同上 `atlhyper-prod.yaml` |
 
 **待办**
-- [ ] **prod 首次 SYNC**：建议等下次推 main、CI 把 tag 改成 `v1.0.0-<sha7>` 后再点，一次完成接管 + 切不可变 tag。当前 18 个 OutOfSync 是缺 tracking 标记，`kubectl diff` 零差异
+- [x] **prod 首次 SYNC** —— 已完成：prod 三组件均为 `v1.0.0-2718a6f`（2026-11-18 核对）。Argo 仍显示 OutOfSync，是清单里已不使用的旧 NFS 卷 `atlhyper-controller-data` 那一项（长期如此，非新漂移）
 - [ ] `deploy/scripts/_common.sh` 仍推 `latest` 与 CI 并存 → 建议改为只推带 VERSION 的 tag（用户：不急）
 - [ ] dev agent 启动头 20s 曾报 `connect: operation not permitted`（非 refused），后自愈。若再现须查 Cilium 策略
 - [ ] 未推送：dev 分支 1 个提交（latest 策略）
@@ -625,44 +625,13 @@ GROUP BY code;
 
 ---
 
-## QueryService 拆分重构 — ✅ 代码完成（2026-11-15，修订方案：保留入口、内部按 10 个领域拆小服务、不分子目录），待合 dev 冒烟
+## QueryService 拆分重构 — ✅ 已合 dev 并冒烟（2026-11-15），随下次发布上 prod
 
-> 原设计文档: [master-v2-query-service-split-design.md](../../design/active/master-v2-query-service-split-design.md)
+> 设计文档: [master-v2-query-service-split-design.md](../../design/active/master-v2-query-service-split-design.md)（以「2026-11-15 修订」一节为准）
 
-- Phase 1: AdminQueryService 拆分 — 待办
-  - admin.go: 新增 AdminQueryService struct + 15 个方法 receiver 变更
-  - impl.go: 删除 10 个 admin repo 字段
-  - factory.go + master.go: 构造注入更新
-  - 验证: `go build ./...` + `go test ./atlhyper_master_v2/service/query/ -v` 全 PASS
-- Phase 2: AIOpsQueryService 拆分 — 待办
-  - aiops.go: 新增 AIOpsQueryService struct + 13 个方法 receiver 变更
-  - impl.go: 删除 aiopsEngine, aiopsAI, aiReportRepo 字段
-  - factory.go + master.go: 构造注入更新
-  - 验证: `go build ./...` + `go test ./atlhyper_master_v2/service/query/ -v` 全 PASS
-- Phase 3: SLOQueryService 拆分 — 待办
-  - slo.go: 新增 SLOQueryService struct + 6 个方法 receiver 变更
-  - impl.go: 删除 sloRepo 字段
-  - slo_test.go: mock + 构造更新（23 个测试迁移）
-  - factory.go + master.go: 构造注入更新
-  - 验证: `go build ./...` + `go test ./atlhyper_master_v2/service/query/ -v` 全 PASS
-- Phase 4: OTelQueryService 拆分 — 待办
-  - otel.go: 新增 OTelQueryService struct + 2 个方法 receiver 变更
-  - overview_test.go: OTel 测试构造对象从 QueryService 改为 OTelQueryService（原位更新，不搬迁文件）
-  - factory.go + master.go: 构造注入更新
-  - 验证: `go build ./...` + `go test ./atlhyper_master_v2/service/query/ -v` 全 PASS
-- Phase 5: K8sQueryService 拆分 — 待办
-  - k8s.go: 新增 K8sQueryService struct + 19 个方法 receiver 变更
-  - k8s_test.go: mock + 构造更新（26 个测试迁移）
-  - factory.go + master.go: 构造注入更新
-  - 验证: `go build ./...` + `go test ./atlhyper_master_v2/service/query/ -v` 全 PASS
-- Phase 6: OverviewQueryService 拆分 + 收尾 — 待办
-  - overview.go: 新增 OverviewQueryService struct + 11 个方法 receiver 变更
-  - overview_test.go: Overview 测试 mock + 构造更新（31 个测试迁移）
-  - impl_test.go: 删除旧构造测试
-  - impl.go: 删除 QueryService、QueryServiceDeps、NewQueryService
-  - master.go: EventTrigger 引用从 q 改为 overviewQ
-  - factory.go: 最终形态
-  - 验证: `go build ./...` + `go test ./atlhyper_master_v2/service/query/ -v` 全 PASS
+- 修订方案（用户裁决）：保留 `NewQueryService` 作为唯一入口，内部按 10 个功能域拆成小服务，这次不分子目录 ✅
+- 按领域分 4 次提交迁移，每步全量测试；`service/query_contract.go` 编译期核对各小服务满足子接口 ✅
+- dev 冒烟：55 个 GET 接口拆分前后状态码逐条一致；事件详情、Pod 列表数据正常 ✅
 
 ---
 
@@ -710,7 +679,8 @@ GROUP BY code;
   - 最贵查询：uname 无时间窗（128,789 行/45 MiB，加 15min 窗 −97%）；freshness max(TimeUnix) 9.1M 行（改读 system.parts → 23 行）；ListAllNodeMetrics 每周期跑两遍（otel_collector.go:146/158 + metrics.go:122）
   - ⚠️ 自我纠错：曾以 kubectl top 瞬时 204m 否定 work 的 0.58 核均值，metric_log 证明 0.58 才接近稳态；已向 work 撤回
 - 改回 query_log 阈值 1000 并重启 clickhouse-0 — ✅ 2026-09-11 06:43 JST（config `2a8725c`，空档 18s，零丢数据；全量 8h 曾长到 207 MiB）
-- 用户裁定顺序：D4 ✅ → D2 ✅ → D1+D3 ✅ 代码完成（分支 `fix/agent-ch-query-load` @ `1cbe23d`，TDD 全绿，未推送/未合并）
+- 用户裁定顺序：D4 ✅ → D2 ✅ → D1+D3 ✅ 已合 dev 并随 `2718a6f` 上 prod（2026-11-14；分支 `fix/agent-ch-query-load`）
+  - 待做：上线后的效果验收（metric_log 实测 ≥8h：两 agent SELECT qps、读侧 CPU），尚未执行
   - D1：Summary 从同周期列表派生（model_v3 SummarizeNodes/SummarizeIngress）· uname 加 15min 窗 · freshness 改读 system.parts
   - D3：`AGENT_OTEL_DASHBOARD_TTL`（默认 30s）；config dev 已设 2m（`config` 仓，未推送）
   - 🔴 落地顺序：**D2 对账通过（09-11 16:10 JST 之后）→ 推分支跑 CI → 合 dev（dev agent 也连共用 CH，合 dev 就会改变 SELECT 负载，所以必须等 D2 窗口过完）→ 验证 → main → 用户点 prod
