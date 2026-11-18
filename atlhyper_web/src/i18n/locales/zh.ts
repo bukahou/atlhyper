@@ -1988,6 +1988,7 @@ Deployment 已更新，新的 Pod 正在启动中
       title: "集群资源趋势",
       top5: "Top 5 节点",
       noData: "暂无历史数据",
+      loadFailed: "历史数据加载失败",
     },
   },
   aiops: {

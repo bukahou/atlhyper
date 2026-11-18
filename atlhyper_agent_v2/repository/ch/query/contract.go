@@ -18,12 +18,17 @@ package query
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
+	"AtlHyper/atlhyper_agent_v2/model"
+	"AtlHyper/atlhyper_agent_v2/repository"
 	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/apm"
+	"AtlHyper/model_v3/cluster"
 	logmodel "AtlHyper/model_v3/log"
 )
 
@@ -61,13 +66,14 @@ var expectedStatusClasses = []string{"1", "2", "3", "4", "5"}
 
 // RunEnumContractChecks 立即执行一次契约自检，之后每 interval 重跑一次，直到 ctx 结束。
 // 供 Agent 启动时以 goroutine 调用；不阻塞、不返回错误 —— 可观测性缺失属于降级，
-// 不该让 Agent 起不来。
-func RunEnumContractChecks(ctx context.Context, client sdk.ClickHouseClient, interval time.Duration) {
+// 不该让 Agent 起不来。nodes 为 nil 时跳过节点标识核对。
+func RunEnumContractChecks(ctx context.Context, client sdk.ClickHouseClient, nodes repository.NodeRepository, interval time.Duration) {
 	if client == nil {
 		return
 	}
 	VerifyEnumContracts(ctx, client)
 	VerifyMetricsCollected(ctx, client)
+	VerifyNodeHostIDs(ctx, client, nodes)
 
 	if interval <= 0 {
 		return
@@ -81,6 +87,7 @@ func RunEnumContractChecks(ctx context.Context, client sdk.ClickHouseClient, int
 		case <-ticker.C:
 			VerifyEnumContracts(ctx, client)
 			VerifyMetricsCollected(ctx, client)
+			VerifyNodeHostIDs(ctx, client, nodes)
 		}
 	}
 }
@@ -240,4 +247,68 @@ func recentMetricNames(ctx context.Context, client sdk.ClickHouseClient, table s
 		names = append(names, n)
 	}
 	return names, rows.Err()
+}
+
+// ──────────────────────────────────────────────────────────────
+// 节点标识契约：K8s 节点能否对上 ClickHouse 的主机标识
+// ──────────────────────────────────────────────────────────────
+
+// hostIDColumn 是节点指标的主机标识列，写法由 Collector 给 node-exporter 打的 instance 标签决定。
+const hostIDColumn = "ResourceAttributes['net.host.name']"
+
+// VerifyNodeHostIDs 核对每个 K8s 节点的名字或 IP 是否出现在近期的主机标识里。
+//
+// 全部对不上说明 Collector 换了标识写法：按节点的查询（历史曲线、单节点详情）会静默返回空，
+// 页面只显示「暂无数据」。部分对不上通常是那几个节点没有 node-exporter 数据。
+func VerifyNodeHostIDs(ctx context.Context, client sdk.ClickHouseClient, nodes repository.NodeRepository) {
+	if client == nil || nodes == nil {
+		return
+	}
+	list, err := nodes.List(ctx, model.ListOptions{})
+	if err != nil {
+		logger.Warn("[契约自检] 节点标识核对：取 K8s 节点失败", "err", err)
+		return
+	}
+	hostIDs, err := queryActiveHostIDs(ctx, client)
+	if err != nil {
+		logger.Warn("[契约自检] 节点标识核对：查询失败", "table", "otel_metrics_gauge", "column", hostIDColumn, "err", err)
+		return
+	}
+	if len(list) == 0 || len(hostIDs) == 0 {
+		logger.Info("[契约自检] 跳过：暂无数据", "table", "otel_metrics_gauge", "column", hostIDColumn)
+		return
+	}
+
+	unmatched := unmatchedNodes(list, hostIDs)
+	switch {
+	case len(unmatched) == len(list):
+		logger.Error("[契约漂移] K8s 节点与 ClickHouse 主机标识全部对不上，按节点的查询（历史曲线等）将返回空",
+			"table", "otel_metrics_gauge",
+			"column", hostIDColumn,
+			"节点", strings.Join(unmatched, ","),
+			"实际标识", strings.Join(hostIDs, ","),
+			"处理", "检查 Collector 给 node-exporter 打的 instance 标签，标识应为节点名或节点 IP")
+	case len(unmatched) > 0:
+		logger.Warn("[契约自检] 部分节点没有近期的主机指标，这些节点的曲线与卡片为空",
+			"table", "otel_metrics_gauge", "column", hostIDColumn, "节点", strings.Join(unmatched, ","))
+	default:
+		logger.Info("[契约自检] 通过", "table", "otel_metrics_gauge", "column", hostIDColumn, "节点", len(list))
+	}
+}
+
+// unmatchedNodes 返回名字和 IP 都不在主机标识里的节点名（按名字排序）。
+func unmatchedNodes(nodes []cluster.Node, hostIDs []string) []string {
+	var unmatched []string
+	for _, n := range nodes {
+		name := n.GetName()
+		if slices.Contains(hostIDs, name) {
+			continue
+		}
+		if ip := n.Addresses.InternalIP; ip != "" && slices.Contains(hostIDs, ip) {
+			continue
+		}
+		unmatched = append(unmatched, name)
+	}
+	sort.Strings(unmatched)
+	return unmatched
 }

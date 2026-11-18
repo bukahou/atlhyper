@@ -7,6 +7,7 @@ import type { Point } from "@/types/node-metrics";
 import { PALETTE, INTERVALS_BY_WINDOW, windowForHours } from "./chartConstants";
 import { getThemeColors, aggregatePoints, pickAdaptiveInterval } from "./chartUtils";
 import { joinHtml, safeHtml } from "@/lib/safe-html";
+import { historyChartState } from "./historyChartState";
 
 // ==================== Types ====================
 
@@ -17,6 +18,8 @@ export interface MetricChartProps {
   nodeNames: string[];
   /** Per-node history: { nodeName: { metricKey: Point[] } } */
   historyMap: Record<string, Record<string, Point[]>>;
+  /** 历史请求失败的节点 */
+  failedNodes: ReadonlySet<string>;
   hours: number;
 }
 
@@ -28,6 +31,7 @@ export const MetricChart = memo(function MetricChart({
   metricKey,
   nodeNames,
   historyMap,
+  failedNodes,
   hours,
 }: MetricChartProps) {
   const { t } = useI18n();
@@ -169,10 +173,7 @@ export const MetricChart = memo(function MetricChart({
     });
   }, [hours, historyMap, nodeNames, metricKey, unit]);
 
-  const hasData = nodeNames.some((name) => {
-    const nodeHistory = historyMap[name] || {};
-    return (nodeHistory[metricKey]?.length || 0) > 0;
-  });
+  const chartState = historyChartState(nodeNames, metricKey, historyMap, failedNodes);
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3">
@@ -182,7 +183,12 @@ export const MetricChart = memo(function MetricChart({
       </div>
       <div className="relative">
         <div ref={chartRef} style={{ width: "100%", height: "200px" }} />
-        {!hasData && (
+        {chartState === "failed" && (
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-red-500">
+            {nm.overview.loadFailed}
+          </div>
+        )}
+        {chartState === "empty" && (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-muted">
             {nm.overview.noData}
           </div>
