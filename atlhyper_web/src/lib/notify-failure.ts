@@ -32,7 +32,7 @@ export function notifyWriteFailure(error: unknown): NotifyWriteFailure {
  * 后端在失败响应里给出的原因；没有给出时为空串。
  *
  * 删除接收人被拒绝（409）时「被谁引用」、测试发送失败（502）时「为什么失败」只有后端知道，
- * 这两处要把它原样显示出来。后端的错误响应用 error 字段，设计文档里写的是 message，两个都认。
+ * 这两处要把它原样显示出来。错误原因可能在 error 字段，也可能在 message 字段，两个都认。
  */
 export function notifyFailureReason(error: unknown): string {
   if (!isAxiosError(error)) return "";

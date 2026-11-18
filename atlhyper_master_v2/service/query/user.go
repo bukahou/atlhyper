@@ -1,8 +1,7 @@
 // atlhyper_master_v2/service/query/user.go
 // QueryUser 实现 — 用户读取
 //
-// 2026-08-29：此前 admin/user.go 直接持有 database.UserRepository，
-// 绕过 service 层（违反 CLAUDE.md「Gateway 直接访问 Database」禁令）。
+// admin/user.go 的读取都经这里，Gateway 不直接访问数据库。
 package query
 
 import (

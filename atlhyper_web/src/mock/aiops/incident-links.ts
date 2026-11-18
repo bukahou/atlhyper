@@ -1,7 +1,7 @@
 /**
  * AIOps 拓扑归并的演示数据（均为虚构）
  *
- * 结构与 docs/design/active/aiops-topology-grouping-design.md「接口（契约）」一致：
+ * 结构与 types/incident-grouping.ts 一致：
  * 一组「源头 + 2 个受影响」——数据库 StatefulSet（inc-007）挂了，
  * 它的 Service（inc-008，经「选中」）与经链路调用它的 payment Service（inc-009，经两次「调用」再「选中」）归到它下面。
  * inc-009 的路径有 4 个实体，用来演示路径过长时的折叠。

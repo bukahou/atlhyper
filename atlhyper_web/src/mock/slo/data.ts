@@ -1,7 +1,7 @@
 /**
  * SLO Mock 数据
  *
- * 严格基于 docs/design/active/clickhouse-otel-data-reference.md 真实数据
+ * 严格基于 ClickHouse 真实数据
  * 2 个域名: geass (Linkerd mesh + Traces) / atlhyper (Traefik ingress only)
  */
 
@@ -68,7 +68,7 @@ function mkService(
 }
 
 // ============================================================================
-// 真实数据常量 (from clickhouse-otel-data-reference.md)
+// 真实数据常量（取自 ClickHouse）
 // ============================================================================
 
 // Traefik Histogram ExplicitBounds (秒→毫秒)

@@ -28,9 +28,9 @@ interface IncidentDetailModalProps {
 }
 
 /**
- * 事件详情（docs/design/active/incident-notification-design.md「功能四」）。从上到下：
+ * 事件详情。从上到下：
  * 结论（受影响事件下方一行「源头：…经…」）→ 关键证据 →（源头事件）影响范围 → 下一步 → 成员
- * → 时间线（默认折叠）→ 历史与 AI 分析。拓扑归并见 docs/design/active/aiops-topology-grouping-design.md「D5」。
+ * → 时间线（默认折叠）→ 历史与 AI 分析。
  */
 export function IncidentDetailModal({ incidentId, open, onClose, onSelectIncident }: IncidentDetailModalProps) {
   const { t } = useI18n();

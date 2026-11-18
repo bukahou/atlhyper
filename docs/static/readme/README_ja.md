@@ -2,7 +2,7 @@
 
 **AI 時代の次世代 Kubernetes SRE プラットフォーム**
 
-[English](../../README.md) | [中文](README_zh.md) | 日本語
+[English](../../../README.md) | [中文](README_zh.md) | 日本語
 
 ---
 

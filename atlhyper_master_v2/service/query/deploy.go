@@ -1,9 +1,7 @@
 // atlhyper_master_v2/service/query/deploy.go
 // QueryDeploy 实现 — 部署配置、部署历史、GitHub 集成的读取
 //
-// 2026-08-29：此前 admin/deploy.go 与 settings/github.go 直接持有
-// database repository，绕过 service 层（违反 CLAUDE.md「Gateway 直接访问
-// Database」禁令）。本文件把这些读取收归 service 层。
+// admin/deploy.go 与 settings/github.go 的读取都经这里，Gateway 不直接访问数据库。
 package query
 
 import (

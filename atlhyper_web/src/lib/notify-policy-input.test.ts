@@ -50,7 +50,7 @@ describe("isIntegerInRange", () => {
 });
 
 describe("NOTIFY_POLICY_RANGES", () => {
-  it("与设计文档里的校验范围一致", () => {
+  it("与后端的校验范围一致", () => {
     expect(NOTIFY_POLICY_RANGES).toEqual({
       warningFlapThreshold: { min: 0, max: 20 },
       groupWaitSeconds: { min: 0, max: 600 },

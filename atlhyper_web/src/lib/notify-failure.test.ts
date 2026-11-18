@@ -31,7 +31,7 @@ describe("notifyFailureReason", () => {
     );
   });
 
-  it("没有 error 时取 message（设计文档里写的是 message）", () => {
+  it("没有 error 时取 message", () => {
     expect(notifyFailureReason(httpError(502, { message: "smtp: connection refused" }))).toBe(
       "smtp: connection refused",
     );

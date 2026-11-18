@@ -1,7 +1,5 @@
 /**
  * AIOps API
- *
- * 类型定义对齐设计文档: docs/design/active/aiops-phase3-frontend.md §2
  */
 
 import { get, post } from "./request";

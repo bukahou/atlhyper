@@ -57,7 +57,7 @@ func TestBuildHardwareRow_ZeroWithoutUnavailable_IsRealReading(t *testing.T) {
 }
 
 // 统一节点表的折叠行要显示 uptime 与内核版本（原 NodeCard 提供），
-// 由 HardwareRow 携带 —— 否则前端得 join 两个 API（CLAUDE.md 明令禁止）。
+// 由 HardwareRow 携带 —— 否则前端得自己 join 两个 API。
 func TestBuildHardwareRow_CarriesUptimeAndKernel(t *testing.T) {
 	nm := &metrics.NodeMetrics{
 		NodeName: "n1",

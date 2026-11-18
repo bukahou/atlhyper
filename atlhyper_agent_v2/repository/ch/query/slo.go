@@ -56,7 +56,6 @@ func NewSLOQueryRepository(client sdk.ClickHouseClient) repository.SLOQueryRepos
 // 本文件的查询只允许出现下列契约名，不得出现任何 ingress 实现
 // （Traefik / Envoy / Nginx / Cilium …）的指标名或 label 名。
 // 实现差异一律由 Collector 的 transform 归一化处理。
-// 契约定义见 docs/design/active/slo-ingress-contract-design.md。
 //
 // 历史教训：Ingress 一路曾直接查 traefik_service_requests_total +
 // Attributes['code']，Traefik 从集群移除后 SLO 页长期空白且无人察觉；
@@ -541,8 +540,7 @@ func (r *sloRepository) GetSLOTimeSeries(ctx context.Context, name string, since
 func (r *sloRepository) GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error) {
 	since := 5 * time.Minute
 
-	// SLO 只覆盖 ingress（外部视角）。服务间调用质量由 APM 承担，
-	// 详见 docs/design/active/slo-ingress-contract-design.md 的范围决策。
+	// SLO 只覆盖 ingress（外部视角）。服务间调用质量由 APM 承担。
 	//
 	// ⚠️ 这与 ListIngressSLO(5min) 是同一次查询。快照路径已改为从列表直接派生
 	// （slo.SummarizeIngress），本方法只留给 Command 按需查询。

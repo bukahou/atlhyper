@@ -1,7 +1,7 @@
 /**
  * 通知策略与规则里数值项的校验（纯函数）
  *
- * 范围与设计文档（incident-notification-design.md 功能一）一致。前端先拦一道只是为了就地提示；
+ * 范围与后端校验一致。前端先拦一道只是为了就地提示；
  * 后端仍然是唯一的裁决方。
  */
 import type { NotifyPolicy } from "@/types/notify";

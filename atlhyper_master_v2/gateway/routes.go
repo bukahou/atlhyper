@@ -2,7 +2,7 @@
 // API 路由统一注册
 // 所有 API 在此集中管理，便于查看和维护
 //
-// 权限策略（设计文档 docs/design/active/permission-model-design.md）：
+// 权限策略：
 //   - 每条路由按（方法，路径）声明所需权限，权限表见 middleware/permission.go
 //   - 同一路径的读与写分别声明：写方法不继承读方法的权限；没声明的方法由 ServeMux 直接 405
 //   - 访客（未登录）与新注册成员同为 0 级，只能看到集群状态与形状
@@ -374,7 +374,7 @@ func (r *Router) registerRoutes() {
 
 	// GitHub 集成与部署
 	if r.ghClient != nil {
-		// 走 service 层，不再直连 database（CLAUDE.md 层级约束）
+		// 走 service 层，不直连 database
 		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.service, r.service)
 		deployH := adminHandler.NewDeployHandler(r.ghClient, r.service, r.service)
 		if r.deployer != nil {

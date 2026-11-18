@@ -70,7 +70,7 @@ func (r *summaryRepository) GetSLOSummary(ctx context.Context) (ingressServices 
 	ingressAvgRPS = roundF(ingressAvgRPS, 2)
 
 	// 服务网格概览已移除：SLO 只做 ingress 外部视角，
-	// 服务间调用质量由 APM 承担（见 slo-ingress-contract-design.md）。
+	// 服务间调用质量由 APM 承担。
 	return ingressServices, ingressAvgRPS, nil
 }
 

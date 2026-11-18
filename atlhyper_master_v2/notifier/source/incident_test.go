@@ -23,7 +23,7 @@ func transition(kind aiops.TransitionKind, change func(*aiops.IncidentTransition
 	return t
 }
 
-// 设计文档「事件 → 告警」表：每一行一个用例
+// 事件状态变化 → 告警的对照表：每一行一个用例
 func TestIncidentAlert_TransitionTable(t *testing.T) {
 	policy := database.DefaultNotifyPolicy() // 事件告警开启，反复阈值 3
 

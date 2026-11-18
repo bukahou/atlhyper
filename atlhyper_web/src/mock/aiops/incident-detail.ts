@@ -1,7 +1,7 @@
 /**
  * AIOps 事件详情的演示数据（均为虚构）
  *
- * 结构与 docs/design/active/incident-notification-design.md「功能四：事件详情页改版」一致：
+ * 结构与 types/incident-view.ts 一致：
  * 原有字段（事件本身 + entities + timeline）之外，补上 headline / impact / evidence / members / timelineView。
  * 六个事件分别覆盖：成员全部中招、部分中招、只有一个成员、节点主体、改版前的事件（没有证据、成员已不存在）、
  * 只有依赖传播（headline 为 null）；后三个是拓扑归并的一组（源头带 impacted，受影响带 root，见 incident-links.ts）。

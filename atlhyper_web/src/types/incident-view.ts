@@ -1,7 +1,6 @@
 /**
  * 事件详情页改版新增的响应字段（GET /api/v2/aiops/incidents/{id}）
  *
- * 契约：docs/design/active/incident-notification-design.md「功能四：事件详情页改版」。
  * 后端只给结构化的码与数值；一句话结论、信号名称、状态名都由前端按 i18n 渲染。
  * 风险一律 0–100 整数；时间一律 UTC（RFC 3339），前端按浏览器时区显示。
  */

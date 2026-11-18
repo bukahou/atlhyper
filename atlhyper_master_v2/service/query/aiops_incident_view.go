@@ -1,5 +1,5 @@
 // atlhyper_master_v2/service/query/aiops_incident_view.go
-// 事件详情：按当前集群快照补上成员状态与影响数字（见设计文档「功能四：事件详情页改版」）
+// 事件详情：按当前集群快照补上成员状态与影响数字
 package query
 
 import (

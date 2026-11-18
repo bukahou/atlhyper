@@ -18,8 +18,7 @@ import (
 var log = logger.Module("UserHandler")
 
 // UserQuery / UserOps 本 handler 所需的最小 service 能力。
-// 此前直接持有 database.UserRepository —— 绕过 service 层，
-// 违反 CLAUDE.md「Gateway 直接访问 Database」禁令。
+// Gateway 不直接持有 database repository，读写都经 service 层。
 // 密码哈希与权限校验仍在本 handler，service 只负责数据存取。
 type UserQuery interface {
 	GetUserByID(ctx context.Context, id int64) (*database.User, error)

@@ -249,7 +249,7 @@ type SLODashboardRepository interface {
 	ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
 	// 注: 服务网格 SLO 已移除 —— SLO 只做 ingress 外部视角,
-	// 服务间调用质量由 APM 承担。见 docs/design/active/slo-ingress-contract-design.md
+	// 服务间调用质量由 APM 承担。
 }
 
 // LogsDashboardRepository Logs Dashboard 数据采集
@@ -289,7 +289,7 @@ type SLOQueryRepository interface {
 	ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
 	// 注: 服务网格 SLO 已移除 —— SLO 只做 ingress 外部视角,
-	// 服务间调用质量由 APM 承担。见 docs/design/active/slo-ingress-contract-design.md
+	// 服务间调用质量由 APM 承担。
 	GetSLOTimeSeries(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error)
 	GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error)
 }

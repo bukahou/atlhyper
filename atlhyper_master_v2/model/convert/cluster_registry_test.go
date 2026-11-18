@@ -91,7 +91,7 @@ func TestClusterRegistryItem(t *testing.T) {
 	}
 }
 
-// 响应的 JSON 字段名与设计文档逐字一致，且令牌哈希不出现在其中。
+// 响应的 JSON 字段名与前端类型逐字一致，且令牌哈希不出现在其中。
 func TestClusterRegistryItem_JSONShape(t *testing.T) {
 	issuedAt := time.Date(2026, 11, 14, 10, 0, 0, 0, time.UTC)
 	item := ClusterRegistryItem(

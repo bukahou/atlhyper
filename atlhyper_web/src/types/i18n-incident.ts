@@ -103,7 +103,6 @@ export interface IncidentDetailTranslations {
 
 /**
  * 拓扑归并（事件列表的按组折叠、详情的源头与影响范围）的翻译类型，挂在 t.aiops.grouping 下。
- * 契约：docs/design/active/aiops-topology-grouping-design.md
  */
 export interface IncidentGroupingTranslations {
   // 列表

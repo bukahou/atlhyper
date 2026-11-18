@@ -1,7 +1,7 @@
 /**
  * 拓扑归并的展示映射（纯函数）：列表的源头 / 受影响标记、依赖路径的显示、老版本后端的缺省补齐
  *
- * 契约：docs/design/active/aiops-topology-grouping-design.md「接口（契约）」。
+ * 字段定义见 types/incident-grouping.ts。
  * 分组由后端完成（grouped=true 时受影响事件折叠进源头的 impacted），这里不做分组与聚合，
  * 只做「码 → 文案」映射、缺省补齐与路径的折叠显示。
  */

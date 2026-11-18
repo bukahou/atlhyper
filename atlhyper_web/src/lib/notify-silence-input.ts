@@ -1,7 +1,7 @@
 /**
  * 静默表单的草稿与校验（纯函数）
  *
- * 规则与设计文档（incident-notification-design.md 功能三）一致：
+ * 规则与后端校验一致：
  * 结束晚于开始、结束晚于现在、时长不超过 30 天、备注必填且不超过 256 字。
  */
 import type { NotifySilenceBody } from "@/types/notify";

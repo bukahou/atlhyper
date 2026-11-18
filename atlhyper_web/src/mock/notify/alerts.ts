@@ -1,7 +1,7 @@
 /**
  * 通知设置页的演示数据：当前告警与送达记录（没有 notify.manage 权限时整页展示，均为虚构）
  *
- * 字段与 docs/design/active/incident-notification-design.md 的接口契约逐字一致。
+ * 字段与 types/notify.ts 一致。
  * 覆盖页面上的每一种标记：持续中 / 已结束、被抑制、被静默、各种送达状态。
  */
 import type { NotifyAlert, NotifyDelivery } from "@/types/notify";

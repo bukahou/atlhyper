@@ -426,7 +426,7 @@ type IncidentTransition struct {
 	At          time.Time
 }
 
-// ==================== 拓扑归并（见 aiops-topology-grouping-design.md） ====================
+// ==================== 拓扑归并 ====================
 
 // LinkPathStep 归组依据路径上的一步：从受影响事件的成员沿依赖走到源头事件的成员
 type LinkPathStep struct {
@@ -533,7 +533,7 @@ type IncidentDetail struct {
 	Entities []*IncidentEntity   `json:"entities"`
 	Timeline []*IncidentTimeline `json:"timeline"`
 
-	// 以下为详情页的展示形态（见设计文档「功能四：事件详情页改版」）。
+	// 以下为详情页的展示形态。
 	// Headline / Evidence / TimelineView 由事件存储按库里的记录算出；Impact / Members 由查询层按当前快照补上
 	Headline *IncidentHeadline `json:"headline"` // nil = 没有证据（原因见 EvidenceStatus）
 	// EvidenceStatus 证据的情况：recorded = 有证据；propagation_only = 只有依赖传播、本主体没有本地异常；

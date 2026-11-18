@@ -1,7 +1,7 @@
 // atlhyper_master_v2/gateway/middleware/permission.go
 // 权限表：角色等级 → 权限集合（唯一权限源）
 //
-// 分档判据（设计文档 docs/design/active/permission-model-design.md）：
+// 分档判据：
 //   - 0 访客 = 成员：只含集群状态与形状
 //   - 1 Viewer：内容级数据（可能带业务数据 / 个人信息）
 //   - 2 Operator：凭据与写操作

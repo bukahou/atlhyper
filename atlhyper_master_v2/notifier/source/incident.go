@@ -1,5 +1,5 @@
 // atlhyper_master_v2/notifier/source/incident.go
-// 事件 → 告警：把 AIOps 引擎发布的事件变化变成告警（设计文档「事件 → 告警」一表）
+// 事件 → 告警：把 AIOps 引擎发布的事件变化变成告警
 package source
 
 import (

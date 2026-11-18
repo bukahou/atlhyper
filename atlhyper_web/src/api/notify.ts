@@ -2,7 +2,6 @@
  * 通知 API（均需要 notify.manage）
  *
  * 策略、当前告警、送达记录、接收人、全局发件设置、路由规则、静默。
- * 接口规格见 docs/design/active/incident-notification-design.md 功能一 / 二（含「全局发件设置」）/ 三。
  * 类型在 types/notify.ts。
  */
 

@@ -1,7 +1,7 @@
 /**
  * 通知设置页的演示数据：策略、接收人、路由规则、静默（没有 notify.manage 权限时整页展示，均为虚构）
  *
- * 字段与 docs/design/active/incident-notification-design.md 的接口契约逐字一致。
+ * 字段与 types/notify.ts 一致。
  * 接收人与发件设置只有「凭据是否已配置」，没有任何凭据值。
  */
 import type { NotifyPolicy, NotifyReceiver, NotifyRule, NotifySilence, NotifySMTP } from "@/types/notify";

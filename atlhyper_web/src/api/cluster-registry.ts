@@ -2,7 +2,6 @@
  * 集群注册表与 Agent 令牌 API（需要 clusters.manage）
  *
  * 集群是管理员登记的对象；每个集群一枚令牌，Agent 用它向 Master 证明自己属于哪个集群。
- * 接口规格见 docs/static/reference/master-api-reference.md §3.6。
  */
 
 import { del, get, post, put } from "./request";
