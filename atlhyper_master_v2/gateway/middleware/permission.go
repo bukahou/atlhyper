@@ -1,7 +1,7 @@
 // atlhyper_master_v2/gateway/middleware/permission.go
 // 权限表：角色等级 → 权限集合（唯一权限源）
 //
-// 分档判据（设计文档 docs/design/active/permission-model-design.md）：
+// 分档判据：
 //   - 0 访客 = 成员：只含集群状态与形状
 //   - 1 Viewer：内容级数据（可能带业务数据 / 个人信息）
 //   - 2 Operator：凭据与写操作
@@ -35,7 +35,7 @@ const (
 	PermPodLogsRead    Permission = "pod.logs.read"    // Pod 容器日志
 	PermClusterOperate Permission = "cluster.operate"  // 指令下发、重启、扩缩容、改镜像、cordon
 	PermAuditRead      Permission = "audit.read"       // 审计日志
-	PermNotifyManage   Permission = "notify.manage"    // 通知渠道（读 + 写）
+	PermNotifyManage   Permission = "notify.manage"    // 通知设置：策略、告警、送达记录、接收人、规则、静默（读 + 写）
 	PermSLOManage      Permission = "slo.manage"       // SLO 目标写入（运维配置，与通知渠道同档）
 	PermAIAnalyze      Permission = "ai.analyze"       // AIOps AI 总结 / 建议 / 报告 / 深度分析
 	PermAISettingsRead Permission = "ai.settings.read" // AI 配置查看
@@ -45,6 +45,7 @@ const (
 	PermAISettingsWrite Permission = "ai.settings.write" // AI 配置写入
 	PermGitHubManage    Permission = "github.manage"     // GitHub 连接与仓库
 	PermDeployManage    Permission = "deploy.manage"     // 部署配置与操作
+	PermClustersManage  Permission = "clusters.manage"   // 集群注册表：登记、改名、签发 Agent 令牌、删除登记
 )
 
 // levelGrants 每一级新增的权限（高级自动继承低级，见 PermissionsFor）
@@ -63,6 +64,7 @@ var levelGrants = map[int][]Permission{
 	},
 	RoleAdmin: {
 		PermUserManage, PermAISettingsWrite, PermGitHubManage, PermDeployManage,
+		PermClustersManage,
 	},
 }
 

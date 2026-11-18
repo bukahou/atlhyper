@@ -198,7 +198,7 @@ func ingressForLookup(windowed, recent []slomodel.IngressSLO) []slomodel.Ingress
 // 三级回退：
 //  1. 路由映射表（一个域名可能挂多个后端，路径分流时才有多条）
 //  2. 表为空时从快照的 SLOIngress 按 DisplayName 反查 —— 当前集群走 Gateway API，
-//     RouteUpdater 还在读 Ingress 所以表一直是空的（见 slo-panel-redesign.md 功能二）
+//     RouteUpdater 还在读 Ingress 所以表一直是空的
 //  3. 都查不到就原样返回，宁可查出空数据也不要因为查不到而报错
 //
 // 少了第 2 级，改用真实域名展示之后历史图与延迟分布就全都查不到数据。

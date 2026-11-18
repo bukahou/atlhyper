@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, Info, XCircle } from "lucide-react";
-import { getEventsByResource } from "@/api/event";
 import { useI18n } from "@/i18n/context";
+import { resourceEventsQuery } from "@/queries/cluster";
 import type { EventLog } from "@/types/cluster";
 
 // ──────────────────────────────────────────────────────────────
@@ -38,27 +38,14 @@ function eventTimeText(e: EventLog): string {
 
 export function ResourceEventsTab({ clusterId, kind, namespace, name }: ResourceEventsTabProps) {
   const { t } = useI18n();
-  const [events, setEvents] = useState<EventLog[] | null>(null);
-  const [error, setError] = useState(false);
+  // 键里带 kind / namespace / name：换一个资源就是另一份数据，不会把上一个资源的事件显示出来
+  const query = useQuery(resourceEventsQuery(clusterId, { kind, namespace, name }));
+  const events = query.data;
 
-  useEffect(() => {
-    let cancelled = false;
-    setEvents(null);
-    setError(false);
-    getEventsByResource({ cluster_id: clusterId, kind, namespace, name })
-      .then((res) => {
-        if (!cancelled) setEvents(res.data.events ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      });
-    return () => { cancelled = true; };
-  }, [clusterId, kind, namespace, name]);
-
-  if (error) {
-    return <div className="py-8 text-center text-sm text-muted">{t.common.loadFailed}</div>;
-  }
-  if (events === null) {
+  if (events === undefined) {
+    if (query.isError) {
+      return <div className="py-8 text-center text-sm text-muted">{t.common.loadFailed}</div>;
+    }
     return (
       <div className="flex justify-center py-8">
         <Loader2 className="w-5 h-5 animate-spin text-blue-500" />

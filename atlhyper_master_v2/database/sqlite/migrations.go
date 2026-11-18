@@ -44,15 +44,115 @@ func migrate(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_events_involved ON cluster_events(cluster_id, involved_kind, involved_namespace, involved_name)`,
 		`CREATE INDEX IF NOT EXISTS idx_events_reason ON cluster_events(cluster_id, reason, last_timestamp DESC)`,
 
-		// ==================== 通知渠道表 ====================
-		`CREATE TABLE IF NOT EXISTS notify_channels (
+		// ==================== 通知：全局策略（单行，id 恒为 1）====================
+		`CREATE TABLE IF NOT EXISTS notify_policy (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			incident_alerts_enabled INTEGER NOT NULL DEFAULT 1,
+			min_severity TEXT NOT NULL DEFAULT 'low',
+			notify_resolved INTEGER NOT NULL DEFAULT 1,
+			warning_flap_threshold INTEGER NOT NULL DEFAULT 3,
+			group_wait_seconds INTEGER NOT NULL DEFAULT 30,
+			group_interval_seconds INTEGER NOT NULL DEFAULT 300,
+			repeat_interval_seconds INTEGER NOT NULL DEFAULT 14400,
+			k8s_event_alerts_enabled INTEGER NOT NULL DEFAULT 0,
+			default_receiver_ids TEXT NOT NULL DEFAULT '[]',
+			updated_at TEXT NOT NULL
+		)`,
+
+		// ==================== 通知：告警（事件 / 心跳 / K8s 事件的统一对象）====================
+		// last_notified_kind / last_notified_severity：本次持续期间最近一次已通知的变化与当时的严重度，去重用
+		`CREATE TABLE IF NOT EXISTS alerts (
+			fingerprint TEXT PRIMARY KEY,
+			source TEXT NOT NULL,
+			cluster_id TEXT NOT NULL,
+			severity TEXT NOT NULL,
+			status TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
+			summary TEXT NOT NULL DEFAULT '',
+			labels TEXT NOT NULL DEFAULT '{}',
+			details TEXT NOT NULL DEFAULT '{}',
+			starts_at TEXT NOT NULL,
+			ends_at TEXT,
+			updated_at TEXT NOT NULL,
+			last_notified_at TEXT,
+			last_notified_kind TEXT NOT NULL DEFAULT '',
+			last_notified_severity TEXT NOT NULL DEFAULT '',
+			notify_count INTEGER NOT NULL DEFAULT 0,
+			suppressed_by TEXT NOT NULL DEFAULT '',
+			silenced_by INTEGER NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_alerts_status_cluster ON alerts(status, cluster_id)`,
+
+		// ==================== 通知：送达记录（一条告警发给一个接收人的一次通知）====================
+		// 接收人的名称与类型冗余存一份：接收人删除后记录仍可读
+		`CREATE TABLE IF NOT EXISTS notify_deliveries (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			type TEXT UNIQUE NOT NULL,
-			name TEXT NOT NULL,
-			enabled INTEGER DEFAULT 0,
-			config TEXT,
+			batch_id TEXT NOT NULL,
+			fingerprint TEXT NOT NULL,
+			alert_title TEXT NOT NULL,
+			receiver_id INTEGER NOT NULL DEFAULT 0,
+			receiver_name TEXT NOT NULL DEFAULT '',
+			receiver_type TEXT NOT NULL DEFAULT '',
+			kind TEXT NOT NULL,
+			status TEXT NOT NULL,
+			attempts INTEGER NOT NULL DEFAULT 0,
+			last_error TEXT NOT NULL DEFAULT '',
+			next_attempt_at TEXT,
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_notify_deliveries_created ON notify_deliveries(created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_notify_deliveries_fingerprint ON notify_deliveries(fingerprint)`,
+		`CREATE INDEX IF NOT EXISTS idx_notify_deliveries_status_next ON notify_deliveries(status, next_attempt_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_notify_deliveries_batch ON notify_deliveries(batch_id)`,
+
+		// ==================== 通知：接收人（config 是整体加密后的 JSON，含 Webhook 地址 / SMTP 密码）====================
+		`CREATE TABLE IF NOT EXISTS notify_receivers (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT UNIQUE NOT NULL,
+			type TEXT NOT NULL,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			config TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+
+		// ==================== 通知：路由规则（按 position 从小到大匹配，第一条命中生效）====================
+		`CREATE TABLE IF NOT EXISTS notify_rules (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			position INTEGER NOT NULL,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			cluster_ids TEXT NOT NULL DEFAULT '[]',
+			sources TEXT NOT NULL DEFAULT '[]',
+			min_severity TEXT NOT NULL DEFAULT 'low',
+			receiver_ids TEXT NOT NULL DEFAULT '[]',
+			group_wait_seconds INTEGER,
+			group_interval_seconds INTEGER,
+			repeat_interval_seconds INTEGER,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+
+		// ==================== 通知：静默（不删除，只会过期）====================
+		// 全局发件设置（单行）：配置 JSON 整体加密。独立成表：已有库执行 CREATE TABLE IF NOT EXISTS 即可，无需清库
+		`CREATE TABLE IF NOT EXISTS notify_smtp (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			config TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS notify_silences (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			cluster_id TEXT NOT NULL DEFAULT '',
+			namespace TEXT NOT NULL DEFAULT '',
+			subject TEXT NOT NULL DEFAULT '',
+			starts_at TEXT NOT NULL,
+			ends_at TEXT NOT NULL,
+			comment TEXT NOT NULL,
+			created_by TEXT NOT NULL,
+			created_at TEXT NOT NULL
 		)`,
 
 		// ==================== 用户表 ====================
@@ -83,15 +183,19 @@ func migrate(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id)`,
 
 		// ==================== 集群表 ====================
+		// 集群注册表：管理员登记的集群与它的 Agent 令牌。令牌只存哈希，明文只在签发时返回一次。
 		`CREATE TABLE IF NOT EXISTS clusters (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			cluster_uid TEXT UNIQUE NOT NULL,
-			name TEXT NOT NULL,
-			description TEXT,
-			environment TEXT,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
+			cluster_id      TEXT PRIMARY KEY,
+			name            TEXT NOT NULL DEFAULT '',
+			description     TEXT NOT NULL DEFAULT '',
+			token_hash      TEXT NOT NULL DEFAULT '',
+			token_prefix    TEXT NOT NULL DEFAULT '',
+			token_issued_at TEXT,
+			created_at      TEXT NOT NULL,
+			updated_at      TEXT NOT NULL
 		)`,
+		// 每个请求都按令牌哈希查一次集群；没签发令牌的行哈希为空串，不进索引
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_clusters_token_hash ON clusters(token_hash) WHERE token_hash != ''`,
 
 		// ==================== 审计日志表 ====================
 		`CREATE TABLE IF NOT EXISTS audit_logs (
@@ -104,6 +208,7 @@ func migrate(db *sql.DB) error {
 			action TEXT,
 			resource TEXT,
 			method TEXT,
+			path TEXT NOT NULL DEFAULT '',
 			request_body TEXT,
 			status_code INTEGER,
 			success INTEGER,
@@ -316,13 +421,14 @@ func migrate(db *sql.DB) error {
 		// ==================== AIOps: 基线状态表 ====================
 		// 持久化 EMA 状态，用于重启恢复
 		`CREATE TABLE IF NOT EXISTS aiops_baseline_states (
+			cluster_id  TEXT NOT NULL,
 			entity_key  TEXT NOT NULL,
 			metric_name TEXT NOT NULL,
 			ema         REAL NOT NULL,
 			variance    REAL NOT NULL,
 			count       INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,
-			PRIMARY KEY (entity_key, metric_name)
+			PRIMARY KEY (cluster_id, entity_key, metric_name)
 		)`,
 
 		// ==================== AIOps: 依赖图快照表 ====================
@@ -339,11 +445,14 @@ func migrate(db *sql.DB) error {
 			id TEXT PRIMARY KEY,
 			cluster_id TEXT NOT NULL,
 			state TEXT NOT NULL DEFAULT 'firing',
-			severity TEXT NOT NULL DEFAULT 'warning',
+			severity TEXT NOT NULL DEFAULT 'low',
+			subject TEXT NOT NULL,
 			root_cause TEXT,
 			peak_risk REAL NOT NULL DEFAULT 0,
 			started_at TEXT NOT NULL,
+			escalated_at TEXT,
 			resolved_at TEXT,
+			close_reason TEXT NOT NULL DEFAULT '',
 			duration_s INTEGER NOT NULL DEFAULT 0,
 			recurrence INTEGER NOT NULL DEFAULT 0,
 			summary TEXT,
@@ -351,6 +460,7 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incidents_cluster ON aiops_incidents(cluster_id, started_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incidents_state ON aiops_incidents(state)`,
+		`CREATE INDEX IF NOT EXISTS idx_aiops_incidents_subject ON aiops_incidents(cluster_id, subject, started_at DESC)`,
 
 		// ==================== AIOps: 事件受影响实体表 ====================
 		// 事件关联的实体信息（风险分数、角色等）
@@ -378,6 +488,32 @@ func migrate(db *sql.DB) error {
 			FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_timeline_inc ON aiops_incident_timeline(incident_id, timestamp ASC)`,
+
+		// 拓扑归并：受影响事件归到源头事件（以受影响事件为键）。新表，已有库执行 CREATE TABLE IF NOT EXISTS 即可，无需清库
+		`CREATE TABLE IF NOT EXISTS aiops_incident_links (
+			incident_id TEXT PRIMARY KEY,
+			cluster_id TEXT NOT NULL,
+			root_incident_id TEXT NOT NULL,
+			path TEXT NOT NULL DEFAULT '[]',
+			linked_at TEXT NOT NULL,
+			unlinked_at TEXT,
+			FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aiops_incident_links_active ON aiops_incident_links(cluster_id, unlinked_at)`,
+
+		// 事件的信号累计（关键证据）：按（事件, 成员, 指标）一行。新表，已有库执行 CREATE TABLE IF NOT EXISTS 即可，无需清库
+		`CREATE TABLE IF NOT EXISTS aiops_incident_signals (
+			incident_id TEXT NOT NULL,
+			entity_key TEXT NOT NULL,
+			metric TEXT NOT NULL,
+			first_seen TEXT NOT NULL,
+			last_seen TEXT NOT NULL,
+			hits INTEGER NOT NULL DEFAULT 1,
+			max_score REAL NOT NULL DEFAULT 0,
+			detail TEXT NOT NULL DEFAULT '',
+			PRIMARY KEY (incident_id, entity_key, metric),
+			FOREIGN KEY (incident_id) REFERENCES aiops_incidents(id) ON DELETE CASCADE
+		)`,
 
 		// ==================== GitHub App 安装记录（单行）====================
 		`CREATE TABLE IF NOT EXISTS github_installations (

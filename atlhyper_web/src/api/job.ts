@@ -105,13 +105,14 @@ interface ClusterResourceParams {
 // API Functions
 // ============================================================
 
-export function getJobList(params: ClusterResourceParams) {
-  return get<ListResponse<JobItem>>("/api/v2/jobs", params);
+export function getJobList(params: ClusterResourceParams, signal?: AbortSignal) {
+  return get<ListResponse<JobItem>>("/api/v2/jobs", params, signal);
 }
 
-export function getJobDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
+export function getJobDetail(params: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<DetailResponse<JobDetail>>(
     `/api/v2/jobs/${encodeURIComponent(params.Name)}`,
-    { cluster_id: params.ClusterID, namespace: params.Namespace }
+    { cluster_id: params.ClusterID, namespace: params.Namespace },
+    signal,
   );
 }

@@ -36,8 +36,10 @@ type Consumer interface {
 	// Agent 为每个 topic 开独立 goroutine 轮询
 	WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*command.Command, error)
 
-	// AckCommand 确认指令完成
-	AckCommand(cmdID string, result *command.Result) error
+	// AckCommand 确认指令完成。
+	// clusterID 是回报方的集群：非空且指令属于另一个集群时返回 command.ErrNotOwnedByCluster，不写入结果。
+	// 传空串表示不核对归属（Master 自己判定指令过期时使用）。
+	AckCommand(clusterID, cmdID string, result *command.Result) error
 }
 
 // CommandBus 完整接口 (工厂创建 + 生命周期管理)

@@ -176,21 +176,21 @@ export const MOCK_SERVICE_ACCOUNTS: ServiceAccountItem[] = [
 export const MOCK_CONFIGMAPS: ConfigMapDTO[] = [
   {
     name: "coredns", namespace: "kube-system",
-    createdAt: "2025-09-15T06:00:00Z", age: "159d", immutable: false,
+    createdAt: "2025-09-15T06:00:00Z", immutable: false,
     labels: { "k8s-app": "kube-dns" },
-    keys: 1, binaryKeys: 0, totalSizeBytes: 924, binaryTotalSizeBytes: 0,
+    dataKeys: ["Corefile"],
   },
   {
     name: "geass-config", namespace: "geass",
-    createdAt: "2025-10-01T10:30:00Z", age: "143d", immutable: false,
+    createdAt: "2025-10-01T10:30:00Z", immutable: false,
     labels: { app: "geass" },
-    keys: 3, binaryKeys: 0, totalSizeBytes: 2048, binaryTotalSizeBytes: 0,
+    dataKeys: ["app.yaml", "log.level", "feature.flags"],
   },
   {
     name: "traefik-config", namespace: "traefik",
-    createdAt: "2025-10-10T08:15:00Z", age: "134d", immutable: false,
+    createdAt: "2025-10-10T08:15:00Z", immutable: false,
     labels: { app: "traefik" },
-    keys: 2, binaryKeys: 0, totalSizeBytes: 1536, binaryTotalSizeBytes: 0,
+    dataKeys: ["nginx.conf", "mime.types"],
   },
 ];
 

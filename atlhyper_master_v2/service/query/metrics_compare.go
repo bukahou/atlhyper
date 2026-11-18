@@ -31,7 +31,7 @@ const (
 )
 
 // GetNodeComparison 产出节点横向对比表
-func (q *QueryService) GetNodeComparison(ctx context.Context, clusterID string) (*model.NodeComparisonResponse, error) {
+func (q *OTelQuery) GetNodeComparison(ctx context.Context, clusterID string) (*model.NodeComparisonResponse, error) {
 	resp := &model.NodeComparisonResponse{Columns: compareColumns, Rows: []model.CompareRow{}}
 
 	otel, err := q.GetOTelSnapshot(ctx, clusterID)

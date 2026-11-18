@@ -1,242 +1,154 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Conversation, Message, StreamSegment, ChatStats } from "@/components/ai/types";
-import { useClusterStore } from "@/store/clusterStore";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import type { Message } from "@/components/ai/types";
 import { useAuthStore } from "@/store/authStore";
 import { useI18n } from "@/i18n/context";
-import {
-  getConversations,
-  createConversation,
-  deleteConversation,
-  getMessages,
-  streamChat,
-} from "@/api/ai";
-import { getAISettings, type AISettings } from "@/api/ai-provider";
 import { formatAlertsMessage } from "@/lib/alertFormat";
 import type { RecentAlert } from "@/types/overview";
 import type { AIConfigStatus } from "./types";
 import { getMockConversations, getMockMessages } from "./mock-data";
 import { useCan } from "@/hooks/useCan";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { useSessionReady } from "@/hooks/useSessionReady";
 import { toast } from "@/components/common/Toast";
+import {
+  aiChatReadinessQuery,
+  conversationListQuery,
+  conversationMessagesQuery,
+  createConversationMutation,
+  deleteConversationMutation,
+} from "@/queries/ai-chat";
+import { useChatStream } from "./useChatStream";
+
+/** 演示对话里默认选中的那一个（mock-data.ts 的第一条） */
+const DEMO_CONVERSATION_ID = 1;
+const NO_MESSAGES: Message[] = [];
 
 export function useAIChat() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
+  const { clusterId: currentClusterId } = useCurrentCluster();
   const { openLoginDialog, isAuthenticated } = useAuthStore();
+  const sessionReady = useSessionReady();
   const canChat = useCan()("ai.chat");
 
-  // 演示模式（无 ai.chat 权限：访客与成员）
-  const isDemo = !canChat;
+  // 演示模式（无 ai.chat 权限：访客与成员）。权限加载完才下结论，之前显示加载中
+  const isDemo = sessionReady && !canChat;
 
-  // AI 配置状态
-  const [aiStatus, setAiStatus] = useState<AIConfigStatus>(isDemo ? "ready" : "loading");
+  // AI 是否可用：没有配置 / 没有给 chat 角色分配 Provider 时各有一个说明页
+  const readiness = useQuery(aiChatReadinessQuery(canChat));
+  const chatReady = canChat && readiness.data?.chatReady === true;
+  const aiStatus: AIConfigStatus = !sessionReady
+    ? "loading"
+    : isDemo
+      ? "ready"
+      : readiness.isPending
+        ? "loading"
+        : readiness.isError
+          ? "not_configured"
+          : readiness.data.chatReady
+            ? "ready"
+            : "chat_not_assigned";
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentConvId, setCurrentConvId] = useState<number | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [streaming, setStreaming] = useState(false);
-  const [streamSegments, setStreamSegments] = useState<StreamSegment[]>([]);
-  const [currentStats, setCurrentStats] = useState<ChatStats | undefined>();
-  const [alertsProcessed, setAlertsProcessed] = useState(false);
+  const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
+  const currentConvId = isDemo ? DEMO_CONVERSATION_ID : selectedConvId;
 
-  const abortRef = useRef<AbortController | null>(null);
+  const conversationList = useQuery(conversationListQuery(chatReady));
+  const messageHistory = useQuery(conversationMessagesQuery(selectedConvId, chatReady));
+  const createConversation = useMutation(createConversationMutation());
+  const deleteConversation = useMutation(deleteConversationMutation());
+  const { stream, sendAndStream, stopStreaming, discardFinishedStream } = useChatStream(currentClusterId);
 
-  // 检查 AI 配置状态
-  const checkAIConfig = useCallback(async () => {
-    try {
-      const res = await getAISettings();
-      const settings: AISettings = res.data;
+  // 演示数据随语言切换重新生成
+  const aiChatT = t.aiChatPage;
+  const demoConversations = useMemo(() => getMockConversations(aiChatT), [aiChatT]);
+  const demoMessages = useMemo(() => getMockMessages(aiChatT), [aiChatT]);
 
-      if (!settings.chatReady) {
-        setAiStatus("chat_not_assigned");
-      } else {
-        setAiStatus("ready");
-      }
-    } catch {
-      setAiStatus("not_configured");
-    }
-  }, []);
+  // 流式回答属于它自己的对话：看别的对话时不显示它的分段、临时消息与用量
+  const streamOfCurrent = stream !== null && stream.conversationId === currentConvId ? stream : null;
+  const conversations = isDemo ? demoConversations : (conversationList.data ?? []);
+  const messages = isDemo
+    ? demoMessages
+    : (streamOfCurrent?.messagesWhileStreaming ?? messageHistory.data ?? NO_MESSAGES);
 
-  // 加载对话列表
-  const loadConversations = useCallback(async () => {
-    try {
-      const res = await getConversations();
-      setConversations(res.data || []);
-    } catch {
-      // 忽略（401 由全局拦截器处理）
-    }
-  }, []);
-
-  // 发送消息并启动 SSE 流式
-  const sendAndStream = useCallback(
-    (convId: number, message: string) => {
-      const userMsg: Message = {
-        id: Date.now(),
-        conversationId: convId,
-        role: "user",
-        content: message,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, userMsg]);
-      setStreaming(true);
-      setStreamSegments([]);
-
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      streamChat(
-        { conversationId: convId, clusterId: currentClusterId, message },
-        (segment) => setStreamSegments((prev) => [...prev, segment]),
-        (stats) => {
-          setStreaming(false);
-          setCurrentStats(stats);
-          abortRef.current = null;
-          getMessages(convId)
-            .then((res) => {
-              setMessages(res.data || []);
-              setStreamSegments([]);
-            })
-            .catch(() => {});
-          loadConversations();
-        },
-        (err) => {
-          setStreamSegments((prev) => [...prev, { type: "error", content: err }]);
-          setStreaming(false);
-          abortRef.current = null;
-        },
-        controller.signal,
-      );
-    },
-    [currentClusterId, loadConversations],
-  );
-
-  // 演示模式：加载 mock 数据（语言切换时刷新）
+  // 处理从告警页面跳转过来的情况：新建一个对话，把告警内容作为第一条消息发出去。只做一次
+  const alertsHandledRef = useRef(false);
+  const { mutate: startConversation } = createConversation;
+  const alertAnalysisTitle = aiChatT.alertAnalysis;
+  const fromAlerts = searchParams.get("from") === "alerts";
   useEffect(() => {
-    if (isDemo) {
-      const aiChatT = t.aiChatPage;
-      setConversations(getMockConversations(aiChatT));
-      setCurrentConvId(1);
-      setMessages(getMockMessages(aiChatT));
-      setAiStatus("ready");
-    }
-  }, [isDemo, t.locale]);
-
-  // 登录后检查 AI 配置状态
-  useEffect(() => {
-    if (canChat) checkAIConfig();
-  }, [canChat, checkAIConfig]);
-
-  // AI 配置就绪后加载对话列表
-  useEffect(() => {
-    if (canChat && aiStatus === "ready") loadConversations();
-  }, [canChat, aiStatus, loadConversations]);
-
-  // 处理从告警页面跳转过来的情况
-  useEffect(() => {
-    const fromAlerts = searchParams.get("from") === "alerts";
-    if (!fromAlerts || alertsProcessed || !canChat || aiStatus !== "ready") return;
-
+    if (!fromAlerts || !chatReady || alertsHandledRef.current) return;
     const stored = sessionStorage.getItem("alertContext");
     if (!stored) return;
+    alertsHandledRef.current = true;
+    sessionStorage.removeItem("alertContext");
 
+    let alerts: RecentAlert[] = [];
     try {
-      const alerts: RecentAlert[] = JSON.parse(stored);
-      sessionStorage.removeItem("alertContext");
-      setAlertsProcessed(true);
-      if (alerts.length === 0) return;
-
-      const message = formatAlertsMessage(alerts);
-      const alertTitle = t.aiChatPage.alertAnalysis;
-
-      (async () => {
-        try {
-          const res = await createConversation(currentClusterId, alertTitle);
-          const newConv = res.data;
-          setConversations((prev) => [newConv, ...prev]);
-          setCurrentConvId(newConv.id);
-          setMessages([]);
-          setStreamSegments([]);
-          sendAndStream(newConv.id, message);
-        } catch {
-          // 创建对话失败
-        }
-      })();
+      alerts = JSON.parse(stored);
     } catch {
-      sessionStorage.removeItem("alertContext");
+      // 存的内容解析不了：已经清掉，当作没有
     }
-  }, [searchParams, alertsProcessed, canChat, aiStatus, currentClusterId, loadConversations, sendAndStream]);
+    if (alerts.length === 0) return;
 
-  // 选择对话 -> 加载消息
-  const handleSelect = useCallback(async (id: number) => {
-    setCurrentConvId(id);
-    setStreamSegments([]);
-    setStreaming(false);
-    setCurrentStats(undefined);
-    try {
-      const res = await getMessages(id);
-      setMessages(res.data || []);
-    } catch {
-      setMessages([]);
-    }
-  }, []);
+    startConversation(
+      { clusterId: currentClusterId, title: alertAnalysisTitle },
+      {
+        onSuccess: (created) => {
+          setSelectedConvId(created.id);
+          sendAndStream(created.id, formatAlertsMessage(alerts), NO_MESSAGES);
+        },
+      },
+    );
+  }, [fromAlerts, chatReady, currentClusterId, alertAnalysisTitle, startConversation, sendAndStream]);
+
+  // 选择对话：消息历史由查询按对话 ID 取
+  const handleSelect = (id: number) => {
+    setSelectedConvId(id);
+    discardFinishedStream();
+  };
 
   // 新建对话
-  const handleNew = useCallback(async () => {
-    try {
-      const res = await createConversation(currentClusterId);
-      const newConv = res.data;
-      setConversations((prev) => [newConv, ...prev]);
-      setCurrentConvId(newConv.id);
-      setMessages([]);
-      setStreamSegments([]);
-      setCurrentStats(undefined);
-    } catch {
-      // 创建失败忽略
-    }
-  }, [currentClusterId]);
+  const handleNew = () => {
+    createConversation.mutate(
+      { clusterId: currentClusterId },
+      {
+        onSuccess: (created) => {
+          setSelectedConvId(created.id);
+          discardFinishedStream();
+        },
+      },
+    );
+  };
 
   // 删除对话
-  const handleDelete = useCallback(async (id: number) => {
+  const handleDelete = (id: number) => {
+    deleteConversation.mutate(id, {
+      onSuccess: () => setSelectedConvId((current) => (current === id ? null : current)),
+    });
+  };
+
+  // 发送消息 (SSE 流式)：还没有对话时先建一个，标题取消息开头
+  const handleSend = async (message: string) => {
+    if (selectedConvId !== null) {
+      sendAndStream(selectedConvId, message, messages);
+      return;
+    }
     try {
-      await deleteConversation(id);
-      setConversations((prev) => prev.filter((c) => c.id !== id));
-      if (currentConvId === id) {
-        setCurrentConvId(null);
-        setMessages([]);
-      }
+      const created = await createConversation.mutateAsync({
+        clusterId: currentClusterId,
+        title: message.slice(0, 20),
+      });
+      setSelectedConvId(created.id);
+      sendAndStream(created.id, message, NO_MESSAGES);
     } catch {
-      // 删除失败忽略
+      // 创建对话失败：不发送
     }
-  }, [currentConvId]);
-
-  // 发送消息 (SSE 流式)
-  const handleSend = useCallback(async (message: string) => {
-    let convId = currentConvId;
-    if (!convId) {
-      try {
-        const res = await createConversation(currentClusterId, message.slice(0, 20));
-        const newConv = res.data;
-        convId = newConv.id;
-        setConversations((prev) => [newConv, ...prev]);
-        setCurrentConvId(convId);
-      } catch {
-        return;
-      }
-    }
-    setCurrentStats(undefined);
-    sendAndStream(convId, message);
-  }, [currentConvId, currentClusterId, sendAndStream]);
-
-  // 停止生成
-  const handleStop = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setStreaming(false);
-  }, []);
+  };
 
   // 跳转到设置页
   const goToSettings = useCallback(() => {
@@ -258,15 +170,15 @@ export function useAIChat() {
     conversations,
     currentConvId,
     messages,
-    streaming,
-    streamSegments,
-    currentStats,
+    streaming: streamOfCurrent?.streaming ?? false,
+    streamSegments: streamOfCurrent?.segments ?? [],
+    currentStats: streamOfCurrent?.stats,
     currentClusterId,
     handleSelect,
     handleNew,
     handleDelete,
     handleSend,
-    handleStop,
+    handleStop: stopStreaming,
     goToSettings,
     handleDemoAction,
     openLoginDialog,

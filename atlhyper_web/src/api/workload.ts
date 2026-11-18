@@ -226,20 +226,21 @@ interface DaemonSetListResponse {
 /**
  * 获取 StatefulSet 列表
  */
-export function getStatefulSetList(params: ListParams) {
-  return get<StatefulSetListResponse>("/api/v2/statefulsets", params);
+export function getStatefulSetList(params: ListParams, signal?: AbortSignal) {
+  return get<StatefulSetListResponse>("/api/v2/statefulsets", params, signal);
 }
 
 /**
  * 获取 StatefulSet 详情
  */
-export async function getStatefulSetDetail(data: { ClusterID: string; Namespace: string; Name: string }) {
+export async function getStatefulSetDetail(data: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<{ message: string; data: StatefulSetDetail }>(
     `/api/v2/statefulsets/${encodeURIComponent(data.Name)}`,
     {
       cluster_id: data.ClusterID,
       namespace: data.Namespace,
-    }
+    },
+    signal,
   );
 }
 
@@ -250,20 +251,21 @@ export async function getStatefulSetDetail(data: { ClusterID: string; Namespace:
 /**
  * 获取 DaemonSet 列表
  */
-export function getDaemonSetList(params: ListParams) {
-  return get<DaemonSetListResponse>("/api/v2/daemonsets", params);
+export function getDaemonSetList(params: ListParams, signal?: AbortSignal) {
+  return get<DaemonSetListResponse>("/api/v2/daemonsets", params, signal);
 }
 
 /**
  * 获取 DaemonSet 详情
  */
-export async function getDaemonSetDetail(data: { ClusterID: string; Namespace: string; Name: string }) {
+export async function getDaemonSetDetail(data: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<{ message: string; data: DaemonSetDetail }>(
     `/api/v2/daemonsets/${encodeURIComponent(data.Name)}`,
     {
       cluster_id: data.ClusterID,
       namespace: data.Namespace,
-    }
+    },
+    signal,
   );
 }
 

@@ -36,6 +36,8 @@ func (h *AIOpsIncidentHandler) List(w http.ResponseWriter, r *http.Request) {
 		ClusterID: q.Get("cluster"),
 		State:     q.Get("state"),
 		Severity:  q.Get("severity"),
+		// 拓扑归并：grouped=true 时受影响事件折叠到源头的 impacted 里，不单独列出
+		Grouped: q.Get("grouped") == "true",
 	}
 
 	if from := q.Get("from"); from != "" {
@@ -71,7 +73,7 @@ func (h *AIOpsIncidentHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	handler.WriteJSON(w, http.StatusOK, map[string]any{
 		"message": "获取成功",
-		"data":    incidents,
+		"data":    ScaleIncidents(incidents),
 		"total":   total,
 	})
 }
@@ -131,13 +133,19 @@ func (h *AIOpsIncidentHandler) Stats(w http.ResponseWriter, r *http.Request) {
 }
 
 // Patterns 历史事件模式
-// GET /api/v2/aiops/incidents/patterns?entity={key}&period=30d
+// GET /api/v2/aiops/incidents/patterns?cluster_id={id}&entity={key}&period=30d
 func (h *AIOpsIncidentHandler) Patterns(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
+	// 实体键只在集群内唯一，必须指明集群
+	clusterID := r.URL.Query().Get("cluster_id")
+	if clusterID == "" {
+		handler.WriteError(w, http.StatusBadRequest, "missing cluster_id parameter")
+		return
+	}
 	entityKey := r.URL.Query().Get("entity")
 	if entityKey == "" {
 		handler.WriteError(w, http.StatusBadRequest, "missing entity parameter")
@@ -146,13 +154,13 @@ func (h *AIOpsIncidentHandler) Patterns(w http.ResponseWriter, r *http.Request) 
 
 	since := parsePeriod(r.URL.Query().Get("period"))
 
-	patterns, err := h.svc.GetAIOpsIncidentPatterns(r.Context(), entityKey, since)
+	patterns, err := h.svc.GetAIOpsIncidentPatterns(r.Context(), clusterID, entityKey, since)
 	if err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	handler.WriteJSON(w, http.StatusOK, patterns)
+	handler.WriteJSON(w, http.StatusOK, ScaleIncidentPatterns(patterns))
 }
 
 // parsePeriod 解析时间周期字符串（如 "7d", "30d", "24h"）

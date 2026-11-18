@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Modal } from "@/components/common/Modal";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { getPodLogs } from "@/api/pod";
-import { useClusterStore } from "@/store/clusterStore";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
 import { useI18n } from "@/i18n/context";
+import { podLogsQuery } from "@/queries/cluster-content";
 import { splitLogHighlight } from "./log-highlight";
 import {
   RefreshCw,
@@ -32,42 +33,24 @@ export function PodLogsViewer({
   containerName,
 }: PodLogsViewerProps) {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [logs, setLogs] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
   const [tailLines, setTailLines] = useState(100);
   const [autoScroll, setAutoScroll] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const logsRef = useRef<HTMLPreElement>(null);
 
-  const fetchLogs = useCallback(async () => {
-    if (!namespace || !podName) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await getPodLogs({
-        ClusterID: currentClusterId,
-        Namespace: namespace,
-        Pod: podName,
-        Container: containerName || undefined,
-        TailLines: tailLines,
-        TimeoutSeconds: 30,
-      });
-      setLogs(res.data.data?.logs || t.pod.logsEmpty);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.pod.fetchLogsFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [namespace, podName, containerName, tailLines]);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchLogs();
-    }
-  }, [isOpen, fetchLogs]);
+  // 只在查看器打开时取日志；Pod、容器、行数都在键里，换任何一个都是另一份数据
+  const query = useQuery(
+    podLogsQuery(clusterId, isOpen ? { namespace, podName, containerName, tailLines } : null),
+  );
+  const logs = query.data ?? "";
+  const loading = query.isFetching;
+  const error = query.isError
+    ? query.error instanceof Error
+      ? query.error.message
+      : t.pod.fetchLogsFailed
+    : "";
 
   // 自动滚动到底部
   useEffect(() => {
@@ -178,7 +161,7 @@ export function PodLogsViewer({
 
             {/* 刷新 */}
             <button
-              onClick={fetchLogs}
+              onClick={() => void query.refetch()}
               disabled={loading}
               className="p-1.5 sm:p-2 rounded-lg hover-bg text-muted hover:text-default disabled:opacity-50 transition-colors"
               title={t.common.refresh}
@@ -211,15 +194,17 @@ export function PodLogsViewer({
               ref={logsRef}
               className="h-full overflow-auto p-2 sm:p-4 bg-gray-900 text-gray-100 text-[10px] sm:text-xs font-mono leading-relaxed whitespace-pre-wrap break-all"
             >
-              {logSegments.map((seg, i) =>
-                seg.match ? (
-                  <mark key={i} className="bg-yellow-300 dark:bg-yellow-600">
-                    {seg.text}
-                  </mark>
-                ) : (
-                  seg.text
-                )
-              )}
+              {logs === ""
+                ? t.pod.logsEmpty
+                : logSegments.map((seg, i) =>
+                    seg.match ? (
+                      <mark key={i} className="bg-yellow-300 dark:bg-yellow-600">
+                        {seg.text}
+                      </mark>
+                    ) : (
+                      seg.text
+                    )
+                  )}
             </pre>
           )}
         </div>

@@ -91,6 +91,7 @@ func Audit(repo AuditRepository, config AuditConfig) func(http.HandlerFunc) http
 					Action:      config.Action,
 					Resource:    config.Resource,
 					Method:      r.Method,
+					Path:        r.URL.Path, // 只记路径：查询串可能带凭据
 					RequestBody: sanitizedBody,
 					StatusCode:  rw.statusCode,
 					Success:     rw.statusCode >= 200 && rw.statusCode < 300,

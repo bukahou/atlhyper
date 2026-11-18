@@ -202,7 +202,6 @@ func TestEnsureNodeMetricsSlices(t *testing.T) {
 	}
 }
 
-
 // 合并六个查询为一个，最大的风险是映射表写错 —— 某个指标悄悄写进了错误的字段，
 // 页面照常显示、数字却是别的东西。这张表逐项锁住。
 func TestApplyScalarGauge(t *testing.T) {

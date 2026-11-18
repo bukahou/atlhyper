@@ -1,7 +1,7 @@
 import type { AuditLogItem } from "@/types/auth";
 import { UserRole } from "@/types/auth";
 
-/** Mock 数据（未登录时展示用） */
+/** 演示数据（无 audit.read 权限时整页展示，均为虚构） */
 export const MOCK_AUDIT_LOGS: AuditLogItem[] = [
   {
     id: 1,
@@ -13,6 +13,7 @@ export const MOCK_AUDIT_LOGS: AuditLogItem[] = [
     action: "login",
     resource: "user",
     method: "POST",
+    path: "/api/v2/user/login",
     success: true,
     ip: "192.168.1.100",
     status: 200,
@@ -28,6 +29,7 @@ export const MOCK_AUDIT_LOGS: AuditLogItem[] = [
     action: "execute",
     resource: "deployment",
     method: "POST",
+    path: "/api/v2/ops/deployments/restart",
     success: true,
     ip: "192.168.1.101",
     status: 200,
@@ -43,6 +45,7 @@ export const MOCK_AUDIT_LOGS: AuditLogItem[] = [
     action: "read",
     resource: "pod",
     method: "GET",
+    path: "/api/v2/pods/logs",
     success: false,
     ip: "192.168.1.102",
     status: 403,
@@ -58,6 +61,7 @@ export const MOCK_AUDIT_LOGS: AuditLogItem[] = [
     action: "create",
     resource: "user",
     method: "POST",
+    path: "/api/v2/user/register",
     success: true,
     ip: "192.168.1.100",
     status: 201,
@@ -73,6 +77,7 @@ export const MOCK_AUDIT_LOGS: AuditLogItem[] = [
     action: "execute",
     resource: "pod",
     method: "POST",
+    path: "/api/v2/ops/pods/restart",
     success: true,
     ip: "192.168.1.101",
     status: 200,
@@ -88,6 +93,7 @@ export const MOCK_AUDIT_LOGS: AuditLogItem[] = [
     action: "login",
     resource: "user",
     method: "POST",
+    path: "/api/v2/user/login",
     success: false,
     ip: "10.0.0.50",
     status: 401,

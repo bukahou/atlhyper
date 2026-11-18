@@ -19,7 +19,7 @@ type Engine interface {
 	GetGraphTrace(clusterID, fromKey, direction string, maxDepth int) *TraceResult
 
 	// GetBaseline 获取指定实体的基线状态
-	GetBaseline(entityKey string) *EntityBaseline
+	GetBaseline(clusterID, entityKey string) *EntityBaseline
 
 	// GetClusterRisk 获取集群风险评分
 	GetClusterRisk(clusterID string) *ClusterRisk
@@ -40,10 +40,16 @@ type Engine interface {
 	GetIncidentStats(ctx context.Context, clusterID string, since time.Time) *IncidentStats
 
 	// GetIncidentPatterns 获取历史事件模式
-	GetIncidentPatterns(ctx context.Context, entityKey string, since time.Time) []*IncidentPattern
+	GetIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*IncidentPattern
 
-	// SetIncidentNotify 设置事件通知回调（供 AI 后台自动分析）
-	SetIncidentNotify(fn func(incidentID, severity, trigger string))
+	// SubscribeTransitions 订阅事件变化（须在 Start 之前调用）。
+	// 订阅者被同步调用：多数在快照处理主路径上，关闭类变化在引擎的定期检查协程里；
+	// 各次调用先后有序、不会并发。只允许做「放进队列」这类不阻塞的事
+	SubscribeTransitions(fn func(IncidentTransition))
+
+	// SubscribeLinks 订阅拓扑归并的关联变化（须在 Start 之前调用）：受影响事件归到源头、换源头、解除（RootIncidentID 为空）。
+	// Start 时会把库里恢复的有效关联逐条发一次，订阅者据此重建状态。约束同 SubscribeTransitions
+	SubscribeLinks(fn func(IncidentLink))
 
 	// Start 启动引擎（加载 DB 状态 + 定时 flush + Recovery 检查）
 	Start(ctx context.Context) error

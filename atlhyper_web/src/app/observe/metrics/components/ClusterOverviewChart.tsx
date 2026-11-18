@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, memo } from "react";
+import { useMemo, memo } from "react";
+import { useQueries, type UseQueryResult } from "@tanstack/react-query";
 import { TrendingUp, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { getNodeMetricsHistory } from "@/datasource/metrics";
-import type { NodeMetrics, Point } from "@/types/node-metrics";
+import { nodeMetricsHistoryQuery } from "@/queries/observe-metrics";
+import type { NodeMetricsHistory } from "@/datasource/metrics";
+import type { NodeMetrics } from "@/types/node-metrics";
 import { METRICS } from "./chartConstants";
 import { MetricChart } from "./MetricChart";
 
@@ -17,6 +19,14 @@ interface ClusterOverviewChartProps {
   hours: number;
 }
 
+/** 把各节点的历史查询合成两样：按查询顺序排列的历史、是否还有节点在首次加载 */
+function combineNodeHistories(results: UseQueryResult<NodeMetricsHistory>[]) {
+  return {
+    histories: results.map((result) => result.data),
+    anyPending: results.some((result) => result.isPending),
+  };
+}
+
 export const ClusterOverviewChart = memo(function ClusterOverviewChart({
   nodes,
   clusterId,
@@ -24,10 +34,6 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
 }: ClusterOverviewChartProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-
-  const [loading, setLoading] = useState(false);
-  /** Per-node history: { nodeName: { metricKey: Point[] } } */
-  const [historyMap, setHistoryMap] = useState<Record<string, Record<string, Point[]>>>({});
 
   // Top 5 nodes per metric (each metric sorts independently)
   const topNodesByMetric = useMemo(() => {
@@ -50,23 +56,22 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
     return Array.from(set);
   }, [topNodesByMetric]);
 
+  // 每个 top 节点一个历史查询，各自缓存、各自按分钟刷新。
+  // 快照每 10 秒刷新一轮，名单会重算，但没换的节点键不变，不会跟着重新请求
+  const { histories, anyPending } = useQueries({
+    queries: allTopNodeNames.map((nodeName) => nodeMetricsHistoryQuery(clusterId, nodeName, hours)),
+    combine: combineNodeHistories,
+  });
 
-  // Fetch history for all unique top-5 nodes across metrics
-  const fetchHistory = useCallback(async () => {
-    if (allTopNodeNames.length === 0) return;
-    setLoading(true);
-    const map: Record<string, Record<string, Point[]>> = {};
-    for (const name of allTopNodeNames) {
-      const result = await getNodeMetricsHistory(clusterId, name, hours);
-      map[result.nodeName] = result.data;
-    }
-    setHistoryMap(map);
-    setLoading(false);
-  }, [allTopNodeNames, hours, clusterId]);
-
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+  /** Per-node history: { nodeName: { metricKey: Point[] } } */
+  const historyMap = useMemo(() => {
+    const map: Record<string, NodeMetricsHistory> = {};
+    allTopNodeNames.forEach((nodeName, index) => {
+      const history = histories[index];
+      if (history) map[nodeName] = history;
+    });
+    return map;
+  }, [allTopNodeNames, histories]);
 
   const metricTitles: Record<string, string> = {
     cpu: nm.cpu.title,
@@ -88,13 +93,11 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
             <span className="text-[10px] text-muted">{nm.overview.top5}</span>
           </div>
         </div>
-
-
       </div>
 
       {/* 2x2 Grid */}
       <div className="relative">
-        {loading && (
+        {anyPending && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/80 rounded-lg">
             <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
           </div>

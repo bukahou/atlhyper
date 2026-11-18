@@ -7,7 +7,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/query"
 )
 
-// serviceImpl 组合 QueryService + CommandService + AdminService + SLOService + DeployService
+// serviceImpl 组合 QueryService 与各写入服务
 type serviceImpl struct {
 	*query.QueryService
 	*operations.CommandService
@@ -15,6 +15,8 @@ type serviceImpl struct {
 	*operations.SLOService
 	*operations.DeployService
 	*operations.UserService
+	*operations.ClusterRegistryService
+	*operations.NotifyService
 }
 
 // NewService 创建统一 Service 实例
@@ -25,6 +27,8 @@ func NewService(
 	slo *operations.SLOService,
 	deploy *operations.DeployService,
 	user *operations.UserService,
+	clusterRegistry *operations.ClusterRegistryService,
+	notify *operations.NotifyService,
 ) Service {
 	return &serviceImpl{
 		QueryService:   q,
@@ -33,5 +37,8 @@ func NewService(
 		SLOService:     slo,
 		DeployService:  deploy,
 		UserService:    user,
+
+		ClusterRegistryService: clusterRegistry,
+		NotifyService:          notify,
 	}
 }

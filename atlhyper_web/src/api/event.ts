@@ -5,7 +5,7 @@
  */
 
 import { get } from "./request";
-import type { EventOverview, EventLog, EventCards } from "@/types/cluster";
+import type { EventOverview, EventLog } from "@/types/cluster";
 
 // ============================================================
 // 查询参数类型
@@ -85,17 +85,15 @@ function aggregateOverview(events: EventLog[]): EventOverview {
  */
 // 按资源查事件（K8s 原生事件时间线，来自 /events/by-resource）
 // 用于资源详情页：某个 Pod/Deployment 最近发生了什么
-export function getEventsByResource(params: {
-  cluster_id: string;
-  kind: string;
-  namespace?: string;
-  name: string;
-}) {
-  return get<{ events: EventLog[] }>("/api/v2/events/by-resource", { ...params });
+export function getEventsByResource(
+  params: { cluster_id: string; kind: string; namespace?: string; name: string },
+  signal?: AbortSignal,
+) {
+  return get<{ events: EventLog[] }>("/api/v2/events/by-resource", { ...params }, signal);
 }
 
-export function getEventList(params: EventListParams) {
-  return get<EventListResponse>("/api/v2/events", params);
+export function getEventList(params: EventListParams, signal?: AbortSignal) {
+  return get<EventListResponse>("/api/v2/events", params, signal);
 }
 
 /**
@@ -112,12 +110,18 @@ export function getAlertList(params: EventListParams) {
 /**
  * 获取事件概览（实时，从 DataHub）
  */
-export async function getEventOverview(data: { ClusterID: string; Namespace?: string; Type?: string }) {
-  const response = await getEventList({
-    cluster_id: data.ClusterID,
-    namespace: data.Namespace,
-    type: data.Type,
-  });
+export async function getEventOverview(
+  data: { ClusterID: string; Namespace?: string; Type?: string },
+  signal?: AbortSignal,
+) {
+  const response = await getEventList(
+    {
+      cluster_id: data.ClusterID,
+      namespace: data.Namespace,
+      type: data.Type,
+    },
+    signal,
+  );
 
   const events = response.data.events || [];
 

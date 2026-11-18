@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { RiskBadge } from "@/components/aiops/RiskBadge";
 import { EntityLink } from "@/components/aiops/EntityLink";
 import { CausalTreeNodeView } from "@/components/aiops/CausalTreeNodeView";
-import { getEntityRiskDetail, getGraphTrace } from "@/api/aiops";
-import type { EntityRiskDetail, GraphTraceResult } from "@/api/aiops";
+import { entityRiskDetailQuery, graphTraceQuery } from "@/queries/aiops";
 import { formatRiskScore } from "@/lib/risk";
 
 interface NodeDetailProps {
@@ -17,23 +16,13 @@ interface NodeDetailProps {
 
 export function NodeDetail({ entityKey, clusterId }: NodeDetailProps) {
   const { t } = useI18n();
-  const [detail, setDetail] = useState<EntityRiskDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  // 依赖追踪（G3 接线）：与风险详情并行拉取，任一失败不影响另一个
-  const [upstream, setUpstream] = useState<GraphTraceResult | null>(null);
-  const [downstream, setDownstream] = useState<GraphTraceResult | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setUpstream(null);
-    setDownstream(null);
-    getEntityRiskDetail(clusterId, entityKey)
-      .then(setDetail)
-      .catch((err) => console.error("Failed to load entity detail:", err))
-      .finally(() => setLoading(false));
-    getGraphTrace(clusterId, entityKey, "upstream").then(setUpstream).catch(() => {});
-    getGraphTrace(clusterId, entityKey, "downstream").then(setDownstream).catch(() => {});
-  }, [clusterId, entityKey]);
+  // 键里带实体：连续点不同节点时，显示的一定是最后点的那个
+  const detailQuery = useQuery(entityRiskDetailQuery(clusterId, entityKey));
+  const detail = detailQuery.data;
+  const loading = detailQuery.isPending;
+  // 依赖追踪（G3 接线）：与风险详情各自成查询，任一失败不影响另一个
+  const upstream = useQuery(graphTraceQuery(clusterId, entityKey, "upstream")).data ?? null;
+  const downstream = useQuery(graphTraceQuery(clusterId, entityKey, "downstream")).data ?? null;
 
   if (loading) {
     return (

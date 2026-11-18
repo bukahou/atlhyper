@@ -49,7 +49,7 @@ type Config struct {
 	GitHubClient   github.Client               // 可选，nil 表示 GitHub 集成未配置
 	Deployer       deployer.Deployer           // 可选，nil 表示 Deployer 未启用
 	OIDC           *oidc.Module                // 可选，nil 表示外部身份登录未启用
-	NotifyTester   adminHandler.NotifyTester   // 可选，nil 表示通知渠道测试发送不可用
+	NotifyTester   adminHandler.NotifyTester   // 可选，nil 表示接收人测试发送不可用
 }
 
 // NewServer 创建 Server

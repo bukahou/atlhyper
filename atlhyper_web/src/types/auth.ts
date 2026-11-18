@@ -48,6 +48,7 @@ export interface AuditLogItem {
   action: string;        // login / create / update / delete / execute / read
   resource: string;      // user / pod / deployment / node / configmap / secret / command / notify
   method: string;        // GET / POST / PUT / DELETE
+  path?: string;         // 请求路径（不含查询串）：改名、签发令牌这类操作的对象只出现在路径里
   requestSummary?: string;
   status: number;        // HTTP 状态码
   success: boolean;
@@ -82,7 +83,7 @@ export type Permission =
   | "deploy.history.read" | "github.status.read" | "ai.chat"
   | "secret.read" | "pod.logs.read" | "cluster.operate" | "audit.read"
   | "notify.manage" | "slo.manage" | "ai.analyze" | "ai.settings.read"
-  | "user.manage" | "ai.settings.write" | "github.manage" | "deploy.manage";
+  | "user.manage" | "ai.settings.write" | "github.manage" | "deploy.manage" | "clusters.manage";
 
 // 当前主体（GET /api/v2/auth/me）：访客与身份无效者 user = null、level = 0
 export interface AuthMe {

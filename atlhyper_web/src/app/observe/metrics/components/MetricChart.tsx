@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, memo, useCallback } from "react";
+import { useEffect, useRef, memo } from "react";
 import * as echarts from "echarts";
 import { useI18n } from "@/i18n/context";
 import type { Point } from "@/types/node-metrics";
-import type { TimeWindow, Interval } from "./chartConstants";
 import { PALETTE, INTERVALS_BY_WINDOW, windowForHours } from "./chartConstants";
 import { getThemeColors, aggregatePoints, pickAdaptiveInterval } from "./chartUtils";
 import { joinHtml, safeHtml } from "@/lib/safe-html";
@@ -36,34 +35,6 @@ export const MetricChart = memo(function MetricChart({
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
 
-  // P3 统一：桶宽全自动（按数据跨度自适应），不再提供手动选择 ——
-  // 主流做法是范围定桶宽，让用户挑采样粒度是把实现细节漏给了用户
-  const timeWindow = windowForHours(hours);
-  const [intervalSec, setIntervalSec] = useState<Interval>(60);
-
-  // Adaptive interval: auto-select based on actual data span
-  useEffect(() => {
-    const opts = INTERVALS_BY_WINDOW[timeWindow];
-    const now = Date.now();
-    const windowMs = hours * 3600000;
-
-    // Compute data span across all nodes for this metric
-    let minTs = Infinity;
-    let maxTs = -Infinity;
-    for (const name of nodeNames) {
-      const points = historyMap[name]?.[metricKey];
-      if (!points?.length) continue;
-      for (const p of points) {
-        const ts = new Date(p.timestamp).getTime();
-        if (ts < now - windowMs) continue;
-        if (ts < minTs) minTs = ts;
-        if (ts > maxTs) maxTs = ts;
-      }
-    }
-    const span = maxTs > minTs ? maxTs - minTs : 0;
-    setIntervalSec(pickAdaptiveInterval(span, opts));
-  }, [timeWindow, historyMap, nodeNames, metricKey]);
-
   // Init ECharts
   useEffect(() => {
     if (!chartRef.current) return;
@@ -91,7 +62,6 @@ export const MetricChart = memo(function MetricChart({
       },
       yAxis: {
         type: "value",
-        name: unit,
         nameTextStyle: { color: colors.textColor, fontSize: 9 },
         min: 0,
         axisLabel: { color: colors.textColor, fontSize: 9 },
@@ -140,11 +110,24 @@ export const MetricChart = memo(function MetricChart({
     const now = Date.now();
     const rangeMs = hours * 3600000;
 
+    const pointsInRange = nodeNames.map((name) =>
+      (historyMap[name]?.[metricKey] || []).filter((p) => new Date(p.timestamp).getTime() > now - rangeMs),
+    );
+
+    // 桶宽全自动：按窗口内数据的实际跨度挑，不提供手动选择 ——
+    // 主流做法是范围定桶宽，让用户挑采样粒度是把实现细节漏给了用户
+    let earliestMs = Infinity;
+    let latestMs = -Infinity;
+    for (const point of pointsInRange.flat()) {
+      const timestampMs = new Date(point.timestamp).getTime();
+      if (timestampMs < earliestMs) earliestMs = timestampMs;
+      if (timestampMs > latestMs) latestMs = timestampMs;
+    }
+    const dataSpanMs = latestMs > earliestMs ? latestMs - earliestMs : 0;
+    const intervalSec = pickAdaptiveInterval(dataSpanMs, INTERVALS_BY_WINDOW[windowForHours(hours)]);
+
     const series = nodeNames.map((name, i) => {
-      const nodeHistory = historyMap[name] || {};
-      const raw = nodeHistory[metricKey] || [];
-      const filtered = raw.filter((p) => new Date(p.timestamp).getTime() > now - rangeMs);
-      const aggregated = aggregatePoints(filtered, intervalSec);
+      const aggregated = aggregatePoints(pointsInRange[i], intervalSec);
       return {
         name,
         type: "line" as const,
@@ -181,10 +164,10 @@ export const MetricChart = memo(function MetricChart({
         },
       },
       xAxis: { min: xAxisMin, max: xAxisMax, minInterval: intervalSec * 1000 },
-      yAxis: { max: yMax },
+      yAxis: { name: unit, max: yMax },
       series,
     });
-  }, [hours, intervalSec, historyMap, nodeNames, metricKey, unit]);
+  }, [hours, historyMap, nodeNames, metricKey, unit]);
 
   const hasData = nodeNames.some((name) => {
     const nodeHistory = historyMap[name] || {};

@@ -53,8 +53,13 @@ func (e *Enricher) assembleIncidentContext(ctx context.Context, incidentID strin
 
 	ev := &incidentEvidence{incident: incident, entities: entities, timeline: timeline}
 
-	if incident.RootCause != "" {
-		historical, _ := e.incidentRepo.ListByEntity(ctx, incident.RootCause, time.Now().Add(-historyLookback))
+	// 历史按主体查：Pod 重建会换名字，按领头 Pod 查会漏掉同一个工作负载的旧事件
+	historyKey := incident.Subject
+	if historyKey == "" {
+		historyKey = incident.RootCause
+	}
+	if historyKey != "" {
+		historical, _ := e.incidentRepo.ListByEntity(ctx, incident.ClusterID, historyKey, time.Now().Add(-historyLookback))
 		ev.historical = excludeIncident(historical, incident.ID)
 	}
 

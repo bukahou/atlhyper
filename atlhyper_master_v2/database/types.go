@@ -20,6 +20,7 @@ type AuditLog struct {
 	Action       string
 	Resource     string
 	Method       string
+	Path         string // 请求路径（不含查询串）：被操作的对象常常只出现在路径里
 	RequestBody  string
 	StatusCode   int
 	Success      bool
@@ -102,42 +103,16 @@ type HourlyKindCount struct {
 	Count int
 }
 
-// NotifyChannel 通知渠道
-type NotifyChannel struct {
-	ID        int64
-	Type      string // slack / email（UNIQUE，一个类型一条记录）
-	Name      string // 显示名称
-	Enabled   bool   // 是否启用（默认 false）
-	Config    string // JSON 配置
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// SlackConfig Slack 配置
-type SlackConfig struct {
-	WebhookURL string `json:"webhookUrl"`
-}
-
-// EmailConfig Email 配置
-type EmailConfig struct {
-	SMTPHost     string   `json:"smtpHost"`
-	SMTPPort     int      `json:"smtpPort"`
-	SMTPUser     string   `json:"smtpUser"`
-	SMTPPassword string   `json:"smtpPassword"`
-	SMTPTLS      bool     `json:"smtpTLS"`
-	FromAddress  string   `json:"fromAddress"`
-	ToAddresses  []string `json:"toAddresses"`
-}
-
-// Cluster 集群信息
+// Cluster 集群注册表的一行：管理员登记的集群，以及它的 Agent 令牌（只存哈希）
 type Cluster struct {
-	ID          int64
-	ClusterUID  string // 集群 UID（来自 kube-system）
-	Name        string // 显示名称
-	Description string
-	Environment string // prod / staging / dev
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ClusterID     string // 集群 ID，与 Agent 上报的一致
+	Name          string // 显示名称
+	Description   string
+	TokenHash     string     // 令牌哈希；空串表示尚未签发
+	TokenPrefix   string     // 令牌明文的前几个字符，供界面辨认
+	TokenIssuedAt *time.Time // 最近一次签发时间
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // CommandHistory 指令历史
@@ -368,6 +343,7 @@ type SLORouteMapping struct {
 
 // AIOpsBaselineState 基线状态数据库模型
 type AIOpsBaselineState struct {
+	ClusterID  string
 	EntityKey  string
 	MetricName string
 	EMA        float64
@@ -380,18 +356,21 @@ type AIOpsBaselineState struct {
 
 // AIOpsIncident 事件数据库模型
 type AIOpsIncident struct {
-	ID         string
-	ClusterID  string
-	State      string
-	Severity   string
-	RootCause  string
-	PeakRisk   float64
-	StartedAt  time.Time
-	ResolvedAt *time.Time
-	DurationS  int64
-	Recurrence int
-	Summary    string
-	CreatedAt  time.Time
+	ID          string
+	ClusterID   string
+	State       string
+	Severity    string // 峰值严重度：只升不降，关闭后保留
+	Subject     string // 主体键：工作负载，或实体自身
+	RootCause   string // 领头实体
+	PeakRisk    float64
+	StartedAt   time.Time
+	EscalatedAt *time.Time // 首次升级到「事件中」的时刻；从未升级为 nil
+	ResolvedAt  *time.Time
+	CloseReason string // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
+	DurationS   int64
+	Recurrence  int
+	Summary     string
+	CreatedAt   time.Time
 }
 
 // AIOpsIncidentEntity 受影响实体数据库模型
@@ -414,6 +393,29 @@ type AIOpsIncidentTimeline struct {
 	Detail     string
 }
 
+// AIOpsIncidentSignal 事件里某个成员的某个指标的累计异常记录（关键证据的来源）。
+// 每次写「异常检测」时间线时按（事件, 成员, 指标）累计
+type AIOpsIncidentSignal struct {
+	IncidentID string
+	EntityKey  string
+	Metric     string
+	FirstSeen  time.Time
+	LastSeen   time.Time
+	Hits       int
+	MaxScore   float64
+	Detail     string // 最近一次的原文
+}
+
+// AIOpsIncidentLink 拓扑归并：受影响事件归到源头事件。UnlinkedAt 为空表示关联仍有效
+type AIOpsIncidentLink struct {
+	IncidentID     string
+	ClusterID      string
+	RootIncidentID string
+	Path           string // JSON：依赖路径（aiops.LinkPathStep 数组）
+	LinkedAt       time.Time
+	UnlinkedAt     *time.Time
+}
+
 // AIOpsIncidentQueryOpts 事件查询选项
 type AIOpsIncidentQueryOpts struct {
 	ClusterID string
@@ -423,6 +425,8 @@ type AIOpsIncidentQueryOpts struct {
 	To        time.Time
 	Limit     int
 	Offset    int
+	// ExcludeLinked 不列出当前归到源头下的受影响事件（拓扑归并的折叠视图）
+	ExcludeLinked bool
 }
 
 // AIOpsIncidentStatsRaw Repository 层返回的统计原始数据

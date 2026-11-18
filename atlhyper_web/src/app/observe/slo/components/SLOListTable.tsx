@@ -83,7 +83,6 @@ export const SLOListTable = memo(function SLOListTable({
   onSelect,
   timeRange,
   clusterId,
-  onRefresh,
   t,
   detailT,
 }: {
@@ -92,7 +91,6 @@ export const SLOListTable = memo(function SLOListTable({
   onSelect: (domain: string) => void;
   timeRange: string;
   clusterId: string;
-  onRefresh: () => void;
   t: SLOListTableTranslations;
   detailT: DomainDetailTranslations;
 }) {
@@ -213,7 +211,6 @@ export const SLOListTable = memo(function SLOListTable({
                         domain={d}
                         timeRange={timeRange}
                         clusterId={clusterId}
-                        onRefresh={onRefresh}
                         t={detailT}
                       />
                     </td>

@@ -248,3 +248,53 @@ func TestCreateCommand_RejectsMalformedTarget(t *testing.T) {
 		})
 	}
 }
+
+// orderRecorder 记录「写历史」与「入队」的先后
+type orderRecorder struct {
+	mockProducer
+	mockCommandRepo
+	steps      []string
+	enqueueErr error
+	updated    *database.CommandHistory
+}
+
+func (o *orderRecorder) Create(_ context.Context, _ *database.CommandHistory) error {
+	o.steps = append(o.steps, "history")
+	return nil
+}
+
+func (o *orderRecorder) Update(_ context.Context, cmd *database.CommandHistory) error {
+	o.updated = cmd
+	return nil
+}
+
+func (o *orderRecorder) EnqueueCommand(_, _ string, _ *command.Command) error {
+	o.steps = append(o.steps, "enqueue")
+	return o.enqueueErr
+}
+
+// 指令一入队 Agent 就可能立刻执行并回报结果；历史记录必须先写好，结果回来时才找得到它。
+func TestCreateCommand_HistoryIsWrittenBeforeEnqueue(t *testing.T) {
+	recorder := &orderRecorder{}
+	svc := NewCommandService(recorder, recorder)
+
+	if _, err := svc.CreateCommand(validRequest()); err != nil {
+		t.Fatal(err)
+	}
+	if len(recorder.steps) != 2 || recorder.steps[0] != "history" || recorder.steps[1] != "enqueue" {
+		t.Errorf("顺序 = %v, want [history enqueue]", recorder.steps)
+	}
+}
+
+// 入队失败时，已经写下的历史记录要标成失败，不能永远停在 pending。
+func TestCreateCommand_EnqueueFailureMarksHistoryFailed(t *testing.T) {
+	recorder := &orderRecorder{enqueueErr: fmt.Errorf("queue unavailable")}
+	svc := NewCommandService(recorder, recorder)
+
+	if _, err := svc.CreateCommand(validRequest()); err == nil {
+		t.Fatal("期望返回入队错误")
+	}
+	if recorder.updated == nil || recorder.updated.Status != command.StatusFailed {
+		t.Errorf("入队失败后历史应标为 failed，实际 %+v", recorder.updated)
+	}
+}

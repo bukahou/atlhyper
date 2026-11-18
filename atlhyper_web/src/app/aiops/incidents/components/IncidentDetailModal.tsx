@@ -1,81 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { X, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { RiskBadge } from "@/components/aiops/RiskBadge";
-import { EntityLink } from "@/components/aiops/EntityLink";
 import { AIAnalysisSection } from "@/components/aiops/AIAnalysisSection";
-import { RootCauseCard } from "./RootCauseCard";
+import { incidentSubject } from "@/lib/entity-key";
+import { incidentDetailQuery } from "@/queries/aiops";
+import { IncidentEvidence } from "./IncidentEvidence";
+import { IncidentHistory } from "./IncidentHistory";
+import { IncidentImpactScope } from "./IncidentImpactScope";
+import { IncidentMembers } from "./IncidentMembers";
+import { IncidentNextSteps } from "./IncidentNextSteps";
+import { IncidentRootLink } from "./IncidentRootLink";
+import { IncidentVerdict } from "./IncidentVerdict";
+import { SubjectTitle } from "./SubjectTitle";
 import { TimelineView } from "./TimelineView";
-import { getIncidentDetail, getIncidentPatterns } from "@/api/aiops";
-import { useClusterStore } from "@/store/clusterStore";
-import type { IncidentDetail, IncidentPattern } from "@/api/aiops";
-import { formatRiskScore } from "@/lib/risk";
-
-const STATE_COLORS: Record<string, string> = {
-  warning: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
-  incident: "bg-red-500/15 text-red-600 dark:text-red-400",
-  recovery: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  stable: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-};
+import { withDetailGroupingDefaults } from "./incident-grouping-format";
+import { fillTemplate, withDetailViewDefaults } from "./incident-view-format";
 
 interface IncidentDetailModalProps {
   incidentId: string | null;
   open: boolean;
   onClose: () => void;
+  /** 切到另一个事件的详情（源头 / 受影响事件之间跳转） */
+  onSelectIncident: (incidentId: string) => void;
 }
 
-function formatDuration(seconds: number, minuteLabel: string): string {
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} ${minuteLabel}`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  root_cause: "text-red-500",
-  affected: "text-yellow-600 dark:text-yellow-400",
-  symptom: "text-blue-500",
-};
-
-
-export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetailModalProps) {
+/**
+ * 事件详情。从上到下：
+ * 结论（受影响事件下方一行「源头：…经…」）→ 关键证据 →（源头事件）影响范围 → 下一步 → 成员
+ * → 时间线（默认折叠）→ 历史与 AI 分析。
+ */
+export function IncidentDetailModal({ incidentId, open, onClose, onSelectIncident }: IncidentDetailModalProps) {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [detail, setDetail] = useState<IncidentDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  // 历史模式（G2）：拿到详情后按 rootCause 实体查同类事件史
-  const [pattern, setPattern] = useState<IncidentPattern | null | undefined>(undefined);
-
-  useEffect(() => {
-    if (!incidentId || !open) {
-      setDetail(null);
-      return;
-    }
-
-    setLoading(true);
-    setPattern(undefined);
-    getIncidentDetail(incidentId)
-      .then((d) => {
-        setDetail(d);
-        // rootCause 字段即实体 key；查 30 天内同实体的事件史
-        if (d?.rootCause) {
-          getIncidentPatterns(currentClusterId, d.rootCause)
-            .then((ps) => setPattern(ps.find((p) => p.entityKey === d.rootCause) ?? null))
-            .catch(() => setPattern(null));
-        } else {
-          setPattern(null);
-        }
-      })
-      .catch((err) => console.error("Failed to load incident detail:", err))
-      .finally(() => setLoading(false));
-  }, [incidentId, open, currentClusterId]);
+  // 弹窗关着时不取：incidentId 传空串，查询不启用
+  const detailQuery = useQuery(incidentDetailQuery(open && incidentId ? incidentId : ""));
+  const detail = detailQuery.data ? withDetailGroupingDefaults(withDetailViewDefaults(detailQuery.data)) : undefined;
+  const loading = detailQuery.isPending;
+  const aiSectionRef = useRef<HTMLDivElement>(null);
+  // 没有证据时区分「改版前的事件」与「只有依赖传播」：由后端判定（evidenceStatus）
+  const hasDetections = detail?.evidenceStatus === "not_recorded";
 
   if (!open) return null;
 
-  const rootCauseEntity = detail?.entities.find((e) => e.role === "root_cause");
+  const scrollToAIAnalysis = () => aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -85,11 +54,20 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
       {/* 弹窗 */}
       <div className="relative bg-card border border-[var(--border-color)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4">
         {/* 头部 */}
-        <div className="sticky top-0 bg-card border-b border-[var(--border-color)] px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-bold text-default">
-              {t.aiops.incidentId} {detail?.id ?? incidentId}
-            </h2>
+        <div className="sticky top-0 z-10 bg-card border-b border-[var(--border-color)] px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          {/* 标题是主体（类型 + 命名空间 + 名称）；详情还没回来时只有事件号 */}
+          <div className="min-w-0">
+            {detail && (
+              <h2 className="text-base text-default min-w-0">
+                <SubjectTitle incident={detail} size="lg" />
+              </h2>
+            )}
+            <p className={detail ? "text-xs text-muted mt-0.5" : "text-base font-bold text-default"}>
+              {t.aiops.incidentId} <span className="font-mono">{detail?.id ?? incidentId}</span>
+              {detail && detail.clusterId !== "" && (
+                <> · {fillTemplate(t.aiops.detail.clusterLabel, { cluster: detail.clusterId })}</>
+              )}
+            </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-[var(--hover-bg)] text-muted hover:text-default transition-colors">
             <X className="w-5 h-5" />
@@ -104,77 +82,46 @@ export function IncidentDetailModal({ incidentId, open, onClose }: IncidentDetai
             </div>
           ) : detail ? (
             <>
-              {/* 状态行 */}
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATE_COLORS[detail.state] ?? ""}`}>
-                  {t.aiops.state[detail.state as keyof typeof t.aiops.state] ?? detail.state}
-                </span>
-                <RiskBadge level={detail.severity} size="md" />
-                <span className="text-muted">
-                  {t.aiops.duration}: <span className="text-default font-medium">{formatDuration(detail.durationS, t.aiops.minutes)}</span>
-                </span>
-                <span className="text-muted">
-                  {t.aiops.peakRisk}: <span className="text-default font-mono font-medium">{detail.peakRisk.toFixed(1)}</span>
-                </span>
-              </div>
+              {/* 结论：状态、严重度、时长、一句话、影响数字 */}
+              <IncidentVerdict incident={detail} hasDetections={hasDetections} />
 
-              {/* 根因卡片 */}
-              <RootCauseCard entity={rootCauseEntity} />
+              {/* 受影响事件：源头与依赖路径，点击切到源头 */}
+              {detail.root && <IncidentRootLink root={detail.root} onOpenIncident={onSelectIncident} />}
 
-              {/* 受影响实体 */}
-              {detail.entities.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                    {t.aiops.affectedEntities}
-                  </h4>
-                  <div className="space-y-1.5">
-                    {detail.entities.map((e) => (
-                      <div key={e.entityKey} className="flex items-center gap-3 text-sm">
-                        <EntityLink entityKey={e.entityKey} />
-                        <span className={`text-xs font-medium ${ROLE_COLORS[e.role] ?? "text-muted"}`}>{e.role}</span>
-                        <span className="text-xs text-muted">
-                          R={formatRiskScore(e.rFinal)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              {/* 关键证据：按信号去重 */}
+              <IncidentEvidence
+                evidence={detail.evidence}
+                totalMembers={detail.headline?.totalMembers ?? detail.members.length}
+                hasDetections={hasDetections}
+              />
+
+              {/* 源头事件：影响范围（归到它下面的受影响事件） */}
+              {detail.impacted.length > 0 && (
+                <IncidentImpactScope impacted={detail.impacted} onOpenIncident={onSelectIncident} />
               )}
 
-              {/* 时间线 */}
-              <TimelineView timeline={detail.timeline} />
+              {/* 下一步：去哪查 */}
+              <IncidentNextSteps
+                subject={incidentSubject(detail)}
+                subjectGone={detail.subjectPresent === false}
+                members={detail.members}
+                onOpenAIAnalysis={scrollToAIAnalysis}
+              />
 
-              {/* 历史模式（G2）：这个问题是不是老毛病 */}
-              <div>
-                <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                  {t.aiops.patternTitle}
-                </h4>
-                {pattern === undefined ? (
-                  <div className="text-xs text-muted opacity-60">…</div>
-                ) : pattern === null || pattern.patternCount <= 1 ? (
-                  <div className="text-xs text-muted">{t.aiops.patternFirst}</div>
-                ) : (
-                  <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
-                    <span className="text-muted">
-                      {t.aiops.patternRecur}:{" "}
-                      <span className="text-default font-medium tabular-nums">{pattern.patternCount}</span>
-                    </span>
-                    <span className="text-muted">
-                      {t.aiops.patternAvgDuration}:{" "}
-                      <span className="text-default tabular-nums">
-                        {formatDuration(pattern.avgDuration, t.aiops.minutes)}
-                      </span>
-                    </span>
-                    <span className="text-muted">
-                      {t.aiops.patternLast}:{" "}
-                      <span className="text-default">{new Date(pattern.lastOccurrence).toLocaleString()}</span>
-                    </span>
-                  </div>
-                )}
+              {/* 成员：状态、重启、风险；「风险最高」标记 */}
+              <IncidentMembers members={detail.members} />
+
+              {/* 时间线：默认折叠 */}
+              <TimelineView items={detail.timelineView} />
+
+              {/* 收尾：历史与 AI 分析 */}
+              <IncidentHistory incident={detail} />
+              <div
+                ref={aiSectionRef}
+                className="scroll-mt-24 rounded-xl border border-dashed border-[var(--border-color)] px-3 py-2.5"
+              >
+                <AIAnalysisSection incidentId={detail.id} incidentState={detail.state} />
               </div>
-
-              {/* AI 分析报告 */}
-              <AIAnalysisSection incidentId={detail.id} incidentState={detail.state} />
             </>
           ) : (
             <div className="py-8 text-center text-sm text-muted">{t.aiops.noData}</div>

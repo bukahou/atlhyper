@@ -31,10 +31,19 @@ func (m *mockIncidentRepo) CreateIncident(ctx context.Context, inc *database.AIO
 func (m *mockIncidentRepo) GetByID(ctx context.Context, id string) (*database.AIOpsIncident, error) {
 	return m.incident, nil
 }
-func (m *mockIncidentRepo) UpdateState(ctx context.Context, id, state, severity string) error {
+func (m *mockIncidentRepo) UpdateState(ctx context.Context, id, state string) error {
 	return nil
 }
-func (m *mockIncidentRepo) Resolve(ctx context.Context, id string, resolvedAt time.Time) error {
+func (m *mockIncidentRepo) RaiseSeverity(ctx context.Context, id, severity string, peakRisk float64) error {
+	return nil
+}
+func (m *mockIncidentRepo) MarkEscalated(ctx context.Context, id string, escalatedAt time.Time) error {
+	return nil
+}
+func (m *mockIncidentRepo) SetAnomalyDuration(ctx context.Context, id string, endedAt time.Time) error {
+	return nil
+}
+func (m *mockIncidentRepo) Resolve(ctx context.Context, id string, resolvedAt time.Time, reason string) error {
 	return nil
 }
 func (m *mockIncidentRepo) UpdateRootCause(ctx context.Context, id, rootCause string) error {
@@ -60,6 +69,21 @@ func (m *mockIncidentRepo) GetEntities(ctx context.Context, incidentID string) (
 func (m *mockIncidentRepo) AddTimeline(ctx context.Context, entry *database.AIOpsIncidentTimeline) error {
 	return nil
 }
+func (m *mockIncidentRepo) SaveLink(ctx context.Context, link *database.AIOpsIncidentLink) error {
+	return nil
+}
+func (m *mockIncidentRepo) UnlinkIncident(ctx context.Context, incidentID string, at time.Time) error {
+	return nil
+}
+func (m *mockIncidentRepo) ListActiveLinks(ctx context.Context, clusterID string) ([]*database.AIOpsIncidentLink, error) {
+	return nil, nil
+}
+func (m *mockIncidentRepo) UpsertSignal(ctx context.Context, signal *database.AIOpsIncidentSignal) error {
+	return nil
+}
+func (m *mockIncidentRepo) GetSignals(ctx context.Context, incidentID string) ([]*database.AIOpsIncidentSignal, error) {
+	return nil, nil
+}
 func (m *mockIncidentRepo) GetTimeline(ctx context.Context, incidentID string) ([]*database.AIOpsIncidentTimeline, error) {
 	return m.timeline, nil
 }
@@ -69,7 +93,7 @@ func (m *mockIncidentRepo) GetIncidentStats(ctx context.Context, clusterID strin
 func (m *mockIncidentRepo) TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]database.AIOpsRootCauseCount, error) {
 	return nil, nil
 }
-func (m *mockIncidentRepo) ListByEntity(ctx context.Context, entityKey string, since time.Time) ([]*database.AIOpsIncident, error) {
+func (m *mockIncidentRepo) ListByEntity(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*database.AIOpsIncident, error) {
 	return m.byEntity, nil
 }
 

@@ -62,13 +62,14 @@ interface ClusterResourceParams {
 // API Functions
 // ============================================================
 
-export function getServiceAccountList(params: ClusterResourceParams) {
-  return get<ListResponse<ServiceAccountItem>>("/api/v2/service-accounts", params);
+export function getServiceAccountList(params: ClusterResourceParams, signal?: AbortSignal) {
+  return get<ListResponse<ServiceAccountItem>>("/api/v2/service-accounts", params, signal);
 }
 
-export function getServiceAccountDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
+export function getServiceAccountDetail(params: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<DetailResponse<ServiceAccountDetail>>(
     `/api/v2/service-accounts/${encodeURIComponent(params.Name)}`,
-    { cluster_id: params.ClusterID, namespace: params.Namespace }
+    { cluster_id: params.ClusterID, namespace: params.Namespace },
+    signal,
   );
 }

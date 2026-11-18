@@ -10,10 +10,10 @@ import (
 )
 
 // GetPatterns 获取与指定实体相关的历史事件模式
-func (s *Store) GetPatterns(ctx context.Context, entityKey string, since time.Time) []*aiops.IncidentPattern {
-	incidents, err := s.repo.ListByEntity(ctx, entityKey, since)
+func (s *Store) GetPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*aiops.IncidentPattern {
+	incidents, err := s.repo.ListByEntity(ctx, clusterID, entityKey, since)
 	if err != nil {
-		log.Error("查询实体事件历史失败", "entity", entityKey, "err", err)
+		log.Error("查询实体事件历史失败", "cluster", clusterID, "entity", entityKey, "err", err)
 		return nil
 	}
 

@@ -2,7 +2,6 @@
  * APM Mock 静态数据 — 基于 ClickHouse 真实数据特征生成
  *
  * 6 个 geass 服务, ~80 traces, ~800 spans
- * 参考: docs/design/active/clickhouse-otel-data-reference.md
  */
 
 import type { Span, TraceSummary, TraceDetail, APMService, Topology } from "@/types/model/apm";

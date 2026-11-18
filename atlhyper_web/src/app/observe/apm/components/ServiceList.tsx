@@ -18,6 +18,16 @@ interface ServiceListProps {
 type SortKey = "name" | "avgDurationMs" | "rps" | "successRate" | "p50Ms" | "p99Ms";
 type SortDir = "asc" | "desc";
 
+/** 表头的排序箭头：当前排序列显示方向，其余列显示可排序的提示 */
+function SortIcon({ active, direction }: { active: boolean; direction: SortDir }) {
+  if (!active) return <ArrowUpDown className="w-3 h-3 text-muted/50" />;
+  return direction === "asc" ? (
+    <ArrowUp className="w-3 h-3 text-primary" />
+  ) : (
+    <ArrowDown className="w-3 h-3 text-primary" />
+  );
+}
+
 export function ServiceList({
   t,
   tt,
@@ -65,15 +75,6 @@ export function ServiceList({
     }
   };
 
-  const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-muted/50" />;
-    return sortDir === "asc" ? (
-      <ArrowUp className="w-3 h-3 text-primary" />
-    ) : (
-      <ArrowDown className="w-3 h-3 text-primary" />
-    );
-  };
-
   return (
     <div className="space-y-3">
       {/* Search */}
@@ -96,7 +97,7 @@ export function ServiceList({
               <th className="text-left px-4 py-2.5 font-medium text-muted">
                 <button onClick={() => toggleSort("name")} className="flex items-center gap-1 hover:text-default transition-colors">
                   {t.serviceName}
-                  <SortIcon col="name" />
+                  <SortIcon active={sortKey === "name"} direction={sortDir} />
                 </button>
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
@@ -105,31 +106,31 @@ export function ServiceList({
               <th className="text-left px-3 py-2.5 font-medium text-muted">
                 <button onClick={() => toggleSort("avgDurationMs")} className="flex items-center gap-1 hover:text-default transition-colors">
                   {t.latencyAvg}
-                  <SortIcon col="avgDurationMs" />
+                  <SortIcon active={sortKey === "avgDurationMs"} direction={sortDir} />
                 </button>
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
                 <button onClick={() => toggleSort("p50Ms")} className="flex items-center gap-1 hover:text-default transition-colors">
                   P50
-                  <SortIcon col="p50Ms" />
+                  <SortIcon active={sortKey === "p50Ms"} direction={sortDir} />
                 </button>
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
                 <button onClick={() => toggleSort("p99Ms")} className="flex items-center gap-1 hover:text-default transition-colors">
                   P99
-                  <SortIcon col="p99Ms" />
+                  <SortIcon active={sortKey === "p99Ms"} direction={sortDir} />
                 </button>
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
                 <button onClick={() => toggleSort("rps")} className="flex items-center gap-1 hover:text-default transition-colors">
                   RPS
-                  <SortIcon col="rps" />
+                  <SortIcon active={sortKey === "rps"} direction={sortDir} />
                 </button>
               </th>
               <th className="text-left px-3 py-2.5 font-medium text-muted">
                 <button onClick={() => toggleSort("successRate")} className="flex items-center gap-1 hover:text-default transition-colors">
                   {t.successRate}
-                  <SortIcon col="successRate" />
+                  <SortIcon active={sortKey === "successRate"} direction={sortDir} />
                 </button>
               </th>
             </tr>

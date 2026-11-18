@@ -3,6 +3,7 @@ package snapshot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -221,45 +222,113 @@ func TestCollect_AllResourcesPopulated(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestCollect_PartialFailure
+// 部分资源采集失败
 // ---------------------------------------------------------------------------
 
-func TestCollect_PartialFailure(t *testing.T) {
-	podRepo := &mock.PodRepository{
-		ListFn: func(_ context.Context, _ string, _ model.ListOptions) ([]cluster.Pod, error) {
-			return nil, errors.New("pod list failed")
-		},
+// failingOnce 返回一个 Deployment 列表函数：第 failAt 次调用失败，其余成功
+func deploymentListFailingAt(failAt int, calls *int) func(context.Context, string, model.ListOptions) ([]cluster.Deployment, error) {
+	return func(context.Context, string, model.ListOptions) ([]cluster.Deployment, error) {
+		*calls++
+		if *calls == failAt {
+			return nil, errors.New("deployment list failed")
+		}
+		return []cluster.Deployment{{Summary: cluster.DeploymentSummary{Name: "deploy-1"}}}, nil
 	}
-	nodeRepo := &mock.NodeRepository{
-		ListFn: func(_ context.Context, _ model.ListOptions) ([]cluster.Node, error) {
-			return []cluster.Node{{Summary: cluster.NodeSummary{Name: "node-1"}}}, nil
-		},
-	}
-	deploymentRepo := &mock.DeploymentRepository{
-		ListFn: func(_ context.Context, _ string, _ model.ListOptions) ([]cluster.Deployment, error) {
-			return []cluster.Deployment{{Summary: cluster.DeploymentSummary{Name: "deploy-1"}}}, nil
-		},
-	}
+}
 
+func onePod(context.Context, string, model.ListOptions) ([]cluster.Pod, error) {
+	return []cluster.Pod{{Summary: cluster.PodSummary{Name: "pod-1"}}}, nil
+}
+
+// 一类资源这一轮采集失败：用上一轮的结果顶上，快照照常产出，其他资源是本轮的新数据。
+func TestCollect_FailedKindReusesPreviousRound(t *testing.T) {
+	deploymentCalls, podCalls := 0, 0
 	svc := newTestService(func(s *snapshotService) {
-		s.podRepo = podRepo
-		s.nodeRepo = nodeRepo
-		s.deploymentRepo = deploymentRepo
+		s.deploymentRepo = &mock.DeploymentRepository{ListFn: deploymentListFailingAt(2, &deploymentCalls)}
+		s.podRepo = &mock.PodRepository{ListFn: func(context.Context, string, model.ListOptions) ([]cluster.Pod, error) {
+			podCalls++
+			return []cluster.Pod{{Summary: cluster.PodSummary{Name: fmt.Sprintf("pod-round-%d", podCalls)}}}, nil
+		}}
 	})
 
+	if _, err := svc.Collect(context.Background()); err != nil {
+		t.Fatalf("第 1 轮应成功: %v", err)
+	}
 	snapshot, err := svc.Collect(context.Background())
-	if err == nil {
-		t.Fatal("expected an error from partial failure, got nil")
+	if err != nil {
+		t.Fatalf("第 2 轮有一类资源失败，仍应产出快照: %v", err)
 	}
-	if snapshot.Pods != nil {
-		t.Errorf("Pods should be nil when pod repo fails, got %d items", len(snapshot.Pods))
+	if len(snapshot.Deployments) != 1 || snapshot.Deployments[0].Summary.Name != "deploy-1" {
+		t.Errorf("失败的那类资源应沿用上一轮结果，实际 %+v", snapshot.Deployments)
 	}
-	if snapshot.Nodes == nil || len(snapshot.Nodes) == 0 {
-		t.Error("Nodes should still be populated despite pod failure")
+	if len(snapshot.Pods) != 1 || snapshot.Pods[0].Summary.Name != "pod-round-2" {
+		t.Errorf("其他资源应是本轮的新数据，实际 %+v", snapshot.Pods)
 	}
-	if snapshot.Deployments == nil || len(snapshot.Deployments) == 0 {
-		t.Error("Deployments should still be populated despite pod failure")
+}
+
+// 连续多轮失败：一直沿用最后一次成功的结果，恢复后换回新数据。
+func TestCollect_FailedKindKeepsLastGoodAcrossRounds(t *testing.T) {
+	calls := 0
+	svc := newTestService(func(s *snapshotService) {
+		s.podRepo = &mock.PodRepository{ListFn: onePod}
+		s.deploymentRepo = &mock.DeploymentRepository{ListFn: func(context.Context, string, model.ListOptions) ([]cluster.Deployment, error) {
+			calls++
+			switch calls {
+			case 1:
+				return []cluster.Deployment{{Summary: cluster.DeploymentSummary{Name: "old"}}}, nil
+			case 2, 3:
+				return nil, errors.New("deployment list failed")
+			default:
+				return []cluster.Deployment{{Summary: cluster.DeploymentSummary{Name: "new"}}}, nil
+			}
+		}}
+	})
+
+	want := []string{"old", "old", "old", "new"}
+	for round, name := range want {
+		snapshot, err := svc.Collect(context.Background())
+		if err != nil {
+			t.Fatalf("第 %d 轮: %v", round+1, err)
+		}
+		if len(snapshot.Deployments) != 1 || snapshot.Deployments[0].Summary.Name != name {
+			t.Errorf("第 %d 轮 Deployments = %+v, want %q", round+1, snapshot.Deployments, name)
+		}
 	}
+}
+
+// 启动后第一轮就失败、没有上一轮可用：
+// Pod / Node 是其余一切的基础，缺了就不产出快照；其他资源留空照常产出。
+func TestCollect_FirstRoundFailure(t *testing.T) {
+	failingPods := &mock.PodRepository{ListFn: func(context.Context, string, model.ListOptions) ([]cluster.Pod, error) {
+		return nil, errors.New("pod list failed")
+	}}
+	failingIngresses := &mock.IngressRepository{ListFn: func(context.Context, string, model.ListOptions) ([]cluster.Ingress, error) {
+		return nil, errors.New("ingress list forbidden")
+	}}
+
+	t.Run("Pod 失败则不产出", func(t *testing.T) {
+		svc := newTestService(func(s *snapshotService) { s.podRepo = failingPods })
+		if _, err := svc.Collect(context.Background()); err == nil {
+			t.Fatal("期望返回错误")
+		}
+	})
+
+	t.Run("Ingress 失败照常产出", func(t *testing.T) {
+		svc := newTestService(func(s *snapshotService) {
+			s.podRepo = &mock.PodRepository{ListFn: onePod}
+			s.ingressRepo = failingIngresses
+		})
+		snapshot, err := svc.Collect(context.Background())
+		if err != nil {
+			t.Fatalf("非基础资源失败不应阻止快照: %v", err)
+		}
+		if len(snapshot.Pods) != 1 {
+			t.Errorf("Pods 应正常采集，实际 %d 个", len(snapshot.Pods))
+		}
+		if len(snapshot.Ingresses) != 0 {
+			t.Errorf("失败且无上一轮可用的资源应为空，实际 %d 个", len(snapshot.Ingresses))
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -97,6 +97,7 @@ func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *command.Command
 	b.commandsMu.Lock()
 	b.commands[cmd.ID] = &command.Status{
 		CommandID: cmd.ID,
+		ClusterID: clusterID,
 		Status:    command.StatusPending,
 		CreatedAt: cmd.CreatedAt,
 	}
@@ -168,13 +169,17 @@ func (b *MemoryBus) updateCommandStatus(cmdID, status string) {
 }
 
 // AckCommand 确认指令完成
-func (b *MemoryBus) AckCommand(cmdID string, result *command.Result) error {
+func (b *MemoryBus) AckCommand(clusterID, cmdID string, result *command.Result) error {
 	b.commandsMu.Lock()
 
 	cs, ok := b.commands[cmdID]
 	if !ok {
 		b.commandsMu.Unlock()
 		return nil
+	}
+	if clusterID != "" && cs.ClusterID != "" && cs.ClusterID != clusterID {
+		b.commandsMu.Unlock()
+		return command.ErrNotOwnedByCluster
 	}
 
 	now := time.Now()

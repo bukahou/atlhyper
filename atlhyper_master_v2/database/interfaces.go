@@ -18,7 +18,13 @@ type DB struct {
 	User           UserRepository
 	UserIdentity   UserIdentityRepository
 	Event          ClusterEventRepository
-	Notify         NotifyChannelRepository
+	NotifyPolicy   NotifyPolicyRepository // 通知模块六个仓库的接口定义见 interfaces_notify.go
+	NotifyAlert    NotifyAlertRepository
+	NotifyDelivery NotifyDeliveryRepository
+	NotifyReceiver NotifyReceiverRepository
+	NotifyRule     NotifyRuleRepository
+	NotifySilence  NotifySilenceRepository
+	NotifySMTP     NotifySMTPRepository
 	Cluster        ClusterRepository
 	Command        CommandHistoryRepository
 	Settings       SettingsRepository
@@ -109,24 +115,21 @@ type ClusterEventRepository interface {
 	CountByHourAndKind(ctx context.Context, clusterID string, hours int) ([]HourlyKindCount, error)
 }
 
-// NotifyChannelRepository 通知渠道接口
-type NotifyChannelRepository interface {
-	Create(ctx context.Context, channel *NotifyChannel) error
-	Update(ctx context.Context, channel *NotifyChannel) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*NotifyChannel, error)
-	GetByType(ctx context.Context, channelType string) (*NotifyChannel, error)
-	List(ctx context.Context) ([]*NotifyChannel, error)
-	ListEnabled(ctx context.Context) ([]*NotifyChannel, error)
-}
-
 // ClusterRepository 集群接口
 type ClusterRepository interface {
+	// Create 登记集群；集群 ID 已存在时返回 ErrClusterExists
 	Create(ctx context.Context, cluster *Cluster) error
-	Update(ctx context.Context, cluster *Cluster) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*Cluster, error)
-	GetByUID(ctx context.Context, uid string) (*Cluster, error)
+	// UpdateProfile 修改显示名与描述；集群未登记时返回 ErrClusterNotFound
+	UpdateProfile(ctx context.Context, clusterID, name, description string) error
+	// SetToken 写入新签发令牌的哈希，旧令牌随之失效；集群未登记时返回 ErrClusterNotFound
+	SetToken(ctx context.Context, clusterID, tokenHash, tokenPrefix string, issuedAt time.Time) error
+	// Delete 删除登记（令牌随之失效）；集群未登记时返回 ErrClusterNotFound
+	Delete(ctx context.Context, clusterID string) error
+	// GetByID 未登记时返回 (nil, nil)
+	GetByID(ctx context.Context, clusterID string) (*Cluster, error)
+	// GetByTokenHash 按令牌哈希查集群；哈希为空或查不到时返回 (nil, nil)
+	GetByTokenHash(ctx context.Context, tokenHash string) (*Cluster, error)
+	// List 全部已登记的集群，按集群 ID 排序
 	List(ctx context.Context) ([]*Cluster, error)
 }
 
@@ -252,8 +255,8 @@ type AIReportRepository interface {
 type AIOpsBaselineRepository interface {
 	BatchUpsert(ctx context.Context, states []*AIOpsBaselineState) error
 	ListAll(ctx context.Context) ([]*AIOpsBaselineState, error)
-	ListByEntity(ctx context.Context, entityKey string) ([]*AIOpsBaselineState, error)
-	DeleteByEntity(ctx context.Context, entityKey string) error
+	// DeleteEntities 删除某个集群里若干实体的全部基线行（实体已从集群消失）
+	DeleteEntities(ctx context.Context, clusterID string, entityKeys []string) error
 }
 
 // AIOpsGraphRepository 依赖图快照数据访问接口
@@ -269,8 +272,17 @@ type AIOpsGraphRepository interface {
 type AIOpsIncidentRepository interface {
 	CreateIncident(ctx context.Context, inc *AIOpsIncident) error
 	GetByID(ctx context.Context, id string) (*AIOpsIncident, error)
-	UpdateState(ctx context.Context, id, state, severity string) error
-	Resolve(ctx context.Context, id string, resolvedAt time.Time) error
+	// UpdateState 只改状态；严重度是峰值，由 RaiseSeverity 单独维护
+	UpdateState(ctx context.Context, id, state string) error
+	// RaiseSeverity 严重度与峰值风险只升不降：传入更低的值不改动
+	RaiseSeverity(ctx context.Context, id, severity string, peakRisk float64) error
+	// MarkEscalated 记下首次升级到「事件中」的时刻；已有值时不覆盖
+	MarkEscalated(ctx context.Context, id string, escalatedAt time.Time) error
+	// SetAnomalyDuration 记下异常持续到 endedAt 为止的时长（进入恢复观察期时调用）
+	SetAnomalyDuration(ctx context.Context, id string, endedAt time.Time) error
+	// Resolve 关闭事件：状态置为 stable，写结束时间与关闭原因；严重度保留。
+	// 时长：从恢复观察期关闭的沿用进入观察期时记下的值，其余算到关闭时刻
+	Resolve(ctx context.Context, id string, resolvedAt time.Time, reason string) error
 	UpdateRootCause(ctx context.Context, id, rootCause string) error
 	UpdatePeakRisk(ctx context.Context, id string, peakRisk float64) error
 	IncrementRecurrence(ctx context.Context, id string) error
@@ -280,9 +292,20 @@ type AIOpsIncidentRepository interface {
 	GetEntities(ctx context.Context, incidentID string) ([]*AIOpsIncidentEntity, error)
 	AddTimeline(ctx context.Context, entry *AIOpsIncidentTimeline) error
 	GetTimeline(ctx context.Context, incidentID string) ([]*AIOpsIncidentTimeline, error)
+	// UpsertSignal 累计一条信号记录：首次插入，之后更新最近时刻、次数 +1、最高分取大、原文换成最新
+	UpsertSignal(ctx context.Context, signal *AIOpsIncidentSignal) error
+	// GetSignals 某个事件的全部信号记录
+	GetSignals(ctx context.Context, incidentID string) ([]*AIOpsIncidentSignal, error)
+	// SaveLink 写入或更新一条关联（以受影响事件为键，换源头时覆盖；会清掉解除时刻）
+	SaveLink(ctx context.Context, link *AIOpsIncidentLink) error
+	// UnlinkIncident 解除受影响事件的关联（写解除时刻）；没有有效关联时不报错
+	UnlinkIncident(ctx context.Context, incidentID string, at time.Time) error
+	// ListActiveLinks 某个集群当前有效的关联；clusterID 为空 = 全部集群
+	ListActiveLinks(ctx context.Context, clusterID string) ([]*AIOpsIncidentLink, error)
 	GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*AIOpsIncidentStatsRaw, error)
 	TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]AIOpsRootCauseCount, error)
-	ListByEntity(ctx context.Context, entityKey string, since time.Time) ([]*AIOpsIncident, error)
+	// ListByEntity 某个集群里与指定实体相关的事件：主体是它，或成员实体里有它（键只在集群内唯一）
+	ListByEntity(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*AIOpsIncident, error)
 }
 
 // ==================== GitHub Integration Repository 接口 ====================
@@ -329,7 +352,13 @@ type Dialect interface {
 	User() UserDialect
 	UserIdentity() UserIdentityDialect
 	Event() EventDialect
-	Notify() NotifyDialect
+	NotifyPolicy() NotifyPolicyDialect
+	NotifyAlert() NotifyAlertDialect
+	NotifyDelivery() NotifyDeliveryDialect
+	NotifyReceiver() NotifyReceiverDialect
+	NotifyRule() NotifyRuleDialect
+	NotifySilence() NotifySilenceDialect
+	NotifySMTP() NotifySMTPDialect
 	Cluster() ClusterDialect
 	Command() CommandDialect
 	Settings() SettingsDialect
@@ -398,27 +427,18 @@ type EventDialect interface {
 	ScanHourlyKindCount(rows *sql.Rows) (*HourlyKindCount, error)
 }
 
-// NotifyDialect 通知渠道 SQL 方言
-type NotifyDialect interface {
-	Insert(ch *NotifyChannel) (query string, args []any)
-	Update(ch *NotifyChannel) (query string, args []any)
-	Delete(id int64) (query string, args []any)
-	SelectByID(id int64) (query string, args []any)
-	SelectByType(channelType string) (query string, args []any)
-	SelectAll() (query string, args []any)
-	SelectEnabled() (query string, args []any)
-	ScanRow(rows *sql.Rows) (*NotifyChannel, error)
-}
-
 // ClusterDialect 集群 SQL 方言
 type ClusterDialect interface {
-	Insert(cluster *Cluster) (query string, args []any)
-	Update(cluster *Cluster) (query string, args []any)
-	Delete(id int64) (query string, args []any)
-	SelectByID(id int64) (query string, args []any)
-	SelectByUID(uid string) (query string, args []any)
+	Insert(cluster *Cluster, now time.Time) (query string, args []any)
+	UpdateProfile(clusterID, name, description string, now time.Time) (query string, args []any)
+	UpdateToken(clusterID, tokenHash, tokenPrefix string, issuedAt, now time.Time) (query string, args []any)
+	Delete(clusterID string) (query string, args []any)
+	SelectByID(clusterID string) (query string, args []any)
+	SelectByTokenHash(tokenHash string) (query string, args []any)
 	SelectAll() (query string, args []any)
 	ScanRow(rows *sql.Rows) (*Cluster, error)
+	// IsDuplicateKey 判断插入失败是否因为集群 ID 已存在
+	IsDuplicateKey(err error) bool
 }
 
 // CommandDialect 指令历史 SQL 方言
@@ -546,8 +566,7 @@ type SLODialect interface {
 type AIOpsBaselineDialect interface {
 	Upsert(state *AIOpsBaselineState) (query string, args []any)
 	SelectAll() (query string, args []any)
-	SelectByEntity(entityKey string) (query string, args []any)
-	DeleteByEntity(entityKey string) (query string, args []any)
+	DeleteEntity(clusterID, entityKey string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*AIOpsBaselineState, error)
 }
 
@@ -565,8 +584,11 @@ type AIOpsGraphDialect interface {
 type AIOpsIncidentDialect interface {
 	InsertIncident(inc *AIOpsIncident) (string, []any)
 	SelectByID(id string) (string, []any)
-	UpdateState(id, state, severity string) (string, []any)
-	Resolve(id string, resolvedAt time.Time) (string, []any)
+	UpdateState(id, state string) (string, []any)
+	RaiseSeverity(id, severity string, peakRisk float64) (string, []any)
+	MarkEscalated(id string, escalatedAt time.Time) (string, []any)
+	SetAnomalyDuration(id string, endedAt time.Time) (string, []any)
+	Resolve(id string, resolvedAt time.Time, reason string) (string, []any)
 	UpdateRootCause(id, rootCause string) (string, []any)
 	UpdatePeakRisk(id string, peakRisk float64) (string, []any)
 	IncrementRecurrence(id string) (string, []any)
@@ -574,6 +596,15 @@ type AIOpsIncidentDialect interface {
 	SelectEntities(incidentID string) (string, []any)
 	InsertTimeline(entry *AIOpsIncidentTimeline) (string, []any)
 	SelectTimeline(incidentID string) (string, []any)
+	UpsertSignal(signal *AIOpsIncidentSignal) (string, []any)
+	SelectSignals(incidentID string) (string, []any)
+	ScanSignal(rows *sql.Rows) (*AIOpsIncidentSignal, error)
+	SaveLink(link *AIOpsIncidentLink) (string, []any)
+	UnlinkIncident(incidentID string, at time.Time) (string, []any)
+	SelectActiveLinks(clusterID string) (string, []any)
+	ScanLink(rows *sql.Rows) (*AIOpsIncidentLink, error)
+	// IncidentColumns 事件表的列清单（逗号分隔），顺序与 ScanIncident 一致；prefix 为表别名（如 "i."），可为空
+	IncidentColumns(prefix string) string
 	ScanIncident(rows *sql.Rows) (*AIOpsIncident, error)
 	ScanEntity(rows *sql.Rows) (*AIOpsIncidentEntity, error)
 	ScanTimeline(rows *sql.Rows) (*AIOpsIncidentTimeline, error)

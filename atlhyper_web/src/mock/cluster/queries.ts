@@ -6,19 +6,15 @@
  */
 
 import type {
-  PodItem, PodDetail,
-  NodeItem, NodeDetail,
-  DeploymentItem, DeploymentDetail,
-  ServiceItem, ServiceDetail,
-  NamespaceItem, NamespaceDetail,
-  IngressItem, IngressDetail,
-  EventLog,
-  ConfigMapDTO, SecretDTO,
+  PodDetail,
+  NodeDetail,
+  DeploymentDetail,
+  ServiceDetail,
+  NamespaceDetail,
+  IngressDetail,
 } from "@/types/cluster";
-import type { StatefulSetListItem, DaemonSetListItem, StatefulSetDetail, DaemonSetDetail } from "@/api/workload";
+import type { StatefulSetDetail, DaemonSetDetail } from "@/api/workload";
 import type {
-  JobItem, CronJobItem, PVItem, PVCItem,
-  NetworkPolicyItem, ResourceQuotaItem, LimitRangeItem, ServiceAccountItem,
   JobDetail, CronJobDetail, PVDetail, PVCDetail,
   NetworkPolicyDetail, ResourceQuotaDetail, LimitRangeDetail, ServiceAccountDetail,
 } from "@/api/cluster-resources";

@@ -1,129 +1,25 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
-import { useI18n } from "@/i18n/context";
-import { PageHeader, LoadingSpinner } from "@/components/common";
-import { toast } from "@/components/common/Toast";
-import { AlertTriangle, Eye } from "lucide-react";
-
-import { SlackCard, EmailCard } from "./components";
-import {
-  listChannels,
-  updateSlack,
-  updateEmail,
-  testChannel,
-  mockChannels,
-  type NotifyChannel,
-  type EmailConfig,
-  type EmailUpdateData,
-} from "@/api/notify";
+import { DemoBanner, LoadingSpinner, PageHeader } from "@/components/common";
 import { useCan } from "@/hooks/useCan";
+import { useManualRefetch } from "@/hooks/useManualRefetch";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { useI18n } from "@/i18n/context";
+import { notifyKeys } from "@/queries/keys";
+import { AlertsTab, DeliveriesTab, PolicyTab, ReceiversTab, RulesTab, SilencesTab } from "./components";
+import { NotifyTabBar, type NotifyTabKey } from "./components/NotifyTabBar";
 
 export default function NotificationsPage() {
   const { t } = useI18n();
-  const can = useCan();
+  // 通知设置是纯管理功能页：权限加载完才决定显示真实数据还是演示数据；无 notify.manage 时整页演示数据
+  const sessionReady = useSessionReady();
+  const canManageNotifications = useCan()("notify.manage");
+  const isDemo = sessionReady && !canManageNotifications;
 
-  // 权限判断：Operator 即可查看和修改
-  const hasPermission = can("notify.manage");
-  const isDemo = !hasPermission;
-
-  // 状态
-  const [loading, setLoading] = useState(true);
-  const [channels, setChannels] = useState<NotifyChannel[]>([]);
-
-  // 加载数据
-  useEffect(() => {
-    if (isDemo) {
-      // 无权限时使用 mock 数据
-      setChannels(mockChannels);
-      setLoading(false);
-      return;
-    }
-
-    // 加载真实数据
-    listChannels()
-      .then((res) => {
-        setChannels(res.data.channels || []);
-      })
-      .catch((err) => {
-        console.error("Failed to load channels:", err);
-        toast.error(t.notifications.loadFailed);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [isDemo]);
-
-  // 获取渠道配置
-  const getSlackChannel = useCallback(() => {
-    return channels.find((ch) => ch.type === "slack");
-  }, [channels]);
-
-  const getEmailChannel = useCallback(() => {
-    return channels.find((ch) => ch.type === "email");
-  }, [channels]);
-
-  // 保存 Slack 配置
-  const handleSaveSlack = useCallback(
-    async (data: { enabled?: boolean; webhookUrl?: string }) => {
-      try {
-        const res = await updateSlack(data);
-        // 更新本地状态
-        setChannels((prev) =>
-          prev.map((ch) => (ch.type === "slack" ? res.data : ch))
-        );
-        toast.success(t.notifications.slackSaved);
-      } catch (err) {
-        console.error("Failed to save Slack config:", err);
-        toast.error(t.notifications.saveFailed);
-        throw err;
-      }
-    },
-    [t]
-  );
-
-  // 保存 Email 配置
-  const handleSaveEmail = useCallback(async (data: EmailUpdateData) => {
-    try {
-      const res = await updateEmail(data);
-      // 更新本地状态
-      setChannels((prev) =>
-        prev.map((ch) => (ch.type === "email" ? res.data : ch))
-      );
-      toast.success(t.notifications.emailSaved);
-    } catch (err) {
-      console.error("Failed to save Email config:", err);
-      toast.error(t.notifications.saveFailed);
-      throw err;
-    }
-  }, [t]);
-
-  // 测试 Slack
-  const handleTestSlack = useCallback(async () => {
-    const result = await testChannel("slack");
-    if (result.success) {
-      toast.success(result.message);
-    } else {
-      toast.error(result.message);
-    }
-    return result;
-  }, []);
-
-  // 测试 Email
-  const handleTestEmail = useCallback(async () => {
-    const result = await testChannel("email");
-    if (result.success) {
-      toast.success(result.message);
-    } else {
-      toast.error(result.message);
-    }
-    return result;
-  }, []);
-
-  // 渲染
-  const slackChannel = getSlackChannel();
-  const emailChannel = getEmailChannel();
+  const [activeTab, setActiveTab] = useState<NotifyTabKey>("alerts");
+  const { refetch: refreshNotifications } = useManualRefetch(notifyKeys.all);
 
   return (
     <Layout>
@@ -131,60 +27,27 @@ export default function NotificationsPage() {
         <PageHeader
           title={t.nav.notifications}
           description={t.notifications.pageDescription}
+          // 演示数据没有可刷新的东西
+          onRefresh={canManageNotifications ? refreshNotifications : undefined}
         />
 
-        {/* 演示模式提示 */}
-        {isDemo && (
-          <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-            <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                {t.common.demoMode}
-              </p>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t.common.demoModeHint}
-              </p>
-            </div>
-          </div>
-        )}
+        {isDemo && <DemoBanner hint={t.notifications.demoHint} />}
 
+        <NotifyTabBar activeTab={activeTab} onSelect={setActiveTab} labels={t.notifications.tabs} />
 
-        {/* 加载状态 */}
-        {loading ? (
+        {!sessionReady ? (
           <div className="flex items-center justify-center py-12">
             <LoadingSpinner />
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Slack 卡片 */}
-            <SlackCard
-              webhookConfigured={slackChannel?.configuredSecrets?.includes("webhookUrl") || false}
-              enabled={slackChannel?.enabled || false}
-              effectiveEnabled={slackChannel?.effectiveEnabled || false}
-              validationErrors={slackChannel?.validationErrors || []}
-              readOnly={isDemo}
-              onSave={handleSaveSlack}
-              onTest={handleTestSlack}
-            />
-
-            {/* Email 卡片 */}
-            <EmailCard
-              config={
-                (emailChannel?.config as EmailConfig) || {
-                  smtpHost: "",
-                  smtpPort: 587,
-                  smtpUser: "",
-                  fromAddress: "",
-                  toAddresses: [],
-                }
-              }
-              enabled={emailChannel?.enabled || false}
-              effectiveEnabled={emailChannel?.effectiveEnabled || false}
-              validationErrors={emailChannel?.validationErrors || []}
-              readOnly={isDemo}
-              onSave={handleSaveEmail}
-              onTest={handleTestEmail}
-            />
+          // 一次只挂载当前页签：没在看的页签不取数、不轮询
+          <div role="tabpanel">
+            {activeTab === "alerts" && <AlertsTab isDemo={isDemo} />}
+            {activeTab === "deliveries" && <DeliveriesTab isDemo={isDemo} />}
+            {activeTab === "receivers" && <ReceiversTab isDemo={isDemo} />}
+            {activeTab === "rules" && <RulesTab isDemo={isDemo} />}
+            {activeTab === "silences" && <SilencesTab isDemo={isDemo} />}
+            {activeTab === "policy" && <PolicyTab isDemo={isDemo} />}
           </div>
         )}
       </div>

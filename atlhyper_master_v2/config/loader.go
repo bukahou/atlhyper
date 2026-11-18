@@ -26,6 +26,13 @@ func LoadConfig() {
 	GlobalConfig.Server = ServerConfig{
 		GatewayPort:  getInt("MASTER_GATEWAY_PORT"),
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
+		PublicURL:    getString("MASTER_PUBLIC_URL"),
+		Timezone:     getString("MASTER_TIMEZONE"),
+	}
+
+	GlobalConfig.AgentSDK = AgentSDKConfig{
+		AuthMode:      getString("MASTER_AGENT_AUTH_MODE"),
+		MaxSnapshotMB: getInt("MASTER_AGENTSDK_MAX_SNAPSHOT_MB"),
 	}
 
 	GlobalConfig.DataHub = DataHubConfig{
@@ -56,7 +63,6 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.EventAlert = EventAlertConfig{
-		Enabled:       getBool("MASTER_EVENT_ALERT_ENABLED"),
 		CheckInterval: getDuration("MASTER_EVENT_ALERT_INTERVAL"),
 	}
 

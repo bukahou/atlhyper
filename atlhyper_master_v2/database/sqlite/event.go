@@ -11,6 +11,11 @@ import (
 
 type eventDialect struct{}
 
+// Upsert 按去重键写入事件。
+//
+// 调用方传入的 count 是 K8s 报告的「当前累计次数」，不是增量：同一条事件会随每份快照
+// 重复到达，所以冲突时取较大值而不是相加。时间与消息只在新记录不比已存记录旧时更新，
+// 避免 K8s 事件过期后重新计数、或记录乱序到达时回退。
 func (d *eventDialect) Upsert(event *database.ClusterEvent) (string, []any) {
 	now := time.Now().Format(time.RFC3339)
 	query := `
@@ -21,9 +26,10 @@ func (d *eventDialect) Upsert(event *database.ClusterEvent) (string, []any) {
 			first_timestamp, last_timestamp, count, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(dedup_key) DO UPDATE SET
-			count = cluster_events.count + excluded.count,
-			last_timestamp = excluded.last_timestamp,
-			message = excluded.message,
+			count = MAX(cluster_events.count, excluded.count),
+			message = CASE WHEN excluded.last_timestamp >= cluster_events.last_timestamp
+				THEN excluded.message ELSE cluster_events.message END,
+			last_timestamp = MAX(cluster_events.last_timestamp, excluded.last_timestamp),
 			updated_at = excluded.updated_at
 	`
 	args := []any{

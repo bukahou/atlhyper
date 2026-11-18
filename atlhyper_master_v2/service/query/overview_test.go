@@ -72,248 +72,6 @@ func (m *mockBusForOverview) WaitCommandResult(ctx context.Context, cmdID string
 	return nil, m.err
 }
 
-// ==================== Phase 1: 单资源查询测试 ====================
-
-// --- GetPod ---
-
-func TestGetPod_Found(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Pods: []cluster.Pod{
-					{
-						Summary: cluster.PodSummary{Name: "nginx", Namespace: "default"},
-						Status:  cluster.PodStatus{Phase: "Running"},
-					},
-					{
-						Summary: cluster.PodSummary{Name: "redis", Namespace: "cache"},
-						Status:  cluster.PodStatus{Phase: "Running"},
-					},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	pod, err := svc.GetPod(context.Background(), "cluster-1", "cache", "redis")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if pod == nil {
-		t.Fatal("expected pod, got nil")
-	}
-	if pod.GetName() != "redis" {
-		t.Errorf("expected name=redis, got %s", pod.GetName())
-	}
-	if pod.GetNamespace() != "cache" {
-		t.Errorf("expected namespace=cache, got %s", pod.GetNamespace())
-	}
-}
-
-func TestGetPod_NotFound(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Pods: []cluster.Pod{
-					{Summary: cluster.PodSummary{Name: "nginx", Namespace: "default"}},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	pod, err := svc.GetPod(context.Background(), "cluster-1", "default", "nonexistent")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if pod != nil {
-		t.Errorf("expected nil for not-found, got %+v", pod)
-	}
-}
-
-func TestGetPod_NoSnapshot(t *testing.T) {
-	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
-
-	pod, err := svc.GetPod(context.Background(), "unknown-cluster", "default", "nginx")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if pod != nil {
-		t.Errorf("expected nil for no-snapshot, got %+v", pod)
-	}
-}
-
-// --- GetNode ---
-
-func TestGetNode_Found(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Nodes: []cluster.Node{
-					{Summary: cluster.NodeSummary{Name: "node-1"}},
-					{Summary: cluster.NodeSummary{Name: "node-2"}},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	node, err := svc.GetNode(context.Background(), "cluster-1", "node-2")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if node == nil {
-		t.Fatal("expected node, got nil")
-	}
-	if node.GetName() != "node-2" {
-		t.Errorf("expected name=node-2, got %s", node.GetName())
-	}
-}
-
-func TestGetNode_NotFound(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Nodes: []cluster.Node{
-					{Summary: cluster.NodeSummary{Name: "node-1"}},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	node, err := svc.GetNode(context.Background(), "cluster-1", "nonexistent")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if node != nil {
-		t.Errorf("expected nil for not-found, got %+v", node)
-	}
-}
-
-// --- GetDeployment ---
-
-func TestGetDeployment_Found(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Deployments: []cluster.Deployment{
-					{Summary: cluster.DeploymentSummary{Name: "web", Namespace: "prod"}},
-					{Summary: cluster.DeploymentSummary{Name: "api", Namespace: "prod"}},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	dep, err := svc.GetDeployment(context.Background(), "cluster-1", "prod", "api")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if dep == nil {
-		t.Fatal("expected deployment, got nil")
-	}
-	if dep.GetName() != "api" {
-		t.Errorf("expected name=api, got %s", dep.GetName())
-	}
-	if dep.GetNamespace() != "prod" {
-		t.Errorf("expected namespace=prod, got %s", dep.GetNamespace())
-	}
-}
-
-func TestGetDeployment_NotFound(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Deployments: []cluster.Deployment{
-					{Summary: cluster.DeploymentSummary{Name: "web", Namespace: "prod"}},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	dep, err := svc.GetDeployment(context.Background(), "cluster-1", "prod", "nonexistent")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if dep != nil {
-		t.Errorf("expected nil for not-found, got %+v", dep)
-	}
-}
-
-// --- GetDeploymentByReplicaSet ---
-
-func TestGetDeploymentByReplicaSet_Found(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Deployments: []cluster.Deployment{
-					{Summary: cluster.DeploymentSummary{Name: "web-app", Namespace: "prod"}},
-					{Summary: cluster.DeploymentSummary{Name: "api-server", Namespace: "prod"}},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	// RS 名 = deployment名-hash
-	dep, err := svc.GetDeploymentByReplicaSet(context.Background(), "cluster-1", "prod", "api-server-7f8d9c6b5")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if dep == nil {
-		t.Fatal("expected deployment, got nil")
-	}
-	if dep.GetName() != "api-server" {
-		t.Errorf("expected name=api-server, got %s", dep.GetName())
-	}
-}
-
-func TestGetDeploymentByReplicaSet_NotFound(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Deployments: []cluster.Deployment{
-					{Summary: cluster.DeploymentSummary{Name: "web-app", Namespace: "prod"}},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	dep, err := svc.GetDeploymentByReplicaSet(context.Background(), "cluster-1", "prod", "nonexistent-7f8d9c6b5")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if dep != nil {
-		t.Errorf("expected nil for not-found, got %+v", dep)
-	}
-}
-
-func TestGetDeploymentByReplicaSet_WrongNamespace(t *testing.T) {
-	store := &mockStoreForOverview{
-		snapshots: map[string]*cluster.ClusterSnapshot{
-			"cluster-1": {
-				Deployments: []cluster.Deployment{
-					{Summary: cluster.DeploymentSummary{Name: "web-app", Namespace: "prod"}},
-				},
-			},
-		},
-	}
-	svc := &QueryService{store: store}
-
-	// RS 名前缀匹配但 namespace 不同
-	dep, err := svc.GetDeploymentByReplicaSet(context.Background(), "cluster-1", "staging", "web-app-7f8d9c6b5")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if dep != nil {
-		t.Errorf("expected nil for wrong-namespace, got %+v", dep)
-	}
-}
-
 // ==================== Phase 1: Event 查询测试 ====================
 
 func makeTestEvents() []cluster.Event {
@@ -361,7 +119,7 @@ func TestGetEvents_NoFilter(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEvents(context.Background(), "cluster-1", model.EventQueryOpts{})
 	if err != nil {
@@ -377,7 +135,7 @@ func TestGetEvents_TypeFilter(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEvents(context.Background(), "cluster-1", model.EventQueryOpts{Type: "Warning"})
 	if err != nil {
@@ -398,7 +156,7 @@ func TestGetEvents_ReasonFilter(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEvents(context.Background(), "cluster-1", model.EventQueryOpts{Reason: "OOMKilled"})
 	if err != nil {
@@ -417,7 +175,7 @@ func TestGetEvents_SinceFilter(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	// Since = 1.5h ago → should get evt-1 (now) and evt-2 (1h ago), exclude evt-3 (2h ago) and evt-4 (3h ago)
 	since := time.Date(2025, 6, 1, 10, 30, 0, 0, time.UTC) // 1.5h before now
@@ -435,7 +193,7 @@ func TestGetEvents_Pagination(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	// Offset=1, Limit=2 → skip first, take next 2
 	result, err := svc.GetEvents(context.Background(), "cluster-1", model.EventQueryOpts{Offset: 1, Limit: 2})
@@ -453,7 +211,7 @@ func TestGetEvents_Pagination(t *testing.T) {
 
 func TestGetEvents_NoSnapshot(t *testing.T) {
 	store := &mockStoreForOverview{events: map[string][]cluster.Event{}}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEvents(context.Background(), "unknown-cluster", model.EventQueryOpts{})
 	if err != nil {
@@ -471,7 +229,7 @@ func TestGetEventsByResource_Found(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEventsByResource(context.Background(), "cluster-1", "Pod", "default", "nginx")
 	if err != nil {
@@ -493,7 +251,7 @@ func TestGetEventsByResource_NotFound(t *testing.T) {
 	store := &mockStoreForOverview{
 		events: map[string][]cluster.Event{"cluster-1": events},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.GetEventsByResource(context.Background(), "cluster-1", "Deployment", "prod", "nonexistent")
 	if err != nil {
@@ -519,7 +277,7 @@ func TestGetAgentStatus_Delegate(t *testing.T) {
 			"cluster-1": injectedStatus,
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	status, err := svc.GetAgentStatus(context.Background(), "cluster-1")
 	if err != nil {
@@ -547,7 +305,7 @@ func TestGetCommandStatus_Delegate(t *testing.T) {
 		CreatedAt: now,
 	}
 	bus := &mockBusForOverview{status: injectedStatus}
-	svc := &QueryService{bus: bus}
+	svc := &OverviewQuery{bus: bus}
 
 	status, err := svc.GetCommandStatus(context.Background(), "cmd-123")
 	if err != nil {
@@ -600,7 +358,7 @@ func TestListClusters_WithSnapshots(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.ListClusters(context.Background())
 	if err != nil {
@@ -643,7 +401,7 @@ func TestListClusters_WithSnapshots(t *testing.T) {
 
 func TestListClusters_Empty(t *testing.T) {
 	store := &mockStoreForOverview{agents: []agentmodel.AgentInfo{}}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	result, err := svc.ListClusters(context.Background())
 	if err != nil {
@@ -704,7 +462,7 @@ func (m *mockEventRepoForOverview) CountByHourAndKind(ctx context.Context, clust
 
 func TestGetOverview_NoSnapshot(t *testing.T) {
 	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "unknown-cluster")
 	if err != nil {
@@ -744,7 +502,7 @@ func TestGetOverview_BasicCards(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -815,7 +573,7 @@ func TestGetOverview_WorkloadStats(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -915,7 +673,7 @@ func TestGetOverview_NodeUsageAndPeak(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -980,7 +738,7 @@ func TestGetOverview_NoMetrics(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OverviewQuery{store: store}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -1044,7 +802,7 @@ func TestGetOverview_AlertsFromDB(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store, eventRepo: eventRepo}
+	svc := &OverviewQuery{store: store, eventRepo: eventRepo}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -1096,7 +854,7 @@ func TestGetOverview_NilEventRepo(t *testing.T) {
 		},
 	}
 	// eventRepo = nil
-	svc := &QueryService{store: store, eventRepo: nil}
+	svc := &OverviewQuery{store: store, eventRepo: nil}
 
 	overview, err := svc.GetOverview(context.Background(), "cluster-1")
 	if err != nil {
@@ -1135,7 +893,7 @@ func TestGetOTelSnapshot_Found(t *testing.T) {
 			"cluster-1": {OTel: otel},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "cluster-1")
 	if err != nil {
@@ -1161,7 +919,7 @@ func TestGetOTelSnapshot_NoOTel(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "cluster-1")
 	if err != nil {
@@ -1174,7 +932,7 @@ func TestGetOTelSnapshot_NoOTel(t *testing.T) {
 
 func TestGetOTelSnapshot_NoSnapshot(t *testing.T) {
 	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelSnapshot(context.Background(), "unknown-cluster")
 	if err != nil {
@@ -1198,7 +956,7 @@ func TestGetOTelTimeline_Delegate(t *testing.T) {
 		},
 	}
 	store := &mockStoreForOverview{otelTimeline: entries}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelTimeline(context.Background(), "cluster-1", now.Add(-10*time.Minute))
 	if err != nil {
@@ -1214,7 +972,7 @@ func TestGetOTelTimeline_Delegate(t *testing.T) {
 
 func TestGetOTelTimeline_Empty(t *testing.T) {
 	store := &mockStoreForOverview{otelTimeline: nil}
-	svc := &QueryService{store: store}
+	svc := &OTelQuery{store: store}
 
 	result, err := svc.GetOTelTimeline(context.Background(), "cluster-1", time.Now().Add(-1*time.Hour))
 	if err != nil {

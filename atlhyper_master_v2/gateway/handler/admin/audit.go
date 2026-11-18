@@ -36,6 +36,7 @@ type AuditLogResponse struct {
 	Action         string `json:"action"`
 	Resource       string `json:"resource"`
 	Method         string `json:"method"`
+	Path           string `json:"path"`
 	RequestSummary string `json:"requestSummary,omitempty"`
 	Status         int    `json:"status"`
 	Success        bool   `json:"success"`
@@ -130,6 +131,7 @@ func (h *AuditHandler) List(w http.ResponseWriter, r *http.Request) {
 			Action:         log.Action,
 			Resource:       log.Resource,
 			Method:         log.Method,
+			Path:           log.Path,
 			RequestSummary: summarizeRequest(log.RequestBody),
 			Status:         log.StatusCode,
 			Success:        log.Success,

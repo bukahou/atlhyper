@@ -1,219 +1,188 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { TagInput, emailValidator } from "./TagInput";
+import type { NotifySMTPTranslations } from "@/types/i18n-notify";
+import type { SmtpFormDraft } from "./email-form";
+import { HINT_CLASS, INPUT_CLASS, LABEL_CLASS, SELECT_CLASS } from "./shared/form-styles";
+import { Switch } from "./shared/Switch";
 import type { SmtpPreset } from "./smtp-presets";
 
 interface EmailFormFieldsProps {
+  draft: SmtpFormDraft;
+  onChange: (changes: Partial<SmtpFormDraft>) => void;
   smtpPresets: SmtpPreset[];
-  isCustomSmtp: boolean;
-  smtpHost: string;
-  smtpPort: number;
-  smtpUser: string;
-  smtpPassword: string;
-  smtpTls: boolean;
-  recipients: string[];
+  /** 已存过密码：密码框可以留空（保持原值），提示文案随之变化 */
+  passwordConfigured: boolean;
   showPassword: boolean;
-  readOnly: boolean;
-  onSmtpHostChange: (host: string, isCustom: boolean, port?: number) => void;
-  onSmtpPortChange: (port: number) => void;
-  onSmtpUserChange: (user: string) => void;
-  onSmtpPasswordChange: (password: string) => void;
-  onSmtpTlsToggle: () => void;
-  onRecipientsChange: (recipients: string[]) => void;
   onShowPasswordToggle: () => void;
-  labels: {
-    smtpServer: string;
-    smtpServerPlaceholder: string;
-    smtpCustom: string;
-    smtpCustomPlaceholder: string;
-    port: string;
-    portHint: string;
-    emailAccount: string;
-    emailAccountHint: string;
-    password: string;
-    passwordPlaceholder: string;
-    tlsEncryption: string;
-    tlsHint: string;
-    recipients: string;
-    recipientsPlaceholder: string;
-    tagInputDuplicate: string;
-    tagInputInvalidFormat: string;
-  };
+  /** 保存进行中 */
+  disabled: boolean;
+  labels: NotifySMTPTranslations;
+  /** TLS 开关读屏用的状态文案 */
+  enabledLabel: string;
+  disabledLabel: string;
 }
 
-const inputClass = `w-full px-3 py-2 rounded-lg border border-[var(--border-color)]
-  bg-[var(--bg-primary)] text-default
-  placeholder:text-muted
-  focus:outline-none focus:ring-2 focus:ring-blue-500
-  disabled:opacity-50 disabled:cursor-not-allowed`;
+/** 下拉框里「自定义」这一项的值：不会与任何服务器地址撞上 */
+const CUSTOM_HOST = "__custom__";
 
-const selectClass = `w-full px-3 py-2 rounded-lg border border-[var(--border-color)]
-  bg-[var(--bg-primary)] text-default
-  focus:outline-none focus:ring-2 focus:ring-blue-500
-  disabled:opacity-50 disabled:cursor-not-allowed
-  [&>option]:bg-white [&>option]:text-gray-900
-  dark:[&>option]:bg-gray-800 dark:[&>option]:text-gray-100`;
-
+/**
+ * 邮件发件设置（全局 SMTP）的表单字段：服务器、端口、账号、密码、TLS、发件地址。
+ *
+ * 密码只写不读：输入框只放用户新输入的值，已配置时留空 = 保持原值。
+ */
 export function EmailFormFields({
+  draft,
+  onChange,
   smtpPresets,
-  isCustomSmtp,
-  smtpHost,
-  smtpPort,
-  smtpUser,
-  smtpPassword,
-  smtpTls,
-  recipients,
+  passwordConfigured,
   showPassword,
-  readOnly,
-  onSmtpHostChange,
-  onSmtpPortChange,
-  onSmtpUserChange,
-  onSmtpPasswordChange,
-  onSmtpTlsToggle,
-  onRecipientsChange,
   onShowPasswordToggle,
+  disabled,
   labels,
+  enabledLabel,
+  disabledLabel,
 }: EmailFormFieldsProps) {
+  const handleServerSelect = (selected: string) => {
+    if (selected === CUSTOM_HOST) {
+      onChange({ host: "", isCustomHost: true });
+      return;
+    }
+    // 选了预设服务器就顺带填上它的常用端口
+    const preset = smtpPresets.find((candidate) => candidate.value === selected);
+    onChange({ host: selected, isCustomHost: false, ...(preset ? { port: preset.port } : {}) });
+  };
+
   return (
-    <div className="px-6 py-4 space-y-4">
-      {/* SMTP 服务器 */}
-      <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-default mb-1">
-            {labels.smtpServer} <span className="text-red-500">*</span>
+          <label htmlFor="notify-smtp-server" className={LABEL_CLASS}>
+            {labels.server} *
           </label>
           <select
-            value={isCustomSmtp ? "__custom__" : smtpHost}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === "__custom__") {
-                onSmtpHostChange("", true);
-              } else {
-                const preset = smtpPresets.find((p) => p.value === val);
-                onSmtpHostChange(val, false, preset?.port);
-              }
-            }}
-            disabled={readOnly}
-            className={selectClass}
+            id="notify-smtp-server"
+            value={draft.isCustomHost ? CUSTOM_HOST : draft.host}
+            onChange={(event) => handleServerSelect(event.target.value)}
+            disabled={disabled}
+            className={SELECT_CLASS}
           >
-            <option value="">{labels.smtpServerPlaceholder}</option>
+            <option value="">{labels.serverPlaceholder}</option>
             {smtpPresets.map((preset) => (
               <option key={preset.value} value={preset.value}>
                 {preset.label} ({preset.value})
               </option>
             ))}
-            <option value="__custom__">{labels.smtpCustom}</option>
+            <option value={CUSTOM_HOST}>{labels.custom}</option>
           </select>
-          {isCustomSmtp && (
+          {draft.isCustomHost && (
             <input
               type="text"
-              value={smtpHost}
-              onChange={(e) => onSmtpHostChange(e.target.value, true)}
-              placeholder={labels.smtpCustomPlaceholder}
-              disabled={readOnly}
-              className={`${inputClass} mt-2`}
+              value={draft.host}
+              onChange={(event) => onChange({ host: event.target.value })}
+              placeholder={labels.customPlaceholder}
+              aria-label={labels.customPlaceholder}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={disabled}
+              className={`${INPUT_CLASS} mt-2`}
             />
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-default mb-1">
-            {labels.port} <span className="text-red-500">*</span>
+          <label htmlFor="notify-smtp-port" className={LABEL_CLASS}>
+            {labels.port} *
           </label>
           <input
+            id="notify-smtp-port"
             type="number"
-            value={smtpPort}
-            onChange={(e) => onSmtpPortChange(parseInt(e.target.value) || 587)}
+            value={Number.isNaN(draft.port) ? "" : draft.port}
+            // 清空时记为 NaN，由校验报「端口不合规」，不悄悄换成默认值
+            onChange={(event) => onChange({ port: event.target.value === "" ? Number.NaN : Number(event.target.value) })}
             placeholder="587"
-            disabled={readOnly}
-            className={inputClass}
+            min={1}
+            max={65535}
+            disabled={disabled}
+            className={INPUT_CLASS}
           />
-          <p className="mt-1 text-xs text-muted">
-            {labels.portHint}
-          </p>
+          <p className={HINT_CLASS}>{labels.portHint}</p>
         </div>
       </div>
 
-      {/* 邮箱账号和密码 */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-default mb-1">
-            {labels.emailAccount} <span className="text-red-500">*</span>
+          <label htmlFor="notify-smtp-user" className={LABEL_CLASS}>
+            {labels.account} *
           </label>
           <input
-            type="email"
-            value={smtpUser}
-            onChange={(e) => onSmtpUserChange(e.target.value)}
+            id="notify-smtp-user"
+            type="text"
+            value={draft.user}
+            onChange={(event) => onChange({ user: event.target.value })}
             placeholder="user@example.com"
-            disabled={readOnly}
-            className={inputClass}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={disabled}
+            className={INPUT_CLASS}
           />
-          <p className="mt-1 text-xs text-muted">{labels.emailAccountHint}</p>
+          <p className={HINT_CLASS}>{labels.accountHint}</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-default mb-1">
-            {labels.password} <span className="text-red-500">*</span>
+          <label htmlFor="notify-smtp-password" className={LABEL_CLASS}>
+            {labels.password} {!passwordConfigured && "*"}
           </label>
           <div className="relative">
             <input
+              id="notify-smtp-password"
               type={showPassword ? "text" : "password"}
-              value={smtpPassword}
-              onChange={(e) => onSmtpPasswordChange(e.target.value)}
+              value={draft.password}
+              onChange={(event) => onChange({ password: event.target.value })}
               placeholder={labels.passwordPlaceholder}
-              disabled={readOnly}
-              className={`${inputClass} pr-10`}
+              // 不让浏览器把登录本站用的密码自动填进来
+              autoComplete="new-password"
+              disabled={disabled}
+              className={`${INPUT_CLASS} pr-10`}
             />
             <button
               type="button"
               onClick={onShowPasswordToggle}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-default"
             >
-              {showPassword ? (
-                <EyeOff className="w-4 h-4" />
-              ) : (
-                <Eye className="w-4 h-4" />
-              )}
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
+          {passwordConfigured && <p className={HINT_CLASS}>{labels.passwordKeepHint}</p>}
         </div>
       </div>
 
-      {/* TLS 加密 */}
-      <div className="flex items-center justify-between py-2">
+      <div>
+        <label htmlFor="notify-smtp-from" className={LABEL_CLASS}>
+          {labels.fromAddress}
+        </label>
+        <input
+          id="notify-smtp-from"
+          type="email"
+          value={draft.fromAddress}
+          onChange={(event) => onChange({ fromAddress: event.target.value })}
+          placeholder={labels.fromAddressPlaceholder}
+          autoComplete="off"
+          spellCheck={false}
+          disabled={disabled}
+          className={INPUT_CLASS}
+        />
+        <p className={HINT_CLASS}>{labels.fromAddressHint}</p>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <label className="block text-sm font-medium text-default">
-            {labels.tlsEncryption}
-          </label>
+          <span className="block text-sm font-medium text-default">{labels.tls}</span>
           <p className="text-xs text-muted">{labels.tlsHint}</p>
         </div>
-        <button
-          onClick={() => !readOnly && onSmtpTlsToggle()}
-          disabled={readOnly}
-          className={`relative w-12 h-6 rounded-full transition-colors ${
-            smtpTls ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
-          } ${readOnly ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-        >
-          <span
-            className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              smtpTls ? "translate-x-6" : "translate-x-0"
-            }`}
-          />
-        </button>
-      </div>
-
-      {/* 收件人 */}
-      <div>
-        <label className="block text-sm font-medium text-default mb-1">
-          {labels.recipients}
-        </label>
-        <TagInput
-          value={recipients}
-          onChange={onRecipientsChange}
-          placeholder={labels.recipientsPlaceholder}
-          disabled={readOnly}
-          validator={emailValidator}
-          duplicateMessage={labels.tagInputDuplicate}
-          invalidFormatMessage={labels.tagInputInvalidFormat}
+        <Switch
+          checked={draft.tls}
+          onChange={(tls) => onChange({ tls })}
+          disabled={disabled}
+          label={draft.tls ? enabledLabel : disabledLabel}
         />
       </div>
     </div>

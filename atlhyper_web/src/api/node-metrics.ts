@@ -63,11 +63,13 @@ export async function getNodeMetricsDetail(
 export async function getNodeMetricsHistory(
   clusterId: string,
   nodeName: string,
-  hours: number = 24
+  hours: number = 24,
+  signal?: AbortSignal,
 ): Promise<NodeMetricsHistoryResult> {
   const response = await get<{ nodeName: string; start: string; end: string; data: Record<string, Point[]> }>(
     `/api/v2/node-metrics/${encodeURIComponent(nodeName)}/history`,
-    { cluster_id: clusterId, hours }
+    { cluster_id: clusterId, hours },
+    signal,
   );
 
   const data = response.data;

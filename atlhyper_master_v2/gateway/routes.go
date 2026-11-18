@@ -2,7 +2,7 @@
 // API 路由统一注册
 // 所有 API 在此集中管理，便于查看和维护
 //
-// 权限策略（设计文档 docs/design/active/permission-model-design.md）：
+// 权限策略：
 //   - 每条路由按（方法，路径）声明所需权限，权限表见 middleware/permission.go
 //   - 同一路径的读与写分别声明：写方法不继承读方法的权限；没声明的方法由 ServeMux 直接 405
 //   - 访客（未登录）与新注册成员同为 0 级，只能看到集群状态与形状
@@ -60,6 +60,7 @@ const (
 	pAISettingsWrite = middleware.PermAISettingsWrite
 	pGitHubManage    = middleware.PermGitHubManage
 	pDeployManage    = middleware.PermDeployManage
+	pClustersManage  = middleware.PermClustersManage
 )
 
 // 方法别名，同上
@@ -91,13 +92,13 @@ type Router struct {
 	ghClient       github.Client
 	deployer       deployer.Deployer
 	oidc           *oidc.Module              // 可选，nil = 外部身份登录未启用
-	notifyTester   adminHandler.NotifyTester // 可选，nil = 通知渠道测试发送不可用
+	notifyTester   adminHandler.NotifyTester // 可选，nil = 接收人测试发送不可用
 }
 
 // SetOIDC 注入外部身份登录模块（可选）
 func (r *Router) SetOIDC(m *oidc.Module) { r.oidc = m }
 
-// SetNotifyTester 注入通知渠道测试发送（可选，由告警模块提供）
+// SetNotifyTester 注入接收人测试发送（可选，由通知模块提供）
 func (r *Router) SetNotifyTester(t adminHandler.NotifyTester) { r.notifyTester = t }
 
 // NewRouter 创建路由管理器
@@ -168,12 +169,13 @@ func (r *Router) registerRoutes() {
 	// 创建 Handlers — 管理 (package admin)
 	userH := adminHandler.NewUserHandler(r.service, r.service)
 	commandH := adminHandler.NewCommandHandler(r.service)
-	notifyH := adminHandler.NewNotifyHandler(r.service)
+	notifyH := adminHandler.NewNotifyHandler(r.service, r.service)
 	if r.notifyTester != nil {
 		notifyH.SetTester(r.notifyTester)
 	}
 	aiProviderH := adminHandler.NewAIProviderHandler(r.service)
 	auditH := adminHandler.NewAuditHandler(r.service)
+	clusterRegistryH := adminHandler.NewClusterRegistryHandler(r.service, r.service)
 
 	authMeH := handler.NewAuthMeHandler(r.service)
 
@@ -306,11 +308,27 @@ func (r *Router) registerRoutes() {
 
 	r.route(mGet, pAuditRead, "/api/v2/audit/logs", auditH.List)
 
-	r.route(mGet, pNotifyManage, "/api/v2/notify/channels", notifyH.ListChannels)
-	r.route(mGet, pNotifyManage, "/api/v2/notify/channels/", notifyH.ChannelHandler)
-	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/channels/", "update", "notify", notifyH.ChannelHandler)
-	r.routeAudited(mPatch, pNotifyManage, "/api/v2/notify/channels/", "update", "notify", notifyH.ChannelHandler)
-	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/channels/", "execute", "notify_test", notifyH.ChannelHandler) // {type}/test
+	// 通知设置：策略、当前告警、送达记录、接收人、路由规则、静默（读写同一权限；非 GET 一律审计）
+	r.route(mGet, pNotifyManage, "/api/v2/notify/policy", notifyH.GetPolicy)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/policy", "update", "notify_policy", notifyH.UpdatePolicy)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/alerts", notifyH.ListAlerts)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/deliveries", notifyH.ListDeliveries)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/smtp", notifyH.GetSMTP)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/smtp", "update", "notify_smtp", notifyH.UpdateSMTP)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/receivers", notifyH.ListReceivers)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/receivers", "create", "notify_receiver", notifyH.CreateReceiver)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/receivers/{id}", "update", "notify_receiver", notifyH.UpdateReceiver)
+	r.routeAudited(mDelete, pNotifyManage, "/api/v2/notify/receivers/{id}", "delete", "notify_receiver", notifyH.DeleteReceiver)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/receivers/{id}/test", "execute", "notify_test", notifyH.TestReceiver)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/rules", notifyH.ListRules)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/rules", "create", "notify_rule", notifyH.CreateRule)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/rules/order", "update", "notify_rule_order", notifyH.ReorderRules)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/rules/match", "read", "notify_rule_match", notifyH.MatchRule)
+	r.routeAudited(mPut, pNotifyManage, "/api/v2/notify/rules/{id}", "update", "notify_rule", notifyH.UpdateRule)
+	r.routeAudited(mDelete, pNotifyManage, "/api/v2/notify/rules/{id}", "delete", "notify_rule", notifyH.DeleteRule)
+	r.route(mGet, pNotifyManage, "/api/v2/notify/silences", notifyH.ListSilences)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/silences", "create", "notify_silence", notifyH.CreateSilence)
+	r.routeAudited(mPost, pNotifyManage, "/api/v2/notify/silences/{id}/expire", "update", "notify_silence", notifyH.ExpireSilence)
 
 	r.routeAudited(mPut, pSLOManage, "/api/v2/slo/targets", "update", "slo_target", sloH.Targets)
 
@@ -346,9 +364,17 @@ func (r *Router) registerRoutes() {
 	r.routeAudited(mPatch, pAISettingsWrite, "/api/v2/ai/settings", "update", "ai_settings", aiProviderH.SettingsHandler)
 	r.routeAudited(mPut, pAISettingsWrite, "/api/v2/ai/budgets/", "update", "ai_budget", aiProviderH.BudgetHandler)
 
+	// 集群注册表与 Agent 令牌。路径参数 {clusterId} 由 handler 用 PathValue 取出；
+	// 签发令牌的响应体带明文，审计只记请求体与状态码，不记响应体
+	r.route(mGet, pClustersManage, "/api/v2/admin/clusters", clusterRegistryH.List)
+	r.routeAudited(mPost, pClustersManage, "/api/v2/admin/clusters", "create", "cluster", clusterRegistryH.Register)
+	r.routeAudited(mPut, pClustersManage, "/api/v2/admin/clusters/{clusterId}", "update", "cluster", clusterRegistryH.UpdateProfile)
+	r.routeAudited(mDelete, pClustersManage, "/api/v2/admin/clusters/{clusterId}", "delete", "cluster", clusterRegistryH.Unregister)
+	r.routeAudited(mPost, pClustersManage, "/api/v2/admin/clusters/{clusterId}/token", "create", "cluster_token", clusterRegistryH.IssueToken)
+
 	// GitHub 集成与部署
 	if r.ghClient != nil {
-		// 走 service 层，不再直连 database（CLAUDE.md 层级约束）
+		// 走 service 层，不直连 database
 		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.service, r.service)
 		deployH := adminHandler.NewDeployHandler(r.ghClient, r.service, r.service)
 		if r.deployer != nil {

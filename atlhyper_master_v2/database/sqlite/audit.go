@@ -12,19 +12,19 @@ import (
 type auditDialect struct{}
 
 func (d *auditDialect) Insert(log *database.AuditLog) (string, []any) {
-	query := `INSERT INTO audit_logs (timestamp, user_id, username, role, source, action, resource, method,
+	query := `INSERT INTO audit_logs (timestamp, user_id, username, role, source, action, resource, method, path,
 		request_body, status_code, success, error_message, ip, user_agent, duration_ms)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	args := []any{
 		log.Timestamp.Format(time.RFC3339), log.UserID, log.Username, log.Role, log.Source,
-		log.Action, log.Resource, log.Method, log.RequestBody, log.StatusCode,
+		log.Action, log.Resource, log.Method, log.Path, log.RequestBody, log.StatusCode,
 		log.Success, log.ErrorMessage, log.IP, log.UserAgent, log.DurationMs,
 	}
 	return query, args
 }
 
 func (d *auditDialect) List(opts database.AuditQueryOpts) (string, []any) {
-	query := "SELECT id, timestamp, user_id, username, role, source, action, resource, method, request_body, status_code, success, error_message, ip, user_agent, duration_ms FROM audit_logs WHERE 1=1"
+	query := "SELECT id, timestamp, user_id, username, role, source, action, resource, method, path, request_body, status_code, success, error_message, ip, user_agent, duration_ms FROM audit_logs WHERE 1=1"
 	args := []any{}
 
 	if opts.UserID > 0 {
@@ -83,7 +83,7 @@ func (d *auditDialect) ScanRow(rows *sql.Rows) (*database.AuditLog, error) {
 	var ts string
 	err := rows.Scan(
 		&log.ID, &ts, &log.UserID, &log.Username, &log.Role, &log.Source,
-		&log.Action, &log.Resource, &log.Method, &log.RequestBody, &log.StatusCode,
+		&log.Action, &log.Resource, &log.Method, &log.Path, &log.RequestBody, &log.StatusCode,
 		&log.Success, &log.ErrorMessage, &log.IP, &log.UserAgent, &log.DurationMs,
 	)
 	if err != nil {

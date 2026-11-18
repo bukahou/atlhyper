@@ -50,7 +50,7 @@ func TestGetSnapshot_Delegate(t *testing.T) {
 	store := &mockStoreForK8s{
 		snapshots: map[string]*cluster.ClusterSnapshot{"cluster-1": snapshot},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetSnapshot(context.Background(), "cluster-1")
 	if err != nil {
@@ -63,7 +63,7 @@ func TestGetSnapshot_Delegate(t *testing.T) {
 
 func TestGetSnapshot_NoData(t *testing.T) {
 	store := &mockStoreForK8s{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetSnapshot(context.Background(), "unknown")
 	if err != nil {
@@ -85,7 +85,7 @@ func TestGetNodes_Found(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetNodes(context.Background(), "cluster-1")
 	if err != nil {
@@ -101,7 +101,7 @@ func TestGetNodes_Found(t *testing.T) {
 
 func TestGetNodes_NoSnapshot(t *testing.T) {
 	store := &mockStoreForK8s{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetNodes(context.Background(), "unknown")
 	if err != nil {
@@ -124,7 +124,7 @@ func TestGetNamespaces_Found(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetNamespaces(context.Background(), "cluster-1")
 	if err != nil {
@@ -137,7 +137,7 @@ func TestGetNamespaces_Found(t *testing.T) {
 
 func TestGetNamespaces_NoSnapshot(t *testing.T) {
 	store := &mockStoreForK8s{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetNamespaces(context.Background(), "unknown")
 	if err != nil {
@@ -159,7 +159,7 @@ func TestGetPersistentVolumes_Found(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetPersistentVolumes(context.Background(), "cluster-1")
 	if err != nil {
@@ -175,7 +175,7 @@ func TestGetPersistentVolumes_Found(t *testing.T) {
 
 func TestGetPersistentVolumes_NoSnapshot(t *testing.T) {
 	store := &mockStoreForK8s{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetPersistentVolumes(context.Background(), "unknown")
 	if err != nil {
@@ -214,13 +214,13 @@ func testPods() []cluster.Pod {
 	}
 }
 
-func newK8sSvcWithPods() *QueryService {
+func newK8sSvcWithPods() *K8sQuery {
 	store := &mockStoreForK8s{
 		snapshots: map[string]*cluster.ClusterSnapshot{
 			"cluster-1": {Pods: testPods()},
 		},
 	}
-	return &QueryService{store: store}
+	return &K8sQuery{store: store}
 }
 
 func TestGetPods_NoFilter(t *testing.T) {
@@ -404,7 +404,7 @@ func TestGetPods_MetricsFormat(t *testing.T) {
 
 func TestGetPods_NoSnapshot(t *testing.T) {
 	store := &mockStoreForK8s{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetPods(context.Background(), "unknown", model.PodQueryOpts{})
 	if err != nil {
@@ -431,7 +431,7 @@ func TestGetDeployments_All(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetDeployments(context.Background(), "cluster-1", "")
 	if err != nil {
@@ -454,7 +454,7 @@ func TestGetDeployments_Filtered(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetDeployments(context.Background(), "cluster-1", "default")
 	if err != nil {
@@ -472,7 +472,7 @@ func TestGetDeployments_Filtered(t *testing.T) {
 
 func TestGetDeployments_NoSnapshot(t *testing.T) {
 	store := &mockStoreForK8s{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetDeployments(context.Background(), "unknown", "default")
 	if err != nil {
@@ -497,7 +497,7 @@ func TestGetConfigMaps_All(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetConfigMaps(context.Background(), "cluster-1", "")
 	if err != nil {
@@ -520,7 +520,7 @@ func TestGetConfigMaps_Filtered(t *testing.T) {
 			},
 		},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetConfigMaps(context.Background(), "cluster-1", "kube-system")
 	if err != nil {
@@ -536,7 +536,7 @@ func TestGetConfigMaps_Filtered(t *testing.T) {
 
 func TestGetConfigMaps_NoSnapshot(t *testing.T) {
 	store := &mockStoreForK8s{snapshots: map[string]*cluster.ClusterSnapshot{}}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 
 	result, err := svc.GetConfigMaps(context.Background(), "unknown", "")
 	if err != nil {
@@ -622,7 +622,7 @@ func TestNamespaceFilter_SmokeAll(t *testing.T) {
 	store := &mockStoreForK8s{
 		snapshots: map[string]*cluster.ClusterSnapshot{"cluster-1": testSnapshotForSmoke()},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 	ctx := context.Background()
 
 	tests := []struct {
@@ -696,7 +696,7 @@ func TestNamespaceFilter_SmokeFiltered(t *testing.T) {
 	store := &mockStoreForK8s{
 		snapshots: map[string]*cluster.ClusterSnapshot{"cluster-1": testSnapshotForSmoke()},
 	}
-	svc := &QueryService{store: store}
+	svc := &K8sQuery{store: store}
 	ctx := context.Background()
 
 	tests := []struct {

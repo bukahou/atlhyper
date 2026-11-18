@@ -34,9 +34,10 @@ import {
   ToggleLeft,
   Rocket,
   Github,
+  KeyRound,
 } from "lucide-react";
 import type { Language, Theme } from "@/types/common";
-import { UserRole } from "@/types/auth";
+import { UserRole, type Permission } from "@/types/auth";
 
 // --- Types ---
 
@@ -45,6 +46,8 @@ export interface NavChild {
   href: string;
   icon: typeof Box;
   adminOnly?: boolean;
+  /** 需要这项权限才显示（由 /auth/me 下发的权限列表判断） */
+  permission?: Permission;
   section?: string; // 组内分隔线标签（i18n nav key）
 }
 
@@ -141,6 +144,7 @@ export const navGroups: NavGroup[] = [
     icon: UserCog,
     children: [
       { key: "users", href: "/admin/users", icon: Users, adminOnly: true },
+      { key: "clusters", href: "/admin/clusters", icon: KeyRound, permission: "clusters.manage" },
       { key: "roles", href: "/admin/roles", icon: ShieldCheck },
       { key: "audit", href: "/admin/audit", icon: ClipboardList },
     ],

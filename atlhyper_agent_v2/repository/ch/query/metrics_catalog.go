@@ -25,6 +25,14 @@ package query
 
 import "strings"
 
+// hardwareDependentMetrics 清单里只有特定硬件才提供的指标（值为说明）。
+//
+// 这些指标照常列在清单里、照常采集；区别只在契约自检：集群里没有对应硬件时它们必然
+// 没有数据，自检据此把它们与「采集配置漂移」分开，不报错。
+var hardwareDependentMetrics = map[string]string{
+	"node_hwmon_in_lcrit_alarm_volts": "带欠压告警位的板子（如树莓派）",
+}
+
 // NodeExporterMetrics 按 node-exporter collector 分组。顺序仅为阅读方便，无语义。
 var NodeExporterMetrics = []string{
 	// ── cpu / loadavg ──

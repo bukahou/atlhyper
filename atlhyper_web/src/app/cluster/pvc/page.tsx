@@ -1,23 +1,26 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getPVCList } from "@/datasource/cluster";
 import type { PVCItem } from "@/api/cluster-resources";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
+import { PageHeader, QueryView, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { pvcListQuery } from "@/queries/cluster-storage";
+import { REFRESH } from "@/queries/refresh";
 import { Eye } from "lucide-react";
 import { PVCDetailModal } from "@/components/pvc";
 import { PVCFilterBar } from "@/components/pvc/PVCFilterBar";
 
+// 还没有数据时始终用同一个空数组：每次渲染换一个新数组会让下面的 useMemo 全部白算
+const NO_ITEMS: PVCItem[] = [];
+
 export default function PVCPage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [items, setItems] = useState<PVCItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(pvcListQuery(clusterId));
+  const items = query.data ?? NO_ITEMS;
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -28,20 +31,6 @@ export default function PVCPage() {
   // 详情弹窗状态
   const [selectedItem, setSelectedItem] = useState<PVCItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setError("");
-    try {
-      const res = await getPVCList({ cluster_id: currentClusterId });
-      setItems(res.data.data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // 提取唯一的 namespaces
   const namespaces = useMemo(() => {
@@ -164,7 +153,7 @@ export default function PVCPage() {
   return (
     <Layout>
       <div className="space-y-4">
-        <PageHeader title={t.nav.pvc} description={t.storagePage.pvcDescription} autoRefreshSeconds={intervalSeconds} />
+        <PageHeader title={t.nav.pvc} description={t.storagePage.pvcDescription} autoRefreshSeconds={REFRESH.standard / 1000} />
 
         {items.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -181,17 +170,21 @@ export default function PVCPage() {
           onFilterChange={handleFilterChange}
         />
 
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <DataTable
-            columns={columns}
-            data={filteredItems}
-            loading={loading}
-            error={error}
-            keyExtractor={(pvc, index) => `${index}-${pvc.namespace}/${pvc.name}`}
-            onRowClick={handleViewDetail}
-            pageSize={10}
-          />
-        </div>
+        <QueryView query={query} requireCluster>
+          {() => (
+            <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={filteredItems}
+                loading={false}
+                error=""
+                keyExtractor={(pvc, index) => `${index}-${pvc.namespace}/${pvc.name}`}
+                onRowClick={handleViewDetail}
+                pageSize={10}
+              />
+            </div>
+          )}
+        </QueryView>
       </div>
 
       {selectedItem && (

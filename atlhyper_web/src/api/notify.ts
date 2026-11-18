@@ -1,181 +1,199 @@
 /**
- * 通知配置 API
+ * 通知 API（均需要 notify.manage）
  *
- * 适配 Master V2 API
+ * 策略、当前告警、送达记录、接收人、全局发件设置、路由规则、静默。
+ * 类型在 types/notify.ts。
  */
 
-import { get, post, put } from "./request";
+import { del, get, post, put } from "./request";
+import type {
+  NotifyAlert,
+  NotifyAlertStatus,
+  NotifyDelivery,
+  NotifyDeliveryStatus,
+  NotifyPolicy,
+  NotifyReceiver,
+  NotifyReceiverBody,
+  NotifyRule,
+  NotifyRuleBody,
+  NotifyRuleMatchRequest,
+  NotifyRuleMatchResult,
+  NotifySilence,
+  NotifySilenceBody,
+  NotifySilenceState,
+  NotifySMTP,
+  NotifySMTPBody,
+} from "@/types/notify";
 
 // ============================================================
-// 类型定义
+// 查询参数
 // ============================================================
 
-// 渠道类型
-export type ChannelType = "slack" | "email";
-
-// Slack 配置
-export interface SlackConfig {
-  webhookUrl: string; // 凭据：查询时恒为空（是否已设置看 configuredSecrets），更新时传入新值
+/** 告警列表的筛选条件 + 分页 */
+export interface NotifyAlertListParams {
+  status: NotifyAlertStatus;
+  limit: number;
+  offset: number;
 }
 
-// Email 配置
-export interface EmailConfig {
-  smtpHost: string;
-  smtpPort: number;
-  smtpUser: string;
-  smtpPassword?: string; // 凭据：查询时恒为空（是否已设置看 configuredSecrets），更新时传入新值
-  smtpTLS?: boolean;
-  fromAddress: string;
-  toAddresses: string[];
+/** 送达记录的筛选条件 + 分页。status 为空串 = 全部状态 */
+export interface NotifyDeliveryListParams {
+  status: NotifyDeliveryStatus | "";
+  limit: number;
+  offset: number;
 }
 
-// 通知渠道
-export interface NotifyChannel {
-  id: number;
-  type: ChannelType;
-  name: string;
-  enabled: boolean;
-  effectiveEnabled: boolean; // 实际可用状态（启用+配置完整）
-  validationErrors: string[]; // 配置校验错误
-  config: SlackConfig | EmailConfig;
-  configuredSecrets?: string[]; // 已设置的凭据字段名（值不回显）；保存时不传 = 保持不变
-  createdAt: string;
-  updatedAt: string;
+// ============================================================
+// 响应类型
+// ============================================================
+
+interface ItemResponse<T> {
+  message: string;
+  data: T;
 }
 
-// 列表响应
-interface ListChannelsResponse {
-  channels: NotifyChannel[];
+/** 没有任何记录时 Go 的 nil 切片会序列化成 null */
+interface ListResponse<T> {
+  message: string;
+  data: T[] | null;
   total: number;
 }
 
-// 更新请求
-interface UpdateChannelRequest {
-  enabled?: boolean;
-  name?: string;
-  config?: Record<string, unknown>;
+interface MessageResponse {
+  message: string;
+}
+
+/** 路径里的数字 id。id 来自接口返回值，这里转义是不信任调用方传来的值 */
+function idSegment(id: number): string {
+  return encodeURIComponent(String(id));
 }
 
 // ============================================================
-// API 方法
+// 策略
 // ============================================================
 
-/**
- * 获取所有通知渠道
- * GET /api/v2/notify/channels
- */
-export function listChannels() {
-  return get<ListChannelsResponse>("/api/v2/notify/channels");
+/** GET /api/v2/notify/policy */
+export function getNotifyPolicy(signal?: AbortSignal) {
+  return get<ItemResponse<NotifyPolicy>>("/api/v2/notify/policy", undefined, signal);
 }
 
-/**
- * 获取指定渠道详情
- * GET /api/v2/notify/channels/{type}
- */
-export function getChannel(type: ChannelType) {
-  return get<NotifyChannel>(`/api/v2/notify/channels/${type}`);
-}
-
-/**
- * 更新 Slack 配置
- * PUT /api/v2/notify/channels/slack
- */
-export function updateSlack(data: { enabled?: boolean; webhookUrl?: string }) {
-  const req: UpdateChannelRequest = {};
-  if (data.enabled !== undefined) {
-    req.enabled = data.enabled;
-  }
-  if (data.webhookUrl) {
-    req.config = { webhookUrl: data.webhookUrl }; // 留空 = 保持已设置的 webhook 不变
-  }
-  return put<NotifyChannel>("/api/v2/notify/channels/slack", req);
-}
-
-// Email 更新参数
-export interface EmailUpdateData {
-  enabled?: boolean;
-  smtpHost?: string;
-  smtpPort?: number;
-  smtpUser?: string;
-  smtpPassword?: string;
-  smtpTLS?: boolean;
-  fromAddress?: string;
-  toAddresses?: string[];
-}
-
-/**
- * 更新 Email 配置
- * PUT /api/v2/notify/channels/email
- */
-export function updateEmail(data: EmailUpdateData) {
-  const req: UpdateChannelRequest = {};
-  if (data.enabled !== undefined) {
-    req.enabled = data.enabled;
-  }
-
-  // 构建 config 对象（只包含有值的字段）
-  const config: Record<string, unknown> = {};
-  if (data.smtpHost !== undefined) config.smtpHost = data.smtpHost;
-  if (data.smtpPort !== undefined) config.smtpPort = data.smtpPort;
-  if (data.smtpUser !== undefined) config.smtpUser = data.smtpUser;
-  if (data.smtpPassword !== undefined) config.smtpPassword = data.smtpPassword;
-  if (data.smtpTLS !== undefined) config.smtpTLS = data.smtpTLS;
-  if (data.fromAddress !== undefined) config.fromAddress = data.fromAddress;
-  if (data.toAddresses !== undefined) config.toAddresses = data.toAddresses;
-
-  if (Object.keys(config).length > 0) {
-    req.config = config;
-  }
-
-  return put<NotifyChannel>("/api/v2/notify/channels/email", req);
-}
-
-/**
- * 测试通知渠道：按已保存的配置发一条测试消息
- * POST /api/v2/notify/channels/{type}/test
- */
-export async function testChannel(type: ChannelType): Promise<{ success: boolean; message: string }> {
-  try {
-    const response = await post<{ success: boolean; message: string }>(`/api/v2/notify/channels/${type}/test`);
-    return { success: true, message: response.data.message };
-  } catch (error) {
-    const err = error as { response?: { data?: { error?: string } }; message?: string };
-    return { success: false, message: err.response?.data?.error || err.message || "测试失败" };
-  }
+/** PUT /api/v2/notify/policy（取值超出范围 400）；返回保存后的策略 */
+export function updateNotifyPolicy(policy: NotifyPolicy) {
+  return put<ItemResponse<NotifyPolicy>>("/api/v2/notify/policy", policy);
 }
 
 // ============================================================
-// Mock 数据（Guest 用户使用）
+// 告警与送达记录
 // ============================================================
 
-export const mockChannels: NotifyChannel[] = [
-  {
-    id: 1,
-    type: "slack",
-    name: "Slack",
-    enabled: true,
-    effectiveEnabled: true,
-    validationErrors: [],
-    config: { webhookUrl: "" } as SlackConfig,
-    configuredSecrets: ["webhookUrl"],
-    createdAt: "2025-01-01T00:00:00Z",
-    updatedAt: "2025-01-20T10:30:00Z",
-  },
-  {
-    id: 2,
-    type: "email",
-    name: "Email",
-    enabled: false,
-    effectiveEnabled: false,
-    validationErrors: ["smtpUser 未配置", "smtpPassword 未配置"],
-    config: {
-      smtpHost: "smtp.example.com",
-      smtpPort: 587,
-      smtpUser: "",
-      fromAddress: "alerts@example.com",
-      toAddresses: ["admin@example.com", "ops@example.com"],
-    } as EmailConfig,
-    createdAt: "2025-01-01T00:00:00Z",
-    updatedAt: "2025-01-15T14:20:00Z",
-  },
-];
+/** GET /api/v2/notify/alerts?status=&limit=&offset= */
+export function getNotifyAlerts(params: NotifyAlertListParams, signal?: AbortSignal) {
+  return get<ListResponse<NotifyAlert>>("/api/v2/notify/alerts", params, signal);
+}
+
+/** GET /api/v2/notify/deliveries?status=&limit=&offset= */
+export function getNotifyDeliveries(params: NotifyDeliveryListParams, signal?: AbortSignal) {
+  const { status, limit, offset } = params;
+  // 不筛选时不带 status：空值参数由后端按「不限」处理，干脆不发
+  return get<ListResponse<NotifyDelivery>>(
+    "/api/v2/notify/deliveries",
+    status === "" ? { limit, offset } : { status, limit, offset },
+    signal,
+  );
+}
+
+// ============================================================
+// 接收人
+// ============================================================
+
+/** GET /api/v2/notify/receivers（凭据不返回，只有「是否已配置」） */
+export function getNotifyReceivers(signal?: AbortSignal) {
+  return get<ListResponse<NotifyReceiver>>("/api/v2/notify/receivers", undefined, signal);
+}
+
+/** POST /api/v2/notify/receivers（成功 201；名称重复 409） */
+export function createNotifyReceiver(receiver: NotifyReceiverBody) {
+  return post<ItemResponse<NotifyReceiver>>("/api/v2/notify/receivers", receiver);
+}
+
+/** PUT /api/v2/notify/receivers/{id}（webhookUrl 留空 = 保持原值） */
+export function updateNotifyReceiver(receiverId: number, receiver: NotifyReceiverBody) {
+  return put<ItemResponse<NotifyReceiver>>(`/api/v2/notify/receivers/${idSegment(receiverId)}`, receiver);
+}
+
+/** DELETE /api/v2/notify/receivers/{id}（仍被规则或默认策略引用 409，message 写明被谁引用） */
+export function deleteNotifyReceiver(receiverId: number) {
+  return del<MessageResponse>(`/api/v2/notify/receivers/${idSegment(receiverId)}`);
+}
+
+/** POST /api/v2/notify/receivers/{id}/test（按已保存的配置发一条测试消息；发送失败 502，带原因） */
+export function testNotifyReceiver(receiverId: number) {
+  return post<MessageResponse>(`/api/v2/notify/receivers/${idSegment(receiverId)}/test`);
+}
+
+// ============================================================
+// 全局发件设置
+// ============================================================
+
+/** GET /api/v2/notify/smtp（密码不返回，只有「是否已配置」） */
+export function getNotifySMTP(signal?: AbortSignal) {
+  return get<ItemResponse<NotifySMTP>>("/api/v2/notify/smtp", undefined, signal);
+}
+
+/** PUT /api/v2/notify/smtp（password 留空 = 保持原值；第一次保存不填密码 400）；返回保存后的设置 */
+export function updateNotifySMTP(smtp: NotifySMTPBody) {
+  return put<ItemResponse<NotifySMTP>>("/api/v2/notify/smtp", smtp);
+}
+
+// ============================================================
+// 路由规则
+// ============================================================
+
+/** GET /api/v2/notify/rules */
+export function getNotifyRules(signal?: AbortSignal) {
+  return get<ListResponse<NotifyRule>>("/api/v2/notify/rules", undefined, signal);
+}
+
+/** POST /api/v2/notify/rules（不带 id / position；新规则排在最后） */
+export function createNotifyRule(rule: NotifyRuleBody) {
+  return post<ItemResponse<NotifyRule>>("/api/v2/notify/rules", rule);
+}
+
+/** PUT /api/v2/notify/rules/{id} */
+export function updateNotifyRule(ruleId: number, rule: NotifyRuleBody) {
+  return put<ItemResponse<NotifyRule>>(`/api/v2/notify/rules/${idSegment(ruleId)}`, rule);
+}
+
+/** DELETE /api/v2/notify/rules/{id} */
+export function deleteNotifyRule(ruleId: number) {
+  return del<MessageResponse>(`/api/v2/notify/rules/${idSegment(ruleId)}`);
+}
+
+/** PUT /api/v2/notify/rules/order（ids 必须恰好是全部规则的一个排列） */
+export function reorderNotifyRules(ruleIds: number[]) {
+  return put<MessageResponse>("/api/v2/notify/rules/order", { ids: ruleIds });
+}
+
+/** POST /api/v2/notify/rules/match（试匹配：假想一条告警，看命中哪条规则、发给谁） */
+export function matchNotifyRules(alert: NotifyRuleMatchRequest) {
+  return post<ItemResponse<NotifyRuleMatchResult>>("/api/v2/notify/rules/match", alert);
+}
+
+// ============================================================
+// 静默
+// ============================================================
+
+/** GET /api/v2/notify/silences?state=active|pending|expired */
+export function getNotifySilences(state: NotifySilenceState, signal?: AbortSignal) {
+  return get<ListResponse<NotifySilence>>("/api/v2/notify/silences", { state }, signal);
+}
+
+/** POST /api/v2/notify/silences（成功 201；起止时间、时长、备注不合规 400） */
+export function createNotifySilence(silence: NotifySilenceBody) {
+  return post<ItemResponse<NotifySilence>>("/api/v2/notify/silences", silence);
+}
+
+/** POST /api/v2/notify/silences/{id}/expire（提前结束：endsAt 置为现在） */
+export function expireNotifySilence(silenceId: number) {
+  return post<MessageResponse>(`/api/v2/notify/silences/${idSegment(silenceId)}/expire`);
+}

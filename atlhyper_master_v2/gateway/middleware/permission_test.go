@@ -31,6 +31,7 @@ func TestLevelZero_HasNoSensitivePermission(t *testing.T) {
 		PermSecretRead, PermPodLogsRead, PermClusterOperate, PermAuditRead,
 		PermNotifyManage, PermAIAnalyze, PermAISettingsRead,
 		PermUserManage, PermAISettingsWrite, PermGitHubManage, PermDeployManage,
+		PermClustersManage,
 	}
 	for _, p := range sensitive {
 		if Allowed(RoleMember, p) {
@@ -54,6 +55,8 @@ func TestAllowed_Boundaries(t *testing.T) {
 		{RoleOperator, PermClusterOperate, true},
 		{RoleOperator, PermUserManage, false},
 		{RoleAdmin, PermUserManage, true},
+		{RoleOperator, PermClustersManage, false}, // 集群注册表与令牌签发只给 Admin
+		{RoleAdmin, PermClustersManage, true},
 		{RoleAdmin, PermClusterRead, true},
 		{-1, PermClusterRead, false}, // 越界 level 一律拒绝
 		{99, PermClusterRead, false},
@@ -75,5 +78,15 @@ func TestLevelGrants_NoDuplicates(t *testing.T) {
 			}
 			seen[p] = level
 		}
+	}
+}
+
+// 集群注册表管理（登记、签发令牌）属于系统配置，最低 3 级。
+func TestClustersManage_IsAdminOnly(t *testing.T) {
+	if got := MinLevelFor(PermClustersManage); got != RoleAdmin {
+		t.Errorf("clusters.manage 的最低等级 = %d, want %d", got, RoleAdmin)
+	}
+	if PermClustersManage != "clusters.manage" {
+		t.Errorf("权限名 = %q, want clusters.manage", PermClustersManage)
 	}
 }

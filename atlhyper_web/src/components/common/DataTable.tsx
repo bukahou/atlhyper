@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useI18n } from "@/i18n/context";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { clampPage } from "./pagination";
 
 export interface TableColumn<T> {
   key: string;
@@ -43,37 +44,34 @@ export function DataTable<T>({
   showPagination = true,
 }: DataTableProps<T>) {
   const { t } = useI18n();
-  const [currentPage, setCurrentPage] = useState(1);
+  // 用户选的页码。数据变少后它可能超出总页数，显示与翻页一律用下面收拢过的 currentPage
+  const [requestedPage, setRequestedPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
   // 计算分页数据
-  const { paginatedData, totalPages, startIndex, endIndex } = useMemo(() => {
+  const { paginatedData, totalPages, currentPage, startIndex, endIndex } = useMemo(() => {
     const total = data.length;
     const pages = Math.ceil(total / pageSize);
-    const start = (currentPage - 1) * pageSize;
+    // 确保当前页不超过总页数：筛选后数据变少时停在最后一页，而不是显示一页空白
+    const page = clampPage(requestedPage, pages);
+    const start = (page - 1) * pageSize;
     const end = Math.min(start + pageSize, total);
     const items = data.slice(start, end);
 
     return {
       paginatedData: items,
       totalPages: pages,
+      currentPage: page,
       startIndex: start + 1,
       endIndex: end,
     };
-  }, [data, currentPage, pageSize]);
+  }, [data, requestedPage, pageSize]);
 
-  // 当数据变化或页大小变化时，重置到第一页
+  // 页大小变化时，重置到第一页
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
-    setCurrentPage(1);
+    setRequestedPage(1);
   };
-
-  // 确保当前页不超过总页数
-  useMemo(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
 
   // 移动端列过滤
   const mobileColumns = useMemo(() => {
@@ -196,7 +194,7 @@ export function DataTable<T>({
           {/* 右侧分页按钮 */}
           <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              onClick={() => setRequestedPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
               className="p-2 sm:p-1.5 rounded hover:bg-card disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -220,7 +218,7 @@ export function DataTable<T>({
                 return (
                   <button
                     key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
+                    onClick={() => setRequestedPage(pageNum)}
                     className={`w-9 h-9 sm:w-8 sm:h-8 text-sm rounded transition-colors ${
                       currentPage === pageNum
                         ? "bg-primary text-white"
@@ -234,7 +232,7 @@ export function DataTable<T>({
             </div>
 
             <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              onClick={() => setRequestedPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
               className="p-2 sm:p-1.5 rounded hover:bg-card disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

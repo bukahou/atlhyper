@@ -110,6 +110,7 @@ type DiffResult struct {
 
 // BaselineState 基线状态（每个实体-指标对）
 type BaselineState struct {
+	ClusterID       string  `json:"clusterId"`
 	EntityKey       string  `json:"entityKey"`
 	MetricName      string  `json:"metricName"`
 	EMA             float64 `json:"ema"`
@@ -346,32 +347,145 @@ const (
 	StateStable   EntityState = "stable"
 )
 
-// StateMachineEntry 状态机条目（每个实体一个）
+// StateMachineEntry 状态机条目（每个主体一个）
 type StateMachineEntry struct {
-	EntityKey         string      `json:"entityKey"`
-	CurrentState      EntityState `json:"currentState"`
-	IncidentID        string      `json:"incidentId"`
+	ClusterID    string      `json:"clusterId"`
+	SubjectKey   string      `json:"subjectKey"`
+	CurrentState EntityState `json:"currentState"`
+	IncidentID   string      `json:"incidentId"`
+	// ConditionMetSince 当前出口条件开始连续满足的时刻（Unix 秒），0 表示没有条件在计时；
+	// ConditionTarget 是该条件通往的状态：同一状态有两个出口时，各计各的时
 	ConditionMetSince int64       `json:"conditionMetSince"`
+	ConditionTarget   EntityState `json:"conditionTarget,omitempty"`
 	LastRFinal        float64     `json:"lastRFinal"`
 	LastEvaluatedAt   int64       `json:"lastEvaluatedAt"`
+	// RecoveryStartedAt 进入恢复观察期的时刻（Unix 秒），0 表示不在观察期。
+	// 与 ConditionMetSince 分开：后者在每次评估「没有出口条件满足」时清零，不能用来计观察期。
+	RecoveryStartedAt int64 `json:"recoveryStartedAt,omitempty"`
+
+	// 以下随事件走，重启后从库里取回（见 core/engine.go 的 reloadActiveIncidents）
+	ReachedIncident bool    `json:"reachedIncident"` // 是否升级到过「事件中」：决定观察期长短与复发是否立即生效
+	PeakRisk        float64 `json:"peakRisk"`        // 事件至今的最高风险
+	Severity        string  `json:"severity"`        // 峰值严重度，只升不降
+	Recurrence      int     `json:"recurrence"`      // 复发次数
+	RootCause       string  `json:"rootCause"`       // 最近一次风险抬升时的领头实体
+	// OccurrenceTimes 近 24 小时内每次「发生」的时刻（Unix 秒）：建事件 + 每次复发
+	OccurrenceTimes []int64 `json:"occurrenceTimes,omitempty"`
+	// GoneSince 主体从评估里消失（对象已删除）的起始时刻（Unix 秒），0 = 本轮还在。
+	// 连续消失满一段时间才认定已删除，避免一次不完整的快照被当成删除
+	GoneSince int64 `json:"goneSince,omitempty"`
+	// EpisodeStartedAt 这一轮异常开始的时刻（Unix 秒）：建事件或最近一次复发。
+	// 不从 OccurrenceTimes 推：那里只留 24 小时，持续更久的异常会丢掉起点
+	EpisodeStartedAt int64 `json:"episodeStartedAt,omitempty"`
+}
+
+// ==================== 主体与事件变化 ====================
+
+// SubjectRisk 一个主体在本轮评估中的风险。
+// 主体是状态机与事件的单位：有上级工作负载的 Pod 归到工作负载，其余实体的主体就是自身。
+type SubjectRisk struct {
+	SubjectKey string
+	RFinal     float64       // = Lead.RFinal
+	Lead       *EntityRisk   // 风险最高的成员
+	Members    []*EntityRisk // RFinal > 0 的成员，按风险从高到低（含 Lead）
+}
+
+// TransitionKind 事件变化的种类
+type TransitionKind string
+
+const (
+	TransitionCreated         TransitionKind = "created"          // 健康 → 警告
+	TransitionEscalated       TransitionKind = "escalated"        // 警告 → 事件中
+	TransitionSeverityRaised  TransitionKind = "severity_raised"  // 严重度升高一档以上
+	TransitionRecoveryStarted TransitionKind = "recovery_started" // → 恢复观察
+	TransitionRecurred        TransitionKind = "recurred"         // 恢复观察 → 警告
+	TransitionClosed          TransitionKind = "closed"           // 观察期满
+	TransitionClosedStale     TransitionKind = "closed_stale"     // 失联关闭
+)
+
+// IncidentTransition 一次事件变化，由引擎发给订阅者（AI 后台分析、通知）
+type IncidentTransition struct {
+	Kind            TransitionKind
+	IncidentID      string
+	ClusterID       string
+	SubjectKey      string
+	RootCause       string   // 领头实体
+	Members         []string // 本轮有风险的成员实体键
+	FromState       EntityState
+	ToState         EntityState
+	Severity        string // 峰值严重度
+	RFinal          float64
+	PeakRisk        float64
+	Recurrence      int
+	Occurrences24h  int // 近 24 小时内的发生次数（含本次）
+	ReachedIncident bool
+	// EpisodeStartedAt 这一轮异常开始的时刻（建事件或最近一次复发）；通知里的开始时间与持续时间按它算
+	EpisodeStartedAt time.Time
+	// SubjectGone 这次进入恢复观察是因为主体的对象已被删除（不是风险回落）
+	SubjectGone bool
+	At          time.Time
+}
+
+// ==================== 拓扑归并 ====================
+
+// LinkPathStep 归组依据路径上的一步：从受影响事件的成员沿依赖走到源头事件的成员
+type LinkPathStep struct {
+	EntityKey string `json:"entityKey"`
+	Edge      string `json:"edge"` // 到达这一步经过的边：""（起点）/ calls / selects / runs_on / routes_to
+}
+
+// IncidentLink 受影响事件归到源头事件
+type IncidentLink struct {
+	ClusterID      string         `json:"clusterId"`
+	IncidentID     string         `json:"incidentId"`     // 受影响事件
+	Subject        string         `json:"subject"`        // 受影响事件的主体（通知里列影响范围用）
+	RootIncidentID string         `json:"rootIncidentId"` // 源头事件；空 = 解除关联
+	Path           []LinkPathStep `json:"path"`
+	At             time.Time      `json:"at"`
 }
 
 // ==================== 事件类型 ====================
 
 // Incident 事件
 type Incident struct {
-	ID         string      `json:"id"`
-	ClusterID  string      `json:"clusterId"`
-	State      EntityState `json:"state"`
-	Severity   string      `json:"severity"`
-	RootCause  string      `json:"rootCause"`
-	PeakRisk   float64     `json:"peakRisk"`
-	StartedAt  time.Time   `json:"startedAt"`
-	ResolvedAt *time.Time  `json:"resolvedAt"`
-	DurationS  int64       `json:"durationS"`
-	Recurrence int         `json:"recurrence"`
-	Summary    string      `json:"summary"`
-	CreatedAt  time.Time   `json:"createdAt"`
+	ID          string      `json:"id"`
+	ClusterID   string      `json:"clusterId"`
+	State       EntityState `json:"state"`
+	Severity    string      `json:"severity"`    // 峰值严重度：只升不降，关闭后保留
+	Subject     string      `json:"subject"`     // 主体键 "<ns>/<类型>/<名字>"：工作负载，或实体自身
+	SubjectType string      `json:"subjectType"` // 由 Subject 解析：deployment / statefulset / daemonset / cronjob / job / pod / service / node / ingress / logs
+	// SubjectNamespace / SubjectName 由 Subject 解析，页面直接显示；集群级对象（节点）的命名空间为空串
+	SubjectNamespace string     `json:"subjectNamespace"`
+	SubjectName      string     `json:"subjectName"`
+	RootCause        string     `json:"rootCause"` // 领头实体：主体的成员里风险最高的
+	PeakRisk         float64    `json:"peakRisk"`
+	StartedAt        time.Time  `json:"startedAt"`
+	EscalatedAt      *time.Time `json:"escalatedAt"` // 首次升级到「事件中」的时刻；从未升级为 null
+	ResolvedAt       *time.Time `json:"resolvedAt"`
+	CloseReason      string     `json:"closeReason"` // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
+	DurationS        int64      `json:"durationS"`
+	Recurrence       int        `json:"recurrence"`
+	Summary          string     `json:"summary"`
+	CreatedAt        time.Time  `json:"createdAt"`
+
+	// 拓扑归并（当前有效的关联）
+	RootIncidentID string            `json:"rootIncidentId"` // 受影响事件：归到的源头；否则空串
+	Root           *IncidentLinkRef  `json:"root"`           // 受影响事件：源头的摘要（详情里带路径）；否则 nil
+	LinkedCount    int               `json:"linkedCount"`    // 源头事件：归到它下面的受影响事件数；否则 0
+	Impacted       []IncidentLinkRef `json:"impacted"`       // 源头事件：受影响事件（列表只在 grouped 时给，详情总是给，带路径）
+}
+
+// IncidentLinkRef 关联另一端的事件摘要
+type IncidentLinkRef struct {
+	IncidentID       string         `json:"incidentId"`
+	Subject          string         `json:"subject"`
+	SubjectType      string         `json:"subjectType"`
+	SubjectNamespace string         `json:"subjectNamespace"`
+	SubjectName      string         `json:"subjectName"`
+	State            EntityState    `json:"state"`
+	Severity         string         `json:"severity"`
+	Path             []LinkPathStep `json:"path,omitempty"`     // 详情里给：从受影响事件走到源头的依赖路径
+	LinkedAt         *time.Time     `json:"linkedAt,omitempty"` // 详情里给
 }
 
 // IncidentEntity 受影响实体
@@ -379,6 +493,8 @@ type IncidentEntity struct {
 	IncidentID string  `json:"incidentId"`
 	EntityKey  string  `json:"entityKey"`
 	EntityType string  `json:"entityType"`
+	Namespace  string  `json:"namespace"` // 由 EntityKey 解析；集群级对象为空串
+	Name       string  `json:"name"`      // 由 EntityKey 解析
 	RLocal     float64 `json:"rLocal"`
 	RFinal     float64 `json:"rFinal"`
 	Role       string  `json:"role"`
@@ -402,6 +518,13 @@ const (
 	TimelineRootCauseIdentified = "root_cause_identified"
 	TimelineRecoveryStarted     = "recovery_started"
 	TimelineRecurrence          = "recurrence"
+	TimelineSeverityRaised      = "severity_raised"
+)
+
+// 事件的关闭原因（aiops_incidents.close_reason）；未关闭为空串
+const (
+	CloseReasonRecovered = "recovered" // 恢复观察期满
+	CloseReasonStale     = "stale"     // 失联：主体长时间没有被评估（对象已删除或 Agent 断连）
 )
 
 // IncidentDetail 事件详情（API 响应）
@@ -409,6 +532,112 @@ type IncidentDetail struct {
 	Incident
 	Entities []*IncidentEntity   `json:"entities"`
 	Timeline []*IncidentTimeline `json:"timeline"`
+
+	// 以下为详情页的展示形态。
+	// Headline / Evidence / TimelineView 由事件存储按库里的记录算出；Impact / Members 由查询层按当前快照补上
+	Headline *IncidentHeadline `json:"headline"` // nil = 没有证据（原因见 EvidenceStatus）
+	// EvidenceStatus 证据的情况：recorded = 有证据；propagation_only = 只有依赖传播、本主体没有本地异常；
+	// not_recorded = 改版前的事件，当时没有记录证据
+	EvidenceStatus string `json:"evidenceStatus"`
+	// SubjectPresent 主体的对象在当前快照里是否还在（已删除时「下一步」里的查看按钮不可用）；nil = 不知道（快照不可用或类型不在快照里）
+	SubjectPresent *bool                  `json:"subjectPresent"`
+	Impact         *IncidentImpact        `json:"impact"`       // nil = 查询层没有补（如集群快照不可用）
+	Evidence       []IncidentEvidence     `json:"evidence"`     // 按信号类型去重，最高分从高到低
+	Members        []IncidentMember       `json:"members"`      // 与 Entities 一一对应，带当前快照里的状态
+	TimelineView   []IncidentTimelineItem `json:"timelineView"` // 状态与严重度的变化 + 合并后的检测记录
+}
+
+// 证据的情况（IncidentDetail.EvidenceStatus）
+const (
+	EvidenceRecorded        = "recorded"
+	EvidencePropagationOnly = "propagation_only"
+	EvidenceNotRecorded     = "not_recorded"
+)
+
+// 证据的信号类型（由指标名归类）
+const (
+	SignalContainerCrash      = "container_crash"
+	SignalWorkloadUnavailable = "workload_unavailable"
+	SignalK8sEvent            = "k8s_event"
+	SignalRestarts            = "restarts"
+	SignalNotReady            = "not_ready"
+	SignalResource            = "resource"
+	SignalNodePressure        = "node_pressure"
+	SignalAPMErrors           = "apm_errors"
+	SignalAPMLatency          = "apm_latency"
+	SignalLogErrors           = "log_errors"
+	SignalOther               = "other"
+)
+
+// IncidentHeadline 结论那一句话的素材：主证据（分数最高的一条）
+type IncidentHeadline struct {
+	Signal          string `json:"signal"`
+	Reason          string `json:"reason"` // 原因码 / 取值；没有时为空串
+	AffectedMembers int    `json:"affectedMembers"`
+	TotalMembers    int    `json:"totalMembers"`
+	// UnavailablePercent 主证据是「原因」类信号（容器崩溃 / 未就绪 / 重启）且同时有工作负载不可用时，带上不可用比例，
+	// 结论写成「N 个 Pod …，工作负载不可用 X%」；否则 nil
+	UnavailablePercent *int `json:"unavailablePercent"`
+}
+
+// IncidentImpact 影响数字；不适用的项为 nil
+type IncidentImpact struct {
+	DesiredReplicas   *int `json:"desiredReplicas"`   // 只对 Deployment / StatefulSet / DaemonSet 主体
+	AvailableReplicas *int `json:"availableReplicas"` // 同上
+	RestartsTotal     *int `json:"restartsTotal"`     // 当前仍存在的成员 Pod 的重启次数之和
+}
+
+// IncidentEvidence 一类信号的证据
+type IncidentEvidence struct {
+	Signal          string    `json:"signal"`
+	Reason          string    `json:"reason"`
+	AffectedMembers int       `json:"affectedMembers"`
+	Detail          string    `json:"detail"` // 最近一次的原文（已去掉 Pod UID 等噪音）
+	FirstSeen       time.Time `json:"firstSeen"`
+	LastSeen        time.Time `json:"lastSeen"`
+	Hits            int       `json:"hits"`
+	MaxScore        float64   `json:"maxScore"`
+}
+
+// IncidentMember 成员实体 + 当前快照里的状态
+type IncidentMember struct {
+	EntityKey  string  `json:"entityKey"`
+	EntityType string  `json:"entityType"`
+	Namespace  string  `json:"namespace"`
+	Name       string  `json:"name"`
+	Role       string  `json:"role"`
+	RFinal     float64 `json:"rFinal"`  // 0–100
+	IsLead     bool    `json:"isLead"`  // 风险最高的成员（事件的 root_cause）
+	Present    bool    `json:"present"` // 当前快照里还在；false 时以下三项为空
+	Status     string  `json:"status"`
+	Restarts   *int    `json:"restarts"`
+	Ready      string  `json:"ready"`
+}
+
+// 时间线展示条目的种类
+const (
+	TimelineItemCreated         = "created"
+	TimelineItemEscalated       = "escalated"
+	TimelineItemSeverityRaised  = "severity_raised"
+	TimelineItemRecoveryStarted = "recovery_started"
+	TimelineItemRecurred        = "recurred"
+	TimelineItemClosed          = "closed"
+	TimelineItemClosedStale     = "closed_stale"
+	TimelineItemAnomaly         = "anomaly" // 合并后的检测记录
+	TimelineItemNote            = "note"    // 其余（旧版本写下的类型），原文放在 Detail
+)
+
+// IncidentTimelineItem 时间线的一条展示记录
+type IncidentTimelineItem struct {
+	At       time.Time  `json:"at"`
+	Kind     string     `json:"kind"`
+	Risk     *int       `json:"risk,omitempty"`     // 0–100
+	Severity string     `json:"severity,omitempty"` // severity_raised 的新档位
+	Count    int        `json:"count,omitempty"`    // anomaly：合并了几条
+	FirstAt  *time.Time `json:"firstAt,omitempty"`  // anomaly：第一条
+	LastAt   *time.Time `json:"lastAt,omitempty"`   // anomaly：最后一条
+	Detail   string     `json:"detail,omitempty"`   // note：原文
+	Reason   string     `json:"reason,omitempty"`   // recovery_started：subject_deleted = 对象已删除（不是风险回落）
 }
 
 // IncidentStats 事件统计
@@ -447,6 +676,8 @@ type IncidentQueryOpts struct {
 	To        time.Time
 	Limit     int
 	Offset    int
+	// Grouped 受影响事件不单独列出（折叠到源头的 Impacted 里）
+	Grouped bool
 }
 
 // SeverityFromRisk 从 R_final 映射严重度
@@ -460,5 +691,21 @@ func SeverityFromRisk(rFinal float64) string {
 		return "medium"
 	default:
 		return "low"
+	}
+}
+
+// SeverityRank 严重度的档位，越大越严重；未知值为 0
+func SeverityRank(severity string) int {
+	switch severity {
+	case "critical":
+		return 4
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	case "low":
+		return 1
+	default:
+		return 0
 	}
 }

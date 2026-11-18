@@ -4,6 +4,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
@@ -12,25 +13,66 @@ import (
 // aIOpsIncidentDialect AIOps 事件 SQLite 方言
 type aIOpsIncidentDialect struct{}
 
+// incidentColumns 事件表的列，顺序与 ScanIncident 一致
+var incidentColumns = []string{
+	"id", "cluster_id", "state", "severity", "subject", "root_cause", "peak_risk",
+	"started_at", "escalated_at", "resolved_at", "close_reason", "duration_s", "recurrence", "summary", "created_at",
+}
+
+// severityRankSQL 把严重度列（或占位符）映射为可比较的档位
+func severityRankSQL(expr string) string {
+	return "CASE " + expr + " WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END"
+}
+
+func (d *aIOpsIncidentDialect) IncidentColumns(prefix string) string {
+	return prefix + strings.Join(incidentColumns, ", "+prefix)
+}
+
 func (d *aIOpsIncidentDialect) InsertIncident(inc *database.AIOpsIncident) (string, []any) {
-	return `INSERT INTO aiops_incidents (id, cluster_id, state, severity, root_cause, peak_risk, started_at, resolved_at, duration_s, recurrence, summary, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		[]any{inc.ID, inc.ClusterID, inc.State, inc.Severity, inc.RootCause, inc.PeakRisk,
-			inc.StartedAt.Format(time.RFC3339), nil, 0, 0, inc.Summary, inc.CreatedAt.Format(time.RFC3339)}
+	return `INSERT INTO aiops_incidents (id, cluster_id, state, severity, subject, root_cause, peak_risk, started_at, summary, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[]any{inc.ID, inc.ClusterID, inc.State, inc.Severity, inc.Subject, inc.RootCause, inc.PeakRisk,
+			inc.StartedAt.Format(time.RFC3339), inc.Summary, inc.CreatedAt.Format(time.RFC3339)}
 }
 
 func (d *aIOpsIncidentDialect) SelectByID(id string) (string, []any) {
-	return `SELECT id, cluster_id, state, severity, root_cause, peak_risk, started_at, resolved_at, duration_s, recurrence, summary, created_at
-		FROM aiops_incidents WHERE id = ?`, []any{id}
+	return `SELECT ` + d.IncidentColumns("") + ` FROM aiops_incidents WHERE id = ?`, []any{id}
 }
 
-func (d *aIOpsIncidentDialect) UpdateState(id, state, severity string) (string, []any) {
-	return `UPDATE aiops_incidents SET state = ?, severity = ? WHERE id = ?`, []any{state, severity, id}
+func (d *aIOpsIncidentDialect) UpdateState(id, state string) (string, []any) {
+	return `UPDATE aiops_incidents SET state = ? WHERE id = ?`, []any{state, id}
 }
 
-func (d *aIOpsIncidentDialect) Resolve(id string, resolvedAt time.Time) (string, []any) {
-	return `UPDATE aiops_incidents SET state = 'stable', resolved_at = ?, duration_s = CAST((julianday(?) - julianday(started_at)) * 86400 AS INTEGER) WHERE id = ?`,
-		[]any{resolvedAt.Format(time.RFC3339), resolvedAt.Format(time.RFC3339), id}
+func (d *aIOpsIncidentDialect) RaiseSeverity(id, severity string, peakRisk float64) (string, []any) {
+	return `UPDATE aiops_incidents SET
+			severity = CASE WHEN ` + severityRankSQL("?") + ` > ` + severityRankSQL("severity") + ` THEN ? ELSE severity END,
+			peak_risk = MAX(peak_risk, ?)
+		WHERE id = ?`, []any{severity, severity, peakRisk, id}
+}
+
+func (d *aIOpsIncidentDialect) MarkEscalated(id string, escalatedAt time.Time) (string, []any) {
+	return `UPDATE aiops_incidents SET escalated_at = ? WHERE id = ? AND escalated_at IS NULL`,
+		[]any{escalatedAt.Format(time.RFC3339), id}
+}
+
+// SetAnomalyDuration 时长按整秒相减：julianday 相减再乘 86400 是浮点运算，截断后会少 1 秒
+func (d *aIOpsIncidentDialect) SetAnomalyDuration(id string, endedAt time.Time) (string, []any) {
+	return `UPDATE aiops_incidents SET
+			duration_s = CAST(strftime('%s', ?) AS INTEGER) - CAST(strftime('%s', started_at) AS INTEGER)
+		WHERE id = ?`,
+		[]any{endedAt.Format(time.RFC3339), id}
+}
+
+// Resolve 时长是「异常持续了多久」，不含恢复观察期：
+// 从观察期关闭的事件沿用进入观察期时记下的值（CASE 里读到的是更新前的 state）；
+// 其余（失联关闭时还在警告 / 事件中）算到关闭时刻。
+func (d *aIOpsIncidentDialect) Resolve(id string, resolvedAt time.Time, reason string) (string, []any) {
+	return `UPDATE aiops_incidents SET
+			duration_s = CASE WHEN state = 'recovery' AND duration_s > 0 THEN duration_s
+				ELSE CAST(strftime('%s', ?) AS INTEGER) - CAST(strftime('%s', started_at) AS INTEGER) END,
+			state = 'stable', resolved_at = ?, close_reason = ?
+		WHERE id = ?`,
+		[]any{resolvedAt.Format(time.RFC3339), resolvedAt.Format(time.RFC3339), reason, id}
 }
 
 func (d *aIOpsIncidentDialect) UpdateRootCause(id, rootCause string) (string, []any) {
@@ -67,23 +109,100 @@ func (d *aIOpsIncidentDialect) SelectTimeline(incidentID string) (string, []any)
 		FROM aiops_incident_timeline WHERE incident_id = ? ORDER BY timestamp ASC`, []any{incidentID}
 }
 
+func (d *aIOpsIncidentDialect) UpsertSignal(signal *database.AIOpsIncidentSignal) (string, []any) {
+	return `INSERT INTO aiops_incident_signals
+			(incident_id, entity_key, metric, first_seen, last_seen, hits, max_score, detail)
+		VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+		ON CONFLICT(incident_id, entity_key, metric) DO UPDATE SET
+			last_seen = excluded.last_seen,
+			hits = aiops_incident_signals.hits + 1,
+			max_score = MAX(aiops_incident_signals.max_score, excluded.max_score),
+			detail = excluded.detail`,
+		[]any{signal.IncidentID, signal.EntityKey, signal.Metric,
+			signal.LastSeen.UTC().Format(time.RFC3339), signal.LastSeen.UTC().Format(time.RFC3339),
+			signal.MaxScore, signal.Detail}
+}
+
+func (d *aIOpsIncidentDialect) SelectSignals(incidentID string) (string, []any) {
+	return `SELECT incident_id, entity_key, metric, first_seen, last_seen, hits, max_score, detail
+		FROM aiops_incident_signals WHERE incident_id = ? ORDER BY max_score DESC, metric, entity_key`, []any{incidentID}
+}
+
+func (d *aIOpsIncidentDialect) ScanSignal(rows *sql.Rows) (*database.AIOpsIncidentSignal, error) {
+	s := &database.AIOpsIncidentSignal{}
+	var firstSeen, lastSeen string
+	if err := rows.Scan(&s.IncidentID, &s.EntityKey, &s.Metric, &firstSeen, &lastSeen, &s.Hits, &s.MaxScore, &s.Detail); err != nil {
+		return nil, err
+	}
+	s.FirstSeen, _ = time.Parse(time.RFC3339, firstSeen)
+	s.LastSeen, _ = time.Parse(time.RFC3339, lastSeen)
+	return s, nil
+}
+
+func (d *aIOpsIncidentDialect) SaveLink(link *database.AIOpsIncidentLink) (string, []any) {
+	return `INSERT INTO aiops_incident_links (incident_id, cluster_id, root_incident_id, path, linked_at, unlinked_at)
+		VALUES (?, ?, ?, ?, ?, NULL)
+		ON CONFLICT(incident_id) DO UPDATE SET
+			cluster_id = excluded.cluster_id,
+			root_incident_id = excluded.root_incident_id,
+			path = excluded.path,
+			linked_at = excluded.linked_at,
+			unlinked_at = NULL`,
+		[]any{link.IncidentID, link.ClusterID, link.RootIncidentID, link.Path, link.LinkedAt.UTC().Format(time.RFC3339)}
+}
+
+func (d *aIOpsIncidentDialect) UnlinkIncident(incidentID string, at time.Time) (string, []any) {
+	return `UPDATE aiops_incident_links SET unlinked_at = ? WHERE incident_id = ? AND unlinked_at IS NULL`,
+		[]any{at.UTC().Format(time.RFC3339), incidentID}
+}
+
+func (d *aIOpsIncidentDialect) SelectActiveLinks(clusterID string) (string, []any) {
+	query := `SELECT incident_id, cluster_id, root_incident_id, path, linked_at, unlinked_at
+		FROM aiops_incident_links WHERE unlinked_at IS NULL`
+	if clusterID == "" {
+		return query + ` ORDER BY linked_at`, nil
+	}
+	return query + ` AND cluster_id = ? ORDER BY linked_at`, []any{clusterID}
+}
+
+func (d *aIOpsIncidentDialect) ScanLink(rows *sql.Rows) (*database.AIOpsIncidentLink, error) {
+	link := &database.AIOpsIncidentLink{}
+	var linkedAt string
+	var unlinkedAt sql.NullString
+	if err := rows.Scan(&link.IncidentID, &link.ClusterID, &link.RootIncidentID, &link.Path, &linkedAt, &unlinkedAt); err != nil {
+		return nil, err
+	}
+	link.LinkedAt, _ = time.Parse(time.RFC3339, linkedAt)
+	if unlinkedAt.Valid {
+		t, _ := time.Parse(time.RFC3339, unlinkedAt.String)
+		link.UnlinkedAt = &t
+	}
+	return link, nil
+}
+
 func (d *aIOpsIncidentDialect) ScanIncident(rows *sql.Rows) (*database.AIOpsIncident, error) {
 	inc := &database.AIOpsIncident{}
 	var startedAt, createdAt string
-	var resolvedAt sql.NullString
-	err := rows.Scan(&inc.ID, &inc.ClusterID, &inc.State, &inc.Severity, &inc.RootCause, &inc.PeakRisk,
-		&startedAt, &resolvedAt, &inc.DurationS, &inc.Recurrence, &inc.Summary, &createdAt)
+	var escalatedAt, resolvedAt, rootCause, summary sql.NullString
+	err := rows.Scan(&inc.ID, &inc.ClusterID, &inc.State, &inc.Severity, &inc.Subject, &rootCause, &inc.PeakRisk,
+		&startedAt, &escalatedAt, &resolvedAt, &inc.CloseReason, &inc.DurationS, &inc.Recurrence, &summary, &createdAt)
 	if err != nil {
 		return nil, err
 	}
+	inc.RootCause, inc.Summary = rootCause.String, summary.String
 	inc.StartedAt, _ = time.Parse(time.RFC3339, startedAt)
 	inc.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	if escalatedAt.Valid {
+		t, _ := time.Parse(time.RFC3339, escalatedAt.String)
+		inc.EscalatedAt = &t
+	}
 	if resolvedAt.Valid {
 		t, _ := time.Parse(time.RFC3339, resolvedAt.String)
 		inc.ResolvedAt = &t
 	}
-	// 活跃事件：动态计算持续时间（DB 中只有 Resolve 时才写入 duration_s）
-	if inc.ResolvedAt == nil {
+	// 时长是「异常持续了多久」：仍在异常中的事件按当前时刻动态算；
+	// 恢复观察中的事件用进入观察期时记下的值（观察期不算异常时长）
+	if inc.ResolvedAt == nil && !(inc.State == "recovery" && inc.DurationS > 0) {
 		inc.DurationS = int64(time.Since(inc.StartedAt).Seconds())
 	}
 	return inc, nil

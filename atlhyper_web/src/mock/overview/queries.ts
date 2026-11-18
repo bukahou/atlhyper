@@ -1,9 +1,10 @@
 /**
- * Overview mock queries — 返回与真实 API 相同的响应结构
+ * Overview mock queries — 返回与数据源相同的形态（解包后的 ClusterOverview）
  */
 
+import type { ClusterOverview } from "@/types/overview";
 import { MOCK_CLUSTER_OVERVIEW } from "./data";
 
-export function mockGetClusterOverview() {
-  return { data: { data: MOCK_CLUSTER_OVERVIEW } };
+export function mockGetClusterOverview(): ClusterOverview {
+  return MOCK_CLUSTER_OVERVIEW;
 }

@@ -63,8 +63,8 @@ interface DeployHistoryResponse {
  * 获取部署配置
  * GET /api/deploy/config
  */
-export function getConfig(clusterId: string) {
-  return get<DeployConfigResponse>("/api/deploy/config", { clusterId });
+export function getConfig(clusterId: string, signal?: AbortSignal) {
+  return get<DeployConfigResponse>("/api/deploy/config", { clusterId }, signal);
 }
 
 /**
@@ -85,8 +85,8 @@ export function saveConfig(data: {
  * 扫描 kustomize 路径
  * GET /api/deploy/kustomize-paths
  */
-export function getKustomizePaths(repo: string) {
-  return get<KustomizePathsResponse>("/api/deploy/kustomize-paths", { repo });
+export function getKustomizePaths(repo: string, signal?: AbortSignal) {
+  return get<KustomizePathsResponse>("/api/deploy/kustomize-paths", { repo }, signal);
 }
 
 /**
@@ -101,8 +101,8 @@ export function testConnection() {
  * 获取部署历史
  * GET /api/deploy/history
  */
-export function getHistory(params: { clusterId: string; path?: string }) {
-  return get<DeployHistoryResponse>("/api/deploy/history", params);
+export function getHistory(params: { clusterId: string; path?: string }, signal?: AbortSignal) {
+  return get<DeployHistoryResponse>("/api/deploy/history", params, signal);
 }
 
 // ============================================================
@@ -131,8 +131,8 @@ interface RollbackResponse {
  * 获取同步状态
  * GET /api/deploy/status
  */
-export function getStatus() {
-  return get<PathStatusResponse>("/api/deploy/status");
+export function getStatus(signal?: AbortSignal) {
+  return get<PathStatusResponse>("/api/deploy/status", undefined, signal);
 }
 
 /**

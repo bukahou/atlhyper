@@ -1,17 +1,26 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Activity, BarChart3, Settings2 } from "lucide-react";
+import { QueryView } from "@/components/common";
 import { HistoryChart } from "./HistoryChart";
 import { ErrorBudgetBurnChart } from "./ErrorBudgetBurnChart";
 import { BurnRateTable } from "./BurnRateTable";
 import { GoodBadCount } from "./GoodBadCount";
 import { LatencyTab } from "./LatencyTab";
 import { SLOTargetModal } from "./SLOTargetModal";
-import { getSLODomainHistory, getSLOLatencyDistribution } from "@/api/slo";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import type { DomainSLOV2, SLOHistoryPoint, LatencyDistributionResponse } from "@/types/slo";
+import { sloDomainHistoryQuery, sloLatencyDistributionQuery } from "@/queries/observe-slo";
+import type { DomainSLOV2 } from "@/types/slo";
 import type { DomainDetailTranslations } from "./detail-translations";
+
+interface DomainTabProps {
+  domain: DomainSLOV2;
+  timeRange: string;
+  clusterId: string;
+  t: DomainDetailTranslations;
+}
 
 /**
  * 域名 SLO 详情 —— 清单表行内展开的内容
@@ -22,64 +31,13 @@ import type { DomainDetailTranslations } from "./detail-translations";
  * 两个 tab 按「排查动作」而非「数据类型」划分：
  *   预算 —— 还能烧多久、烧得多快、错了多少个（SLO 的本职）
  *   延迟 —— 慢在哪里（分位数、方法、状态码）
+ *
+ * 每个 tab 是一个子组件、各带自己的查询：只有切到那个 tab 才会请求它的数据。
  */
-export function DomainDetail({
-  domain,
-  timeRange,
-  clusterId,
-  onRefresh,
-  t,
-}: {
-  domain: DomainSLOV2;
-  timeRange: string;
-  clusterId: string;
-  onRefresh: () => void;
-  t: DomainDetailTranslations;
-}) {
+export function DomainDetail({ domain, timeRange, clusterId, t }: DomainTabProps) {
   const [activeTab, setActiveTab] = useState<"budget" | "latency">("budget");
   const [showTargetModal, setShowTargetModal] = useState(false);
   const requireAuth = useRequireAuth();
-  const [history, setHistory] = useState<SLOHistoryPoint[]>([]);
-  const [latencyData, setLatencyData] = useState<LatencyDistributionResponse | null>(null);
-
-  const targets = {
-    availability: domain.target?.availability ?? 99,
-    p95Latency: domain.target?.p95Latency ?? 300,
-  };
-
-  // 时间范围变了，缓存的数据作废
-  useEffect(() => {
-    setLatencyData(null);
-    setHistory([]);
-  }, [timeRange]);
-
-  const loadHistory = useCallback(async () => {
-    if (history.length > 0) return;
-    try {
-      const res = await getSLODomainHistory({ clusterId, host: domain.domain, timeRange });
-      if (res.data?.history) setHistory(res.data.history);
-    } catch (err) {
-      console.warn("[SLO] 历史数据获取失败:", err);
-    }
-  }, [clusterId, domain.domain, timeRange, history.length]);
-
-  const loadLatency = useCallback(async () => {
-    if (latencyData) return;
-    try {
-      const res = await getSLOLatencyDistribution({ clusterId, domain: domain.domain, timeRange });
-      if (res.data) setLatencyData(res.data);
-    } catch {
-      // 延迟分布可能还没有数据，静默降级为空状态
-    }
-  }, [clusterId, domain.domain, timeRange, latencyData]);
-
-  // 按需加载：只在切到对应 tab 时才请求
-  useEffect(() => {
-    if (activeTab === "budget") loadHistory();
-    if (activeTab === "latency") loadLatency();
-  }, [activeTab, loadHistory, loadLatency]);
-
-  const budgetHistory = history.map((h) => ({ timestamp: h.timestamp, errorBudget: h.errorBudget }));
 
   return (
     <div className="border-t border-[var(--border-color)] bg-[var(--background)]">
@@ -113,14 +71,39 @@ export function DomainDetail({
         </button>
       </div>
 
-      {activeTab === "budget" && (
-        <div className="p-4 space-y-4">
-          {/* 数字先行：允许错几个、实际错了几个 —— 比任何图都直接 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <GoodBadCount summary={domain.summary} budget={domain.budget} t={t} />
-            <BurnRateTable burnRates={domain.budget?.burnRates ?? []} t={t} />
-          </div>
+      {activeTab === "budget" && <DomainBudgetTab domain={domain} timeRange={timeRange} clusterId={clusterId} t={t} />}
+      {activeTab === "latency" && <DomainLatencyTab domain={domain} timeRange={timeRange} clusterId={clusterId} t={t} />}
 
+      <SLOTargetModal
+        isOpen={showTargetModal}
+        onClose={() => setShowTargetModal(false)}
+        domain={domain.domain}
+        clusterId={clusterId}
+        currentWindowDays={domain.target?.windowDays}
+        t={t}
+      />
+    </div>
+  );
+}
+
+/** 预算 tab：数字来自清单那一行，两张趋势图要另取历史点 */
+function DomainBudgetTab({ domain, timeRange, clusterId, t }: DomainTabProps) {
+  const historyQuery = useQuery(sloDomainHistoryQuery(clusterId, domain.domain, timeRange));
+  const targets = {
+    availability: domain.target?.availability ?? 99,
+    p95Latency: domain.target?.p95Latency ?? 300,
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* 数字先行：允许错几个、实际错了几个 —— 比任何图都直接 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <GoodBadCount summary={domain.summary} budget={domain.budget} t={t} />
+        <BurnRateTable burnRates={domain.budget?.burnRates ?? []} t={t} />
+      </div>
+
+      <QueryView query={historyQuery}>
+        {(history) => (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <HistoryChart
               history={history}
@@ -134,7 +117,7 @@ export function DomainDetail({
               }}
             />
             <ErrorBudgetBurnChart
-              history={budgetHistory}
+              history={history.map((point) => ({ timestamp: point.timestamp, errorBudget: point.errorBudget }))}
               errorBudgetRemaining={domain.budget?.remainingPct ?? domain.errorBudgetRemaining}
               t={{
                 errorBudgetBurn: t.errorBudgetBurn,
@@ -144,13 +127,22 @@ export function DomainDetail({
               }}
             />
           </div>
-        </div>
-      )}
+        )}
+      </QueryView>
+    </div>
+  );
+}
 
-      {activeTab === "latency" && (
-        <div className="p-4">
+/** 延迟 tab：延迟分布（桶、方法、状态码），没有数据时由 LatencyTab 显示空状态 */
+function DomainLatencyTab({ domain, timeRange, clusterId, t }: DomainTabProps) {
+  const latencyQuery = useQuery(sloLatencyDistributionQuery(clusterId, domain.domain, timeRange));
+
+  return (
+    <div className="p-4">
+      <QueryView query={latencyQuery}>
+        {(distribution) => (
           <LatencyTab
-            data={latencyData}
+            data={distribution}
             timeRange={timeRange}
             t={{
               latencyDistribution: t.latencyDistribution,
@@ -161,18 +153,8 @@ export function DomainDetail({
               noData: t.noData,
             }}
           />
-        </div>
-      )}
-
-      <SLOTargetModal
-        isOpen={showTargetModal}
-        onClose={() => setShowTargetModal(false)}
-        domain={domain.domain}
-        clusterId={clusterId}
-        currentWindowDays={domain.target?.windowDays}
-        onSaved={onRefresh}
-        t={t}
-      />
+        )}
+      </QueryView>
     </div>
   );
 }

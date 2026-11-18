@@ -1,18 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Bot, Brain, MessageSquare, Users, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { toast } from "@/components/common/Toast";
-import {
-  getRolesOverview,
-  updateProviderRoles,
-  mockRolesOverview,
-  type RoleOverview,
-  type AIProvider,
-} from "@/api/ai-provider";
-import type { AISettingsPageTranslations } from "@/types/i18n";
+import type { AIProvider } from "@/api/ai-provider";
 import { useCan } from "@/hooks/useCan";
+import { mockRolesOverview } from "@/mock/ai-settings";
+import { aiRolesOverviewQuery, assignAIRoleMutation } from "@/queries/ai-settings";
 
 const roleIcons: Record<string, typeof Bot> = {
   background: Brain,
@@ -33,70 +28,34 @@ const roleIconColors: Record<string, string> = {
 };
 
 interface RoleOverviewCardProps {
+  /** 演示模式（没有 ai.settings.read）：显示演示数据，不发请求 */
+  demo: boolean;
   providers: AIProvider[];
-  onRoleChanged?: () => void;
 }
 
-export function RoleOverviewCard({ providers, onRoleChanged }: RoleOverviewCardProps) {
+export function RoleOverviewCard({ demo, providers }: RoleOverviewCardProps) {
   const { t } = useI18n();
   const aiT = t.aiSettingsPage;
-  const can = useCan();
-  const canViewAI = can("ai.settings.read");
-  const isAdmin = can("ai.settings.write");
-  const [roles, setRoles] = useState<RoleOverview[]>([]);
-  const [savingRole, setSavingRole] = useState<string | null>(null);
-
-  const loadRoles = useCallback(async () => {
-    if (!canViewAI) {
-      setRoles(mockRolesOverview);
-      return;
-    }
-    try {
-      const res = await getRolesOverview();
-      setRoles(res.data.data);
-    } catch {
-      // ignore
-    }
-  }, [canViewAI]);
-
-  useEffect(() => {
-    loadRoles();
-  }, [loadRoles]);
+  const canViewAI = !demo;
+  const isAdmin = useCan()("ai.settings.write");
+  const rolesQuery = useQuery(aiRolesOverviewQuery(canViewAI));
+  const roles = demo ? mockRolesOverview : (rolesQuery.data ?? []);
+  // 分配无论成败，工厂都会让角色总览与 Provider 列表重新取数
+  const assignRole = useMutation(assignAIRoleMutation());
+  const savingRole = assignRole.isPending ? assignRole.variables.role : null;
 
   // 角色分配变更处理
-  const handleRoleAssign = async (role: string, newProviderId: number | null) => {
-    setSavingRole(role);
-    try {
-      // 找到当前持有该角色的 Provider，移除该角色
-      const currentHolder = providers.find((p) => p.roles?.includes(role));
-      if (currentHolder) {
-        const newRoles = currentHolder.roles.filter((r) => r !== role);
-        await updateProviderRoles(currentHolder.id, newRoles);
-      }
-
-      // 如果选择了新 Provider（非"未分配"），添加该角色
-      if (newProviderId !== null) {
-        const newHolder = providers.find((p) => p.id === newProviderId);
-        if (newHolder) {
-          const newRoles = [...(newHolder.roles || []).filter((r) => r !== role), role];
-          await updateProviderRoles(newHolder.id, newRoles);
-        }
-      }
-
-      toast.success(aiT.roleAssignSuccess);
-      await loadRoles();
-      onRoleChanged?.();
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 409) {
-        toast.error(aiT.roleAssignConflict);
-      } else {
-        toast.error(aiT.saveFailed);
-      }
-      await loadRoles();
-    } finally {
-      setSavingRole(null);
-    }
+  const handleRoleAssign = (role: string, newProviderId: number | null) => {
+    assignRole.mutate(
+      { role, providerId: newProviderId, providers },
+      {
+        onSuccess: () => toast.success(aiT.roleAssignSuccess),
+        onError: (err: unknown) => {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          toast.error(status === 409 ? aiT.roleAssignConflict : aiT.saveFailed);
+        },
+      },
+    );
   };
 
   // Demo mode or no data

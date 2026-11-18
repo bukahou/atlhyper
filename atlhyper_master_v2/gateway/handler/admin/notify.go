@@ -1,398 +1,266 @@
-// atlhyper_master_v2/gateway/handler/notify.go
-// 通知配置 API Handler
+// atlhyper_master_v2/gateway/handler/admin/notify.go
+// 通知设置 Handler：公共部分（依赖、参数解析、错误映射）与策略、当前告警、送达记录三组接口
+//
+// 接收人、路由规则、静默分别在 notify_receiver.go / notify_rule.go / notify_silence.go。
+// ⛔ 任何响应都不带接收人的凭据；错误响应不回显请求内容，内部错误只记日志
 package admin
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"strings"
-	"time"
+	"strconv"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
-	"AtlHyper/atlhyper_master_v2/notifier"
-	"AtlHyper/atlhyper_master_v2/service"
+	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/common/logger"
 )
 
-// NotifyTester 发送一条测试通知（由告警模块提供）
-type NotifyTester interface {
-	Test(ctx context.Context, channelType string) error
+var notifyLog = logger.Module("NotifyHandler")
+
+const (
+	// notifyIDPathParam 路由里的路径参数名（见 gateway/routes.go 的 {id}）
+	notifyIDPathParam = "id"
+	// maxNotifyBodyBytes 请求体的大小上限
+	maxNotifyBodyBytes = 64 << 10
+	// 列表接口的分页：默认每页条数与上限
+	defaultNotifyPageSize = 50
+	maxNotifyPageSize     = 200
+)
+
+// NotifyQuery / NotifyOps 本 handler 所需的最小 service 能力
+type NotifyQuery interface {
+	GetNotifyPolicy(ctx context.Context) (*model.NotifyPolicy, error)
+	GetNotifySMTP(ctx context.Context) (*model.NotifySMTP, error)
+	ListNotifyAlerts(ctx context.Context, opts model.NotifyAlertQuery) ([]model.NotifyAlert, int, error)
+	ListNotifyDeliveries(ctx context.Context, opts model.NotifyDeliveryQuery) ([]model.NotifyDelivery, int, error)
+	ListNotifyReceivers(ctx context.Context) ([]model.NotifyReceiver, error)
+	GetNotifyReceiver(ctx context.Context, id int64) (*model.NotifyReceiver, error)
+	ListNotifyRules(ctx context.Context) ([]model.NotifyRule, error)
+	GetNotifyRule(ctx context.Context, id int64) (*model.NotifyRule, error)
+	ListNotifySilences(ctx context.Context, state string) ([]model.NotifySilence, error)
+	GetNotifySilence(ctx context.Context, id int64) (*model.NotifySilence, error)
+	MatchNotifyRule(ctx context.Context, req *model.NotifyRuleMatchRequest) (*model.NotifyRuleMatchResult, error)
 }
 
-// NotifyHandler 通知 Handler
+type NotifyOps interface {
+	UpdateNotifyPolicy(ctx context.Context, req *model.UpdateNotifyPolicyRequest) error
+	UpdateNotifySMTP(ctx context.Context, req *model.UpdateNotifySMTPRequest) error
+	CreateNotifyReceiver(ctx context.Context, req *model.NotifyReceiverRequest) (int64, error)
+	UpdateNotifyReceiver(ctx context.Context, id int64, req *model.NotifyReceiverRequest) error
+	DeleteNotifyReceiver(ctx context.Context, id int64) error
+	CreateNotifyRule(ctx context.Context, req *model.NotifyRuleRequest) (int64, error)
+	UpdateNotifyRule(ctx context.Context, id int64, req *model.NotifyRuleRequest) error
+	DeleteNotifyRule(ctx context.Context, id int64) error
+	ReorderNotifyRules(ctx context.Context, ids []int64) error
+	CreateNotifySilence(ctx context.Context, req *model.CreateNotifySilenceRequest, createdBy string) (int64, error)
+	ExpireNotifySilence(ctx context.Context, id int64) error
+}
+
+// NotifyTester 给一个接收人发一条测试消息（由通知模块提供）。
+// 返回的错误不含 Webhook 地址与密码
+type NotifyTester interface {
+	TestReceiver(ctx context.Context, receiverID int64) error
+}
+
+// NotifyHandler 通知设置 Handler
 type NotifyHandler struct {
-	svc    service.Service
-	tester NotifyTester // 可选，nil = 测试发送不可用
+	querySvc NotifyQuery
+	opsSvc   NotifyOps
+	tester   NotifyTester // 可选，nil = 测试发送不可用
+}
+
+// NewNotifyHandler 创建 NotifyHandler
+func NewNotifyHandler(querySvc NotifyQuery, opsSvc NotifyOps) *NotifyHandler {
+	return &NotifyHandler{querySvc: querySvc, opsSvc: opsSvc}
 }
 
 // SetTester 注入测试发送能力
 func (h *NotifyHandler) SetTester(t NotifyTester) { h.tester = t }
 
-// NewNotifyHandler 创建 NotifyHandler
-func NewNotifyHandler(svc service.Service) *NotifyHandler {
-	return &NotifyHandler{
-		svc: svc,
-	}
-}
+// ==================== 策略 ====================
 
-// ChannelResponse 渠道响应
-type ChannelResponse struct {
-	ID                int64           `json:"id"`
-	Type              string          `json:"type"`
-	Name              string          `json:"name"`
-	Enabled           bool            `json:"enabled"`          // 用户设置的启用状态
-	EffectiveEnabled  bool            `json:"effectiveEnabled"` // 实际可用状态（启用+配置完整）
-	ValidationErrors  []string        `json:"validationErrors"` // 配置校验错误
-	Config            json.RawMessage `json:"config"`
-	ConfiguredSecrets []string        `json:"configuredSecrets"` // 已设置的凭据字段（值不回显）
-	CreatedAt         time.Time       `json:"createdAt"`
-	UpdatedAt         time.Time       `json:"updatedAt"`
-}
-
-// ListChannels 列出通知渠道
-func (h *NotifyHandler) ListChannels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	channels, err := h.svc.ListNotifyChannels(ctx)
+// GetPolicy 当前的通知策略
+// GET /api/v2/notify/policy
+func (h *NotifyHandler) GetPolicy(w http.ResponseWriter, r *http.Request) {
+	policy, err := h.querySvc.GetNotifyPolicy(r.Context())
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "failed to list channels")
+		h.writeError(w, "获取通知策略失败", err)
 		return
 	}
+	writeNotifyData(w, http.StatusOK, "获取成功", policy)
+}
 
-	// 转换响应（含校验信息）
-	var responses []ChannelResponse
-	for _, ch := range channels {
-		responses = append(responses, toChannelResponse(ch))
+// UpdatePolicy 保存通知策略（整体替换）
+// PUT /api/v2/notify/policy
+func (h *NotifyHandler) UpdatePolicy(w http.ResponseWriter, r *http.Request) {
+	var req model.UpdateNotifyPolicyRequest
+	if !decodeNotifyBody(w, r, &req) {
+		return
 	}
+	if err := h.opsSvc.UpdateNotifyPolicy(r.Context(), &req); err != nil {
+		h.writeError(w, "保存通知策略失败", err)
+		return
+	}
+	// 读回失败不改变结果：写入已经生效，只是不带 data
+	policy, err := h.querySvc.GetNotifyPolicy(r.Context())
+	if err != nil {
+		notifyLog.Warn("通知策略已保存，但读回失败", "err", err)
+		writeNotifyData(w, http.StatusOK, "已保存", nil)
+		return
+	}
+	writeNotifyData(w, http.StatusOK, "已保存", policy)
+}
 
-	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"channels": responses,
-		"total":    len(responses),
+// ==================== 当前告警与送达记录 ====================
+
+// ListAlerts 告警列表
+// GET /api/v2/notify/alerts?status=firing|resolved&cluster_id=&limit=&offset=
+func (h *NotifyHandler) ListAlerts(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	status := query.Get("status")
+	if !oneOf(status, "", "firing", "resolved") {
+		handler.WriteError(w, http.StatusBadRequest, "status 须为 firing 或 resolved")
+		return
+	}
+	limit, offset, ok := parseNotifyPage(w, r)
+	if !ok {
+		return
+	}
+	alerts, total, err := h.querySvc.ListNotifyAlerts(r.Context(), model.NotifyAlertQuery{
+		Status: status, ClusterID: handler.ClusterIDFromQuery(r), Limit: limit, Offset: offset,
 	})
-}
-
-// UpdateChannelRequest 更新通知渠道请求
-type UpdateChannelRequest struct {
-	Enabled *bool           `json:"enabled,omitempty"`
-	Name    string          `json:"name,omitempty"`
-	Config  json.RawMessage `json:"config,omitempty"`
-}
-
-// ChannelHandler 通知渠道综合处理（Admin 权限）
-// 根据 Method 和 Path 分发到对应的处理函数
-// GET  /api/v2/notify/channels/{type}       -> 获取详情
-// PUT  /api/v2/notify/channels/{type}       -> 更新配置
-// POST /api/v2/notify/channels/{type}/test  -> 测试发送
-func (h *NotifyHandler) ChannelHandler(w http.ResponseWriter, r *http.Request) {
-	// 解析路径
-	path := strings.TrimPrefix(r.URL.Path, "/api/v2/notify/channels/")
-
-	// 检查是否是测试请求
-	if strings.HasSuffix(path, "/test") {
-		h.testChannel(w, r, strings.TrimSuffix(path, "/test"))
-		return
-	}
-
-	// 根据 Method 分发
-	switch r.Method {
-	case http.MethodGet:
-		h.getChannel(w, r, strings.TrimSuffix(path, "/"))
-	case http.MethodPut, http.MethodPatch:
-		h.updateChannel(w, r, strings.TrimSuffix(path, "/"))
-	default:
-		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
-	}
-}
-
-// getChannel 获取通知渠道详情
-func (h *NotifyHandler) getChannel(w http.ResponseWriter, r *http.Request, channelType string) {
-	if channelType == "" {
-		handler.WriteError(w, http.StatusBadRequest, "channel type required")
-		return
-	}
-
-	if !isValidChannelType(channelType) {
-		handler.WriteError(w, http.StatusBadRequest, "invalid channel type")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	channel, err := h.svc.GetNotifyChannelByType(ctx, channelType)
-	if err != nil || channel == nil {
-		handler.WriteError(w, http.StatusNotFound, "channel not found")
-		return
-	}
-
-	handler.WriteJSON(w, http.StatusOK, toChannelResponse(channel))
-}
-
-// updateChannel 更新通知渠道（内部方法）
-func (h *NotifyHandler) updateChannel(w http.ResponseWriter, r *http.Request, channelType string) {
-	if channelType == "" {
-		handler.WriteError(w, http.StatusBadRequest, "channel type required")
-		return
-	}
-
-	if !isValidChannelType(channelType) {
-		handler.WriteError(w, http.StatusBadRequest, "invalid channel type")
-		return
-	}
-
-	var req UpdateChannelRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handler.WriteError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	// 获取现有配置
-	existing, err := h.svc.GetNotifyChannelByType(ctx, channelType)
-	if err != nil || existing == nil {
-		// 不存在则创建
-		existing = &database.NotifyChannel{
-			Type:    channelType,
-			Name:    channelType,
-			Enabled: false,
-			Config:  "{}",
-		}
-	}
-
-	// 更新字段
-	if req.Enabled != nil {
-		existing.Enabled = *req.Enabled
-	}
-	if req.Name != "" {
-		existing.Name = req.Name
-	}
-	if req.Config != nil {
-		merged, err := mergeChannelConfig(channelType, existing.Config, req.Config)
-		if err != nil {
-			handler.WriteError(w, http.StatusBadRequest, "config 必须是 JSON 对象")
-			return
-		}
-		existing.Config = merged
-	}
-
-	// 保存
-	if existing.ID == 0 {
-		err = h.svc.CreateNotifyChannel(ctx, existing)
-	} else {
-		err = h.svc.UpdateNotifyChannel(ctx, existing)
-	}
 	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "failed to update channel")
+		h.writeError(w, "获取告警列表失败", err)
 		return
 	}
-
-	handler.WriteJSON(w, http.StatusOK, toChannelResponse(existing))
+	if alerts == nil {
+		alerts = []model.NotifyAlert{}
+	}
+	writeNotifyList(w, alerts, total)
 }
 
-// testChannel 测试通知渠道：按已保存的配置发一条测试消息
-func (h *NotifyHandler) testChannel(w http.ResponseWriter, r *http.Request, channelType string) {
-	if r.Method != http.MethodPost {
-		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+// ListDeliveries 送达记录
+// GET /api/v2/notify/deliveries?fingerprint=&status=&limit=&offset=
+func (h *NotifyHandler) ListDeliveries(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	status := query.Get("status")
+	if !oneOf(status, "", database.NotifyDeliveryPending, database.NotifyDeliverySuccess, database.NotifyDeliveryFailed,
+		database.NotifyDeliveryAbandoned, database.NotifyDeliveryNoReceiver) {
+		handler.WriteError(w, http.StatusBadRequest, "status 须为 pending / success / failed / abandoned / no-receiver 之一")
 		return
 	}
-	if !isValidChannelType(channelType) {
-		handler.WriteError(w, http.StatusBadRequest, "invalid channel type")
+	limit, offset, ok := parseNotifyPage(w, r)
+	if !ok {
 		return
 	}
-	if h.tester == nil {
-		handler.WriteError(w, http.StatusServiceUnavailable, "通知模块未启用")
+	deliveries, total, err := h.querySvc.ListNotifyDeliveries(r.Context(), model.NotifyDeliveryQuery{
+		Fingerprint: query.Get("fingerprint"), Status: status, Limit: limit, Offset: offset,
+	})
+	if err != nil {
+		h.writeError(w, "获取送达记录失败", err)
 		return
 	}
+	if deliveries == nil {
+		deliveries = []model.NotifyDelivery{}
+	}
+	writeNotifyList(w, deliveries, total)
+}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+// ==================== 公共辅助 ====================
 
-	err := h.tester.Test(ctx, channelType)
+// writeNotifyData 统一的成功响应；data 为 nil 时不带 data
+func writeNotifyData(w http.ResponseWriter, status int, message string, data any) {
+	response := map[string]any{"message": message}
+	if data != nil {
+		response["data"] = data
+	}
+	handler.WriteJSON(w, status, response)
+}
+
+// writeNotifyList 列表响应：data 恒为数组，total 恒为数字
+func writeNotifyList(w http.ResponseWriter, data any, total int) {
+	handler.WriteJSON(w, http.StatusOK, map[string]any{"message": "获取成功", "data": data, "total": total})
+}
+
+// decodeNotifyBody 解析请求体（有大小上限）；失败时已写出 400，返回 false
+func decodeNotifyBody(w http.ResponseWriter, r *http.Request, target any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxNotifyBodyBytes)
+	if err := json.NewDecoder(r.Body).Decode(target); err != nil {
+		handler.WriteError(w, http.StatusBadRequest, "请求参数无效")
+		return false
+	}
+	return true
+}
+
+// notifyPathID 取路径里的 id；不是正整数时已写出 400，返回 false
+func notifyPathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue(notifyIDPathParam), 10, 64)
+	if err != nil || id <= 0 {
+		handler.WriteError(w, http.StatusBadRequest, "id 无效")
+		return 0, false
+	}
+	return id, true
+}
+
+// parseNotifyPage 解析 limit / offset：没传 limit 用默认值，超过上限按上限；不是非负整数时已写出 400
+func parseNotifyPage(w http.ResponseWriter, r *http.Request) (limit, offset int, ok bool) {
+	limit = defaultNotifyPageSize
+	query := r.URL.Query()
+	if raw := query.Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			handler.WriteError(w, http.StatusBadRequest, "limit 须为正整数")
+			return 0, 0, false
+		}
+		limit = min(parsed, maxNotifyPageSize)
+	}
+	if raw := query.Get("offset"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			handler.WriteError(w, http.StatusBadRequest, "offset 须为非负整数")
+			return 0, 0, false
+		}
+		offset = parsed
+	}
+	return limit, offset, true
+}
+
+func oneOf(value string, allowed ...string) bool {
+	for _, candidate := range allowed {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+// writeError 把 service 返回的错误映射为状态码。
+//
+// 校验类错误与「被引用」的文案是写给管理员看的（它们不含凭据），原样返回；
+// 其余错误只记日志，不向外透露内部细节
+func (h *NotifyHandler) writeError(w http.ResponseWriter, action string, err error) {
+	var inUse *model.NotifyReceiverInUseError
 	switch {
-	case err == nil:
-		handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-			"success": true,
-			"message": "测试消息已发送",
-			"channel": channelType,
-		})
-	case errors.Is(err, notifier.ErrChannelNotFound):
-		handler.WriteError(w, http.StatusNotFound, "渠道尚未配置")
-	case errors.Is(err, notifier.ErrChannelDisabled):
-		handler.WriteError(w, http.StatusConflict, "渠道未启用，启用后再测试")
-	case errors.Is(err, notifier.ErrInvalidConfig):
-		handler.WriteError(w, http.StatusBadRequest, "渠道配置不完整")
-	case errors.Is(err, notifier.ErrUnsupportedChannel):
-		handler.WriteError(w, http.StatusBadRequest, "该渠道类型暂不支持发送")
+	case errors.Is(err, model.ErrInvalidNotifyInput):
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, database.ErrNotifyRuleOrderMismatch):
+		handler.WriteError(w, http.StatusBadRequest, "ids 必须恰好包含全部规则各一次")
+	case errors.As(err, &inUse):
+		handler.WriteError(w, http.StatusConflict, inUse.Error())
+	case errors.Is(err, database.ErrNotifyReceiverNameTaken):
+		handler.WriteError(w, http.StatusConflict, "接收人名称已存在")
+	case errors.Is(err, database.ErrNotifyReceiverNotFound):
+		handler.WriteError(w, http.StatusNotFound, "接收人不存在")
+	case errors.Is(err, database.ErrNotifyRuleNotFound):
+		handler.WriteError(w, http.StatusNotFound, "路由规则不存在")
+	case errors.Is(err, database.ErrNotifySilenceNotFound):
+		handler.WriteError(w, http.StatusNotFound, "静默不存在")
 	default:
-		handler.WriteError(w, http.StatusBadGateway, "发送失败: "+err.Error())
-	}
-}
-
-// ==================== 辅助函数 ====================
-
-// validChannelTypes 有效的渠道类型
-var validChannelTypes = map[string]bool{
-	"email":    true,
-	"mail":     true, // alias
-	"slack":    true,
-	"webhook":  true,
-	"dingtalk": true,
-}
-
-// isValidChannelType 校验渠道类型
-func isValidChannelType(channelType string) bool {
-	return validChannelTypes[channelType]
-}
-
-// validateChannelConfig 校验渠道配置完整性
-// 返回校验错误列表，空列表表示配置完整
-func validateChannelConfig(channelType, config string) []string {
-	var errors []string
-
-	switch channelType {
-	case "slack":
-		var cfg database.SlackConfig
-		if err := json.Unmarshal([]byte(config), &cfg); err != nil {
-			errors = append(errors, "配置格式错误")
-			return errors
-		}
-		if cfg.WebhookURL == "" {
-			errors = append(errors, "webhook_url 未配置")
-		}
-
-	case "email", "mail":
-		var cfg database.EmailConfig
-		if err := json.Unmarshal([]byte(config), &cfg); err != nil {
-			errors = append(errors, "配置格式错误")
-			return errors
-		}
-		if cfg.SMTPHost == "" {
-			errors = append(errors, "smtp_host 未配置")
-		}
-		if cfg.SMTPPort == 0 {
-			errors = append(errors, "smtp_port 未配置")
-		}
-		if cfg.SMTPUser == "" {
-			errors = append(errors, "smtp_user 未配置")
-		}
-		if cfg.SMTPPassword == "" {
-			errors = append(errors, "smtp_password 未配置")
-		}
-		// from_address 统一使用 smtp_user，无需单独验证
-		if len(cfg.ToAddresses) == 0 {
-			errors = append(errors, "to_addresses 未配置（至少需要一个收件人）")
-		}
-
-	case "webhook":
-		// webhook 类型需要 url
-		var cfg struct {
-			URL string `json:"url"`
-		}
-		if err := json.Unmarshal([]byte(config), &cfg); err != nil {
-			errors = append(errors, "配置格式错误")
-			return errors
-		}
-		if cfg.URL == "" {
-			errors = append(errors, "url 未配置")
-		}
-
-	case "dingtalk":
-		// 钉钉需要 webhook
-		var cfg struct {
-			WebhookURL string `json:"webhook_url"`
-		}
-		if err := json.Unmarshal([]byte(config), &cfg); err != nil {
-			errors = append(errors, "配置格式错误")
-			return errors
-		}
-		if cfg.WebhookURL == "" {
-			errors = append(errors, "webhook_url 未配置")
-		}
-	}
-
-	return errors
-}
-
-// channelSecretFields 各渠道配置里的凭据字段：查询时不回显，保存时不传或为空 = 保留原值
-var channelSecretFields = map[string][]string{
-	"slack":    {"webhookUrl"},
-	"email":    {"smtpPassword"},
-	"mail":     {"smtpPassword"},
-	"webhook":  {"url"},
-	"dingtalk": {"webhook_url"},
-}
-
-// redactChannelConfig 把凭据字段的值置空，返回脱敏后的配置与已设置的凭据字段名。
-// 解析不了的配置不原样返回（失败即关）。
-func redactChannelConfig(channelType, config string) (json.RawMessage, []string) {
-	configured := []string{}
-	var fields map[string]interface{}
-	if err := json.Unmarshal([]byte(config), &fields); err != nil || fields == nil {
-		return json.RawMessage("{}"), configured
-	}
-	for _, f := range channelSecretFields[channelType] {
-		if v, ok := fields[f].(string); ok && v != "" {
-			configured = append(configured, f)
-			fields[f] = ""
-		}
-	}
-	out, err := json.Marshal(fields)
-	if err != nil {
-		return json.RawMessage("{}"), []string{}
-	}
-	return out, configured
-}
-
-// mergeChannelConfig 以请求为准，但凭据字段没传或为空时保留原值（前端从不拿到凭据，也就无从回传）
-func mergeChannelConfig(channelType, existing string, incoming json.RawMessage) (string, error) {
-	var next map[string]interface{}
-	if err := json.Unmarshal(incoming, &next); err != nil || next == nil {
-		return "", fmt.Errorf("config 不是 JSON 对象")
-	}
-	var prev map[string]interface{}
-	_ = json.Unmarshal([]byte(existing), &prev) // 原配置坏了就当没有
-	for _, f := range channelSecretFields[channelType] {
-		if v, ok := next[f].(string); ok && v != "" {
-			continue
-		}
-		if old, ok := prev[f]; ok {
-			next[f] = old
-		}
-	}
-	out, err := json.Marshal(next)
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
-}
-
-// toChannelResponse 转换为响应结构（含校验；凭据不回显）
-func toChannelResponse(ch *database.NotifyChannel) ChannelResponse {
-	validationErrors := validateChannelConfig(ch.Type, ch.Config)
-	effectiveEnabled := ch.Enabled && len(validationErrors) == 0
-	config, configuredSecrets := redactChannelConfig(ch.Type, ch.Config)
-
-	return ChannelResponse{
-		ID:                ch.ID,
-		Type:              ch.Type,
-		Name:              ch.Name,
-		Enabled:           ch.Enabled,
-		EffectiveEnabled:  effectiveEnabled,
-		ValidationErrors:  validationErrors,
-		Config:            config,
-		ConfiguredSecrets: configuredSecrets,
-		CreatedAt:         ch.CreatedAt,
-		UpdatedAt:         ch.UpdatedAt,
+		// 这里的 err 来自库或加密层，不含请求里的凭据
+		notifyLog.Error(action, "err", err)
+		handler.WriteError(w, http.StatusInternalServerError, action)
 	}
 }

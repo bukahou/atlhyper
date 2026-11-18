@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getPVList } from "@/datasource/cluster";
 import type { PVItem } from "@/api/cluster-resources";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
+import { PageHeader, QueryView, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { pvListQuery } from "@/queries/cluster-storage";
+import { REFRESH } from "@/queries/refresh";
 import { Filter, X, Eye } from "lucide-react";
 import { PVDetailModal } from "@/components/pv";
 
@@ -85,12 +86,14 @@ function FilterBar({
   );
 }
 
+// 还没有数据时始终用同一个空数组：每次渲染换一个新数组会让下面的 useMemo 全部白算
+const NO_ITEMS: PVItem[] = [];
+
 export default function PVPage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [items, setItems] = useState<PVItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(pvListQuery(clusterId));
+  const items = query.data ?? NO_ITEMS;
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -100,20 +103,6 @@ export default function PVPage() {
   // 详情弹窗状态
   const [selectedItem, setSelectedItem] = useState<PVItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setError("");
-    try {
-      const res = await getPVList({ cluster_id: currentClusterId });
-      setItems(res.data.data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // StatsCards 统计
   const stats = useMemo(() => {
@@ -223,7 +212,7 @@ export default function PVPage() {
   return (
     <Layout>
       <div className="space-y-4">
-        <PageHeader title={t.nav.pv} description={t.storagePage.pvDescription} autoRefreshSeconds={intervalSeconds} />
+        <PageHeader title={t.nav.pv} description={t.storagePage.pvDescription} autoRefreshSeconds={REFRESH.standard / 1000} />
 
         {items.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -240,17 +229,21 @@ export default function PVPage() {
 
         <FilterBar filters={filters} onFilterChange={handleFilterChange} />
 
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <DataTable
-            columns={columns}
-            data={filteredItems}
-            loading={loading}
-            error={error}
-            keyExtractor={(pv, index) => `${index}-${pv.name}`}
-            onRowClick={handleViewDetail}
-            pageSize={10}
-          />
-        </div>
+        <QueryView query={query} requireCluster>
+          {() => (
+            <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={filteredItems}
+                loading={false}
+                error=""
+                keyExtractor={(pv, index) => `${index}-${pv.name}`}
+                onRowClick={handleViewDetail}
+                pageSize={10}
+              />
+            </div>
+          )}
+        </QueryView>
       </div>
 
       {selectedItem && (

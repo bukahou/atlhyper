@@ -46,39 +46,3 @@ export function useAuthError() {
 
   return { lastError };
 }
-
-/**
- * 权限错误边界 Hook
- *
- * 用于包装 API 调用，统一处理权限错误
- */
-export function useApiCall() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const execute = useCallback(async <T>(
-    apiCall: () => Promise<T>,
-    options?: {
-      onSuccess?: (data: T) => void;
-      onError?: (error: Error) => void;
-    }
-  ): Promise<T | null> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await apiCall();
-      options?.onSuccess?.(result);
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "操作失败";
-      setError(errorMessage);
-      options?.onError?.(err as Error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { execute, loading, error };
-}

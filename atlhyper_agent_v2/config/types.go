@@ -18,12 +18,15 @@ type TimeoutConfig struct {
 	HTTPClient      time.Duration // HTTP 客户端超时 (含长轮询)
 	SnapshotCollect time.Duration // 快照采集操作超时
 	CommandPoll     time.Duration // 指令轮询操作超时
+	CommandExec     time.Duration // 单条指令执行超时
+	CommandReport   time.Duration // 指令结果回报超时
 	Heartbeat       time.Duration // 心跳操作超时
 }
 
 // MasterConfig Master 通信配置
 type MasterConfig struct {
-	URL string // Master 服务地址
+	URL   string // Master 服务地址
+	Token string // 集群令牌（Master 签发）；空则不带认证头。⛔ 凭证，不得写入日志
 }
 
 // KubernetesConfig Kubernetes 连接配置

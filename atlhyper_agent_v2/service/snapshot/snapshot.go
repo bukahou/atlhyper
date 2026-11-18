@@ -18,9 +18,10 @@ package snapshot
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strconv"
-	"sync"
+	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/concentrator"
@@ -63,6 +64,10 @@ type snapshotService struct {
 	serviceAccountRepo repository.ServiceAccountRepository
 	// 路由映射: serviceKey → 对外域名（供 SLO displayName 使用）
 	routeRepo repository.RouteRepository
+
+	// 上一轮产出的快照：某类资源本轮采集失败时沿用其中的同类数据。
+	// 只在 Collect 所在的单个 goroutine 里读写。
+	lastSnapshot *cluster.ClusterSnapshot
 
 	// OTel 仓库 (可选，从 ClickHouse 聚合)
 	otelSummaryRepo repository.OTelSummaryRepository
@@ -154,281 +159,46 @@ func NewSnapshotService(
 // 并发采集 20 种 K8s 资源，组装为完整的 ClusterSnapshot。
 // 采集完成后生成统计摘要，用于仪表盘快速展示。
 //
-// 并发策略:
-//   - 启动 20 个 goroutine 同时采集
-//   - 使用 WaitGroup 等待全部完成
-//   - 使用 Mutex 保护 snapshot 写入
+// 部分失败的处理（某一类资源 List 超时、无权限等）:
+//   - 有上一轮快照：失败的那类沿用上一轮的数据，快照照常产出
+//   - 没有上一轮（启动后第一轮）：Pod / Node 失败则返回错误，不产出快照；
+//     其他资源留空照常产出
 //
-// 错误处理:
-//   - 记录第一个错误但不中断其他采集
-//   - 返回已成功采集的数据
+// 整份快照因一类资源失败而作废，会让全部资源一起停止更新，代价远大于某一类数据旧一轮。
 func (s *snapshotService) Collect(ctx context.Context) (*cluster.ClusterSnapshot, error) {
 	snapshot := &cluster.ClusterSnapshot{
 		ClusterID: s.clusterID,
 		FetchedAt: time.Now(),
 	}
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var firstErr error
+	collectors := s.kindCollectors(ctx, snapshot)
+	failed := runCollectors(collectors)
 
-	// 记录第一个错误
-	recordErr := func(err error) {
-		if err != nil {
-			mu.Lock()
-			if firstErr == nil {
-				firstErr = err
+	if len(failed) > 0 {
+		var reused, empty []string
+		for _, collector := range collectors {
+			err, isFailed := failed[collector.kind]
+			if !isFailed {
+				continue
 			}
-			mu.Unlock()
+			switch {
+			case s.lastSnapshot != nil:
+				collector.reuse(s.lastSnapshot)
+				reused = append(reused, collector.kind)
+			case collector.essential:
+				return nil, fmt.Errorf("collect %s: %w", collector.kind, err)
+			default:
+				empty = append(empty, collector.kind)
+			}
 		}
+		for kind, err := range failed {
+			log.Warn("资源采集失败", "kind", kind, "err", err)
+		}
+		log.Warn("本轮快照含未更新的资源",
+			"沿用上一轮", strings.Join(sortedKinds(reused), ","),
+			"留空", strings.Join(sortedKinds(empty), ","))
 	}
-
-	opts := model.ListOptions{}
-
-	// 20 个 K8s 资源并发采集
-	wg.Add(20)
-
-	// Pods
-	go func() {
-		defer wg.Done()
-		pods, err := s.podRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Pods = pods
-			mu.Unlock()
-		}
-	}()
-
-	// Nodes
-	go func() {
-		defer wg.Done()
-		nodes, err := s.nodeRepo.List(ctx, opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Nodes = nodes
-			mu.Unlock()
-		}
-	}()
-
-	// Deployments
-	go func() {
-		defer wg.Done()
-		deployments, err := s.deploymentRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Deployments = deployments
-			mu.Unlock()
-		}
-	}()
-
-	// StatefulSets
-	go func() {
-		defer wg.Done()
-		statefulSets, err := s.statefulSetRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.StatefulSets = statefulSets
-			mu.Unlock()
-		}
-	}()
-
-	// DaemonSets
-	go func() {
-		defer wg.Done()
-		daemonSets, err := s.daemonSetRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.DaemonSets = daemonSets
-			mu.Unlock()
-		}
-	}()
-
-	// ReplicaSets
-	go func() {
-		defer wg.Done()
-		replicaSets, err := s.replicaSetRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.ReplicaSets = replicaSets
-			mu.Unlock()
-		}
-	}()
-
-	// Services
-	go func() {
-		defer wg.Done()
-		services, err := s.serviceRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Services = services
-			mu.Unlock()
-		}
-	}()
-
-	// Ingresses
-	go func() {
-		defer wg.Done()
-		ingresses, err := s.ingressRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Ingresses = ingresses
-			mu.Unlock()
-		}
-	}()
-
-	// ConfigMaps
-	go func() {
-		defer wg.Done()
-		configMaps, err := s.configMapRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.ConfigMaps = configMaps
-			mu.Unlock()
-		}
-	}()
-
-	// Secrets
-	go func() {
-		defer wg.Done()
-		secrets, err := s.secretRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Secrets = secrets
-			mu.Unlock()
-		}
-	}()
-
-	// Namespaces
-	go func() {
-		defer wg.Done()
-		namespaces, err := s.namespaceRepo.List(ctx, opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Namespaces = namespaces
-			mu.Unlock()
-		}
-	}()
-
-	// Events
-	go func() {
-		defer wg.Done()
-		events, err := s.eventRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Events = events
-			mu.Unlock()
-		}
-	}()
-
-	// Jobs
-	go func() {
-		defer wg.Done()
-		jobs, err := s.jobRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.Jobs = jobs
-			mu.Unlock()
-		}
-	}()
-
-	// CronJobs
-	go func() {
-		defer wg.Done()
-		cronJobs, err := s.cronJobRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.CronJobs = cronJobs
-			mu.Unlock()
-		}
-	}()
-
-	// PersistentVolumes
-	go func() {
-		defer wg.Done()
-		pvs, err := s.pvRepo.List(ctx, opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.PersistentVolumes = pvs
-			mu.Unlock()
-		}
-	}()
-
-	// PersistentVolumeClaims
-	go func() {
-		defer wg.Done()
-		pvcs, err := s.pvcRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.PersistentVolumeClaims = pvcs
-			mu.Unlock()
-		}
-	}()
-
-	// ResourceQuotas
-	go func() {
-		defer wg.Done()
-		rqs, err := s.resourceQuotaRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.ResourceQuotas = rqs
-			mu.Unlock()
-		}
-	}()
-
-	// LimitRanges
-	go func() {
-		defer wg.Done()
-		lrs, err := s.limitRangeRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.LimitRanges = lrs
-			mu.Unlock()
-		}
-	}()
-
-	// NetworkPolicies
-	go func() {
-		defer wg.Done()
-		nps, err := s.networkPolicyRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.NetworkPolicies = nps
-			mu.Unlock()
-		}
-	}()
-
-	// ServiceAccounts
-	go func() {
-		defer wg.Done()
-		sas, err := s.serviceAccountRepo.List(ctx, "", opts)
-		recordErr(err)
-		if err == nil {
-			mu.Lock()
-			snapshot.ServiceAccounts = sas
-			mu.Unlock()
-		}
-	}()
-
-	wg.Wait()
+	s.lastSnapshot = snapshot
 
 	// 补全 Node 的 Pod 使用量统计（需要 Nodes + Pods 都就绪）
 	enrichNodePodCount(snapshot)
@@ -447,7 +217,75 @@ func (s *snapshotService) Collect(ctx context.Context) (*cluster.ClusterSnapshot
 	// 生成摘要
 	snapshot.Summary = snapshot.GenerateSummary()
 
-	return snapshot, firstErr
+	return snapshot, nil
+}
+
+// kindCollectors 20 类 K8s 资源的采集器，结果写入 snapshot
+func (s *snapshotService) kindCollectors(ctx context.Context, snapshot *cluster.ClusterSnapshot) []kindCollector {
+	opts := model.ListOptions{}
+	type snap = cluster.ClusterSnapshot
+	return []kindCollector{
+		collectorFor("pods", true, snapshot,
+			func(c *snap) *[]cluster.Pod { return &c.Pods },
+			func() ([]cluster.Pod, error) { return s.podRepo.List(ctx, "", opts) }),
+		collectorFor("nodes", true, snapshot,
+			func(c *snap) *[]cluster.Node { return &c.Nodes },
+			func() ([]cluster.Node, error) { return s.nodeRepo.List(ctx, opts) }),
+		collectorFor("deployments", false, snapshot,
+			func(c *snap) *[]cluster.Deployment { return &c.Deployments },
+			func() ([]cluster.Deployment, error) { return s.deploymentRepo.List(ctx, "", opts) }),
+		collectorFor("statefulsets", false, snapshot,
+			func(c *snap) *[]cluster.StatefulSet { return &c.StatefulSets },
+			func() ([]cluster.StatefulSet, error) { return s.statefulSetRepo.List(ctx, "", opts) }),
+		collectorFor("daemonsets", false, snapshot,
+			func(c *snap) *[]cluster.DaemonSet { return &c.DaemonSets },
+			func() ([]cluster.DaemonSet, error) { return s.daemonSetRepo.List(ctx, "", opts) }),
+		collectorFor("replicasets", false, snapshot,
+			func(c *snap) *[]cluster.ReplicaSet { return &c.ReplicaSets },
+			func() ([]cluster.ReplicaSet, error) { return s.replicaSetRepo.List(ctx, "", opts) }),
+		collectorFor("services", false, snapshot,
+			func(c *snap) *[]cluster.Service { return &c.Services },
+			func() ([]cluster.Service, error) { return s.serviceRepo.List(ctx, "", opts) }),
+		collectorFor("ingresses", false, snapshot,
+			func(c *snap) *[]cluster.Ingress { return &c.Ingresses },
+			func() ([]cluster.Ingress, error) { return s.ingressRepo.List(ctx, "", opts) }),
+		collectorFor("configmaps", false, snapshot,
+			func(c *snap) *[]cluster.ConfigMap { return &c.ConfigMaps },
+			func() ([]cluster.ConfigMap, error) { return s.configMapRepo.List(ctx, "", opts) }),
+		collectorFor("secrets", false, snapshot,
+			func(c *snap) *[]cluster.Secret { return &c.Secrets },
+			func() ([]cluster.Secret, error) { return s.secretRepo.List(ctx, "", opts) }),
+		collectorFor("namespaces", false, snapshot,
+			func(c *snap) *[]cluster.Namespace { return &c.Namespaces },
+			func() ([]cluster.Namespace, error) { return s.namespaceRepo.List(ctx, opts) }),
+		collectorFor("events", false, snapshot,
+			func(c *snap) *[]cluster.Event { return &c.Events },
+			func() ([]cluster.Event, error) { return s.eventRepo.List(ctx, "", opts) }),
+		collectorFor("jobs", false, snapshot,
+			func(c *snap) *[]cluster.Job { return &c.Jobs },
+			func() ([]cluster.Job, error) { return s.jobRepo.List(ctx, "", opts) }),
+		collectorFor("cronjobs", false, snapshot,
+			func(c *snap) *[]cluster.CronJob { return &c.CronJobs },
+			func() ([]cluster.CronJob, error) { return s.cronJobRepo.List(ctx, "", opts) }),
+		collectorFor("persistentvolumes", false, snapshot,
+			func(c *snap) *[]cluster.PersistentVolume { return &c.PersistentVolumes },
+			func() ([]cluster.PersistentVolume, error) { return s.pvRepo.List(ctx, opts) }),
+		collectorFor("persistentvolumeclaims", false, snapshot,
+			func(c *snap) *[]cluster.PersistentVolumeClaim { return &c.PersistentVolumeClaims },
+			func() ([]cluster.PersistentVolumeClaim, error) { return s.pvcRepo.List(ctx, "", opts) }),
+		collectorFor("resourcequotas", false, snapshot,
+			func(c *snap) *[]cluster.ResourceQuota { return &c.ResourceQuotas },
+			func() ([]cluster.ResourceQuota, error) { return s.resourceQuotaRepo.List(ctx, "", opts) }),
+		collectorFor("limitranges", false, snapshot,
+			func(c *snap) *[]cluster.LimitRange { return &c.LimitRanges },
+			func() ([]cluster.LimitRange, error) { return s.limitRangeRepo.List(ctx, "", opts) }),
+		collectorFor("networkpolicies", false, snapshot,
+			func(c *snap) *[]cluster.NetworkPolicy { return &c.NetworkPolicies },
+			func() ([]cluster.NetworkPolicy, error) { return s.networkPolicyRepo.List(ctx, "", opts) }),
+		collectorFor("serviceaccounts", false, snapshot,
+			func(c *snap) *[]cluster.ServiceAccount { return &c.ServiceAccounts },
+			func() ([]cluster.ServiceAccount, error) { return s.serviceAccountRepo.List(ctx, "", opts) }),
+	}
 }
 
 // calculateNamespaceResources 统计每个 Namespace 的资源数量

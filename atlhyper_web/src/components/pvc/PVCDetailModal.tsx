@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Drawer } from "@/components/common/Drawer";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { DetailQueryView } from "@/components/common/DetailQueryView";
 import { StatusBadge } from "@/components/common";
-import { getPVCDetail } from "@/datasource/cluster";
 import type { PVCDetail } from "@/api/cluster-resources";
-import { useClusterStore } from "@/store/clusterStore";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { pvcDetailQuery } from "@/queries/cluster-storage";
 import { useI18n } from "@/i18n/context";
 import { Server, Tag } from "lucide-react";
 
@@ -20,37 +21,16 @@ interface PVCDetailModalProps {
 type TabType = "overview" | "labels";
 
 export function PVCDetailModal({ isOpen, onClose, namespace, name }: PVCDetailModalProps) {
+  // 关着时整个抽屉不挂载：详情查询只在打开期间存在，标签页等界面状态随关闭丢弃
+  if (!isOpen) return null;
+  return <PVCDetailDrawer key={`${namespace}/${name}`} onClose={onClose} namespace={namespace} name={name} />;
+}
+
+function PVCDetailDrawer({ onClose, namespace, name }: Omit<PVCDetailModalProps, "isOpen">) {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(pvcDetailQuery(clusterId, { namespace, name }));
   const [activeTab, setActiveTab] = useState<TabType>("overview");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [detail, setDetail] = useState<PVCDetail | null>(null);
-
-  const fetchDetail = useCallback(async () => {
-    if (!name || !namespace) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await getPVCDetail({
-        ClusterID: currentClusterId,
-        Namespace: namespace,
-        Name: name,
-      });
-      setDetail(res.data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [namespace, name]);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchDetail();
-      setActiveTab("overview");
-    }
-  }, [isOpen, fetchDetail]);
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: t.storagePage.detailOverview, icon: <Server className="w-4 h-4" /> },
@@ -58,35 +38,33 @@ export function PVCDetailModal({ isOpen, onClose, namespace, name }: PVCDetailMo
   ];
 
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title={`PVC: ${name}`} size="xl">
-      {loading ? (
-        <div className="py-12"><LoadingSpinner /></div>
-      ) : error ? (
-        <div className="p-6 text-center text-red-500">{error}</div>
-      ) : detail ? (
-        <div className="flex flex-col h-full">
-          <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted hover:text-default"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
+    <Drawer isOpen onClose={onClose} title={`PVC: ${name}`} size="xl">
+      <DetailQueryView query={query} errorFallback={t.common.loadFailed}>
+        {(detail) => (
+          <div className="flex flex-col h-full">
+            <div className="flex border-b border-[var(--border-color)] px-4 shrink-0">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === tab.key
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted hover:text-default"
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 overflow-auto p-6">
+              {activeTab === "overview" && <OverviewTab detail={detail} />}
+              {activeTab === "labels" && <LabelsTab detail={detail} />}
+            </div>
           </div>
-          <div className="flex-1 overflow-auto p-6">
-            {activeTab === "overview" && <OverviewTab detail={detail} />}
-            {activeTab === "labels" && <LabelsTab detail={detail} />}
-          </div>
-        </div>
-      ) : null}
+        )}
+      </DetailQueryView>
     </Drawer>
   );
 }

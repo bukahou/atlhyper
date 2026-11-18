@@ -19,8 +19,8 @@ var defaultDurations = map[string]string{
 	// -------------------- Event 持久化 --------------------
 	"MASTER_EVENT_CLEANUP_INTERVAL": "1h", // 清理检查间隔
 
-	// -------------------- Event 告警 --------------------
-	"MASTER_EVENT_ALERT_INTERVAL": "30s", // 告警检测间隔
+	// -------------------- 旧的逐条 K8s 事件告警（开关在通知策略里，默认关）--------------------
+	"MASTER_EVENT_ALERT_INTERVAL": "30s", // 轮询间隔
 
 	// -------------------- JWT 配置 --------------------
 	"MASTER_JWT_TOKEN_EXPIRY": "24h", // Token 有效期
@@ -47,6 +47,9 @@ var defaultInts = map[string]int{
 	// -------------------- 服务器配置 --------------------
 	"MASTER_GATEWAY_PORT":  8080, // Gateway 端口（Web/API）
 	"MASTER_AGENTSDK_PORT": 8081, // AgentSDK 端口（Agent 数据上报）
+
+	// -------------------- Agent 入口配置 --------------------
+	"MASTER_AGENTSDK_MAX_SNAPSHOT_MB": 256, // 单份快照的大小上限（MB，压缩前后都适用）
 
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_SNAPSHOT_RETAIN": 10, // 快照保留数量
@@ -75,6 +78,13 @@ var defaultStrings = map[string]string{
 	// -------------------- 日志配置 --------------------
 	"MASTER_LOG_LEVEL":  "info", // 日志级别: debug / info / warn / error
 	"MASTER_LOG_FORMAT": "text", // 日志格式: text / json
+
+	// -------------------- 服务器配置 --------------------
+	"MASTER_PUBLIC_URL": "",    // 对外访问地址（通知里的页面链接用）；不配则通知不带链接
+	"MASTER_TIMEZONE":   "UTC", // 通知消息里时间的显示时区（IANA 名，如 Asia/Tokyo）；不合法时退回 UTC
+
+	// -------------------- Agent 入口配置 --------------------
+	"MASTER_AGENT_AUTH_MODE": "warn", // Agent 令牌认证模式: off / warn / enforce
 
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_TYPE": "memory", // DataHub 类型
@@ -129,9 +139,6 @@ var defaultStrings = map[string]string{
 var defaultBools = map[string]bool{
 	// -------------------- AI 配置 --------------------
 	"MASTER_AI_ENABLED": false, // 是否启用 AI 功能（Web UI 配置）
-
-	// -------------------- Event 告警 --------------------
-	"MASTER_EVENT_ALERT_ENABLED": true, // 是否启用事件告警
 
 	// -------------------- OIDC 登录配置 --------------------
 	"MASTER_OIDC_COOKIE_SECURE": true, // 状态 cookie 仅 HTTPS；仅本机 http 调试时设 false

@@ -94,7 +94,9 @@ func (m *mockAIOpsEngine) GetGraph(clusterID string) *aiops.DependencyGraph { re
 func (m *mockAIOpsEngine) GetGraphTrace(clusterID, fromKey, direction string, maxDepth int) *aiops.TraceResult {
 	return nil
 }
-func (m *mockAIOpsEngine) GetBaseline(entityKey string) *aiops.EntityBaseline { return nil }
+func (m *mockAIOpsEngine) GetBaseline(clusterID, entityKey string) *aiops.EntityBaseline {
+	return nil
+}
 func (m *mockAIOpsEngine) GetClusterRisk(clusterID string) *aiops.ClusterRisk { return nil }
 func (m *mockAIOpsEngine) GetEntityRisks(clusterID, sortBy string, limit int) []*aiops.EntityRisk {
 	return nil
@@ -111,12 +113,13 @@ func (m *mockAIOpsEngine) GetIncidentDetail(ctx context.Context, incidentID stri
 func (m *mockAIOpsEngine) GetIncidentStats(ctx context.Context, clusterID string, since time.Time) *aiops.IncidentStats {
 	return nil
 }
-func (m *mockAIOpsEngine) GetIncidentPatterns(ctx context.Context, entityKey string, since time.Time) []*aiops.IncidentPattern {
+func (m *mockAIOpsEngine) GetIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*aiops.IncidentPattern {
 	return nil
 }
-func (m *mockAIOpsEngine) SetIncidentNotify(fn func(incidentID, severity, trigger string)) {}
-func (m *mockAIOpsEngine) Start(ctx context.Context) error                                 { return nil }
-func (m *mockAIOpsEngine) Stop() error                                                     { return nil }
+func (m *mockAIOpsEngine) SubscribeTransitions(func(aiops.IncidentTransition)) {}
+func (m *mockAIOpsEngine) SubscribeLinks(func(aiops.IncidentLink))             {}
+func (m *mockAIOpsEngine) Start(ctx context.Context) error                     { return nil }
+func (m *mockAIOpsEngine) Stop() error                                         { return nil }
 
 var _ aiops.Engine = (*mockAIOpsEngine)(nil)
 
@@ -149,24 +152,6 @@ func (m *mockCommandRepo) List(ctx context.Context, opts database.CommandQueryOp
 }
 func (m *mockCommandRepo) Count(ctx context.Context, opts database.CommandQueryOpts) (int64, error) {
 	return 0, nil
-}
-
-type mockNotifyRepo struct{}
-
-func (m *mockNotifyRepo) Create(ctx context.Context, ch *database.NotifyChannel) error { return nil }
-func (m *mockNotifyRepo) Update(ctx context.Context, ch *database.NotifyChannel) error { return nil }
-func (m *mockNotifyRepo) Delete(ctx context.Context, id int64) error                   { return nil }
-func (m *mockNotifyRepo) GetByID(ctx context.Context, id int64) (*database.NotifyChannel, error) {
-	return nil, nil
-}
-func (m *mockNotifyRepo) GetByType(ctx context.Context, channelType string) (*database.NotifyChannel, error) {
-	return nil, nil
-}
-func (m *mockNotifyRepo) List(ctx context.Context) ([]*database.NotifyChannel, error) {
-	return nil, nil
-}
-func (m *mockNotifyRepo) ListEnabled(ctx context.Context) ([]*database.NotifyChannel, error) {
-	return nil, nil
 }
 
 type mockAIProviderRepo struct{}
@@ -274,7 +259,6 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 
 	auditRepo := &mockAuditRepo{}
 	commandRepo := &mockCommandRepo{}
-	notifyRepo := &mockNotifyRepo{}
 	aiProviderRepo := &mockAIProviderRepo{}
 	aiSettingsRepo := &mockAISettingsRepo{}
 	aiModelRepo := &mockAIModelRepo{}
@@ -290,7 +274,6 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 		AdminRepos: AdminRepos{
 			Audit:      auditRepo,
 			Command:    commandRepo,
-			Notify:     notifyRepo,
 			AIProvider: aiProviderRepo,
 			AISettings: aiSettingsRepo,
 			AIModel:    aiModelRepo,
@@ -299,45 +282,36 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 		},
 	})
 
-	// 验证所有字段正确注入（在 package query 内部可访问未导出字段）
-	if svc.store == nil {
-		t.Error("store not injected")
+	// 每个功能域小服务都拿到了自己的依赖（在 package query 内部可访问未导出字段）
+	checks := map[string]bool{
+		"K8sQuery.store":            svc.K8sQuery.store == store,
+		"OTelQuery.store":           svc.OTelQuery.store == store,
+		"SLOQuery.sloRepo":          svc.SLOQuery.sloRepo == sloRepo,
+		"AIOpsQuery.store":          svc.AIOpsQuery.store == store,
+		"AIOpsQuery.aiopsEngine":    svc.AIOpsQuery.aiopsEngine == engine,
+		"AIOpsQuery.aiReportRepo":   svc.AIOpsQuery.aiReportRepo == aiReportRepo,
+		"OverviewQuery.store":       svc.OverviewQuery.store == store,
+		"OverviewQuery.bus":         svc.OverviewQuery.bus == bus,
+		"OverviewQuery.eventRepo":   svc.OverviewQuery.eventRepo == eventRepo,
+		"AdminQuery.eventRepo":      svc.AdminQuery.eventRepo == eventRepo,
+		"AdminQuery.auditRepo":      svc.AdminQuery.auditRepo == auditRepo,
+		"AdminQuery.commandRepo":    svc.AdminQuery.commandRepo == commandRepo,
+		"AdminQuery.aiProviderRepo": svc.AdminQuery.aiProviderRepo == aiProviderRepo,
+		"AdminQuery.aiSettingsRepo": svc.AdminQuery.aiSettingsRepo == aiSettingsRepo,
+		"AdminQuery.aiModelRepo":    svc.AdminQuery.aiModelRepo == aiModelRepo,
+		"AdminQuery.aiBudgetRepo":   svc.AdminQuery.aiBudgetRepo == aiBudgetRepo,
+		"AdminQuery.aiReportRepo":   svc.AdminQuery.aiReportRepo == aiReportRepo,
 	}
-	if svc.bus == nil {
-		t.Error("bus not injected")
+	for name, ok := range checks {
+		if !ok {
+			t.Errorf("%s 没有注入", name)
+		}
 	}
-	if svc.eventRepo == nil {
-		t.Error("eventRepo not injected")
-	}
-	if svc.sloRepo == nil {
-		t.Error("sloRepo not injected")
-	}
-	if svc.aiopsEngine == nil {
-		t.Error("aiopsEngine not injected")
-	}
-	if svc.auditRepo == nil {
-		t.Error("auditRepo not injected")
-	}
-	if svc.commandRepo == nil {
-		t.Error("commandRepo not injected")
-	}
-	if svc.notifyRepo == nil {
-		t.Error("notifyRepo not injected")
-	}
-	if svc.aiProviderRepo == nil {
-		t.Error("aiProviderRepo not injected")
-	}
-	if svc.aiSettingsRepo == nil {
-		t.Error("aiSettingsRepo not injected")
-	}
-	if svc.aiModelRepo == nil {
-		t.Error("aiModelRepo not injected")
-	}
-	if svc.aiBudgetRepo == nil {
-		t.Error("aiBudgetRepo not injected")
-	}
-	if svc.aiReportRepo == nil {
-		t.Error("aiReportRepo not injected")
+	// 10 个小服务都已构造（方法经嵌入提升，任何一个为 nil 都会在调用时 panic）
+	if svc.K8sQuery == nil || svc.OTelQuery == nil || svc.SLOQuery == nil || svc.AIOpsQuery == nil ||
+		svc.OverviewQuery == nil || svc.AdminQuery == nil || svc.DeployQuery == nil || svc.UserQuery == nil ||
+		svc.ClusterRegistryQuery == nil || svc.NotifyQuery == nil {
+		t.Error("有功能域小服务没有构造")
 	}
 }
 
@@ -358,7 +332,6 @@ func TestNewQueryService_OptionalNil(t *testing.T) {
 		AdminRepos: AdminRepos{
 			Audit:      &mockAuditRepo{},
 			Command:    &mockCommandRepo{},
-			Notify:     &mockNotifyRepo{},
 			AIProvider: &mockAIProviderRepo{},
 			AISettings: &mockAISettingsRepo{},
 			AIModel:    &mockAIModelRepo{},
@@ -367,25 +340,17 @@ func TestNewQueryService_OptionalNil(t *testing.T) {
 		},
 	})
 
-	// 必需字段正确注入
-	if svc.store == nil {
-		t.Error("store not injected")
-	}
-	if svc.bus == nil {
-		t.Error("bus not injected")
-	}
-	if svc.eventRepo == nil {
-		t.Error("eventRepo not injected")
-	}
-	if svc.sloRepo == nil {
-		t.Error("sloRepo not injected")
+	// 必需依赖正确注入
+	if svc.K8sQuery.store != store || svc.OverviewQuery.bus != bus || svc.OverviewQuery.eventRepo != eventRepo ||
+		svc.SLOQuery.sloRepo != sloRepo {
+		t.Error("必需依赖没有注入")
 	}
 
-	// 可选字段为 nil，不 panic
-	if svc.aiopsEngine != nil {
+	// 可选依赖为 nil，不 panic
+	if svc.AIOpsQuery.aiopsEngine != nil {
 		t.Error("aiopsEngine should be nil when not provided")
 	}
-	if svc.aiopsAI != nil {
+	if svc.AIOpsQuery.aiopsAI != nil {
 		t.Error("aiopsAI should be nil when not provided")
 	}
 }

@@ -82,7 +82,7 @@ func New() (*Agent, error) {
 	}
 
 	// 2. 初始化 Gateway (Master 通信)
-	masterGw := gateway.NewMasterGateway(cfg.Master.URL, cfg.Agent.ClusterID, cfg.Timeout.HTTPClient)
+	masterGw := gateway.NewMasterGateway(cfg.Master.URL, cfg.Agent.ClusterID, cfg.Master.Token, cfg.Timeout.HTTPClient)
 
 	// 3. 初始化 Repository (数据访问层)
 	repos := initRepositories(k8sClient)
@@ -135,6 +135,7 @@ func New() (*Agent, error) {
 	)
 
 	commandSvc := commandsvc.NewCommandService(
+		cfg.Agent.ClusterID,
 		k8sClient,
 		repos.pod, repos.generic,
 		traceQueryRepo, logQueryRepo, metricsQueryRepo, sloQueryRepo,
@@ -142,13 +143,15 @@ func New() (*Agent, error) {
 
 	// 5. 初始化 Scheduler (调度层)
 	schedCfg := scheduler.Config{
-		SnapshotInterval:    cfg.Scheduler.SnapshotInterval,
-		CommandPollInterval: cfg.Scheduler.CommandPollInterval,
-		HeartbeatInterval:   cfg.Scheduler.HeartbeatInterval,
-		SnapshotTimeout:     cfg.Timeout.SnapshotCollect,
-		SnapshotPushTimeout: cfg.Timeout.HTTPClient,
-		CommandPollTimeout:  cfg.Timeout.CommandPoll,
-		HeartbeatTimeout:    cfg.Timeout.Heartbeat,
+		SnapshotInterval:     cfg.Scheduler.SnapshotInterval,
+		CommandPollInterval:  cfg.Scheduler.CommandPollInterval,
+		HeartbeatInterval:    cfg.Scheduler.HeartbeatInterval,
+		SnapshotTimeout:      cfg.Timeout.SnapshotCollect,
+		SnapshotPushTimeout:  cfg.Timeout.HTTPClient,
+		CommandPollTimeout:   cfg.Timeout.CommandPoll,
+		CommandExecTimeout:   cfg.Timeout.CommandExec,
+		CommandReportTimeout: cfg.Timeout.CommandReport,
+		HeartbeatTimeout:     cfg.Timeout.Heartbeat,
 	}
 	sched := scheduler.New(schedCfg, snapshotSvc, commandSvc, masterGw)
 

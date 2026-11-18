@@ -15,7 +15,10 @@ globalThis.localStorage = {
 } as Storage;
 
 const { useAuthStore } = await import("./authStore");
-const { canNow } = await import("@/hooks/useCan");
+
+/** 权限列表里有没有这一项（组件里用 useCan 读同一份列表） */
+const hasPermission = (permission: string) =>
+  (useAuthStore.getState().permissions as string[]).includes(permission);
 
 const guestMe = { user: null, level: 0, permissions: ["cluster.read", "logs.stats.read"] };
 
@@ -30,8 +33,8 @@ describe("refreshMe", () => {
     getMe.mockResolvedValue({ data: { data: guestMe } });
     await useAuthStore.getState().refreshMe();
     expect(useAuthStore.getState().meLoaded).toBe(true);
-    expect(canNow("cluster.read")).toBe(true);
-    expect(canNow("logs.read")).toBe(false);
+    expect(hasPermission("cluster.read")).toBe(true);
+    expect(hasPermission("logs.read")).toBe(false);
   });
 
   it("本地有 token 但后端不认（过期 / 禁用）→ 清掉本地登录态", async () => {
@@ -51,7 +54,7 @@ describe("refreshMe", () => {
     getMe.mockResolvedValue({ data: { data: { user, level: 1, permissions: ["cluster.read", "logs.read"] } } });
     await useAuthStore.getState().refreshMe();
     expect(useAuthStore.getState().user?.role).toBe(1);
-    expect(canNow("logs.read")).toBe(true);
+    expect(hasPermission("logs.read")).toBe(true);
   });
 
   it("请求失败：失败即关，一律无权限", async () => {
@@ -59,6 +62,6 @@ describe("refreshMe", () => {
     getMe.mockRejectedValue(new Error("network"));
     await useAuthStore.getState().refreshMe();
     expect(useAuthStore.getState().meLoaded).toBe(true);
-    expect(canNow("logs.read")).toBe(false);
+    expect(hasPermission("logs.read")).toBe(false);
   });
 });

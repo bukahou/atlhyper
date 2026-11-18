@@ -54,7 +54,7 @@ export interface MockDeployRecord {
 }
 
 export const MOCK_DEPLOY_CONFIG: MockDeployConfig = {
-  repoUrl: "wuxiafeng/Config",
+  repoUrl: "example-org/cluster-config",
   paths: [
     "zgmf-x10a/k8s-configs/Geass/backend",
     "zgmf-x10a/k8s-configs/Geass/web",
@@ -228,15 +228,15 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
 
 // 从 GitHub 集成共享的已授权仓库列表
 export const MOCK_AUTHORIZED_REPOS = [
-  { fullName: "wuxiafeng/Config", defaultBranch: "main", private: true },
-  { fullName: "wuxiafeng/Geass", defaultBranch: "main", private: false },
-  { fullName: "wuxiafeng/atlhyper", defaultBranch: "main", private: false },
+  { fullName: "example-org/cluster-config", defaultBranch: "main", private: true },
+  { fullName: "example-org/demo-app", defaultBranch: "main", private: false },
+  { fullName: "example-org/atlhyper", defaultBranch: "main", private: false },
 ];
 
 // 扫描 Config 仓库发现的所有 kustomization.yaml 路径
 // 实际由后端通过 GitHub API 遍历仓库目录获取
 export const MOCK_KUSTOMIZE_PATHS: Record<string, string[]> = {
-  "wuxiafeng/Config": [
+  "example-org/cluster-config": [
     "zgmf-x10a/k8s-configs/Geass/backend",
     "zgmf-x10a/k8s-configs/Geass/web",
     "zgmf-x10a/k8s-configs/atlhyper/master",

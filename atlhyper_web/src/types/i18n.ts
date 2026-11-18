@@ -4,6 +4,8 @@
 
 import type { Language } from "./common";
 import type { Permission } from "./auth";
+import type { NotificationsTranslations } from "./i18n-notify";
+import type { IncidentDetailTranslations, IncidentGroupingTranslations } from "./i18n-incident";
 
 // 导航菜单翻译
 export interface NavTranslations {
@@ -149,6 +151,12 @@ export interface CommonTranslations {
   retry: string;
   loadFailed: string;
   noCluster: string;
+  noClusterDesc: string;
+  refreshFailed: string;
+  /** 详情查询返回 404：资源已不存在（多半已被删除） */
+  resourceNotFound: string;
+  pageError: string;
+  pageErrorDesc: string;
   // OTel 可用性提示
   otelRequired: string;
   otelRequiredDesc: string;
@@ -206,6 +214,8 @@ export interface StatusTranslations {
 // 审计翻译
 export interface AuditTranslations {
   description: string;
+  /** 「请求路径」字段的标签 */
+  requestPath: string;
   filterLabel: string;
   timeRange: string;
   user: string;
@@ -253,6 +263,8 @@ export interface AuditTranslations {
     secret: string;
     command: string;
     notify: string;
+    cluster: string;
+    cluster_token: string;
   };
   // 操作+资源组合标签
   actionLabels: {
@@ -774,6 +786,82 @@ export interface ClustersTranslations {
   noClusters: string;
 }
 
+// 集群管理页（集群注册表与 Agent 令牌）翻译
+export interface ClusterRegistryTranslations {
+  pageDescription: string;
+  demoHint: string;
+  // 表头
+  clusterId: string;
+  displayName: string;
+  description: string;
+  status: string;
+  lastSeen: string;
+  registration: string;
+  token: string;
+  agentAuth: string;
+  // 单元格
+  statusOnline: string;
+  statusOffline: string;
+  statusNever: string;
+  neverReported: string;
+  registered: string;
+  unregistered: string;
+  unregisteredHint: string;
+  tokenNotIssued: string;
+  tokenIssuedAt: string;
+  agentAuthenticated: string;
+  agentUnauthenticated: string;
+  // 操作
+  registerCluster: string;
+  register: string;
+  editProfile: string;
+  issueToken: string;
+  rotateToken: string;
+  unregister: string;
+  empty: string;
+  emptyHint: string;
+  // 登记 / 编辑弹窗
+  registerTitle: string;
+  editTitle: string;
+  clusterIdFormatHint: string;
+  clusterIdMatchHint: string;
+  displayNameHint: string;
+  descriptionHint: string;
+  registering: string;
+  saving: string;
+  // 操作结果
+  registeredToast: string;
+  updatedToast: string;
+  unregisteredToast: string;
+  errors: {
+    idLength: string;
+    idCharset: string;
+    nameRequired: string;
+    nameTooLong: string;
+    descriptionTooLong: string;
+    controlCharacter: string;
+    alreadyRegistered: string;
+    notRegistered: string;
+    invalidInput: string;
+    unknown: string;
+  };
+  // 轮换确认
+  rotateConfirmTitle: string;
+  rotateConfirmMessage: string;
+  // 令牌一次性显示弹窗
+  tokenDialogTitle: string;
+  tokenOnceWarning: string;
+  tokenUsageHint: string;
+  tokenFor: string;
+  copyToken: string;
+  tokenCopied: string;
+  tokenCopyFailed: string;
+  tokenDialogClose: string;
+  // 删除登记确认
+  unregisterConfirmTitle: string;
+  unregisterConfirmMessage: string;
+}
+
 // Agents 页面翻译
 export interface AgentsTranslations {
   pageDescription: string;
@@ -788,64 +876,8 @@ export interface AgentsTranslations {
   noAgents: string;
 }
 
-// Notifications 页面翻译
-export interface NotificationsTranslations {
-  pageDescription: string;
-  loadFailed: string;
-  // Slack
-  slackNotify: string;
-  slackConfig: string;
-  webhookUrl: string;
-  webhookUrlHint: string;
-  secretConfigured: string; // 凭据已设置（不回显）
-  secretConfiguredPlaceholder: string; // 已设置时输入框的占位提示
-  channel: string;
-  // Email
-  emailNotify: string;
-  smtpServer: string;
-  smtpServerPlaceholder: string;
-  smtpCustom: string;
-  smtpCustomPlaceholder: string;
-  port: string;
-  portHint: string;
-  emailAccount: string;
-  emailAccountHint: string;
-  password: string;
-  passwordPlaceholder: string;
-  tlsEncryption: string;
-  tlsHint: string;
-  recipients: string;
-  recipientsPlaceholder: string;
-  // 状态
-  statusEnabled: string;
-  statusIncomplete: string;
-  statusDisabled: string;
-  configIncomplete: string;
-  // 操作
-  enabled: string;
-  test: string;
-  save: string;
-  testMessage: string;
-  testSuccess: string;
-  testFailed: string;
-  saveSuccess: string;
-  saveFailed: string;
-  slackSaved: string;
-  emailSaved: string;
-  // SMTP 预设标签
-  smtpPresets: {
-    qq: string;
-    netease163: string;
-    netease126: string;
-    tencentEnterprise: string;
-    aliEnterprise: string;
-    feishu: string;
-  };
-  // TagInput 消息
-  tagInputPlaceholder: string;
-  tagInputDuplicate: string;
-  tagInputInvalidFormat: string;
-}
+// Notifications 页面翻译：文案量大，单放在 i18n-notify.ts
+export type { NotificationsTranslations } from "./i18n-notify";
 
 // Login 页面翻译
 export interface LoginTranslations {
@@ -1169,7 +1201,6 @@ export interface SLOTranslations extends TimeRangePickerTranslations {
   refreshing: string;
   lastUpdated: string;
   loadFailed: string;
-  noCluster: string;
   // 状态
   healthy: string;
   warning: string;
@@ -1405,7 +1436,6 @@ export interface AISettingsPageTranslations {
   save: string;
   saving: string;
   // Toast 消息
-  loadFailed: string;
   requiredFields: string;
   apiKeyRequired: string;
   providerUpdated: string;
@@ -1727,8 +1757,6 @@ interface NodeMetricsTranslations extends TimeRangePickerTranslations {
   pageDescription: string;
   lastUpdate: string;
   retry: string;
-  noCluster: string;
-  noClusterDesc: string;
   noMetricsData: string;
   noMetricsDesc: string;
   loadFailed: string;
@@ -2012,15 +2040,40 @@ export interface AIOpsTranslations {
   incidentId: string;
   incidentState: string;
   severity: string;
-  rootCause: string;
+  /** 事件列表里主体下方那一行：风险最高的成员（不是分析出来的原因） */
+  leadMember: string;
   peakRisk: string;
   startedAt: string;
   resolvedAt: string;
   duration: string;
   recurrence: string;
-  affectedEntities: string;
   timeline: string;
   role: string;
+
+  // 事件的主体与成员（事件按主体收敛：同一工作负载的 Pod 归到一个事件）
+  subject: string;
+  subjectTypeLabel: {
+    pod: string;
+    node: string;
+    service: string;
+    ingress: string;
+    deployment: string;
+    statefulset: string;
+    daemonset: string;
+    job: string;
+    cronjob: string;
+  };
+  memberEntities: string;
+  noMemberEntities: string;
+  escalatedAt: string;
+  notEscalated: string;
+  closeReason: string;
+  closeReasonLabel: {
+    open: string;
+    recovered: string;
+    stale: string;
+  };
+  closeReasonStaleHint: string;
 
   // 事件状态
   state: {
@@ -2062,15 +2115,10 @@ export interface AIOpsTranslations {
     topRootCauses: string;
   };
 
-  // 时间线事件类型
-  timelineEvent: {
-    anomaly_detected: string;
-    state_change: string;
-    metric_spike: string;
-    root_cause_identified: string;
-    recovery_started: string;
-    recurrence: string;
-  };
+  // 事件详情弹窗（结论、证据、下一步、成员、时间线）：文案量大，单放在 i18n-incident.ts
+  detail: IncidentDetailTranslations;
+  // 拓扑归并：列表按组折叠、详情的源头与影响范围
+  grouping: IncidentGroupingTranslations;
 
   // 拓扑图
   dependencyGraph: string;
@@ -2101,8 +2149,6 @@ export interface AIOpsTranslations {
   loading: string;
   autoRefresh: string;
   lastUpdate: string;
-  noCluster: string;
-  noClusterDesc: string;
   loadFailed: string;
   retry: string;
   minutesAgo: string;
@@ -2227,8 +2273,6 @@ export interface LogTranslations extends TimeRangePickerTranslations {
   noLogs: string;
   loading: string;
   loadFailed: string;
-  noCluster: string;
-  noClusterDesc: string;
   // 直方图 / 过滤器
   logVolume: string;
   clearFilters: string;
@@ -2355,8 +2399,6 @@ export interface ApmTranslations extends TimeRangePickerTranslations {
   // states
   loading: string;
   loadFailed: string;
-  noCluster: string;
-  noClusterDesc: string;
   // trend charts
   latencyTrend: string;
   throughputTrend: string;
@@ -2595,6 +2637,7 @@ export interface Translations {
   users: UsersTranslations;
   roles: RolesTranslations;
   clusters: ClustersTranslations;
+  clusterRegistry: ClusterRegistryTranslations;
   agents: AgentsTranslations;
   notifications: NotificationsTranslations;
   login: LoginTranslations;

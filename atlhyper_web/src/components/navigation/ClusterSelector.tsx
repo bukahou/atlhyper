@@ -32,10 +32,9 @@ export function ClusterSelector() {
   }
 
   const handleSelect = (id: string) => {
+    // 不整页刷新：查询键里带集群，切换即换成新集群的数据
     setCurrentCluster(id);
     setIsOpen(false);
-    // 刷新页面以加载新集群的数据
-    window.location.reload();
   };
 
   return (

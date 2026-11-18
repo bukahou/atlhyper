@@ -8,7 +8,7 @@ import type {
   HardwareRow,
   HardwareStatus,
 } from "@/types/hardware";
-import type { NodeMetrics, Point } from "@/types/node-metrics";
+import type { NodeMetrics } from "@/types/node-metrics";
 import { NodeDetailPanel } from "./NodeDetailPanel";
 
 interface HardwareMatrixProps {
@@ -17,7 +17,8 @@ interface HardwareMatrixProps {
   nodes: NodeMetrics[];
   expandedNode: string | null;
   onToggle: (nodeName: string) => void;
-  historyCache: Record<string, Record<string, Point[]>>;
+  /** 展开行的趋势图取最近多少小时的历史 */
+  historyHours: number;
   spanMs: number;
 }
 
@@ -64,7 +65,7 @@ export const HardwareMatrix = memo(function HardwareMatrix({
   nodes,
   expandedNode,
   onToggle,
-  historyCache,
+  historyHours,
   spanMs,
 }: HardwareMatrixProps) {
   const { t } = useI18n();
@@ -231,8 +232,8 @@ export const HardwareMatrix = memo(function HardwareMatrix({
                         <td colSpan={columns.length + 2} className="p-0 border-b border-[var(--border-color)]">
                           <NodeDetailPanel
                             metrics={detail}
-                            historyData={historyCache[row.nodeName] || {}}
                             hardware={row}
+                            historyHours={historyHours}
                             spanMs={spanMs}
                           />
                         </td>

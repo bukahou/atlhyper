@@ -17,10 +17,3 @@ export function useCan() {
   const permissions = useAuthStore((s) => s.permissions);
   return useCallback((perm: Permission) => permissions.includes(perm), [permissions]);
 }
-
-/**
- * 非组件场景（datasource 层）的即时权限判断：无权限时不发请求
- */
-export function canNow(perm: Permission): boolean {
-  return useAuthStore.getState().permissions.includes(perm);
-}

@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle } from "lucide-react";
+import { QueryView } from "@/components/common";
 import type { ApmTranslations } from "@/types/i18n";
 import type { CorrelationResult, CorrelationMode, CorrelationImpact } from "@/types/model/apm";
-import { getCorrelations, type TimeParams } from "@/datasource/apm";
+import type { TimeRangeParams } from "@/lib/time-range";
+import { apmCorrelationsQuery } from "@/queries/observe-apm";
 import { formatDurationMs } from "@/lib/format";
 
 // ============================================================
@@ -17,10 +20,17 @@ import { formatDurationMs } from "@/lib/format";
 
 interface CorrelationsPanelProps {
   t: ApmTranslations;
-  clusterId?: string;
+  clusterId: string;
   serviceName: string;
-  timeParams?: TimeParams;
+  timeRange: TimeRangeParams;
+  /** 是否有 traces.read（相关性读的是链路属性）；没有就不发请求 */
+  canReadTraces: boolean;
   operation?: string;
+}
+
+/** 没有可分析的样本：没有结果、没有前景样本（慢 / 错的请求），或没有任何超标的属性 */
+function hasNoSamples(result: CorrelationResult | null): boolean {
+  return !result || result.foregroundCount === 0 || result.items.length === 0;
 }
 
 const IMPACT_STYLE: Record<CorrelationImpact, string> = {
@@ -42,17 +52,12 @@ function RatioBar({ ratio, color }: { ratio: number; color: string }) {
   );
 }
 
-export function CorrelationsPanel({ t, clusterId, serviceName, timeParams, operation }: CorrelationsPanelProps) {
+export function CorrelationsPanel({ t, clusterId, serviceName, timeRange, canReadTraces, operation }: CorrelationsPanelProps) {
   const [mode, setMode] = useState<CorrelationMode>("failure");
-  const [result, setResult] = useState<CorrelationResult | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    getCorrelations(clusterId, serviceName, mode, timeParams, operation)
-      .then(setResult)
-      .finally(() => setLoading(false));
-  }, [clusterId, serviceName, mode, timeParams, operation]);
+  // 分析模式在键里：失败与延迟各是一份，来回切换直接用缓存
+  const correlationsQuery = useQuery(
+    apmCorrelationsQuery(clusterId, { serviceName, correlationMode: mode, operation }, timeRange, canReadTraces),
+  );
 
   const fgLabel = mode === "failure" ? t.corrFgRatioFailure : t.corrFgRatioLatency;
 
@@ -80,14 +85,12 @@ export function CorrelationsPanel({ t, clusterId, serviceName, timeParams, opera
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-10 text-sm text-muted">
-          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-          {t.loading}
-        </div>
-      ) : !result || result.foregroundCount === 0 || result.items.length === 0 ? (
-        <div className="flex items-center justify-center py-10 text-sm text-muted">{t.corrNoSamples}</div>
-      ) : (
+      <QueryView
+        query={correlationsQuery}
+        isEmpty={hasNoSamples}
+        empty={<div className="flex items-center justify-center py-10 text-sm text-muted">{t.corrNoSamples}</div>}
+      >
+        {(result) => result && (
         <>
           <div className="flex items-center gap-3 px-4 py-2 text-[11px] text-muted border-b border-[var(--border-color)]/40">
             <span className="font-mono">
@@ -135,7 +138,8 @@ export function CorrelationsPanel({ t, clusterId, serviceName, timeParams, opera
             </table>
           </div>
         </>
-      )}
+        )}
+      </QueryView>
     </div>
   );
 }

@@ -1,11 +1,11 @@
 /**
  * AIOps API
- *
- * 类型定义对齐设计文档: docs/design/active/aiops-phase3-frontend.md §2
  */
 
 import { get, post } from "./request";
 import type { AnalysisStatus } from "@/lib/analysis-poll";
+import type { IncidentDetailGrouping, IncidentListGrouping } from "@/types/incident-grouping";
+import type { IncidentDetailView } from "@/types/incident-view";
 
 // ==================== 类型定义 ====================
 
@@ -140,21 +140,51 @@ export interface GraphEdge {
 }
 
 // 事件相关
-export interface Incident {
+/** 事件为什么关闭：空串 = 还没关闭；recovered = 观察期满未复发；stale = 主体失联（对象已删除或 Agent 断连） */
+export type IncidentCloseReason = "" | "recovered" | "stale";
+
+/** 列表里的事件；拓扑归并新增的 rootIncidentId / linkedCount / impacted 见 types/incident-grouping.ts */
+export interface Incident extends IncidentListGrouping {
   id: string;
   clusterId: string;
   state: string;
+  /** 峰值严重度（low / medium / high / critical）：只升不降，关闭后保留 */
   severity: string;
+  /** 主体键：同一工作负载的 Pod 归到一个主体，如 shop/deployment/api；其他实体的主体就是它自己 */
+  subject: string;
+  /** 主体的类型，由后端从 subject 解析：deployment / statefulset / daemonset / job / cronjob / pod / service / node / ingress … */
+  subjectType: string;
+  /** 主体的命名空间，由后端从 subject 解析；节点等集群级对象为空串 */
+  subjectNamespace: string;
+  /** 主体的名称，由后端从 subject 解析 */
+  subjectName: string;
+  /** 当前的领头实体（成员里风险最高的那个）的键；Pod 重建后会更新 */
   rootCause: string;
+  /** @unit 百分制 [0, 100] —— 列表、详情、事件模式里口径一致，前端不换算 */
   peakRisk: number;
   startedAt: string;
   resolvedAt: string | null;
+  /** 首次升级为「事件中」的时间；没升级过为 null */
+  escalatedAt: string | null;
+  closeReason: IncidentCloseReason;
+  /**
+   * 异常持续了多久（秒），不含恢复观察期：警告 / 事件中时由后端按当前时刻给出，
+   * 进入恢复观察时定下不再增长。直接显示，⛔ 不要用 startedAt 到现在自己算。
+   */
   durationS: number;
+  /** 复发次数；警告级的反复也计入 */
   recurrence: number;
   createdAt: string;
 }
 
-export interface IncidentDetail extends Incident {
+/**
+ * 事件详情：事件本身 + 原有的实体与原始时间线 + 改版新增的展示字段（见 types/incident-view.ts）
+ * + 拓扑归并的源头 / 影响范围（见 types/incident-grouping.ts；详情里的 impacted 带依赖路径）
+ */
+export interface IncidentDetail extends Omit<Incident, "root" | "impacted">, IncidentDetailView, IncidentDetailGrouping {
+  /** 列表与详情都有 root / impacted：详情里的多了依赖路径与归入时刻 */
+  root: IncidentDetailGrouping["root"];
+  impacted: IncidentDetailGrouping["impacted"];
   entities: IncidentEntity[];
   timeline: IncidentTimeline[];
 }
@@ -163,10 +193,15 @@ export interface IncidentEntity {
   incidentId: string;
   entityKey: string;
   entityType: string;
+  /** 由后端从 entityKey 解析；集群级对象为空串 */
+  namespace: string;
+  /** 由后端从 entityKey 解析 */
+  name: string;
   /** @unit 百分制 [0, 100] 整数 */
   rLocal: number;
   /** @unit 百分制 [0, 100] 整数 */
   rFinal: number;
+  /** root_cause = 领头实体（一个事件里始终只有一个）；affected = 主体的其余成员 */
   role: string;
 }
 
@@ -181,11 +216,13 @@ export interface IncidentTimeline {
 
 export interface IncidentStats {
   totalIncidents: number;
+  /** 只数警告与事件中；恢复观察不算活跃 */
   activeIncidents: number;
   mttr: number;
   recurrenceRate: number;
   bySeverity: Record<string, number>;
   byState: Record<string, number>;
+  /** entityKey 是主体键（如 shop/deployment/api）：显示时按主体解析类型与名称（lib/entity-key） */
   topRootCauses: { entityKey: string; count: number }[];
 }
 
@@ -247,25 +284,32 @@ export interface IncidentListParams {
   to?: string;
   limit?: number;
   offset?: number;
+  /** true：受影响事件折叠进源头的 impacted，不单独出现；不传或 false 时平铺 */
+  grouped?: boolean;
 }
 
 // ==================== API 方法 ====================
+// 读函数最后一个参数是可选的 AbortSignal：查询被取消（参数变化、组件卸载）时中止请求
 
 // 风险
-export async function getClusterRisk(cluster: string): Promise<ClusterRisk> {
-  const data = (await get<ClusterRisk | null>("/api/v2/aiops/risk/cluster", { cluster })).data;
+export async function getClusterRisk(cluster: string, signal?: AbortSignal): Promise<ClusterRisk> {
+  const data = (await get<ClusterRisk | null>("/api/v2/aiops/risk/cluster", { cluster }, signal)).data;
   return data ?? {
     clusterId: cluster, risk: 0, level: "healthy",
     topEntities: [], totalEntities: 0, anomalyCount: 0, updatedAt: Date.now(),
   };
 }
 
-export async function getEntityRisks(cluster: string, sort = "r_final", limit = 20): Promise<EntityRisk[]> {
-  return (await get<EntityRisk[] | null>("/api/v2/aiops/risk/entities", { cluster, sort, limit })).data ?? [];
+export async function getEntityRisks(
+  cluster: string, sort = "r_final", limit = 20, signal?: AbortSignal
+): Promise<EntityRisk[]> {
+  return (await get<EntityRisk[] | null>("/api/v2/aiops/risk/entities", { cluster, sort, limit }, signal)).data ?? [];
 }
 
-export async function getEntityRiskDetail(cluster: string, entityKey: string): Promise<EntityRiskDetail> {
-  const detail = (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster, entity: entityKey })).data;
+export async function getEntityRiskDetail(
+  cluster: string, entityKey: string, signal?: AbortSignal
+): Promise<EntityRiskDetail> {
+  const detail = (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster, entity: entityKey }, signal)).data;
   // Go nil slice → JSON null，兜底为空数组
   detail.metrics = detail.metrics ?? [];
   detail.propagation = detail.propagation ?? [];
@@ -274,8 +318,10 @@ export async function getEntityRiskDetail(cluster: string, entityKey: string): P
 }
 
 // 实体基线（EMA 学习状态）
-export async function getEntityBaseline(cluster: string, entityKey: string): Promise<EntityBaseline> {
-  const data = (await get<EntityBaseline>("/api/v2/aiops/baseline", { cluster_id: cluster, entity: entityKey })).data;
+export async function getEntityBaseline(
+  cluster: string, entityKey: string, signal?: AbortSignal
+): Promise<EntityBaseline> {
+  const data = (await get<EntityBaseline>("/api/v2/aiops/baseline", { cluster_id: cluster, entity: entityKey }, signal)).data;
   return { ...data, states: data.states ?? [] };
 }
 
@@ -291,22 +337,23 @@ export async function getGraphTrace(
   cluster: string,
   fromKey: string,
   direction: "upstream" | "downstream",
-  depth = 3
+  depth = 3,
+  signal?: AbortSignal
 ): Promise<GraphTraceResult> {
   const data = (await get<GraphTraceResult>("/api/v2/aiops/graph/trace", {
     cluster_id: cluster, from: fromKey, direction, depth,
-  })).data;
+  }, signal)).data;
   return { nodes: data.nodes ?? [], edges: data.edges ?? [], depth: data.depth ?? 0 };
 }
 
 // 依赖图
-export async function getGraph(cluster: string): Promise<DependencyGraph> {
-  return (await get<DependencyGraph>("/api/v2/aiops/graph", { cluster })).data;
+export async function getGraph(cluster: string, signal?: AbortSignal): Promise<DependencyGraph> {
+  return (await get<DependencyGraph>("/api/v2/aiops/graph", { cluster }, signal)).data;
 }
 
 // 事件
-export async function getIncidents(params: IncidentListParams): Promise<Incident[]> {
-  const resp = (await get<{ data: Incident[]; total: number }>("/api/v2/aiops/incidents", params)).data;
+export async function getIncidents(params: IncidentListParams, signal?: AbortSignal): Promise<Incident[]> {
+  const resp = (await get<{ data: Incident[]; total: number }>("/api/v2/aiops/incidents", params, signal)).data;
   return resp?.data ?? [];
 }
 
@@ -322,20 +369,20 @@ export interface IncidentPattern {
 }
 
 export async function getIncidentPatterns(
-  cluster: string, entityKey: string, period = "30d"
+  cluster: string, entityKey: string, period = "30d", signal?: AbortSignal
 ): Promise<IncidentPattern[]> {
   const data = (await get<IncidentPattern[]>("/api/v2/aiops/incidents/patterns", {
     cluster_id: cluster, entity: entityKey, period,
-  })).data;
+  }, signal)).data;
   return data ?? [];
 }
 
-export async function getIncidentDetail(id: string): Promise<IncidentDetail> {
-  return (await get<IncidentDetail>(`/api/v2/aiops/incidents/${encodeURIComponent(id)}`)).data;
+export async function getIncidentDetail(id: string, signal?: AbortSignal): Promise<IncidentDetail> {
+  return (await get<IncidentDetail>(`/api/v2/aiops/incidents/${encodeURIComponent(id)}`, undefined, signal)).data;
 }
 
-export async function getIncidentStats(cluster: string, period = "7d"): Promise<IncidentStats> {
-  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { cluster, period })).data;
+export async function getIncidentStats(cluster: string, period = "7d", signal?: AbortSignal): Promise<IncidentStats> {
+  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { cluster, period }, signal)).data;
 }
 
 // AI 增强
@@ -348,13 +395,13 @@ export async function recommendActions(incidentId: string): Promise<SummarizeRes
 }
 
 // AI 报告
-export async function getAIReports(incidentId: string): Promise<AIReport[]> {
-  const resp = (await get<{ data: AIReport[] }>(`/api/v2/aiops/ai/reports`, { incident_id: incidentId })).data;
+export async function getAIReports(incidentId: string, signal?: AbortSignal): Promise<AIReport[]> {
+  const resp = (await get<{ data: AIReport[] }>(`/api/v2/aiops/ai/reports`, { incident_id: incidentId }, signal)).data;
   return resp?.data ?? [];
 }
 
-export async function getAIReportDetail(reportId: number): Promise<AIReportDetail> {
-  return (await get<{ data: AIReportDetail }>(`/api/v2/aiops/ai/reports/${reportId}`)).data.data;
+export async function getAIReportDetail(reportId: number, signal?: AbortSignal): Promise<AIReportDetail> {
+  return (await get<{ data: AIReportDetail }>(`/api/v2/aiops/ai/reports/${reportId}`, undefined, signal)).data.data;
 }
 
 export async function triggerAnalysis(incidentId: string): Promise<{ message: string; alreadyRunning: boolean }> {
@@ -362,6 +409,6 @@ export async function triggerAnalysis(incidentId: string): Promise<{ message: st
 }
 
 /** 深度分析状态（running / succeeded / failed / none）—— GET /api/v2/aiops/ai/analyze/status */
-export async function getAnalysisStatus(incidentId: string): Promise<AnalysisStatus> {
-  return (await get<{ message: string; data: AnalysisStatus }>("/api/v2/aiops/ai/analyze/status", { incidentId })).data.data;
+export async function getAnalysisStatus(incidentId: string, signal?: AbortSignal): Promise<AnalysisStatus> {
+  return (await get<{ message: string; data: AnalysisStatus }>("/api/v2/aiops/ai/analyze/status", { incidentId }, signal)).data.data;
 }

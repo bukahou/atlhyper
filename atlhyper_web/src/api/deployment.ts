@@ -46,21 +46,22 @@ interface CommandResponse {
  * 获取 Deployment 列表
  * GET /api/v2/deployments?cluster_id=xxx&namespace=xxx
  */
-export function getDeploymentList(params: DeploymentListParams) {
-  return get<DeploymentListResponse>("/api/v2/deployments", params);
+export function getDeploymentList(params: DeploymentListParams, signal?: AbortSignal) {
+  return get<DeploymentListResponse>("/api/v2/deployments", params, signal);
 }
 
 /**
  * 获取 Deployment 详情
  * GET /api/v2/deployments/{name}?cluster_id=xxx&namespace=xxx
  */
-export async function getDeploymentDetail(data: { ClusterID: string; Namespace: string; Name: string }) {
+export async function getDeploymentDetail(data: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<{ message: string; data: DeploymentDetail }>(
     `/api/v2/deployments/${encodeURIComponent(data.Name)}`,
     {
       cluster_id: data.ClusterID,
       namespace: data.Namespace,
-    }
+    },
+    signal,
   );
 }
 
@@ -110,8 +111,8 @@ export function updateDeploymentImage(data: { ClusterID: string; Namespace: stri
 /**
  * 获取 Deployment 概览（包含统计卡片和列表）
  */
-export async function getDeploymentOverview(data: { ClusterID: string }) {
-  const response = await getDeploymentList({ cluster_id: data.ClusterID });
+export async function getDeploymentOverview(data: { ClusterID: string }, signal?: AbortSignal) {
+  const response = await getDeploymentList({ cluster_id: data.ClusterID }, signal);
   const items = response.data.data || [];
 
   const namespaceSet = new Set<string>();

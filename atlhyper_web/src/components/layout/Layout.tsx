@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Menu } from "lucide-react";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { MobileMenu } from "@/components/navigation/MobileMenu";
 import { LoginDialog } from "@/components/auth/LoginDialog";
 import { ToastContainer } from "@/components/common";
-import { useAuthStore } from "@/store/authStore";
 import { useAuthError } from "@/hooks/useAuthError";
-import { useClusterStore } from "@/store/clusterStore";
-import { getClusterList } from "@/api/cluster";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,41 +15,11 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { setClusterIds, setOTelAvailableMap } = useClusterStore();
 
   // 全局监听权限错误，自动触发登录对话框
   useAuthError();
 
-  // 拉取当前主体与权限（前端唯一权限来源）；访客同样拿到 0 级权限
-  const refreshMe = useAuthStore((st) => st.refreshMe);
-  useEffect(() => {
-    void refreshMe();
-  }, [refreshMe]);
-
-  // 初始化集群列表
-  useEffect(() => {
-    const fetchClusters = async () => {
-      try {
-        const res = await getClusterList();
-        const clusters = res.data?.clusters || [];
-        if (clusters.length > 0) {
-          const ids = clusters.map((c: { clusterId: string }) => c.clusterId);
-          setClusterIds(ids);
-
-          // 存储各集群 OTel 可用性
-          const otelMap: Record<string, boolean> = {};
-          for (const c of clusters) {
-            otelMap[c.clusterId] = c.otelAvailable ?? false;
-          }
-          setOTelAvailableMap(otelMap);
-        }
-      } catch (err) {
-        console.warn("[Layout] Failed to fetch clusters:", err);
-      }
-    };
-    fetchClusters();
-  }, [setClusterIds, setOTelAvailableMap]);
-
+  // 权限与集群列表由根部的 SessionLoader 加载，这里不再请求
   return (
     <div className="h-screen flex bg-[var(--background)] overflow-hidden">
       {/* Desktop Sidebar */}

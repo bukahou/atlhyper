@@ -82,13 +82,14 @@ interface ClusterResourceParams {
 // API Functions
 // ============================================================
 
-export function getNetworkPolicyList(params: ClusterResourceParams) {
-  return get<ListResponse<NetworkPolicyItem>>("/api/v2/network-policies", params);
+export function getNetworkPolicyList(params: ClusterResourceParams, signal?: AbortSignal) {
+  return get<ListResponse<NetworkPolicyItem>>("/api/v2/network-policies", params, signal);
 }
 
-export function getNetworkPolicyDetail(params: { ClusterID: string; Namespace: string; Name: string }) {
+export function getNetworkPolicyDetail(params: { ClusterID: string; Namespace: string; Name: string }, signal?: AbortSignal) {
   return get<DetailResponse<NetworkPolicyDetail>>(
     `/api/v2/network-policies/${encodeURIComponent(params.Name)}`,
-    { cluster_id: params.ClusterID, namespace: params.Namespace }
+    { cluster_id: params.ClusterID, namespace: params.Namespace },
+    signal,
   );
 }

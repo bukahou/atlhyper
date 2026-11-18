@@ -14,6 +14,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops/incident"
 	"AtlHyper/atlhyper_master_v2/aiops/risk"
 	"AtlHyper/atlhyper_master_v2/aiops/statemachine"
+	"AtlHyper/atlhyper_master_v2/aiops/subject"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
@@ -23,11 +24,8 @@ import (
 
 var log = logger.Module("AIOps")
 
-// IncidentNotifyFunc 事件通知回调（供 AI 后台自动分析）
-type IncidentNotifyFunc func(incidentID, severity, trigger string)
-
 // engine AIOps 引擎实现
-// 同时实现 statemachine.TransitionCallback 接口
+// 同时实现 statemachine.TransitionHandler 接口
 type engine struct {
 	store         datahub.Store
 	corr          *correlator.Correlator
@@ -36,10 +34,18 @@ type engine struct {
 	sm            *statemachine.StateMachine
 	incidentStore *incident.Store
 	graphRepo     database.AIOpsGraphRepository
+	graphSaver    *graphSnapshotSaver // Start 时创建
 	sloRepo       database.SLORepository
 
-	// AI 后台分析通知回调（可选）
-	incidentNotify IncidentNotifyFunc
+	// 事件进行中累计证据的节流（同一事件每分钟最多一次）
+	signalThrottle signalThrottle
+
+	// 事件变化的订阅者（Start 之前注册，之后只读）
+	transitionSubscribers []func(aiops.IncidentTransition)
+
+	// 拓扑归并：各集群当前有效的关联与关联变化的订阅者
+	links           linkState
+	linkSubscribers []func(aiops.IncidentLink)
 
 	// 异常结果缓存（供风险详情查询）
 	anomalyCache map[string][]*aiops.AnomalyResult // clusterID -> anomalies
@@ -51,9 +57,19 @@ type engine struct {
 	wg            sync.WaitGroup
 }
 
-// SetIncidentNotify 设置事件通知回调
-func (e *engine) SetIncidentNotify(fn func(incidentID, severity, trigger string)) {
-	e.incidentNotify = IncidentNotifyFunc(fn)
+// SubscribeTransitions 订阅事件变化（须在 Start 之前调用）
+func (e *engine) SubscribeTransitions(fn func(aiops.IncidentTransition)) {
+	if fn == nil {
+		return
+	}
+	e.transitionSubscribers = append(e.transitionSubscribers, fn)
+}
+
+// publishTransition 把一次事件变化发给全部订阅者
+func (e *engine) publishTransition(t aiops.IncidentTransition) {
+	for _, fn := range e.transitionSubscribers {
+		fn(t)
+	}
 }
 
 // OnSnapshot 快照更新时触发
@@ -63,6 +79,11 @@ func (e *engine) OnSnapshot(clusterID string) {
 		return
 	}
 
+	// 补上此前没写成的事件写入（写锁被占住时积压的；平时队列为空）
+	if e.incidentStore != nil && e.bgCtx != nil {
+		e.incidentStore.FlushPending(e.bgCtx)
+	}
+
 	// 获取 OTel 数据（直接从 snap.OTel 读取，非 Ring Buffer）
 	otel := snap.OTel
 
@@ -70,25 +91,16 @@ func (e *engine) OnSnapshot(clusterID string) {
 	graph := correlator.BuildFromSnapshot(clusterID, snap, otel)
 	e.corr.Update(clusterID, graph)
 
-	// 持久化图快照（异步，不阻塞主流程）
-	go func() {
-		data, err := correlator.Serialize(graph)
-		if err != nil {
-			log.Error("序列化依赖图失败", "cluster", clusterID, "err", err)
-			return
-		}
-		ctx, cancel := context.WithTimeout(e.bgCtx, 10*time.Second)
-		defer cancel()
-		if err := e.graphRepo.Save(ctx, clusterID, data); err != nil {
-			log.Error("持久化依赖图失败", "cluster", clusterID, "err", err)
-		}
-	}()
+	// 持久化图快照（异步，不阻塞主流程；拓扑没变不写）
+	if e.graphSaver != nil {
+		e.graphSaver.SaveIfChanged(clusterID, graph)
+	}
 
 	// otel 已在上方从 snap.OTel 获取（直接读取，非 Ring Buffer）
 
 	// 2. 清理已不存在于快照中的实体基线状态（防止滚动更新后旧 Pod 状态残留）
 	activeKeys := extractActiveEntityKeys(snap, otel)
-	if removed := e.stateManager.CleanupStaleEntities(activeKeys); removed > 0 {
+	if removed := e.stateManager.CleanupStaleEntities(clusterID, activeKeys); removed > 0 {
 		log.Debug("清理过期基线状态", "cluster", clusterID, "removed", removed)
 	}
 
@@ -98,7 +110,7 @@ func (e *engine) OnSnapshot(clusterID string) {
 		return
 	}
 
-	results := e.stateManager.Update(points)
+	results := e.stateManager.Update(clusterID, points)
 
 	// 路径 B: 确定性异常直注（绕过冷启动）
 	deterministicResults := baseline.ExtractDeterministicAnomalies(snap)
@@ -132,49 +144,36 @@ func (e *engine) OnSnapshot(clusterID string) {
 				"anomalies", clusterRisk.AnomalyCount)
 		}
 
-		// 4. 状态机评估
+		// 4. 状态机评估（以主体为单位）
 		if e.sm != nil {
-			entityRisks := e.scorer.GetEntityRiskMap(clusterID)
-			e.sm.Evaluate(e.bgCtx, clusterID, entityRisks, clusterRisk)
+			e.evaluateSubjects(clusterID, snap, e.scorer.GetEntityRiskMap(clusterID), clusterRisk)
 		}
 	}
 }
 
-// ==================== TransitionCallback 实现 ====================
-
-// OnWarningCreated 创建 Warning 事件
-func (e *engine) OnWarningCreated(ctx context.Context, clusterID, entityKey string, risk *aiops.EntityRisk, now time.Time) string {
-	id := e.incidentStore.Create(ctx, clusterID, entityKey, risk, now)
-	if id != "" && e.incidentNotify != nil {
-		severity := aiops.SeverityFromRisk(risk.RFinal)
-		e.incidentNotify(id, severity, "incident_created")
-	}
-	return id
+// evaluateSubjects 把实体风险按主体聚合后交给状态机。
+// 风险计算、基线、依赖图仍以实体为单位；只有状态机与事件以主体为单位。
+func (e *engine) evaluateSubjects(
+	clusterID string,
+	snap *cluster.ClusterSnapshot,
+	entityRisks map[string]*aiops.EntityRisk,
+	clusterRisk *aiops.ClusterRisk,
+) {
+	subjects := subject.ResolveSubjects(snap)
+	subjectRisks := subject.AggregateBySubject(entityRisks, subjects)
+	e.sm.Evaluate(e.bgCtx, clusterID, subjectRisks, clusterRisk)
+	now := time.Now()
+	e.recordActiveSignals(clusterID, subjectRisks, now)
+	e.updateLinks(clusterID, subjects, now)
 }
 
-// OnStateEscalated 事件升级
-func (e *engine) OnStateEscalated(ctx context.Context, incidentID string, state aiops.EntityState, risk *aiops.EntityRisk, now time.Time) {
-	e.incidentStore.UpdateState(ctx, incidentID, state, risk, now)
-	if e.incidentNotify != nil {
-		severity := aiops.SeverityFromRisk(risk.RFinal)
-		e.incidentNotify(incidentID, severity, "state_escalated")
-	}
-}
+// ==================== TransitionHandler 实现 ====================
 
-// OnRecoveryStarted 开始恢复
-func (e *engine) OnRecoveryStarted(ctx context.Context, incidentID string, risk *aiops.EntityRisk, now time.Time) {
-	e.incidentStore.UpdateState(ctx, incidentID, aiops.StateRecovery, risk, now)
-}
-
-// OnRecurrence 事件复发
-func (e *engine) OnRecurrence(ctx context.Context, incidentID string, risk *aiops.EntityRisk, now time.Time) {
-	e.incidentStore.IncrementRecurrence(ctx, incidentID, risk, now)
-	e.incidentStore.UpdateState(ctx, incidentID, aiops.StateWarning, risk, now)
-}
-
-// OnStable 事件稳定（关闭）
-func (e *engine) OnStable(ctx context.Context, incidentID string, entityKey string, now time.Time) {
-	e.incidentStore.Resolve(ctx, incidentID, entityKey, now)
+// OnTransition 状态机的每一次事件变化：先落库，再发给订阅者。
+// 顺序不能反：订阅者（AI 后台分析、通知）拿到变化后会回头读这条事件。
+func (e *engine) OnTransition(ctx context.Context, transition aiops.IncidentTransition, risk *aiops.SubjectRisk) {
+	e.incidentStore.ApplyTransition(ctx, transition, risk)
+	e.publishTransition(transition)
 }
 
 // ==================== 查询方法 ====================
@@ -190,8 +189,8 @@ func (e *engine) GetGraphTrace(clusterID, fromKey, direction string, maxDepth in
 }
 
 // GetBaseline 获取指定实体的基线状态
-func (e *engine) GetBaseline(entityKey string) *aiops.EntityBaseline {
-	return e.stateManager.GetStates(entityKey)
+func (e *engine) GetBaseline(clusterID, entityKey string) *aiops.EntityBaseline {
+	return e.stateManager.GetStates(clusterID, entityKey)
 }
 
 // GetClusterRisk 获取集群风险评分
@@ -377,8 +376,8 @@ func (e *engine) GetIncidentStats(ctx context.Context, clusterID string, since t
 }
 
 // GetIncidentPatterns 获取历史事件模式
-func (e *engine) GetIncidentPatterns(ctx context.Context, entityKey string, since time.Time) []*aiops.IncidentPattern {
-	return e.incidentStore.GetPatterns(ctx, entityKey, since)
+func (e *engine) GetIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) []*aiops.IncidentPattern {
+	return e.incidentStore.GetPatterns(ctx, clusterID, entityKey, since)
 }
 
 // ==================== 生命周期 ====================
@@ -416,6 +415,10 @@ func (e *engine) Start(ctx context.Context) error {
 
 	// 4. 启动定期 flush + Recovery→Stable 检查 goroutine
 	e.bgCtx, e.cancel = context.WithCancel(context.Background())
+	e.graphSaver = newGraphSnapshotSaver(e.bgCtx, e.graphRepo)
+
+	// 5. 恢复拓扑归并的有效关联（订阅者据此重建抑制）
+	e.reloadLinks()
 
 	e.wg.Add(1)
 	go e.flushLoop(e.bgCtx)
@@ -435,6 +438,17 @@ func (e *engine) Stop() error {
 		e.cancel()
 	}
 	e.wg.Wait()
+	if e.graphSaver != nil {
+		e.graphSaver.wait()
+	}
+
+	// 退出前再试一次积压的事件写入；仍写不进去的只能丢弃（队列只在内存里）
+	if e.incidentStore != nil {
+		e.incidentStore.FlushPending(context.Background())
+		if left := e.incidentStore.PendingWrites(); left > 0 {
+			log.Error("退出时仍有事件写入未完成，已丢弃", "pending", left)
+		}
+	}
 
 	// 最终 flush
 	if err := e.stateManager.FlushToDB(context.Background()); err != nil {
@@ -558,7 +572,8 @@ func mergeAnomalyResults(emaResults []*aiops.AnomalyResult, deterministicResults
 	return emaResults
 }
 
-// reloadActiveIncidents 从 DB 加载未关闭事件，恢复到状态机
+// reloadActiveIncidents 从 DB 加载未关闭事件，按主体恢复到状态机。
+// 条目里随事件走的各项（是否升级过、峰值、严重度、复发次数、发生时刻、观察期起点）都从库里取回
 func (e *engine) reloadActiveIncidents(ctx context.Context) {
 	incidents, _, err := e.incidentStore.GetIncidents(ctx, aiops.IncidentQueryOpts{})
 	if err != nil {
@@ -572,14 +587,31 @@ func (e *engine) reloadActiveIncidents(ctx context.Context) {
 		if inc.State == aiops.StateStable {
 			continue
 		}
-		if existing := e.sm.GetEntry(inc.RootCause); existing != nil {
-			continue
+		if existing := e.sm.GetEntry(inc.ClusterID, inc.Subject); existing != nil {
+			continue // 列表按开始时间倒序：同一主体只恢复最新的那条
 		}
 		entry := &aiops.StateMachineEntry{
-			EntityKey:       inc.RootCause,
+			ClusterID:       inc.ClusterID,
+			SubjectKey:      inc.Subject,
 			CurrentState:    inc.State,
 			IncidentID:      inc.ID,
 			LastEvaluatedAt: now.Unix(),
+			ReachedIncident: inc.EscalatedAt != nil,
+			PeakRisk:        inc.PeakRisk,
+			Severity:        inc.Severity,
+			Recurrence:      inc.Recurrence,
+			RootCause:       inc.RootCause,
+			OccurrenceTimes: e.incidentStore.OccurrenceTimes(ctx, inc.ID, inc.StartedAt),
+		}
+		// 这一轮异常的起点 = 最近一次「发生」（建事件或复发）；时间线里取全量，不受 24 小时窗口影响
+		if n := len(entry.OccurrenceTimes); n > 0 {
+			entry.EpisodeStartedAt = entry.OccurrenceTimes[n-1]
+		}
+		if inc.State == aiops.StateRecovery {
+			// 观察期的起点只在内存里，重启后从时间线取回；取不到时由状态机从现在起计
+			if startedAt, ok := e.incidentStore.RecoveryStartedAt(ctx, inc.ID); ok {
+				entry.RecoveryStartedAt = startedAt.Unix()
+			}
 		}
 		e.sm.RestoreEntry(entry)
 		count++
@@ -623,7 +655,7 @@ func extractActiveEntityKeys(snap *cluster.ClusterSnapshot, otel *cluster.OTelSn
 	return keys
 }
 
-// recoveryCheckLoop 定期检查 Recovery 状态的实体是否可以转为 Stable
+// recoveryCheckLoop 定期关闭观察期已满的事件，并把失联的主体按「失联」关闭
 func (e *engine) recoveryCheckLoop(ctx context.Context) {
 	defer e.wg.Done()
 	ticker := time.NewTicker(10 * time.Minute) // 每 10 分钟检查一次

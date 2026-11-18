@@ -1,15 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import * as githubAPI from "@/api/github";
+import { useMutation } from "@tanstack/react-query";
+import { completeGitHubInstallationMutation } from "@/queries/gitops";
+
+/** 从失败的请求里取出给人看的原因：优先后端返回的 error 字段 */
+function installationErrorMessage(error: unknown): string {
+  const failure = error as { response?: { data?: { error?: string } }; message?: string } | null;
+  return failure?.response?.data?.error || failure?.message || String(error);
+}
 
 export default function GitHubCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const calledRef = useRef(false);
-  const [error, setError] = useState<string | null>(null);
+  const { mutate: completeInstallation, error: installationError } = useMutation(completeGitHubInstallationMutation());
+  const error = installationError ? installationErrorMessage(installationError) : null;
 
+  // GitHub 装完 App 后跳回这里：把 installation 交给后端登记，只做一次
   useEffect(() => {
     if (calledRef.current) return;
     calledRef.current = true;
@@ -22,17 +31,14 @@ export default function GitHubCallbackPage() {
       return;
     }
 
-    githubAPI
-      .callback(Number(installationId), setupAction || "install")
-      .then(() => {
-        router.replace("/settings/github");
-      })
-      .catch((err) => {
-        const msg = err?.response?.data?.error || err?.message || String(err);
-        console.error("GitHub App installation callback failed:", msg, err);
-        setError(msg);
-      });
-  }, [searchParams, router]);
+    completeInstallation(
+      { installationId: Number(installationId), setupAction: setupAction || "install" },
+      {
+        onSuccess: () => router.replace("/settings/github"),
+        onError: (err) => console.error("GitHub App installation callback failed:", installationErrorMessage(err), err),
+      },
+    );
+  }, [searchParams, router, completeInstallation]);
 
   if (error) {
     return (

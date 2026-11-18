@@ -13,6 +13,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/ai/prompts"
+	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
@@ -145,18 +146,30 @@ func (e *Enricher) EnableBackgroundTrigger(budgetRepo database.AIRoleBudgetRepos
 	log.Info("后台自动分析触发器已启用")
 }
 
-// NotifyIncidentEvent 通知事件创建/升级（供 AIOps 引擎回调）
-func (e *Enricher) NotifyIncidentEvent(incidentID, severity, trigger string) {
+// OnIncidentTransition 订阅 AIOps 引擎的事件变化（Engine.SubscribeTransitions）：建事件与升级时触发后台分析。
+// 引擎在快照处理主路径上同步调用，这里只把触发放进队列，队列满了就丢弃。
+func (e *Enricher) OnIncidentTransition(transition aiops.IncidentTransition) {
 	if e.bgTrigger == nil {
 		return
 	}
-	e.bgTrigger.Submit(incidentID, severity, trigger)
+	var trigger string
+	switch transition.Kind {
+	case aiops.TransitionCreated:
+		trigger = TriggerIncidentCreated
+	case aiops.TransitionEscalated:
+		trigger = TriggerStateEscalated
+	default:
+		return
+	}
+	e.bgTrigger.Submit(transition.IncidentID, transition.Severity, trigger)
 }
 
-// 深度分析触发来源（写入报告的 trigger 字段，前端据此显示「手动触发」/「升级自动触发」）
+// 分析的触发来源（写入报告的 trigger 字段，前端据此显示触发方式）
 const (
-	TriggerManual         = "manual"          // 用户点「深入调查」
-	TriggerAutoEscalation = "auto_escalation" // 事件升级后按角色预算配置自动触发
+	TriggerIncidentCreated = "incident_created" // 后台分析：建事件时
+	TriggerStateEscalated  = "state_escalated"  // 后台分析：事件升级时
+	TriggerManual          = "manual"           // 深度分析：用户点「深入调查」
+	TriggerAutoEscalation  = "auto_escalation"  // 深度分析：事件升级后按角色预算配置自动触发
 )
 
 // TriggerAnalysis 触发深度分析（异步）
@@ -379,7 +392,7 @@ func parseAnalysisResult(raw, incidentID string) *SummarizeResponse {
 		Confidence float64 `json:"confidence"`
 	}
 
-	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+	if err := unmarshalLLMJSON(jsonStr, &parsed); err != nil {
 		return &SummarizeResponse{
 			IncidentID:  incidentID,
 			Summary:     raw,
@@ -595,7 +608,7 @@ func parseResponse(raw string, incidentID string, historical []*database.AIOpsIn
 		SimilarPattern string `json:"similarPattern"`
 	}
 
-	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+	if err := unmarshalLLMJSON(jsonStr, &parsed); err != nil {
 		return &SummarizeResponse{
 			IncidentID:       incidentID,
 			Summary:          raw,

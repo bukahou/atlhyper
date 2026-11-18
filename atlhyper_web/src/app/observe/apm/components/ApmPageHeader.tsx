@@ -4,16 +4,13 @@ import { SignalFreshnessBadge } from "@/components/observe/SignalFreshnessBadge"
 import type { SignalFreshnessItem } from "@/types/observe";
 import type { TimeRangeSelection } from "@/types/time-range";
 import type { ApmTranslations, CommonTranslations } from "@/types/i18n";
-
-type ViewState =
-  | { level: "services" }
-  | { level: "service-detail"; serviceName: string }
-  | { level: "trace-detail"; serviceName: string; operationName: string; traceId: string; traceIndex: number };
+import type { ApmView } from "../apm-view";
 
 interface ApmPageHeaderProps {
   ta: ApmTranslations;
   tc: CommonTranslations;
-  view: ViewState;
+  /** 面包屑显示的视图（链路层的服务 / 操作 / traceId 已按当前显示的链路补全） */
+  view: ApmView;
   timeSelection: TimeRangeSelection;
   /** 信号新鲜度；null 时徽章显示「未知」，不隐藏 */
   freshness: SignalFreshnessItem | null;
@@ -75,7 +72,7 @@ export function ApmPageHeader({
               </span>
               <ChevronRight className="w-4 h-4 text-muted" />
               <span className="text-default font-semibold font-mono text-xs">
-                {view.traceId.slice(0, 12)}...
+                {view.traceId ? `${view.traceId.slice(0, 12)}...` : "…"}
               </span>
             </>
           )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useHydrated } from "@/hooks/useHydrated";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { Database, Layers } from "lucide-react";
@@ -137,21 +138,23 @@ export default function DataSourcePage() {
   const tds = t.dataSource;
   const tn = t.nav;
 
-  // 从 localStorage 加载当前配置
-  const [modes, setModes] = useState<Record<string, DataSourceMode>>({});
+  // 当前配置存在 localStorage 里，服务端渲染时读不到：水合之前先按默认值显示，之后再读保存的选择。
+  // 本页刚切换过的模块单独记着（切换时已同步写进 localStorage），界面立即跟上
+  const hydrated = useHydrated();
+  const [switchedModes, setSwitchedModes] = useState<Record<string, DataSourceMode>>({});
   const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    const initial: Record<string, DataSourceMode> = {};
+  const modes = useMemo(() => {
+    const current: Record<string, DataSourceMode> = {};
     for (const mod of MODULE_REGISTRY) {
-      initial[mod.key] = getDataSourceMode(mod.key);
+      current[mod.key] = switchedModes[mod.key] ?? (hydrated ? getDataSourceMode(mod.key) : mod.defaultMode);
     }
-    setModes(initial);
-  }, []);
+    return current;
+  }, [hydrated, switchedModes]);
 
   const handleToggle = (key: string, newMode: DataSourceMode) => {
     setDataSourceMode(key, newMode);
-    setModes((prev) => ({ ...prev, [key]: newMode }));
+    setSwitchedModes((prev) => ({ ...prev, [key]: newMode }));
     const msg =
       newMode === "mock" ? tds.switchedToMock : tds.switchedToApi;
     setToast(`${msg} — ${tds.refreshHint}`);

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Target, X } from "lucide-react";
-import { upsertSLOTarget } from "@/api/slo";
+import { upsertSLOTargetMutation } from "@/queries/observe-slo";
 
 /** SLO 的滚动窗口，不是查看范围。上限 7 天 —— ClickHouse 只保留 7 天数据。 */
 const WINDOW_OPTIONS = [1, 3, 7] as const;
@@ -30,7 +31,6 @@ export function SLOTargetModal({
   domain,
   clusterId,
   currentWindowDays,
-  onSaved,
   t,
 }: {
   isOpen: boolean;
@@ -39,33 +39,25 @@ export function SLOTargetModal({
   clusterId: string;
   /** 该域名当前的 SLO 窗口（天）；未配置时用 7 */
   currentWindowDays?: number;
-  onSaved: () => void;
   t: SLOTargetModalTranslations;
 }) {
   const [windowDays, setWindowDays] = useState<number>(currentWindowDays ?? 7);
   const [availability, setAvailability] = useState(99);
   const [p95Latency, setP95Latency] = useState(300);
-  const [saving, setSaving] = useState(false);
+  // 保存成功后工厂会让 SLO 查询重新取数，清单与展开的详情自己刷新，这里只管关弹窗
+  const saveTarget = useMutation(upsertSLOTargetMutation(clusterId));
+  const saving = saveTarget.isPending;
 
   const errorRateThreshold = (100 - availability).toFixed(2);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await upsertSLOTarget({
-        clusterId,
-        host: domain,
-        windowDays,
-        availabilityTarget: availability,
-        p95LatencyTarget: p95Latency,
-      });
-      onSaved();
-      onClose();
-    } catch (err) {
-      console.error("Save SLO target failed:", err);
-    } finally {
-      setSaving(false);
-    }
+  const handleSave = () => {
+    saveTarget.mutate(
+      { host: domain, windowDays, availabilityTarget: availability, p95LatencyTarget: p95Latency },
+      {
+        onSuccess: onClose,
+        onError: (err) => console.error("Save SLO target failed:", err),
+      },
+    );
   };
 
   if (!isOpen) return null;

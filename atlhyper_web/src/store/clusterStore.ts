@@ -9,11 +9,14 @@ interface ClusterStore {
   otelAvailableMap: Record<string, boolean>;
   // 是否已初始化
   initialized: boolean;
+  // 集群列表请求是否已返回过（无论成功失败）。用于区分「还在加载」与「确实没有集群」
+  listLoaded: boolean;
 
   // Actions
   setClusterIds: (ids: string[]) => void;
   setOTelAvailableMap: (map: Record<string, boolean>) => void;
   setCurrentCluster: (id: string) => void;
+  markListLoaded: () => void;
   initialize: () => void;
 
   // Derived
@@ -65,6 +68,9 @@ const getInitialState = () => {
 
 export const useClusterStore = create<ClusterStore>((set, get) => ({
   ...getInitialState(),
+  listLoaded: false,
+
+  markListLoaded: () => set({ listLoaded: true }),
 
   setClusterIds: (ids: string[]) => {
     if (ids.length === 0) return;

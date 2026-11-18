@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { X, Shield, User, Eye } from "lucide-react";
-import { updateUserRole } from "@/api/auth";
+import { updateUserRoleMutation } from "@/queries/admin";
 import { toast } from "@/components/common";
 import type { UserListItem } from "@/types/auth";
 import { UserRole } from "@/types/auth";
@@ -33,41 +34,35 @@ const roleConfig = {
 };
 
 interface EditRoleModalProps {
-  user: UserListItem | null;
+  user: UserListItem;
   onClose: () => void;
-  onSuccess: () => void;
   t: ReturnType<typeof useI18n>["t"];
 }
 
-export function EditRoleModal({ user, onClose, onSuccess, t }: EditRoleModalProps) {
-  const [role, setRole] = useState(user?.role ?? UserRole.MEMBER);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+/** 修改角色弹窗。由页面在选中用户时按用户 ID 挂载：选中的角色总是从该用户当前的角色开始 */
+export function EditRoleModal({ user, onClose, t }: EditRoleModalProps) {
+  const [role, setRole] = useState(user.role);
+  // 成功后用户列表由工厂负责失效重取
+  const updateRole = useMutation(updateUserRoleMutation());
+  const loading = updateRole.isPending;
+  const error = updateRole.isError
+    ? updateRole.error instanceof Error
+      ? updateRole.error.message
+      : t.common.loadFailed
+    : "";
 
-  useEffect(() => {
-    if (user) setRole(user.role);
-  }, [user]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-
-    setError("");
-    setLoading(true);
-
-    try {
-      await updateUserRole({ userId: user.id, role });
-      toast.success(t.common.success);
-      onSuccess();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
+    updateRole.mutate(
+      { userId: user.id, role },
+      {
+        onSuccess: () => {
+          toast.success(t.common.success);
+          onClose();
+        },
+      },
+    );
   };
-
-  if (!user) return null;
 
   const roleChanged = role !== user.role;
 

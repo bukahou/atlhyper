@@ -18,7 +18,7 @@ import (
 
 // GetHardwareHealth 产出硬件健康矩阵 + 速览。
 // 快照缺失返回空结果而非错误 —— 集群刚接入时页面显示空表，不该报错。
-func (q *QueryService) GetHardwareHealth(ctx context.Context, clusterID string) (*model.HardwareHealthResponse, error) {
+func (q *OTelQuery) GetHardwareHealth(ctx context.Context, clusterID string) (*model.HardwareHealthResponse, error) {
 	resp := &model.HardwareHealthResponse{Rows: []model.HardwareRow{}}
 
 	otel, err := q.GetOTelSnapshot(ctx, clusterID)

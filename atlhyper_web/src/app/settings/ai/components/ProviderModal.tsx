@@ -21,20 +21,17 @@ interface ProviderModalProps {
   }) => void;
 }
 
-export function ProviderModal({
-  isOpen,
-  editingProvider,
-  models,
-  saving,
-  onClose,
-  onSave,
-}: ProviderModalProps) {
+export function ProviderModal({ isOpen, ...formProps }: ProviderModalProps) {
+  // 关着时不挂载表单：每次打开都按当时要编辑的 Provider 从头填，草稿随关闭丢弃
+  if (!isOpen) return null;
+  return <ProviderForm key={formProps.editingProvider?.id ?? "new"} {...formProps} />;
+}
+
+function ProviderForm({ editingProvider, models, saving, onClose, onSave }: Omit<ProviderModalProps, "isOpen">) {
   const { t } = useI18n();
   const aiT = t.aiSettingsPage;
 
-  const form = useProviderForm({ isOpen, editingProvider, models });
-
-  if (!isOpen) return null;
+  const form = useProviderForm({ editingProvider, models });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">

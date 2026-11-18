@@ -114,12 +114,10 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 		tailLines = 100
 	}
 
-	params := map[string]interface{}{
-		"tailLines": tailLines,
-	}
-	if req.Container != "" {
-		params["container"] = req.Container
-	}
+	params := command.GetLogsParams{
+		Container: req.Container,
+		TailLines: int64(tailLines),
+	}.ToParams()
 
 	// 同步执行指令（创建 + 等待结果，30秒超时）
 	result, err := h.svc.ExecuteCommandSync(r.Context(), &model.CreateCommandRequest{

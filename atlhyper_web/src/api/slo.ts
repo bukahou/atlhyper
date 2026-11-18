@@ -33,11 +33,12 @@ export const getSLODomains = (params?: SLODomainsParams) => {
  * 获取域名 SLO 列表 (V2 - 按真实域名分组)
  * 返回 domain -> routes 层级结构
  */
-export const getSLODomainsV2 = (params?: SLODomainsParams) => {
-  return get<DomainSLOListResponseV2>("/api/v2/slo/domains/v2", {
-    cluster_id: params?.clusterId,
-    time_range: params?.timeRange,
-  });
+export const getSLODomainsV2 = (params?: SLODomainsParams, signal?: AbortSignal) => {
+  return get<DomainSLOListResponseV2>(
+    "/api/v2/slo/domains/v2",
+    { cluster_id: params?.clusterId, time_range: params?.timeRange },
+    signal,
+  );
 };
 
 /**
@@ -54,23 +55,23 @@ export const getSLODomainDetail = (params: SLODomainDetailParams) => {
 /**
  * 获取域名 SLO 历史数据
  */
-export const getSLODomainHistory = (params: SLODomainHistoryParams) => {
-  return get<DomainSLOHistoryResponse>("/api/v2/slo/domains/history", {
-    cluster_id: params.clusterId,
-    host: params.host,
-    time_range: params.timeRange,
-  });
+export const getSLODomainHistory = (params: SLODomainHistoryParams, signal?: AbortSignal) => {
+  return get<DomainSLOHistoryResponse>(
+    "/api/v2/slo/domains/history",
+    { cluster_id: params.clusterId, host: params.host, time_range: params.timeRange },
+    signal,
+  );
 };
 
 /**
  * 获取域名延迟分布（bucket + 方法分布 + 状态码分布）
  */
-export const getSLOLatencyDistribution = (params: SLOLatencyParams) => {
-  return get<LatencyDistributionResponse>("/api/v2/slo/domains/latency", {
-    cluster_id: params.clusterId,
-    domain: params.domain,
-    time_range: params.timeRange,
-  });
+export const getSLOLatencyDistribution = (params: SLOLatencyParams, signal?: AbortSignal) => {
+  return get<LatencyDistributionResponse>(
+    "/api/v2/slo/domains/latency",
+    { cluster_id: params.clusterId, domain: params.domain, time_range: params.timeRange },
+    signal,
+  );
 };
 
 /**

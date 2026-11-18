@@ -1,42 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { deleteUser } from "@/api/auth";
+import { deleteUserMutation } from "@/queries/admin";
 import { toast } from "@/components/common";
 import type { UserListItem } from "@/types/auth";
 import type { useI18n } from "@/i18n/context";
 
 interface DeleteUserModalProps {
-  user: UserListItem | null;
+  user: UserListItem;
   onClose: () => void;
-  onSuccess: () => void;
   t: ReturnType<typeof useI18n>["t"];
 }
 
-export function DeleteUserModal({ user, onClose, onSuccess, t }: DeleteUserModalProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+/** 删除用户确认弹窗。由页面在选中要删的用户时挂载 */
+export function DeleteUserModal({ user, onClose, t }: DeleteUserModalProps) {
+  // 成功后用户列表由工厂负责失效重取
+  const remove = useMutation(deleteUserMutation());
+  const loading = remove.isPending;
+  const error = remove.isError ? (remove.error instanceof Error ? remove.error.message : t.common.loadFailed) : "";
 
-  const handleDelete = async () => {
-    if (!user) return;
-
-    setError("");
-    setLoading(true);
-
-    try {
-      await deleteUser(user.id);
-      toast.success(t.common.success);
-      onSuccess();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
+  const handleDelete = () => {
+    remove.mutate(user.id, {
+      onSuccess: () => {
+        toast.success(t.common.success);
+        onClose();
+      },
+    });
   };
-
-  if (!user) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">

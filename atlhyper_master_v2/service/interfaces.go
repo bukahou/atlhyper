@@ -77,7 +77,7 @@ type QueryAIOps interface {
 	GetAIOpsIncidents(ctx context.Context, opts aiops.IncidentQueryOpts) ([]*aiops.Incident, int, error)
 	GetAIOpsIncidentDetail(ctx context.Context, incidentID string) (*aiops.IncidentDetail, error)
 	GetAIOpsIncidentStats(ctx context.Context, clusterID string, since time.Time) (*aiops.IncidentStats, error)
-	GetAIOpsIncidentPatterns(ctx context.Context, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
+	GetAIOpsIncidentPatterns(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*aiops.IncidentPattern, error)
 	SummarizeIncident(ctx context.Context, incidentID string) (*enricher.SummarizeResponse, error)
 	// AI 报告查询
 	ListAIReports(ctx context.Context, incidentID string) ([]*database.AIReport, error)
@@ -92,14 +92,9 @@ type QueryOverview interface {
 	GetOverview(ctx context.Context, clusterID string) (*cluster.ClusterOverview, error)
 	GetEvents(ctx context.Context, clusterID string, opts model.EventQueryOpts) ([]cluster.Event, error)
 	GetEventsByResource(ctx context.Context, clusterID, kind, namespace, name string) ([]cluster.Event, error)
-	// 单资源查询 (Event Alert Enrichment)
-	GetPod(ctx context.Context, clusterID, namespace, name string) (*cluster.Pod, error)
-	GetNode(ctx context.Context, clusterID, name string) (*cluster.Node, error)
-	GetDeployment(ctx context.Context, clusterID, namespace, name string) (*cluster.Deployment, error)
-	GetDeploymentByReplicaSet(ctx context.Context, clusterID, namespace, rsName string) (*cluster.Deployment, error)
 }
 
-// QueryAdmin 管理查询（审计日志、命令历史、事件历史、通知渠道、设置、AI Provider）
+// QueryAdmin 管理查询（审计日志、命令历史、事件历史、设置、AI Provider）
 type QueryAdmin interface {
 	// Audit
 	ListAuditLogs(ctx context.Context, opts database.AuditQueryOpts) ([]*database.AuditLog, error)
@@ -110,9 +105,6 @@ type QueryAdmin interface {
 	// Event History
 	ListEventHistory(ctx context.Context, clusterID string, opts database.EventQueryOpts) ([]*database.ClusterEvent, error)
 	CountEventHistory(ctx context.Context, clusterID string) (int64, error)
-	// Notify
-	ListNotifyChannels(ctx context.Context) ([]*database.NotifyChannel, error)
-	GetNotifyChannelByType(ctx context.Context, channelType string) (*database.NotifyChannel, error)
 	// AI Provider
 	ListAIProviders(ctx context.Context) ([]*database.AIProvider, error)
 	GetAIProviderByID(ctx context.Context, id int64) (*database.AIProvider, error)
@@ -157,10 +149,70 @@ type QueryUser interface {
 	ListFederatedUserIDs(ctx context.Context) (map[int64]bool, error)
 }
 
-// OpsAdmin 管理写入操作（通知渠道、设置、AI Provider）
+// QueryClusterRegistry 集群管理页的读取能力
+type QueryClusterRegistry interface {
+	// ListClusterRegistry 全部行（已登记的 + 正在上报但未登记的），按集群 ID 排序
+	ListClusterRegistry(ctx context.Context) ([]model.ClusterRegistryItem, error)
+	// GetClusterRegistryItem 单个集群的那一行；既没登记也没上报过时返回 (nil, nil)
+	GetClusterRegistryItem(ctx context.Context, clusterID string) (*model.ClusterRegistryItem, error)
+}
+
+// OpsClusterRegistry 集群注册表的写入能力。
+//
+// 输入不合规 → model.ErrInvalidClusterInput；集群 ID 已登记 → database.ErrClusterExists；
+// 集群未登记 → database.ErrClusterNotFound
+type OpsClusterRegistry interface {
+	RegisterCluster(ctx context.Context, req *model.RegisterClusterRequest) error
+	UpdateClusterProfile(ctx context.Context, clusterID string, req *model.UpdateClusterProfileRequest) error
+	// IssueClusterToken 签发（或轮换）集群令牌；明文只在返回值里出现这一次
+	IssueClusterToken(ctx context.Context, clusterID string) (*model.ClusterTokenIssued, error)
+	// UnregisterCluster 删除登记，令牌随之失效；不删除该集群的历史数据
+	UnregisterCluster(ctx context.Context, clusterID string) error
+}
+
+// QueryNotify 通知设置页的读取能力。时间一律 RFC 3339（UTC），列表恒为非 nil；凭据不在任何返回值里
+type QueryNotify interface {
+	GetNotifyPolicy(ctx context.Context) (*model.NotifyPolicy, error)
+	GetNotifySMTP(ctx context.Context) (*model.NotifySMTP, error)
+	// ListNotifyAlerts / ListNotifyDeliveries 返回当前页与符合条件的总数
+	ListNotifyAlerts(ctx context.Context, opts model.NotifyAlertQuery) ([]model.NotifyAlert, int, error)
+	ListNotifyDeliveries(ctx context.Context, opts model.NotifyDeliveryQuery) ([]model.NotifyDelivery, int, error)
+	ListNotifyReceivers(ctx context.Context) ([]model.NotifyReceiver, error)
+	// GetNotifyReceiver / GetNotifyRule / GetNotifySilence 不存在时返回 (nil, nil)
+	GetNotifyReceiver(ctx context.Context, id int64) (*model.NotifyReceiver, error)
+	// ListNotifyRules 按 position 从小到大
+	ListNotifyRules(ctx context.Context) ([]model.NotifyRule, error)
+	GetNotifyRule(ctx context.Context, id int64) (*model.NotifyRule, error)
+	// ListNotifySilences state 为 pending / active / expired，空 = 全部
+	ListNotifySilences(ctx context.Context, state string) ([]model.NotifySilence, error)
+	GetNotifySilence(ctx context.Context, id int64) (*model.NotifySilence, error)
+	// MatchNotifyRule 试匹配：这样一条告警会命中哪条规则、发给谁
+	MatchNotifyRule(ctx context.Context, req *model.NotifyRuleMatchRequest) (*model.NotifyRuleMatchResult, error)
+}
+
+// OpsNotify 通知设置的写入能力。
+//
+// 输入不合规 → model.ErrInvalidNotifyInput；不存在 → database.ErrNotify*NotFound；
+// 接收人重名 → database.ErrNotifyReceiverNameTaken；删除仍被引用的接收人 → *model.NotifyReceiverInUseError
+type OpsNotify interface {
+	UpdateNotifyPolicy(ctx context.Context, req *model.UpdateNotifyPolicyRequest) error
+	UpdateNotifySMTP(ctx context.Context, req *model.UpdateNotifySMTPRequest) error
+	CreateNotifyReceiver(ctx context.Context, req *model.NotifyReceiverRequest) (int64, error)
+	// UpdateNotifyReceiver 凭据留空 = 保持原值
+	UpdateNotifyReceiver(ctx context.Context, id int64, req *model.NotifyReceiverRequest) error
+	DeleteNotifyReceiver(ctx context.Context, id int64) error
+	CreateNotifyRule(ctx context.Context, req *model.NotifyRuleRequest) (int64, error)
+	UpdateNotifyRule(ctx context.Context, id int64, req *model.NotifyRuleRequest) error
+	DeleteNotifyRule(ctx context.Context, id int64) error
+	// ReorderNotifyRules ids 必须恰好是全部规则的一个排列，否则 database.ErrNotifyRuleOrderMismatch
+	ReorderNotifyRules(ctx context.Context, ids []int64) error
+	CreateNotifySilence(ctx context.Context, req *model.CreateNotifySilenceRequest, createdBy string) (int64, error)
+	// ExpireNotifySilence 提前结束（还没开始的也可以）
+	ExpireNotifySilence(ctx context.Context, id int64) error
+}
+
+// OpsAdmin 管理写入操作（设置、AI Provider）
 type OpsAdmin interface {
-	CreateNotifyChannel(ctx context.Context, ch *database.NotifyChannel) error
-	UpdateNotifyChannel(ctx context.Context, ch *database.NotifyChannel) error
 	CreateAIProvider(ctx context.Context, p *database.AIProvider) error
 	UpdateAIProvider(ctx context.Context, p *database.AIProvider) error
 	DeleteAIProvider(ctx context.Context, id int64) error
@@ -203,6 +255,8 @@ type Query interface {
 	QueryAdmin
 	QueryDeploy
 	QueryUser
+	QueryClusterRegistry
+	QueryNotify
 }
 
 // OpsSLO SLO 写入操作
@@ -219,6 +273,8 @@ type Ops interface {
 	ExecuteCommandSync(ctx context.Context, req *model.CreateCommandRequest, timeout time.Duration) (*command.Result, error)
 	OpsAdmin
 	OpsSLO
+	OpsClusterRegistry
+	OpsNotify
 }
 
 // Service 组合接口 (master.go 持有)

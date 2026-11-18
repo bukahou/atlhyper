@@ -1,10 +1,18 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useMemo } from "react";
+import { useRef, useEffect, useEffectEvent, useMemo } from "react";
+// 只导入类型：G6 本体在下面按需动态加载，不进首屏包
+import type { Graph } from "@antv/g6";
 import type { DependencyGraph, EntityRisk } from "@/api/aiops";
 import { addState, removeState, applySelection, buildG6Data } from "./topology-graph-utils";
 import { formatRiskScore } from "@/lib/risk";
 import { safeHtml } from "@/lib/safe-html";
+
+/** G6 指针事件里用到的部分 */
+interface GraphPointerEvent {
+  target?: { id?: string };
+  targetId?: string;
+}
 
 interface TopologyGraphProps {
   graph: DependencyGraph;
@@ -15,13 +23,8 @@ interface TopologyGraphProps {
 
 export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }: TopologyGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const graphRef = useRef<any>(null);
+  const graphRef = useRef<Graph | null>(null);
   const readyRef = useRef(false);
-  const onNodeSelectRef = useRef(onNodeSelect);
-  onNodeSelectRef.current = onNodeSelect;
-  const selectedNodeRef = useRef(selectedNode);
-  selectedNodeRef.current = selectedNode;
 
   // 拓扑结构指纹：仅节点集合 + 边集合变化时才重建图
   const topologyKey = useMemo(() => {
@@ -31,9 +34,13 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
   }, [graph]);
 
   // 构造 G6 数据（使用稳定的 edge ID）
-  const buildData = useCallback(() => {
-    return buildG6Data(graph, entityRisks);
-  }, [graph, entityRisks]);
+  const graphData = useMemo(() => buildG6Data(graph, entityRisks), [graph, entityRisks]);
+
+  // 下面三个函数在 effect 里用，但要读的是最新的图数据 / 选中节点 / 回调。
+  // 它们不该成为「重建图」那个 effect 的依赖 —— 否则每一轮轮询风险分数一变，整张图就销毁重画、布局重排
+  const readLatestGraphData = useEffectEvent(() => graphData);
+  const readSelectedNode = useEffectEvent(() => selectedNode);
+  const reportNodeSelected = useEffectEvent((nodeKey: string | null) => onNodeSelect(nodeKey));
 
   // Effect 1: 拓扑结构变化时 → 销毁重建（含力导向布局）
   useEffect(() => {
@@ -56,12 +63,10 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
 
       if (destroyed || !container) return;
 
-      const data = buildData();
-
       const instance = new Graph({
         container,
         autoFit: "view",
-        data,
+        data: readLatestGraphData(),
         node: {
           style: {
             labelBackground: true,
@@ -130,9 +135,8 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       // ── 手动 hover 高亮（degree-1 邻居） ──
       let hoveredIds: string[] = [];
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      instance.on("node:pointerover", (evt: any) => {
-        const nodeId = evt?.target?.id;
+      instance.on("node:pointerover", (evt) => {
+        const nodeId = (evt as GraphPointerEvent).target?.id;
         if (!nodeId) return;
         try {
           hoveredIds = [];
@@ -141,13 +145,10 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
             hoveredIds.push(id);
           };
           activate(nodeId);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const e of instance.getEdgeData()) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const ed = e as any;
-            if (ed.source === nodeId || ed.target === nodeId) {
-              activate(ed.id);
-              activate(ed.source === nodeId ? ed.target : ed.source);
+          for (const edge of instance.getEdgeData()) {
+            if (edge.id !== undefined && (edge.source === nodeId || edge.target === nodeId)) {
+              activate(edge.id);
+              activate(edge.source === nodeId ? edge.target : edge.source);
             }
           }
         } catch { /* ignore */ }
@@ -161,18 +162,18 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       });
 
       // ── 点击选中（持久高亮关联边） ──
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      instance.on("node:click", (evt: any) => {
-        const nodeId = evt?.target?.id ?? evt?.targetId;
+      instance.on("node:click", (evt) => {
+        const pointerEvent = evt as GraphPointerEvent;
+        const nodeId = pointerEvent.target?.id ?? pointerEvent.targetId;
         if (!nodeId) return;
         try { applySelection(instance, nodeId); } catch { /* ignore */ }
-        onNodeSelectRef.current(nodeId);
+        reportNodeSelected(nodeId);
       });
 
       // 点击画布空白 → 取消选中
       instance.on("canvas:click", () => {
         try { applySelection(instance, null); } catch { /* ignore */ }
-        onNodeSelectRef.current(null);
+        reportNodeSelected(null);
       });
 
       await instance.render();
@@ -186,12 +187,13 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
       readyRef.current = true;
 
       // 如果创建时已有选中节点，立即应用选中状态
-      if (selectedNodeRef.current) {
-        try { applySelection(instance, selectedNodeRef.current); } catch { /* ignore */ }
+      const selectedAtCreation = readSelectedNode();
+      if (selectedAtCreation) {
+        try { applySelection(instance, selectedAtCreation); } catch { /* ignore */ }
       }
     }
 
-    createGraph();
+    void createGraph();
 
     return () => {
       destroyed = true;
@@ -203,7 +205,7 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
         graphRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 只依赖拓扑结构的指纹：节点集合或边集合变了才重建；数据与回调经上面的 Effect Event 读最新值
   }, [topologyKey]);
 
   // Effect 2: 风险数据变化时 → 原地更新样式（不重建布局，节点位置不变）
@@ -212,17 +214,17 @@ export function TopologyGraph({ graph, entityRisks, selectedNode, onNodeSelect }
     if (!g || !readyRef.current) return;
 
     try {
-      const data = buildData();
-      g.updateData(data);
-      g.draw();
+      g.updateData(graphData);
+      void g.draw();
       // updateData 可能重置状态，重新应用选中高亮
-      if (selectedNodeRef.current) {
-        applySelection(g, selectedNodeRef.current);
+      const selectedNow = readSelectedNode();
+      if (selectedNow) {
+        applySelection(g, selectedNow);
       }
     } catch {
       // G6 API 不支持或图未就绪，等待下次结构变化时重建
     }
-  }, [buildData]);
+  }, [graphData]);
 
   // Effect 3: selectedNode 外部变化时同步（如切换视图导致清除选中）
   useEffect(() => {

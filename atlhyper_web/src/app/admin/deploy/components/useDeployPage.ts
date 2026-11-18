@@ -1,257 +1,161 @@
-import { useEffect, useState, useCallback } from "react";
-import * as deployDS from "@/datasource/deploy";
-import * as githubDS from "@/datasource/github";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as deployMock from "@/mock/deploy";
 import * as githubMock from "@/mock/github";
-import { useClusterStore } from "@/store/clusterStore";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import type {
-  MockDeployConfig,
-  MockPathStatus,
-  MockDeployRecord,
-} from "@/mock/deploy/data";
+import type { MockDeployConfig, MockPathStatus, MockDeployRecord } from "@/mock/deploy/data";
 import { useCan } from "@/hooks/useCan";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { createDelayedTaskScheduler } from "@/hooks/useDelayedInvalidate";
+import { useManualRefetch } from "@/hooks/useManualRefetch";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { deployKeys } from "@/queries/keys";
+import {
+  deployConfigQuery,
+  deployHistoryQuery,
+  deployStatusQuery,
+  githubConnectionQuery,
+  githubReposQuery,
+  kustomizePathsQuery,
+  saveDeployConfigMutation,
+  syncDeployNowMutation,
+  testDeployConnectionMutation,
+} from "@/queries/gitops";
+import { REFRESH } from "@/queries/refresh";
+
+/** 同步任务从提交到在状态与历史里看得到结果，大约需要的时间 */
+const SYNC_SETTLE_DELAY_MS = 5000;
+
+const NO_STATUS: MockPathStatus[] = [];
+const NO_HISTORY: MockDeployRecord[] = [];
+const NO_PATHS: string[] = [];
+
+type RepoOption = { fullName: string; defaultBranch: string; private: boolean };
+const NO_REPOS: RepoOption[] = [];
+
+/** 还没有部署配置时表单里的空配置 */
+function emptyDeployConfig(clusterId: string): MockDeployConfig {
+  return { repoUrl: "", paths: [], intervalSec: 60, autoDeploy: true, clusterId };
+}
 
 export function useDeployPage() {
-  const clusterId = useClusterStore((s) => s.currentClusterId);
-  const canManageDeploy = useCan()("deploy.manage");
-  const [loading, setLoading] = useState(true);
-  const [config, setConfig] = useState<MockDeployConfig | null>(null);
-  const [statusList, setStatusList] = useState<MockPathStatus[]>([]);
-  const [history, setHistory] = useState<MockDeployRecord[]>([]);
-  const [repos, setRepos] = useState<{ fullName: string; defaultBranch: string; private: boolean }[]>([]);
-  const [kustomizePaths, setKustomizePaths] = useState<string[]>([]);
+  const { clusterId } = useCurrentCluster();
+  const queryClient = useQueryClient();
+  // 部署是纯管理功能页：权限加载完才决定显示真实数据还是演示数据
+  const sessionReady = useSessionReady();
+  const can = useCan();
+  const canManageDeploy = can("deploy.manage");
+  const canManageGitHub = can("github.manage");
+  const isDemo = sessionReady && !canManageDeploy;
 
-  const [editing, setEditing] = useState(false);
-  const [editConfig, setEditConfig] = useState<MockDeployConfig | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [githubConnected, setGithubConnected] = useState(false);
-  const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
+  // GitHub 连接与仓库：与连接页共用同一份查询
+  const connectionQuery = useQuery(githubConnectionQuery(canManageDeploy && canManageGitHub));
+  const realConnected = connectionQuery.data?.connected ?? false;
+  const reposQuery = useQuery(githubReposQuery(canManageDeploy && canManageGitHub, realConnected));
 
-  const loadData = useCallback(async () => {
-    if (!canManageDeploy) {
-      const connData = githubMock.mockGetGitHubConnection();
-      setGithubConnected(connData?.connected ?? false);
-      const configData = deployMock.mockGetDeployConfig();
-      setConfig(configData);
-      setStatusList(deployMock.mockGetPathStatus() as MockPathStatus[]);
-      setHistory(deployMock.mockGetDeployHistory() as MockDeployRecord[]);
-      setRepos(deployMock.mockGetAuthorizedRepos().map((r) => ({
-        fullName: r.fullName,
-        defaultBranch: r.defaultBranch,
-        private: r.private,
-      })));
-      if (configData?.repoUrl) {
-        setKustomizePaths(deployMock.mockGetKustomizePaths(configData.repoUrl));
-      }
-      setLoading(false);
-      return;
-    }
+  // 接口取不到（如没有配置 GitHub App 的部署里这些路由不存在）按「还没有配置」处理，页面照常可用
+  const configQuery = useQuery(deployConfigQuery(clusterId, canManageDeploy));
+  const realConfig = configQuery.data ?? null;
+  const statusQuery = useQuery(deployStatusQuery(canManageDeploy, realConfig !== null));
+  const historyQuery = useQuery(deployHistoryQuery(clusterId, canManageDeploy));
 
-    try {
-      // 检查 GitHub 连接状态
-      let connected = false;
-      try {
-        const connData = await githubDS.getGitHubConnection();
-        connected = connData?.connected ?? false;
-      } catch {
-        connected = false;
-      }
-      setGithubConnected(connected);
+  const config = isDemo ? deployMock.mockGetDeployConfig() : realConfig;
+  // 权限没加载完、或真实的配置还在取（没有选定集群时配置查询不启用，不算在取）
+  const loading = !sessionReady || (canManageDeploy && configQuery.isLoading);
 
-      // 加载部署配置
+  // 编辑中的草稿。还没有配置时自动进入编辑（首次设置），用一张空配置起步
+  const [draft, setDraft] = useState<MockDeployConfig | null>(null);
+  const isFirstSetup = !loading && config === null;
+  const editing = draft !== null || isFirstSetup;
+  const editConfig = draft ?? (isFirstSetup ? emptyDeployConfig(clusterId) : null);
 
-      let configData: MockDeployConfig | null = null;
-      try {
-        configData = await deployDS.getDeployConfig(clusterId);
-      } catch {
-        configData = null;
-      }
-      setConfig(configData);
+  // 可选的 kustomize 路径跟着表单里选的仓库走；不在编辑时跟着已保存的配置走
+  const selectedRepo = (editConfig ?? config)?.repoUrl ?? "";
+  const pathsQuery = useQuery(kustomizePathsQuery(selectedRepo, canManageDeploy));
 
-      // 同步状态通过 datasource（支持 mock/api 切换）
-      if (configData) {
-        try {
-          const statusData = await deployDS.getDeployStatus();
-          setStatusList((statusData ?? []) as MockPathStatus[]);
-        } catch {
-          setStatusList([]);
-        }
-      } else {
-        setStatusList([]);
-      }
+  const saveConfig = useMutation(saveDeployConfigMutation());
+  const testConnection = useMutation(testDeployConnectionMutation());
+  const syncNow = useMutation(syncDeployNowMutation());
+  const { refetch: refresh } = useManualRefetch(deployKeys.all);
 
-      // 加载部署历史
-      try {
-        const historyData = await deployDS.getDeployHistory({ clusterId });
-        setHistory((historyData ?? []) as MockDeployRecord[]);
-      } catch {
-        setHistory([]);
-      }
+  const handleStartEdit = () => {
+    setDraft(config ? { ...config, paths: [...config.paths] } : emptyDeployConfig(clusterId));
+  };
 
-      // 加载可选仓库列表（从 GitHub datasource 获取）
-      if (connected) {
-        try {
-          const reposData = await githubDS.getAuthorizedRepos();
-          setRepos((reposData ?? []).map((r: { fullName: string; defaultBranch: string; private: boolean }) => ({
-            fullName: r.fullName,
-            defaultBranch: r.defaultBranch,
-            private: r.private,
-          })));
-        } catch {
-          setRepos([]);
-        }
-      } else {
-        setRepos([]);
-      }
+  const handleCancelEdit = () => setDraft(null);
 
-      // 加载 kustomize 路径
-      if (configData?.repoUrl) {
-        try {
-          const paths = await deployDS.getKustomizePaths(configData.repoUrl);
-          setKustomizePaths(paths ?? []);
-        } catch {
-          setKustomizePaths([]);
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [clusterId, canManageDeploy]);
-
-  const { refresh, intervalSeconds } = useAutoRefresh(loadData, { interval: 30000 });
-
-  const handleStartEdit = useCallback(() => {
-    if (config) {
-      setEditConfig({ ...config, paths: [...config.paths] });
-      deployDS.getKustomizePaths(config.repoUrl).then((paths) => {
-        setKustomizePaths(paths ?? []);
-      }).catch(() => setKustomizePaths([]));
-    } else {
-      setEditConfig({
-        repoUrl: "",
-        paths: [],
-        intervalSec: 60,
-        autoDeploy: true,
-        clusterId,
-      });
-    }
-    setEditing(true);
-  }, [config, clusterId]);
-
-  const handleCancelEdit = useCallback(() => {
-    setEditing(false);
-    setEditConfig(null);
-  }, []);
-
-  const handleUpdateConfig = useCallback((newConfig: MockDeployConfig) => {
-    // 确保进入正式编辑模式（解决 isFirstSetup 下 editConfig 被硬编码覆盖的问题）
-    setEditing(true);
-    setEditConfig((prev) => {
-      const prevRepoUrl = prev?.repoUrl ?? "";
-      if (prevRepoUrl !== newConfig.repoUrl && newConfig.repoUrl) {
-        deployDS.getKustomizePaths(newConfig.repoUrl).then((paths) => {
-          setKustomizePaths(paths ?? []);
-        }).catch(() => setKustomizePaths([]));
-      }
-      return newConfig;
-    });
-  }, []);
-
-  const handleSaveConfig = useCallback(async () => {
+  const handleSaveConfig = () => {
     if (!editConfig) return;
-    setSaving(true);
-    try {
-      const cleaned = { ...editConfig, paths: editConfig.paths.filter((p) => p !== "") };
-      await deployDS.saveDeployConfig(cleaned);
-      setConfig(cleaned);
-      setEditing(false);
-      setEditConfig(null);
-    } catch (err) {
-      console.error("Failed to save deploy config:", err);
-    } finally {
-      setSaving(false);
-    }
-  }, [editConfig]);
+    const cleaned = { ...editConfig, paths: editConfig.paths.filter((p) => p !== "") };
+    // 工厂在保存成功后重取配置，取完才算结束：退出编辑时界面上已经是新配置
+    saveConfig.mutate(cleaned, {
+      onSuccess: () => setDraft(null),
+      onError: (err) => console.error("Failed to save deploy config:", err),
+    });
+  };
 
-  const handleTestConnection = useCallback(async () => {
+  const handleTestConnection = async () => {
     try {
-      return await deployDS.testDeployConnection();
+      return await testConnection.mutateAsync();
     } catch {
       return false;
     }
-  }, []);
+  };
 
-  const handleSyncNow = useCallback(async (path: string) => {
-    // 防重复点击
+  // 正在同步的路径：从点下去到状态刷新完为止，防重复点击
+  const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
+  const [settleScheduler] = useState(createDelayedTaskScheduler);
+  // 离开页面时不再需要那次延时刷新；再回来时查询会自己重新取数
+  useEffect(() => () => settleScheduler.cancelAll(), [settleScheduler]);
+
+  const handleSyncNow = (path: string) => {
     if (syncingPaths.has(path)) return;
-    setSyncingPaths((prev) => new Set(prev).add(path));
-
-    try {
-      await deployDS.syncDeployNow(path);
-    } catch (err) {
-      console.error("Failed to sync:", err);
-      setSyncingPaths((prev) => {
-        const next = new Set(prev);
-        next.delete(path);
+    const markSyncing = (syncing: boolean) =>
+      setSyncingPaths((current) => {
+        const next = new Set(current);
+        if (syncing) next.add(path);
+        else next.delete(path);
         return next;
       });
-      return;
-    }
-    // 同步请求只是提交了任务，延迟后刷新真实状态
-    setTimeout(async () => {
-      try {
-        const statusData = await deployDS.getDeployStatus();
-        setStatusList((statusData ?? []) as MockPathStatus[]);
-        const historyData = await deployDS.getDeployHistory({ clusterId });
-        setHistory((historyData ?? []) as MockDeployRecord[]);
-      } catch {
-        // ignore
-      } finally {
-        setSyncingPaths((prev) => {
-          const next = new Set(prev);
-          next.delete(path);
-          return next;
-        });
-      }
-    }, 5000);
-  }, [clusterId, syncingPaths]);
 
-  // 首次设置时自动进入编辑模式
-  const isFirstSetup = !config && !editing && !editConfig;
-  useEffect(() => {
-    if (isFirstSetup && !loading) {
-      setEditing(true);
-      setEditConfig({
-        repoUrl: "",
-        paths: [],
-        intervalSec: 60,
-        autoDeploy: true,
-        clusterId,
-      });
-    }
-  }, [isFirstSetup, loading, clusterId]);
+    markSyncing(true);
+    syncNow.mutate(path, {
+      // 同步请求只是提交了任务，过几秒再刷新真实的状态与历史
+      onSuccess: () => {
+        settleScheduler.schedule(() => {
+          void Promise.all([
+            queryClient.invalidateQueries({ queryKey: deployKeys.statuses }),
+            queryClient.invalidateQueries({ queryKey: deployKeys.histories }),
+          ]).finally(() => markSyncing(false));
+        }, SYNC_SETTLE_DELAY_MS);
+      },
+      onError: (err) => {
+        console.error("Failed to sync:", err);
+        markSyncing(false);
+      },
+    });
+  };
 
   return {
+    isDemo,
     loading,
-    githubConnected,
+    githubConnected: isDemo ? (githubMock.mockGetGitHubConnection()?.connected ?? false) : realConnected,
     config,
     editing,
     editConfig,
-    kustomizePaths,
-    statusList,
-    history,
-    repos,
-    saving,
+    kustomizePaths: isDemo ? deployMock.mockGetKustomizePaths(selectedRepo) : (pathsQuery.data ?? NO_PATHS),
+    statusList: isDemo ? deployMock.mockGetPathStatus() : realConfig ? (statusQuery.data ?? NO_STATUS) : NO_STATUS,
+    history: isDemo ? deployMock.mockGetDeployHistory() : (historyQuery.data ?? NO_HISTORY),
+    repos: isDemo ? deployMock.mockGetAuthorizedRepos() : realConnected ? (reposQuery.data ?? NO_REPOS) : NO_REPOS,
+    saving: saveConfig.isPending,
     handleStartEdit,
     handleCancelEdit,
-    handleUpdateConfig,
+    // 表单里每改一处都交回完整的配置
+    handleUpdateConfig: setDraft,
     handleSaveConfig,
     handleTestConnection,
     handleSyncNow,
     syncingPaths,
-    loadData,
     refresh,
-    intervalSeconds,
+    intervalSeconds: REFRESH.slow / 1000,
   };
 }

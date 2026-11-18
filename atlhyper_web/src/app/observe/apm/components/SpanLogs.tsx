@@ -1,11 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { QueryView } from "@/components/common";
+import { PermissionLock } from "@/components/common/PermissionLock";
+import { useCan } from "@/hooks/useCan";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { useScopedState } from "@/hooks/useScopedState";
+import { useSessionReady } from "@/hooks/useSessionReady";
+import { traceLogsQuery } from "@/queries/observe-logs";
 import type { ApmTranslations } from "@/types/i18n";
 import type { LogEntry } from "@/types/model/log";
-import { useClusterStore } from "@/store/clusterStore";
-import { queryLogs } from "@/datasource/logs";
 
 // ============================================================
 // SpanLogs — 整条 trace 的关联日志
@@ -33,69 +39,92 @@ function sortedAttrEntries(attrs: Record<string, string>): [string, string][] {
   });
 }
 
-export function SpanLogs({ t, traceId, serviceColorMap, compact }: SpanLogsProps) {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hiddenServices, setHiddenServices] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const clusterId = useClusterStore((s) => s.currentClusterId);
+/** ERROR 行默认展开 —— 排查者要的就是它（没有结构化字段的行没有可展开的内容） */
+function isOpenByDefault(log: LogEntry): boolean {
+  return log.severity === "ERROR" && Object.keys(log.attributes ?? {}).length > 0;
+}
 
-  useEffect(() => {
-    if (!clusterId) { setLoading(false); return; }
-    setLoading(true);
-    queryLogs({ clusterId, traceId, limit: compact ? 30 : 100 })
-      .then((result) => {
-        setLogs(result.logs);
-        // ERROR 行默认展开 —— 排查者要的就是它
-        const errIdx = new Set<number>();
-        result.logs.forEach((l, i) => {
-          if (l.severity === "ERROR" && Object.keys(l.attributes ?? {}).length > 0) errIdx.add(i);
-        });
-        setExpanded(errIdx);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [clusterId, traceId, compact]);
+const NO_ROWS: ReadonlySet<number> = new Set();
+const NO_SERVICES: ReadonlySet<string> = new Set();
 
+export function SpanLogs(props: SpanLogsProps) {
+  // 日志正文是内容级数据（logs.read）：没有权限时显示锁定占位，而不是「没有关联日志」
+  return (
+    <PermissionLock permission="logs.read">
+      <TraceLogList {...props} />
+    </PermissionLock>
+  );
+}
+
+function TraceLogList({ t, traceId, serviceColorMap, compact }: SpanLogsProps) {
+  const { clusterId } = useCurrentCluster();
+  const sessionReady = useSessionReady();
+  const can = useCan();
+  const logsQuery = useQuery(
+    traceLogsQuery(clusterId, traceId, compact ? 30 : 100, sessionReady && can("logs.read")),
+  );
+  // 隐藏的服务与手动开合过的行都是针对这一条链路的，换了链路就作废
+  const [hiddenServices, setHiddenServices] = useScopedState(traceId, NO_SERVICES);
+  /** 用户手动点过的行：与默认状态相反（默认展开的被收起，默认收起的被展开） */
+  const [toggledRows, setToggledRows] = useScopedState(traceId, NO_ROWS);
+
+  return (
+    <QueryView
+      query={logsQuery}
+      isEmpty={(logs) => logs.length === 0}
+      empty={
+        <div className="flex items-center justify-center py-12 text-sm text-muted">
+          {t.noCorrelatedLogs}
+        </div>
+      }
+    >
+      {(logs) => (
+        <TraceLogRows
+          logs={logs}
+          serviceColorMap={serviceColorMap}
+          compact={compact}
+          hiddenServices={hiddenServices}
+          toggledRows={toggledRows}
+          onToggleService={(service) => setHiddenServices(toggleMember(hiddenServices, service))}
+          onToggleRow={(row) => setToggledRows(toggleMember(toggledRows, row))}
+        />
+      )}
+    </QueryView>
+  );
+}
+
+/** 集合里有就去掉、没有就加上，返回新集合 */
+function toggleMember<T>(members: ReadonlySet<T>, member: T): ReadonlySet<T> {
+  const next = new Set(members);
+  if (next.has(member)) next.delete(member);
+  else next.add(member);
+  return next;
+}
+
+interface TraceLogRowsProps {
+  logs: LogEntry[];
+  serviceColorMap?: Map<string, string>;
+  compact?: boolean;
+  hiddenServices: ReadonlySet<string>;
+  toggledRows: ReadonlySet<number>;
+  onToggleService: (service: string) => void;
+  onToggleRow: (row: number) => void;
+}
+
+function TraceLogRows({
+  logs,
+  serviceColorMap,
+  compact,
+  hiddenServices,
+  toggledRows,
+  onToggleService: toggleService,
+  onToggleRow: toggleExpand,
+}: TraceLogRowsProps) {
   const services = useMemo(() => [...new Set(logs.map((l) => l.serviceName))], [logs]);
   const visibleLogs = useMemo(
     () => logs.map((log, i) => ({ log, i })).filter(({ log }) => !hiddenServices.has(log.serviceName)),
     [logs, hiddenServices]
   );
-
-  const toggleService = (svc: string) => {
-    setHiddenServices((prev) => {
-      const next = new Set(prev);
-      if (next.has(svc)) next.delete(svc);
-      else next.add(svc);
-      return next;
-    });
-  };
-  const toggleExpand = (i: number) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12 text-sm text-muted">
-        <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin mr-2" />
-        {t.loading}
-      </div>
-    );
-  }
-
-  if (logs.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-12 text-sm text-muted">
-        {t.noCorrelatedLogs}
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -131,7 +160,7 @@ export function SpanLogs({ t, traceId, serviceColorMap, compact }: SpanLogsProps
           const color = serviceColorMap?.get(log.serviceName) ?? "#94a3b8";
           const attrEntries = sortedAttrEntries(log.attributes ?? {});
           const expandable = attrEntries.length > 0;
-          const isOpen = expanded.has(i);
+          const isOpen = isOpenByDefault(log) !== toggledRows.has(i);
           return (
             <div key={i} className="border-b border-[var(--border-color)]/20">
               <div

@@ -1,138 +1,179 @@
 // atlhyper_master_v2/notifier/manager.go
-// 告警管理器实现
-// 编排 template 和 channel 模块
+// AlertManager 实现：装配告警来源、通知管道与发送器
 package notifier
 
 import (
 	"context"
-	"sync"
+	"net/url"
+	"strings"
+	"time"
+	_ "time/tzdata" // 镜像里不一定有系统时区库：内嵌一份，MASTER_TIMEZONE 才可用
 
+	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/notifier/alert"
 	"AtlHyper/atlhyper_master_v2/notifier/channel"
+	"AtlHyper/atlhyper_master_v2/notifier/pipeline"
+	"AtlHyper/atlhyper_master_v2/notifier/source"
 	"AtlHyper/atlhyper_master_v2/notifier/template"
 	"AtlHyper/common/logger"
 )
 
 var log = logger.Module("Notifier")
 
-// Manager 告警管理器
-type Manager struct {
-	notifyRepo database.NotifyChannelRepository
-	factory    *channel.Factory
-	renderer   *template.Renderer
+// Config 通知模块的依赖与参数
+type Config struct {
+	Repos  pipeline.Repos             // 通知各表的仓库
+	SMTP   channel.SMTPSettingsReader // 全局发件设置（邮件接收人发送时读取）
+	Events source.ClusterEventReader  // 持久化的 K8s Warning 事件（旧的逐条事件告警用）
+	Agents source.AgentLister         // 各集群 Agent 的在线状态（心跳告警用）
 
-	mu sync.RWMutex
+	// PublicURL Master 的对外地址（MASTER_PUBLIC_URL）；空或不合法时通知里不带页面链接
+	PublicURL string
+	// Timezone 通知里时间的显示时区（MASTER_TIMEZONE，IANA 名）；空或不合法时用 UTC
+	Timezone string
+
+	HeartbeatCheckInterval time.Duration // 心跳检测间隔；0 = 30 秒
+	HeartbeatOfflineAfter  time.Duration // 心跳多久没更新算离线；0 = 60 秒
+	K8sEventCheckInterval  time.Duration // K8s 事件轮询间隔；0 = 30 秒
+
+	// 以下两项只在测试里设置
+	Sender               pipeline.Sender // nil = 按接收人的配置真实发送
+	PipelineTickInterval time.Duration   // 0 = 1 秒
 }
 
-// NewManager 创建告警管理器
-func NewManager(notifyRepo database.NotifyChannelRepository) (*Manager, error) {
-	renderer, err := template.NewRenderer()
+// Manager AlertManager 的实现
+type Manager struct {
+	pipeline  *pipeline.AlertPipeline
+	incidents *source.IncidentSource
+	heartbeat *source.HeartbeatSource
+	k8sEvents *source.K8sEventSource
+
+	receivers receiverReader
+	renderer  *template.AlertRenderer
+	sender    pipeline.Sender
+}
+
+// receiverReader 测试发送只需要按 id 取接收人
+type receiverReader interface {
+	GetByID(ctx context.Context, id int64) (*database.NotifyReceiver, error)
+}
+
+// NewAlertManager 创建通知模块（不启动任何协程，启动见 Start）
+func NewAlertManager(cfg Config) (*Manager, error) {
+	publicURL := sanitizePublicURL(cfg.PublicURL)
+	if cfg.PublicURL != "" && publicURL == "" {
+		log.Warn("MASTER_PUBLIC_URL 不是合法的 http(s) 地址，通知里不会带页面链接")
+	}
+	renderer, err := template.NewAlertRenderer(publicURL, displayLocation(cfg.Timezone))
 	if err != nil {
 		return nil, err
 	}
+	sender := cfg.Sender
+	if sender == nil {
+		sender = channel.NewReceiverSender(cfg.SMTP)
+	}
 
+	alertPipeline := pipeline.NewAlertPipeline(pipeline.Config{
+		Repos:        cfg.Repos,
+		Sender:       sender,
+		Renderer:     renderer,
+		TickInterval: cfg.PipelineTickInterval,
+	})
 	return &Manager{
-		notifyRepo: notifyRepo,
-		factory:    channel.NewFactory(),
-		renderer:   renderer,
+		pipeline:  alertPipeline,
+		incidents: source.NewIncidentSource(alertPipeline),
+		heartbeat: source.NewHeartbeatSource(cfg.Agents, cfg.Repos.Alerts, alertPipeline, source.HeartbeatConfig{
+			CheckInterval: cfg.HeartbeatCheckInterval,
+			OfflineAfter:  cfg.HeartbeatOfflineAfter,
+		}),
+		k8sEvents: source.NewK8sEventSource(cfg.Events, cfg.Repos.Policy, cfg.Repos.Alerts, alertPipeline, source.K8sEventConfig{
+			CheckInterval: cfg.K8sEventCheckInterval,
+		}),
+		receivers: cfg.Repos.Receivers,
+		renderer:  renderer,
+		sender:    sender,
 	}, nil
 }
 
-// Start 启动
+// Start 先启动管道（恢复状态），再启动两个轮询来源。重复调用无效果
 func (m *Manager) Start() error {
-	log.Info("已启动")
+	if err := m.pipeline.Start(); err != nil {
+		return err
+	}
+	if err := m.heartbeat.Start(); err != nil {
+		return err
+	}
+	if err := m.k8sEvents.Start(); err != nil {
+		return err
+	}
+	log.Info("通知模块已启动")
 	return nil
 }
 
-// Stop 停止
+// Stop 先停来源，再停管道。重复调用无效果
 func (m *Manager) Stop() {
-	log.Info("已停止")
+	if err := m.k8sEvents.Stop(); err != nil {
+		log.Error("停止 K8s 事件告警来源失败", "err", err)
+	}
+	if err := m.heartbeat.Stop(); err != nil {
+		log.Error("停止心跳告警来源失败", "err", err)
+	}
+	m.pipeline.Stop()
+	log.Info("通知模块已停止")
 }
 
-// SendWithTemplate 使用模板发送告警
-func (m *Manager) SendWithTemplate(templateName string, data *template.AlertData) error {
-	ctx := context.Background()
-
-	// 1. 获取所有已启用的渠道
-	channels, err := m.notifyRepo.ListEnabled(ctx)
-	if err != nil {
-		log.Error("获取渠道列表失败", "err", err)
-		return err
-	}
-
-	if len(channels) == 0 {
-		log.Info("无可用渠道，告警未发送", "title", data.Title)
-		return nil
-	}
-
-	// 2. 并发发送到各渠道
-	var wg sync.WaitGroup
-	for _, ch := range channels {
-		wg.Add(1)
-		go func(ch *database.NotifyChannel) {
-			defer wg.Done()
-
-			// 渲染模板
-			msg, err := m.renderer.Render(templateName, ch.Type, data)
-			if err != nil {
-				log.Error("渲染模板失败", "channel", ch.Type, "err", err)
-				return
-			}
-
-			// 创建 notifier
-			notifier, err := m.factory.Create(ch)
-			if err != nil {
-				log.Error("创建通知器失败", "channel", ch.Type, "err", err)
-				return
-			}
-
-			// 发送
-			if err := notifier.Send(ctx, msg); err != nil {
-				log.Error("发送失败", "channel", ch.Type, "err", err)
-				return
-			}
-
-			log.Info("发送成功", "channel", ch.Type, "title", data.Title)
-		}(ch)
-	}
-	wg.Wait()
-
-	return nil
+// OnIncidentTransition 事件变化的订阅回调：只入队
+func (m *Manager) OnIncidentTransition(transition aiops.IncidentTransition) {
+	m.incidents.OnTransition(transition)
 }
 
-// Test 测试指定渠道
-func (m *Manager) Test(ctx context.Context, channelType string) error {
-	// 获取渠道配置
-	ch, err := m.notifyRepo.GetByType(ctx, channelType)
-	if err != nil {
-		return ErrChannelNotFound
+// OnIncidentLink 拓扑归并的关联变化：只入队
+func (m *Manager) OnIncidentLink(link aiops.IncidentLink) {
+	root := ""
+	if link.RootIncidentID != "" {
+		root = alert.IncidentFingerprint(link.RootIncidentID)
 	}
+	m.pipeline.SubmitLink(alert.IncidentFingerprint(link.IncidentID), root, link.Subject)
+}
 
-	if !ch.Enabled {
-		return ErrChannelDisabled
-	}
-
-	// 创建 notifier
-	notifier, err := m.factory.Create(ch)
-	if err != nil {
-		return ErrInvalidConfig
-	}
-
-	// 发送测试消息
-	testData := &template.AlertData{
-		Title:     "测试告警",
-		Message:   "这是一条测试告警消息，用于验证通知渠道配置是否正确。",
-		Severity:  "info",
-		Source:    "manual",
-		ClusterID: "test",
-		Resource:  "test/test/test",
-		Reason:    "Test",
-	}
-
-	msg, err := m.renderer.Render("heartbeat_recovery", channelType, testData)
+// TestReceiver 给指定接收人发一条测试消息。不经过管道：不产生告警，也不留送达记录
+func (m *Manager) TestReceiver(ctx context.Context, receiverID int64) error {
+	receiver, err := m.receivers.GetByID(ctx, receiverID)
 	if err != nil {
 		return err
 	}
+	if receiver == nil {
+		return ErrReceiverNotFound
+	}
+	return m.sender.Send(ctx, receiver, m.renderer.RenderTest(receiver.Name, time.Now()))
+}
 
-	return notifier.Send(ctx, msg)
+// sanitizePublicURL 只接受带主机的 http / https 地址，去掉末尾的斜杠；其余一律当作没配
+func sanitizePublicURL(raw string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	return trimmed
+}
+
+var _ AlertManager = (*Manager)(nil)
+
+// displayLocation 解析显示时区；空或不合法时用 UTC（不合法时记一条警告）
+func displayLocation(name string) *time.Location {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return time.UTC
+	}
+	location, err := time.LoadLocation(name)
+	if err != nil {
+		log.Warn("MASTER_TIMEZONE 不是合法的时区名，通知里的时间按 UTC 显示", "timezone", name)
+		return time.UTC
+	}
+	return location
 }

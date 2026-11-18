@@ -2,7 +2,6 @@
  * Log Mock 静态数据 — 基于 ClickHouse 真实日志特征生成
  *
  * 6 个 geass 服务, ~1600 条日志
- * 参考: docs/design/active/clickhouse-otel-data-reference.md
  */
 
 import type { LogEntry } from "@/types/model/log";

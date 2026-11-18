@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { X, LogIn, Loader2, KeyRound } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { useAuthStore } from "@/store/authStore";
 import { useClusterStore } from "@/store/clusterStore";
-import { login, getAuthProviders, oidcStartURL } from "@/api/auth";
-import type { AuthProvider } from "@/types/auth";
+import { authProvidersQuery, loginMutation, oidcStartURL } from "@/queries/session";
 
 export function LoginDialog() {
   const { t } = useI18n();
@@ -15,17 +15,15 @@ export function LoginDialog() {
   const { setClusterIds } = useClusterStore();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [providers, setProviders] = useState<AuthProvider[]>([]);
-
-  // 外部登录方式：未启用时为空列表，按钮不显示
-  useEffect(() => {
-    if (!isLoginDialogOpen) return;
-    getAuthProviders()
-      .then((res) => setProviders(res.data.data ?? []))
-      .catch(() => setProviders([]));
-  }, [isLoginDialogOpen]);
+  // 外部登录方式：未启用时为空列表，按钮不显示。取不到也按没有处理
+  const providers = useQuery(authProvidersQuery(isLoginDialogOpen)).data ?? [];
+  const signIn = useMutation(loginMutation());
+  const loading = signIn.isPending;
+  const error = signIn.isError
+    ? signIn.error instanceof Error
+      ? signIn.error.message
+      : t.login.loginFailed
+    : "";
 
   // 整页跳转发起外部登录；登录成功后回到当前页
   const startExternalLogin = () => {
@@ -33,33 +31,30 @@ export function LoginDialog() {
     window.location.assign(oidcStartURL(next));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    signIn.mutate(
+      { username, password },
+      {
+        // 响应包含 token, user, cluster_ids
+        onSuccess: (loginData) => {
+          setLoginData(loginData);
 
-    try {
-      // Login - 响应包含 token, user, cluster_ids
-      const loginRes = await login({ username, password });
-      setLoginData(loginRes.data.data);
+          // Sync cluster_ids to clusterStore
+          if (loginData.cluster_ids?.length > 0) {
+            setClusterIds(loginData.cluster_ids);
+          }
 
-      // Sync cluster_ids to clusterStore
-      if (loginRes.data.data.cluster_ids?.length > 0) {
-        setClusterIds(loginRes.data.data.cluster_ids);
-      }
+          // Close dialog and execute pending action
+          closeLoginDialog();
+          executePendingAction();
 
-      // Close dialog and execute pending action
-      closeLoginDialog();
-      executePendingAction();
-
-      // Reset form
-      setUsername("");
-      setPassword("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.login.loginFailed);
-    } finally {
-      setLoading(false);
-    }
+          // Reset form
+          setUsername("");
+          setPassword("");
+        },
+      },
+    );
   };
 
   if (!isLoginDialogOpen) return null;

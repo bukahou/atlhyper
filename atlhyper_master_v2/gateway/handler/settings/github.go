@@ -21,8 +21,7 @@ var githubLog = logger.Module("GitHub-Handler")
 
 // GitHubHandler GitHub 连接管理 Handler
 // GitHubQuery / GitHubOps 本 handler 所需的最小 service 能力。
-// 此前直接持有 database repository —— 绕过 service 层，
-// 违反 CLAUDE.md「Gateway 直接访问 Database」禁令。
+// Gateway 不直接持有 database repository，读写都经 service 层。
 type GitHubQuery interface {
 	GetGitHubInstallation(ctx context.Context) (*database.GitHubInstallation, error)
 	ListRepoConfigs(ctx context.Context) ([]*database.RepoConfig, error)

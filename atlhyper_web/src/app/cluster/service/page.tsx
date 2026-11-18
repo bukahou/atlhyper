@@ -1,23 +1,23 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getServiceOverview } from "@/datasource/cluster";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
+import { PageHeader, QueryView, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { serviceOverviewQuery } from "@/queries/cluster";
+import { REFRESH } from "@/queries/refresh";
 import { Eye } from "lucide-react";
-import type { ServiceItem, ServiceOverview } from "@/types/cluster";
+import type { ServiceItem } from "@/types/cluster";
 import { ServiceDetailModal } from "@/components/service";
 import { ServiceFilterBar } from "./components/ServiceFilterBar";
 
 export default function ServicePage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<ServiceOverview | null>(null);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(serviceOverviewQuery(clusterId));
+  const data = query.data;
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -29,20 +29,6 @@ export default function ServicePage() {
   // Detail modal state
   const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setError("");
-    try {
-      const res = await getServiceOverview({ ClusterID: currentClusterId });
-      setData(res.data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   // Extract unique namespaces and types
   const { namespaces, types } = useMemo(() => {
@@ -152,7 +138,7 @@ export default function ServicePage() {
         <PageHeader
           title={t.nav.service}
           description={t.service.pageDescription}
-          autoRefreshSeconds={intervalSeconds}
+          autoRefreshSeconds={REFRESH.standard / 1000}
         />
 
         {data && (
@@ -171,17 +157,21 @@ export default function ServicePage() {
           onFilterChange={handleFilterChange}
         />
 
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <DataTable
-            columns={columns}
-            data={filteredServices}
-            loading={loading}
-            error={error}
-            keyExtractor={(s, index) => `${index}-${s.namespace}/${s.name}`}
-            onRowClick={handleViewDetail}
-            pageSize={10}
-          />
-        </div>
+        <QueryView query={query} requireCluster>
+          {() => (
+            <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={filteredServices}
+                loading={false}
+                error=""
+                keyExtractor={(s, index) => `${index}-${s.namespace}/${s.name}`}
+                onRowClick={handleViewDetail}
+                pageSize={10}
+              />
+            </div>
+          )}
+        </QueryView>
       </div>
 
       {selectedService && (

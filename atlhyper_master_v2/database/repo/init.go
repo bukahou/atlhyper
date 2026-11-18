@@ -7,7 +7,7 @@ import (
 	"AtlHyper/common/crypto"
 )
 
-// 全局加密器（用于 API Key 加密）
+// 全局加密器（用于 AI Provider 的 API Key 与通知接收人配置的加密）
 var globalEncryptor *crypto.Encryptor
 
 // SetEncryptionSecret 设置加密密钥
@@ -28,7 +28,13 @@ func Init(db *database.DB, dialect database.Dialect) {
 	db.User = newUserRepo(db.Conn, dialect.User())
 	db.UserIdentity = newUserIdentityRepo(db.Conn, dialect.User(), dialect.UserIdentity())
 	db.Event = newEventRepo(db.Conn, dialect.Event())
-	db.Notify = newNotifyRepo(db.Conn, dialect.Notify())
+	db.NotifyPolicy = newNotifyPolicyRepo(db.Conn, dialect.NotifyPolicy())
+	db.NotifyAlert = newNotifyAlertRepo(db.Conn, dialect.NotifyAlert())
+	db.NotifyDelivery = newNotifyDeliveryRepo(db.Conn, dialect.NotifyDelivery())
+	db.NotifyReceiver = newNotifyReceiverRepo(db.Conn, dialect.NotifyReceiver())
+	db.NotifyRule = newNotifyRuleRepo(db.Conn, dialect.NotifyRule())
+	db.NotifySilence = newNotifySilenceRepo(db.Conn, dialect.NotifySilence())
+	db.NotifySMTP = newNotifySMTPRepo(db.Conn, dialect.NotifySMTP())
 	db.Cluster = newClusterRepo(db.Conn, dialect.Cluster())
 	db.Command = newCommandRepo(db.Conn, dialect.Command())
 	db.Settings = newSettingsRepo(db.Conn, dialect.Settings())

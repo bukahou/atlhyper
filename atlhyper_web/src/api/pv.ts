@@ -57,13 +57,14 @@ interface DetailResponse<T> {
 // API Functions
 // ============================================================
 
-export function getPVList(params: { cluster_id: string }) {
-  return get<ListResponse<PVItem>>("/api/v2/pvs", params);
+export function getPVList(params: { cluster_id: string }, signal?: AbortSignal) {
+  return get<ListResponse<PVItem>>("/api/v2/pvs", params, signal);
 }
 
-export function getPVDetail(params: { ClusterID: string; Name: string }) {
+export function getPVDetail(params: { ClusterID: string; Name: string }, signal?: AbortSignal) {
   return get<DetailResponse<PVDetail>>(
     `/api/v2/pvs/${encodeURIComponent(params.Name)}`,
-    { cluster_id: params.ClusterID }
+    { cluster_id: params.ClusterID },
+    signal,
   );
 }

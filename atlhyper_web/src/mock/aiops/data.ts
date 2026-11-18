@@ -15,18 +15,11 @@ import type {
   DependencyGraph,
   GraphNode,
   GraphEdge,
-  Incident,
-  IncidentDetail,
-  IncidentEntity,
-  IncidentTimeline,
-  IncidentStats,
-  IncidentListParams,
 } from "@/api/aiops";
 
 // ==================== 常量 ====================
 
 const NODES = ["atlas-master", "atlas-worker-1", "atlas-worker-2"];
-const NAMESPACES = ["default", "kube-system", "linkerd", "monitoring", "app"];
 const SERVICES = [
   { ns: "default", name: "api-server" },
   { ns: "default", name: "web-frontend" },
@@ -55,9 +48,6 @@ const INGRESSES = [
   { ns: "monitoring", name: "grafana-ingress" },
 ];
 
-const RISK_LEVELS = ["healthy", "low", "warning", "critical"] as const;
-const SEVERITIES = ["low", "medium", "high", "critical"] as const;
-const INCIDENT_STATES = ["warning", "incident", "recovery", "stable"] as const;
 const METRICS = [
   "cpu_usage_percent",
   "memory_usage_percent",
@@ -86,10 +76,6 @@ function riskLevelFromScore(score: number): string {
   if (score >= 50) return "warning";
   if (score >= 20) return "low";
   return "healthy";
-}
-
-function isoNow(offsetMinutes = 0): string {
-  return new Date(Date.now() - offsetMinutes * 60000).toISOString();
 }
 
 // ==================== Mock 生成器 ====================
@@ -240,116 +226,4 @@ export function mockDependencyGraph(cluster: string): DependencyGraph {
   );
 
   return { clusterId: cluster, nodes, edges, updatedAt: new Date().toISOString() };
-}
-
-export function mockIncidents(params: IncidentListParams): Incident[] {
-  const rand = seededRandom(params.cluster + "incidents");
-  const incidents: Incident[] = [];
-  const count = 12;
-
-  for (let i = 0; i < count; i++) {
-    const state = INCIDENT_STATES[Math.floor(rand() * INCIDENT_STATES.length)];
-    const severity = SEVERITIES[Math.floor(rand() * SEVERITIES.length)];
-    const startMinutesAgo = Math.floor(rand() * 10080);
-    const durationS = Math.floor(rand() * 7200) + 60;
-    const resolved = state === "stable" || state === "recovery";
-
-    incidents.push({
-      id: `inc-${String(1000 + i).slice(1)}`,
-      clusterId: params.cluster,
-      state,
-      severity,
-      rootCause: [
-        `cluster/${params.cluster}/node/atlas-worker-1`,
-        "default/pod/api-server-7b5d4f8c9-x2k4j",
-        "default/service/payment-service",
-        "kube-system/pod/coredns-5d78c9869d-abc12",
-      ][Math.floor(rand() * 4)],
-      peakRisk: Math.round((40 + rand() * 55) * 10) / 10,
-      startedAt: isoNow(startMinutesAgo),
-      resolvedAt: resolved ? isoNow(startMinutesAgo - durationS / 60) : null,
-      durationS,
-      recurrence: Math.floor(rand() * 4),
-      createdAt: isoNow(startMinutesAgo),
-    });
-  }
-
-  let filtered = incidents;
-  if (params.state) {
-    filtered = filtered.filter((inc) => inc.state === params.state);
-  }
-
-  filtered.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
-
-  const offset = params.offset ?? 0;
-  const limit = params.limit ?? 20;
-  return filtered.slice(offset, offset + limit);
-}
-
-export function mockIncidentDetail(id: string): IncidentDetail {
-  const rand = seededRandom(id);
-  const state = INCIDENT_STATES[Math.floor(rand() * INCIDENT_STATES.length)];
-  const severity = SEVERITIES[1 + Math.floor(rand() * 3)];
-  const startMinutesAgo = Math.floor(rand() * 1440) + 10;
-  const durationS = Math.floor(rand() * 3600) + 120;
-  const rootCauseEntity = `cluster/demo/node/atlas-worker-${1 + Math.floor(rand() * 2)}`;
-
-  const entities: IncidentEntity[] = [
-    { incidentId: id, entityKey: rootCauseEntity, entityType: "node", rLocal: 85, rFinal: 90, role: "root_cause" },
-    { incidentId: id, entityKey: "default/pod/api-server-7b5d4f8c9-x2k4j", entityType: "pod", rLocal: 72, rFinal: 78, role: "affected" },
-    { incidentId: id, entityKey: "default/service/api-server", entityType: "service", rLocal: 68, rFinal: 85, role: "symptom" },
-    { incidentId: id, entityKey: "default/pod/web-frontend-5c8d7e6f4-q9r3s", entityType: "pod", rLocal: 45, rFinal: 52, role: "affected" },
-  ];
-
-  const baseTime = Date.now() - startMinutesAgo * 60000;
-  const timeline: IncidentTimeline[] = [
-    { id: 1, incidentId: id, timestamp: new Date(baseTime).toISOString(), eventType: "anomaly_detected", entityKey: rootCauseEntity, detail: "memory_usage_percent deviation 3.2\u03c3" },
-    { id: 2, incidentId: id, timestamp: new Date(baseTime + 120000).toISOString(), eventType: "state_change", entityKey: rootCauseEntity, detail: "healthy \u2192 warning" },
-    { id: 3, incidentId: id, timestamp: new Date(baseTime + 180000).toISOString(), eventType: "metric_spike", entityKey: "default/service/api-server", detail: "error_rate_5xx 3.2%" },
-    { id: 4, incidentId: id, timestamp: new Date(baseTime + 240000).toISOString(), eventType: "root_cause_identified", entityKey: rootCauseEntity, detail: "causal chain confirmed" },
-    { id: 5, incidentId: id, timestamp: new Date(baseTime + 360000).toISOString(), eventType: "state_change", entityKey: rootCauseEntity, detail: "warning \u2192 incident" },
-  ];
-
-  if (state === "recovery" || state === "stable") {
-    timeline.push({
-      id: 6,
-      incidentId: id,
-      timestamp: new Date(baseTime + durationS * 1000).toISOString(),
-      eventType: "recovery_started",
-      entityKey: rootCauseEntity,
-      detail: "metrics returning to baseline",
-    });
-  }
-
-  return {
-    id,
-    clusterId: "demo",
-    state,
-    severity,
-    rootCause: rootCauseEntity,
-    peakRisk: Math.round((70 + rand() * 25) * 10) / 10,
-    startedAt: isoNow(startMinutesAgo),
-    resolvedAt: state === "stable" ? isoNow(startMinutesAgo - durationS / 60) : null,
-    durationS,
-    recurrence: Math.floor(rand() * 3),
-    createdAt: isoNow(startMinutesAgo),
-    entities,
-    timeline,
-  };
-}
-
-export function mockIncidentStats(_cluster: string): IncidentStats {
-  return {
-    totalIncidents: 47,
-    activeIncidents: 3,
-    mttr: 2700,
-    recurrenceRate: 13.3,
-    bySeverity: { low: 12, medium: 18, high: 11, critical: 6 },
-    byState: { warning: 1, incident: 2, recovery: 0, stable: 44 },
-    topRootCauses: [
-      { entityKey: "cluster/demo/node/atlas-worker-1", count: 8 },
-      { entityKey: "default/service/api-server", count: 5 },
-      { entityKey: "default/pod/payment-service-8e7f6g5h4-w1x2y", count: 3 },
-    ],
-  };
 }

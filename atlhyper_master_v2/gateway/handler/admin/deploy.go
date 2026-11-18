@@ -15,8 +15,7 @@ import (
 
 // DeployHandler 部署管理 Handler
 // DeployQuery / DeployOps 本 handler 所需的最小 service 能力。
-// 此前直接持有 database repository —— 绕过 service 层，
-// 违反 CLAUDE.md「Gateway 直接访问 Database」禁令。
+// Gateway 不直接持有 database repository，读写都经 service 层。
 type DeployQuery interface {
 	GetDeployConfig(ctx context.Context, clusterID string) (*database.DeployConfig, error)
 	ListDeployHistory(ctx context.Context, opts database.DeployHistoryQueryOpts) ([]*database.DeployHistory, error)

@@ -39,6 +39,7 @@ export function ConnectionCard({
               </div>
               <div className="flex items-center gap-2">
                 {connection?.avatarUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- GitHub 头像的外链地址，不走 next/image 的域名白名单与优化
                   <img
                     src={connection.avatarUrl}
                     alt={connection.accountLogin}

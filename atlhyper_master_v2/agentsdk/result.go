@@ -5,6 +5,7 @@ package agentsdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -41,8 +42,14 @@ func (s *Server) handleResult(w http.ResponseWriter, r *http.Request) {
 		Error:     req.Error,
 	}
 
-	// 确认指令完成
-	if err := s.bus.AckCommand(req.CommandID, result); err != nil {
+	// 确认指令完成。回报方的集群交给队列核对：指令不属于它时不写入结果
+	reporter := clusterFor(r, r.Header.Get("X-Cluster-ID"))
+	if err := s.bus.AckCommand(reporter, req.CommandID, result); err != nil {
+		if errors.Is(err, command.ErrNotOwnedByCluster) {
+			log.Warn("拒绝回报不属于自己集群的指令结果", "cmd", req.CommandID, "reporter", reporter)
+			http.Error(w, "command does not belong to this cluster", http.StatusForbidden)
+			return
+		}
 		log.Error("确认指令完成失败", "err", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
@@ -67,8 +74,13 @@ func (s *Server) persistResult(cmdID string, result *command.Result) {
 
 	// 获取现有记录
 	history, err := s.cmdRepo.GetByCommandID(ctx, cmdID)
-	if err != nil || history == nil {
-		log.Warn("获取指令历史失败或不存在", "cmd", cmdID, "err", err)
+	if err != nil {
+		log.Error("读取指令历史失败，执行结果未记入历史", "cmd", cmdID, "err", err)
+		return
+	}
+	if history == nil {
+		// 不经指令服务下发的指令（如部署器）没有历史记录，无需更新
+		log.Debug("指令没有历史记录，跳过", "cmd", cmdID)
 		return
 	}
 
@@ -91,6 +103,26 @@ func (s *Server) persistResult(cmdID string, result *command.Result) {
 	}
 	history.DurationMs = now.Sub(history.CreatedAt).Milliseconds()
 
+	if err := s.cmdRepo.Update(ctx, history); err != nil {
+		log.Error("更新指令历史失败", "cmd", cmdID, "err", err)
+	}
+}
+
+// persistExpired 把未被执行的过期指令在历史里标成 timeout
+func (s *Server) persistExpired(cmdID, reason string) {
+	if s.cmdRepo == nil {
+		return
+	}
+	ctx := context.Background()
+	history, err := s.cmdRepo.GetByCommandID(ctx, cmdID)
+	if err != nil || history == nil {
+		return // 没有历史记录的指令（读查询）无需更新
+	}
+	now := time.Now()
+	history.Status = command.StatusTimeout
+	history.ErrorMessage = reason
+	history.FinishedAt = &now
+	history.DurationMs = now.Sub(history.CreatedAt).Milliseconds()
 	if err := s.cmdRepo.Update(ctx, history); err != nil {
 		log.Error("更新指令历史失败", "cmd", cmdID, "err", err)
 	}

@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
-import { getNamespaceOverview } from "@/datasource/cluster";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { PageHeader, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
-import { useClusterStore } from "@/store/clusterStore";
+import { PageHeader, QueryView, StatsCard, DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { useCurrentCluster } from "@/hooks/useCurrentCluster";
+import { namespaceOverviewQuery } from "@/queries/cluster";
+import { REFRESH } from "@/queries/refresh";
 import { Filter, X } from "lucide-react";
-import type { NamespaceOverview, NamespaceItem } from "@/types/cluster";
+import type { NamespaceItem } from "@/types/cluster";
 import { NamespaceDetailModal } from "@/components/namespace";
 
 // 带清除按钮的筛选输入框
@@ -95,10 +96,9 @@ function FilterSelect({
 
 export default function NamespacePage() {
   const { t } = useI18n();
-  const { currentClusterId } = useClusterStore();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<NamespaceOverview | null>(null);
-  const [error, setError] = useState("");
+  const { clusterId } = useCurrentCluster();
+  const query = useQuery(namespaceOverviewQuery(clusterId));
+  const data = query.data;
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -109,20 +109,6 @@ export default function NamespacePage() {
   // 详情弹窗状态
   const [selectedNamespace, setSelectedNamespace] = useState<NamespaceItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setError("");
-    try {
-      const res = await getNamespaceOverview({ ClusterID: currentClusterId });
-      setData(res.data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [t.common.loadFailed]);
-
-  const { intervalSeconds } = useAutoRefresh(fetchData);
 
   const handleRowClick = (ns: NamespaceItem) => {
     setSelectedNamespace(ns);
@@ -197,7 +183,7 @@ export default function NamespacePage() {
         <PageHeader
           title={t.nav.namespace}
           description={t.namespace.pageDescription}
-          autoRefreshSeconds={intervalSeconds}
+          autoRefreshSeconds={REFRESH.standard / 1000}
         />
 
         {data && (
@@ -250,17 +236,21 @@ export default function NamespacePage() {
         </div>
 
         {/* 数据表格 */}
-        <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <DataTable
-            columns={columns}
-            data={filteredNamespaces}
-            loading={loading}
-            error={error}
-            keyExtractor={(ns) => ns.name}
-            onRowClick={handleRowClick}
-            pageSize={10}
-          />
-        </div>
+        <QueryView query={query} requireCluster>
+          {() => (
+            <div className="bg-card rounded-xl border border-[var(--border-color)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={filteredNamespaces}
+                loading={false}
+                error=""
+                keyExtractor={(ns) => ns.name}
+                onRowClick={handleRowClick}
+                pageSize={10}
+              />
+            </div>
+          )}
+        </QueryView>
       </div>
 
       {/* Namespace 详情弹窗 */}
