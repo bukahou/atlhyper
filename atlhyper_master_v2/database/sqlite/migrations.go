@@ -671,13 +671,11 @@ func initDefaultAIModels(db *sql.DB) error {
 		{"openai", "gpt-4", "GPT-4", 0, 4, 8192},
 		{"openai", "o1", "o1", 0, 5, 200000},
 		{"openai", "o1-mini", "o1 Mini", 0, 6, 128000},
-		// Anthropic
-		{"anthropic", "claude-sonnet-4-20250514", "Claude Sonnet 4", 1, 1, 200000},
-		{"anthropic", "claude-opus-4-5-20251101", "Claude Opus 4.5", 0, 2, 200000},
-		{"anthropic", "claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet", 0, 3, 200000},
-		{"anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku", 0, 4, 200000},
-		{"anthropic", "claude-3-opus-20240229", "Claude 3 Opus", 0, 5, 200000},
-		{"anthropic", "claude-3-haiku-20240307", "Claude 3 Haiku", 0, 6, 200000},
+		// Anthropic（模型 ID 不带日期后缀）
+		{"anthropic", "claude-haiku-5-5", "Claude Haiku 5.5", 1, 1, 1000000},
+		{"anthropic", "claude-sonnet-5-5", "Claude Sonnet 5.5", 0, 2, 1000000},
+		{"anthropic", "claude-opus-5-5", "Claude Opus 5.5", 0, 3, 1000000},
+		{"anthropic", "claude-fable-5-2", "Claude Fable 5.2", 0, 4, 1000000},
 		// Ollama (本地部署)
 		{"ollama", "qwen2.5:14b", "Qwen 2.5 14B", 1, 1, 32768},
 		{"ollama", "qwen2.5:7b", "Qwen 2.5 7B", 0, 2, 32768},

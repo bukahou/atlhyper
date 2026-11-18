@@ -240,8 +240,7 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	req.APIKey = key
-	// Ollama 不需要 API Key，其他提供商必须
-	if req.APIKey == "" && req.Provider != "ollama" {
+	if req.APIKey == "" && apiKeyRequired(req.Provider) {
 		handler.WriteError(w, http.StatusBadRequest, "api_key is required")
 		return
 	}
@@ -954,6 +953,15 @@ func maskAPIKey(key string) string {
 //     引号多来自 `terraform output` 未加 -raw，替用户删掉有误删真实字符的风险
 //
 // 曾因此类杂质得到难以排查的 403「Invalid API Key format: Base64 decoding failed」。
+// apiKeyRequired 新建时是否必须填 key：Ollama 自部署不需要；Anthropic 不填则走 SDK 凭证链（集群里是 WIF 免密钥）
+func apiKeyRequired(provider string) bool {
+	switch provider {
+	case "ollama", "anthropic":
+		return false
+	}
+	return true
+}
+
 func normalizeAPIKey(provider, raw string) (string, error) {
 	key := strings.TrimSpace(raw)
 	if provider != "bedrock" {
