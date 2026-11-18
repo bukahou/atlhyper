@@ -1972,6 +1972,7 @@ interface NodeMetricsTranslations extends TimeRangePickerTranslations {
     title: string;
     top5: string;
     noData: string;
+    loadFailed: string;
   };
 }
 

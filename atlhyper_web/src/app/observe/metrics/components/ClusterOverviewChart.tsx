@@ -19,10 +19,11 @@ interface ClusterOverviewChartProps {
   hours: number;
 }
 
-/** 把各节点的历史查询合成两样：按查询顺序排列的历史、是否还有节点在首次加载 */
+/** 把各节点的历史查询合成三样：按查询顺序排列的历史、各自是否失败、是否还有节点在首次加载 */
 function combineNodeHistories(results: UseQueryResult<NodeMetricsHistory>[]) {
   return {
     histories: results.map((result) => result.data),
+    failed: results.map((result) => result.isError),
     anyPending: results.some((result) => result.isPending),
   };
 }
@@ -58,7 +59,7 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
 
   // 每个 top 节点一个历史查询，各自缓存、各自按分钟刷新。
   // 快照每 10 秒刷新一轮，名单会重算，但没换的节点键不变，不会跟着重新请求
-  const { histories, anyPending } = useQueries({
+  const { histories, failed, anyPending } = useQueries({
     queries: allTopNodeNames.map((nodeName) => nodeMetricsHistoryQuery(clusterId, nodeName, hours)),
     combine: combineNodeHistories,
   });
@@ -72,6 +73,12 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
     });
     return map;
   }, [allTopNodeNames, histories]);
+
+  /** 历史请求失败的节点：图里没有数据时据此区分「加载失败」与「暂无数据」 */
+  const failedNodes = useMemo(
+    () => new Set(allTopNodeNames.filter((_, index) => failed[index])),
+    [allTopNodeNames, failed],
+  );
 
   const metricTitles: Record<string, string> = {
     cpu: nm.cpu.title,
@@ -111,6 +118,7 @@ export const ClusterOverviewChart = memo(function ClusterOverviewChart({
               metricKey={m.key}
               nodeNames={topNodesByMetric[m.key] || []}
               historyMap={historyMap}
+              failedNodes={failedNodes}
               hours={hours}
             />
           ))}

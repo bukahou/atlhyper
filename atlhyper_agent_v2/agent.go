@@ -43,7 +43,8 @@ var log = logger.Module("Agent")
 // 封装调度器，提供启动/运行/停止接口
 type Agent struct {
 	scheduler *scheduler.Scheduler
-	chClient  sdkpkg.ClickHouseClient // 可选，nil 时不启动
+	chClient  sdkpkg.ClickHouseClient   // 可选，nil 时不启动
+	nodeRepo  repository.NodeRepository // 契约自检核对节点标识用
 }
 
 // New 创建并初始化 Agent 实例
@@ -158,6 +159,7 @@ func New() (*Agent, error) {
 	return &Agent{
 		scheduler: sched,
 		chClient:  chClient,
+		nodeRepo:  repos.node,
 	}, nil
 }
 
@@ -176,11 +178,11 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	// 枚举契约自检: otel_traces / otel_logs 的枚举字符串由 Collector exporter 或
-	// 上报方 SDK 决定，取值不符时查询会静默返回空行。启动时查一次并每 10 分钟重跑 ——
-	// 被观测应用往往在 Agent 启动之后才开始上报，只查一次会错过。
+	// 契约自检: otel_traces / otel_logs 的枚举字符串、node-exporter 指标清单、节点的主机标识
+	// 都由 Collector exporter 或上报方 SDK 决定，对不上时查询会静默返回空行。启动时查一次并
+	// 每 10 分钟重跑 —— 被观测应用往往在 Agent 启动之后才开始上报，只查一次会错过。
 	if a.chClient != nil {
-		go chquery.RunEnumContractChecks(ctx, a.chClient, 10*time.Minute)
+		go chquery.RunEnumContractChecks(ctx, a.chClient, a.nodeRepo, 10*time.Minute)
 	}
 
 	// 启动健康检查 HTTP 服务器（供 K8s liveness/readiness 探针使用）

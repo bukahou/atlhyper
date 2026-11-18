@@ -2,8 +2,10 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -26,7 +28,15 @@ type metricsRepository struct {
 	ipMap     map[string]string
 	ipMapTime time.Time
 	ipMapTTL  time.Duration
+
+	// ClickHouse 里近期有数据的主机标识（net.host.name）缓存；全节点采集每轮都会刷新它
+	hostIDsMu   sync.RWMutex
+	hostIDs     []string
+	hostIDsTime time.Time
 }
+
+// hostIDsTTL 主机标识缓存的有效期。标识只随 Collector 配置变化，全节点采集每轮也会刷新。
+const hostIDsTTL = time.Minute
 
 // NewMetricsQueryRepository 创建 Metrics 查询仓库
 //
@@ -46,11 +56,12 @@ func (r *metricsRepository) ListAllNodeMetrics(ctx context.Context) ([]metrics.N
 		return nil, fmt.Errorf("get IP map: %w", err)
 	}
 
-	// 获取所有有数据的节点 IP
-	ips, err := r.listActiveNodeIPs(ctx)
+	// 获取所有有数据的节点的主机标识
+	ips, err := r.listActiveHostIDs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list active nodes: %w", err)
 	}
+	r.rememberHostIDs(ips)
 
 	// 节点间并行采集（限并发 4）。
 	// 旧实现串行迭代且共享一个 context 超时：ClickHouse 一慢，
@@ -92,28 +103,20 @@ func (r *metricsRepository) ListAllNodeMetrics(ctx context.Context) ([]metrics.N
 
 // GetNodeMetrics 获取单节点指标快照
 func (r *metricsRepository) GetNodeMetrics(ctx context.Context, nodeName string) (*metrics.NodeMetrics, error) {
-	ip, err := r.resolveNodeIP(ctx, nodeName)
-	if err != nil {
-		return nil, err
-	}
-	return r.buildNodeMetrics(ctx, ip, nodeName)
+	return r.buildNodeMetrics(ctx, r.resolveHostID(ctx, nodeName), nodeName)
 }
 
 // GetNodeMetricsSeries 获取单指标时序数据
 func (r *metricsRepository) GetNodeMetricsSeries(ctx context.Context, nodeName string, metric string, since time.Duration) ([]metrics.Point, error) {
-	ip, err := r.resolveNodeIP(ctx, nodeName)
-	if err != nil {
-		return nil, err
-	}
-
+	hostID := r.resolveHostID(ctx, nodeName)
 	sec := sinceSeconds(since)
 
 	// 根据指标类型判断查询方式
 	switch {
 	case isCounterMetric(metric):
-		return r.queryCounterSeries(ctx, ip, metric, sec)
+		return r.queryCounterSeries(ctx, hostID, metric, sec)
 	default:
-		return r.queryGaugeSeries(ctx, ip, metric, sec)
+		return r.queryGaugeSeries(ctx, hostID, metric, sec)
 	}
 }
 
@@ -169,19 +172,59 @@ func (r *metricsRepository) getIPMap(ctx context.Context) (map[string]string, er
 	return m, nil
 }
 
-// resolveNodeIP 从 NodeName 反查 IP
-func (r *metricsRepository) resolveNodeIP(ctx context.Context, nodeName string) (string, error) {
-	ipMap, err := r.getIPMap(ctx)
+// =============================================================================
+// 主机标识：节点在 ClickHouse 里的 ResourceAttributes['net.host.name']
+// =============================================================================
+//
+// 标识由 Collector 给 node-exporter 打的 instance 标签决定（当前是 K8s 节点名，早期是节点 IP），
+// 不受本项目控制。按节点查询必须用 ClickHouse 里实际出现的写法，否则 SQL 成功、返回 0 行。
+
+// resolveHostID 返回节点在 ClickHouse 里的主机标识。
+// 节点 IP 只用于识别「标识是 IP」的写法；K8s 节点列表取不到时按节点名查。
+func (r *metricsRepository) resolveHostID(ctx context.Context, nodeName string) string {
+	var nodeIP string
+	if ipMap, err := r.getIPMap(ctx); err == nil {
+		nodeIP = nodeIPByName(ipMap)[nodeName]
+	}
+	return pickHostID(nodeName, nodeIP, r.activeHostIDs(ctx))
+}
+
+// pickHostID 在近期出现过的主机标识里找这个节点：先认节点名，再认节点 IP；都没有时用节点名
+// （当前 Collector 的写法）。
+func pickHostID(nodeName, nodeIP string, activeIDs []string) string {
+	if slices.Contains(activeIDs, nodeName) {
+		return nodeName
+	}
+	if nodeIP != "" && slices.Contains(activeIDs, nodeIP) {
+		return nodeIP
+	}
+	return nodeName
+}
+
+// activeHostIDs 近期有数据的主机标识（带缓存）。查询失败时返回 nil，由 pickHostID 按节点名处理。
+func (r *metricsRepository) activeHostIDs(ctx context.Context) []string {
+	r.hostIDsMu.RLock()
+	if r.hostIDs != nil && time.Since(r.hostIDsTime) < hostIDsTTL {
+		ids := r.hostIDs
+		r.hostIDsMu.RUnlock()
+		return ids
+	}
+	r.hostIDsMu.RUnlock()
+
+	ids, err := r.listActiveHostIDs(ctx)
 	if err != nil {
-		return "", err
+		logger.Warn("近期主机标识查询失败，按节点名查询", "err", err)
+		return nil
 	}
-	for ip, name := range ipMap {
-		if name == nodeName {
-			return ip, nil
-		}
-	}
-	// 如果找不到，尝试直接用 nodeName 当 IP
-	return nodeName, nil
+	r.rememberHostIDs(ids)
+	return ids
+}
+
+func (r *metricsRepository) rememberHostIDs(ids []string) {
+	r.hostIDsMu.Lock()
+	r.hostIDs = ids
+	r.hostIDsTime = time.Now()
+	r.hostIDsMu.Unlock()
 }
 
 // nodeIPByName 把 getIPMap 的 IP→节点名 反转为 节点名→IP。
@@ -195,29 +238,34 @@ func nodeIPByName(ipToName map[string]string) map[string]string {
 	return m
 }
 
-// listActiveNodeIPs 从 ClickHouse 获取最近有数据的节点 IP
-func (r *metricsRepository) listActiveNodeIPs(ctx context.Context) ([]string, error) {
+// listActiveHostIDs 从 ClickHouse 获取最近有数据的节点的主机标识
+func (r *metricsRepository) listActiveHostIDs(ctx context.Context) ([]string, error) {
+	return queryActiveHostIDs(ctx, r.client)
+}
+
+// queryActiveHostIDs 最近 5 分钟上报过 node_load1 的主机标识（每个节点一个）。
+func queryActiveHostIDs(ctx context.Context, client sdk.ClickHouseClient) ([]string, error) {
 	query := `
 		SELECT DISTINCT ResourceAttributes['net.host.name'] AS ip
 		FROM otel_metrics_gauge
 		WHERE MetricName = 'node_load1'
 		  AND TimeUnix >= now() - INTERVAL 5 MINUTE
 	`
-	rows, err := r.client.Query(ctx, query)
+	rows, err := client.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var ips []string
+	var ids []string
 	for rows.Next() {
-		var ip string
-		if err := rows.Scan(&ip); err != nil {
+		var id string
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		ips = append(ips, ip)
+		ids = append(ids, id)
 	}
-	return ips, rows.Err()
+	return ids, rows.Err()
 }
 
 // =============================================================================
@@ -1287,12 +1335,11 @@ func isCounterMetric(metric string) bool {
 //   - ≤6h  → 1min  (最多 360 点)
 //   - ≤24h → 5min  (最多 288 点)
 //   - >24h → 15min
+//
+// 四个指标全部查询失败时返回错误（调用方据此显示「加载失败」而不是「暂无数据」）；
+// 部分失败时返回其余指标并记告警。
 func (r *metricsRepository) GetNodeMetricsHistory(ctx context.Context, nodeName string, since time.Duration) (map[string][]metrics.Point, error) {
-	ip, err := r.resolveNodeIP(ctx, nodeName)
-	if err != nil {
-		return nil, err
-	}
-
+	hostID := r.resolveHostID(ctx, nodeName)
 	sec := sinceSeconds(since)
 
 	// 自动调整采样粒度
@@ -1303,52 +1350,61 @@ func (r *metricsRepository) GetNodeMetricsHistory(ctx context.Context, nodeName 
 		intervalSec = 300 // 5 分钟
 	}
 
+	historyQueries := []struct {
+		key string
+		run func(ctx context.Context, hostID string, sinceSec int64, intervalSec int) ([]metrics.Point, error)
+	}{
+		{"cpu", r.queryCPUHistory},
+		{"memory", r.queryMemoryHistory},
+		{"disk", r.queryDiskHistory},
+		{"temp", r.queryTempHistory},
+	}
+
+	// 并行查询 4 个指标
+	type outcome struct {
+		key    string
+		points []metrics.Point
+		err    error
+	}
+	ch := make(chan outcome, len(historyQueries))
+	var wg sync.WaitGroup
+	for _, q := range historyQueries {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			pts, err := q.run(ctx, hostID, sec, intervalSec)
+			ch <- outcome{key: q.key, points: pts, err: err}
+		}()
+	}
+	wg.Wait()
+	close(ch)
+
 	result := map[string][]metrics.Point{
 		"cpu":    {},
 		"memory": {},
 		"disk":   {},
 		"temp":   {},
 	}
-
-	// 并行查询 4 个指标
-	type kv struct {
-		key    string
-		points []metrics.Point
-	}
-	ch := make(chan kv, 4)
-	var wg sync.WaitGroup
-	wg.Add(4)
-
-	go func() {
-		defer wg.Done()
-		pts, _ := r.queryCPUHistory(ctx, ip, sec, intervalSec)
-		ch <- kv{"cpu", pts}
-	}()
-	go func() {
-		defer wg.Done()
-		pts, _ := r.queryMemoryHistory(ctx, ip, sec, intervalSec)
-		ch <- kv{"memory", pts}
-	}()
-	go func() {
-		defer wg.Done()
-		pts, _ := r.queryDiskHistory(ctx, ip, sec, intervalSec)
-		ch <- kv{"disk", pts}
-	}()
-	go func() {
-		defer wg.Done()
-		pts, _ := r.queryTempHistory(ctx, ip, sec, intervalSec)
-		ch <- kv{"temp", pts}
-	}()
-
-	wg.Wait()
-	close(ch)
-
+	var failed []string
+	var errs []error
 	for item := range ch {
+		if item.err != nil {
+			failed = append(failed, item.key)
+			errs = append(errs, fmt.Errorf("%s: %w", item.key, item.err))
+			continue
+		}
 		if item.points != nil {
 			result[item.key] = item.points
 		}
 	}
-
+	if len(failed) == len(historyQueries) {
+		return nil, fmt.Errorf("节点 %s 的历史查询全部失败: %w", nodeName, errors.Join(errs...))
+	}
+	if len(failed) > 0 {
+		sort.Strings(failed)
+		logger.Warn("节点历史查询部分失败，这几项曲线为空", "node", nodeName, "hostID", hostID,
+			"失败", strings.Join(failed, ","), "err", errors.Join(errs...))
+	}
 	return result, nil
 }
 
