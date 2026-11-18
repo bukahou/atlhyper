@@ -1398,6 +1398,7 @@ export const ja: Translations = {
     // Toast メッセージ
     requiredFields: "必須項目を入力してください",
     apiKeyRequired: "API Key を入力してください",
+    anthropicKeylessHint: "空欄の場合はクラスタの ID でキーなしでアクセスします（Workload Identity Federation。クラスタ側の設定が必要）",
     providerUpdated: "プロバイダーを更新しました",
     providerAdded: "プロバイダーを追加しました",
     saveFailed: "保存に失敗しました",

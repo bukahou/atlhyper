@@ -1398,6 +1398,7 @@ export const zh: Translations = {
     // Toast 消息
     requiredFields: "请填写必填项",
     apiKeyRequired: "请输入 API Key",
+    anthropicKeylessHint: "留空则用集群身份免密钥访问（Workload Identity Federation，需在集群里配置）",
     providerUpdated: "提供商已更新",
     providerAdded: "提供商已添加",
     saveFailed: "保存失败",

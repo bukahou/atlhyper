@@ -134,7 +134,7 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 	}
 
 	// 收集完整响应（流出错 → 报错，不把半截文本当结果）
-	text, _, usage, err := collectStreamResponse(stream)
+	text, _, usage, _, err := collectStreamResponse(stream)
 	if err != nil {
 		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("LLM 流错误: %v", err))
 		return nil, fmt.Errorf("LLM 流错误: %w", err)

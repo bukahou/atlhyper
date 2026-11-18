@@ -143,7 +143,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		}
 
 		// 读取流式响应
-		text, toolCalls, usage, err := s.readLLMStream(ctx, stream, ch)
+		text, toolCalls, usage, providerTurn, err := s.readLLMStream(ctx, stream, ch)
 		if err != nil {
 			log.Error("LLM 流读取错误", "conv", convID, "err", err)
 			sendError(ch, fmt.Sprintf("AI 服务错误: %v", err))
@@ -198,9 +198,10 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 
 		// 添加 assistant 消息（含 tool calls）到历史
 		messages = append(messages, llm.Message{
-			Role:      "assistant",
-			Content:   text,
-			ToolCalls: toolCalls,
+			Role:         "assistant",
+			Content:      text,
+			ToolCalls:    toolCalls,
+			ProviderTurn: providerTurn, // 整轮回答原样带回（如 Claude 的思考块），不落库
 		})
 
 		// 【重要】先に assistant メッセージを保存（tool_result より前に必要）
@@ -262,7 +263,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		sendError(ch, fmt.Sprintf("LLM 调用失败: %v", err))
 		return
 	}
-	text, _, usage, _ := s.readLLMStream(ctx, stream, ch)
+	text, _, usage, _, _ := s.readLLMStream(ctx, stream, ch)
 	if usage != nil {
 		totalInputTokens += usage.InputTokens
 		totalOutputTokens += usage.OutputTokens
@@ -293,8 +294,8 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 }
 
 // readLLMStream 读取 LLM 流式响应
-// 返回: 累积文本, ToolCall 列表, Usage, 错误
-func (s *aiServiceImpl) readLLMStream(ctx context.Context, stream <-chan *llm.Chunk, ch chan<- *ChatChunk) (string, []llm.ToolCall, *llm.Usage, error) {
+// 返回: 累积文本, ToolCall 列表, Usage, 整轮回答（Done 带回，下一轮原样带上）, 错误
+func (s *aiServiceImpl) readLLMStream(ctx context.Context, stream <-chan *llm.Chunk, ch chan<- *ChatChunk) (string, []llm.ToolCall, *llm.Usage, any, error) {
 	var text string
 	var toolCalls []llm.ToolCall
 	var usage *llm.Usage
@@ -302,7 +303,7 @@ func (s *aiServiceImpl) readLLMStream(ctx context.Context, stream <-chan *llm.Ch
 	for chunk := range stream {
 		select {
 		case <-ctx.Done():
-			return text, toolCalls, usage, ctx.Err()
+			return text, toolCalls, usage, nil, ctx.Err()
 		default:
 		}
 
@@ -318,15 +319,15 @@ func (s *aiServiceImpl) readLLMStream(ctx context.Context, stream <-chan *llm.Ch
 
 		case llm.ChunkDone:
 			usage = chunk.Usage
-			return text, toolCalls, usage, nil
+			return text, toolCalls, usage, chunk.ProviderTurn, nil
 
 		case llm.ChunkError:
 			log.Debug("收到 ChunkError", "err", chunk.Error)
-			return text, toolCalls, usage, chunk.Error
+			return text, toolCalls, usage, nil, chunk.Error
 		}
 	}
 
-	return text, toolCalls, usage, nil
+	return text, toolCalls, usage, nil, nil
 }
 
 // persistFinalAssistantMessage 持久化最终的 assistant 消息（纯文本回答）

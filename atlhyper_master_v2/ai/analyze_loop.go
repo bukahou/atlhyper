@@ -69,7 +69,7 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 		if err != nil {
 			return out, fmt.Errorf("第 %d 轮 LLM 调用失败: %w", round, err)
 		}
-		text, toolCalls, usage, err := collectStreamResponse(stream)
+		text, toolCalls, usage, providerTurn, err := collectStreamResponse(stream)
 		if usage != nil {
 			out.InputTokens += usage.InputTokens
 			out.OutputTokens += usage.OutputTokens
@@ -83,7 +83,7 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 			if round == 1 && !reminded && round < p.MaxRounds && len(p.Tools) > 0 {
 				reminded = true
 				if text != "" {
-					messages = append(messages, llm.Message{Role: "assistant", Content: text})
+					messages = append(messages, llm.Message{Role: "assistant", Content: text, ProviderTurn: providerTurn})
 				}
 				messages = append(messages, llm.Message{Role: "user", Content: evidenceReminder})
 				continue
@@ -97,7 +97,7 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 		}
 		out.ToolCalls += len(toolCalls)
 		step := AnalyzeStep{Round: round, Thinking: text}
-		messages = append(messages, llm.Message{Role: "assistant", Content: text, ToolCalls: toolCalls})
+		messages = append(messages, llm.Message{Role: "assistant", Content: text, ToolCalls: toolCalls, ProviderTurn: providerTurn})
 
 		for i := range toolCalls {
 			tc := toolCalls[i]
@@ -119,8 +119,9 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 }
 
 // collectStreamResponse 收集流式响应（不推送 SSE，静默收集）
-// 流以 error 结束时返回该错误，调用方据此区分「出错」与「正常收尾」
-func collectStreamResponse(stream <-chan *llm.Chunk) (string, []llm.ToolCall, *llm.Usage, error) {
+// 流以 error 结束时返回该错误，调用方据此区分「出错」与「正常收尾」；
+// providerTurn 是 Done 带回的整轮回答，下一轮请求要原样带上（见 llm.Message.ProviderTurn）
+func collectStreamResponse(stream <-chan *llm.Chunk) (string, []llm.ToolCall, *llm.Usage, any, error) {
 	var text strings.Builder
 	var toolCalls []llm.ToolCall
 
@@ -133,14 +134,14 @@ func collectStreamResponse(stream <-chan *llm.Chunk) (string, []llm.ToolCall, *l
 				toolCalls = append(toolCalls, *chunk.ToolCall)
 			}
 		case llm.ChunkDone:
-			return text.String(), toolCalls, chunk.Usage, nil
+			return text.String(), toolCalls, chunk.Usage, chunk.ProviderTurn, nil
 		case llm.ChunkError:
 			err := chunk.Error
 			if err == nil {
 				err = fmt.Errorf("LLM 流错误")
 			}
-			return text.String(), toolCalls, nil, err
+			return text.String(), toolCalls, nil, nil, err
 		}
 	}
-	return text.String(), toolCalls, nil, nil
+	return text.String(), toolCalls, nil, nil, nil
 }

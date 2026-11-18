@@ -1438,6 +1438,7 @@ export interface AISettingsPageTranslations {
   // Toast 消息
   requiredFields: string;
   apiKeyRequired: string;
+  anthropicKeylessHint: string;
   providerUpdated: string;
   providerAdded: string;
   saveFailed: string;
