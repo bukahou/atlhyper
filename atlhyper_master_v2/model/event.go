@@ -11,10 +11,12 @@ type EventLog struct {
 	Message   string `json:"message"`
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
-	Node      string `json:"node"`
+	Node      string `json:"node"`   // 来源主机（节点名）；上报方没有给出时为空
+	Source    string `json:"source"` // 产生事件的组件（kubelet / default-scheduler …）
+	Count     int    `json:"count"`  // 发生次数
 	Reason    string `json:"reason"`
 	Severity  string `json:"severity"` // EventSeverity* 之一，前端只按它上色
-	Time      string `json:"time"`
+	Time      string `json:"time"`     // 首次发生；EventTime 为最近一次
 }
 
 // 事件严重程度（由后端判定，见 convert.eventSeverity）
