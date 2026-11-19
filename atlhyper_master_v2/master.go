@@ -593,16 +593,17 @@ func NewMaster() (*Master, error) {
 	var oidcModule *oidc.Module
 	if cfg.OIDC.Enabled() {
 		oidcModule = oidc.NewModule(oidc.Config{
-			Issuer:       cfg.OIDC.Issuer,
-			ClientID:     cfg.OIDC.ClientID,
-			ClientSecret: cfg.OIDC.ClientSecret,
-			RedirectURL:  cfg.OIDC.RedirectURL,
-			CookieSecret: cfg.OIDC.CookieSecret,
-			CookieSecure: cfg.OIDC.CookieSecure,
-			DisplayName:  cfg.OIDC.DisplayName,
-			NewUserRole:  middleware.RoleMember,
-			Accounts:     svc,
-			IssueToken:   middleware.GenerateToken,
+			Issuer:         cfg.OIDC.Issuer,
+			ClientID:       cfg.OIDC.ClientID,
+			ClientSecret:   cfg.OIDC.ClientSecret,
+			RedirectURL:    cfg.OIDC.RedirectURL,
+			CookieSecret:   cfg.OIDC.CookieSecret,
+			CookieSecure:   cfg.OIDC.CookieSecure,
+			DisplayName:    cfg.OIDC.DisplayName,
+			ClientIPHeader: cfg.Server.ClientIPHeader,
+			NewUserRole:    middleware.RoleMember,
+			Accounts:       svc,
+			IssueToken:     middleware.GenerateToken,
 		})
 		log.Info("OIDC 登录已启用（首次使用时连接 issuer）", "issuer", cfg.OIDC.Issuer)
 	}

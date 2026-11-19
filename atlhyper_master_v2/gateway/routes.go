@@ -14,6 +14,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/auth/oidc"
+	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
@@ -115,10 +116,21 @@ func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger
 }
 
 // Handler 返回包装了中间件的 Handler
-// 顺序: Logging -> CORS -> Authenticate（解析主体）-> mux（各路由自带权限检查）
+// 顺序: Logging -> CORS -> LimitBody（请求体上限）-> Authenticate（解析主体）-> mux（各路由自带权限检查）
 func (r *Router) Handler() http.Handler {
 	r.registerRoutes()
-	return middleware.Logging(middleware.CORS(middleware.Authenticate(r.service)(r.mux)))
+	limitBody := middleware.LimitBody(maxRequestBodyBytes())
+	return middleware.Logging(middleware.CORS(limitBody(middleware.Authenticate(r.service)(r.mux))))
+}
+
+// defaultMaxRequestBodyBytes 配置缺省（如测试里未加载配置）时的请求体上限
+const defaultMaxRequestBodyBytes = 1 << 20
+
+func maxRequestBodyBytes() int64 {
+	if n := config.GlobalConfig.Server.MaxRequestBodyBytes; n > 0 {
+		return n
+	}
+	return defaultMaxRequestBodyBytes
 }
 
 // registerRoutes 注册所有路由
@@ -436,10 +448,10 @@ func (r *Router) handle(spec routeSpec, h http.HandlerFunc) {
 
 // audit 创建审计中间件
 func (r *Router) audit(action, resource string) func(http.HandlerFunc) http.HandlerFunc {
-	return middleware.Audit(r.database.Audit, middleware.AuditConfig{
+	return middleware.AuditWithClientIP(r.database.Audit, middleware.AuditConfig{
 		Action:   action,
 		Resource: resource,
-	})
+	}, config.GlobalConfig.Server.ClientIPHeader)
 }
 
 // healthCheck 健康检查

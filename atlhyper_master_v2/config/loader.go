@@ -28,6 +28,9 @@ func LoadConfig() {
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
 		PublicURL:    getString("MASTER_PUBLIC_URL"),
 		Timezone:     getString("MASTER_TIMEZONE"),
+
+		ClientIPHeader:      getString("MASTER_GATEWAY_CLIENT_IP_HEADER"),
+		MaxRequestBodyBytes: int64(getInt("MASTER_GATEWAY_MAX_BODY_KB")) << 10,
 	}
 
 	GlobalConfig.AgentSDK = AgentSDKConfig{

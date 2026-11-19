@@ -8,10 +8,10 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/gateway/clientip"
 	"AtlHyper/common/logger"
 
 	"github.com/bukahou/akasha/pkg/oidcrp"
@@ -39,6 +39,8 @@ type Config struct {
 	CookieSecret string
 	CookieSecure bool
 	DisplayName  string
+	// ClientIPHeader 记录登录地址时信任的头名，见 gateway/clientip
+	ClientIPHeader string
 
 	NewUserRole int             // 新账号的角色（成员 = 0）
 	Accounts    Accounts        // 必填
@@ -174,7 +176,7 @@ func (m *Module) onAuthenticated(_ http.ResponseWriter, r *http.Request, res oid
 	if err != nil {
 		return "", err
 	}
-	if err := m.cfg.Accounts.UpdateUserLastLogin(r.Context(), user.ID, clientIP(r)); err != nil {
+	if err := m.cfg.Accounts.UpdateUserLastLogin(r.Context(), user.ID, clientip.FromRequest(r, m.cfg.ClientIPHeader)); err != nil {
 		log.Warn("更新最后登录时间失败", "user_id", user.ID, "err", err)
 	}
 	log.Info("OIDC 登录成功", "user_id", user.ID, "username", user.Username, "role", user.Role)
@@ -206,12 +208,4 @@ func fragmentURL(v url.Values) string {
 
 func redirectWithFragment(w http.ResponseWriter, r *http.Request, v url.Values) {
 	http.Redirect(w, r, fragmentURL(v), http.StatusFound)
-}
-
-// clientIP 取 X-Forwarded-For 第一段（与审计中间件一致）
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.TrimSpace(strings.Split(xff, ",")[0])
-	}
-	return r.RemoteAddr
 }

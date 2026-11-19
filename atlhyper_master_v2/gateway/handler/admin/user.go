@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/gateway/clientip"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/common/logger"
@@ -161,11 +163,9 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新登录时间
-	clientIP := r.RemoteAddr
-	if xForwardedFor := r.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
-		clientIP = xForwardedFor
+	if err := h.opsSvc.UpdateUserLastLogin(r.Context(), user.ID, clientip.FromRequest(r, config.GlobalConfig.Server.ClientIPHeader)); err != nil {
+		log.Warn("更新最近登录信息失败", "user", user.ID, "err", err)
 	}
-	_ = h.opsSvc.UpdateUserLastLogin(r.Context(), user.ID, clientIP)
 
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "登录成功",

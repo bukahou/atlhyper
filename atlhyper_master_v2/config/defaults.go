@@ -45,8 +45,9 @@ var defaultDurations = map[string]string{
 // ============================================================
 var defaultInts = map[string]int{
 	// -------------------- 服务器配置 --------------------
-	"MASTER_GATEWAY_PORT":  8080, // Gateway 端口（Web/API）
-	"MASTER_AGENTSDK_PORT": 8081, // AgentSDK 端口（Agent 数据上报）
+	"MASTER_GATEWAY_PORT":        8080, // Gateway 端口（Web/API）
+	"MASTER_GATEWAY_MAX_BODY_KB": 1024, // Web API 单个请求体上限（KB）
+	"MASTER_AGENTSDK_PORT":       8081, // AgentSDK 端口（Agent 数据上报）
 
 	// -------------------- Agent 入口配置 --------------------
 	"MASTER_AGENTSDK_MAX_SNAPSHOT_MB": 256, // 单份快照的大小上限（MB，压缩前后都适用）
@@ -80,8 +81,9 @@ var defaultStrings = map[string]string{
 	"MASTER_LOG_FORMAT": "text", // 日志格式: text / json
 
 	// -------------------- 服务器配置 --------------------
-	"MASTER_PUBLIC_URL": "",    // 对外访问地址（通知里的页面链接用）；不配则通知不带链接
-	"MASTER_TIMEZONE":   "UTC", // 通知消息里时间的显示时区（IANA 名，如 Asia/Tokyo）；不合法时退回 UTC
+	"MASTER_PUBLIC_URL":               "",    // 对外访问地址（通知里的页面链接用）；不配则通知不带链接
+	"MASTER_TIMEZONE":                 "UTC", // 通知消息里时间的显示时区（IANA 名，如 Asia/Tokyo）；不合法时退回 UTC
+	"MASTER_GATEWAY_CLIENT_IP_HEADER": "",    // 入口写入真实客户端地址的头名；空 = 取 TCP 对端地址
 
 	// -------------------- Agent 入口配置 --------------------
 	"MASTER_AGENT_AUTH_MODE": "warn", // Agent 令牌认证模式: off / warn / enforce

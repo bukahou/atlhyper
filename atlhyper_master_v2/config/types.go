@@ -13,6 +13,11 @@ type ServerConfig struct {
 	PublicURL string
 	// Timezone 通知消息里时间的显示时区（IANA 名，如 Asia/Tokyo）。只影响显示，存储与接口一律 UTC
 	Timezone string
+	// ClientIPHeader 最外层入口（如 CDN）覆盖写入真实客户端地址的头名（如 CF-Connecting-IP）。
+	// 空 = 不信任任何头，取 TCP 对端地址；⛔ 不要配成 X-Forwarded-For（客户端可以伪造）
+	ClientIPHeader string
+	// MaxRequestBodyBytes Web API 单个请求体的上限
+	MaxRequestBodyBytes int64
 }
 
 // AgentSDKConfig Agent 入口（AgentSDK）的认证与限额配置
