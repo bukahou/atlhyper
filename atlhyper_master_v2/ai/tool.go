@@ -90,7 +90,7 @@ func (e *toolExecutor) Execute(ctx context.Context, clusterID string, allow Perm
 		TargetKind:      kind,
 		TargetNamespace: namespace,
 		TargetName:      name,
-		Source:          "ai",
+		Source:          command.SourceAI,
 		Params:          cmdParams,
 	}
 
@@ -132,7 +132,7 @@ func mapToInternalAction(action string, params map[string]interface{}) (string, 
 
 	case "get_configmap":
 		// 直接使用 get_configmap action
-		return "get_configmap", cmdParams
+		return command.ActionGetConfigMap, cmdParams
 
 	default:
 		// get / list / describe / get_events 等统一走 dynamic
@@ -148,7 +148,7 @@ func mapToInternalAction(action string, params map[string]interface{}) (string, 
 		if v := getString(params, "involved_name"); v != "" {
 			cmdParams["involved_name"] = v
 		}
-		return "dynamic", cmdParams
+		return command.ActionDynamic, cmdParams
 	}
 }
 

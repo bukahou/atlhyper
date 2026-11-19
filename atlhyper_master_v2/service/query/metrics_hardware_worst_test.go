@@ -55,7 +55,7 @@ func TestBuildHardwareRow_HiddenHDDWarnReachesOverall(t *testing.T) {
 // 速览 tile 跨节点、跨类别比较：CPU 更热但正常，另一台的机械盘超线 → tile 必须指向机械盘。
 func TestBuildHardwareSummary_WorstStatusBeatsHotter(t *testing.T) {
 	nodes := []metrics.NodeMetrics{
-		{NodeName: "desk-zero", HardwareProfile: metrics.ProfileDesk,
+		{NodeName: "node-1", HardwareProfile: metrics.ProfileDesk,
 			Temperature: metrics.NodeTemperature{Sensors: []metrics.TempSensor{
 				{Chip: "platform_coretemp_0", ChipName: "coretemp", Sensor: "temp1", CurrentC: 74, MaxC: 80, CritC: 100},
 			}}},

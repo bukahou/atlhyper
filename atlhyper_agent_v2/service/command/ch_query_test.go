@@ -13,7 +13,6 @@ import (
 	"AtlHyper/model_v3/command"
 	"AtlHyper/model_v3/log"
 	"AtlHyper/model_v3/metrics"
-	"AtlHyper/model_v3/slo"
 )
 
 // newTestService 创建包含 ClickHouse mock 的测试服务
@@ -21,7 +20,6 @@ func newTestService(
 	traceRepo repository.TraceQueryRepository,
 	logRepo repository.LogQueryRepository,
 	metricsRepo repository.MetricsQueryRepository,
-	sloRepo repository.SLOQueryRepository,
 ) *commandService {
 	return &commandService{
 		podRepo:          &mock.PodRepository{},
@@ -29,7 +27,6 @@ func newTestService(
 		traceQueryRepo:   traceRepo,
 		logQueryRepo:     logRepo,
 		metricsQueryRepo: metricsRepo,
-		sloQueryRepo:     sloRepo,
 	}
 }
 
@@ -46,10 +43,11 @@ func TestExecute_QueryTraces_ListTraces(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-1",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "list_traces", "service": "api"},
 	}
 
@@ -70,10 +68,11 @@ func TestExecute_QueryTraces_ListServices(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-2",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "list_services"},
 	}
 
@@ -88,10 +87,11 @@ func TestExecute_QueryTraces_ListServices(t *testing.T) {
 }
 
 func TestExecute_QueryTraces_NilRepo(t *testing.T) {
-	svc := newTestService(nil, nil, nil, nil)
+	svc := newTestService(nil, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-nil",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{},
 	}
 
@@ -120,10 +120,11 @@ func TestExecute_QueryTraceDetail_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-trace-detail-1",
 		Action: command.ActionQueryTraceDetail,
+		Source: command.SourceWeb,
 		Params: map[string]any{"trace_id": "abc123"},
 	}
 
@@ -139,10 +140,11 @@ func TestExecute_QueryTraceDetail_Success(t *testing.T) {
 
 func TestExecute_QueryTraceDetail_MissingID(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{}
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-trace-detail-2",
 		Action: command.ActionQueryTraceDetail,
+		Source: command.SourceWeb,
 		Params: map[string]any{},
 	}
 
@@ -176,10 +178,11 @@ func TestExecute_QueryLogs_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(nil, logRepo, nil, nil)
+	svc := newTestService(nil, logRepo, nil)
 	cmd := &command.Command{
 		ID:     "cmd-logs-ch-1",
 		Action: command.ActionQueryLogs,
+		Source: command.SourceWeb,
 		Params: map[string]any{
 			"service": "api",
 			"level":   "ERROR",
@@ -210,10 +213,11 @@ func TestExecute_QueryMetrics_ListAll(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(nil, nil, metricsRepo, nil)
+	svc := newTestService(nil, nil, metricsRepo)
 	cmd := &command.Command{
 		ID:     "cmd-metrics-1",
 		Action: command.ActionQueryMetrics,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "list_all"},
 	}
 
@@ -237,10 +241,11 @@ func TestExecute_QueryMetrics_GetNode(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(nil, nil, metricsRepo, nil)
+	svc := newTestService(nil, nil, metricsRepo)
 	cmd := &command.Command{
 		ID:     "cmd-metrics-2",
 		Action: command.ActionQueryMetrics,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "get_node", "node_name": "worker-1"},
 	}
 
@@ -258,10 +263,11 @@ func TestExecute_QueryMetrics_GetSeries(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(nil, nil, metricsRepo, nil)
+	svc := newTestService(nil, nil, metricsRepo)
 	cmd := &command.Command{
 		ID:     "cmd-metrics-3",
 		Action: command.ActionQueryMetrics,
+		Source: command.SourceWeb,
 		Params: map[string]any{
 			"sub_action": "get_series",
 			"node_name":  "worker-1",
@@ -279,10 +285,11 @@ func TestExecute_QueryMetrics_GetSeries(t *testing.T) {
 
 func TestExecute_QueryMetrics_MissingNodeName(t *testing.T) {
 	metricsRepo := &mock.MetricsQueryRepository{}
-	svc := newTestService(nil, nil, metricsRepo, nil)
+	svc := newTestService(nil, nil, metricsRepo)
 	cmd := &command.Command{
 		ID:     "cmd-metrics-4",
 		Action: command.ActionQueryMetrics,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "get_node"},
 	}
 
@@ -290,57 +297,6 @@ func TestExecute_QueryMetrics_MissingNodeName(t *testing.T) {
 
 	if result.Success {
 		t.Fatal("expected failure for missing node_name")
-	}
-}
-
-// =============================================================================
-// TestExecute_QuerySLO
-// =============================================================================
-
-func TestExecute_QuerySLO_ListIngress(t *testing.T) {
-	sloRepo := &mock.SLOQueryRepository{
-		ListIngressSLOFn: func(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error) {
-			return []slo.IngressSLO{
-				{ServiceKey: "web@docker", RPS: 100},
-			}, nil
-		},
-	}
-
-	svc := newTestService(nil, nil, nil, sloRepo)
-	cmd := &command.Command{
-		ID:     "cmd-slo-1",
-		Action: command.ActionQuerySLO,
-		Params: map[string]any{"sub_action": "list_ingress"},
-	}
-
-	result := svc.Execute(context.Background(), cmd)
-
-	if !result.Success {
-		t.Fatalf("expected success, got error: %s", result.Error)
-	}
-	if !strings.Contains(result.Output, "web@docker") {
-		t.Errorf("expected output to contain service key, got: %s", result.Output)
-	}
-}
-
-func TestExecute_QuerySLO_GetSummary(t *testing.T) {
-	sloRepo := &mock.SLOQueryRepository{
-		GetSLOSummaryFn: func(ctx context.Context) (*slo.SLOSummary, error) {
-			return &slo.SLOSummary{TotalServices: 5, HealthyServices: 4}, nil
-		},
-	}
-
-	svc := newTestService(nil, nil, nil, sloRepo)
-	cmd := &command.Command{
-		ID:     "cmd-slo-3",
-		Action: command.ActionQuerySLO,
-		Params: map[string]any{"sub_action": "get_summary"},
-	}
-
-	result := svc.Execute(context.Background(), cmd)
-
-	if !result.Success {
-		t.Fatalf("expected success, got error: %s", result.Error)
 	}
 }
 
@@ -384,10 +340,11 @@ func TestExecute_QueryTraces_HTTPStats(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-http-stats",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "http_stats", "service": "api"},
 	}
 
@@ -403,10 +360,11 @@ func TestExecute_QueryTraces_HTTPStats(t *testing.T) {
 
 func TestExecute_QueryTraces_HTTPStats_MissingService(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{}
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-http-stats-2",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "http_stats"},
 	}
 
@@ -429,10 +387,11 @@ func TestExecute_QueryTraces_DBStats(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-db-stats",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "db_stats", "service": "api"},
 	}
 

@@ -229,7 +229,7 @@ func (r *metricsRepository) rememberHostIDs(ids []string) {
 
 // nodeIPByName 把 getIPMap 的 IP→节点名 反转为 节点名→IP。
 // 指标的 host 标识是主机名（net.host.name），NodeIP 需从 K8s 节点信息反查；
-// 此前直接拿主机名凑数，前端出现「archangel archangel」双名。
+// 直接拿主机名凑数会让前端把同一个主机名显示两遍。
 func nodeIPByName(ipToName map[string]string) map[string]string {
 	m := make(map[string]string, len(ipToName))
 	for ip, name := range ipToName {

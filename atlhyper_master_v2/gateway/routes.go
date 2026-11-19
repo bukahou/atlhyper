@@ -14,6 +14,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/auth/oidc"
+	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
@@ -115,10 +116,35 @@ func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger
 }
 
 // Handler 返回包装了中间件的 Handler
-// 顺序: Logging -> CORS -> Authenticate（解析主体）-> mux（各路由自带权限检查）
+// 顺序: Logging -> CORS -> LimitBody（请求体上限）-> Authenticate（解析主体）-> mux（各路由自带权限检查）
 func (r *Router) Handler() http.Handler {
 	r.registerRoutes()
-	return middleware.Logging(middleware.CORS(middleware.Authenticate(r.service)(r.mux)))
+	limitBody := middleware.LimitBody(maxRequestBodyBytes())
+	rateLimit := middleware.RateLimitByClientIP(positiveOr(config.GlobalConfig.Server.RateLimitPerMinute, 3000), config.GlobalConfig.Server.ClientIPHeader)
+	return middleware.Logging(middleware.CORS(limitBody(rateLimit(middleware.Authenticate(r.service)(r.mux)))))
+}
+
+func positiveOr(v, def int) int {
+	if v > 0 {
+		return v
+	}
+	return def
+}
+
+// loginLimited 登录类入口另按客户端地址限次（防止猜密码）
+func loginLimited(h http.HandlerFunc) http.HandlerFunc {
+	limit := middleware.RateLimitByClientIP(positiveOr(config.GlobalConfig.Server.LoginRateLimitPerMinute, 20), config.GlobalConfig.Server.ClientIPHeader)
+	return limit(h).ServeHTTP
+}
+
+// defaultMaxRequestBodyBytes 配置缺省（如测试里未加载配置）时的请求体上限
+const defaultMaxRequestBodyBytes = 1 << 20
+
+func maxRequestBodyBytes() int64 {
+	if n := config.GlobalConfig.Server.MaxRequestBodyBytes; n > 0 {
+		return n
+	}
+	return defaultMaxRequestBodyBytes
 }
 
 // registerRoutes 注册所有路由
@@ -185,13 +211,13 @@ func (r *Router) registerRoutes() {
 	r.open(mGet, "/health", healthCheck)
 	r.open(mGet, "/api/v2/auth/me", authMeH.Get)
 	r.open(mGet, "/api/v2/auth/permissions", handler.GetPermissionTable)
-	r.openAudited(mPost, "/api/v2/user/login", "login", "user", userH.Login) // 记录成功 / 失败的登录尝试
+	r.openAudited(mPost, "/api/v2/user/login", "login", "user", loginLimited(userH.Login)) // 记录成功 / 失败的登录尝试
 
 	// 外部身份登录（OIDC）：providers 恒注册（未启用时返回空列表，登录框据此隐藏按钮）
 	r.open(mGet, "/api/v2/auth/providers", r.oidc.Providers)
 	if r.oidc != nil {
-		r.open(mGet, "/api/v2/auth/oidc/start", r.oidc.Start)
-		r.openAudited(mGet, "/api/v2/auth/oidc/callback", "login", "user", r.oidc.Callback)
+		r.open(mGet, "/api/v2/auth/oidc/start", loginLimited(r.oidc.Start))
+		r.openAudited(mGet, "/api/v2/auth/oidc/callback", "login", "user", loginLimited(r.oidc.Callback))
 	}
 
 	// ================================================================
@@ -298,7 +324,6 @@ func (r *Router) registerRoutes() {
 
 	r.routeAudited(mPost, pPodLogsRead, "/api/v2/ops/pods/logs", "read", "pod", opsH.PodLogs)
 
-	r.routeAudited(mPost, pClusterOperate, "/api/v2/commands", "execute", "command", commandH.Create)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/pods/restart", "execute", "pod", opsH.PodRestart)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/deployments/scale", "execute", "deployment", opsH.DeploymentScale)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/deployments/restart", "execute", "deployment", opsH.DeploymentRestart)
@@ -437,10 +462,10 @@ func (r *Router) handle(spec routeSpec, h http.HandlerFunc) {
 
 // audit 创建审计中间件
 func (r *Router) audit(action, resource string) func(http.HandlerFunc) http.HandlerFunc {
-	return middleware.Audit(r.database.Audit, middleware.AuditConfig{
+	return middleware.AuditWithClientIP(r.database.Audit, middleware.AuditConfig{
 		Action:   action,
 		Resource: resource,
-	})
+	}, config.GlobalConfig.Server.ClientIPHeader)
 }
 
 // healthCheck 健康检查

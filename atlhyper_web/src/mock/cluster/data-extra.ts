@@ -1,5 +1,5 @@
 /**
- * Mock data for extra K8s resources (cluster: zgmf-x10a)
+ * Mock data for extra K8s resources (cluster: demo-cluster)
  *
  * StatefulSet, DaemonSet, Job, CronJob, PV, PVC, NetworkPolicy,
  * ResourceQuota, LimitRange, ServiceAccount, ConfigMap, Secret

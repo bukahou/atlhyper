@@ -1,6 +1,9 @@
 ## ============================================================
 ## release —— 构建多架构镜像，推 Docker Hub，改 config 仓的 image tag
 ##
+## ⭐ 先过测试再出镜像：test job 调用 test.yml（Go build / vet / test -race、前端 lint / test / build），
+##    不通过则后面的 build / publish 全部跳过，config 仓不动。
+##
 ## 分支决定环境（同一套流程，两个出口）：
 ##   push dev  → tag `dev-<sha7>`    → 写 config 仓 apps/atlhyper/dev/
 ##   push main → tag `v1.0.0-<sha7>` → 写 config 仓 apps/atlhyper/prod/
@@ -113,12 +116,20 @@ jobs:
           printf 'services=[%s]\n' "$(IFS=,; echo "${list[*]}")" >> "$GITHUB_OUTPUT"
 
   # ────────────────────────────────────────────────────────────
+  # ①' 门禁：与 PR 用同一份 test.yml
+  # ────────────────────────────────────────────────────────────
+  test:
+    name: test
+    uses: ./.github/workflows/test.yml
+
+  # ────────────────────────────────────────────────────────────
   # ② 每个组件 × 每个架构，各自在原生机器上构建，push by digest
   #    （此时还没有 tag，只有 digest；tag 在 ③ 合并时才打）
+  #    下面的 if 没写状态函数，GitHub 会隐式加上 success()：test 失败即跳过
   # ────────────────────────────────────────────────────────────
   build:
     name: build ${{ matrix.service }}/${{ matrix.arch }}
-    needs: plan
+    needs: [plan, test]
     if: needs.plan.outputs.services != '[]' && needs.plan.outputs.services != ''
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     strategy:
@@ -259,12 +270,18 @@ jobs:
           git add -- "clusters/requiem/apps/atlhyper/${ENV_DIR}"
           git diff --cached --quiet && { echo "(无变化，跳过)"; exit 0; }
           git commit -m "deploy(atlhyper/${ENV_DIR}/${{ matrix.service }}): ${TAG}"
+          pushed=false
           for i in 1 2 3 4 5; do
-            git push && break
+            if git push; then pushed=true; break; fi
             echo "push 第 $i 次失败，pull --rebase 后重试"
             git pull --rebase || true
             sleep $((i * 2))
           done
+          # 5 次都没推上去：本步失败，后面的摘要不会写「config 已更新」
+          if [ "${pushed}" != "true" ]; then
+            echo "::error::config 仓推送 5 次均失败，${ENV_DIR} 的 ${IMAGE_NAME} 仍是旧标签"
+            exit 1
+          fi
 
       - name: Summary
         env:

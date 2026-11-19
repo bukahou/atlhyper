@@ -5,6 +5,7 @@ import { Message, StreamSegment, ChatStats } from "./types";
 import { CommandStatus, Round, isToolResultJSON, parseRoundsFromSegments } from "./command-utils";
 import { ExecutionBlock } from "./ExecutionBlock";
 import { MarkdownContent } from "./MarkdownContent";
+import { useI18n } from "@/i18n/context";
 
 // ==================== MessageBubble ====================
 
@@ -89,9 +90,11 @@ interface StreamingBubbleProps {
   segments: StreamSegment[];
   stats?: ChatStats;
   streaming?: boolean; // 是否正在流式传输
+  stopped?: boolean; // 用户停止了生成
 }
 
-export function StreamingBubble({ segments, stats, streaming = true }: StreamingBubbleProps) {
+export function StreamingBubble({ segments, stats, streaming = true, stopped = false }: StreamingBubbleProps) {
+  const { t } = useI18n();
   // 解析 segments 为 rounds 结构
   const { rounds, finalText } = parseRoundsFromSegments(segments);
 
@@ -101,14 +104,14 @@ export function StreamingBubble({ segments, stats, streaming = true }: Streaming
   // 检查是否有 tool 调用（用于显示 ExecutionBlock）
   const hasToolCalls = rounds.length > 0 && rounds.some(r => r.commands.length > 0);
 
-  // streaming=false 时不显示（stats 已传递给 MessageBubble）
-  // 但如果有错误，需要显示错误信息
-  if (!streaming && !errorSegment) {
+  // 正常结束后不显示（回答已在服务端历史里）；停止或出错时继续显示已输出的内容
+  if (!streaming && !errorSegment && !stopped) {
     return null;
   }
 
-  // 完全没有内容时显示加载动画
+  // 完全没有内容：还在输出时显示加载动画，停止了就什么都不显示
   if (!finalText && !errorSegment && rounds.length === 0) {
+    if (!streaming) return null;
     return (
       <div className="flex gap-3">
         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
@@ -140,16 +143,20 @@ export function StreamingBubble({ segments, stats, streaming = true }: Streaming
 
         {/* ExecutionBlock - 显示思考轮次和指令 */}
         {hasToolCalls && (
-          <ExecutionBlock rounds={rounds} stats={stats} streaming={true} />
+          <ExecutionBlock rounds={rounds} stats={stats} streaming={streaming} />
         )}
 
         {/* 文本内容 */}
         {finalText && (
           <div className="bg-card border border-[var(--border-color)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-default">
             <MarkdownContent content={finalText} />
-            <span className="inline-block w-1 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+            {streaming && (
+              <span className="inline-block w-1 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+            )}
           </div>
         )}
+
+        {stopped && <p className="text-xs text-muted px-1">{t.aiChatPage.chatInput.generationStopped}</p>}
       </div>
     </div>
   );

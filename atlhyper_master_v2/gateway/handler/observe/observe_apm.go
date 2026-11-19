@@ -427,12 +427,7 @@ func (h *ObserveHandler) APMServiceSeries(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	minutes := 60
-	if v := r.URL.Query().Get("minutes"); v != "" {
-		if m, err := strconv.Atoi(v); err == nil && m > 0 {
-			minutes = m
-		}
-	}
+	minutes := windowMinutesParam(r, "minutes", 60)
 
 	// >60min: 走 Command/MQ 查询 ClickHouse（Concentrator 只存 60 分钟）
 	if minutes > 60 {

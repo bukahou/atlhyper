@@ -71,6 +71,8 @@ type PanelType = "history" | "inspector" | null;
 interface ChatPanelProps {
   messages: Message[];
   streaming: boolean;
+  /** 用户停止了生成：已输出的内容继续显示 */
+  stopped?: boolean;
   streamSegments: StreamSegment[];
   conversations: Conversation[];
   currentConvId: number | null;
@@ -88,6 +90,7 @@ interface ChatPanelProps {
 export function ChatPanel({
   messages,
   streaming,
+  stopped = false,
   streamSegments,
   conversations,
   currentConvId,
@@ -219,9 +222,9 @@ export function ChatPanel({
                   );
                 });
               })()}
-              {/* 流式渲染：streaming 时显示，或有错误时显示 */}
-              {(streaming || streamSegments.some(s => s.type === "error")) && (
-                <StreamingBubble segments={streamSegments} stats={currentStats} streaming={streaming} />
+              {/* 流式渲染：还在输出时显示；停止或出错后，已输出的内容在换回服务端历史之前继续显示 */}
+              {(streaming || streamSegments.length > 0) && (
+                <StreamingBubble segments={streamSegments} stats={currentStats} streaming={streaming} stopped={stopped} />
               )}
             </>
           )}

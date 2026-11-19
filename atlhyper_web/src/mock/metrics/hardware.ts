@@ -3,7 +3,7 @@
  *
  * 对应 MOCK_NODES 的三个节点。字段 1:1 对齐 Master 的 HardwareHealthResponse：
  * 判定结果（status）直接写死，前端不做阈值比较 —— 与真实 API 行为一致。
- * jegan-worker-02 故意造成 warn，用来验证配色和排序。
+ * worker-2 故意造成 warn，用来验证配色和排序。
  */
 
 import type { HardwareHealth } from "@/types/hardware";
@@ -11,7 +11,7 @@ import type { HardwareHealth } from "@/types/hardware";
 export const MOCK_HARDWARE: HardwareHealth = {
   rows: [
     {
-      nodeName: "raspi-nfs",
+      nodeName: "node-7",
       profile: "raspi4",
       profileLabel: "Raspberry Pi 4",
       cpuUsage: { value: 32.5, status: "good" },
@@ -30,7 +30,7 @@ export const MOCK_HARDWARE: HardwareHealth = {
       overall: "good",
     },
     {
-      nodeName: "jegan-worker-01",
+      nodeName: "worker-1",
       profile: "raspi5",
       profileLabel: "Raspberry Pi 5",
       cpuUsage: { value: 28.4, status: "good" },
@@ -52,7 +52,7 @@ export const MOCK_HARDWARE: HardwareHealth = {
       overall: "good",
     },
     {
-      nodeName: "jegan-worker-02",
+      nodeName: "worker-2",
       profile: "raspi5",
       profileLabel: "Raspberry Pi 5",
       cpuUsage: { value: 88.2, status: "warn" },
@@ -74,11 +74,11 @@ export const MOCK_HARDWARE: HardwareHealth = {
     },
   ],
   summary: {
-    maxTemp: { value: 81.4, nodeName: "jegan-worker-02", sensor: "cpu_thermal", status: "warn" },
-    maxDiskTemp: { value: 71.2, nodeName: "jegan-worker-02", sensor: "nvme0", status: "good" },
+    maxTemp: { value: 81.4, nodeName: "worker-2", sensor: "cpu_thermal", status: "warn" },
+    maxDiskTemp: { value: 71.2, nodeName: "worker-2", sensor: "nvme0", status: "good" },
     undervoltNodes: 0,
     throttledNodes: 1,
-    maxDiskAwait: { valueMs: 62.5, nodeName: "jegan-worker-02", device: "nvme0n1", status: "warn" },
+    maxDiskAwait: { valueMs: 62.5, nodeName: "worker-2", device: "nvme0n1", status: "warn" },
   },
 };
 

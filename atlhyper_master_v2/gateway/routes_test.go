@@ -110,7 +110,6 @@ func TestRoutes_LevelZeroCannotReachSensitive(t *testing.T) {
 		{"GET", "/api/v2/configmaps/x"},
 		{"POST", "/api/v2/ops/secrets/data"},
 		{"POST", "/api/v2/ops/pods/logs"},
-		{"POST", "/api/v2/commands"},
 		{"GET", "/api/v2/audit/logs"},
 		{"GET", "/api/v2/aiops/ai/analyze/status?incidentId=x"},
 		{"GET", "/api/v2/ai/providers"},
@@ -386,5 +385,17 @@ func TestRoutes_ClusterRegistryPathParamReachesHandler(t *testing.T) {
 	}
 	if len(svc.tokenIssuedFor) != 2 || svc.tokenIssuedFor[0] != "prod-1" || svc.tokenIssuedFor[1] != "prod.tokyo" {
 		t.Errorf("handler 收到的集群 ID = %v", svc.tokenIssuedFor)
+	}
+}
+
+// 没有通用的「下发任意指令」接口：每个操作走自己的专用接口、按动作声明权限。
+// 管理员 POST /api/v2/commands 也落不到任何处理函数上。
+func TestRoutes_NoGenericCommandEndpoint(t *testing.T) {
+	h := testRouter(t)
+	for _, path := range []string{"/api/v2/commands", "/api/v2/commands/"} {
+		got := call(t, h, "POST", path, 4)
+		if got != http.StatusNotFound && got != http.StatusMethodNotAllowed {
+			t.Errorf("管理员 POST %s = %d, want 404 或 405", path, got)
+		}
 	}
 }

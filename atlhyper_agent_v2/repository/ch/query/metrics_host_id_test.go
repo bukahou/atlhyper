@@ -32,12 +32,12 @@ func TestPickHostID(t *testing.T) {
 		activeIDs []string
 		want      string
 	}{
-		{"标识是节点名", "desk-one", "10.0.0.1", []string{"desk-one", "desk-two"}, "desk-one"},
-		{"标识是节点 IP", "desk-one", "10.0.0.1", []string{"10.0.0.1", "10.0.0.2"}, "10.0.0.1"},
-		{"名字与 IP 都出现时认名字", "desk-one", "10.0.0.1", []string{"10.0.0.1", "desk-one"}, "desk-one"},
-		{"都不在近期标识里时用节点名", "desk-one", "10.0.0.1", []string{"other"}, "desk-one"},
-		{"近期标识为空（查询失败或没数据）时用节点名", "desk-one", "10.0.0.1", nil, "desk-one"},
-		{"不知道节点 IP 时用节点名", "desk-one", "", []string{"10.0.0.1"}, "desk-one"},
+		{"标识是节点名", "node-2", "10.0.0.1", []string{"node-2", "node-3"}, "node-2"},
+		{"标识是节点 IP", "node-2", "10.0.0.1", []string{"10.0.0.1", "10.0.0.2"}, "10.0.0.1"},
+		{"名字与 IP 都出现时认名字", "node-2", "10.0.0.1", []string{"10.0.0.1", "node-2"}, "node-2"},
+		{"都不在近期标识里时用节点名", "node-2", "10.0.0.1", []string{"other"}, "node-2"},
+		{"近期标识为空（查询失败或没数据）时用节点名", "node-2", "10.0.0.1", nil, "node-2"},
+		{"不知道节点 IP 时用节点名", "node-2", "", []string{"10.0.0.1"}, "node-2"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -110,14 +110,14 @@ func testNode(name, ip string) cluster.Node {
 }
 
 func TestGetNodeMetricsHistory_QueriesByHostIDInClickHouse(t *testing.T) {
-	client := newRecordingCHClient(t, "desk-one", "desk-two")
+	client := newRecordingCHClient(t, "node-2", "node-3")
 	r := &metricsRepository{
 		client:   client,
-		nodeRepo: nodeRepoWith(testNode("desk-one", "10.0.0.1"), testNode("desk-two", "10.0.0.2")),
+		nodeRepo: nodeRepoWith(testNode("node-2", "10.0.0.1"), testNode("node-3", "10.0.0.2")),
 		ipMapTTL: time.Minute,
 	}
 
-	if _, err := r.GetNodeMetricsHistory(context.Background(), "desk-one", 24*time.Hour); err != nil {
+	if _, err := r.GetNodeMetricsHistory(context.Background(), "node-2", 24*time.Hour); err != nil {
 		t.Fatalf("GetNodeMetricsHistory: %v", err)
 	}
 
@@ -126,7 +126,7 @@ func TestGetNodeMetricsHistory_QueriesByHostIDInClickHouse(t *testing.T) {
 		t.Fatalf("应查询 cpu / memory / disk / temp 四个指标，实际 %d 次: %v", len(args), args)
 	}
 	for _, a := range args {
-		if a != "desk-one" {
+		if a != "node-2" {
 			t.Errorf("ClickHouse 里的标识是节点名，查询却用了 %q（全部参数 %v）", a, args)
 		}
 	}
@@ -136,11 +136,11 @@ func TestGetNodeMetricsHistory_IPConvention(t *testing.T) {
 	client := newRecordingCHClient(t, "10.0.0.1", "10.0.0.2")
 	r := &metricsRepository{
 		client:   client,
-		nodeRepo: nodeRepoWith(testNode("desk-one", "10.0.0.1"), testNode("desk-two", "10.0.0.2")),
+		nodeRepo: nodeRepoWith(testNode("node-2", "10.0.0.1"), testNode("node-3", "10.0.0.2")),
 		ipMapTTL: time.Minute,
 	}
 
-	if _, err := r.GetNodeMetricsHistory(context.Background(), "desk-one", 6*time.Hour); err != nil {
+	if _, err := r.GetNodeMetricsHistory(context.Background(), "node-2", 6*time.Hour); err != nil {
 		t.Fatalf("GetNodeMetricsHistory: %v", err)
 	}
 	for _, a := range client.recordedArgs() {
@@ -154,26 +154,26 @@ func TestGetNodeMetricsHistory_IPConvention(t *testing.T) {
 func TestGetNodeMetricsHistory_AllQueriesFail_ReturnsError(t *testing.T) {
 	r := &metricsRepository{
 		client:   newFailingCHClient(t),
-		nodeRepo: nodeRepoWith(testNode("desk-one", "10.0.0.1")),
+		nodeRepo: nodeRepoWith(testNode("node-2", "10.0.0.1")),
 		ipMapTTL: time.Minute,
 	}
 
-	if _, err := r.GetNodeMetricsHistory(context.Background(), "desk-one", 24*time.Hour); err == nil {
+	if _, err := r.GetNodeMetricsHistory(context.Background(), "node-2", 24*time.Hour); err == nil {
 		t.Fatal("四个指标查询全部失败，却返回了成功（错误被吞掉）")
 	}
 }
 
 func TestUnmatchedNodes(t *testing.T) {
-	nodes := []cluster.Node{testNode("desk-one", "10.0.0.1"), testNode("desk-two", "10.0.0.2")}
+	nodes := []cluster.Node{testNode("node-2", "10.0.0.1"), testNode("node-3", "10.0.0.2")}
 	cases := []struct {
 		name    string
 		hostIDs []string
 		want    []string
 	}{
-		{"按节点名全部对上", []string{"desk-one", "desk-two"}, nil},
+		{"按节点名全部对上", []string{"node-2", "node-3"}, nil},
 		{"按 IP 全部对上", []string{"10.0.0.1", "10.0.0.2"}, nil},
-		{"部分节点没有主机指标", []string{"desk-one"}, []string{"desk-two"}},
-		{"全部对不上（标识写法变了）", []string{"node-a", "node-b"}, []string{"desk-one", "desk-two"}},
+		{"部分节点没有主机指标", []string{"node-2"}, []string{"node-3"}},
+		{"全部对不上（标识写法变了）", []string{"node-a", "node-b"}, []string{"node-2", "node-3"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

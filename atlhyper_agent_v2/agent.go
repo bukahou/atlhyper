@@ -139,7 +139,7 @@ func New() (*Agent, error) {
 		cfg.Agent.ClusterID,
 		k8sClient,
 		repos.pod, repos.generic,
-		traceQueryRepo, logQueryRepo, metricsQueryRepo, sloQueryRepo,
+		traceQueryRepo, logQueryRepo, metricsQueryRepo,
 	)
 
 	// 5. 初始化 Scheduler (调度层)

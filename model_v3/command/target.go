@@ -2,24 +2,13 @@ package command
 
 import (
 	"fmt"
-	"regexp"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-// K8s 的资源命名规则（RFC 1123）：
-//   - 命名空间：DNS label，小写字母数字与 '-'，首尾为字母数字，最长 63
-//   - 资源名：DNS subdomain，由 '.' 分隔的若干 label，最长 253
-//
-// 指令目标涉及的资源类型（Pod / Deployment / Node / ConfigMap / Secret 等）名字都满足 subdomain 规则。
-const (
-	maxNamespaceLength = 63
-	maxNameLength      = 253
-	dnsLabelPattern    = `[a-z0-9]([-a-z0-9]*[a-z0-9])?`
-)
-
-var (
-	dnsLabelRegexp     = regexp.MustCompile(`^` + dnsLabelPattern + `$`)
-	dnsSubdomainRegexp = regexp.MustCompile(`^` + dnsLabelPattern + `(\.` + dnsLabelPattern + `)*$`)
-)
+// K8s 的资源命名规则（RFC 1123），用 apimachinery 的同一套校验：
+//   - 命名空间：DNS label
+//   - 资源名：DNS subdomain（指令目标涉及的 Pod / Deployment / Node / ConfigMap / Secret 都满足）
 
 // ValidateTarget 校验指令目标的命名空间与名字是否符合 K8s 命名规则。
 //
@@ -28,12 +17,12 @@ var (
 // 两端都只接受合法的资源名。
 func ValidateTarget(namespace, name string) error {
 	if namespace != "" {
-		if len(namespace) > maxNamespaceLength || !dnsLabelRegexp.MatchString(namespace) {
+		if len(validation.IsDNS1123Label(namespace)) > 0 {
 			return fmt.Errorf("invalid target namespace: %q", namespace)
 		}
 	}
 	if name != "" {
-		if len(name) > maxNameLength || !dnsSubdomainRegexp.MatchString(name) {
+		if len(validation.IsDNS1123Subdomain(name)) > 0 {
 			return fmt.Errorf("invalid target name: %q", name)
 		}
 	}

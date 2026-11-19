@@ -30,7 +30,7 @@ function parseReplicas(replicas: string): { ready: number; desired: number } {
 // ============================================================
 
 function buildClusterOverview(): ClusterOverview {
-  const clusterId = "zgmf-x10a";
+  const clusterId = "demo-cluster";
 
   // --- Cards ---
   const totalNodes = MOCK_NODES.length;
@@ -42,13 +42,13 @@ function buildClusterOverview(): ClusterOverview {
   const podReadyPct = totalPods > 0 ? (runningPods / totalPods) * 100 : 0;
 
   // CPU/Mem: 基于 MOCK_NODES 模拟使用率
-  // raspi-nfs (control-plane): CPU 35%, Mem 45%
-  // jegan-worker-01: CPU 42%, Mem 62%
-  // jegan-worker-02: CPU 28%, Mem 55%
+  // node-7 (control-plane): CPU 35%, Mem 45%
+  // worker-1: CPU 42%, Mem 62%
+  // worker-2: CPU 28%, Mem 55%
   const nodeUsages = [
-    { node: "raspi-nfs", cpuUsage: 35, memUsage: 45 },
-    { node: "jegan-worker-01", cpuUsage: 42, memUsage: 62 },
-    { node: "jegan-worker-02", cpuUsage: 28, memUsage: 55 },
+    { node: "node-7", cpuUsage: 35, memUsage: 45 },
+    { node: "worker-1", cpuUsage: 42, memUsage: 62 },
+    { node: "worker-2", cpuUsage: 28, memUsage: 55 },
   ];
   const avgCpu = nodeUsages.reduce((s, n) => s + n.cpuUsage, 0) / nodeUsages.length;
   const avgMem = nodeUsages.reduce((s, n) => s + n.memUsage, 0) / nodeUsages.length;

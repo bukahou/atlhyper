@@ -2,6 +2,7 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -73,6 +74,10 @@ func (m *mockCommandRepo) Count(ctx context.Context, opts database.CommandQueryO
 	return 0, nil
 }
 
+func (m *mockCommandRepo) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	return 0, nil
+}
+
 // ==================== 辅助函数 ====================
 
 // validRequest 创建一个合法的 CreateCommandRequest（通过 validateRequest 校验）
@@ -102,8 +107,9 @@ func TestExecuteCommandSync_Success(t *testing.T) {
 	}
 	cmdRepo := &mockCommandRepo{}
 	svc := &CommandService{
-		bus:     producer,
-		cmdRepo: cmdRepo,
+		bus:      producer,
+		cmdRepo:  cmdRepo,
+		presence: presenceStub{"test-cluster": true},
 	}
 
 	// Act
@@ -135,8 +141,9 @@ func TestExecuteCommandSync_CreateFail(t *testing.T) {
 	}
 	cmdRepo := &mockCommandRepo{}
 	svc := &CommandService{
-		bus:     producer,
-		cmdRepo: cmdRepo,
+		bus:      producer,
+		cmdRepo:  cmdRepo,
+		presence: presenceStub{"test-cluster": true},
 	}
 
 	// Act
@@ -167,8 +174,9 @@ func TestExecuteCommandSync_WaitTimeout(t *testing.T) {
 	}
 	cmdRepo := &mockCommandRepo{}
 	svc := &CommandService{
-		bus:     producer,
-		cmdRepo: cmdRepo,
+		bus:      producer,
+		cmdRepo:  cmdRepo,
+		presence: presenceStub{"test-cluster": true},
 	}
 
 	// Act
@@ -195,8 +203,9 @@ func TestExecuteCommandSync_WaitError(t *testing.T) {
 	}
 	cmdRepo := &mockCommandRepo{}
 	svc := &CommandService{
-		bus:     producer,
-		cmdRepo: cmdRepo,
+		bus:      producer,
+		cmdRepo:  cmdRepo,
+		presence: presenceStub{"test-cluster": true},
 	}
 
 	// Act
@@ -229,7 +238,7 @@ func TestCreateCommand_RejectsMalformedTarget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			producer := &mockProducer{}
-			svc := NewCommandService(producer, &mockCommandRepo{})
+			svc := NewCommandService(producer, &mockCommandRepo{}, presenceStub{"c1": true, "test-cluster": true})
 			_, err := svc.CreateCommand(&model.CreateCommandRequest{
 				ClusterID:       "c1",
 				Action:          command.ActionDynamic,
@@ -276,7 +285,7 @@ func (o *orderRecorder) EnqueueCommand(_, _ string, _ *command.Command) error {
 // 指令一入队 Agent 就可能立刻执行并回报结果；历史记录必须先写好，结果回来时才找得到它。
 func TestCreateCommand_HistoryIsWrittenBeforeEnqueue(t *testing.T) {
 	recorder := &orderRecorder{}
-	svc := NewCommandService(recorder, recorder)
+	svc := NewCommandService(recorder, recorder, presenceStub{"test-cluster": true})
 
 	if _, err := svc.CreateCommand(validRequest()); err != nil {
 		t.Fatal(err)
@@ -289,12 +298,142 @@ func TestCreateCommand_HistoryIsWrittenBeforeEnqueue(t *testing.T) {
 // 入队失败时，已经写下的历史记录要标成失败，不能永远停在 pending。
 func TestCreateCommand_EnqueueFailureMarksHistoryFailed(t *testing.T) {
 	recorder := &orderRecorder{enqueueErr: fmt.Errorf("queue unavailable")}
-	svc := NewCommandService(recorder, recorder)
+	svc := NewCommandService(recorder, recorder, presenceStub{"test-cluster": true})
 
 	if _, err := svc.CreateCommand(validRequest()); err == nil {
 		t.Fatal("期望返回入队错误")
 	}
 	if recorder.updated == nil || recorder.updated.Status != command.StatusFailed {
 		t.Errorf("入队失败后历史应标为 failed，实际 %+v", recorder.updated)
+	}
+}
+
+// 下发前按来源允许名单核对：名单外的「来源 × 动作」不写历史、不入队。
+func TestCreateCommand_RejectsActionFromWrongSource(t *testing.T) {
+	cases := []struct {
+		name   string
+		action string
+		source string
+	}{
+		{"Web 应用清单", command.ActionApplyManifests, command.SourceWeb},
+		{"AI 应用清单", command.ActionApplyManifests, command.SourceAI},
+		{"AI 扩缩容", command.ActionScale, command.SourceAI},
+		{"AI 读 Secret", command.ActionGetSecret, command.SourceAI},
+		{"没有来源", command.ActionRestart, ""},
+		{"已移除的动作", "exec", command.SourceWeb},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			producer := &mockProducer{}
+			svc := NewCommandService(producer, &mockCommandRepo{}, presenceStub{"c1": true, "test-cluster": true})
+			_, err := svc.CreateCommand(&model.CreateCommandRequest{
+				ClusterID:       "c1",
+				Action:          c.action,
+				TargetKind:      "Deployment",
+				TargetNamespace: "default",
+				TargetName:      "nginx",
+				Source:          c.source,
+				Params:          map[string]interface{}{"replicas": 1},
+			})
+			if !errors.Is(err, command.ErrActionNotPermitted) {
+				t.Fatalf("err = %v, want ErrActionNotPermitted", err)
+			}
+			if producer.enqueuedCmd != nil {
+				t.Error("被拒绝的指令不应入队")
+			}
+		})
+	}
+}
+
+// presenceStub 指定哪些集群有在线的 Agent
+type presenceStub map[string]bool
+
+func (p presenceStub) IsClusterOnline(clusterID string) bool { return p[clusterID] }
+
+// historyRecorder 记录写了几条历史、删历史时的截止时间
+type historyRecorder struct {
+	mockCommandRepo
+	created      int
+	deleteBefore time.Time
+}
+
+func (h *historyRecorder) Create(_ context.Context, _ *database.CommandHistory) error {
+	h.created++
+	return nil
+}
+
+func (h *historyRecorder) DeleteBefore(_ context.Context, before time.Time) (int64, error) {
+	h.deleteBefore = before
+	return 3, nil
+}
+
+// 集群没有在线的 Agent：不写历史、不入队（发了也没人取；任意集群 ID 也不会建出队列）
+func TestCreateCommand_RejectsOfflineCluster(t *testing.T) {
+	producer := &mockProducer{}
+	repo := &historyRecorder{}
+	svc := NewCommandService(producer, repo, presenceStub{"c1": true})
+	req := validRequest()
+	req.ClusterID = "no-such-cluster"
+
+	_, err := svc.CreateCommand(req)
+	if !errors.Is(err, model.ErrClusterOffline) {
+		t.Fatalf("err = %v, want ErrClusterOffline", err)
+	}
+	if producer.enqueuedCmd != nil || repo.created != 0 {
+		t.Errorf("离线集群不应入队或写历史（enqueued=%v history=%d）", producer.enqueuedCmd != nil, repo.created)
+	}
+}
+
+// Web 发起的观测查询只读、访客也能触发：入队但不写指令历史
+func TestCreateCommand_WebTelemetryQueryWritesNoHistory(t *testing.T) {
+	producer := &mockProducer{}
+	repo := &historyRecorder{}
+	svc := NewCommandService(producer, repo, presenceStub{"c1": true})
+
+	_, err := svc.CreateCommand(&model.CreateCommandRequest{
+		ClusterID: "c1", Action: command.ActionQueryTraces, Source: command.SourceWeb,
+		Params: map[string]interface{}{"sub_action": "list_services"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if producer.enqueuedCmd == nil {
+		t.Fatal("查询指令应入队")
+	}
+	if repo.created != 0 {
+		t.Errorf("观测查询不应写指令历史，实际写了 %d 条", repo.created)
+	}
+}
+
+// 操作与内容读取照常写历史
+func TestCreateCommand_OperationWritesHistory(t *testing.T) {
+	repo := &historyRecorder{}
+	svc := NewCommandService(&mockProducer{}, repo, presenceStub{"test-cluster": true})
+	if _, err := svc.CreateCommand(validRequest()); err != nil {
+		t.Fatal(err)
+	}
+	if repo.created != 1 {
+		t.Errorf("应写 1 条历史，实际 %d", repo.created)
+	}
+}
+
+func TestCreateCommand_InvalidRequestIsErrInvalidCommand(t *testing.T) {
+	svc := NewCommandService(&mockProducer{}, &mockCommandRepo{}, presenceStub{"c1": true})
+	_, err := svc.CreateCommand(&model.CreateCommandRequest{ClusterID: "c1", Action: command.ActionRestart, Source: command.SourceWeb})
+	if !errors.Is(err, model.ErrInvalidCommand) {
+		t.Fatalf("缺目标的重启应返回 ErrInvalidCommand，实际 %v", err)
+	}
+}
+
+func TestPurgeHistory(t *testing.T) {
+	repo := &historyRecorder{}
+	svc := NewCommandService(&mockProducer{}, repo, presenceStub{})
+	now := time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC)
+	n, err := svc.PurgeHistory(context.Background(), now, 90*24*time.Hour)
+	if err != nil || n != 3 {
+		t.Fatalf("PurgeHistory = (%d, %v)", n, err)
+	}
+	if want := now.Add(-90 * 24 * time.Hour); !repo.deleteBefore.Equal(want) {
+		t.Errorf("截止时间 = %v, want %v", repo.deleteBefore, want)
 	}
 }

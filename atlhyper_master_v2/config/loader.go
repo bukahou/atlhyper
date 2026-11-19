@@ -28,6 +28,12 @@ func LoadConfig() {
 		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
 		PublicURL:    getString("MASTER_PUBLIC_URL"),
 		Timezone:     getString("MASTER_TIMEZONE"),
+
+		ClientIPHeader:      getString("MASTER_GATEWAY_CLIENT_IP_HEADER"),
+		MaxRequestBodyBytes: int64(getInt("MASTER_GATEWAY_MAX_BODY_KB")) << 10,
+
+		RateLimitPerMinute:      getInt("MASTER_GATEWAY_RATE_LIMIT_PER_MINUTE"),
+		LoginRateLimitPerMinute: getInt("MASTER_GATEWAY_LOGIN_RATE_LIMIT_PER_MINUTE"),
 	}
 
 	GlobalConfig.AgentSDK = AgentSDKConfig{
@@ -54,6 +60,8 @@ func LoadConfig() {
 		Path:     getString("MASTER_DB_PATH"),
 		DSN:      getString("MASTER_DB_DSN"),
 		MaxConns: getInt("MASTER_DB_MAX_CONNS"),
+
+		CommandHistoryRetention: getDuration("MASTER_COMMAND_HISTORY_RETENTION"),
 	}
 
 	GlobalConfig.Event = EventConfig{

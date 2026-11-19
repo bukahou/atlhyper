@@ -3,6 +3,8 @@
 package agentsdk
 
 import (
+	"AtlHyper/atlhyper_master_v2/mq"
+	"AtlHyper/atlhyper_master_v2/mq/contract"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -38,7 +40,11 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 	// topic: ops / ai，默认 ops
 	topic := r.URL.Query().Get("topic")
 	if topic == "" {
-		topic = "ops"
+		topic = mq.TopicOps
+	}
+	if err := contract.CheckTopic(topic); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	// 长轮询等待指令（过期的指令在这里被丢弃，不下发）

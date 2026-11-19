@@ -18,7 +18,7 @@ import type {
 } from "@/types/slo";
 
 // ============================================================================
-// Providers — Traefik + Linkerd + OTel Traces (集群 zgmf-x10a 真实配置)
+// Providers — Traefik + Linkerd + OTel Traces (集群 demo-cluster 真实配置)
 // ============================================================================
 
 export const MOCK_PROVIDERS: SLOProviders = {
@@ -82,7 +82,7 @@ const ATLHYPER_BUCKET_COUNTS = [6768, 1592, 282, 51, 22, 21, 13, 6, 3, 4, 0, 0, 
 // geass 域 6 个微服务, 大多请求 < 10ms (Trace 样本: auth 2ms, history 32ms, media 26ms, DB 1-3ms)
 
 // ============================================================================
-// 域名 1: geass.zgmf-x10a.local — Healthy
+// 域名 1: geass.demo-cluster.local — Healthy
 // Traefik service: geass-geass-web-3000@kubernetes
 // 后端: 6 个 Linkerd mesh 微服务 (gateway, media, auth, favorites, history, user)
 // ============================================================================
@@ -98,7 +98,7 @@ const geassServices: ServiceSLO[] = [
 ];
 
 const domainGeass: DomainSLOV2 = {
-  domain: "geass.zgmf-x10a.local",
+  domain: "geass.demo-cluster.local",
   tls: true,
   services: geassServices,
   summary: mkMetrics(99.95, 12, 35, 0.05, 85, 7344000),
@@ -109,7 +109,7 @@ const domainGeass: DomainSLOV2 = {
 };
 
 // ============================================================================
-// 域名 2: atlhyper.zgmf-x10a.local — Warning
+// 域名 2: atlhyper.demo-cluster.local — Warning
 // Traefik service: atlhyper-atlhyper-web-3000@kubernetes
 // Next.js 前端 SPA, 大量静态资源 404
 // Histogram: Count=8762, Sum=47.408s, Avg=5.41ms, p95≈25ms, p99≈75ms
@@ -126,7 +126,7 @@ const atlhyperServices: ServiceSLO[] = [
 ];
 
 const domainAtlhyper: DomainSLOV2 = {
-  domain: "atlhyper.zgmf-x10a.local",
+  domain: "atlhyper.demo-cluster.local",
   tls: true,
   services: atlhyperServices,
   summary: mkMetrics(99.42, 25, 75, 0.58, 6, 518400),
@@ -211,7 +211,7 @@ export function generateLatencyDistribution(domain: string): {
   const total = m?.totalRequests ?? 100000;
 
   // atlhyper 域: 直接使用真实 Traefik histogram 数据
-  if (domain === "atlhyper.zgmf-x10a.local") {
+  if (domain === "atlhyper.demo-cluster.local") {
     return generateAtlhyperLatency(total);
   }
 

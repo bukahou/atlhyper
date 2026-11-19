@@ -4,6 +4,7 @@ package observe
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -56,7 +57,12 @@ func (h *ObserveHandler) LogsHistogram(w http.ResponseWriter, r *http.Request) {
 		"sub_action": "histogram",
 	}
 	if v := q.Get("since"); v != "" {
-		params["since"] = v
+		m, ok := parseTimeRangeMinutes(v)
+		if !ok {
+			handler.WriteError(w, http.StatusBadRequest, "since 格式不合法（如 15m、1h、24h）")
+			return
+		}
+		params["since"] = fmt.Sprintf("%dm", m)
 	}
 	if v := q.Get("service"); v != "" {
 		params["service"] = v

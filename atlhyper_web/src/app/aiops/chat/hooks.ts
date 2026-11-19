@@ -171,6 +171,7 @@ export function useAIChat() {
     currentConvId,
     messages,
     streaming: streamOfCurrent?.streaming ?? false,
+    stopped: streamOfCurrent?.stopped ?? false,
     streamSegments: streamOfCurrent?.segments ?? [],
     currentStats: streamOfCurrent?.stats,
     currentClusterId,

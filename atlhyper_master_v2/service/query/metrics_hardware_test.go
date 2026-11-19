@@ -15,7 +15,7 @@ func boolPtr(b bool) *bool { return &b }
 func hardwareFixtureSnapshot() *cluster.ClusterSnapshot {
 	return &cluster.ClusterSnapshot{OTel: &cluster.OTelSnapshot{MetricsNodes: []metrics.NodeMetrics{
 		{ // raspi5：全传感器齐全，一切正常
-			NodeName: "raspi5-one", HardwareProfile: metrics.ProfileRaspi5,
+			NodeName: "node-5", HardwareProfile: metrics.ProfileRaspi5,
 			CPU: metrics.NodeCPU{UsagePct: 10, FreqHz: []float64{1.5e9, 1.5e9, 1.5e9, 1.5e9}, FreqMaxHz: 2.4e9},
 			Temperature: metrics.NodeTemperature{Sensors: []metrics.TempSensor{
 				{Chip: "thermal_thermal_zone0", ChipName: "cpu_thermal", Sensor: "temp1", CurrentC: 58.95},
@@ -31,7 +31,7 @@ func hardwareFixtureSnapshot() *cluster.ClusterSnapshot {
 			Disks: []metrics.NodeDisk{{Device: "nvme0n1", AwaitReadMs: 1.1, AwaitWriteMs: 0.8}},
 		},
 		{ // desk：旧版 Agent 没有 Hardware；coretemp 只有 crit 没有 max；负载高且降频 → 热降频 warn；await 124ms warn
-			NodeName: "desk-zero", HardwareProfile: metrics.ProfileDesk,
+			NodeName: "node-1", HardwareProfile: metrics.ProfileDesk,
 			CPU: metrics.NodeCPU{UsagePct: 80, FreqHz: []float64{0.9e9, 0.9e9}, FreqMaxHz: 3.8e9},
 			Temperature: metrics.NodeTemperature{Sensors: []metrics.TempSensor{
 				{Chip: "platform_coretemp_0", ChipName: "coretemp", Sensor: "temp1", CurrentC: 62, CritC: 80},
@@ -40,7 +40,7 @@ func hardwareFixtureSnapshot() *cluster.ClusterSnapshot {
 			Disks: []metrics.NodeDisk{{Device: "sda", AwaitReadMs: 124, AwaitWriteMs: 3}},
 		},
 		{ // raspi4：欠压告警 → crit
-			NodeName: "raspi4-zero", HardwareProfile: metrics.ProfileRaspi4,
+			NodeName: "node-7", HardwareProfile: metrics.ProfileRaspi4,
 			CPU: metrics.NodeCPU{UsagePct: 5, FreqHz: []float64{1.5e9}, FreqMaxHz: 1.5e9},
 			Temperature: metrics.NodeTemperature{Sensors: []metrics.TempSensor{
 				{Chip: "thermal_thermal_zone0", ChipName: "cpu_thermal", Sensor: "temp1", CurrentC: 81},
@@ -75,7 +75,7 @@ func TestGetHardwareHealth_Raspi5AllGood(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := findRow(t, resp, "raspi5-one")
+	r := findRow(t, resp, "node-5")
 	if r.Profile != "raspi5" {
 		t.Errorf("profile = %q", r.Profile)
 	}
@@ -110,7 +110,7 @@ func TestGetHardwareHealth_Raspi5AllGood(t *testing.T) {
 
 func TestGetHardwareHealth_DeskOldAgentAndThrottle(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
-	r := findRow(t, resp, "desk-zero")
+	r := findRow(t, resp, "node-1")
 	// 多个 coretemp 取最高；只有 crit=80 没有 max → max 退回 crit*0.9=72
 	if r.CPUTemp == nil || r.CPUTemp.Value != 62 || r.CPUTemp.Max != 72 || r.CPUTemp.Crit != 80 || r.CPUTemp.Status != model.HardwareGood {
 		t.Errorf("cpuTemp = %+v", r.CPUTemp)
@@ -133,7 +133,7 @@ func TestGetHardwareHealth_DeskOldAgentAndThrottle(t *testing.T) {
 
 func TestGetHardwareHealth_UndervoltIsCrit(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
-	r := findRow(t, resp, "raspi4-zero")
+	r := findRow(t, resp, "node-7")
 	if r.Undervolt == nil || !r.Undervolt.Alarm || r.Undervolt.Status != model.HardwareCrit {
 		t.Errorf("undervolt = %+v", r.Undervolt)
 	}
@@ -166,17 +166,17 @@ func TestGetHardwareHealth_UnknownNodeAllNull(t *testing.T) {
 func TestGetHardwareHealth_Summary(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
 	s := resp.Summary
-	// 全集群最高温：raspi4-zero cpu_thermal 81（warn）
-	if s.MaxTemp == nil || s.MaxTemp.Value != 81 || s.MaxTemp.NodeName != "raspi4-zero" || s.MaxTemp.Status != model.HardwareWarn {
+	// 全集群最高温：node-7 cpu_thermal 81（warn）
+	if s.MaxTemp == nil || s.MaxTemp.Value != 81 || s.MaxTemp.NodeName != "node-7" || s.MaxTemp.Status != model.HardwareWarn {
 		t.Errorf("maxTemp = %+v", s.MaxTemp)
 	}
-	if s.MaxDiskTemp == nil || s.MaxDiskTemp.Value != 49.85 || s.MaxDiskTemp.NodeName != "raspi5-one" {
+	if s.MaxDiskTemp == nil || s.MaxDiskTemp.Value != 49.85 || s.MaxDiskTemp.NodeName != "node-5" {
 		t.Errorf("maxDiskTemp = %+v", s.MaxDiskTemp)
 	}
 	if s.UndervoltNodes != 1 || s.ThrottledNodes != 1 {
 		t.Errorf("undervolt=%d throttled=%d", s.UndervoltNodes, s.ThrottledNodes)
 	}
-	if s.MaxDiskAwait == nil || s.MaxDiskAwait.ValueMs != 124 || s.MaxDiskAwait.NodeName != "desk-zero" || s.MaxDiskAwait.Device != "sda" || s.MaxDiskAwait.Status != model.HardwareWarn {
+	if s.MaxDiskAwait == nil || s.MaxDiskAwait.ValueMs != 124 || s.MaxDiskAwait.NodeName != "node-1" || s.MaxDiskAwait.Device != "sda" || s.MaxDiskAwait.Status != model.HardwareWarn {
 		t.Errorf("maxDiskAwait = %+v", s.MaxDiskAwait)
 	}
 }
@@ -193,7 +193,7 @@ func TestGetHardwareHealth_NoSnapshot(t *testing.T) {
 }
 
 // 盘温没有自报阈值时，必须退回「磁盘」那一档，而不是宽松的「其他传感器」档
-// —— 实测 raspi5-two 的 SK hynix BC501 不上报 max/crit，用 85/95 判定等于永不报警。
+// —— 实测 node-6 的 SK hynix BC501 不上报 max/crit，用 85/95 判定等于永不报警。
 func TestTempCell_DiskFallbackUsesDiskThreshold(t *testing.T) {
 	sensors := []metrics.TempSensor{
 		{Chip: "nvme_nvme0", ChipName: "nvme", Sensor: "temp1", CurrentC: 72},
@@ -220,7 +220,7 @@ func TestTempCell_DiskFallbackUsesDiskThreshold(t *testing.T) {
 func TestGetHardwareHealth_SensorsListed(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
 
-	r := findRow(t, resp, "raspi5-one")
+	r := findRow(t, resp, "node-5")
 	if len(r.Sensors) != 4 {
 		t.Fatalf("raspi5 应列出全部 4 个传感器，得到 %d", len(r.Sensors))
 	}
@@ -257,13 +257,13 @@ func TestGetHardwareHealth_SensorsListed(t *testing.T) {
 func TestGetHardwareHealth_ResourceColumns(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
 
-	r := findRow(t, resp, "desk-zero")
+	r := findRow(t, resp, "node-1")
 	if r.CPUUsage == nil || r.CPUUsage.Value != 80 || r.CPUUsage.Status != model.HardwareWarn {
-		t.Errorf("desk-zero cpuUsage = %+v，期望 80%% warn", r.CPUUsage)
+		t.Errorf("node-1 cpuUsage = %+v，期望 80%% warn", r.CPUUsage)
 	}
 	// overall 必须反映矩阵里看得见的列：CPU 80% warn 已经足以让整行是 warn
 	if r.Overall != model.HardwareWarn {
-		t.Errorf("desk-zero overall = %q", r.Overall)
+		t.Errorf("node-1 overall = %q", r.Overall)
 	}
 
 	// 什么数据都没有的节点，三列仍然存在且为 0%，不是 nil
@@ -276,7 +276,7 @@ func TestGetHardwareHealth_ResourceColumns(t *testing.T) {
 	}
 
 	// 磁盘列取容量与 inode 里更差的那个
-	r5 := findRow(t, resp, "raspi5-one")
+	r5 := findRow(t, resp, "node-5")
 	if r5.DiskUsage == nil || r5.DiskUsage.Status != model.HardwareGood {
 		t.Errorf("raspi5 diskUsage = %+v", r5.DiskUsage)
 	}

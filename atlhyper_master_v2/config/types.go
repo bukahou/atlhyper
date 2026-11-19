@@ -13,6 +13,15 @@ type ServerConfig struct {
 	PublicURL string
 	// Timezone 通知消息里时间的显示时区（IANA 名，如 Asia/Tokyo）。只影响显示，存储与接口一律 UTC
 	Timezone string
+	// ClientIPHeader 最外层入口（如 CDN）覆盖写入真实客户端地址的头名（如 CF-Connecting-IP）。
+	// 空 = 不信任任何头，取 TCP 对端地址；⛔ 不要配成 X-Forwarded-For（客户端可以伪造）
+	ClientIPHeader string
+	// MaxRequestBodyBytes Web API 单个请求体的上限
+	MaxRequestBodyBytes int64
+	// RateLimitPerMinute 每个客户端地址每分钟的 Web API 请求上限（兜底）
+	RateLimitPerMinute int
+	// LoginRateLimitPerMinute 每个客户端地址每分钟的登录尝试上限（密码登录与 OIDC）
+	LoginRateLimitPerMinute int
 }
 
 // AgentSDKConfig Agent 入口（AgentSDK）的认证与限额配置
@@ -36,6 +45,8 @@ type DatabaseConfig struct {
 	Path     string // SQLite 路径
 	DSN      string // MySQL/PG 连接串
 	MaxConns int    // 最大连接数
+	// CommandHistoryRetention 指令历史保留多久（每小时清理一次更早的）
+	CommandHistoryRetention time.Duration
 }
 
 // EventConfig Event 持久化配置
