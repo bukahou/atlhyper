@@ -9,7 +9,6 @@ package observe
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +29,7 @@ import (
 type NodeMetricsHandler struct {
 	querySvc ObserveQuery
 	ops      ObserveOps
+	queries  *commandQuery
 }
 
 // NewNodeMetricsHandler 创建节点指标处理器
@@ -37,6 +37,7 @@ func NewNodeMetricsHandler(querySvc ObserveQuery, ops ObserveOps) *NodeMetricsHa
 	return &NodeMetricsHandler{
 		querySvc: querySvc,
 		ops:      ops,
+		queries:  newCommandQuery(ops),
 	}
 }
 
@@ -164,16 +165,9 @@ func (h *NodeMetricsHandler) getHistory(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// 解析时间范围
-	hours := 24
-	if hoursStr := r.URL.Query().Get("hours"); hoursStr != "" {
-		if h, err := strconv.Atoi(hoursStr); err == nil && h > 0 {
-			hours = h
-		}
-	}
-
-	minutes := hours * 60
+	minutes := windowHoursParamMinutes(r, "hours", 24)
 	end := time.Now()
-	start := end.Add(-time.Duration(hours) * time.Hour)
+	start := end.Add(-time.Duration(minutes) * time.Minute)
 
 	// 层 1: Ring Buffer（≤15min）— 10s 精度
 	if minutes <= 15 {
@@ -214,56 +208,26 @@ func (h *NodeMetricsHandler) getHistory(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// 层 3: Command → Agent → ClickHouse（>60min）
-	h.getHistoryFromCH(w, r, clusterID, nodeName, start, end, hours)
+	h.getHistoryFromCH(w, r, clusterID, nodeName, start, end, minutes)
 }
 
 // getHistoryFromCH 通过 Command 管道从 ClickHouse 获取历史数据
-func (h *NodeMetricsHandler) getHistoryFromCH(w http.ResponseWriter, r *http.Request, clusterID, nodeName string, start, end time.Time, hours int) {
+func (h *NodeMetricsHandler) getHistoryFromCH(w http.ResponseWriter, r *http.Request, clusterID, nodeName string, start, end time.Time, minutes int) {
 	params := map[string]interface{}{
 		"sub_action": "get_history",
 		"node_name":  nodeName,
-		"since":      (time.Duration(hours) * time.Hour).String(),
+		"since":      (time.Duration(minutes) * time.Minute).String(),
 	}
 
-	// 同步执行指令（创建 + 等待结果，30s 超时）
-	result, err := h.ops.ExecuteCommandSync(r.Context(), &model.CreateCommandRequest{
-		ClusterID: clusterID,
-		Action:    command.ActionQueryMetrics,
-		Params:    params,
-		Source:    command.SourceWeb,
-	}, 30*time.Second)
+	raw, err := h.queries.run(r.Context(), clusterID, command.ActionQueryMetrics, params, cacheTTLForMinutes(minutes))
 	if err != nil {
-		if strings.Contains(err.Error(), "create command:") {
-			handler.WriteError(w, http.StatusInternalServerError, "创建查询指令失败: "+err.Error())
-		} else {
-			handler.WriteError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
-		}
-		return
-	}
-	if result == nil {
-		handler.WriteError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
+		writeQueryError(w, err)
 		return
 	}
 
-	if !result.Success {
-		errMsg := result.Error
-		if errMsg == "" {
-			errMsg = "查询失败"
-		}
-		handler.WriteError(w, http.StatusInternalServerError, errMsg)
-		return
-	}
-
-	// 透传 Agent 返回的 JSON
 	var data map[string][]model.TimeSeriesPoint
-	if err := json.Unmarshal([]byte(result.Output), &data); err != nil {
-		// 直接透传原始 JSON
-		handler.WriteJSON(w, http.StatusOK, model.NodeMetricsHistoryResponse{
-			NodeName: nodeName,
-			Start:    start,
-			End:      end,
-			Data:     map[string][]model.TimeSeriesPoint{},
-		})
+	if err := json.Unmarshal(raw, &data); err != nil {
+		handler.WriteError(w, http.StatusBadGateway, "Agent 返回的历史数据无法解析")
 		return
 	}
 

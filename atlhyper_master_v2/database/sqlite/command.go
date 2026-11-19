@@ -40,6 +40,10 @@ func (d *commandDialect) Update(cmd *database.CommandHistory) (string, []any) {
 	return query, args
 }
 
+func (d *commandDialect) DeleteBefore(before time.Time) (string, []any) {
+	return "DELETE FROM command_history WHERE created_at < ?", []any{utcStamp(before)}
+}
+
 func (d *commandDialect) SelectByCommandID(cmdID string) (string, []any) {
 	return "SELECT id, command_id, cluster_id, source, user_id, action, target_kind, target_namespace, target_name, params, status, result, error_message, created_at, started_at, finished_at, duration_ms FROM command_history WHERE command_id = ?", []any{cmdID}
 }

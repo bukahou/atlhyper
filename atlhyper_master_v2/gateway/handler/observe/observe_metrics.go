@@ -4,7 +4,6 @@ package observe
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
@@ -142,12 +141,7 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 	if len(parts) == 2 && parts[1] == "series" {
 		// GET /api/v2/observe/metrics/nodes/{name}/series
 		metric := r.URL.Query().Get("metric")
-		minutes := 30
-		if v := r.URL.Query().Get("minutes"); v != "" {
-			if m, err := strconv.Atoi(v); err == nil && m > 0 {
-				minutes = m
-			}
-		}
+		minutes := windowMinutesParam(r, "minutes", 30)
 
 		points, _, err := resolveNodeSeries(h.querySvc, r.Context(), clusterID, nodeName, metric, minutes)
 		if err == nil && len(points) > 0 {

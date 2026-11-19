@@ -5,6 +5,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 )
@@ -53,6 +54,15 @@ func (r *commandRepo) ListByUser(ctx context.Context, userID int64, limit, offse
 func (r *commandRepo) List(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error) {
 	query, args := r.dialect.SelectWithOpts(opts)
 	return r.queryAll(ctx, query, args...)
+}
+
+func (r *commandRepo) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	query, args := r.dialect.DeleteBefore(before)
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 func (r *commandRepo) Count(ctx context.Context, opts database.CommandQueryOpts) (int64, error) {

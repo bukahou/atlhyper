@@ -120,7 +120,21 @@ func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger
 func (r *Router) Handler() http.Handler {
 	r.registerRoutes()
 	limitBody := middleware.LimitBody(maxRequestBodyBytes())
-	return middleware.Logging(middleware.CORS(limitBody(middleware.Authenticate(r.service)(r.mux))))
+	rateLimit := middleware.RateLimitByClientIP(positiveOr(config.GlobalConfig.Server.RateLimitPerMinute, 3000), config.GlobalConfig.Server.ClientIPHeader)
+	return middleware.Logging(middleware.CORS(limitBody(rateLimit(middleware.Authenticate(r.service)(r.mux)))))
+}
+
+func positiveOr(v, def int) int {
+	if v > 0 {
+		return v
+	}
+	return def
+}
+
+// loginLimited 登录类入口另按客户端地址限次（防止猜密码）
+func loginLimited(h http.HandlerFunc) http.HandlerFunc {
+	limit := middleware.RateLimitByClientIP(positiveOr(config.GlobalConfig.Server.LoginRateLimitPerMinute, 20), config.GlobalConfig.Server.ClientIPHeader)
+	return limit(h).ServeHTTP
 }
 
 // defaultMaxRequestBodyBytes 配置缺省（如测试里未加载配置）时的请求体上限
@@ -197,13 +211,13 @@ func (r *Router) registerRoutes() {
 	r.open(mGet, "/health", healthCheck)
 	r.open(mGet, "/api/v2/auth/me", authMeH.Get)
 	r.open(mGet, "/api/v2/auth/permissions", handler.GetPermissionTable)
-	r.openAudited(mPost, "/api/v2/user/login", "login", "user", userH.Login) // 记录成功 / 失败的登录尝试
+	r.openAudited(mPost, "/api/v2/user/login", "login", "user", loginLimited(userH.Login)) // 记录成功 / 失败的登录尝试
 
 	// 外部身份登录（OIDC）：providers 恒注册（未启用时返回空列表，登录框据此隐藏按钮）
 	r.open(mGet, "/api/v2/auth/providers", r.oidc.Providers)
 	if r.oidc != nil {
-		r.open(mGet, "/api/v2/auth/oidc/start", r.oidc.Start)
-		r.openAudited(mGet, "/api/v2/auth/oidc/callback", "login", "user", r.oidc.Callback)
+		r.open(mGet, "/api/v2/auth/oidc/start", loginLimited(r.oidc.Start))
+		r.openAudited(mGet, "/api/v2/auth/oidc/callback", "login", "user", loginLimited(r.oidc.Callback))
 	}
 
 	// ================================================================

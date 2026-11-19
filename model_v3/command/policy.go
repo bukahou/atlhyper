@@ -40,6 +40,21 @@ var actionSources = map[string][]string{
 	ActionQueryMetrics:     {SourceWeb},
 }
 
+// telemetryQueries 观测查询：只读、结果直接回给发起方
+var telemetryQueries = map[string]bool{
+	ActionQueryTraces:      true,
+	ActionQueryTraceDetail: true,
+	ActionQueryLogs:        true,
+	ActionQueryMetrics:     true,
+}
+
+// RecordsHistory 这条指令是否写进指令历史。
+// Web 发起的观测查询不写：它们只读、访客也能触发，写库会被刷到无限增长；
+// 操作、内容读取（日志 / ConfigMap / Secret）、AI 与部署器发起的指令照常写。
+func RecordsHistory(action, source string) bool {
+	return !(source == SourceWeb && telemetryQueries[action])
+}
+
 // IsValidAction 是否是名单里的动作
 func IsValidAction(action string) bool {
 	_, ok := actionSources[action]

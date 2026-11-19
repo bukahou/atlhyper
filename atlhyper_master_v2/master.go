@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
@@ -72,6 +73,9 @@ type Master struct {
 	aiopsEngine aiops.Engine
 	// Deployer（GitOps CD）
 	deployer deployer.Deployer
+	// 指令历史定期清理
+	commandOps       *operations.CommandService
+	commandRetention time.Duration
 }
 
 // NewMaster 创建并初始化 Master 实例
@@ -182,7 +186,7 @@ func NewMaster() (*Master, error) {
 	log.Info("数据处理器初始化完成")
 
 	// 6. 初始化 Operations（写入路径，AI Service 依赖 cmdOps）
-	cmdOps := operations.NewCommandService(bus, db.Command)
+	cmdOps := operations.NewCommandService(bus, db.Command, storePresence{store: store})
 	adminOps := operations.NewAdminService(db.AIProvider, db.AISettings, db.AIRoleBudget)
 	log.Info("操作服务初始化完成")
 
@@ -608,6 +612,9 @@ func NewMaster() (*Master, error) {
 		log.Info("OIDC 登录已启用（首次使用时连接 issuer）", "issuer", cfg.OIDC.Issuer)
 	}
 
+	if cfg.Server.ClientIPHeader == "" {
+		log.Warn("未配置 MASTER_GATEWAY_CLIENT_IP_HEADER：审计记录的地址与按地址限流只能看到入口代理，所有客户端共用一个限流额度")
+	}
 	gw := gateway.NewServer(gateway.Config{
 		Port:           cfg.Server.GatewayPort,
 		Service:        svc,
@@ -633,6 +640,9 @@ func NewMaster() (*Master, error) {
 		alertManager: alertMgr,
 		aiopsEngine:  aiopsEngine,
 		deployer:     deployerService,
+
+		commandOps:       cmdOps,
+		commandRetention: cfg.Database.CommandHistoryRetention,
 	}, nil
 }
 
@@ -671,6 +681,9 @@ func (m *Master) Run(ctx context.Context) error {
 			log.Warn("Deployer 启动失败", "err", err)
 		}
 	}
+
+	// 指令历史定期清理（随 ctx 结束）
+	go m.runCommandHistoryRetention(ctx)
 
 	// 启动 AgentSDK
 	if err := m.agentSDK.Start(); err != nil {

@@ -1,9 +1,12 @@
 package memory
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
+	mq "AtlHyper/atlhyper_master_v2/mq/contract"
 	"AtlHyper/model_v3/command"
 )
 
@@ -44,5 +47,61 @@ func TestAckCommand_EmptyClusterSkipsOwnershipCheck(t *testing.T) {
 
 	if err := bus.AckCommand("", "cmd-1", &command.Result{CommandID: "cmd-1", Success: false, Error: "expired"}); err != nil {
 		t.Fatalf("不核对归属时应成功，实际 %v", err)
+	}
+}
+
+// 话题只有 ops / ai 两个：别的话题不建队列
+func TestEnqueueCommand_RejectsUnknownTopic(t *testing.T) {
+	bus := NewMemoryBus()
+	err := bus.EnqueueCommand("c1", "anything", &command.Command{ID: "x", ClusterID: "c1"})
+	if !errors.Is(err, mq.ErrUnknownTopic) {
+		t.Fatalf("err = %v, want ErrUnknownTopic", err)
+	}
+	if _, err := bus.WaitCommand(context.Background(), "c1", "anything", time.Millisecond); !errors.Is(err, mq.ErrUnknownTopic) {
+		t.Fatalf("WaitCommand err = %v, want ErrUnknownTopic", err)
+	}
+	if len(bus.queues) != 0 {
+		t.Errorf("未知话题不应建队列，实际 %d 个", len(bus.queues))
+	}
+}
+
+// 单个队列有长度上限：没人取的指令不会无限堆积
+func TestEnqueueCommand_QueueFull(t *testing.T) {
+	bus := NewMemoryBus()
+	bus.maxQueueLen = 2
+	enqueued(t, bus, "c1", "a")
+	enqueued(t, bus, "c1", "b")
+	err := bus.EnqueueCommand("c1", mq.TopicOps, &command.Command{ID: "c", ClusterID: "c1"})
+	if !errors.Is(err, mq.ErrQueueFull) {
+		t.Fatalf("err = %v, want ErrQueueFull", err)
+	}
+	if status, _ := bus.GetCommandStatus("c"); status != nil {
+		t.Error("没入队的指令不应留下状态记录")
+	}
+}
+
+// 清理：空闲的空队列删掉；一直没完成的状态记录过了上限也删掉（取不到结果的指令不会永远占着内存）
+func TestCleanup_IdleQueuesAndStaleStatuses(t *testing.T) {
+	bus := NewMemoryBus()
+	now := time.Now()
+
+	// 空队列：被长轮询建出来后没人再用
+	if _, err := bus.WaitCommand(context.Background(), "ghost", mq.TopicOps, time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	// 有指令、但一直没被取走
+	enqueued(t, bus, "c1", "stuck")
+
+	bus.cleanup(now.Add(bus.idleQueueTTL + time.Minute))
+	if _, ok := bus.queues[queueKey("ghost", mq.TopicOps)]; ok {
+		t.Error("空闲的空队列应被删除")
+	}
+	if _, ok := bus.queues[queueKey("c1", mq.TopicOps)]; !ok {
+		t.Error("还有指令的队列不应被删除")
+	}
+
+	bus.cleanup(now.Add(bus.staleStatusTTL + time.Minute))
+	if status, _ := bus.GetCommandStatus("stuck"); status != nil {
+		t.Error("超过上限仍未完成的状态记录应被删除")
 	}
 }

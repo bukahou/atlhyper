@@ -143,6 +143,8 @@ type CommandHistoryRepository interface {
 	// 新增：带筛选条件的列表查询
 	List(ctx context.Context, opts CommandQueryOpts) ([]*CommandHistory, error)
 	Count(ctx context.Context, opts CommandQueryOpts) (int64, error)
+	// DeleteBefore 删除创建时间早于 before 的历史，返回删除的行数
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 // SettingsRepository 设置接口
@@ -451,6 +453,7 @@ type CommandDialect interface {
 	// 新增：带筛选条件的查询
 	SelectWithOpts(opts CommandQueryOpts) (query string, args []any)
 	CountWithOpts(opts CommandQueryOpts) (query string, args []any)
+	DeleteBefore(before time.Time) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*CommandHistory, error)
 }
 

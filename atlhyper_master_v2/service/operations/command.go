@@ -22,15 +22,22 @@ var log = logger.Module("CommandService")
 
 // CommandService 指令服务
 type CommandService struct {
-	bus     mq.Producer
-	cmdRepo database.CommandHistoryRepository
+	bus      mq.Producer
+	cmdRepo  database.CommandHistoryRepository
+	presence ClusterPresence
+}
+
+// ClusterPresence 判断集群是否有在线的 Agent
+type ClusterPresence interface {
+	IsClusterOnline(clusterID string) bool
 }
 
 // NewCommandService 创建 CommandService
-func NewCommandService(bus mq.Producer, cmdRepo database.CommandHistoryRepository) *CommandService {
+func NewCommandService(bus mq.Producer, cmdRepo database.CommandHistoryRepository, presence ClusterPresence) *CommandService {
 	return &CommandService{
-		bus:     bus,
-		cmdRepo: cmdRepo,
+		bus:      bus,
+		cmdRepo:  cmdRepo,
+		presence: presence,
 	}
 }
 
@@ -38,7 +45,11 @@ func NewCommandService(bus mq.Producer, cmdRepo database.CommandHistoryRepositor
 func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.CreateCommandResponse, error) {
 	// 1. 校验
 	if err := s.validateRequest(req); err != nil {
-		return nil, fmt.Errorf("validate request: %w", err)
+		return nil, fmt.Errorf("%w: %w", model.ErrInvalidCommand, err)
+	}
+	// 没有在线 Agent 的集群不建指令：发了也没人取，任意集群 ID 也不会在队列里留下东西
+	if !s.presence.IsClusterOnline(req.ClusterID) {
+		return nil, fmt.Errorf("%w: %s", model.ErrClusterOffline, req.ClusterID)
 	}
 
 	// 2. 生成指令 ID
@@ -57,43 +68,52 @@ func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.
 		CreatedAt: time.Now(),
 	}
 
-	// 4. 先持久化指令历史。
+	// 4. 先持久化指令历史（只写需要留痕的指令，见 command.RecordsHistory）。
 	// 指令一入队 Agent 就可能立刻执行并回报结果，回报时要找得到这条历史；
 	// 若先入队后写历史，结果先到就对不上，历史会永远停在 pending。
-	paramsJSON, _ := json.Marshal(req.Params)
-	history := &database.CommandHistory{
-		CommandID:       commandID,
-		ClusterID:       req.ClusterID,
-		Source:          req.Source,
-		Action:          req.Action,
-		TargetKind:      req.TargetKind,
-		TargetNamespace: req.TargetNamespace,
-		TargetName:      req.TargetName,
-		Params:          string(paramsJSON),
-		Status:          command.StatusPending,
-		CreatedAt:       cmd.CreatedAt,
-	}
-	historyErr := s.cmdRepo.Create(context.Background(), history)
-	if historyErr != nil {
-		log.Error("指令历史持久化失败", "err", historyErr)
+	var history *database.CommandHistory
+	var historyErr error
+	if command.RecordsHistory(req.Action, req.Source) {
+		paramsJSON, _ := json.Marshal(req.Params)
+		history = &database.CommandHistory{
+			CommandID:       commandID,
+			ClusterID:       req.ClusterID,
+			Source:          req.Source,
+			Action:          req.Action,
+			TargetKind:      req.TargetKind,
+			TargetNamespace: req.TargetNamespace,
+			TargetName:      req.TargetName,
+			Params:          string(paramsJSON),
+			Status:          command.StatusPending,
+			CreatedAt:       cmd.CreatedAt,
+		}
+		historyErr = s.cmdRepo.Create(context.Background(), history)
+		if historyErr != nil {
+			log.Error("指令历史持久化失败", "err", historyErr)
+		}
 	}
 
 	// 5. 写入 MQ（按来源路由 topic）
 	topic := mq.TopicOps
-	if req.Source == "ai" {
+	if req.Source == command.SourceAI {
 		topic = mq.TopicAI
 	}
 	if err := s.bus.EnqueueCommand(req.ClusterID, topic, cmd); err != nil {
-		if historyErr == nil {
+		if history != nil && historyErr == nil {
 			s.markHistoryFailed(history, err)
 		}
-		return nil, fmt.Errorf("enqueue command: %w", err)
+		return nil, fmt.Errorf("%w: %w", model.ErrEnqueueFailed, err)
 	}
 
 	return &model.CreateCommandResponse{
 		CommandID: commandID,
 		Status:    "pending",
 	}, nil
+}
+
+// PurgeHistory 删除早于 now-keep 的指令历史，返回删除的行数
+func (s *CommandService) PurgeHistory(ctx context.Context, now time.Time, keep time.Duration) (int64, error) {
+	return s.cmdRepo.DeleteBefore(ctx, now.Add(-keep))
 }
 
 // markHistoryFailed 指令没能入队时，把已写下的历史标成失败
@@ -149,7 +169,7 @@ func (s *CommandService) validateRequest(req *model.CreateCommandRequest) error 
 func (s *CommandService) ExecuteCommandSync(ctx context.Context, req *model.CreateCommandRequest, timeout time.Duration) (*command.Result, error) {
 	resp, err := s.CreateCommand(req)
 	if err != nil {
-		return nil, fmt.Errorf("create command: %w", err)
+		return nil, err
 	}
 	result, err := s.bus.WaitCommandResult(ctx, resp.CommandID, timeout)
 	if err != nil {

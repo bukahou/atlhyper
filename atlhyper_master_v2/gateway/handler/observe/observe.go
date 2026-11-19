@@ -16,7 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
+	"strconv"
 	"sync"
 	"time"
 
@@ -49,7 +49,7 @@ type ObserveOps interface {
 type ObserveHandler struct {
 	svc      ObserveOps
 	querySvc ObserveQuery
-	cache    *observeCache
+	queries  *commandQuery
 }
 
 // NewObserveHandler 创建 ObserveHandler
@@ -57,7 +57,7 @@ func NewObserveHandler(svc ObserveOps, querySvc ObserveQuery) *ObserveHandler {
 	return &ObserveHandler{
 		svc:      svc,
 		querySvc: querySvc,
-		cache:    newObserveCache(),
+		queries:  newCommandQuery(svc),
 	}
 }
 
@@ -157,56 +157,14 @@ func (h *ObserveHandler) executeQuery(
 	params map[string]interface{},
 	cacheTTL time.Duration,
 ) {
-	// 1. 检查缓存
-	cacheKey := buildCacheKey(clusterID, action, params)
-	if data, ok := h.cache.get(cacheKey); ok {
-		handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-			"message": "获取成功",
-			"data":    data,
-		})
-		return
-	}
-
-	// 2. 同步执行指令（创建 + 等待结果，30 秒超时）
-	result, err := h.svc.ExecuteCommandSync(r.Context(), &model.CreateCommandRequest{
-		ClusterID: clusterID,
-		Action:    action,
-		Params:    params,
-		Source:    command.SourceWeb,
-	}, 30*time.Second)
+	data, err := h.queries.run(r.Context(), clusterID, action, params, cacheTTL)
 	if err != nil {
-		if strings.Contains(err.Error(), "create command:") {
-			handler.WriteError(w, http.StatusInternalServerError, "创建查询指令失败: "+err.Error())
-		} else {
-			handler.WriteError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
-		}
+		writeQueryError(w, err)
 		return
 	}
-	if result == nil {
-		handler.WriteError(w, http.StatusGatewayTimeout, "查询超时，请稍后重试")
-		return
-	}
-
-	// 4. 检查执行结果
-	if !result.Success {
-		errMsg := result.Error
-		if errMsg == "" {
-			errMsg = "查询失败"
-		}
-		handler.WriteError(w, http.StatusInternalServerError, errMsg)
-		return
-	}
-
-	// 5. JSON 透传：result.Output 是 Agent 返回的 JSON 字符串
-	rawData := json.RawMessage(result.Output)
-
-	// 6. 写缓存
-	h.cache.set(cacheKey, rawData, cacheTTL)
-
-	// 7. 返回
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    rawData,
+		"data":    data,
 	})
 }
 
@@ -226,17 +184,48 @@ func requireClusterID(r *http.Request) (string, bool) {
 	return clusterID, clusterID != ""
 }
 
-// parseTimeRangeMinutes 解析时间范围字符串为分钟数
-// 支持格式: "15m", "1h", "30m" 等
+// maxWindowMinutes 观测查询的时间窗上限，与前端最长的预设（30d）一致。
+// ClickHouse 由 dev / prod 共用：不设上限时一个请求就能拖慢所有环境
+const maxWindowMinutes = 30 * 24 * 60
+
+func clampWindowMinutes(m int) int {
+	if m > maxWindowMinutes {
+		return maxWindowMinutes
+	}
+	return m
+}
+
+// parseTimeRangeMinutes 解析时间范围字符串（Go duration：15m、1h、720h）为分钟数，超过上限按上限
 func parseTimeRangeMinutes(s string) (int, bool) {
 	if s == "" {
 		return 0, false
 	}
 	d, err := time.ParseDuration(s)
-	if err != nil {
+	if err != nil || d < time.Minute {
 		return 0, false
 	}
-	return int(d.Minutes()), true
+	return clampWindowMinutes(int(d.Minutes())), true
+}
+
+// windowMinutesParam 读整数分钟参数：缺省或不合法用 def，超过上限按上限
+func windowMinutesParam(r *http.Request, key string, def int) int {
+	m, err := strconv.Atoi(r.URL.Query().Get(key))
+	if err != nil || m <= 0 {
+		return def
+	}
+	return clampWindowMinutes(m)
+}
+
+// windowHoursParamMinutes 读整数小时参数并换成分钟：缺省或不合法用 defHours，超过上限按上限
+func windowHoursParamMinutes(r *http.Request, key string, defHours int) int {
+	h, err := strconv.Atoi(r.URL.Query().Get(key))
+	if err != nil || h <= 0 {
+		return defHours * 60
+	}
+	if h > maxWindowMinutes/60 {
+		return maxWindowMinutes
+	}
+	return h * 60
 }
 
 // cacheTTLForMinutes 根据查询时间范围返回合适的缓存 TTL

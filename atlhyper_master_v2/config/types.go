@@ -18,6 +18,10 @@ type ServerConfig struct {
 	ClientIPHeader string
 	// MaxRequestBodyBytes Web API 单个请求体的上限
 	MaxRequestBodyBytes int64
+	// RateLimitPerMinute 每个客户端地址每分钟的 Web API 请求上限（兜底）
+	RateLimitPerMinute int
+	// LoginRateLimitPerMinute 每个客户端地址每分钟的登录尝试上限（密码登录与 OIDC）
+	LoginRateLimitPerMinute int
 }
 
 // AgentSDKConfig Agent 入口（AgentSDK）的认证与限额配置
@@ -41,6 +45,8 @@ type DatabaseConfig struct {
 	Path     string // SQLite 路径
 	DSN      string // MySQL/PG 连接串
 	MaxConns int    // 最大连接数
+	// CommandHistoryRetention 指令历史保留多久（每小时清理一次更早的）
+	CommandHistoryRetention time.Duration
 }
 
 // EventConfig Event 持久化配置

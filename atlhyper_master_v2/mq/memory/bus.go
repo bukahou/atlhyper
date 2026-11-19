@@ -4,9 +4,11 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/mq/contract"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
 )
@@ -29,14 +31,26 @@ type MemoryBus struct {
 
 	// 生命周期
 	stopCh chan struct{}
+
+	// 边界：队列长度上限、空闲空队列的保留时间、未完成状态记录的保留上限
+	maxQueueLen    int
+	idleQueueTTL   time.Duration
+	staleStatusTTL time.Duration
 }
 
 // commandQueue 单个集群的指令队列
 type commandQueue struct {
-	commands []*command.Command
-	waiting  chan struct{} // 通知等待者
-	mu       sync.Mutex
+	commands   []*command.Command
+	waiting    chan struct{} // 通知等待者
+	mu         sync.Mutex
+	lastActive time.Time // 最近一次入队或被取的时间（受 mu 保护）
 }
+
+const (
+	defaultMaxQueueLen    = 1000
+	defaultIdleQueueTTL   = 10 * time.Minute
+	defaultStaleStatusTTL = time.Hour // 远长于任何一条指令的等待上限
+)
 
 // NewMemoryBus 创建 MemoryBus
 func NewMemoryBus() *MemoryBus {
@@ -45,6 +59,9 @@ func NewMemoryBus() *MemoryBus {
 		commands:       make(map[string]*command.Status),
 		commandWaiters: make(map[string]chan *command.Result),
 		stopCh:         make(chan struct{}),
+		maxQueueLen:    defaultMaxQueueLen,
+		idleQueueTTL:   defaultIdleQueueTTL,
+		staleStatusTTL: defaultStaleStatusTTL,
 	}
 }
 
@@ -78,8 +95,9 @@ func (b *MemoryBus) getOrCreateQueue(clusterID, topic string) *commandQueue {
 		return q
 	}
 	q := &commandQueue{
-		commands: make([]*command.Command, 0),
-		waiting:  make(chan struct{}, 1),
+		commands:   make([]*command.Command, 0),
+		waiting:    make(chan struct{}, 1),
+		lastActive: time.Now(),
 	}
 	b.queues[key] = q
 	return q
@@ -87,10 +105,18 @@ func (b *MemoryBus) getOrCreateQueue(clusterID, topic string) *commandQueue {
 
 // EnqueueCommand 入队指令到指定 topic
 func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *command.Command) error {
+	if err := contract.CheckTopic(topic); err != nil {
+		return err
+	}
 	q := b.getOrCreateQueue(clusterID, topic)
 
 	q.mu.Lock()
+	if len(q.commands) >= b.maxQueueLen {
+		q.mu.Unlock()
+		return fmt.Errorf("%w: %s/%s 已有 %d 条", contract.ErrQueueFull, clusterID, topic, b.maxQueueLen)
+	}
 	q.commands = append(q.commands, cmd)
+	q.lastActive = time.Now()
 	q.mu.Unlock()
 
 	// 记录指令状态
@@ -115,10 +141,14 @@ func (b *MemoryBus) EnqueueCommand(clusterID, topic string, cmd *command.Command
 
 // WaitCommand 等待指定 topic 的指令（长轮询）
 func (b *MemoryBus) WaitCommand(ctx context.Context, clusterID, topic string, timeout time.Duration) (*command.Command, error) {
+	if err := contract.CheckTopic(topic); err != nil {
+		return nil, err
+	}
 	q := b.getOrCreateQueue(clusterID, topic)
 
 	// 先检查是否有待处理的指令
 	q.mu.Lock()
+	q.lastActive = time.Now()
 	if len(q.commands) > 0 {
 		cmd := q.commands[0]
 		q.commands = q.commands[1:]
@@ -257,7 +287,7 @@ func (b *MemoryBus) WaitCommandResult(ctx context.Context, cmdID string, timeout
 	}
 }
 
-// cleanupLoop 定期清理已完成的指令记录
+// cleanupLoop 定期清理
 func (b *MemoryBus) cleanupLoop() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
@@ -266,22 +296,35 @@ func (b *MemoryBus) cleanupLoop() {
 		case <-b.stopCh:
 			return
 		case <-ticker.C:
-			b.cleanupCompleted()
+			b.cleanup(time.Now())
 		}
 	}
 }
 
-// cleanupCompleted 清理完成超过保留时间的指令记录
-func (b *MemoryBus) cleanupCompleted() {
-	const retention = 5 * time.Minute
-	now := time.Now()
+// cleanup 清理三类东西：完成超过 5 分钟的状态记录；超过上限仍未完成的状态记录
+// （结果再也不会来的指令）；空闲超过上限的空队列（任意集群 ID 的长轮询建出来的）
+func (b *MemoryBus) cleanup(now time.Time) {
+	const finishedRetention = 5 * time.Minute
 
 	b.commandsMu.Lock()
-	defer b.commandsMu.Unlock()
-
 	for id, cs := range b.commands {
-		if cs.FinishedAt != nil && now.Sub(*cs.FinishedAt) > retention {
+		switch {
+		case cs.FinishedAt != nil && now.Sub(*cs.FinishedAt) > finishedRetention:
+			delete(b.commands, id)
+		case cs.FinishedAt == nil && now.Sub(cs.CreatedAt) > b.staleStatusTTL:
 			delete(b.commands, id)
 		}
 	}
+	b.commandsMu.Unlock()
+
+	b.queuesMu.Lock()
+	for key, q := range b.queues {
+		q.mu.Lock()
+		idle := len(q.commands) == 0 && now.Sub(q.lastActive) > b.idleQueueTTL
+		q.mu.Unlock()
+		if idle {
+			delete(b.queues, key)
+		}
+	}
+	b.queuesMu.Unlock()
 }

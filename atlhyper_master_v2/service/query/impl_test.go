@@ -154,6 +154,10 @@ func (m *mockCommandRepo) Count(ctx context.Context, opts database.CommandQueryO
 	return 0, nil
 }
 
+func (m *mockCommandRepo) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	return 0, nil
+}
+
 type mockAIProviderRepo struct{}
 
 func (m *mockAIProviderRepo) Create(ctx context.Context, p *database.AIProvider) error { return nil }

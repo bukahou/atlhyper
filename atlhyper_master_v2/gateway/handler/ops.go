@@ -6,7 +6,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/model"
@@ -130,11 +129,7 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 		Source:          command.SourceWeb,
 	}, 30*time.Second)
 	if err != nil {
-		if strings.Contains(err.Error(), "create command:") {
-			writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
-		} else {
-			writeError(w, http.StatusGatewayTimeout, "获取日志超时")
-		}
+		WriteCommandError(w, err)
 		return
 	}
 	if result == nil {
@@ -185,7 +180,7 @@ func (h *OpsHandler) PodRestart(w http.ResponseWriter, r *http.Request) {
 		Source:          command.SourceWeb,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		WriteCommandError(w, err)
 		return
 	}
 
@@ -231,7 +226,7 @@ func (h *OpsHandler) DeploymentScale(w http.ResponseWriter, r *http.Request) {
 		Source:          command.SourceWeb,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		WriteCommandError(w, err)
 		return
 	}
 
@@ -270,7 +265,7 @@ func (h *OpsHandler) DeploymentRestart(w http.ResponseWriter, r *http.Request) {
 		Source:          command.SourceWeb,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		WriteCommandError(w, err)
 		return
 	}
 
@@ -316,7 +311,7 @@ func (h *OpsHandler) DeploymentImage(w http.ResponseWriter, r *http.Request) {
 		Source:          command.SourceWeb,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		WriteCommandError(w, err)
 		return
 	}
 
@@ -354,7 +349,7 @@ func (h *OpsHandler) NodeCordon(w http.ResponseWriter, r *http.Request) {
 		Source:     command.SourceWeb,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		WriteCommandError(w, err)
 		return
 	}
 
@@ -392,7 +387,7 @@ func (h *OpsHandler) NodeUncordon(w http.ResponseWriter, r *http.Request) {
 		Source:     command.SourceWeb,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
+		WriteCommandError(w, err)
 		return
 	}
 
@@ -432,11 +427,7 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 		Source:          command.SourceWeb,
 	}, 30*time.Second)
 	if err != nil {
-		if strings.Contains(err.Error(), "create command:") {
-			writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
-		} else {
-			writeError(w, http.StatusGatewayTimeout, "获取数据超时")
-		}
+		WriteCommandError(w, err)
 		return
 	}
 	if result == nil {
@@ -486,11 +477,7 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 		Source:          command.SourceWeb,
 	}, 30*time.Second)
 	if err != nil {
-		if strings.Contains(err.Error(), "create command:") {
-			writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
-		} else {
-			writeError(w, http.StatusGatewayTimeout, "获取数据超时")
-		}
+		WriteCommandError(w, err)
 		return
 	}
 	if result == nil {
