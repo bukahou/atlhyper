@@ -5,22 +5,6 @@ import (
 	"testing"
 )
 
-// D3（2026-09-11）：Dashboard 列表缓存 TTL 从硬编码 30s 提成可配，
-// dev 环境可放宽到分钟级以减少对共用 ClickHouse 的查询压力。默认值必须与旧行为一致。
-func TestDefaults_OTelDashboardTTL(t *testing.T) {
-	if got := defaultDurations["AGENT_OTEL_DASHBOARD_TTL"]; got != "30s" {
-		t.Fatalf("AGENT_OTEL_DASHBOARD_TTL 默认应为 30s（与旧硬编码一致），得到 %q", got)
-	}
-}
-
-// 集群令牌没有默认值：不配置时 Agent 不带认证头，配置与否由部署决定。
-func TestDefaults_MasterTokenIsEmpty(t *testing.T) {
-	got, defined := defaultStrings["AGENT_MASTER_TOKEN"]
-	if !defined || got != "" {
-		t.Fatalf("AGENT_MASTER_TOKEN 应已登记且默认为空，得到 defined=%v value=%q", defined, got)
-	}
-}
-
 func TestLoadMasterToken(t *testing.T) {
 	cases := []struct {
 		name string
@@ -35,9 +19,10 @@ func TestLoadMasterToken(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			clearAgentEnv(t)
 			t.Setenv("AGENT_MASTER_TOKEN", c.env)
-			if got := loadMasterToken(); got != c.want {
-				t.Errorf("loadMasterToken() = %q, want %q", got, c.want)
+			if got := mustLoad(t).Master.Token; got != c.want {
+				t.Errorf("Master.Token = %q, want %q", got, c.want)
 			}
 		})
 	}

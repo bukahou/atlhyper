@@ -1545,6 +1545,17 @@ export interface AIChatPageTranslations {
     alertEvents: string;
     deploymentStatus: string;
   };
+  /** 对话流没有正常完成时的提示（{status} / {message} 为占位） */
+  streamErrors: {
+    unauthorized: string;
+    forbidden: string;
+    rateLimited: string;
+    httpError: string;
+    serverError: string;
+    malformed: string;
+    interrupted: string;
+    network: string;
+  };
   // ChatInput
   chatInput: {
     placeholderStreaming: string;

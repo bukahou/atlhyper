@@ -6,6 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 // 这个文件在守卫测试 no-direct-fetch.test.ts 的流式豁免名单里
 import { streamChat, type ChatAlert } from "@/api/ai";
 import type { Message } from "@/components/ai/types";
+import { useI18n } from "@/i18n/context";
+import { chatStreamFailureMessage } from "@/lib/chat-sse";
 import { aiChatKeys } from "@/queries/keys";
 import { type ChatStreamEvent, type ChatStreamState, reduceChatStream, startChatStream } from "./chat-stream-state";
 
@@ -19,6 +21,7 @@ export type { ChatStreamState } from "./chat-stream-state";
  */
 export function useChatStream(clusterId: string) {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [stream, setStream] = useState<ChatStreamState | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const nextStreamIdRef = useRef(1);
@@ -70,15 +73,15 @@ export function useChatStream(clusterId: string) {
             if (abortRef.current === controller) abortRef.current = null;
           });
         },
-        (errorMessage) => {
-          dispatch({ type: "error", streamId, message: errorMessage });
+        (failure) => {
+          dispatch({ type: "error", streamId, message: chatStreamFailureMessage(failure, t.aiChatPage.streamErrors) });
           void refreshHistory(conversationId);
           if (abortRef.current === controller) abortRef.current = null;
         },
         controller.signal,
       );
     },
-    [clusterId, dispatch, refreshHistory],
+    [clusterId, dispatch, refreshHistory, t],
   );
 
   /** 停止生成：中止连接，已经输出的内容留在界面上 */
