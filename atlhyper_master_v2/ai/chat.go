@@ -4,6 +4,7 @@
 package ai
 
 import (
+	"AtlHyper/common/truncate"
 	"context"
 	"encoding/json"
 	"errors"
@@ -255,14 +256,14 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			ch <- &ChatChunk{
 				Type:    "tool_result",
 				Tool:    tc.Name,
-				Content: truncate(result, 4000),
+				Content: clipToolResult(result, 4000),
 			}
 
 			// 添加 tool 结果到历史（截断强度按 context_window 调整）
 			toolResult := &llm.ToolResult{
 				CallID:  tc.ID,
 				Name:    tc.Name,
-				Content: truncate(result, maxToolResult),
+				Content: clipToolResult(result, maxToolResult),
 			}
 			messages = append(messages, llm.Message{
 				Role:       "tool",
@@ -424,11 +425,7 @@ func sendError(ch chan<- *ChatChunk, msg string) {
 	ch <- &ChatChunk{Type: "error", Content: msg}
 }
 
-// truncate 截断字符串
-func truncate(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
-	}
-	return string(runes[:maxLen]) + "...(已截断)"
+// clipToolResult 工具结果按字符截断后交给模型
+func clipToolResult(s string, maxLen int) string {
+	return truncate.Runes(s, maxLen, "...(已截断)")
 }

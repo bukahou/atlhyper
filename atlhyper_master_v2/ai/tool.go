@@ -4,6 +4,7 @@
 package ai
 
 import (
+	"AtlHyper/common/truncate"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -247,8 +248,8 @@ func truncateLogBodies(logs []json.RawMessage, maxLen int) []json.RawMessage {
 			result = append(result, raw)
 			continue
 		}
-		if body, ok := entry["body"].(string); ok && len(body) > maxLen {
-			entry["body"] = body[:maxLen] + "(truncated)"
+		if body, ok := entry["body"].(string); ok {
+			entry["body"] = truncate.Runes(body, maxLen, "(truncated)")
 		}
 		data, _ := json.Marshal(entry)
 		result = append(result, data)
@@ -260,15 +261,11 @@ func truncateLogBodies(logs []json.RawMessage, maxLen int) []json.RawMessage {
 // 格式: "namespace/entityType/name"（与 aiops.EntityKey() 一致）
 // 示例: "default/pod/api-1", "_cluster/node/worker-3", "default/service/api"
 func BuildEntityKey(entityType, namespace, name string) string {
-	if namespace == "" {
-		switch entityType {
-		case "node":
-			namespace = "_cluster"
-		default:
-			namespace = "default"
-		}
+	// 命名空间级对象没给命名空间时按 default 查；集群级对象（节点）由 aiops.EntityKey 补占位
+	if namespace == "" && entityType != "node" {
+		namespace = "default"
 	}
-	return namespace + "/" + entityType + "/" + name
+	return aiops.EntityKey(namespace, entityType, name)
 }
 
 // SimplifyEntityDetail 精简 EntityRiskDetail 用于 AI 返回
@@ -355,8 +352,8 @@ func NewGitHubReadFileHandler(ghClient github.Client, scope *GitHubRepoScope) To
 		content = redactSecretManifests(content)
 
 		// 截断过长内容，避免 LLM 上下文爆炸
-		if len(content) > 10000 {
-			content = content[:10000] + "\n... (truncated, total " + fmt.Sprintf("%d", len(content)) + " bytes)"
+		if clipped := truncate.Runes(content, 10000, ""); len(clipped) < len(content) {
+			content = clipped + fmt.Sprintf("\n... (truncated, total %d bytes)", len(content))
 		}
 		return content, nil
 	}

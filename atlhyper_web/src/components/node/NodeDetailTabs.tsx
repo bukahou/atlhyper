@@ -17,7 +17,7 @@ type Translations = ReturnType<typeof useI18n>["t"];
 // 概览 Tab
 export function OverviewTab({ detail, t }: { detail: NodeDetail; t: Translations }) {
   const infoItems = [
-    { label: t.common.status, value: <StatusBadge status={detail.ready ? "Ready" : "NotReady"} /> },
+    { label: t.common.status, value: <StatusBadge status={detail.ready ? "Ready" : "NotReady"} type={detail.ready ? "success" : "warning"} /> },
     { label: t.node.schedulable, value: detail.schedulable ? t.common.yes : `${t.common.no}（${t.node.cordoned}）` },
     { label: t.node.role, value: detail.roles?.join(", ") || "-" },
     { label: "Age", value: detail.age || "-" },

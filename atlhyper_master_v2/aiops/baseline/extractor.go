@@ -48,7 +48,7 @@ func extractNodeMetrics(snap *cluster.ClusterSnapshot) []aiops.MetricDataPoint {
 		if node.Metrics == nil {
 			continue
 		}
-		key := aiops.EntityKey("_cluster", "node", node.GetName())
+		key := aiops.EntityKey(aiops.ClusterScope, "node", node.GetName())
 
 		// CPU/Memory 使用率（来自 K8s Metrics Server）
 		if node.Metrics.CPU.UtilPct > 0 {
@@ -133,7 +133,7 @@ func extractNodePressure(snap *cluster.ClusterSnapshot, now int64) []*aiops.Anom
 		if node.Metrics == nil {
 			continue
 		}
-		key := aiops.EntityKey("_cluster", "node", node.GetName())
+		key := aiops.EntityKey(aiops.ClusterScope, "node", node.GetName())
 
 		if node.Metrics.Pressure.MemoryPressure {
 			results = append(results, &aiops.AnomalyResult{
@@ -462,7 +462,7 @@ func deploymentImpactScore(ratio float64) float64 {
 func extractIngressMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
 	for _, ing := range otel.SLOIngress {
-		key := aiops.EntityKey("_cluster", "ingress", ing.ServiceKey)
+		key := aiops.IngressEntityKey(ing.ServiceKey)
 
 		errorRate := ing.ErrorRate // 已是 0-100 范围
 		points = append(points,

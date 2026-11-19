@@ -628,6 +628,13 @@ export const zh: Translations = {
   },
   overview: {
     clusterHealth: "集群健康",
+    healthStatus: { Healthy: "健康", Degraded: "降级", Unhealthy: "异常", Unknown: "未知" },
+    healthReasons: {
+      nodeReadyLow: "节点就绪率过低",
+      podReadyLow: "Pod 就绪率过低",
+      someNodesNotReady: "部分节点未就绪",
+      somePodsNotReady: "部分 Pod 未就绪",
+    },
     nodeReady: "节点就绪",
     podHealthy: "Pod 健康",
     nodes: "节点",

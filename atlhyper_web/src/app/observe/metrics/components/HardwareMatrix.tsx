@@ -9,13 +9,13 @@ import type {
   HardwareRow,
   HardwareStatus,
 } from "@/types/hardware";
-import type { NodeMetrics } from "@/types/node-metrics";
+import type { NodeMetricsView } from "@/types/node-metrics";
 import { NodeDetailPanel } from "./NodeDetailPanel";
 
 interface HardwareMatrixProps {
   data: HardwareHealth | null;
   // ── 行展开下钻（2026-08-31 重构）：判定与详情同一入口 ──
-  nodes: NodeMetrics[];
+  nodes: NodeMetricsView[];
   expandedNode: string | null;
   onToggle: (nodeName: string) => void;
   /** 展开行的趋势图取最近多少小时的历史 */

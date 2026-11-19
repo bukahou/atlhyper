@@ -28,9 +28,10 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 		clusterID = h.defaultClusterID(r.Context())
 	}
 
-	timeRange := r.URL.Query().Get("time_range")
-	if timeRange == "" {
-		timeRange = "1d"
+	timeRange, err := sloWindowParam(r)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	ctx := r.Context()
@@ -118,6 +119,18 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 
 // defaultTarget 未配置目标时的兜底。
 // 99% / 300ms / 7 天窗口 —— 7 天对齐 ClickHouse 的 TTL，更长的窗口没有数据。
+// sloWindowParam 读 time_range：没给用默认窗口，不是预先算好的窗口返回错误（⛔ 不悄悄换成实时数据）
+func sloWindowParam(r *http.Request) (string, error) {
+	window := r.URL.Query().Get("time_range")
+	if window == "" {
+		return slomodel.DefaultWindow, nil
+	}
+	if err := slomodel.CheckWindow(window); err != nil {
+		return "", err
+	}
+	return window, nil
+}
+
 // loadTargetMap 读取集群的 SLO 目标；读失败要报错，⛔ 不能悄悄按默认目标判定
 func (h *SLOHandler) loadTargetMap(ctx context.Context, clusterID string) (map[string]model.SLOTargetResponse, error) {
 	targets, err := h.querySvc.GetSLOTargets(ctx, clusterID)
@@ -226,9 +239,9 @@ func serviceKeysForDomain(host string, ingress []slomodel.IngressSLO, mappings [
 		return keys
 	}
 
-	for _, ing := range ingress {
-		if ing.DisplayName == host || ing.ServiceKey == host {
-			keys[ing.ServiceKey] = true
+	for i := range ingress {
+		if ingress[i].MatchesHost(host) {
+			keys[ingress[i].ServiceKey] = true
 		}
 	}
 	if len(keys) == 0 {
@@ -284,9 +297,10 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 		clusterID = h.defaultClusterID(r.Context())
 	}
 
-	timeRange := r.URL.Query().Get("time_range")
-	if timeRange == "" {
-		timeRange = "1d"
+	timeRange, err := sloWindowParam(r)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	ctx := r.Context()
@@ -646,9 +660,10 @@ func (h *SLOHandler) DomainDetail(w http.ResponseWriter, r *http.Request) {
 		clusterID = h.defaultClusterID(r.Context())
 	}
 
-	timeRange := r.URL.Query().Get("time_range")
-	if timeRange == "" {
-		timeRange = "1d"
+	timeRange, err := sloWindowParam(r)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	ctx := r.Context()
@@ -716,9 +731,10 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timeRange := r.URL.Query().Get("time_range")
-	if timeRange == "" {
-		timeRange = "1d"
+	timeRange, err := sloWindowParam(r)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	availTarget := resolveTarget(targetMap, host).Availability

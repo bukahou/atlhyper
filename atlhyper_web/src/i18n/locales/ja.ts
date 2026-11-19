@@ -628,6 +628,13 @@ export const ja: Translations = {
   },
   overview: {
     clusterHealth: "クラスタ健全性",
+    healthStatus: { Healthy: "正常", Degraded: "低下", Unhealthy: "異常", Unknown: "不明" },
+    healthReasons: {
+      nodeReadyLow: "準備完了のノードが少なすぎます",
+      podReadyLow: "準備完了の Pod が少なすぎます",
+      someNodesNotReady: "一部のノードが準備完了していません",
+      somePodsNotReady: "一部の Pod が準備完了していません",
+    },
     nodeReady: "ノード準備完了",
     podHealthy: "Pod 健全性",
     nodes: "ノード",

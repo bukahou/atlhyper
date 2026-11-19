@@ -1,5 +1,7 @@
 "use client";
 
+import { EVENT_SEVERITY_FILTERS, eventSeverityLabel } from "@/lib/event-severity";
+
 import { Filter, X } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
@@ -142,11 +144,7 @@ export function EventFilterBar({
           onChange={(v) => onFilterChange("severity", v)}
           onClear={() => onFilterChange("severity", "")}
           placeholder={t.event.allSeverities}
-          options={[
-            { value: "Normal", label: "Normal" },
-            { value: "Warning", label: "Warning" },
-            { value: "Critical", label: "Critical" },
-          ]}
+          options={EVENT_SEVERITY_FILTERS.map((s) => ({ value: s, label: eventSeverityLabel(s, t.event) }))}
         />
         <FilterSelect
           value={filters.kind}

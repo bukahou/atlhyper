@@ -18,6 +18,7 @@
 package atlhyper_master_v2
 
 import (
+	slomodel "AtlHyper/model_v3/slo"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -425,9 +426,11 @@ func NewMaster() (*Master, error) {
 	aiService.RegisterTool("query_slo", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
 		window := getStringParam(params, "window")
 		if window == "" {
-			window = "7d"
+			window = slomodel.DefaultWindow
 		}
-		serviceName := getStringParam(params, "service")
+		if err := slomodel.CheckWindow(window); err != nil {
+			return err.Error(), nil // 告诉模型可选的窗口，⛔ 不悄悄换成别的数据
+		}
 		domain := getStringParam(params, "domain")
 
 		snapshot, err := store.GetSnapshot(clusterID)
@@ -436,55 +439,35 @@ func NewMaster() (*Master, error) {
 		}
 		otel := snapshot.OTel
 
-		var services []map[string]interface{}
-
-		// 从 SLOWindows 获取预聚合数据
-		// 过滤规则: 指定 service → 只返回 mesh; 指定 domain → 只返回 ingress; 都不指定 → 返回全部
+		// 窗口数据还没算好（如 Agent 刚启动）时用实时数据，并如实标成 realtime
+		source := otel.SLOIngress
+		label := "realtime（" + window + " 窗口的数据还没有算好）"
 		if windowData, ok := otel.SLOWindows[window]; ok && windowData != nil {
-			if serviceName == "" { // 未指定 service 时才包含 ingress
-				for _, s := range windowData.Current {
-					if domain != "" && s.ServiceKey != domain {
-						continue
-					}
-					services = append(services, map[string]interface{}{
-						"name":        s.ServiceKey,
-						"type":        "ingress",
-						"rps":         s.RPS,
-						"successRate": s.SuccessRate,
-						"errorRate":   s.ErrorRate,
-						"p50Ms":       s.P50Ms,
-						"p90Ms":       s.P90Ms,
-						"p99Ms":       s.P99Ms,
-					})
-				}
-			}
-		} else {
-			// 降级：从实时 SLO 列表获取
-			if serviceName == "" {
-				for _, s := range otel.SLOIngress {
-					if domain != "" && s.ServiceKey != domain {
-						continue
-					}
-					services = append(services, map[string]interface{}{
-						"name":        s.ServiceKey,
-						"type":        "ingress",
-						"rps":         s.RPS,
-						"successRate": s.SuccessRate,
-						"errorRate":   s.ErrorRate,
-						"p50Ms":       s.P50Ms,
-						"p90Ms":       s.P90Ms,
-						"p99Ms":       s.P99Ms,
-					})
-				}
-			}
+			source, label = windowData.Current, window
 		}
 
+		var services []map[string]interface{}
+		for _, s := range source {
+			if domain != "" && s.ServiceKey != domain {
+				continue
+			}
+			services = append(services, map[string]interface{}{
+				"name":        s.ServiceKey,
+				"type":        "ingress",
+				"rps":         s.RPS,
+				"successRate": s.SuccessRate, // 百分数
+				"errorRate":   s.ErrorRate,   // 百分数
+				"p50Ms":       s.P50Ms,
+				"p90Ms":       s.P90Ms,
+				"p99Ms":       s.P99Ms,
+			})
+		}
 		if len(services) > 50 {
 			services = services[:50]
 		}
 
 		data, _ := json.Marshal(map[string]interface{}{
-			"window":   window,
+			"window":   label,
 			"services": services,
 			"count":    len(services),
 		})

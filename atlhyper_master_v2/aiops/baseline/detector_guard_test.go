@@ -75,8 +75,8 @@ func TestDetect_AbsoluteGuard_Boundaries(t *testing.T) {
 		{"memory_usage", 80, false},
 		{"disk_usage", 90, true},
 		{"psi_cpu", 60, true},
-		{"apm_error_rate", 5, true}, // 错误率 5%
-		{"apm_error_rate", 1, false},
+		{"apm_error_rate", 0.05, true}, // 比率：错误率 5%
+		{"apm_error_rate", 0.01, false},
 		{"apm_rps", 99999, false},   // 无硬线的指标不受影响
 		{"restart_count", 3, false}, // 计数类由统计通道负责
 	}

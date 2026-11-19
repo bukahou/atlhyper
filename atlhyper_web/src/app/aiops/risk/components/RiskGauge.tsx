@@ -2,13 +2,7 @@
 
 import { useI18n } from "@/i18n/context";
 import { RiskBadge } from "@/components/aiops/RiskBadge";
-
-const LEVEL_COLORS: Record<string, string> = {
-  healthy: "#22c55e",
-  low: "#3b82f6",
-  warning: "#eab308",
-  critical: "#ef4444",
-};
+import { riskLevelColor } from "@/lib/risk";
 
 interface RiskGaugeProps {
   risk: number;
@@ -19,7 +13,7 @@ interface RiskGaugeProps {
 
 export function RiskGauge({ risk, level, anomalyCount, totalEntities }: RiskGaugeProps) {
   const { t } = useI18n();
-  const color = LEVEL_COLORS[level] ?? LEVEL_COLORS.healthy;
+  const color = riskLevelColor(level);
 
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-5">

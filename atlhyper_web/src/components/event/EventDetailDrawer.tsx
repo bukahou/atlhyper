@@ -2,6 +2,7 @@
 
 import { Drawer, StatusBadge } from "@/components/common";
 import { useI18n } from "@/i18n/context";
+import { eventSeverityBadge, eventSeverityLabel } from "@/lib/event-severity";
 import type { EventLog } from "@/types/cluster";
 import { Clock, Hash, Server, Box, AlertTriangle } from "lucide-react";
 
@@ -9,14 +10,6 @@ interface EventDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   event: EventLog;
-}
-
-function isCriticalEvent(event: EventLog): boolean {
-  const criticalReasons = [
-    "OOMKilling", "CrashLoopBackOff", "FailedScheduling",
-    "FailedMount", "NodeNotReady", "FailedBinding",
-  ];
-  return event.severity === "Warning" && criticalReasons.includes(event.reason);
 }
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -35,7 +28,6 @@ function formatTime(ts?: string): string {
 
 export function EventDetailDrawer({ isOpen, onClose, event }: EventDetailDrawerProps) {
   const { t } = useI18n();
-  const severityLabel = isCriticalEvent(event) ? "Critical" : event.severity === "Warning" ? "Warning" : "Normal";
 
   return (
     <Drawer isOpen={isOpen} onClose={onClose} title={`${event.kind}: ${event.name}`} size="lg">
@@ -52,7 +44,7 @@ export function EventDetailDrawer({ isOpen, onClose, event }: EventDetailDrawerP
             <InfoRow label={t.common.namespace} value={event.namespace || "-"} />
             <InfoRow
               label={t.common.status}
-              value={<StatusBadge status={severityLabel} />}
+              value={<StatusBadge status={eventSeverityLabel(event.severity, t.event)} type={eventSeverityBadge(event.severity)} />}
             />
             <InfoRow label={t.event.reason} value={
               <span className="font-mono text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">

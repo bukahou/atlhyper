@@ -2,12 +2,21 @@
  * 集群概览相关类型定义
  */
 
+import type { HardwareStatus } from "./hardware";
+
 // 集群健康状态
+export type ClusterHealthStatus = "Healthy" | "Degraded" | "Unhealthy" | "Unknown";
+
+/** 健康原因代码（后端判定，文案在 i18n overview.healthReasons） */
+export type ClusterHealthReason = "nodeReadyLow" | "podReadyLow" | "someNodesNotReady" | "somePodsNotReady";
+
 export interface ClusterHealth {
-  status: "Healthy" | "Degraded" | "Unhealthy" | "Unknown";
-  reason?: string;
+  status: ClusterHealthStatus;
+  reason?: ClusterHealthReason;
   nodeReadyPercent: number;
   podReadyPercent: number;
+  nodeReadyStatus: ClusterHealthStatus; // 两项就绪率各自的结论（后端判定）
+  podReadyStatus: ClusterHealthStatus;
 }
 
 // 节点就绪统计
@@ -119,6 +128,8 @@ export interface NodeUsage {
   node: string;
   cpuUsage: number;
   memUsage: number;
+  cpuLevel: HardwareStatus; // 后端判定的等级
+  memLevel: HardwareStatus;
 }
 
 // 节点数据
@@ -139,10 +150,12 @@ export interface ClusterOverview {
 export interface TransformedOverview {
   clusterId: string;
   healthCard: {
-    status: string;
-    reason: string;
+    status: ClusterHealthStatus;
+    reason: ClusterHealthReason | "";
     nodeReadyPct: number;
     podHealthyPct: number;
+    nodeReadyStatus: ClusterHealthStatus;
+    podReadyStatus: ClusterHealthStatus;
   };
   nodesCard: {
     totalNodes: number;
@@ -198,5 +211,7 @@ export interface TransformedOverview {
     nodeName: string;
     cpuPercent: number;
     memoryPercent: number;
+    cpuLevel: HardwareStatus;
+    memoryLevel: HardwareStatus;
   }[];
 }

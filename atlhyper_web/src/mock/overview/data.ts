@@ -45,16 +45,17 @@ function buildClusterOverview(): ClusterOverview {
   // node-7 (control-plane): CPU 35%, Mem 45%
   // worker-1: CPU 42%, Mem 62%
   // worker-2: CPU 28%, Mem 55%
+  // 等级写死后端的判定结果（使用率都在 80% 告警线以下）
   const nodeUsages = [
-    { node: "node-7", cpuUsage: 35, memUsage: 45 },
-    { node: "worker-1", cpuUsage: 42, memUsage: 62 },
-    { node: "worker-2", cpuUsage: 28, memUsage: 55 },
+    { node: "node-7", cpuUsage: 35, memUsage: 45, cpuLevel: "good" as const, memLevel: "good" as const },
+    { node: "worker-1", cpuUsage: 42, memUsage: 62, cpuLevel: "good" as const, memLevel: "good" as const },
+    { node: "worker-2", cpuUsage: 28, memUsage: 55, cpuLevel: "good" as const, memLevel: "good" as const },
   ];
   const avgCpu = nodeUsages.reduce((s, n) => s + n.cpuUsage, 0) / nodeUsages.length;
   const avgMem = nodeUsages.reduce((s, n) => s + n.memUsage, 0) / nodeUsages.length;
 
   // Events: Warning 事件数
-  const warningEvents = MOCK_EVENTS.filter((e) => e.severity === "Warning");
+  const warningEvents = MOCK_EVENTS.filter((e) => e.severity === "warning" || e.severity === "critical");
 
   // --- Workloads ---
   const depReady = MOCK_DEPLOYMENTS.reduce((s, d) => s + parseReplicas(d.replicas).ready, 0);
@@ -113,20 +114,17 @@ function buildClusterOverview(): ClusterOverview {
     }));
 
   // --- Health ---
-  const hasWarning = warningEvents.length > 0;
-  const allNodesReady = readyNodes === totalNodes;
-  const healthStatus = !allNodesReady ? "Degraded" as const
-    : hasWarning ? "Healthy" as const  // 有 warning 但节点全 ready 仍为 Healthy
-    : "Healthy" as const;
+  // 结论写死后端的判定结果：演示集群节点全部就绪、Pod 20/21 就绪（≥ 80%）→ 两项都健康
 
   return {
     clusterId,
     cards: {
       clusterHealth: {
-        status: healthStatus,
-        reason: healthStatus === "Degraded" ? "Some nodes are not ready" : undefined,
+        status: "Healthy",
         nodeReadyPercent: Math.round(nodeReadyPct * 100) / 100,
         podReadyPercent: Math.round(podReadyPct * 100) / 100,
+        nodeReadyStatus: "Healthy",
+        podReadyStatus: "Healthy",
       },
       nodeReady: {
         total: totalNodes,
@@ -169,7 +167,7 @@ function buildClusterOverview(): ClusterOverview {
       totals: {
         critical: 0,
         warning: warningEvents.length,
-        info: MOCK_EVENTS.filter((e) => e.severity === "Normal").length,
+        info: MOCK_EVENTS.filter((e) => e.severity === "info").length,
       },
       recent: recentAlerts,
     },

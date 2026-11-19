@@ -8,13 +8,13 @@ package slo
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/cluster"
+	slomodel "AtlHyper/model_v3/slo"
 )
 
 var routeLog = logger.Module("SLORoute")
@@ -46,7 +46,7 @@ func (u *RouteUpdater) Sync(store datahub.Store, clusterID string) error {
 
 // syncFromIngresses 从 K8s Ingress 资源构建路由映射
 // Ingress Rule: Host + Path → Backend Service (name + port)
-// ServiceKey 格式: "{namespace}-{serviceName}-{port}@kubernetes"（与 Traefik metrics 一致）
+// ServiceKey 与 Agent 上报的 SLO 数据同一格式（model_v3/slo.ServiceKey）
 func (u *RouteUpdater) syncFromIngresses(ctx context.Context, clusterID string, snapshot *cluster.ClusterSnapshot) {
 	now := time.Now()
 	count := 0
@@ -66,7 +66,7 @@ func (u *RouteUpdater) syncFromIngresses(ctx context.Context, clusterID string, 
 				}
 				svc := path.Backend.Service
 				port := int(svc.PortNumber)
-				serviceKey := fmt.Sprintf("%s-%s-%d@kubernetes", ns, svc.Name, port)
+				serviceKey := slomodel.ServiceKey(ns, svc.Name)
 
 				if err := u.sloRepo.UpsertRouteMapping(ctx, &database.SLORouteMapping{
 					ClusterID:   clusterID,

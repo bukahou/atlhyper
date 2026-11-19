@@ -5,6 +5,8 @@
 // 指针字段为 nil → JSON null → 前端显示「无数据」；绝不用零值冒充正常。
 package model
 
+import "AtlHyper/model_v3/metrics"
+
 // HardwareStatus 单格 / 节点的健康状态
 type HardwareStatus string
 
@@ -120,6 +122,8 @@ type HardwareSummary struct {
 	UndervoltNodes int               `json:"undervoltNodes"`
 	ThrottledNodes int               `json:"throttledNodes"`
 	MaxDiskAwait   *HardwareMaxAwait `json:"maxDiskAwait"`
+	// WarningNodes 整行结论（overall）为 warn / crit 的节点数
+	WarningNodes int `json:"warningNodes"`
 }
 
 // HardwareHealthResponse 完整响应 data
@@ -156,4 +160,61 @@ type CompareRow struct {
 type NodeComparisonResponse struct {
 	Columns []string     `json:"columns"`
 	Rows    []CompareRow `json:"rows"`
+}
+
+// NodeDiskLevels 单块盘各读数的等级
+type NodeDiskLevels struct {
+	Usage  HardwareStatus `json:"usage"` // 容量（inode 单独一项；矩阵里的磁盘格取两者更满的一个）
+	Inode  HardwareStatus `json:"inode"`
+	IOUtil HardwareStatus `json:"ioUtil"`
+}
+
+// NodePSILevels 压力失速（some / full）各项的等级
+type NodePSILevels struct {
+	CPUSome HardwareStatus `json:"cpuSome"`
+	MemSome HardwareStatus `json:"memSome"`
+	MemFull HardwareStatus `json:"memFull"`
+	IOSome  HardwareStatus `json:"ioSome"`
+	IOFull  HardwareStatus `json:"ioFull"`
+}
+
+// NodeVMStatLevels 换页与缺页的等级
+type NodeVMStatLevels struct {
+	MajorFaults HardwareStatus `json:"majorFaults"`
+	SwapIn      HardwareStatus `json:"swapIn"`
+	SwapOut     HardwareStatus `json:"swapOut"`
+}
+
+// NodeLevels 节点详情各读数的等级（后端判定，前端只按它上色）。
+// 读数所在的采集项没采到时为 unknown。整台节点的结论看硬件矩阵那一行的 overall。
+type NodeLevels struct {
+	CPU          HardwareStatus   `json:"cpu"`
+	CPULoad      HardwareStatus   `json:"cpuLoad"` // 每核负载（排队等 CPU）
+	IOWait       HardwareStatus   `json:"iowait"`
+	Memory       HardwareStatus   `json:"memory"`
+	Swap         HardwareStatus   `json:"swap"`
+	OOMKill      HardwareStatus   `json:"oomKill"`
+	Disks        []NodeDiskLevels `json:"disks"` // 与节点的 disks 一一对应
+	PSI          NodePSILevels    `json:"psi"`
+	VMStat       NodeVMStatLevels `json:"vmstat"`
+	FileFD       HardwareStatus   `json:"fileFd"`
+	Conntrack    HardwareStatus   `json:"conntrack"`
+	ProcsBlocked HardwareStatus   `json:"procsBlocked"`
+	TimeSync     HardwareStatus   `json:"timeSync"`
+	Entropy      HardwareStatus   `json:"entropy"`
+}
+
+// NodeMetricsView 节点指标 + 派生值 + 等级（GET /api/v2/observe/metrics/nodes 的一项）。
+// 内嵌上报的原始结构，原有字段在 JSON 里保持不变。
+type NodeMetricsView struct {
+	metrics.NodeMetrics
+	// PrimaryDiskIndex 主磁盘在 disks 里的下标（规则在 model_v3/metrics），没有为 null
+	PrimaryDiskIndex *int `json:"primaryDiskIndex"`
+	// CPULoadPerCore 1 分钟负载 ÷ 核数（跨机型可比）；取不到核数为 null
+	CPULoadPerCore *float64 `json:"cpuLoadPerCore"`
+	// FileFDUsagePct 文件句柄占用率；内核不设上限或取不到上限时为 null
+	FileFDUsagePct *float64 `json:"fileFdUsagePct"`
+	// ConntrackUsagePct 连接跟踪表占用率；取不到上限时为 null
+	ConntrackUsagePct *float64   `json:"conntrackUsagePct"`
+	Levels            NodeLevels `json:"levels"`
 }

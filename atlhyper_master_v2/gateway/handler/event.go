@@ -94,8 +94,10 @@ func (h *EventHandler) listFromQuery(w http.ResponseWriter, r *http.Request, clu
 		return
 	}
 
+	rows := convert.EventLogs(events, clusterID)
 	writeJSON(w, http.StatusOK, model.EventListResponse{
-		Events: convert.EventLogs(events, clusterID),
+		Events: rows,
+		Cards:  convert.EventCardsOf(rows),
 		Total:  len(events),
 		Source: "realtime",
 	})
@@ -150,8 +152,10 @@ func (h *EventHandler) listFromDatabase(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	rows := convert.EventLogsFromDB(dbEvents, clusterID)
 	writeJSON(w, http.StatusOK, model.EventListResponse{
-		Events: convert.EventLogsFromDB(dbEvents, clusterID),
+		Events: rows,
+		Cards:  convert.EventCardsOf(rows),
 		Total:  int(total),
 		Source: "history",
 		Limit:  opts.Limit,
@@ -184,8 +188,10 @@ func (h *EventHandler) ListByResource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rows := convert.EventLogs(events, clusterID)
 	writeJSON(w, http.StatusOK, model.EventListResponse{
-		Events: convert.EventLogs(events, clusterID),
+		Events: rows,
+		Cards:  convert.EventCardsOf(rows),
 		Total:  len(events),
 	})
 }

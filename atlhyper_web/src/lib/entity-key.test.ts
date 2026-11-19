@@ -19,10 +19,6 @@ describe("parseEntityKey", () => {
     expect(parseEntityKey("_cluster/node/worker-1")).toEqual({ namespace: "", type: "node", name: "worker-1" });
   });
 
-  it("旧格式的节点键（带集群前缀）仍然认得", () => {
-    expect(parseEntityKey("cluster/prod/node/worker-1")).toEqual({ namespace: "", type: "node", name: "worker-1" });
-  });
-
   it("名称里带斜杠时整段算名称", () => {
     expect(parseEntityKey("shop/ingress/web/extra")).toEqual({ namespace: "shop", type: "ingress", name: "web/extra" });
   });

@@ -1,62 +1,50 @@
 /**
- * AIOps 风险分数工具（单一信任源）
+ * AIOps 风险等级的显示（单一来源）。
  *
- * 单位契约（与后端 atlhyper_master_v2/gateway/handler/aiops/scale_risk.go 对齐）：
- *   - AIOps 核心层（Go aiops/risk/）: [0, 1] 浮点概率
- *   - Gateway/API 层: [0, 100] 整数（已 Scale）
- *   - 前端 API 类型以下全部: [0, 100] 整数
- *
- * 前端禁止再对 rLocal / rWeighted / rFinal 字段做 × 100 或 ÷ 100，
- * 禁止再写 `>= 0.8` 这类按 [0,1] 假设的阈值判断。
- * 一律通过本模块导出的函数消费分数。
- *
- * 历史背景：曾出现拓扑图 badge 显示 4500（实际 45%）和节点全红的 bug
- * （2026-04，commit 712f902 之后的调查），根因即分散在多处的 × 100 和
- * 旧阈值残留。本模块即为根治手段。
+ * 等级由后端判定并随数据下发（实体：healthy / low / medium / high / critical，见 aiops.RiskLevel；
+ * 集群：healthy / low / warning / critical，见 aiops.ClusterRiskLevel）。
+ * 前端 ⛔ 不按分数再判一次等级（此前前端另有一套阈值，拓扑图的颜色与同一实体的等级徽章对不上），
+ * 只负责「等级 → 颜色」。分数（[0, 100]，网关层已换算）只用于显示数字。
  */
 
-/** 百分制阈值（递减排列） */
-export const RISK_THRESHOLDS = {
-  /** 严重：大于等于此分数显示红色 */
-  critical: 80,
-  /** 警告：大于等于此分数显示橙色 */
-  warning: 50,
-  /** 注意：大于等于此分数显示黄色 */
-  caution: 30,
-  /** 信息：大于等于此分数显示蓝色（视为"有风险"起点） */
-  info: 10,
-} as const;
+/** 后端下发的风险等级 */
+export type RiskLevel = "healthy" | "low" | "medium" | "warning" | "high" | "critical";
 
-/** 风险等级离散化 */
-export type RiskLevel = "critical" | "warning" | "caution" | "info" | "healthy";
-
-/** 每个等级对应的显示颜色（hex） */
+/** 等级 → 颜色（hex，拓扑染色、徽章背景共用） */
 const LEVEL_COLOR: Record<RiskLevel, string> = {
   critical: "#ef4444",
-  warning: "#f97316",
-  caution: "#eab308",
-  info: "#3b82f6",
+  high: "#f97316",
+  medium: "#eab308",
+  warning: "#eab308",
+  low: "#3b82f6",
   healthy: "#22c55e",
 };
 
-/**
- * 百分制分数 → 风险等级
- * @param score 百分制 [0, 100]
- */
-export function riskLevel(score: number): RiskLevel {
-  if (score >= RISK_THRESHOLDS.critical) return "critical";
-  if (score >= RISK_THRESHOLDS.warning) return "warning";
-  if (score >= RISK_THRESHOLDS.caution) return "caution";
-  if (score >= RISK_THRESHOLDS.info) return "info";
-  return "healthy";
+/** 后端等级 → 颜色；没有等级或不认识的等级按健康显示 */
+export function riskLevelColor(level: string | undefined): string {
+  return LEVEL_COLOR[(level ?? "healthy") as RiskLevel] ?? LEVEL_COLOR.healthy;
 }
 
-/**
- * 百分制分数 → hex 颜色（拓扑染色、badge 背景、文字色共用）
- * @param score 百分制 [0, 100]
- */
-export function riskColor(score: number): string {
-  return LEVEL_COLOR[riskLevel(score)];
+/** 等级 → 徽章样式（背景 + 文字）。风险、AIOps 事件严重度、通知严重度是同一套等级，共用这一份 */
+const LEVEL_BADGE: Record<RiskLevel, string> = {
+  critical: "bg-red-500/15 text-red-600 dark:text-red-400",
+  high: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  medium: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400",
+  warning: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400",
+  low: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  healthy: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+};
+
+/** 不认识的等级：中性灰，既不显示成正常也不显示成故障 */
+const UNKNOWN_BADGE = "bg-gray-500/15 text-muted";
+
+export function levelBadgeClass(level: string | undefined): string {
+  return LEVEL_BADGE[level as RiskLevel] ?? UNKNOWN_BADGE;
+}
+
+/** 是否属于需要突出显示的高风险（high / critical） */
+export function isElevatedRisk(level: string | undefined): boolean {
+  return level === "high" || level === "critical";
 }
 
 /**
@@ -66,12 +54,4 @@ export function riskColor(score: number): string {
  */
 export function formatRiskScore(score: number): string {
   return Math.round(score).toString();
-}
-
-/**
- * 分数是否构成风险（>= info 阈值 10）
- * @param score 百分制 [0, 100]
- */
-export function isRisky(score: number): boolean {
-  return score >= RISK_THRESHOLDS.info;
 }

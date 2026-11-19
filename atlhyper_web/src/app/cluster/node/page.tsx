@@ -79,7 +79,7 @@ export default function NodePage() {
       header: t.common.status,
       render: (node) => (
         <div className="flex items-center gap-1.5">
-          <StatusBadge status={node.ready ? "Ready" : "NotReady"} />
+          <StatusBadge status={node.ready ? "Ready" : "NotReady"} type={node.ready ? "success" : "warning"} />
           <StatusBadge
             status={node.schedulable !== false ? "Schedulable" : "Unschedulable"}
             type={node.schedulable !== false ? "success" : "warning"}

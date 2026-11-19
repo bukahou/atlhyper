@@ -69,6 +69,33 @@ func thresholdsFor(p metrics.HardwareProfile) profileThresholds {
 	return genericThresholds
 }
 
+// 分级规则与使用率类读数的告警线在 model/levels.go（概览等其他出口也用）。
+
+// diskFullnessPct 盘满没满：容量与 inode 取更满的一个（inode 用尽和容量用尽后果一样：写不进去）
+func diskFullnessPct(d *metrics.NodeDisk) float64 {
+	if d.InodeUsagePct > d.UsagePct {
+		return d.InodeUsagePct
+	}
+	return d.UsagePct
+}
+
+// 节点详情其余读数的告警线
+const (
+	// PSI（压力失速）在 K8s 节点上常态就有 20–60%（一堆 Pod 抢 CPU 是设计如此），
+	// 实测同集群 6 台在 0.6–3%、1 台 53% —— 阈值要能把那 1 台挑出来，又不能把它判死
+	psiWarnPct = 50.0
+	psiCritPct = 80.0
+	// 每核负载：> 1 说明有任务在排队等 CPU（使用率满了只说明忙）
+	cpuLoadWarnPerCore = 1.0
+	cpuLoadCritPerCore = 1.5
+	// iowait 高说明 CPU 在等盘
+	iowaitWarnPct = 10.0
+	// 主缺页要读盘，每秒上百次时延迟明显上升
+	majorFaultCritPerSec = 100.0
+	// entropyLowBits 熵池低于它时，旧内核上读随机数可能阻塞（5.18 起内核固定报 256）
+	entropyLowBits = 256
+)
+
 // 非温度类的固定阈值（与硬件画像无关）
 const (
 	diskAwaitWarnMs = 50.0  // 机械盘正常 < 20ms，SSD < 5ms

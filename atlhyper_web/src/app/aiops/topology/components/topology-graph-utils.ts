@@ -1,10 +1,7 @@
 // 只导入类型：G6 本体在 TopologyGraph 里按需动态加载，不进首屏包
 import type { Graph } from "@antv/g6";
 import type { DependencyGraph, EntityRisk } from "@/api/aiops";
-import { riskColor, formatRiskScore, RISK_THRESHOLDS } from "@/lib/risk";
-
-// 重新导出给同目录其他组件复用（TopologyGraph.tsx 等）
-export { riskColor };
+import { formatRiskScore, isElevatedRisk, riskLevelColor } from "@/lib/risk";
 
 // 实体类型 → G6 节点形状
 export const TYPE_SHAPE: Record<string, string> = {
@@ -70,7 +67,7 @@ export function buildG6Data(graph: DependencyGraph, entityRisks: Record<string, 
   const nodes = Object.values(graph.nodes).map((n) => {
     const risk = entityRisks[n.key];
     const rFinal = risk?.rFinal ?? 0;
-    const color = riskColor(rFinal);
+    const color = riskLevelColor(risk?.riskLevel);
     const shape = TYPE_SHAPE[n.type] ?? "circle";
 
     const degree = degreeMap[n.key] ?? 0;
@@ -111,8 +108,8 @@ export function buildG6Data(graph: DependencyGraph, entityRisks: Record<string, 
     edgeSeen.add(eid);
 
     const isAnomaly =
-      (entityRisks[e.from]?.rFinal ?? 0) >= RISK_THRESHOLDS.warning ||
-      (entityRisks[e.to]?.rFinal ?? 0) >= RISK_THRESHOLDS.warning;
+      isElevatedRisk(entityRisks[e.from]?.riskLevel) ||
+      isElevatedRisk(entityRisks[e.to]?.riskLevel);
     const style = edgeStyle(e.type, isAnomaly);
 
     edges.push({

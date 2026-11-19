@@ -660,6 +660,8 @@ export interface AlertTranslations {
 // Overview 页面翻译
 export interface OverviewTranslations {
   clusterHealth: string;
+  healthStatus: Record<"Healthy" | "Degraded" | "Unhealthy" | "Unknown", string>;
+  healthReasons: Record<"nodeReadyLow" | "podReadyLow" | "someNodesNotReady" | "somePodsNotReady", string>;
   nodeReady: string;
   podHealthy: string;
   nodes: string;

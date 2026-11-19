@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"AtlHyper/model_v3/cluster"
+	slomodel "AtlHyper/model_v3/slo"
 )
 
 // RouteEntry 是从任意路由资源抽取出的中间形态 —— 域名与后端服务的对应关系。
@@ -159,7 +160,7 @@ func httpRouteToEntry(u *unstructured.Unstructured) RouteEntry {
 			if !found || backendNS == "" {
 				backendNS = ns // 规范默认：同 namespace
 			}
-			key := backendNS + "/" + name
+			key := slomodel.ServiceKey(backendNS, name)
 			if _, dup := seen[key]; dup {
 				continue
 			}
@@ -188,7 +189,7 @@ func IngressesToRouteEntries(ingresses []cluster.Ingress) []RouteEntry {
 				if path.Backend == nil || path.Backend.Service == nil || path.Backend.Service.Name == "" {
 					continue
 				}
-				key := ing.Summary.Namespace + "/" + path.Backend.Service.Name
+				key := slomodel.ServiceKey(ing.Summary.Namespace, path.Backend.Service.Name)
 				if _, dup := seen[key]; dup {
 					continue
 				}

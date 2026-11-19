@@ -79,6 +79,7 @@ export const MOCK_HARDWARE: HardwareHealth = {
     undervoltNodes: 0,
     throttledNodes: 1,
     maxDiskAwait: { valueMs: 62.5, nodeName: "worker-2", device: "nvme0n1", status: "warn" },
+    warningNodes: 1, // worker-2 整行 warn
   },
 };
 

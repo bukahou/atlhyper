@@ -3,25 +3,8 @@
 import { useMemo } from "react";
 import { useI18n } from "@/i18n/context";
 import { DataTable, StatusBadge, type TableColumn } from "@/components/common";
+import { eventSeverityBadge, eventSeverityLabel } from "@/lib/event-severity";
 import type { EventLog } from "@/types/cluster";
-
-function getSeverityLabel(severity: string): string {
-  if (severity === "Warning") {
-    return "Warning";
-  }
-  if (severity === "Critical" || severity === "Error") {
-    return "Critical";
-  }
-  return "Normal";
-}
-
-export function isCriticalEvent(event: EventLog): boolean {
-  const criticalReasons = [
-    "OOMKilling", "CrashLoopBackOff", "FailedScheduling",
-    "FailedMount", "NodeNotReady", "FailedBinding",
-  ];
-  return event.severity === "Warning" && criticalReasons.includes(event.reason);
-}
 
 interface EventTableProps {
   events: EventLog[];
@@ -50,8 +33,9 @@ export function EventTable({ events, loading, error, onRowClick }: EventTablePro
       key: "severity",
       header: t.common.status,
       render: (e) => {
-        const label = isCriticalEvent(e) ? "Critical" : getSeverityLabel(e.severity);
-        return <StatusBadge status={label} />;
+        return (
+          <StatusBadge status={eventSeverityLabel(e.severity, t.event)} type={eventSeverityBadge(e.severity)} />
+        );
       },
     },
     {

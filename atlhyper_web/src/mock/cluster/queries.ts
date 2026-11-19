@@ -81,6 +81,7 @@ export function mockGetPodDetail(name: string, namespace: string) {
     namespace: pod.namespace,
     controller: pod.deployment,
     phase: pod.phase,
+    statusLevel: pod.statusLevel,
     ready: pod.ready,
     restarts: pod.restarts,
     startTime: pod.startTime,
@@ -93,6 +94,8 @@ export function mockGetPodDetail(name: string, namespace: string) {
         name: "app",
         image: pod.deployment ? `${pod.deployment.replace("geass-", "geass/")}:1.4.2` : "unknown:latest",
         state: pod.phase === "Running" ? "running" : "waiting",
+        // 演示数据：运行中的容器都就绪；等待中的容器不是故障原因
+        stateLevel: pod.phase === "Running" ? "success" : "warning",
         restartCount: pod.restarts,
       },
     ],
@@ -312,6 +315,7 @@ export function mockGetNamespaceDetail(name: string) {
   const detail: NamespaceDetail = {
     name: ns.name,
     phase: ns.status,
+    statusLevel: ns.statusLevel,
     createdAt: ns.createdAt,
     age: "2d",
     labels: { "kubernetes.io/metadata.name": ns.name },
@@ -421,12 +425,14 @@ export function mockGetEventList(params?: { namespace?: string; type?: string })
 export function mockGetEventOverview() {
   const kinds = new Set(MOCK_EVENTS.map((e) => e.kind));
   const categories = new Set(MOCK_EVENTS.map((e) => e.category));
+  const count = (severity: string) => MOCK_EVENTS.filter((e) => e.severity === severity).length;
   const cards = {
-    totalAlerts: MOCK_EVENTS.filter((e) => e.severity === "Warning").length,
+    totalAlerts: count("critical") + count("warning") + count("error"),
     totalEvents: MOCK_EVENTS.length,
-    warning: MOCK_EVENTS.filter((e) => e.severity === "Warning").length,
-    error: MOCK_EVENTS.filter((e) => e.severity === "Error").length,
-    info: MOCK_EVENTS.filter((e) => e.severity === "Normal").length,
+    critical: count("critical"),
+    warning: count("warning"),
+    error: count("error"),
+    info: count("info"),
     kindsCount: kinds.size,
     categoriesCount: categories.size,
   };

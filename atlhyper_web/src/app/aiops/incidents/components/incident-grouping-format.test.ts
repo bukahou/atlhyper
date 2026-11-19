@@ -22,7 +22,7 @@ function incident(overrides: Partial<Incident>): Incident {
   return {
     id: "inc-1", clusterId: "c1", state: "warning", severity: "medium",
     subject: "shop/service/api", subjectType: "service", subjectNamespace: "shop", subjectName: "api",
-    rootCause: "shop/service/api", peakRisk: 50, startedAt: "2026-11-15T07:00:00Z", resolvedAt: null,
+    rootCause: "shop/service/api", peakRisk: 50, peakRiskLevel: "medium", startedAt: "2026-11-15T07:00:00Z", resolvedAt: null,
     escalatedAt: null, closeReason: "", durationS: 60, recurrence: 0, createdAt: "2026-11-15T07:00:00Z",
     rootIncidentId: "", root: null, linkedCount: 0, impacted: [],
     ...overrides,

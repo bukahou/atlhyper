@@ -1,4 +1,4 @@
-import type { NodeMetrics } from "@/types/node-metrics";
+import type { NodeMetricsView } from "@/types/node-metrics";
 
 // ==================== Types ====================
 
@@ -9,7 +9,7 @@ export type TimeWindow = "1h" | "6h" | "1d" | "7d";
 export type Interval = number;
 
 /** Sort function: extract the "current" value from a snapshot for ranking */
-export type SnapshotSortFn = (n: NodeMetrics) => number;
+export type SnapshotSortFn = (n: NodeMetricsView) => number;
 
 // ==================== Constants ====================
 
@@ -38,7 +38,8 @@ export const METRICS: {
 }[] = [
   { key: "cpu", unit: "%", sortSnapshot: (n) => n.cpu.usagePct },
   { key: "memory", unit: "%", sortSnapshot: (n) => n.memory.usagePct },
-  { key: "disk", unit: "%", sortSnapshot: (n) => (n.disks?.find((d) => d.mountPoint === "/") ?? n.disks?.[0])?.usagePct ?? 0 },
+  // 主磁盘由后端指定（规则只有一份，在 model_v3/metrics）
+  { key: "disk", unit: "%", sortSnapshot: (n) => (n.primaryDiskIndex === null ? 0 : n.disks[n.primaryDiskIndex]?.usagePct ?? 0) },
   { key: "temp", unit: "°C", sortSnapshot: (n) => n.temperature.cpuTempC },
 ];
 

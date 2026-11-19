@@ -353,6 +353,8 @@ func (q *OverviewQuery) GetOverview(ctx context.Context, clusterID string) (*clu
 				Reason:           healthReason,
 				NodeReadyPercent: nodeReadyPct,
 				PodReadyPercent:  podReadyPct,
+				NodeReadyStatus:  cluster.NodeReadyStatus(nodeReadyPct),
+				PodReadyStatus:   cluster.PodReadyStatus(podReadyPct),
 			},
 			NodeReady: cluster.ResourceReady{
 				Total:   summary.TotalNodes,

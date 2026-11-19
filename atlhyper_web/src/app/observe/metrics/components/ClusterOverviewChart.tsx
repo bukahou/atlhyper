@@ -6,14 +6,14 @@ import { TrendingUp, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { nodeMetricsHistoryQuery } from "@/queries/observe-metrics";
 import type { NodeMetricsHistory } from "@/datasource/metrics";
-import type { NodeMetrics } from "@/types/node-metrics";
+import type { NodeMetricsView } from "@/types/node-metrics";
 import { METRICS } from "./chartConstants";
 import { MetricChart } from "./MetricChart";
 
 // ==================== Main Container ====================
 
 interface ClusterOverviewChartProps {
-  nodes: NodeMetrics[];
+  nodes: NodeMetricsView[];
   clusterId: string;
   /** 时间范围（小时），由页面级 TimeRangePicker 下发（P3 统一时间控制） */
   hours: number;

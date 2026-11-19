@@ -30,9 +30,10 @@ func (h *SLOHandler) LatencyDistribution(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	timeRange := r.URL.Query().Get("time_range")
-	if timeRange == "" {
-		timeRange = "1d"
+	timeRange, err := sloWindowParam(r)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	ctx := r.Context()

@@ -167,23 +167,19 @@ const toolsJSON = `[
   },
   {
     "name": "query_slo",
-    "description": "查询 SLO 指标数据。返回服务/域名的可用性、延迟分位数（P50/P90/P99）、错误率、RPS。支持 1 天/7 天/30 天窗口。",
+    "description": "查询入口（ingress）的 SLO 指标：可用性、延迟分位数（P50/P90/P99）、错误率（百分数）、RPS。窗口只有 1h / 6h / 24h / 3d / 7d。服务之间的调用质量用 APM 工具查。",
     "parameters": {
       "type": "object",
       "properties": {
-        "service": {
-          "type": "string",
-          "description": "服务名（Linkerd mesh 服务）"
-        },
         "domain": {
           "type": "string",
-          "description": "域名（Traefik ingress 域名）"
+          "description": "入口的服务键（ServiceKey），不填返回全部"
         },
         "window": {
           "type": "string",
           "enum": ["1h", "6h", "24h", "3d", "7d"],
-          "description": "时间窗口，默认 7d",
-          "default": "7d"
+          "description": "时间窗口，默认 24h",
+          "default": "24h"
         }
       },
       "required": []

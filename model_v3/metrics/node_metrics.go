@@ -3,11 +3,7 @@
 // 数据源: ClickHouse otel_metrics_gauge + otel_metrics_sum (Node Exporter)
 package metrics
 
-import (
-	"time"
-
-	model_v3 "AtlHyper/model_v3"
-)
+import "time"
 
 // ============================================================
 // NodeMetrics — 节点指标快照（某时刻）
@@ -220,26 +216,29 @@ type Summary struct {
 // 辅助方法
 // ============================================================
 
-func (m *NodeMetrics) IsHealthy() bool {
-	if m.CPU.UsagePct > 90 || m.Memory.UsagePct > 90 {
-		return false
-	}
-	for _, d := range m.Disks {
-		if d.UsagePct > 90 {
-			return false
+// PrimaryDiskIndex 主磁盘在 Disks 里的下标；没有可用的盘返回 -1。
+//
+// 主磁盘 = 根分区；没有根分区时取容量最大的已挂载分区。
+// 不取「最满的分区」：/boot/firmware 只有 512MB，用掉 37% 毫无意义，却会盖住真正的根分区。
+// 没有挂载点的块设备没有用量可言，不参与。全项目（Agent 的趋势点、Master 的判定、前端排序）只认这一份。
+func (m *NodeMetrics) PrimaryDiskIndex() int {
+	primary := -1
+	for i := range m.Disks {
+		d := &m.Disks[i]
+		if d.MountPoint == "/" {
+			return i
+		}
+		if d.MountPoint != "" && (primary < 0 || d.TotalBytes > m.Disks[primary].TotalBytes) {
+			primary = i
 		}
 	}
-	return true
+	return primary
 }
 
+// GetPrimaryDisk 主磁盘（规则见 PrimaryDiskIndex）；没有返回 nil
 func (m *NodeMetrics) GetPrimaryDisk() *NodeDisk {
-	for i := range m.Disks {
-		if m.Disks[i].MountPoint == "/" {
-			return &m.Disks[i]
-		}
-	}
-	if len(m.Disks) > 0 {
-		return &m.Disks[0]
+	if i := m.PrimaryDiskIndex(); i >= 0 {
+		return &m.Disks[i]
 	}
 	return nil
 }
@@ -254,22 +253,4 @@ func (m *NodeMetrics) GetPrimaryNetwork() *NodeNetwork {
 		return &m.Networks[0]
 	}
 	return nil
-}
-
-func (m *NodeMetrics) GetHealthStatus() model_v3.HealthStatus {
-	if m.CPU.UsagePct > 95 || m.Memory.UsagePct > 95 {
-		return model_v3.HealthStatusCritical
-	}
-	if m.CPU.UsagePct > 80 || m.Memory.UsagePct > 80 {
-		return model_v3.HealthStatusWarning
-	}
-	for _, d := range m.Disks {
-		if d.UsagePct > 95 {
-			return model_v3.HealthStatusCritical
-		}
-		if d.UsagePct > 80 {
-			return model_v3.HealthStatusWarning
-		}
-	}
-	return model_v3.HealthStatusHealthy
 }

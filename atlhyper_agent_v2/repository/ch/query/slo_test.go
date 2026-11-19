@@ -75,21 +75,7 @@ func TestIngressSQL_UsesContractNames(t *testing.T) {
 // serviceKey
 // ──────────────────────────────────────────────────────────────
 
-func TestIngressServiceKey(t *testing.T) {
-	tests := []struct {
-		namespace, service, want string
-	}{
-		{"geass-v3", "geass-gateway", "geass-v3/geass-gateway"},
-		{"atlhyper", "atlhyper-web", "atlhyper/atlhyper-web"},
-		{"", "orphan", "orphan"}, // namespace 缺失时退化为纯服务名
-		{"ns", "", ""},           // service 缺失视为无效
-	}
-	for _, tt := range tests {
-		if got := ingressServiceKey(tt.namespace, tt.service); got != tt.want {
-			t.Errorf("ingressServiceKey(%q,%q) = %q, want %q", tt.namespace, tt.service, got, tt.want)
-		}
-	}
-}
+// 服务标识的格式与测试在 model_v3/slo（ServiceKey），Agent 与 Master 共用。
 
 // ──────────────────────────────────────────────────────────────
 // 单位：契约桶为毫秒，P*Ms 字段直接取用，不得二次换算

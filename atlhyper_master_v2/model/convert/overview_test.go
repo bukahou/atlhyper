@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/model_v3/cluster"
 )
 
@@ -139,5 +140,20 @@ func TestOverview_NilPeakStats(t *testing.T) {
 	result := Overview(src)
 	if result.Workloads.PeakStats != nil {
 		t.Error("PeakStats should be nil when source is nil")
+	}
+}
+
+// 节点用量的等级随数据下发（阈值在 model/levels.go），前端只按等级上色
+func TestOverview_NodeUsageLevels(t *testing.T) {
+	src := &cluster.ClusterOverview{Nodes: cluster.OverviewNodes{Usage: []cluster.NodeUsage{
+		{Node: "busy", CPUUsage: 85, MemUsage: 92},
+		{Node: "calm", CPUUsage: 30, MemUsage: 50},
+	}}}
+	got := Overview(src).Nodes.Usage
+	if got[0].CPULevel != model.HardwareWarn || got[0].MemLevel != model.HardwareCrit {
+		t.Errorf("busy = %s / %s, want warn / crit", got[0].CPULevel, got[0].MemLevel)
+	}
+	if got[1].CPULevel != model.HardwareGood || got[1].MemLevel != model.HardwareGood {
+		t.Errorf("calm = %s / %s, want good / good", got[1].CPULevel, got[1].MemLevel)
 	}
 }

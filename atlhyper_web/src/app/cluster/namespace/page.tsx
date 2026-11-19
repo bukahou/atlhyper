@@ -146,7 +146,7 @@ export default function NamespacePage() {
     {
       key: "status",
       header: t.common.status,
-      render: (ns) => <StatusBadge status={ns.status || "Unknown"} />,
+      render: (ns) => <StatusBadge status={ns.status || "Unknown"} type={ns.statusLevel} />,
     },
     {
       key: "podCount",

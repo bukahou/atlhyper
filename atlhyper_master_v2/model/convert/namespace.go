@@ -12,6 +12,7 @@ func NamespaceItem(src *cluster.Namespace) model.NamespaceItem {
 	return model.NamespaceItem{
 		Name:            src.Summary.Name,
 		Status:          src.Status.Phase,
+		StatusLevel:     namespaceStatusLevel(src.Status.Phase),
 		PodCount:        src.Resources.Pods,
 		LabelCount:      len(src.Labels),
 		AnnotationCount: len(src.Annotations),
@@ -34,10 +35,11 @@ func NamespaceItems(src []cluster.Namespace) []model.NamespaceItem {
 // NamespaceDetail 转换为详情（扁平）
 func NamespaceDetail(src *cluster.Namespace) model.NamespaceDetail {
 	return model.NamespaceDetail{
-		Name:      src.Summary.Name,
-		Phase:     src.Status.Phase,
-		CreatedAt: src.Summary.CreatedAt,
-		Age:       src.Summary.Age,
+		Name:        src.Summary.Name,
+		Phase:       src.Status.Phase,
+		StatusLevel: namespaceStatusLevel(src.Status.Phase),
+		CreatedAt:   src.Summary.CreatedAt,
+		Age:         src.Summary.Age,
 
 		Labels:          src.Labels,
 		Annotations:     src.Annotations,

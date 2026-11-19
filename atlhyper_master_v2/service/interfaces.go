@@ -50,6 +50,8 @@ type QueryOTel interface {
 	GetOTelTimeline(ctx context.Context, clusterID string, since time.Time) ([]cluster.OTelEntry, error)
 	// GetHardwareHealth 硬件健康矩阵（阈值判定已在 Master 完成，前端只渲染）
 	GetHardwareHealth(ctx context.Context, clusterID string) (*model.HardwareHealthResponse, error)
+	// ListNodeMetricsViews 节点指标 + 派生值 + 各读数等级；集群还没有快照时返回 model.ErrSnapshotNotReady
+	ListNodeMetricsViews(ctx context.Context, clusterID string) ([]model.NodeMetricsView, error)
 	// GetNodeComparison 节点横向对比表（硬件列复用 GetHardwareHealth 的判定）
 	GetNodeComparison(ctx context.Context, clusterID string) (*model.NodeComparisonResponse, error)
 	// GetSignalFreshness 各信号的数据新鲜度，用于区分「没有流量」和「采集挂了」

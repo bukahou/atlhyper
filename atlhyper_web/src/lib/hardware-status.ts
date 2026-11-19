@@ -29,3 +29,17 @@ export function hardwareStatusChip(s: HardwareStatus): string {
       return "bg-gray-500/10 text-muted";
   }
 }
+
+/** 状态 → 进度条填充色 */
+export function hardwareStatusBar(s: HardwareStatus): string {
+  switch (s) {
+    case "crit":
+      return "bg-red-500";
+    case "warn":
+      return "bg-yellow-500";
+    case "good":
+      return "bg-green-500";
+    default:
+      return "bg-gray-400";
+  }
+}
