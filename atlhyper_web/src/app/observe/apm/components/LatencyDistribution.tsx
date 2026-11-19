@@ -1,23 +1,41 @@
 "use client";
 
-import { useRef, useEffect, useEffectEvent } from "react";
-import * as echarts from "echarts";
+import { useEffect, useEffectEvent } from "react";
+import type * as echarts from "echarts";
+import { useEChart } from "@/hooks/useEChart";
 import { useI18n } from "@/i18n/context";
+import { getThemeColors } from "@/lib/chart-theme";
 import type { LatencyBucket } from "@/types/model/apm";
 import { safeHtml } from "@/lib/safe-html";
 
-function getThemeColors() {
+/** 共用的主题色 + 本图的柱色与当前样本标线色 */
+function latencyThemeColors() {
   const isDark = document.documentElement.classList.contains("dark");
   return {
-    textColor: isDark ? "#9ca3af" : "#6b7280",
-    lineColor: isDark ? "#374151" : "#e5e7eb",
-    splitLineColor: isDark ? "#1f2937" : "#f3f4f6",
-    tooltipBg: isDark ? "#1f2937" : "#fff",
-    tooltipBorder: isDark ? "#374151" : "#e5e7eb",
-    tooltipText: isDark ? "#e5e7eb" : "#111827",
+    ...getThemeColors(),
     barColor: isDark ? "#60a5fa" : "#93c5fd",
     highlightColor: "#22c55e",
   };
+}
+
+/** 主题切换后重新上色（只改与主题有关的颜色） */
+function applyThemeColors(chart: echarts.ECharts) {
+  const c = getThemeColors();
+  chart.setOption({
+    tooltip: {
+      backgroundColor: c.tooltipBg,
+      borderColor: c.tooltipBorder,
+      textStyle: { color: c.tooltipText },
+    },
+    xAxis: {
+      axisLine: { lineStyle: { color: c.lineColor } },
+      axisLabel: { color: c.textColor },
+    },
+    yAxis: {
+      axisLabel: { color: c.textColor },
+      splitLine: { lineStyle: { color: c.splitLineColor } },
+    },
+  });
 }
 
 function formatBucketLabel(ms: number): string {
@@ -46,8 +64,7 @@ export function LatencyDistribution({
   onSelectRange,
 }: LatencyDistributionProps) {
   const { t } = useI18n();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<echarts.ECharts | null>(null);
+  const { containerRef, chart } = useEChart({ onThemeChange: applyThemeColors });
   // brush 事件是创建图表时注册一次的；回调里要读最新的 buckets / onSelectRange，但不想因此重建图表
   const reportBrushedBuckets = useEffectEvent((coordRange: [number, number] | undefined) => {
     if (!onSelectRange) return;
@@ -59,59 +76,28 @@ export function LatencyDistribution({
     onSelectRange({ startMs: buckets[lo].rangeStart, endMs: end });
   });
 
+  // 框选事件：图表建好后注册一次（回调经 reportBrushedBuckets 读最新的 buckets / onSelectRange）
   useEffect(() => {
-    if (!containerRef.current) return;
-    const chart = echarts.init(containerRef.current);
-    chartRef.current = chart;
-
+    if (!chart) return;
     // 直接拖选（不经过 toolbox 按钮）—— ES 的 click-and-drag 交互
     chart.dispatchAction({
       type: "takeGlobalCursor",
       key: "brush",
       brushOption: { brushType: "lineX", brushMode: "single" },
     });
-    chart.on("brushEnd", (raw: unknown) => {
+    const handleBrushEnd = (raw: unknown) => {
       const params = raw as { areas?: { coordRange?: [number, number] }[] };
       reportBrushedBuckets(params.areas?.[0]?.coordRange);
-    });
-
-    const handleResize = () => chart.resize();
-    window.addEventListener("resize", handleResize);
-
-    const observer = new MutationObserver(() => {
-      if (!chartRef.current) return;
-      const c = getThemeColors();
-      chartRef.current.setOption({
-        tooltip: {
-          backgroundColor: c.tooltipBg,
-          borderColor: c.tooltipBorder,
-          textStyle: { color: c.tooltipText },
-        },
-        xAxis: {
-          axisLine: { lineStyle: { color: c.lineColor } },
-          axisLabel: { color: c.textColor },
-        },
-        yAxis: {
-          axisLabel: { color: c.textColor },
-          splitLine: { lineStyle: { color: c.splitLineColor } },
-        },
-      });
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      observer.disconnect();
-      chart.dispose();
     };
-  }, []);
+    chart.on("brushEnd", handleBrushEnd);
+    return () => {
+      chart.off("brushEnd", handleBrushEnd);
+    };
+  }, [chart]);
 
   useEffect(() => {
-    if (!chartRef.current || buckets.length === 0) return;
-    const c = getThemeColors();
+    if (!chart || buckets.length === 0) return;
+    const c = latencyThemeColors();
 
     const labels = buckets.map((b) => formatBucketLabel(b.rangeStart));
     const values = buckets.map((b) => b.count);
@@ -130,7 +116,7 @@ export function LatencyDistribution({
       });
     }
 
-    chartRef.current.setOption(
+    chart.setOption(
       {
         brush: onSelectRange
           ? {
@@ -223,13 +209,13 @@ export function LatencyDistribution({
       true
     );
     if (onSelectRange) {
-      chartRef.current.dispatchAction({
+      chart.dispatchAction({
         type: "takeGlobalCursor",
         key: "brush",
         brushOption: { brushType: "lineX", brushMode: "single" },
       });
     }
-  }, [buckets, highlightBucket, title, t.apm.currentSample, onSelectRange]);
+  }, [chart, buckets, highlightBucket, title, t.apm.currentSample, onSelectRange]);
 
   return (
     <div>

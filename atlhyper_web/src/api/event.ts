@@ -6,7 +6,7 @@
 
 import { get } from "./request";
 import type { components, operations } from "@/types/api.gen";
-import type { EventCards, EventOverview, EventLog } from "@/types/cluster";
+import type { EventOverview, EventLog } from "@/types/cluster";
 
 // ============================================================
 // 查询参数类型

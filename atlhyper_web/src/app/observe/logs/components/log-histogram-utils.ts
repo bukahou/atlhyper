@@ -1,5 +1,5 @@
 /**
- * 日志直方图的纯计算：级别配色、主题色、补齐空桶的时间线、X 轴标签
+ * 日志直方图的纯计算：级别配色、补齐空桶的时间线、X 轴标签（主题色见 lib/chart-theme）
  */
 import type { LogHistogramBucket } from "@/types/model/log";
 
@@ -11,18 +11,6 @@ export const SEVERITY_COLORS: Record<string, string> = {
 };
 
 export const SEVERITY_ORDER = ["DEBUG", "INFO", "WARN", "ERROR"];
-
-export function getThemeColors() {
-  const isDark = document.documentElement.classList.contains("dark");
-  return {
-    textColor: isDark ? "#9ca3af" : "#6b7280",
-    lineColor: isDark ? "#374151" : "#e5e7eb",
-    splitLineColor: isDark ? "#1f2937" : "#f3f4f6",
-    tooltipBg: isDark ? "#1f2937" : "#fff",
-    tooltipBorder: isDark ? "#374151" : "#e5e7eb",
-    tooltipText: isDark ? "#e5e7eb" : "#111827",
-  };
-}
 
 /**
  * Build full timeline with empty buckets filled in.

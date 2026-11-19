@@ -1,15 +1,16 @@
 "use client";
 
 import { useRef, useEffect, useEffectEvent } from "react";
-import * as echarts from "echarts";
+import type * as echarts from "echarts";
+import { useEChart } from "@/hooks/useEChart";
 import { useI18n } from "@/i18n/context";
+import { getThemeColors } from "@/lib/chart-theme";
 import type { LogHistogramBucket } from "@/types/model/log";
 import {
   SEVERITY_COLORS,
   SEVERITY_ORDER,
   buildFullTimeline,
   formatBucketLabels,
-  getThemeColors,
 } from "./log-histogram-utils";
 
 /** ECharts brush / brushEnd 事件里用到的部分 */
@@ -32,7 +33,7 @@ export function LogHistogram(props: LogHistogramProps) {
   const { t } = useI18n();
 
   // 没有可画的数据时不挂图表，只留标题与占位（组件不隐藏）。
-  // 图表拆成子组件：容器在才创建、不在就销毁，创建与清理都在同一个 effect 里
+  // 图表拆成子组件：容器在才创建、不在就销毁（生命周期见 useEChart）
   if (props.data.length === 0 || props.intervalMs <= 0) {
     return (
       <div>
@@ -49,9 +50,18 @@ export function LogHistogram(props: LogHistogramProps) {
   return <LogHistogramChart {...props} />;
 }
 
+/** 主题切换后重新上色（只改与主题有关的颜色） */
+function applyThemeColors(chart: echarts.ECharts) {
+  const c = getThemeColors();
+  chart.setOption({
+    tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
+    xAxis: { axisLine: { lineStyle: { color: c.lineColor } }, axisLabel: { color: c.textColor } },
+    yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
+  });
+}
+
 function LogHistogramChart({ data, intervalMs, title, timeSpanMs, selectedTimeRange, onTimeRangeSelect }: LogHistogramProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<echarts.ECharts | null>(null);
+  const { containerRef, chart } = useEChart({ onThemeChange: applyThemeColors });
   const bucketDataRef = useRef<{ times: number[]; intervalMs: number }>({ times: [], intervalMs: 0 });
   /** Suppress callback when programmatically manipulating brush */
   const suppressCallbackRef = useRef(false);
@@ -63,29 +73,13 @@ function LogHistogramChart({ data, intervalMs, title, timeSpanMs, selectedTimeRa
   });
 
   // =========================================================================
-  // Effect 1: 创建图表（只在挂载时）；卸载时一并清理监听与图表实例
+  // Effect 1: 框选事件（图表建好后注册一次；回调经 reportBrushedRange 读最新的 onTimeRangeSelect）
   // =========================================================================
   useEffect(() => {
-    if (!containerRef.current) return;
-    const chart = echarts.init(containerRef.current);
-    chartRef.current = chart;
-
-    const handleResize = () => chart.resize();
-    window.addEventListener("resize", handleResize);
-
-    // Theme observer
-    const themeObserver = new MutationObserver(() => {
-      const c = getThemeColors();
-      chart.setOption({
-        tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
-        xAxis: { axisLine: { lineStyle: { color: c.lineColor } }, axisLabel: { color: c.textColor } },
-        yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
-      });
-    });
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    if (!chart) return;
 
     // brushEnd — only fires when user releases mouse (finished selecting)
-    chart.on("brushEnd", (rawParams: unknown) => {
+    const handleBrushEnd = (rawParams: unknown) => {
       const areas = (rawParams as BrushEventParams).areas;
       if (!areas || areas.length === 0) {
         reportBrushedRange(null);
@@ -97,27 +91,26 @@ function LogHistogramChart({ data, intervalMs, title, timeSpanMs, selectedTimeRa
       const s = Math.max(0, Math.round(startIdx));
       const e = Math.min(times.length - 1, Math.round(endIdx));
       reportBrushedRange([times[s], times[e]]);
-    });
+    };
 
     // brush with empty areas — user clicks to clear selection
-    chart.on("brush", (rawParams: unknown) => {
+    const handleBrush = (rawParams: unknown) => {
       const areas = (rawParams as BrushEventParams).areas;
       if (!areas || areas.length === 0) reportBrushedRange(null);
-    });
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      themeObserver.disconnect();
-      chart.dispose();
-      chartRef.current = null;
     };
-  }, []);
+
+    chart.on("brushEnd", handleBrushEnd);
+    chart.on("brush", handleBrush);
+    return () => {
+      chart.off("brushEnd", handleBrushEnd);
+      chart.off("brush", handleBrush);
+    };
+  }, [chart]);
 
   // =========================================================================
   // Effect 2: 数据渲染（不依赖 selectedTimeRange）
   // =========================================================================
   useEffect(() => {
-    const chart = chartRef.current;
     if (!chart) return;
 
     // Suppress all brush callbacks during chart rebuild
@@ -206,7 +199,7 @@ function LogHistogramChart({ data, intervalMs, title, timeSpanMs, selectedTimeRa
 
     // Re-enable callbacks after ECharts processes dispatches
     requestAnimationFrame(() => { suppressCallbackRef.current = false; });
-  }, [data, intervalMs, timeSpanMs]);
+  }, [chart, data, intervalMs, timeSpanMs]);
 
   // =========================================================================
   // Effect 3: Brush sync — 选区从外部变化（比如点掉筛选标签）或图表重画之后，
@@ -214,7 +207,6 @@ function LogHistogramChart({ data, intervalMs, title, timeSpanMs, selectedTimeRa
   //           所以这里也要跟着 data 重跑（依赖里的 data / intervalMs 就是为此）。
   // =========================================================================
   useEffect(() => {
-    const chart = chartRef.current;
     if (!chart) return;
 
     suppressCallbackRef.current = true;
@@ -241,7 +233,7 @@ function LogHistogramChart({ data, intervalMs, title, timeSpanMs, selectedTimeRa
     }
 
     requestAnimationFrame(() => { suppressCallbackRef.current = false; });
-  }, [selectedTimeRange, data, intervalMs]);
+  }, [chart, selectedTimeRange, data, intervalMs]);
 
   return (
     <div>

@@ -96,6 +96,8 @@ export interface CommonTranslations {
   namespace: string;
   createdAt: string;
   close: string;
+  /** 提示条区域的读屏名称 */
+  notificationsRegion: string;
   view: string;
   details: string;
   filter: string;
