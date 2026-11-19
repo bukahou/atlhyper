@@ -28,11 +28,3 @@ interface ClusterListResponse {
 export function getClusterList(signal?: AbortSignal) {
   return get<ClusterListResponse>("/api/v2/clusters", undefined, signal);
 }
-
-/**
- * 获取集群信息（兼容旧接口名称）
- * @deprecated 使用 getClusterList 替代
- */
-export function getClusterInfo() {
-  return getClusterList();
-}

@@ -392,10 +392,6 @@ export async function summarizeIncident(incidentId: string): Promise<SummarizeRe
   return (await post<SummarizeResponse>("/api/v2/aiops/ai/summarize", { incidentId })).data;
 }
 
-export async function recommendActions(incidentId: string): Promise<SummarizeResponse> {
-  return (await post<SummarizeResponse>("/api/v2/aiops/ai/recommend", { incidentId })).data;
-}
-
 // AI 报告
 export async function getAIReports(incidentId: string, signal?: AbortSignal): Promise<AIReport[]> {
   const resp = (await get<{ data: AIReport[] }>(`/api/v2/aiops/ai/reports`, { incident_id: incidentId }, signal)).data;

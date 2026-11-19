@@ -167,14 +167,6 @@ export interface PodEvent {
   LastTimestamp: string;
 }
 
-// Pod 日志请求
-export interface PodLogsRequest extends NamespaceRequest {
-  Pod: string;
-  Container?: string;
-  TailLines?: number;
-  TimeoutSeconds?: number;
-}
-
 // Pod 日志响应
 export interface PodLogsResponse {
   commandID: string;
@@ -752,7 +744,7 @@ export interface ConfigMapDTO {
   dataKeys?: string[]; // 只有键名，不含值
 }
 
-// Secret DTO - 匹配后端 model_v2.Secret
+// Secret DTO - 匹配后端 model_v3.Secret
 export interface SecretDTO {
   name: string;
   namespace: string;

@@ -67,12 +67,6 @@ type SLOSummary struct {
 	TotalRPS        float64 `json:"totalRps"`
 }
 
-// SLODomainsResponse 域名列表响应 (V1 兼容，使用 host/service key)
-type SLODomainsResponse struct {
-	Domains []DomainSLO `json:"domains"`
-	Summary SLOSummary  `json:"summary"`
-}
-
 // ==================== V2 API 响应类型（按真实域名分组）====================
 
 // DomainSLOResponseV2 域名级别的 SLO 响应 (V2)

@@ -62,10 +62,3 @@ export function getCommandHistory(params: CommandQueryParams = {}, signal?: Abor
     signal,
   );
 }
-
-/**
- * 获取命令状态
- */
-export function getCommandStatus(commandId: string) {
-  return get<CommandHistory>(`/api/v2/commands/${commandId}`);
-}

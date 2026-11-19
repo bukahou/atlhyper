@@ -1,13 +1,13 @@
 /**
  * Workload API (StatefulSet & DaemonSet)
  *
- * 后端已完成 model_v2 → model 扁平化转换，前端直接使用
+ * 后端已完成 model_v3 → model 扁平化转换，前端直接使用
  */
 
 import { get } from "./request";
 
 // ============================================================
-// 嵌套子结构类型（匹配 model_v2 JSON 结构）
+// 嵌套子结构类型（匹配 model_v3 JSON 结构）
 // ============================================================
 
 interface WorkloadRollout {
@@ -131,7 +131,7 @@ export interface StatefulSetDetail {
   serviceName?: string;
   selector?: string;
 
-  // 嵌套子结构（后端透传 model_v2 原始结构）
+  // 嵌套子结构（后端透传 model_v3 原始结构）
   spec: StatefulSetSpec;
   template?: PodTemplate;
   status: StatefulSetStatus;
@@ -158,7 +158,7 @@ export interface DaemonSetDetail {
   age: string;
   selector?: string;
 
-  // 嵌套子结构（后端透传 model_v2 原始结构）
+  // 嵌套子结构（后端透传 model_v3 原始结构）
   spec: DaemonSetSpec;
   template?: PodTemplate;
   conditions?: WorkloadCondition[];
