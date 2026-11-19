@@ -144,7 +144,7 @@ func loginLimited(h http.HandlerFunc) http.HandlerFunc {
 const defaultMaxRequestBodyBytes = 1 << 20
 
 func maxRequestBodyBytes() int64 {
-	if n := config.GlobalConfig.Server.MaxRequestBodyBytes; n > 0 {
+	if n := config.GlobalConfig.Server.MaxRequestBodyBytes(); n > 0 {
 		return n
 	}
 	return defaultMaxRequestBodyBytes

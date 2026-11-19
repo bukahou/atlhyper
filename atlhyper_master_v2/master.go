@@ -149,12 +149,11 @@ func NewMaster() (*Master, error) {
 	// 4.4 初始化 AIOps 引擎
 	var aiopsEngine aiops.Engine
 	aiopsEngine = aiopscore.NewEngine(aiopscore.EngineConfig{
-		Store:         store,
-		GraphRepo:     db.AIOpsGraph,
-		BaselineRepo:  db.AIOpsBaseline,
-		IncidentRepo:  db.AIOpsIncident,
-		SLORepo:       db.SLO,
-		FlushInterval: cfg.AIOps.FlushInterval,
+		Store:        store,
+		GraphRepo:    db.AIOpsGraph,
+		BaselineRepo: db.AIOpsBaseline,
+		IncidentRepo: db.AIOpsIncident,
+		SLORepo:      db.SLO,
 	})
 	log.Info("AIOps 引擎初始化完成")
 

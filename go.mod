@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.63.4
 	github.com/aws/smithy-go v1.28.5
 	github.com/bukahou/akasha/pkg/oidcrp v0.1.0
+	github.com/caarlos0/env/v11 v11.4.2
 	github.com/distribution/reference v0.6.0
 	github.com/getkin/kin-openapi v0.142.0
 	github.com/go-chi/httprate v0.15.0
