@@ -144,3 +144,42 @@ func TestWaitCommandResult_NoLostWakeup(t *testing.T) {
 		}
 	}
 }
+
+// 查到的状态是当时的快照：之后 Agent 回报结果不会改写调用方手里的对象
+// （HTTP 处理函数在锁外读字段，与回报并发时不能读到写了一半的状态）。
+func TestGetCommandStatus_ReturnsSnapshot(t *testing.T) {
+	bus := NewMemoryBus()
+	enqueued(t, bus, "c1", "cmd-1")
+
+	before, _ := bus.GetCommandStatus("cmd-1")
+	if err := bus.AckCommand("c1", "cmd-1", &command.Result{CommandID: "cmd-1", Success: true}); err != nil {
+		t.Fatal(err)
+	}
+	if before.Status != command.StatusPending || before.Result != nil || before.FinishedAt != nil {
+		t.Fatalf("先前查到的状态被回报改写了: %+v", before)
+	}
+	after, _ := bus.GetCommandStatus("cmd-1")
+	if after.Status != command.StatusSuccess {
+		t.Fatalf("回报后再查应为成功，实际 %+v", after)
+	}
+}
+
+// 轮询与回报并发：配合 -race 运行
+func TestGetCommandStatus_ConcurrentWithAck(t *testing.T) {
+	bus := NewMemoryBus()
+	enqueued(t, bus, "c1", "cmd-1")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ {
+			if s, _ := bus.GetCommandStatus("cmd-1"); s != nil {
+				_ = s.Status
+				_ = s.Result
+				_ = s.FinishedAt
+			}
+		}
+	}()
+	_ = bus.AckCommand("c1", "cmd-1", &command.Result{CommandID: "cmd-1", Success: true})
+	<-done
+}
