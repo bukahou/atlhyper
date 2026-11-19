@@ -7,6 +7,7 @@
 package enricher
 
 import (
+	"AtlHyper/atlhyper_master_v2/aiops"
 	"fmt"
 	"strings"
 
@@ -38,11 +39,11 @@ func buildPodStateContext(snap *cluster.ClusterSnapshot, entities []*database.AI
 	var b strings.Builder
 	n := 0
 	for _, e := range entities {
-		parts := strings.Split(e.EntityKey, "/")
-		if len(parts) != 3 || parts[1] != "pod" {
+		ns, entityType, name := aiops.SplitEntityKey(e.EntityKey)
+		if entityType != "pod" {
 			continue
 		}
-		pod := pods[parts[0]+"/"+parts[2]]
+		pod := pods[ns+"/"+name]
 		if pod == nil {
 			continue
 		}

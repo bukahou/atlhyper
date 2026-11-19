@@ -6,6 +6,8 @@
 package enricher
 
 import (
+	"AtlHyper/atlhyper_master_v2/aiops"
+	"AtlHyper/common/truncate"
 	"context"
 	"fmt"
 	"sort"
@@ -46,15 +48,12 @@ func eventWindow(inc *database.AIOpsIncident, timeline []*database.AIOpsIncident
 
 // entityEventTarget 实体 → event 的 involvedObject；service / ingress 等不挂 event，返回 ok=false
 func entityEventTarget(entityKey string) (kind, namespace, name string, ok bool) {
-	parts := strings.SplitN(entityKey, "/", 3)
-	if len(parts) != 3 {
-		return "", "", "", false
-	}
-	switch parts[1] {
+	ns, entityType, entityName := aiops.SplitEntityKey(entityKey)
+	switch entityType {
 	case "pod":
-		return "Pod", parts[0], parts[2], true
+		return "Pod", ns, entityName, true
 	case "node":
-		return "Node", "", parts[2], true // 集群级资源的 event 没有 namespace
+		return "Node", "", entityName, true // 集群级资源的 event 没有 namespace
 	default:
 		return "", "", "", false
 	}
@@ -117,7 +116,7 @@ func renderEvents(rows []*database.ClusterEvent, total int, failed bool, loc *ti
 		fmt.Fprintf(&b, "- [%s %s] %s（累计 %d 次，首次 %s，最近 %s）\n  %s\n",
 			ev.InvolvedKind, target, ev.Reason, ev.Count,
 			ev.FirstTimestamp.In(loc).Format(ts), ev.LastTimestamp.In(loc).Format(ts),
-			truncateRunes(strings.TrimSpace(ev.Message), maxEventMessageRunes))
+			truncate.Runes(strings.TrimSpace(ev.Message), maxEventMessageRunes, "…"))
 	}
 	if omitted := total - len(rows); omitted > 0 {
 		fmt.Fprintf(&b, "… 另有 %d 条因长度限制省略\n", omitted)
@@ -172,16 +171,6 @@ func buildConcurrent(self *database.AIOpsIncident, others []*database.AIOpsIncid
 }
 
 func namespaceOf(entityKey string) string {
-	if i := strings.Index(entityKey, "/"); i > 0 {
-		return entityKey[:i]
-	}
-	return entityKey
-}
-
-// truncateRunes 按字符截断（不切坏多字节字符）
-func truncateRunes(s string, n int) string {
-	if r := []rune(s); len(r) > n {
-		return string(r[:n]) + "…"
-	}
-	return s
+	ns, _, _ := aiops.SplitEntityKey(entityKey)
+	return ns
 }

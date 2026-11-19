@@ -4,6 +4,7 @@
 package ai
 
 import (
+	"AtlHyper/common/truncate"
 	"context"
 	"fmt"
 	"strings"
@@ -245,8 +246,8 @@ func summarizeError(raw string) string {
 		return "连接异常断开"
 	default:
 		// 兜底：截断过长的错误
-		if len(raw) > 80 {
-			return raw[:80] + "..."
+		if clipped := truncate.Runes(raw, 80, "..."); clipped != raw {
+			return clipped
 		}
 		return raw
 	}

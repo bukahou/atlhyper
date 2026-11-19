@@ -106,11 +106,11 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 				result = fmt.Sprintf("执行失败: %v", err)
 			}
 			step.ToolCalls = append(step.ToolCalls, ToolCallRecord{
-				Tool: tc.Name, Params: tc.Params, ResultSummary: truncate(result, 500),
+				Tool: tc.Name, Params: tc.Params, ResultSummary: clipToolResult(result, 500),
 			})
 			messages = append(messages, llm.Message{
 				Role:       "tool",
-				ToolResult: &llm.ToolResult{CallID: tc.ID, Name: tc.Name, Content: truncate(result, p.MaxToolResult)},
+				ToolResult: &llm.ToolResult{CallID: tc.ID, Name: tc.Name, Content: clipToolResult(result, p.MaxToolResult)},
 			})
 		}
 		out.Steps = append(out.Steps, step)

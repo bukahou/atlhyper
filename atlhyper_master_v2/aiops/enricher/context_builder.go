@@ -3,6 +3,8 @@
 package enricher
 
 import (
+	"AtlHyper/common/truncate"
+	slomodel "AtlHyper/model_v3/slo"
 	"fmt"
 	"math"
 	"strings"
@@ -140,10 +142,7 @@ func buildTimeline(timeline []*database.AIOpsIncidentTimeline) string {
 	}
 	for _, t := range entries {
 		ts := t.Timestamp.Format("15:04:05")
-		detail := t.Detail
-		if len(detail) > 200 {
-			detail = detail[:200] + "..."
-		}
+		detail := truncate.Runes(t.Detail, 200, "...")
 		b.WriteString(fmt.Sprintf("  %s [%s] %s %s\n",
 			ts, t.EventType, t.EntityKey, detail))
 	}
@@ -216,10 +215,7 @@ func buildOTelContext(otel *cluster.OTelSnapshot, entities []*database.AIOpsInci
 			break
 		}
 		if l.Severity == "ERROR" && containsService(affectedServices, l.ServiceName) {
-			body := l.Body
-			if len(body) > 200 {
-				body = body[:200] + "..."
-			}
+			body := truncate.Runes(l.Body, 200, "...")
 			logLines = append(logLines, fmt.Sprintf(
 				"- [%s] %s: %s",
 				l.Timestamp.Format("15:04:05"),
@@ -233,18 +229,15 @@ func buildOTelContext(otel *cluster.OTelSnapshot, entities []*database.AIOpsInci
 	}
 
 	// 3. SLO 摘要
+	// 入口数据按服务标识（namespace/service）上报：与事件里服务 / 入口实体的命名空间 + 名称对上才算
 	var sloLines []string
-	serviceSet := make(map[string]bool)
-	for _, s := range affectedServices {
-		serviceSet[s] = true
-	}
-
-	// 从实时 SLO 列表中匹配
+	affectedEntrances := affectedServiceKeys(entities)
 	for _, s := range otel.SLOIngress {
-		if serviceSet[s.ServiceKey] || serviceSet[s.DisplayName] {
+		if affectedEntrances[s.ServiceKey] {
+			// SuccessRate / ErrorRate 已是百分数（0-100）
 			sloLines = append(sloLines, fmt.Sprintf(
 				"- %s: SuccessRate=%.2f%% ErrorRate=%.4f%% P99=%.1fms RPS=%.1f",
-				s.ServiceKey, s.SuccessRate*100, s.ErrorRate*100, s.P99Ms, s.RPS,
+				s.ServiceKey, s.SuccessRate, s.ErrorRate, s.P99Ms, s.RPS,
 			))
 		}
 	}
@@ -270,16 +263,24 @@ func extractAffectedServices(entities []*database.AIOpsIncidentEntity) []string 
 	return services
 }
 
-// extractServiceName 从 entityKey 提取服务/Pod 名称
+// extractServiceName 从实体键（namespace/type/name）取名称；键格式认不出时为空
 func extractServiceName(entityKey string) string {
-	// 格式: "default/service/geass-gateway" → "geass-gateway"
-	// 格式: "default/pod/geass-auth-xxx" → "geass-auth-xxx"
-	// 格式: "_cluster/node/worker-3" → "worker-3"
-	parts := strings.Split(entityKey, "/")
-	if len(parts) < 3 {
-		return ""
+	if _, entityType, name := aiops.SplitEntityKey(entityKey); entityType != "" {
+		return name
 	}
-	return parts[len(parts)-1]
+	return ""
+}
+
+// affectedServiceKeys 事件里的服务与入口实体 → 入口数据的服务标识集合（model_v3/slo.ServiceKey）
+func affectedServiceKeys(entities []*database.AIOpsIncidentEntity) map[string]bool {
+	keys := make(map[string]bool)
+	for _, e := range entities {
+		ns, entityType, name := aiops.SplitEntityKey(e.EntityKey)
+		if entityType == "service" || entityType == "ingress" {
+			keys[slomodel.ServiceKey(ns, name)] = true
+		}
+	}
+	return keys
 }
 
 // containsService 检查服务名是否在列表中（支持前缀匹配）

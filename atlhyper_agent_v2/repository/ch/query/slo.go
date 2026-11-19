@@ -90,20 +90,6 @@ const labelInstance = "service.instance.id"
 // 那等于放弃抽象。因此契约直接规定桶为毫秒，由各实现在 Collector 侧对齐，
 // Agent 一律按毫秒处理（正好是 IngressSLO.P*Ms 字段所需单位，无需换算）。
 
-// ingressServiceKey 由契约 label 组合出服务标识。
-//
-// 用 namespace/service 而非某实现的内部 service 名（如 Traefik 的
-// "geass-v3-geass-web@kubernetes"）—— K8s 原生概念，换实现不变。
-func ingressServiceKey(namespace, service string) string {
-	if service == "" {
-		return ""
-	}
-	if namespace == "" {
-		return service
-	}
-	return namespace + "/" + service
-}
-
 // isErrorStatusClass 判定某状态码类别是否计入 SLO 违约。
 //
 // 只有 5xx 计入：4xx 是客户端问题（参数错误、鉴权失败、请求不存在的资源），
@@ -357,7 +343,7 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 		if err := rows.Scan(&ns, &svc, &class, &delta); err != nil {
 			continue
 		}
-		svcKey := ingressServiceKey(ns, svc)
+		svcKey := slo.ServiceKey(ns, svc)
 		if svcKey == "" {
 			continue
 		}
@@ -399,7 +385,7 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 				continue
 			}
 			_ = inst
-			svcKey := ingressServiceKey(ns, svc)
+			svcKey := slo.ServiceKey(ns, svc)
 			if svcKey == "" {
 				continue
 			}
@@ -493,7 +479,7 @@ func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket 
 		if err := rows.Scan(&ts, &ns, &svc, &class, &delta); err != nil {
 			continue
 		}
-		svcKey := ingressServiceKey(ns, svc)
+		svcKey := slo.ServiceKey(ns, svc)
 		if svcKey == "" {
 			continue
 		}
@@ -548,7 +534,7 @@ func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket 
 				&sumLatest, &sumEarliest, &cntLatest, &cntEarliest); err != nil {
 				continue
 			}
-			svcKey := ingressServiceKey(ns, svc)
+			svcKey := slo.ServiceKey(ns, svc)
 			if svcKey == "" {
 				continue
 			}

@@ -29,7 +29,7 @@ func buildSLOTimeSeries(entries []cluster.OTelEntry, serviceName string) map[str
 		// 在 SLO Ingress 中查找（服务网格已移除，SLO 只做入口视角）
 		if e.Snapshot.SLOIngress != nil {
 			for _, svc := range e.Snapshot.SLOIngress {
-				if svc.ServiceKey == serviceName || svc.DisplayName == serviceName {
+				if svc.MatchesHost(serviceName) {
 					points = append(points, sloPoint{
 						Timestamp: e.Timestamp,
 						RPS:       svc.RPS,

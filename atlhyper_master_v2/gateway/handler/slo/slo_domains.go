@@ -239,9 +239,9 @@ func serviceKeysForDomain(host string, ingress []slomodel.IngressSLO, mappings [
 		return keys
 	}
 
-	for _, ing := range ingress {
-		if ing.DisplayName == host || ing.ServiceKey == host {
-			keys[ing.ServiceKey] = true
+	for i := range ingress {
+		if ingress[i].MatchesHost(host) {
+			keys[ingress[i].ServiceKey] = true
 		}
 	}
 	if len(keys) == 0 {
