@@ -154,7 +154,7 @@ func (c *observeCache) evictOldest() {
 func (h *ObserveHandler) executeQuery(
 	w http.ResponseWriter, r *http.Request,
 	clusterID, action string,
-	params map[string]interface{},
+	params command.QueryParams,
 	cacheTTL time.Duration,
 ) {
 	data, err := h.queries.run(r.Context(), clusterID, action, params, cacheTTL)

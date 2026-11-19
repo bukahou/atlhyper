@@ -213,10 +213,10 @@ func (h *NodeMetricsHandler) getHistory(w http.ResponseWriter, r *http.Request, 
 
 // getHistoryFromCH 通过 Command 管道从 ClickHouse 获取历史数据
 func (h *NodeMetricsHandler) getHistoryFromCH(w http.ResponseWriter, r *http.Request, clusterID, nodeName string, start, end time.Time, minutes int) {
-	params := map[string]interface{}{
-		"sub_action": "get_history",
-		"node_name":  nodeName,
-		"since":      (time.Duration(minutes) * time.Minute).String(),
+	params := command.QueryMetricsParams{
+		SubAction: command.MetricsGetHistory,
+		NodeName:  nodeName,
+		Since:     (time.Duration(minutes) * time.Minute).String(),
 	}
 
 	raw, err := h.queries.run(r.Context(), clusterID, command.ActionQueryMetrics, params, cacheTTLForMinutes(minutes))
