@@ -38,7 +38,29 @@ func dashboardTTLOrDefault() time.Duration {
 //
 // 标量摘要（变化慢）与 Dashboard 列表（需要新鲜度）各有独立 TTL。
 // Concentrator 在每次 Dashboard 数据刷新时摄入数据并输出预聚合时序。
-func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnapshot {
+// RefreshOTel 刷新 OTel 概览并留给 Collect 使用
+func (s *snapshotService) RefreshOTel(ctx context.Context) {
+	if s.otelSummaryRepo == nil && s.dashboardRepo == nil {
+		return
+	}
+	if snap := s.getOTelSnapshot(ctx); snap != nil && ctx.Err() == nil {
+		s.otelLatest.Store(snap)
+	}
+}
+
+// otelQueryTimeout 概览与列表查询的预算（沿用快照采集超时，默认 30 秒）
+func otelQueryTimeout() time.Duration {
+	if d := config.GlobalConfig.Timeout.SnapshotCollect; d > 0 {
+		return d
+	}
+	return 30 * time.Second
+}
+
+// getOTelSnapshot 获取 OTel 快照。ctx 由调用方给出（Agent 关停时取消）；
+// 概览、新鲜度、各 SLO 窗口各自从它派生自己的超时预算，互不挤占。
+func (s *snapshotService) getOTelSnapshot(rootCtx context.Context) *cluster.OTelSnapshot {
+	ctx, cancelQueries := context.WithTimeout(rootCtx, otelQueryTimeout())
+	defer cancelQueries()
 	summaryTTL := config.GlobalConfig.Scheduler.OTelCacheTTL
 	if summaryTTL <= 0 {
 		summaryTTL = 5 * time.Minute
@@ -252,10 +274,9 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 	// 必须在下面的 early return 之前采集：它是元信息，与其他查询的成败无关，
 	// 而且查询失败时更需要它 —— 那种情况下上报的是旧缓存，用户必须知道数据有多旧。
 	if s.dashboardRepo != nil {
-		// 独立超时：走到这里时主 ctx 已被前面十几个 OTel 查询耗掉，
-		// 实测三张表的 max() 合计约 2 秒，但继承来的 ctx 往往只剩不到 1 秒 ——
-		// 结果就是新鲜度永远 deadline exceeded。collectSLOWindows 早先也是这么解决的。
-		freshCtx, cancelFresh := context.WithTimeout(context.Background(), 10*time.Second)
+		// 独立预算（从 rootCtx 派生）：走到这里时概览查询的预算可能已经耗尽，
+		// 实测三张表的 max() 合计约 2 秒
+		freshCtx, cancelFresh := context.WithTimeout(rootCtx, 10*time.Second)
 		defer cancelFresh()
 
 		if f, err := s.dashboardRepo.GetSignalFreshness(freshCtx); err != nil {
@@ -321,7 +342,7 @@ func (s *snapshotService) getOTelSnapshot(ctx context.Context) *cluster.OTelSnap
 
 	// 多窗口 SLO 数据采集（带独立 TTL 缓存）
 	if s.dashboardRepo != nil {
-		snapshot.SLOWindows = s.collectSLOWindows(ctx, now)
+		snapshot.SLOWindows = s.collectSLOWindows(rootCtx, now)
 	}
 
 	return snapshot

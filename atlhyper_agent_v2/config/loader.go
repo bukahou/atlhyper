@@ -20,7 +20,8 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.Agent = AgentConfig{
-		ClusterID: getString("AGENT_CLUSTER_ID"),
+		ClusterID:  getString("AGENT_CLUSTER_ID"),
+		HealthAddr: getString("AGENT_HEALTH_ADDR"),
 	}
 
 	GlobalConfig.Master = MasterConfig{

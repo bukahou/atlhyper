@@ -36,7 +36,8 @@ type KubernetesConfig struct {
 
 // AgentConfig Agent 基础配置
 type AgentConfig struct {
-	ClusterID string // 集群唯一标识
+	ClusterID  string // 集群唯一标识
+	HealthAddr string // 健康检查服务的监听地址（默认 :8082）
 }
 
 // LogConfig 日志配置

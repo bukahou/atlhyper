@@ -57,7 +57,7 @@ func (s *snapshotService) collectSLOWindows(ctx context.Context, now time.Time) 
 			continue
 		}
 
-		data := s.fetchSLOWindow(wc)
+		data := s.fetchSLOWindow(ctx, wc)
 		if data != nil {
 			s.sloWindowCaches[wc.key] = &sloWindowCache{data: data, fetchedAt: now}
 			result[wc.key] = data
@@ -70,9 +70,10 @@ func (s *snapshotService) collectSLOWindows(ctx context.Context, now time.Time) 
 	return result
 }
 
-// fetchSLOWindow 获取单个窗口的 SLO 数据（独立 3 分钟超时）
-func (s *snapshotService) fetchSLOWindow(wc sloWindowConfig) *slo.SLOWindowData {
-	windowCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+// fetchSLOWindow 获取单个窗口的 SLO 数据（独立 3 分钟超时，从 ctx 派生：关停即取消）。
+// 三条查询任一失败就返回 nil：残缺的结果不进缓存（长窗口缓存一小时）
+func (s *snapshotService) fetchSLOWindow(ctx context.Context, wc sloWindowConfig) *slo.SLOWindowData {
+	windowCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
 	current, err := s.dashboardRepo.ListIngressSLO(windowCtx, wc.since)
@@ -83,8 +84,16 @@ func (s *snapshotService) fetchSLOWindow(wc sloWindowConfig) *slo.SLOWindowData 
 
 	s.applyRouteHostnames(windowCtx, current)
 
-	previous, _ := s.dashboardRepo.ListIngressSLOPrevious(windowCtx, wc.since)
-	history, _ := s.dashboardRepo.GetIngressSLOHistory(windowCtx, wc.since, wc.bucket)
+	previous, err := s.dashboardRepo.ListIngressSLOPrevious(windowCtx, wc.since)
+	if err != nil {
+		log.Warn("SLO 窗口 previous 查询失败", "window", wc.key, "err", err)
+		return nil
+	}
+	history, err := s.dashboardRepo.GetIngressSLOHistory(windowCtx, wc.since, wc.bucket)
+	if err != nil {
+		log.Warn("SLO 窗口 history 查询失败", "window", wc.key, "err", err)
+		return nil
+	}
 
 	// 服务网格 SLO 已移除：SLO 只做 ingress 外部视角，
 	// 服务间调用质量由 APM 承担。

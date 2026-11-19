@@ -19,7 +19,7 @@ import (
 // 修法：概览从同一周期取回的列表派生，⛔ 不再单独打库。
 
 type dedupCounters struct {
-	listNodes, summaryNodes, listSLO5m, summarySLO int32
+	listNodes, summaryNodes, listSLO5m int32
 }
 
 func newDedupService(c *dedupCounters, nodes []metrics.NodeMetrics, ing []slo.IngressSLO) *snapshotService {
@@ -39,10 +39,6 @@ func newDedupService(c *dedupCounters, nodes []metrics.NodeMetrics, ing []slo.In
 				atomic.AddInt32(&c.listSLO5m, 1)
 			}
 			return ing, nil
-		},
-		GetSLOSummaryFn: func(ctx context.Context) (*slo.SLOSummary, error) {
-			atomic.AddInt32(&c.summarySLO, 1)
-			return &slo.SLOSummary{TotalServices: 99}, nil
 		},
 	}
 	return &snapshotService{
@@ -73,9 +69,6 @@ func TestGetOTelSnapshot_SummariesDerivedFromLists(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&c.listSLO5m); got != 1 {
 		t.Errorf("ListIngressSLO(5min) 应恰好调用 1 次，实际 %d", got)
-	}
-	if got := atomic.LoadInt32(&c.summarySLO); got != 0 {
-		t.Errorf("GetSLOSummary 不应再被 Dashboard 路径调用，实际 %d 次", got)
 	}
 
 	wantM := metrics.SummarizeNodes(nodes)

@@ -36,6 +36,7 @@ var defaultStrings = map[string]string{
 
 	// -------------------- Agent 基础配置 --------------------
 	"AGENT_CLUSTER_ID": "", // 集群唯一标识，空则自动获取集群 UID
+	"AGENT_HEALTH_ADDR": ":8082", // 健康检查服务的监听地址（探针用）
 
 	// -------------------- Master 通信 --------------------
 	"AGENT_MASTER_URL":   "http://localhost:8081", // Master AgentSDK 端口（非 Gateway 端口）

@@ -234,11 +234,13 @@ func TestPollAndExecuteCommands_ReportError(t *testing.T) {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	defer s.cancel()
 
-	// Should not panic (error is logged but not fatal)
+	s.reportBackoff = fastBackoff()
+
+	// 回报一直失败：有上限地重试后放弃（不 panic、不无限重试）
 	s.pollAndExecuteCommands("ops")
 
-	if gw.ReportResultCalls != 1 {
-		t.Errorf("ReportResultCalls = %d, want 1", gw.ReportResultCalls)
+	if gw.ReportResultCalls != fastBackoff().Steps {
+		t.Errorf("ReportResultCalls = %d, want %d", gw.ReportResultCalls, fastBackoff().Steps)
 	}
 }
 

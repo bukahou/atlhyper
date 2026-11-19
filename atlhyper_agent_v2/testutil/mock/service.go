@@ -9,7 +9,14 @@ import (
 
 // SnapshotService mock
 type SnapshotService struct {
-	CollectFn func(ctx context.Context) (*cluster.ClusterSnapshot, error)
+	CollectFn     func(ctx context.Context) (*cluster.ClusterSnapshot, error)
+	RefreshOTelFn func(ctx context.Context)
+}
+
+func (m *SnapshotService) RefreshOTel(ctx context.Context) {
+	if m.RefreshOTelFn != nil {
+		m.RefreshOTelFn(ctx)
+	}
 }
 
 func (m *SnapshotService) Collect(ctx context.Context) (*cluster.ClusterSnapshot, error) {

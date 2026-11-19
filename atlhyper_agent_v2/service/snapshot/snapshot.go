@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/concentrator"
@@ -69,6 +71,10 @@ type snapshotService struct {
 	// 只在 Collect 所在的单个 goroutine 里读写。
 	lastSnapshot *cluster.ClusterSnapshot
 
+	// 各类资源连续失败的轮数与最后一次采到的时刻：沿用旧数据有上限，并在快照里标出来
+	kindFailStreak  map[string]int
+	kindLastSuccess map[string]time.Time
+
 	// OTel 仓库 (可选，从 ClickHouse 聚合)
 	otelSummaryRepo repository.OTelSummaryRepository
 	dashboardRepo   repository.OTelDashboardRepository
@@ -81,6 +87,9 @@ type snapshotService struct {
 
 	// SLO 多窗口缓存（TTL 按窗口大小递增）
 	sloWindowCaches map[string]*sloWindowCache
+
+	// otelLatest 最近一次刷新好的 OTel 概览：RefreshOTel 写，Collect 读
+	otelLatest atomic.Pointer[cluster.OTelSnapshot]
 
 	// Concentrator 预聚合时序（可选）
 	conc concentrator.TimeSeriesAggregator
@@ -174,6 +183,17 @@ func (s *snapshotService) Collect(ctx context.Context) (*cluster.ClusterSnapshot
 	collectors := s.kindCollectors(ctx, snapshot)
 	failed := runCollectors(collectors)
 
+	if s.kindFailStreak == nil {
+		s.kindFailStreak = make(map[string]int)
+		s.kindLastSuccess = make(map[string]time.Time)
+	}
+	for _, collector := range collectors {
+		if _, isFailed := failed[collector.kind]; !isFailed {
+			s.kindFailStreak[collector.kind] = 0
+			s.kindLastSuccess[collector.kind] = snapshot.FetchedAt
+		}
+	}
+
 	if len(failed) > 0 {
 		var reused, empty []string
 		for _, collector := range collectors {
@@ -181,16 +201,21 @@ func (s *snapshotService) Collect(ctx context.Context) (*cluster.ClusterSnapshot
 			if !isFailed {
 				continue
 			}
-			switch {
-			case s.lastSnapshot != nil:
+			if s.lastSnapshot == nil && collector.essential {
+				return nil, fmt.Errorf("collect %s: %w", collector.kind, err)
+			}
+			s.kindFailStreak[collector.kind]++
+			stale := cluster.StaleKind{Kind: collector.kind, LastSuccessAt: s.kindLastSuccess[collector.kind]}
+			if s.lastSnapshot != nil && s.kindFailStreak[collector.kind] <= maxReuseRounds {
 				collector.reuse(s.lastSnapshot)
 				reused = append(reused, collector.kind)
-			case collector.essential:
-				return nil, fmt.Errorf("collect %s: %w", collector.kind, err)
-			default:
+			} else {
+				stale.Unavailable = true
 				empty = append(empty, collector.kind)
 			}
+			snapshot.StaleKinds = append(snapshot.StaleKinds, stale)
 		}
+		sort.Slice(snapshot.StaleKinds, func(i, j int) bool { return snapshot.StaleKinds[i].Kind < snapshot.StaleKinds[j].Kind })
 		for kind, err := range failed {
 			log.Warn("资源采集失败", "kind", kind, "err", err)
 		}
@@ -203,12 +228,9 @@ func (s *snapshotService) Collect(ctx context.Context) (*cluster.ClusterSnapshot
 	// 补全 Node 的 Pod 使用量统计（需要 Nodes + Pods 都就绪）
 	enrichNodePodCount(snapshot)
 
-	// 聚合 OTel 快照（带缓存）
-	if s.otelSummaryRepo != nil || s.dashboardRepo != nil {
-		otelSnapshot := s.getOTelSnapshot(ctx)
-		if otelSnapshot != nil {
-			snapshot.OTel = otelSnapshot
-		}
+	// OTel 概览：附上最近一次刷新好的结果（刷新在独立循环里，ClickHouse 慢不拖住 K8s 快照）
+	if latest := s.otelLatest.Load(); latest != nil {
+		snapshot.OTel = latest
 	}
 
 	// 统计每个 Namespace 的资源数量
