@@ -254,15 +254,8 @@ func (b *MemoryBus) GetCommandStatus(cmdID string) (*command.Status, error) {
 // WaitCommandResult 等待指令执行完成（同步等待）
 // 阻塞直到 Agent 上报结果、超时、或 ctx 取消
 func (b *MemoryBus) WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*command.Result, error) {
-	// 先检查是否已完成
-	b.commandsMu.RLock()
-	if cs, ok := b.commands[cmdID]; ok && cs.Result != nil {
-		b.commandsMu.RUnlock()
-		return cs.Result, nil
-	}
-	b.commandsMu.RUnlock()
-
-	// 创建等待 channel
+	// 先登记等待，再查是否已完成：AckCommand 先写结果再唤醒等待方，
+	// 这样结果不论在哪一刻到达，不是被下面的检查读到，就是唤醒这个 channel（不会丢唤醒）
 	ch := make(chan *command.Result, 1)
 
 	b.commandWaitersMu.Lock()
@@ -275,6 +268,14 @@ func (b *MemoryBus) WaitCommandResult(ctx context.Context, cmdID string, timeout
 		delete(b.commandWaiters, cmdID)
 		b.commandWaitersMu.Unlock()
 	}()
+
+	b.commandsMu.RLock()
+	if cs, ok := b.commands[cmdID]; ok && cs.Result != nil {
+		result := cs.Result
+		b.commandsMu.RUnlock()
+		return result, nil
+	}
+	b.commandsMu.RUnlock()
 
 	// 等待结果、超时、或 ctx 取消
 	select {

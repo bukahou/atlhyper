@@ -14,7 +14,10 @@ import (
 // InitAISettings 初始化 AI 全局设置
 // 首次启动时从环境变量配置写入数据库，之后以数据库为准
 func InitAISettings(ctx context.Context, db *DB, cfg *config.AIConfig) error {
-	existing, _ := db.AISettings.Get(ctx)
+	existing, err := db.AISettings.Get(ctx)
+	if err != nil {
+		return fmt.Errorf("读取 AI 全局设置: %w", err)
+	}
 	if existing != nil {
 		log.Info("AI Settings 已存在，跳过初始化")
 		return nil
@@ -46,7 +49,10 @@ func SeedAIProvider(ctx context.Context, db *DB, seed *config.AISeed) error {
 		return nil
 	}
 
-	providers, _ := db.AIProvider.List(ctx)
+	providers, err := db.AIProvider.List(ctx)
+	if err != nil {
+		return fmt.Errorf("读取 AI 提供商: %w", err)
+	}
 	if len(providers) > 0 {
 		log.Info("AI Provider 表已有数据，跳过种子初始化")
 		return nil

@@ -30,7 +30,7 @@ func (r *deployConfigRepo) GetByCluster(ctx context.Context, clusterID string) (
 	}
 	defer rows.Close()
 	if !rows.Next() {
-		return nil, nil
+		return nil, rows.Err() // 没有行是 nil, nil；读取出错要报出来
 	}
 	return r.dialect.ScanRow(rows)
 }

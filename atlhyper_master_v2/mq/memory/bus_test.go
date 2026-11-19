@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -116,5 +117,30 @@ func TestWaitCommandResult_TimeoutIsAnError(t *testing.T) {
 	}
 	if !errors.Is(err, mq.ErrWaitTimeout) || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v, want ErrWaitTimeout（同时是 DeadlineExceeded）", err)
+	}
+}
+
+// 结果在「查一次状态」与「登记等待」之间到达时也不能丢：等待方应立刻拿到结果，而不是等到超时
+func TestWaitCommandResult_NoLostWakeup(t *testing.T) {
+	bus := NewMemoryBus()
+	for i := 0; i < 500; i++ {
+		id := fmt.Sprintf("cmd-%d", i)
+		enqueued(t, bus, "c1", id)
+		got := make(chan error, 1)
+		go func() {
+			_, err := bus.WaitCommandResult(context.Background(), id, time.Second)
+			got <- err
+		}()
+		if err := bus.AckCommand("c1", id, &command.Result{CommandID: id, Success: true}); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-got:
+			if err != nil {
+				t.Fatalf("第 %d 次：等待返回错误 %v（结果丢了）", i, err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("第 %d 次：等待没有返回", i)
+		}
 	}
 }
