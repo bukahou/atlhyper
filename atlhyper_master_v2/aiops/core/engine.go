@@ -493,35 +493,37 @@ func (e *engine) buildSLOContext(clusterID string) *risk.SLOContext {
 		ingressIndex[otel.SLOIngress[i].ServiceKey] = &otel.SLOIngress[i]
 	}
 
-	var maxBurnRate float64
-	hasData := false
-
-	for _, t := range targets {
-		ing, ok := ingressIndex[t.Host]
-		if !ok {
-			continue
-		}
-
-		actualErrorRate := ing.ErrorRate
-		errorBudget := 1.0 - t.AvailabilityTarget/100.0
-		if errorBudget <= 0 {
-			errorBudget = 0.001
-		}
-
-		burnRate := actualErrorRate / errorBudget
-		if burnRate > maxBurnRate {
-			maxBurnRate = burnRate
-		}
-		hasData = true
-	}
-
+	burn, hasData := maxBurnRate(targets, ingressIndex)
 	if !hasData {
 		return nil
 	}
 
 	return &risk.SLOContext{
-		MaxBurnRate: maxBurnRate,
+		MaxBurnRate: burn,
 	}
+}
+
+// maxBurnRate 各 SLO 目标的错误预算燃烧率取最大值（没有任何目标有数据时 ok=false）。
+// IngressSLO.ErrorRate 是百分数（0-100），错误预算 1-目标/100 是比率：先把错误率换成比率再除
+func maxBurnRate(targets []*database.SLOTarget, ingressIndex map[string]*slo.IngressSLO) (float64, bool) {
+	var maxRate float64
+	hasData := false
+	for _, t := range targets {
+		ing, ok := ingressIndex[t.Host]
+		if !ok {
+			continue
+		}
+		errorRatio := ing.ErrorRate / 100
+		errorBudget := 1.0 - t.AvailabilityTarget/100.0
+		if errorBudget <= 0 {
+			errorBudget = 0.001
+		}
+		if burn := errorRatio / errorBudget; burn > maxRate {
+			maxRate = burn
+		}
+		hasData = true
+	}
+	return maxRate, hasData
 }
 
 // flushLoop 定期将脏状态写入数据库

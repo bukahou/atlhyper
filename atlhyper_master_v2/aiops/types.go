@@ -324,14 +324,17 @@ const (
 // 取值原则：只为「越界即有害」的指标设线，且取值保守到不会误报 ——
 // 宁可漏报也不能让告警变成噪音。计数类指标（restart_count 等）
 // 本身零基线灵敏，交给统计通道即可，不在此列。
+//
+// ⚠️ 阈值的单位必须与提取出的指标值一致（提取在 baseline/extractor*.go）：
+// 资源与压力类按百分数（0-100），APM 错误率按比率（0-1）。串联测试见 baseline/unit_chain_test.go
 var AbsoluteThresholds = map[string]float64{
-	"cpu_usage":      90, // %，持续 90% 以上调度延迟已显著
-	"memory_usage":   90, // %，逼近 OOM
-	"disk_usage":     90, // %，留给运维的反应窗口
-	"psi_cpu":        50, // % 压力失速：一半时间在等 CPU
-	"psi_memory":     30, // % 内存失速比 CPU 更早致命
-	"psi_io":         50, // %
-	"apm_error_rate": 5,  // %，5% 请求失败对用户已明显可感
+	"cpu_usage":      90,   // 百分数：持续 90% 以上调度延迟已显著
+	"memory_usage":   90,   // 百分数：逼近 OOM
+	"disk_usage":     90,   // 百分数：留给运维的反应窗口
+	"psi_cpu":        50,   // 百分数：一半时间在等 CPU
+	"psi_memory":     30,   // 百分数：内存失速比 CPU 更早致命
+	"psi_io":         50,   // 百分数
+	"apm_error_rate": 0.05, // 比率：5% 请求失败对用户已明显可感
 }
 
 // ==================== 状态机类型 ====================

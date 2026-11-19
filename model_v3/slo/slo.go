@@ -15,8 +15,8 @@ type IngressSLO struct {
 	ServiceKey    string            `json:"serviceKey"`
 	DisplayName   string            `json:"displayName"`
 	RPS           float64           `json:"rps"`
-	SuccessRate   float64           `json:"successRate"`
-	ErrorRate     float64           `json:"errorRate"`
+	SuccessRate   float64           `json:"successRate"` // 百分数（0-100）
+	ErrorRate     float64           `json:"errorRate"`   // 百分数（0-100）；与 APM 的比率（0-1）不同
 	P50Ms         float64           `json:"p50Ms"`
 	P90Ms         float64           `json:"p90Ms"`
 	P95Ms         float64           `json:"p95Ms"`
