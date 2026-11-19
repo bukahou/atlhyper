@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"AtlHyper/model_v3/agentproto"
 	"context"
 	"errors"
 	"net/http"
@@ -165,5 +166,17 @@ func TestMasterGateway_RejectionBodyIsTruncated(t *testing.T) {
 	err := gw.Heartbeat(context.Background())
 	if err == nil || len(err.Error()) > 1024 {
 		t.Errorf("错误信息长度 = %d，应被截断", len(err.Error()))
+	}
+}
+
+// 每个发给主控的请求都带协议版本头（主控只接受当前版本）
+func TestNewRequest_CarriesProtocolVersion(t *testing.T) {
+	g := NewMasterGateway("http://master.example.com", "c1", "", time.Second).(*masterGateway)
+	req, err := g.newRequest(context.Background(), http.MethodPost, "/agent/heartbeat", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := req.Header.Get(agentproto.Header); !agentproto.Accepts(got) {
+		t.Errorf("协议版本头 = %q, want %d", got, agentproto.Version)
 	}
 }

@@ -5,6 +5,7 @@
 package agentsdk
 
 import (
+	"AtlHyper/model_v3/agentproto"
 	"context"
 	"fmt"
 	"net/http"
@@ -84,10 +85,10 @@ func NewServer(cfg Config) *Server {
 // routes 注册全部入口。四条 Agent 通道都先经过认证中间件；健康检查不需要令牌。
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/agent/snapshot", s.authenticateAgent(s.handleSnapshot))
-	mux.HandleFunc("/agent/heartbeat", s.authenticateAgent(s.handleHeartbeat))
-	mux.HandleFunc("/agent/commands", s.authenticateAgent(s.handleCommands))
-	mux.HandleFunc("/agent/result", s.authenticateAgent(s.handleResult))
+	mux.HandleFunc("/agent/snapshot", requireProtocol(s.authenticateAgent(s.handleSnapshot)))
+	mux.HandleFunc("/agent/heartbeat", requireProtocol(s.authenticateAgent(s.handleHeartbeat)))
+	mux.HandleFunc("/agent/commands", requireProtocol(s.authenticateAgent(s.handleCommands)))
+	mux.HandleFunc("/agent/result", requireProtocol(s.authenticateAgent(s.handleResult)))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
@@ -120,4 +121,19 @@ func (s *Server) Stop() error {
 		return s.httpServer.Shutdown(ctx)
 	}
 	return nil
+}
+
+// requireProtocol 只接受当前协议版本的代理请求：不带或版本不对 → 426，⛔ 不按零值继续处理。
+// 先于认证执行：版本对不上时连请求体都不读
+func requireProtocol(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		got := r.Header.Get(agentproto.Header)
+		if !agentproto.Accepts(got) {
+			log.Warn("代理协议版本不符，拒绝请求", "path", r.URL.Path, "agentVersion", got, "masterVersion", agentproto.Version,
+				"cluster", r.Header.Get("X-Cluster-ID"))
+			http.Error(w, fmt.Sprintf("agent protocol %q not supported, master speaks %d", got, agentproto.Version), http.StatusUpgradeRequired)
+			return
+		}
+		next(w, r)
+	}
 }
