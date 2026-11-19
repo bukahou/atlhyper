@@ -1544,6 +1544,8 @@ export interface AIChatPageTranslations {
     placeholderStreaming: string;
     placeholderNormal: string;
     stopButton: string;
+    /** 停止生成后，显示在已输出内容下方 */
+    generationStopped: string;
     sendButton: string;
     disclaimer: string;
   };

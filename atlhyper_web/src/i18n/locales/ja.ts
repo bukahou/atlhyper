@@ -1637,6 +1637,7 @@ export const ja: Translations = {
       placeholderStreaming: "AI が応答中...",
       placeholderNormal: "AI アシスタントにメッセージを送信...",
       stopButton: "生成を停止",
+      generationStopped: "生成を停止しました。上は停止までに出力された内容です",
       sendButton: "送信",
       disclaimer: "AI は誤りを含む可能性があります。重要な情報は確認してください。",
     },

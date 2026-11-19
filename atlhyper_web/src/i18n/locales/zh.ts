@@ -1637,6 +1637,7 @@ export const zh: Translations = {
       placeholderStreaming: "AI 正在回复...",
       placeholderNormal: "给 AI 助手发送消息...",
       stopButton: "停止生成",
+      generationStopped: "已停止生成，以上是停止前已输出的内容",
       sendButton: "发送",
       disclaimer: "AI 可能会出错，请核实重要信息。",
     },
