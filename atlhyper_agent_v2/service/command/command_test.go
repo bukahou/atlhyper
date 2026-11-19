@@ -854,3 +854,49 @@ func TestExecute_RejectsMalformedTarget(t *testing.T) {
 		})
 	}
 }
+
+// 扩缩容没带副本数：不执行（缺字段不能当成 0，把服务缩到零）
+func TestExecute_Scale_MissingReplicasNotExecuted(t *testing.T) {
+	called := false
+	svc := &commandService{
+		podRepo: &mock.PodRepository{},
+		genericRepo: &mock.GenericRepository{
+			ScaleDeploymentFn: func(ctx context.Context, namespace, name string, replicas int32) error {
+				called = true
+				return nil
+			},
+		},
+	}
+	result := svc.Execute(context.Background(), &command.Command{
+		ID: "cmd-scale-missing", Action: command.ActionScale, Source: command.SourceWeb,
+		Namespace: "default", Name: "nginx", Params: map[string]any{},
+	})
+	if called || result.Success {
+		t.Fatalf("缺副本数的扩缩容不应执行（called=%v success=%v）", called, result.Success)
+	}
+	if !strings.Contains(result.Error, "replicas is required") {
+		t.Errorf("错误应说明缺副本数，实际 %q", result.Error)
+	}
+}
+
+// 镜像引用不合法：不执行
+func TestExecute_UpdateImage_InvalidReferenceNotExecuted(t *testing.T) {
+	called := false
+	svc := &commandService{
+		podRepo: &mock.PodRepository{},
+		genericRepo: &mock.GenericRepository{
+			UpdateDeploymentImageFn: func(ctx context.Context, namespace, name, container, image string) error {
+				called = true
+				return nil
+			},
+		},
+	}
+	result := svc.Execute(context.Background(), &command.Command{
+		ID: "cmd-img-bad", Action: command.ActionUpdateImage, Source: command.SourceWeb,
+		Namespace: "default", Name: "nginx",
+		Params: map[string]any{"container": "app", "image": `nginx","securityContext":{"privileged":true}`},
+	})
+	if called || result.Success {
+		t.Fatalf("不合法的镜像引用不应执行（called=%v success=%v）", called, result.Success)
+	}
+}

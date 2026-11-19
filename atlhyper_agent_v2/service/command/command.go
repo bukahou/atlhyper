@@ -184,14 +184,15 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 
 // handleScale 处理扩缩容指令
 func (s *commandService) handleScale(ctx context.Context, cmd *command.Command) error {
-	var params struct {
-		Replicas int32 `json:"replicas"`
+	var params command.ScaleParams
+	if err := command.ParseParams(cmd.Params, &params); err != nil {
+		return fmt.Errorf("invalid scale params: %w", err)
 	}
-	if err := s.parseParams(cmd.Params, &params); err != nil {
+	if err := params.Validate(); err != nil {
 		return fmt.Errorf("invalid scale params: %w", err)
 	}
 
-	return s.genericRepo.ScaleDeployment(ctx, cmd.Namespace, cmd.Name, params.Replicas)
+	return s.genericRepo.ScaleDeployment(ctx, cmd.Namespace, cmd.Name, *params.Replicas)
 }
 
 // handleRestart 处理重启指令
@@ -201,15 +202,12 @@ func (s *commandService) handleRestart(ctx context.Context, cmd *command.Command
 
 // handleUpdateImage 处理更新镜像指令
 func (s *commandService) handleUpdateImage(ctx context.Context, cmd *command.Command) error {
-	var params struct {
-		Container string `json:"container,omitempty"`
-		Image     string `json:"image"`
-	}
-	if err := s.parseParams(cmd.Params, &params); err != nil {
+	var params command.UpdateImageParams
+	if err := command.ParseParams(cmd.Params, &params); err != nil {
 		return fmt.Errorf("invalid update_image params: %w", err)
 	}
-	if params.Image == "" {
-		return fmt.Errorf("image is required")
+	if err := params.Validate(); err != nil {
+		return fmt.Errorf("invalid update_image params: %w", err)
 	}
 
 	return s.genericRepo.UpdateDeploymentImage(ctx, cmd.Namespace, cmd.Name, params.Container, params.Image)

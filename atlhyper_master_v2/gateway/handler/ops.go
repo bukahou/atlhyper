@@ -49,7 +49,7 @@ type DeploymentScaleRequest struct {
 	ClusterID string `json:"clusterId"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
-	Replicas  int    `json:"replicas"`
+	Replicas  *int32 `json:"replicas"` // 必填：缺了不能当成 0
 }
 
 // DeploymentRestartRequest 滚动重启请求
@@ -215,8 +215,9 @@ func (h *OpsHandler) DeploymentScale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Replicas < 0 {
-		writeError(w, http.StatusBadRequest, "replicas 不能为负数")
+	params := command.ScaleParams{Replicas: req.Replicas}
+	if err := params.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -226,10 +227,8 @@ func (h *OpsHandler) DeploymentScale(w http.ResponseWriter, r *http.Request) {
 		TargetKind:      "Deployment",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
-		Params: map[string]interface{}{
-			"replicas": req.Replicas,
-		},
-		Source: command.SourceWeb,
+		Params:          params.ToParams(),
+		Source:          command.SourceWeb,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
@@ -301,8 +300,9 @@ func (h *OpsHandler) DeploymentImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Container == "" || req.Image == "" {
-		writeError(w, http.StatusBadRequest, "container, image 不能为空")
+	params := command.UpdateImageParams{Container: req.Container, Image: req.Image}
+	if err := params.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -312,11 +312,8 @@ func (h *OpsHandler) DeploymentImage(w http.ResponseWriter, r *http.Request) {
 		TargetKind:      "Deployment",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
-		Params: map[string]interface{}{
-			"container": req.Container,
-			"image":     req.Image,
-		},
-		Source: command.SourceWeb,
+		Params:          params.ToParams(),
+		Source:          command.SourceWeb,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
