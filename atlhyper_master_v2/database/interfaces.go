@@ -141,7 +141,6 @@ type CommandHistoryRepository interface {
 	Update(ctx context.Context, cmd *CommandHistory) error
 	GetByCommandID(ctx context.Context, cmdID string) (*CommandHistory, error)
 	ListByCluster(ctx context.Context, clusterID string, limit, offset int) ([]*CommandHistory, error)
-	ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*CommandHistory, error)
 	// 新增：带筛选条件的列表查询
 	List(ctx context.Context, opts CommandQueryOpts) ([]*CommandHistory, error)
 	Count(ctx context.Context, opts CommandQueryOpts) (int64, error)
@@ -454,7 +453,6 @@ type CommandDialect interface {
 	Update(cmd *CommandHistory) (query string, args []any)
 	SelectByCommandID(cmdID string) (query string, args []any)
 	SelectByCluster(clusterID string, limit, offset int) (query string, args []any)
-	SelectByUser(userID int64, limit, offset int) (query string, args []any)
 	// 新增：带筛选条件的查询
 	SelectWithOpts(opts CommandQueryOpts) (query string, args []any)
 	CountWithOpts(opts CommandQueryOpts) (query string, args []any)

@@ -62,10 +62,6 @@ func (m *mockCommandRepo) ListByCluster(ctx context.Context, clusterID string, l
 	return nil, nil
 }
 
-func (m *mockCommandRepo) ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*database.CommandHistory, error) {
-	return nil, nil
-}
-
 func (m *mockCommandRepo) List(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error) {
 	return nil, nil
 }

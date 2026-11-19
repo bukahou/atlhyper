@@ -51,7 +51,6 @@ func LoadConfig() {
 	GlobalConfig.Database = DatabaseConfig{
 		Type:     getString("MASTER_DB_TYPE"),
 		Path:     getString("MASTER_DB_PATH"),
-		DSN:      getString("MASTER_DB_DSN"),
 		MaxConns: getInt("MASTER_DB_MAX_CONNS"),
 
 		CommandHistoryRetention: getDuration("MASTER_COMMAND_HISTORY_RETENTION"),
@@ -87,7 +86,6 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.AI = AIConfig{
-		Enabled:       getBool("MASTER_AI_ENABLED"),
 		ToolTimeout:   getDuration("MASTER_AI_TOOL_TIMEOUT"),
 		BedrockRegion: getString("MASTER_AI_BEDROCK_REGION"),
 		// 逗号分隔；⛔ 不要放存有凭据的仓库（如部署配置仓库）

@@ -40,9 +40,8 @@ type DataHubConfig struct {
 
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
-	Type     string // 类型: sqlite / mysql
+	Type     string // 类型：目前只实现了 sqlite
 	Path     string // SQLite 路径
-	DSN      string // MySQL/PG 连接串
 	MaxConns int    // 最大连接数
 	// 只增不减的几类数据各保留多久（每小时清理一次更早的；0 = 不清理）
 	CommandHistoryRetention time.Duration
@@ -81,7 +80,6 @@ type AdminConfig struct {
 // ToolTimeout 用于首次启动时初始化 ai_settings 表
 // 角色分配即生效：Provider 有角色就使用，无角色就不使用
 type AIConfig struct {
-	Enabled     bool          // 已废弃（保留用于配置兼容，不再影响逻辑）
 	ToolTimeout time.Duration // Tool 执行超时（默认 30s）
 	Seed        AISeed        // 种子配置：首次启动时自动创建 Provider
 

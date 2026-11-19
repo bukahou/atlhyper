@@ -26,8 +26,6 @@ func ExtractMetrics(
 
 	// 3. OTel 信号（SLO + APM + Log + Enhanced Node）
 	if otel != nil {
-		// Basic SLO
-		points = append(points, extractServiceMetrics(otel)...)
 		points = append(points, extractIngressMetrics(otel)...)
 		// Enhanced: APM / Log / 深度 Node（函数实现在 extractor_enhanced.go）
 		points = append(points, extractAPMMetrics(otel)...)
@@ -96,11 +94,6 @@ func extractPodMetrics(snap *cluster.ClusterSnapshot) []aiops.MetricDataPoint {
 			aiops.MetricDataPoint{EntityKey: key, MetricName: "max_container_restarts", Value: float64(maxRestarts)},
 		)
 	}
-	return points
-}
-
-func extractServiceMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
-	var points []aiops.MetricDataPoint
 	return points
 }
 

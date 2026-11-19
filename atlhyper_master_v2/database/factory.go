@@ -22,7 +22,7 @@ var log = logger.Module("Database")
 
 // Config 数据库配置
 type Config struct {
-	Type string // sqlite / mysql / postgres
+	Type string // 目前只实现了 sqlite；其他取值启动失败
 	Path string // SQLite 文件路径
 }
 

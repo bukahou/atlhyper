@@ -500,13 +500,6 @@ func extractNamespace(manifests string) string {
 	return "default"
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // === 源码仓库信息解析（source.json 方案） ===
 
 // sourceJSON 是 CI 写入 Config 仓库的源码元数据文件
