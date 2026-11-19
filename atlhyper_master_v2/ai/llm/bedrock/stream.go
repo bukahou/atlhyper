@@ -5,6 +5,7 @@ package bedrock
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -88,7 +89,7 @@ func pump(ctx context.Context, events <-chan types.ConverseStreamOutput, streamE
 	}
 
 	if err := streamErr(); err != nil {
-		fail(fmt.Errorf("bedrock 流中断: %w", err))
+		fail(fmt.Errorf("bedrock 流中断: %w", streamError(err)))
 		return
 	}
 	if ctx.Err() != nil {
@@ -96,4 +97,27 @@ func pump(ctx context.Context, events <-chan types.ConverseStreamOutput, streamE
 		return
 	}
 	send(&llm.Chunk{Type: llm.ChunkDone, Usage: usage})
+}
+
+// streamError 流中途的异常是具名类型（HTTP 状态码只在建立流时有），换成通用类别
+func streamError(err error) error {
+	var (
+		throttled   *types.ThrottlingException
+		unavailable *types.ServiceUnavailableException
+		internal    *types.InternalServerException
+		modelErr    *types.ModelStreamErrorException
+		modelSlow   *types.ModelTimeoutException
+		invalid     *types.ValidationException
+	)
+	switch {
+	case errors.As(err, &throttled):
+		return &llm.KindError{Kind: llm.ErrKindRateLimited, Err: err}
+	case errors.As(err, &unavailable), errors.As(err, &internal), errors.As(err, &modelErr):
+		return &llm.KindError{Kind: llm.ErrKindProviderError, Err: err}
+	case errors.As(err, &modelSlow):
+		return &llm.KindError{Kind: llm.ErrKindTimeout, Err: err}
+	case errors.As(err, &invalid):
+		return &llm.KindError{Kind: llm.ErrKindBadRequest, Err: err}
+	}
+	return err
 }

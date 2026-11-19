@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { streamChat, type ChatAlert } from "@/api/ai";
 import type { Message } from "@/components/ai/types";
 import { useI18n } from "@/i18n/context";
+import { aiKnownCodeMessage } from "@/lib/ai-error";
 import { chatStreamFailureMessage } from "@/lib/chat-sse";
 import { aiChatKeys } from "@/queries/keys";
 import { type ChatStreamEvent, type ChatStreamState, reduceChatStream, startChatStream } from "./chat-stream-state";
@@ -74,7 +75,8 @@ export function useChatStream(clusterId: string) {
           });
         },
         (failure) => {
-          dispatch({ type: "error", streamId, message: chatStreamFailureMessage(failure, t.aiChatPage.streamErrors) });
+          const message = chatStreamFailureMessage(failure, t.aiChatPage.streamErrors, (code) => aiKnownCodeMessage(code, t.aiops.ai));
+          dispatch({ type: "error", streamId, message });
           void refreshHistory(conversationId);
           if (abortRef.current === controller) abortRef.current = null;
         },

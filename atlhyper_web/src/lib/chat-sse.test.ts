@@ -40,10 +40,10 @@ describe("readChatStream", () => {
     expect(h.onDone).toHaveBeenCalledTimes(1);
   });
 
-  it("后端的错误分段：结束并带回内容，不再调 onDone", async () => {
+  it("后端的错误分段：结束并带回错误码与兜底说明，不再调 onDone", async () => {
     const h = handlers();
-    const failure = await readChatStream(streamOf('data: {"type":"error","content":"模型不可用"}\n\n'), h);
-    expect(failure).toEqual({ kind: "server", message: "模型不可用" });
+    const failure = await readChatStream(streamOf('data: {"type":"error","code":"ai_rate_limited","content":"请求频率或配额超限"}\n\n'), h);
+    expect(failure).toEqual({ kind: "server", message: "请求频率或配额超限", code: "ai_rate_limited" });
     expect(h.onDone).not.toHaveBeenCalled();
   });
 
@@ -102,5 +102,19 @@ describe("readChatStream 字节边界", () => {
     const onSegment = vi.fn();
     expect(await readChatStream(body, { onSegment, onDone: vi.fn() })).toBeNull();
     expect(onSegment).toHaveBeenCalledWith({ type: "text", content: "你好" });
+  });
+});
+
+describe("chatStreamFailureMessage 错误码", () => {
+  const texts = {
+    unauthorized: "401", forbidden: "403", rateLimited: "429", httpError: "http {status}",
+    serverError: "server", malformed: "malformed", interrupted: "interrupted", network: "net {message}",
+  };
+  const known = (code: string) => (code === "ai_auth" ? "检查密钥" : undefined);
+  it("认得的码按码出文案", () => {
+    expect(chatStreamFailureMessage({ kind: "server", message: "兜底", code: "ai_auth" }, texts, known)).toBe("检查密钥");
+  });
+  it("认不得的码用后端的兜底说明", () => {
+    expect(chatStreamFailureMessage({ kind: "server", message: "兜底", code: "ai_new_code" }, texts, known)).toBe("兜底");
   });
 });

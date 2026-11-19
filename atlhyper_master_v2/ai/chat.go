@@ -7,7 +7,6 @@ import (
 	"AtlHyper/common/truncate"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -89,14 +88,15 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	// 每次 Chat 从 DB 获取最新配置并创建 LLM Client（支持热更新）
 	roleCfg, err := s.loadAIConfigForRole(ctx, RoleChat)
 	if err != nil {
-		sendError(ch, fmt.Sprintf("AI 配置错误: %v", err))
+		log.Warn("对话没有可用的 AI 配置", "err", err)
+		sendError(ch, configErrorCode(err))
 		return
 	}
 
 	llmClient, err := s.createClient(roleCfg.Config)
 	if err != nil {
-		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
-		sendError(ch, fmt.Sprintf("创建 LLM 客户端失败: %v", err))
+		s.recordProviderError(ctx, roleCfg.ProviderID, CodeConfig, err)
+		sendError(ch, CodeConfig)
 		return
 	}
 	defer llmClient.Close()
@@ -144,7 +144,9 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		round := callRound
 		stream, err := llmClient.ChatStream(ctx, req)
 		if err != nil {
-			sendError(ch, fmt.Sprintf("LLM 调用失败: %v", err))
+			code := ErrorCode(err)
+			log.Error("调用模型失败", "conv", convID, "provider", roleCfg.Provider, "code", code, "err", err)
+			sendError(ch, code)
 			return llm.StreamResult{}, false
 		}
 		res, err := llm.ReadStream(ctx, stream, func(text string) {
@@ -158,12 +160,10 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			switch {
 			case ctx.Err() != nil:
 				log.Info("对话被中止", "conv", convID, "err", ctx.Err())
-			case errors.Is(err, llm.ErrStreamIncomplete):
-				log.Warn("模型的流在完成前中断", "conv", convID, "provider", roleCfg.Provider)
-				sendError(ch, "AI 的回答在完成前中断了，请重试")
 			default:
-				log.Error("LLM 流读取错误", "conv", convID, "err", err)
-				sendError(ch, fmt.Sprintf("AI 服务错误: %v", err))
+				code := ErrorCode(err)
+				log.Error("模型的流出错", "conv", convID, "provider", roleCfg.Provider, "code", code, "err", err)
+				sendError(ch, code)
 			}
 			return res, false
 		}
@@ -402,10 +402,9 @@ func decodeStoredMessage(m *database.AIMessage) llm.Message {
 	return msg
 }
 
-// sendError 发送错误到 channel
-func sendError(ch chan<- *ChatChunk, msg string) {
-	log.Warn("发送错误", "msg", msg)
-	ch <- &ChatChunk{Type: "error", Content: msg}
+// sendError 发送错误分段：错误码 + 通用说明（原始错误由调用处记日志，⛔ 不发给前端）
+func sendError(ch chan<- *ChatChunk, code string) {
+	ch <- &ChatChunk{Type: "error", Code: code, Content: errorSummary(code)}
 }
 
 // clipToolResult 工具结果按字符截断后交给模型

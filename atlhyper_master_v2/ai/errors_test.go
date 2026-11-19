@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -35,7 +36,16 @@ func TestErrorCode(t *testing.T) {
 		{fmt.Errorf("x: %w", ErrRoleNotAssigned), "ai_role_unassigned"},
 		{fmt.Errorf("x: %w", ErrBudgetExhausted), "ai_budget_exhausted"},
 		{fmt.Errorf("第 3 轮: %w", context.DeadlineExceeded), "ai_timeout"},
-		{errors.New("AccessDeniedException"), "ai_upstream"},
+		{errors.New("AccessDeniedException"), "ai_upstream"}, // 只看类型与状态码，文字不算
+		{fmt.Errorf("x: %w", &llm.HTTPError{StatusCode: 401}), "ai_auth"},
+		{&llm.HTTPError{StatusCode: 403}, "ai_auth"},
+		{&llm.HTTPError{StatusCode: 429}, "ai_rate_limited"},
+		{&llm.HTTPError{StatusCode: 504}, "ai_timeout"},
+		{&llm.HTTPError{StatusCode: 500}, "ai_upstream"},
+		{&llm.KindError{Kind: llm.ErrKindRefused}, "ai_refused"},
+		{fmt.Errorf("x: %w", llm.ErrStreamIncomplete), "ai_interrupted"},
+		{&llm.KindError{Kind: llm.ErrKindConnectionLost}, "ai_interrupted"},
+		{&llm.KindError{Kind: llm.ErrKindUnreachable}, "ai_unreachable"},
 		{nil, ""},
 	}
 	for _, c := range cases {

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/common/logger"
+	"AtlHyper/common/truncate"
 )
 
 var log = logger.Module("Ollama")
@@ -143,7 +145,7 @@ func (c *Client) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 		errBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama API error: %d - %s", resp.StatusCode, string(errBody))
+		return nil, &llm.HTTPError{Provider: "ollama", StatusCode: resp.StatusCode, Err: errors.New(truncate.Runes(string(errBody), 500, "…"))}
 	}
 
 	ch := make(chan *llm.Chunk, 32)

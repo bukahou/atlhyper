@@ -5,10 +5,8 @@ package ai
 
 import (
 	"AtlHyper/atlhyper_master_v2/ai/toolkit"
-	"AtlHyper/common/truncate"
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/budget"
@@ -133,7 +131,7 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 
 	llmClient, err := s.createClient(roleCfg.Config)
 	if err != nil {
-		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
+		s.recordProviderError(ctx, roleCfg.ProviderID, CodeConfig, err)
 		return nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
 	}
 	defer llmClient.Close()
@@ -143,7 +141,7 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 		Messages:     []llm.Message{{Role: "user", Content: req.UserPrompt}},
 	})
 	if err != nil {
-		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("LLM 调用失败: %v", err))
+		s.recordProviderError(ctx, roleCfg.ProviderID, ErrorCode(err), err)
 		return nil, fmt.Errorf("LLM 调用失败: %w", err)
 	}
 
@@ -157,7 +155,7 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 	// 调过模型就记账（失败也记）；用不随请求取消的 ctx
 	s.RecordUsage(context.WithoutCancel(ctx), role, roleCfg.ProviderID, inputTokens, outputTokens)
 	if err != nil {
-		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("LLM 流错误: %v", err))
+		s.recordProviderError(ctx, roleCfg.ProviderID, ErrorCode(err), err)
 		return nil, fmt.Errorf("LLM 流错误: %w", err)
 	}
 	text := res.Text
@@ -211,12 +209,12 @@ func toMessage(m *database.AIMessage) *Message {
 	}
 }
 
-// recordProviderError 记录 Provider 错误到数据库（前端 AI 设置页可见）
-// 错误信息做归纳，不暴露内部 URL/IP 等细节
-func (s *aiServiceImpl) recordProviderError(ctx context.Context, providerID int64, errMsg string) {
-	friendly := summarizeError(errMsg)
-	if err := s.providerRepo.UpdateStatus(ctx, providerID, "error", friendly); err != nil {
-		log.Warn("更新 Provider 错误状态失败", "provider", providerID, "err", err)
+// recordProviderError 记录 Provider 错误到数据库（前端 AI 设置页可见）。
+// 只记错误码对应的通用说明，⛔ 不暴露内部 URL / IP / 响应体；原始错误进日志
+func (s *aiServiceImpl) recordProviderError(ctx context.Context, providerID int64, code string, err error) {
+	log.Warn("模型提供商调用失败", "provider", providerID, "code", code, "err", err)
+	if uerr := s.providerRepo.UpdateStatus(ctx, providerID, "error", errorSummary(code)); uerr != nil {
+		log.Warn("更新 Provider 错误状态失败", "provider", providerID, "err", uerr)
 	}
 }
 
@@ -224,33 +222,5 @@ func (s *aiServiceImpl) recordProviderError(ctx context.Context, providerID int6
 func (s *aiServiceImpl) clearProviderError(ctx context.Context, providerID int64) {
 	if err := s.providerRepo.UpdateStatus(ctx, providerID, "active", ""); err != nil {
 		log.Warn("清除 Provider 错误状态失败", "provider", providerID, "err", err)
-	}
-}
-
-// summarizeError 将原始错误归纳为用户友好的描述
-func summarizeError(raw string) string {
-	switch {
-	case strings.Contains(raw, "connection refused"):
-		return "连接被拒绝，服务可能未启动"
-	case strings.Contains(raw, "no such host"):
-		return "无法解析服务地址"
-	case strings.Contains(raw, "context deadline exceeded") || strings.Contains(raw, "timeout"):
-		return "请求超时"
-	case strings.Contains(raw, "401") || strings.Contains(raw, "Unauthorized"):
-		return "认证失败，请检查 API Key"
-	case strings.Contains(raw, "403") || strings.Contains(raw, "Forbidden"):
-		return "权限不足"
-	case strings.Contains(raw, "429") || strings.Contains(raw, "rate limit"):
-		return "请求频率超限"
-	case strings.Contains(raw, "500") || strings.Contains(raw, "internal server error"):
-		return "服务端内部错误"
-	case strings.Contains(raw, "EOF"):
-		return "连接异常断开"
-	default:
-		// 兜底：截断过长的错误
-		if clipped := truncate.Runes(raw, 80, "..."); clipped != raw {
-			return clipped
-		}
-		return raw
 	}
 }
