@@ -30,17 +30,16 @@ func TestApplyScalarGauge_FilefdUnlimited(t *testing.T) {
 	}
 }
 
-// NodeIP 字段此前被填成 hostname（net.host.name 即主机名，反查失败时
-// 直接拿它凑数），前端出现「archangel archangel」双名。
-// 修法：从 K8s 节点信息反查真实 InternalIP，查不到留空（空可隐藏，错值会误导）。
+// NodeIP 要从 K8s 节点信息反查真实 InternalIP，查不到留空（空可隐藏，错值会误导）：
+// 拿 net.host.name（主机名）凑数会让前端把同一个主机名显示两遍。
 func TestNodeIPByName(t *testing.T) {
 	ipToName := map[string]string{
-		"192.168.0.11": "desk-one",
-		"192.168.0.40": "archangel",
+		"192.168.0.11": "node-2",
+		"192.168.0.40": "node-8",
 	}
 	byName := nodeIPByName(ipToName)
-	if byName["desk-one"] != "192.168.0.11" {
-		t.Errorf("desk-one → %q, want 192.168.0.11", byName["desk-one"])
+	if byName["node-2"] != "192.168.0.11" {
+		t.Errorf("node-2 → %q, want 192.168.0.11", byName["node-2"])
 	}
 	if got, ok := byName["unknown-node"]; ok {
 		t.Errorf("未知节点不应有条目，得到 %q", got)

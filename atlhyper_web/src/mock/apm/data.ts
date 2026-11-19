@@ -106,7 +106,7 @@ const SERVICES: ServiceDef[] = [
   },
 ];
 
-const CLUSTER_NAME = "zgmf-x10a";
+const CLUSTER_NAME = "demo-cluster";
 
 // ============================================================
 // Trace generation patterns (based on ClickHouse 4.2)

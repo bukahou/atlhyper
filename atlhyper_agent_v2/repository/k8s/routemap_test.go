@@ -21,12 +21,12 @@ import (
 func TestBuildRouteMap_HTTPRoute(t *testing.T) {
 	routes := []RouteEntry{
 		{Hostnames: []string{"geass-api.bukahou.com"}, Backends: []string{"geass-v3/geass-gateway"}},
-		{Hostnames: []string{"argocd.bukahou.com"}, Backends: []string{"argocd/argocd-server"}},
+		{Hostnames: []string{"argocd.example.com"}, Backends: []string{"argocd/argocd-server"}},
 	}
 	got := BuildRouteMap(routes)
 	want := map[string]string{
 		"geass-v3/geass-gateway": "geass-api.bukahou.com",
-		"argocd/argocd-server":   "argocd.bukahou.com",
+		"argocd/argocd-server":   "argocd.example.com",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("BuildRouteMap() = %v, want %v", got, want)

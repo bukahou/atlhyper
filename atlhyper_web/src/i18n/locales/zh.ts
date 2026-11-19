@@ -2446,7 +2446,7 @@ Deployment 已更新，新的 Pod 正在启动中
     pathsSection: "部署路径",
     pathsSectionHint: "每条路径对应一个 kustomization.yaml 目录，按 Namespace 独立管理",
     pathCol: "路径",
-    pathPlaceholder: "如 zgmf-x10a/k8s-configs/Geass/backend",
+    pathPlaceholder: "如 demo-cluster/k8s-configs/Geass/backend",
     addPath: "添加路径",
     deletePath: "删除",
     noPathsHint: "请添加至少一条部署路径",

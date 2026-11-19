@@ -21,7 +21,7 @@ import (
 
 func breachResult(metric string, score float64) *aiops.AnomalyResult {
 	return &aiops.AnomalyResult{
-		EntityKey: "_cluster/node/desk-zero", MetricName: metric,
+		EntityKey: "_cluster/node/node-1", MetricName: metric,
 		Score: score, IsAnomaly: true, AbsoluteBreach: true,
 	}
 }
@@ -31,7 +31,7 @@ func TestComputeLocalRisk_AbsoluteBreachRoutesToDeterministic(t *testing.T) {
 	single := ComputeLocalRisks([]*aiops.AnomalyResult{
 		breachResult("cpu_usage", 0.636),
 	}, DefaultRiskConfig())
-	got := single["_cluster/node/desk-zero"]
+	got := single["_cluster/node/node-1"]
 	if got <= 0.2 {
 		t.Errorf("单指标越界 rLocal=%.3f，应 > 0.2（至少进 warning）——统计通道只给 0.127", got)
 	}
@@ -44,7 +44,7 @@ func TestComputeLocalRisk_AbsoluteBreachRoutesToDeterministic(t *testing.T) {
 		breachResult("cpu_usage", 0.636),
 		breachResult("memory_usage", 0.622),
 	}, DefaultRiskConfig())
-	got2 := double["_cluster/node/desk-zero"]
+	got2 := double["_cluster/node/node-1"]
 	if got2 <= 0.5 {
 		t.Errorf("两指标同时越界 rLocal=%.3f，应 > 0.5（节点确已出事）", got2)
 	}
@@ -53,10 +53,10 @@ func TestComputeLocalRisk_AbsoluteBreachRoutesToDeterministic(t *testing.T) {
 // 非越界的统计异常不得被改道 —— 原有行为必须保持
 func TestComputeLocalRisk_StatisticalUnchanged(t *testing.T) {
 	r := &aiops.AnomalyResult{
-		EntityKey: "_cluster/node/desk-zero", MetricName: "cpu_usage",
+		EntityKey: "_cluster/node/node-1", MetricName: "cpu_usage",
 		Score: 0.9, IsAnomaly: true, AbsoluteBreach: false,
 	}
-	got := ComputeLocalRisks([]*aiops.AnomalyResult{r}, DefaultRiskConfig())["_cluster/node/desk-zero"]
+	got := ComputeLocalRisks([]*aiops.AnomalyResult{r}, DefaultRiskConfig())["_cluster/node/node-1"]
 	want := 0.20 * 0.9 // 统计通道加权
 	if got < want-0.001 || got > want+0.001 {
 		t.Errorf("普通统计异常 rLocal=%.4f, want %.4f（应仍走统计通道）", got, want)

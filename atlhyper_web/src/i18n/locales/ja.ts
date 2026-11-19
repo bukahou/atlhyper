@@ -2446,7 +2446,7 @@ Deployment が更新され、新しい Pod が起動中です
     pathsSection: "デプロイパス",
     pathsSectionHint: "各パスはkustomization.yamlディレクトリに対応し、Namespace単位で管理",
     pathCol: "パス",
-    pathPlaceholder: "例: zgmf-x10a/k8s-configs/Geass/backend",
+    pathPlaceholder: "例: demo-cluster/k8s-configs/Geass/backend",
     addPath: "パス追加",
     deletePath: "削除",
     noPathsHint: "デプロイパスを追加してください",

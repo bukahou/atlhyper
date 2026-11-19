@@ -92,7 +92,7 @@ export const mockBudgets: RoleBudget[] = [
 export const mockAIReports: AIReportItem[] = [
   {
     id: 1, incidentId: "INC-2026-0312-001", clusterId: "ZGFX-X10A", role: "background",
-    trigger: "metric_anomaly", summary: "Node desk-one CPU 使用率が95%を超え、Pod のメモリ不足が検出されました",
+    trigger: "metric_anomaly", summary: "Node node-2 CPU 使用率が95%を超え、Pod のメモリ不足が検出されました",
     providerName: "Gemini 本番", model: "gemini-2.0-flash",
     inputTokens: 12345, outputTokens: 3456, durationMs: 4200, createdAt: "2026-03-12T18:30:00Z",
   },
@@ -122,7 +122,7 @@ export const mockAIReports: AIReportItem[] = [
   },
   {
     id: 6, incidentId: "INC-2026-0311-003", clusterId: "ZGFX-X10A", role: "background",
-    trigger: "metric_anomaly", summary: "raspi-zero ノードのディスク使用率が90%超過、NFS マウントポイントの空き容量不足",
+    trigger: "metric_anomaly", summary: "node-4 ノードのディスク使用率が90%超過、NFS マウントポイントの空き容量不足",
     providerName: "Gemini 本番", model: "gemini-2.0-flash",
     inputTokens: 9876, outputTokens: 2345, durationMs: 3400, createdAt: "2026-03-11T08:15:00Z",
   },

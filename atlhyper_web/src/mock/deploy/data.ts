@@ -56,40 +56,40 @@ export interface MockDeployRecord {
 export const MOCK_DEPLOY_CONFIG: MockDeployConfig = {
   repoUrl: "example-org/cluster-config",
   paths: [
-    "zgmf-x10a/k8s-configs/Geass/backend",
-    "zgmf-x10a/k8s-configs/Geass/web",
-    "zgmf-x10a/k8s-configs/atlhyper/master",
-    "zgmf-x10a/k8s-configs/atlhyper/web",
+    "demo-cluster/k8s-configs/Geass/backend",
+    "demo-cluster/k8s-configs/Geass/web",
+    "demo-cluster/k8s-configs/atlhyper/master",
+    "demo-cluster/k8s-configs/atlhyper/web",
   ],
   intervalSec: 60,
   autoDeploy: true,
-  clusterId: "zgmf-x10a",
+  clusterId: "demo-cluster",
 };
 
 export const MOCK_PATH_STATUS: MockPathStatus[] = [
   {
-    path: "zgmf-x10a/k8s-configs/Geass/backend",
+    path: "demo-cluster/k8s-configs/Geass/backend",
     namespace: "geass",
     inSync: false,
     resourceCount: 12,
     lastSyncAt: "2026-03-10T10:32:00Z",
   },
   {
-    path: "zgmf-x10a/k8s-configs/Geass/web",
+    path: "demo-cluster/k8s-configs/Geass/web",
     namespace: "geass-web",
     inSync: true,
     resourceCount: 4,
     lastSyncAt: "2026-03-10T10:32:00Z",
   },
   {
-    path: "zgmf-x10a/k8s-configs/atlhyper/master",
+    path: "demo-cluster/k8s-configs/atlhyper/master",
     namespace: "atlhyper",
     inSync: true,
     resourceCount: 5,
     lastSyncAt: "2026-03-10T10:30:00Z",
   },
   {
-    path: "zgmf-x10a/k8s-configs/atlhyper/web",
+    path: "demo-cluster/k8s-configs/atlhyper/web",
     namespace: "atlhyper",
     inSync: true,
     resourceCount: 4,
@@ -100,7 +100,7 @@ export const MOCK_PATH_STATUS: MockPathStatus[] = [
 export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   {
     id: 1,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "Geass/backend",
     namespace: "geass",
     commitSha: "def5678",
@@ -126,7 +126,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   },
   {
     id: 2,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "Geass/backend",
     namespace: "geass",
     commitSha: "abc1234",
@@ -152,7 +152,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   },
   {
     id: 3,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "Geass/backend",
     namespace: "geass",
     commitSha: "old7890",
@@ -175,7 +175,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   },
   {
     id: 4,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "Geass/web",
     namespace: "geass-web",
     commitSha: "ghi9012",
@@ -201,7 +201,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   },
   {
     id: 5,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "atlhyper/master",
     namespace: "atlhyper",
     commitSha: "mst4567",
@@ -237,14 +237,14 @@ export const MOCK_AUTHORIZED_REPOS = [
 // 实际由后端通过 GitHub API 遍历仓库目录获取
 export const MOCK_KUSTOMIZE_PATHS: Record<string, string[]> = {
   "example-org/cluster-config": [
-    "zgmf-x10a/k8s-configs/Geass/backend",
-    "zgmf-x10a/k8s-configs/Geass/web",
-    "zgmf-x10a/k8s-configs/atlhyper/master",
-    "zgmf-x10a/k8s-configs/atlhyper/agent",
-    "zgmf-x10a/k8s-configs/atlhyper/web",
-    "zgmf-x10a/k8s-configs/core",
-    "zgmf-x10a/k8s-configs/nginx",
-    "zgmf-x10a/k8s-configs/redis",
+    "demo-cluster/k8s-configs/Geass/backend",
+    "demo-cluster/k8s-configs/Geass/web",
+    "demo-cluster/k8s-configs/atlhyper/master",
+    "demo-cluster/k8s-configs/atlhyper/agent",
+    "demo-cluster/k8s-configs/atlhyper/web",
+    "demo-cluster/k8s-configs/core",
+    "demo-cluster/k8s-configs/nginx",
+    "demo-cluster/k8s-configs/redis",
   ],
 };
 

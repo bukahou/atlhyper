@@ -1,7 +1,7 @@
 /**
  * 节点硬件指标 — Mock 数据
  *
- * 集群 zgmf-x10a: raspi-nfs (NFS/控制面), jegan-worker-01, jegan-worker-02
+ * 集群 demo-cluster: node-7 (NFS/控制面), worker-1, worker-2
  * 字段 1:1 对齐 model_v3/metrics/node_metrics.go
  */
 
@@ -10,9 +10,9 @@ import type { NodeMetrics } from "@/types/node-metrics";
 const now = new Date().toISOString();
 
 export const MOCK_NODES: NodeMetrics[] = [
-  // ========== raspi-nfs (Raspberry Pi 4B — NFS + 控制面) ==========
+  // ========== node-7 (Raspberry Pi 4B — NFS + 控制面) ==========
   {
-    nodeName: "raspi-nfs",
+    nodeName: "node-7",
     nodeIP: "192.168.1.100",
     timestamp: now,
     kernel: "6.6.31+rpt-rpi-v8",
@@ -140,9 +140,9 @@ export const MOCK_NODES: NodeMetrics[] = [
     },
   },
 
-  // ========== jegan-worker-01 (高负载 worker) ==========
+  // ========== worker-1 (高负载 worker) ==========
   {
-    nodeName: "jegan-worker-01",
+    nodeName: "worker-1",
     nodeIP: "192.168.1.101",
     timestamp: now,
     kernel: "6.8.0-45-generic",
@@ -268,9 +268,9 @@ export const MOCK_NODES: NodeMetrics[] = [
     },
   },
 
-  // ========== jegan-worker-02 (中等负载 worker) ==========
+  // ========== worker-2 (中等负载 worker) ==========
   {
-    nodeName: "jegan-worker-02",
+    nodeName: "worker-2",
     nodeIP: "192.168.1.102",
     timestamp: now,
     kernel: "6.8.0-45-generic",
