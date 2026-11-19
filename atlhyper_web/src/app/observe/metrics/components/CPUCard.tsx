@@ -2,24 +2,21 @@
 
 import { memo } from "react";
 import { Cpu, Gauge } from "lucide-react";
-import type { NodeCPU } from "@/types/node-metrics";
+import type { NodeCPU, NodeLevels } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
+import { hardwareStatusText } from "@/lib/hardware-status";
 
 interface CPUCardProps {
   data: NodeCPU;
+  /** 后端判定的等级 */
+  levels: Pick<NodeLevels, "cpu" | "cpuLoad" | "iowait">;
+  /** 每核负载（load1 ÷ 核数，后端算好）；取不到核数为 null */
+  perCoreLoad: number | null;
 }
 
-const getUsageTextColor = (usage: number) => {
-  if (usage >= 80) return "text-red-500";
-  if (usage >= 60) return "text-yellow-500";
-  return "text-green-500";
-};
-
-export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
+export const CPUCard = memo(function CPUCard({ data, levels, perCoreLoad }: CPUCardProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-  // 每核负载：load1 除以核数，跨机型可比（4 核的 load 4 和 12 核的 load 4 不是一回事）
-  const perCoreLoad = data.cores > 0 ? data.load1 / data.cores : 0;
   return (
     <div className="bg-card rounded-xl border border-[var(--border-color)] p-3 sm:p-5">
       {/* 头部 */}
@@ -34,7 +31,7 @@ export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
           </div>
         </div>
         <div className="text-right">
-          <div className={`text-xl sm:text-2xl font-bold ${getUsageTextColor(data.usagePct)}`}>
+          <div className={`text-xl sm:text-2xl font-bold ${hardwareStatusText(levels.cpu)}`}>
             {data.usagePct.toFixed(1)}%
           </div>
           <div className="text-[10px] sm:text-xs text-muted">{nm.cpu.usage}</div>
@@ -47,8 +44,8 @@ export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
           <Gauge className="w-3.5 h-3.5 text-muted" />
           <span className="text-[10px] sm:text-xs text-muted">{nm.cpu.saturation} · {nm.cpu.perCore}</span>
         </div>
-        <span className={`text-xs sm:text-sm font-semibold tabular-nums ${perCoreLoad >= 1.5 ? "text-red-500" : perCoreLoad >= 1 ? "text-yellow-500" : "text-emerald-500"}`}>
-          {perCoreLoad.toFixed(2)}
+        <span className={`text-xs sm:text-sm font-semibold tabular-nums ${hardwareStatusText(levels.cpuLoad)}`}>
+          {perCoreLoad === null ? "—" : perCoreLoad.toFixed(2)}
         </span>
       </div>
 
@@ -65,7 +62,7 @@ export const CPUCard = memo(function CPUCard({ data }: CPUCardProps) {
           </div>
           <div>
             <div className="text-muted">IOWait</div>
-            <div className={`font-medium ${data.iowaitPct > 10 ? "text-yellow-500" : "text-default"}`}>
+            <div className={`font-medium ${levels.iowait === "good" ? "text-default" : hardwareStatusText(levels.iowait)}`}>
               {data.iowaitPct.toFixed(1)}%
             </div>
           </div>

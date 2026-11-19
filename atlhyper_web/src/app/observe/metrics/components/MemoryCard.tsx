@@ -2,27 +2,18 @@
 
 import { memo } from "react";
 import { HardDrive, RefreshCw, Skull } from "lucide-react";
-import type { NodeMemory } from "@/types/node-metrics";
+import type { NodeLevels, NodeMemory } from "@/types/node-metrics";
 import { formatBytes } from "@/lib/format";
 import { useI18n } from "@/i18n/context";
+import { hardwareStatusBar, hardwareStatusText } from "@/lib/hardware-status";
 
 interface MemoryCardProps {
   data: NodeMemory;
+  /** 后端判定的等级 */
+  levels: Pick<NodeLevels, "memory" | "swap" | "oomKill">;
 }
 
-const getUsageColor = (usage: number) => {
-  if (usage >= 80) return "bg-red-500";
-  if (usage >= 60) return "bg-yellow-500";
-  return "bg-green-500";
-};
-
-const getUsageTextColor = (usage: number) => {
-  if (usage >= 80) return "text-red-500";
-  if (usage >= 60) return "text-yellow-500";
-  return "text-green-500";
-};
-
-export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
+export const MemoryCard = memo(function MemoryCard({ data, levels }: MemoryCardProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
   const usedPercent = data.usagePct;
@@ -47,7 +38,7 @@ export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
           </div>
         </div>
         <div className="text-right">
-          <div className={`text-xl sm:text-2xl font-bold ${getUsageTextColor(usedPercent)}`}>
+          <div className={`text-xl sm:text-2xl font-bold ${hardwareStatusText(levels.memory)}`}>
             {usedPercent.toFixed(1)}%
           </div>
           <div className="text-[10px] sm:text-xs text-muted">{nm.memory.usage}</div>
@@ -124,7 +115,7 @@ export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
         </div>
         <div className="h-1.5 sm:h-2 bg-[var(--background)] rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-300 ${getUsageColor(data.swapUsagePct)}`}
+            className={`h-full rounded-full transition-all duration-300 ${hardwareStatusBar(levels.swap)}`}
             style={{ width: `${Math.min(100, data.swapUsagePct)}%` }}
           />
         </div>
@@ -136,10 +127,10 @@ export const MemoryCard = memo(function MemoryCard({ data }: MemoryCardProps) {
       {/* OOM：使用率回落后现场就没了，这个计数是唯一留得住的痕迹 */}
       <div className="mt-3 pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <Skull className={`w-3.5 h-3.5 ${data.oomKillTotal > 0 ? "text-red-500" : "text-muted"}`} />
+          <Skull className={`w-3.5 h-3.5 ${levels.oomKill === "good" ? "text-muted" : hardwareStatusText(levels.oomKill)}`} />
           <span className="text-[10px] sm:text-xs text-muted">{nm.memory.oomKill}</span>
         </div>
-        <span className={`text-xs sm:text-sm font-semibold tabular-nums ${data.oomKillTotal > 0 ? "text-red-500" : "text-emerald-500"}`}>
+        <span className={`text-xs sm:text-sm font-semibold tabular-nums ${hardwareStatusText(levels.oomKill)}`}>
           {data.oomKillTotal > 0 ? data.oomKillTotal.toLocaleString() : nm.memory.oomKillNone}
         </span>
       </div>

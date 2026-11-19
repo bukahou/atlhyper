@@ -5,7 +5,7 @@ import { QueryView } from "@/components/common";
 import { useCurrentCluster } from "@/hooks/useCurrentCluster";
 import { useI18n } from "@/i18n/context";
 import { nodeMetricsHistoryQuery } from "@/queries/observe-metrics";
-import type { NodeMetrics } from "@/types/node-metrics";
+import type { NodeMetricsView } from "@/types/node-metrics";
 import type { HardwareRow } from "@/types/hardware";
 import { ResourceChart } from "./ResourceChart";
 import { CPUCard } from "./CPUCard";
@@ -27,7 +27,7 @@ import { VMStatCard } from "./VMStatCard";
 // 本面板改由矩阵行点击展开（判定 + 下钻同一入口）。
 
 interface NodeDetailPanelProps {
-  metrics: NodeMetrics;
+  metrics: NodeMetricsView;
   hardware: HardwareRow | null;
   /** 趋势图取最近多少小时的历史，跟随页面级 TimeRangePicker */
   historyHours: number;
@@ -66,25 +66,30 @@ export function NodeDetailPanel({ metrics, hardware, historyHours, spanMs }: Nod
       </QueryView>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-        <CPUCard data={metrics.cpu} />
-        <MemoryCard data={metrics.memory} />
+        <CPUCard data={metrics.cpu} levels={metrics.levels} perCoreLoad={metrics.cpuLoadPerCore} />
+        <MemoryCard data={metrics.memory} levels={metrics.levels} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-        <DiskCard data={metrics.disks} />
+        <DiskCard data={metrics.disks} levels={metrics.levels.disks} />
         <NetworkCard data={metrics.networks} />
       </div>
 
       <TemperatureCard data={metrics.temperature} hardware={hardware} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-        <PSICard data={metrics.psi} />
+        <PSICard data={metrics.psi} levels={metrics.levels.psi} />
         <TCPCard tcp={metrics.tcp} softnet={metrics.softnet} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-        <SystemResourcesCard system={metrics.system} />
-        <VMStatCard data={metrics.vmstat} />
+        <SystemResourcesCard
+          system={metrics.system}
+          levels={metrics.levels}
+          fileFdUsagePct={metrics.fileFdUsagePct}
+          conntrackUsagePct={metrics.conntrackUsagePct}
+        />
+        <VMStatCard data={metrics.vmstat} levels={metrics.levels.vmstat} />
       </div>
     </div>
   );

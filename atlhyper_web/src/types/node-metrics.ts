@@ -1,6 +1,8 @@
 // types/node-metrics.ts
 // 节点硬件指标类型定义 — 1:1 对齐 model_v3/metrics/node_metrics.go JSON tag
 
+import type { HardwareStatus } from "./hardware";
+
 // ============================================================================
 // CPU 指标
 // ============================================================================
@@ -179,6 +181,55 @@ export interface NodeMetrics {
   // 列出的 section 其数值是未填充的零值，必须渲染为「无数据」占位，
   // 不得当真实测量显示 —— 0.0% 的谎言曾导致「树莓派宕机了」的误判。
   unavailable?: string[];
+}
+
+// ============================================================================
+// 节点指标列表的一项（GET /observe/metrics/nodes）—— 对齐 Master model.NodeMetricsView
+// 等级由后端判定，前端只按等级上色；读数所在的采集项没采到时为 unknown
+// ============================================================================
+export interface NodeDiskLevels {
+  usage: HardwareStatus; // 容量与 inode 取更满的一个
+  inode: HardwareStatus;
+  ioUtil: HardwareStatus;
+}
+
+export interface NodePSILevels {
+  cpuSome: HardwareStatus;
+  memSome: HardwareStatus;
+  memFull: HardwareStatus;
+  ioSome: HardwareStatus;
+  ioFull: HardwareStatus;
+}
+
+export interface NodeVMStatLevels {
+  majorFaults: HardwareStatus;
+  swapIn: HardwareStatus;
+  swapOut: HardwareStatus;
+}
+
+export interface NodeLevels {
+  cpu: HardwareStatus;
+  cpuLoad: HardwareStatus; // 每核负载
+  iowait: HardwareStatus;
+  memory: HardwareStatus;
+  swap: HardwareStatus;
+  oomKill: HardwareStatus;
+  disks: NodeDiskLevels[]; // 与 disks 一一对应
+  psi: NodePSILevels;
+  vmstat: NodeVMStatLevels;
+  fileFd: HardwareStatus;
+  conntrack: HardwareStatus;
+  procsBlocked: HardwareStatus;
+  timeSync: HardwareStatus;
+  entropy: HardwareStatus;
+}
+
+export interface NodeMetricsView extends NodeMetrics {
+  primaryDiskIndex: number | null; // 主磁盘在 disks 里的下标（规则在后端）
+  cpuLoadPerCore: number | null; // 1 分钟负载 ÷ 核数；取不到核数为 null
+  fileFdUsagePct: number | null; // 内核不设上限或取不到上限为 null
+  conntrackUsagePct: number | null; // 取不到上限为 null
+  levels: NodeLevels;
 }
 
 // ============================================================================

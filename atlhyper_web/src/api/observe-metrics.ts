@@ -4,7 +4,7 @@
 
 import { get } from "./request";
 import type { ObserveResponse } from "./observe-common";
-import type { NodeMetrics, Summary, Point } from "@/types/node-metrics";
+import type { NodeMetrics, NodeMetricsView, Summary, Point } from "@/types/node-metrics";
 import type { HardwareHealth } from "@/types/hardware";
 import type { FreshnessResponse } from "@/types/observe";
 
@@ -13,9 +13,9 @@ export function getMetricsSummary(clusterId: string, signal?: AbortSignal) {
   return get<ObserveResponse<Summary>>("/api/v2/observe/metrics/summary", { cluster_id: clusterId }, signal);
 }
 
-/** 获取所有节点指标列表 */
+/** 获取所有节点指标列表（每项带后端判定的等级） */
 export function getMetricsNodes(clusterId: string, signal?: AbortSignal) {
-  return get<ObserveResponse<NodeMetrics[]>>("/api/v2/observe/metrics/nodes", { cluster_id: clusterId }, signal);
+  return get<ObserveResponse<NodeMetricsView[]>>("/api/v2/observe/metrics/nodes", { cluster_id: clusterId }, signal);
 }
 
 /** 获取单节点指标 */

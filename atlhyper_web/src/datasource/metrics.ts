@@ -13,14 +13,14 @@ import { getDataSourceMode } from "@/config/data-source";
 import * as mock from "@/mock/metrics";
 import * as observe from "@/api/observe-metrics";
 import * as nodeMetrics from "@/api/node-metrics";
-import type { NodeMetrics, Point, Summary } from "@/types/node-metrics";
+import type { NodeMetricsView, Point, Summary } from "@/types/node-metrics";
 import type { HardwareHealth } from "@/types/hardware";
 import type { FreshnessResponse } from "@/types/observe";
 
 /** 集群节点指标快照：汇总 + 每个节点的当前读数 */
 export interface ClusterNodeMetricsSnapshot {
   summary: Summary;
-  nodes: NodeMetrics[];
+  nodes: NodeMetricsView[];
 }
 
 /** 某个节点的历史时序，按指标分组：{ cpu: Point[], memory: Point[], ... } */

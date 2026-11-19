@@ -8,7 +8,10 @@
 // 判定全部在 Master：Agent 只上报原始读数，前端只渲染颜色。
 package query
 
-import "AtlHyper/model_v3/metrics"
+import (
+	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/model_v3/metrics"
+)
 
 // tempThreshold 一类传感器的告警 / 危险温度
 type tempThreshold struct {
@@ -68,6 +71,71 @@ func thresholdsFor(p metrics.HardwareProfile) profileThresholds {
 	}
 	return genericThresholds
 }
+
+// levelByThreshold 读数 → 等级：≥ crit 为 crit，≥ warn 为 warn，其余 good。
+// 各类读数的阈值不同，分档规则只有这一份
+func levelByThreshold(v, warn, crit float64) model.HardwareStatus {
+	switch {
+	case v >= crit:
+		return model.HardwareCrit
+	case v >= warn:
+		return model.HardwareWarn
+	default:
+		return model.HardwareGood
+	}
+}
+
+// warnWhen / critWhen 单线判定：条件成立即为该等级，否则 good
+func warnWhen(cond bool) model.HardwareStatus {
+	if cond {
+		return model.HardwareWarn
+	}
+	return model.HardwareGood
+}
+
+func critWhen(cond bool) model.HardwareStatus {
+	if cond {
+		return model.HardwareCrit
+	}
+	return model.HardwareGood
+}
+
+// 使用率类读数（CPU / 内存 / swap / 磁盘容量与 inode / 磁盘繁忙度 / 文件句柄 / 连接跟踪表）的告警线：
+// 全项目只有这一份，硬件矩阵、对比表、节点详情都用它，前端只按下发的等级上色
+const (
+	resourceWarnPct = 80.0
+	resourceCritPct = 90.0
+)
+
+// resourceStatus 使用率 → 等级
+func resourceStatus(pct float64) model.HardwareStatus {
+	return levelByThreshold(pct, resourceWarnPct, resourceCritPct)
+}
+
+// diskFullnessPct 盘满没满：容量与 inode 取更满的一个（inode 用尽和容量用尽后果一样：写不进去）
+func diskFullnessPct(d *metrics.NodeDisk) float64 {
+	if d.InodeUsagePct > d.UsagePct {
+		return d.InodeUsagePct
+	}
+	return d.UsagePct
+}
+
+// 节点详情其余读数的告警线
+const (
+	// PSI（压力失速）在 K8s 节点上常态就有 20–60%（一堆 Pod 抢 CPU 是设计如此），
+	// 实测同集群 6 台在 0.6–3%、1 台 53% —— 阈值要能把那 1 台挑出来，又不能把它判死
+	psiWarnPct = 50.0
+	psiCritPct = 80.0
+	// 每核负载：> 1 说明有任务在排队等 CPU（使用率满了只说明忙）
+	cpuLoadWarnPerCore = 1.0
+	cpuLoadCritPerCore = 1.5
+	// iowait 高说明 CPU 在等盘
+	iowaitWarnPct = 10.0
+	// 主缺页要读盘，每秒上百次时延迟明显上升
+	majorFaultCritPerSec = 100.0
+	// entropyLowBits 熵池低于它时，旧内核上读随机数可能阻塞（5.18 起内核固定报 256）
+	entropyLowBits = 256
+)
 
 // 非温度类的固定阈值（与硬件画像无关）
 const (

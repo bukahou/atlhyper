@@ -3,10 +3,12 @@
 package observe
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
+	"AtlHyper/atlhyper_master_v2/model"
 )
 
 // MetricsSummary GET /api/v2/observe/metrics/summary (Dashboard: 快照直读)
@@ -44,14 +46,18 @@ func (h *ObserveHandler) MetricsNodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
-	if err != nil || otel == nil || otel.MetricsNodes == nil {
+	views, err := h.querySvc.ListNodeMetricsViews(r.Context(), clusterID)
+	switch {
+	case errors.Is(err, model.ErrSnapshotNotReady):
 		handler.WriteError(w, http.StatusNotFound, "数据尚未就绪")
+		return
+	case err != nil:
+		handler.WriteError(w, http.StatusInternalServerError, "读取节点指标失败")
 		return
 	}
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    otel.MetricsNodes,
+		"data":    views,
 	})
 }
 

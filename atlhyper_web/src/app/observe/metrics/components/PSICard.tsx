@@ -1,20 +1,31 @@
 import { Cpu, HardDrive, MemoryStick, Timer } from "lucide-react";
-import type { NodePSI } from "@/types/node-metrics";
+import type { NodePSI, NodePSILevels } from "@/types/node-metrics";
+import type { HardwareStatus } from "@/types/hardware";
 import { useI18n } from "@/i18n/context";
+import { hardwareStatusBar, hardwareStatusText } from "@/lib/hardware-status";
 
-const psiColor = (v: number) =>
-  v >= 25 ? "text-red-500" : v >= 10 ? "text-yellow-500" : v >= 1 ? "text-blue-500" : "text-emerald-500";
+interface PSIRow {
+  name: string;
+  some: number;
+  someLevel: HardwareStatus;
+  full?: { value: number; level: HardwareStatus };
+  icon: typeof Cpu;
+  color: string;
+}
 
-const psiBg = (v: number) =>
-  v >= 25 ? "bg-red-500" : v >= 10 ? "bg-yellow-500" : v >= 1 ? "bg-blue-500" : "bg-emerald-500";
-
-export function PSICard({ data }: { data: NodePSI }) {
+export function PSICard({ data, levels }: { data: NodePSI; levels: NodePSILevels }) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-  const resources = [
-    { name: "CPU", some: data.cpuSomePct, full: undefined as number | undefined, icon: Cpu, color: "text-orange-500" },
-    { name: "Memory", some: data.memSomePct, full: data.memFullPct, icon: MemoryStick, color: "text-green-500" },
-    { name: "I/O", some: data.ioSomePct, full: data.ioFullPct, icon: HardDrive, color: "text-purple-500" },
+  const resources: PSIRow[] = [
+    { name: "CPU", some: data.cpuSomePct, someLevel: levels.cpuSome, icon: Cpu, color: "text-orange-500" },
+    {
+      name: "Memory", some: data.memSomePct, someLevel: levels.memSome,
+      full: { value: data.memFullPct, level: levels.memFull }, icon: MemoryStick, color: "text-green-500",
+    },
+    {
+      name: "I/O", some: data.ioSomePct, someLevel: levels.ioSome,
+      full: { value: data.ioFullPct, level: levels.ioFull }, icon: HardDrive, color: "text-purple-500",
+    },
   ];
 
   return (
@@ -35,20 +46,20 @@ export function PSICard({ data }: { data: NodePSI }) {
             <div className="flex items-center gap-2 mb-2">
               <r.icon className={`w-3.5 h-3.5 ${r.color}`} />
               <span className="text-xs sm:text-sm font-medium text-default">{r.name}</span>
-              <span className={`text-xs font-bold ml-auto ${psiColor(r.some)}`}>
+              <span className={`text-xs font-bold ml-auto ${hardwareStatusText(r.someLevel)}`}>
                 {r.some.toFixed(2)}%
               </span>
             </div>
             <div className="h-1.5 bg-[var(--card-bg)] rounded-full overflow-hidden mb-1">
-              <div className={`h-full rounded-full ${psiBg(r.some)}`} style={{ width: `${Math.min(100, r.some * 2)}%` }} />
+              <div className={`h-full rounded-full ${hardwareStatusBar(r.someLevel)}`} style={{ width: `${Math.min(100, r.some * 2)}%` }} />
             </div>
             <div className="flex items-center justify-between text-[10px] text-muted">
               <span>{nm.psi.someDesc}</span>
             </div>
-            {r.full !== undefined && (
+            {r.full && (
               <div className="mt-1.5 pt-1.5 border-t border-[var(--border-color)] flex items-center justify-between text-[10px]">
                 <span className="text-muted">{nm.psi.fullDesc}</span>
-                <span className={psiColor(r.full)}>{r.full.toFixed(2)}%</span>
+                <span className={hardwareStatusText(r.full.level)}>{r.full.value.toFixed(2)}%</span>
               </div>
             )}
           </div>

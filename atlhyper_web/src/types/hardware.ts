@@ -99,6 +99,7 @@ export interface HardwareSummary {
   undervoltNodes: number;
   throttledNodes: number;
   maxDiskAwait: HardwareMaxAwait | null;
+  warningNodes: number; // 整行结论（overall）为 warn / crit 的节点数
 }
 
 export interface HardwareHealth {

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
 import { AlertTriangle, Server } from "lucide-react";
 import { useI18n } from "@/i18n/context";
+import { hardwareStatusChip } from "@/lib/hardware-status";
 import type { ClusterNodeMetricsSnapshot } from "@/datasource/metrics";
 import type { HardwareHealth } from "@/types/hardware";
 import { ClusterOverviewChart } from "./ClusterOverviewChart";
@@ -37,16 +37,9 @@ export function MetricsSnapshotView({
   const nm = t.nodeMetrics;
   const { summary, nodes } = snapshot;
 
-  // 计算告警节点数
-  const warningNodes = useMemo(() => {
-    return nodes.filter((node) => {
-      return (
-        node.cpu.usagePct >= 80 ||
-        node.memory.usagePct >= 80 ||
-        node.temperature.cpuTempC >= 75
-      );
-    }).length;
-  }, [nodes]);
+  // 告警节点数 = 硬件矩阵整行结论为 warn / crit 的节点（后端统计）；矩阵没取到时显示「—」
+  const warningNodes = hardware?.summary.warningNodes ?? null;
+  const warningText = warningNodes === null ? "—" : String(warningNodes);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -59,15 +52,15 @@ export function MetricsSnapshotView({
               icon={Server}
               label={nm.summary.nodes}
               value={`${summary.onlineNodes}/${summary.totalNodes}`}
-              subValue={`${warningNodes} ${nm.summary.warnings}`}
+              subValue={`${warningText} ${nm.summary.warnings}`}
               color="bg-indigo-500/10 text-indigo-500"
             />
             <SummaryCard
               icon={AlertTriangle}
               label={nm.summary.warnings}
-              value={warningNodes.toString()}
+              value={warningText}
               subValue={nm.summary.nodesNeedAttention}
-              color={warningNodes > 0 ? "bg-yellow-500/10 text-yellow-500" : "bg-emerald-500/10 text-emerald-500"}
+              color={hardwareStatusChip(warningNodes === null ? "unknown" : warningNodes > 0 ? "warn" : "good")}
             />
           </>
         )}
