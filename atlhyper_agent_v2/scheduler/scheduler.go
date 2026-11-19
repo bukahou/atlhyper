@@ -357,7 +357,10 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, error) {
 			// 执行记录带上指令 ID、来源、下发者与目标：出了事能对上主控的指令历史与审计
 			record := []any{
 				"command", cmd.ID, "action", action, "source", cmd.Source, "createdBy", cmd.CreatedBy,
-				"target", cmd.Kind + " " + cmd.Namespace + "/" + cmd.Name, "elapsed", elapsed.Round(time.Millisecond),
+				"elapsed", elapsed.Round(time.Millisecond),
+			}
+			if target := commandTarget(cmd); target != "" {
+				record = append(record, "target", target)
 			}
 			// 上报结果（独立预算：执行超时后也要能报回去；失败按退避重试）
 			if err := s.reportResult(result); err != nil {
@@ -439,4 +442,19 @@ func masterFailureMessage(action string, err error) string {
 		return action + "：Master 拒绝了本 Agent 的身份（认证问题，不是网络故障）"
 	}
 	return action
+}
+
+// commandTarget 指令目标的可读写法（Kind 命名空间/名称）；查询类指令没有目标，返回空
+func commandTarget(cmd *command.Command) string {
+	if cmd.Name == "" {
+		return ""
+	}
+	target := cmd.Name
+	if cmd.Namespace != "" {
+		target = cmd.Namespace + "/" + target
+	}
+	if cmd.Kind != "" {
+		target = cmd.Kind + " " + target
+	}
+	return target
 }
