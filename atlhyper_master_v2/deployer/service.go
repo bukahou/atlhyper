@@ -5,6 +5,7 @@ package deployer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,18 +28,24 @@ type service struct {
 
 	mu            sync.Mutex
 	cancel        context.CancelFunc
-	lastCommitSHA string
+	lastCommitSHA string          // 最近一次全部路径都部署成功的提交
+	failedSHA     string          // 部署失败的提交：同一个提交不在每次轮询里重试，等新提交或手动同步
 	deploying     map[string]bool // 正在部署的路径，防重复
+
+	// build 把某个提交里的路径渲染成清单（默认 kustomizeBuild；测试替换）
+	build func(ctx context.Context, repo, path, ref string) (string, error)
 }
 
 // NewService 创建 Deployer 服务
 func NewService(ghClient github.Client, db *database.DB, bus mq.Producer) Deployer {
-	return &service{
+	s := &service{
 		ghClient:  ghClient,
 		db:        db,
 		bus:       bus,
 		deploying: make(map[string]bool),
 	}
+	s.build = s.kustomizeBuild
+	return s
 }
 
 func (s *service) Start(ctx context.Context) error {
@@ -53,7 +60,9 @@ func (s *service) Start(ctx context.Context) error {
 	return nil
 }
 
-// restoreLastCommitSHA 从最近的部署历史中恢复上次的 Config 仓库 commit SHA
+// restoreLastCommitSHA 从部署历史恢复「已部署到哪个提交」：取每个路径最近一次成功的部署，
+// 再取其中最旧的那个（从它往后的变更都会被重新比较、部署，重复应用是幂等的）。
+// 有路径从没成功部署过时不恢复，首轮按全部路径部署。⛔ 失败或未完成的记录不算已部署。
 func (s *service) restoreLastCommitSHA(ctx context.Context) {
 	config := s.loadConfig(ctx)
 	if config == nil {
@@ -63,25 +72,38 @@ func (s *service) restoreLastCommitSHA(ctx context.Context) {
 	if len(paths) == 0 {
 		return
 	}
-	// 取所有路径中最新的一条部署记录的 commitSHA
-	var latestTime time.Time
-	var latestSHA string
+	var oldest *database.DeployHistory
 	for _, p := range paths {
-		record, err := s.db.DeployHistory.GetLatestByPath(ctx, config.ClusterID, p)
-		if err != nil || record == nil {
-			continue
+		success, err := s.latestSuccess(ctx, config.ClusterID, p)
+		if err != nil {
+			logger.Warn("[Deployer] 读部署历史失败，首轮按全部路径部署", "path", p, "error", err)
+			return
 		}
-		if record.DeployedAt.After(latestTime) {
-			latestTime = record.DeployedAt
-			latestSHA = record.CommitSHA
+		if success == nil {
+			return
+		}
+		if oldest == nil || success.DeployedAt.Before(oldest.DeployedAt) {
+			oldest = success
 		}
 	}
-	if latestSHA != "" {
-		s.mu.Lock()
-		s.lastCommitSHA = latestSHA
-		s.mu.Unlock()
-		logger.Info("[Deployer] restored lastCommitSHA from DB", "sha", latestSHA[:min(8, len(latestSHA))])
+	s.mu.Lock()
+	s.lastCommitSHA = oldest.CommitSHA
+	s.mu.Unlock()
+	logger.Info("[Deployer] restored lastCommitSHA from DB", "sha", oldest.CommitSHA[:min(8, len(oldest.CommitSHA))])
+}
+
+// latestSuccess 某路径最近一次成功的部署（在最近 50 条里找；找不到返回 nil）
+func (s *service) latestSuccess(ctx context.Context, clusterID, path string) (*database.DeployHistory, error) {
+	records, err := s.db.DeployHistory.List(ctx, database.DeployHistoryQueryOpts{ClusterID: clusterID, Path: path, Limit: 50})
+	if err != nil {
+		return nil, err
 	}
+	for _, r := range records {
+		if r.Status == "success" {
+			return r, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *service) Stop() error {
@@ -93,25 +115,41 @@ func (s *service) Stop() error {
 }
 
 func (s *service) pollLoop(ctx context.Context) {
-	// 使用固定间隔轮询，每次动态读取配置（支持热更新）
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
+	// 每轮重新读配置（支持热更新），间隔也按配置
+	interval := defaultPollInterval
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			config := s.loadConfig(ctx)
-			if config == nil {
-				continue // 配置尚未就绪，等待下一轮
-			}
-			if !config.AutoDeploy {
-				continue
-			}
-			s.checkAndDeploy(ctx, config)
+		case <-time.After(interval):
 		}
+		config := s.loadConfig(ctx)
+		if config == nil {
+			interval = defaultPollInterval
+			continue // 配置尚未就绪，等待下一轮
+		}
+		interval = pollInterval(config)
+		if !config.AutoDeploy {
+			continue
+		}
+		s.checkAndDeploy(ctx, config)
 	}
+}
+
+const (
+	defaultPollInterval = 30 * time.Second
+	minPollInterval     = 10 * time.Second
+)
+
+// pollInterval 配置里的轮询间隔（IntervalSec）；没配用 30 秒，最短 10 秒
+func pollInterval(config *database.DeployConfig) time.Duration {
+	if config.IntervalSec <= 0 {
+		return defaultPollInterval
+	}
+	if d := time.Duration(config.IntervalSec) * time.Second; d > minPollInterval {
+		return d
+	}
+	return minPollInterval
 }
 
 // loadConfig 从数据库加载部署配置（不依赖 clusters 表）
@@ -137,10 +175,10 @@ func (s *service) checkAndDeploy(ctx context.Context, config *database.DeployCon
 	}
 
 	s.mu.Lock()
-	lastSHA := s.lastCommitSHA
+	lastSHA, failedSHA := s.lastCommitSHA, s.failedSHA
 	s.mu.Unlock()
 
-	if sha == lastSHA {
+	if sha == lastSHA || sha == failedSHA {
 		return
 	}
 
@@ -175,56 +213,80 @@ func (s *service) checkAndDeploy(ctx context.Context, config *database.DeployCon
 		return
 	}
 
-	// 部署每个受影响的路径（跳过正在部署的）
+	// 部署每个受影响的路径（跳过正在部署的）。全部成功才推进提交号
+	failed, skipped := false, false
 	for _, path := range affectedPaths {
 		s.mu.Lock()
 		if s.deploying[path] {
 			s.mu.Unlock()
 			logger.Info("[Deployer] skipping path (already deploying)", "path", path)
+			skipped = true
 			continue
 		}
 		s.deploying[path] = true
 		s.mu.Unlock()
 
-		s.deployPath(ctx, config, path, sha, "auto", compareResult)
+		if err := s.deployPath(ctx, config, path, sha, "auto", compareResult); err != nil {
+			failed = true
+		}
 		s.clearDeploying(path)
 	}
 
 	s.mu.Lock()
-	s.lastCommitSHA = sha
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	switch {
+	case failed:
+		s.failedSHA = sha // 不推进：这个提交的变更等新提交或手动同步时再部署
+	case skipped:
+		// 有路径正被别的同步占着：不推进，下一轮再比较
+	default:
+		s.lastCommitSHA = sha
+		s.failedSHA = ""
+	}
 }
 
-func (s *service) deployPath(ctx context.Context, config *database.DeployConfig, path, commitSHA, trigger string, compareResult *github.CompareResult) {
+// deployPath 部署一个路径并写部署历史；返回 nil 表示部署成功且历史已记下
+func (s *service) deployPath(ctx context.Context, config *database.DeployConfig, path, commitSHA, trigger string, compareResult *github.CompareResult) error {
 	clusterID := config.ClusterID
-
+	start := time.Now()
 	record := &database.DeployHistory{
 		ClusterID:    clusterID,
 		Path:         path,
 		CommitSHA:    commitSHA,
 		ChangedFiles: "[]",
-		DeployedAt:   time.Now(),
+		DeployedAt:   start,
 		Trigger:      trigger,
-		Status:       "pending",
+		Status:       "failed",
 	}
 
-	start := time.Now()
+	deployErr := s.applyPath(ctx, config, record, path, commitSHA, compareResult)
+	if deployErr == nil {
+		record.Status = "success"
+	} else {
+		record.ErrorMessage = deployErr.Error()
+	}
+	record.DurationMs = int(time.Since(start).Milliseconds())
 
-	// 使用 kustomize 构建 manifests
-	manifests, err := s.kustomizeBuild(ctx, config.RepoURL, path, commitSHA)
+	if err := s.db.DeployHistory.Create(ctx, record); err != nil {
+		logger.Error("[Deployer] 写部署历史失败", "path", path, "error", err)
+		return fmt.Errorf("写部署历史: %w", err)
+	}
+	if deployErr != nil {
+		logger.Error("[Deployer] deploy failed", "path", path, "error", deployErr)
+		return deployErr
+	}
+	logger.Info("[Deployer] deployed", "path", path, "status", record.Status, "durationMs", record.DurationMs)
+	return nil
+}
+
+// applyPath 渲染清单、经 Agent 应用并等待结果；成功时把资源数写进 record
+func (s *service) applyPath(ctx context.Context, config *database.DeployConfig, record *database.DeployHistory, path, commitSHA string, compareResult *github.CompareResult) error {
+	manifests, err := s.build(ctx, config.RepoURL, path, commitSHA)
 	if err != nil {
-		record.Status = "failed"
-		record.ErrorMessage = fmt.Sprintf("kustomize build failed: %v", err)
-		record.DurationMs = int(time.Since(start).Milliseconds())
-		_ = s.db.DeployHistory.Create(ctx, record)
-		logger.Error("[Deployer] kustomize build failed", "path", path, "error", err)
-		return
+		return fmt.Errorf("kustomize build failed: %w", err)
 	}
 
-	// 从 manifests 提取 namespace
 	record.Namespace = extractNamespace(manifests)
-
-	// 统计资源数量
 	record.ResourceTotal = strings.Count(manifests, "\nkind:")
 	if record.ResourceTotal == 0 && strings.HasPrefix(manifests, "kind:") {
 		record.ResourceTotal = 1
@@ -233,10 +295,9 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 	// 从 manifests 解析源码仓库信息（image tag → source SHA → GitHub API）
 	s.enrichSourceInfo(ctx, record, manifests, config.RepoURL, compareResult)
 
-	// 通过 MQ 发送 apply_manifests 指令
 	cmd := &command.Command{
 		ID:        fmt.Sprintf("deploy-%s-%d", path, time.Now().UnixMilli()),
-		ClusterID: clusterID,
+		ClusterID: config.ClusterID,
 		Action:    command.ActionApplyManifests,
 		Params: map[string]any{
 			"manifests": manifests,
@@ -245,40 +306,31 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 		Source:    command.SourceDeployer,
 		CreatedAt: time.Now(),
 	}
-
-	if err := s.bus.EnqueueCommand(clusterID, mq.TopicOps, cmd); err != nil {
-		record.Status = "failed"
-		record.ErrorMessage = fmt.Sprintf("enqueue command failed: %v", err)
-		record.DurationMs = int(time.Since(start).Milliseconds())
-		_ = s.db.DeployHistory.Create(ctx, record)
-		logger.Error("[Deployer] enqueue failed", "path", path, "error", err)
-		return
+	if err := s.bus.EnqueueCommand(config.ClusterID, mq.TopicOps, cmd); err != nil {
+		return fmt.Errorf("enqueue command failed: %w", err)
 	}
 
-	// 等待结果（超时 120 秒）
 	result, err := s.bus.WaitCommandResult(ctx, cmd.ID, 120*time.Second)
 	if err != nil {
-		record.Status = "failed"
-		record.ErrorMessage = fmt.Sprintf("command timeout: %v", err)
-	} else if result != nil && result.Success {
-		record.Status = "success"
-		// 从 Agent 返回的 Output 中解析实际资源变更数（任何一项失败时 Agent 整条指令报失败，不会走到这里）
-		var applyResult struct {
-			ResourceTotal   int `json:"resourceTotal"`
-			ResourceChanged int `json:"resourceChanged"`
+		if errors.Is(err, mq.ErrWaitTimeout) {
+			return fmt.Errorf("等待 Agent 执行结果超时（120 秒）: %w", err)
 		}
-		if json.Unmarshal([]byte(result.Output), &applyResult) == nil {
-			record.ResourceTotal = applyResult.ResourceTotal
-			record.ResourceChanged = applyResult.ResourceChanged
-		}
-	} else if result != nil {
-		record.Status = "failed"
-		record.ErrorMessage = result.Error
+		return fmt.Errorf("等待 Agent 执行结果: %w", err)
+	}
+	if !result.Success {
+		return errors.New(result.Error)
 	}
 
-	record.DurationMs = int(time.Since(start).Milliseconds())
-	_ = s.db.DeployHistory.Create(ctx, record)
-	logger.Info("[Deployer] deployed", "path", path, "status", record.Status, "durationMs", record.DurationMs)
+	// 从 Agent 返回的 Output 中解析实际资源变更数（任何一项失败时 Agent 整条指令报失败，不会走到这里）
+	var applyResult struct {
+		ResourceTotal   int `json:"resourceTotal"`
+		ResourceChanged int `json:"resourceChanged"`
+	}
+	if err := json.Unmarshal([]byte(result.Output), &applyResult); err == nil {
+		record.ResourceTotal = applyResult.ResourceTotal
+		record.ResourceChanged = applyResult.ResourceChanged
+	}
+	return nil
 }
 
 func (s *service) SyncNow(ctx context.Context, path string) error {
@@ -318,7 +370,7 @@ func (s *service) SyncNow(ctx context.Context, path string) error {
 	// 使用独立 context，避免 HTTP 请求完成后 context 被 cancel
 	go func() {
 		defer s.clearDeploying(path)
-		s.deployPath(context.Background(), config, path, sha, "manual", compareResult)
+		_ = s.deployPath(context.Background(), config, path, sha, "manual", compareResult) // 结果已写进部署历史与日志
 	}()
 	return nil
 }
@@ -338,7 +390,10 @@ func (s *service) GetPathStatus(ctx context.Context) ([]PathStatus, error) {
 	paths := parsePaths(config.Paths)
 	var statuses []PathStatus
 	for _, p := range paths {
-		latest, _ := s.db.DeployHistory.GetLatestByPath(ctx, config.ClusterID, p)
+		latest, err := s.db.DeployHistory.GetLatestByPath(ctx, config.ClusterID, p)
+		if err != nil {
+			return nil, fmt.Errorf("读取路径 %s 的部署历史: %w", p, err)
+		}
 		status := PathStatus{
 			Path: p,
 		}
