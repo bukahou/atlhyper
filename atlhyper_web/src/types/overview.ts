@@ -1,161 +1,49 @@
-/**
- * 集群概览相关类型定义
- */
+// types/overview.ts
+// 集群概览（getClusterOverview）：接口类型由 api/openapi.yaml 生成（types/api.gen.ts），这里只起常用的名字；
+// 页面用的转换结果（TransformedOverview）在下方手写。
 
+import type { components } from "./api.gen";
 import type { HardwareStatus } from "./hardware";
 
-// 集群健康状态
-export type ClusterHealthStatus = "Healthy" | "Degraded" | "Unhealthy" | "Unknown";
+type Schemas = components["schemas"];
+
+/** 集群健康结论（后端判定） */
+export type ClusterHealthStatus = Schemas["OverviewClusterHealth"]["status"];
 
 /** 健康原因代码（后端判定，文案在 i18n overview.healthReasons） */
-export type ClusterHealthReason = "nodeReadyLow" | "podReadyLow" | "someNodesNotReady" | "somePodsNotReady";
+export type ClusterHealthReason = NonNullable<Schemas["OverviewClusterHealth"]["reason"]>;
 
-export interface ClusterHealth {
-  status: ClusterHealthStatus;
-  reason?: ClusterHealthReason;
-  nodeReadyPercent: number;
-  podReadyPercent: number;
-  nodeReadyStatus: ClusterHealthStatus; // 两项就绪率各自的结论（后端判定）
-  podReadyStatus: ClusterHealthStatus;
-}
+export type ClusterHealth = Schemas["OverviewClusterHealth"];
+export type NodeReady = Schemas["OverviewResourceReady"];
+export type ResourceUsage = Schemas["OverviewPercent"];
+export type OverviewCards = Schemas["OverviewCards"];
+export type WorkloadStatus = Schemas["OverviewWorkloadStatus"];
+export type JobStatus = Schemas["OverviewJobStatus"];
+export type WorkloadSummary = Schemas["OverviewWorkloadSummary"];
+export type PodStatusDistribution = Schemas["OverviewPodStatus"];
+export type PeakStats = Schemas["OverviewPeakStats"];
+export type WorkloadsData = Schemas["OverviewWorkloads"];
+export type AlertTrendPoint = Schemas["OverviewAlertTrend"];
+export type AlertTotals = Schemas["OverviewAlertTotals"];
+export type RecentAlert = Schemas["OverviewRecentAlert"];
+export type AlertsData = Schemas["OverviewAlerts"];
+export type NodeUsage = Schemas["OverviewNodeUsage"];
+export type NodesData = Schemas["OverviewNodes"];
+export type ClusterOverview = Schemas["ClusterOverview"];
 
-// 节点就绪统计
-export interface NodeReady {
-  total: number;
-  ready: number;
-  percent: number;
-}
-
-// 资源使用率
-export interface ResourceUsage {
-  percent: number;
-}
-
-// 概览卡片数据
-export interface OverviewCards {
-  clusterHealth: ClusterHealth;
-  nodeReady: NodeReady;
-  cpuUsage: ResourceUsage;
-  memUsage: ResourceUsage;
-  events24h: number;
-}
-
-// 工作负载状态
-export interface WorkloadStatus {
-  total: number;
-  ready: number;
-}
-
-// Job 状态
-export interface JobStatus {
-  total: number;
-  running: number;
-  succeeded: number;
-  failed: number;
-}
-
-// 工作负载汇总
-export interface WorkloadSummary {
-  deployments: WorkloadStatus;
-  daemonsets: WorkloadStatus;
-  statefulsets: WorkloadStatus;
-  jobs: JobStatus;
-}
-
-// Pod 状态分布
-export interface PodStatusDistribution {
-  total: number;
-  running: number;
-  pending: number;
-  failed: number;
-  succeeded: number;
-  unknown: number;
-  runningPercent: number;
-  pendingPercent: number;
-  failedPercent: number;
-  succeededPercent: number;
-}
-
-// 峰值统计
-export interface PeakStats {
-  peakCpu: number;
-  peakCpuNode: string;
-  peakMem: number;
-  peakMemNode: string;
-  hasData: boolean;
-}
-
-// 工作负载数据
-export interface WorkloadsData {
-  summary: WorkloadSummary;
-  podStatus: PodStatusDistribution;
-  peakStats?: PeakStats;
-}
-
-// 告警趋势点（按资源类型统计）
-export interface AlertTrendPoint {
-  at: string;
-  kinds: Record<string, number>; // 每种资源类型的告警数量: {"Pod": 5, "Node": 2}
-}
-
-// 告警统计
-export interface AlertTotals {
-  critical: number;
-  warning: number;
-  info: number;
-}
-
-// 最近告警（后端返回小写字段名）
-export interface RecentAlert {
-  timestamp: string;
-  severity: "critical" | "warning" | "info";
-  kind: string;
-  namespace: string;
-  name: string;
-  message: string;
-  reason: string;
-}
-
-// 告警数据
-export interface AlertsData {
-  trend: AlertTrendPoint[];
-  totals: AlertTotals;
-  recent: RecentAlert[];
-}
-
-// 节点资源使用
-export interface NodeUsage {
-  node: string;
-  cpuUsage: number;
-  memUsage: number;
-  cpuLevel: HardwareStatus; // 后端判定的等级
-  memLevel: HardwareStatus;
-}
-
-// 节点数据
-export interface NodesData {
-  usage: NodeUsage[];
-}
-
-// 集群概览完整数据
-export interface ClusterOverview {
-  clusterId: string;
-  cards: OverviewCards;
-  workloads: WorkloadsData;
-  alerts: AlertsData;
-  nodes: NodesData;
-}
+/** 页面显示用：数据还没到时为 Unknown（后端不返回这个值） */
+export type HealthDisplayStatus = ClusterHealthStatus | "Unknown";
 
 // 转换后的概览数据（用于页面展示）
 export interface TransformedOverview {
   clusterId: string;
   healthCard: {
-    status: ClusterHealthStatus;
+    status: HealthDisplayStatus;
     reason: ClusterHealthReason | "";
     nodeReadyPct: number;
     podHealthyPct: number;
-    nodeReadyStatus: ClusterHealthStatus;
-    podReadyStatus: ClusterHealthStatus;
+    nodeReadyStatus: HealthDisplayStatus;
+    podReadyStatus: HealthDisplayStatus;
   };
   nodesCard: {
     totalNodes: number;

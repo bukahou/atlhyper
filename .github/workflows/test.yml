@@ -82,6 +82,12 @@ jobs:
       - name: Install
         run: npm ci --legacy-peer-deps
 
+      # 接口类型由 api/openapi.yaml 生成：重新生成后与提交的不一致 = 改了规格没重新生成，或手改了生成文件
+      - name: API types match spec
+        run: |
+          npm run api:gen
+          git diff --exit-code -- src/types/api.gen.ts
+
       # 依赖数组、hooks 规则由 lint 把关；警告不拦，错误必须为零
       - name: Lint
         run: npm run lint

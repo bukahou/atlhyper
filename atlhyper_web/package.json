@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "api:gen": "openapi-typescript ../api/openapi.yaml -o src/types/api.gen.ts"
   },
   "dependencies": {
     "@antv/g6": "^5.0.51",
@@ -35,6 +36,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.6",
+    "openapi-typescript": "7.13.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.11"
   }

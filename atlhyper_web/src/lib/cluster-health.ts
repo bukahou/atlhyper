@@ -1,8 +1,8 @@
 // 集群健康结论 → 颜色等级（判定在后端，这里只做取值换算）
 import type { HardwareStatus } from "@/types/hardware";
-import type { ClusterHealthStatus } from "@/types/overview";
+import type { HealthDisplayStatus } from "@/types/overview";
 
-export function clusterHealthLevel(status: ClusterHealthStatus): HardwareStatus {
+export function clusterHealthLevel(status: HealthDisplayStatus): HardwareStatus {
   switch (status) {
     case "Healthy":
       return "good";
