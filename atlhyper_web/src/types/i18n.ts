@@ -1963,6 +1963,7 @@ interface NodeMetricsTranslations extends TimeRangePickerTranslations {
       good: string;
       warn: string;
       crit: string;
+      unknown: string;
     };
   };
   // Chart

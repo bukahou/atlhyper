@@ -1980,6 +1980,7 @@ Deployment 已更新，新的 Pod 正在启动中
         good: "正常",
         warn: "注意",
         crit: "危险",
+        unknown: "无数据",
       },
     },
     chart: {

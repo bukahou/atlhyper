@@ -3,6 +3,7 @@
 import { memo, type ReactNode } from "react";
 import { Cpu, MemoryStick, Database, HardDrive, Thermometer, Zap, Fan, Gauge, Timer, ShieldCheck, ChevronDown, ChevronRight } from "lucide-react";
 import { useI18n } from "@/i18n/context";
+import { hardwareStatusChip, hardwareStatusText } from "@/lib/hardware-status";
 import type {
   HardwareHealth,
   HardwareRow,
@@ -22,17 +23,8 @@ interface HardwareMatrixProps {
   spanMs: number;
 }
 
-/** 状态 → 文字色。所有判定都来自后端，这里只负责上色 */
-const statusText = (s: HardwareStatus) =>
-  s === "crit" ? "text-red-500" : s === "warn" ? "text-yellow-500" : "text-green-500";
-
-/** 状态 → chip 背景 */
-const statusChip = (s: HardwareStatus) =>
-  s === "crit"
-    ? "bg-red-500/10 text-red-500"
-    : s === "warn"
-      ? "bg-yellow-500/10 text-yellow-500"
-      : "bg-green-500/10 text-green-500";
+const statusText = hardwareStatusText;
+const statusChip = hardwareStatusChip;
 
 /** tbody 内的键控片段（tr 对必须共键） */
 const FragmentRow = ({ children }: { children: ReactNode }) => <>{children}</>;

@@ -5,7 +5,8 @@
 // 这边是 Master 判定完的结果，每格自带 status。前端不做任何阈值比较。
 // 格为 null = 该节点没有这个传感器 → 显示「无数据」，既不是正常也不是故障。
 
-export type HardwareStatus = "good" | "warn" | "crit";
+/** unknown = 没有这个读数（不是正常，也不是故障） */
+export type HardwareStatus = "good" | "warn" | "crit" | "unknown";
 
 export interface HardwareTempCell {
   value: number;

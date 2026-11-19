@@ -12,6 +12,8 @@ const (
 	HardwareGood HardwareStatus = "good"
 	HardwareWarn HardwareStatus = "warn"
 	HardwareCrit HardwareStatus = "crit"
+	// HardwareUnknown 没有这个读数（节点没装传感器、或这一轮没采到）：⛔ 不能当成正常
+	HardwareUnknown HardwareStatus = "unknown"
 )
 
 // HardwareTempCell 温度格（CPU / 磁盘 / 其他）

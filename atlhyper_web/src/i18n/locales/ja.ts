@@ -1980,6 +1980,7 @@ Deployment が更新され、新しい Pod が起動中です
         good: "正常",
         warn: "注意",
         crit: "危険",
+        unknown: "データなし",
       },
     },
     chart: {
