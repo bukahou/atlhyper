@@ -262,18 +262,14 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 		record.ErrorMessage = fmt.Sprintf("command timeout: %v", err)
 	} else if result != nil && result.Success {
 		record.Status = "success"
-		// 从 Agent 返回的 Output 中解析实际资源变更数
+		// 从 Agent 返回的 Output 中解析实际资源变更数（任何一项失败时 Agent 整条指令报失败，不会走到这里）
 		var applyResult struct {
-			ResourceTotal   int    `json:"resourceTotal"`
-			ResourceChanged int    `json:"resourceChanged"`
-			ErrorMessage    string `json:"errorMessage"`
+			ResourceTotal   int `json:"resourceTotal"`
+			ResourceChanged int `json:"resourceChanged"`
 		}
 		if json.Unmarshal([]byte(result.Output), &applyResult) == nil {
 			record.ResourceTotal = applyResult.ResourceTotal
 			record.ResourceChanged = applyResult.ResourceChanged
-			if applyResult.ErrorMessage != "" {
-				record.ErrorMessage = applyResult.ErrorMessage
-			}
 		}
 	} else if result != nil {
 		record.Status = "failed"
