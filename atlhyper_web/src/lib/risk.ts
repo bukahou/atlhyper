@@ -25,6 +25,23 @@ export function riskLevelColor(level: string | undefined): string {
   return LEVEL_COLOR[(level ?? "healthy") as RiskLevel] ?? LEVEL_COLOR.healthy;
 }
 
+/** 等级 → 徽章样式（背景 + 文字）。风险、AIOps 事件严重度、通知严重度是同一套等级，共用这一份 */
+const LEVEL_BADGE: Record<RiskLevel, string> = {
+  critical: "bg-red-500/15 text-red-600 dark:text-red-400",
+  high: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  medium: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400",
+  warning: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400",
+  low: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  healthy: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+};
+
+/** 不认识的等级：中性灰，既不显示成正常也不显示成故障 */
+const UNKNOWN_BADGE = "bg-gray-500/15 text-muted";
+
+export function levelBadgeClass(level: string | undefined): string {
+  return LEVEL_BADGE[level as RiskLevel] ?? UNKNOWN_BADGE;
+}
+
 /** 是否属于需要突出显示的高风险（high / critical） */
 export function isElevatedRisk(level: string | undefined): boolean {
   return level === "high" || level === "critical";
