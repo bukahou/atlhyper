@@ -48,19 +48,19 @@ func nodeMetricsView(nm *metrics.NodeMetrics) model.NodeMetricsView {
 		ProcsBlocked: model.HardwareUnknown, TimeSync: model.HardwareUnknown, Entropy: model.HardwareUnknown,
 	}
 	if !un[metrics.SectionCPU] {
-		lv.CPU = resourceStatus(nm.CPU.UsagePct)
-		lv.IOWait = warnWhen(nm.CPU.IOWaitPct > iowaitWarnPct)
+		lv.CPU = model.ResourceLevel(nm.CPU.UsagePct)
+		lv.IOWait = model.WarnWhen(nm.CPU.IOWaitPct > iowaitWarnPct)
 		if nm.CPU.Cores > 0 {
 			perCore := hwRound(nm.CPU.Load1/float64(nm.CPU.Cores), 2)
 			view.CPULoadPerCore = &perCore
-			lv.CPULoad = levelByThreshold(perCore, cpuLoadWarnPerCore, cpuLoadCritPerCore)
+			lv.CPULoad = model.LevelByThreshold(perCore, cpuLoadWarnPerCore, cpuLoadCritPerCore)
 		}
 	}
 	if !un[metrics.SectionMemory] {
-		lv.Memory = resourceStatus(nm.Memory.UsagePct)
-		lv.Swap = resourceStatus(nm.Memory.SwapUsagePct)
+		lv.Memory = model.ResourceLevel(nm.Memory.UsagePct)
+		lv.Swap = model.ResourceLevel(nm.Memory.SwapUsagePct)
 		// OOM 是累计次数：发生过就留痕，使用率回落后这是唯一的现场
-		lv.OOMKill = critWhen(nm.Memory.OOMKillTotal > 0)
+		lv.OOMKill = model.CritWhen(nm.Memory.OOMKillTotal > 0)
 	}
 	for i := range nm.Disks {
 		if un[metrics.SectionDisks] {
@@ -69,13 +69,13 @@ func nodeMetricsView(nm *metrics.NodeMetrics) model.NodeMetricsView {
 		}
 		d := &nm.Disks[i]
 		lv.Disks[i] = model.NodeDiskLevels{
-			Usage:  resourceStatus(d.UsagePct),
-			Inode:  resourceStatus(d.InodeUsagePct),
-			IOUtil: resourceStatus(d.IOUtilPct),
+			Usage:  model.ResourceLevel(d.UsagePct),
+			Inode:  model.ResourceLevel(d.InodeUsagePct),
+			IOUtil: model.ResourceLevel(d.IOUtilPct),
 		}
 	}
 	if !un[metrics.SectionPSI] {
-		psi := func(v float64) model.HardwareStatus { return levelByThreshold(v, psiWarnPct, psiCritPct) }
+		psi := func(v float64) model.HardwareStatus { return model.LevelByThreshold(v, psiWarnPct, psiCritPct) }
 		lv.PSI = model.NodePSILevels{
 			CPUSome: psi(nm.PSI.CPUSomePct), MemSome: psi(nm.PSI.MemSomePct), MemFull: psi(nm.PSI.MemFullPct),
 			IOSome: psi(nm.PSI.IOSomePct), IOFull: psi(nm.PSI.IOFullPct),
@@ -84,9 +84,9 @@ func nodeMetricsView(nm *metrics.NodeMetrics) model.NodeMetricsView {
 	if !un[metrics.SectionVMStat] {
 		// 有换页就值得看一眼（K8s 节点默认不开 swap）
 		lv.VMStat = model.NodeVMStatLevels{
-			MajorFaults: critWhen(nm.VMStat.PgMajFaultPerSec > majorFaultCritPerSec),
-			SwapIn:      warnWhen(nm.VMStat.PswpInPerSec > 0),
-			SwapOut:     warnWhen(nm.VMStat.PswpOutPerSec > 0),
+			MajorFaults: model.CritWhen(nm.VMStat.PgMajFaultPerSec > majorFaultCritPerSec),
+			SwapIn:      model.WarnWhen(nm.VMStat.PswpInPerSec > 0),
+			SwapOut:     model.WarnWhen(nm.VMStat.PswpOutPerSec > 0),
 		}
 	}
 	if !un[metrics.SectionSystem] {
@@ -104,18 +104,18 @@ func systemLevels(sys *metrics.NodeSystem, view *model.NodeMetricsView, lv *mode
 	case sys.FilefdMax > 0:
 		pct := hwRound(float64(sys.FilefdAllocated)/float64(sys.FilefdMax)*100, 2)
 		view.FileFDUsagePct = &pct
-		lv.FileFD = resourceStatus(pct)
+		lv.FileFD = model.ResourceLevel(pct)
 	}
 	if sys.ConntrackLimit > 0 {
 		pct := hwRound(float64(sys.ConntrackEntries)/float64(sys.ConntrackLimit)*100, 2)
 		view.ConntrackUsagePct = &pct
-		lv.Conntrack = resourceStatus(pct)
+		lv.Conntrack = model.ResourceLevel(pct)
 	}
 	// D 状态进程：进程卡在不可中断 IO 上，是磁盘出问题的早期信号
-	lv.ProcsBlocked = warnWhen(sys.ProcsBlocked > 0)
+	lv.ProcsBlocked = model.WarnWhen(sys.ProcsBlocked > 0)
 	// 时钟漂移会让日志与 trace 的时间线对不上
-	lv.TimeSync = critWhen(!sys.TimeSynced)
-	lv.Entropy = critWhen(sys.EntropyBits < entropyLowBits)
+	lv.TimeSync = model.CritWhen(!sys.TimeSynced)
+	lv.Entropy = model.CritWhen(sys.EntropyBits < entropyLowBits)
 }
 
 // unavailableSections Agent 声明采集失败的 section

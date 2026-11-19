@@ -96,7 +96,7 @@ func buildHardwareRow(nm *metrics.NodeMetrics) model.HardwareRow {
 // 与「没有这个传感器」不同，不能都用 nil 表达。
 func usageCell(pct float64) *model.HardwareUsageCell {
 	v := hwRound(pct, 1)
-	return &model.HardwareUsageCell{Value: v, Status: resourceStatus(v)}
+	return &model.HardwareUsageCell{Value: v, Status: model.ResourceLevel(v)}
 }
 
 // tempCell 取某一类传感器里最需要关注的一个成格：先按状态取最差，同档再取最热。

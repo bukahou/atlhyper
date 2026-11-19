@@ -116,7 +116,7 @@ func tempCompareCell(cell *model.HardwareTempCell, unit string) model.CompareCel
 
 func pctCell(v, warn, crit float64) model.CompareCell {
 	value := hwRound(v, 1)
-	return model.CompareCell{Value: &value, Text: fmt.Sprintf("%.1f%%", value), Status: levelByThreshold(value, warn, crit)}
+	return model.CompareCell{Value: &value, Text: fmt.Sprintf("%.1f%%", value), Status: model.LevelByThreshold(value, warn, crit)}
 }
 
 // usageCompareCell 硬件矩阵的使用率格 → 对比表的格；没有读数为无数据

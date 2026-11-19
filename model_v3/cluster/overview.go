@@ -20,10 +20,14 @@ type OverviewCards struct {
 }
 
 type ClusterHealth struct {
-	Status           string  `json:"status"`
+	Status string `json:"status"`
+	// Reason 原因代码（HealthReason*），文案由前端按语言出；健康时为空
 	Reason           string  `json:"reason,omitempty"`
 	NodeReadyPercent float64 `json:"nodeReadyPercent"`
 	PodReadyPercent  float64 `json:"podReadyPercent"`
+	// NodeReadyStatus / PodReadyStatus 两项就绪率各自的结论（与 Status 同一套取值）
+	NodeReadyStatus string `json:"nodeReadyStatus"`
+	PodReadyStatus  string `json:"podReadyStatus"`
 }
 
 type ResourceReady struct {
@@ -119,28 +123,73 @@ type NodeUsage struct {
 	MemUsage float64 `json:"memUsage"`
 }
 
-func CalculateHealthStatus(nodeReadyPct, podReadyPct float64) string {
-	if nodeReadyPct >= 90 && podReadyPct >= 80 {
-		return "Healthy"
+// 集群健康结论
+const (
+	HealthHealthy   = "Healthy"
+	HealthDegraded  = "Degraded"
+	HealthUnhealthy = "Unhealthy"
+)
+
+// 健康原因代码（按严重程度先后取第一个命中的）
+const (
+	HealthReasonNodeReadyLow      = "nodeReadyLow"      // 节点就绪率低于 degraded 线
+	HealthReasonPodReadyLow       = "podReadyLow"       // Pod 就绪率低于 degraded 线
+	HealthReasonSomeNodesNotReady = "someNodesNotReady" // 部分节点未就绪
+	HealthReasonSomePodsNotReady  = "somePodsNotReady"  // 部分 Pod 未就绪
+)
+
+// 就绪率阈值：全项目只有这一份（整体结论、原因、两条进度条都用它）
+const (
+	nodeReadyHealthyPct  = 90.0
+	nodeReadyDegradedPct = 70.0
+	podReadyHealthyPct   = 80.0
+	podReadyDegradedPct  = 60.0
+)
+
+func readinessStatus(pct, healthy, degraded float64) string {
+	switch {
+	case pct >= healthy:
+		return HealthHealthy
+	case pct >= degraded:
+		return HealthDegraded
+	default:
+		return HealthUnhealthy
 	}
-	if nodeReadyPct >= 70 && podReadyPct >= 60 {
-		return "Degraded"
-	}
-	return "Unhealthy"
 }
 
+// NodeReadyStatus 节点就绪率的结论
+func NodeReadyStatus(pct float64) string {
+	return readinessStatus(pct, nodeReadyHealthyPct, nodeReadyDegradedPct)
+}
+
+// PodReadyStatus Pod 就绪率的结论
+func PodReadyStatus(pct float64) string {
+	return readinessStatus(pct, podReadyHealthyPct, podReadyDegradedPct)
+}
+
+// CalculateHealthStatus 集群整体结论 = 两项里更差的一个
+func CalculateHealthStatus(nodeReadyPct, podReadyPct float64) string {
+	node, pod := NodeReadyStatus(nodeReadyPct), PodReadyStatus(podReadyPct)
+	for _, worst := range []string{HealthUnhealthy, HealthDegraded} {
+		if node == worst || pod == worst {
+			return worst
+		}
+	}
+	return HealthHealthy
+}
+
+// CalculateHealthReason 原因代码；健康时为空
 func CalculateHealthReason(nodeReadyPct, podReadyPct float64) string {
-	if nodeReadyPct < 70 {
-		return "节点就绪率过低"
+	switch {
+	case nodeReadyPct < nodeReadyDegradedPct:
+		return HealthReasonNodeReadyLow
+	case podReadyPct < podReadyDegradedPct:
+		return HealthReasonPodReadyLow
+	case nodeReadyPct < nodeReadyHealthyPct:
+		return HealthReasonSomeNodesNotReady
+	case podReadyPct < podReadyHealthyPct:
+		return HealthReasonSomePodsNotReady
+	default:
+		return ""
 	}
-	if podReadyPct < 60 {
-		return "Pod 就绪率过低"
-	}
-	if nodeReadyPct < 90 {
-		return "部分节点未就绪"
-	}
-	if podReadyPct < 80 {
-		return "部分 Pod 未就绪"
-	}
-	return ""
 }
