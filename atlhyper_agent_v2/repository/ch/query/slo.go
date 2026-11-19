@@ -301,6 +301,8 @@ func (r *sloRepository) ListIngressSLOPrevious(ctx context.Context, since time.D
 // timeFilter: 时间范围条件（不含 WHERE 前缀）
 // windowSec: 窗口秒数（用于 RPS 计算）
 func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, windowSec int64) ([]slo.IngressSLO, error) {
+	skips := newScanSkips("queryIngressSLO")
+	defer skips.report()
 	// ── 请求计数：按 {svc, code, method} 三维分组 ──
 	// 每个组合是独立的累积计数器，必须在最细粒度计算 delta。
 	//
@@ -330,6 +332,7 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 		var ns, svc, class string
 		var delta float64
 		if err := rows.Scan(&ns, &svc, &class, &delta); err != nil {
+			skips.add(err)
 			continue
 		}
 		svcKey := slo.ServiceKey(ns, svc)
@@ -436,6 +439,8 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 // GetIngressSLOHistory 查询 Ingress SLO 时序数据
 // since: 总时间范围, bucket: 每个桶的时间跨度
 func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error) {
+	skips := newScanSkips("GetIngressSLOHistory")
+	defer skips.report()
 	sec := sinceSeconds(since)
 	bucketSec := sinceSeconds(bucket)
 
@@ -466,6 +471,7 @@ func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket 
 		var ns, svc, class string
 		var delta float64
 		if err := rows.Scan(&ts, &ns, &svc, &class, &delta); err != nil {
+			skips.add(err)
 			continue
 		}
 		svcKey := slo.ServiceKey(ns, svc)

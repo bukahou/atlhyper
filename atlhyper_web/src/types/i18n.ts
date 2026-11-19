@@ -1387,6 +1387,10 @@ export interface CommandsTranslations {
     uncordon: string;
     update_image: string;
   };
+  /** 写操作下发后指令执行失败（{error} 为 Agent 回报的原因） */
+  outcomeFailed: string;
+  /** 等到上限指令仍未结束 */
+  outcomeStillRunning: string;
 }
 
 // AI Settings 页面翻译

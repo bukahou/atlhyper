@@ -429,6 +429,8 @@ func ensureNodeMetricsSlices(nm *metrics.NodeMetrics) {
 
 // fillCPU 填充 CPU 指标
 func (r *metricsRepository) fillCPU(ctx context.Context, ip string, nm *metrics.NodeMetrics) error {
+	skips := newScanSkips("fillCPU")
+	defer skips.report()
 	// CPU usage from rate of node_cpu_seconds_total
 	query := `
 		SELECT Attributes['mode'] AS mode, ` + CounterRateExpr + ` AS rate
@@ -454,6 +456,7 @@ func (r *metricsRepository) fillCPU(ctx context.Context, ip string, nm *metrics.
 		var mode string
 		var rate float64
 		if err := rows.Scan(&mode, &rate); err != nil {
+			skips.add(err)
 			continue
 		}
 		modeRates[mode] += rate
@@ -559,6 +562,8 @@ func (r *metricsRepository) fillCPU(ctx context.Context, ip string, nm *metrics.
 //
 // 一并取 count()：欠压位需要用它区分「没有这个传感器」和「传感器读数为 0」。
 func (r *metricsRepository) fillScalarGauges(ctx context.Context, ip string, nm *metrics.NodeMetrics) error {
+	skips := newScanSkips("fillScalarGauges")
+	defer skips.report()
 	query := `
 		SELECT MetricName, argMax(Value, TimeUnix) AS v, count() AS n
 		FROM otel_metrics_gauge
@@ -591,6 +596,7 @@ func (r *metricsRepository) fillScalarGauges(ctx context.Context, ip string, nm 
 		var val float64
 		var cnt uint64
 		if err := rows.Scan(&name, &val, &cnt); err != nil {
+			skips.add(err)
 			continue
 		}
 		applyScalarGauge(nm, name, val, cnt)
@@ -696,6 +702,8 @@ func applyScalarGauge(nm *metrics.NodeMetrics, name string, val float64, cnt uin
 
 // fillDisks 填充磁盘指标
 func (r *metricsRepository) fillDisks(ctx context.Context, ip string, nm *metrics.NodeMetrics) error {
+	skips := newScanSkips("fillDisks")
+	defer skips.report()
 	// 容量 (gauge)
 	query := `
 		SELECT Attributes['device'] AS device,
@@ -731,6 +739,7 @@ func (r *metricsRepository) fillDisks(ctx context.Context, ip string, nm *metric
 		var d metrics.NodeDisk
 		var total, avail, inodes, inodesFree, readonly float64
 		if err := rows.Scan(&d.Device, &d.MountPoint, &d.FSType, &total, &avail, &inodes, &inodesFree, &readonly); err != nil {
+			skips.add(err)
 			continue
 		}
 		d.TotalBytes = int64(total)
@@ -840,6 +849,8 @@ func (r *metricsRepository) fillDisks(ctx context.Context, ip string, nm *metric
 
 // fillNetworks 填充网络指标
 func (r *metricsRepository) fillNetworks(ctx context.Context, ip string, nm *metrics.NodeMetrics) error {
+	skips := newScanSkips("fillNetworks")
+	defer skips.report()
 	// 网络状态 (gauge)
 	query := `
 		SELECT Attributes['device'] AS iface,
@@ -863,6 +874,7 @@ func (r *metricsRepository) fillNetworks(ctx context.Context, ip string, nm *met
 		var n metrics.NodeNetwork
 		var up, speed, mtu float64
 		if err := rows.Scan(&n.Interface, &up, &speed, &mtu); err != nil {
+			skips.add(err)
 			continue
 		}
 		n.Up = up > 0
@@ -933,6 +945,8 @@ func (r *metricsRepository) fillNetworks(ctx context.Context, ip string, nm *met
 // CPU 温度 / 阈值取 CPU 类传感器（coretemp / SoC thermal zone）里最热的一个，
 // 不再取 Sensors[0]（那取决于 ClickHouse 的返回顺序，NVMe 排前面就会把盘温当 CPU 温）。
 func (r *metricsRepository) fillTemperature(ctx context.Context, ip string, nm *metrics.NodeMetrics, chipNameByPath map[string]string) error {
+	skips := newScanSkips("fillTemperature")
+	defer skips.report()
 	query := `
 		SELECT Attributes['chip'] AS chip, Attributes['sensor'] AS sensor,
 		       argMaxIf(Value, TimeUnix, MetricName='node_hwmon_temp_celsius') AS current,
@@ -955,6 +969,7 @@ func (r *metricsRepository) fillTemperature(ctx context.Context, ip string, nm *
 	for rows.Next() {
 		var s metrics.TempSensor
 		if err := rows.Scan(&s.Chip, &s.Sensor, &s.CurrentC, &s.MaxC, &s.CritC); err != nil {
+			skips.add(err)
 			continue
 		}
 		s.ChipName = chipNameByPath[s.Chip]
@@ -1110,6 +1125,8 @@ func awaitMs(timeRate, opsRate float64) float64 {
 
 // fillPSI 填充 Pressure Stall Info
 func (r *metricsRepository) fillPSI(ctx context.Context, ip string, nm *metrics.NodeMetrics) error {
+	skips := newScanSkips("fillPSI")
+	defer skips.report()
 	query := `
 		SELECT MetricName, ` + CounterRateExpr + ` AS rate
 		FROM otel_metrics_sum
@@ -1135,6 +1152,7 @@ func (r *metricsRepository) fillPSI(ctx context.Context, ip string, nm *metrics.
 		var name string
 		var rate float64
 		if err := rows.Scan(&name, &rate); err != nil {
+			skips.add(err)
 			continue
 		}
 		pct := roundTo(clamp(rate*100, 0, 100), 2)
@@ -1157,6 +1175,8 @@ func (r *metricsRepository) fillPSI(ctx context.Context, ip string, nm *metrics.
 // fillVMStat 填充 VMStat + Softnet
 // vmstat 指标在 gauge 表（OTel collector 将其归类为 gauge），softnet 在 sum 表
 func (r *metricsRepository) fillVMStat(ctx context.Context, ip string, nm *metrics.NodeMetrics) error {
+	skips := newScanSkips("fillVMStat")
+	defer skips.report()
 	rateQuery := `
 		SELECT MetricName, ` + CounterRateExpr + ` AS rate
 		FROM %s
@@ -1187,6 +1207,7 @@ func (r *metricsRepository) fillVMStat(ctx context.Context, ip string, nm *metri
 			var name string
 			var rate float64
 			if err := rows.Scan(&name, &rate); err != nil {
+				skips.add(err)
 				continue
 			}
 			switch name {
@@ -1414,6 +1435,8 @@ func (r *metricsRepository) GetNodeMetricsHistory(ctx context.Context, nodeName 
 //
 //	cpu_usage_pct = (1 - idle_delta / total_delta) * 100
 func (r *metricsRepository) queryCPUHistory(ctx context.Context, ip string, sinceSec int64, intervalSec int) ([]metrics.Point, error) {
+	skips := newScanSkips("queryCPUHistory")
+	defer skips.report()
 	query := fmt.Sprintf(`
 		SELECT ts, 1 - sumIf(delta, mode = 'idle') / sum(delta) AS cpu_pct
 		FROM (
@@ -1442,6 +1465,7 @@ func (r *metricsRepository) queryCPUHistory(ctx context.Context, ip string, sinc
 	for rows.Next() {
 		var p metrics.Point
 		if err := rows.Scan(&p.Timestamp, &p.Value); err != nil {
+			skips.add(err)
 			continue
 		}
 		p.Value = roundTo(clamp(p.Value*100, 0, 100), 2)
@@ -1457,6 +1481,8 @@ func (r *metricsRepository) queryCPUHistory(ctx context.Context, ip string, sinc
 //
 // Gauge 类型: usage = (1 - available / total) * 100
 func (r *metricsRepository) queryMemoryHistory(ctx context.Context, ip string, sinceSec int64, intervalSec int) ([]metrics.Point, error) {
+	skips := newScanSkips("queryMemoryHistory")
+	defer skips.report()
 	query := fmt.Sprintf(`
 		SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
 		       (1 - avgIf(Value, MetricName = 'node_memory_MemAvailable_bytes') /
@@ -1480,6 +1506,7 @@ func (r *metricsRepository) queryMemoryHistory(ctx context.Context, ip string, s
 	for rows.Next() {
 		var p metrics.Point
 		if err := rows.Scan(&p.Timestamp, &p.Value); err != nil {
+			skips.add(err)
 			continue
 		}
 		p.Value = roundTo(clamp(p.Value, 0, 100), 2)
@@ -1495,6 +1522,8 @@ func (r *metricsRepository) queryMemoryHistory(ctx context.Context, ip string, s
 //
 // Gauge 类型: usage = (1 - avail / total) * 100
 func (r *metricsRepository) queryDiskHistory(ctx context.Context, ip string, sinceSec int64, intervalSec int) ([]metrics.Point, error) {
+	skips := newScanSkips("queryDiskHistory")
+	defer skips.report()
 	query := fmt.Sprintf(`
 		SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
 		       (1 - avgIf(Value, MetricName = 'node_filesystem_avail_bytes') /
@@ -1519,6 +1548,7 @@ func (r *metricsRepository) queryDiskHistory(ctx context.Context, ip string, sin
 	for rows.Next() {
 		var p metrics.Point
 		if err := rows.Scan(&p.Timestamp, &p.Value); err != nil {
+			skips.add(err)
 			continue
 		}
 		p.Value = roundTo(clamp(p.Value, 0, 100), 2)
@@ -1534,6 +1564,8 @@ func (r *metricsRepository) queryDiskHistory(ctx context.Context, ip string, sin
 //
 // Gauge 类型: 取每个时间桶内最大传感器温度
 func (r *metricsRepository) queryTempHistory(ctx context.Context, ip string, sinceSec int64, intervalSec int) ([]metrics.Point, error) {
+	skips := newScanSkips("queryTempHistory")
+	defer skips.report()
 	query := fmt.Sprintf(`
 		SELECT toStartOfInterval(TimeUnix, INTERVAL %d SECOND) AS ts,
 		       max(Value) AS temp_c
@@ -1555,6 +1587,7 @@ func (r *metricsRepository) queryTempHistory(ctx context.Context, ip string, sin
 	for rows.Next() {
 		var p metrics.Point
 		if err := rows.Scan(&p.Timestamp, &p.Value); err != nil {
+			skips.add(err)
 			continue
 		}
 		p.Value = roundTo(p.Value, 1)

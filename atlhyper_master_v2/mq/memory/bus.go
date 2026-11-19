@@ -221,6 +221,7 @@ func (b *MemoryBus) AckCommand(clusterID, cmdID string, result *command.Result) 
 	} else {
 		cs.Status = command.StatusFailed
 	}
+	finalStatus := cs.Status
 
 	b.commandsMu.Unlock()
 
@@ -235,11 +236,12 @@ func (b *MemoryBus) AckCommand(clusterID, cmdID string, result *command.Result) 
 	}
 	b.commandWaitersMu.Unlock()
 
-	log.Debug("指令已完成", "cmd", cmdID, "status", cs.Status)
+	log.Debug("指令已完成", "cmd", cmdID, "status", finalStatus)
 	return nil
 }
 
-// GetCommandStatus 获取指令状态
+// GetCommandStatus 获取指令状态。
+// 返回锁内复制的快照：回报结果时原记录会被就地改写，调用方在锁外读字段。
 func (b *MemoryBus) GetCommandStatus(cmdID string) (*command.Status, error) {
 	b.commandsMu.RLock()
 	defer b.commandsMu.RUnlock()
@@ -248,7 +250,8 @@ func (b *MemoryBus) GetCommandStatus(cmdID string) (*command.Status, error) {
 	if !ok {
 		return nil, nil
 	}
-	return cs, nil
+	snapshot := *cs
+	return &snapshot, nil
 }
 
 // WaitCommandResult 等待指令执行完成（同步等待）

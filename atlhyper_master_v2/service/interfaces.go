@@ -270,7 +270,7 @@ type OpsSLO interface {
 type Ops interface {
 	OpsDeploy
 	OpsUser
-	CreateCommand(req *model.CreateCommandRequest) (*model.CreateCommandResponse, error)
+	CreateCommand(ctx context.Context, req *model.CreateCommandRequest) (*model.CreateCommandResponse, error)
 	// ExecuteCommandSync 同步执行指令（创建 + 等待 Agent 结果）
 	ExecuteCommandSync(ctx context.Context, req *model.CreateCommandRequest, timeout time.Duration) (*command.Result, error)
 	OpsAdmin

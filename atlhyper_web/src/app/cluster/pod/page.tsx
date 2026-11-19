@@ -7,7 +7,7 @@ import { Layout } from "@/components/layout/Layout";
 import { useI18n } from "@/i18n/context";
 import { PageHeader, QueryView, StatsCard, DataTable, ConfirmDialog } from "@/components/common";
 import { useCurrentCluster } from "@/hooks/useCurrentCluster";
-import { useDelayedInvalidate } from "@/hooks/useDelayedInvalidate";
+import { useCommandSettle } from "@/hooks/useCommandSettle";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { podOverviewQuery } from "@/queries/cluster";
 import { restartPodMutation } from "@/queries/cluster-mutations";
@@ -25,7 +25,7 @@ export default function PodPage() {
   const query = useQuery(podOverviewQuery(clusterId));
   const data = query.data;
   const restart = useMutation(restartPodMutation(clusterId));
-  const invalidateAfterCommand = useDelayedInvalidate();
+  const settleCommand = useCommandSettle();
 
   // 筛选状态：跨页跳转（如事件详情的「下一步」）可用 ?namespace=&node=&search= 预填
   const searchParams = useSearchParams();
@@ -75,11 +75,10 @@ export default function PodPage() {
     restart.mutate(
       { namespace: restartTarget.namespace, name: restartTarget.name },
       {
-        onSuccess: () => {
+        onSuccess: (resp) => {
           setRestartTarget(null);
-          // 重启指令由 Agent 异步执行：下发成功时列表已刷新过一次，
-          // 晚一点再刷新一次才看得到 Pod 重建后的状态
-          invalidateAfterCommand(clusterKeys.resourceScope("pod"));
+          // 重启指令由 Agent 异步执行：下发成功时列表已刷新过一次，等指令执行完再刷新一次
+          void settleCommand(resp.data.commandId, clusterKeys.resourceScope("pod"));
         },
         onError: (err) => console.error("Restart failed:", err),
       },

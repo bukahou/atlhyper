@@ -44,9 +44,11 @@ func (m *mockProducer) WaitCommandResult(ctx context.Context, cmdID string, time
 
 type mockCommandRepo struct {
 	createErr error
+	created   []*database.CommandHistory
 }
 
 func (m *mockCommandRepo) Create(ctx context.Context, cmd *database.CommandHistory) error {
+	m.created = append(m.created, cmd)
 	return m.createErr
 }
 
@@ -235,7 +237,7 @@ func TestCreateCommand_RejectsMalformedTarget(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			producer := &mockProducer{}
 			svc := NewCommandService(producer, &mockCommandRepo{}, presenceStub{"c1": true, "test-cluster": true})
-			_, err := svc.CreateCommand(&model.CreateCommandRequest{
+			_, err := svc.CreateCommand(context.Background(), &model.CreateCommandRequest{
 				ClusterID:       "c1",
 				Action:          command.ActionDynamic,
 				TargetKind:      "Namespace",
@@ -283,7 +285,7 @@ func TestCreateCommand_HistoryIsWrittenBeforeEnqueue(t *testing.T) {
 	recorder := &orderRecorder{}
 	svc := NewCommandService(recorder, recorder, presenceStub{"test-cluster": true})
 
-	if _, err := svc.CreateCommand(validRequest()); err != nil {
+	if _, err := svc.CreateCommand(context.Background(), validRequest()); err != nil {
 		t.Fatal(err)
 	}
 	if len(recorder.steps) != 2 || recorder.steps[0] != "history" || recorder.steps[1] != "enqueue" {
@@ -296,7 +298,7 @@ func TestCreateCommand_EnqueueFailureMarksHistoryFailed(t *testing.T) {
 	recorder := &orderRecorder{enqueueErr: fmt.Errorf("queue unavailable")}
 	svc := NewCommandService(recorder, recorder, presenceStub{"test-cluster": true})
 
-	if _, err := svc.CreateCommand(validRequest()); err == nil {
+	if _, err := svc.CreateCommand(context.Background(), validRequest()); err == nil {
 		t.Fatal("期望返回入队错误")
 	}
 	if recorder.updated == nil || recorder.updated.Status != command.StatusFailed {
@@ -322,7 +324,7 @@ func TestCreateCommand_RejectsActionFromWrongSource(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			producer := &mockProducer{}
 			svc := NewCommandService(producer, &mockCommandRepo{}, presenceStub{"c1": true, "test-cluster": true})
-			_, err := svc.CreateCommand(&model.CreateCommandRequest{
+			_, err := svc.CreateCommand(context.Background(), &model.CreateCommandRequest{
 				ClusterID:       "c1",
 				Action:          c.action,
 				TargetKind:      "Deployment",
@@ -371,7 +373,7 @@ func TestCreateCommand_RejectsOfflineCluster(t *testing.T) {
 	req := validRequest()
 	req.ClusterID = "no-such-cluster"
 
-	_, err := svc.CreateCommand(req)
+	_, err := svc.CreateCommand(context.Background(), req)
 	if !errors.Is(err, model.ErrClusterOffline) {
 		t.Fatalf("err = %v, want ErrClusterOffline", err)
 	}
@@ -386,7 +388,7 @@ func TestCreateCommand_WebTelemetryQueryWritesNoHistory(t *testing.T) {
 	repo := &historyRecorder{}
 	svc := NewCommandService(producer, repo, presenceStub{"c1": true})
 
-	_, err := svc.CreateCommand(&model.CreateCommandRequest{
+	_, err := svc.CreateCommand(context.Background(), &model.CreateCommandRequest{
 		ClusterID: "c1", Action: command.ActionQueryTraces, Source: command.SourceWeb,
 		Params: map[string]interface{}{"sub_action": "list_services"},
 	})
@@ -405,7 +407,7 @@ func TestCreateCommand_WebTelemetryQueryWritesNoHistory(t *testing.T) {
 func TestCreateCommand_OperationWritesHistory(t *testing.T) {
 	repo := &historyRecorder{}
 	svc := NewCommandService(&mockProducer{}, repo, presenceStub{"test-cluster": true})
-	if _, err := svc.CreateCommand(validRequest()); err != nil {
+	if _, err := svc.CreateCommand(context.Background(), validRequest()); err != nil {
 		t.Fatal(err)
 	}
 	if repo.created != 1 {
@@ -415,7 +417,7 @@ func TestCreateCommand_OperationWritesHistory(t *testing.T) {
 
 func TestCreateCommand_InvalidRequestIsErrInvalidCommand(t *testing.T) {
 	svc := NewCommandService(&mockProducer{}, &mockCommandRepo{}, presenceStub{"c1": true})
-	_, err := svc.CreateCommand(&model.CreateCommandRequest{ClusterID: "c1", Action: command.ActionRestart, Source: command.SourceWeb})
+	_, err := svc.CreateCommand(context.Background(), &model.CreateCommandRequest{ClusterID: "c1", Action: command.ActionRestart, Source: command.SourceWeb})
 	if !errors.Is(err, model.ErrInvalidCommand) {
 		t.Fatalf("缺目标的重启应返回 ErrInvalidCommand，实际 %v", err)
 	}
@@ -431,5 +433,29 @@ func TestPurgeHistory(t *testing.T) {
 	}
 	if want := now.Add(-90 * 24 * time.Hour); !repo.deleteBefore.Equal(want) {
 		t.Errorf("截止时间 = %v, want %v", repo.deleteBefore, want)
+	}
+}
+
+// 指令历史记下是谁下发的，指令本身也带上下发者（Agent 写进执行记录）；没有用户时记来源
+func TestCreateCommand_RecordsIssuer(t *testing.T) {
+	producer := &mockProducer{}
+	repo := &mockCommandRepo{}
+	svc := NewCommandService(producer, repo, presenceStub{"c1": true})
+	_, err := svc.CreateCommand(context.Background(), &model.CreateCommandRequest{
+		ClusterID: "c1", Action: command.ActionDelete, TargetKind: "Pod", TargetNamespace: "ns", TargetName: "p",
+		Source: command.SourceWeb, UserID: 42,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.created) != 1 || repo.created[0].UserID != 42 {
+		t.Errorf("历史应记下下发者 42，实际 %+v", repo.created)
+	}
+	if producer.enqueuedCmd == nil || producer.enqueuedCmd.CreatedBy != "user:42" {
+		t.Errorf("指令应带上下发者，实际 %+v", producer.enqueuedCmd)
+	}
+
+	if got := issuer(&model.CreateCommandRequest{Source: command.SourceAI}); got != command.SourceAI {
+		t.Errorf("没有用户时记来源，实际 %q", got)
 	}
 }

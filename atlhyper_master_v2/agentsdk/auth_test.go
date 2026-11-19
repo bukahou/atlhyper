@@ -1,6 +1,7 @@
 package agentsdk
 
 import (
+	"AtlHyper/model_v3/agentproto"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -100,6 +101,7 @@ func newAuthFixture(t *testing.T, mode AuthMode) *authFixture {
 
 func (f *authFixture) do(method, target, token, claimedCluster string, body []byte) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, target, bytes.NewReader(body))
+	req.Header.Set(agentproto.Header, agentproto.HeaderValue())
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -206,6 +208,7 @@ func (f *authFixture) pushSnapshot(t *testing.T, token, claimedCluster, bodyClus
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/agent/snapshot",
 		bytes.NewReader(gzipJSON(t, cluster.ClusterSnapshot{ClusterID: bodyCluster})))
+	req.Header.Set(agentproto.Header, agentproto.HeaderValue())
 	req.Header.Set("Content-Encoding", "gzip")
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -251,6 +254,7 @@ func TestSnapshot_TooLarge(t *testing.T) {
 	huge := cluster.ClusterSnapshot{ClusterID: "c1", Pods: make([]cluster.Pod, 0)}
 	payload := map[string]any{"clusterId": huge.ClusterID, "padding": strings.Repeat("a", 1<<20)}
 	req := httptest.NewRequest(http.MethodPost, "/agent/snapshot", bytes.NewReader(gzipJSON(t, payload)))
+	req.Header.Set(agentproto.Header, agentproto.HeaderValue())
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("X-Cluster-ID", "c1")
 	rec := httptest.NewRecorder()
@@ -355,5 +359,30 @@ func TestAuthMode_EmptyMeansEnforce(t *testing.T) {
 	}
 	if got := authModeOrEnforce(AuthModeOff); got != AuthModeOff {
 		t.Errorf("显式 off 应保留，实际 %q", got)
+	}
+}
+
+// 协议版本：不带版本头或版本不对的代理请求一律 426，连请求体都不读；当前版本照常处理
+func TestRequireProtocol(t *testing.T) {
+	called := false
+	h := requireProtocol(func(w http.ResponseWriter, r *http.Request) { called = true })
+	for name, value := range map[string]string{"不带版本头": "", "版本不对": "999"} {
+		called = false
+		req := httptest.NewRequest(http.MethodPost, "/agent/snapshot", nil)
+		if value != "" {
+			req.Header.Set(agentproto.Header, value)
+		}
+		rec := httptest.NewRecorder()
+		h(rec, req)
+		if rec.Code != http.StatusUpgradeRequired || called {
+			t.Errorf("%s: status = %d called=%v, want 426 且不进入处理", name, rec.Code, called)
+		}
+	}
+	req := httptest.NewRequest(http.MethodPost, "/agent/snapshot", nil)
+	req.Header.Set(agentproto.Header, agentproto.HeaderValue())
+	rec := httptest.NewRecorder()
+	h(rec, req)
+	if !called {
+		t.Error("当前版本应照常处理")
 	}
 }

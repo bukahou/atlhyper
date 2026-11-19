@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +18,7 @@ type recordingOps struct {
 	created []*model.CreateCommandRequest
 }
 
-func (r *recordingOps) CreateCommand(req *model.CreateCommandRequest) (*model.CreateCommandResponse, error) {
+func (r *recordingOps) CreateCommand(_ context.Context, req *model.CreateCommandRequest) (*model.CreateCommandResponse, error) {
 	r.created = append(r.created, req)
 	return &model.CreateCommandResponse{CommandID: "cmd-1", Status: command.StatusPending}, nil
 }

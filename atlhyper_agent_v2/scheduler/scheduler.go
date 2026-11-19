@@ -354,11 +354,18 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, error) {
 				action += "/" + sub
 			}
 
+			// 执行记录带上指令 ID、来源、下发者与目标：出了事能对上主控的指令历史与审计
+			record := []any{
+				"command", cmd.ID, "action", action, "source", cmd.Source, "createdBy", cmd.CreatedBy,
+				"target", cmd.Kind + " " + cmd.Namespace + "/" + cmd.Name, "elapsed", elapsed.Round(time.Millisecond),
+			}
 			// 上报结果（独立预算：执行超时后也要能报回去；失败按退避重试）
 			if err := s.reportResult(result); err != nil {
-				log.Error(masterFailureMessage("指令结果回报失败", err), "action", action, "elapsed", elapsed.Round(time.Millisecond), "err", err)
+				log.Error(masterFailureMessage("指令结果回报失败", err), append(record, "err", err)...)
+			} else if !result.Success {
+				log.Warn("指令执行失败", append(record, "error", result.Error)...)
 			} else {
-				log.Info("指令完成", "action", action, "elapsed", elapsed.Round(time.Millisecond), "success", result.Success)
+				log.Info("指令完成", record...)
 			}
 		}()
 	}

@@ -1355,6 +1355,8 @@ export const zh: Translations = {
       uncordon: "解除隔离",
       update_image: "更新镜像",
     },
+    outcomeFailed: "指令执行失败：{error}",
+    outcomeStillRunning: "指令仍在执行，稍后刷新查看结果",
   },
   aiSettingsPage: {
     // 页面标题
