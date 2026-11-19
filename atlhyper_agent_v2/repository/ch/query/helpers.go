@@ -198,5 +198,12 @@ func sinceSeconds(since time.Duration) int64 {
 	if s <= 0 {
 		s = 300 // 默认 5 分钟
 	}
+	if max := int64(maxQueryWindow.Seconds()); s > max {
+		s = max
+	}
 	return s
 }
+
+// maxQueryWindow 相对时间窗的上限（与 Master 侧一致的 30 天）：执行方自己守门，
+// ClickHouse 由 dev / prod 共用，不能让一条指令扫几年的数据
+const maxQueryWindow = 30 * 24 * time.Hour

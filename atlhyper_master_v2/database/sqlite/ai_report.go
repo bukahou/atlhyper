@@ -24,7 +24,7 @@ func (d *aiReportDialect) Insert(r *database.AIReport) (string, []any) {
 		r.Summary, r.RootCauseAnalysis, r.Recommendations, r.SimilarIncidents,
 		r.InvestigationSteps, r.EvidenceChain,
 		r.ProviderName, r.Model, r.InputTokens, r.OutputTokens, r.DurationMs,
-		r.CreatedAt.Format(time.RFC3339),
+		utcStamp(r.CreatedAt),
 	}
 	return query, args
 }
@@ -77,11 +77,11 @@ func (d *aiReportDialect) UpdateResult(id int64, r *database.AIReport) (string, 
 
 func (d *aiReportDialect) CountByClusterAndRole(clusterID, role string, since time.Time) (string, []any) {
 	return `SELECT COUNT(*) FROM ai_reports WHERE cluster_id = ? AND role = ? AND created_at >= ?`,
-		[]any{clusterID, role, since.Format(time.RFC3339)}
+		[]any{clusterID, role, utcStamp(since)}
 }
 
 func (d *aiReportDialect) DeleteBefore(before time.Time) (string, []any) {
-	return `DELETE FROM ai_reports WHERE created_at < ?`, []any{before.Format(time.RFC3339)}
+	return `DELETE FROM ai_reports WHERE created_at < ?`, []any{utcStamp(before)}
 }
 
 func (d *aiReportDialect) UpdateInvestigationSteps(id int64, steps string) (string, []any) {

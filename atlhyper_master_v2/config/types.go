@@ -45,8 +45,11 @@ type DatabaseConfig struct {
 	Path     string // SQLite 路径
 	DSN      string // MySQL/PG 连接串
 	MaxConns int    // 最大连接数
-	// CommandHistoryRetention 指令历史保留多久（每小时清理一次更早的）
+	// 只增不减的几类数据各保留多久（每小时清理一次更早的；0 = 不清理）
 	CommandHistoryRetention time.Duration
+	AuditRetention          time.Duration
+	AIOpsIncidentRetention  time.Duration // 只删已恢复的事件，子表随外键级联
+	AIReportRetention       time.Duration
 }
 
 // EventConfig Event 持久化配置

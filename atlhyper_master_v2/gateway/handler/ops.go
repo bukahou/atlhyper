@@ -132,10 +132,6 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 		WriteCommandError(w, err)
 		return
 	}
-	if result == nil {
-		writeError(w, http.StatusGatewayTimeout, "获取日志超时，Agent 可能未响应")
-		return
-	}
 
 	// 3. 检查执行结果
 	if !result.Success {
@@ -430,10 +426,6 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 		WriteCommandError(w, err)
 		return
 	}
-	if result == nil {
-		writeError(w, http.StatusGatewayTimeout, "获取数据超时，Agent 可能未响应")
-		return
-	}
 
 	// 3. 检查执行结果
 	if !result.Success {
@@ -478,10 +470,6 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 	}, 30*time.Second)
 	if err != nil {
 		WriteCommandError(w, err)
-		return
-	}
-	if result == nil {
-		writeError(w, http.StatusGatewayTimeout, "获取数据超时，Agent 可能未响应")
 		return
 	}
 

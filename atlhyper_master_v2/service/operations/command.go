@@ -111,9 +111,9 @@ func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.
 	}, nil
 }
 
-// PurgeHistory 删除早于 now-keep 的指令历史，返回删除的行数
-func (s *CommandService) PurgeHistory(ctx context.Context, now time.Time, keep time.Duration) (int64, error) {
-	return s.cmdRepo.DeleteBefore(ctx, now.Add(-keep))
+// PurgeHistoryBefore 删除早于 before 的指令历史，返回删除的行数
+func (s *CommandService) PurgeHistoryBefore(ctx context.Context, before time.Time) (int64, error) {
+	return s.cmdRepo.DeleteBefore(ctx, before)
 }
 
 // markHistoryFailed 指令没能入队时，把已写下的历史标成失败
@@ -174,6 +174,10 @@ func (s *CommandService) ExecuteCommandSync(ctx context.Context, req *model.Crea
 	result, err := s.bus.WaitCommandResult(ctx, resp.CommandID, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("wait command %s: %w", resp.CommandID, err)
+	}
+	if result == nil {
+		// 总线约定 err 为 nil 时一定有结果；守住这个约定，调用方不必再判空
+		return nil, fmt.Errorf("wait command %s: %w", resp.CommandID, mq.ErrWaitTimeout)
 	}
 	return result, nil
 }

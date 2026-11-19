@@ -333,7 +333,7 @@ func (h *GitHubHandler) RepoDirs(w http.ResponseWriter, r *http.Request) {
 }
 
 // extractRepoFromPath 从 URL 路径中提取仓库名
-// 例如：/api/github/repos/wuxiafeng/Config/mapping → "wuxiafeng/Config"
+// 例如：/api/github/repos/example-org/shop/mapping → "example-org/shop"
 func extractRepoFromPath(path, prefix, suffix string) string {
 	if !strings.HasPrefix(path, prefix) {
 		return ""

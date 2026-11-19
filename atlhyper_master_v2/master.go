@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
@@ -73,9 +72,8 @@ type Master struct {
 	aiopsEngine aiops.Engine
 	// Deployer（GitOps CD）
 	deployer deployer.Deployer
-	// 指令历史定期清理
-	commandOps       *operations.CommandService
-	commandRetention time.Duration
+	// 只增不减的数据定期按保留期清理
+	retentionJobs []retentionJob
 }
 
 // NewMaster 创建并初始化 Master 实例
@@ -86,6 +84,11 @@ func NewMaster() (*Master, error) {
 	agentEntry, err := resolveAgentEntrySettings(cfg.AgentSDK)
 	if err != nil {
 		return nil, fmt.Errorf("Agent 入口配置无效: %w", err)
+	}
+	// 运维时区写错同样启动即失败（不静默退回 UTC）
+	opsLocation, err := cfg.Server.Location()
+	if err != nil {
+		return nil, err
 	}
 	// 各集群最近一次上报是否带了有效令牌：Agent 入口写，集群管理页读
 	agentAuthStatus := agentsdk.NewAuthStatusTracker()
@@ -196,7 +199,7 @@ func NewMaster() (*Master, error) {
 			ToolTimeout:   cfg.AI.ToolTimeout,
 			BedrockRegion: cfg.AI.BedrockRegion,
 		},
-		cmdOps, bus,
+		cmdOps,
 		db.AIProvider, db.AIModel, db.AIRoleBudget,
 		db.AIConversation, db.AIMessage,
 	)
@@ -211,7 +214,7 @@ func NewMaster() (*Master, error) {
 	aiopsEnricher.SetAnalysisToolPolicy(func(p string) bool {
 		return middleware.Allowed(analysisAudience, middleware.Permission(p))
 	})
-	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
+	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget, opsLocation)
 	aiopsEngine.SubscribeTransitions(aiopsEnricher.OnIncidentTransition)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
 
@@ -366,21 +369,14 @@ func NewMaster() (*Master, error) {
 		}
 		cmdParams["since"] = since
 
-		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
+		result, err := cmdOps.ExecuteCommandSync(ctx, &model.CreateCommandRequest{
 			ClusterID: clusterID,
 			Action:    command.ActionQueryTraces,
 			Source:    command.SourceAI,
 			Params:    cmdParams,
-		})
+		}, toolTimeout)
 		if err != nil {
-			return fmt.Sprintf("创建查询命令失败: %v", err), nil
-		}
-		result, err := bus.WaitCommandResult(ctx, resp.CommandID, toolTimeout)
-		if err != nil {
-			return fmt.Sprintf("查询超时: %v", err), nil
-		}
-		if result == nil {
-			return "查询超时: 未收到 Agent 响应", nil
+			return fmt.Sprintf("查询失败: %v", err), nil
 		}
 		if !result.Success {
 			return fmt.Sprintf("查询失败: %s", result.Error), nil
@@ -410,21 +406,14 @@ func NewMaster() (*Master, error) {
 		}
 		cmdParams["since"] = since
 
-		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
+		result, err := cmdOps.ExecuteCommandSync(ctx, &model.CreateCommandRequest{
 			ClusterID: clusterID,
 			Action:    command.ActionQueryLogs,
 			Source:    command.SourceAI,
 			Params:    cmdParams,
-		})
+		}, toolTimeout)
 		if err != nil {
-			return fmt.Sprintf("创建查询命令失败: %v", err), nil
-		}
-		result, err := bus.WaitCommandResult(ctx, resp.CommandID, toolTimeout)
-		if err != nil {
-			return fmt.Sprintf("查询超时: %v", err), nil
-		}
-		if result == nil {
-			return "查询超时: 未收到 Agent 响应", nil
+			return fmt.Sprintf("查询失败: %v", err), nil
 		}
 		if !result.Success {
 			return fmt.Sprintf("查询失败: %s", result.Error), nil
@@ -534,7 +523,7 @@ func NewMaster() (*Master, error) {
 		Events:                 db.Event,
 		Agents:                 store,
 		PublicURL:              cfg.Server.PublicURL,
-		Timezone:               cfg.Server.Timezone,
+		Location:               opsLocation,
 		HeartbeatCheckInterval: cfg.DataHub.HeartbeatExpire / 2,
 		HeartbeatOfflineAfter:  cfg.DataHub.HeartbeatExpire,
 		K8sEventCheckInterval:  cfg.EventAlert.CheckInterval,
@@ -576,7 +565,6 @@ func NewMaster() (*Master, error) {
 	// 11.6 注册 GitHub + CD Tool（仅在 GitHub Client 可用时注册）
 	if ghClient != nil {
 		aiService.RegisterTool("get_deploy_history", ai.NewDeployHistoryHandler(db.DeployHistory))
-		aiService.RegisterTool("rollback_deployment", ai.NewRollbackHandler(db.DeployHistory))
 		// GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库（App 的安装范围可能含存有凭据的仓库）
 		repoScope := ai.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
 		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient, repoScope))
@@ -641,8 +629,12 @@ func NewMaster() (*Master, error) {
 		aiopsEngine:  aiopsEngine,
 		deployer:     deployerService,
 
-		commandOps:       cmdOps,
-		commandRetention: cfg.Database.CommandHistoryRetention,
+		retentionJobs: []retentionJob{
+			{name: "指令历史", keep: cfg.Database.CommandHistoryRetention, purge: cmdOps.PurgeHistoryBefore},
+			{name: "审计记录", keep: cfg.Database.AuditRetention, purge: db.Audit.DeleteBefore},
+			{name: "已恢复的 AIOps 事件", keep: cfg.Database.AIOpsIncidentRetention, purge: db.AIOpsIncident.DeleteResolvedBefore},
+			{name: "AI 分析报告", keep: cfg.Database.AIReportRetention, purge: db.AIReport.DeleteBefore},
+		},
 	}, nil
 }
 
@@ -682,8 +674,8 @@ func (m *Master) Run(ctx context.Context) error {
 		}
 	}
 
-	// 指令历史定期清理（随 ctx 结束）
-	go m.runCommandHistoryRetention(ctx)
+	// 只增不减的数据按保留期定期清理（随 ctx 结束）
+	go runRetention(ctx, m.retentionJobs)
 
 	// 启动 AgentSDK
 	if err := m.agentSDK.Start(); err != nil {

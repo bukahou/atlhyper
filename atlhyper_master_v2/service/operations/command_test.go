@@ -429,7 +429,7 @@ func TestPurgeHistory(t *testing.T) {
 	repo := &historyRecorder{}
 	svc := NewCommandService(&mockProducer{}, repo, presenceStub{})
 	now := time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC)
-	n, err := svc.PurgeHistory(context.Background(), now, 90*24*time.Hour)
+	n, err := svc.PurgeHistoryBefore(context.Background(), now.Add(-90*24*time.Hour))
 	if err != nil || n != 3 {
 		t.Fatalf("PurgeHistory = (%d, %v)", n, err)
 	}

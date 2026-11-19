@@ -38,7 +38,7 @@ func (d *sloDialect) UpsertTarget(t *database.SLOTarget) (string, []any) {
 	args := []any{
 		t.ClusterID, t.Host, t.IngressName, t.IngressClass, t.Namespace,
 		boolToInt(t.TLS), t.WindowDays, t.AvailabilityTarget, t.P95LatencyTarget,
-		t.CreatedAt.Format(time.RFC3339), t.UpdatedAt.Format(time.RFC3339),
+		utcStamp(t.CreatedAt), utcStamp(t.UpdatedAt),
 	}
 	return query, args
 }
@@ -80,7 +80,7 @@ func (d *sloDialect) UpsertRouteMapping(m *database.SLORouteMapping) (string, []
 	args := []any{
 		m.ClusterID, m.Domain, m.PathPrefix, m.IngressName, m.Namespace,
 		boolToInt(m.TLS), m.ServiceKey, m.ServiceName, m.ServicePort,
-		m.CreatedAt.Format(time.RFC3339), m.UpdatedAt.Format(time.RFC3339),
+		utcStamp(m.CreatedAt), utcStamp(m.UpdatedAt),
 	}
 	return query, args
 }

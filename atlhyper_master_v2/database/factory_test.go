@@ -67,6 +67,45 @@ func TestOpenSQLite_BusyTimeout(t *testing.T) {
 	}
 }
 
+// TestOpenSQLite_ForeignKeysEnabled 表结构里声明的 ON DELETE CASCADE 要真的生效：SQLite 默认不检查外键，
+// 每个连接都得打开（DSN 里的 _pragma 对连接池里的每个连接生效）
+func TestOpenSQLite_ForeignKeysEnabled(t *testing.T) {
+	db, err := openSQLite(filepath.Join(t.TempDir(), "fk.db"))
+	if err != nil {
+		t.Fatalf("openSQLite: %v", err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(3)
+	for i := 0; i < 3; i++ {
+		var on int
+		if err := db.QueryRow("PRAGMA foreign_keys").Scan(&on); err != nil {
+			t.Fatal(err)
+		}
+		if on != 1 {
+			t.Fatalf("foreign_keys = %d, want 1", on)
+		}
+	}
+
+	mustExec := func(q string) {
+		t.Helper()
+		if _, err := db.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	mustExec("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
+	mustExec("CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE)")
+	mustExec("INSERT INTO parent (id) VALUES (1)")
+	mustExec("INSERT INTO child (id, parent_id) VALUES (10, 1)")
+	mustExec("DELETE FROM parent WHERE id = 1")
+	var n int
+	if err := db.QueryRow("SELECT COUNT(*) FROM child").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("删除父行后子行应级联删除，剩 %d 行", n)
+	}
+}
+
 // TestOpenSQLite_CRUD 基本读写与事务，覆盖 Master 实际用到的类型
 func TestOpenSQLite_CRUD(t *testing.T) {
 	db, err := openSQLite(filepath.Join(t.TempDir(), "crud.db"))

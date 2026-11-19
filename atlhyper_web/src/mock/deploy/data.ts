@@ -18,7 +18,7 @@ export interface MockPathStatus {
   lastSyncAt: string;
 }
 
-export type DeployTrigger = "auto" | "manual" | "rollback";
+export type DeployTrigger = "auto" | "manual";
 
 export interface MockChangedFile {
   filename: string;
@@ -156,7 +156,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     path: "Geass/backend",
     namespace: "geass",
     commitSha: "old7890",
-    commitMessage: "fix: JWT token refresh bug — rollback to previous version",
+    commitMessage: "fix: JWT token refresh bug",
     commitAuthor: "bukahou",
     commitAvatarUrl: "",
     prNumber: 0,
@@ -167,7 +167,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     sourceRepo: "bukahou/Geass",
     sourceCommitSha: "old7890",
     deployedAt: "2026-03-09T14:40:00Z",
-    trigger: "rollback",
+    trigger: "manual",
     status: "success",
     durationMs: 1890,
     resourceTotal: 12,

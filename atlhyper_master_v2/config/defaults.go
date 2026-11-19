@@ -30,6 +30,9 @@ var defaultDurations = map[string]string{
 
 	// -------------------- 指令历史 --------------------
 	"MASTER_COMMAND_HISTORY_RETENTION": "2160h", // 指令历史保留 90 天
+	"MASTER_AUDIT_RETENTION":           "4320h", // 审计记录保留 180 天
+	"MASTER_AIOPS_INCIDENT_RETENTION":  "4320h", // 已恢复的 AIOps 事件保留 180 天
+	"MASTER_AI_REPORT_RETENTION":       "4320h", // AI 分析报告保留 180 天
 
 	// -------------------- SLO 配置 --------------------
 	"MASTER_SLO_AGGREGATE_INTERVAL": "1h",    // 聚合间隔

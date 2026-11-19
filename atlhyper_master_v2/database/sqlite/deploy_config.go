@@ -10,7 +10,7 @@ import (
 type deployConfigDialect struct{}
 
 func (d *deployConfigDialect) Upsert(config *database.DeployConfig) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	autoDeploy := 0
 	if config.AutoDeploy {
 		autoDeploy = 1

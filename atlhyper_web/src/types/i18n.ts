@@ -1963,6 +1963,7 @@ interface NodeMetricsTranslations extends TimeRangePickerTranslations {
       good: string;
       warn: string;
       crit: string;
+      unknown: string;
     };
   };
   // Chart
@@ -2542,12 +2543,7 @@ export interface DeployPageTranslations {
   statusCol2: string;
   triggerAuto: string;
   triggerManual: string;
-  triggerRollback: string;
   viewDetail: string;
-  rollbackBtn: string;
-  rollbackConfirm: string;
-  rollbackSuccess: string;
-  rollbackFailed: string;
   noHistory: string;
   noHistoryHint: string;
   // 部署详情弹窗

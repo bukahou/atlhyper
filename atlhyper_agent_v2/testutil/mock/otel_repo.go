@@ -200,8 +200,6 @@ type SLOQueryRepository struct {
 	ListIngressSLOFn         func(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	ListIngressSLOPreviousFn func(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	GetIngressSLOHistoryFn   func(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
-	GetSLOTimeSeriesFn       func(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error)
-	GetSLOSummaryFn          func(ctx context.Context) (*slo.SLOSummary, error)
 }
 
 func (m *SLOQueryRepository) ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error) {
@@ -223,18 +221,4 @@ func (m *SLOQueryRepository) GetIngressSLOHistory(ctx context.Context, since, bu
 		return m.GetIngressSLOHistoryFn(ctx, since, bucket)
 	}
 	return []slo.SLOHistoryPoint{}, nil
-}
-
-func (m *SLOQueryRepository) GetSLOTimeSeries(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error) {
-	if m.GetSLOTimeSeriesFn != nil {
-		return m.GetSLOTimeSeriesFn(ctx, name, since)
-	}
-	return nil, nil
-}
-
-func (m *SLOQueryRepository) GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error) {
-	if m.GetSLOSummaryFn != nil {
-		return m.GetSLOSummaryFn(ctx)
-	}
-	return nil, nil
 }

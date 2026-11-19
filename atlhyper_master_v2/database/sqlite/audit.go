@@ -16,7 +16,7 @@ func (d *auditDialect) Insert(log *database.AuditLog) (string, []any) {
 		request_body, status_code, success, error_message, ip, user_agent, duration_ms)
 	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	args := []any{
-		log.Timestamp.Format(time.RFC3339), log.UserID, log.Username, log.Role, log.Source,
+		utcStamp(log.Timestamp), log.UserID, log.Username, log.Role, log.Source,
 		log.Action, log.Resource, log.Method, log.Path, log.RequestBody, log.StatusCode,
 		log.Success, log.ErrorMessage, log.IP, log.UserAgent, log.DurationMs,
 	}
@@ -41,11 +41,11 @@ func (d *auditDialect) List(opts database.AuditQueryOpts) (string, []any) {
 	}
 	if !opts.Since.IsZero() {
 		query += " AND timestamp >= ?"
-		args = append(args, opts.Since.Format(time.RFC3339))
+		args = append(args, utcStamp(opts.Since))
 	}
 	if !opts.Until.IsZero() {
 		query += " AND timestamp <= ?"
-		args = append(args, opts.Until.Format(time.RFC3339))
+		args = append(args, utcStamp(opts.Until))
 	}
 
 	query += " ORDER BY timestamp DESC"
@@ -94,3 +94,7 @@ func (d *auditDialect) ScanRow(rows *sql.Rows) (*database.AuditLog, error) {
 }
 
 var _ database.AuditDialect = (*auditDialect)(nil)
+
+func (d *auditDialect) DeleteBefore(before time.Time) (string, []any) {
+	return "DELETE FROM audit_logs WHERE timestamp < ?", []any{utcStamp(before)}
+}

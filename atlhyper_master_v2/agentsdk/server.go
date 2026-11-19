@@ -13,6 +13,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/processor"
+	"AtlHyper/common/httpserve"
 	"AtlHyper/common/logger"
 )
 
@@ -97,20 +98,17 @@ func (s *Server) routes() http.Handler {
 // Start 启动 Server
 func (s *Server) Start() error {
 	s.httpServer = &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.port),
-		Handler:      s.routes(),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: s.timeout + 10*time.Second, // 长轮询需要更长的写超时
+		Addr:              fmt.Sprintf(":%d", s.port),
+		Handler:           s.routes(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      s.timeout + 10*time.Second, // 长轮询需要更长的写超时
 	}
 
+	if err := httpserve.Start(s.httpServer, func(err error) { log.Error("服务器错误", "err", err) }); err != nil {
+		return fmt.Errorf("启动 Agent 入口: %w", err)
+	}
 	log.Info("启动服务器", "port", s.port, "authMode", s.authMode)
-
-	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("服务器错误", "err", err)
-		}
-	}()
-
 	return nil
 }
 

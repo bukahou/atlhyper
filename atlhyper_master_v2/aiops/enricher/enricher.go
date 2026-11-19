@@ -141,8 +141,10 @@ func (e *Enricher) SetAnalysisToolPolicy(allow ai.PermissionCheck) {
 }
 
 // EnableBackgroundTrigger 启用后台自动触发器
-func (e *Enricher) EnableBackgroundTrigger(budgetRepo database.AIRoleBudgetRepository) {
-	e.bgTrigger = newBackgroundTrigger(e, budgetRepo)
+//
+// location 是运维时区（MASTER_TIMEZONE），深度分析的定时窗口按它解读
+func (e *Enricher) EnableBackgroundTrigger(budgetRepo database.AIRoleBudgetRepository, location *time.Location) {
+	e.bgTrigger = newBackgroundTrigger(e, budgetRepo, location)
 	log.Info("后台自动分析触发器已启用")
 }
 

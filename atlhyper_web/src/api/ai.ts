@@ -59,6 +59,9 @@ export interface StreamChatParams {
  * @param onError - 错误回调
  * @param signal - AbortSignal，用于取消请求
  */
+/** 流在完成标记之前断开时显示的错误（与后端的错误分段一样显示在回答下方） */
+export const STREAM_INTERRUPTED_MESSAGE = "连接在回答完成前中断了，已显示的内容可能不完整";
+
 export function streamChat(
   params: StreamChatParams,
   onChunk: (segment: StreamSegment) => void,
@@ -130,9 +133,9 @@ export function streamChat(
         }
       }
 
-      // 流结束但未收到 done/error 事件（连接意外关闭）
+      // 流结束但没收到 done / error（连接被中间的代理或网络切断）：是中断，不是正常结束
       if (!streamEnded) {
-        onDone();
+        onError(STREAM_INTERRUPTED_MESSAGE);
       }
     })
     .catch((err) => {

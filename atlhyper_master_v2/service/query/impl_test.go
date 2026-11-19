@@ -358,3 +358,7 @@ func TestNewQueryService_OptionalNil(t *testing.T) {
 		t.Error("aiopsAI should be nil when not provided")
 	}
 }
+
+func (m *mockAuditRepo) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	return 0, nil
+}

@@ -29,7 +29,7 @@ func (r *aiRoleBudgetRepo) Get(ctx context.Context, role string) (*database.AIRo
 	if rows.Next() {
 		return r.dialect.ScanRow(rows)
 	}
-	return nil, nil
+	return nil, rows.Err() // 没有行是 nil, nil；读取出错要报出来
 }
 
 func (r *aiRoleBudgetRepo) ListAll(ctx context.Context) ([]*database.AIRoleBudget, error) {

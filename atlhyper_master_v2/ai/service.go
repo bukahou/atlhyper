@@ -32,6 +32,17 @@ type aiServiceImpl struct {
 	msgRepo      database.AIMessageRepository
 
 	bedrockRegion string // 来自 Master 配置，不来自数据库
+
+	// newClient 按配置创建模型客户端（默认 llm.NewLLMClient；测试替换）
+	newClient func(llm.Config) (llm.LLMClient, error)
+}
+
+// createClient 按配置创建模型客户端
+func (s *aiServiceImpl) createClient(cfg llm.Config) (llm.LLMClient, error) {
+	if s.newClient != nil {
+		return s.newClient(cfg)
+	}
+	return llm.NewLLMClient(cfg)
 }
 
 // CreateConversation 创建对话
@@ -119,7 +130,7 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 		return nil, fmt.Errorf("AI 配置错误: %w", err)
 	}
 
-	llmClient, err := llm.NewLLMClient(roleCfg.Config)
+	llmClient, err := s.createClient(roleCfg.Config)
 	if err != nil {
 		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
 		return nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
@@ -135,24 +146,23 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 		return nil, fmt.Errorf("LLM 调用失败: %w", err)
 	}
 
-	// 收集完整响应（流出错 → 报错，不把半截文本当结果）
-	text, _, usage, _, err := collectStreamResponse(stream)
+	// 收集完整响应（流出错或没按约定收尾 → 报错，不把半截文本当结果）
+	res, err := llm.ReadStream(ctx, stream, nil)
+	var inputTokens, outputTokens int
+	if res.Usage != nil {
+		inputTokens = res.Usage.InputTokens
+		outputTokens = res.Usage.OutputTokens
+	}
+	// 调过模型就记账（失败也记）；用不随请求取消的 ctx
+	s.RecordUsage(context.WithoutCancel(ctx), role, roleCfg.ProviderID, inputTokens, outputTokens)
 	if err != nil {
 		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("LLM 流错误: %v", err))
 		return nil, fmt.Errorf("LLM 流错误: %w", err)
 	}
-
-	var inputTokens, outputTokens int
-	if usage != nil {
-		inputTokens = usage.InputTokens
-		outputTokens = usage.OutputTokens
-	}
+	text := res.Text
 
 	// 成功调用，清除之前的错误状态
 	s.clearProviderError(ctx, roleCfg.ProviderID)
-
-	// 扣减预算
-	s.RecordUsage(ctx, role, roleCfg.ProviderID, inputTokens, outputTokens)
 
 	return &CompleteResult{
 		Response:     text,

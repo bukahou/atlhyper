@@ -794,3 +794,7 @@ func TestBuildEntities_Truncation(t *testing.T) {
 		t.Fatal("expected total count 60 in header")
 	}
 }
+
+func (m *mockIncidentRepo) DeleteResolvedBefore(context.Context, time.Time) (int64, error) {
+	return 0, nil
+}

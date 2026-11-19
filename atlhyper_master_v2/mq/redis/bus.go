@@ -10,6 +10,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"AtlHyper/atlhyper_master_v2/mq/contract"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
 )
@@ -228,7 +229,7 @@ func (b *RedisBus) WaitCommandResult(ctx context.Context, cmdID string, timeout 
 
 	result, err := b.client.BRPop(brpopCtx, timeout, keyResult+cmdID).Result()
 	if err == redis.Nil {
-		return nil, nil // 超时
+		return nil, contract.ErrWaitTimeout
 	}
 	if err != nil {
 		if ctx.Err() != nil {

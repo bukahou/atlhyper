@@ -4,11 +4,16 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	"AtlHyper/atlhyper_agent_v2/gateway"
 	"AtlHyper/atlhyper_agent_v2/service"
 	"AtlHyper/common/logger"
+	"AtlHyper/model_v3/command"
 )
 
 var log = logger.Module("Scheduler")
@@ -72,7 +77,18 @@ type Scheduler struct {
 	lastPodCount        int
 	lastNodeCount       int
 	lastDeploymentCount int
+
+	// 存活判断：启动时刻与最近一轮快照循环完成的时刻（UnixNano）
+	startedAt    atomic.Int64
+	lastLoopDone atomic.Int64
+	lastPushOK   atomic.Int64
+
+	// reportBackoff 指令结果回报的重试节奏（零值用 defaultReportBackoff）
+	reportBackoff wait.Backoff
 }
+
+// defaultReportBackoff 回报重试：最多 4 次，间隔 0.5s → 1s → 2s
+var defaultReportBackoff = wait.Backoff{Duration: 500 * time.Millisecond, Factor: 2, Jitter: 0.1, Steps: 4}
 
 // New 创建调度器
 //
@@ -98,10 +114,12 @@ func New(
 // Start 启动调度器
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
+	s.startedAt.Store(time.Now().UnixNano())
 
-	// 启动后台任务: 快照 + ops轮询 + ai轮询 + 心跳
-	s.wg.Add(4)
-	go s.runSnapshotLoop()     // 快照采集（含 OTel 概览数据）
+	// 启动后台任务: 快照 + OTel 刷新 + ops轮询 + ai轮询 + 心跳
+	s.wg.Add(5)
+	go s.runSnapshotLoop()     // K8s 快照采集与推送（附上最近一次的 OTel 概览）
+	go s.runOTelLoop()         // OTel 概览刷新（ClickHouse 查询，慢也不拖住快照）
 	go s.runCommandLoop("ops") // 系统操作指令轮询
 	go s.runCommandLoop("ai")  // AI 查询指令轮询
 	go s.runHeartbeatLoop()    // 心跳
@@ -149,12 +167,55 @@ func (s *Scheduler) runSnapshotLoop() {
 	}
 }
 
+// runOTelLoop OTel 概览刷新循环：与快照循环同节奏，ctx 随调度器取消
+func (s *Scheduler) runOTelLoop() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(s.config.SnapshotInterval)
+	defer ticker.Stop()
+
+	s.snapshotSvc.RefreshOTel(s.ctx)
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.snapshotSvc.RefreshOTel(s.ctx)
+		}
+	}
+}
+
+// maxLoopSilence 快照循环多久没完成一轮就判为不存活：三个间隔加上采集与推送的超时
+func (s *Scheduler) maxLoopSilence() time.Duration {
+	return 3*s.config.SnapshotInterval + s.config.SnapshotTimeout + s.config.SnapshotPushTimeout
+}
+
+// Alive 快照循环是否还在转（存活探针用）：最近一轮（不论成败）在上限内完成；
+// 还没完成过第一轮时从启动算起。与 Master 通不通无关 —— 重启 Agent 治不了 Master 的问题
+func (s *Scheduler) Alive(now time.Time) bool {
+	last := s.lastLoopDone.Load()
+	if last == 0 {
+		last = s.startedAt.Load()
+	}
+	return now.Sub(time.Unix(0, last)) <= s.maxLoopSilence()
+}
+
+// LastPushOK 最近一次快照推送成功的时刻（零值 = 还没成功过）
+func (s *Scheduler) LastPushOK() time.Time {
+	if v := s.lastPushOK.Load(); v != 0 {
+		return time.Unix(0, v)
+	}
+	return time.Time{}
+}
+
 // collectAndPushSnapshot 采集并推送快照
 //
 // Collect 和 Push 使用独立 ctx，互不干扰：
 //   - Collect ctx 超时只影响采集本身
 //   - Push ctx 拥有全新的超时预算，即使 Collect 耗时较长也能正常发送
 func (s *Scheduler) collectAndPushSnapshot() {
+	defer func() { s.lastLoopDone.Store(time.Now().UnixNano()) }()
+
 	// 采集快照（独立超时）
 	collectCtx, cancelCollect := context.WithTimeout(s.ctx, s.config.SnapshotTimeout)
 	snapshot, err := s.snapshotSvc.Collect(collectCtx)
@@ -171,6 +232,7 @@ func (s *Scheduler) collectAndPushSnapshot() {
 		log.Error(masterFailureMessage("推送快照失败", err), "err", err)
 		return
 	}
+	s.lastPushOK.Store(time.Now().UnixNano())
 
 	// 检测资源数量变化
 	podCount := len(snapshot.Pods)
@@ -292,10 +354,8 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, error) {
 				action += "/" + sub
 			}
 
-			// 上报结果（独立预算：执行超时后也要能报回去）
-			reportCtx, cancelReport := context.WithTimeout(s.ctx, durationOr(s.config.CommandReportTimeout, defaultCommandReportTimeout))
-			defer cancelReport()
-			if err := s.masterGw.ReportResult(reportCtx, result); err != nil {
+			// 上报结果（独立预算：执行超时后也要能报回去；失败按退避重试）
+			if err := s.reportResult(result); err != nil {
 				log.Error(masterFailureMessage("指令结果回报失败", err), "action", action, "elapsed", elapsed.Round(time.Millisecond), "err", err)
 			} else {
 				log.Info("指令完成", "action", action, "elapsed", elapsed.Round(time.Millisecond), "success", result.Success)
@@ -304,6 +364,23 @@ func (s *Scheduler) pollAndExecuteCommands(topic string) (bool, error) {
 	}
 	wg.Wait()
 	return true, nil
+}
+
+// reportResult 回报指令结果：每次尝试有自己的超时，网络类失败按退避重试；
+// 身份被拒不重试（重试也不会好）。Master 按指令 ID 落结果，重复回报是幂等的
+func (s *Scheduler) reportResult(result *command.Result) error {
+	backoff := s.reportBackoff
+	if backoff.Steps == 0 {
+		backoff = defaultReportBackoff
+	}
+	retriable := func(err error) bool {
+		return s.ctx.Err() == nil && !errors.Is(err, gateway.ErrMasterRejectedIdentity)
+	}
+	return retry.OnError(backoff, retriable, func() error {
+		reportCtx, cancel := context.WithTimeout(s.ctx, durationOr(s.config.CommandReportTimeout, defaultCommandReportTimeout))
+		defer cancel()
+		return s.masterGw.ReportResult(reportCtx, result)
+	})
 }
 
 // =============================================================================

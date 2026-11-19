@@ -6,7 +6,6 @@ package aiops
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -236,24 +235,8 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // nginx 禁用缓冲
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		handler.WriteError(w, http.StatusInternalServerError, "streaming not supported")
-		return
-	}
-
-	// 流式输出
-	chunkCount := 0
-	for chunk := range ch {
-		chunkCount++
-		data, _ := json.Marshal(chunk)
-		// 只记录错误类型的消息
-		if chunk.Type == "error" {
-			aiLog.Warn("SSE 发送错误", "chunk", chunkCount, "type", chunk.Type)
-		}
-		fmt.Fprintf(w, "event: message\ndata: %s\n\n", data)
-		flusher.Flush()
-	}
+	// 流式输出（逐块续期写超时、空闲时发心跳，见 streamSSE）
+	chunkCount := streamSSE(w, ch, sseHeartbeatInterval)
 
 	aiLog.Debug("SSE 流结束", "conv", req.ConversationID, "user", userID, "chunks", chunkCount)
 }

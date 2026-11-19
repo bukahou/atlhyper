@@ -88,7 +88,7 @@ func countFreeTools() int {
 
 // 权限不足时在执行之前拒绝：自定义工具不被调用，集群查询不下发指令（ops 为 nil，走到即 panic）
 func TestExecutor_DeniesBeforeExecuting(t *testing.T) {
-	e := newToolExecutor(nil, nil, time.Second)
+	e := newToolExecutor(nil, time.Second)
 	called := false
 	e.RegisterTool("query_logs", func(context.Context, string, map[string]interface{}) (string, error) {
 		called = true

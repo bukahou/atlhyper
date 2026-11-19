@@ -14,7 +14,7 @@ type userDialect struct{}
 const userColumns = `id, username, password_hash, display_name, email, role, status, created_at, updated_at, last_login_at, last_login_ip`
 
 func (d *userDialect) Insert(user *database.User) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	query := `INSERT INTO users (username, password_hash, display_name, email, role, status, created_at, updated_at)
 	VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 	args := []any{user.Username, user.PasswordHash, user.DisplayName, user.Email, user.Role, user.Status, now, now}
@@ -23,7 +23,7 @@ func (d *userDialect) Insert(user *database.User) (string, []any) {
 
 func (d *userDialect) Update(user *database.User) (string, []any) {
 	query := `UPDATE users SET display_name = ?, email = ?, role = ?, status = ?, updated_at = ? WHERE id = ?`
-	args := []any{user.DisplayName, user.Email, user.Role, user.Status, time.Now().Format(time.RFC3339), user.ID}
+	args := []any{user.DisplayName, user.Email, user.Role, user.Status, utcStamp(time.Now()), user.ID}
 	return query, args
 }
 
@@ -51,7 +51,7 @@ func (d *userDialect) SelectAll() (string, []any) {
 
 func (d *userDialect) UpdateLastLogin(id int64, ip string) (string, []any) {
 	return "UPDATE users SET last_login_at = ?, last_login_ip = ? WHERE id = ?",
-		[]any{time.Now().Format(time.RFC3339), ip, id}
+		[]any{utcStamp(time.Now()), ip, id}
 }
 
 func (d *userDialect) ScanRow(rows *sql.Rows) (*database.User, error) {

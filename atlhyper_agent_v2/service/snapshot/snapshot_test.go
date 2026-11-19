@@ -699,3 +699,60 @@ func commonMeta(name, namespace string) model_v3.CommonMeta {
 		Namespace: namespace,
 	}
 }
+
+// 沿用旧数据时在快照里标出来（哪一类、上次成功是什么时候）；连续失败超过上限就不再沿用，留空并标成不可用
+func TestCollect_StaleKindsAreMarkedAndExpire(t *testing.T) {
+	calls := 0
+	svc := newTestService(func(s *snapshotService) {
+		s.podRepo = &mock.PodRepository{ListFn: onePod}
+		s.deploymentRepo = &mock.DeploymentRepository{ListFn: func(context.Context, string, model.ListOptions) ([]cluster.Deployment, error) {
+			calls++
+			if calls == 1 {
+				return []cluster.Deployment{{Summary: cluster.DeploymentSummary{Name: "old"}}}, nil
+			}
+			return nil, errors.New("forbidden")
+		}}
+	})
+
+	first, err := svc.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.StaleKinds) != 0 {
+		t.Fatalf("全部成功时不应有旧数据标记，实际 %+v", first.StaleKinds)
+	}
+
+	for round := 1; round <= maxReuseRounds; round++ {
+		snap, err := svc.Collect(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(snap.Deployments) != 1 {
+			t.Fatalf("第 %d 次失败：应沿用上一轮", round)
+		}
+		stale := findStale(snap.StaleKinds, "deployments")
+		if stale == nil || stale.Unavailable || !stale.LastSuccessAt.Equal(first.FetchedAt) {
+			t.Fatalf("第 %d 次失败：应标成沿用（上次成功 = 第一轮），实际 %+v", round, snap.StaleKinds)
+		}
+	}
+
+	expired, err := svc.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(expired.Deployments) != 0 {
+		t.Errorf("超过上限后不应再沿用，实际 %+v", expired.Deployments)
+	}
+	if stale := findStale(expired.StaleKinds, "deployments"); stale == nil || !stale.Unavailable {
+		t.Errorf("超过上限后应标成不可用，实际 %+v", expired.StaleKinds)
+	}
+}
+
+func findStale(kinds []cluster.StaleKind, kind string) *cluster.StaleKind {
+	for i := range kinds {
+		if kinds[i].Kind == kind {
+			return &kinds[i]
+		}
+	}
+	return nil
+}

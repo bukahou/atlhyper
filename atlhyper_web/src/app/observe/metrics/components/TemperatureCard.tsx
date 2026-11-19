@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { Thermometer, AlertTriangle, Zap, Fan } from "lucide-react";
 import type { NodeTemperature } from "@/types/node-metrics";
+import { hardwareStatusText } from "@/lib/hardware-status";
 import type { HardwareRow, HardwareSensorCell, HardwareStatus } from "@/types/hardware";
 import { useI18n } from "@/i18n/context";
 
@@ -12,8 +13,7 @@ interface TemperatureCardProps {
   hardware: HardwareRow | null;
 }
 
-const statusText = (s: HardwareStatus) =>
-  s === "crit" ? "text-red-500" : s === "warn" ? "text-yellow-500" : "text-green-500";
+const statusText = hardwareStatusText;
 
 /** 传感器分组顺序固定：CPU 在最上面，这是最该先看到的一行 */
 const GROUPS: HardwareSensorCell["class"][] = ["cpu", "disk", "other"];

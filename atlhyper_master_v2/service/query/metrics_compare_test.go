@@ -51,7 +51,7 @@ func TestGetNodeComparison_ReusesHardwareVerdicts(t *testing.T) {
 		t.Errorf("raspi4 undervolt = %+v", c)
 	}
 	// 没有盘温传感器的 desk：value 为 nil，状态不算故障
-	if c := byNode["node-1"].Cells["diskTemp"]; c.Value != nil || c.Status != model.HardwareGood {
+	if c := byNode["node-1"].Cells["diskTemp"]; c.Value != nil || c.Status != model.HardwareUnknown {
 		t.Errorf("node-1 diskTemp = %+v，期望 value=nil", c)
 	}
 	// overall 与硬件矩阵一致

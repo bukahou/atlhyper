@@ -44,8 +44,7 @@ var toolPermissions = map[string]string{
 	"query_logs":            permLogsRead,
 	"query_slo":             permSLORead,
 	"get_deploy_history":    permDeployHistory,
-	"rollback_deployment":   permDeployHistory, // 只读部署历史、生成回滚计划，不执行
-	"github_read_file":      permNone,          // 能读哪些仓库由 GitHub 工具自身限定
+	"github_read_file":      permNone, // 能读哪些仓库由 GitHub 工具自身限定
 	"github_search_code":    permNone,
 	"github_recent_commits": permNone,
 }

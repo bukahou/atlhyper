@@ -34,6 +34,7 @@ import (
 	k8spkg "AtlHyper/atlhyper_agent_v2/sdk/impl/k8s"
 	commandsvc "AtlHyper/atlhyper_agent_v2/service/command"
 	snapshotsvc "AtlHyper/atlhyper_agent_v2/service/snapshot"
+	"AtlHyper/common/httpserve"
 	"AtlHyper/common/logger"
 )
 
@@ -185,21 +186,15 @@ func (a *Agent) Run(ctx context.Context) error {
 		go chquery.RunEnumContractChecks(ctx, a.chClient, a.nodeRepo, 10*time.Minute)
 	}
 
-	// 启动健康检查 HTTP 服务器（供 K8s liveness/readiness 探针使用）
-	healthMux := http.NewServeMux()
-	healthMux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
-	healthSrv := &http.Server{Addr: ":8082", Handler: healthMux}
-	go func() {
-		if err := healthSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("健康检查服务器异常", "err", err)
-		}
-	}()
+	// 健康检查服务：先确认端口监听成功，失败即启动失败（不留一个探针永远连不上的进程）
+	healthAddr := config.GlobalConfig.Agent.HealthAddr
+	healthSrv := &http.Server{Addr: healthAddr, Handler: a.healthHandler(), ReadHeaderTimeout: 5 * time.Second}
+	if err := httpserve.Start(healthSrv, func(err error) { log.Error("健康检查服务器异常", "err", err) }); err != nil {
+		a.scheduler.Stop()
+		return fmt.Errorf("健康检查服务: %w", err)
+	}
 
-	log.Info("Agent 启动成功", "healthPort", 8082)
+	log.Info("Agent 启动成功", "healthAddr", healthAddr)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -207,21 +202,48 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	log.Info("正在关闭...")
 
-	// 关闭健康检查服务器
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := healthSrv.Shutdown(shutdownCtx); err != nil {
-		log.Error("关闭健康检查服务器失败", "err", err)
-	}
+	// 先停调度器（等各循环退出，进行中的查询不再用 ClickHouse 连接），再关连接，最后关健康检查
+	stopErr := a.scheduler.Stop()
 
-	// 关闭 ClickHouse 连接
 	if a.chClient != nil {
 		if err := a.chClient.Close(); err != nil {
 			log.Error("关闭 ClickHouse 连接失败", "err", err)
 		}
 	}
 
-	return a.scheduler.Stop()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := healthSrv.Shutdown(shutdownCtx); err != nil {
+		log.Error("关闭健康检查服务器失败", "err", err)
+	}
+	return stopErr
+}
+
+// healthHandler 健康检查：
+//   - /health（存活）：快照循环还在按时完成，卡住就返回 503 让 K8s 重启
+//   - /ready：最近一次快照推送成功的时刻（只供查看；Master 不可达时重启 Agent 无济于事，探针不看它）
+func (a *Agent) healthHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !a.scheduler.Alive(time.Now()) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"stalled","reason":"快照循环超过上限没有完成"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		last := a.scheduler.LastPushOK()
+		if last.IsZero() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"not-pushed-yet"}`))
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"status":"ok","lastPushAt":%q}`, last.UTC().Format(time.RFC3339))
+	})
+	return mux
 }
 
 // =============================================================================

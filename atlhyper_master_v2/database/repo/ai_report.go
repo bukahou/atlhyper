@@ -44,7 +44,7 @@ func (r *aiReportRepo) GetByID(ctx context.Context, id int64) (*database.AIRepor
 	if rows.Next() {
 		return r.dialect.ScanRow(rows)
 	}
-	return nil, nil
+	return nil, rows.Err() // 没有行是 nil, nil；读取出错要报出来
 }
 
 func (r *aiReportRepo) ListByIncident(ctx context.Context, incidentID string) ([]*database.AIReport, error) {

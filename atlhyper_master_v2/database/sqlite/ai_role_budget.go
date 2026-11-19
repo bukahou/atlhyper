@@ -24,10 +24,10 @@ func (d *aiRoleBudgetDialect) Upsert(b *database.AIRoleBudget) (string, []any) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	var dailyResetAt, monthlyResetAt sql.NullString
 	if b.DailyResetAt != nil {
-		dailyResetAt = sql.NullString{String: b.DailyResetAt.Format(time.RFC3339), Valid: true}
+		dailyResetAt = sql.NullString{String: utcStamp(*b.DailyResetAt), Valid: true}
 	}
 	if b.MonthlyResetAt != nil {
-		monthlyResetAt = sql.NullString{String: b.MonthlyResetAt.Format(time.RFC3339), Valid: true}
+		monthlyResetAt = sql.NullString{String: utcStamp(*b.MonthlyResetAt), Valid: true}
 	}
 	args := []any{
 		b.Role,
@@ -37,7 +37,7 @@ func (d *aiRoleBudgetDialect) Upsert(b *database.AIRoleBudget) (string, []any) {
 		b.MonthlyInputTokensUsed, b.MonthlyOutputTokensUsed, b.MonthlyCallsUsed, monthlyResetAt,
 		b.FallbackProviderID, b.AutoTriggerMinSeverity,
 		b.AutoTriggerMode, b.ScheduleStartTime, b.ScheduleEndTime,
-		b.UpdatedAt.Format(time.RFC3339),
+		utcStamp(b.UpdatedAt),
 	}
 	return query, args
 }
@@ -64,7 +64,7 @@ func (d *aiRoleBudgetDialect) Delete(role string) (string, []any) {
 }
 
 func (d *aiRoleBudgetDialect) IncrementUsage(role string, inputTokens, outputTokens int) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	return `UPDATE ai_role_budget SET
 		daily_input_tokens_used = daily_input_tokens_used + ?,
 		daily_output_tokens_used = daily_output_tokens_used + ?,
@@ -78,7 +78,7 @@ func (d *aiRoleBudgetDialect) IncrementUsage(role string, inputTokens, outputTok
 }
 
 func (d *aiRoleBudgetDialect) ResetDailyUsage(role string) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	return `UPDATE ai_role_budget SET
 		daily_input_tokens_used = 0, daily_output_tokens_used = 0, daily_calls_used = 0,
 		daily_reset_at = ?, updated_at = ?
@@ -87,7 +87,7 @@ func (d *aiRoleBudgetDialect) ResetDailyUsage(role string) (string, []any) {
 }
 
 func (d *aiRoleBudgetDialect) ResetMonthlyUsage(role string) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	return `UPDATE ai_role_budget SET
 		monthly_input_tokens_used = 0, monthly_output_tokens_used = 0, monthly_calls_used = 0,
 		monthly_reset_at = ?, updated_at = ?

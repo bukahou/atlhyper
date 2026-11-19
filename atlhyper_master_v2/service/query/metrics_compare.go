@@ -70,21 +70,21 @@ func compareCells(nm *metrics.NodeMetrics, hw model.HardwareRow) map[string]mode
 		}
 		cells["undervolt"] = model.CompareCell{Value: &alarm, Status: hw.Undervolt.Status}
 	} else {
-		cells["undervolt"] = model.CompareCell{Status: model.HardwareGood}
+		cells["undervolt"] = model.CompareCell{Status: model.HardwareUnknown}
 	}
 
 	if hw.CPUFreq != nil {
 		v := hw.CPUFreq.RatioPct
 		cells["freqRatio"] = model.CompareCell{Value: &v, Text: fmt.Sprintf("%.0f%%", v), Status: hw.CPUFreq.Status}
 	} else {
-		cells["freqRatio"] = model.CompareCell{Status: model.HardwareGood}
+		cells["freqRatio"] = model.CompareCell{Status: model.HardwareUnknown}
 	}
 
 	if hw.DiskAwait != nil {
 		v := hw.DiskAwait.ValueMs
 		cells["diskAwait"] = model.CompareCell{Value: &v, Text: fmt.Sprintf("%.1f ms", v), Status: hw.DiskAwait.Status}
 	} else {
-		cells["diskAwait"] = model.CompareCell{Status: model.HardwareGood}
+		cells["diskAwait"] = model.CompareCell{Status: model.HardwareUnknown}
 	}
 
 	// 资源列：取该节点最差的那一项（对比表是找异常，不是看明细）
@@ -100,7 +100,7 @@ func compareCells(nm *metrics.NodeMetrics, hw model.HardwareRow) map[string]mode
 
 func tempCompareCell(cell *model.HardwareTempCell, unit string) model.CompareCell {
 	if cell == nil {
-		return model.CompareCell{Status: model.HardwareGood}
+		return model.CompareCell{Status: model.HardwareUnknown}
 	}
 	v := cell.Value
 	return model.CompareCell{Value: &v, Text: fmt.Sprintf("%.1f%s", v, unit), Status: cell.Status}

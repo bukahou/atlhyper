@@ -20,7 +20,7 @@ func (d *Dialect) NotifySilence() database.NotifySilenceDialect   { return &noti
 func (d *Dialect) NotifySMTP() database.NotifySMTPDialect         { return &notifySMTPDialect{} }
 
 // utcStamp 时间 → 列值
-func utcStamp(at time.Time) string { return at.UTC().Format(time.RFC3339) }
+func utcStamp(at time.Time) string { return database.Stamp(at) }
 
 // nullableStamp 可空时间 → 列值；nil 写 NULL
 func nullableStamp(at *time.Time) any {

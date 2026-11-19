@@ -3,7 +3,6 @@
 import { useI18n } from "@/i18n/context";
 import {
   History,
-  RotateCcw,
   CheckCircle,
   XCircle,
   Clock,
@@ -73,7 +72,7 @@ function TriggerBadge({
   labels,
 }: {
   trigger: DeployTrigger;
-  labels: { auto: string; manual: string; rollback: string };
+  labels: { auto: string; manual: string };
 }) {
   const config = {
     auto: {
@@ -85,11 +84,6 @@ function TriggerBadge({
       label: labels.manual,
       className:
         "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-    },
-    rollback: {
-      label: labels.rollback,
-      className:
-        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     },
   };
   const c = config[trigger];
@@ -127,7 +121,7 @@ function DetailModal({
 }: {
   record: MockDeployRecord;
   dt: ReturnType<typeof useI18n>["t"]["deployPage"];
-  triggerLabels: { auto: string; manual: string; rollback: string };
+  triggerLabels: { auto: string; manual: string };
   onClose: () => void;
 }) {
   const statusText =
@@ -366,7 +360,6 @@ export function HistoryCard({ history }: HistoryCardProps) {
   const triggerLabels = {
     auto: dt.triggerAuto,
     manual: dt.triggerManual,
-    rollback: dt.triggerRollback,
   };
 
   return (
@@ -437,12 +430,6 @@ export function HistoryCard({ history }: HistoryCardProps) {
                           <Eye className="w-3 h-3" />
                           {dt.viewDetail}
                         </button>
-                        {record.trigger !== "rollback" && (
-                          <button className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-[var(--border-color)] text-muted hover:text-default hover:bg-[var(--bg-secondary)] transition-colors">
-                            <RotateCcw className="w-3 h-3" />
-                            {dt.rollbackBtn}
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
