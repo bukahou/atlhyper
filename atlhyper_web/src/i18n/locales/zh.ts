@@ -1643,6 +1643,16 @@ export const zh: Translations = {
       deploymentStatus: "检查 Deployment 状态",
     },
     // ChatInput
+    streamErrors: {
+      unauthorized: "登录已过期，请重新登录",
+      forbidden: "权限不足，请联系管理员提升权限",
+      rateLimited: "请求太频繁，请稍后再试",
+      httpError: "服务暂时不可用（HTTP {status}）",
+      serverError: "服务端出错，回答没有完成",
+      malformed: "收到的回答格式不对，已停止",
+      interrupted: "连接在回答完成前中断了，已显示的内容可能不完整",
+      network: "网络错误：{message}",
+    },
     chatInput: {
       placeholderStreaming: "AI 正在回复...",
       placeholderNormal: "给 AI 助手发送消息...",

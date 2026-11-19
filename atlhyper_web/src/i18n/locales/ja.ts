@@ -1643,6 +1643,16 @@ export const ja: Translations = {
       deploymentStatus: "Deployment の状態を確認",
     },
     // ChatInput
+    streamErrors: {
+      unauthorized: "ログインの有効期限が切れました。再度ログインしてください",
+      forbidden: "権限が不足しています。管理者に権限の引き上げを依頼してください",
+      rateLimited: "リクエストが多すぎます。しばらくしてから再試行してください",
+      httpError: "サービスを一時的に利用できません（HTTP {status}）",
+      serverError: "サーバーでエラーが発生し、回答が完了しませんでした",
+      malformed: "受信した回答の形式が正しくないため停止しました",
+      interrupted: "回答の完了前に接続が切れました。表示中の内容は不完全な可能性があります",
+      network: "ネットワークエラー：{message}",
+    },
     chatInput: {
       placeholderStreaming: "AI が応答中...",
       placeholderNormal: "AI アシスタントにメッセージを送信...",
