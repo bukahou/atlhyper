@@ -26,4 +26,6 @@ var (
 	ErrNotifySilenceNotFound = errors.New("静默不存在")
 	// ErrNotifyEncryptionUnavailable 没有配置加密密钥，接收人的凭据无法落库（宁可拒绝，也不存明文）
 	ErrNotifyEncryptionUnavailable = errors.New("未配置加密密钥，无法保存接收人配置")
+	// ErrEncryptionUnavailable 没有加密器，敏感字段（如模型服务的 API Key）无法落库
+	ErrEncryptionUnavailable = errors.New("未配置加密密钥，无法保存敏感字段")
 )

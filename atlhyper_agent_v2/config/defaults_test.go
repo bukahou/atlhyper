@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // D3（2026-09-11）：Dashboard 列表缓存 TTL 从硬编码 30s 提成可配，
 // dev 环境可放宽到分钟级以减少对共用 ClickHouse 的查询压力。默认值必须与旧行为一致。
@@ -48,5 +51,16 @@ func TestDescribeSecretPresence(t *testing.T) {
 	}
 	if got := describeSecretPresence(""); got != "未配置" {
 		t.Errorf("空值时 = %q, want 未配置", got)
+	}
+}
+
+// ClickHouse 地址里的密码不进日志
+func TestRedactedEndpoint(t *testing.T) {
+	got := RedactedEndpoint("clickhouse://reader:placeholder-not-real@ch.example.com:9000/otel")
+	if strings.Contains(got, "placeholder-not-real") || !strings.Contains(got, "reader") || !strings.Contains(got, "ch.example.com") {
+		t.Errorf("RedactedEndpoint = %q", got)
+	}
+	if got := RedactedEndpoint("ch.example.com:9000"); strings.Contains(got, "@") {
+		t.Errorf("不带凭据的地址: %q", got)
 	}
 }

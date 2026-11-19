@@ -758,6 +758,7 @@ export const ja: Translations = {
       "slo.manage": "SLO 目標の設定",
       "ai.analyze": "AI 分析と詳細分析",
       "ai.settings.read": "AI 設定の閲覧",
+      "ai.conversation.delete": "自分の AI チャットを削除",
       "user.manage": "ユーザー管理と権限昇格",
       "ai.settings.write": "AI 設定の変更",
       "github.manage": "GitHub 接続とリポジトリ",

@@ -89,7 +89,8 @@ type RegisterRequest struct {
 	Password    string `json:"password"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"email"`
-	Role        int    `json:"role"` // 0=Member, 1=Viewer, 2=Operator, 3=Admin
+	// Role 0=Member, 1=Viewer, 2=Operator, 3=Admin；不填（null）时为 Viewer。0 是有效值，⛔ 不当作没填
+	Role *int `json:"role"`
 }
 
 // UpdateRoleRequest 更新角色请求
@@ -135,7 +136,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	user, err := h.querySvc.GetUserByUsernameForPasswordLogin(r.Context(), req.Username)
 	if err != nil {
 		log.Error("查询用户失败", "err", err)
-		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败: "+err.Error())
+		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败") // 原因只进日志（此接口未登录也能调）
 		return
 	}
 	if user == nil {
@@ -219,10 +220,14 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 设置默认角色
-	role := req.Role
-	if role == 0 {
-		role = middleware.RoleViewer
+	// 不填角色时为 Viewer
+	role := middleware.RoleViewer
+	if req.Role != nil {
+		role = *req.Role
+	}
+	if role < middleware.RoleMember || role > middleware.RoleAdmin {
+		handler.WriteError(w, http.StatusBadRequest, "无效的角色值")
+		return
 	}
 
 	// 创建用户
@@ -236,7 +241,8 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.opsSvc.CreateUser(r.Context(), user); err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "创建用户失败: "+err.Error())
+		log.Error("创建用户失败", "err", err)
+		handler.WriteError(w, http.StatusInternalServerError, "创建用户失败")
 		return
 	}
 
@@ -329,6 +335,11 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 降级最后一个启用中的管理员会让系统里没有人能再管理用户
+	if req.Role < middleware.RoleAdmin && !h.keepsAnActiveAdmin(w, r.Context(), user) {
+		return
+	}
+
 	// 更新角色
 	user.Role = req.Role
 	if err := h.opsSvc.UpdateUser(r.Context(), user); err != nil {
@@ -384,9 +395,8 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 不能删除 admin 用户
-	if user.Username == "admin" {
-		handler.WriteError(w, http.StatusForbidden, "admin 用户不可删除")
+	// 不能删除最后一个启用中的管理员（此前按写死的用户名 "admin" 判断，而管理员用户名是配置项）
+	if !h.keepsAnActiveAdmin(w, r.Context(), user) {
 		return
 	}
 
@@ -449,9 +459,8 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 不能禁用 admin 用户
-	if user.Username == "admin" && req.Status == 0 {
-		handler.WriteError(w, http.StatusForbidden, "admin 用户不可禁用")
+	// 不能禁用最后一个启用中的管理员
+	if req.Status == 0 && !h.keepsAnActiveAdmin(w, r.Context(), user) {
 		return
 	}
 
@@ -471,3 +480,29 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		"message": "用户" + statusText,
 	})
 }
+
+// keepsAnActiveAdmin 删除 / 禁用 / 降级 target 之后系统里是否还有启用中的管理员；没有时已写出 409 并返回 false
+func (h *UserHandler) keepsAnActiveAdmin(w http.ResponseWriter, ctx context.Context, target *database.User) bool {
+	if target.Role != middleware.RoleAdmin || target.Status != userStatusActive {
+		return true
+	}
+	users, err := h.querySvc.ListUsers(ctx)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败")
+		return false
+	}
+	active := 0
+	for _, u := range users {
+		if u.Role == middleware.RoleAdmin && u.Status == userStatusActive {
+			active++
+		}
+	}
+	if active <= 1 {
+		handler.WriteError(w, http.StatusConflict, "这是最后一个启用中的管理员，不能删除、禁用或降级")
+		return false
+	}
+	return true
+}
+
+// userStatusActive 用户启用中（database.User.Status：1=Active, 0=Disabled）
+const userStatusActive = 1

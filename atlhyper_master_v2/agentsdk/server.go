@@ -73,7 +73,7 @@ func NewServer(cfg Config) *Server {
 		bus:              cfg.Bus,
 		processor:        cfg.Processor,
 		cmdRepo:          cfg.CmdRepo,
-		authMode:         cfg.AuthMode,
+		authMode:         authModeOrEnforce(cfg.AuthMode),
 		clusters:         cfg.Clusters,
 		warnings:         newWarnLimiter(unauthenticatedWarnWindow, time.Now),
 		authStatus:       cfg.AuthStatus,

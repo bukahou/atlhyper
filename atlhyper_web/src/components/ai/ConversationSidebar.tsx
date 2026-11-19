@@ -4,6 +4,7 @@ import { SquarePen, MessageSquare, Trash2, EllipsisVertical } from "lucide-react
 import { useState } from "react";
 import { Conversation } from "./types";
 import { useI18n } from "@/i18n/context";
+import { useCan } from "@/hooks/useCan";
 
 interface ConversationPanelProps {
   open: boolean;
@@ -63,6 +64,8 @@ export function ConversationPanel({
 }: ConversationPanelProps) {
   const { t } = useI18n();
   const sidebarT = t.aiChatPage.sidebar;
+  const can = useCan();
+  const canDelete = can("ai.conversation.delete");
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
   const groups = groupByTime(conversations, {
     today: sidebarT.today,
@@ -112,10 +115,14 @@ export function ConversationPanel({
                     onSelect(conv.id);
                     onClose();
                   }}
-                  onDelete={() => {
-                    onDelete(conv.id);
-                    setMenuOpenId(null);
-                  }}
+                  onDelete={
+                    canDelete
+                      ? () => {
+                          onDelete(conv.id);
+                          setMenuOpenId(null);
+                        }
+                      : undefined
+                  }
                   onMenuToggle={() =>
                     setMenuOpenId((prev) => (prev === conv.id ? null : conv.id))
                   }
@@ -144,7 +151,8 @@ function ConversationItem({
   active: boolean;
   menuOpen: boolean;
   onSelect: () => void;
-  onDelete: () => void;
+  /** 没有删除权限时不传：不显示菜单 */
+  onDelete?: () => void;
   onMenuToggle: () => void;
   deleteLabel: string;
 }) {
@@ -160,6 +168,7 @@ function ConversationItem({
       >
         <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
         <span className="flex-1 truncate">{conversation.title}</span>
+        {onDelete && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -171,10 +180,11 @@ function ConversationItem({
         >
           <EllipsisVertical className="w-3.5 h-3.5 text-muted" />
         </button>
+        )}
       </div>
 
       {/* 下拉菜单 */}
-      {menuOpen && (
+      {menuOpen && onDelete && (
         <div className="absolute right-2 top-9 z-40 w-28 py-1 rounded-lg border border-[var(--border-color)] bg-card shadow-lg">
           <button
             onClick={onDelete}

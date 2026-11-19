@@ -225,7 +225,10 @@ func (c *clientImpl) IsPrivateRepo(ctx context.Context, repo string) (bool, erro
 
 // ReadFile 读取仓库文件内容
 func (c *clientImpl) ReadFile(ctx context.Context, repo, filePath, ref string) (string, error) {
-	path := fmt.Sprintf("/repos/%s/contents/%s?ref=%s", repo, filePath, url.QueryEscape(ref))
+	path, err := contentsURLPath(repo, filePath, ref)
+	if err != nil {
+		return "", err
+	}
 	data, err := c.apiGet(ctx, path)
 	if err != nil {
 		return "", err
@@ -252,7 +255,10 @@ func (c *clientImpl) ReadFile(ctx context.Context, repo, filePath, ref string) (
 
 // ReadDirectory 读取目录内容
 func (c *clientImpl) ReadDirectory(ctx context.Context, repo, dirPath, ref string) ([]FileEntry, error) {
-	path := fmt.Sprintf("/repos/%s/contents/%s?ref=%s", repo, dirPath, url.QueryEscape(ref))
+	path, err := contentsURLPath(repo, dirPath, ref)
+	if err != nil {
+		return nil, err
+	}
 	data, err := c.apiGet(ctx, path)
 	if err != nil {
 		return nil, err
@@ -410,4 +416,24 @@ func (c *clientImpl) SearchCode(ctx context.Context, repo, query string) ([]Code
 		items[i] = CodeSearchResult{Path: item.Path}
 	}
 	return items, nil
+}
+
+// contentsURLPath 仓库内容接口的路径。仓库内路径先拆成段再逐段转义：
+// ⛔ 不允许 . / .. / 空段（否则可以经 .. 走出这个仓库，绕过仓库范围的检查）
+func contentsURLPath(repo, repoPath, ref string) (string, error) {
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok || owner == "" || name == "" || strings.Contains(name, "/") {
+		return "", fmt.Errorf("仓库名格式不对，应为 owner/repo: %q", repo)
+	}
+	var segments []string
+	if trimmed := strings.Trim(repoPath, "/"); trimmed != "" {
+		for _, seg := range strings.Split(trimmed, "/") {
+			if seg == "" || seg == "." || seg == ".." {
+				return "", fmt.Errorf("路径不合法: %q", repoPath)
+			}
+			segments = append(segments, url.PathEscape(seg))
+		}
+	}
+	return fmt.Sprintf("/repos/%s/%s/contents/%s?ref=%s",
+		url.PathEscape(owner), url.PathEscape(name), strings.Join(segments, "/"), url.QueryEscape(ref)), nil
 }

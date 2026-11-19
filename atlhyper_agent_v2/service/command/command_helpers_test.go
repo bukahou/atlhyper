@@ -496,3 +496,12 @@ func TestBuildAPIPath_DescribeNamespacedWithoutNamespace(t *testing.T) {
 		t.Errorf("expected 'namespace is required' in error, got %q", err.Error())
 	}
 }
+
+// 动态查询（只给 AI）读不到 Secret：资源类型名单里没有它，Secret 内容只走专用指令
+func TestBuildAPIPath_SecretNotAllowed(t *testing.T) {
+	for _, kind := range []string{"Secret", "secret", "secrets"} {
+		if _, err := buildAPIPath("get", kind, "ns", "s"); err == nil {
+			t.Errorf("kind %q 不应被允许", kind)
+		}
+	}
+}

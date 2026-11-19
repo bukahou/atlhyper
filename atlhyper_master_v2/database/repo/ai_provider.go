@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/common/logger"
@@ -23,14 +24,8 @@ func newAIProviderRepo(db *sql.DB, dialect database.AIProviderDialect) *aiProvid
 }
 
 func (r *aiProviderRepo) Create(ctx context.Context, p *database.AIProvider) error {
-	// 加密 API Key
-	if globalEncryptor != nil && p.APIKey != "" {
-		encrypted, err := globalEncryptor.Encrypt(p.APIKey)
-		if err != nil {
-			log.Error("API Key 加密失败", "err", err)
-			return err
-		}
-		p.APIKey = encrypted
+	if err := encryptAPIKey(p); err != nil {
+		return err
 	}
 
 	query, args := r.dialect.Insert(p)
@@ -47,14 +42,8 @@ func (r *aiProviderRepo) Create(ctx context.Context, p *database.AIProvider) err
 }
 
 func (r *aiProviderRepo) Update(ctx context.Context, p *database.AIProvider) error {
-	// 加密 API Key
-	if globalEncryptor != nil && p.APIKey != "" {
-		encrypted, err := globalEncryptor.Encrypt(p.APIKey)
-		if err != nil {
-			log.Error("API Key 加密失败", "err", err)
-			return err
-		}
-		p.APIKey = encrypted
+	if err := encryptAPIKey(p); err != nil {
+		return err
 	}
 
 	query, args := r.dialect.Update(p)
@@ -81,16 +70,7 @@ func (r *aiProviderRepo) GetByID(ctx context.Context, id int64) (*database.AIPro
 		if err != nil {
 			return nil, err
 		}
-		// 解密 API Key
-		if globalEncryptor != nil && p.APIKey != "" {
-			decrypted, err := globalEncryptor.Decrypt(p.APIKey)
-			if err != nil {
-				log.Error("API Key 解密失败", "err", err)
-				// 解密失败不阻断，可能是旧的未加密数据
-			} else {
-				p.APIKey = decrypted
-			}
-		}
+		decryptAPIKey(p)
 		return p, nil
 	}
 	return nil, nil
@@ -110,16 +90,7 @@ func (r *aiProviderRepo) List(ctx context.Context) ([]*database.AIProvider, erro
 		if err != nil {
 			return nil, err
 		}
-		// 解密 API Key
-		if globalEncryptor != nil && p.APIKey != "" {
-			decrypted, err := globalEncryptor.Decrypt(p.APIKey)
-			if err != nil {
-				log.Error("API Key 解密失败", "id", p.ID, "err", err)
-				// 解密失败不阻断，可能是旧的未加密数据
-			} else {
-				p.APIKey = decrypted
-			}
-		}
+		decryptAPIKey(p)
 		providers = append(providers, p)
 	}
 	return providers, nil
@@ -165,3 +136,39 @@ func (r *aiProviderRepo) UpdateStatus(ctx context.Context, id int64, status, err
 }
 
 var _ database.AIProviderRepository = (*aiProviderRepo)(nil)
+
+// encryptAPIKey API Key 落库前加密；没有加密器时拒绝（宁可拒绝，也不存明文）
+func encryptAPIKey(p *database.AIProvider) error {
+	if p.APIKey == "" {
+		return nil
+	}
+	if globalEncryptor == nil {
+		return database.ErrEncryptionUnavailable
+	}
+	encrypted, err := globalEncryptor.Encrypt(p.APIKey)
+	if err != nil {
+		return fmt.Errorf("加密 API Key 失败: %w", err)
+	}
+	p.APIKey = encrypted
+	return nil
+}
+
+// decryptAPIKey 读出后解密。解不开（加密密钥换过、数据损坏）时按没有填 API Key 处理：
+// 调用会因缺少 API Key 失败并在设置页留下错误，管理员重新填写即可；⛔ 不把密文当 API Key 发给模型厂商
+func decryptAPIKey(p *database.AIProvider) {
+	if p.APIKey == "" {
+		return
+	}
+	if globalEncryptor == nil {
+		log.Error("没有加密器，无法读取 API Key", "provider", p.ID)
+		p.APIKey = ""
+		return
+	}
+	decrypted, err := globalEncryptor.Decrypt(p.APIKey)
+	if err != nil {
+		log.Error("API Key 无法解密，按未填写处理（请在 AI 设置中重新填写）", "provider", p.ID)
+		p.APIKey = ""
+		return
+	}
+	p.APIKey = decrypted
+}

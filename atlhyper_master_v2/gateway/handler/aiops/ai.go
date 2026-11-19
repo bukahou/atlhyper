@@ -159,15 +159,8 @@ func (h *AIHandler) getMessages(w http.ResponseWriter, r *http.Request, convID i
 	handler.WriteJSON(w, http.StatusOK, msgs)
 }
 
-// deleteConversation 删除对话（需要 Operator 权限）
+// deleteConversation 删除对话（所需权限在路由表声明：ai.conversation.delete）
 func (h *AIHandler) deleteConversation(w http.ResponseWriter, r *http.Request, convID int64) {
-	// 检查权限：需要 Operator (Role >= 2)
-	role, ok := middleware.GetRole(r.Context())
-	if !ok || role < middleware.RoleOperator {
-		handler.WriteError(w, http.StatusForbidden, "需要 Operator 权限")
-		return
-	}
-
 	userID, ok := middleware.GetUserID(r.Context())
 	if !ok {
 		handler.WriteError(w, http.StatusUnauthorized, "未获取到用户信息")
