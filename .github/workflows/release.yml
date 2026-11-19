@@ -155,7 +155,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: . # 与 deploy/scripts/_common.sh 一致：context 是仓库根
+          context: . # 构建上下文是仓库根（Dockerfile 里 COPY 的路径都相对仓库根）
           file: deploy/docker/Dockerfile.${{ matrix.service }}
           platforms: linux/${{ matrix.arch }}
           provenance: false # 关掉 attestation，否则 manifest 里会混进非架构条目
