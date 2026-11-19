@@ -581,7 +581,6 @@ func NewMaster() (*Master, error) {
 	// 11.6 注册 GitHub + CD Tool（仅在 GitHub Client 可用时注册）
 	if ghClient != nil {
 		aiService.RegisterTool("get_deploy_history", ai.NewDeployHistoryHandler(db.DeployHistory))
-		aiService.RegisterTool("rollback_deployment", ai.NewRollbackHandler(db.DeployHistory))
 		// GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库（App 的安装范围可能含存有凭据的仓库）
 		repoScope := ai.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
 		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient, repoScope))

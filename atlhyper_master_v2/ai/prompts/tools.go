@@ -261,24 +261,6 @@ const toolsJSON = `[
     }
   },
   {
-    "name": "rollback_deployment",
-    "description": "将指定路径回滚到历史 commit 版本。回滚会重新应用目标版本的 kustomize 配置。此操作需谨慎使用。",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "path": {
-          "type": "string",
-          "description": "kustomize 部署路径"
-        },
-        "target_commit_sha": {
-          "type": "string",
-          "description": "目标 commit SHA（从 deploy_history 获取）"
-        }
-      },
-      "required": ["path", "target_commit_sha"]
-    }
-  },
-  {
     "name": "github_read_file",
     "description": "读取关联 GitHub 仓库中的文件内容，用于代码分析和问题排查。",
     "parameters": {
@@ -286,7 +268,7 @@ const toolsJSON = `[
       "properties": {
         "repo": {
           "type": "string",
-          "description": "仓库全名，格式 'owner/repo'，如 'wuxiafeng/Geass'"
+          "description": "仓库全名，格式 'owner/repo'，如 'example-org/shop'"
         },
         "path": {
           "type": "string",

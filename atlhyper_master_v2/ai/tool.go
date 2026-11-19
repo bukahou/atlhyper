@@ -343,50 +343,6 @@ func NewDeployHistoryHandler(deployRepo database.DeployHistoryRepository) ToolHa
 	}
 }
 
-// NewRollbackHandler 创建回滚部署 Tool Handler（stub：需用户确认，不自动执行）
-func NewRollbackHandler(deployRepo database.DeployHistoryRepository) ToolHandler {
-	return func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		path := getString(params, "path")
-		targetSHA := getString(params, "target_commit_sha")
-		if path == "" || targetSHA == "" {
-			return "缺少参数 path 或 target_commit_sha", nil
-		}
-
-		// 查询目标 commit 是否存在于部署历史中
-		records, err := deployRepo.List(ctx, database.DeployHistoryQueryOpts{
-			ClusterID: clusterID,
-			Path:      path,
-			Limit:     20,
-		})
-		if err != nil {
-			return fmt.Sprintf("查询部署历史失败: %v", err), nil
-		}
-
-		var targetRecord *database.DeployHistory
-		for _, r := range records {
-			if r.CommitSHA == targetSHA {
-				targetRecord = r
-				break
-			}
-		}
-		if targetRecord == nil {
-			return fmt.Sprintf("目标 commit %s 未在路径 '%s' 的部署历史中找到，请确认 SHA 是否正确", targetSHA, path), nil
-		}
-
-		out, _ := json.Marshal(map[string]interface{}{
-			"status":  "pending_confirmation",
-			"message": fmt.Sprintf("回滚计划已生成：将路径 '%s' 回滚到 commit %s（%s）。此操作需要人工确认后执行。", path, targetSHA[:8], targetRecord.CommitMessage),
-			"target": map[string]interface{}{
-				"path":      path,
-				"commitSHA": targetSHA,
-				"message":   targetRecord.CommitMessage,
-				"date":      targetRecord.DeployedAt,
-			},
-		})
-		return string(out), nil
-	}
-}
-
 // NewGitHubReadFileHandler 创建 GitHub 文件读取 Tool Handler
 // 读到的 Kubernetes Secret 清单会被脱敏（github_redact.go）
 func NewGitHubReadFileHandler(ghClient github.Client, scope *GitHubRepoScope) ToolHandler {

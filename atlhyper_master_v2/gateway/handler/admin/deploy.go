@@ -110,30 +110,6 @@ func (h *DeployHandler) SyncNow(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Rollback POST /api/deploy/rollback — 回滚到指定 commit
-func (h *DeployHandler) Rollback(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handler.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
-	var req struct {
-		Path            string `json:"path"`
-		TargetCommitSha string `json:"targetCommitSha"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Path == "" || req.TargetCommitSha == "" {
-		handler.WriteError(w, http.StatusBadRequest, "path and targetCommitSha required")
-		return
-	}
-
-	// 当前为占位实现，完整回滚需要读取目标 commit 的文件
-	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"message":         "rollback triggered",
-		"path":            req.Path,
-		"targetCommitSha": req.TargetCommitSha,
-	})
-}
-
 // Config GET/PUT /api/deploy/config — 部署配置
 func (h *DeployHandler) Config(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {

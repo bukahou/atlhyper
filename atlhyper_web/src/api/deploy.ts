@@ -123,10 +123,6 @@ interface SyncResponse {
   message: string;
 }
 
-interface RollbackResponse {
-  message: string;
-}
-
 /**
  * 获取同步状态
  * GET /api/deploy/status
@@ -141,12 +137,4 @@ export function getStatus(signal?: AbortSignal) {
  */
 export function syncNow(path: string) {
   return post<SyncResponse>("/api/deploy/sync", { path });
-}
-
-/**
- * 回滚部署
- * POST /api/deploy/rollback
- */
-export function rollback(path: string, targetCommitSha: string) {
-  return post<RollbackResponse>("/api/deploy/rollback", { path, targetCommitSha });
 }

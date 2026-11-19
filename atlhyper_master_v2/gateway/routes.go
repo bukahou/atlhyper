@@ -424,7 +424,6 @@ func (r *Router) registerRoutes() {
 		r.route(mGet, pDeployManage, "/api/deploy/status", deployH.Status)
 		r.routeAudited(mPost, pDeployManage, "/api/deploy/test-connection", "execute", "deploy", deployH.TestConnection)
 		r.routeAudited(mPost, pDeployManage, "/api/deploy/sync", "execute", "deploy", deployH.SyncNow)
-		r.routeAudited(mPost, pDeployManage, "/api/deploy/rollback", "execute", "deploy", deployH.Rollback)
 	}
 }
 
