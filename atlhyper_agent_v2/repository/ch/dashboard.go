@@ -58,11 +58,6 @@ func (r *dashboardRepository) ListAPMServices(ctx context.Context) ([]apm.APMSer
 func (r *dashboardRepository) GetAPMTopology(ctx context.Context) (*apm.Topology, error) {
 	return r.trace.GetTopology(ctx, 15*time.Minute, "", "")
 }
-
-func (r *dashboardRepository) GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error) {
-	return r.slo.GetSLOSummary(ctx)
-}
-
 func (r *dashboardRepository) ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error) {
 	return r.slo.ListIngressSLO(ctx, since)
 }

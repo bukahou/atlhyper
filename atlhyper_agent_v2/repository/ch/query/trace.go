@@ -502,7 +502,7 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration, 
 
 	edgeRows, err := r.client.Query(ctx, edgeQuery, edgeArgs...)
 	if err != nil {
-		return &apm.Topology{Nodes: nodes, Edges: []apm.TopologyEdge{}}, nil
+		return nil, fmt.Errorf("拓扑边查询: %w", err)
 	}
 	defer edgeRows.Close()
 
