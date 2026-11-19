@@ -44,7 +44,6 @@ import (
 //   - traceQueryRepo: Trace 按需查询 (ClickHouse, 可选)
 //   - logQueryRepo: Log 按需查询 (ClickHouse, 可选)
 //   - metricsQueryRepo: Metrics 按需查询 (ClickHouse, 可选)
-//   - sloQueryRepo: SLO 按需查询 (ClickHouse, 可选)
 type commandService struct {
 	clusterID   string // 本 Agent 所属的集群；只执行属于它的指令
 	k8sClient   sdk.K8sClient
@@ -55,7 +54,6 @@ type commandService struct {
 	traceQueryRepo   repository.TraceQueryRepository
 	logQueryRepo     repository.LogQueryRepository
 	metricsQueryRepo repository.MetricsQueryRepository
-	sloQueryRepo     repository.SLOQueryRepository
 }
 
 // NewCommandService 创建指令服务
@@ -69,7 +67,6 @@ func NewCommandService(
 	traceQueryRepo repository.TraceQueryRepository,
 	logQueryRepo repository.LogQueryRepository,
 	metricsQueryRepo repository.MetricsQueryRepository,
-	sloQueryRepo repository.SLOQueryRepository,
 ) service.CommandService {
 	return &commandService{
 		clusterID:        clusterID,
@@ -79,7 +76,6 @@ func NewCommandService(
 		traceQueryRepo:   traceQueryRepo,
 		logQueryRepo:     logQueryRepo,
 		metricsQueryRepo: metricsQueryRepo,
-		sloQueryRepo:     sloQueryRepo,
 	}
 }
 
@@ -107,6 +103,14 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 	if cmd.ClusterID != "" && cmd.ClusterID != s.clusterID {
 		result.Success = false
 		result.Error = fmt.Sprintf("指令属于集群 %q，本 Agent 属于集群 %q，集群不符，未执行", cmd.ClusterID, s.clusterID)
+		result.ExecTime = time.Since(start)
+		return result
+	}
+
+	// 执行方自己守门：「来源 × 动作」不在允许名单里的不执行（不假设 Master 已经拦过）
+	if err = command.CheckSource(cmd.Action, cmd.Source); err != nil {
+		result.Success = false
+		result.Error = fmt.Sprintf("%v，未执行", err)
 		result.ExecTime = time.Since(start)
 		return result
 	}
@@ -148,8 +152,6 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 		data, err = s.handleQueryLogs(ctx, cmd)
 	case command.ActionQueryMetrics:
 		data, err = s.handleQueryMetrics(ctx, cmd)
-	case command.ActionQuerySLO:
-		data, err = s.handleQuerySLO(ctx, cmd)
 	case command.ActionApplyManifests:
 		data, err = s.handleApplyManifests(ctx, cmd.Params)
 	default:
@@ -350,8 +352,8 @@ func (s *commandService) handleDynamic(ctx context.Context, cmd *command.Command
 		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(resp.Body))
 	}
 
-	// AI 来源的 list 操作: 转为表格摘要（大幅压缩体积）
-	if params.Command == "list" && cmd.Source == "ai" {
+	// list 转为表格摘要（大幅压缩体积）：动态查询只有 AI 来源能发（见 command.CheckSource）
+	if params.Command == "list" {
 		return summarizeList(stripManagedFields(resp.Body)), nil
 	}
 

@@ -127,7 +127,7 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
 		Params:          params,
-		Source:          "web",
+		Source:          command.SourceWeb,
 	}, 30*time.Second)
 	if err != nil {
 		if strings.Contains(err.Error(), "create command:") {
@@ -182,7 +182,7 @@ func (h *OpsHandler) PodRestart(w http.ResponseWriter, r *http.Request) {
 		TargetKind:      "Pod",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
-		Source:          "web",
+		Source:          command.SourceWeb,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
@@ -229,7 +229,7 @@ func (h *OpsHandler) DeploymentScale(w http.ResponseWriter, r *http.Request) {
 		Params: map[string]interface{}{
 			"replicas": req.Replicas,
 		},
-		Source: "web",
+		Source: command.SourceWeb,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
@@ -268,7 +268,7 @@ func (h *OpsHandler) DeploymentRestart(w http.ResponseWriter, r *http.Request) {
 		TargetKind:      "Deployment",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
-		Source:          "web",
+		Source:          command.SourceWeb,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
@@ -316,7 +316,7 @@ func (h *OpsHandler) DeploymentImage(w http.ResponseWriter, r *http.Request) {
 			"container": req.Container,
 			"image":     req.Image,
 		},
-		Source: "web",
+		Source: command.SourceWeb,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
@@ -354,7 +354,7 @@ func (h *OpsHandler) NodeCordon(w http.ResponseWriter, r *http.Request) {
 		Action:     command.ActionCordon,
 		TargetKind: "Node",
 		TargetName: req.Name,
-		Source:     "web",
+		Source:     command.SourceWeb,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
@@ -392,7 +392,7 @@ func (h *OpsHandler) NodeUncordon(w http.ResponseWriter, r *http.Request) {
 		Action:     command.ActionUncordon,
 		TargetKind: "Node",
 		TargetName: req.Name,
-		Source:     "web",
+		Source:     command.SourceWeb,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "创建指令失败: "+err.Error())
@@ -432,7 +432,7 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 		TargetKind:      "ConfigMap",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
-		Source:          "web",
+		Source:          command.SourceWeb,
 	}, 30*time.Second)
 	if err != nil {
 		if strings.Contains(err.Error(), "create command:") {
@@ -486,7 +486,7 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 		TargetKind:      "Secret",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
-		Source:          "web",
+		Source:          command.SourceWeb,
 	}, 30*time.Second)
 	if err != nil {
 		if strings.Contains(err.Error(), "create command:") {

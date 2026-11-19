@@ -365,7 +365,7 @@ func NewMaster() (*Master, error) {
 		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
 			ClusterID: clusterID,
 			Action:    command.ActionQueryTraces,
-			Source:    "ai",
+			Source:    command.SourceAI,
 			Params:    cmdParams,
 		})
 		if err != nil {
@@ -409,7 +409,7 @@ func NewMaster() (*Master, error) {
 		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
 			ClusterID: clusterID,
 			Action:    command.ActionQueryLogs,
-			Source:    "ai",
+			Source:    command.SourceAI,
 			Params:    cmdParams,
 		})
 		if err != nil {

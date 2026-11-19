@@ -230,7 +230,7 @@ func (h *NodeMetricsHandler) getHistoryFromCH(w http.ResponseWriter, r *http.Req
 		ClusterID: clusterID,
 		Action:    command.ActionQueryMetrics,
 		Params:    params,
-		Source:    "web",
+		Source:    command.SourceWeb,
 	}, 30*time.Second)
 	if err != nil {
 		if strings.Contains(err.Error(), "create command:") {

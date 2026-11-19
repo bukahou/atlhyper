@@ -40,6 +40,7 @@ func TestExecute_ClusterCheck(t *testing.T) {
 				ID:        "cmd-1",
 				ClusterID: c.commandCluster,
 				Action:    command.ActionScale,
+				Source:    command.SourceWeb,
 				Namespace: "default",
 				Name:      "nginx",
 				Params:    map[string]any{"replicas": float64(3)},
@@ -76,5 +77,56 @@ func TestExecute_ClusterCheck_PrecedesTargetValidation(t *testing.T) {
 
 	if result.Success || !strings.Contains(result.Error, "集群") {
 		t.Errorf("应以集群不符为由拒绝，实际 success=%v error=%q", result.Success, result.Error)
+	}
+}
+
+// 执行方自己按来源允许名单核对：名单外的「来源 × 动作」不执行，回报失败。
+func TestExecute_SourceCheck(t *testing.T) {
+	cases := []struct {
+		name         string
+		action       string
+		source       string
+		wantExecuted bool
+	}{
+		{"Web 扩缩容", command.ActionScale, command.SourceWeb, true},
+		{"AI 扩缩容", command.ActionScale, command.SourceAI, false},
+		{"部署器扩缩容", command.ActionScale, command.SourceDeployer, false},
+		{"没有来源", command.ActionScale, "", false},
+		{"Web 应用清单", command.ActionApplyManifests, command.SourceWeb, false},
+		{"Web 动态查询", command.ActionDynamic, command.SourceWeb, false},
+		{"未知动作", "exec", command.SourceWeb, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			executed := false
+			generic := &mock.GenericRepository{
+				ScaleDeploymentFn: func(ctx context.Context, namespace, name string, replicas int32) error {
+					executed = true
+					return nil
+				},
+			}
+			svc := &commandService{clusterID: "prod", podRepo: &mock.PodRepository{}, genericRepo: generic}
+			cmd := &command.Command{
+				ID:        "cmd-1",
+				ClusterID: "prod",
+				Action:    c.action,
+				Namespace: "default",
+				Name:      "nginx",
+				Source:    c.source,
+				Params:    map[string]any{"replicas": float64(3), "manifests": "kind: ConfigMap\n"},
+			}
+
+			result := svc.Execute(context.Background(), cmd)
+
+			if executed != c.wantExecuted {
+				t.Fatalf("executed = %v, want %v（%s）", executed, c.wantExecuted, result.Error)
+			}
+			if result.Success != c.wantExecuted {
+				t.Errorf("Success = %v, want %v（%s）", result.Success, c.wantExecuted, result.Error)
+			}
+			if !c.wantExecuted && !strings.Contains(result.Error, "来源") {
+				t.Errorf("拒绝原因应说明来源不符，实际 %q", result.Error)
+			}
+		})
 	}
 }

@@ -194,37 +194,6 @@ func (s *commandService) handleQueryMetrics(ctx context.Context, cmd *command.Co
 	}
 }
 
-// handleQuerySLO 处理 SLO 查询指令
-func (s *commandService) handleQuerySLO(ctx context.Context, cmd *command.Command) (any, error) {
-	if s.sloQueryRepo == nil {
-		return nil, fmt.Errorf("ClickHouse not configured")
-	}
-
-	subAction := getStringParam(cmd.Params, "sub_action")
-	since := getDurationParam(cmd.Params, "since", 5*time.Minute)
-
-	switch subAction {
-	case "list_ingress":
-		return s.sloQueryRepo.ListIngressSLO(ctx, since)
-
-	// list_service / list_edges 已移除：SLO 只做 ingress 外部视角，
-	// 服务间调用关系改由 APM 指令 (query_traces 的 topology) 提供。
-
-	case "get_time_series":
-		name := getStringParam(cmd.Params, "name")
-		if name == "" {
-			return nil, fmt.Errorf("name is required")
-		}
-		return s.sloQueryRepo.GetSLOTimeSeries(ctx, name, since)
-
-	case "get_summary", "":
-		return s.sloQueryRepo.GetSLOSummary(ctx)
-
-	default:
-		return nil, fmt.Errorf("unknown SLO sub_action: %s", subAction)
-	}
-}
-
 // =============================================================================
 // 参数提取辅助
 // =============================================================================

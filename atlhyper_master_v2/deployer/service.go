@@ -242,7 +242,7 @@ func (s *service) deployPath(ctx context.Context, config *database.DeployConfig,
 			"manifests": manifests,
 			"path":      path,
 		},
-		Source:    "deployer",
+		Source:    command.SourceDeployer,
 		CreatedAt: time.Now(),
 	}
 

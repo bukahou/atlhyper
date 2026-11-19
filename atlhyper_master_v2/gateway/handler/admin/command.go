@@ -5,7 +5,6 @@ package admin
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,7 +12,6 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
-	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/service"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
@@ -29,50 +27,6 @@ type CommandHandler struct {
 // NewCommandHandler 创建 CommandHandler
 func NewCommandHandler(svc service.Service) *CommandHandler {
 	return &CommandHandler{svc: svc}
-}
-
-// CreateCommandRequest 创建指令请求
-type CreateCommandRequest struct {
-	ClusterID       string                 `json:"clusterId"`
-	Action          string                 `json:"action"`
-	TargetKind      string                 `json:"targetKind,omitempty"`
-	TargetNamespace string                 `json:"targetNamespace,omitempty"`
-	TargetName      string                 `json:"targetName,omitempty"`
-	Params          map[string]interface{} `json:"params,omitempty"`
-}
-
-// Create 创建指令
-func (h *CommandHandler) Create(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handler.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	var req CreateCommandRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handler.WriteError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	// 创建指令
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
-		ClusterID:       req.ClusterID,
-		Action:          req.Action,
-		TargetKind:      req.TargetKind,
-		TargetNamespace: req.TargetNamespace,
-		TargetName:      req.TargetName,
-		Params:          req.Params,
-		Source:          "web",
-	})
-	if err != nil {
-		handler.WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	handler.WriteJSON(w, http.StatusCreated, map[string]interface{}{
-		"commandId": resp.CommandID,
-		"status":    resp.Status,
-	})
 }
 
 // GetStatus 获取指令状态

@@ -298,7 +298,6 @@ func (r *Router) registerRoutes() {
 
 	r.routeAudited(mPost, pPodLogsRead, "/api/v2/ops/pods/logs", "read", "pod", opsH.PodLogs)
 
-	r.routeAudited(mPost, pClusterOperate, "/api/v2/commands", "execute", "command", commandH.Create)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/pods/restart", "execute", "pod", opsH.PodRestart)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/deployments/scale", "execute", "deployment", opsH.DeploymentScale)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/deployments/restart", "execute", "deployment", opsH.DeploymentRestart)

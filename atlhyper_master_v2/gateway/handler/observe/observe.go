@@ -172,7 +172,7 @@ func (h *ObserveHandler) executeQuery(
 		ClusterID: clusterID,
 		Action:    action,
 		Params:    params,
-		Source:    "web",
+		Source:    command.SourceWeb,
 	}, 30*time.Second)
 	if err != nil {
 		if strings.Contains(err.Error(), "create command:") {

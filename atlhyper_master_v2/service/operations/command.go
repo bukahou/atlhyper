@@ -116,9 +116,9 @@ func (s *CommandService) validateRequest(req *model.CreateCommandRequest) error 
 		return fmt.Errorf("action required")
 	}
 
-	// 校验 Action 类型（使用 model 中定义的有效动作）
-	if !command.ValidActions[req.Action] {
-		return fmt.Errorf("invalid action: %s", req.Action)
+	// 「来源 × 动作」必须在允许名单里（Agent 执行前按同一份名单再核对一次）
+	if err := command.CheckSource(req.Action, req.Source); err != nil {
+		return err
 	}
 
 	// 目标的命名空间 / 名字必须是合法的 K8s 资源名
@@ -131,7 +131,6 @@ func (s *CommandService) validateRequest(req *model.CreateCommandRequest) error 
 		command.ActionScale:       true,
 		command.ActionRestart:     true,
 		command.ActionDelete:      true,
-		command.ActionDeletePod:   true,
 		command.ActionCordon:      true,
 		command.ActionUncordon:    true,
 		command.ActionUpdateImage: true,

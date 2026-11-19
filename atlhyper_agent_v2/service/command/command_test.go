@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -39,6 +38,7 @@ func TestExecute_Scale_Success(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-scale-1",
 		Action:    command.ActionScale,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx",
 		Params:    map[string]any{"replicas": float64(3)},
@@ -77,6 +77,7 @@ func TestExecute_Scale_InvalidParams(t *testing.T) {
 	cmd := &command.Command{
 		ID:     "cmd-scale-2",
 		Action: command.ActionScale,
+		Source: command.SourceWeb,
 		Params: map[string]any{"replicas": make(chan int)},
 	}
 
@@ -102,6 +103,7 @@ func TestExecute_Scale_RepoError(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-scale-3",
 		Action:    command.ActionScale,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx",
 		Params:    map[string]any{"replicas": float64(3)},
@@ -140,6 +142,7 @@ func TestExecute_Restart_Success(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-restart-1",
 		Action:    command.ActionRestart,
+		Source:    command.SourceWeb,
 		Namespace: "production",
 		Name:      "api-server",
 	}
@@ -180,6 +183,7 @@ func TestExecute_UpdateImage_Success(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-update-1",
 		Action:    command.ActionUpdateImage,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx",
 		Params:    map[string]any{"container": "web", "image": "nginx:latest"},
@@ -209,6 +213,7 @@ func TestExecute_UpdateImage_MissingImage(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-update-2",
 		Action:    command.ActionUpdateImage,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx",
 		Params:    map[string]any{"container": "web"},
@@ -253,6 +258,7 @@ func TestExecute_GetLogs_Success(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-logs-1",
 		Action:    command.ActionGetLogs,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx-pod",
 		Params:    map[string]any{"container": "app", "tailLines": float64(50)},
@@ -301,6 +307,7 @@ func TestExecute_GetLogs_AutoSelectContainer(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-logs-2",
 		Action:    command.ActionGetLogs,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx-pod",
 		Params:    map[string]any{},
@@ -352,6 +359,7 @@ func TestExecute_GetLogs_TailLinesClamp(t *testing.T) {
 			cmd := &command.Command{
 				ID:        "cmd-logs-clamp",
 				Action:    command.ActionGetLogs,
+				Source:    command.SourceWeb,
 				Namespace: "default",
 				Name:      "nginx-pod",
 				Params:    map[string]any{"tailLines": tc.inputTail},
@@ -395,6 +403,7 @@ func TestExecute_GetLogs_FallbackToSidecar(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-logs-fallback",
 		Action:    command.ActionGetLogs,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "proxy-pod",
 		Params:    map[string]any{},
@@ -454,52 +463,6 @@ func TestExecute_Dynamic_AISource_SummarizeList(t *testing.T) {
 	}
 }
 
-func TestExecute_Dynamic_NonAISource(t *testing.T) {
-	bodyJSON := `{"kind":"PodList","items":[{"metadata":{"name":"nginx","namespace":"default","creationTimestamp":"2025-01-01T00:00:00Z","managedFields":[{"manager":"kubectl"}]},"status":{"phase":"Running"}}]}`
-
-	genericRepo := &mock.GenericRepository{
-		ExecuteFn: func(ctx context.Context, req *model.DynamicRequest) (*model.DynamicResponse, error) {
-			return &model.DynamicResponse{
-				StatusCode: 200,
-				Body:       []byte(bodyJSON),
-			}, nil
-		},
-	}
-
-	svc := &commandService{
-		podRepo:     &mock.PodRepository{},
-		genericRepo: genericRepo,
-	}
-
-	cmd := &command.Command{
-		ID:        "cmd-dynamic-web",
-		Action:    command.ActionDynamic,
-		Namespace: "default",
-		Source:    "web",
-		Params: map[string]any{
-			"command": "list",
-			"kind":    "Pod",
-		},
-	}
-
-	result := svc.Execute(context.Background(), cmd)
-
-	if !result.Success {
-		t.Fatalf("expected success, got error: %s", result.Error)
-	}
-
-	// Non-AI source returns raw JSON (with managedFields stripped)
-	if strings.Contains(result.Output, "managedFields") {
-		t.Error("expected managedFields to be stripped from output")
-	}
-
-	// Should still be valid JSON (not table format)
-	var parsed map[string]interface{}
-	if err := json.Unmarshal([]byte(result.Output), &parsed); err != nil {
-		t.Errorf("expected valid JSON output, got parse error: %v", err)
-	}
-}
-
 func TestExecute_Dynamic_HTTP4xxError(t *testing.T) {
 	genericRepo := &mock.GenericRepository{
 		ExecuteFn: func(ctx context.Context, req *model.DynamicRequest) (*model.DynamicResponse, error) {
@@ -518,6 +481,7 @@ func TestExecute_Dynamic_HTTP4xxError(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-dynamic-404",
 		Action:    command.ActionDynamic,
+		Source:    command.SourceAI,
 		Namespace: "default",
 		Params: map[string]any{
 			"command": "get",
@@ -545,6 +509,7 @@ func TestExecute_Dynamic_MissingCommand(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-dynamic-nocommand",
 		Action:    command.ActionDynamic,
+		Source:    command.SourceAI,
 		Namespace: "default",
 		Params: map[string]any{
 			"kind": "Pod",
@@ -570,6 +535,7 @@ func TestExecute_Dynamic_MissingKind(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-dynamic-nokind",
 		Action:    command.ActionDynamic,
+		Source:    command.SourceAI,
 		Namespace: "default",
 		Params: map[string]any{
 			"command": "list",
@@ -613,6 +579,7 @@ func TestExecute_Delete_Pod(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-delete-pod",
 		Action:    command.ActionDelete,
+		Source:    command.SourceWeb,
 		Kind:      "Pod",
 		Namespace: "default",
 		Name:      "nginx-pod",
@@ -654,6 +621,7 @@ func TestExecute_Delete_Generic(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-delete-deploy",
 		Action:    command.ActionDelete,
+		Source:    command.SourceWeb,
 		Kind:      "Deployment",
 		Namespace: "default",
 		Name:      "nginx",
@@ -694,6 +662,7 @@ func TestExecute_Cordon_Success(t *testing.T) {
 	cmd := &command.Command{
 		ID:     "cmd-cordon-1",
 		Action: command.ActionCordon,
+		Source: command.SourceWeb,
 		Name:   "node-1",
 	}
 
@@ -725,6 +694,7 @@ func TestExecute_Uncordon_Success(t *testing.T) {
 	cmd := &command.Command{
 		ID:     "cmd-uncordon-1",
 		Action: command.ActionUncordon,
+		Source: command.SourceWeb,
 		Name:   "node-2",
 	}
 
@@ -758,8 +728,8 @@ func TestExecute_UnknownAction(t *testing.T) {
 	if result.Success {
 		t.Fatal("expected failure for unknown action")
 	}
-	if !strings.Contains(result.Error, "unknown action") {
-		t.Errorf("expected error to contain 'unknown action', got '%s'", result.Error)
+	if !strings.Contains(result.Error, "未知动作") {
+		t.Errorf("expected error to contain '未知动作', got '%s'", result.Error)
 	}
 }
 
@@ -776,6 +746,7 @@ func TestExecute_ResultFormat_CommandID(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-format-123",
 		Action:    command.ActionRestart,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx",
 	}
@@ -796,6 +767,7 @@ func TestExecute_ResultFormat_ExecTime(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-format-time",
 		Action:    command.ActionRestart,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx",
 	}
@@ -818,6 +790,7 @@ func TestExecute_ResultFormat_ExecutedAt(t *testing.T) {
 	cmd := &command.Command{
 		ID:        "cmd-format-at",
 		Action:    command.ActionRestart,
+		Source:    command.SourceWeb,
 		Namespace: "default",
 		Name:      "nginx",
 	}

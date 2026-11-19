@@ -58,11 +58,8 @@ const (
 	ActionScale          = "scale"
 	ActionRestart        = "restart"
 	ActionDelete         = "delete"
-	ActionDeletePod      = "delete_pod"
-	ActionExec           = "exec"
 	ActionCordon         = "cordon"
 	ActionUncordon       = "uncordon"
-	ActionDrain          = "drain"
 	ActionUpdateImage    = "update_image"
 	ActionGetLogs        = "get_logs"
 	ActionGetConfigMap   = "get_configmap"
@@ -75,16 +72,4 @@ const (
 	ActionQueryTraceDetail = "query_trace_detail"
 	ActionQueryLogs        = "query_logs"
 	ActionQueryMetrics     = "query_metrics"
-	ActionQuerySLO         = "query_slo"
 )
-
-// ValidActions 有效的指令动作
-var ValidActions = map[string]bool{
-	ActionScale: true, ActionRestart: true, ActionDelete: true,
-	ActionDeletePod: true, ActionExec: true, ActionCordon: true,
-	ActionUncordon: true, ActionDrain: true, ActionUpdateImage: true,
-	ActionGetLogs: true, ActionGetConfigMap: true, ActionGetSecret: true,
-	ActionDynamic: true, ActionApplyManifests: true,
-	ActionQueryTraces: true, ActionQueryTraceDetail: true,
-	ActionQueryLogs: true, ActionQueryMetrics: true, ActionQuerySLO: true,
-}

@@ -2,6 +2,7 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -296,5 +297,42 @@ func TestCreateCommand_EnqueueFailureMarksHistoryFailed(t *testing.T) {
 	}
 	if recorder.updated == nil || recorder.updated.Status != command.StatusFailed {
 		t.Errorf("入队失败后历史应标为 failed，实际 %+v", recorder.updated)
+	}
+}
+
+// 下发前按来源允许名单核对：名单外的「来源 × 动作」不写历史、不入队。
+func TestCreateCommand_RejectsActionFromWrongSource(t *testing.T) {
+	cases := []struct {
+		name   string
+		action string
+		source string
+	}{
+		{"Web 应用清单", command.ActionApplyManifests, command.SourceWeb},
+		{"AI 应用清单", command.ActionApplyManifests, command.SourceAI},
+		{"AI 扩缩容", command.ActionScale, command.SourceAI},
+		{"AI 读 Secret", command.ActionGetSecret, command.SourceAI},
+		{"没有来源", command.ActionRestart, ""},
+		{"已移除的动作", "exec", command.SourceWeb},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			producer := &mockProducer{}
+			svc := NewCommandService(producer, &mockCommandRepo{})
+			_, err := svc.CreateCommand(&model.CreateCommandRequest{
+				ClusterID:       "c1",
+				Action:          c.action,
+				TargetKind:      "Deployment",
+				TargetNamespace: "default",
+				TargetName:      "nginx",
+				Source:          c.source,
+				Params:          map[string]interface{}{"replicas": 1},
+			})
+			if !errors.Is(err, command.ErrActionNotPermitted) {
+				t.Fatalf("err = %v, want ErrActionNotPermitted", err)
+			}
+			if producer.enqueuedCmd != nil {
+				t.Error("被拒绝的指令不应入队")
+			}
+		})
 	}
 }
