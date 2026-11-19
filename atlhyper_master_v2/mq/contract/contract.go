@@ -2,6 +2,7 @@
 package contract
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -17,6 +18,9 @@ var (
 	ErrUnknownTopic = errors.New("未知的指令话题")
 	// ErrQueueFull 队列已满：没人取的指令不能无限堆积
 	ErrQueueFull = errors.New("指令队列已满")
+	// ErrWaitTimeout 等指令结果等到了上限（同时是 context.DeadlineExceeded）。
+	// 「超时」是一种失败，⛔ 不用 (nil, nil) 表示
+	ErrWaitTimeout = fmt.Errorf("等待指令结果超时: %w", context.DeadlineExceeded)
 )
 
 // CheckTopic 话题是否在名单里

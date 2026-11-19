@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/model_v3/command"
 )
 
@@ -86,7 +87,7 @@ func TestCommandQuery_Errors(t *testing.T) {
 		t.Errorf("Agent 查询失败 → %d, want 502", rec.Code)
 	}
 
-	noResult := newCommandQuery(&blockingOps{})
+	noResult := newCommandQuery(&blockingOps{err: mq.ErrWaitTimeout})
 	_, err = noResult.run(context.Background(), "c1", command.ActionQueryLogs, nil, time.Minute)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("等不到结果应是超时错误，实际 %v", err)

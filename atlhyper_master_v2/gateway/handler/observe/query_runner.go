@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -17,9 +16,6 @@ import (
 
 // queryTimeout 经指令通道查询时等待 Agent 结果的上限
 const queryTimeout = 30 * time.Second
-
-// errQueryTimeout 等不到 Agent 的结果
-var errQueryTimeout = fmt.Errorf("等待 Agent 查询结果超时: %w", context.DeadlineExceeded)
 
 // agentQueryError Agent 执行了查询但失败（带 Agent 给的原因）
 type agentQueryError struct{ reason string }
@@ -58,9 +54,6 @@ func (q *commandQuery) run(ctx context.Context, clusterID, action string, params
 		}, queryTimeout)
 		if err != nil {
 			return nil, err
-		}
-		if result == nil {
-			return nil, errQueryTimeout
 		}
 		if !result.Success {
 			reason := result.Error

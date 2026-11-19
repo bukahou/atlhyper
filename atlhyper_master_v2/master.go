@@ -201,7 +201,7 @@ func NewMaster() (*Master, error) {
 			ToolTimeout:   cfg.AI.ToolTimeout,
 			BedrockRegion: cfg.AI.BedrockRegion,
 		},
-		cmdOps, bus,
+		cmdOps,
 		db.AIProvider, db.AIModel, db.AIRoleBudget,
 		db.AIConversation, db.AIMessage,
 	)
@@ -371,21 +371,14 @@ func NewMaster() (*Master, error) {
 		}
 		cmdParams["since"] = since
 
-		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
+		result, err := cmdOps.ExecuteCommandSync(ctx, &model.CreateCommandRequest{
 			ClusterID: clusterID,
 			Action:    command.ActionQueryTraces,
 			Source:    command.SourceAI,
 			Params:    cmdParams,
-		})
+		}, toolTimeout)
 		if err != nil {
-			return fmt.Sprintf("创建查询命令失败: %v", err), nil
-		}
-		result, err := bus.WaitCommandResult(ctx, resp.CommandID, toolTimeout)
-		if err != nil {
-			return fmt.Sprintf("查询超时: %v", err), nil
-		}
-		if result == nil {
-			return "查询超时: 未收到 Agent 响应", nil
+			return fmt.Sprintf("查询失败: %v", err), nil
 		}
 		if !result.Success {
 			return fmt.Sprintf("查询失败: %s", result.Error), nil
@@ -415,21 +408,14 @@ func NewMaster() (*Master, error) {
 		}
 		cmdParams["since"] = since
 
-		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
+		result, err := cmdOps.ExecuteCommandSync(ctx, &model.CreateCommandRequest{
 			ClusterID: clusterID,
 			Action:    command.ActionQueryLogs,
 			Source:    command.SourceAI,
 			Params:    cmdParams,
-		})
+		}, toolTimeout)
 		if err != nil {
-			return fmt.Sprintf("创建查询命令失败: %v", err), nil
-		}
-		result, err := bus.WaitCommandResult(ctx, resp.CommandID, toolTimeout)
-		if err != nil {
-			return fmt.Sprintf("查询超时: %v", err), nil
-		}
-		if result == nil {
-			return "查询超时: 未收到 Agent 响应", nil
+			return fmt.Sprintf("查询失败: %v", err), nil
 		}
 		if !result.Success {
 			return fmt.Sprintf("查询失败: %s", result.Error), nil

@@ -21,6 +21,7 @@ const (
 var (
 	ErrUnknownTopic = contract.ErrUnknownTopic
 	ErrQueueFull    = contract.ErrQueueFull
+	ErrWaitTimeout  = contract.ErrWaitTimeout
 )
 
 // Producer 指令发送端 (上层: Gateway/Service 使用)
@@ -33,6 +34,7 @@ type Producer interface {
 
 	// WaitCommandResult 等待指令执行完成（同步等待）
 	// 阻塞直到 Agent 上报结果、超时、或 ctx 取消
+	// 超时返回 ErrWaitTimeout，ctx 取消返回 ctx.Err()；err 为 nil 时结果一定不为 nil
 	WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*command.Result, error)
 }
 

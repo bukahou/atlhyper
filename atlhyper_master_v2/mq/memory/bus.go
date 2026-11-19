@@ -283,7 +283,7 @@ func (b *MemoryBus) WaitCommandResult(ctx context.Context, cmdID string, timeout
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-time.After(timeout):
-		return nil, nil // 超时返回 nil
+		return nil, contract.ErrWaitTimeout
 	}
 }
 

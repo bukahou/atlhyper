@@ -105,3 +105,16 @@ func TestCleanup_IdleQueuesAndStaleStatuses(t *testing.T) {
 		t.Error("超过上限仍未完成的状态记录应被删除")
 	}
 }
+
+// 等不到结果是「超时」，不是「没有结果」：返回明确的错误，不返回 (nil, nil)
+func TestWaitCommandResult_TimeoutIsAnError(t *testing.T) {
+	bus := NewMemoryBus()
+	enqueued(t, bus, "c1", "cmd-1")
+	result, err := bus.WaitCommandResult(context.Background(), "cmd-1", 10*time.Millisecond)
+	if result != nil {
+		t.Fatalf("超时不应有结果，实际 %+v", result)
+	}
+	if !errors.Is(err, mq.ErrWaitTimeout) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want ErrWaitTimeout（同时是 DeadlineExceeded）", err)
+	}
+}

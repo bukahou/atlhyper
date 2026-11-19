@@ -15,7 +15,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/model"
-	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/service/operations"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/command"
@@ -29,14 +28,13 @@ type ToolHandler func(ctx context.Context, clusterID string, params map[string]i
 // toolExecutor 工具执行器
 type toolExecutor struct {
 	ops         *operations.CommandService
-	bus         mq.Producer
 	timeout     time.Duration          // 指令执行超时（默认 30s）
 	customTools map[string]ToolHandler // 自定义 Tool 注册表
 }
 
 // newToolExecutor 创建工具执行器
-func newToolExecutor(ops *operations.CommandService, bus mq.Producer, timeout time.Duration) *toolExecutor {
-	return &toolExecutor{ops: ops, bus: bus, timeout: timeout}
+func newToolExecutor(ops *operations.CommandService, timeout time.Duration) *toolExecutor {
+	return &toolExecutor{ops: ops, timeout: timeout}
 }
 
 // RegisterTool 注册自定义 Tool（开闭原则，不修改 Execute 主逻辑）
@@ -94,22 +92,12 @@ func (e *toolExecutor) Execute(ctx context.Context, clusterID string, allow Perm
 		Params:          cmdParams,
 	}
 
-	// 4. 创建指令
-	resp, err := e.ops.CreateCommand(req)
+	// 4. 下发并等待结果（支持 ctx 取消；超时返回错误）
+	result, err := e.ops.ExecuteCommandSync(ctx, req, e.timeout)
 	if err != nil {
-		return "", fmt.Errorf("创建指令失败: %w", err)
+		return "", fmt.Errorf("执行指令失败: %w", err)
 	}
-
-	toolLog.Debug("指令已下发", "action", action, "kind", kind, "ns", namespace, "name", name, "cmd", resp.CommandID)
-
-	// 5. 等待结果（支持 ctx 取消）
-	result, err := e.bus.WaitCommandResult(ctx, resp.CommandID, e.timeout)
-	if err != nil {
-		return "", fmt.Errorf("等待指令结果失败: %w", err)
-	}
-	if result == nil {
-		return "", fmt.Errorf("指令执行超时: 未收到 Agent 响应 (cmdID=%s)", resp.CommandID)
-	}
+	toolLog.Debug("指令已执行", "action", action, "kind", kind, "ns", namespace, "name", name, "cmd", result.CommandID)
 
 	if !result.Success {
 		return fmt.Sprintf("执行失败: %s", result.Error), nil
