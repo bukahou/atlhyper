@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/ai/budget"
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/database"
 )
@@ -25,6 +26,7 @@ type aiServiceImpl struct {
 	providerRepo database.AIProviderRepository
 	modelRepo    database.AIProviderModelRepository
 	budgetRepo   database.AIRoleBudgetRepository
+	budgets      *budget.Ledger // nil = 不做预算控制（未接预算仓库时）
 	executor     *toolExecutor
 	convRepo     database.AIConversationRepository
 	msgRepo      database.AIMessageRepository

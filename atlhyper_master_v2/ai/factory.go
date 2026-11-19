@@ -5,6 +5,7 @@ package ai
 import (
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/ai/budget"
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/anthropic" // 注册 anthropic provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/bedrock"   // 注册 bedrock provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini"    // 注册 gemini provider
@@ -33,10 +34,16 @@ func NewService(
 		toolTimeout = 30 * time.Second
 	}
 
+	var budgets *budget.Ledger
+	if budgetRepo != nil {
+		budgets = budget.NewLedger(budgetRepo)
+	}
+
 	return &aiServiceImpl{
 		providerRepo: providerRepo,
 		modelRepo:    modelRepo,
 		budgetRepo:   budgetRepo,
+		budgets:      budgets,
 		executor:     newToolExecutor(ops, bus, toolTimeout),
 		convRepo:     convRepo,
 		msgRepo:      msgRepo,
