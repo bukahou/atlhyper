@@ -5,7 +5,7 @@
  */
 
 import { get } from "./request";
-import type { EventOverview, EventLog } from "@/types/cluster";
+import type { EventCards, EventOverview, EventLog } from "@/types/cluster";
 
 // ============================================================
 // 查询参数类型
@@ -30,49 +30,12 @@ interface EventListParams {
 
 interface EventListResponse {
   events: EventLog[];
+  /** 本次返回的事件的统计（后端算，前端不自己数） */
+  cards: EventCards;
   total: number;
   source?: string;
   limit?: number;
   offset?: number;
-}
-
-// ============================================================
-// 聚合工具（从事件列表生成概览统计）
-// ============================================================
-
-function aggregateOverview(events: EventLog[]): EventOverview {
-  const kindsSet = new Set<string>();
-  const categoriesSet = new Set<string>();
-  let warning = 0;
-  let error = 0;
-  let info = 0;
-
-  for (const e of events) {
-    if (e.kind) kindsSet.add(e.kind);
-    if (e.reason) categoriesSet.add(e.reason);
-
-    const severity = e.severity?.toLowerCase() || "";
-    if (severity === "warning") {
-      warning++;
-    } else if (severity === "error") {
-      error++;
-    } else {
-      info++;
-    }
-  }
-
-  return {
-    cards: {
-      totalAlerts: warning + error,
-      totalEvents: events.length,
-      warning,
-      error,
-      info,
-      kindsCount: kindsSet.size,
-      categoriesCount: categoriesSet.size,
-    },
-    rows: events,
-  };
 }
 
 // ============================================================
@@ -123,12 +86,10 @@ export async function getEventOverview(
     signal,
   );
 
-  const events = response.data.events || [];
-
   return {
     ...response,
     data: {
-      data: aggregateOverview(events),
+      data: { cards: response.data.cards, rows: response.data.events || [] } satisfies EventOverview,
     },
   };
 }
@@ -141,12 +102,10 @@ export async function getAlertOverview(data: { ClusterID: string }) {
     cluster_id: data.ClusterID,
   });
 
-  const events = response.data.events || [];
-
   return {
     ...response,
     data: {
-      data: aggregateOverview(events),
+      data: { cards: response.data.cards, rows: response.data.events || [] } satisfies EventOverview,
     },
   };
 }

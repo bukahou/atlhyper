@@ -841,6 +841,9 @@ export interface IngressStatusDTO {
 }
 
 // 事件日志 - 后端已返回 camelCase
+/** 事件严重程度（后端 model.EventSeverity*） */
+export type EventSeverity = "critical" | "warning" | "error" | "info";
+
 export interface EventLog {
   clusterId: string;
   category: string;
@@ -851,7 +854,7 @@ export interface EventLog {
   namespace: string;
   node: string;
   reason: string;
-  severity: string;  // "Normal" | "Warning" | "Critical"
+  severity: EventSeverity;  // 后端判定，前端只按它上色
   time: string;
   // model_v3 新增字段
   source?: string;          // kubelet, scheduler, deployment-controller 等
@@ -870,6 +873,7 @@ export interface EventLogRequest {
 export interface EventCards {
   totalAlerts: number;
   totalEvents: number;
+  critical: number;
   warning: number;
   info: number;
   error: number;

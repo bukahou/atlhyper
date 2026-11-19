@@ -54,7 +54,7 @@ function buildClusterOverview(): ClusterOverview {
   const avgMem = nodeUsages.reduce((s, n) => s + n.memUsage, 0) / nodeUsages.length;
 
   // Events: Warning 事件数
-  const warningEvents = MOCK_EVENTS.filter((e) => e.severity === "Warning");
+  const warningEvents = MOCK_EVENTS.filter((e) => e.severity === "warning" || e.severity === "critical");
 
   // --- Workloads ---
   const depReady = MOCK_DEPLOYMENTS.reduce((s, d) => s + parseReplicas(d.replicas).ready, 0);
@@ -169,7 +169,7 @@ function buildClusterOverview(): ClusterOverview {
       totals: {
         critical: 0,
         warning: warningEvents.length,
-        info: MOCK_EVENTS.filter((e) => e.severity === "Normal").length,
+        info: MOCK_EVENTS.filter((e) => e.severity === "info").length,
       },
       recent: recentAlerts,
     },

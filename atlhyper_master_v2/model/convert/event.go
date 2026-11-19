@@ -32,7 +32,7 @@ func EventLog(src *cluster.Event, clusterID string) model.EventLog {
 		Namespace: src.Namespace,
 		Node:      src.Source,
 		Reason:    src.Reason,
-		Severity:  mapSeverity(src.Type),
+		Severity:  eventSeverity(src.Type, src.Reason),
 		Time:      formatTime(src.FirstTimestamp),
 	}
 }
@@ -61,7 +61,7 @@ func EventLogFromDB(src *database.ClusterEvent, clusterID string) model.EventLog
 		Namespace: src.Namespace,
 		Node:      src.SourceComponent,
 		Reason:    src.Reason,
-		Severity:  mapSeverity(src.Type),
+		Severity:  eventSeverity(src.Type, src.Reason),
 		Time:      formatTime(src.FirstTimestamp),
 	}
 }
@@ -78,14 +78,11 @@ func EventLogsFromDB(src []*database.ClusterEvent, clusterID string) []model.Eve
 	return result
 }
 
-// EventOverview 将事件列表转换为概览（含统计卡片）
-func EventOverview(src []cluster.Event, clusterID string) model.EventOverview {
-	rows := EventLogs(src, clusterID)
-
+// EventCardsOf 统计一批事件（按严重程度、资源类型、原因）
+func EventCardsOf(rows []model.EventLog) model.EventCards {
 	kinds := map[string]struct{}{}
 	categories := map[string]struct{}{}
-	var warning, errCount, info int
-
+	cards := model.EventCards{TotalEvents: len(rows)}
 	for _, r := range rows {
 		if r.Kind != "" {
 			kinds[r.Kind] = struct{}{}
@@ -94,38 +91,44 @@ func EventOverview(src []cluster.Event, clusterID string) model.EventOverview {
 			categories[r.Reason] = struct{}{}
 		}
 		switch r.Severity {
-		case "warning":
-			warning++
-		case "error":
-			errCount++
+		case model.EventSeverityCritical:
+			cards.Critical++
+		case model.EventSeverityWarning:
+			cards.Warning++
+		case model.EventSeverityError:
+			cards.Error++
 		default:
-			info++
+			cards.Info++
 		}
 	}
-
-	return model.EventOverview{
-		Cards: model.EventCards{
-			TotalAlerts:     warning + errCount,
-			TotalEvents:     len(rows),
-			Warning:         warning,
-			Info:            info,
-			Error:           errCount,
-			CategoriesCount: len(categories),
-			KindsCount:      len(kinds),
-		},
-		Rows: rows,
-	}
+	cards.TotalAlerts = cards.Critical + cards.Warning + cards.Error
+	cards.KindsCount = len(kinds)
+	cards.CategoriesCount = len(categories)
+	return cards
 }
 
-// mapSeverity 映射 K8s Event Type 到 severity
-func mapSeverity(eventType string) string {
+// criticalEventReasons Warning 事件里会直接导致故障的原因：判为 critical
+var criticalEventReasons = map[string]bool{
+	"OOMKilling":       true,
+	"CrashLoopBackOff": true,
+	"FailedScheduling": true,
+	"FailedMount":      true,
+	"NodeNotReady":     true,
+	"FailedBinding":    true,
+}
+
+// eventSeverity K8s 事件类型 + 原因 → 严重程度（全项目只在这里判定）
+func eventSeverity(eventType, reason string) string {
 	switch eventType {
 	case "Warning":
-		return "warning"
+		if criticalEventReasons[reason] {
+			return model.EventSeverityCritical
+		}
+		return model.EventSeverityWarning
 	case "Error":
-		return "error"
+		return model.EventSeverityError
 	default:
-		return "info"
+		return model.EventSeverityInfo
 	}
 }
 
