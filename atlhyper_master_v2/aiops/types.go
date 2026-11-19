@@ -2,7 +2,11 @@
 // AIOps 引擎共用类型定义
 package aiops
 
-import "time"
+import (
+	"time"
+
+	"AtlHyper/atlhyper_master_v2/aiops/severity"
+)
 
 // ==================== 依赖图类型 ====================
 
@@ -458,18 +462,20 @@ type Incident struct {
 	Subject     string      `json:"subject"`     // 主体键 "<ns>/<类型>/<名字>"：工作负载，或实体自身
 	SubjectType string      `json:"subjectType"` // 由 Subject 解析：deployment / statefulset / daemonset / cronjob / job / pod / service / node / ingress / logs
 	// SubjectNamespace / SubjectName 由 Subject 解析，页面直接显示；集群级对象（节点）的命名空间为空串
-	SubjectNamespace string     `json:"subjectNamespace"`
-	SubjectName      string     `json:"subjectName"`
-	RootCause        string     `json:"rootCause"` // 领头实体：主体的成员里风险最高的
-	PeakRisk         float64    `json:"peakRisk"`
-	StartedAt        time.Time  `json:"startedAt"`
-	EscalatedAt      *time.Time `json:"escalatedAt"` // 首次升级到「事件中」的时刻；从未升级为 null
-	ResolvedAt       *time.Time `json:"resolvedAt"`
-	CloseReason      string     `json:"closeReason"` // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
-	DurationS        int64      `json:"durationS"`
-	Recurrence       int        `json:"recurrence"`
-	Summary          string     `json:"summary"`
-	CreatedAt        time.Time  `json:"createdAt"`
+	SubjectNamespace string  `json:"subjectNamespace"`
+	SubjectName      string  `json:"subjectName"`
+	RootCause        string  `json:"rootCause"` // 领头实体：主体的成员里风险最高的
+	PeakRisk         float64 `json:"peakRisk"`
+	// PeakRiskLevel 峰值风险的等级（与实体风险同一分档，见 RiskLevel），出接口时填，前端只按它上色
+	PeakRiskLevel string     `json:"peakRiskLevel,omitempty"`
+	StartedAt     time.Time  `json:"startedAt"`
+	EscalatedAt   *time.Time `json:"escalatedAt"` // 首次升级到「事件中」的时刻；从未升级为 null
+	ResolvedAt    *time.Time `json:"resolvedAt"`
+	CloseReason   string     `json:"closeReason"` // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
+	DurationS     int64      `json:"durationS"`
+	Recurrence    int        `json:"recurrence"`
+	Summary       string     `json:"summary"`
+	CreatedAt     time.Time  `json:"createdAt"`
 
 	// 拓扑归并（当前有效的关联）
 	RootIncidentID string            `json:"rootIncidentId"` // 受影响事件：归到的源头；否则空串
@@ -687,28 +693,12 @@ type IncidentQueryOpts struct {
 func SeverityFromRisk(rFinal float64) string {
 	switch {
 	case rFinal >= 0.9:
-		return "critical"
+		return severity.Critical
 	case rFinal >= 0.7:
-		return "high"
+		return severity.High
 	case rFinal >= 0.5:
-		return "medium"
+		return severity.Medium
 	default:
-		return "low"
-	}
-}
-
-// SeverityRank 严重度的档位，越大越严重；未知值为 0
-func SeverityRank(severity string) int {
-	switch severity {
-	case "critical":
-		return 4
-	case "high":
-		return 3
-	case "medium":
-		return 2
-	case "low":
-		return 1
-	default:
-		return 0
+		return severity.Low
 	}
 }

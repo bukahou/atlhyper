@@ -162,6 +162,8 @@ export interface Incident extends IncidentListGrouping {
   rootCause: string;
   /** @unit 百分制 [0, 100] —— 列表、详情、事件模式里口径一致，前端不换算 */
   peakRisk: number;
+  /** 峰值风险的等级（后端按实体风险同一分档判定：healthy / low / medium / high / critical） */
+  peakRiskLevel: string;
   startedAt: string;
   resolvedAt: string | null;
   /** 首次升级为「事件中」的时间；没升级过为 null */

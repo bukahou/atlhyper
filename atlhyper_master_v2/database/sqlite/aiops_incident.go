@@ -3,6 +3,7 @@
 package sqlite
 
 import (
+	"AtlHyper/atlhyper_master_v2/aiops/severity"
 	"database/sql"
 	"strings"
 	"time"
@@ -17,11 +18,6 @@ type aIOpsIncidentDialect struct{}
 var incidentColumns = []string{
 	"id", "cluster_id", "state", "severity", "subject", "root_cause", "peak_risk",
 	"started_at", "escalated_at", "resolved_at", "close_reason", "duration_s", "recurrence", "summary", "created_at",
-}
-
-// severityRankSQL 把严重度列（或占位符）映射为可比较的档位
-func severityRankSQL(expr string) string {
-	return "CASE " + expr + " WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END"
 }
 
 func (d *aIOpsIncidentDialect) IncidentColumns(prefix string) string {
@@ -43,11 +39,11 @@ func (d *aIOpsIncidentDialect) UpdateState(id, state string) (string, []any) {
 	return `UPDATE aiops_incidents SET state = ? WHERE id = ?`, []any{state, id}
 }
 
-func (d *aIOpsIncidentDialect) RaiseSeverity(id, severity string, peakRisk float64) (string, []any) {
+func (d *aIOpsIncidentDialect) RaiseSeverity(id, newSeverity string, peakRisk float64) (string, []any) {
 	return `UPDATE aiops_incidents SET
-			severity = CASE WHEN ` + severityRankSQL("?") + ` > ` + severityRankSQL("severity") + ` THEN ? ELSE severity END,
+			severity = CASE WHEN ` + severity.RankSQL("?") + ` > ` + severity.RankSQL("severity") + ` THEN ? ELSE severity END,
 			peak_risk = MAX(peak_risk, ?)
-		WHERE id = ?`, []any{severity, severity, peakRisk, id}
+		WHERE id = ?`, []any{newSeverity, newSeverity, peakRisk, id}
 }
 
 func (d *aIOpsIncidentDialect) MarkEscalated(id string, escalatedAt time.Time) (string, []any) {

@@ -4,6 +4,7 @@
 package enricher
 
 import (
+	"AtlHyper/atlhyper_master_v2/aiops/severity"
 	"context"
 	"sync"
 	"time"
@@ -11,14 +12,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/ai/budget"
 	db "AtlHyper/atlhyper_master_v2/database"
 )
-
-// severityOrder 严重度排序（越高越严重）
-var severityOrder = map[string]int{
-	"low":      1,
-	"medium":   2,
-	"high":     3,
-	"critical": 4,
-}
 
 // backgroundTrigger 后台分析触发器
 type backgroundTrigger struct {
@@ -251,8 +244,8 @@ func parseHHMM(s string) int {
 }
 
 // meetsMinSeverity 检查事件严重度是否达到最低阈值
-func meetsMinSeverity(severity, minSeverity string) bool {
-	return severityOrder[severity] >= severityOrder[minSeverity]
+func meetsMinSeverity(incidentSeverity, minSeverity string) bool {
+	return severity.AtLeast(incidentSeverity, minSeverity)
 }
 
 // isBudgetAvailable 检查预算是否还有余额（多维度：input/output × 日/月）

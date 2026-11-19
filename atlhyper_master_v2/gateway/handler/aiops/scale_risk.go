@@ -97,6 +97,7 @@ func ScaleIncidents(src []*aiops.Incident) []*aiops.Incident {
 			continue
 		}
 		cp := *inc
+		cp.PeakRiskLevel = aiops.RiskLevel(inc.PeakRisk) // 分档按 0–1 的原值
 		cp.PeakRisk = toPercent(cp.PeakRisk)
 		result[i] = &cp
 	}
@@ -126,6 +127,7 @@ func ScaleIncidentDetail(src *aiops.IncidentDetail) *aiops.IncidentDetail {
 		return nil
 	}
 	cp := *src
+	cp.PeakRiskLevel = aiops.RiskLevel(src.PeakRisk) // 分档按 0–1 的原值
 	cp.PeakRisk = toPercent(cp.PeakRisk)
 	if src.Entities != nil {
 		cp.Entities = make([]*aiops.IncidentEntity, len(src.Entities))
