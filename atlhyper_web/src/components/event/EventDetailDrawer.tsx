@@ -85,7 +85,7 @@ export function EventDetailDrawer({ isOpen, onClose, event }: EventDetailDrawerP
                 <Hash className="w-3.5 h-3.5 text-muted" />
                 <div>
                   <span className="text-xs text-muted block">{t.event.count}</span>
-                  <span className="text-sm text-default font-mono">{event.count ?? 1}</span>
+                  <span className="text-sm text-default font-mono">{event.count}</span>
                 </div>
               </div>
             </div>
@@ -99,9 +99,8 @@ export function EventDetailDrawer({ isOpen, onClose, event }: EventDetailDrawerP
             <h3 className="text-sm font-semibold text-default">{t.common.time}</h3>
           </div>
           <div className="bg-[var(--background)] rounded-lg p-4 divide-y divide-[var(--border-color)]">
-            <InfoRow label={t.common.time} value={formatTime(event.eventTime || event.time)} />
-            <InfoRow label={t.event.firstTime} value={formatTime(event.firstTimestamp)} />
-            <InfoRow label={t.event.lastTime} value={formatTime(event.lastTimestamp)} />
+            <InfoRow label={t.event.firstTime} value={formatTime(event.time)} />
+            <InfoRow label={t.event.lastTime} value={formatTime(event.eventTime)} />
           </div>
         </section>
 

@@ -5,38 +5,21 @@
  */
 
 import { get } from "./request";
+import type { components, operations } from "@/types/api.gen";
 import type { EventCards, EventOverview, EventLog } from "@/types/cluster";
 
 // ============================================================
 // 查询参数类型
 // ============================================================
 
-interface EventListParams {
-  cluster_id: string;
-  namespace?: string;
-  type?: string; // Normal, Warning
-  reason?: string;
-  involved_kind?: string;
-  involved_name?: string;
-  since?: string; // RFC3339 格式
-  limit?: number;
-  offset?: number;
-  source?: string;
-}
+/** 查询参数：由规格生成，后端不认的参数这里也没有 */
+type EventListParams = operations["listEvents"]["parameters"]["query"];
 
 // ============================================================
 // 响应类型（后端已返回 camelCase）
 // ============================================================
 
-interface EventListResponse {
-  events: EventLog[];
-  /** 本次返回的事件的统计（后端算，前端不自己数） */
-  cards: EventCards;
-  total: number;
-  source?: string;
-  limit?: number;
-  offset?: number;
-}
+type EventListResponse = components["schemas"]["EventListResponse"];
 
 // ============================================================
 // API 方法
@@ -74,13 +57,12 @@ export function getAlertList(params: EventListParams) {
  * 获取事件概览（实时，从 DataHub）
  */
 export async function getEventOverview(
-  data: { ClusterID: string; Namespace?: string; Type?: string },
+  data: { ClusterID: string; Type?: string },
   signal?: AbortSignal,
 ) {
   const response = await getEventList(
     {
       cluster_id: data.ClusterID,
-      namespace: data.Namespace,
       type: data.Type,
     },
     signal,

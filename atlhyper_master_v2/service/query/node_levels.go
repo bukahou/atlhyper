@@ -28,7 +28,7 @@ func (q *OTelQuery) ListNodeMetricsViews(ctx context.Context, clusterID string) 
 // nodeMetricsView 单节点：采集项没采到的读数等级为 unknown，⛔ 不按零值判成正常
 func nodeMetricsView(nm *metrics.NodeMetrics) model.NodeMetricsView {
 	un := unavailableSections(nm)
-	view := model.NodeMetricsView{NodeMetrics: *nm}
+	view := model.NodeMetricsView{NodeMetrics: withEmptyArrays(*nm)}
 	if i := nm.PrimaryDiskIndex(); i >= 0 {
 		view.PrimaryDiskIndex = &i
 	}
@@ -125,4 +125,29 @@ func unavailableSections(nm *metrics.NodeMetrics) map[string]bool {
 		un[sec] = true
 	}
 	return un
+}
+
+// withEmptyArrays 接口里的数组字段总是数组：代理没采到时这些切片为 nil，编码出来是 null。
+// 只改副本（Hardware 先复制再改），快照由多个读者共享，⛔ 不就地修改。
+func withEmptyArrays(nm metrics.NodeMetrics) metrics.NodeMetrics {
+	if nm.Disks == nil {
+		nm.Disks = []metrics.NodeDisk{}
+	}
+	if nm.Networks == nil {
+		nm.Networks = []metrics.NodeNetwork{}
+	}
+	if nm.Temperature.Sensors == nil {
+		nm.Temperature.Sensors = []metrics.TempSensor{}
+	}
+	if nm.Hardware != nil {
+		hw := *nm.Hardware
+		if hw.Fans == nil {
+			hw.Fans = []metrics.FanSensor{}
+		}
+		if hw.Cooling == nil {
+			hw.Cooling = []metrics.CoolingDevice{}
+		}
+		nm.Hardware = &hw
+	}
+	return nm
 }

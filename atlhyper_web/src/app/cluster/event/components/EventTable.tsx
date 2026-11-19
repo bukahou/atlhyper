@@ -84,7 +84,7 @@ export function EventTable({ events, loading, error, onRowClick }: EventTablePro
       key: "count",
       header: t.event.count,
       mobileVisible: false,
-      render: (e) => <span className="text-sm font-mono">{e.count ?? 1}</span>,
+      render: (e) => <span className="text-sm font-mono">{e.count}</span>,
     },
   ];
 

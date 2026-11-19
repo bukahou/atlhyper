@@ -16,6 +16,7 @@ func TestEventLogFromModel_FieldMapping(t *testing.T) {
 			Name:      "event-1",
 			Namespace: "default",
 			Kind:      "Event",
+			NodeName:  "node-a",
 			CreatedAt: time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
 		},
 		Type:    "Warning",
@@ -49,8 +50,9 @@ func TestEventLogFromModel_FieldMapping(t *testing.T) {
 	if result.Namespace != "default" {
 		t.Errorf("Namespace: got %q, want %q", result.Namespace, "default")
 	}
-	if result.Node != "scheduler" {
-		t.Errorf("Node: got %q, want %q (should use source)", result.Node, "scheduler")
+	// 来源组件、发生次数、来源主机各自一个字段（此前组件名被放进 node，次数没有下发）
+	if result.Source != "scheduler" || result.Count != 3 || result.Node != "node-a" {
+		t.Errorf("Source/Count/Node: got %q/%d/%q, want scheduler/3/node-a", result.Source, result.Count, result.Node)
 	}
 	if result.Severity != "critical" { // Warning + FailedScheduling 属于会直接导致故障的原因
 		t.Errorf("Severity: got %q, want %q", result.Severity, "critical")
@@ -120,6 +122,7 @@ func TestEventLogFromDB_FieldMapping(t *testing.T) {
 		Reason:            "Unhealthy",
 		Message:           "Liveness probe failed",
 		SourceComponent:   "kubelet",
+		SourceHost:        "node-b",
 		InvolvedKind:      "Pod",
 		InvolvedName:      "coredns-pod",
 		InvolvedNamespace: "kube-system",
@@ -146,8 +149,8 @@ func TestEventLogFromDB_FieldMapping(t *testing.T) {
 	if result.Severity != "warning" {
 		t.Errorf("Severity: got %q, want %q", result.Severity, "warning")
 	}
-	if result.Node != "kubelet" {
-		t.Errorf("Node: got %q, want %q", result.Node, "kubelet")
+	if result.Source != "kubelet" || result.Count != 5 || result.Node != "node-b" {
+		t.Errorf("Source/Count/Node: got %q/%d/%q, want kubelet/5/node-b", result.Source, result.Count, result.Node)
 	}
 	if result.EventTime != "2025-02-01T09:00:00Z" {
 		t.Errorf("EventTime: got %q, want %q", result.EventTime, "2025-02-01T09:00:00Z")

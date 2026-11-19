@@ -30,6 +30,8 @@ func (d *eventDialect) Upsert(event *database.ClusterEvent) (string, []any) {
 			message = CASE WHEN excluded.last_timestamp >= cluster_events.last_timestamp
 				THEN excluded.message ELSE cluster_events.message END,
 			last_timestamp = MAX(cluster_events.last_timestamp, excluded.last_timestamp),
+			source_host = CASE WHEN cluster_events.source_host = ''
+				THEN excluded.source_host ELSE cluster_events.source_host END,
 			updated_at = excluded.updated_at
 	`
 	args := []any{

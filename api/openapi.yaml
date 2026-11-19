@@ -1,0 +1,1802 @@
+# AtlHyper Master API 规格（单一来源）
+# 改接口先改这里，再在 atlhyper_web 下运行 npm run api:gen 重新生成前端类型（CI 会核对生成结果与规格一致）；
+# Go 一侧的响应由各处理函数的契约测试对照本文件校验（api/contract）。
+openapi: 3.0.3
+info:
+  title: AtlHyper Master API
+  version: 2.0.0
+  description: Master 对 Web 的 HTTP 接口（逐步迁入：新写与改到的接口先进规格）。前端类型由本文件生成；Go 响应由契约测试对照本文件校验。
+paths:
+  /api/v2/overview:
+    get:
+      operationId: getClusterOverview
+      summary: 集群概览
+      x-permission: cluster.read
+      parameters:
+      - $ref: '#/components/parameters/ClusterId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterOverview'
+        '400':
+          description: 缺少或错误的参数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务端错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 集群不存在或暂无数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v2/events:
+    get:
+      operationId: listEvents
+      summary: 事件列表（实时或历史）
+      x-permission: events.read
+      parameters:
+      - $ref: '#/components/parameters/ClusterId'
+      - name: source
+        in: query
+        schema:
+          type: string
+          enum:
+          - realtime
+          - history
+          default: realtime
+        description: realtime 取内存里的当前事件；history 取数据库里的历史
+      - name: type
+        in: query
+        schema:
+          type: string
+        description: 事件类型（Normal / Warning）
+      - name: since
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: 只取这之后的事件（RFC 3339）
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 100
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventListResponse'
+        '400':
+          description: 缺少或错误的参数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务端错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v2/observe/metrics/nodes:
+    get:
+      operationId: listNodeMetrics
+      summary: 各节点指标（每项带后端判定的等级）
+      x-permission: metrics.read
+      parameters:
+      - $ref: '#/components/parameters/ClusterId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeMetricsListResponse'
+        '400':
+          description: 缺少或错误的参数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务端错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 数据尚未就绪
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v2/observe/metrics/hardware:
+    get:
+      operationId: getHardwareHealth
+      summary: 硬件健康矩阵（阈值判定在后端完成）
+      x-permission: metrics.read
+      parameters:
+      - $ref: '#/components/parameters/ClusterId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HardwareHealthEnvelope'
+        '400':
+          description: 缺少或错误的参数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务端错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 数据尚未就绪
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  parameters:
+    ClusterId:
+      name: cluster_id
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+      description: 集群 ID
+  schemas:
+    ClusterOverview:
+      additionalProperties: false
+      description: 集群概览响应
+      properties:
+        alerts:
+          $ref: '#/components/schemas/OverviewAlerts'
+        cards:
+          $ref: '#/components/schemas/OverviewCards'
+        clusterId:
+          type: string
+        nodes:
+          $ref: '#/components/schemas/OverviewNodes'
+        workloads:
+          $ref: '#/components/schemas/OverviewWorkloads'
+      required:
+      - alerts
+      - cards
+      - clusterId
+      - nodes
+      - workloads
+      type: object
+    CoolingDevice:
+      additionalProperties: false
+      description: 内核 thermal cooling device（node_cooling_device_{cur,max}_state）。 Type 取值来自内核：pwm-fan / Processor / intel_powerclamp / TCC Offset ...
+      properties:
+        curState:
+          type: integer
+        maxState:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+      required:
+      - curState
+      - maxState
+      - name
+      - type
+      type: object
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - error
+      description: 错误响应
+      properties:
+        error:
+          type: string
+          description: 给人看的错误说明（程序判断看状态码，不看这段文字）
+    EventCards:
+      additionalProperties: false
+      description: 事件统计卡片（随事件列表一起返回，前端不自己数）
+      properties:
+        categoriesCount:
+          type: integer
+        critical:
+          type: integer
+        error:
+          type: integer
+        info:
+          type: integer
+        kindsCount:
+          type: integer
+        totalAlerts:
+          description: critical + warning + error
+          type: integer
+        totalEvents:
+          type: integer
+        warning:
+          description: 不含 critical
+          type: integer
+      required:
+      - categoriesCount
+      - critical
+      - error
+      - info
+      - kindsCount
+      - totalAlerts
+      - totalEvents
+      - warning
+      type: object
+    EventListResponse:
+      additionalProperties: false
+      description: 事件列表响应
+      properties:
+        cards:
+          allOf:
+          - $ref: '#/components/schemas/EventCards'
+          description: 本次返回的事件的统计
+        events:
+          items:
+            $ref: '#/components/schemas/EventLog'
+          type: array
+        limit:
+          type: integer
+        offset:
+          type: integer
+        source:
+          type: string
+        total:
+          type: integer
+      required:
+      - cards
+      - events
+      - source
+      - total
+      type: object
+    EventLog:
+      additionalProperties: false
+      description: 事件日志项
+      properties:
+        category:
+          type: string
+        clusterId:
+          type: string
+        count:
+          type: integer
+          description: 发生次数
+        eventTime:
+          type: string
+          description: 最近一次发生时间
+        kind:
+          type: string
+        message:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+        node:
+          type: string
+          description: 事件来源主机（节点名）；上报方没有给出时为空
+        reason:
+          type: string
+        severity:
+          description: 后端判定的严重程度，前端只按它上色
+          type: string
+          enum:
+          - critical
+          - warning
+          - error
+          - info
+        source:
+          type: string
+          description: 产生事件的组件（kubelet / default-scheduler …）
+        time:
+          type: string
+          description: 首次发生时间
+      required:
+      - category
+      - clusterId
+      - count
+      - eventTime
+      - kind
+      - message
+      - name
+      - namespace
+      - node
+      - reason
+      - severity
+      - source
+      - time
+      type: object
+    FanSensor:
+      additionalProperties: false
+      description: hwmon 风扇转速（node_hwmon_fan_rpm）
+      properties:
+        chip:
+          type: string
+        rpm:
+          format: double
+          type: number
+        sensor:
+          type: string
+      required:
+      - chip
+      - rpm
+      - sensor
+      type: object
+    HardwareAwaitCell:
+      additionalProperties: false
+      description: 磁盘延迟格（该节点最差的块设备）
+      properties:
+        device:
+          type: string
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        valueMs:
+          format: double
+          type: number
+      required:
+      - device
+      - status
+      - valueMs
+      type: object
+    HardwareFanCell:
+      additionalProperties: false
+      description: 风扇格。RPM 为 nil = 没有转速传感器（只有 cooling state）。
+      properties:
+        maxState:
+          type: integer
+        rpm:
+          format: double
+          nullable: true
+          type: number
+        state:
+          type: integer
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+      required:
+      - maxState
+      - rpm
+      - state
+      - status
+      type: object
+    HardwareFreqCell:
+      additionalProperties: false
+      description: CPU 频率格（热降频判定）
+      properties:
+        currentGHz:
+          format: double
+          type: number
+        maxGHz:
+          format: double
+          type: number
+        ratioPct:
+          format: double
+          type: number
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+      required:
+      - currentGHz
+      - maxGHz
+      - ratioPct
+      - status
+      type: object
+    HardwareHealthEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - message
+      - data
+      properties:
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/HardwareHealthResponse'
+    HardwareHealthResponse:
+      additionalProperties: false
+      description: 硬件健康矩阵：每个节点一行，外加速览
+      properties:
+        rows:
+          items:
+            $ref: '#/components/schemas/HardwareRow'
+          type: array
+        summary:
+          $ref: '#/components/schemas/HardwareSummary'
+      required:
+      - rows
+      - summary
+      type: object
+    HardwareMaxAwait:
+      additionalProperties: false
+      description: 速览：集群最差磁盘延迟
+      properties:
+        device:
+          type: string
+        nodeName:
+          type: string
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        valueMs:
+          format: double
+          type: number
+      required:
+      - device
+      - nodeName
+      - status
+      - valueMs
+      type: object
+    HardwareMaxTemp:
+      additionalProperties: false
+      description: 速览：集群最高温（含来源）
+      properties:
+        nodeName:
+          type: string
+        sensor:
+          type: string
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        value:
+          format: double
+          type: number
+      required:
+      - nodeName
+      - sensor
+      - status
+      - value
+      type: object
+    HardwareRow:
+      additionalProperties: false
+      description: 矩阵一行 = 一个节点
+      properties:
+        cpuFreq:
+          allOf:
+          - $ref: '#/components/schemas/HardwareFreqCell'
+          nullable: true
+        cpuTemp:
+          allOf:
+          - $ref: '#/components/schemas/HardwareTempCell'
+          nullable: true
+        cpuUsage:
+          allOf:
+          - $ref: '#/components/schemas/HardwareUsageCell'
+          nullable: true
+        diskAwait:
+          allOf:
+          - $ref: '#/components/schemas/HardwareAwaitCell'
+          nullable: true
+        diskTemp:
+          allOf:
+          - $ref: '#/components/schemas/HardwareTempCell'
+          nullable: true
+        diskUsage:
+          allOf:
+          - $ref: '#/components/schemas/HardwareUsageCell'
+          nullable: true
+        fan:
+          allOf:
+          - $ref: '#/components/schemas/HardwareFanCell'
+          nullable: true
+        kernel:
+          type: string
+        memUsage:
+          allOf:
+          - $ref: '#/components/schemas/HardwareUsageCell'
+          nullable: true
+        nodeIP:
+          type: string
+        nodeName:
+          type: string
+        otherTemp:
+          allOf:
+          - $ref: '#/components/schemas/HardwareTempCell'
+          nullable: true
+        overall:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        profile:
+          type: string
+        profileLabel:
+          type: string
+        sensors:
+          description: 全部温度传感器逐个判定，供节点详情的温度卡渲染；无传感器时为空数组
+          items:
+            $ref: '#/components/schemas/HardwareSensorCell'
+          type: array
+        undervolt:
+          allOf:
+          - $ref: '#/components/schemas/HardwareUndervoltCell'
+          nullable: true
+        uptime:
+          description: 秒
+          format: int64
+          type: integer
+      required:
+      - cpuFreq
+      - cpuTemp
+      - cpuUsage
+      - diskAwait
+      - diskTemp
+      - diskUsage
+      - fan
+      - memUsage
+      - nodeName
+      - otherTemp
+      - overall
+      - profile
+      - profileLabel
+      - sensors
+      - undervolt
+      type: object
+    HardwareSensorCell:
+      additionalProperties: false
+      description: 单个温度传感器的判定结果（节点详情的温度卡用）。 与矩阵里的三个温度格不同：那三格是每类取最热的一个，这里是逐个列出。
+      properties:
+        class:
+          type: string
+          enum:
+          - cpu
+          - disk
+          - other
+        crit:
+          format: double
+          type: number
+        label:
+          description: chip 可读名（coretemp / nvme0 / rp1_adc）
+          type: string
+        max:
+          format: double
+          type: number
+        sensor:
+          description: temp1 / temp2 ...
+          type: string
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        value:
+          format: double
+          type: number
+      required:
+      - class
+      - crit
+      - label
+      - max
+      - sensor
+      - status
+      - value
+      type: object
+    HardwareSummary:
+      additionalProperties: false
+      description: 速览 tile 数据
+      properties:
+        maxDiskAwait:
+          allOf:
+          - $ref: '#/components/schemas/HardwareMaxAwait'
+          nullable: true
+        maxDiskTemp:
+          allOf:
+          - $ref: '#/components/schemas/HardwareMaxTemp'
+          nullable: true
+        maxTemp:
+          allOf:
+          - $ref: '#/components/schemas/HardwareMaxTemp'
+          nullable: true
+        throttledNodes:
+          type: integer
+        undervoltNodes:
+          type: integer
+        warningNodes:
+          description: 整行结论（overall）为 warn / crit 的节点数
+          type: integer
+      required:
+      - maxDiskAwait
+      - maxDiskTemp
+      - maxTemp
+      - throttledNodes
+      - undervoltNodes
+      - warningNodes
+      type: object
+    HardwareTempCell:
+      additionalProperties: false
+      description: 温度格（CPU / 磁盘 / 其他）
+      properties:
+        crit:
+          description: crit 阈值
+          format: double
+          type: number
+        label:
+          type: string
+        max:
+          description: warn 阈值（传感器自带或画像表）
+          format: double
+          type: number
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        value:
+          format: double
+          type: number
+      required:
+      - crit
+      - max
+      - status
+      - value
+      type: object
+    HardwareUndervoltCell:
+      additionalProperties: false
+      description: 欠压格（树莓派）
+      properties:
+        alarm:
+          type: boolean
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+      required:
+      - alarm
+      - status
+      type: object
+    HardwareUsageCell:
+      additionalProperties: false
+      description: 资源使用率格（CPU / 内存 / 磁盘）
+      properties:
+        status:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        value:
+          format: double
+          type: number
+      required:
+      - status
+      - value
+      type: object
+    NodeCPU:
+      additionalProperties: false
+      properties:
+        cores:
+          type: integer
+        freqHz:
+          description: 各核当前频率（node_cpu_scaling_frequency_hertz）
+          items:
+            format: double
+            type: number
+          type: array
+        freqMaxHz:
+          description: 标称最高频率（node_cpu_scaling_frequency_max_hertz）
+          format: double
+          type: number
+        iowaitPct:
+          format: double
+          type: number
+        load1:
+          format: double
+          type: number
+        load15:
+          format: double
+          type: number
+        load5:
+          format: double
+          type: number
+        systemPct:
+          format: double
+          type: number
+        usagePct:
+          format: double
+          type: number
+        userPct:
+          format: double
+          type: number
+      required:
+      - cores
+      - iowaitPct
+      - load1
+      - load15
+      - load5
+      - systemPct
+      - usagePct
+      - userPct
+      type: object
+    NodeDisk:
+      additionalProperties: false
+      properties:
+        availBytes:
+          format: int64
+          type: integer
+        awaitReadMs:
+          description: 平均读延迟 = read_time 速率 ÷ reads_completed 速率
+          format: double
+          type: number
+        awaitWriteMs:
+          description: 平均写延迟
+          format: double
+          type: number
+        device:
+          type: string
+        fsType:
+          type: string
+        inodeUsagePct:
+          description: inode 用尽同样会让写入失败，且容量还很空
+          format: double
+          type: number
+        ioUtilPct:
+          format: double
+          type: number
+        mountPoint:
+          type: string
+        queueDepth:
+          description: 平均在途请求数 = io_time_weighted 速率
+          format: double
+          type: number
+        readBytesPerSec:
+          format: double
+          type: number
+        readIOPS:
+          format: double
+          type: number
+        readOnly:
+          description: 文件系统被内核改判只读 = 盘出错的强信号
+          type: boolean
+        totalBytes:
+          format: int64
+          type: integer
+        usagePct:
+          format: double
+          type: number
+        writeBytesPerSec:
+          format: double
+          type: number
+        writeIOPS:
+          format: double
+          type: number
+      required:
+      - availBytes
+      - awaitReadMs
+      - awaitWriteMs
+      - device
+      - fsType
+      - inodeUsagePct
+      - ioUtilPct
+      - mountPoint
+      - queueDepth
+      - readBytesPerSec
+      - readIOPS
+      - readOnly
+      - totalBytes
+      - usagePct
+      - writeBytesPerSec
+      - writeIOPS
+      type: object
+    NodeDiskLevels:
+      additionalProperties: false
+      description: 单块盘各读数的等级
+      properties:
+        inode:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        ioUtil:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        usage:
+          description: 容量（inode 单独一项；矩阵里的磁盘格取两者更满的一个）
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+      required:
+      - inode
+      - ioUtil
+      - usage
+      type: object
+    NodeHardware:
+      additionalProperties: false
+      description: 风扇 / 散热 / 电压。切片为空表示该节点没有对应传感器。
+      properties:
+        cooling:
+          items:
+            $ref: '#/components/schemas/CoolingDevice'
+          type: array
+        fans:
+          items:
+            $ref: '#/components/schemas/FanSensor'
+          type: array
+        undervoltAlarm:
+          description: 欠压告警位（树莓派 rpi_volt 的 in0_lcrit_alarm）。nil = 无此传感器。
+          nullable: true
+          type: boolean
+      required:
+      - cooling
+      - fans
+      type: object
+    NodeLevels:
+      additionalProperties: false
+      description: 节点详情各读数的等级（后端判定，前端只按它上色）。 读数所在的采集项没采到时为 unknown。整台节点的结论看硬件矩阵那一行的 overall。
+      properties:
+        conntrack:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        cpu:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        cpuLoad:
+          description: 每核负载（排队等 CPU）
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        disks:
+          description: 与节点的 disks 一一对应
+          items:
+            $ref: '#/components/schemas/NodeDiskLevels'
+          type: array
+        entropy:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        fileFd:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        iowait:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        memory:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        oomKill:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        procsBlocked:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        psi:
+          $ref: '#/components/schemas/NodePSILevels'
+        swap:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        timeSync:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        vmstat:
+          $ref: '#/components/schemas/NodeVMStatLevels'
+      required:
+      - conntrack
+      - cpu
+      - cpuLoad
+      - disks
+      - entropy
+      - fileFd
+      - iowait
+      - memory
+      - oomKill
+      - procsBlocked
+      - psi
+      - swap
+      - timeSync
+      - vmstat
+      type: object
+    NodeMemory:
+      additionalProperties: false
+      properties:
+        availableBytes:
+          format: int64
+          type: integer
+        buffersBytes:
+          format: int64
+          type: integer
+        cachedBytes:
+          format: int64
+          type: integer
+        freeBytes:
+          format: int64
+          type: integer
+        oomKillTotal:
+          description: 内核 OOM 杀进程的累计次数。USE 里内存的「错误」项 —— 使用率回落后现场就没了，只有这个计数留得住痕迹。
+          format: int64
+          type: integer
+        swapFreeBytes:
+          format: int64
+          type: integer
+        swapTotalBytes:
+          format: int64
+          type: integer
+        swapUsagePct:
+          format: double
+          type: number
+        totalBytes:
+          format: int64
+          type: integer
+        usagePct:
+          format: double
+          type: number
+      required:
+      - availableBytes
+      - buffersBytes
+      - cachedBytes
+      - freeBytes
+      - oomKillTotal
+      - swapFreeBytes
+      - swapTotalBytes
+      - swapUsagePct
+      - totalBytes
+      - usagePct
+      type: object
+    NodeMetricsListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - message
+      - data
+      properties:
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeMetricsView'
+    NodeMetricsView:
+      additionalProperties: false
+      description: 节点指标 + 派生值 + 等级（listNodeMetrics 的一项）
+      properties:
+        conntrackUsagePct:
+          description: 连接跟踪表占用率；取不到上限时为 null
+          format: double
+          nullable: true
+          type: number
+        cpu:
+          $ref: '#/components/schemas/NodeCPU'
+        cpuLoadPerCore:
+          description: 1 分钟负载 ÷ 核数（跨机型可比）；取不到核数为 null
+          format: double
+          nullable: true
+          type: number
+        disks:
+          items:
+            $ref: '#/components/schemas/NodeDisk'
+          type: array
+        fileFdUsagePct:
+          description: 文件句柄占用率；内核不设上限或取不到上限时为 null
+          format: double
+          nullable: true
+          type: number
+        hardware:
+          allOf:
+          - $ref: '#/components/schemas/NodeHardware'
+          nullable: true
+          description: 风扇 / 散热 / 电压。缺省或为 null 表示上报方不采集，按「无数据」处理，⛔ 不视为正常
+        hardwareProfile:
+          description: Agent 识别的硬件类型，决定硬件阈值；识别失败为 unknown
+          enum:
+          - desk
+          - raspi5
+          - raspi4
+          - unknown
+          type: string
+        kernel:
+          type: string
+        levels:
+          $ref: '#/components/schemas/NodeLevels'
+        memory:
+          $ref: '#/components/schemas/NodeMemory'
+        networks:
+          items:
+            $ref: '#/components/schemas/NodeNetwork'
+          type: array
+        nodeIP:
+          type: string
+        nodeName:
+          type: string
+        primaryDiskIndex:
+          description: 主磁盘在 disks 里的下标（根分区所在的盘，否则取最大的已挂载盘）；没有可用的盘为 null
+          nullable: true
+          type: integer
+        psi:
+          $ref: '#/components/schemas/NodePSI'
+        softnet:
+          $ref: '#/components/schemas/NodeSoftnet'
+        system:
+          $ref: '#/components/schemas/NodeSystem'
+        tcp:
+          $ref: '#/components/schemas/NodeTCP'
+        temperature:
+          $ref: '#/components/schemas/NodeTemperature'
+        timestamp:
+          format: date-time
+          type: string
+        unavailable:
+          description: 本次采集中查询失败的项（cpu / memory / disks / networks / hardware …）；列出的项一律按「无数据」显示，⛔ 不当作零值
+          items:
+            type: string
+          type: array
+        uptime:
+          format: int64
+          type: integer
+        vmstat:
+          $ref: '#/components/schemas/NodeVMStat'
+      required:
+      - conntrackUsagePct
+      - cpu
+      - cpuLoadPerCore
+      - disks
+      - fileFdUsagePct
+      - levels
+      - memory
+      - networks
+      - nodeIP
+      - nodeName
+      - primaryDiskIndex
+      - psi
+      - softnet
+      - system
+      - tcp
+      - temperature
+      - timestamp
+      - vmstat
+      type: object
+    NodeNetwork:
+      additionalProperties: false
+      properties:
+        interface:
+          type: string
+        mtu:
+          type: integer
+        rxBytesPerSec:
+          format: double
+          type: number
+        rxDropPerSec:
+          format: double
+          type: number
+        rxErrPerSec:
+          format: double
+          type: number
+        rxPktPerSec:
+          format: double
+          type: number
+        speedBps:
+          format: int64
+          type: integer
+        txBytesPerSec:
+          format: double
+          type: number
+        txDropPerSec:
+          format: double
+          type: number
+        txErrPerSec:
+          format: double
+          type: number
+        txPktPerSec:
+          format: double
+          type: number
+        up:
+          type: boolean
+      required:
+      - interface
+      - mtu
+      - rxBytesPerSec
+      - rxDropPerSec
+      - rxErrPerSec
+      - rxPktPerSec
+      - speedBps
+      - txBytesPerSec
+      - txDropPerSec
+      - txErrPerSec
+      - txPktPerSec
+      - up
+      type: object
+    NodePSI:
+      additionalProperties: false
+      properties:
+        cpuSomePct:
+          format: double
+          type: number
+        ioFullPct:
+          format: double
+          type: number
+        ioSomePct:
+          format: double
+          type: number
+        memFullPct:
+          format: double
+          type: number
+        memSomePct:
+          format: double
+          type: number
+      required:
+      - cpuSomePct
+      - ioFullPct
+      - ioSomePct
+      - memFullPct
+      - memSomePct
+      type: object
+    NodePSILevels:
+      additionalProperties: false
+      description: 压力失速（some / full）各项的等级
+      properties:
+        cpuSome:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        ioFull:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        ioSome:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        memFull:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        memSome:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+      required:
+      - cpuSome
+      - ioFull
+      - ioSome
+      - memFull
+      - memSome
+      type: object
+    NodeSoftnet:
+      additionalProperties: false
+      properties:
+        droppedPerSec:
+          format: double
+          type: number
+        squeezedPerSec:
+          format: double
+          type: number
+      required:
+      - droppedPerSec
+      - squeezedPerSec
+      type: object
+    NodeSystem:
+      additionalProperties: false
+      properties:
+        arpEntries:
+          format: int64
+          type: integer
+        conntrackEntries:
+          format: int64
+          type: integer
+        conntrackLimit:
+          format: int64
+          type: integer
+        entropyBits:
+          format: int64
+          type: integer
+        filefdAllocated:
+          format: int64
+          type: integer
+        filefdMax:
+          format: int64
+          type: integer
+        filefdUnlimited:
+          description: 内核 fs.file-max 为 2^63-1（即无限制）；判定在采集侧完成，前端据此显示「无限制」而不是天文数字
+          type: boolean
+        procsBlocked:
+          format: int64
+          type: integer
+          description: D 状态（卡在不可中断 IO 上）的进程数；持续大于 0 是磁盘故障的早期信号
+        procsRunning:
+          description: 运行队列中的进程数
+          format: int64
+          type: integer
+        timeOffsetMs:
+          description: 与 NTP 源的时钟偏差（毫秒）；漂移会让日志与 trace 的时间线对不上
+          format: double
+          type: number
+        timeSynced:
+          type: boolean
+          description: 是否已与 NTP 源同步
+      required:
+      - arpEntries
+      - conntrackEntries
+      - conntrackLimit
+      - entropyBits
+      - filefdAllocated
+      - filefdMax
+      - procsBlocked
+      - procsRunning
+      - timeOffsetMs
+      - timeSynced
+      type: object
+    NodeTCP:
+      additionalProperties: false
+      properties:
+        alloc:
+          format: int64
+          type: integer
+        currEstab:
+          format: int64
+          type: integer
+        inUse:
+          format: int64
+          type: integer
+        socketsUsed:
+          format: int64
+          type: integer
+        timeWait:
+          format: int64
+          type: integer
+      required:
+      - alloc
+      - currEstab
+      - inUse
+      - socketsUsed
+      - timeWait
+      type: object
+    NodeTemperature:
+      additionalProperties: false
+      properties:
+        cpuCritC:
+          format: double
+          type: number
+        cpuMaxC:
+          format: double
+          type: number
+        cpuTempC:
+          format: double
+          type: number
+        sensors:
+          items:
+            $ref: '#/components/schemas/TempSensor'
+          type: array
+      required:
+      - cpuCritC
+      - cpuMaxC
+      - cpuTempC
+      - sensors
+      type: object
+    NodeVMStat:
+      additionalProperties: false
+      properties:
+        pgFaultPerSec:
+          format: double
+          type: number
+        pgMajFaultPerSec:
+          format: double
+          type: number
+        pswpInPerSec:
+          format: double
+          type: number
+        pswpOutPerSec:
+          format: double
+          type: number
+      required:
+      - pgFaultPerSec
+      - pgMajFaultPerSec
+      - pswpInPerSec
+      - pswpOutPerSec
+      type: object
+    NodeVMStatLevels:
+      additionalProperties: false
+      description: 换页与缺页的等级
+      properties:
+        majorFaults:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        swapIn:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        swapOut:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+      required:
+      - majorFaults
+      - swapIn
+      - swapOut
+      type: object
+    OverviewAlertTotals:
+      additionalProperties: false
+      description: 告警统计
+      properties:
+        critical:
+          type: integer
+        info:
+          type: integer
+        warning:
+          type: integer
+      required:
+      - critical
+      - info
+      - warning
+      type: object
+    OverviewAlertTrend:
+      additionalProperties: false
+      description: 告警趋势点
+      properties:
+        at:
+          format: date-time
+          type: string
+        kinds:
+          additionalProperties:
+            type: integer
+          type: object
+      required:
+      - at
+      - kinds
+      type: object
+    OverviewAlerts:
+      additionalProperties: false
+      description: 告警数据
+      properties:
+        recent:
+          items:
+            $ref: '#/components/schemas/OverviewRecentAlert'
+          type: array
+        totals:
+          $ref: '#/components/schemas/OverviewAlertTotals'
+        trend:
+          items:
+            $ref: '#/components/schemas/OverviewAlertTrend'
+          type: array
+      required:
+      - recent
+      - totals
+      - trend
+      type: object
+    OverviewCards:
+      additionalProperties: false
+      description: 概览卡片
+      properties:
+        clusterHealth:
+          $ref: '#/components/schemas/OverviewClusterHealth'
+        cpuUsage:
+          $ref: '#/components/schemas/OverviewPercent'
+        events24h:
+          type: integer
+        memUsage:
+          $ref: '#/components/schemas/OverviewPercent'
+        nodeReady:
+          $ref: '#/components/schemas/OverviewResourceReady'
+      required:
+      - clusterHealth
+      - cpuUsage
+      - events24h
+      - memUsage
+      - nodeReady
+      type: object
+    OverviewClusterHealth:
+      additionalProperties: false
+      description: 集群健康状态
+      properties:
+        nodeReadyPercent:
+          format: double
+          type: number
+        nodeReadyStatus:
+          description: 节点就绪率的结论（与 status 同一套取值），前端只按它上色
+          type: string
+          enum: &id001
+          - Healthy
+          - Degraded
+          - Unhealthy
+        podReadyPercent:
+          format: double
+          type: number
+        podReadyStatus:
+          type: string
+          enum: *id001
+          description: Pod 就绪率的结论（与 status 同一套取值），前端只按它上色
+        reason:
+          description: 原因代码，文案由前端按语言给出；健康时缺省
+          type: string
+          enum:
+          - nodeReadyLow
+          - podReadyLow
+          - someNodesNotReady
+          - somePodsNotReady
+        status:
+          type: string
+          enum: *id001
+      required:
+      - nodeReadyPercent
+      - nodeReadyStatus
+      - podReadyPercent
+      - podReadyStatus
+      - status
+      type: object
+    OverviewJobStatus:
+      additionalProperties: false
+      description: Job 状态
+      properties:
+        failed:
+          type: integer
+        running:
+          type: integer
+        succeeded:
+          type: integer
+        total:
+          type: integer
+      required:
+      - failed
+      - running
+      - succeeded
+      - total
+      type: object
+    OverviewNodeUsage:
+      additionalProperties: false
+      description: 节点使用率
+      properties:
+        cpuLevel:
+          description: 后端按资源使用率阈值判定的等级
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+        cpuUsage:
+          format: double
+          type: number
+        memLevel:
+          enum:
+          - good
+          - warn
+          - crit
+          - unknown
+          type: string
+          description: 后端按资源使用率阈值判定的等级
+        memUsage:
+          format: double
+          type: number
+        node:
+          type: string
+      required:
+      - cpuLevel
+      - cpuUsage
+      - memLevel
+      - memUsage
+      - node
+      type: object
+    OverviewNodes:
+      additionalProperties: false
+      description: 节点数据
+      properties:
+        usage:
+          items:
+            $ref: '#/components/schemas/OverviewNodeUsage'
+          type: array
+      required:
+      - usage
+      type: object
+    OverviewPeakStats:
+      additionalProperties: false
+      description: 峰值统计
+      properties:
+        hasData:
+          type: boolean
+        peakCpu:
+          format: double
+          type: number
+        peakCpuNode:
+          type: string
+        peakMem:
+          format: double
+          type: number
+        peakMemNode:
+          type: string
+      required:
+      - hasData
+      - peakCpu
+      - peakCpuNode
+      - peakMem
+      - peakMemNode
+      type: object
+    OverviewPercent:
+      additionalProperties: false
+      description: 百分比
+      properties:
+        percent:
+          format: double
+          type: number
+      required:
+      - percent
+      type: object
+    OverviewPodStatus:
+      additionalProperties: false
+      description: Pod 状态分布
+      properties:
+        failed:
+          type: integer
+        failedPercent:
+          format: double
+          type: number
+        pending:
+          type: integer
+        pendingPercent:
+          format: double
+          type: number
+        running:
+          type: integer
+        runningPercent:
+          format: double
+          type: number
+        succeeded:
+          type: integer
+        succeededPercent:
+          format: double
+          type: number
+        total:
+          type: integer
+        unknown:
+          type: integer
+      required:
+      - failed
+      - failedPercent
+      - pending
+      - pendingPercent
+      - running
+      - runningPercent
+      - succeeded
+      - succeededPercent
+      - total
+      - unknown
+      type: object
+    OverviewRecentAlert:
+      additionalProperties: false
+      description: 最近告警
+      properties:
+        kind:
+          type: string
+        message:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+        reason:
+          type: string
+        severity:
+          type: string
+          enum:
+          - critical
+          - warning
+          - info
+        timestamp:
+          type: string
+      required:
+      - kind
+      - message
+      - name
+      - namespace
+      - reason
+      - severity
+      - timestamp
+      type: object
+    OverviewResourceReady:
+      additionalProperties: false
+      description: 资源就绪
+      properties:
+        percent:
+          format: double
+          type: number
+        ready:
+          type: integer
+        total:
+          type: integer
+      required:
+      - percent
+      - ready
+      - total
+      type: object
+    OverviewWorkloadStatus:
+      additionalProperties: false
+      description: 工作负载状态
+      properties:
+        ready:
+          type: integer
+        total:
+          type: integer
+      required:
+      - ready
+      - total
+      type: object
+    OverviewWorkloadSummary:
+      additionalProperties: false
+      description: 工作负载汇总
+      properties:
+        daemonsets:
+          $ref: '#/components/schemas/OverviewWorkloadStatus'
+        deployments:
+          $ref: '#/components/schemas/OverviewWorkloadStatus'
+        jobs:
+          $ref: '#/components/schemas/OverviewJobStatus'
+        statefulsets:
+          $ref: '#/components/schemas/OverviewWorkloadStatus'
+      required:
+      - daemonsets
+      - deployments
+      - jobs
+      - statefulsets
+      type: object
+    OverviewWorkloads:
+      additionalProperties: false
+      description: 工作负载概览
+      properties:
+        peakStats:
+          allOf:
+          - $ref: '#/components/schemas/OverviewPeakStats'
+          nullable: true
+        podStatus:
+          $ref: '#/components/schemas/OverviewPodStatus'
+        summary:
+          $ref: '#/components/schemas/OverviewWorkloadSummary'
+      required:
+      - podStatus
+      - summary
+      type: object
+    TempSensor:
+      additionalProperties: false
+      properties:
+        chip:
+          type: string
+        chipName:
+          description: node_hwmon_chip_names 的可读名（coretemp / nvme / rp1_adc ...）
+          type: string
+        critC:
+          format: double
+          type: number
+        currentC:
+          format: double
+          type: number
+        maxC:
+          format: double
+          type: number
+        sensor:
+          type: string
+      required:
+      - chip
+      - critC
+      - currentC
+      - maxC
+      - sensor
+      type: object

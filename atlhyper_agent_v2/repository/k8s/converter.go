@@ -995,6 +995,8 @@ func ConvertEvent(k8sEvent *corev1.Event) cluster.Event {
 		},
 	}
 
+	event.NodeName = k8sEvent.Source.Host
+
 	// 设置时间戳
 	if !k8sEvent.FirstTimestamp.IsZero() {
 		event.FirstTimestamp = k8sEvent.FirstTimestamp.Time
