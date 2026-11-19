@@ -144,7 +144,11 @@ func (h *EventHandler) listFromDatabase(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	total, _ := h.svc.CountEventHistory(ctx, clusterID)
+	total, err := h.svc.CountEventHistory(ctx, clusterID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to count events")
+		return
+	}
 
 	writeJSON(w, http.StatusOK, model.EventListResponse{
 		Events: convert.EventLogsFromDB(dbEvents, clusterID),

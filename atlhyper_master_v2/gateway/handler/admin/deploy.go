@@ -262,7 +262,11 @@ func (h *DeployHandler) History(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	total, _ := h.querySvc.CountDeployHistory(r.Context(), opts)
+	total, err := h.querySvc.CountDeployHistory(r.Context(), opts)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "获取部署历史总数失败")
+		return
+	}
 
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"data":  records,

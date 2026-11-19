@@ -44,8 +44,11 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 获取目标配置
-	targets, _ := h.querySvc.GetSLOTargets(ctx, clusterID)
-	targetMap := buildTargetMap(targets)
+	targetMap, err := h.loadTargetMap(ctx, clusterID)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 SLO 目标失败")
+		return
+	}
 
 	// 优先从 SLOWindows[timeRange] 获取数据
 	var ingressList []slomodel.IngressSLO
@@ -115,6 +118,16 @@ func (h *SLOHandler) Domains(w http.ResponseWriter, r *http.Request) {
 
 // defaultTarget 未配置目标时的兜底。
 // 99% / 300ms / 7 天窗口 —— 7 天对齐 ClickHouse 的 TTL，更长的窗口没有数据。
+// loadTargetMap 读取集群的 SLO 目标；读失败要报错，⛔ 不能悄悄按默认目标判定
+func (h *SLOHandler) loadTargetMap(ctx context.Context, clusterID string) (map[string]model.SLOTargetResponse, error) {
+	targets, err := h.querySvc.GetSLOTargets(ctx, clusterID)
+	if err != nil {
+		sloLog.Warn("读取 SLO 目标失败", "cluster", clusterID, "err", err)
+		return nil, err
+	}
+	return buildTargetMap(targets), nil
+}
+
 func defaultTarget() *model.SLOTargetSpec {
 	return &model.SLOTargetSpec{Availability: 99.0, P95Latency: 300, WindowDays: 7}
 }
@@ -234,7 +247,10 @@ func (h *SLOHandler) buildDomainFromIngress(ctx context.Context, clusterID strin
 	}
 
 	// 获取路由映射元信息
-	mapping, _ := h.querySvc.GetSLORouteMappingByServiceKey(ctx, clusterID, ing.ServiceKey)
+	mapping, err := h.querySvc.GetSLORouteMappingByServiceKey(ctx, clusterID, ing.ServiceKey)
+	if err != nil {
+		sloLog.Warn("读取路由映射失败，域名缺少 Ingress 元信息", "serviceKey", ing.ServiceKey, "err", err)
+	}
 	if mapping != nil {
 		domain.IngressName = mapping.IngressName
 		domain.Namespace = mapping.Namespace
@@ -316,8 +332,11 @@ func (h *SLOHandler) DomainsV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targets, _ := h.querySvc.GetSLOTargets(ctx, clusterID)
-	targetMap := buildTargetMap(targets)
+	targetMap, err := h.loadTargetMap(ctx, clusterID)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 SLO 目标失败")
+		return
+	}
 
 	var domainResponses []model.DomainSLOResponseV2
 
@@ -641,8 +660,11 @@ func (h *SLOHandler) DomainDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targets, _ := h.querySvc.GetSLOTargets(ctx, clusterID)
-	targetMap := buildTargetMap(targets)
+	targetMap, err := h.loadTargetMap(ctx, clusterID)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 SLO 目标失败")
+		return
+	}
 
 	// 查找匹配的 IngressSLO
 	if otel != nil {
@@ -688,8 +710,11 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// 加载 targets 用于计算 error budget
-	targets, _ := h.querySvc.GetSLOTargets(ctx, clusterID)
-	targetMap := buildTargetMap(targets)
+	targetMap, err := h.loadTargetMap(ctx, clusterID)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 SLO 目标失败")
+		return
+	}
 
 	timeRange := r.URL.Query().Get("time_range")
 	if timeRange == "" {
@@ -699,9 +724,18 @@ func (h *SLOHandler) DomainHistory(w http.ResponseWriter, r *http.Request) {
 	availTarget := resolveTarget(targetMap, host).Availability
 
 	// 域名 → ServiceKey 映射（与 LatencyDistribution 一致）
-	mappings, _ := h.querySvc.GetSLORouteMappingsByDomain(ctx, clusterID, host)
+	mappings, err := h.querySvc.GetSLORouteMappingsByDomain(ctx, clusterID, host)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取路由映射失败")
+		return
+	}
+	snap, err := h.querySvc.GetOTelSnapshot(ctx, clusterID)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 OTel 快照失败")
+		return
+	}
 	var windowed, recent []slomodel.IngressSLO
-	if snap, _ := h.querySvc.GetOTelSnapshot(ctx, clusterID); snap != nil {
+	if snap != nil {
 		recent = snap.SLOIngress
 		if snap.SLOWindows != nil {
 			if w, ok := snap.SLOWindows[timeRange]; ok && w != nil {
