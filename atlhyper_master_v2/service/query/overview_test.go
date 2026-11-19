@@ -1,8 +1,8 @@
 package query
 
 import (
-	"errors"
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -983,7 +983,6 @@ func TestGetOTelTimeline_Empty(t *testing.T) {
 		t.Errorf("expected nil for empty timeline, got %d entries", len(result))
 	}
 }
-
 
 // 进程本地时区不是 UTC（如容器设了 TZ）时，告警趋势照样按 UTC 小时对齐，最近告警的时间按 UTC 输出
 func TestGetOverview_AlertsIgnoreProcessTimezone(t *testing.T) {

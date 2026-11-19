@@ -227,3 +227,7 @@ func (d *aIOpsIncidentDialect) ScanTimeline(rows *sql.Rows) (*database.AIOpsInci
 	t.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
 	return t, nil
 }
+
+func (d *aIOpsIncidentDialect) DeleteResolvedBefore(before time.Time) (string, []any) {
+	return "DELETE FROM aiops_incidents WHERE resolved_at IS NOT NULL AND resolved_at < ?", []any{utcStamp(before)}
+}

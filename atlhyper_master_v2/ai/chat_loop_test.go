@@ -41,7 +41,9 @@ func (r *memMsgRepo) ListByConversation(context.Context, int64) ([]*database.AIM
 	return r.saved, nil
 }
 
-type memConvRepo struct{ database.AIConversationRepository }
+type memConvRepo struct {
+	database.AIConversationRepository
+}
 
 func (memConvRepo) GetByID(_ context.Context, id int64) (*database.AIConversation, error) {
 	return &database.AIConversation{ID: id}, nil

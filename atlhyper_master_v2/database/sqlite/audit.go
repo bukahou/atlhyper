@@ -94,3 +94,7 @@ func (d *auditDialect) ScanRow(rows *sql.Rows) (*database.AuditLog, error) {
 }
 
 var _ database.AuditDialect = (*auditDialect)(nil)
+
+func (d *auditDialect) DeleteBefore(before time.Time) (string, []any) {
+	return "DELETE FROM audit_logs WHERE timestamp < ?", []any{utcStamp(before)}
+}

@@ -62,6 +62,9 @@ func LoadConfig() {
 		MaxConns: getInt("MASTER_DB_MAX_CONNS"),
 
 		CommandHistoryRetention: getDuration("MASTER_COMMAND_HISTORY_RETENTION"),
+		AuditRetention:          getDuration("MASTER_AUDIT_RETENTION"),
+		AIOpsIncidentRetention:  getDuration("MASTER_AIOPS_INCIDENT_RETENTION"),
+		AIReportRetention:       getDuration("MASTER_AI_REPORT_RETENTION"),
 	}
 
 	GlobalConfig.Event = EventConfig{

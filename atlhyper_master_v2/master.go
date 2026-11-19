@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
@@ -73,9 +72,8 @@ type Master struct {
 	aiopsEngine aiops.Engine
 	// Deployer（GitOps CD）
 	deployer deployer.Deployer
-	// 指令历史定期清理
-	commandOps       *operations.CommandService
-	commandRetention time.Duration
+	// 只增不减的数据定期按保留期清理
+	retentionJobs []retentionJob
 }
 
 // NewMaster 创建并初始化 Master 实例
@@ -631,8 +629,12 @@ func NewMaster() (*Master, error) {
 		aiopsEngine:  aiopsEngine,
 		deployer:     deployerService,
 
-		commandOps:       cmdOps,
-		commandRetention: cfg.Database.CommandHistoryRetention,
+		retentionJobs: []retentionJob{
+			{name: "指令历史", keep: cfg.Database.CommandHistoryRetention, purge: cmdOps.PurgeHistoryBefore},
+			{name: "审计记录", keep: cfg.Database.AuditRetention, purge: db.Audit.DeleteBefore},
+			{name: "已恢复的 AIOps 事件", keep: cfg.Database.AIOpsIncidentRetention, purge: db.AIOpsIncident.DeleteResolvedBefore},
+			{name: "AI 分析报告", keep: cfg.Database.AIReportRetention, purge: db.AIReport.DeleteBefore},
+		},
 	}, nil
 }
 
@@ -672,8 +674,8 @@ func (m *Master) Run(ctx context.Context) error {
 		}
 	}
 
-	// 指令历史定期清理（随 ctx 结束）
-	go m.runCommandHistoryRetention(ctx)
+	// 只增不减的数据按保留期定期清理（随 ctx 结束）
+	go runRetention(ctx, m.retentionJobs)
 
 	// 启动 AgentSDK
 	if err := m.agentSDK.Start(); err != nil {

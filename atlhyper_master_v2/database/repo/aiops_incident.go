@@ -448,3 +448,12 @@ func buildIncidentListQuery(columns string, opts database.AIOpsIncidentQueryOpts
 
 // 确保实现了接口
 var _ database.AIOpsIncidentRepository = (*aiopsIncidentRepo)(nil)
+
+func (r *aiopsIncidentRepo) DeleteResolvedBefore(ctx context.Context, before time.Time) (int64, error) {
+	query, args := r.dialect.DeleteResolvedBefore(before)
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

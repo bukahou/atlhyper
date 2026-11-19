@@ -62,6 +62,8 @@ type AuditRepository interface {
 	Create(ctx context.Context, log *AuditLog) error
 	List(ctx context.Context, opts AuditQueryOpts) ([]*AuditLog, error)
 	Count(ctx context.Context, opts AuditQueryOpts) (int64, error)
+	// DeleteBefore 删除早于 before 的审计记录，返回删除的行数
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 // UserRepository 用户接口
@@ -272,6 +274,8 @@ type AIOpsGraphRepository interface {
 
 // AIOpsIncidentRepository 事件数据访问接口
 type AIOpsIncidentRepository interface {
+	// DeleteResolvedBefore 删除恢复时间早于 before 的事件（子表随外键级联删除），返回删除的事件数；未恢复的不删
+	DeleteResolvedBefore(ctx context.Context, before time.Time) (int64, error)
 	CreateIncident(ctx context.Context, inc *AIOpsIncident) error
 	GetByID(ctx context.Context, id string) (*AIOpsIncident, error)
 	// UpdateState 只改状态；严重度是峰值，由 RaiseSeverity 单独维护
@@ -388,6 +392,7 @@ type AuditDialect interface {
 	Insert(log *AuditLog) (query string, args []any)
 	List(opts AuditQueryOpts) (query string, args []any)
 	Count(opts AuditQueryOpts) (query string, args []any)
+	DeleteBefore(before time.Time) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*AuditLog, error)
 }
 
@@ -585,6 +590,7 @@ type AIOpsGraphDialect interface {
 
 // AIOpsIncidentDialect 事件 SQL 方言
 type AIOpsIncidentDialect interface {
+	DeleteResolvedBefore(before time.Time) (string, []any)
 	InsertIncident(inc *AIOpsIncident) (string, []any)
 	SelectByID(id string) (string, []any)
 	UpdateState(id, state string) (string, []any)

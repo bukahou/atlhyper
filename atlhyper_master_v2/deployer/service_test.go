@@ -198,7 +198,7 @@ func TestRestoreLastCommitSHA(t *testing.T) {
 			rec("apps/web", "sha-3", "failed", t0.Add(time.Hour)),
 		}, "sha-2"},
 		{"多个路径取最旧的成功", `["apps/web","apps/api"]`, []*database.DeployHistory{
-			rec("apps/web", "sha-3", "success", t0.Add(2 * time.Hour)),
+			rec("apps/web", "sha-3", "success", t0.Add(2*time.Hour)),
 			rec("apps/api", "sha-2", "success", t0.Add(time.Hour)),
 		}, "sha-2"},
 		{"有路径从没成功过", `["apps/web","apps/api"]`, []*database.DeployHistory{
