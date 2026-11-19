@@ -4,6 +4,7 @@
 package handler
 
 import (
+	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -127,6 +128,7 @@ func (h *OpsHandler) PodLogs(w http.ResponseWriter, r *http.Request) {
 		TargetName:      req.Name,
 		Params:          params,
 		Source:          command.SourceWeb,
+		UserID:          operatorID(r),
 	}, 30*time.Second)
 	if err != nil {
 		WriteCommandError(w, err)
@@ -167,13 +169,14 @@ func (h *OpsHandler) PodRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(r.Context(), &model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionDelete,
 		TargetKind:      "Pod",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
 		Source:          command.SourceWeb,
+		UserID:          operatorID(r),
 	})
 	if err != nil {
 		WriteCommandError(w, err)
@@ -212,7 +215,7 @@ func (h *OpsHandler) DeploymentScale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(r.Context(), &model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionScale,
 		TargetKind:      "Deployment",
@@ -220,6 +223,7 @@ func (h *OpsHandler) DeploymentScale(w http.ResponseWriter, r *http.Request) {
 		TargetName:      req.Name,
 		Params:          params.ToParams(),
 		Source:          command.SourceWeb,
+		UserID:          operatorID(r),
 	})
 	if err != nil {
 		WriteCommandError(w, err)
@@ -252,13 +256,14 @@ func (h *OpsHandler) DeploymentRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(r.Context(), &model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionRestart,
 		TargetKind:      "Deployment",
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
 		Source:          command.SourceWeb,
+		UserID:          operatorID(r),
 	})
 	if err != nil {
 		WriteCommandError(w, err)
@@ -297,7 +302,7 @@ func (h *OpsHandler) DeploymentImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(r.Context(), &model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionUpdateImage,
 		TargetKind:      "Deployment",
@@ -305,6 +310,7 @@ func (h *OpsHandler) DeploymentImage(w http.ResponseWriter, r *http.Request) {
 		TargetName:      req.Name,
 		Params:          params.ToParams(),
 		Source:          command.SourceWeb,
+		UserID:          operatorID(r),
 	})
 	if err != nil {
 		WriteCommandError(w, err)
@@ -337,12 +343,13 @@ func (h *OpsHandler) NodeCordon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(r.Context(), &model.CreateCommandRequest{
 		ClusterID:  req.ClusterID,
 		Action:     command.ActionCordon,
 		TargetKind: "Node",
 		TargetName: req.Name,
 		Source:     command.SourceWeb,
+		UserID:     operatorID(r),
 	})
 	if err != nil {
 		WriteCommandError(w, err)
@@ -375,12 +382,13 @@ func (h *OpsHandler) NodeUncordon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.CreateCommand(&model.CreateCommandRequest{
+	resp, err := h.svc.CreateCommand(r.Context(), &model.CreateCommandRequest{
 		ClusterID:  req.ClusterID,
 		Action:     command.ActionUncordon,
 		TargetKind: "Node",
 		TargetName: req.Name,
 		Source:     command.SourceWeb,
+		UserID:     operatorID(r),
 	})
 	if err != nil {
 		WriteCommandError(w, err)
@@ -421,6 +429,7 @@ func (h *OpsHandler) ConfigMapData(w http.ResponseWriter, r *http.Request) {
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
 		Source:          command.SourceWeb,
+		UserID:          operatorID(r),
 	}, 30*time.Second)
 	if err != nil {
 		WriteCommandError(w, err)
@@ -467,6 +476,7 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
 		Source:          command.SourceWeb,
+		UserID:          operatorID(r),
 	}, 30*time.Second)
 	if err != nil {
 		WriteCommandError(w, err)
@@ -484,4 +494,10 @@ func (h *OpsHandler) SecretData(w http.ResponseWriter, r *http.Request) {
 		"message": "获取成功",
 		"data":    result.Output,
 	})
+}
+
+// operatorID 当前操作者（已认证用户）的 ID；访客为 0（这些接口要 2 级权限，正常走不到）
+func operatorID(r *http.Request) int64 {
+	id, _ := middleware.GetUserID(r.Context())
+	return id
 }

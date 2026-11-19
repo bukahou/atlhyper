@@ -42,7 +42,7 @@ func NewCommandService(bus mq.Producer, cmdRepo database.CommandHistoryRepositor
 }
 
 // CreateCommand 创建指令
-func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.CreateCommandResponse, error) {
+func (s *CommandService) CreateCommand(ctx context.Context, req *model.CreateCommandRequest) (*model.CreateCommandResponse, error) {
 	// 1. 校验
 	if err := s.validateRequest(req); err != nil {
 		return nil, fmt.Errorf("%w: %w", model.ErrInvalidCommand, err)
@@ -65,6 +65,7 @@ func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.
 		Name:      req.TargetName,
 		Params:    req.Params,
 		Source:    req.Source,
+		CreatedBy: issuer(req),
 		CreatedAt: time.Now(),
 	}
 
@@ -79,6 +80,7 @@ func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.
 			CommandID:       commandID,
 			ClusterID:       req.ClusterID,
 			Source:          req.Source,
+			UserID:          req.UserID,
 			Action:          req.Action,
 			TargetKind:      req.TargetKind,
 			TargetNamespace: req.TargetNamespace,
@@ -87,7 +89,8 @@ func (s *CommandService) CreateCommand(req *model.CreateCommandRequest) (*model.
 			Status:          command.StatusPending,
 			CreatedAt:       cmd.CreatedAt,
 		}
-		historyErr = s.cmdRepo.Create(context.Background(), history)
+		// 写历史不随请求取消：指令可能照样入队，历史必须跟上
+		historyErr = s.cmdRepo.Create(context.WithoutCancel(ctx), history)
 		if historyErr != nil {
 			log.Error("指令历史持久化失败", "err", historyErr)
 		}
@@ -167,7 +170,7 @@ func (s *CommandService) validateRequest(req *model.CreateCommandRequest) error 
 
 // ExecuteCommandSync 创建指令并同步等待 Agent 执行结果
 func (s *CommandService) ExecuteCommandSync(ctx context.Context, req *model.CreateCommandRequest, timeout time.Duration) (*command.Result, error) {
-	resp, err := s.CreateCommand(req)
+	resp, err := s.CreateCommand(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -180,4 +183,12 @@ func (s *CommandService) ExecuteCommandSync(ctx context.Context, req *model.Crea
 		return nil, fmt.Errorf("wait command %s: %w", resp.CommandID, mq.ErrWaitTimeout)
 	}
 	return result, nil
+}
+
+// issuer 指令的下发者，随指令带给 Agent 写进执行记录："user:<id>" 或来源（ai / deployer / web）
+func issuer(req *model.CreateCommandRequest) string {
+	if req.UserID > 0 {
+		return fmt.Sprintf("user:%d", req.UserID)
+	}
+	return req.Source
 }

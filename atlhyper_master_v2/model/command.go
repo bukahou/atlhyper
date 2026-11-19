@@ -11,6 +11,8 @@ type CreateCommandRequest struct {
 	TargetName      string                 `json:"targetName,omitempty"`
 	Params          map[string]interface{} `json:"params,omitempty"`
 	Source          string                 `json:"source,omitempty"` // web / ai
+	// UserID 下发者（已认证的 Web 用户，由网关从身份里取，⛔ 不从请求体读）；0 = 系统 / AI / 部署器
+	UserID int64 `json:"-"`
 }
 
 // CreateCommandResponse 创建指令响应
