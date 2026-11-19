@@ -64,7 +64,9 @@ type ChatChunk struct {
 	Type string `json:"type"` // text / tool_call / tool_result / notice / done / error
 	// Round 第几次调模型（从 1 开始）；text / tool_call / tool_result / notice 都带，前端按它分轮，⛔ 不按文字顺序猜
 	Round   int    `json:"round,omitempty"`
-	Content string `json:"content,omitempty"` // 文本内容 / 工具结果 / 错误说明
+	Content string `json:"content,omitempty"` // 文本内容 / 工具结果 / 错误说明（给人看的兜底文案）
+	// Code error：错误码（ErrorCodeConfig 或 llm.ErrorKind 的取值），前端按它出文案
+	Code string `json:"code,omitempty"`
 	// CallID 模型给的调用 ID：tool_call 与 tool_result 按它配对（同一轮可能并行调用同名工具）
 	CallID  string     `json:"callId,omitempty"`
 	Tool    string     `json:"tool,omitempty"`    // tool 名称

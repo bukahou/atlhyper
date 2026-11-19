@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { aiErrorMessage, aiCodeMessage } from "./ai-error";
+import { aiErrorMessage, aiCodeMessage, aiKnownCodeMessage } from "./ai-error";
 
-const texts = { analysisFailed: "generic", errorRoleUnassigned: "role", errorBudgetExhausted: "budget", errorUpstream: "upstream", errorTimeout: "timeout", analysisInterrupted: "interrupted" };
+const texts = {
+  analysisFailed: "generic", errorRoleUnassigned: "role", errorBudgetExhausted: "budget", errorConfig: "config",
+  errorAuth: "auth", errorRateLimited: "rate", errorUnreachable: "unreachable", errorInterrupted: "cut",
+  errorRefused: "refused", errorUpstream: "upstream", errorTimeout: "timeout", analysisInterrupted: "interrupted",
+};
 const axiosErr = (code?: string) => ({ response: { data: { code } } });
 
 describe("aiErrorMessage", () => {
@@ -22,5 +26,22 @@ describe("aiCodeMessage", () => {
   it("深度分析状态的错误码", () => {
     expect(aiCodeMessage("analysis_interrupted", texts)).toBe("interrupted");
     expect(aiCodeMessage("ai_role_unassigned", texts)).toBe("role");
+  });
+});
+
+describe("aiKnownCodeMessage", () => {
+  it.each([
+    ["ai_config", "config"],
+    ["ai_auth", "auth"],
+    ["ai_rate_limited", "rate"],
+    ["ai_unreachable", "unreachable"],
+    ["ai_interrupted", "cut"],
+    ["ai_refused", "refused"],
+  ])("%s → %s", (code, want) => {
+    expect(aiKnownCodeMessage(code, texts)).toBe(want);
+  });
+  it("认不得的码返回 undefined，由调用方兜底", () => {
+    expect(aiKnownCodeMessage("weird", texts)).toBeUndefined();
+    expect(aiKnownCodeMessage(undefined, texts)).toBeUndefined();
   });
 });

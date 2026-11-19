@@ -32,24 +32,8 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	endTime := r.URL.Query().Get("end_time")
 
 	if startTime != "" && endTime != "" {
-		params := map[string]interface{}{
-			"sub_action": "list_traces",
-			"start_time": startTime,
-			"end_time":   endTime,
-			"limit":      500,
-		}
-		if svc := r.URL.Query().Get("service"); svc != "" {
-			params["service"] = svc
-		}
-		if op := r.URL.Query().Get("operation"); op != "" {
-			params["operation"] = op
-		}
-		if sc := r.URL.Query().Get("status_code"); sc != "" {
-			params["status_code"] = sc
-		}
-		if m := r.URL.Query().Get("method"); m != "" {
-			params["method"] = m
-		}
+		params := traceListParams(r)
+		params.TimeWindow = command.TimeWindow{StartTime: startTime, EndTime: endTime}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
 		return
 	}
@@ -60,23 +44,8 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
 			return
 		}
-		params := map[string]interface{}{
-			"sub_action": "list_traces",
-			"since":      fmt.Sprintf("%dm", minutes),
-			"limit":      500,
-		}
-		if svc := r.URL.Query().Get("service"); svc != "" {
-			params["service"] = svc
-		}
-		if op := r.URL.Query().Get("operation"); op != "" {
-			params["operation"] = op
-		}
-		if sc := r.URL.Query().Get("status_code"); sc != "" {
-			params["status_code"] = sc
-		}
-		if m := r.URL.Query().Get("method"); m != "" {
-			params["method"] = m
-		}
+		params := traceListParams(r)
+		params.TimeWindow = command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
@@ -163,7 +132,7 @@ func (h *ObserveHandler) TracesServices(w http.ResponseWriter, r *http.Request) 
 	endTime := r.URL.Query().Get("end_time")
 
 	if startTime != "" && endTime != "" {
-		params := map[string]interface{}{"sub_action": "list_services", "start_time": startTime, "end_time": endTime}
+		params := command.QueryTracesParams{SubAction: command.TraceListServices, TimeWindow: command.TimeWindow{StartTime: startTime, EndTime: endTime}}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
 		return
 	}
@@ -174,7 +143,7 @@ func (h *ObserveHandler) TracesServices(w http.ResponseWriter, r *http.Request) 
 			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
 			return
 		}
-		params := map[string]interface{}{"sub_action": "list_services", "since": fmt.Sprintf("%dm", minutes)}
+		params := command.QueryTracesParams{SubAction: command.TraceListServices, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
@@ -207,7 +176,7 @@ func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) 
 	endTime := r.URL.Query().Get("end_time")
 
 	if startTime != "" && endTime != "" {
-		params := map[string]interface{}{"sub_action": "get_topology", "start_time": startTime, "end_time": endTime}
+		params := command.QueryTracesParams{SubAction: command.TraceTopology, TimeWindow: command.TimeWindow{StartTime: startTime, EndTime: endTime}}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
 		return
 	}
@@ -218,7 +187,7 @@ func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) 
 			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
 			return
 		}
-		params := map[string]interface{}{"sub_action": "get_topology", "since": fmt.Sprintf("%dm", minutes)}
+		params := command.QueryTracesParams{SubAction: command.TraceTopology, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
@@ -252,7 +221,7 @@ func (h *ObserveHandler) TracesOperations(w http.ResponseWriter, r *http.Request
 	endTime := r.URL.Query().Get("end_time")
 
 	if startTime != "" && endTime != "" {
-		params := map[string]interface{}{"sub_action": "list_operations", "start_time": startTime, "end_time": endTime}
+		params := command.QueryTracesParams{SubAction: command.TraceListOperations, TimeWindow: command.TimeWindow{StartTime: startTime, EndTime: endTime}}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
 		return
 	}
@@ -263,7 +232,7 @@ func (h *ObserveHandler) TracesOperations(w http.ResponseWriter, r *http.Request
 			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
 			return
 		}
-		params := map[string]interface{}{"sub_action": "list_operations", "since": fmt.Sprintf("%dm", minutes)}
+		params := command.QueryTracesParams{SubAction: command.TraceListOperations, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
@@ -313,11 +282,7 @@ func (h *ObserveHandler) TracesDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := map[string]interface{}{
-		"trace_id": traceID,
-	}
-
-	h.executeQuery(w, r, clusterID, command.ActionQueryTraceDetail, params, 30*time.Second)
+	h.executeQuery(w, r, clusterID, command.ActionQueryTraceDetail, command.QueryTraceDetailParams{TraceID: traceID}, 30*time.Second)
 }
 
 // TracesCorrelations GET /api/v2/observe/traces/correlations
@@ -335,20 +300,22 @@ func (h *ObserveHandler) TracesCorrelations(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	params := map[string]interface{}{
-		"sub_action": "get_correlations",
-		"service":    r.URL.Query().Get("service"),
-		"operation":  r.URL.Query().Get("operation"),
-		"mode":       r.URL.Query().Get("mode"),
+	q := r.URL.Query()
+	params := command.QueryTracesParams{
+		SubAction:  command.TraceCorrelations,
+		Service:    q.Get("service"),
+		Operation:  q.Get("operation"),
+		Mode:       q.Get("mode"),
+		TimeWindow: command.TimeWindow{StartTime: q.Get("start_time"), EndTime: q.Get("end_time")},
 	}
-	if tr := r.URL.Query().Get("time_range"); tr != "" {
-		params["since"] = tr
-	}
-	if st := r.URL.Query().Get("start_time"); st != "" {
-		params["start_time"] = st
-	}
-	if et := r.URL.Query().Get("end_time"); et != "" {
-		params["end_time"] = et
+	// 与其他观测接口同一个时间窗上限
+	if tr := q.Get("time_range"); tr != "" {
+		minutes, ok := parseTimeRangeMinutes(tr)
+		if !ok {
+			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
+			return
+		}
+		params.Since = fmt.Sprintf("%dm", minutes)
 	}
 	// 统计结果短缓存：相关性分析是重查询，同参数 30 秒内不重算
 	h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
@@ -368,6 +335,10 @@ func (h *ObserveHandler) TracesStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subAction := r.URL.Query().Get("sub_action")
+	if subAction != command.TraceHTTPStats && subAction != command.TraceDBStats {
+		handler.WriteError(w, http.StatusBadRequest, "sub_action 须为 http_stats 或 db_stats")
+		return
+	}
 	service := r.URL.Query().Get("service")
 	if service == "" {
 		handler.WriteError(w, http.StatusBadRequest, "service is required")
@@ -378,12 +349,7 @@ func (h *ObserveHandler) TracesStats(w http.ResponseWriter, r *http.Request) {
 	endTime := r.URL.Query().Get("end_time")
 
 	if startTime != "" && endTime != "" {
-		params := map[string]interface{}{
-			"sub_action": subAction,
-			"service":    service,
-			"start_time": startTime,
-			"end_time":   endTime,
-		}
+		params := command.QueryTracesParams{SubAction: subAction, Service: service, TimeWindow: command.TimeWindow{StartTime: startTime, EndTime: endTime}}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, 30*time.Second)
 		return
 	}
@@ -395,11 +361,7 @@ func (h *ObserveHandler) TracesStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	params := map[string]interface{}{
-		"sub_action": subAction,
-		"service":    service,
-		"since":      fmt.Sprintf("%dm", minutes),
-	}
+	params := command.QueryTracesParams{SubAction: subAction, Service: service, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
 
 	h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 }
@@ -431,11 +393,7 @@ func (h *ObserveHandler) APMServiceSeries(w http.ResponseWriter, r *http.Request
 
 	// >60min: 走 Command/MQ 查询 ClickHouse（Concentrator 只存 60 分钟）
 	if minutes > 60 {
-		params := map[string]interface{}{
-			"sub_action": "service_series",
-			"service":    serviceName,
-			"since":      fmt.Sprintf("%dm", minutes),
-		}
+		params := command.QueryTracesParams{SubAction: command.TraceServiceSeries, Service: serviceName, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
 		h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
 		return
 	}
@@ -462,10 +420,19 @@ func (h *ObserveHandler) APMServiceSeries(w http.ResponseWriter, r *http.Request
 	}
 
 	// Concentrator 无数据（如最近无流量），回退到 ClickHouse 查询
-	params := map[string]interface{}{
-		"sub_action": "service_series",
-		"service":    serviceName,
-		"since":      fmt.Sprintf("%dm", minutes),
-	}
+	params := command.QueryTracesParams{SubAction: command.TraceServiceSeries, Service: serviceName, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
 	h.executeQuery(w, r, clusterID, command.ActionQueryTraces, params, cacheTTLForMinutes(minutes))
+}
+
+// traceListParams 链路列表的筛选条件（时间范围由调用方补）
+func traceListParams(r *http.Request) command.QueryTracesParams {
+	q := r.URL.Query()
+	return command.QueryTracesParams{
+		SubAction:  command.TraceListTraces,
+		Limit:      500,
+		Service:    q.Get("service"),
+		Operation:  q.Get("operation"),
+		StatusCode: q.Get("status_code"),
+		Method:     q.Get("method"),
+	}
 }

@@ -8,7 +8,7 @@ import type { ChatStats, StreamSegment } from "@/components/ai/types";
 /** 流没有正常完成的原因；给人看的文案由调用方按界面语言出 */
 export type ChatStreamFailure =
   | { kind: "http"; status: number } // 请求被拒（非 2xx）
-  | { kind: "server"; message: string } // 后端发来的错误分段
+  | { kind: "server"; message: string; code?: string } // 后端发来的错误分段（code 为错误码）
   | { kind: "malformed" } // 某条事件不是合法 JSON
   | { kind: "interrupted" } // 没收到 done / error 就断开
   | { kind: "network"; message: string }; // 请求本身没发出去或连接出错
@@ -42,7 +42,7 @@ export async function readChatStream(
         outcome = null;
         onDone(segment.stats);
       } else if (segment.type === "error") {
-        outcome = { kind: "server", message: segment.content ?? "" };
+        outcome = { kind: "server", message: segment.content ?? "", code: segment.code };
       } else {
         onSegment(segment);
       }
@@ -79,8 +79,15 @@ export interface ChatStreamFailureTexts {
   network: string;
 }
 
-/** 失败原因 → 给人看的提示。后端错误分段的内容由后端按请求语言给出，原样显示 */
-export function chatStreamFailureMessage(failure: ChatStreamFailure, texts: ChatStreamFailureTexts): string {
+/**
+ * 失败原因 → 给人看的提示。
+ * 后端错误分段优先按错误码出文案（codeMessage 认得的码）；认不得时用后端给的兜底说明。
+ */
+export function chatStreamFailureMessage(
+  failure: ChatStreamFailure,
+  texts: ChatStreamFailureTexts,
+  codeMessage: (code: string) => string | undefined = () => undefined,
+): string {
   switch (failure.kind) {
     case "http":
       if (failure.status === 401) return texts.unauthorized;
@@ -88,7 +95,7 @@ export function chatStreamFailureMessage(failure: ChatStreamFailure, texts: Chat
       if (failure.status === 429) return texts.rateLimited;
       return texts.httpError.replace("{status}", String(failure.status));
     case "server":
-      return failure.message || texts.serverError;
+      return (failure.code && codeMessage(failure.code)) || failure.message || texts.serverError;
     case "malformed":
       return texts.malformed;
     case "interrupted":

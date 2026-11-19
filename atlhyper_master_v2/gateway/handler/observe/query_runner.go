@@ -37,7 +37,15 @@ func newCommandQuery(ops ObserveOps) *commandQuery {
 
 // run 执行查询，返回 Agent 给的 JSON。ttl 为 0 时不缓存；失败结果一律不缓存。
 // 指令的等待不随某一个请求的断开而取消（结果是几个请求共享的），上限是 queryTimeout。
-func (q *commandQuery) run(ctx context.Context, clusterID, action string, params map[string]any, ttl time.Duration) (json.RawMessage, error) {
+func (q *commandQuery) run(ctx context.Context, clusterID, action string, query command.QueryParams, ttl time.Duration) (json.RawMessage, error) {
+	// 发送前先校验：不合法的查询在这里就拒绝（400），不进指令队列
+	if query == nil {
+		return nil, &invalidQueryError{reason: "缺少查询参数"}
+	}
+	if err := query.Validate(); err != nil {
+		return nil, &invalidQueryError{reason: err.Error()}
+	}
+	params := query.ToParams()
 	key := buildCacheKey(clusterID, action, params)
 	if data, ok := q.cache.get(key); ok {
 		return data, nil
@@ -76,6 +84,11 @@ func (q *commandQuery) run(ctx context.Context, clusterID, action string, params
 
 // writeQueryError 查询错误 → 状态码：Agent 查询失败 502，其余按指令错误类别（超时 504 等）
 func writeQueryError(w http.ResponseWriter, err error) {
+	var invalid *invalidQueryError
+	if errors.As(err, &invalid) {
+		handler.WriteError(w, http.StatusBadRequest, invalid.reason)
+		return
+	}
 	var agentErr *agentQueryError
 	if errors.As(err, &agentErr) {
 		handler.WriteError(w, http.StatusBadGateway, agentErr.reason)
@@ -83,3 +96,8 @@ func writeQueryError(w http.ResponseWriter, err error) {
 	}
 	handler.WriteCommandError(w, err)
 }
+
+// invalidQueryError 查询参数不合法（由请求方修正）
+type invalidQueryError struct{ reason string }
+
+func (e *invalidQueryError) Error() string { return e.reason }

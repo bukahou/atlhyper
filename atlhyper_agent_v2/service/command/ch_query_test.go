@@ -153,8 +153,8 @@ func TestExecute_QueryTraceDetail_MissingID(t *testing.T) {
 	if result.Success {
 		t.Fatal("expected failure for missing trace_id")
 	}
-	if !strings.Contains(result.Error, "trace_id is required") {
-		t.Errorf("expected 'trace_id is required', got: %s", result.Error)
+	if !strings.Contains(result.Error, "trace_id") {
+		t.Errorf("错误应指出 trace_id，got: %s", result.Error)
 	}
 }
 
@@ -300,33 +300,6 @@ func TestExecute_QueryMetrics_MissingNodeName(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// TestParamHelpers
-// =============================================================================
-
-func TestGetStringParam(t *testing.T) {
-	params := map[string]any{"key": "value"}
-	if getStringParam(params, "key") != "value" {
-		t.Error("expected 'value'")
-	}
-	if getStringParam(params, "missing") != "" {
-		t.Error("expected empty string for missing key")
-	}
-	if getStringParam(nil, "key") != "" {
-		t.Error("expected empty string for nil params")
-	}
-}
-
-func TestGetIntParam(t *testing.T) {
-	params := map[string]any{"count": float64(42)}
-	if getIntParam(params, "count", 10) != 42 {
-		t.Error("expected 42")
-	}
-	if getIntParam(params, "missing", 10) != 10 {
-		t.Error("expected default 10")
-	}
-}
-
 func TestExecute_QueryTraces_HTTPStats(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{
 		GetHTTPStatsFn: func(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.HTTPStats, error) {
@@ -373,8 +346,8 @@ func TestExecute_QueryTraces_HTTPStats_MissingService(t *testing.T) {
 	if result.Success {
 		t.Fatal("expected failure for missing service")
 	}
-	if !strings.Contains(result.Error, "service is required") {
-		t.Errorf("expected 'service is required', got: %s", result.Error)
+	if !strings.Contains(result.Error, "service") {
+		t.Errorf("错误应指出 service，got: %s", result.Error)
 	}
 }
 
@@ -405,23 +378,37 @@ func TestExecute_QueryTraces_DBStats(t *testing.T) {
 	}
 }
 
-func TestGetDurationParam(t *testing.T) {
-	params := map[string]any{"since": "5m"}
-	d := getDurationParam(params, "since", time.Minute)
-	if d != 5*time.Minute {
-		t.Errorf("expected 5m, got %v", d)
+// 参数类型不对、子动作未知、缺必填：执行前就失败并说明原因，⛔ 不按零值或默认值继续查
+func TestExecute_QueryParamsRejected(t *testing.T) {
+	called := false
+	traceRepo := &mock.TraceQueryRepository{
+		ListTracesFn: func(context.Context, string, string, float64, int, time.Duration, string, string, string, string, string) ([]apm.TraceSummary, error) {
+			called = true
+			return nil, nil
+		},
 	}
-
-	// Numeric seconds
-	params2 := map[string]any{"since": float64(300)}
-	d2 := getDurationParam(params2, "since", time.Minute)
-	if d2 != 300*time.Second {
-		t.Errorf("expected 300s, got %v", d2)
+	svc := newTestService(traceRepo, &mock.LogQueryRepository{}, &mock.MetricsQueryRepository{})
+	cases := []struct {
+		name   string
+		action string
+		params map[string]any
+		want   string
+	}{
+		{"limit 是字符串", command.ActionQueryTraces, map[string]any{"limit": "50"}, "参数格式不对"},
+		{"未知链路子动作", command.ActionQueryTraces, map[string]any{"sub_action": "drop"}, "未知的链路查询"},
+		{"since 不是时长", command.ActionQueryTraces, map[string]any{"since": "15"}, "since"},
+		{"日志 limit 超上限", command.ActionQueryLogs, map[string]any{"limit": 100000}, "limit"},
+		{"指标缺节点名", command.ActionQueryMetrics, map[string]any{"sub_action": "get_history"}, "node_name"},
 	}
-
-	// Default
-	d3 := getDurationParam(nil, "since", 10*time.Minute)
-	if d3 != 10*time.Minute {
-		t.Errorf("expected 10m default, got %v", d3)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			result := svc.Execute(context.Background(), &command.Command{ID: "x", Action: c.action, Source: command.SourceWeb, Params: c.params})
+			if result.Success || !strings.Contains(result.Error, c.want) {
+				t.Errorf("应失败且提到 %q，实际 success=%v error=%q", c.want, result.Success, result.Error)
+			}
+		})
+	}
+	if called {
+		t.Error("参数不合法时不应调用查询")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/common/logger"
+	"AtlHyper/common/truncate"
 )
 
 var log = logger.Module("OpenAI")
@@ -192,7 +194,7 @@ func (c *Client) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("openai API error: %d - %s", resp.StatusCode, string(body))
+		return nil, &llm.HTTPError{Provider: "openai", StatusCode: resp.StatusCode, Err: errors.New(truncate.Runes(string(body), 500, "…"))}
 	}
 
 	// ストリーム読み取り開始

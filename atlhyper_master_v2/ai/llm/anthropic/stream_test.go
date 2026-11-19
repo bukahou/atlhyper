@@ -235,3 +235,13 @@ func TestChatStream_APIErrorIsReported(t *testing.T) {
 		t.Errorf("接口错误应以错误结束并带状态码: %+v", last)
 	}
 }
+
+// SDK 的 HTTP 错误带出状态码、拒答按类别：都能被通用层分类
+func TestAPIError_Classified(t *testing.T) {
+	if got := llm.Classify(fmt.Errorf("请求 Claude: %w", apiError(&anthropicsdk.Error{StatusCode: 429}))); got != llm.ErrKindRateLimited {
+		t.Errorf("429 → %q", got)
+	}
+	if got := llm.Classify(&RefusalError{Category: "x"}); got != llm.ErrKindRefused {
+		t.Errorf("拒答 → %q", got)
+	}
+}

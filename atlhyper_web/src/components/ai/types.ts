@@ -58,6 +58,8 @@ export interface StreamSegment {
   isError?: boolean;
   notice?: StreamNotice;
   stats?: ChatStats; // done 时返回的统计信息
+  /** error：错误码（与 AI 接口的 code 同一套，见 lib/ai-error），文案前端出 */
+  code?: string;
 }
 
 // 解析后的工具调用

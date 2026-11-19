@@ -19,6 +19,9 @@ func writeAIError(w http.ResponseWriter, op string, err error) {
 		status, msg = http.StatusConflict, "AI 角色未分配 Provider"
 	case ai.CodeBudgetExhausted:
 		status, msg = http.StatusConflict, "AI 角色预算已用尽"
+	case ai.CodeConfig:
+		status, msg = http.StatusConflict, "AI 配置有误"
+		aiLog.Warn("AI 配置有误", "op", op, "err", err)
 	case ai.CodeTimeout:
 		status, msg = http.StatusGatewayTimeout, "AI 调用超时"
 		aiLog.Warn("AI 调用超时", "op", op, "err", err)

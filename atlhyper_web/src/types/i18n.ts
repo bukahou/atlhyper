@@ -2188,6 +2188,12 @@ export interface AIOpsTranslations {
     // 按后端错误码给出可操作的提示（gateway/handler/aiops/ai_error.go）
     errorRoleUnassigned: string;
     errorBudgetExhausted: string;
+    errorConfig: string;
+    errorAuth: string;
+    errorRateLimited: string;
+    errorUnreachable: string;
+    errorInterrupted: string;
+    errorRefused: string;
     errorUpstream: string;
     errorTimeout: string;
     analysisInterrupted: string;

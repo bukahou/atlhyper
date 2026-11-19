@@ -35,7 +35,7 @@ func (b *blockingOps) ExecuteCommandSync(ctx context.Context, _ *model.CreateCom
 func TestCommandQuery_ConcurrentIdenticalQueriesShareOneCommand(t *testing.T) {
 	ops := &blockingOps{release: make(chan struct{}), result: &command.Result{Success: true, Output: `{"ok":true}`}}
 	q := newCommandQuery(ops)
-	params := map[string]any{"sub_action": "list_services"}
+	params := command.QueryTracesParams{SubAction: command.TraceListServices}
 
 	var wg sync.WaitGroup
 	for i := 0; i < 5; i++ {
@@ -70,7 +70,7 @@ func TestCommandQuery_CallerCancelDoesNotCancelSharedQuery(t *testing.T) {
 	q := newCommandQuery(ops)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := q.run(ctx, "c1", command.ActionQueryLogs, nil, 0); err != nil {
+	if _, err := q.run(ctx, "c1", command.ActionQueryLogs, command.QueryLogsParams{}, 0); err != nil {
 		t.Fatal(err)
 	}
 	if seen.Err() != nil {
@@ -80,7 +80,7 @@ func TestCommandQuery_CallerCancelDoesNotCancelSharedQuery(t *testing.T) {
 
 func TestCommandQuery_Errors(t *testing.T) {
 	agentFail := newCommandQuery(&blockingOps{result: &command.Result{Success: false, Error: "clickhouse: timeout"}})
-	_, err := agentFail.run(context.Background(), "c1", command.ActionQueryLogs, nil, time.Minute)
+	_, err := agentFail.run(context.Background(), "c1", command.ActionQueryLogs, command.QueryLogsParams{}, time.Minute)
 	rec := httptest.NewRecorder()
 	writeQueryError(rec, err)
 	if rec.Code != http.StatusBadGateway {
@@ -88,7 +88,7 @@ func TestCommandQuery_Errors(t *testing.T) {
 	}
 
 	noResult := newCommandQuery(&blockingOps{err: mq.ErrWaitTimeout})
-	_, err = noResult.run(context.Background(), "c1", command.ActionQueryLogs, nil, time.Minute)
+	_, err = noResult.run(context.Background(), "c1", command.ActionQueryLogs, command.QueryLogsParams{}, time.Minute)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("等不到结果应是超时错误，实际 %v", err)
 	}
@@ -101,8 +101,8 @@ func TestCommandQuery_Errors(t *testing.T) {
 	// 失败不进缓存：下次还会真的去查
 	ops := &blockingOps{result: &command.Result{Success: false, Error: "x"}}
 	q := newCommandQuery(ops)
-	_, _ = q.run(context.Background(), "c1", command.ActionQueryLogs, nil, time.Minute)
-	_, _ = q.run(context.Background(), "c1", command.ActionQueryLogs, nil, time.Minute)
+	_, _ = q.run(context.Background(), "c1", command.ActionQueryLogs, command.QueryLogsParams{}, time.Minute)
+	_, _ = q.run(context.Background(), "c1", command.ActionQueryLogs, command.QueryLogsParams{}, time.Minute)
 	if ops.calls.Load() != 2 {
 		t.Errorf("失败结果不应被缓存（调用 %d 次）", ops.calls.Load())
 	}
@@ -116,4 +116,22 @@ type ctxRecordingOps struct {
 func (c *ctxRecordingOps) ExecuteCommandSync(ctx context.Context, _ *model.CreateCommandRequest, _ time.Duration) (*command.Result, error) {
 	c.onCall(ctx)
 	return c.result, nil
+}
+
+// 不合法的查询在下发前就拒绝：返回 400，不发指令
+func TestCommandQuery_InvalidParamsRejectedBeforeDispatch(t *testing.T) {
+	ops := &blockingOps{result: &command.Result{Success: true, Output: `{}`}}
+	q := newCommandQuery(ops)
+	_, err := q.run(context.Background(), "c1", command.ActionQueryTraces, command.QueryTracesParams{SubAction: command.TraceHTTPStats}, 0)
+	if err == nil {
+		t.Fatal("缺 service 的 http_stats 应被拒绝")
+	}
+	if n := ops.calls.Load(); n != 0 {
+		t.Errorf("不合法的查询不应下发，实际发了 %d 条", n)
+	}
+	rec := httptest.NewRecorder()
+	writeQueryError(rec, err)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
 }

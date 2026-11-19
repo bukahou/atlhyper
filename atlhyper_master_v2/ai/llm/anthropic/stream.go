@@ -5,6 +5,7 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -30,6 +31,18 @@ func (e *RefusalError) Error() string {
 	return fmt.Sprintf("Claude 拒绝回答（%s）：%s", e.Category, e.Explanation)
 }
 
+// LLMErrorKind 失败类别
+func (e *RefusalError) LLMErrorKind() llm.ErrorKind { return llm.ErrKindRefused }
+
+// apiError SDK 的 HTTP 错误换成通用的 HTTPError（状态码在 SDK 自己的错误类型里）
+func apiError(err error) error {
+	var sdkErr *anthropicsdk.Error
+	if errors.As(err, &sdkErr) {
+		return &llm.HTTPError{Provider: "anthropic", StatusCode: sdkErr.StatusCode, Err: err}
+	}
+	return err
+}
+
 // pumpStream 读完整个流：文字增量即时发出；流结束后发出工具调用，最后是带用量与整轮回答（ProviderTurn）的 Done。
 // 工具调用等完整回答拼好再发：输出到上限时参数可能不完整，不能执行。
 func pumpStream(ctx context.Context, stream messageEventStream, ch chan<- *llm.Chunk) {
@@ -51,7 +64,7 @@ func pumpStream(ctx context.Context, stream messageEventStream, ch chan<- *llm.C
 		}
 	}
 	if err := stream.Err(); err != nil {
-		emit(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: fmt.Errorf("请求 Claude: %w", err)})
+		emit(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: fmt.Errorf("请求 Claude: %w", apiError(err))})
 		return
 	}
 

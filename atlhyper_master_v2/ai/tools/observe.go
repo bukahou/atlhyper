@@ -57,15 +57,16 @@ func observeTools(d Deps) []*toolkit.Tool {
 			Permission: toolkit.PermTracesRead,
 			Refine:     since,
 			Handler: func(ctx context.Context, clusterID string, p queryTracesParams) (string, error) {
-				params := map[string]any{"sub_action": "list_traces", "limit": maxTraces, "since": orDefaultString(p.Since, defaultSince)}
-				setIf(params, "service", p.Service)
-				setIf(params, "operation", p.Operation)
-				setIf(params, "status_code", p.StatusCode)
-				if p.MinDurationMs > 0 {
-					params["min_duration_ms"] = p.MinDurationMs
+				query := command.QueryTracesParams{
+					SubAction: command.TraceListTraces, Limit: maxTraces,
+					TimeWindow: command.TimeWindow{Since: orDefaultString(p.Since, defaultSince)},
+					Service:    p.Service, Operation: p.Operation, StatusCode: p.StatusCode, MinDurationMs: p.MinDurationMs,
+				}
+				if err := query.Validate(); err != nil {
+					return "", fmt.Errorf("%w: %v", toolkit.ErrInvalidParams, err)
 				}
 				out, err := runCommand(ctx, d, &model.CreateCommandRequest{
-					ClusterID: clusterID, Action: command.ActionQueryTraces, Source: command.SourceAI, Params: params,
+					ClusterID: clusterID, Action: command.ActionQueryTraces, Source: command.SourceAI, Params: query.ToParams(),
 				})
 				if err != nil {
 					return "", err
@@ -83,13 +84,16 @@ func observeTools(d Deps) []*toolkit.Tool {
 				s.Properties["level"].Enum = []any{"DEBUG", "INFO", "WARN", "ERROR"}
 			},
 			Handler: func(ctx context.Context, clusterID string, p queryLogsParams) (string, error) {
-				params := map[string]any{"limit": maxLogs, "since": orDefaultString(p.Since, defaultSince)}
-				setIf(params, "query", p.Query)
-				setIf(params, "service", p.Service)
-				setIf(params, "level", p.Level)
-				setIf(params, "trace_id", p.TraceID)
+				query := command.QueryLogsParams{
+					Limit:      maxLogs,
+					TimeWindow: command.TimeWindow{Since: orDefaultString(p.Since, defaultSince)},
+					Query:      p.Query, Service: p.Service, Level: p.Level, TraceID: p.TraceID,
+				}
+				if err := query.Validate(); err != nil {
+					return "", fmt.Errorf("%w: %v", toolkit.ErrInvalidParams, err)
+				}
 				out, err := runCommand(ctx, d, &model.CreateCommandRequest{
-					ClusterID: clusterID, Action: command.ActionQueryLogs, Source: command.SourceAI, Params: params,
+					ClusterID: clusterID, Action: command.ActionQueryLogs, Source: command.SourceAI, Params: query.ToParams(),
 				})
 				if err != nil {
 					return "", err
@@ -206,12 +210,6 @@ func clipLogs(raw string) string {
 		return raw
 	}
 	return out
-}
-
-func setIf(m map[string]any, key, value string) {
-	if value != "" {
-		m[key] = value
-	}
 }
 
 func orDefaultString(v, def string) string {

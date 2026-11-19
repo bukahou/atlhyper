@@ -9,6 +9,12 @@ export interface AIErrorTexts {
   analysisFailed: string;
   errorRoleUnassigned: string;
   errorBudgetExhausted: string;
+  errorConfig: string;
+  errorAuth: string;
+  errorRateLimited: string;
+  errorUnreachable: string;
+  errorInterrupted: string;
+  errorRefused: string;
   errorUpstream: string;
   errorTimeout: string;
   analysisInterrupted: string;
@@ -20,13 +26,30 @@ export function aiErrorMessage(err: unknown, texts: AIErrorTexts): string {
   return aiCodeMessage(code, texts);
 }
 
-/** 错误码 → 文案（HTTP 响应的 code 与深度分析状态的 errorCode 同一套） */
+/** 错误码 → 文案（HTTP 响应的 code、深度分析状态的 errorCode、对话流错误分段的 code 同一套） */
 export function aiCodeMessage(code: string | undefined, texts: AIErrorTexts): string {
+  return aiKnownCodeMessage(code, texts) ?? texts.analysisFailed;
+}
+
+/** 认得的错误码 → 文案；认不得返回 undefined（由调用方决定兜底） */
+export function aiKnownCodeMessage(code: string | undefined, texts: AIErrorTexts): string | undefined {
   switch (code) {
     case "ai_role_unassigned":
       return texts.errorRoleUnassigned;
     case "ai_budget_exhausted":
       return texts.errorBudgetExhausted;
+    case "ai_config":
+      return texts.errorConfig;
+    case "ai_auth":
+      return texts.errorAuth;
+    case "ai_rate_limited":
+      return texts.errorRateLimited;
+    case "ai_unreachable":
+      return texts.errorUnreachable;
+    case "ai_interrupted":
+      return texts.errorInterrupted;
+    case "ai_refused":
+      return texts.errorRefused;
     case "ai_upstream":
       return texts.errorUpstream;
     case "ai_timeout":
@@ -34,6 +57,6 @@ export function aiCodeMessage(code: string | undefined, texts: AIErrorTexts): st
     case "analysis_interrupted":
       return texts.analysisInterrupted;
     default:
-      return texts.analysisFailed;
+      return undefined;
   }
 }
