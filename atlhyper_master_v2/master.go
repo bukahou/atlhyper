@@ -87,6 +87,11 @@ func NewMaster() (*Master, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Agent 入口配置无效: %w", err)
 	}
+	// 运维时区写错同样启动即失败（不静默退回 UTC）
+	opsLocation, err := cfg.Server.Location()
+	if err != nil {
+		return nil, err
+	}
 	// 各集群最近一次上报是否带了有效令牌：Agent 入口写，集群管理页读
 	agentAuthStatus := agentsdk.NewAuthStatusTracker()
 
@@ -211,7 +216,7 @@ func NewMaster() (*Master, error) {
 	aiopsEnricher.SetAnalysisToolPolicy(func(p string) bool {
 		return middleware.Allowed(analysisAudience, middleware.Permission(p))
 	})
-	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
+	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget, opsLocation)
 	aiopsEngine.SubscribeTransitions(aiopsEnricher.OnIncidentTransition)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
 
@@ -534,7 +539,7 @@ func NewMaster() (*Master, error) {
 		Events:                 db.Event,
 		Agents:                 store,
 		PublicURL:              cfg.Server.PublicURL,
-		Timezone:               cfg.Server.Timezone,
+		Location:               opsLocation,
 		HeartbeatCheckInterval: cfg.DataHub.HeartbeatExpire / 2,
 		HeartbeatOfflineAfter:  cfg.DataHub.HeartbeatExpire,
 		K8sEventCheckInterval:  cfg.EventAlert.CheckInterval,

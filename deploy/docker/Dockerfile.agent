@@ -41,9 +41,7 @@ LABEL description="AtlHyper Agent - Kubernetes Cluster Data Collector"
 
 RUN apk add --no-cache ca-certificates tzdata
 
-# 集群与运维均在 JST；此前误设 Asia/Shanghai(UTC+8) 导致全栈日志与
-# SQLite 时间戳比真实时间慢 1 小时，2026-08-29 压测排查时实际造成误判。
-ENV TZ=Asia/Tokyo
+# 不设 TZ：进程按 UTC 运行，时间一律按 UTC 存储与传输；面向人的显示时区由 MASTER_TIMEZONE / 浏览器决定
 
 WORKDIR /app
 

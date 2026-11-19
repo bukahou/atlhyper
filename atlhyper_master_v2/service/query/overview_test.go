@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"context"
 	"testing"
 	"time"
@@ -418,6 +419,7 @@ func TestListClusters_Empty(t *testing.T) {
 
 type mockEventRepoForOverview struct {
 	hourlyKindCounts []database.HourlyKindCount
+	hourlyErr        error
 	clusterEvents    []*database.ClusterEvent
 }
 
@@ -455,7 +457,7 @@ func (m *mockEventRepoForOverview) CountByHour(ctx context.Context, clusterID st
 	return nil, nil
 }
 func (m *mockEventRepoForOverview) CountByHourAndKind(ctx context.Context, clusterID string, hours int) ([]database.HourlyKindCount, error) {
-	return m.hourlyKindCounts, nil
+	return m.hourlyKindCounts, m.hourlyErr
 }
 
 // --- GetOverview 测试用例 ---
@@ -770,10 +772,8 @@ func TestGetOverview_NoMetrics(t *testing.T) {
 
 func TestGetOverview_AlertsFromDB(t *testing.T) {
 	now := time.Now()
-	currentHour := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
-
-	// 构造 hourly kind counts，使用当前小时的 key 以确保命中 hourToIndex
-	hourKey := currentHour.Format("2006-01-02T15")
+	// SQLite 的 strftime 按 UTC 分桶：当前小时的 key 也是 UTC 的
+	hourKey := now.UTC().Format("2006-01-02T15")
 
 	eventRepo := &mockEventRepoForOverview{
 		hourlyKindCounts: []database.HourlyKindCount{
@@ -981,5 +981,44 @@ func TestGetOTelTimeline_Empty(t *testing.T) {
 	// 透传 store 返回的 nil
 	if result != nil {
 		t.Errorf("expected nil for empty timeline, got %d entries", len(result))
+	}
+}
+
+
+// 进程本地时区不是 UTC（如容器设了 TZ）时，告警趋势照样按 UTC 小时对齐，最近告警的时间按 UTC 输出
+func TestGetOverview_AlertsIgnoreProcessTimezone(t *testing.T) {
+	prevLocal := time.Local
+	time.Local = time.FixedZone("JST", 9*3600)
+	t.Cleanup(func() { time.Local = prevLocal })
+
+	now := time.Now()
+	lastSeen := now.Add(-10 * time.Minute).In(time.Local) // 从库里读回来的时间可能带本地时区
+	eventRepo := &mockEventRepoForOverview{
+		hourlyKindCounts: []database.HourlyKindCount{{Hour: now.UTC().Format("2006-01-02T15"), Kind: "Pod", Count: 3}},
+		clusterEvents:    []*database.ClusterEvent{{ClusterID: "cluster-1", InvolvedKind: "Pod", LastTimestamp: lastSeen}},
+	}
+	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{"cluster-1": {}}}
+	svc := &OverviewQuery{store: store, eventRepo: eventRepo}
+
+	overview, err := svc.GetOverview(context.Background(), "cluster-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := overview.Alerts.Trend[len(overview.Alerts.Trend)-1]
+	if last.Kinds["Pod"] != 3 {
+		t.Errorf("当前小时的告警数 = %d, want 3（趋势与 UTC 分桶错位）", last.Kinds["Pod"])
+	}
+	if want := lastSeen.UTC().Format(time.RFC3339); overview.Alerts.Recent[0].Timestamp != want {
+		t.Errorf("最近告警时间 = %q, want %q", overview.Alerts.Recent[0].Timestamp, want)
+	}
+}
+
+// 读告警统计失败：报错，不显示成「0 条告警」
+func TestGetOverview_AlertQueryFailureIsAnError(t *testing.T) {
+	eventRepo := &mockEventRepoForOverview{hourlyErr: errors.New("database is locked")}
+	store := &mockStoreForOverview{snapshots: map[string]*cluster.ClusterSnapshot{"cluster-1": {}}}
+	svc := &OverviewQuery{store: store, eventRepo: eventRepo}
+	if _, err := svc.GetOverview(context.Background(), "cluster-1"); err == nil {
+		t.Fatal("读告警统计失败时应返回错误")
 	}
 }

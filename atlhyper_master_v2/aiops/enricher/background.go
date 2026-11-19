@@ -24,6 +24,7 @@ var severityOrder = map[string]int{
 type backgroundTrigger struct {
 	enricher *Enricher
 	budgets  *budget.Ledger // nil = 不做预算控制
+	location *time.Location // 运维时区：解读深度分析的定时窗口
 
 	unconfigured unconfiguredNotice // AI 没配时只提示一次
 
@@ -41,9 +42,13 @@ type triggerEvent struct {
 }
 
 // newBackgroundTrigger 创建后台触发器
-func newBackgroundTrigger(enricher *Enricher, budgetRepo db.AIRoleBudgetRepository) *backgroundTrigger {
+func newBackgroundTrigger(enricher *Enricher, budgetRepo db.AIRoleBudgetRepository, location *time.Location) *backgroundTrigger {
+	if location == nil {
+		location = time.UTC
+	}
 	bt := &backgroundTrigger{
 		enricher: enricher,
+		location: location,
 		queue:    make(chan triggerEvent, 64),
 		seen:     make(map[string]time.Time),
 		done:     make(chan struct{}),
@@ -181,7 +186,7 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 		log.Info("深度分析设为手动模式，跳过自动触发", "incident", evt.IncidentID)
 		return
 	case "schedule":
-		if !isWithinSchedule(current.ScheduleStartTime, current.ScheduleEndTime) {
+		if !isWithinSchedule(current.ScheduleStartTime, current.ScheduleEndTime, time.Now().In(bt.location)) {
 			log.Info("深度分析不在定时窗口内，跳过",
 				"incident", evt.IncidentID,
 				"window", current.ScheduleStartTime+"~"+current.ScheduleEndTime)
@@ -215,11 +220,11 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 }
 
 // isWithinSchedule 检查当前时间是否在定时窗口内（HH:MM 格式，支持跨午夜）
-func isWithinSchedule(startTime, endTime string) bool {
+// now 要先换到运维时区：窗口是人按墙上时间填的
+func isWithinSchedule(startTime, endTime string, now time.Time) bool {
 	if startTime == "" || endTime == "" {
 		return true // 未设置窗口时视为始终有效
 	}
-	now := time.Now()
 	nowMinutes := now.Hour()*60 + now.Minute()
 
 	startMinutes := parseHHMM(startTime)
