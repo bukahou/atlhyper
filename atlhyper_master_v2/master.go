@@ -18,11 +18,9 @@
 package atlhyper_master_v2
 
 import (
-	slomodel "AtlHyper/model_v3/slo"
+	aitools "AtlHyper/atlhyper_master_v2/ai/tools"
 	"context"
-	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -42,7 +40,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/github"
-	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/notifier/pipeline"
@@ -53,7 +50,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/sync"
 	"AtlHyper/atlhyper_master_v2/slo"
 	"AtlHyper/common/logger"
-	"AtlHyper/model_v3/command"
 )
 
 var log = logger.Module("Master")
@@ -196,11 +192,7 @@ func NewMaster() (*Master, error) {
 
 	// 7. 初始化 AI Service（Enricher 依赖 AIService）
 	aiService := ai.NewService(
-		ai.ServiceConfig{
-			ToolTimeout:   cfg.AI.ToolTimeout,
-			BedrockRegion: cfg.AI.BedrockRegion,
-		},
-		cmdOps,
+		ai.ServiceConfig{BedrockRegion: cfg.AI.BedrockRegion},
 		db.AIProvider, db.AIModel, db.AIRoleBudget,
 		db.AIConversation, db.AIMessage,
 	)
@@ -295,207 +287,6 @@ func NewMaster() (*Master, error) {
 		"authMode", agentEntry.authMode,
 		"maxSnapshotMB", cfg.AgentSDK.MaxSnapshotMB)
 
-	// 9. 注册 AIOps Tool（AI Chat 中使用）
-	aiService.RegisterTool("analyze_incident", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		incidentID := getStringParam(params, "incident_id")
-		if incidentID == "" {
-			return "缺少参数 incident_id", nil
-		}
-		result, err := aiopsEnricher.Summarize(ctx, incidentID)
-		if err != nil {
-			return fmt.Sprintf("分析事件失败: %v", err), nil
-		}
-		data, _ := json.Marshal(result)
-		return string(data), nil
-	})
-
-	aiService.RegisterTool("get_event_history", ai.NewEventHistoryHandler(db.Event))
-
-	aiService.RegisterTool("get_cluster_risk", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		topN := getIntParam(params, "top_n", 10)
-		risk := aiopsEngine.GetClusterRisk(clusterID)
-		entities := aiopsEngine.GetEntityRisks(clusterID, "r_final", topN)
-		data, _ := json.Marshal(map[string]interface{}{
-			"clusterRisk": scaleClusterRiskForAI(risk),
-			"topEntities": scaleEntityRisksForAI(entities),
-			"entityCount": len(entities),
-		})
-		return string(data), nil
-	})
-
-	aiService.RegisterTool("get_recent_incidents", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		state := getStringParam(params, "state")
-		limit := getIntParam(params, "limit", 10)
-		opts := aiops.IncidentQueryOpts{
-			ClusterID: clusterID,
-			State:     state,
-			Limit:     limit,
-			Offset:    0,
-		}
-		incidents, total, err := aiopsEngine.GetIncidents(ctx, opts)
-		if err != nil {
-			return fmt.Sprintf("获取事件列表失败: %v", err), nil
-		}
-		data, _ := json.Marshal(map[string]interface{}{
-			"incidents": incidents,
-			"total":     total,
-		})
-		return string(data), nil
-	})
-	// 9.1 注册 OTel 查询 Tool（Command 路径：query_traces / query_logs）
-	toolTimeout := cfg.AI.ToolTimeout
-
-	aiService.RegisterTool("query_traces", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		cmdParams := map[string]interface{}{
-			"sub_action": "list_traces",
-			"limit":      10,
-		}
-		if s := getStringParam(params, "service"); s != "" {
-			cmdParams["service"] = s
-		}
-		if s := getStringParam(params, "operation"); s != "" {
-			cmdParams["operation"] = s
-		}
-		if v, ok := params["min_duration_ms"]; ok {
-			if d, ok := v.(float64); ok && d > 0 {
-				cmdParams["min_duration_ms"] = d
-			}
-		}
-		if s := getStringParam(params, "status_code"); s != "" {
-			cmdParams["status_code"] = s
-		}
-		since := getStringParam(params, "since")
-		if since == "" {
-			since = "1h"
-		}
-		cmdParams["since"] = since
-
-		result, err := cmdOps.ExecuteCommandSync(ctx, &model.CreateCommandRequest{
-			ClusterID: clusterID,
-			Action:    command.ActionQueryTraces,
-			Source:    command.SourceAI,
-			Params:    cmdParams,
-		}, toolTimeout)
-		if err != nil {
-			return fmt.Sprintf("查询失败: %v", err), nil
-		}
-		if !result.Success {
-			return fmt.Sprintf("查询失败: %s", result.Error), nil
-		}
-		return ai.TruncateToolResult(result.Output, "traces"), nil
-	})
-
-	aiService.RegisterTool("query_logs", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		cmdParams := map[string]interface{}{
-			"limit": 20,
-		}
-		if s := getStringParam(params, "query"); s != "" {
-			cmdParams["query"] = s
-		}
-		if s := getStringParam(params, "service"); s != "" {
-			cmdParams["service"] = s
-		}
-		if s := getStringParam(params, "level"); s != "" {
-			cmdParams["level"] = s
-		}
-		if s := getStringParam(params, "trace_id"); s != "" {
-			cmdParams["trace_id"] = s
-		}
-		since := getStringParam(params, "since")
-		if since == "" {
-			since = "1h"
-		}
-		cmdParams["since"] = since
-
-		result, err := cmdOps.ExecuteCommandSync(ctx, &model.CreateCommandRequest{
-			ClusterID: clusterID,
-			Action:    command.ActionQueryLogs,
-			Source:    command.SourceAI,
-			Params:    cmdParams,
-		}, toolTimeout)
-		if err != nil {
-			return fmt.Sprintf("查询失败: %v", err), nil
-		}
-		if !result.Success {
-			return fmt.Sprintf("查询失败: %s", result.Error), nil
-		}
-		return ai.TruncateToolResult(result.Output, "logs"), nil
-	})
-
-	// 9.2 注册内存直读 Tool（query_slo / get_entity_detail）
-	aiService.RegisterTool("query_slo", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		window := getStringParam(params, "window")
-		if window == "" {
-			window = slomodel.DefaultWindow
-		}
-		if err := slomodel.CheckWindow(window); err != nil {
-			return err.Error(), nil // 告诉模型可选的窗口，⛔ 不悄悄换成别的数据
-		}
-		domain := getStringParam(params, "domain")
-
-		snapshot, err := store.GetSnapshot(clusterID)
-		if err != nil || snapshot == nil || snapshot.OTel == nil {
-			return "当前无 OTel 数据", nil
-		}
-		otel := snapshot.OTel
-
-		// 窗口数据还没算好（如 Agent 刚启动）时用实时数据，并如实标成 realtime
-		source := otel.SLOIngress
-		label := "realtime（" + window + " 窗口的数据还没有算好）"
-		if windowData, ok := otel.SLOWindows[window]; ok && windowData != nil {
-			source, label = windowData.Current, window
-		}
-
-		var services []map[string]interface{}
-		for _, s := range source {
-			if domain != "" && s.ServiceKey != domain {
-				continue
-			}
-			services = append(services, map[string]interface{}{
-				"name":        s.ServiceKey,
-				"type":        "ingress",
-				"rps":         s.RPS,
-				"successRate": s.SuccessRate, // 百分数
-				"errorRate":   s.ErrorRate,   // 百分数
-				"p50Ms":       s.P50Ms,
-				"p90Ms":       s.P90Ms,
-				"p99Ms":       s.P99Ms,
-			})
-		}
-		if len(services) > 50 {
-			services = services[:50]
-		}
-
-		data, _ := json.Marshal(map[string]interface{}{
-			"window":   label,
-			"services": services,
-			"count":    len(services),
-		})
-		return string(data), nil
-	})
-
-	aiService.RegisterTool("get_entity_detail", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		entityType := getStringParam(params, "entity_type")
-		entityName := getStringParam(params, "entity_name")
-		namespace := getStringParam(params, "namespace")
-
-		if entityType == "" || entityName == "" {
-			return "缺少参数 entity_type 和 entity_name", nil
-		}
-
-		entityKey := ai.BuildEntityKey(entityType, namespace, entityName)
-		detail := aiopsEngine.GetEntityRisk(clusterID, entityKey)
-		if detail == nil {
-			return fmt.Sprintf("未找到实体 %s（可能不在依赖图中或无异常数据）", entityKey), nil
-		}
-
-		result := ai.SimplifyEntityDetail(detail)
-		data, _ := json.Marshal(result)
-		return string(data), nil
-	})
-
-	log.Info("AI Tool 注册完成 (8 个基础)")
-
 	// 10. 初始化通知模块：告警来源（事件变化、Agent 心跳、K8s 事件）→ 管道 → 发送
 	alertMgr, err := notifier.NewAlertManager(notifier.Config{
 		Repos: pipeline.Repos{
@@ -545,16 +336,25 @@ func NewMaster() (*Master, error) {
 		}
 	}
 
-	// 11.6 注册 GitHub + CD Tool（仅在 GitHub Client 可用时注册）
-	if ghClient != nil {
-		aiService.RegisterTool("get_deploy_history", ai.NewDeployHistoryHandler(db.DeployHistory))
-		// GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库（App 的安装范围可能含存有凭据的仓库）
-		repoScope := ai.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
-		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient, repoScope))
-		aiService.RegisterTool("github_search_code", ai.NewGitHubSearchCodeHandler(ghClient, repoScope))
-		aiService.RegisterTool("github_recent_commits", ai.NewGitHubRecentCommitsHandler(ghClient, repoScope))
-		log.Info("GitHub + CD Tool 注册完成 (5 个)")
+	// 11.6 注册 AI 工具（定义都在 ai/tools；可选依赖缺失的工具不注册，清单里也就没有它）
+	toolDeps := aitools.Deps{
+		Commands:    cmdOps,
+		ToolTimeout: cfg.AI.ToolTimeout,
+		AIOps:       aiopsEngine,
+		SummarizeIncident: func(ctx context.Context, incidentID string) (any, error) {
+			return aiopsEnricher.Summarize(ctx, incidentID)
+		},
+		Snapshots: store,
+		Events:    db.Event,
 	}
+	if ghClient != nil {
+		// 部署历史只在有部署器（依赖 GitHub）时才有；GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库
+		toolDeps.DeployHistory = db.DeployHistory
+		toolDeps.GitHub = ghClient
+		toolDeps.GitHubScope = aitools.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
+	}
+	aitools.Register(aiService.Tools(), toolDeps)
+	log.Info("AI 工具注册完成", "tools", aiService.Tools().Names())
 
 	// 11.7 初始化 Deployer（GitOps CD，仅在 GitHub Client 可用时启用）
 	var deployerService deployer.Deployer
@@ -736,60 +536,6 @@ func (m *Master) Stop() error {
 
 	log.Info("Master 已停止")
 	return nil
-}
-
-// getStringParam 从 map 中安全获取字符串
-func getStringParam(m map[string]interface{}, key string) string {
-	if v, ok := m[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-// getIntParam 从 map 中安全获取整数（带默认值）
-func getIntParam(m map[string]interface{}, key string, defaultVal int) int {
-	if v, ok := m[key]; ok {
-		switch n := v.(type) {
-		case float64:
-			return int(n)
-		case int:
-			return n
-		}
-	}
-	return defaultVal
-}
-
-// scaleEntityRisksForAI 将 EntityRisk 列表的分数从 [0,1] 转为 [0,100]（AI tool 输出用）
-func scaleEntityRisksForAI(src []*aiops.EntityRisk) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(src))
-	for i, r := range src {
-		result[i] = map[string]interface{}{
-			"entityKey":    r.EntityKey,
-			"entityType":   r.EntityType,
-			"namespace":    r.Namespace,
-			"name":         r.Name,
-			"rFinal":       math.Round(r.RFinal * 100),
-			"riskLevel":    r.RiskLevel,
-			"firstAnomaly": r.FirstAnomaly,
-		}
-	}
-	return result
-}
-
-// scaleClusterRiskForAI 转换 ClusterRisk（Risk 已是 0-100，TopEntities 需要转换）
-func scaleClusterRiskForAI(src *aiops.ClusterRisk) map[string]interface{} {
-	if src == nil {
-		return nil
-	}
-	return map[string]interface{}{
-		"clusterId":     src.ClusterID,
-		"risk":          src.Risk,
-		"level":         src.Level,
-		"totalEntities": src.TotalEntities,
-		"anomalyCount":  src.AnomalyCount,
-	}
 }
 
 // Store 获取 Store 实例（供测试使用）

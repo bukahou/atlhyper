@@ -4,6 +4,7 @@
 package ai
 
 import (
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 	"AtlHyper/common/truncate"
 	"context"
 	"fmt"
@@ -17,8 +18,7 @@ import (
 
 // ServiceConfig AI 服务配置（仅用于 Tool 超时等非敏感配置）
 type ServiceConfig struct {
-	ToolTimeout   time.Duration // Tool 执行超时，默认 30s
-	BedrockRegion string        // Bedrock 区域（Master 配置 MASTER_AI_BEDROCK_REGION；所有 bedrock provider 共用）
+	BedrockRegion string // Bedrock 区域（Master 配置 MASTER_AI_BEDROCK_REGION；所有 bedrock provider 共用）
 }
 
 // aiServiceImpl AIService 实现
@@ -28,7 +28,7 @@ type aiServiceImpl struct {
 	modelRepo    database.AIProviderModelRepository
 	budgetRepo   database.AIRoleBudgetRepository
 	budgets      *budget.Ledger // nil = 不做预算控制（未接预算仓库时）
-	executor     *toolExecutor
+	tools        *toolkit.Registry
 	convRepo     database.AIConversationRepository
 	msgRepo      database.AIMessageRepository
 
@@ -176,9 +176,9 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 	}, nil
 }
 
-// RegisterTool 注册自定义 Tool
-func (s *aiServiceImpl) RegisterTool(name string, handler ToolHandler) {
-	s.executor.RegisterTool(name, handler)
+// Tools 工具注册表
+func (s *aiServiceImpl) Tools() *toolkit.Registry {
+	return s.tools
 }
 
 // toConversation 转换 DB 模型为 API 类型
@@ -199,12 +199,14 @@ func toConversation(c *database.AIConversation) *Conversation {
 
 // toMessage 转换 DB 模型为 API 类型
 func toMessage(m *database.AIMessage) *Message {
+	decoded := decodeStoredMessage(m)
 	return &Message{
 		ID:             m.ID,
 		ConversationID: m.ConversationID,
 		Role:           m.Role,
-		Content:        m.Content,
-		ToolCalls:      m.ToolCalls,
+		Content:        decoded.Content,
+		ToolCalls:      decoded.ToolCalls,
+		ToolResult:     decoded.ToolResult,
 		CreatedAt:      m.CreatedAt,
 	}
 }

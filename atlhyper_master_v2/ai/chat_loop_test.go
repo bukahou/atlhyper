@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -58,6 +59,7 @@ func runChatLoop(t *testing.T, rounds ...[]*llm.Chunk) ([]*ChatChunk, *usageProv
 		providerRepo: providers,
 		msgRepo:      msgs,
 		convRepo:     memConvRepo{},
+		tools:        toolkit.NewRegistry(),
 		newClient: func(llm.Config) (llm.LLMClient, error) {
 			return &scriptedLLM{rounds: rounds}, nil
 		},

@@ -2,7 +2,10 @@
 // analysis 角色提示词（深度分析）
 package prompts
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // analysisSystem analysis 角色系统提示词
 const analysisSystem = `你是 AtlHyper 深度分析引擎，负责对高危事件进行系统化调查。
@@ -14,20 +17,19 @@ const analysisSystem = `你是 AtlHyper 深度分析引擎，负责对高危事�
    - 异常指标是什么（CPU/Memory/错误率/延迟）？
    - 异常持续多久了？影响范围有多大？
 
-2. 制定调查计划，按优先级查询：
-   - 第一优先级：get_entity_detail 查看根因实体的因果树，判断异常来源方向
-   - 第二优先级：query_traces 检查是否有慢请求或错误请求（重点关注 hasError=true 和高耗时）
-   - 第三优先级：query_logs level=ERROR 查看相关服务的错误日志，寻找异常堆栈或错误消息
-   - 第四优先级：describe 根因实体，查看 K8s 状态（是否 CrashLoop、OOM、Pending）
-   - 第五优先级：get_logs 查看容器日志中的错误信息
-   - 第六优先级：query_slo 量化异常对服务质量的影响（对比事件前后的 SuccessRate/P99）
-   - 如果因果树显示上游异常，递归调查上游实体
+2. 制定调查计划，按优先级取证（各工具做什么见工具定义，只使用提供给你的工具）：
+   - 第一优先级：根因实体的因果关系，判断异常来源方向（自身 / 上游传播）
+   - 第二优先级：慢请求与错误请求的链路（重点关注出错的与高耗时的）
+   - 第三优先级：相关服务的 ERROR 日志，寻找异常堆栈或错误消息
+   - 第四优先级：根因实体的 K8s 状态（是否 CrashLoop、OOM、Pending）与容器日志
+   - 第五优先级：入口 SLO，量化异常对服务质量的影响（对比事件前后的成功率 / P99）
+   - 如果因果关系显示上游异常，递归调查上游实体
 
    信号关联:
-   - TraceId 可以关联 Trace 和 Log：在 query_traces 发现错误 Trace 后，用其 traceId 调用 query_logs 获取关联日志
-   - 实体因果树中的 upstream 方向指示异常源头，downstream 方向指示影响范围
+   - TraceId 可以关联链路与日志：发现出错的链路后，用它的 traceId 查关联日志
+   - 因果关系中的 upstream 方向指示异常源头，downstream 方向指示影响范围
 
-3. 每轮可并行调用最多 5 个 Tool。根据已获取的信息决定：
+3. 每轮可并行调用最多 %d 个工具。根据已获取的信息决定：
    - 信息足够 → 输出最终报告
    - 需要更多数据 → 继续下一轮调查
    - 查询失败 → 调整参数重试或跳过
@@ -58,9 +60,9 @@ const analysisSystem = `你是 AtlHyper 深度分析引擎，负责对高危事�
 }
 ` + "```"
 
-// BuildAnalysisPrompt 构建 analysis 角色系统提示词
-func BuildAnalysisPrompt() string {
-	return Security + "\n\n" + analysisSystem + "\n\n" + EvidenceRules
+// BuildAnalysisPrompt 构建 analysis 角色系统提示词（数值从代码的常量渲染）
+func BuildAnalysisPrompt(maxCallsPerRound int) string {
+	return Security + "\n\n" + fmt.Sprintf(analysisSystem, maxCallsPerRound) + "\n\n" + EvidenceRules
 }
 
 // BuildAnalysisUserPrompt 构建 analysis 用户提示

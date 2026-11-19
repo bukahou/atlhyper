@@ -113,7 +113,7 @@ func convertMessages(msgs []llm.Message) []anthropicsdk.MessageParam {
 				content = "（无输出）"
 			}
 			if pairedWithCall(msgs, index) {
-				b.addUser(anthropicsdk.NewToolResultBlock(b.idFor(result.CallID), content, false))
+				b.addUser(anthropicsdk.NewToolResultBlock(b.idFor(result.CallID), content, result.IsError))
 				pending = removeID(pending, result.CallID)
 			} else {
 				b.addUser(anthropicsdk.NewTextBlock(fmt.Sprintf("（工具 %s 的结果）%s", result.Name, content)))

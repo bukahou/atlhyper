@@ -1719,22 +1719,21 @@ resources:
 
 需要我帮你执行修复操作吗？`,
       msg3User: "好的，请帮我把内存限制调整到 256Mi",
-      msg4Assistant: `已成功更新 nginx-deployment 的内存配置！
+      msg4Assistant: `AI 助手只读，不会修改集群。下面是改法，请确认后自行执行：
 
-## 执行结果
-Deployment 已更新，新的 Pod 正在启动中
+## 修改方式
+把 nginx-deployment 容器的内存上限从 128Mi 调到 256Mi：
 
-### 变更详情
-- **资源**: Deployment/nginx-deployment
-- **命名空间**: default
-- **变更内容**: memory limit 128Mi → 256Mi
+\`\`\`bash
+kubectl -n default set resources deployment/nginx-deployment --limits=memory=256Mi
+\`\`\`
 
-### 当前状态
-- 新 Pod 已创建: nginx-deployment-5d4f7b8c9-xyz99
-- 状态: Running
-- 重启次数: 0
+如果清单由 GitOps 管理，请改仓库里的 \`resources.limits.memory\`，避免被同步回去。
 
-建议持续观察 10-15 分钟确认问题已解决。`,
+### 改完后确认
+- 新 Pod 正常运行（\`kubectl -n default get pods\`）
+- 重启次数不再增长
+- 观察 10–15 分钟，确认不再出现 OOMKilled`,
     },
     // ConversationSidebar
     sidebar: {
@@ -1749,6 +1748,10 @@ Deployment 已更新，新的 Pod 正在启动中
       older: "更早",
     },
     // ExecutionBlock
+    notice: {
+      historyTrimmed: "较早的对话已按轮省略，以适应模型的上下文长度",
+      toolCallsCapped: "本轮工具调用超过上限，只执行了前几个",
+    },
     execution: {
       roundLabel: "第 {n} 轮",
       executing: "执行中...",

@@ -3,8 +3,6 @@
 package ai
 
 import (
-	"time"
-
 	"AtlHyper/atlhyper_master_v2/ai/budget"
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/anthropic" // 注册 anthropic provider
@@ -12,27 +10,20 @@ import (
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini"    // 注册 gemini provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/ollama"    // 注册 ollama provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/openai"    // 注册 openai provider
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/service/operations"
 )
 
 // NewService 创建 AIService
 // AI 配置（API Key、Model 等）从数据库动态获取，支持热更新
 func NewService(
 	cfg ServiceConfig,
-	ops *operations.CommandService,
 	providerRepo database.AIProviderRepository,
 	modelRepo database.AIProviderModelRepository,
 	budgetRepo database.AIRoleBudgetRepository,
 	convRepo database.AIConversationRepository,
 	msgRepo database.AIMessageRepository,
 ) AIService {
-	// Tool 超时默认 30s
-	toolTimeout := cfg.ToolTimeout
-	if toolTimeout == 0 {
-		toolTimeout = 30 * time.Second
-	}
-
 	var budgets *budget.Ledger
 	if budgetRepo != nil {
 		budgets = budget.NewLedger(budgetRepo)
@@ -43,7 +34,7 @@ func NewService(
 		modelRepo:    modelRepo,
 		budgetRepo:   budgetRepo,
 		budgets:      budgets,
-		executor:     newToolExecutor(ops, toolTimeout),
+		tools:        toolkit.NewRegistry(),
 		convRepo:     convRepo,
 		msgRepo:      msgRepo,
 

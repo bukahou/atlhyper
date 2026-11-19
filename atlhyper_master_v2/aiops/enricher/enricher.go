@@ -321,7 +321,7 @@ func (e *Enricher) runAnalysis(ctx context.Context, incidentID, trigger string) 
 	result, err := e.aiService.Analyze(ctx, &ai.AnalyzeRequest{
 		ClusterID:    incident.ClusterID,
 		Role:         ai.RoleAnalysis,
-		SystemPrompt: prompts.BuildAnalysisPrompt(),
+		SystemPrompt: prompts.BuildAnalysisPrompt(ai.MaxToolCallsPerRound),
 		UserPrompt:   prompts.BuildAnalysisUserPrompt(incidentCtx),
 		Allow:        e.analysisAllow,
 	})

@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 // 流式对话（SSE）是一条持续输出的连接，不是「取一份数据」，所以不走 useQuery，这里直接调接口。
 // 这个文件在守卫测试 no-direct-fetch.test.ts 的流式豁免名单里
-import { streamChat } from "@/api/ai";
+import { streamChat, type ChatAlert } from "@/api/ai";
 import type { Message } from "@/components/ai/types";
 import { aiChatKeys } from "@/queries/keys";
 import { type ChatStreamEvent, type ChatStreamState, reduceChatStream, startChatStream } from "./chat-stream-state";
@@ -38,7 +38,10 @@ export function useChatStream(clusterId: string) {
   );
 
   const sendAndStream = useCallback(
-    (conversationId: number, message: string, displayedMessages: Message[]) => {
+    /**
+     * message 是显示在对话里的用户消息；alertAnalysis 有值时把告警交给后端拼提示词（message 只用于显示）
+     */
+    (conversationId: number, message: string, displayedMessages: Message[], alertAnalysis?: { alerts: ChatAlert[]; language: string }) => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -55,7 +58,9 @@ export function useChatStream(clusterId: string) {
       setStream(startChatStream(streamId, conversationId, displayedMessages, userMessage));
 
       streamChat(
-        { conversationId, clusterId, message },
+        alertAnalysis
+          ? { conversationId, clusterId, alerts: alertAnalysis.alerts, language: alertAnalysis.language }
+          : { conversationId, clusterId, message },
         (segment) => dispatch({ type: "segment", streamId, segment }),
         (stats) => {
           dispatch({ type: "done", streamId, stats });

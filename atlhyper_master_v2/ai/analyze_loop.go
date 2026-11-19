@@ -49,19 +49,12 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 	messages := []llm.Message{{Role: "user", Content: p.UserPrompt}}
 	reminded := false
 
+	// 系统提示词逐字不变；剩余轮次附在每轮最后一条工具结果上（只在本次请求的记录里）
 	for round := 1; round <= p.MaxRounds; round++ {
 		out.Rounds = round
-		remaining := p.MaxRounds - round + 1
-		req := &llm.Request{
-			SystemPrompt: p.SystemPrompt + fmt.Sprintf(
-				"\n\n[系统提示] 剩余调查轮次: %d/%d。如果信息已足够，请返回最终分析报告，不要调用 Tool。",
-				remaining, p.MaxRounds),
-			Messages: messages,
-			Tools:    p.Tools,
-		}
+		req := &llm.Request{SystemPrompt: p.SystemPrompt, Messages: messages, Tools: p.Tools}
 		if round == p.MaxRounds {
-			req.SystemPrompt = p.SystemPrompt + "\n\n[系统提示] 这是最后一轮。请基于已有信息输出最终分析报告。不要再调用 Tool。"
-			req.Tools = nil
+			req.Tools = nil // 最后一轮不给工具，强制输出报告
 		}
 
 		stream, err := client.ChatStream(ctx, req)
@@ -92,8 +85,8 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 			return out, nil
 		}
 
-		if len(toolCalls) > maxToolCallsPerAnalyze {
-			toolCalls = toolCalls[:maxToolCallsPerAnalyze]
+		if len(toolCalls) > MaxToolCallsPerRound {
+			toolCalls = toolCalls[:MaxToolCallsPerRound]
 		}
 		out.ToolCalls += len(toolCalls)
 		step := AnalyzeStep{Round: round, Thinking: text}
@@ -102,18 +95,31 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 		for i := range toolCalls {
 			tc := toolCalls[i]
 			result, err := exec(ctx, &tc)
-			if err != nil {
+			isError := err != nil
+			if isError {
 				result = fmt.Sprintf("执行失败: %v", err)
 			}
 			step.ToolCalls = append(step.ToolCalls, ToolCallRecord{
 				Tool: tc.Name, Params: tc.Params, ResultSummary: clipToolResult(result, 500),
 			})
+			content := clipToolResult(result, p.MaxToolResult)
+			if i == len(toolCalls)-1 {
+				content += analyzeBudgetHint(p.MaxRounds - round)
+			}
 			messages = append(messages, llm.Message{
 				Role:       "tool",
-				ToolResult: &llm.ToolResult{CallID: tc.ID, Name: tc.Name, Content: clipToolResult(result, p.MaxToolResult)},
+				ToolResult: &llm.ToolResult{CallID: tc.ID, Name: tc.Name, Content: content, IsError: isError},
 			})
 		}
 		out.Steps = append(out.Steps, step)
 	}
 	return out, nil // 轮次用尽：Response 为空，由调用方判定
+}
+
+// analyzeBudgetHint 附在一轮最后一条工具结果上的剩余调查轮次
+func analyzeBudgetHint(remaining int) string {
+	if remaining <= 1 {
+		return "\n\n[系统提示] 下一轮是最后一轮，不再提供工具。请基于已有信息输出最终分析报告。"
+	}
+	return fmt.Sprintf("\n\n[系统提示] 剩余调查轮次: %d。如果信息已足够，请直接返回最终分析报告，不要调用工具。", remaining)
 }

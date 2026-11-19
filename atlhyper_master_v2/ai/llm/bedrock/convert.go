@@ -114,10 +114,14 @@ func convertMessages(src []llm.Message) ([]types.Message, error) {
 			if m.ToolResult == nil {
 				continue
 			}
-			appendBlocks(types.ConversationRoleUser, []types.ContentBlock{&types.ContentBlockMemberToolResult{Value: types.ToolResultBlock{
+			block := types.ToolResultBlock{
 				ToolUseId: aws.String(m.ToolResult.CallID),
 				Content:   []types.ToolResultContentBlock{&types.ToolResultContentBlockMemberText{Value: m.ToolResult.Content}},
-			}}})
+			}
+			if m.ToolResult.IsError {
+				block.Status = types.ToolResultStatusError
+			}
+			appendBlocks(types.ConversationRoleUser, []types.ContentBlock{&types.ContentBlockMemberToolResult{Value: block}})
 		}
 	}
 	return out, nil

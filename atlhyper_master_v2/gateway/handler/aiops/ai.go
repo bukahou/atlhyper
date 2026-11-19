@@ -4,8 +4,10 @@
 package aiops
 
 import (
+	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -186,6 +188,9 @@ type chatRequest struct {
 	ConversationID int64  `json:"conversationId"`
 	ClusterID      string `json:"clusterId"`
 	Message        string `json:"message"`
+	// Alerts 告警分析（与 message 二选一）：只传结构化的告警，提示词由后端按 language 拼
+	Alerts   []prompts.Alert `json:"alerts"`
+	Language string          `json:"language"`
 }
 
 // Chat 处理 /api/v2/ai/chat (SSE 流式响应)
@@ -207,8 +212,12 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ConversationID == 0 || req.Message == "" {
-		handler.WriteError(w, http.StatusBadRequest, "conversation_id and message required")
+	if req.ConversationID == 0 || (req.Message == "" && len(req.Alerts) == 0) {
+		handler.WriteError(w, http.StatusBadRequest, "conversationId and message (or alerts) required")
+		return
+	}
+	if len(req.Alerts) > prompts.MaxAlertsPerAnalysis {
+		handler.WriteError(w, http.StatusBadRequest, fmt.Sprintf("alerts 最多 %d 条", prompts.MaxAlertsPerAnalysis))
 		return
 	}
 
@@ -220,6 +229,8 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		ClusterID:      req.ClusterID,
 		UserID:         userID,
 		Message:        req.Message,
+		Alerts:         req.Alerts,
+		Language:       req.Language,
 		Allow: func(p string) bool {
 			return middleware.Allowed(level, middleware.Permission(p))
 		},
@@ -245,6 +256,10 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 func writeConversationError(w http.ResponseWriter, err error) {
 	if errors.Is(err, aiPkg.ErrConversationNotFound) {
 		handler.WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if errors.Is(err, aiPkg.ErrEmptyMessage) {
+		handler.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	handler.WriteError(w, http.StatusInternalServerError, err.Error())

@@ -6,7 +6,7 @@
 //   - 公开仓库直接放行：内容本来就公开，AI 读到不增加泄露面
 //   - 私有仓库必须显式列入白名单（MASTER_AI_GITHUB_PRIVATE_REPOS），默认一个都不放行
 //   - 确认不了可见性时拒绝（失败即关）
-package ai
+package tools
 
 import (
 	"context"

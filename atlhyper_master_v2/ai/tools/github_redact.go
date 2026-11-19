@@ -3,7 +3,7 @@
 //
 // 纵深防御：第一道是仓库范围（github_scope.go）。这里按行处理而不解析 YAML ——
 // Helm 模板等「不是合法 YAML」的清单同样要脱敏，解析失败就放行等于失败即开。
-package ai
+package tools
 
 import (
 	"regexp"

@@ -9,8 +9,8 @@ import (
 // 并把 AIOps 状态变化写成「健康检查失败」）
 func TestAllRolePrompts_ShareEvidenceRules(t *testing.T) {
 	prompts := map[string]string{
-		"chat":       BuildChatPrompt(),
-		"analysis":   BuildAnalysisPrompt(),
+		"chat":       BuildChatPrompt(5),
+		"analysis":   BuildAnalysisPrompt(5),
 		"background": BuildBackgroundPrompt(&IncidentPromptContext{}).System,
 	}
 	for role, p := range prompts {
@@ -59,7 +59,7 @@ func TestAnalysisUserPrompt_SharesEvidence(t *testing.T) {
 func TestSystemPrompts_ExactResourceNames(t *testing.T) {
 	for name, sys := range map[string]string{
 		"background": BuildBackgroundPrompt(&IncidentPromptContext{}).System,
-		"analysis":   BuildAnalysisPrompt(),
+		"analysis":   BuildAnalysisPrompt(5),
 	} {
 		if !strings.Contains(sys, "资源名称只能使用上下文中出现的完整名称") {
 			t.Errorf("%s 系统提示词缺资源名规则", name)
@@ -92,13 +92,4 @@ func TestEvidenceRules_PersistedEventsAndCommonDependency(t *testing.T) {
 			t.Errorf("EvidenceRules 缺 %q", want)
 		}
 	}
-}
-
-func TestToolDefinitions_IncludeEventHistory(t *testing.T) {
-	for _, d := range GetToolDefinitions() {
-		if d.Name == "get_event_history" {
-			return
-		}
-	}
-	t.Error("工具列表缺 get_event_history")
 }
