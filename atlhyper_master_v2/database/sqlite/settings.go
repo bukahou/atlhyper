@@ -24,7 +24,7 @@ func (d *settingsDialect) Upsert(s *database.Setting) (string, []any) {
 	VALUES (?, ?, ?, ?, ?)
 	ON CONFLICT(key) DO UPDATE SET value = excluded.value, description = excluded.description,
 		updated_at = excluded.updated_at, updated_by = excluded.updated_by`
-	args := []any{s.Key, s.Value, s.Description, time.Now().Format(time.RFC3339), s.UpdatedBy}
+	args := []any{s.Key, s.Value, s.Description, utcStamp(time.Now()), s.UpdatedBy}
 	return query, args
 }
 

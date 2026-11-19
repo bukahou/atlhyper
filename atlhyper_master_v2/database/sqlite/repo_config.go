@@ -10,7 +10,7 @@ import (
 type repoConfigDialect struct{}
 
 func (d *repoConfigDialect) Upsert(config *database.RepoConfig) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	enabled := 0
 	if config.MappingEnabled {
 		enabled = 1

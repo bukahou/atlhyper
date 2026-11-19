@@ -20,14 +20,14 @@ func (d *aiConversationDialect) Insert(conv *database.AIConversation) (string, [
 	args := []any{
 		conv.UserID, conv.ClusterID, conv.Title, conv.MessageCount,
 		conv.TotalInputTokens, conv.TotalOutputTokens, conv.TotalToolCalls,
-		conv.CreatedAt.Format(time.RFC3339), conv.UpdatedAt.Format(time.RFC3339),
+		utcStamp(conv.CreatedAt), utcStamp(conv.UpdatedAt),
 	}
 	return query, args
 }
 
 func (d *aiConversationDialect) Update(conv *database.AIConversation) (string, []any) {
 	query := `UPDATE ai_conversations SET title = ?, message_count = ?, total_input_tokens = ?, total_output_tokens = ?, total_tool_calls = ?, updated_at = ? WHERE id = ?`
-	args := []any{conv.Title, conv.MessageCount, conv.TotalInputTokens, conv.TotalOutputTokens, conv.TotalToolCalls, conv.UpdatedAt.Format(time.RFC3339), conv.ID}
+	args := []any{conv.Title, conv.MessageCount, conv.TotalInputTokens, conv.TotalOutputTokens, conv.TotalToolCalls, utcStamp(conv.UpdatedAt), conv.ID}
 	return query, args
 }
 
@@ -73,7 +73,7 @@ func (d *aiMessageDialect) Insert(msg *database.AIMessage) (string, []any) {
 	VALUES (?, ?, ?, ?, ?)`
 	args := []any{
 		msg.ConversationID, msg.Role, msg.Content, msg.ToolCalls,
-		msg.CreatedAt.Format(time.RFC3339),
+		utcStamp(msg.CreatedAt),
 	}
 	return query, args
 }
@@ -118,8 +118,8 @@ func (d *aiProviderDialect) Insert(p *database.AIProvider) (string, []any) {
 	args := []any{
 		p.Name, p.Provider, p.APIKey, p.Model, p.BaseURL, p.Description,
 		rolesJSON, p.ContextWindowOverride,
-		p.CreatedAt.Format(time.RFC3339), p.CreatedBy,
-		p.UpdatedAt.Format(time.RFC3339), p.UpdatedBy,
+		utcStamp(p.CreatedAt), p.CreatedBy,
+		utcStamp(p.UpdatedAt), p.UpdatedBy,
 	}
 	return query, args
 }
@@ -127,13 +127,13 @@ func (d *aiProviderDialect) Insert(p *database.AIProvider) (string, []any) {
 func (d *aiProviderDialect) Update(p *database.AIProvider) (string, []any) {
 	query := `UPDATE ai_providers SET name = ?, provider = ?, api_key = ?, model = ?, base_url = ?, description = ?, roles = ?, context_window_override = ?, updated_at = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL`
 	rolesJSON := encodeRoles(p.Roles)
-	args := []any{p.Name, p.Provider, p.APIKey, p.Model, p.BaseURL, p.Description, rolesJSON, p.ContextWindowOverride, p.UpdatedAt.Format(time.RFC3339), p.UpdatedBy, p.ID}
+	args := []any{p.Name, p.Provider, p.APIKey, p.Model, p.BaseURL, p.Description, rolesJSON, p.ContextWindowOverride, utcStamp(p.UpdatedAt), p.UpdatedBy, p.ID}
 	return query, args
 }
 
 func (d *aiProviderDialect) Delete(id int64) (string, []any) {
 	// 软删除
-	return "UPDATE ai_providers SET deleted_at = ? WHERE id = ?", []any{time.Now().Format(time.RFC3339), id}
+	return "UPDATE ai_providers SET deleted_at = ? WHERE id = ?", []any{utcStamp(time.Now()), id}
 }
 
 func (d *aiProviderDialect) SelectByID(id int64) (string, []any) {
@@ -146,7 +146,7 @@ func (d *aiProviderDialect) SelectAll() (string, []any) {
 
 func (d *aiProviderDialect) UpdateRoles(id int64, rolesJSON string) (string, []any) {
 	return `UPDATE ai_providers SET roles = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		[]any{rolesJSON, time.Now().Format(time.RFC3339), id}
+		[]any{rolesJSON, utcStamp(time.Now()), id}
 }
 
 const selectAIProviderColumns = `SELECT id, name, provider, api_key, model, base_url, description,
@@ -156,11 +156,11 @@ const selectAIProviderColumns = `SELECT id, name, provider, api_key, model, base
 
 func (d *aiProviderDialect) IncrementUsage(id int64, requests, tokens int64, cost float64) (string, []any) {
 	return `UPDATE ai_providers SET total_requests = total_requests + ?, total_tokens = total_tokens + ?, total_cost = total_cost + ?, last_used_at = ? WHERE id = ?`,
-		[]any{requests, tokens, cost, time.Now().Format(time.RFC3339), id}
+		[]any{requests, tokens, cost, utcStamp(time.Now()), id}
 }
 
 func (d *aiProviderDialect) UpdateStatus(id int64, status, errorMsg string) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	if errorMsg != "" {
 		return `UPDATE ai_providers SET status = ?, last_error = ?, last_error_at = ?, status_checked_at = ? WHERE id = ?`,
 			[]any{status, errorMsg, now, now, id}
@@ -252,7 +252,7 @@ func (d *aiSettingsDialect) Select() (string, []any) {
 
 func (d *aiSettingsDialect) Update(cfg *database.AISettings) (string, []any) {
 	return `INSERT OR REPLACE INTO ai_settings (id, tool_timeout, updated_at, updated_by) VALUES (1, ?, ?, ?)`,
-		[]any{cfg.ToolTimeout, cfg.UpdatedAt.Format(time.RFC3339), cfg.UpdatedBy}
+		[]any{cfg.ToolTimeout, utcStamp(cfg.UpdatedAt), cfg.UpdatedBy}
 }
 
 func (d *aiSettingsDialect) ScanRow(rows *sql.Rows) (*database.AISettings, error) {
@@ -283,7 +283,7 @@ type aiProviderModelDialect struct{}
 
 func (d *aiProviderModelDialect) Insert(m *database.AIProviderModel) (string, []any) {
 	query := `INSERT INTO ai_provider_models (provider, model, display_name, is_default, sort_order, context_window, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	args := []any{m.Provider, m.Model, m.DisplayName, m.IsDefault, m.SortOrder, m.ContextWindow, m.CreatedAt.Format(time.RFC3339)}
+	args := []any{m.Provider, m.Model, m.DisplayName, m.IsDefault, m.SortOrder, m.ContextWindow, utcStamp(m.CreatedAt)}
 	return query, args
 }
 

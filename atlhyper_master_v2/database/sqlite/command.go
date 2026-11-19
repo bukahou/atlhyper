@@ -19,7 +19,7 @@ func (d *commandDialect) Insert(cmd *database.CommandHistory) (string, []any) {
 	args := []any{
 		cmd.CommandID, cmd.ClusterID, cmd.Source, cmd.UserID, cmd.Action,
 		cmd.TargetKind, cmd.TargetNamespace, cmd.TargetName, cmd.Params, cmd.Status,
-		cmd.CreatedAt.Format(time.RFC3339),
+		utcStamp(cmd.CreatedAt),
 	}
 	return query, args
 }
@@ -27,11 +27,11 @@ func (d *commandDialect) Insert(cmd *database.CommandHistory) (string, []any) {
 func (d *commandDialect) Update(cmd *database.CommandHistory) (string, []any) {
 	var startedAt, finishedAt *string
 	if cmd.StartedAt != nil {
-		s := cmd.StartedAt.Format(time.RFC3339)
+		s := utcStamp(*cmd.StartedAt)
 		startedAt = &s
 	}
 	if cmd.FinishedAt != nil {
-		f := cmd.FinishedAt.Format(time.RFC3339)
+		f := utcStamp(*cmd.FinishedAt)
 		finishedAt = &f
 	}
 	query := `UPDATE command_history SET status = ?, result = ?, error_message = ?,
