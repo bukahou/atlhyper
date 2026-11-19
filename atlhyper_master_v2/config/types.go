@@ -32,7 +32,6 @@ type AgentSDKConfig struct {
 
 // DataHubConfig DataHub 配置
 type DataHubConfig struct {
-	Type              string        // 类型: memory / redis
 	EventRetention    time.Duration // Event 保留时间（30 分钟）
 	SnapshotRetain    int           // 快照保留数量
 	HeartbeatExpire   time.Duration // 心跳过期时间
@@ -76,13 +75,6 @@ type AdminConfig struct {
 	Username    string // 管理员用户名
 	Password    string // 管理员密码（明文，启动时会 bcrypt 加密）
 	DisplayName string // 显示名称
-}
-
-// RedisConfig Redis 配置
-type RedisConfig struct {
-	Addr     string // 地址 (host:port)
-	Password string // 密码（空为无密码）
-	DB       int    // 数据库编号
 }
 
 // AIConfig AI 功能配置
@@ -175,7 +167,6 @@ type AppConfig struct {
 	AgentSDK       AgentSDKConfig
 	DataHub        DataHubConfig
 	Database       DatabaseConfig
-	Redis          RedisConfig
 	Event          EventConfig
 	EventAlert     EventAlertConfig
 	Timeout        TimeoutConfig
