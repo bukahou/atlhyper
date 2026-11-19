@@ -76,12 +76,6 @@ export interface SLOSummary {
   totalRps: number;
 }
 
-// 域名 SLO 列表响应（对应 model.SLODomainsResponse）
-export interface DomainSLOListResponse {
-  domains: DomainSLO[];
-  summary: SLOSummary;
-}
-
 // 域名 SLO 详情（复用 DomainSLO）
 export type DomainSLODetail = DomainSLO;
 

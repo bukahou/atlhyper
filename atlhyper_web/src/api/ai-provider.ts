@@ -149,11 +149,6 @@ export function createProvider(data: ProviderCreateRequest) {
   return post<AIProvider>("/api/v2/ai/providers", data);
 }
 
-// プロバイダー取得
-export function getProvider(id: number) {
-  return get<AIProvider>(`/api/v2/ai/providers/${id}`);
-}
-
 // プロバイダー更新
 export function updateProvider(id: number, data: ProviderUpdateRequest) {
   return put<AIProvider>(`/api/v2/ai/providers/${id}`, data);

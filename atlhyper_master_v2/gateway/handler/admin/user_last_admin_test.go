@@ -62,7 +62,9 @@ func TestUserHandler_LastActiveAdminProtected(t *testing.T) {
 		call func(h *UserHandler) *httptest.ResponseRecorder
 	}{
 		{"删除", func(h *UserHandler) *httptest.ResponseRecorder { return post(h.Delete, `{"userId":1}`) }},
-		{"禁用", func(h *UserHandler) *httptest.ResponseRecorder { return post(h.UpdateStatus, `{"userId":1,"status":0}`) }},
+		{"禁用", func(h *UserHandler) *httptest.ResponseRecorder {
+			return post(h.UpdateStatus, `{"userId":1,"status":0}`)
+		}},
 		{"降级", func(h *UserHandler) *httptest.ResponseRecorder { return post(h.UpdateRole, `{"userId":1,"role":2}`) }},
 	}
 	for _, c := range cases {
@@ -92,7 +94,9 @@ func TestUserHandler_NonLastAdminAllowed(t *testing.T) {
 	}
 }
 
-func (m *memUsers) GetUserByUsername(context.Context, string) (*database.User, error) { return nil, nil }
+func (m *memUsers) GetUserByUsername(context.Context, string) (*database.User, error) {
+	return nil, nil
+}
 func (m *memUsers) CreateUser(_ context.Context, u *database.User) error {
 	m.updated = append(m.updated, u)
 	return nil

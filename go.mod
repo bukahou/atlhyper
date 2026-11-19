@@ -15,7 +15,6 @@ require (
 	github.com/google/generative-ai-go v0.20.1
 	github.com/google/jsonschema-go v0.4.2
 	github.com/pressly/goose/v3 v3.27.0
-	github.com/redis/go-redis/v9 v9.17.2
 	golang.org/x/crypto v0.55.0
 	google.golang.org/api v0.262.0
 	k8s.io/api v0.33.1
@@ -39,7 +38,6 @@ require (
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-oidc/v3 v3.20.0 // indirect
-	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-faster/city v1.0.1 // indirect

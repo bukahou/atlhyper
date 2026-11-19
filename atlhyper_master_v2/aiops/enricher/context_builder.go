@@ -174,16 +174,16 @@ func buildHistorical(incidents []*database.AIOpsIncident) string {
 	return b.String()
 }
 
-// buildOTelContext 从 OTelSnapshot 过滤受影响服务的错误 Traces/Logs/SLO
-func buildOTelContext(otel *cluster.OTelSnapshot, entities []*database.AIOpsIncidentEntity) (traces, logs, sloCtx string) {
+// buildOTelContext 从 OTelSnapshot 过滤受影响服务的错误 Traces 与入口 SLO（日志不进快照，模型要看用 query_logs 工具）
+func buildOTelContext(otel *cluster.OTelSnapshot, entities []*database.AIOpsIncidentEntity) (traces, sloCtx string) {
 	if otel == nil {
-		return "", "", ""
+		return "", ""
 	}
 
 	// 提取受影响的服务名列表
 	affectedServices := extractAffectedServices(entities)
 	if len(affectedServices) == 0 {
-		return "", "", ""
+		return "", ""
 	}
 
 	// 1. 错误 Traces（Top 5）
@@ -207,27 +207,6 @@ func buildOTelContext(otel *cluster.OTelSnapshot, entities []*database.AIOpsInci
 		traces = strings.Join(traceLines, "\n")
 	}
 
-	// 2. ERROR 日志（Top 10）
-	var logLines []string
-	count = 0
-	for _, l := range otel.RecentLogs {
-		if count >= 10 {
-			break
-		}
-		if l.Severity == "ERROR" && containsService(affectedServices, l.ServiceName) {
-			body := truncate.Runes(l.Body, 200, "...")
-			logLines = append(logLines, fmt.Sprintf(
-				"- [%s] %s: %s",
-				l.Timestamp.Format("15:04:05"),
-				l.ServiceName, body,
-			))
-			count++
-		}
-	}
-	if len(logLines) > 0 {
-		logs = strings.Join(logLines, "\n")
-	}
-
 	// 3. SLO 摘要
 	// 入口数据按服务标识（namespace/service）上报：与事件里服务 / 入口实体的命名空间 + 名称对上才算
 	var sloLines []string
@@ -245,7 +224,7 @@ func buildOTelContext(otel *cluster.OTelSnapshot, entities []*database.AIOpsInci
 		sloCtx = strings.Join(sloLines, "\n")
 	}
 
-	return traces, logs, sloCtx
+	return traces, sloCtx
 }
 
 // extractAffectedServices 从事件实体中提取服务名列表

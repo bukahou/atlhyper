@@ -92,23 +92,14 @@ func NewMaster() (*Master, error) {
 
 	// 1. 初始化 Store (数据存储)
 	store := datahub.NewStore(datahub.Config{
-		Type:              cfg.DataHub.Type,
 		EventRetention:    cfg.DataHub.EventRetention,
 		HeartbeatExpire:   cfg.DataHub.HeartbeatExpire,
 		SnapshotRetention: cfg.DataHub.SnapshotRetention,
-		RedisAddr:         cfg.Redis.Addr,
-		RedisPassword:     cfg.Redis.Password,
-		RedisDB:           cfg.Redis.DB,
 	})
-	log.Info("Store 初始化完成", "type", cfg.DataHub.Type)
+	log.Info("Store 初始化完成")
 
 	// 2. 初始化 CommandBus (消息队列)
-	bus := mq.NewCommandBus(mq.Config{
-		Type:          cfg.DataHub.Type,
-		RedisAddr:     cfg.Redis.Addr,
-		RedisPassword: cfg.Redis.Password,
-		RedisDB:       cfg.Redis.DB,
-	})
+	bus := mq.NewCommandBus()
 	log.Info("CommandBus 初始化完成")
 
 	// 3. 初始化 Database

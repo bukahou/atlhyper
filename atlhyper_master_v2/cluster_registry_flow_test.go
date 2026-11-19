@@ -31,7 +31,7 @@ func TestClusterRegistryFlow(t *testing.T) {
 	t.Cleanup(func() { db.Conn.Close() })
 	repo.Init(db, sqlite.NewDialect())
 
-	store := datahub.NewStore(datahub.Config{Type: "memory", EventRetention: time.Minute, HeartbeatExpire: time.Minute, SnapshotRetention: time.Minute})
+	store := datahub.NewStore(datahub.Config{EventRetention: time.Minute, HeartbeatExpire: time.Minute, SnapshotRetention: time.Minute})
 	registryOps := operations.NewClusterRegistryService(db.Cluster)
 	registryQuery := query.NewQueryService(query.QueryServiceDeps{
 		Store:             store,

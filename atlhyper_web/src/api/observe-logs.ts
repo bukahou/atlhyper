@@ -56,9 +56,3 @@ export interface LogsSummary {
   topServices: { service: string; count: number }[];
   latestAt: string;
 }
-
-export function getLogsSummary(clusterId: string) {
-  return get<ObserveResponse<LogsSummary>>("/api/v2/observe/logs/summary", {
-    cluster_id: clusterId,
-  });
-}

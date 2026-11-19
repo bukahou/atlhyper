@@ -500,13 +500,6 @@ func extractNamespace(manifests string) string {
 	return "default"
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // === 源码仓库信息解析（source.json 方案） ===
 
 // sourceJSON 是 CI 写入 Config 仓库的源码元数据文件
@@ -514,7 +507,7 @@ func min(a, b int) int {
 //   - 单服务: {path}/source.json（传统模式，如 AtlHyper）
 //   - 多服务: {path}/source-{service}.json（微服务模式，如 Geass V2）
 type sourceJSON struct {
-	Repo   string `json:"repo"`   // 源码仓库 (e.g. "bukahou/geass-v2-auth")
+	Repo   string `json:"repo"`   // 源码仓库 (e.g. "example-org/shop-auth")
 	SHA    string `json:"sha"`    // 源码 commit SHA (full 40-char)
 	Branch string `json:"branch"` // 源码分支 (e.g. "main")
 }

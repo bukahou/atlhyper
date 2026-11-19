@@ -46,11 +46,6 @@ func (r *commandRepo) ListByCluster(ctx context.Context, clusterID string, limit
 	return r.queryAll(ctx, query, args...)
 }
 
-func (r *commandRepo) ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*database.CommandHistory, error) {
-	query, args := r.dialect.SelectByUser(userID, limit, offset)
-	return r.queryAll(ctx, query, args...)
-}
-
 func (r *commandRepo) List(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error) {
 	query, args := r.dialect.SelectWithOpts(opts)
 	return r.queryAll(ctx, query, args...)

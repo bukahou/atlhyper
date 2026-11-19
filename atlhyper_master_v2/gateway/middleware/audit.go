@@ -215,15 +215,6 @@ func isCredentialKey(key string) bool {
 	return false
 }
 
-// AuditAction 审计操作常量
-const (
-	AuditActionLogin   = "login"
-	AuditActionCreate  = "create"
-	AuditActionUpdate  = "update"
-	AuditActionDelete  = "delete"
-	AuditActionExecute = "execute"
-)
-
 // AuditResource 审计资源常量
 const (
 	AuditResourceUser    = "user"

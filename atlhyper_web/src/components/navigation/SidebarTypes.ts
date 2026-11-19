@@ -56,7 +56,6 @@ export interface NavGroup {
   icon: typeof LayoutDashboard;
   href?: string;
   children?: NavChild[];
-  authOnly?: boolean;
 }
 
 // --- Constants ---

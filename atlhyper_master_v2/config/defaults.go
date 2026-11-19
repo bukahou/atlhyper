@@ -63,9 +63,6 @@ var defaultInts = map[string]int{
 	// -------------------- DataHub 配置 --------------------
 	"MASTER_DATAHUB_SNAPSHOT_RETAIN": 10, // 快照保留数量
 
-	// -------------------- Redis 配置 --------------------
-	"MASTER_REDIS_DB": 0, // Redis 数据库编号
-
 	// -------------------- 数据库配置 --------------------
 	"MASTER_DB_MAX_CONNS": 10, // 最大连接数
 
@@ -96,17 +93,9 @@ var defaultStrings = map[string]string{
 	// -------------------- Agent 入口配置 --------------------
 	"MASTER_AGENT_AUTH_MODE": "warn", // Agent 令牌认证模式: off / warn / enforce
 
-	// -------------------- DataHub 配置 --------------------
-	"MASTER_DATAHUB_TYPE": "memory", // DataHub 类型
-
-	// -------------------- Redis 配置 --------------------
-	"MASTER_REDIS_ADDR":     "localhost:6379", // Redis 地址
-	"MASTER_REDIS_PASSWORD": "",               // Redis 密码
-
 	// -------------------- 数据库配置 --------------------
 	"MASTER_DB_TYPE": "sqlite",                                            // 数据库类型
 	"MASTER_DB_PATH": "atlhyper_master_v2/database/sqlite/data/master.db", // SQLite 路径
-	"MASTER_DB_DSN":  "",                                                  // MySQL/PG 连接串
 
 	// -------------------- JWT 配置 --------------------
 	"MASTER_JWT_SECRET": "", // JWT 密钥（必须通过环境变量配置）
@@ -148,7 +137,6 @@ var defaultStrings = map[string]string{
 // ============================================================
 var defaultBools = map[string]bool{
 	// -------------------- AI 配置 --------------------
-	"MASTER_AI_ENABLED": false, // 是否启用 AI 功能（Web UI 配置）
 
 	// -------------------- OIDC 登录配置 --------------------
 	"MASTER_OIDC_COOKIE_SECURE": true, // 状态 cookie 仅 HTTPS；仅本机 http 调试时设 false

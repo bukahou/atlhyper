@@ -1,7 +1,7 @@
 /**
  * Node API
  *
- * 后端已完成 model_v2 → model 扁平化转换（含 CPU/内存单位转换），前端直接使用
+ * 后端已完成 model_v3 → model 扁平化转换（含 CPU/内存单位转换），前端直接使用
  */
 
 import { get, post } from "./request";

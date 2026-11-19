@@ -35,25 +35,22 @@ type SummarizeResponse struct {
 
 // Recommendation 处置建议
 type Recommendation struct {
-	Priority    int    `json:"priority"`
-	Action      string `json:"action"`
-	Reason      string `json:"reason"`
-	Impact      string `json:"impact"`
-	IsAutomatic bool   `json:"isAutomatic"`
+	Priority int    `json:"priority"`
+	Action   string `json:"action"`
+	Reason   string `json:"reason"`
+	Impact   string `json:"impact"`
 }
 
 // SimilarMatch 相似事件匹配
 type SimilarMatch struct {
 	IncidentID string `json:"incidentId"`
 	RootCause  string `json:"rootCause"`
-	Resolution string `json:"resolution"`
 	OccurredAt string `json:"occurredAt"`
 }
 
 // Token 预估常量
 const (
-	MaxPromptChars  = 16000 // Prompt 最大字符数（~4000 tokens）
-	WarnPromptChars = 12000 // 超过此值记录 warning 日志
+	MaxPromptChars = 16000 // Prompt 最大字符数（~4000 tokens）
 )
 
 // 默认配置
@@ -622,11 +619,10 @@ func parseResponse(raw string, incidentID string, historical []*database.AIOpsIn
 	recommendations := make([]Recommendation, len(parsed.Recommendations))
 	for i, r := range parsed.Recommendations {
 		recommendations[i] = Recommendation{
-			Priority:    r.Priority,
-			Action:      r.Action,
-			Reason:      r.Reason,
-			Impact:      r.Impact,
-			IsAutomatic: false,
+			Priority: r.Priority,
+			Action:   r.Action,
+			Reason:   r.Reason,
+			Impact:   r.Impact,
 		}
 	}
 

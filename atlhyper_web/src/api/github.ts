@@ -48,10 +48,6 @@ interface ReposResponse {
   }[];
 }
 
-interface RepoDirsResponse {
-  data: string[];
-}
-
 // ============================================================
 // API 方法
 // ============================================================
@@ -97,14 +93,4 @@ export function disconnect() {
  */
 export function getRepos(signal?: AbortSignal) {
   return get<ReposResponse>("/api/github/repos", undefined, signal);
-}
-
-/**
- * 获取仓库顶层目录
- * GET /api/github/repos/:repo/dirs
- */
-export function getRepoDirs(repo: string) {
-  return get<RepoDirsResponse>(
-    `/api/github/repos/${encodeURIComponent(repo)}/dirs`
-  );
 }

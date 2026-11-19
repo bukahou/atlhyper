@@ -264,7 +264,6 @@ func (r *Router) registerRoutes() {
 	r.route(mGet, pMetricsRead, "/api/v2/observe/metrics/hardware", observeH.MetricsHardware)
 	r.route(mGet, pMetricsRead, "/api/v2/observe/metrics/compare", observeH.MetricsCompare)
 
-	r.route(mGet, pSLORead, "/api/v2/slo/domains", sloH.Domains)      // V1: 按 service key
 	r.route(mGet, pSLORead, "/api/v2/slo/domains/v2", sloH.DomainsV2) // V2: 按真实域名
 	r.route(mGet, pSLORead, "/api/v2/slo/domains/detail", sloH.DomainDetail)
 	r.route(mGet, pSLORead, "/api/v2/slo/domains/history", sloH.DomainHistory)

@@ -42,10 +42,6 @@ type LogOptions struct {
 	// Timestamps 是否包含时间戳
 	Timestamps bool
 
-	// Follow 是否跟踪日志 (流式)
-	// 目前不支持
-	Follow bool
-
 	// Previous 是否获取之前容器的日志
 	// 用于查看重启前的日志
 	Previous bool

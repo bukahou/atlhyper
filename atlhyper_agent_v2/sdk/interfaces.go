@@ -207,9 +207,6 @@ type ClickHouseClient interface {
 	// QueryRow 执行查询，返回单行结果
 	QueryRow(ctx context.Context, query string, args ...any) *sql.Row
 
-	// Ping 检查连接健康
-	Ping(ctx context.Context) error
-
 	// Close 关闭连接
 	Close() error
 }

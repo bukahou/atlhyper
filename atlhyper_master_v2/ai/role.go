@@ -145,18 +145,3 @@ func containsRole(roles []string, role string) bool {
 	}
 	return false
 }
-
-// MaxPromptCharsForContext 根据 context_window 计算 Prompt 最大字符数
-// 供 AIOps Enhancer 使用
-func MaxPromptCharsForContext(contextWindow int) int {
-	if contextWindow <= 0 {
-		return 16000 // 云端大模型: 保持默认值
-	}
-	// 上下文窗口的 50% 给 prompt（另 50% 给输出 + overhead）
-	// 1 token ≈ 2.5 chars
-	chars := contextWindow / 2 * 25 / 10
-	if chars < 2000 {
-		return 2000
-	}
-	return chars
-}

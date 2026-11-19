@@ -18,7 +18,7 @@ func TestBuildOTelContext_SLOForAffectedService(t *testing.T) {
 	}}
 	entities := []*database.AIOpsIncidentEntity{{EntityKey: "shop/service/api"}}
 
-	_, _, sloCtx := buildOTelContext(otel, entities)
+	_, sloCtx := buildOTelContext(otel, entities)
 
 	if !strings.Contains(sloCtx, "shop/api: SuccessRate=99.50% ErrorRate=0.5000%") {
 		t.Errorf("应带上 shop/api 的 SLO 且单位不放大，实际:\n%s", sloCtx)

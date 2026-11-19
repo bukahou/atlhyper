@@ -53,11 +53,6 @@ func (d *commandDialect) SelectByCluster(clusterID string, limit, offset int) (s
 		[]any{clusterID, limit, offset}
 }
 
-func (d *commandDialect) SelectByUser(userID int64, limit, offset int) (string, []any) {
-	return "SELECT id, command_id, cluster_id, source, user_id, action, target_kind, target_namespace, target_name, params, status, result, error_message, created_at, started_at, finished_at, duration_ms FROM command_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-		[]any{userID, limit, offset}
-}
-
 func (d *commandDialect) ScanRow(rows *sql.Rows) (*database.CommandHistory, error) {
 	cmd := &database.CommandHistory{}
 	var createdAt string

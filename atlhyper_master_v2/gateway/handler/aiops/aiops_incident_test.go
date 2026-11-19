@@ -76,7 +76,7 @@ func TestIncidentList_ExposesSubjectFields(t *testing.T) {
 	inc := closedWorkloadIncident()
 	h := NewAIOpsIncidentHandler(&stubIncidentQuery{incidents: []*aiops.Incident{&inc}})
 
-	body := serveJSON(t, h.List, "/api/v2/aiops/incidents?cluster=c1")
+	body := serveJSON(t, h.List, "/api/v2/aiops/incidents?cluster_id=c1")
 
 	data, ok := body["data"].([]any)
 	if !ok || len(data) != 1 {
@@ -114,7 +114,7 @@ func TestIncidentList_OpenIncidentHasNullEscalatedAt(t *testing.T) {
 		Subject: "shop/service/api", SubjectType: "service", RootCause: "shop/service/api"}
 	h := NewAIOpsIncidentHandler(&stubIncidentQuery{incidents: []*aiops.Incident{&inc}})
 
-	body := serveJSON(t, h.List, "/api/v2/aiops/incidents?cluster=c1")
+	body := serveJSON(t, h.List, "/api/v2/aiops/incidents?cluster_id=c1")
 
 	got := body["data"].([]any)[0].(map[string]any)
 	if value, ok := got["escalatedAt"]; !ok || value != nil {

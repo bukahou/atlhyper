@@ -42,23 +42,15 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.DataHub = DataHubConfig{
-		Type:              getString("MASTER_DATAHUB_TYPE"),
 		EventRetention:    getDuration("MASTER_DATAHUB_EVENT_RETENTION"),
 		SnapshotRetain:    getInt("MASTER_DATAHUB_SNAPSHOT_RETAIN"),
 		HeartbeatExpire:   getDuration("MASTER_DATAHUB_HEARTBEAT_EXPIRE"),
 		SnapshotRetention: getDuration("MASTER_DATAHUB_SNAPSHOT_RETENTION"),
 	}
 
-	GlobalConfig.Redis = RedisConfig{
-		Addr:     getString("MASTER_REDIS_ADDR"),
-		Password: getString("MASTER_REDIS_PASSWORD"),
-		DB:       getInt("MASTER_REDIS_DB"),
-	}
-
 	GlobalConfig.Database = DatabaseConfig{
 		Type:     getString("MASTER_DB_TYPE"),
 		Path:     getString("MASTER_DB_PATH"),
-		DSN:      getString("MASTER_DB_DSN"),
 		MaxConns: getInt("MASTER_DB_MAX_CONNS"),
 
 		CommandHistoryRetention: getDuration("MASTER_COMMAND_HISTORY_RETENTION"),
@@ -94,7 +86,6 @@ func LoadConfig() {
 	}
 
 	GlobalConfig.AI = AIConfig{
-		Enabled:       getBool("MASTER_AI_ENABLED"),
 		ToolTimeout:   getDuration("MASTER_AI_TOOL_TIMEOUT"),
 		BedrockRegion: getString("MASTER_AI_BEDROCK_REGION"),
 		// 逗号分隔；⛔ 不要放存有凭据的仓库（如部署配置仓库）

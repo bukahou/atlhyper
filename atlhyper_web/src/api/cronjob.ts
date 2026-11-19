@@ -1,7 +1,7 @@
 /**
  * CronJob API
  *
- * 后端已完成 model_v2 → model 扁平化转换，前端直接使用
+ * 后端已完成 model_v3 → model 扁平化转换，前端直接使用
  */
 
 import { get } from "./request";
