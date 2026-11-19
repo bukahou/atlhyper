@@ -101,7 +101,7 @@ func (e *toolExecutor) Execute(ctx context.Context, clusterID string, allow Perm
 	toolLog.Debug("指令已执行", "action", action, "kind", kind, "ns", namespace, "name", name, "cmd", result.CommandID)
 
 	if !result.Success {
-		return fmt.Sprintf("执行失败: %s", result.Error), nil
+		return "", fmt.Errorf("执行失败: %s", result.Error) // 失败要让调用方知道，⛔ 不当作正常结果返回
 	}
 	return result.Output, nil
 }

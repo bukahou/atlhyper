@@ -5,6 +5,8 @@ package ai
 import (
 	"context"
 	"time"
+
+	"AtlHyper/atlhyper_master_v2/ai/llm"
 )
 
 // AIService AI 服务接口
@@ -48,12 +50,24 @@ type ChatRequest struct {
 
 // ChatChunk SSE 流式响应块
 type ChatChunk struct {
-	Type    string     `json:"type"`              // text / tool_call / tool_result / done / error
-	Content string     `json:"content,omitempty"` // 文本内容
+	Type string `json:"type"` // text / tool_call / tool_result / notice / done / error
+	// Round 第几次调模型（从 1 开始）；text / tool_call / tool_result / notice 都带，前端按它分轮，⛔ 不按文字顺序猜
+	Round   int    `json:"round,omitempty"`
+	Content string `json:"content,omitempty"` // 文本内容 / 工具结果 / 错误说明
+	// CallID 模型给的调用 ID：tool_call 与 tool_result 按它配对（同一轮可能并行调用同名工具）
+	CallID  string     `json:"callId,omitempty"`
 	Tool    string     `json:"tool,omitempty"`    // tool 名称
 	Params  string     `json:"params,omitempty"`  // tool 参数 JSON
+	IsError bool       `json:"isError,omitempty"` // tool_result：执行失败
+	Notice  string     `json:"notice,omitempty"`  // notice：代码（NoticeHistoryTrimmed / NoticeToolCallsCapped），文案前端出
 	Stats   *ChatStats `json:"stats,omitempty"`   // 统计信息（done 时返回）
 }
+
+// 流里的提示代码（文案由前端按语言出，⛔ 不以正文文字混进回答）
+const (
+	NoticeHistoryTrimmed  = "historyTrimmed"  // 历史消息已按轮裁剪以适应模型上下文
+	NoticeToolCallsCapped = "toolCallsCapped" // 本轮工具调用超过上限，只执行了前面几个
+)
 
 // ChatStats 对话统计信息
 type ChatStats struct {
@@ -78,14 +92,16 @@ type Conversation struct {
 	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
-// Message 消息
+// Message 消息（工具调用与结果是结构化字段，⛔ 不以 JSON 字符串下发让前端再解析）
 type Message struct {
-	ID             int64     `json:"id"`
-	ConversationID int64     `json:"conversationId"`
-	Role           string    `json:"role"` // user / assistant / tool
-	Content        string    `json:"content"`
-	ToolCalls      string    `json:"toolCalls,omitempty"` // JSON
-	CreatedAt      time.Time `json:"createdAt"`
+	ID             int64  `json:"id"`
+	ConversationID int64  `json:"conversationId"`
+	Role           string `json:"role"` // user / assistant / tool
+	// Content user / assistant 的正文；tool 消息为空（结果在 ToolResult）
+	Content    string          `json:"content"`
+	ToolCalls  []llm.ToolCall  `json:"toolCalls,omitempty"`  // assistant 发起的工具调用（一条带调用的 assistant 消息 = 一轮）
+	ToolResult *llm.ToolResult `json:"toolResult,omitempty"` // tool 消息：按 callId 对应到调用
+	CreatedAt  time.Time       `json:"createdAt"`
 }
 
 // ==================== Analyze（多轮 Tool Calling）====================

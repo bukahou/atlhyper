@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useI18n } from "@/i18n/context";
-import { ChevronDown, CheckCircle2, Loader2, Terminal, Brain } from "lucide-react";
+import { ChevronDown, CheckCircle2, Loader2, Terminal, Brain, XCircle } from "lucide-react";
 import { ChatStats } from "./types";
 import { Round, formatCommandTitle, formatCommandParams } from "./command-utils";
 
@@ -11,7 +11,7 @@ import { Round, formatCommandTitle, formatCommandParams } from "./command-utils"
 const statusConfig = {
   running: { icon: Loader2, color: "text-yellow-500", animate: true },
   success: { icon: CheckCircle2, color: "text-green-500", animate: false },
-  failed: { icon: CheckCircle2, color: "text-red-500", animate: false },
+  failed: { icon: XCircle, color: "text-red-500", animate: false },
 };
 
 function RoundBlock({ round, roundIdx }: { round: Round; roundIdx: number }) {

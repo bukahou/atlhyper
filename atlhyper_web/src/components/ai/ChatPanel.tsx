@@ -6,65 +6,10 @@ import { ConversationPanel } from "./ConversationSidebar";
 import { InspectorPanel } from "./InspectorPanel";
 import { Conversation, ChatStats } from "./types";
 import { Message, StreamSegment } from "./types";
-import { MessageBubble, StreamingBubble } from "./MessageBubble";
+import { AnswerBubble, StreamingBubble, UserBubble } from "./MessageBubble";
+import { groupConversation } from "./command-utils";
 import { ChatInput } from "./ChatInput";
 import { useI18n } from "@/i18n/context";
-
-// 合并 tool_calls JSON 字符串
-function mergeToolCalls(tc1?: string, tc2?: string): string | undefined {
-  if (!tc1 && !tc2) return undefined;
-  if (!tc1) return tc2;
-  if (!tc2) return tc1;
-  try {
-    const arr1 = JSON.parse(tc1);
-    const arr2 = JSON.parse(tc2);
-    return JSON.stringify([...arr1, ...arr2]);
-  } catch {
-    return tc1 || tc2;
-  }
-}
-
-// 消息分组（过滤 tool 消息，合并连续的 assistant 消息）
-function groupMessages(messages: Message[]): Message[] {
-  const result: Message[] = [];
-  let pendingAssistant: Message | null = null;
-
-  for (const msg of messages) {
-    // tool 消息不显示（仅用于 API 上下文）
-    if (msg.role === "tool") continue;
-
-    if (msg.role === "user") {
-      // user 消息前，保存 pending assistant
-      if (pendingAssistant) {
-        result.push(pendingAssistant);
-        pendingAssistant = null;
-      }
-      result.push(msg);
-    } else if (msg.role === "assistant") {
-      if (pendingAssistant) {
-        // 合并连续的 assistant 消息
-        const merged: Message = {
-          id: pendingAssistant.id,
-          conversationId: pendingAssistant.conversationId,
-          role: "assistant",
-          content: [pendingAssistant.content, msg.content].filter(Boolean).join("\n\n"),
-          toolCalls: mergeToolCalls(pendingAssistant.toolCalls, msg.toolCalls),
-          createdAt: pendingAssistant.createdAt,
-        };
-        pendingAssistant = merged;
-      } else {
-        pendingAssistant = { ...msg };
-      }
-    }
-  }
-
-  // 保存最后的 pending assistant
-  if (pendingAssistant) {
-    result.push(pendingAssistant);
-  }
-
-  return result;
-}
 
 type PanelType = "history" | "inspector" | null;
 
@@ -206,20 +151,12 @@ export function ChatPanel({
           ) : (
             <>
               {(() => {
-                const grouped = groupMessages(messages);
-                return grouped.map((msg, idx) => {
-                  // 最后一条 assistant 消息传递 stats（用于显示 token 统计）
-                  const isLastAssistant =
-                    idx === grouped.length - 1 &&
-                    msg.role === "assistant" &&
-                    !streaming; // 只有完成后才显示 stats
-                  return (
-                    <MessageBubble
-                      key={msg.id}
-                      message={msg}
-                      stats={isLastAssistant ? currentStats : undefined}
-                    />
-                  );
+                const items = groupConversation(messages);
+                return items.map((item, idx) => {
+                  if (item.kind === "user") return <UserBubble key={item.key} message={item.message} />;
+                  // 最后一次回答带上本次提问的统计（只有完成后才显示）
+                  const isLast = idx === items.length - 1 && !streaming;
+                  return <AnswerBubble key={item.key} answer={item.answer} stats={isLast ? currentStats : undefined} />;
                 });
               })()}
               {/* 流式渲染：还在输出时显示；停止或出错后，已输出的内容在换回服务端历史之前继续显示 */}

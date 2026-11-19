@@ -29,32 +29,57 @@ func NewContextManager(contextWindow int) *ContextManager {
 	}
 }
 
-// FitMessages 裁剪消息列表以适应上下文窗口
-// 策略: 从最新消息往回填充，保证最近的对话完整
+// FitMessages 裁剪消息列表以适应上下文窗口。
+// 以「一问一答」为单位（一条用户消息 + 其后的助手 / 工具消息）从最旧的整轮丢起：
+// ⛔ 不把工具调用与它的结果拆开（拆开后 Claude 等提供商拒收孤立的工具结果）。
+// 最新的一轮总是保留（哪怕单独就超了，交给提供商报错，也不拆）。
 // 返回: 裁剪后的消息列表 + 是否发生了裁剪
 func (cm *ContextManager) FitMessages(systemPrompt string, messages []llm.Message) ([]llm.Message, bool) {
 	if cm.contextWindow <= 0 {
 		return messages, false
 	}
-
 	budget := cm.contextWindow - cm.outputReserve - estimateTokens(systemPrompt)
-	if budget <= 0 {
-		return messages, true
-	}
-
-	// 从最新消息往前，贪心填充
-	var fitted []llm.Message
-	for i := len(messages) - 1; i >= 0; i-- {
-		cost := estimateMessageTokens(&messages[i])
-		if budget-cost < 0 && len(fitted) > 0 {
+	starts := turnStarts(len(messages), func(i int) string { return messages[i].Role })
+	keepFrom := starts[len(starts)-1]
+	for i := len(starts) - 1; i >= 0; i-- {
+		end := len(messages)
+		if i+1 < len(starts) {
+			end = starts[i+1]
+		}
+		cost := 0
+		for j := starts[i]; j < end; j++ {
+			cost += estimateMessageTokens(&messages[j])
+		}
+		if budget-cost < 0 && i < len(starts)-1 {
 			break
 		}
 		budget -= cost
-		fitted = append([]llm.Message{messages[i]}, fitted...)
+		keepFrom = starts[i]
 	}
+	return messages[keepFrom:], keepFrom > 0
+}
 
-	truncated := len(fitted) < len(messages)
-	return fitted, truncated
+// turnStarts 每一轮的起点下标（一轮从一条用户消息开始；开头若不是用户消息，自成一轮）。n 为 0 时返回 [0]
+func turnStarts(n int, role func(int) string) []int {
+	starts := []int{0}
+	for i := 1; i < n; i++ {
+		if role(i) == "user" {
+			starts = append(starts, i)
+		}
+	}
+	return starts
+}
+
+// recentTurnsStart 最多保留 maxMessages 条时的起点：只在一轮的开头切，⛔ 不切进一轮中间；
+// 最新一轮比上限还长时整轮保留
+func recentTurnsStart(n, maxMessages int, role func(int) string) int {
+	starts := turnStarts(n, role)
+	for _, st := range starts {
+		if n-st <= maxMessages {
+			return st
+		}
+	}
+	return starts[len(starts)-1]
 }
 
 // estimateTokens 估算文本的 token 数

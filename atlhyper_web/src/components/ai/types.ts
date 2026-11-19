@@ -13,21 +13,50 @@ export interface Conversation {
   updatedAt: string;
 }
 
+/** 模型发起的一次工具调用（对齐后端 llm.ToolCall） */
+export interface ToolCallRecord {
+  id: string;
+  name: string;
+  params: string;
+}
+
+/** 一次工具调用的结果（对齐后端 llm.ToolResult），按 callId 对应到调用 */
+export interface ToolResultRecord {
+  callId: string;
+  name: string;
+  content: string;
+  isError?: boolean;
+}
+
 export interface Message {
   id: number;
   conversationId: number;
   role: "user" | "assistant" | "tool";
+  /** user / assistant 的正文；tool 消息为空（结果在 toolResult） */
   content: string;
-  toolCalls?: string;
+  /** 带工具调用的 assistant 消息 = 一轮 */
+  toolCalls?: ToolCallRecord[];
+  toolResult?: ToolResultRecord;
   createdAt: string;
 }
 
 // 流式渲染段
+/** 流里的提示代码（文案在 i18n aiChatPage.notice） */
+export type StreamNotice = "historyTrimmed" | "toolCallsCapped";
+
+// 流式渲染段（对齐后端 ai.ChatChunk）
 export interface StreamSegment {
-  type: "text" | "tool_call" | "tool_result" | "done" | "error";
-  content: string;
+  type: "text" | "tool_call" | "tool_result" | "notice" | "done" | "error";
+  /** 第几次调模型（从 1 开始）：按它分轮 */
+  round?: number;
+  content?: string;
+  /** tool_call 与 tool_result 按它配对（同一轮可能并行调用同名工具） */
+  callId?: string;
   tool?: string;
   params?: string;
+  /** tool_result：执行失败 */
+  isError?: boolean;
+  notice?: StreamNotice;
   stats?: ChatStats; // done 时返回的统计信息
 }
 

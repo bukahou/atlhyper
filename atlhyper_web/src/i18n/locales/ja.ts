@@ -1719,22 +1719,21 @@ resources:
 
 修復操作を実行しますか？`,
       msg3User: "はい、メモリ制限を 256Mi に調整してください",
-      msg4Assistant: `nginx-deployment のメモリ設定を正常に更新しました！
+      msg4Assistant: `AI アシスタントは読み取り専用で、クラスタは変更しません。以下の手順を確認のうえ実行してください：
 
-## 実行結果
-Deployment が更新され、新しい Pod が起動中です
+## 変更方法
+nginx-deployment のコンテナのメモリ上限を 128Mi から 256Mi に上げます：
 
-### 変更詳細
-- **リソース**: Deployment/nginx-deployment
-- **名前空間**: default
-- **変更内容**: memory limit 128Mi → 256Mi
+\`\`\`bash
+kubectl -n default set resources deployment/nginx-deployment --limits=memory=256Mi
+\`\`\`
 
-### 現在のステータス
-- 新しい Pod を作成: nginx-deployment-5d4f7b8c9-xyz99
-- ステータス: Running
-- 再起動回数: 0
+マニフェストを GitOps で管理している場合は、リポジトリの \`resources.limits.memory\` を変更してください（同期で戻されないように）。
 
-10〜15 分間継続的に監視し、問題が解決されたことを確認してください。`,
+### 変更後の確認
+- 新しい Pod が正常に動いている（\`kubectl -n default get pods\`）
+- 再起動回数が増えていない
+- 10〜15 分ほど様子を見て、OOMKilled が再発しないこと`,
     },
     // ConversationSidebar
     sidebar: {
@@ -1749,6 +1748,10 @@ Deployment が更新され、新しい Pod が起動中です
       older: "それ以前",
     },
     // ExecutionBlock
+    notice: {
+      historyTrimmed: "モデルのコンテキスト長に収めるため、古い会話をターン単位で省略しました",
+      toolCallsCapped: "このラウンドのツール呼び出しが上限を超えたため、先頭のいくつかのみ実行しました",
+    },
     execution: {
       roundLabel: "第 {n} ラウンド",
       executing: "実行中...",

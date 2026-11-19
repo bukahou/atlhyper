@@ -38,18 +38,19 @@ type Message struct {
 	ProviderTurn any
 }
 
-// ToolCall LLM 发起的工具调用
+// ToolCall LLM 发起的工具调用（落库与前端读取的 JSON 形态由这里的标签定；读旧数据时字段名大小写不敏感）
 type ToolCall struct {
-	ID     string // tool call ID
-	Name   string // 函数名
-	Params string // JSON 参数
+	ID     string `json:"id"`     // tool call ID
+	Name   string `json:"name"`   // 函数名
+	Params string `json:"params"` // JSON 参数
 }
 
 // ToolResult 工具执行结果
 type ToolResult struct {
-	CallID  string // 对应的 tool call ID
-	Name    string // 函数名
-	Content string // 执行结果
+	CallID  string `json:"callId"`            // 对应的 tool call ID
+	Name    string `json:"name"`              // 函数名
+	Content string `json:"content"`           // 执行结果（失败时为错误说明）
+	IsError bool   `json:"isError,omitempty"` // 执行失败；认得的提供商（Claude）会把它告诉模型
 }
 
 // ToolDefinition 工具定义（Function Calling Schema）

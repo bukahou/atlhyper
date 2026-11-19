@@ -1607,6 +1607,8 @@ export interface AIChatPageTranslations {
     past30Days: string;
     older: string;
   };
+  // 流里的提示（后端发代码，文案在这里）
+  notice: Record<"historyTrimmed" | "toolCallsCapped", string>;
   // ExecutionBlock
   execution: {
     roundLabel: string;

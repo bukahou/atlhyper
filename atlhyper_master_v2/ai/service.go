@@ -199,12 +199,14 @@ func toConversation(c *database.AIConversation) *Conversation {
 
 // toMessage 转换 DB 模型为 API 类型
 func toMessage(m *database.AIMessage) *Message {
+	decoded := decodeStoredMessage(m)
 	return &Message{
 		ID:             m.ID,
 		ConversationID: m.ConversationID,
 		Role:           m.Role,
-		Content:        m.Content,
-		ToolCalls:      m.ToolCalls,
+		Content:        decoded.Content,
+		ToolCalls:      decoded.ToolCalls,
+		ToolResult:     decoded.ToolResult,
 		CreatedAt:      m.CreatedAt,
 	}
 }
