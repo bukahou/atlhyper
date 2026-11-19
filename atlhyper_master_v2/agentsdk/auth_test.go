@@ -347,3 +347,13 @@ func TestWarnLimiter_OncePerWindowPerKey(t *testing.T) {
 		t.Error("窗口过后应再次放行")
 	}
 }
+
+// 没给认证模式：按 enforce 处理（此前空值等同关闭）
+func TestAuthMode_EmptyMeansEnforce(t *testing.T) {
+	if got := authModeOrEnforce(""); got != AuthModeEnforce {
+		t.Errorf("空的认证模式 = %q, want enforce", got)
+	}
+	if got := authModeOrEnforce(AuthModeOff); got != AuthModeOff {
+		t.Errorf("显式 off 应保留，实际 %q", got)
+	}
+}

@@ -329,6 +329,11 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 降级最后一个启用中的管理员会让系统里没有人能再管理用户
+	if req.Role < middleware.RoleAdmin && !h.keepsAnActiveAdmin(w, r.Context(), user) {
+		return
+	}
+
 	// 更新角色
 	user.Role = req.Role
 	if err := h.opsSvc.UpdateUser(r.Context(), user); err != nil {
@@ -384,9 +389,8 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 不能删除 admin 用户
-	if user.Username == "admin" {
-		handler.WriteError(w, http.StatusForbidden, "admin 用户不可删除")
+	// 不能删除最后一个启用中的管理员（此前按写死的用户名 "admin" 判断，而管理员用户名是配置项）
+	if !h.keepsAnActiveAdmin(w, r.Context(), user) {
 		return
 	}
 
@@ -449,9 +453,8 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 不能禁用 admin 用户
-	if user.Username == "admin" && req.Status == 0 {
-		handler.WriteError(w, http.StatusForbidden, "admin 用户不可禁用")
+	// 不能禁用最后一个启用中的管理员
+	if req.Status == 0 && !h.keepsAnActiveAdmin(w, r.Context(), user) {
 		return
 	}
 
@@ -471,3 +474,29 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		"message": "用户" + statusText,
 	})
 }
+
+// keepsAnActiveAdmin 删除 / 禁用 / 降级 target 之后系统里是否还有启用中的管理员；没有时已写出 409 并返回 false
+func (h *UserHandler) keepsAnActiveAdmin(w http.ResponseWriter, ctx context.Context, target *database.User) bool {
+	if target.Role != middleware.RoleAdmin || target.Status != userStatusActive {
+		return true
+	}
+	users, err := h.querySvc.ListUsers(ctx)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败")
+		return false
+	}
+	active := 0
+	for _, u := range users {
+		if u.Role == middleware.RoleAdmin && u.Status == userStatusActive {
+			active++
+		}
+	}
+	if active <= 1 {
+		handler.WriteError(w, http.StatusConflict, "这是最后一个启用中的管理员，不能删除、禁用或降级")
+		return false
+	}
+	return true
+}
+
+// userStatusActive 用户启用中（database.User.Status：1=Active, 0=Disabled）
+const userStatusActive = 1

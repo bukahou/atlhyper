@@ -405,14 +405,14 @@ type resourceInfo struct {
 	ClusterScope bool   // 是否集群级资源 (无需 namespace)
 }
 
-// kindToResource Kind → API 路径映射表
+// kindToResource Kind → API 路径映射表。也是动态查询（只给 AI）能读的资源类型的允许名单：
+// ⛔ 不含 Secret —— Secret 内容只走专用的 get_secret 指令（有自己的权限与审计）
 var kindToResource = map[string]resourceInfo{
 	// Core API (/api/v1)
 	"Pod":                   {"/api/v1", "pods", false},
 	"Node":                  {"/api/v1", "nodes", true},
 	"Service":               {"/api/v1", "services", false},
 	"ConfigMap":             {"/api/v1", "configmaps", false},
-	"Secret":                {"/api/v1", "secrets", false},
 	"Event":                 {"/api/v1", "events", false},
 	"Namespace":             {"/api/v1", "namespaces", true},
 	"PersistentVolume":      {"/api/v1", "persistentvolumes", true},
