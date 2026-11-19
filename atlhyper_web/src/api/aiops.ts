@@ -27,7 +27,7 @@ export interface ClusterRisk {
  * **百分制 [0, 100] 整数**（后端 gateway/handler/aiops/scale_risk.go
  * 已将核心层的 [0, 1] 概率 Scale 为百分制）。
  *
- * 前端消费这些字段时必须通过 `@/lib/risk` 的 formatRiskScore / riskColor
+ * 分数只用 `@/lib/risk` 的 formatRiskScore 显示；颜色按后端下发的 riskLevel 取（riskLevelColor），⛔ 不按分数再判等级
  * / riskLevel 等函数，禁止再 × 100 或按 [0, 1] 写阈值。
  */
 export interface EntityRisk {
