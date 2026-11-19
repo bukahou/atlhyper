@@ -85,8 +85,8 @@ func runToolLoop(ctx context.Context, client llm.LLMClient, exec toolExecFunc, p
 			return out, nil
 		}
 
-		if len(toolCalls) > maxToolCallsPerAnalyze {
-			toolCalls = toolCalls[:maxToolCallsPerAnalyze]
+		if len(toolCalls) > MaxToolCallsPerRound {
+			toolCalls = toolCalls[:MaxToolCallsPerRound]
 		}
 		out.ToolCalls += len(toolCalls)
 		step := AnalyzeStep{Round: round, Thinking: text}

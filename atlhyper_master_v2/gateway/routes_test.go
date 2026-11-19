@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"AtlHyper/atlhyper_master_v2/ai"
+	aitools "AtlHyper/atlhyper_master_v2/ai/tools"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
@@ -272,7 +273,7 @@ func TestAIToolPermissionsAreGatewayPermissions(t *testing.T) {
 	for _, g := range middleware.PermissionTable() {
 		known[string(g.Permission)] = true
 	}
-	for _, p := range ai.ToolPermissionNames() {
+	for _, p := range aitools.PermissionNames() {
 		if !known[p] {
 			t.Errorf("AI 工具用到的权限 %q 不在网关权限表里", p)
 		}

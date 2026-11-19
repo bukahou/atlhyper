@@ -1,6 +1,8 @@
-package ai
+package tools
 
 import (
+	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 	"context"
 	"errors"
 	"strings"
@@ -83,20 +85,22 @@ func TestGitHubRepoScope_CachesVisibility(t *testing.T) {
 	}
 }
 
-// 读文件工具：范围外不读；读到的 Secret 清单被脱敏
-func TestGitHubReadFileHandler_ScopeAndRedaction(t *testing.T) {
+// 读文件工具：范围外不读（返回错误）；读到的 Secret 清单被脱敏
+func TestGitHubReadFile_ScopeAndRedaction(t *testing.T) {
 	gh := newScopeFake()
 	gh.contents = "kind: Secret\ndata:\n  PASSWORD: aHVudGVyMg==\n"
-	h := NewGitHubReadFileHandler(gh, NewGitHubRepoScope(gh, nil))
+	reg := toolkit.NewRegistry()
+	reg.Register(githubTools(gh, NewGitHubRepoScope(gh, nil))...)
 	ctx := context.Background()
+	allow := func(string) bool { return true }
 
-	out, _ := h(ctx, "c1", map[string]interface{}{"repo": "owner/private-repo", "path": "secret.yaml"})
-	if gh.reads != 0 || !strings.Contains(out, "私有") {
-		t.Errorf("私有仓库不应读取：reads=%d out=%q", gh.reads, out)
+	_, err := reg.Execute(ctx, "c1", allow, &llm.ToolCall{Name: "github_read_file", Params: `{"repo":"owner/private-repo","path":"secret.yaml"}`})
+	if gh.reads != 0 || err == nil || !strings.Contains(err.Error(), "私有") {
+		t.Errorf("私有仓库不应读取：reads=%d err=%v", gh.reads, err)
 	}
 
-	out, _ = h(ctx, "c1", map[string]interface{}{"repo": "owner/public-repo", "path": "secret.yaml"})
-	if gh.reads != 1 || strings.Contains(out, "aHVudGVyMg==") || !strings.Contains(out, "<redacted>") {
-		t.Errorf("公开仓库可读但 Secret 值要脱敏：reads=%d out=%q", gh.reads, out)
+	out, err := reg.Execute(ctx, "c1", allow, &llm.ToolCall{Name: "github_read_file", Params: `{"repo":"owner/public-repo","path":"secret.yaml"}`})
+	if err != nil || gh.reads != 1 || strings.Contains(out, "aHVudGVyMg==") || !strings.Contains(out, "<redacted>") {
+		t.Errorf("公开仓库可读但 Secret 值要脱敏：reads=%d err=%v out=%q", gh.reads, err, out)
 	}
 }

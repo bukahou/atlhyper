@@ -1,10 +1,14 @@
-package ai
+package tools
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
+
+	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 
 	"AtlHyper/atlhyper_master_v2/database"
 )
@@ -43,8 +47,8 @@ func TestEventHistory_ByResource(t *testing.T) {
 		{InvolvedKind: "Pod", InvolvedNamespace: "ns", InvolvedName: "p", Reason: "Unhealthy", LastTimestamp: now.Add(-30 * time.Minute), FirstTimestamp: now.Add(-100 * time.Hour), Count: 6},
 		{InvolvedKind: "Pod", InvolvedNamespace: "ns", InvolvedName: "p", Reason: "Old", LastTimestamp: now.Add(-10 * time.Hour)},
 	}}
-	out, err := NewEventHistoryHandler(f)(context.Background(), "c1", map[string]interface{}{
-		"involved_kind": "Pod", "namespace": "ns", "involved_name": "p", "since_minutes": float64(120),
+	out, err := eventHistory(context.Background(), f, "c1", eventHistoryParams{
+		InvolvedKind: "Pod", Namespace: "ns", InvolvedName: "p", SinceMinutes: 120,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -58,26 +62,38 @@ func TestEventHistory_ByResource(t *testing.T) {
 	}
 }
 
-// 不指定资源名：按集群 + 时间查库（UTC，与库中格式一致），再按 namespace / kind 过滤；since 有上限
-func TestEventHistory_ByClusterFiltersAndCaps(t *testing.T) {
+// 不指定资源名：按集群 + 时间查库（UTC，与库中格式一致），再按 namespace / kind 过滤
+func TestEventHistory_ByClusterFilters(t *testing.T) {
 	now := time.Now()
 	f := &fakeEventLog{byCluster: []*database.ClusterEvent{
 		{InvolvedKind: "Pod", InvolvedNamespace: "ns", InvolvedName: "a", Reason: "A", LastTimestamp: now},
 		{InvolvedKind: "Pod", InvolvedNamespace: "other", InvolvedName: "b", Reason: "B", LastTimestamp: now},
 		{InvolvedKind: "Node", InvolvedName: "n1", Reason: "C", LastTimestamp: now},
 	}}
-	out, _ := NewEventHistoryHandler(f)(context.Background(), "c1", map[string]interface{}{
-		"namespace": "ns", "since_minutes": float64(999999),
-	})
+	out, err := eventHistory(context.Background(), f, "c1", eventHistoryParams{Namespace: "ns", SinceMinutes: maxEventHistoryMinutes})
+	if err != nil {
+		t.Fatal(err)
+	}
 	evs := decodeEvents(t, out)
 	if len(evs) != 1 || evs[0]["reason"] != "A" {
 		t.Errorf("events = %v", evs)
 	}
 	wantSince := now.Add(-maxEventHistoryMinutes * time.Minute)
 	if d := f.clusterOpts.Since.Sub(wantSince); d < -time.Minute || d > time.Minute {
-		t.Errorf("since 应封顶为 %d 分钟，got %v", maxEventHistoryMinutes, f.clusterOpts.Since)
+		t.Errorf("since = %v, want %v", f.clusterOpts.Since, wantSince)
 	}
 	if f.clusterOpts.Since.Location() != time.UTC {
 		t.Errorf("since 应为 UTC（库中 RFC3339 为 Z 结尾，按字符串比较）")
+	}
+}
+
+// 回看范围超过上限：在执行前按 schema 拦下（此前悄悄截成上限）
+func TestEventHistory_SinceOverLimitRejected(t *testing.T) {
+	reg := toolkit.NewRegistry()
+	reg.Register(eventHistoryTool(&fakeEventLog{}))
+	_, err := reg.Execute(context.Background(), "c1", func(string) bool { return true },
+		&llm.ToolCall{Name: "get_event_history", Params: `{"since_minutes":999999}`})
+	if !errors.Is(err, toolkit.ErrInvalidParams) {
+		t.Errorf("err = %v, want ErrInvalidParams", err)
 	}
 }

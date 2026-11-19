@@ -21,7 +21,6 @@ import (
 var log = logger.Module("AI-Chat")
 
 const maxToolRounds = 5             // 最大 Tool 调用轮数
-const maxToolCallsPerRound = 5      // 每轮最多 Tool Call 数
 const chatTimeout = 3 * time.Minute // Chat 全局超时
 const maxHistoryMessages = 20       // 最大历史消息加载数
 
@@ -106,8 +105,8 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	)
 
 	// 系统提示词在整个对话里逐字不变（缓存断点打在它上面）；轮次预算附在每轮最后一条工具结果上
-	systemPrompt := prompts.BuildChatPrompt()
-	tools := toolDefsFor(allow) // 只给模型调用者有权限用的工具
+	systemPrompt := prompts.BuildChatPrompt(MaxToolCallsPerRound)
+	tools := s.tools.Definitions(allow) // 已注册 ∩ 调用者有权限
 
 	var finalText string      // 最终回答：最后一次调模型的正文（前几轮的正文已随各自的工具调用落库）
 	var totalToolCalls int    // 统计总指令数
@@ -211,8 +210,8 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		}
 
 		toolRounds++ // 只有有 Tool 调用时才算一轮
-		if len(toolCalls) > maxToolCallsPerRound {
-			toolCalls = toolCalls[:maxToolCallsPerRound]
+		if len(toolCalls) > MaxToolCallsPerRound {
+			toolCalls = toolCalls[:MaxToolCallsPerRound]
 			ch <- &ChatChunk{Type: "notice", Round: callRound, Notice: NoticeToolCallsCapped}
 		}
 		totalToolCalls += len(toolCalls)
@@ -231,7 +230,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			tc := toolCalls[i]
 			ch <- &ChatChunk{Type: "tool_call", Round: callRound, CallID: tc.ID, Tool: tc.Name, Params: tc.Params}
 
-			result, err := s.executor.Execute(ctx, clusterID, allow, &tc)
+			result, err := s.tools.Execute(ctx, clusterID, allow, &tc)
 			isError := err != nil
 			if isError {
 				result = fmt.Sprintf("Tool 执行失败: %v", err)

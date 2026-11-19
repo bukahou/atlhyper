@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -18,21 +18,24 @@ func runTwoRoundChat(t *testing.T) ([]*ChatChunk, *scriptedLLM, *memMsgRepo) {
 		{text("先查一下"), call("c1", "get_cluster_risk"), call("c2", "get_cluster_risk"), done(10, 5)},
 		{text("结论：正常"), done(20, 5)},
 	}}
-	exec := newToolExecutor(nil, time.Second)
+	reg := toolkit.NewRegistry()
 	calls := 0
-	exec.RegisterTool("get_cluster_risk", func(context.Context, string, map[string]interface{}) (string, error) {
-		calls++
-		if calls == 2 {
-			return "", errors.New("集群不在线")
-		}
-		return `{"risk":10}`, nil
-	})
+	reg.Register(toolkit.MustDefine(toolkit.Spec[struct{}]{
+		Name: "get_cluster_risk", Description: "测试", Permission: toolkit.PermAIOpsRead,
+		Handler: func(context.Context, string, struct{}) (string, error) {
+			calls++
+			if calls == 2 {
+				return "", errors.New("集群不在线")
+			}
+			return `{"risk":10}`, nil
+		},
+	}))
 	msgs := &memMsgRepo{}
 	s := &aiServiceImpl{
 		providerRepo: &usageProviderRepo{},
 		msgRepo:      msgs,
 		convRepo:     memConvRepo{},
-		executor:     exec,
+		tools:        reg,
 		newClient:    func(llm.Config) (llm.LLMClient, error) { return model, nil },
 	}
 	out := make(chan *ChatChunk, 64)

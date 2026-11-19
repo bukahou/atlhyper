@@ -7,7 +7,14 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 )
+
+// MaxToolCallsPerRound 对话与深度分析每轮最多执行的工具调用数（提示词从这里渲染）
+const MaxToolCallsPerRound = 5
+
+// PermissionCheck 判断会看到工具结果的人是否拥有某项权限（对话里是调用者本人，深度分析是能看报告的人）
+type PermissionCheck = toolkit.PermissionCheck
 
 // AIService AI 服务接口
 type AIService interface {
@@ -27,8 +34,8 @@ type AIService interface {
 	// DeleteConversation 删除对话及其所有消息
 	DeleteConversation(ctx context.Context, userID, conversationID int64) error
 
-	// RegisterTool 注册自定义 Tool（AIOps 等扩展模块使用）
-	RegisterTool(name string, handler ToolHandler)
+	// Tools 工具注册表：启动时由装配方注册（ai/tools），运行中只读
+	Tools() *toolkit.Registry
 
 	// Analyze 非交互式多轮 Tool Calling 分析（后台执行，无 SSE）
 	Analyze(ctx context.Context, req *AnalyzeRequest) (*AnalyzeResult, error)

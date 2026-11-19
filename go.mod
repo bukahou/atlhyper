@@ -13,6 +13,7 @@ require (
 	github.com/distribution/reference v0.6.0
 	github.com/go-chi/httprate v0.15.0
 	github.com/google/generative-ai-go v0.20.1
+	github.com/google/jsonschema-go v0.4.2
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/redis/go-redis/v9 v9.17.2
 	golang.org/x/crypto v0.55.0
