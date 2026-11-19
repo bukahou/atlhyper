@@ -81,6 +81,7 @@ export function mockGetPodDetail(name: string, namespace: string) {
     namespace: pod.namespace,
     controller: pod.deployment,
     phase: pod.phase,
+    statusLevel: pod.statusLevel,
     ready: pod.ready,
     restarts: pod.restarts,
     startTime: pod.startTime,
@@ -93,6 +94,8 @@ export function mockGetPodDetail(name: string, namespace: string) {
         name: "app",
         image: pod.deployment ? `${pod.deployment.replace("geass-", "geass/")}:1.4.2` : "unknown:latest",
         state: pod.phase === "Running" ? "running" : "waiting",
+        // 演示数据：运行中的容器都就绪；等待中的容器不是故障原因
+        stateLevel: pod.phase === "Running" ? "success" : "warning",
         restartCount: pod.restarts,
       },
     ],
@@ -312,6 +315,7 @@ export function mockGetNamespaceDetail(name: string) {
   const detail: NamespaceDetail = {
     name: ns.name,
     phase: ns.status,
+    statusLevel: ns.statusLevel,
     createdAt: ns.createdAt,
     age: "2d",
     labels: { "kubernetes.io/metadata.name": ns.name },

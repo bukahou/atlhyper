@@ -20,32 +20,32 @@ import type {
 
 export const MOCK_PODS: PodItem[] = [
   // --- geass namespace (6 services, on workers) ---
-  { name: "geass-gateway-7b8d4f6c9-x2k9p", namespace: "geass", deployment: "geass-gateway", ready: "1/1", phase: "Running", restarts: 0, cpuText: "45m", memoryText: "256Mi", startTime: "2026-02-19T08:30:00Z", node: "worker-1", age: "2d" },
-  { name: "geass-auth-6d5c8e7f1-m4n7q", namespace: "geass", deployment: "geass-auth", ready: "1/1", phase: "Running", restarts: 0, cpuText: "32m", memoryText: "192Mi", startTime: "2026-02-19T08:31:00Z", node: "worker-2", age: "2d" },
-  { name: "geass-media-5a9b3c2d8-r6t1w", namespace: "geass", deployment: "geass-media", ready: "1/1", phase: "Running", restarts: 0, cpuText: "68m", memoryText: "384Mi", startTime: "2026-02-19T08:32:00Z", node: "worker-1", age: "2d" },
-  { name: "geass-favorites-8f2e1a7b4-h5j3v", namespace: "geass", deployment: "geass-favorites", ready: "1/1", phase: "Running", restarts: 0, cpuText: "18m", memoryText: "128Mi", startTime: "2026-02-19T08:33:00Z", node: "worker-2", age: "2d" },
-  { name: "geass-history-3c7d9e6f2-p8s5y", namespace: "geass", deployment: "geass-history", ready: "1/1", phase: "Running", restarts: 2, cpuText: "25m", memoryText: "160Mi", startTime: "2026-02-20T14:10:00Z", node: "worker-1", age: "1d" },
-  { name: "geass-user-9a1b4c8d5-k2m6n", namespace: "geass", deployment: "geass-user", ready: "1/1", phase: "Running", restarts: 0, cpuText: "22m", memoryText: "144Mi", startTime: "2026-02-19T08:35:00Z", node: "worker-2", age: "2d" },
+  { name: "geass-gateway-7b8d4f6c9-x2k9p", namespace: "geass", deployment: "geass-gateway", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "45m", memoryText: "256Mi", startTime: "2026-02-19T08:30:00Z", node: "worker-1", age: "2d" },
+  { name: "geass-auth-6d5c8e7f1-m4n7q", namespace: "geass", deployment: "geass-auth", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "32m", memoryText: "192Mi", startTime: "2026-02-19T08:31:00Z", node: "worker-2", age: "2d" },
+  { name: "geass-media-5a9b3c2d8-r6t1w", namespace: "geass", deployment: "geass-media", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "68m", memoryText: "384Mi", startTime: "2026-02-19T08:32:00Z", node: "worker-1", age: "2d" },
+  { name: "geass-favorites-8f2e1a7b4-h5j3v", namespace: "geass", deployment: "geass-favorites", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "18m", memoryText: "128Mi", startTime: "2026-02-19T08:33:00Z", node: "worker-2", age: "2d" },
+  { name: "geass-history-3c7d9e6f2-p8s5y", namespace: "geass", deployment: "geass-history", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 2, cpuText: "25m", memoryText: "160Mi", startTime: "2026-02-20T14:10:00Z", node: "worker-1", age: "1d" },
+  { name: "geass-user-9a1b4c8d5-k2m6n", namespace: "geass", deployment: "geass-user", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "22m", memoryText: "144Mi", startTime: "2026-02-19T08:35:00Z", node: "worker-2", age: "2d" },
   // --- kube-system (10 pods) ---
-  { name: "coredns-5d78c9869-4fzxl", namespace: "kube-system", deployment: "coredns", ready: "1/1", phase: "Running", restarts: 0, cpuText: "8m", memoryText: "24Mi", startTime: "2026-02-10T03:00:00Z", node: "worker-1", age: "11d" },
-  { name: "coredns-5d78c9869-b7nqr", namespace: "kube-system", deployment: "coredns", ready: "1/1", phase: "Running", restarts: 0, cpuText: "7m", memoryText: "22Mi", startTime: "2026-02-10T03:00:00Z", node: "worker-2", age: "11d" },
-  { name: "etcd-node-7", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", restarts: 0, cpuText: "35m", memoryText: "64Mi", startTime: "2026-02-10T02:55:00Z", node: "node-7", age: "11d" },
-  { name: "kube-apiserver-node-7", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", restarts: 0, cpuText: "82m", memoryText: "312Mi", startTime: "2026-02-10T02:55:00Z", node: "node-7", age: "11d" },
-  { name: "kube-controller-manager-node-7", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", restarts: 0, cpuText: "28m", memoryText: "56Mi", startTime: "2026-02-10T02:55:00Z", node: "node-7", age: "11d" },
-  { name: "kube-scheduler-node-7", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", restarts: 0, cpuText: "12m", memoryText: "32Mi", startTime: "2026-02-10T02:55:00Z", node: "node-7", age: "11d" },
-  { name: "kube-proxy-r4f8k", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", restarts: 0, cpuText: "2m", memoryText: "18Mi", startTime: "2026-02-10T03:00:00Z", node: "node-7", age: "11d" },
-  { name: "kube-proxy-w9j2m", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", restarts: 0, cpuText: "2m", memoryText: "18Mi", startTime: "2026-02-10T03:00:00Z", node: "worker-1", age: "11d" },
-  { name: "kube-proxy-t5n1p", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", restarts: 0, cpuText: "2m", memoryText: "18Mi", startTime: "2026-02-10T03:00:00Z", node: "worker-2", age: "11d" },
+  { name: "coredns-5d78c9869-4fzxl", namespace: "kube-system", deployment: "coredns", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "8m", memoryText: "24Mi", startTime: "2026-02-10T03:00:00Z", node: "worker-1", age: "11d" },
+  { name: "coredns-5d78c9869-b7nqr", namespace: "kube-system", deployment: "coredns", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "7m", memoryText: "22Mi", startTime: "2026-02-10T03:00:00Z", node: "worker-2", age: "11d" },
+  { name: "etcd-node-7", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "35m", memoryText: "64Mi", startTime: "2026-02-10T02:55:00Z", node: "node-7", age: "11d" },
+  { name: "kube-apiserver-node-7", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "82m", memoryText: "312Mi", startTime: "2026-02-10T02:55:00Z", node: "node-7", age: "11d" },
+  { name: "kube-controller-manager-node-7", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "28m", memoryText: "56Mi", startTime: "2026-02-10T02:55:00Z", node: "node-7", age: "11d" },
+  { name: "kube-scheduler-node-7", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "12m", memoryText: "32Mi", startTime: "2026-02-10T02:55:00Z", node: "node-7", age: "11d" },
+  { name: "kube-proxy-r4f8k", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "2m", memoryText: "18Mi", startTime: "2026-02-10T03:00:00Z", node: "node-7", age: "11d" },
+  { name: "kube-proxy-w9j2m", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "2m", memoryText: "18Mi", startTime: "2026-02-10T03:00:00Z", node: "worker-1", age: "11d" },
+  { name: "kube-proxy-t5n1p", namespace: "kube-system", deployment: "", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "2m", memoryText: "18Mi", startTime: "2026-02-10T03:00:00Z", node: "worker-2", age: "11d" },
   // --- linkerd (3 pods) ---
-  { name: "linkerd-destination-6b4a2c8d1-q7w3e", namespace: "linkerd", deployment: "linkerd-destination", ready: "2/2", phase: "Running", restarts: 0, cpuText: "15m", memoryText: "96Mi", startTime: "2026-02-12T10:00:00Z", node: "worker-1", age: "9d" },
-  { name: "linkerd-identity-9f3e7b5a2-u8r4t", namespace: "linkerd", deployment: "linkerd-identity", ready: "2/2", phase: "Running", restarts: 0, cpuText: "10m", memoryText: "64Mi", startTime: "2026-02-12T10:00:00Z", node: "worker-2", age: "9d" },
-  { name: "linkerd-proxy-injector-4d1c6e9a3-y5h2k", namespace: "linkerd", deployment: "linkerd-proxy-injector", ready: "2/2", phase: "Running", restarts: 0, cpuText: "8m", memoryText: "48Mi", startTime: "2026-02-12T10:00:00Z", node: "worker-1", age: "9d" },
+  { name: "linkerd-destination-6b4a2c8d1-q7w3e", namespace: "linkerd", deployment: "linkerd-destination", ready: "2/2", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "15m", memoryText: "96Mi", startTime: "2026-02-12T10:00:00Z", node: "worker-1", age: "9d" },
+  { name: "linkerd-identity-9f3e7b5a2-u8r4t", namespace: "linkerd", deployment: "linkerd-identity", ready: "2/2", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "10m", memoryText: "64Mi", startTime: "2026-02-12T10:00:00Z", node: "worker-2", age: "9d" },
+  { name: "linkerd-proxy-injector-4d1c6e9a3-y5h2k", namespace: "linkerd", deployment: "linkerd-proxy-injector", ready: "2/2", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "8m", memoryText: "48Mi", startTime: "2026-02-12T10:00:00Z", node: "worker-1", age: "9d" },
   // --- traefik (1 pod) ---
-  { name: "traefik-7c9d5e8f3-z6v1b", namespace: "traefik", deployment: "traefik", ready: "1/1", phase: "Running", restarts: 0, cpuText: "20m", memoryText: "80Mi", startTime: "2026-02-11T06:00:00Z", node: "worker-2", age: "10d" },
+  { name: "traefik-7c9d5e8f3-z6v1b", namespace: "traefik", deployment: "traefik", ready: "1/1", phase: "Running", statusLevel: "success", restarts: 0, cpuText: "20m", memoryText: "80Mi", startTime: "2026-02-11T06:00:00Z", node: "worker-2", age: "10d" },
   // --- Pending pod (visual variety) ---
-  { name: "geass-media-5a9b3c2d8-new7f", namespace: "geass", deployment: "geass-media", ready: "0/1", phase: "Pending", restarts: 0, cpuText: "0m", memoryText: "0Mi", startTime: "2026-02-21T09:15:00Z", node: "", age: "2h" },
+  { name: "geass-media-5a9b3c2d8-new7f", namespace: "geass", deployment: "geass-media", ready: "0/1", phase: "Pending", statusLevel: "warning", restarts: 0, cpuText: "0m", memoryText: "0Mi", startTime: "2026-02-21T09:15:00Z", node: "", age: "2h" },
   // --- High restarts pod (visual variety) ---
-  { name: "linkerd-viz-tap-8e2f4a6b1-c3d9g", namespace: "linkerd-viz", deployment: "linkerd-viz-tap", ready: "1/2", phase: "Running", restarts: 47, cpuText: "52m", memoryText: "210Mi", startTime: "2026-02-14T12:00:00Z", node: "worker-1", age: "7d" },
+  { name: "linkerd-viz-tap-8e2f4a6b1-c3d9g", namespace: "linkerd-viz", deployment: "linkerd-viz-tap", ready: "1/2", phase: "Running", statusLevel: "success", restarts: 47, cpuText: "52m", memoryText: "210Mi", startTime: "2026-02-14T12:00:00Z", node: "worker-1", age: "7d" },
 ];
 
 // ==================== Nodes (3) ====================
@@ -59,12 +59,12 @@ export const MOCK_NODES: NodeItem[] = [
 // ==================== Namespaces (6) ====================
 
 export const MOCK_NAMESPACES: NamespaceItem[] = [
-  { name: "default", status: "Active", podCount: 0, labelCount: 1, annotationCount: 0, createdAt: "2026-01-15T00:00:00Z" },
-  { name: "kube-system", status: "Active", podCount: 10, labelCount: 1, annotationCount: 0, createdAt: "2026-01-15T00:00:00Z" },
-  { name: "geass", status: "Active", podCount: 7, labelCount: 3, annotationCount: 1, createdAt: "2026-02-01T09:00:00Z" },
-  { name: "linkerd", status: "Active", podCount: 3, labelCount: 5, annotationCount: 2, createdAt: "2026-02-05T10:00:00Z" },
-  { name: "linkerd-viz", status: "Active", podCount: 1, labelCount: 4, annotationCount: 1, createdAt: "2026-02-05T10:30:00Z" },
-  { name: "traefik", status: "Active", podCount: 1, labelCount: 2, annotationCount: 0, createdAt: "2026-02-03T08:00:00Z" },
+  { name: "default", status: "Active", statusLevel: "success", podCount: 0, labelCount: 1, annotationCount: 0, createdAt: "2026-01-15T00:00:00Z" },
+  { name: "kube-system", status: "Active", statusLevel: "success", podCount: 10, labelCount: 1, annotationCount: 0, createdAt: "2026-01-15T00:00:00Z" },
+  { name: "geass", status: "Active", statusLevel: "success", podCount: 7, labelCount: 3, annotationCount: 1, createdAt: "2026-02-01T09:00:00Z" },
+  { name: "linkerd", status: "Active", statusLevel: "success", podCount: 3, labelCount: 5, annotationCount: 2, createdAt: "2026-02-05T10:00:00Z" },
+  { name: "linkerd-viz", status: "Active", statusLevel: "success", podCount: 1, labelCount: 4, annotationCount: 1, createdAt: "2026-02-05T10:30:00Z" },
+  { name: "traefik", status: "Active", statusLevel: "success", podCount: 1, labelCount: 2, annotationCount: 0, createdAt: "2026-02-03T08:00:00Z" },
 ];
 
 // ==================== Deployments (~12) ====================

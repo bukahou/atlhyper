@@ -12,7 +12,7 @@ interface OverviewTabProps {
 export function OverviewTab({ detail, t }: OverviewTabProps) {
   const basicInfo = [
     { label: t.common.name, value: detail.name },
-    { label: t.common.status, value: <StatusBadge status={detail.phase} /> },
+    { label: t.common.status, value: <StatusBadge status={detail.phase} type={detail.statusLevel} /> },
     { label: t.namespace.age, value: detail.age || "-" },
     { label: t.common.createdAt, value: detail.createdAt ? new Date(detail.createdAt).toLocaleString() : "-" },
     { label: t.namespace.labels, value: detail.labelCount },

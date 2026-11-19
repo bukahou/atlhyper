@@ -4,12 +4,13 @@ package model
 
 // NamespaceItem Namespace 列表项（扁平）
 type NamespaceItem struct {
-	Name            string `json:"name"`
-	Status          string `json:"status"`
-	PodCount        int    `json:"podCount"`
-	LabelCount      int    `json:"labelCount"`
-	AnnotationCount int    `json:"annotationCount"`
-	CreatedAt       string `json:"createdAt"`
+	Name            string      `json:"name"`
+	Status          string      `json:"status"`
+	StatusLevel     StatusLevel `json:"statusLevel"`
+	PodCount        int         `json:"podCount"`
+	LabelCount      int         `json:"labelCount"`
+	AnnotationCount int         `json:"annotationCount"`
+	CreatedAt       string      `json:"createdAt"`
 }
 
 // NamespaceOverviewCards Namespace 概览统计
@@ -29,10 +30,11 @@ type NamespaceOverview struct {
 // NamespaceDetail Namespace 详情（扁平 + 配额/限制范围）
 type NamespaceDetail struct {
 	// 基本信息
-	Name      string `json:"name"`
-	Phase     string `json:"phase"`
-	CreatedAt string `json:"createdAt"`
-	Age       string `json:"age,omitempty"`
+	Name        string      `json:"name"`
+	Phase       string      `json:"phase"`
+	StatusLevel StatusLevel `json:"statusLevel"`
+	CreatedAt   string      `json:"createdAt"`
+	Age         string      `json:"age,omitempty"`
 
 	// 标签与注解
 	Labels          map[string]string `json:"labels,omitempty"`

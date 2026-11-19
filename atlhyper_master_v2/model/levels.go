@@ -40,3 +40,14 @@ const (
 func ResourceLevel(pct float64) HardwareStatus {
 	return LevelByThreshold(pct, ResourceWarnPct, ResourceCritPct)
 }
+
+// StatusLevel K8s 资源状态的显示等级（后端判定，前端状态徽章只按它上色，⛔ 不按状态文字猜）
+type StatusLevel string
+
+const (
+	StatusSuccess StatusLevel = "success"
+	StatusWarning StatusLevel = "warning"
+	StatusError   StatusLevel = "error"
+	StatusInfo    StatusLevel = "info"
+	StatusDefault StatusLevel = "default"
+)

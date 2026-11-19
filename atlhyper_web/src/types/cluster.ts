@@ -32,12 +32,18 @@ export interface PodOverview {
 }
 
 // Pod 列表项 - 匹配后端 model.PodItem
+/** K8s 资源状态的显示等级（后端判定，状态徽章只按它上色） */
+export type StatusLevel = "success" | "warning" | "error" | "info" | "default";
+
 export interface PodItem {
   name: string;
   namespace: string;
   deployment: string;
   ready: string;
   phase: string; // Running, Pending, Failed, Unknown
+  statusLevel: StatusLevel;
+  /** 有容器故障时为其原因代码（如 CrashLoopBackOff） */
+  statusReason?: string;
   restarts: number;
   cpuText: string;
   memoryText: string;
@@ -89,6 +95,9 @@ export interface PodContainerDetail {
   startupProbe?: unknown;
   securityContext?: unknown;
   state?: string;
+  /** K8s 的原因代码，如 CrashLoopBackOff / Completed */
+  stateReason?: string;
+  stateLevel: StatusLevel;
   restartCount?: number;
   lastTerminatedReason?: string;
 }
@@ -108,6 +117,7 @@ export interface PodDetail {
   namespace: string;
   controller?: string;
   phase: string;
+  statusLevel: StatusLevel;
   ready: string;
   restarts: number;
   startTime: string;
@@ -623,6 +633,7 @@ export interface NamespaceOverview {
 export interface NamespaceItem {
   name: string;
   status: string;
+  statusLevel: StatusLevel;
   podCount: number;
   labelCount: number;
   annotationCount: number;
@@ -683,6 +694,7 @@ export interface NamespaceDetail {
   // 基本信息
   name: string;
   phase: string;
+  statusLevel: StatusLevel;
   createdAt: string;
   age?: string;
 

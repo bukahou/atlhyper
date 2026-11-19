@@ -1,13 +1,14 @@
 "use client";
 
-type StatusType = "success" | "warning" | "error" | "info" | "default";
+import type { StatusLevel } from "@/types/cluster";
 
 interface StatusBadgeProps {
   status: string;
-  type?: StatusType;
+  /** 显示等级：资源状态由后端判定后随数据下发；布尔开关等由调用方按语义给出。⛔ 不按文字猜 */
+  type: StatusLevel;
 }
 
-const statusColors: Record<StatusType, string> = {
+const statusColors: Record<StatusLevel, string> = {
   success: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   warning: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
   error: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
@@ -15,29 +16,9 @@ const statusColors: Record<StatusType, string> = {
   default: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
 };
 
-// 自动推断状态类型
-function inferStatusType(status: string): StatusType {
-  const lowerStatus = status.toLowerCase();
-  if (["running", "ready", "active", "success", "succeeded"].includes(lowerStatus)) {
-    return "success";
-  }
-  if (["pending", "warning", "notready"].includes(lowerStatus)) {
-    return "warning";
-  }
-  if (["failed", "error", "crashloopbackoff"].includes(lowerStatus)) {
-    return "error";
-  }
-  if (["info", "creating", "terminating"].includes(lowerStatus)) {
-    return "info";
-  }
-  return "default";
-}
-
 export function StatusBadge({ status, type }: StatusBadgeProps) {
-  const statusType = type || inferStatusType(status);
-
   return (
-    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColors[statusType]}`}>
+    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColors[type] ?? statusColors.default}`}>
       {status}
     </span>
   );
