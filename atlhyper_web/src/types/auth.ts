@@ -82,7 +82,7 @@ export type Permission =
   | "workload.env.read" | "logs.read" | "traces.read" | "commands.read"
   | "deploy.history.read" | "github.status.read" | "ai.chat"
   | "secret.read" | "pod.logs.read" | "cluster.operate" | "audit.read"
-  | "notify.manage" | "slo.manage" | "ai.analyze" | "ai.settings.read"
+  | "notify.manage" | "slo.manage" | "ai.analyze" | "ai.settings.read" | "ai.conversation.delete"
   | "user.manage" | "ai.settings.write" | "github.manage" | "deploy.manage" | "clusters.manage";
 
 // 当前主体（GET /api/v2/auth/me）：访客与身份无效者 user = null、level = 0

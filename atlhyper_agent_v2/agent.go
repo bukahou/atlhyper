@@ -109,7 +109,7 @@ func New() (*Agent, error) {
 			sloQueryRepo = chquery.NewSLOQueryRepository(chClient)
 			freshnessQueryRepo := chquery.NewFreshnessQueryRepository(chClient)
 			dashboardRepo = chrepo.NewDashboardRepository(metricsQueryRepo, traceQueryRepo, sloQueryRepo, logQueryRepo, freshnessQueryRepo)
-			log.Info("ClickHouse 客户端初始化完成", "endpoint", cfg.ClickHouse.Endpoint)
+			log.Info("ClickHouse 客户端初始化完成", "endpoint", config.RedactedEndpoint(cfg.ClickHouse.Endpoint))
 		}
 	}
 

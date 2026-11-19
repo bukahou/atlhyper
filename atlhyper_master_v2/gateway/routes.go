@@ -43,12 +43,13 @@ const (
 	pLogsStatsRead  = middleware.PermLogsStatsRead
 	pAIOpsRead      = middleware.PermAIOpsRead
 
-	pLogsRead          = middleware.PermLogsRead
-	pTracesRead        = middleware.PermTracesRead
-	pCommandsRead      = middleware.PermCommandsRead
-	pDeployHistoryRead = middleware.PermDeployHistoryRead
-	pGitHubStatusRead  = middleware.PermGitHubStatusRead
-	pAIChat            = middleware.PermAIChat
+	pLogsRead             = middleware.PermLogsRead
+	pTracesRead           = middleware.PermTracesRead
+	pCommandsRead         = middleware.PermCommandsRead
+	pDeployHistoryRead    = middleware.PermDeployHistoryRead
+	pGitHubStatusRead     = middleware.PermGitHubStatusRead
+	pAIChat               = middleware.PermAIChat
+	pAIConversationDelete = middleware.PermAIConversationDelete
 
 	pSecretRead     = middleware.PermSecretRead
 	pPodLogsRead    = middleware.PermPodLogsRead
@@ -312,7 +313,7 @@ func (r *Router) registerRoutes() {
 		r.route(mGet, pAIChat, "/api/v2/ai/conversations", aiH.Conversations)
 		r.route(mPost, pAIChat, "/api/v2/ai/conversations", aiH.Conversations)
 		r.route(mGet, pAIChat, "/api/v2/ai/conversations/", aiH.ConversationByID) // {id}/messages
-		r.routeAudited(mDelete, pAIChat, "/api/v2/ai/conversations/", "delete", "ai_conversation", aiH.ConversationByID)
+		r.routeAudited(mDelete, pAIConversationDelete, "/api/v2/ai/conversations/", "delete", "ai_conversation", aiH.ConversationByID)
 		r.route(mPost, pAIChat, "/api/v2/ai/chat", aiH.Chat)
 	}
 

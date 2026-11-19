@@ -4,6 +4,7 @@ package config
 
 import (
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -60,7 +61,17 @@ func LoadConfig() {
 	log.Printf("[config] Agent 配置加载完成: ClusterID=%s, MasterURL=%s, MasterToken=%s, CH=%s/%s",
 		GlobalConfig.Agent.ClusterID, GlobalConfig.Master.URL,
 		describeSecretPresence(GlobalConfig.Master.Token),
-		GlobalConfig.ClickHouse.Endpoint, GlobalConfig.ClickHouse.Database)
+		RedactedEndpoint(GlobalConfig.ClickHouse.Endpoint), GlobalConfig.ClickHouse.Database)
+}
+
+// RedactedEndpoint 地址里可能带账号密码（ClickHouse 只能这样传凭据）：解析后把密码换掉再打日志。
+// 解析不了的地址不打印原文
+func RedactedEndpoint(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "<地址格式无法解析>"
+	}
+	return u.Redacted()
 }
 
 // loadMasterToken 读取集群令牌，去掉首尾空白。

@@ -89,7 +89,8 @@ type RegisterRequest struct {
 	Password    string `json:"password"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"email"`
-	Role        int    `json:"role"` // 0=Member, 1=Viewer, 2=Operator, 3=Admin
+	// Role 0=Member, 1=Viewer, 2=Operator, 3=Admin；不填（null）时为 Viewer。0 是有效值，⛔ 不当作没填
+	Role *int `json:"role"`
 }
 
 // UpdateRoleRequest 更新角色请求
@@ -135,7 +136,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	user, err := h.querySvc.GetUserByUsernameForPasswordLogin(r.Context(), req.Username)
 	if err != nil {
 		log.Error("查询用户失败", "err", err)
-		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败: "+err.Error())
+		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败") // 原因只进日志（此接口未登录也能调）
 		return
 	}
 	if user == nil {
@@ -219,10 +220,14 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 设置默认角色
-	role := req.Role
-	if role == 0 {
-		role = middleware.RoleViewer
+	// 不填角色时为 Viewer
+	role := middleware.RoleViewer
+	if req.Role != nil {
+		role = *req.Role
+	}
+	if role < middleware.RoleMember || role > middleware.RoleAdmin {
+		handler.WriteError(w, http.StatusBadRequest, "无效的角色值")
+		return
 	}
 
 	// 创建用户
@@ -236,7 +241,8 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.opsSvc.CreateUser(r.Context(), user); err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "创建用户失败: "+err.Error())
+		log.Error("创建用户失败", "err", err)
+		handler.WriteError(w, http.StatusInternalServerError, "创建用户失败")
 		return
 	}
 

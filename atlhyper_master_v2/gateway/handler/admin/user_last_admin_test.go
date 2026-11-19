@@ -91,3 +91,33 @@ func TestUserHandler_NonLastAdminAllowed(t *testing.T) {
 		t.Errorf("已禁用的、名为 admin 的用户可以删除，status = %d: %s", rec.Code, rec.Body)
 	}
 }
+
+func (m *memUsers) GetUserByUsername(context.Context, string) (*database.User, error) { return nil, nil }
+func (m *memUsers) CreateUser(_ context.Context, u *database.User) error {
+	m.updated = append(m.updated, u)
+	return nil
+}
+
+// 建号：不填角色为 Viewer；0（Member）是有效值，⛔ 不当作没填；越界拒绝
+func TestUserHandler_RegisterRole(t *testing.T) {
+	cases := []struct {
+		body     string
+		wantCode int
+		wantRole int
+	}{
+		{`{"username":"a","password":"placeholder-not-real"}`, http.StatusOK, middleware.RoleViewer},
+		{`{"username":"b","password":"placeholder-not-real","role":0}`, http.StatusOK, middleware.RoleMember},
+		{`{"username":"c","password":"placeholder-not-real","role":9}`, http.StatusBadRequest, 0},
+	}
+	for _, c := range cases {
+		users := lastAdminFixture()
+		rec := post(NewUserHandler(users, users).Register, c.body)
+		if rec.Code != c.wantCode && !(c.wantCode == http.StatusOK && rec.Code == http.StatusCreated) {
+			t.Errorf("%s: status = %d, want %d (%s)", c.body, rec.Code, c.wantCode, rec.Body)
+			continue
+		}
+		if c.wantCode == http.StatusOK && (len(users.updated) != 1 || users.updated[0].Role != c.wantRole) {
+			t.Errorf("%s: 建出来的角色 = %+v, want %d", c.body, users.updated, c.wantRole)
+		}
+	}
+}

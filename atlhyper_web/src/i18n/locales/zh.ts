@@ -758,6 +758,7 @@ export const zh: Translations = {
       "slo.manage": "SLO 目标设置",
       "ai.analyze": "AI 分析与深度分析",
       "ai.settings.read": "查看 AI 配置",
+      "ai.conversation.delete": "删除自己的 AI 对话",
       "user.manage": "用户管理与提权",
       "ai.settings.write": "修改 AI 配置",
       "github.manage": "GitHub 连接与仓库",
