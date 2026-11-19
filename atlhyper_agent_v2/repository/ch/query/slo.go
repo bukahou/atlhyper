@@ -20,17 +20,6 @@ const gaugeCounterDelta = `if(max(Value) > argMax(Value, TimeUnix),
     (max(Value) - argMin(Value, TimeUnix)) + argMax(Value, TimeUnix),
     argMax(Value, TimeUnix) - argMin(Value, TimeUnix))`
 
-// seriesIsolation 用于 GROUP BY 隔离独立计数器系列的列（原始表查询用）。
-// Linkerd gauge 指标按 (pod, status_code, route_name, target_addr) 产生独立计数器。
-const seriesIsolation = `Attributes['pod'], Attributes['status_code'],
-             Attributes['route_name'], Attributes['target_addr']`
-
-// gaugeCounterDeltaMerge 是 gaugeCounterDelta 的 AggregatingMergeTree 版本。
-// 操作预聚合 MV 中的 -State 列，使用 -Merge 组合器最终化。
-const gaugeCounterDeltaMerge = `if(maxMerge(peak_val) > argMaxMerge(latest_val),
-    (maxMerge(peak_val) - argMinMerge(earliest_val)) + argMaxMerge(latest_val),
-    argMaxMerge(latest_val) - argMinMerge(earliest_val))`
-
 // CounterRateExpr 按 counter-reset-safe delta 除以时间跨度，得到 per-second rate。
 // 使用场景：5min 等短窗口，reset 概率极低，单次 reset 处理足够。
 // 对于长窗口（1d/7d/30d），应改用 lagInFrame 的 Prometheus 完整算法

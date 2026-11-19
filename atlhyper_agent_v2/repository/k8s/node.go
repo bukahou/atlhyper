@@ -3,7 +3,6 @@ package k8s
 import (
 	"context"
 	"math"
-	"strconv"
 
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/repository"
@@ -113,10 +112,4 @@ func extractPressure(conditions []cluster.NodeCondition) cluster.PressureFlags {
 		}
 	}
 	return flags
-}
-
-// parseInt 简单解析整数字符串
-func parseInt(s string) int {
-	v, _ := strconv.Atoi(s)
-	return v
 }

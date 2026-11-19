@@ -182,8 +182,6 @@ type OTelSnapshot struct {
 	APMOperations []apm.OperationStats `json:"apmOperations,omitempty"`
 	// 最近 Traces（无过滤，Dashboard 首屏用）
 	RecentTraces []apm.TraceSummary `json:"recentTraces,omitempty"`
-	// 最近日志条目（5 分钟窗口，最多 500 条）
-	RecentLogs []log.Entry `json:"recentLogs,omitempty"`
 	// 日志统计摘要（5 分钟窗口）
 	LogsSummary *log.Summary `json:"logsSummary,omitempty"`
 

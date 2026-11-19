@@ -395,14 +395,3 @@ func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 
 	return summary, nil
 }
-
-// ListRecentEntries 获取最近日志条目（15 分钟窗口，覆盖前端默认时间选择）
-func (r *logRepository) ListRecentEntries(ctx context.Context, limit int) ([]log.Entry, error) {
-	if limit <= 0 {
-		limit = 2000
-	}
-	if limit > 5000 {
-		limit = 5000
-	}
-	return r.queryEntries(ctx, "WHERE Timestamp >= now() - INTERVAL 15 MINUTE", nil, limit, 0)
-}

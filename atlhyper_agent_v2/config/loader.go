@@ -118,23 +118,6 @@ func getString(envKey string) string {
 	return def
 }
 
-// getStringSlice 获取逗号分隔的字符串列表配置
-func getStringSlice(envKey string) []string {
-	raw := getString(envKey)
-	if raw == "" {
-		return nil
-	}
-	parts := strings.Split(raw, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
-		}
-	}
-	return result
-}
-
 // getKubeConfig 获取 kubeconfig 路径
 // 优先级: AGENT_KUBECONFIG > KUBECONFIG > 空（使用 in-cluster）
 func getKubeConfig() string {

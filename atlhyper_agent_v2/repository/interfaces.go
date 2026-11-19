@@ -202,7 +202,6 @@ type LogQueryRepository interface {
 	QueryLogs(ctx context.Context, opts LogQueryOptions) (*log.QueryResult, error)
 	QueryHistogram(ctx context.Context, opts LogQueryOptions) (*log.HistogramResult, error)
 	GetSummary(ctx context.Context) (*log.Summary, error)
-	ListRecentEntries(ctx context.Context, limit int) ([]log.Entry, error)
 }
 
 // FreshnessQueryRepository 信号新鲜度查询仓库
@@ -254,7 +253,6 @@ type SLODashboardRepository interface {
 // LogsDashboardRepository Logs Dashboard 数据采集
 type LogsDashboardRepository interface {
 	GetLogsSummary(ctx context.Context) (*log.Summary, error)
-	ListRecentLogs(ctx context.Context, limit int) ([]log.Entry, error)
 }
 
 // OTelDashboardRepository Dashboard 数据采集（组合接口，兼容现有代码）

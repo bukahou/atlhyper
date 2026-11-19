@@ -44,11 +44,10 @@ func TestAnalysisUserPrompt_SharesEvidence(t *testing.T) {
 	ctx := &IncidentPromptContext{
 		IncidentSummary:   "事件概要: x",
 		HistoricalContext: "历史相似事件: y",
-		RecentErrorLogs:   "ERROR z",
 		PodStates:         "ns/pod/a:\n  容器 app: 当前 running\n",
 	}
 	got := BuildAnalysisUserPrompt(ctx)
-	for _, want := range []string{"事件概要: x", "历史相似事件: y", "## 最近 ERROR 日志", "## Pod 容器状态", "请开始调查"} {
+	for _, want := range []string{"事件概要: x", "历史相似事件: y", "## Pod 容器状态", "请开始调查"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("深度分析 user prompt 缺 %q：\n%s", want, got)
 		}

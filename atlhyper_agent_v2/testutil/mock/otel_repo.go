@@ -117,10 +117,9 @@ func (m *TraceQueryRepository) GetTraceCorrelations(ctx context.Context, service
 
 // LogQueryRepository mock
 type LogQueryRepository struct {
-	QueryLogsFn         func(ctx context.Context, opts repository.LogQueryOptions) (*log.QueryResult, error)
-	QueryHistogramFn    func(ctx context.Context, opts repository.LogQueryOptions) (*log.HistogramResult, error)
-	GetSummaryFn        func(ctx context.Context) (*log.Summary, error)
-	ListRecentEntriesFn func(ctx context.Context, limit int) ([]log.Entry, error)
+	QueryLogsFn      func(ctx context.Context, opts repository.LogQueryOptions) (*log.QueryResult, error)
+	QueryHistogramFn func(ctx context.Context, opts repository.LogQueryOptions) (*log.HistogramResult, error)
+	GetSummaryFn     func(ctx context.Context) (*log.Summary, error)
 }
 
 func (m *LogQueryRepository) QueryLogs(ctx context.Context, opts repository.LogQueryOptions) (*log.QueryResult, error) {
@@ -142,13 +141,6 @@ func (m *LogQueryRepository) GetSummary(ctx context.Context) (*log.Summary, erro
 		return m.GetSummaryFn(ctx)
 	}
 	return nil, nil
-}
-
-func (m *LogQueryRepository) ListRecentEntries(ctx context.Context, limit int) ([]log.Entry, error) {
-	if m.ListRecentEntriesFn != nil {
-		return m.ListRecentEntriesFn(ctx, limit)
-	}
-	return []log.Entry{}, nil
 }
 
 // MetricsQueryRepository mock
