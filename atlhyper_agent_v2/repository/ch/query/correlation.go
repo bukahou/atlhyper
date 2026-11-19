@@ -137,6 +137,8 @@ func (r *traceRepository) GetTraceCorrelations(
 	ctx context.Context, service, operation, mode string,
 	since time.Duration, startTime, endTime string,
 ) (*apm.CorrelationResult, error) {
+	skips := newScanSkips("GetTraceCorrelations")
+	defer skips.report()
 	timeConds, args := traceTimeCondition("Timestamp", since, startTime, endTime)
 	conds := timeConds
 	if service != "" {
@@ -195,6 +197,7 @@ func (r *traceRepository) GetTraceCorrelations(
 	for rows.Next() {
 		var cr correlationRow
 		if err := rows.Scan(&cr.Field, &cr.Value, &cr.FgCount, &cr.BgCount); err != nil {
+			skips.add(err)
 			continue
 		}
 		crows = append(crows, cr)

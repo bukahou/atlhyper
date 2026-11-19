@@ -595,6 +595,8 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration, 
 
 // GetHTTPStats 获取 HTTP 状态码分布
 func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.HTTPStats, error) {
+	skips := newScanSkips("GetHTTPStats")
+	defer skips.report()
 	timeConds, timeArgs := traceTimeCondition("Timestamp", since, startTime, endTime)
 
 	whereClause := "SpanKind = " + apm.SQLSpanKindServer + " AND SpanAttributes['http.response.status_code'] != '' AND ServiceName = ?"
@@ -624,6 +626,7 @@ func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, sinc
 	for rows.Next() {
 		var s apm.HTTPStats
 		if err := rows.Scan(&s.StatusCode, &s.Method, &s.Operation, &s.Count); err != nil {
+			skips.add(err)
 			continue
 		}
 		result = append(result, s)
@@ -636,6 +639,8 @@ func (r *traceRepository) GetHTTPStats(ctx context.Context, service string, sinc
 
 // GetDBStats 获取数据库操作统计
 func (r *traceRepository) GetDBStats(ctx context.Context, service string, since time.Duration, startTime, endTime string) ([]apm.DBOperationStats, error) {
+	skips := newScanSkips("GetDBStats")
+	defer skips.report()
 	timeConds, timeArgs := traceTimeCondition("Timestamp", since, startTime, endTime)
 
 	whereClause := "SpanKind = " + apm.SQLSpanKindClient + " AND SpanAttributes['db.system'] != '' AND ServiceName = ?"
@@ -669,6 +674,7 @@ func (r *traceRepository) GetDBStats(ctx context.Context, service string, since 
 	for rows.Next() {
 		var s apm.DBOperationStats
 		if err := rows.Scan(&s.DBSystem, &s.DBName, &s.Operation, &s.Table, &s.CallCount, &s.AvgMs, &s.P99Ms, &s.ErrorRate); err != nil {
+			skips.add(err)
 			continue
 		}
 		s.AvgMs = roundTo(s.AvgMs, 2)
@@ -686,6 +692,8 @@ func (r *traceRepository) GetDBStats(ctx context.Context, service string, since 
 //
 // 根据 since 自动选择时间桶大小，目标 60-180 个数据点。
 func (r *traceRepository) GetServiceTimeSeries(ctx context.Context, service string, since time.Duration) ([]apm.TimePoint, error) {
+	skips := newScanSkips("GetServiceTimeSeries")
+	defer skips.report()
 	sec := sinceSeconds(since)
 
 	// 根据总时长选择桶大小（秒），目标 60-180 点
@@ -728,6 +736,7 @@ func (r *traceRepository) GetServiceTimeSeries(ctx context.Context, service stri
 	for rows.Next() {
 		var pt apm.TimePoint
 		if err := rows.Scan(&pt.Timestamp, &pt.RPS, &pt.SuccessRate, &pt.AvgMs, &pt.P99Ms, &pt.ErrorCount); err != nil {
+			skips.add(err)
 			continue
 		}
 		pt.RPS = roundRPS(pt.RPS)
