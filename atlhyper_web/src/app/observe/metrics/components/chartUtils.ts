@@ -1,20 +1,6 @@
 import type { Point } from "@/types/node-metrics";
 import { MIN_AUTO_POINTS } from "./chartConstants";
 
-// ==================== Theme ====================
-
-export function getThemeColors() {
-  const isDark = document.documentElement.classList.contains("dark");
-  return {
-    textColor: isDark ? "#9ca3af" : "#6b7280",
-    lineColor: isDark ? "#374151" : "#e5e7eb",
-    splitLineColor: isDark ? "#1f2937" : "#f3f4f6",
-    tooltipBg: isDark ? "#1f2937" : "#fff",
-    tooltipBorder: isDark ? "#374151" : "#e5e7eb",
-    tooltipText: isDark ? "#e5e7eb" : "#111827",
-  };
-}
-
 // ==================== Data Processing ====================
 
 /** Downsample Point[] by averaging within fixed-size time buckets */

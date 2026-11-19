@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useHydrated } from "@/hooks/useHydrated";
 import { Layout } from "@/components/layout/Layout";
+import { toast } from "@/components/common/Toast";
 import { useI18n } from "@/i18n/context";
 import { Database, Layers } from "lucide-react";
 import {
@@ -57,22 +58,6 @@ function Toggle({
         }`}
       />
     </button>
-  );
-}
-
-/** Toast 通知 */
-function Toast({ message, onClose }: { message: string; onClose: () => void }) {
-  useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
-    return () => clearTimeout(timer);
-  }, [onClose]);
-
-  return (
-    <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <div className="px-4 py-2.5 rounded-lg bg-card border border-[var(--border-color)] shadow-lg text-sm text-default">
-        {message}
-      </div>
-    </div>
   );
 }
 
@@ -142,7 +127,6 @@ export default function DataSourcePage() {
   // 本页刚切换过的模块单独记着（切换时已同步写进 localStorage），界面立即跟上
   const hydrated = useHydrated();
   const [switchedModes, setSwitchedModes] = useState<Record<string, DataSourceMode>>({});
-  const [toast, setToast] = useState<string | null>(null);
 
   const modes = useMemo(() => {
     const current: Record<string, DataSourceMode> = {};
@@ -157,7 +141,7 @@ export default function DataSourcePage() {
     setSwitchedModes((prev) => ({ ...prev, [key]: newMode }));
     const msg =
       newMode === "mock" ? tds.switchedToMock : tds.switchedToApi;
-    setToast(`${msg} — ${tds.refreshHint}`);
+    toast.success(`${msg} — ${tds.refreshHint}`);
   };
 
   // 按分组
@@ -250,7 +234,6 @@ export default function DataSourcePage() {
       </div>
 
       {/* Toast */}
-      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </Layout>
   );
 }

@@ -90,6 +90,7 @@ export const zh: Translations = {
     namespace: "命名空间",
     createdAt: "创建时间",
     close: "关闭",
+    notificationsRegion: "通知",
     view: "查看",
     details: "详情",
     filter: "筛选",

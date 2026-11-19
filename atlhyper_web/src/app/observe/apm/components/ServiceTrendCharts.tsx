@@ -1,22 +1,22 @@
 "use client";
 
-import { useRef, useEffect, forwardRef, useCallback } from "react";
+import { useEffect, forwardRef, useCallback } from "react";
 import * as echarts from "echarts";
+import { useEChart } from "@/hooks/useEChart";
+import { getThemeColors, type ChartThemeColors } from "@/lib/chart-theme";
 import type { APMTimePoint } from "@/types/model/apm";
 import type { ApmTranslations } from "@/types/i18n";
 import { formatDurationMs } from "@/lib/format";
 import { joinHtml, safeHtml, trustedHtml } from "@/lib/safe-html";
 
-function getThemeColors() {
-  const isDark = document.documentElement.classList.contains("dark");
-  return {
-    textColor: isDark ? "#9ca3af" : "#6b7280",
-    lineColor: isDark ? "#374151" : "#e5e7eb",
-    splitLineColor: isDark ? "#1f2937" : "#f3f4f6",
-    tooltipBg: isDark ? "#1f2937" : "#fff",
-    tooltipBorder: isDark ? "#374151" : "#e5e7eb",
-    tooltipText: isDark ? "#e5e7eb" : "#111827",
-  };
+/** 主题切换后重新上色（只改与主题有关的颜色） */
+function applyThemeColors(chart: echarts.ECharts) {
+  const c = getThemeColors();
+  chart.setOption({
+    tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
+    xAxis: { axisLabel: { color: c.textColor }, axisLine: { lineStyle: { color: c.lineColor } } },
+    yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
+  });
 }
 
 interface ServiceTrendChartsProps {
@@ -34,55 +34,15 @@ const TrendChart = forwardRef<HTMLDivElement, {
   title: string;
   points: APMTimePoint[];
   emptyText: string;
-  buildOption: (points: APMTimePoint[], colors: ReturnType<typeof getThemeColors>) => echarts.EChartsOption;
+  buildOption: (points: APMTimePoint[], colors: ChartThemeColors) => echarts.EChartsOption;
 }>(({ title, points, emptyText, buildOption }, _ref) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<echarts.ECharts | null>(null);
+  // 容器只在有数据时渲染：没数据时图表随容器一起销毁（见 useEChart）
+  const { containerRef, chart } = useEChart({ onThemeChange: applyThemeColors });
 
-  // 初始化 + 数据更新
   useEffect(() => {
-    if (points.length === 0) {
-      // 无数据时销毁图表
-      if (chartRef.current) {
-        chartRef.current.dispose();
-        chartRef.current = null;
-      }
-      return;
-    }
-    if (!containerRef.current) return;
-
-    // 懒初始化
-    if (!chartRef.current) {
-      chartRef.current = echarts.init(containerRef.current);
-    }
-
-    const c = getThemeColors();
-    chartRef.current.setOption(buildOption(points, c), true);
-  }, [points, buildOption]);
-
-  // resize + 主题切换
-  useEffect(() => {
-    const handleResize = () => chartRef.current?.resize();
-    window.addEventListener("resize", handleResize);
-
-    const observer = new MutationObserver(() => {
-      if (!chartRef.current) return;
-      const c = getThemeColors();
-      chartRef.current.setOption({
-        tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
-        xAxis: { axisLabel: { color: c.textColor }, axisLine: { lineStyle: { color: c.lineColor } } },
-        yAxis: { axisLabel: { color: c.textColor }, splitLine: { lineStyle: { color: c.splitLineColor } } },
-      });
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      observer.disconnect();
-      chartRef.current?.dispose();
-      chartRef.current = null;
-    };
-  }, []);
+    if (!chart || points.length === 0) return;
+    chart.setOption(buildOption(points, getThemeColors()), true);
+  }, [chart, points, buildOption]);
 
   return (
     <div className="border border-[var(--border-color)] rounded-xl p-4 bg-card">
@@ -98,7 +58,7 @@ const TrendChart = forwardRef<HTMLDivElement, {
 TrendChart.displayName = "TrendChart";
 
 export function ServiceTrendCharts({ t, points }: ServiceTrendChartsProps) {
-  const buildLatency = useCallback((pts: APMTimePoint[], c: ReturnType<typeof getThemeColors>): echarts.EChartsOption => {
+  const buildLatency = useCallback((pts: APMTimePoint[], c: ChartThemeColors): echarts.EChartsOption => {
     const times = pts.map((p) => formatTime(p.timestamp));
     const baseAxis = makeBaseAxis(times, c);
     return {
@@ -121,7 +81,7 @@ export function ServiceTrendCharts({ t, points }: ServiceTrendChartsProps) {
     };
   }, []);
 
-  const buildThroughput = useCallback((pts: APMTimePoint[], c: ReturnType<typeof getThemeColors>): echarts.EChartsOption => {
+  const buildThroughput = useCallback((pts: APMTimePoint[], c: ChartThemeColors): echarts.EChartsOption => {
     const times = pts.map((p) => formatTime(p.timestamp));
     const baseAxis = makeBaseAxis(times, c);
     return {
@@ -148,7 +108,7 @@ export function ServiceTrendCharts({ t, points }: ServiceTrendChartsProps) {
     };
   }, []);
 
-  const buildError = useCallback((pts: APMTimePoint[], c: ReturnType<typeof getThemeColors>): echarts.EChartsOption => {
+  const buildError = useCallback((pts: APMTimePoint[], c: ChartThemeColors): echarts.EChartsOption => {
     const times = pts.map((p) => formatTime(p.timestamp));
     const baseAxis = makeBaseAxis(times, c);
     const errorRates = pts.map((p) => Number(((1 - p.successRate) * 100).toFixed(2)));
@@ -185,7 +145,7 @@ export function ServiceTrendCharts({ t, points }: ServiceTrendChartsProps) {
   );
 }
 
-function makeBaseAxis(times: string[], c: ReturnType<typeof getThemeColors>) {
+function makeBaseAxis(times: string[], c: ChartThemeColors) {
   return {
     xAxis: {
       type: "category" as const,

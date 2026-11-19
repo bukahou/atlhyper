@@ -90,6 +90,7 @@ export const ja: Translations = {
     namespace: "名前空間",
     createdAt: "作成日時",
     close: "閉じる",
+    notificationsRegion: "通知",
     view: "表示",
     details: "詳細",
     filter: "フィルター",
