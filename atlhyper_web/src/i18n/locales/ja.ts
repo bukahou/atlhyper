@@ -1182,6 +1182,8 @@ export const ja: Translations = {
       uncordon: "隔離解除",
       update_image: "イメージ更新",
     },
+    outcomeFailed: "コマンドの実行に失敗しました：{error}",
+    outcomeStillRunning: "コマンドはまだ実行中です。しばらくしてから更新して結果を確認してください",
   },
   slo: {
     last15min: "直近 15 分",

@@ -4,6 +4,7 @@
  * 后端已完成 model_v3 → model 扁平化转换，前端直接使用
  */
 
+import type { CommandResponse } from "./commands";
 import { get, post } from "./request";
 import type { PodOverview, PodDetail, PodItem } from "@/types/cluster";
 
@@ -96,11 +97,6 @@ export function getPodLogs(data: {
  * 重启 Pod（需要 Operator 权限）
  * POST /api/v2/ops/pods/restart
  */
-interface CommandResponse {
-  message: string;
-  commandId: string;
-  status: string;
-}
 
 export function restartPod(data: {
   ClusterID: string;

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDelayedTaskScheduler } from "./useDelayedInvalidate";
 
-// hook 本身只是把这份簿记接到组件生命周期上（卸载时 cancelAll），
+// 组件只是把这份簿记接到生命周期上（卸载时 cancelAll），
 // 定时与清理的逻辑都在这个纯对象里，不需要 DOM 就能测。
 describe("createDelayedTaskScheduler", () => {
   beforeEach(() => vi.useFakeTimers());

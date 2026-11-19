@@ -6,7 +6,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { DetailQueryView } from "@/components/common/DetailQueryView";
 import { ConfirmDialog } from "@/components/common";
 import { useCurrentCluster } from "@/hooks/useCurrentCluster";
-import { useDelayedInvalidate } from "@/hooks/useDelayedInvalidate";
+import { useCommandSettle } from "@/hooks/useCommandSettle";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useI18n } from "@/i18n/context";
 import { deploymentDetailQuery } from "@/queries/cluster";
@@ -33,14 +33,14 @@ interface DeploymentDetailModalProps {
 
 interface DeploymentDetailDrawerProps extends Omit<DeploymentDetailModalProps, "isOpen"> {
   /** 过一会儿让给定的查询重新取数（由外层持有，抽屉关掉后仍然生效） */
-  invalidateAfterCommand: (queryKeys: readonly QueryKey[]) => void;
+  settleCommand: (commandId: string, queryKeys: readonly QueryKey[]) => Promise<unknown>;
 }
 
 type TabType = "overview" | "containers" | "strategy" | "scheduling" | "replicasets" | "labels";
 
 export function DeploymentDetailModal({ isOpen, onClose, namespace, deploymentName }: DeploymentDetailModalProps) {
   // 延时刷新挂在外层：操作完马上关掉抽屉，稍后那次列表刷新仍然要发生
-  const invalidateAfterCommand = useDelayedInvalidate();
+  const settleCommand = useCommandSettle();
 
   // 关着时整个抽屉不挂载：详情查询只在打开期间存在，标签页与编辑中的草稿随关闭丢弃
   if (!isOpen) return null;
@@ -50,7 +50,7 @@ export function DeploymentDetailModal({ isOpen, onClose, namespace, deploymentNa
       onClose={onClose}
       namespace={namespace}
       deploymentName={deploymentName}
-      invalidateAfterCommand={invalidateAfterCommand}
+      settleCommand={settleCommand}
     />
   );
 }
@@ -59,7 +59,7 @@ function DeploymentDetailDrawer({
   onClose,
   namespace,
   deploymentName,
-  invalidateAfterCommand,
+  settleCommand,
 }: DeploymentDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const requireAuth = useRequireAuth();
@@ -75,9 +75,8 @@ function DeploymentDetailDrawer({
   const [editingReplicas, setEditingReplicas] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<"image" | "scale" | null>(null);
 
-  // 指令由 Agent 异步执行：下发成功时列表与详情已刷新过一次，
-  // 晚一点再刷新一次才看得到滚动更新后的状态
-  const refreshAfterCommand = () => invalidateAfterCommand(clusterKeys.resourceScope("deployment"));
+  // 指令由 Agent 异步执行：下发成功时列表与详情已刷新过一次，等指令执行完再刷新一次
+  const refreshAfterCommand = (commandId: string) => void settleCommand(commandId, clusterKeys.resourceScope("deployment"));
 
   // 更新镜像
   const handleUpdateImage = () => {
@@ -85,10 +84,10 @@ function DeploymentDetailDrawer({
     updateImage.mutate(
       { namespace, name: deploymentName, ...editingImage },
       {
-        onSuccess: () => {
+        onSuccess: (resp) => {
           setEditingImage(null);
           setConfirmAction(null);
-          refreshAfterCommand();
+          refreshAfterCommand(resp.data.commandId);
         },
         onError: (err) => console.error("Update image failed:", err),
       },
@@ -101,10 +100,10 @@ function DeploymentDetailDrawer({
     scale.mutate(
       { namespace, name: deploymentName, replicas: editingReplicas },
       {
-        onSuccess: () => {
+        onSuccess: (resp) => {
           setEditingReplicas(null);
           setConfirmAction(null);
-          refreshAfterCommand();
+          refreshAfterCommand(resp.data.commandId);
         },
         onError: (err) => console.error("Scale failed:", err),
       },
