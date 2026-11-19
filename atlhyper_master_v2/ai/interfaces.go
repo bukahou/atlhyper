@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
+	"AtlHyper/atlhyper_master_v2/ai/prompts"
 	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 )
 
@@ -49,7 +50,10 @@ type ChatRequest struct {
 	ConversationID int64  // 对话 ID
 	ClusterID      string // 目标集群
 	UserID         int64  // 用户 ID（只能续聊自己的会话）
-	Message        string // 用户消息
+	Message        string // 用户消息（与 Alerts 二选一）
+	// Alerts 告警分析：用户在告警页选中的告警；用户消息由后端按 Language 拼（提示词属于后端）
+	Alerts   []prompts.Alert
+	Language string // 用户界面的语言（zh / ja）
 
 	// Allow 调用者拥有的权限：工具清单与工具执行都按它过滤；nil = 一律拒绝
 	Allow PermissionCheck

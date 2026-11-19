@@ -6,7 +6,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Message } from "@/components/ai/types";
 import { useAuthStore } from "@/store/authStore";
 import { useI18n } from "@/i18n/context";
-import { formatAlertsMessage } from "@/lib/alertFormat";
 import type { RecentAlert } from "@/types/overview";
 import type { AIConfigStatus } from "./types";
 import { getMockConversations, getMockMessages } from "./mock-data";
@@ -30,7 +29,7 @@ const NO_MESSAGES: Message[] = [];
 export function useAIChat() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { clusterId: currentClusterId } = useCurrentCluster();
   const { openLoginDialog, isAuthenticated } = useAuthStore();
   const sessionReady = useSessionReady();
@@ -100,11 +99,15 @@ export function useAIChat() {
       {
         onSuccess: (created) => {
           setSelectedConvId(created.id);
-          sendAndStream(created.id, formatAlertsMessage(alerts), NO_MESSAGES);
+          // 提示词由后端按界面语言拼；对话里先显示一句摘要，回答结束后换成服务端存的那条
+          sendAndStream(created.id, `${alertAnalysisTitle} (${alerts.length})`, NO_MESSAGES, {
+            alerts: alerts.map(({ kind, namespace, name, reason, message, timestamp }) => ({ kind, namespace, name, reason, message, timestamp })),
+            language,
+          });
         },
       },
     );
-  }, [fromAlerts, chatReady, currentClusterId, alertAnalysisTitle, startConversation, sendAndStream]);
+  }, [fromAlerts, chatReady, currentClusterId, alertAnalysisTitle, language, startConversation, sendAndStream]);
 
   // 选择对话：消息历史由查询按对话 ID 取
   const handleSelect = (id: number) => {

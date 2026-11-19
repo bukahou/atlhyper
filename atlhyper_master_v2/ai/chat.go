@@ -31,6 +31,14 @@ func (s *aiServiceImpl) Chat(ctx context.Context, req *ChatRequest) (<-chan *Cha
 		return nil, err
 	}
 
+	// 告警分析：用户消息由后端按界面语言拼
+	if len(req.Alerts) > 0 {
+		req.Message = prompts.BuildAlertAnalysisMessage(req.Alerts, req.Language)
+	}
+	if req.Message == "" {
+		return nil, ErrEmptyMessage
+	}
+
 	// 2. 加载历史消息
 	dbMsgs, err := s.msgRepo.ListByConversation(ctx, req.ConversationID)
 	if err != nil {

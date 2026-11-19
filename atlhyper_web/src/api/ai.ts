@@ -40,10 +40,24 @@ export function getMessages(conversationId: number, signal?: AbortSignal) {
 // SSE 流式对话
 // ============================================================
 
+/** 交给 AI 分析的一条告警（只传结构化字段，提示词由后端按 language 拼） */
+export interface ChatAlert {
+  kind: string;
+  namespace: string;
+  name: string;
+  reason: string;
+  message: string;
+  timestamp: string;
+}
+
 export interface StreamChatParams {
   conversationId: number;
   clusterId: string;
-  message: string;
+  /** 用户消息；告警分析时不传，改传 alerts */
+  message?: string;
+  alerts?: ChatAlert[];
+  /** 界面语言：后端按它拼告警分析的提示词 */
+  language?: string;
 }
 
 /**
