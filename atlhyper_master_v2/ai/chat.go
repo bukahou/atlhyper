@@ -6,7 +6,9 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
@@ -83,7 +85,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		return
 	}
 
-	llmClient, err := llm.NewLLMClient(roleCfg.Config)
+	llmClient, err := s.createClient(roleCfg.Config)
 	if err != nil {
 		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
 		sendError(ch, fmt.Sprintf("创建 LLM 客户端失败: %v", err))
@@ -111,6 +113,72 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	var totalInputTokens int  // 累计输入 Token
 	var totalOutputTokens int // 累计输出 Token
 
+	// 用量记账：只要调过模型，不论成功、出错还是被中途停止都记一次（预算与对话统计）。
+	// 成功时在发 done 之前记，让前端收到 done 后重取的统计是新的；其余出口由 defer 兜底。
+	// 用不随请求取消的 ctx：用户点了停止，已经花掉的用量照样要写进库
+	modelCalled := false
+	settleUsage := sync.OnceFunc(func() {
+		if !modelCalled {
+			return
+		}
+		acctCtx := context.WithoutCancel(ctx)
+		s.accumulateConversationStats(acctCtx, convID, totalInputTokens, totalOutputTokens, totalToolCalls)
+		s.RecordUsage(acctCtx, RoleChat, roleCfg.ProviderID, totalInputTokens, totalOutputTokens)
+	})
+	defer settleUsage()
+
+	// readRound 调一次模型并读完这一轮（文字边收边转给前端）；失败时已发出错误分段
+	readRound := func(req *llm.Request) (llm.StreamResult, bool) {
+		modelCalled = true
+		stream, err := llmClient.ChatStream(ctx, req)
+		if err != nil {
+			sendError(ch, fmt.Sprintf("LLM 调用失败: %v", err))
+			return llm.StreamResult{}, false
+		}
+		res, err := llm.ReadStream(ctx, stream, func(text string) {
+			ch <- &ChatChunk{Type: "text", Content: text}
+		})
+		if res.Usage != nil {
+			totalInputTokens += res.Usage.InputTokens
+			totalOutputTokens += res.Usage.OutputTokens
+		}
+		if err != nil {
+			switch {
+			case ctx.Err() != nil:
+				log.Info("对话被中止", "conv", convID, "err", ctx.Err())
+			case errors.Is(err, llm.ErrStreamIncomplete):
+				log.Warn("模型的流在完成前中断", "conv", convID, "provider", roleCfg.Provider)
+				sendError(ch, "AI 的回答在完成前中断了，请重试")
+			default:
+				log.Error("LLM 流读取错误", "conv", convID, "err", err)
+				sendError(ch, fmt.Sprintf("AI 服务错误: %v", err))
+			}
+			return res, false
+		}
+		return res, true
+	}
+
+	finish := func() {
+		s.persistFinalAssistantMessage(ctx, convID, assistantContent)
+		settleUsage()
+		ch <- &ChatChunk{
+			Type: "done",
+			Stats: &ChatStats{
+				Rounds:         toolRounds, // 只统计有 Tool 调用的轮次
+				TotalToolCalls: totalToolCalls,
+				InputTokens:    totalInputTokens,
+				OutputTokens:   totalOutputTokens,
+			},
+		}
+		log.Info("对话完成",
+			"conv", convID,
+			"rounds", toolRounds,
+			"tools", totalToolCalls,
+			"tokens", totalInputTokens+totalOutputTokens,
+			"duration", logger.Duration(time.Since(startTime)),
+		)
+	}
+
 	for round := 0; round < maxToolRounds; round++ {
 		remaining := maxToolRounds - round
 
@@ -129,60 +197,21 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			ch <- &ChatChunk{Type: "text", Content: "\n[系统: 历史消息已裁剪以适应模型上下文窗口]\n"}
 		}
 
-		// 调用 LLM
-		llmReq := &llm.Request{
+		res, ok := readRound(&llm.Request{
 			SystemPrompt: systemPrompt + roundHint,
 			Messages:     fittedMsgs,
 			Tools:        tools,
-		}
-
-		stream, err := llmClient.ChatStream(ctx, llmReq)
-		if err != nil {
-			sendError(ch, fmt.Sprintf("LLM 调用失败: %v", err))
+		})
+		if !ok {
 			return
 		}
-
-		// 读取流式响应
-		text, toolCalls, usage, providerTurn, err := s.readLLMStream(ctx, stream, ch)
-		if err != nil {
-			log.Error("LLM 流读取错误", "conv", convID, "err", err)
-			sendError(ch, fmt.Sprintf("AI 服务错误: %v", err))
-			return
-		}
-
-		// 累计 token 使用量
-		if usage != nil {
-			totalInputTokens += usage.InputTokens
-			totalOutputTokens += usage.OutputTokens
-		}
+		text, toolCalls := res.Text, res.ToolCalls
 
 		assistantContent += text
 
 		// 没有 Tool Call → 对话结束
 		if len(toolCalls) == 0 {
-			// 持久化最终的 assistant 消息（纯文本，tool_use 已在前面保存）
-			s.persistFinalAssistantMessage(ctx, convID, assistantContent)
-			// 累加统计到对话
-			s.accumulateConversationStats(ctx, convID, totalInputTokens, totalOutputTokens, totalToolCalls)
-			// 扣减角色预算 + Provider 统计
-			s.RecordUsage(ctx, RoleChat, roleCfg.ProviderID, totalInputTokens, totalOutputTokens)
-			// 发送 done 并附带统计信息
-			ch <- &ChatChunk{
-				Type: "done",
-				Stats: &ChatStats{
-					Rounds:         toolRounds, // 只统计有 Tool 调用的轮次
-					TotalToolCalls: totalToolCalls,
-					InputTokens:    totalInputTokens,
-					OutputTokens:   totalOutputTokens,
-				},
-			}
-			log.Info("对话完成",
-				"conv", convID,
-				"rounds", toolRounds,
-				"tools", totalToolCalls,
-				"tokens", totalInputTokens+totalOutputTokens,
-				"duration", logger.Duration(time.Since(startTime)),
-			)
+			finish()
 			return
 		}
 
@@ -201,11 +230,10 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			Role:         "assistant",
 			Content:      text,
 			ToolCalls:    toolCalls,
-			ProviderTurn: providerTurn, // 整轮回答原样带回（如 Claude 的思考块），不落库
+			ProviderTurn: res.ProviderTurn, // 整轮回答原样带回（如 Claude 的思考块），不落库
 		})
 
-		// 【重要】先に assistant メッセージを保存（tool_result より前に必要）
-		// Anthropic API は tool_use の後に tool_result が来ることを要求する
+		// 先保存带 tool_use 的 assistant 消息：Anthropic 要求 tool_use 之后紧跟 tool_result
 		s.persistAssistantWithToolCalls(ctx, convID, text, toolCalls)
 
 		// 执行每个 Tool Call
@@ -253,81 +281,16 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	// 最后一次调用不提供 tools，强制 AI 输出文本结论（不算 toolRounds）
 	finalPrompt := systemPrompt + "\n\n[系统提示] Tool 调用次数已用完。请根据已获取的信息给出分析结论。不要再调用 Tool。"
 	finalMsgs, _ := ctxMgr.FitMessages(finalPrompt, messages)
-	llmReq := &llm.Request{
+	res, ok := readRound(&llm.Request{
 		SystemPrompt: finalPrompt,
 		Messages:     finalMsgs,
 		Tools:        nil, // 不提供 tools，强制文本输出
-	}
-	stream, err := llmClient.ChatStream(ctx, llmReq)
-	if err != nil {
-		sendError(ch, fmt.Sprintf("LLM 调用失败: %v", err))
+	})
+	if !ok {
 		return
 	}
-	text, _, usage, _, _ := s.readLLMStream(ctx, stream, ch)
-	if usage != nil {
-		totalInputTokens += usage.InputTokens
-		totalOutputTokens += usage.OutputTokens
-	}
-	assistantContent += text
-	s.persistFinalAssistantMessage(ctx, convID, assistantContent)
-	// 累加统计到对话
-	s.accumulateConversationStats(ctx, convID, totalInputTokens, totalOutputTokens, totalToolCalls)
-	// 扣减角色预算 + Provider 统计
-	s.RecordUsage(ctx, RoleChat, roleCfg.ProviderID, totalInputTokens, totalOutputTokens)
-	// 发送 done 并附带统计信息
-	ch <- &ChatChunk{
-		Type: "done",
-		Stats: &ChatStats{
-			Rounds:         toolRounds, // 只统计有 Tool 调用的轮次
-			TotalToolCalls: totalToolCalls,
-			InputTokens:    totalInputTokens,
-			OutputTokens:   totalOutputTokens,
-		},
-	}
-	log.Info("对话完成",
-		"conv", convID,
-		"rounds", toolRounds,
-		"tools", totalToolCalls,
-		"tokens", totalInputTokens+totalOutputTokens,
-		"duration", logger.Duration(time.Since(startTime)),
-	)
-}
-
-// readLLMStream 读取 LLM 流式响应
-// 返回: 累积文本, ToolCall 列表, Usage, 整轮回答（Done 带回，下一轮原样带上）, 错误
-func (s *aiServiceImpl) readLLMStream(ctx context.Context, stream <-chan *llm.Chunk, ch chan<- *ChatChunk) (string, []llm.ToolCall, *llm.Usage, any, error) {
-	var text string
-	var toolCalls []llm.ToolCall
-	var usage *llm.Usage
-
-	for chunk := range stream {
-		select {
-		case <-ctx.Done():
-			return text, toolCalls, usage, nil, ctx.Err()
-		default:
-		}
-
-		switch chunk.Type {
-		case llm.ChunkText:
-			text += chunk.Content
-			ch <- &ChatChunk{Type: "text", Content: chunk.Content}
-
-		case llm.ChunkToolCall:
-			if chunk.ToolCall != nil {
-				toolCalls = append(toolCalls, *chunk.ToolCall)
-			}
-
-		case llm.ChunkDone:
-			usage = chunk.Usage
-			return text, toolCalls, usage, chunk.ProviderTurn, nil
-
-		case llm.ChunkError:
-			log.Debug("收到 ChunkError", "err", chunk.Error)
-			return text, toolCalls, usage, nil, chunk.Error
-		}
-	}
-
-	return text, toolCalls, usage, nil, nil
+	assistantContent += res.Text
+	finish()
 }
 
 // persistFinalAssistantMessage 持久化最终的 assistant 消息（纯文本回答）

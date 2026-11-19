@@ -44,7 +44,7 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 	}
 
 	// 创建 LLM 客户端
-	llmClient, err := llm.NewLLMClient(roleCfg.Config)
+	llmClient, err := s.createClient(roleCfg.Config)
 	if err != nil {
 		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
 		return nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
@@ -69,7 +69,7 @@ func (s *aiServiceImpl) Analyze(ctx context.Context, req *AnalyzeRequest) (*Anal
 		Tools:         toolDefsFor(req.Allow),
 		MaxToolResult: toolResultMaxLen(roleCfg.ContextWindow),
 	})
-	s.RecordUsage(ctx, role, roleCfg.ProviderID, out.InputTokens, out.OutputTokens)
+	s.RecordUsage(context.WithoutCancel(ctx), role, roleCfg.ProviderID, out.InputTokens, out.OutputTokens) // 失败与中止也记
 	if err != nil {
 		s.recordProviderError(ctx, roleCfg.ProviderID, err.Error())
 		return nil, err

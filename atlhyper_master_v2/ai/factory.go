@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/budget"
+	"AtlHyper/atlhyper_master_v2/ai/llm"
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/anthropic" // 注册 anthropic provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/bedrock"   // 注册 bedrock provider
 	_ "AtlHyper/atlhyper_master_v2/ai/llm/gemini"    // 注册 gemini provider
@@ -47,5 +48,6 @@ func NewService(
 		msgRepo:      msgRepo,
 
 		bedrockRegion: cfg.BedrockRegion,
+		newClient:     llm.NewLLMClient,
 	}
 }

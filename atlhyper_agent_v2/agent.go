@@ -15,7 +15,6 @@ package atlhyper_agent_v2
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,6 +34,7 @@ import (
 	k8spkg "AtlHyper/atlhyper_agent_v2/sdk/impl/k8s"
 	commandsvc "AtlHyper/atlhyper_agent_v2/service/command"
 	snapshotsvc "AtlHyper/atlhyper_agent_v2/service/snapshot"
+	"AtlHyper/common/httpserve"
 	"AtlHyper/common/logger"
 )
 
@@ -188,17 +188,11 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	// 健康检查服务：先确认端口监听成功，失败即启动失败（不留一个探针永远连不上的进程）
 	healthAddr := config.GlobalConfig.Agent.HealthAddr
-	listener, err := net.Listen("tcp", healthAddr)
-	if err != nil {
+	healthSrv := &http.Server{Addr: healthAddr, Handler: a.healthHandler(), ReadHeaderTimeout: 5 * time.Second}
+	if err := httpserve.Start(healthSrv, func(err error) { log.Error("健康检查服务器异常", "err", err) }); err != nil {
 		a.scheduler.Stop()
-		return fmt.Errorf("健康检查端口 %s 监听失败: %w", healthAddr, err)
+		return fmt.Errorf("健康检查服务: %w", err)
 	}
-	healthSrv := &http.Server{Handler: a.healthHandler(), ReadHeaderTimeout: 5 * time.Second}
-	go func() {
-		if err := healthSrv.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Error("健康检查服务器异常", "err", err)
-		}
-	}()
 
 	log.Info("Agent 启动成功", "healthAddr", healthAddr)
 

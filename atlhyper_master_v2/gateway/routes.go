@@ -10,7 +10,9 @@
 package gateway
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/auth/oidc"
@@ -208,7 +210,7 @@ func (r *Router) registerRoutes() {
 	// ================================================================
 	// 无需主体
 	// ================================================================
-	r.open(mGet, "/health", healthCheck)
+	r.open(mGet, "/health", r.healthCheck)
 	r.open(mGet, "/api/v2/auth/me", authMeH.Get)
 	r.open(mGet, "/api/v2/auth/permissions", handler.GetPermissionTable)
 	r.openAudited(mPost, "/api/v2/user/login", "login", "user", loginLimited(userH.Login)) // 记录成功 / 失败的登录尝试
@@ -467,8 +469,17 @@ func (r *Router) audit(action, resource string) func(http.HandlerFunc) http.Hand
 	}, config.GlobalConfig.Server.ClientIPHeader)
 }
 
-// healthCheck 健康检查
-func healthCheck(w http.ResponseWriter, r *http.Request) {
+// healthCheck 健康检查（存活 / 就绪探针共用）：数据库 2 秒内 ping 不通就是 503
+func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
+	if r.database != nil && r.database.Conn != nil {
+		ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+		defer cancel()
+		if err := r.database.Conn.PingContext(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("database unavailable"))
+			return
+		}
+	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }

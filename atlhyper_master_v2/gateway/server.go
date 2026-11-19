@@ -20,6 +20,7 @@ import (
 	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
 	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/service"
+	"AtlHyper/common/httpserve"
 	"AtlHyper/common/logger"
 )
 
@@ -75,20 +76,18 @@ func (s *Server) Start() error {
 	router.SetNotifyTester(s.notifyTester)
 
 	s.httpServer = &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.port),
-		Handler:      router.Handler(),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 180 * time.Second, // AI SSE 需要较长超时（多轮 Tool 调用）
+		Addr:              fmt.Sprintf(":%d", s.port),
+		Handler:           router.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		// 普通接口的写超时；AI 对话的流式响应在处理器里逐块续期，不受它截断
+		WriteTimeout: 60 * time.Second,
 	}
 
+	if err := httpserve.Start(s.httpServer, func(err error) { serverLog.Error("服务器错误", "err", err) }); err != nil {
+		return fmt.Errorf("启动 Web API: %w", err)
+	}
 	serverLog.Info("启动服务器", "port", s.port)
-
-	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverLog.Error("服务器错误", "err", err)
-		}
-	}()
-
 	return nil
 }
 
