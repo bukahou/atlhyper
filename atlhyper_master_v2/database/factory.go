@@ -63,8 +63,9 @@ func openSQLite(path string) (*sql.DB, error) {
 	// modernc 用 _pragma=xxx(value) 语法，而非 mattn 的 _journal_mode=WAL。
 	// 写错不会报错，只会静默退回默认（delete 模式 / 无 busy timeout）——
 	// factory_test.go 里 TestOpenSQLite_WALEnabled 与 _BusyTimeout 即为此而设。
+	// foreign_keys(1)：SQLite 默认不检查外键，表结构里的 ON DELETE CASCADE 要它才生效
 	db, err := sql.Open("sqlite",
-		path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+		path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err
 	}
