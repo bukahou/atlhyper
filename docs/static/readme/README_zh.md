@@ -201,21 +201,23 @@ go run main.go
 # Gateway: :8080, AgentSDK: :8081
 ```
 
-**2. 启动 Agent（在 K8s 集群中）**
-```bash
-# 集群 ID 自动检测（kube-system UID），也可通过环境变量指定
-export AGENT_MASTER_URL=http://<MASTER_IP>:8081
-# export AGENT_CLUSTER_ID=my-cluster  # 可选，默认自动检测
-
-cd cmd/atlhyper_agent_v2
-go run main.go
-```
-
-**3. 启动 Web**
+**2. 启动 Web**
 ```bash
 cd atlhyper_web
 npm install && npm run dev
 # 访问: http://localhost:3000
+```
+
+**3. 登记集群并启动 Agent（在 K8s 集群中）**
+
+用管理员登录，打开「管理 → 集群」，登记集群 ID 后签发令牌（只显示一次）。没有令牌时 Agent 不会启动。
+```bash
+export AGENT_MASTER_URL=http://<MASTER_IP>:8081
+export AGENT_CLUSTER_ID=my-cluster          # 必须与登记的集群 ID 逐字一致
+export AGENT_MASTER_TOKEN=<签发的令牌>
+
+cd cmd/atlhyper_agent_v2
+go run main.go
 ```
 
 ### 配置参考

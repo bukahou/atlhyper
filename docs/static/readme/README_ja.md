@@ -201,21 +201,23 @@ go run main.go
 # Gateway: :8080, AgentSDK: :8081
 ```
 
-**2. Agent 起動（K8s クラスター内）**
-```bash
-# クラスター ID は自動検出（kube-system UID）、環境変数で指定も可能
-export AGENT_MASTER_URL=http://<MASTER_IP>:8081
-# export AGENT_CLUSTER_ID=my-cluster  # オプション、デフォルトは自動検出
-
-cd cmd/atlhyper_agent_v2
-go run main.go
-```
-
-**3. Web 起動**
+**2. Web 起動**
 ```bash
 cd atlhyper_web
 npm install && npm run dev
 # アクセス: http://localhost:3000
+```
+
+**3. クラスターを登録して Agent 起動（K8s クラスター内）**
+
+管理者でログインし、「管理 → クラスター」でクラスター ID を登録してからトークンを発行する（表示は一度だけ）。トークンがないと Agent は起動しない。
+```bash
+export AGENT_MASTER_URL=http://<MASTER_IP>:8081
+export AGENT_CLUSTER_ID=my-cluster          # 登録したクラスター ID と完全に一致させる
+export AGENT_MASTER_TOKEN=<発行されたトークン>
+
+cd cmd/atlhyper_agent_v2
+go run main.go
 ```
 
 ### 設定リファレンス

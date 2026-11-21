@@ -202,21 +202,23 @@ go run main.go
 # Gateway: :8080, AgentSDK: :8081
 ```
 
-**2. Start Agent (in K8s cluster)**
-```bash
-# Cluster ID auto-detected (kube-system UID), or specify via environment variable
-export AGENT_MASTER_URL=http://<MASTER_IP>:8081
-# export AGENT_CLUSTER_ID=my-cluster  # Optional, auto-detected by default
-
-cd cmd/atlhyper_agent_v2
-go run main.go
-```
-
-**3. Start Web**
+**2. Start Web**
 ```bash
 cd atlhyper_web
 npm install && npm run dev
 # Access: http://localhost:3000
+```
+
+**3. Register the cluster and start Agent (in K8s cluster)**
+
+Sign in as the admin, open Admin → Cluster registry, register the cluster ID, then issue a token (shown only once). The Agent refuses to start without a token.
+```bash
+export AGENT_MASTER_URL=http://<MASTER_IP>:8081
+export AGENT_CLUSTER_ID=my-cluster          # Must match the registered cluster ID exactly
+export AGENT_MASTER_TOKEN=<issued-token>
+
+cd cmd/atlhyper_agent_v2
+go run main.go
 ```
 
 ### Configuration Reference
