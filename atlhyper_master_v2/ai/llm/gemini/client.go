@@ -31,6 +31,7 @@ func init() {
 type Client struct {
 	client *genai.Client
 	model  string
+	apiKey string // 只用于从错误文字里抹掉密钥（见 redactAPIKey）
 }
 
 // NewGeminiClient 创建 Gemini 客户端
@@ -40,9 +41,9 @@ func NewGeminiClient(apiKey, model string, extra ...option.ClientOption) (*Clien
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, append([]option.ClientOption{option.WithAPIKey(apiKey)}, extra...)...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gemini client: %w", err)
+		return nil, fmt.Errorf("failed to create gemini client: %w", redactAPIKey(err, apiKey))
 	}
-	return &Client{client: client, model: model}, nil
+	return &Client{client: client, model: model, apiKey: apiKey}, nil
 }
 
 // ChatStream 发送流式对话请求
@@ -97,6 +98,7 @@ func (c *Client) readStream(ctx context.Context, iter *genai.GenerateContentResp
 			return
 		}
 		if err != nil {
+			err = redactAPIKey(err, c.apiKey) // 写日志、往上交之前先抹掉网址里的密钥
 			log.Error("流式读取错误", "err", err)
 			llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: apiError(err)})
 			return
