@@ -641,9 +641,13 @@ func extractActiveEntityKeys(snap *cluster.ClusterSnapshot, otel *cluster.OTelSn
 		for _, svc := range otel.APMServices {
 			keys[aiops.EntityKey(svc.Namespace, "service", svc.Name)] = true
 		}
-		// Enhanced: logs 虚拟实体
+		// Enhanced: logs 虚拟实体 + 有错误日志的服务实体（与 APM 服务同一拼法；
+		// 只靠日志露面的服务不登记就会每轮被当成已消失，基线永远停在冷启动）
 		if otel.LogsSummary != nil {
 			keys[aiops.EntityKey(aiops.ClusterScope, "logs", "global")] = true
+			for _, se := range otel.LogsSummary.ServiceErrors {
+				keys[aiops.EntityKey(se.Namespace, "service", se.Service)] = true
+			}
 		}
 	}
 	return keys

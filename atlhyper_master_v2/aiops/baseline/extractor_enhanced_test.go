@@ -3,8 +3,10 @@
 package baseline
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
@@ -35,9 +37,12 @@ func makeOTelSnapshot() *cluster.OTelSnapshot {
 				{Source: "api-gateway", Target: "user-svc", CallCount: 1000, AvgMs: 50, ErrorRate: 0.02},
 			},
 		},
-		// 日志摘要
+		// 日志摘要（含按服务的错误数）
 		LogsSummary: &log.Summary{
 			SeverityCounts: map[string]int64{"ERROR": 600, "WARN": 200, "INFO": 5000},
+			ServiceErrors: []log.ServiceErrorCount{
+				{Namespace: "default", Service: "api-gateway", Count: 2},
+			},
 		},
 		// OTel Node 指标（磁盘 + PSI）
 		MetricsNodes: []metrics.NodeMetrics{
@@ -104,6 +109,145 @@ func TestExtractLogMetrics(t *testing.T) {
 	assertMetric(t, globalMetrics, "log_error_count", 600)
 	assertMetric(t, globalMetrics, "log_warn_count", 200)
 
+	// 服务级指标（来自按服务的错误数）
+	gwMetrics := indexPoints(points, "default/service/api-gateway")
+	assertMetric(t, gwMetrics, "log_error_count", 2)
+}
+
+// 按服务的错误数落在各服务实体上（log_error_count），与集群级计数互不依赖
+func TestExtractLogMetrics_ServiceErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		summary *log.Summary
+		want    map[string]float64 // 服务实体键 → log_error_count
+	}{
+		{
+			name: "按服务的错误数落在各服务实体上",
+			summary: &log.Summary{
+				SeverityCounts: map[string]int64{"ERROR": 45},
+				ServiceErrors: []log.ServiceErrorCount{
+					{Namespace: "shop", Service: "checkout", Count: 42},
+					{Namespace: "jobs", Service: "worker", Count: 3},
+				},
+			},
+			want: map[string]float64{"shop/service/checkout": 42, "jobs/service/worker": 3},
+		},
+		{
+			name:    "旧版 Agent 不带按服务的计数：不发，也不出错",
+			summary: &log.Summary{SeverityCounts: map[string]int64{"ERROR": 7}},
+			want:    map[string]float64{},
+		},
+		{
+			name:    "没有服务出错",
+			summary: &log.Summary{SeverityCounts: map[string]int64{"ERROR": 7}, ServiceErrors: []log.ServiceErrorCount{}},
+			want:    map[string]float64{},
+		},
+		{
+			name:    "条数为 0 不发（与集群级计数一致）",
+			summary: &log.Summary{ServiceErrors: []log.ServiceErrorCount{{Namespace: "shop", Service: "checkout", Count: 0}}},
+			want:    map[string]float64{},
+		},
+		{
+			name:    "没有集群级计数也照发按服务的",
+			summary: &log.Summary{ServiceErrors: []log.ServiceErrorCount{{Namespace: "shop", Service: "checkout", Count: 5}}},
+			want:    map[string]float64{"shop/service/checkout": 5},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := serviceLogErrorCounts(t, extractLogMetrics(&cluster.OTelSnapshot{LogsSummary: tt.summary}))
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("服务级 log_error_count = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// 同一个服务的日志指标与 APM 指标落在同一个实体上：两边都按 aiops.EntityKey(命名空间, "service", 服务名) 拼，
+// 命名空间为空时也一样（落到集群级占位）；对不上 K8s Service 的服务两边都照常发出，⛔ 另做映射或丢弃
+func TestExtractLogMetrics_ServiceKeyMatchesAPM(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+	}{
+		{"有命名空间", "shop"},
+		{"命名空间为空", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			otel := &cluster.OTelSnapshot{
+				APMServices: []apm.APMService{{Name: "checkout", Namespace: tt.namespace, SuccessRate: 0.99}},
+				LogsSummary: &log.Summary{ServiceErrors: []log.ServiceErrorCount{
+					{Namespace: tt.namespace, Service: "checkout", Count: 9},
+				}},
+			}
+			apmKeys := map[string]bool{}
+			for _, p := range extractAPMMetrics(otel) {
+				apmKeys[p.EntityKey] = true
+			}
+			logKeys := serviceLogErrorCounts(t, extractLogMetrics(otel))
+			if len(apmKeys) != 1 || len(logKeys) != 1 {
+				t.Fatalf("APM 实体 %v，日志实体 %v，各应只有一个", apmKeys, logKeys)
+			}
+			for key := range logKeys {
+				if !apmKeys[key] {
+					t.Errorf("日志实体键 %q 与 APM 实体键 %v 不一致", key, apmKeys)
+				}
+			}
+		})
+	}
+}
+
+// 快照按 JSON 从 Agent 传来：旧版 Agent 没有 serviceErrors，照常解出、照常提取集群级指标，不发服务级；
+// 新版 Agent 的字段名是 camelCase
+func TestExtractLogMetrics_AgentPayload(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload string
+		want    map[string]float64 // 服务实体键 → log_error_count
+	}{
+		{
+			name:    "旧版 Agent",
+			payload: `{"logsSummary":{"totalEntries":120,"severityCounts":{"ERROR":7},"topServices":[],"latestAt":"2026-11-20T09:00:00Z"}}`,
+			want:    map[string]float64{},
+		},
+		{
+			name: "新版 Agent",
+			payload: `{"logsSummary":{"totalEntries":120,"severityCounts":{"ERROR":7},"topServices":[],"latestAt":"2026-11-20T09:00:00Z",` +
+				`"serviceErrors":[{"namespace":"shop","service":"checkout","count":5}]}}`,
+			want: map[string]float64{"shop/service/checkout": 5},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var otel cluster.OTelSnapshot
+			if err := json.Unmarshal([]byte(tt.payload), &otel); err != nil {
+				t.Fatalf("快照应能解出: %v", err)
+			}
+			points := extractLogMetrics(&otel)
+			assertMetric(t, indexPoints(points, "_cluster/logs/global"), "log_error_count", 7)
+			if got := serviceLogErrorCounts(t, points); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("服务级 log_error_count = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// serviceLogErrorCounts 取出落在服务实体上的日志指标（实体键 → 值）；服务实体上只该有 log_error_count
+func serviceLogErrorCounts(t *testing.T, points []aiops.MetricDataPoint) map[string]float64 {
+	t.Helper()
+	got := map[string]float64{}
+	for _, p := range points {
+		if aiops.ExtractEntityType(p.EntityKey) != "service" {
+			continue
+		}
+		if p.MetricName != "log_error_count" {
+			t.Errorf("服务实体 %s 上出现了 %s", p.EntityKey, p.MetricName)
+			continue
+		}
+		got[p.EntityKey] = p.Value
+	}
+	return got
 }
 
 func TestExtractLogMetrics_NilOTel(t *testing.T) {
