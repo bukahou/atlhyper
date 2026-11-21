@@ -28,3 +28,15 @@ func ValidateTarget(namespace, name string) error {
 	}
 	return nil
 }
+
+// DeletableKind delete 动作唯一支持的资源类型（重启 Pod 即删掉后由控制器重建）
+const DeletableKind = "Pod"
+
+// ValidateDeleteKind delete 只接受 Pod。Master 创建指令时与 Agent 执行前各校验一次：
+// 其他资源类型的删除没有实现，⛔ 不下发、不执行
+func ValidateDeleteKind(kind string) error {
+	if kind != DeletableKind {
+		return fmt.Errorf("delete only supports kind %q, got %q", DeletableKind, kind)
+	}
+	return nil
+}

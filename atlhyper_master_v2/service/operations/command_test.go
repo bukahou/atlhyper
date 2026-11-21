@@ -423,6 +423,18 @@ func TestCreateCommand_InvalidRequestIsErrInvalidCommand(t *testing.T) {
 	}
 }
 
+// delete 只接受 Pod：其他资源类型在下发前就以参数错误拒绝（Agent 执行前再核对一次）
+func TestCreateCommand_RejectsDeleteOfNonPod(t *testing.T) {
+	svc := NewCommandService(&mockProducer{}, &mockCommandRepo{}, presenceStub{"c1": true})
+	_, err := svc.CreateCommand(context.Background(), &model.CreateCommandRequest{
+		ClusterID: "c1", Action: command.ActionDelete, Source: command.SourceWeb,
+		TargetKind: "Deployment", TargetNamespace: "default", TargetName: "nginx",
+	})
+	if !errors.Is(err, model.ErrInvalidCommand) {
+		t.Fatalf("删除 Deployment 应返回 ErrInvalidCommand，实际 %v", err)
+	}
+}
+
 func TestPurgeHistory(t *testing.T) {
 	repo := &historyRecorder{}
 	svc := NewCommandService(&mockProducer{}, repo, presenceStub{})

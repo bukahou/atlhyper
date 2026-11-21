@@ -26,7 +26,7 @@ type TimeoutConfig struct {
 // MasterConfig Master 通信配置
 type MasterConfig struct {
 	URL   string `env:"AGENT_MASTER_URL" envDefault:"http://localhost:8081"` // Master AgentSDK 端口（非 Gateway 端口）
-	Token string `env:"AGENT_MASTER_TOKEN"`                                  // 集群令牌（Master 签发）；空则不带认证头。⛔ 凭证，无默认值，不得写入日志
+	Token string `env:"AGENT_MASTER_TOKEN,required,notEmpty"`                // 集群令牌（Master 签发，必填）。⛔ 凭证，无默认值，不得写入日志
 }
 
 // KubernetesConfig Kubernetes 连接配置

@@ -240,7 +240,7 @@ npm install && npm run dev
 | 変数 | 必須 | デフォルト | 説明 |
 |------|------|-----------|------|
 | `AGENT_MASTER_URL` | はい | - | Master AgentSDK アドレス |
-| `AGENT_MASTER_TOKEN` | いいえ | - | Master が発行するクラスタートークン（管理者がクラスターレジストリで発行）。すべてのリクエストに `Authorization: Bearer` として付与。Master が `enforce` モードの場合は必須。認証情報として扱うこと |
+| `AGENT_MASTER_TOKEN` | はい | - | Master が発行するクラスタートークン（管理者がクラスターレジストリで発行）。すべてのリクエストに `Authorization: Bearer` として付与。未設定の場合 Agent は起動しない。認証情報として扱うこと |
 | `AGENT_CLUSTER_ID` | いいえ | 自動検出 | クラスター固有識別子（デフォルトは kube-system UID を使用） |
 | `AGENT_CLICKHOUSE_DSN` | いいえ | - | ClickHouse 接続アドレス（OTel クエリを有効化） |
 

@@ -241,7 +241,7 @@ npm install && npm run dev
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `AGENT_MASTER_URL` | Yes | - | Master AgentSDK URL |
-| `AGENT_MASTER_TOKEN` | No | - | Cluster token issued by Master (Admin → cluster registry). Sent as `Authorization: Bearer` on every request; required when Master runs in `enforce` mode. Treat as a credential |
+| `AGENT_MASTER_TOKEN` | Yes | - | Cluster token issued by Master (Admin → cluster registry). Sent as `Authorization: Bearer` on every request; the Agent refuses to start without it. Treat as a credential |
 | `AGENT_CLUSTER_ID` | No | Auto-detected | Unique cluster identifier (defaults to kube-system UID) |
 | `AGENT_CLICKHOUSE_DSN` | No | - | ClickHouse connection URL (enables OTel queries) |
 

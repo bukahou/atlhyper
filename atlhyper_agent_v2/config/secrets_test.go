@@ -11,11 +11,9 @@ func TestLoadMasterToken(t *testing.T) {
 		env  string
 		want string
 	}{
-		{"未设置", "", ""},
-		{"正常取值", "atlk_placeholder-not-a-real-token", "atlk_placeholder-not-a-real-token"},
+		{"正常取值", placeholderToken, placeholderToken},
 		// 从文件或 Secret 注入时常带换行；带着换行的值放不进请求头
-		{"去掉首尾空白与换行", "  atlk_placeholder-not-a-real-token\n", "atlk_placeholder-not-a-real-token"},
-		{"只有空白等同未设置", " \n", ""},
+		{"去掉首尾空白与换行", "  " + placeholderToken + "\n", placeholderToken},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -23,6 +21,31 @@ func TestLoadMasterToken(t *testing.T) {
 			t.Setenv("AGENT_MASTER_TOKEN", c.env)
 			if got := mustLoad(t).Master.Token; got != c.want {
 				t.Errorf("Master.Token = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// 令牌必填：没配、为空、只有空白都启动失败，错误指出变量名（不带令牌的 Agent 在 enforce 下只会被拒）
+func TestLoadMasterToken_RequiredFails(t *testing.T) {
+	cases := []struct {
+		name  string
+		set   bool
+		value string
+	}{
+		{"未设置", false, ""},
+		{"空串", true, ""},
+		{"只有空白与换行", true, " \n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			clearAgentEnv(t)
+			if c.set {
+				t.Setenv("AGENT_MASTER_TOKEN", c.value)
+			}
+			_, err := Load()
+			if err == nil || !strings.Contains(err.Error(), "AGENT_MASTER_TOKEN") {
+				t.Fatalf("应返回指出 AGENT_MASTER_TOKEN 的错误，实际 %v", err)
 			}
 		})
 	}

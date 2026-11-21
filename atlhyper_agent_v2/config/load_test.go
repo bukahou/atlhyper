@@ -19,6 +19,15 @@ func clearAgentEnv(t *testing.T) {
 	}
 }
 
+// placeholderToken 测试用占位令牌（⛔ 不是真实令牌）
+const placeholderToken = "atlk_placeholder-not-a-real-token"
+
+// setRequiredAgentEnv 只填必填项（集群令牌），其余保持未设置
+func setRequiredAgentEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("AGENT_MASTER_TOKEN", placeholderToken)
+}
+
 func mustLoad(t *testing.T) AppConfig {
 	t.Helper()
 	cfg, err := Load()
@@ -28,14 +37,15 @@ func mustLoad(t *testing.T) AppConfig {
 	return cfg
 }
 
-// 什么都不配时的默认值（变量名与默认值改造前后都不变）
+// 只配必填项（集群令牌）时的默认值（变量名与默认值改造前后都不变）
 func TestLoad_Defaults(t *testing.T) {
 	clearAgentEnv(t)
+	setRequiredAgentEnv(t)
 	c := mustLoad(t)
 	want := AppConfig{
 		Log:        LogConfig{Level: "info", Format: "text"},
 		Agent:      AgentConfig{ClusterID: "", HealthAddr: ":8082"},
-		Master:     MasterConfig{URL: "http://localhost:8081", Token: ""},
+		Master:     MasterConfig{URL: "http://localhost:8081", Token: placeholderToken},
 		Kubernetes: KubernetesConfig{KubeConfig: ""},
 		Scheduler: SchedulerConfig{
 			SnapshotInterval: 10 * time.Second, CommandPollInterval: 100 * time.Millisecond,
@@ -87,6 +97,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 // kubeconfig：AGENT_KUBECONFIG 优先，其次标准的 KUBECONFIG
 func TestLoad_KubeConfigFallback(t *testing.T) {
 	clearAgentEnv(t)
+	setRequiredAgentEnv(t)
 	t.Setenv("KUBECONFIG", "/std/config")
 	if got := mustLoad(t).Kubernetes.KubeConfig; got != "/std/config" {
 		t.Errorf("只有 KUBECONFIG 时 = %q", got)
@@ -100,6 +111,7 @@ func TestLoad_KubeConfigFallback(t *testing.T) {
 // 格式写错：返回错误并指出变量名，⛔ 不静默用默认值
 func TestLoad_InvalidDurationFails(t *testing.T) {
 	clearAgentEnv(t)
+	setRequiredAgentEnv(t)
 	t.Setenv("AGENT_SNAPSHOT_INTERVAL", "10")
 	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "AGENT_SNAPSHOT_INTERVAL") {
 		t.Fatalf("应返回指出 AGENT_SNAPSHOT_INTERVAL 的错误，实际 %v", err)

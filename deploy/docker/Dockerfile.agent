@@ -19,7 +19,13 @@ LABEL stage=builder
 WORKDIR /app
 
 COPY go.mod go.sum ./
-RUN go mod download
+# 下载依赖偶有网络抖动（模块代理返回 HTTP/2 流错误等），失败时等 10 秒重试，三次都失败才中止构建
+RUN for attempt in 1 2 3; do \
+      go mod download && exit 0; \
+      echo "go mod download 失败（第 ${attempt} 次），10 秒后重试" >&2; \
+      sleep 10; \
+    done; \
+    exit 1
 
 COPY . .
 

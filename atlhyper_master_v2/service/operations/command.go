@@ -149,6 +149,13 @@ func (s *CommandService) validateRequest(req *model.CreateCommandRequest) error 
 		return err
 	}
 
+	// delete 只实现了删 Pod
+	if req.Action == command.ActionDelete {
+		if err := command.ValidateDeleteKind(req.TargetKind); err != nil {
+			return err
+		}
+	}
+
 	// 某些操作需要目标信息
 	needsTarget := map[string]bool{
 		command.ActionScale:       true,
