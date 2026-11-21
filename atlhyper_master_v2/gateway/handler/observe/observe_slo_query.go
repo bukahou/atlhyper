@@ -17,7 +17,7 @@ func (h *ObserveHandler) SLOSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -40,7 +40,7 @@ func (h *ObserveHandler) SLOIngress(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -64,7 +64,7 @@ func (h *ObserveHandler) SLOTimeSeries(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 

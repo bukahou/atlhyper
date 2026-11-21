@@ -22,7 +22,7 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -41,7 +41,7 @@ func (h *ObserveHandler) TracesList(w http.ResponseWriter, r *http.Request) {
 	if timeRange != "" && timeRange != "15m" {
 		minutes, ok := parseTimeRangeMinutes(timeRange)
 		if !ok {
-			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
+			writeInvalidQuery(w, "invalid time_range")
 			return
 		}
 		params := traceListParams(r)
@@ -123,7 +123,7 @@ func (h *ObserveHandler) TracesServices(w http.ResponseWriter, r *http.Request) 
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -140,7 +140,7 @@ func (h *ObserveHandler) TracesServices(w http.ResponseWriter, r *http.Request) 
 	if timeRange != "" && timeRange != "15m" {
 		minutes, ok := parseTimeRangeMinutes(timeRange)
 		if !ok {
-			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
+			writeInvalidQuery(w, "invalid time_range")
 			return
 		}
 		params := command.QueryTracesParams{SubAction: command.TraceListServices, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
@@ -167,7 +167,7 @@ func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) 
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -184,7 +184,7 @@ func (h *ObserveHandler) TracesTopology(w http.ResponseWriter, r *http.Request) 
 	if timeRange != "" && timeRange != "15m" {
 		minutes, ok := parseTimeRangeMinutes(timeRange)
 		if !ok {
-			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
+			writeInvalidQuery(w, "invalid time_range")
 			return
 		}
 		params := command.QueryTracesParams{SubAction: command.TraceTopology, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
@@ -212,7 +212,7 @@ func (h *ObserveHandler) TracesOperations(w http.ResponseWriter, r *http.Request
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -229,7 +229,7 @@ func (h *ObserveHandler) TracesOperations(w http.ResponseWriter, r *http.Request
 	if timeRange != "" && timeRange != "15m" {
 		minutes, ok := parseTimeRangeMinutes(timeRange)
 		if !ok {
-			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
+			writeInvalidQuery(w, "invalid time_range")
 			return
 		}
 		params := command.QueryTracesParams{SubAction: command.TraceListOperations, TimeWindow: command.TimeWindow{Since: fmt.Sprintf("%dm", minutes)}}
@@ -270,7 +270,7 @@ func (h *ObserveHandler) TracesDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -278,7 +278,7 @@ func (h *ObserveHandler) TracesDetail(w http.ResponseWriter, r *http.Request) {
 	traceID := strings.TrimPrefix(r.URL.Path, "/api/v2/observe/traces/")
 	traceID = strings.TrimSuffix(traceID, "/")
 	if traceID == "" {
-		handler.WriteError(w, http.StatusBadRequest, "trace_id is required")
+		writeInvalidQuery(w, "trace_id is required")
 		return
 	}
 
@@ -296,7 +296,7 @@ func (h *ObserveHandler) TracesCorrelations(w http.ResponseWriter, r *http.Reque
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -312,7 +312,7 @@ func (h *ObserveHandler) TracesCorrelations(w http.ResponseWriter, r *http.Reque
 	if tr := q.Get("time_range"); tr != "" {
 		minutes, ok := parseTimeRangeMinutes(tr)
 		if !ok {
-			handler.WriteError(w, http.StatusBadRequest, "invalid time_range")
+			writeInvalidQuery(w, "invalid time_range")
 			return
 		}
 		params.Since = fmt.Sprintf("%dm", minutes)
@@ -330,18 +330,18 @@ func (h *ObserveHandler) TracesStats(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
 	subAction := r.URL.Query().Get("sub_action")
 	if subAction != command.TraceHTTPStats && subAction != command.TraceDBStats {
-		handler.WriteError(w, http.StatusBadRequest, "sub_action 须为 http_stats 或 db_stats")
+		writeInvalidQuery(w, "sub_action 须为 http_stats 或 db_stats")
 		return
 	}
 	service := r.URL.Query().Get("service")
 	if service == "" {
-		handler.WriteError(w, http.StatusBadRequest, "service is required")
+		writeInvalidQuery(w, "service is required")
 		return
 	}
 
@@ -375,7 +375,7 @@ func (h *ObserveHandler) APMServiceSeries(w http.ResponseWriter, r *http.Request
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -385,7 +385,7 @@ func (h *ObserveHandler) APMServiceSeries(w http.ResponseWriter, r *http.Request
 	path = strings.TrimSuffix(path, "/")
 	serviceName := path
 	if serviceName == "" {
-		handler.WriteError(w, http.StatusBadRequest, "service name is required")
+		writeInvalidQuery(w, "service name is required")
 		return
 	}
 

@@ -83,7 +83,7 @@ func (h *NodeMetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -122,7 +122,7 @@ func (h *NodeMetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *NodeMetricsHandler) getDetail(w http.ResponseWriter, r *http.Request, nodeName string) {
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -160,7 +160,7 @@ func (h *NodeMetricsHandler) getDetail(w http.ResponseWriter, r *http.Request, n
 func (h *NodeMetricsHandler) getHistory(w http.ResponseWriter, r *http.Request, nodeName string) {
 	clusterID := r.URL.Query().Get("cluster_id")
 	if clusterID == "" {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 

@@ -19,7 +19,7 @@ func (h *ObserveHandler) MetricsSummary(w http.ResponseWriter, r *http.Request) 
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -42,7 +42,7 @@ func (h *ObserveHandler) MetricsNodes(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -71,7 +71,7 @@ func (h *ObserveHandler) MetricsHardware(w http.ResponseWriter, r *http.Request)
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -96,7 +96,7 @@ func (h *ObserveHandler) MetricsCompare(w http.ResponseWriter, r *http.Request) 
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -122,7 +122,7 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -131,7 +131,7 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 	path = strings.TrimSuffix(path, "/")
 
 	if path == "" {
-		handler.WriteError(w, http.StatusBadRequest, "node name is required")
+		writeInvalidQuery(w, "node name is required")
 		return
 	}
 
