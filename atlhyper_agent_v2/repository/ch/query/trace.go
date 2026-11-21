@@ -322,7 +322,7 @@ func (r *traceRepository) ListServices(ctx context.Context, since time.Duration,
 
 	query := fmt.Sprintf(`
 		SELECT ServiceName,
-		       if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default')) AS ns,
+		       `+serviceNamespaceExpr("")+` AS ns,
 		       anyLast(ResourceAttributes['deployment.environment']) AS env,
 		       count() AS spanCount,
 		       countIf(StatusCode = `+apm.SQLStatusCodeError+`) AS errorCount,
@@ -431,7 +431,7 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration, 
 	// 节点: 所有服务
 	serviceQuery := fmt.Sprintf(`
 		SELECT ServiceName,
-		       if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default')) AS ns,
+		       `+serviceNamespaceExpr("")+` AS ns,
 		       count() / %d AS rps,
 		       1 - countIf(StatusCode = `+apm.SQLStatusCodeError+`) / count() AS successRate,
 		       quantile(0.99)(Duration) / 1e6 AS p99Ms
@@ -489,8 +489,8 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration, 
 	edgeArgs = append(edgeArgs, timeArgs...)
 
 	edgeQuery := fmt.Sprintf(`
-		SELECT concat(if(t1.ResourceAttributes['service.namespace'] != '', t1.ResourceAttributes['service.namespace'], if(t1.ResourceAttributes['k8s.namespace.name'] != '', t1.ResourceAttributes['k8s.namespace.name'], 'default')), '/', t1.ServiceName) AS source,
-		       concat(if(t2.ResourceAttributes['service.namespace'] != '', t2.ResourceAttributes['service.namespace'], if(t2.ResourceAttributes['k8s.namespace.name'] != '', t2.ResourceAttributes['k8s.namespace.name'], 'default')), '/', t2.ServiceName) AS target,
+		SELECT concat(`+serviceNamespaceExpr("t1")+`, '/', t1.ServiceName) AS source,
+		       concat(`+serviceNamespaceExpr("t2")+`, '/', t2.ServiceName) AS target,
 		       count() AS callCount,
 		       avg(t2.Duration) / 1e6 AS avgMs,
 		       countIf(t2.StatusCode = `+apm.SQLStatusCodeError+`) / count() AS errorRate
@@ -534,7 +534,7 @@ func (r *traceRepository) GetTopology(ctx context.Context, since time.Duration, 
 
 	dbQuery := fmt.Sprintf(`
 		SELECT ServiceName,
-		       if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default')) AS ns,
+		       `+serviceNamespaceExpr("")+` AS ns,
 		       SpanAttributes['db.system'] AS dbSystem,
 		       SpanAttributes['db.name'] AS dbName,
 		       count() AS callCount,

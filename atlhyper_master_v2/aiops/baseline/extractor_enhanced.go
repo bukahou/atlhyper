@@ -41,19 +41,17 @@ func extractAPMMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	return points
 }
 
-// extractLogMetrics 从 LogsSummary 提取日志指标（日志条目不进快照，服务级的计数要等 Agent 在概要里按服务给出）
+// extractLogMetrics 从 LogsSummary 提取日志指标：集群级的 ERROR / WARN 计数落在 logs/global 上，
+// 按服务的 ERROR 计数落在各服务实体上（旧版 Agent 的概要里没有按服务的计数，此时只有集群级）
 func extractLogMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
-	if otel == nil {
-		return nil
-	}
-	if otel.LogsSummary == nil {
+	if otel == nil || otel.LogsSummary == nil {
 		return nil
 	}
 
 	var points []aiops.MetricDataPoint
 
 	// 全局日志计数（来自 Summary）
-	if otel.LogsSummary != nil && len(otel.LogsSummary.SeverityCounts) > 0 {
+	if len(otel.LogsSummary.SeverityCounts) > 0 {
 		globalKey := aiops.EntityKey("_cluster", "logs", "global")
 		if errCount, ok := otel.LogsSummary.SeverityCounts["ERROR"]; ok && errCount > 0 {
 			points = append(points, aiops.MetricDataPoint{
@@ -65,6 +63,18 @@ func extractLogMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 				EntityKey: globalKey, MetricName: "log_warn_count", Value: float64(warnCount),
 			})
 		}
+	}
+
+	// 服务级 ERROR 计数：实体键与 APM 服务指标同一拼法（命名空间 + 服务名），对不上 K8s Service 的也照常发出
+	for _, se := range otel.LogsSummary.ServiceErrors {
+		if se.Count <= 0 {
+			continue
+		}
+		points = append(points, aiops.MetricDataPoint{
+			EntityKey:  aiops.EntityKey(se.Namespace, "service", se.Service),
+			MetricName: "log_error_count",
+			Value:      float64(se.Count),
+		})
 	}
 
 	return points

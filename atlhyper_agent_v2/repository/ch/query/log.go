@@ -2,7 +2,9 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -328,6 +330,49 @@ func histogramBucketSeconds(sinceSeconds int64) int64 {
 	return interval
 }
 
+// 日志概要的统计口径：时间窗与「什么算 ERROR」。总的 ERROR 计数（SeverityCounts["ERROR"]）与按服务的
+// 错误数都由这两段拼出，同一批日志在两处的数才对得上
+const (
+	logSummaryWindow  = "Timestamp >= now() - INTERVAL 5 MINUTE"
+	logErrorCondition = "SeverityText IN ('ERROR', 'SEVERE')"
+)
+
+// logSummaryAggQuery 日志概要的聚合：总数 + 各级别计数 + 最新时间
+const logSummaryAggQuery = `
+		SELECT count() AS total,
+		       countIf(` + logErrorCondition + `) AS errors,
+		       countIf(SeverityText IN ('WARN', 'WARNING')) AS warns,
+		       countIf(SeverityText = 'INFO') AS infos,
+		       countIf(SeverityText = 'DEBUG') AS debugs,
+		       max(Timestamp) AS latest_at
+		FROM otel_logs
+		WHERE ` + logSummaryWindow + `
+	`
+
+// logTopServicesQuery 日志量最多的 10 个服务
+const logTopServicesQuery = `
+		SELECT ServiceName, count() AS cnt
+		FROM otel_logs
+		WHERE ` + logSummaryWindow + `
+		GROUP BY ServiceName
+		ORDER BY cnt DESC
+		LIMIT 10
+	`
+
+// maxServiceErrors 日志概要里按服务的错误数最多带几个服务（错误数最多的前几名），控制快照大小
+const maxServiceErrors = 50
+
+// serviceErrorsQuery 按服务的 ERROR 日志数：错误数最多的前 maxServiceErrors 个服务，同数时按名字排（截断处稳定）。
+// 命名空间与 APM 服务同一取法，主控据此拼服务实体键；没有服务名的日志归不到任何服务，不计入
+var serviceErrorsQuery = `
+		SELECT ServiceName, ` + serviceNamespaceExpr("") + ` AS ns, count() AS errors
+		FROM otel_logs
+		WHERE ` + logSummaryWindow + ` AND ` + logErrorCondition + ` AND ServiceName != ''
+		GROUP BY ServiceName, ns
+		ORDER BY errors DESC, ServiceName, ns
+		LIMIT ` + strconv.Itoa(maxServiceErrors) + `
+	`
+
 // GetSummary 获取日志统计摘要（5 分钟窗口）
 func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 	summary := &log.Summary{
@@ -335,19 +380,9 @@ func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 	}
 
 	// 聚合查询：总数 + 各级别计数 + 最新时间
-	aggQuery := `
-		SELECT count() AS total,
-		       countIf(SeverityText IN ('ERROR', 'SEVERE')) AS errors,
-		       countIf(SeverityText IN ('WARN', 'WARNING')) AS warns,
-		       countIf(SeverityText = 'INFO') AS infos,
-		       countIf(SeverityText = 'DEBUG') AS debugs,
-		       max(Timestamp) AS latest_at
-		FROM otel_logs
-		WHERE Timestamp >= now() - INTERVAL 5 MINUTE
-	`
 	var total, errors, warns, infos, debugs int64
 	var latestAt time.Time
-	err := r.client.QueryRow(ctx, aggQuery).Scan(&total, &errors, &warns, &infos, &debugs, &latestAt)
+	err := r.client.QueryRow(ctx, logSummaryAggQuery).Scan(&total, &errors, &warns, &infos, &debugs, &latestAt)
 	if err != nil {
 		return nil, fmt.Errorf("query log summary: %w", err)
 	}
@@ -367,16 +402,15 @@ func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 		summary.SeverityCounts["DEBUG"] = debugs
 	}
 
+	// 按服务的错误数（口径同上面的 ERROR 计数）
+	serviceErrors, err := r.queryServiceErrors(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("日志按服务错误数查询: %w", err)
+	}
+	summary.ServiceErrors = serviceErrors
+
 	// Top 10 服务
-	topQuery := `
-		SELECT ServiceName, count() AS cnt
-		FROM otel_logs
-		WHERE Timestamp >= now() - INTERVAL 5 MINUTE
-		GROUP BY ServiceName
-		ORDER BY cnt DESC
-		LIMIT 10
-	`
-	rows, err := r.client.Query(ctx, topQuery)
+	rows, err := r.client.Query(ctx, logTopServicesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("日志 Top 服务查询: %w", err)
 	}
@@ -394,4 +428,35 @@ func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 	}
 
 	return summary, nil
+}
+
+// queryServiceErrors 按服务的 ERROR 日志数（serviceErrorsQuery）
+func (r *logRepository) queryServiceErrors(ctx context.Context) ([]log.ServiceErrorCount, error) {
+	rows, err := r.client.Query(ctx, serviceErrorsQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	skips := newScanSkips("queryServiceErrors")
+	defer skips.report()
+	return scanServiceErrors(rows, skips)
+}
+
+// scanServiceErrors 逐行读出按服务的错误数，解析不了的行跳过并记入 skips。
+// 查询成功但没有行时返回空切片：空 = 没有服务出错，nil 留给「没有这项数据」（旧版 Agent）
+func scanServiceErrors(rows *sql.Rows, skips *scanSkips) ([]log.ServiceErrorCount, error) {
+	result := []log.ServiceErrorCount{}
+	for rows.Next() {
+		var se log.ServiceErrorCount
+		if err := rows.Scan(&se.Service, &se.Namespace, &se.Count); err != nil {
+			skips.add(err)
+			continue
+		}
+		result = append(result, se)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }

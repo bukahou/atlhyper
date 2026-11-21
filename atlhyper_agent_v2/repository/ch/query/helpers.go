@@ -207,3 +207,17 @@ func sinceSeconds(since time.Duration) int64 {
 // maxQueryWindow 相对时间窗的上限（与 Master 侧一致的 30 天）：执行方自己守门，
 // ClickHouse 由 dev / prod 共用，不能让一条指令扫几年的数据
 const maxQueryWindow = 30 * 24 * time.Hour
+
+// serviceNamespaceExpr 服务所在命名空间的取值表达式：优先 service.namespace，其次 k8s.namespace.name，
+// 都没有时记为 default。主控按「命名空间 + 服务名」拼服务实体键，所以凡是按服务分组、结果要对上
+// 服务实体的查询（APM 服务、拓扑、按服务的错误日志数）都用本函数，⛔ 不各自内联。
+// alias 是 JOIN 里的表别名，单表查询传空串
+func serviceNamespaceExpr(alias string) string {
+	attrs := "ResourceAttributes"
+	if alias != "" {
+		attrs = alias + "." + attrs
+	}
+	byService := attrs + "['service.namespace']"
+	byPod := attrs + "['k8s.namespace.name']"
+	return "if(" + byService + " != '', " + byService + ", if(" + byPod + " != '', " + byPod + ", 'default'))"
+}

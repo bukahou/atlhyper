@@ -6,6 +6,36 @@ import (
 	"time"
 )
 
+// 服务命名空间只有一种取法：主控按「命名空间 + 服务名」拼服务实体键，按服务分组的查询各取各的，
+// 同一个服务就会落到不同实体上。取值钉在这里：已有的基线与实体键都建立在这个取法上
+func TestServiceNamespaceExpr(t *testing.T) {
+	tests := []struct {
+		name  string
+		alias string
+		want  string
+	}{
+		{
+			"单表查询",
+			"",
+			"if(ResourceAttributes['service.namespace'] != '', ResourceAttributes['service.namespace'], " +
+				"if(ResourceAttributes['k8s.namespace.name'] != '', ResourceAttributes['k8s.namespace.name'], 'default'))",
+		},
+		{
+			"JOIN 里带表别名",
+			"t1",
+			"if(t1.ResourceAttributes['service.namespace'] != '', t1.ResourceAttributes['service.namespace'], " +
+				"if(t1.ResourceAttributes['k8s.namespace.name'] != '', t1.ResourceAttributes['k8s.namespace.name'], 'default'))",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := serviceNamespaceExpr(tt.alias); got != tt.want {
+				t.Errorf("serviceNamespaceExpr(%q)\n got: %s\nwant: %s", tt.alias, got, tt.want)
+			}
+		})
+	}
+}
+
 // =============================================================================
 // TestComputeRateSeries
 // =============================================================================
