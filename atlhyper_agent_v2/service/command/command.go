@@ -11,7 +11,6 @@
 //   - cordon: 封锁节点
 //   - uncordon: 解封节点
 //   - dynamic: 动态 API 调用 (AI 只读查询)
-//   - apply_manifests: 应用多文档 YAML (Server-Side Apply)
 //
 // 执行流程:
 //  0. 核对指令所属的集群与本 Agent 一致，再核对目标是合法的资源名
@@ -30,7 +29,6 @@ import (
 
 	"AtlHyper/atlhyper_agent_v2/model"
 	"AtlHyper/atlhyper_agent_v2/repository"
-	"AtlHyper/atlhyper_agent_v2/sdk"
 	"AtlHyper/atlhyper_agent_v2/service"
 	model_v3 "AtlHyper/model_v3"
 	"AtlHyper/model_v3/command"
@@ -46,7 +44,6 @@ import (
 //   - metricsQueryRepo: Metrics 按需查询 (ClickHouse, 可选)
 type commandService struct {
 	clusterID   string // 本 Agent 所属的集群；只执行属于它的指令
-	k8sClient   sdk.K8sClient
 	podRepo     repository.PodRepository
 	genericRepo repository.GenericRepository
 
@@ -61,7 +58,6 @@ type commandService struct {
 // clusterID 是本 Agent 所属的集群：指令带着它所属的集群，两者不一致的指令不执行。
 func NewCommandService(
 	clusterID string,
-	k8sClient sdk.K8sClient,
 	podRepo repository.PodRepository,
 	genericRepo repository.GenericRepository,
 	traceQueryRepo repository.TraceQueryRepository,
@@ -70,7 +66,6 @@ func NewCommandService(
 ) service.CommandService {
 	return &commandService{
 		clusterID:        clusterID,
-		k8sClient:        k8sClient,
 		podRepo:          podRepo,
 		genericRepo:      genericRepo,
 		traceQueryRepo:   traceQueryRepo,
@@ -155,8 +150,6 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 		data, err = s.handleQueryLogs(ctx, cmd)
 	case command.ActionQueryMetrics:
 		data, err = s.handleQueryMetrics(ctx, cmd)
-	case command.ActionApplyManifests:
-		data, err = s.handleApplyManifests(ctx, cmd.Params)
 	default:
 		err = fmt.Errorf("unknown action: %s", cmd.Action)
 	}

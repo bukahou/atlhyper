@@ -138,7 +138,6 @@ func New() (*Agent, error) {
 
 	commandSvc := commandsvc.NewCommandService(
 		cfg.Agent.ClusterID,
-		k8sClient,
 		repos.pod, repos.generic,
 		traceQueryRepo, logQueryRepo, metricsQueryRepo,
 	)
