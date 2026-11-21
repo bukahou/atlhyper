@@ -169,7 +169,7 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			ch <- &llm.Chunk{Type: llm.ChunkError, Error: ctx.Err()}
+			llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: ctx.Err()})
 			return
 		default:
 		}
@@ -187,40 +187,47 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 
 		// 文本内容
 		if chunk.Message.Content != "" {
-			ch <- &llm.Chunk{Type: llm.ChunkText, Content: chunk.Message.Content}
+			if !llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkText, Content: chunk.Message.Content}) {
+				return
+			}
 		}
 
 		// Tool Calls
 		for _, tc := range chunk.Message.ToolCalls {
 			toolCallCounter++
 			paramsJSON, _ := json.Marshal(tc.Function.Arguments)
-			ch <- &llm.Chunk{
+			if !llm.SendChunk(ctx, ch, &llm.Chunk{
 				Type: llm.ChunkToolCall,
 				ToolCall: &llm.ToolCall{
 					ID:     fmt.Sprintf("ollama_call_%d", toolCallCounter),
 					Name:   tc.Function.Name,
 					Params: string(paramsJSON),
 				},
+			}) {
+				return
 			}
 		}
 
 		// 完成
 		if chunk.Done {
-			ch <- &llm.Chunk{
+			llm.SendChunk(ctx, ch, &llm.Chunk{
 				Type: llm.ChunkDone,
 				Usage: &llm.Usage{
 					InputTokens:  chunk.PromptEvalCount,
 					OutputTokens: chunk.EvalCount,
 				},
-			}
+			})
 			return
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Error("Scanner 读取错误", "err", err)
-		ch <- &llm.Chunk{Type: llm.ChunkError, Error: err}
+		llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: err})
+		return
 	}
+	// 响应体结束了却没等到 done=true 的那一行：上游没按约定收尾
+	llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: llm.ErrStreamIncomplete})
 }
 
 // Close 关闭客户端

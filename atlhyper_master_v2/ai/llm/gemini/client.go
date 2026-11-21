@@ -34,9 +34,11 @@ type Client struct {
 }
 
 // NewGeminiClient 创建 Gemini 客户端
-func NewGeminiClient(apiKey, model string) (*Client, error) {
+//
+// extra 供测试替换端点（option.WithEndpoint 指向假上游）；生产注册的工厂不传。
+func NewGeminiClient(apiKey, model string, extra ...option.ClientOption) (*Client, error) {
 	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, append([]option.ClientOption{option.WithAPIKey(apiKey)}, extra...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gemini client: %w", err)
 	}
@@ -78,17 +80,25 @@ func (c *Client) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.
 }
 
 // readStream 读取流式响应并转换为 Chunk
+//
+// 有候选给出停止原因（finishReason）才算说完：没说完时这个字段为空，
+// 而 SDK 读 JSON 数组流时，响应体在 ']' 之前结束也可能当作读完（返回 iterator.Done）。
 func (c *Client) readStream(ctx context.Context, iter *genai.GenerateContentResponseIterator, ch chan<- *llm.Chunk) {
 	var lastUsage *llm.Usage
+	finished := false
 	for {
 		resp, err := iter.Next()
 		if err == iterator.Done {
-			ch <- &llm.Chunk{Type: llm.ChunkDone, Usage: lastUsage}
+			if !finished {
+				llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: llm.ErrStreamIncomplete})
+				return
+			}
+			llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkDone, Usage: lastUsage})
 			return
 		}
 		if err != nil {
 			log.Error("流式读取错误", "err", err)
-			ch <- &llm.Chunk{Type: llm.ChunkError, Error: apiError(err)}
+			llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: apiError(err)})
 			return
 		}
 
@@ -102,18 +112,16 @@ func (c *Client) readStream(ctx context.Context, iter *genai.GenerateContentResp
 
 		// 解析候选响应
 		for _, cand := range resp.Candidates {
+			if cand.FinishReason != genai.FinishReasonUnspecified {
+				finished = true
+			}
 			if cand.Content == nil {
 				continue
 			}
 			for _, part := range cand.Content.Parts {
 				chunk := convertPart(part)
-				if chunk != nil {
-					select {
-					case ch <- chunk:
-					case <-ctx.Done():
-						ch <- &llm.Chunk{Type: llm.ChunkError, Error: ctx.Err()}
-						return
-					}
+				if chunk != nil && !llm.SendChunk(ctx, ch, chunk) {
+					return
 				}
 			}
 		}

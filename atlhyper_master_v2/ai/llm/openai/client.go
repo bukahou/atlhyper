@@ -228,14 +228,11 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 		if data == "[DONE]" {
 			// 未送信のツール呼び出しを送信
 			for _, tc := range toolCalls {
-				select {
-				case ch <- &llm.Chunk{Type: llm.ChunkToolCall, ToolCall: tc}:
-				case <-ctx.Done():
-					ch <- &llm.Chunk{Type: llm.ChunkError, Error: ctx.Err()}
+				if !llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkToolCall, ToolCall: tc}) {
 					return
 				}
 			}
-			ch <- &llm.Chunk{Type: llm.ChunkDone, Usage: lastUsage}
+			llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkDone, Usage: lastUsage})
 			return
 		}
 
@@ -256,10 +253,7 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 		for _, choice := range chunk.Choices {
 			// テキストコンテンツ
 			if choice.Delta.Content != "" {
-				select {
-				case ch <- &llm.Chunk{Type: llm.ChunkText, Content: choice.Delta.Content}:
-				case <-ctx.Done():
-					ch <- &llm.Chunk{Type: llm.ChunkError, Error: ctx.Err()}
+				if !llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkText, Content: choice.Delta.Content}) {
 					return
 				}
 			}
@@ -287,10 +281,7 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 			if choice.FinishReason == "tool_calls" {
 				// ツール呼び出し完了時に送信
 				for _, tc := range toolCalls {
-					select {
-					case ch <- &llm.Chunk{Type: llm.ChunkToolCall, ToolCall: tc}:
-					case <-ctx.Done():
-						ch <- &llm.Chunk{Type: llm.ChunkError, Error: ctx.Err()}
+					if !llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkToolCall, ToolCall: tc}) {
 						return
 					}
 				}
@@ -301,8 +292,11 @@ func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.
 
 	if err := scanner.Err(); err != nil {
 		log.Error("Scanner error", "err", err)
-		ch <- &llm.Chunk{Type: llm.ChunkError, Error: err}
+		llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: err})
+		return
 	}
+	// 响应体结束了却没等到 [DONE]：上游没按约定收尾
+	llm.SendChunk(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: llm.ErrStreamIncomplete})
 }
 
 // Close 关闭客户端
