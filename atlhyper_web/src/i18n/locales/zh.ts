@@ -1381,6 +1381,7 @@ export const zh: Translations = {
     delete: "删除",
     model: "模型",
     apiKeyConfigured: "API Key 已配置",
+    lastErrorAt: "发生于 {time}",
     // 提供商弹窗
     newProvider: "新增提供商",
     editProvider: "编辑提供商",

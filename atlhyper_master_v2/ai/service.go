@@ -209,18 +209,24 @@ func toMessage(m *database.AIMessage) *Message {
 	}
 }
 
-// recordProviderError 记录 Provider 错误到数据库（前端 AI 设置页可见）。
-// 只记错误码对应的通用说明，⛔ 不暴露内部 URL / IP / 响应体；原始错误进日志
+// recordProviderError 记日志并把 Provider 标成出错（原始错误只进日志）
 func (s *aiServiceImpl) recordProviderError(ctx context.Context, providerID int64, code string, err error) {
 	log.Warn("模型提供商调用失败", "provider", providerID, "code", code, "err", err)
-	if uerr := s.providerRepo.UpdateStatus(ctx, providerID, "error", errorSummary(code)); uerr != nil {
-		log.Warn("更新 Provider 错误状态失败", "provider", providerID, "err", uerr)
+	s.markProviderError(ctx, providerID, code)
+}
+
+// markProviderError 把 Provider 标成出错（前端 AI 设置页可见），调用处已记过日志时用它。
+// 只记错误码对应的通用说明，⛔ 不暴露内部 URL / IP / 响应体。
+// 用不随请求取消的 ctx：请求被取消、超时之后状态照样要写进库
+func (s *aiServiceImpl) markProviderError(ctx context.Context, providerID int64, code string) {
+	if err := s.providerRepo.UpdateStatus(context.WithoutCancel(ctx), providerID, "error", errorSummary(code)); err != nil {
+		log.Warn("更新 Provider 错误状态失败", "provider", providerID, "err", err)
 	}
 }
 
-// clearProviderError 成功调用后清除错误状态
+// clearProviderError 成功调用后清除错误状态（连同上一次的错误说明与时间）
 func (s *aiServiceImpl) clearProviderError(ctx context.Context, providerID int64) {
-	if err := s.providerRepo.UpdateStatus(ctx, providerID, "active", ""); err != nil {
+	if err := s.providerRepo.UpdateStatus(context.WithoutCancel(ctx), providerID, "active", ""); err != nil {
 		log.Warn("清除 Provider 错误状态失败", "provider", providerID, "err", err)
 	}
 }

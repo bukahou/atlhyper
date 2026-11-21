@@ -144,8 +144,13 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 		round := callRound
 		stream, err := llmClient.ChatStream(ctx, req)
 		if err != nil {
+			if ctx.Err() != nil { // 用户停止或对话整体超时：不是提供商的问题
+				log.Info("对话被中止", "conv", convID, "err", ctx.Err())
+				return llm.StreamResult{}, false
+			}
 			code := ErrorCode(err)
 			log.Error("调用模型失败", "conv", convID, "provider", roleCfg.Provider, "code", code, "err", err)
+			s.markProviderError(ctx, roleCfg.ProviderID, code)
 			sendError(ch, code)
 			return llm.StreamResult{}, false
 		}
@@ -163,6 +168,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 			default:
 				code := ErrorCode(err)
 				log.Error("模型的流出错", "conv", convID, "provider", roleCfg.Provider, "code", code, "err", err)
+				s.markProviderError(ctx, roleCfg.ProviderID, code)
 				sendError(ch, code)
 			}
 			return res, false
@@ -185,6 +191,7 @@ func (s *aiServiceImpl) chatLoop(ctx context.Context, clusterID string, convID i
 	finish := func() {
 		s.persistFinalAssistantMessage(ctx, convID, finalText)
 		settleUsage()
+		s.clearProviderError(ctx, roleCfg.ProviderID) // 整轮对话成功：清掉之前留下的错误状态
 		ch <- &ChatChunk{
 			Type: "done",
 			Stats: &ChatStats{

@@ -24,6 +24,8 @@ export interface AIProvider {
   totalCost: number;
   lastUsedAt?: string;
   lastError?: string;
+  /** 上一次出错的时间（RFC 3339）；调用成功后与 lastError 一起清空 */
+  lastErrorAt?: string;
   createdAt: string;
   updatedAt: string;
 }
