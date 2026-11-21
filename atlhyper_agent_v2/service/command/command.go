@@ -103,6 +103,7 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 	if cmd.ClusterID != "" && cmd.ClusterID != s.clusterID {
 		result.Success = false
 		result.Error = fmt.Sprintf("指令属于集群 %q，本 Agent 属于集群 %q，集群不符，未执行", cmd.ClusterID, s.clusterID)
+		result.Code = command.CodeRejected
 		result.ExecTime = time.Since(start)
 		return result
 	}
@@ -111,6 +112,7 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 	if err = command.CheckSource(cmd.Action, cmd.Source); err != nil {
 		result.Success = false
 		result.Error = fmt.Sprintf("%v，未执行", err)
+		result.Code = command.CodeRejected
 		result.ExecTime = time.Since(start)
 		return result
 	}
@@ -119,6 +121,7 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 	if err = command.ValidateTarget(cmd.Namespace, cmd.Name); err != nil {
 		result.Success = false
 		result.Error = err.Error()
+		result.Code = command.CodeRejected
 		result.ExecTime = time.Since(start)
 		return result
 	}
@@ -163,6 +166,7 @@ func (s *commandService) Execute(ctx context.Context, cmd *command.Command) *com
 	if err != nil {
 		result.Success = false
 		result.Error = err.Error()
+		result.Code = resultCode(err)
 	} else {
 		result.Success = true
 		if data != nil {

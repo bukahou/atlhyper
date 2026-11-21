@@ -25,7 +25,8 @@ type Result struct {
 	CommandID  string        `json:"commandId"`
 	Success    bool          `json:"success"`
 	Output     string        `json:"output,omitempty"`
-	Error      string        `json:"error,omitempty"`
+	Error      string        `json:"error,omitempty"` // 原始错误：只进日志，⛔ 不返回给页面
+	Code       string        `json:"code,omitempty"`  // 失败类别（见 result_code.go）；旧版 Agent 不带
 	ExecTime   time.Duration `json:"execTime,omitempty"`
 	ExecutedAt time.Time     `json:"executedAt"`
 }

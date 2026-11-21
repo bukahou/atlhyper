@@ -17,10 +17,10 @@ import (
 // parseQuery 解析并校验查询参数：类型不对、缺必填项、取值越界都直接报错，⛔ 不按零值继续
 func parseQuery[P command.QueryParams](cmd *command.Command, into P) error {
 	if err := command.ParseParams(cmd.Params, into); err != nil {
-		return fmt.Errorf("%s 参数格式不对: %w", cmd.Action, err)
+		return fmt.Errorf("%w: %s 参数格式不对: %v", errInvalidParams, cmd.Action, err)
 	}
 	if err := into.Validate(); err != nil {
-		return fmt.Errorf("%s 参数不合法: %w", cmd.Action, err)
+		return fmt.Errorf("%w: %s 参数不合法: %v", errInvalidParams, cmd.Action, err)
 	}
 	return nil
 }
@@ -28,7 +28,7 @@ func parseQuery[P command.QueryParams](cmd *command.Command, into P) error {
 // handleQueryTraces 处理 Trace 查询指令
 func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Command) (any, error) {
 	if s.traceQueryRepo == nil {
-		return nil, fmt.Errorf("ClickHouse not configured")
+		return nil, errClickHouseNotConfigured
 	}
 	var p command.QueryTracesParams
 	if err := parseQuery(cmd, &p); err != nil {
@@ -84,7 +84,7 @@ func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Com
 // handleQueryTraceDetail 处理 Trace 详情查询指令
 func (s *commandService) handleQueryTraceDetail(ctx context.Context, cmd *command.Command) (any, error) {
 	if s.traceQueryRepo == nil {
-		return nil, fmt.Errorf("ClickHouse not configured")
+		return nil, errClickHouseNotConfigured
 	}
 	var p command.QueryTraceDetailParams
 	if err := parseQuery(cmd, &p); err != nil {
@@ -96,7 +96,7 @@ func (s *commandService) handleQueryTraceDetail(ctx context.Context, cmd *comman
 // handleQueryLogs 处理日志查询指令（通过 sub_action 区分列表/直方图）
 func (s *commandService) handleQueryLogs(ctx context.Context, cmd *command.Command) (any, error) {
 	if s.logQueryRepo == nil {
-		return nil, fmt.Errorf("ClickHouse not configured")
+		return nil, errClickHouseNotConfigured
 	}
 	var p command.QueryLogsParams
 	if err := parseQuery(cmd, &p); err != nil {
@@ -127,7 +127,7 @@ func (s *commandService) handleQueryLogs(ctx context.Context, cmd *command.Comma
 // handleQueryMetrics 处理指标查询指令
 func (s *commandService) handleQueryMetrics(ctx context.Context, cmd *command.Command) (any, error) {
 	if s.metricsQueryRepo == nil {
-		return nil, fmt.Errorf("ClickHouse not configured")
+		return nil, errClickHouseNotConfigured
 	}
 	var p command.QueryMetricsParams
 	if err := parseQuery(cmd, &p); err != nil {
