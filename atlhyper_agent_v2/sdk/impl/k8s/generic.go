@@ -22,13 +22,6 @@ import (
 // 通用操作
 // =============================================================================
 
-// Delete 删除资源
-//
-// TODO: 使用 dynamic client 实现通用删除
-func (c *Client) Delete(ctx context.Context, gvk sdk.GroupVersionKind, namespace, name string, opts sdk.DeleteOptions) error {
-	return fmt.Errorf("not implemented")
-}
-
 // Dynamic 执行动态 API 查询 (仅 GET)
 //
 // 安全限制:

@@ -46,3 +46,22 @@ func TestValidateTarget(t *testing.T) {
 		})
 	}
 }
+
+// delete 只实现了删 Pod：其他资源类型两端都拒绝
+func TestValidateDeleteKind(t *testing.T) {
+	tests := []struct {
+		kind    string
+		wantErr bool
+	}{
+		{"Pod", false},
+		{"Deployment", true},
+		{"Node", true},
+		{"pod", true},
+		{"", true},
+	}
+	for _, tt := range tests {
+		if err := ValidateDeleteKind(tt.kind); (err != nil) != tt.wantErr {
+			t.Errorf("ValidateDeleteKind(%q) error = %v, wantErr %v", tt.kind, err, tt.wantErr)
+		}
+	}
+}

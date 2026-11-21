@@ -30,15 +30,6 @@ func (r *genericRepository) DeletePod(ctx context.Context, namespace, name strin
 	})
 }
 
-// Delete 删除任意资源
-func (r *genericRepository) Delete(ctx context.Context, kind, namespace, name string, opts model.DeleteOptions) error {
-	gvk := sdk.GroupVersionKind{Kind: kind}
-	return r.client.Delete(ctx, gvk, namespace, name, sdk.DeleteOptions{
-		GracePeriodSeconds: opts.GracePeriodSeconds,
-		Force:              opts.Force,
-	})
-}
-
 // =============================================================================
 // Deployment 操作
 // =============================================================================

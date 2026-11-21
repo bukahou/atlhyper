@@ -139,7 +139,6 @@ type ServiceAccountRepository interface {
 // GenericRepository 通用操作接口 (写操作 + 动态查询)
 type GenericRepository interface {
 	DeletePod(ctx context.Context, namespace, name string, opts model.DeleteOptions) error
-	Delete(ctx context.Context, kind, namespace, name string, opts model.DeleteOptions) error
 	ScaleDeployment(ctx context.Context, namespace, name string, replicas int32) error
 	RestartDeployment(ctx context.Context, namespace, name string) error
 	UpdateDeploymentImage(ctx context.Context, namespace, name, container, image string) error

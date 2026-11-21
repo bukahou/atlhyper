@@ -176,7 +176,6 @@ type K8sClient interface {
 	// 通用操作
 	// =========================================================================
 
-	Delete(ctx context.Context, gvk GroupVersionKind, namespace, name string, opts DeleteOptions) error
 	Dynamic(ctx context.Context, req DynamicRequest) (*DynamicResponse, error)
 
 	// RestConfig 返回 REST 配置（用于构建 dynamic/discovery 客户端）

@@ -172,7 +172,7 @@ func (h *OpsHandler) PodRestart(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.svc.CreateCommand(r.Context(), &model.CreateCommandRequest{
 		ClusterID:       req.ClusterID,
 		Action:          command.ActionDelete,
-		TargetKind:      "Pod",
+		TargetKind:      command.DeletableKind,
 		TargetNamespace: req.Namespace,
 		TargetName:      req.Name,
 		Source:          command.SourceWeb,

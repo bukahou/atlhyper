@@ -36,7 +36,6 @@ func (m *PodRepository) GetLogs(ctx context.Context, namespace, name string, opt
 // GenericRepository mock
 type GenericRepository struct {
 	DeletePodFn             func(ctx context.Context, namespace, name string, opts model.DeleteOptions) error
-	DeleteFn                func(ctx context.Context, kind, namespace, name string, opts model.DeleteOptions) error
 	ScaleDeploymentFn       func(ctx context.Context, namespace, name string, replicas int32) error
 	RestartDeploymentFn     func(ctx context.Context, namespace, name string) error
 	UpdateDeploymentImageFn func(ctx context.Context, namespace, name, container, image string) error
@@ -50,13 +49,6 @@ type GenericRepository struct {
 func (m *GenericRepository) DeletePod(ctx context.Context, namespace, name string, opts model.DeleteOptions) error {
 	if m.DeletePodFn != nil {
 		return m.DeletePodFn(ctx, namespace, name, opts)
-	}
-	return nil
-}
-
-func (m *GenericRepository) Delete(ctx context.Context, kind, namespace, name string, opts model.DeleteOptions) error {
-	if m.DeleteFn != nil {
-		return m.DeleteFn(ctx, kind, namespace, name, opts)
 	}
 	return nil
 }

@@ -361,6 +361,10 @@ func (s *commandService) handleDynamic(ctx context.Context, cmd *command.Command
 
 // handleDelete 处理通用删除指令
 func (s *commandService) handleDelete(ctx context.Context, cmd *command.Command) error {
+	// 只实现了删 Pod（Master 下发前已校验，执行方按同一条规则再核对一次）
+	if err := command.ValidateDeleteKind(cmd.Kind); err != nil {
+		return err
+	}
 	var params struct {
 		GracePeriodSeconds *int64 `json:"gracePeriodSeconds,omitempty"`
 		Force              bool   `json:"force,omitempty"`
@@ -376,13 +380,7 @@ func (s *commandService) handleDelete(ctx context.Context, cmd *command.Command)
 		Force:              params.Force,
 	}
 
-	// Pod 使用专门的删除方法
-	if cmd.Kind == "Pod" {
-		return s.genericRepo.DeletePod(ctx, cmd.Namespace, cmd.Name, opts)
-	}
-
-	// 其他资源使用通用删除
-	return s.genericRepo.Delete(ctx, cmd.Kind, cmd.Namespace, cmd.Name, opts)
+	return s.genericRepo.DeletePod(ctx, cmd.Namespace, cmd.Name, opts)
 }
 
 // parseParams 解析参数

@@ -558,15 +558,10 @@ func TestExecute_Dynamic_MissingKind(t *testing.T) {
 
 func TestExecute_Delete_Pod(t *testing.T) {
 	var deletePodCalled bool
-	var deleteCalled bool
 
 	genericRepo := &mock.GenericRepository{
 		DeletePodFn: func(ctx context.Context, namespace, name string, opts model.DeleteOptions) error {
 			deletePodCalled = true
-			return nil
-		},
-		DeleteFn: func(ctx context.Context, kind, namespace, name string, opts model.DeleteOptions) error {
-			deleteCalled = true
 			return nil
 		},
 	}
@@ -593,31 +588,21 @@ func TestExecute_Delete_Pod(t *testing.T) {
 	if !deletePodCalled {
 		t.Error("expected DeletePodFn to be called for Pod kind")
 	}
-	if deleteCalled {
-		t.Error("expected DeleteFn NOT to be called for Pod kind")
-	}
 }
 
-func TestExecute_Delete_Generic(t *testing.T) {
+// delete 只实现了删 Pod：其他资源类型直接拒绝，⛔ 不调用任何删除
+func TestExecute_Delete_RejectsNonPodKind(t *testing.T) {
 	var deletePodCalled bool
-	var calledKind string
-
 	genericRepo := &mock.GenericRepository{
 		DeletePodFn: func(ctx context.Context, namespace, name string, opts model.DeleteOptions) error {
 			deletePodCalled = true
 			return nil
 		},
-		DeleteFn: func(ctx context.Context, kind, namespace, name string, opts model.DeleteOptions) error {
-			calledKind = kind
-			return nil
-		},
 	}
-
 	svc := &commandService{
 		podRepo:     &mock.PodRepository{},
 		genericRepo: genericRepo,
 	}
-
 	cmd := &command.Command{
 		ID:        "cmd-delete-deploy",
 		Action:    command.ActionDelete,
@@ -629,14 +614,14 @@ func TestExecute_Delete_Generic(t *testing.T) {
 
 	result := svc.Execute(context.Background(), cmd)
 
-	if !result.Success {
-		t.Fatalf("expected success, got error: %s", result.Error)
+	if result.Success {
+		t.Fatal("删除 Deployment 应失败")
+	}
+	if !strings.Contains(result.Error, "Deployment") {
+		t.Errorf("错误应指出资源类型，实际 %q", result.Error)
 	}
 	if deletePodCalled {
-		t.Error("expected DeletePodFn NOT to be called for Deployment kind")
-	}
-	if calledKind != "Deployment" {
-		t.Errorf("expected DeleteFn called with kind 'Deployment', got '%s'", calledKind)
+		t.Error("不应调用 DeletePod")
 	}
 }
 
