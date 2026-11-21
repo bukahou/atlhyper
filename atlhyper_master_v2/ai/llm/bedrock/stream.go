@@ -26,6 +26,8 @@ type pendingTool struct {
 //   - 文本 delta → ChunkText；推理内容（reasoning）不进正文
 //   - 工具入参按 contentBlockIndex 拼接，在 contentBlockStop 时校验 JSON 并发出 ChunkToolCall
 //   - 流正常结束 → ChunkDone（带 usage）；出错 → ChunkError 且不发 done
+//   - 没收到 messageStop 就结束 → 未完成：SDK 读到响应体结束就关事件通道，
+//     连接中途断开（unexpected EOF）也按读完处理、不报错
 func pump(ctx context.Context, events <-chan types.ConverseStreamOutput, streamErr func() error, out chan<- *llm.Chunk) {
 	send := func(c *llm.Chunk) bool {
 		select {
@@ -39,6 +41,7 @@ func pump(ctx context.Context, events <-chan types.ConverseStreamOutput, streamE
 
 	tools := map[int32]*pendingTool{}
 	var usage *llm.Usage
+	stopped := false
 
 	for ev := range events {
 		switch e := ev.(type) {
@@ -81,6 +84,9 @@ func pump(ctx context.Context, events <-chan types.ConverseStreamOutput, streamE
 				return
 			}
 
+		case *types.ConverseStreamOutputMemberMessageStop:
+			stopped = true
+
 		case *types.ConverseStreamOutputMemberMetadata:
 			if u := e.Value.Usage; u != nil {
 				usage = &llm.Usage{InputTokens: int(aws.ToInt32(u.InputTokens)), OutputTokens: int(aws.ToInt32(u.OutputTokens))}
@@ -94,6 +100,10 @@ func pump(ctx context.Context, events <-chan types.ConverseStreamOutput, streamE
 	}
 	if ctx.Err() != nil {
 		fail(ctx.Err())
+		return
+	}
+	if !stopped {
+		fail(llm.ErrStreamIncomplete)
 		return
 	}
 	send(&llm.Chunk{Type: llm.ChunkDone, Usage: usage})
