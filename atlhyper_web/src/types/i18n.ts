@@ -59,7 +59,6 @@ export interface NavTranslations {
   // DevOps
   devops: string;
   datasource: string;
-  deploy: string;
   github: string;
 }
 
@@ -2522,94 +2521,10 @@ export interface EventTranslations {
   relatedResource: string;
 }
 
-// 部署管理页面翻译（/admin/deploy）
-export interface DeployPageTranslations {
-  pageTitle: string;
-  pageDescription: string;
-  // Config 仓库配置区
-  configSection: string;
-  configRepo: string;
-  configRepoPlaceholder: string;
-  editConfig: string;
-  // 部署路径
-  pathsSection: string;
-  pathsSectionHint: string;
-  pathCol: string;
-  pathPlaceholder: string;
-  addPath: string;
-  deletePath: string;
-  noPathsHint: string;
-  // 调谐配置
-  pollInterval: string;
-  pollIntervalUnit: string;
-  autoDeploy: string;
-  autoDeployOn: string;
-  autoDeployOff: string;
-  autoDeployHint: string;
-  testConnection: string;
-  testConnectionSuccess: string;
-  testConnectionFailed: string;
-  // 当前状态区
-  statusSection: string;
-  pathStatusCol: string;
-  resourceCount: string;
-  statusCol: string;
-  statusInSync: string;
-  statusOutOfSync: string;
-  statusPending: string;
-  statusDeploying: string;
-  statusFailed: string;
-  statusNeverSynced: string;
-  noStatus: string;
-  noStatusHint: string;
-  syncNow: string;
-  // 部署历史区
-  historySection: string;
-  timeCol: string;
-  pathCol2: string;
-  triggerCol: string;
-  commitCol: string;
-  statusCol2: string;
-  triggerAuto: string;
-  triggerManual: string;
-  viewDetail: string;
-  noHistory: string;
-  noHistoryHint: string;
-  // 部署详情弹窗
-  detailTitle: string;
-  detailPath: string;
-  detailNamespace: string;
-  detailTrigger: string;
-  detailSourceRepo: string;
-  detailCommit: string;
-  detailCommitMessage: string;
-  detailDeployedAt: string;
-  detailDuration: string;
-  detailResourceChanged: string;
-  detailStatus: string;
-  detailErrorMessage: string;
-  detailAuthor: string;
-  detailPR: string;
-  detailChangedFiles: string;
-  detailCompareLink: string;
-  // 状态
-  saveFailed: string;
-  saveSuccess: string;
-  loadFailed: string;
-  // 前置条件
-  githubNotConnected: string;
-  githubNotConnectedHint: string;
-  connectGithub: string;
-}
-
 // GitHub 集成页面翻译（/settings/github）
 export interface GitHubPageTranslations {
   pageTitle: string;
   pageDescription: string;
-  // Tabs
-  tabConnection: string;
-  tabDeploy: string;
-  tabHistory: string;
   // 连接状態
   statusConnected: string;
   statusNotConnected: string;
@@ -2703,7 +2618,6 @@ export interface Translations {
   logs: LogTranslations;
   dataSource: DataSourceTranslations;
   event: EventTranslations;
-  deployPage: DeployPageTranslations;
   githubPage: GitHubPageTranslations;
 }
 

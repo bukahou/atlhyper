@@ -27,11 +27,10 @@ func TestPermissionsFor_CumulativeAndExact(t *testing.T) {
 func TestLevelZero_HasNoSensitivePermission(t *testing.T) {
 	sensitive := []Permission{
 		PermWorkloadEnvRead, PermLogsRead, PermTracesRead, PermCommandsRead,
-		PermDeployHistoryRead, PermGitHubStatusRead, PermAIChat,
+		PermGitHubStatusRead, PermAIChat,
 		PermSecretRead, PermPodLogsRead, PermClusterOperate, PermAuditRead,
 		PermNotifyManage, PermAIAnalyze, PermAISettingsRead,
-		PermUserManage, PermAISettingsWrite, PermGitHubManage, PermDeployManage,
-		PermClustersManage,
+		PermUserManage, PermAISettingsWrite, PermGitHubManage, PermClustersManage,
 	}
 	for _, p := range sensitive {
 		if Allowed(RoleMember, p) {

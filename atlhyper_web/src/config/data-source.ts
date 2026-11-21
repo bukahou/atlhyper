@@ -45,7 +45,6 @@ export const MODULE_REGISTRY: ModuleDataSource[] = [
   { key: "roles", category: "admin", labelKey: "roles", hasMock: false, defaultMode: "api" },
   { key: "audit", category: "admin", labelKey: "audit", hasMock: false, defaultMode: "api" },
   { key: "commands", category: "admin", labelKey: "commands", hasMock: false, defaultMode: "api" },
-  { key: "deploy", category: "admin", labelKey: "deploy", hasMock: true, defaultMode: "api" },
   // Settings
   { key: "aiSettings", category: "settings", labelKey: "aiSettings", hasMock: false, defaultMode: "api" },
   { key: "notifications", category: "settings", labelKey: "notifications", hasMock: false, defaultMode: "api" },

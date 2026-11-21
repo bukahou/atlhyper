@@ -313,8 +313,6 @@ func TestCreateCommand_RejectsActionFromWrongSource(t *testing.T) {
 		action string
 		source string
 	}{
-		{"Web 应用清单", command.ActionApplyManifests, command.SourceWeb},
-		{"AI 应用清单", command.ActionApplyManifests, command.SourceAI},
 		{"AI 扩缩容", command.ActionScale, command.SourceAI},
 		{"AI 读 Secret", command.ActionGetSecret, command.SourceAI},
 		{"没有来源", command.ActionRestart, ""},

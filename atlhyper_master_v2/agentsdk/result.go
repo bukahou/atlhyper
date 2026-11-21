@@ -79,7 +79,7 @@ func (s *Server) persistResult(cmdID string, result *command.Result) {
 		return
 	}
 	if history == nil {
-		// 不经指令服务下发的指令（如部署器）没有历史记录，无需更新
+		// 没有历史记录，无需更新：Web 发起的观测查询不写历史（见 command.RecordsHistory），写历史失败的指令也没有
 		log.Debug("指令没有历史记录，跳过", "cmd", cmdID)
 		return
 	}

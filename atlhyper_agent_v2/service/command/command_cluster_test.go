@@ -90,9 +90,7 @@ func TestExecute_SourceCheck(t *testing.T) {
 	}{
 		{"Web 扩缩容", command.ActionScale, command.SourceWeb, true},
 		{"AI 扩缩容", command.ActionScale, command.SourceAI, false},
-		{"部署器扩缩容", command.ActionScale, command.SourceDeployer, false},
 		{"没有来源", command.ActionScale, "", false},
-		{"Web 应用清单", command.ActionApplyManifests, command.SourceWeb, false},
 		{"Web 动态查询", command.ActionDynamic, command.SourceWeb, false},
 		{"未知动作", "exec", command.SourceWeb, false},
 	}
@@ -113,7 +111,7 @@ func TestExecute_SourceCheck(t *testing.T) {
 				Namespace: "default",
 				Name:      "nginx",
 				Source:    c.source,
-				Params:    map[string]any{"replicas": float64(3), "manifests": "kind: ConfigMap\n"},
+				Params:    map[string]any{"replicas": float64(3)},
 			}
 
 			result := svc.Execute(context.Background(), cmd)

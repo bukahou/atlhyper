@@ -56,17 +56,16 @@ const (
 
 // 指令动作常量
 const (
-	ActionScale          = "scale"
-	ActionRestart        = "restart"
-	ActionDelete         = "delete"
-	ActionCordon         = "cordon"
-	ActionUncordon       = "uncordon"
-	ActionUpdateImage    = "update_image"
-	ActionGetLogs        = "get_logs"
-	ActionGetConfigMap   = "get_configmap"
-	ActionGetSecret      = "get_secret"
-	ActionDynamic        = "dynamic"
-	ActionApplyManifests = "apply_manifests"
+	ActionScale        = "scale"
+	ActionRestart      = "restart"
+	ActionDelete       = "delete"
+	ActionCordon       = "cordon"
+	ActionUncordon     = "uncordon"
+	ActionUpdateImage  = "update_image"
+	ActionGetLogs      = "get_logs"
+	ActionGetConfigMap = "get_configmap"
+	ActionGetSecret    = "get_secret"
+	ActionDynamic      = "dynamic"
 
 	// ClickHouse 查询动作
 	ActionQueryTraces      = "query_traces"

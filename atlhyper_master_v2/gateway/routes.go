@@ -18,7 +18,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/auth/oidc"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
 	adminHandler "AtlHyper/atlhyper_master_v2/gateway/handler/admin"
 	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
@@ -46,7 +45,6 @@ const (
 	pLogsRead             = middleware.PermLogsRead
 	pTracesRead           = middleware.PermTracesRead
 	pCommandsRead         = middleware.PermCommandsRead
-	pDeployHistoryRead    = middleware.PermDeployHistoryRead
 	pGitHubStatusRead     = middleware.PermGitHubStatusRead
 	pAIChat               = middleware.PermAIChat
 	pAIConversationDelete = middleware.PermAIConversationDelete
@@ -63,7 +61,6 @@ const (
 	pUserManage      = middleware.PermUserManage
 	pAISettingsWrite = middleware.PermAISettingsWrite
 	pGitHubManage    = middleware.PermGitHubManage
-	pDeployManage    = middleware.PermDeployManage
 	pClustersManage  = middleware.PermClustersManage
 )
 
@@ -94,7 +91,6 @@ type Router struct {
 	aiService      ai.AIService
 	analyzeTrigger aiopsHandler.AnalyzeTrigger
 	ghClient       github.Client
-	deployer       deployer.Deployer
 	oidc           *oidc.Module              // 可选，nil = 外部身份登录未启用
 	notifyTester   adminHandler.NotifyTester // 可选，nil = 接收人测试发送不可用
 }
@@ -106,7 +102,7 @@ func (r *Router) SetOIDC(m *oidc.Module) { r.oidc = m }
 func (r *Router) SetNotifyTester(t adminHandler.NotifyTester) { r.notifyTester = t }
 
 // NewRouter 创建路由管理器
-func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client, dep deployer.Deployer) *Router {
+func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger aiopsHandler.AnalyzeTrigger, ghClient github.Client) *Router {
 	return &Router{
 		mux:            http.NewServeMux(),
 		service:        svc,
@@ -114,7 +110,6 @@ func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger
 		aiService:      aiSvc,
 		analyzeTrigger: trigger,
 		ghClient:       ghClient,
-		deployer:       dep,
 	}
 }
 
@@ -399,33 +394,21 @@ func (r *Router) registerRoutes() {
 	r.routeAudited(mDelete, pClustersManage, "/api/v2/admin/clusters/{clusterId}", "delete", "cluster", clusterRegistryH.Unregister)
 	r.routeAudited(mPost, pClustersManage, "/api/v2/admin/clusters/{clusterId}/token", "create", "cluster_token", clusterRegistryH.IssueToken)
 
-	// GitHub 集成与部署
+	// GitHub 集成
 	if r.ghClient != nil {
 		// 走 service 层，不直连 database
 		githubH := settingsHandler.NewGitHubHandler(r.ghClient, r.service, r.service)
-		deployH := adminHandler.NewDeployHandler(r.ghClient, r.service, r.service)
-		if r.deployer != nil {
-			deployH.SetDeployer(r.deployer)
-		}
 
 		// GitHub App 安装回调：GitHub 回跳到前端页面，由已登录的 Admin 提交 installation_id；
 		// handler 另校验安装属于 App 所有者账号（登录状态下被诱导打开别人的回调链接也接不进来）
 		r.routeAudited(mPost, pGitHubManage, "/api/github/callback", "create", "github", githubH.Callback)
 
 		r.route(mGet, pGitHubStatusRead, "/api/github/connection", githubH.Connection)
-		r.route(mGet, pDeployHistoryRead, "/api/deploy/history", deployH.History)
 
 		r.routeAudited(mPost, pGitHubManage, "/api/github/connect", "create", "github", githubH.Connect)
 		r.routeAudited(mDelete, pGitHubManage, "/api/github/disconnect", "delete", "github", githubH.Disconnect)
 		r.route(mGet, pGitHubManage, "/api/github/repos", githubH.Repos)
 		r.route(mGet, pGitHubManage, "/api/github/repos/", githubH.RepoSubRoute)
-
-		r.route(mGet, pDeployManage, "/api/deploy/config", deployH.Config)
-		r.routeAudited(mPut, pDeployManage, "/api/deploy/config", "update", "deploy_config", deployH.Config)
-		r.route(mGet, pDeployManage, "/api/deploy/kustomize-paths", deployH.KustomizePaths)
-		r.route(mGet, pDeployManage, "/api/deploy/status", deployH.Status)
-		r.routeAudited(mPost, pDeployManage, "/api/deploy/test-connection", "execute", "deploy", deployH.TestConnection)
-		r.routeAudited(mPost, pDeployManage, "/api/deploy/sync", "execute", "deploy", deployH.SyncNow)
 	}
 }
 

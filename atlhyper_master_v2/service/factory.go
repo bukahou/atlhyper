@@ -13,7 +13,7 @@ type serviceImpl struct {
 	*operations.CommandService
 	*operations.AdminService
 	*operations.SLOService
-	*operations.DeployService
+	*operations.GitHubService
 	*operations.UserService
 	*operations.ClusterRegistryService
 	*operations.NotifyService
@@ -25,7 +25,7 @@ func NewService(
 	cmd *operations.CommandService,
 	admin *operations.AdminService,
 	slo *operations.SLOService,
-	deploy *operations.DeployService,
+	github *operations.GitHubService,
 	user *operations.UserService,
 	clusterRegistry *operations.ClusterRegistryService,
 	notify *operations.NotifyService,
@@ -35,7 +35,7 @@ func NewService(
 		CommandService: cmd,
 		AdminService:   admin,
 		SLOService:     slo,
-		DeployService:  deploy,
+		GitHubService:  github,
 		UserService:    user,
 
 		ClusterRegistryService: clusterRegistry,

@@ -310,7 +310,7 @@ func TestNewQueryService_AllDeps(t *testing.T) {
 	}
 	// 10 个小服务都已构造（方法经嵌入提升，任何一个为 nil 都会在调用时 panic）
 	if svc.K8sQuery == nil || svc.OTelQuery == nil || svc.SLOQuery == nil || svc.AIOpsQuery == nil ||
-		svc.OverviewQuery == nil || svc.AdminQuery == nil || svc.DeployQuery == nil || svc.UserQuery == nil ||
+		svc.OverviewQuery == nil || svc.AdminQuery == nil || svc.GitHubQuery == nil || svc.UserQuery == nil ||
 		svc.ClusterRegistryQuery == nil || svc.NotifyQuery == nil {
 		t.Error("有功能域小服务没有构造")
 	}

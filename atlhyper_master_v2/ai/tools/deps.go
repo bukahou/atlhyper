@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
-	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/model_v3/cluster"
@@ -43,7 +42,6 @@ type Deps struct {
 	Snapshots         SnapshotReader
 	Events            EventLogReader
 
-	DeployHistory database.DeployHistoryRepository // nil = 不注册 get_deploy_history
-	GitHub        github.Client                    // nil = 不注册 GitHub 工具
-	GitHubScope   *GitHubRepoScope
+	GitHub      github.Client // nil = 不注册 GitHub 工具
+	GitHubScope *GitHubRepoScope
 }

@@ -12,12 +12,6 @@ func TestCheckSource(t *testing.T) {
 		source string
 		want   bool
 	}{
-		// 部署器只能应用清单；应用清单也只有部署器能发
-		{"部署器应用清单", ActionApplyManifests, SourceDeployer, true},
-		{"Web 应用清单", ActionApplyManifests, SourceWeb, false},
-		{"AI 应用清单", ActionApplyManifests, SourceAI, false},
-		{"部署器扩缩容", ActionScale, SourceDeployer, false},
-
 		// AI 只许读
 		{"AI 读日志", ActionGetLogs, SourceAI, true},
 		{"AI 动态只读查询", ActionDynamic, SourceAI, true},
@@ -58,7 +52,7 @@ func TestActionSources_CoversEveryAction(t *testing.T) {
 	all := []string{
 		ActionScale, ActionRestart, ActionDelete, ActionCordon, ActionUncordon,
 		ActionUpdateImage, ActionGetLogs, ActionGetConfigMap, ActionGetSecret,
-		ActionDynamic, ActionApplyManifests,
+		ActionDynamic,
 		ActionQueryTraces, ActionQueryTraceDetail, ActionQueryLogs, ActionQueryMetrics,
 	}
 	for _, action := range all {
@@ -75,7 +69,7 @@ func TestIsValidAction(t *testing.T) {
 	if !IsValidAction(ActionRestart) {
 		t.Error("restart 应是有效动作")
 	}
-	for _, removed := range []string{"exec", "drain", "delete_pod", "query_slo", ""} {
+	for _, removed := range []string{"exec", "drain", "delete_pod", "query_slo", "apply_manifests", ""} {
 		if IsValidAction(removed) {
 			t.Errorf("%q 不应是有效动作", removed)
 		}

@@ -15,7 +15,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/auth/oidc"
 	"AtlHyper/atlhyper_master_v2/database"
-	"AtlHyper/atlhyper_master_v2/deployer"
 	adminHandler "AtlHyper/atlhyper_master_v2/gateway/handler/admin"
 	aiopsHandler "AtlHyper/atlhyper_master_v2/gateway/handler/aiops"
 	"AtlHyper/atlhyper_master_v2/github"
@@ -34,7 +33,6 @@ type Server struct {
 	aiService      ai.AIService
 	analyzeTrigger aiopsHandler.AnalyzeTrigger
 	ghClient       github.Client
-	deployer       deployer.Deployer
 	oidc           *oidc.Module
 	notifyTester   adminHandler.NotifyTester
 	httpServer     *http.Server
@@ -48,7 +46,6 @@ type Config struct {
 	AIService      ai.AIService                // 可选，nil 表示 AI 功能未启用
 	AnalyzeTrigger aiopsHandler.AnalyzeTrigger // 可选，nil 表示深度分析未启用
 	GitHubClient   github.Client               // 可选，nil 表示 GitHub 集成未配置
-	Deployer       deployer.Deployer           // 可选，nil 表示 Deployer 未启用
 	OIDC           *oidc.Module                // 可选，nil 表示外部身份登录未启用
 	NotifyTester   adminHandler.NotifyTester   // 可选，nil 表示接收人测试发送不可用
 }
@@ -62,7 +59,6 @@ func NewServer(cfg Config) *Server {
 		aiService:      cfg.AIService,
 		analyzeTrigger: cfg.AnalyzeTrigger,
 		ghClient:       cfg.GitHubClient,
-		deployer:       cfg.Deployer,
 		oidc:           cfg.OIDC,
 		notifyTester:   cfg.NotifyTester,
 	}
@@ -71,7 +67,7 @@ func NewServer(cfg Config) *Server {
 // Start 启动 Server
 func (s *Server) Start() error {
 	// 使用 Router 统一管理路由（见 routes.go）
-	router := NewRouter(s.service, s.database, s.aiService, s.analyzeTrigger, s.ghClient, s.deployer)
+	router := NewRouter(s.service, s.database, s.aiService, s.analyzeTrigger, s.ghClient)
 	router.SetOIDC(s.oidc)
 	router.SetNotifyTester(s.notifyTester)
 

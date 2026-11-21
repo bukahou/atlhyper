@@ -25,17 +25,16 @@ type PermissionCheck func(permission string) bool
 // 工具读取的数据所需权限。权限名沿用网关权限表的字符串，是两边的契约（网关测试核对它们都在权限表里）。
 // 原则：不能经 AI 拿到网关上拿不到的东西。
 const (
-	PermNone            = ""                    // 不需要额外权限（能进对话 / 分析即可）
-	PermWorkloadEnvRead = "workload.env.read"   // 原始资源对象（含 env 字面值）
-	PermEventsRead      = "events.read"         // K8s 事件
-	PermSecretRead      = "secret.read"         // ConfigMap 内容（网关上与 Secret 同档）
-	PermPodLogsRead     = "pod.logs.read"       // 容器日志
-	PermAIOpsRead       = "aiops.read"          // 风险、事件、实体详情
-	PermAIAnalyze       = "ai.analyze"          // 触发事件 AI 总结
-	PermTracesRead      = "traces.read"         // 链路
-	PermLogsRead        = "logs.read"           // OTel 日志正文
-	PermSLORead         = "slo.read"            // SLO
-	PermDeployHistory   = "deploy.history.read" // 部署历史
+	PermNone            = ""                  // 不需要额外权限（能进对话 / 分析即可）
+	PermWorkloadEnvRead = "workload.env.read" // 原始资源对象（含 env 字面值）
+	PermEventsRead      = "events.read"       // K8s 事件
+	PermSecretRead      = "secret.read"       // ConfigMap 内容（网关上与 Secret 同档）
+	PermPodLogsRead     = "pod.logs.read"     // 容器日志
+	PermAIOpsRead       = "aiops.read"        // 风险、事件、实体详情
+	PermAIAnalyze       = "ai.analyze"        // 触发事件 AI 总结
+	PermTracesRead      = "traces.read"       // 链路
+	PermLogsRead        = "logs.read"         // OTel 日志正文
+	PermSLORead         = "slo.read"          // SLO
 )
 
 // 调用失败的分类（调用方按类型判断，⛔ 不比较文案）

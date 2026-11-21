@@ -9,7 +9,7 @@ import (
 
 // 话题：每个集群每个话题一条队列，互不阻塞
 const (
-	TopicOps = "ops" // Web 页面发起的操作与查询、部署器
+	TopicOps = "ops" // Web 页面发起的操作与查询
 	TopicAI  = "ai"  // AI 工具调用
 )
 

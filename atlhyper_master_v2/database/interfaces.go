@@ -44,8 +44,6 @@ type DB struct {
 
 	GitHubInstall GitHubInstallationRepository
 	RepoConfig    RepoConfigRepository
-	DeployConfig  DeployConfigRepository
-	DeployHistory DeployHistoryRepository
 
 	Conn *sql.DB // 导出供 repo 包使用
 }
@@ -330,23 +328,6 @@ type RepoConfigRepository interface {
 	Delete(ctx context.Context, repo string) error
 }
 
-// DeployConfigRepository 部署配置接口
-type DeployConfigRepository interface {
-	Upsert(ctx context.Context, config *DeployConfig) error
-	GetByCluster(ctx context.Context, clusterID string) (*DeployConfig, error)
-	List(ctx context.Context) ([]*DeployConfig, error)
-	Delete(ctx context.Context, clusterID string) error
-}
-
-// DeployHistoryRepository 部署历史接口
-type DeployHistoryRepository interface {
-	Create(ctx context.Context, record *DeployHistory) error
-	GetByID(ctx context.Context, id int64) (*DeployHistory, error)
-	List(ctx context.Context, opts DeployHistoryQueryOpts) ([]*DeployHistory, error)
-	Count(ctx context.Context, opts DeployHistoryQueryOpts) (int, error)
-	GetLatestByPath(ctx context.Context, clusterID, path string) (*DeployHistory, error)
-}
-
 // ==================== Dialect 接口 ====================
 
 // Dialect 数据库方言接口
@@ -381,8 +362,6 @@ type Dialect interface {
 	AIOpsIncident() AIOpsIncidentDialect
 	GitHubInstall() GitHubInstallDialect
 	RepoConfig() RepoConfigDialect
-	DeployConfig() DeployConfigDialect
-	DeployHistory() DeployHistoryDialect
 	Migrate(db *sql.DB) error
 }
 
@@ -634,23 +613,4 @@ type RepoConfigDialect interface {
 	SelectAll() (query string, args []any)
 	Delete(repo string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*RepoConfig, error)
-}
-
-// DeployConfigDialect 部署配置 SQL 方言
-type DeployConfigDialect interface {
-	Upsert(config *DeployConfig) (query string, args []any)
-	SelectByCluster(clusterID string) (query string, args []any)
-	SelectAll() (query string, args []any)
-	Delete(clusterID string) (query string, args []any)
-	ScanRow(rows *sql.Rows) (*DeployConfig, error)
-}
-
-// DeployHistoryDialect 部署历史 SQL 方言
-type DeployHistoryDialect interface {
-	Insert(record *DeployHistory) (query string, args []any)
-	SelectByID(id int64) (query string, args []any)
-	SelectWithOpts(opts DeployHistoryQueryOpts) (query string, args []any)
-	CountWithOpts(opts DeployHistoryQueryOpts) (query string, args []any)
-	SelectLatestByPath(clusterID, path string) (query string, args []any)
-	ScanRow(rows *sql.Rows) (*DeployHistory, error)
 }

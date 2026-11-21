@@ -120,7 +120,7 @@ func TestRegister_OptionalToolsAndDefinitions(t *testing.T) {
 	reg := toolkit.NewRegistry()
 	Register(reg, Deps{})
 	names := reg.Names()
-	for _, optional := range []string{"get_deploy_history", "github_read_file", "github_search_code", "github_recent_commits"} {
+	for _, optional := range []string{"github_read_file", "github_search_code", "github_recent_commits"} {
 		if slices.Contains(names, optional) {
 			t.Errorf("没有配置时不应注册 %s", optional)
 		}

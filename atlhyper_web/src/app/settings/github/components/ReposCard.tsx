@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useI18n } from "@/i18n/context";
 import { BookMarked, Lock, Globe, Search } from "lucide-react";
-import { Pagination, paginate } from "@/app/admin/deploy/components/Pagination";
+import { Pagination, paginate } from "./Pagination";
 import type { MockAuthorizedRepo } from "@/mock/github/data";
 
 const PAGE_SIZE = 8;
