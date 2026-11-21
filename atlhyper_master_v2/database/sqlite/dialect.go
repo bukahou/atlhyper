@@ -32,8 +32,6 @@ type Dialect struct {
 
 	gitHubInstall *gitHubInstallDialect
 	repoConfig    *repoConfigDialect
-	deployConfig  *deployConfigDialect
-	deployHistory *deployHistoryDialect
 }
 
 // NewDialect 创建 SQLite 方言
@@ -61,8 +59,6 @@ func NewDialect() *Dialect {
 
 		gitHubInstall: &gitHubInstallDialect{},
 		repoConfig:    &repoConfigDialect{},
-		deployConfig:  &deployConfigDialect{},
-		deployHistory: &deployHistoryDialect{},
 	}
 }
 
@@ -88,8 +84,6 @@ func (d *Dialect) AIOpsIncident() database.AIOpsIncidentDialect { return d.aiops
 
 func (d *Dialect) GitHubInstall() database.GitHubInstallDialect { return d.gitHubInstall }
 func (d *Dialect) RepoConfig() database.RepoConfigDialect       { return d.repoConfig }
-func (d *Dialect) DeployConfig() database.DeployConfigDialect   { return d.deployConfig }
-func (d *Dialect) DeployHistory() database.DeployHistoryDialect { return d.deployHistory }
 func (d *Dialect) Migrate(db *sql.DB) error {
 	return migrate(db)
 }

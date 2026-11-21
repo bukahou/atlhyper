@@ -22,13 +22,12 @@ const (
 	PermAIOpsRead      Permission = "aiops.read"       // 依赖图、基线、风险、事件
 
 	// ---------- 1 级：内容级数据 ----------
-	PermWorkloadEnvRead   Permission = "workload.env.read"   // 资源详情中的 env 字面值
-	PermLogsRead          Permission = "logs.read"           // 日志正文
-	PermTracesRead        Permission = "traces.read"         // 链路列表 / 详情 / 属性相关性
-	PermCommandsRead      Permission = "commands.read"       // 指令历史与状态
-	PermDeployHistoryRead Permission = "deploy.history.read" // 部署历史
-	PermGitHubStatusRead  Permission = "github.status.read"  // GitHub 连接状态
-	PermAIChat            Permission = "ai.chat"             // AI 对话（有 LLM 成本）
+	PermWorkloadEnvRead  Permission = "workload.env.read"  // 资源详情中的 env 字面值
+	PermLogsRead         Permission = "logs.read"          // 日志正文
+	PermTracesRead       Permission = "traces.read"        // 链路列表 / 详情 / 属性相关性
+	PermCommandsRead     Permission = "commands.read"      // 指令历史与状态
+	PermGitHubStatusRead Permission = "github.status.read" // GitHub 连接状态
+	PermAIChat           Permission = "ai.chat"            // AI 对话（有 LLM 成本）
 
 	// ---------- 2 级：凭据与写操作 ----------
 	PermSecretRead     Permission = "secret.read"      // Secret 列表 / 内容、ConfigMap 详情 / 内容
@@ -46,7 +45,6 @@ const (
 	PermUserManage      Permission = "user.manage"       // 用户管理（唯一的提权入口）
 	PermAISettingsWrite Permission = "ai.settings.write" // AI 配置写入
 	PermGitHubManage    Permission = "github.manage"     // GitHub 连接与仓库
-	PermDeployManage    Permission = "deploy.manage"     // 部署配置与操作
 	PermClustersManage  Permission = "clusters.manage"   // 集群注册表：登记、改名、签发 Agent 令牌、删除登记
 )
 
@@ -58,15 +56,14 @@ var levelGrants = map[int][]Permission{
 	},
 	RoleViewer: {
 		PermWorkloadEnvRead, PermLogsRead, PermTracesRead, PermCommandsRead,
-		PermDeployHistoryRead, PermGitHubStatusRead, PermAIChat,
+		PermGitHubStatusRead, PermAIChat,
 	},
 	RoleOperator: {
 		PermSecretRead, PermPodLogsRead, PermClusterOperate, PermAuditRead,
 		PermNotifyManage, PermSLOManage, PermAIAnalyze, PermAISettingsRead, PermAIConversationDelete,
 	},
 	RoleAdmin: {
-		PermUserManage, PermAISettingsWrite, PermGitHubManage, PermDeployManage,
-		PermClustersManage,
+		PermUserManage, PermAISettingsWrite, PermGitHubManage, PermClustersManage,
 	},
 }
 

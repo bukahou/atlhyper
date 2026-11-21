@@ -66,7 +66,7 @@ func testRouterWithStub(t *testing.T) (*Router, http.Handler, *stubRouterSvc) {
 		3: {ID: 3, Username: "operator", Role: middleware.RoleOperator, Status: 1},
 		4: {ID: 4, Username: "admin", Role: middleware.RoleAdmin, Status: 1},
 	}}
-	r := NewRouter(svc, &database.DB{Audit: stubAudit{}}, stubAI{}, nil, stubGitHub{}, nil)
+	r := NewRouter(svc, &database.DB{Audit: stubAudit{}}, stubAI{}, nil, stubGitHub{})
 	return r, r.Handler(), svc
 }
 
@@ -106,7 +106,6 @@ func TestRoutes_LevelZeroCannotReachSensitive(t *testing.T) {
 		{"GET", "/api/v2/ai/conversations"},
 		{"POST", "/api/v2/ai/chat"},
 		{"GET", "/api/github/connection"},
-		{"GET", "/api/deploy/history"},
 		{"GET", "/api/v2/secrets"},
 		{"GET", "/api/v2/configmaps/x"},
 		{"POST", "/api/v2/ops/secrets/data"},
@@ -397,6 +396,32 @@ func TestRoutes_NoGenericCommandEndpoint(t *testing.T) {
 		got := call(t, h, "POST", path, 4)
 		if got != http.StatusNotFound && got != http.StatusMethodNotAllowed {
 			t.Errorf("管理员 POST %s = %d, want 404 或 405", path, got)
+		}
+	}
+}
+
+// 没有部署接口：/api/deploy/* 不登记任何路由，管理员请求也落不到处理函数上（GitHub 连接接口照常登记）。
+func TestRoutes_NoDeployEndpoints(t *testing.T) {
+	r, h := testRouterWithSpecs(t)
+	githubDeclared := false
+	for _, s := range r.specs {
+		if strings.HasPrefix(s.path, "/api/deploy") {
+			t.Errorf("不应登记 %s %s", s.method, s.path)
+		}
+		if s.path == "/api/github/connection" {
+			githubDeclared = true
+		}
+	}
+	if !githubDeclared {
+		t.Error("GET /api/github/connection 未登记")
+	}
+	for _, c := range []struct{ method, path string }{
+		{"GET", "/api/deploy/history"},
+		{"PUT", "/api/deploy/config"},
+		{"POST", "/api/deploy/sync"},
+	} {
+		if got := call(t, h, c.method, c.path, 4); got != http.StatusNotFound {
+			t.Errorf("管理员 %s %s = %d, want 404", c.method, c.path, got)
 		}
 	}
 }

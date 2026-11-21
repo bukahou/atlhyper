@@ -54,6 +54,4 @@ func Init(db *database.DB, dialect database.Dialect) {
 
 	db.GitHubInstall = newGitHubInstallRepo(db.Conn, dialect.GitHubInstall())
 	db.RepoConfig = newRepoConfigRepo(db.Conn, dialect.RepoConfig())
-	db.DeployConfig = newDeployConfigRepo(db.Conn, dialect.DeployConfig())
-	db.DeployHistory = newDeployHistoryRepo(db.Conn, dialect.DeployHistory())
 }

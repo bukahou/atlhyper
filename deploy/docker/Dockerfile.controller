@@ -47,8 +47,8 @@ FROM alpine:3.19
 LABEL maintainer="AtlHyper Team"
 LABEL description="AtlHyper Controller - Kubernetes Monitoring Platform API"
 
-# 安装运行时依赖（kubectl: Deployer kustomize build 需要）
-RUN apk add --no-cache sqlite-libs ca-certificates tzdata kubectl
+# 安装运行时依赖
+RUN apk add --no-cache sqlite-libs ca-certificates tzdata
 
 # 设置时区
 # 不设 TZ：进程按 UTC 运行，时间一律按 UTC 存储与传输；面向人的显示时区由 MASTER_TIMEZONE / 浏览器决定

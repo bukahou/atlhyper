@@ -12,7 +12,7 @@ var (
 	_ QueryAIOps           = (*query.AIOpsQuery)(nil)
 	_ QueryOverview        = (*query.OverviewQuery)(nil)
 	_ QueryAdmin           = (*query.AdminQuery)(nil)
-	_ QueryDeploy          = (*query.DeployQuery)(nil)
+	_ QueryGitHub          = (*query.GitHubQuery)(nil)
 	_ QueryUser            = (*query.UserQuery)(nil)
 	_ QueryClusterRegistry = (*query.ClusterRegistryQuery)(nil)
 	_ QueryNotify          = (*query.NotifyQuery)(nil)

@@ -61,7 +61,7 @@ var (
 )
 
 // verifyOwnerInstallation 确认安装属于 App 所有者账号，返回账号名。
-// 部署（GitOps）与 AI 的 GitHub 工具都以这个安装的身份读仓库，
+// AI 的 GitHub 工具以这个安装的身份读仓库，
 // 所以只接入所有者名下的安装：别人账号的安装、随手编的 installation_id 一律拒绝。
 func (h *GitHubHandler) verifyOwnerInstallation(ctx context.Context, installationID int64) (string, error) {
 	owner, err := h.installs.GetAppOwner(ctx)

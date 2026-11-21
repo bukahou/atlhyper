@@ -13,7 +13,7 @@
 //	AIOpsQuery            aiops.go、aiops_incident_view.go
 //	OverviewQuery         overview.go
 //	AdminQuery            admin.go
-//	DeployQuery           deploy.go
+//	GitHubQuery           deploy.go
 //	UserQuery             user.go
 //	ClusterRegistryQuery  cluster_registry.go
 //	NotifyQuery           notify.go
@@ -37,7 +37,7 @@ type QueryService struct {
 	*AIOpsQuery
 	*OverviewQuery
 	*AdminQuery
-	*DeployQuery
+	*GitHubQuery
 	*UserQuery
 	*ClusterRegistryQuery
 	*NotifyQuery
@@ -117,17 +117,15 @@ func NewAdminQuery(eventRepo database.ClusterEventRepository, auditRepo database
 	return &AdminQuery{eventRepo: eventRepo, auditRepo: auditRepo, commandRepo: commandRepo, aiProviderRepo: aiProviderRepo, aiSettingsRepo: aiSettingsRepo, aiModelRepo: aiModelRepo, aiBudgetRepo: aiBudgetRepo, aiReportRepo: aiReportRepo}
 }
 
-// DeployQuery 部署配置、部署历史与 GitHub 集成查询（满足 service.QueryDeploy）；未启用 GitOps 时各仓库为 nil
-type DeployQuery struct {
-	deployConfigRepo  database.DeployConfigRepository
-	deployHistoryRepo database.DeployHistoryRepository
+// GitHubQuery GitHub 集成查询：App 安装信息与仓库配置（满足 service.QueryGitHub）
+type GitHubQuery struct {
 	githubInstallRepo database.GitHubInstallationRepository
 	repoConfigRepo    database.RepoConfigRepository
 }
 
-// NewDeployQuery 创建 DeployQuery
-func NewDeployQuery(deployConfigRepo database.DeployConfigRepository, deployHistoryRepo database.DeployHistoryRepository, githubInstallRepo database.GitHubInstallationRepository, repoConfigRepo database.RepoConfigRepository) *DeployQuery {
-	return &DeployQuery{deployConfigRepo: deployConfigRepo, deployHistoryRepo: deployHistoryRepo, githubInstallRepo: githubInstallRepo, repoConfigRepo: repoConfigRepo}
+// NewGitHubQuery 创建 GitHubQuery
+func NewGitHubQuery(githubInstallRepo database.GitHubInstallationRepository, repoConfigRepo database.RepoConfigRepository) *GitHubQuery {
+	return &GitHubQuery{githubInstallRepo: githubInstallRepo, repoConfigRepo: repoConfigRepo}
 }
 
 // UserQuery 用户与外部身份查询（满足 service.QueryUser）
@@ -178,11 +176,9 @@ type AdminRepos struct {
 	AIReport   database.AIReportRepository
 }
 
-// DeployRepos 部署与 GitHub 集成所需的 Repository 集合
-// 对应 QueryDeploy 接口的所有方法所需依赖
-type DeployRepos struct {
-	DeployConfig  database.DeployConfigRepository
-	DeployHistory database.DeployHistoryRepository
+// GitHubRepos GitHub 集成所需的 Repository 集合
+// 对应 QueryGitHub 接口的所有方法所需依赖
+type GitHubRepos struct {
 	GitHubInstall database.GitHubInstallationRepository
 	RepoConfig    database.RepoConfigRepository
 }
@@ -197,7 +193,7 @@ type QueryServiceDeps struct {
 	AIOpsEngine  aiops.Engine                    // 可选，nil = AIOps 查询返回空
 	AIOpsAI      *enricher.Enricher              // 可选，nil = AI 增强禁用
 	AdminRepos   AdminRepos                      // 必需（管理查询）
-	DeployRepos  DeployRepos                     // 可选，未启用 GitOps 时各 repo 为 nil
+	GitHubRepos  GitHubRepos                     // 必需（GitHub 集成）
 	UserRepo     database.UserRepository         // 必需（用户管理）
 	IdentityRepo database.UserIdentityRepository // 必需（外部身份）
 
@@ -218,8 +214,7 @@ func NewQueryService(deps QueryServiceDeps) *QueryService {
 		AdminQuery: NewAdminQuery(deps.EventRepo, deps.AdminRepos.Audit, deps.AdminRepos.Command,
 			deps.AdminRepos.AIProvider, deps.AdminRepos.AISettings, deps.AdminRepos.AIModel,
 			deps.AdminRepos.AIBudget, deps.AdminRepos.AIReport),
-		DeployQuery: NewDeployQuery(deps.DeployRepos.DeployConfig, deps.DeployRepos.DeployHistory,
-			deps.DeployRepos.GitHubInstall, deps.DeployRepos.RepoConfig),
+		GitHubQuery:          NewGitHubQuery(deps.GitHubRepos.GitHubInstall, deps.GitHubRepos.RepoConfig),
 		UserQuery:            NewUserQuery(deps.UserRepo, deps.IdentityRepo),
 		ClusterRegistryQuery: NewClusterRegistryQuery(deps.Store, deps.ClusterRepo, deps.ClusterAuthStatus),
 		NotifyQuery:          NewNotifyQuery(deps.NotifyRepos, nil),

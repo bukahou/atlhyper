@@ -36,7 +36,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/database/repo"
 	"AtlHyper/atlhyper_master_v2/database/sqlite"
 	"AtlHyper/atlhyper_master_v2/datahub"
-	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/github"
@@ -67,8 +66,6 @@ type Master struct {
 	alertManager notifier.AlertManager
 	// AIOps 引擎
 	aiopsEngine aiops.Engine
-	// Deployer（GitOps CD）
-	deployer deployer.Deployer
 	// 只增不减的数据定期按保留期清理
 	retentionJobs []retentionJob
 }
@@ -218,9 +215,7 @@ func NewMaster() (*Master, error) {
 			AIBudget:   db.AIRoleBudget,
 			AIReport:   db.AIReport,
 		},
-		DeployRepos: query.DeployRepos{
-			DeployConfig:  db.DeployConfig,
-			DeployHistory: db.DeployHistory,
+		GitHubRepos: query.GitHubRepos{
 			GitHubInstall: db.GitHubInstall,
 			RepoConfig:    db.RepoConfig,
 		},
@@ -241,8 +236,8 @@ func NewMaster() (*Master, error) {
 	// 初始化 SLO 写入服务
 	sloOps := operations.NewSLOService(db.SLO)
 
-	// 初始化部署 / GitHub 集成写入服务
-	deployOps := operations.NewDeployService(db.DeployConfig, db.GitHubInstall)
+	// 初始化 GitHub 集成写入服务
+	githubOps := operations.NewGitHubService(db.GitHubInstall)
 
 	// 初始化用户写入服务
 	userOps := operations.NewUserService(db.User, db.UserIdentity)
@@ -257,7 +252,7 @@ func NewMaster() (*Master, error) {
 	})
 
 	// 组合统一 Service
-	svc := service.NewService(q, cmdOps, adminOps, sloOps, deployOps, userOps, clusterRegistryOps, notifyOps)
+	svc := service.NewService(q, cmdOps, adminOps, sloOps, githubOps, userOps, clusterRegistryOps, notifyOps)
 
 	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{
@@ -338,20 +333,12 @@ func NewMaster() (*Master, error) {
 		Events:    db.Event,
 	}
 	if ghClient != nil {
-		// 部署历史只在有部署器（依赖 GitHub）时才有；GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库
-		toolDeps.DeployHistory = db.DeployHistory
+		// GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库
 		toolDeps.GitHub = ghClient
 		toolDeps.GitHubScope = aitools.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
 	}
 	aitools.Register(aiService.Tools(), toolDeps)
 	log.Info("AI 工具注册完成", "tools", aiService.Tools().Names())
-
-	// 11.7 初始化 Deployer（GitOps CD，仅在 GitHub Client 可用时启用）
-	var deployerService deployer.Deployer
-	if ghClient != nil {
-		deployerService = deployer.NewService(ghClient, db, bus)
-		log.Info("Deployer 初始化完成")
-	}
 
 	// 12. 初始化 Gateway
 	// 12.5 外部身份登录（OIDC，可选）：首登自动建为成员（0 级），由管理员提升
@@ -383,7 +370,6 @@ func NewMaster() (*Master, error) {
 		AIService:      aiService,
 		AnalyzeTrigger: aiopsEnricher,
 		GitHubClient:   ghClient,
-		Deployer:       deployerService,
 		OIDC:           oidcModule,
 		NotifyTester:   alertMgr, // 接收人测试发送走网关（同一套权限与审计）
 	})
@@ -400,7 +386,6 @@ func NewMaster() (*Master, error) {
 		eventPersist: eventPersist,
 		alertManager: alertMgr,
 		aiopsEngine:  aiopsEngine,
-		deployer:     deployerService,
 
 		retentionJobs: []retentionJob{
 			{name: "指令历史", keep: cfg.Database.CommandHistoryRetention, purge: cmdOps.PurgeHistoryBefore},
@@ -437,13 +422,6 @@ func (m *Master) Run(ctx context.Context) error {
 	if m.aiopsEngine != nil {
 		if err := m.aiopsEngine.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start aiops engine: %w", err)
-		}
-	}
-
-	// 启动 Deployer
-	if m.deployer != nil {
-		if err := m.deployer.Start(ctx); err != nil {
-			log.Warn("Deployer 启动失败", "err", err)
 		}
 	}
 
@@ -491,13 +469,6 @@ func (m *Master) Stop() error {
 	if m.aiopsEngine != nil {
 		if err := m.aiopsEngine.Stop(); err != nil {
 			log.Error("停止 AIOps 引擎失败", "err", err)
-		}
-	}
-
-	// 停止 Deployer
-	if m.deployer != nil {
-		if err := m.deployer.Stop(); err != nil {
-			log.Error("停止 Deployer 失败", "err", err)
 		}
 	}
 

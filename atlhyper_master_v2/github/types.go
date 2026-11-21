@@ -34,35 +34,6 @@ type Commit struct {
 	Date      time.Time `json:"date"`
 }
 
-// CompareResult commit 比较结果
-type CompareResult struct {
-	HTMLURL string        `json:"htmlUrl"` // GitHub compare 页面 URL
-	Files   []ChangedFile `json:"files"`
-}
-
-// PullRequest PR 信息
-type PullRequest struct {
-	Number int    `json:"number"`
-	Title  string `json:"title"`
-	State  string `json:"state"`
-	URL    string `json:"url"`
-}
-
-// ChangedFile 变更文件
-type ChangedFile struct {
-	Filename  string `json:"filename"`
-	Status    string `json:"status"` // added, modified, removed
-	Additions int    `json:"additions"`
-	Deletions int    `json:"deletions"`
-}
-
-// FileEntry 目录条目
-type FileEntry struct {
-	Name string `json:"name"`
-	Type string `json:"type"` // file, dir
-	Path string `json:"path"`
-}
-
 // CodeSearchResult 代码搜索结果
 type CodeSearchResult struct {
 	Path    string `json:"path"`

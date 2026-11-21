@@ -192,7 +192,7 @@ func (s *CommandService) ExecuteCommandSync(ctx context.Context, req *model.Crea
 	return result, nil
 }
 
-// issuer 指令的下发者，随指令带给 Agent 写进执行记录："user:<id>" 或来源（ai / deployer / web）
+// issuer 指令的下发者，随指令带给 Agent 写进执行记录："user:<id>" 或来源（ai / web）
 func issuer(req *model.CreateCommandRequest) string {
 	if req.UserID > 0 {
 		return fmt.Sprintf("user:%d", req.UserID)
