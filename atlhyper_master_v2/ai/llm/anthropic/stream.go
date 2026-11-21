@@ -45,13 +45,19 @@ func apiError(err error) error {
 
 // pumpStream 读完整个流：文字增量即时发出；流结束后发出工具调用，最后是带用量与整轮回答（ProviderTurn）的 Done。
 // 工具调用等完整回答拼好再发：输出到上限时参数可能不完整，不能执行。
+// 没收到 message_stop 就结束的流报未完成：SDK 读到响应体结束就停，不管有没有收尾事件。
 func pumpStream(ctx context.Context, stream messageEventStream, ch chan<- *llm.Chunk) {
 	var message anthropicsdk.Message
+	stopped := false
 	for stream.Next() {
 		event := stream.Current()
 		if err := message.Accumulate(event); err != nil {
 			emit(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Error: fmt.Errorf("解析 Claude 的流式响应: %w", err)})
 			return
+		}
+		if _, ok := event.AsAny().(anthropicsdk.MessageStopEvent); ok {
+			stopped = true
+			continue
 		}
 		delta, ok := event.AsAny().(anthropicsdk.ContentBlockDeltaEvent)
 		if !ok {
@@ -69,6 +75,10 @@ func pumpStream(ctx context.Context, stream messageEventStream, ch chan<- *llm.C
 	}
 
 	usage := usageOf(message.Usage)
+	if !stopped {
+		emit(ctx, ch, &llm.Chunk{Type: llm.ChunkError, Usage: usage, Error: llm.ErrStreamIncomplete})
+		return
+	}
 	switch message.StopReason {
 	case anthropicsdk.StopReasonRefusal:
 		log.Warn("Claude 拒绝回答", "category", message.StopDetails.Category, "inputTokens", usage.InputTokens)
