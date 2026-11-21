@@ -6,7 +6,7 @@ import { DataTable, type TableColumn } from "@/components/common";
 import { incidentLink } from "@/lib/signal-link";
 import type { NotificationsTranslations } from "@/types/i18n";
 import type { NotifyAlert } from "@/types/notify";
-import { formatTimestamp } from "../shared/format";
+import { formatTimestamp } from "@/lib/format";
 import { NOWRAP_CLASS } from "../shared/form-styles";
 import { SeverityBadge } from "../shared/SeverityBadge";
 

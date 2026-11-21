@@ -4,7 +4,7 @@ import { BellOff } from "lucide-react";
 import { DataTable, type TableColumn } from "@/components/common";
 import type { NotificationsTranslations } from "@/types/i18n";
 import type { NotifySilence } from "@/types/notify";
-import { formatTimestamp } from "../shared/format";
+import { formatTimestamp } from "@/lib/format";
 import { NOWRAP_CLASS } from "../shared/form-styles";
 
 interface SilencesTableProps {

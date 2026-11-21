@@ -6,7 +6,7 @@ import { AlertTriangle, Mail, Pencil } from "lucide-react";
 import { QueryView } from "@/components/common";
 import type { CommonTranslations, NotificationsTranslations } from "@/types/i18n";
 import type { NotifySMTP } from "@/types/notify";
-import { formatTimestamp } from "../shared/format";
+import { formatTimestamp } from "@/lib/format";
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "../shared/form-styles";
 import { SmtpSettingsForm } from "./SmtpSettingsForm";
 

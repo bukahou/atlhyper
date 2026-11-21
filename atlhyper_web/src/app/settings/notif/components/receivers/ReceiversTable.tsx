@@ -4,7 +4,7 @@ import { AlertTriangle, Loader2, Pencil, Send, Trash2 } from "lucide-react";
 import { DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import type { NotificationsTranslations } from "@/types/i18n";
 import type { NotifyReceiver } from "@/types/notify";
-import { formatTimestamp } from "../shared/format";
+import { formatTimestamp } from "@/lib/format";
 import { ICON_BUTTON_CLASS, NOWRAP_CLASS } from "../shared/form-styles";
 import { Switch } from "../shared/Switch";
 
