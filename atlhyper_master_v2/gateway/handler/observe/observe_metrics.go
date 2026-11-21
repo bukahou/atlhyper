@@ -3,11 +3,12 @@
 package observe
 
 import (
+	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
+	"AtlHyper/atlhyper_master_v2/model"
 )
 
 // MetricsSummary GET /api/v2/observe/metrics/summary (Dashboard: 快照直读)
@@ -45,14 +46,18 @@ func (h *ObserveHandler) MetricsNodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	otel, err := h.querySvc.GetOTelSnapshot(r.Context(), clusterID)
-	if err != nil || otel == nil || otel.MetricsNodes == nil {
+	views, err := h.querySvc.ListNodeMetricsViews(r.Context(), clusterID)
+	switch {
+	case errors.Is(err, model.ErrSnapshotNotReady):
 		handler.WriteError(w, http.StatusNotFound, "数据尚未就绪")
+		return
+	case err != nil:
+		handler.WriteError(w, http.StatusInternalServerError, "读取节点指标失败")
 		return
 	}
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "获取成功",
-		"data":    otel.MetricsNodes,
+		"data":    views,
 	})
 }
 
@@ -142,12 +147,7 @@ func (h *ObserveHandler) MetricsNodeRoute(w http.ResponseWriter, r *http.Request
 	if len(parts) == 2 && parts[1] == "series" {
 		// GET /api/v2/observe/metrics/nodes/{name}/series
 		metric := r.URL.Query().Get("metric")
-		minutes := 30
-		if v := r.URL.Query().Get("minutes"); v != "" {
-			if m, err := strconv.Atoi(v); err == nil && m > 0 {
-				minutes = m
-			}
-		}
+		minutes := windowMinutesParam(r, "minutes", 30)
 
 		points, _, err := resolveNodeSeries(h.querySvc, r.Context(), clusterID, nodeName, metric, minutes)
 		if err == nil && len(points) > 0 {

@@ -37,7 +37,7 @@ func TestDetect_DeviationUsesPreUpdateEMA(t *testing.T) {
 // B：绝对阈值兜底
 // ──────────────────────────────────────────────────────────────
 //
-// 2026-08-29 压测实证：desk-zero CPU 打到 98%、gateway p99 到 2094ms，
+// 2026-08-29 压测实证：node-1 CPU 打到 98%、gateway p99 到 2094ms，
 // AIOps 全程判 healthy —— 负载数小时内渐进爬升，每一步都在 3σ 内，
 // 而每一步又同时抬高 EMA 与 σ（温水煮青蛙）。
 // 统计检测必须有静态阈值兜底：某些值无论「常态」如何都是坏的。
@@ -45,7 +45,7 @@ func TestDetect_DeviationUsesPreUpdateEMA(t *testing.T) {
 func TestDetect_AbsoluteGuard_FiresRegardlessOfBaseline(t *testing.T) {
 	// 最恶劣情形：基线已被压测养到 60%，σ 极大 —— 统计上 98% 毫不异常
 	st := &aiops.BaselineState{
-		EntityKey: "_cluster/node/desk-zero", MetricName: "cpu_usage",
+		EntityKey: "_cluster/node/node-1", MetricName: "cpu_usage",
 		EMA: 60, Variance: 400, Count: aiops.ColdStartMinCount + 1, // σ=20
 	}
 	_, res := Detect(st, 98, 0)
@@ -75,8 +75,8 @@ func TestDetect_AbsoluteGuard_Boundaries(t *testing.T) {
 		{"memory_usage", 80, false},
 		{"disk_usage", 90, true},
 		{"psi_cpu", 60, true},
-		{"apm_error_rate", 5, true}, // 错误率 5%
-		{"apm_error_rate", 1, false},
+		{"apm_error_rate", 0.05, true}, // 比率：错误率 5%
+		{"apm_error_rate", 0.01, false},
 		{"apm_rps", 99999, false},   // 无硬线的指标不受影响
 		{"restart_count", 3, false}, // 计数类由统计通道负责
 	}

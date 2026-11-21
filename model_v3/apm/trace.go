@@ -179,7 +179,7 @@ type TopologyEdge struct {
 	Target    string  `json:"target"`
 	CallCount int64   `json:"callCount"`
 	AvgMs     float64 `json:"avgMs"`
-	ErrorRate float64 `json:"errorRate"`
+	ErrorRate float64 `json:"errorRate"` // 比率（0-1）
 }
 
 type Topology struct {
@@ -210,7 +210,7 @@ type DBOperationStats struct {
 	CallCount int64   `json:"callCount"`
 	AvgMs     float64 `json:"avgMs"`
 	P99Ms     float64 `json:"p99Ms"`
-	ErrorRate float64 `json:"errorRate"`
+	ErrorRate float64 `json:"errorRate"` // 比率（0-1）
 }
 
 // ============================================================

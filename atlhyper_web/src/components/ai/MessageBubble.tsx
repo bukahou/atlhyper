@@ -1,67 +1,38 @@
 "use client";
 
 import { Bot, User } from "lucide-react";
-import { Message, StreamSegment, ChatStats } from "./types";
-import { CommandStatus, Round, isToolResultJSON, parseRoundsFromSegments } from "./command-utils";
+import type { Message, StreamSegment, ChatStats } from "./types";
+import { type ParsedAnswer, parseRoundsFromSegments } from "./command-utils";
 import { ExecutionBlock } from "./ExecutionBlock";
 import { MarkdownContent } from "./MarkdownContent";
+import { useI18n } from "@/i18n/context";
 
-// ==================== MessageBubble ====================
+// ==================== UserBubble ====================
 
-interface MessageBubbleProps {
-  message: Message;
-  stats?: ChatStats; // 当前提问的统计信息（只有最后一条 assistant 消息需要）
+export function UserBubble({ message }: { message: Message }) {
+  return (
+    <div className="flex justify-end gap-3">
+      <div className="max-w-[85%] bg-primary text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words">
+        {message.content}
+      </div>
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+        <User className="w-4 h-4 text-primary" />
+      </div>
+    </div>
+  );
 }
 
-export function MessageBubble({ message, stats }: MessageBubbleProps) {
-  const isUser = message.role === "user";
+// ==================== AnswerBubble ====================
 
-  if (isUser) {
-    return (
-      <div className="flex justify-end gap-3">
-        <div className="max-w-[85%] bg-primary text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words">
-          {message.content}
-        </div>
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-          <User className="w-4 h-4 text-primary" />
-        </div>
-      </div>
-    );
-  }
+interface AnswerBubbleProps {
+  answer: ParsedAnswer;
+  stats?: ChatStats; // 当前提问的统计信息（只有最后一次回答需要）
+}
 
-  // Assistant message - 解析 toolCalls 显示 ExecutionBlock
-  const content = message.content && !isToolResultJSON(message.content) ? message.content : "";
-
-  // 从 toolCalls 解析 rounds（每3个 tool_call 为一轮，模拟多轮思考）
-  const rounds: Round[] = [];
-  if (message.toolCalls) {
-    try {
-      const toolCalls = JSON.parse(message.toolCalls);
-      if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-        // 将 toolCalls 按轮次分组（启发式：每轮最多3个指令）
-        const commands = toolCalls.map((tc: { ID?: string; Name?: string; Params?: string }, idx: number) => ({
-          id: tc.ID || `cmd-${idx}`,
-          name: tc.Name || "unknown",
-          params: tc.Params || "{}",
-          status: "success" as CommandStatus,
-        }));
-
-        // 按每3个指令分组为一轮
-        for (let i = 0; i < commands.length; i += 3) {
-          rounds.push({
-            thinking: "",
-            commands: commands.slice(i, i + 3),
-          });
-        }
-      }
-    } catch {
-      // 忽略解析错误
-    }
-  }
-
-  if (!content && rounds.length === 0) {
-    return null;
-  }
+/** 历史里的一次完整回答：各轮（执行块）+ 最终回答 */
+export function AnswerBubble({ answer, stats }: AnswerBubbleProps) {
+  const { rounds, finalText } = answer;
+  if (!finalText && rounds.length === 0) return null;
 
   return (
     <div className="flex gap-3">
@@ -69,13 +40,10 @@ export function MessageBubble({ message, stats }: MessageBubbleProps) {
         <Bot className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
       </div>
       <div className="flex-1 min-w-0">
-        {/* ExecutionBlock - 如果有 tool calls */}
         {rounds.length > 0 && <ExecutionBlock rounds={rounds} stats={stats} />}
-
-        {/* 文本内容 */}
-        {content && (
+        {finalText && (
           <div className="bg-card border border-[var(--border-color)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-default">
-            <MarkdownContent content={content} />
+            <MarkdownContent content={finalText} />
           </div>
         )}
       </div>
@@ -89,11 +57,13 @@ interface StreamingBubbleProps {
   segments: StreamSegment[];
   stats?: ChatStats;
   streaming?: boolean; // 是否正在流式传输
+  stopped?: boolean; // 用户停止了生成
 }
 
-export function StreamingBubble({ segments, stats, streaming = true }: StreamingBubbleProps) {
-  // 解析 segments 为 rounds 结构
-  const { rounds, finalText } = parseRoundsFromSegments(segments);
+export function StreamingBubble({ segments, stats, streaming = true, stopped = false }: StreamingBubbleProps) {
+  const { t } = useI18n();
+  // 按分段自带的轮次与调用 ID 解析
+  const { rounds, finalText, notices } = parseRoundsFromSegments(segments);
 
   // 错误信息
   const errorSegment = segments.find((seg) => seg.type === "error");
@@ -101,14 +71,14 @@ export function StreamingBubble({ segments, stats, streaming = true }: Streaming
   // 检查是否有 tool 调用（用于显示 ExecutionBlock）
   const hasToolCalls = rounds.length > 0 && rounds.some(r => r.commands.length > 0);
 
-  // streaming=false 时不显示（stats 已传递给 MessageBubble）
-  // 但如果有错误，需要显示错误信息
-  if (!streaming && !errorSegment) {
+  // 正常结束后不显示（回答已在服务端历史里）；停止或出错时继续显示已输出的内容
+  if (!streaming && !errorSegment && !stopped) {
     return null;
   }
 
-  // 完全没有内容时显示加载动画
+  // 完全没有内容：还在输出时显示加载动画，停止了就什么都不显示
   if (!finalText && !errorSegment && rounds.length === 0) {
+    if (!streaming) return null;
     return (
       <div className="flex gap-3">
         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
@@ -138,18 +108,27 @@ export function StreamingBubble({ segments, stats, streaming = true }: Streaming
           </div>
         )}
 
+        {/* 流里的提示（历史已裁剪、调用超上限）：文案按语言出 */}
+        {notices.map((notice, i) => (
+          <p key={`${notice}-${i}`} className="text-xs text-muted px-1">{t.aiChatPage.notice[notice]}</p>
+        ))}
+
         {/* ExecutionBlock - 显示思考轮次和指令 */}
         {hasToolCalls && (
-          <ExecutionBlock rounds={rounds} stats={stats} streaming={true} />
+          <ExecutionBlock rounds={rounds} stats={stats} streaming={streaming} />
         )}
 
         {/* 文本内容 */}
         {finalText && (
           <div className="bg-card border border-[var(--border-color)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-default">
             <MarkdownContent content={finalText} />
-            <span className="inline-block w-1 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+            {streaming && (
+              <span className="inline-block w-1 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+            )}
           </div>
         )}
+
+        {stopped && <p className="text-xs text-muted px-1">{t.aiChatPage.chatInput.generationStopped}</p>}
       </div>
     </div>
   );

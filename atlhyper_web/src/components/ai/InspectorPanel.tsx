@@ -44,12 +44,7 @@ export function InspectorPanel({
   // 计算对话历史中的总指令数（所有消息）
   let historyToolCalls = 0;
   for (const msg of messages) {
-    if (msg.role === "assistant" && msg.toolCalls) {
-      try {
-        const calls = JSON.parse(msg.toolCalls);
-        historyToolCalls += calls.length;
-      } catch { /* ignore */ }
-    }
+    if (msg.role === "assistant") historyToolCalls += msg.toolCalls?.length ?? 0;
   }
 
   return (

@@ -2,8 +2,10 @@
 ## test —— 门禁，不产出任何东西
 ##
 ## 触发：
-##   - push 到 feature/** 与 dev  （开发中随时 commit，这里给快速反馈）
-##   - PR 到 main                 （dev → main 那一步的守门人）
+##   - push 到 feature/** 与 fix/**（开发中随时 commit，这里给快速反馈）
+##   - PR 到 main                   （dev → main 那一步的守门人）
+##   - 被 release.yml 调用          （push dev / main 出镜像之前先过这里，测试不过就不出镜像）
+##   ⚠️ dev 不在 push 触发里：push dev 时由 release.yml 调用本文件，避免同一次提交跑两遍
 ##
 ## ⛔ 刻意【不】构建镜像：多架构镜像构建慢且占额度，
 ##    feature 分支上每 commit 一次就烧一次是浪费。镜像只在 release.yml 出。
@@ -13,7 +15,6 @@ name: test
 on:
   push:
     branches:
-      - dev
       - "feature/**"
       - "fix/**"
     paths-ignore:
@@ -22,15 +23,17 @@ on:
       - "LICENSE"
   pull_request:
     branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: test-${{ github.ref }}
+  # 被 release.yml 调用时 github.workflow 是调用方的名字，与单独触发的门禁分成两组，互不取消
+  group: test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true # 门禁可以取消：只关心最后一次的结果
 
 jobs:
   go:
-    name: go build & vet
+    name: go build, vet & test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -53,6 +56,10 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # -race 需要 cgo，ubuntu-latest 自带 gcc；-count=1 不用缓存结果，每次真跑
+      - name: Test
+        run: go test -race -count=1 ./...
+
   web:
     name: next build
     runs-on: ubuntu-latest
@@ -74,6 +81,12 @@ jobs:
       # 否则本地能装、CI 装不上（或反过来），排查起来很费时间。
       - name: Install
         run: npm ci --legacy-peer-deps
+
+      # 接口类型由 api/openapi.yaml 生成：重新生成后与提交的不一致 = 改了规格没重新生成，或手改了生成文件
+      - name: API types match spec
+        run: |
+          npm run api:gen
+          git diff --exit-code -- src/types/api.gen.ts
 
       # 依赖数组、hooks 规则由 lint 把关；警告不拦，错误必须为零
       - name: Lint

@@ -123,6 +123,8 @@ func VerifyEnumContracts(ctx context.Context, client sdk.ClickHouseClient) {
 
 // distinctValues 取某表某列的去重取值（上限 20 个，防止异常数据撑爆）。
 func distinctValues(ctx context.Context, client sdk.ClickHouseClient, c enumContract) ([]string, error) {
+	skips := newScanSkips("distinctValues")
+	defer skips.report()
 	// table / column / filter 均来自本文件内的白名单常量，非外部输入，无注入风险。
 	q := fmt.Sprintf("SELECT DISTINCT %s FROM %s", c.column, c.table)
 	if c.filter != "" {
@@ -139,6 +141,7 @@ func distinctValues(ctx context.Context, client sdk.ClickHouseClient, c enumCont
 	for rows.Next() {
 		var v string
 		if err := rows.Scan(&v); err != nil {
+			skips.add(err)
 			continue
 		}
 		if v != "" {
@@ -228,6 +231,8 @@ func missingMetrics(collected map[string]struct{}) (drifted, hardwareAbsent []st
 
 // recentMetricNames 取某表近期出现过的 node_* 指标名。
 func recentMetricNames(ctx context.Context, client sdk.ClickHouseClient, table string) ([]string, error) {
+	skips := newScanSkips("recentMetricNames")
+	defer skips.report()
 	// table 来自本文件白名单，非外部输入。
 	q := fmt.Sprintf(
 		"SELECT DISTINCT MetricName FROM %s WHERE MetricName LIKE 'node_%%' AND TimeUnix > now() - INTERVAL %s",
@@ -242,6 +247,7 @@ func recentMetricNames(ctx context.Context, client sdk.ClickHouseClient, table s
 	for rows.Next() {
 		var n string
 		if err := rows.Scan(&n); err != nil {
+			skips.add(err)
 			continue
 		}
 		names = append(names, n)

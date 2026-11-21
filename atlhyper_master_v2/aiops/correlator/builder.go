@@ -5,6 +5,7 @@ package correlator
 import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/model_v3/cluster"
+	"AtlHyper/model_v3/slo"
 )
 
 // BuildFromSnapshot 从快照构建完整依赖图
@@ -19,8 +20,8 @@ func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot, otel *cl
 		g.AddNode(podKey, "pod", pod.Summary.Namespace, pod.Summary.Name, nil)
 
 		if pod.Summary.NodeName != "" {
-			nodeKey := aiops.EntityKey("_cluster", "node", pod.Summary.NodeName)
-			g.AddNode(nodeKey, "node", "_cluster", pod.Summary.NodeName, nil)
+			nodeKey := aiops.EntityKey(aiops.ClusterScope, "node", pod.Summary.NodeName)
+			g.AddNode(nodeKey, "node", aiops.ClusterScope, pod.Summary.NodeName, nil)
 			g.AddEdge(podKey, nodeKey, "runs_on", 1.0)
 		}
 	}
@@ -62,11 +63,27 @@ func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot, otel *cl
 		}
 	}
 
-	// 4. Service → Service (calls, 从 SLO Edge + APM Topology，去重)
+	// 4. 入口（SLO）→ Service (routes_to)：入口指标按服务标识上报，落到该服务的入口实体上，
+	// 与服务连起来，入口的异常才能沿依赖图传到后端
+	if otel != nil {
+		for i := range otel.SLOIngress {
+			serviceKey := otel.SLOIngress[i].ServiceKey
+			if serviceKey == "" {
+				continue
+			}
+			ns, svcName := slo.SplitServiceKey(serviceKey)
+			ingKey := aiops.IngressEntityKey(serviceKey)
+			svcKey := aiops.EntityKey(ns, "service", svcName)
+			g.AddNode(ingKey, "ingress", ns, svcName, nil)
+			g.AddNode(svcKey, "service", ns, svcName, nil)
+			g.AddEdge(ingKey, svcKey, "routes_to", 1.0)
+		}
+	}
+
+	// 5. Service → Service (calls，来自 APM 拓扑，去重)
 	if otel != nil {
 		edgeSet := make(map[string]bool) // "srcKey->dstKey" 去重
 
-		// 4b. APM 拓扑边
 		if otel.APMTopology != nil {
 			// 构建 nodeId → namespace 索引
 			nsIndex := make(map[string]string, len(otel.APMTopology.Nodes))
@@ -78,10 +95,10 @@ func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot, otel *cl
 				srcNs := nsIndex[edge.Source]
 				dstNs := nsIndex[edge.Target]
 				if srcNs == "" {
-					srcNs = "_cluster"
+					srcNs = aiops.ClusterScope
 				}
 				if dstNs == "" {
-					dstNs = "_cluster"
+					dstNs = aiops.ClusterScope
 				}
 				srcKey := aiops.EntityKey(srcNs, "service", edge.Source)
 				dstKey := aiops.EntityKey(dstNs, "service", edge.Target)
@@ -100,14 +117,14 @@ func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot, otel *cl
 	// 确保 Node 节点存在（可能没有 Pod 调度到的独立节点）
 	for i := range snap.Nodes {
 		node := &snap.Nodes[i]
-		nodeKey := aiops.EntityKey("_cluster", "node", node.GetName())
-		g.AddNode(nodeKey, "node", "_cluster", node.GetName(), nil)
+		nodeKey := aiops.EntityKey(aiops.ClusterScope, "node", node.GetName())
+		g.AddNode(nodeKey, "node", aiops.ClusterScope, node.GetName(), nil)
 	}
 
-	// 5. 虚拟实体：logs/global（OTel 日志聚合节点）
+	// 6. 虚拟实体：logs/global（OTel 日志聚合节点）
 	if otel != nil && otel.LogsSummary != nil {
-		logsKey := aiops.EntityKey("_cluster", "logs", "global")
-		g.AddNode(logsKey, "logs", "_cluster", "Log Summary", nil)
+		logsKey := aiops.EntityKey(aiops.ClusterScope, "logs", "global")
+		g.AddNode(logsKey, "logs", aiops.ClusterScope, "Log Summary", nil)
 	}
 
 	g.RebuildIndex()

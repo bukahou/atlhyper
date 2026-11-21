@@ -2,6 +2,10 @@
  * 集群相关类型定义
  */
 
+import type { components } from "./api.gen";
+
+type ApiSchemas = components["schemas"];
+
 import type { ClusterRequest, NamespaceRequest } from "./common";
 
 // 集群信息（Master V2 使用 camelCase）
@@ -32,12 +36,18 @@ export interface PodOverview {
 }
 
 // Pod 列表项 - 匹配后端 model.PodItem
+/** K8s 资源状态的显示等级（后端判定，状态徽章只按它上色） */
+export type StatusLevel = "success" | "warning" | "error" | "info" | "default";
+
 export interface PodItem {
   name: string;
   namespace: string;
   deployment: string;
   ready: string;
   phase: string; // Running, Pending, Failed, Unknown
+  statusLevel: StatusLevel;
+  /** 有容器故障时为其原因代码（如 CrashLoopBackOff） */
+  statusReason?: string;
   restarts: number;
   cpuText: string;
   memoryText: string;
@@ -89,6 +99,9 @@ export interface PodContainerDetail {
   startupProbe?: unknown;
   securityContext?: unknown;
   state?: string;
+  /** K8s 的原因代码，如 CrashLoopBackOff / Completed */
+  stateReason?: string;
+  stateLevel: StatusLevel;
   restartCount?: number;
   lastTerminatedReason?: string;
 }
@@ -108,6 +121,7 @@ export interface PodDetail {
   namespace: string;
   controller?: string;
   phase: string;
+  statusLevel: StatusLevel;
   ready: string;
   restarts: number;
   startTime: string;
@@ -155,14 +169,6 @@ export interface PodEvent {
   Reason: string;
   Message: string;
   LastTimestamp: string;
-}
-
-// Pod 日志请求
-export interface PodLogsRequest extends NamespaceRequest {
-  Pod: string;
-  Container?: string;
-  TailLines?: number;
-  TimeoutSeconds?: number;
 }
 
 // Pod 日志响应
@@ -623,6 +629,7 @@ export interface NamespaceOverview {
 export interface NamespaceItem {
   name: string;
   status: string;
+  statusLevel: StatusLevel;
   podCount: number;
   labelCount: number;
   annotationCount: number;
@@ -683,6 +690,7 @@ export interface NamespaceDetail {
   // 基本信息
   name: string;
   phase: string;
+  statusLevel: StatusLevel;
   createdAt: string;
   age?: string;
 
@@ -740,7 +748,7 @@ export interface ConfigMapDTO {
   dataKeys?: string[]; // 只有键名，不含值
 }
 
-// Secret DTO - 匹配后端 model_v2.Secret
+// Secret DTO - 匹配后端 model_v3.Secret
 export interface SecretDTO {
   name: string;
   namespace: string;
@@ -840,25 +848,10 @@ export interface IngressStatusDTO {
   loadBalancer?: string[];
 }
 
-// 事件日志 - 后端已返回 camelCase
-export interface EventLog {
-  clusterId: string;
-  category: string;
-  eventTime: string;
-  kind: string;
-  message: string;
-  name: string;
-  namespace: string;
-  node: string;
-  reason: string;
-  severity: string;  // "Normal" | "Warning" | "Critical"
-  time: string;
-  // model_v3 新增字段
-  source?: string;          // kubelet, scheduler, deployment-controller 等
-  count?: number;           // 发生次数
-  firstTimestamp?: string;  // 首次发生
-  lastTimestamp?: string;   // 最后发生
-}
+// 事件（listEvents）：类型由 api/openapi.yaml 生成（types/api.gen.ts）
+/** 事件严重程度（后端判定） */
+export type EventSeverity = ApiSchemas["EventLog"]["severity"];
+export type EventLog = ApiSchemas["EventLog"];
 
 // 事件日志请求
 export interface EventLogRequest {
@@ -866,16 +859,8 @@ export interface EventLogRequest {
   withinDays: number;
 }
 
-// 事件统计卡片
-export interface EventCards {
-  totalAlerts: number;
-  totalEvents: number;
-  warning: number;
-  info: number;
-  error: number;
-  categoriesCount: number;
-  kindsCount: number;
-}
+// 事件统计卡片（随事件列表一起返回）
+export type EventCards = ApiSchemas["EventCards"];
 
 // 事件概览响应
 export interface EventOverview {

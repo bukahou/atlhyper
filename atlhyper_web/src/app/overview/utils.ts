@@ -4,7 +4,14 @@ import type { ClusterOverview, TransformedOverview } from "@/types/overview";
 // 默认空数据结构
 export const emptyData: TransformedOverview = {
   clusterId: "",
-  healthCard: { status: "Unknown", reason: "", nodeReadyPct: 0, podHealthyPct: 0 },
+  healthCard: {
+    status: "Unknown",
+    reason: "",
+    nodeReadyPct: 0,
+    podHealthyPct: 0,
+    nodeReadyStatus: "Unknown",
+    podReadyStatus: "Unknown",
+  },
   nodesCard: { totalNodes: 0, readyNodes: 0, nodeReadyPct: 0 },
   cpuCard: { percent: 0 },
   memCard: { percent: 0 },
@@ -50,10 +57,12 @@ export function transformOverview(data: ClusterOverview | null | undefined): Tra
   return {
     clusterId: safeString(data.clusterId),
     healthCard: {
-      status: safeString(cards.clusterHealth?.status, "Unknown"),
-      reason: safeString(cards.clusterHealth?.reason),
+      status: cards.clusterHealth?.status ?? "Unknown",
+      reason: cards.clusterHealth?.reason ?? "",
       nodeReadyPct: safePercent(cards.clusterHealth?.nodeReadyPercent),
       podHealthyPct: safePercent(cards.clusterHealth?.podReadyPercent),
+      nodeReadyStatus: cards.clusterHealth?.nodeReadyStatus ?? "Unknown",
+      podReadyStatus: cards.clusterHealth?.podReadyStatus ?? "Unknown",
     },
     nodesCard: {
       totalNodes: safeNumber(cards.nodeReady?.total),
@@ -120,6 +129,8 @@ export function transformOverview(data: ClusterOverview | null | undefined): Tra
       nodeName: safeString(it.node),
       cpuPercent: safePercent(it.cpuUsage),
       memoryPercent: safePercent(it.memUsage),
+      cpuLevel: it.cpuLevel ?? "unknown",
+      memoryLevel: it.memLevel ?? "unknown",
     })),
   };
 }

@@ -4,6 +4,7 @@ package observe
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -21,20 +22,23 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	// 请求体只认这些字段：查询条件原样下发给 Agent，⛔ 不把浏览器给的任意键带过去
+	var body struct {
+		ClusterID string `json:"cluster_id"`
+		command.QueryLogsParams
+	}
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
 		handler.WriteError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-
-	clusterID, _ := body["cluster_id"].(string)
-	if clusterID == "" {
+	if body.ClusterID == "" {
 		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
 		return
 	}
-
-	delete(body, "cluster_id")
-	h.executeQuery(w, r, clusterID, command.ActionQueryLogs, body, 0)
+	body.SubAction = command.LogsList
+	h.executeQuery(w, r, body.ClusterID, command.ActionQueryLogs, body.QueryLogsParams, 0)
 }
 
 // LogsHistogram GET /api/v2/observe/logs/histogram
@@ -52,29 +56,21 @@ func (h *ObserveHandler) LogsHistogram(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := r.URL.Query()
-	params := map[string]interface{}{
-		"sub_action": "histogram",
+	params := command.QueryLogsParams{
+		SubAction:  command.LogsHistogram,
+		Service:    q.Get("service"),
+		Level:      q.Get("level"),
+		Scope:      q.Get("scope"),
+		Query:      q.Get("query"),
+		TimeWindow: command.TimeWindow{StartTime: q.Get("start_time"), EndTime: q.Get("end_time")},
 	}
 	if v := q.Get("since"); v != "" {
-		params["since"] = v
-	}
-	if v := q.Get("service"); v != "" {
-		params["service"] = v
-	}
-	if v := q.Get("level"); v != "" {
-		params["level"] = v
-	}
-	if v := q.Get("scope"); v != "" {
-		params["scope"] = v
-	}
-	if v := q.Get("query"); v != "" {
-		params["query"] = v
-	}
-	if v := q.Get("start_time"); v != "" {
-		params["start_time"] = v
-	}
-	if v := q.Get("end_time"); v != "" {
-		params["end_time"] = v
+		m, ok := parseTimeRangeMinutes(v)
+		if !ok {
+			handler.WriteError(w, http.StatusBadRequest, "since 格式不合法（如 15m、1h、24h）")
+			return
+		}
+		params.Since = fmt.Sprintf("%dm", m)
 	}
 
 	// cacheTTL 根据时间范围决定

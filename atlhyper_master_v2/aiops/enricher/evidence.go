@@ -136,7 +136,7 @@ func (ev *incidentEvidence) promptContext(level int) *prompts.IncidentPromptCont
 
 	// 快照证据各自有条数上限，不参与截断
 	if ev.snapshot != nil {
-		pc.RecentErrorTraces, pc.RecentErrorLogs, pc.SLOContext = buildOTelContext(ev.snapshot.OTel, ev.entities)
+		pc.RecentErrorTraces, pc.SLOContext = buildOTelContext(ev.snapshot.OTel, ev.entities)
 		pc.PodStates = buildPodStateContext(ev.snapshot, ev.entities) // A10：容器状态作为证据
 	}
 	return pc

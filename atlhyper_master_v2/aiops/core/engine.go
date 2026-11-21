@@ -17,6 +17,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops/subject"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/datahub"
+	slocalc "AtlHyper/atlhyper_master_v2/slo"
 	"AtlHyper/common/logger"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/slo"
@@ -487,41 +488,34 @@ func (e *engine) buildSLOContext(clusterID string) *risk.SLOContext {
 		return nil
 	}
 
-	// 建立 ServiceKey → IngressSLO 索引
-	ingressIndex := make(map[string]*slo.IngressSLO, len(otel.SLOIngress))
-	for i := range otel.SLOIngress {
-		ingressIndex[otel.SLOIngress[i].ServiceKey] = &otel.SLOIngress[i]
-	}
-
-	var maxBurnRate float64
-	hasData := false
-
-	for _, t := range targets {
-		ing, ok := ingressIndex[t.Host]
-		if !ok {
-			continue
-		}
-
-		actualErrorRate := ing.ErrorRate
-		errorBudget := 1.0 - t.AvailabilityTarget/100.0
-		if errorBudget <= 0 {
-			errorBudget = 0.001
-		}
-
-		burnRate := actualErrorRate / errorBudget
-		if burnRate > maxBurnRate {
-			maxBurnRate = burnRate
-		}
-		hasData = true
-	}
-
+	burn, hasData := maxBurnRate(targets, otel.SLOIngress)
 	if !hasData {
 		return nil
 	}
 
 	return &risk.SLOContext{
-		MaxBurnRate: maxBurnRate,
+		MaxBurnRate: burn,
 	}
+}
+
+// maxBurnRate 各 SLO 目标的错误预算燃烧率取最大值（没有任何目标对得上入口数据时 ok=false）。
+// 目标按「域名」登记，入口按 IngressSLO.MatchesHost 找（与 SLO 页面同一规则）；
+// 燃烧率用 slo.CalculateBurnRate（错误率与可用性目标都是百分数）
+func maxBurnRate(targets []*database.SLOTarget, ingresses []slo.IngressSLO) (float64, bool) {
+	var maxRate float64
+	hasData := false
+	for _, t := range targets {
+		for i := range ingresses {
+			if !ingresses[i].MatchesHost(t.Host) {
+				continue
+			}
+			if burn := slocalc.CalculateBurnRate(ingresses[i].ErrorRate, t.AvailabilityTarget); burn > maxRate {
+				maxRate = burn
+			}
+			hasData = true
+		}
+	}
+	return maxRate, hasData
 }
 
 // flushLoop 定期将脏状态写入数据库
@@ -629,7 +623,7 @@ func extractActiveEntityKeys(snap *cluster.ClusterSnapshot, otel *cluster.OTelSn
 	}
 	for i := range snap.Nodes {
 		node := &snap.Nodes[i]
-		keys[aiops.EntityKey("_cluster", "node", node.GetName())] = true
+		keys[aiops.EntityKey(aiops.ClusterScope, "node", node.GetName())] = true
 	}
 	for i := range snap.Services {
 		svc := &snap.Services[i]
@@ -641,7 +635,7 @@ func extractActiveEntityKeys(snap *cluster.ClusterSnapshot, otel *cluster.OTelSn
 	}
 	if otel != nil {
 		for _, ing := range otel.SLOIngress {
-			keys[aiops.EntityKey("_cluster", "ingress", ing.ServiceKey)] = true
+			keys[aiops.IngressEntityKey(ing.ServiceKey)] = true
 		}
 		// Enhanced: APM 服务实体
 		for _, svc := range otel.APMServices {
@@ -649,7 +643,7 @@ func extractActiveEntityKeys(snap *cluster.ClusterSnapshot, otel *cluster.OTelSn
 		}
 		// Enhanced: logs 虚拟实体
 		if otel.LogsSummary != nil {
-			keys[aiops.EntityKey("_cluster", "logs", "global")] = true
+			keys[aiops.EntityKey(aiops.ClusterScope, "logs", "global")] = true
 		}
 	}
 	return keys

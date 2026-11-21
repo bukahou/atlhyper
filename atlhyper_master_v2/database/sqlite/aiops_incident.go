@@ -3,6 +3,7 @@
 package sqlite
 
 import (
+	"AtlHyper/atlhyper_master_v2/aiops/severity"
 	"database/sql"
 	"strings"
 	"time"
@@ -19,11 +20,6 @@ var incidentColumns = []string{
 	"started_at", "escalated_at", "resolved_at", "close_reason", "duration_s", "recurrence", "summary", "created_at",
 }
 
-// severityRankSQL 把严重度列（或占位符）映射为可比较的档位
-func severityRankSQL(expr string) string {
-	return "CASE " + expr + " WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END"
-}
-
 func (d *aIOpsIncidentDialect) IncidentColumns(prefix string) string {
 	return prefix + strings.Join(incidentColumns, ", "+prefix)
 }
@@ -32,7 +28,7 @@ func (d *aIOpsIncidentDialect) InsertIncident(inc *database.AIOpsIncident) (stri
 	return `INSERT INTO aiops_incidents (id, cluster_id, state, severity, subject, root_cause, peak_risk, started_at, summary, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]any{inc.ID, inc.ClusterID, inc.State, inc.Severity, inc.Subject, inc.RootCause, inc.PeakRisk,
-			inc.StartedAt.Format(time.RFC3339), inc.Summary, inc.CreatedAt.Format(time.RFC3339)}
+			utcStamp(inc.StartedAt), inc.Summary, utcStamp(inc.CreatedAt)}
 }
 
 func (d *aIOpsIncidentDialect) SelectByID(id string) (string, []any) {
@@ -43,16 +39,16 @@ func (d *aIOpsIncidentDialect) UpdateState(id, state string) (string, []any) {
 	return `UPDATE aiops_incidents SET state = ? WHERE id = ?`, []any{state, id}
 }
 
-func (d *aIOpsIncidentDialect) RaiseSeverity(id, severity string, peakRisk float64) (string, []any) {
+func (d *aIOpsIncidentDialect) RaiseSeverity(id, newSeverity string, peakRisk float64) (string, []any) {
 	return `UPDATE aiops_incidents SET
-			severity = CASE WHEN ` + severityRankSQL("?") + ` > ` + severityRankSQL("severity") + ` THEN ? ELSE severity END,
+			severity = CASE WHEN ` + severity.RankSQL("?") + ` > ` + severity.RankSQL("severity") + ` THEN ? ELSE severity END,
 			peak_risk = MAX(peak_risk, ?)
-		WHERE id = ?`, []any{severity, severity, peakRisk, id}
+		WHERE id = ?`, []any{newSeverity, newSeverity, peakRisk, id}
 }
 
 func (d *aIOpsIncidentDialect) MarkEscalated(id string, escalatedAt time.Time) (string, []any) {
 	return `UPDATE aiops_incidents SET escalated_at = ? WHERE id = ? AND escalated_at IS NULL`,
-		[]any{escalatedAt.Format(time.RFC3339), id}
+		[]any{utcStamp(escalatedAt), id}
 }
 
 // SetAnomalyDuration 时长按整秒相减：julianday 相减再乘 86400 是浮点运算，截断后会少 1 秒
@@ -60,7 +56,7 @@ func (d *aIOpsIncidentDialect) SetAnomalyDuration(id string, endedAt time.Time) 
 	return `UPDATE aiops_incidents SET
 			duration_s = CAST(strftime('%s', ?) AS INTEGER) - CAST(strftime('%s', started_at) AS INTEGER)
 		WHERE id = ?`,
-		[]any{endedAt.Format(time.RFC3339), id}
+		[]any{utcStamp(endedAt), id}
 }
 
 // Resolve 时长是「异常持续了多久」，不含恢复观察期：
@@ -72,7 +68,7 @@ func (d *aIOpsIncidentDialect) Resolve(id string, resolvedAt time.Time, reason s
 				ELSE CAST(strftime('%s', ?) AS INTEGER) - CAST(strftime('%s', started_at) AS INTEGER) END,
 			state = 'stable', resolved_at = ?, close_reason = ?
 		WHERE id = ?`,
-		[]any{resolvedAt.Format(time.RFC3339), resolvedAt.Format(time.RFC3339), reason, id}
+		[]any{utcStamp(resolvedAt), utcStamp(resolvedAt), reason, id}
 }
 
 func (d *aIOpsIncidentDialect) UpdateRootCause(id, rootCause string) (string, []any) {
@@ -101,7 +97,7 @@ func (d *aIOpsIncidentDialect) SelectEntities(incidentID string) (string, []any)
 func (d *aIOpsIncidentDialect) InsertTimeline(entry *database.AIOpsIncidentTimeline) (string, []any) {
 	return `INSERT INTO aiops_incident_timeline (incident_id, timestamp, event_type, entity_key, detail)
 		VALUES (?, ?, ?, ?, ?)`,
-		[]any{entry.IncidentID, entry.Timestamp.Format(time.RFC3339), entry.EventType, entry.EntityKey, entry.Detail}
+		[]any{entry.IncidentID, utcStamp(entry.Timestamp), entry.EventType, entry.EntityKey, entry.Detail}
 }
 
 func (d *aIOpsIncidentDialect) SelectTimeline(incidentID string) (string, []any) {
@@ -119,7 +115,7 @@ func (d *aIOpsIncidentDialect) UpsertSignal(signal *database.AIOpsIncidentSignal
 			max_score = MAX(aiops_incident_signals.max_score, excluded.max_score),
 			detail = excluded.detail`,
 		[]any{signal.IncidentID, signal.EntityKey, signal.Metric,
-			signal.LastSeen.UTC().Format(time.RFC3339), signal.LastSeen.UTC().Format(time.RFC3339),
+			utcStamp(signal.LastSeen), utcStamp(signal.LastSeen),
 			signal.MaxScore, signal.Detail}
 }
 
@@ -148,12 +144,12 @@ func (d *aIOpsIncidentDialect) SaveLink(link *database.AIOpsIncidentLink) (strin
 			path = excluded.path,
 			linked_at = excluded.linked_at,
 			unlinked_at = NULL`,
-		[]any{link.IncidentID, link.ClusterID, link.RootIncidentID, link.Path, link.LinkedAt.UTC().Format(time.RFC3339)}
+		[]any{link.IncidentID, link.ClusterID, link.RootIncidentID, link.Path, utcStamp(link.LinkedAt)}
 }
 
 func (d *aIOpsIncidentDialect) UnlinkIncident(incidentID string, at time.Time) (string, []any) {
 	return `UPDATE aiops_incident_links SET unlinked_at = ? WHERE incident_id = ? AND unlinked_at IS NULL`,
-		[]any{at.UTC().Format(time.RFC3339), incidentID}
+		[]any{utcStamp(at), incidentID}
 }
 
 func (d *aIOpsIncidentDialect) SelectActiveLinks(clusterID string) (string, []any) {
@@ -226,4 +222,8 @@ func (d *aIOpsIncidentDialect) ScanTimeline(rows *sql.Rows) (*database.AIOpsInci
 	}
 	t.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
 	return t, nil
+}
+
+func (d *aIOpsIncidentDialect) DeleteResolvedBefore(before time.Time) (string, []any) {
+	return "DELETE FROM aiops_incidents WHERE resolved_at IS NOT NULL AND resolved_at < ?", []any{utcStamp(before)}
 }

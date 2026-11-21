@@ -5,75 +5,21 @@
  */
 
 import { get } from "./request";
+import type { components, operations } from "@/types/api.gen";
 import type { EventOverview, EventLog } from "@/types/cluster";
 
 // ============================================================
 // 查询参数类型
 // ============================================================
 
-interface EventListParams {
-  cluster_id: string;
-  namespace?: string;
-  type?: string; // Normal, Warning
-  reason?: string;
-  involved_kind?: string;
-  involved_name?: string;
-  since?: string; // RFC3339 格式
-  limit?: number;
-  offset?: number;
-  source?: string;
-}
+/** 查询参数：由规格生成，后端不认的参数这里也没有 */
+type EventListParams = operations["listEvents"]["parameters"]["query"];
 
 // ============================================================
 // 响应类型（后端已返回 camelCase）
 // ============================================================
 
-interface EventListResponse {
-  events: EventLog[];
-  total: number;
-  source?: string;
-  limit?: number;
-  offset?: number;
-}
-
-// ============================================================
-// 聚合工具（从事件列表生成概览统计）
-// ============================================================
-
-function aggregateOverview(events: EventLog[]): EventOverview {
-  const kindsSet = new Set<string>();
-  const categoriesSet = new Set<string>();
-  let warning = 0;
-  let error = 0;
-  let info = 0;
-
-  for (const e of events) {
-    if (e.kind) kindsSet.add(e.kind);
-    if (e.reason) categoriesSet.add(e.reason);
-
-    const severity = e.severity?.toLowerCase() || "";
-    if (severity === "warning") {
-      warning++;
-    } else if (severity === "error") {
-      error++;
-    } else {
-      info++;
-    }
-  }
-
-  return {
-    cards: {
-      totalAlerts: warning + error,
-      totalEvents: events.length,
-      warning,
-      error,
-      info,
-      kindsCount: kindsSet.size,
-      categoriesCount: categoriesSet.size,
-    },
-    rows: events,
-  };
-}
+type EventListResponse = components["schemas"]["EventListResponse"];
 
 // ============================================================
 // API 方法
@@ -111,24 +57,21 @@ export function getAlertList(params: EventListParams) {
  * 获取事件概览（实时，从 DataHub）
  */
 export async function getEventOverview(
-  data: { ClusterID: string; Namespace?: string; Type?: string },
+  data: { ClusterID: string; Type?: string },
   signal?: AbortSignal,
 ) {
   const response = await getEventList(
     {
       cluster_id: data.ClusterID,
-      namespace: data.Namespace,
       type: data.Type,
     },
     signal,
   );
 
-  const events = response.data.events || [];
-
   return {
     ...response,
     data: {
-      data: aggregateOverview(events),
+      data: { cards: response.data.cards, rows: response.data.events || [] } satisfies EventOverview,
     },
   };
 }
@@ -141,12 +84,10 @@ export async function getAlertOverview(data: { ClusterID: string }) {
     cluster_id: data.ClusterID,
   });
 
-  const events = response.data.events || [];
-
   return {
     ...response,
     data: {
-      data: aggregateOverview(events),
+      data: { cards: response.data.cards, rows: response.data.events || [] } satisfies EventOverview,
     },
   };
 }

@@ -1,9 +1,10 @@
 /**
  * Deployment API
  *
- * 后端已完成 model_v2 → model 扁平化转换，前端直接使用
+ * 后端已完成 model_v3 → model 扁平化转换，前端直接使用
  */
 
+import type { CommandResponse } from "./commands";
 import { get, post } from "./request";
 import type { DeploymentOverview, DeploymentDetail, DeploymentItem } from "@/types/cluster";
 
@@ -32,11 +33,6 @@ interface DeploymentListResponse {
 // 操作请求类型
 // ============================================================
 
-interface CommandResponse {
-  message: string;
-  commandId: string;
-  status: string;
-}
 
 // ============================================================
 // API 方法

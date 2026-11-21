@@ -5,6 +5,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 )
@@ -53,4 +54,13 @@ func (r *auditRepo) Count(ctx context.Context, opts database.AuditQueryOpts) (in
 	var count int64
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
 	return count, err
+}
+
+func (r *auditRepo) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	query, args := r.dialect.DeleteBefore(before)
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

@@ -34,6 +34,14 @@ func ParseAuthMode(value string) (AuthMode, error) {
 	return "", fmt.Errorf("未知的 Agent 认证模式 %q（可选 off / warn / enforce）", value)
 }
 
+// authModeOrEnforce 没给认证模式时取最严的 enforce（安全开关默认取安全的一边；关闭必须显式写 off）
+func authModeOrEnforce(mode AuthMode) AuthMode {
+	if mode == "" {
+		return AuthModeEnforce
+	}
+	return mode
+}
+
 // ClusterDirectory 按令牌哈希查集群（集群注册表的最小读接口）
 type ClusterDirectory interface {
 	GetByTokenHash(ctx context.Context, tokenHash string) (*database.Cluster, error)
@@ -80,7 +88,7 @@ type authRejection struct {
 
 // resolveIdentity 按认证模式确定请求的身份，或给出拒绝理由
 func (s *Server) resolveIdentity(r *http.Request) (agentIdentity, *authRejection) {
-	if s.authMode == AuthModeOff || s.authMode == "" {
+	if s.authMode == AuthModeOff {
 		return agentIdentity{}, nil
 	}
 	enforce := s.authMode == AuthModeEnforce

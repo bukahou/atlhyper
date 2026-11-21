@@ -4,7 +4,7 @@
 
 import { get } from "./request";
 import type { ObserveResponse } from "./observe-common";
-import type { NodeMetrics, Summary, Point } from "@/types/node-metrics";
+import type { NodeMetricsView, Summary } from "@/types/node-metrics";
 import type { HardwareHealth } from "@/types/hardware";
 import type { FreshnessResponse } from "@/types/observe";
 
@@ -13,25 +13,9 @@ export function getMetricsSummary(clusterId: string, signal?: AbortSignal) {
   return get<ObserveResponse<Summary>>("/api/v2/observe/metrics/summary", { cluster_id: clusterId }, signal);
 }
 
-/** 获取所有节点指标列表 */
+/** 获取所有节点指标列表（每项带后端判定的等级） */
 export function getMetricsNodes(clusterId: string, signal?: AbortSignal) {
-  return get<ObserveResponse<NodeMetrics[]>>("/api/v2/observe/metrics/nodes", { cluster_id: clusterId }, signal);
-}
-
-/** 获取单节点指标 */
-export function getMetricsNode(clusterId: string, nodeName: string) {
-  return get<ObserveResponse<NodeMetrics>>(
-    `/api/v2/observe/metrics/nodes/${encodeURIComponent(nodeName)}`,
-    { cluster_id: clusterId }
-  );
-}
-
-/** 获取节点时序数据 */
-export function getMetricsNodeSeries(clusterId: string, nodeName: string, metric: string, minutes?: number) {
-  return get<ObserveResponse<Point[]>>(
-    `/api/v2/observe/metrics/nodes/${encodeURIComponent(nodeName)}/series`,
-    { cluster_id: clusterId, metric, ...(minutes ? { minutes } : {}) }
-  );
+  return get<ObserveResponse<NodeMetricsView[]>>("/api/v2/observe/metrics/nodes", { cluster_id: clusterId }, signal);
 }
 
 /** 获取硬件健康矩阵（阈值判定已在后端完成） */

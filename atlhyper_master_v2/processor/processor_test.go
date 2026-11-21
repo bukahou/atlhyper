@@ -40,3 +40,13 @@ func TestProcessSnapshot_DropsManifestCopyAnnotations(t *testing.T) {
 		t.Errorf("普通注解丢失: %v", deployment.Annotations)
 	}
 }
+
+func TestStaleKindsKey(t *testing.T) {
+	got := staleKindsKey([]cluster.StaleKind{{Kind: "deployments"}, {Kind: "ingresses", Unavailable: true}})
+	if got != "deployments（沿用） / ingresses（留空）" {
+		t.Errorf("staleKindsKey = %q", got)
+	}
+	if staleKindsKey(nil) != "" {
+		t.Error("没有没采到的类别时应为空")
+	}
+}

@@ -18,7 +18,7 @@ export interface MockPathStatus {
   lastSyncAt: string;
 }
 
-export type DeployTrigger = "auto" | "manual" | "rollback";
+export type DeployTrigger = "auto" | "manual";
 
 export interface MockChangedFile {
   filename: string;
@@ -41,7 +41,7 @@ export interface MockDeployRecord {
   prUrl: string;
   changedFiles: string;    // JSON array of MockChangedFile
   compareUrl: string;      // GitHub compare URL
-  sourceRepo: string;      // 源码仓库 (e.g. "bukahou/Geass")
+  sourceRepo: string;      // 源码仓库 (e.g. "example-org/shop")
   sourceCommitSha: string; // 源码 commit SHA (e.g. "b572f17")
   deployedAt: string;      // 实际部署完成时间
   trigger: DeployTrigger;
@@ -56,40 +56,40 @@ export interface MockDeployRecord {
 export const MOCK_DEPLOY_CONFIG: MockDeployConfig = {
   repoUrl: "example-org/cluster-config",
   paths: [
-    "zgmf-x10a/k8s-configs/Geass/backend",
-    "zgmf-x10a/k8s-configs/Geass/web",
-    "zgmf-x10a/k8s-configs/atlhyper/master",
-    "zgmf-x10a/k8s-configs/atlhyper/web",
+    "demo-cluster/k8s-configs/Geass/backend",
+    "demo-cluster/k8s-configs/Geass/web",
+    "demo-cluster/k8s-configs/atlhyper/master",
+    "demo-cluster/k8s-configs/atlhyper/web",
   ],
   intervalSec: 60,
   autoDeploy: true,
-  clusterId: "zgmf-x10a",
+  clusterId: "demo-cluster",
 };
 
 export const MOCK_PATH_STATUS: MockPathStatus[] = [
   {
-    path: "zgmf-x10a/k8s-configs/Geass/backend",
+    path: "demo-cluster/k8s-configs/Geass/backend",
     namespace: "geass",
     inSync: false,
     resourceCount: 12,
     lastSyncAt: "2026-03-10T10:32:00Z",
   },
   {
-    path: "zgmf-x10a/k8s-configs/Geass/web",
+    path: "demo-cluster/k8s-configs/Geass/web",
     namespace: "geass-web",
     inSync: true,
     resourceCount: 4,
     lastSyncAt: "2026-03-10T10:32:00Z",
   },
   {
-    path: "zgmf-x10a/k8s-configs/atlhyper/master",
+    path: "demo-cluster/k8s-configs/atlhyper/master",
     namespace: "atlhyper",
     inSync: true,
     resourceCount: 5,
     lastSyncAt: "2026-03-10T10:30:00Z",
   },
   {
-    path: "zgmf-x10a/k8s-configs/atlhyper/web",
+    path: "demo-cluster/k8s-configs/atlhyper/web",
     namespace: "atlhyper",
     inSync: true,
     resourceCount: 4,
@@ -100,7 +100,7 @@ export const MOCK_PATH_STATUS: MockPathStatus[] = [
 export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   {
     id: 1,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "Geass/backend",
     namespace: "geass",
     commitSha: "def5678",
@@ -115,7 +115,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
       { filename: "geass_gateway/src/main/java/Config.java", status: "modified", additions: 8, deletions: 3 },
     ]),
     compareUrl: "",
-    sourceRepo: "bukahou/Geass",
+    sourceRepo: "example-org/shop",
     sourceCommitSha: "def5678",
     deployedAt: "2026-03-10T10:32:15Z",
     trigger: "auto",
@@ -126,7 +126,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   },
   {
     id: 2,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "Geass/backend",
     namespace: "geass",
     commitSha: "abc1234",
@@ -140,7 +140,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
       { filename: "geass_auth/src/main/java/TokenService.java", status: "modified", additions: 25, deletions: 8 },
     ]),
     compareUrl: "",
-    sourceRepo: "bukahou/Geass",
+    sourceRepo: "example-org/shop",
     sourceCommitSha: "abc1234",
     deployedAt: "2026-03-09T14:33:20Z",
     trigger: "auto",
@@ -152,11 +152,11 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   },
   {
     id: 3,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "Geass/backend",
     namespace: "geass",
     commitSha: "old7890",
-    commitMessage: "fix: JWT token refresh bug — rollback to previous version",
+    commitMessage: "fix: JWT token refresh bug",
     commitAuthor: "bukahou",
     commitAvatarUrl: "",
     prNumber: 0,
@@ -164,10 +164,10 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
     prUrl: "",
     changedFiles: "[]",
     compareUrl: "",
-    sourceRepo: "bukahou/Geass",
+    sourceRepo: "example-org/shop",
     sourceCommitSha: "old7890",
     deployedAt: "2026-03-09T14:40:00Z",
-    trigger: "rollback",
+    trigger: "manual",
     status: "success",
     durationMs: 1890,
     resourceTotal: 12,
@@ -175,7 +175,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   },
   {
     id: 4,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "Geass/web",
     namespace: "geass-web",
     commitSha: "ghi9012",
@@ -190,7 +190,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
       { filename: "geass_web/src/components/ThemeToggle.tsx", status: "added", additions: 45, deletions: 0 },
     ]),
     compareUrl: "",
-    sourceRepo: "bukahou/Geass",
+    sourceRepo: "example-org/shop",
     sourceCommitSha: "ghi9012",
     deployedAt: "2026-03-08T09:15:30Z",
     trigger: "auto",
@@ -201,7 +201,7 @@ export const MOCK_DEPLOY_HISTORY: MockDeployRecord[] = [
   },
   {
     id: 5,
-    clusterId: "zgmf-x10a",
+    clusterId: "demo-cluster",
     path: "atlhyper/master",
     namespace: "atlhyper",
     commitSha: "mst4567",
@@ -237,14 +237,14 @@ export const MOCK_AUTHORIZED_REPOS = [
 // 实际由后端通过 GitHub API 遍历仓库目录获取
 export const MOCK_KUSTOMIZE_PATHS: Record<string, string[]> = {
   "example-org/cluster-config": [
-    "zgmf-x10a/k8s-configs/Geass/backend",
-    "zgmf-x10a/k8s-configs/Geass/web",
-    "zgmf-x10a/k8s-configs/atlhyper/master",
-    "zgmf-x10a/k8s-configs/atlhyper/agent",
-    "zgmf-x10a/k8s-configs/atlhyper/web",
-    "zgmf-x10a/k8s-configs/core",
-    "zgmf-x10a/k8s-configs/nginx",
-    "zgmf-x10a/k8s-configs/redis",
+    "demo-cluster/k8s-configs/Geass/backend",
+    "demo-cluster/k8s-configs/Geass/web",
+    "demo-cluster/k8s-configs/atlhyper/master",
+    "demo-cluster/k8s-configs/atlhyper/agent",
+    "demo-cluster/k8s-configs/atlhyper/web",
+    "demo-cluster/k8s-configs/core",
+    "demo-cluster/k8s-configs/nginx",
+    "demo-cluster/k8s-configs/redis",
   ],
 };
 

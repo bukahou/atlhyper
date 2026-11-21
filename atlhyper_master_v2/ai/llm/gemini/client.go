@@ -5,11 +5,15 @@ package gemini
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/common/logger"
@@ -84,7 +88,7 @@ func (c *Client) readStream(ctx context.Context, iter *genai.GenerateContentResp
 		}
 		if err != nil {
 			log.Error("流式读取错误", "err", err)
-			ch <- &llm.Chunk{Type: llm.ChunkError, Error: err}
+			ch <- &llm.Chunk{Type: llm.ChunkError, Error: apiError(err)}
 			return
 		}
 
@@ -339,4 +343,38 @@ func (c *Client) Close() error {
 		return c.client.Close()
 	}
 	return nil
+}
+
+// apiError 把 SDK 的错误换成可分类的错误：REST 错误带 HTTP 状态码，gRPC 错误带状态码
+func apiError(err error) error {
+	var restErr *googleapi.Error
+	if errors.As(err, &restErr) {
+		return &llm.HTTPError{Provider: "gemini", StatusCode: restErr.Code, Err: err}
+	}
+	if st, ok := status.FromError(err); ok {
+		if kind := kindOfGRPCCode(st.Code()); kind != "" {
+			return &llm.KindError{Kind: kind, Err: err}
+		}
+	}
+	return err
+}
+
+func kindOfGRPCCode(c codes.Code) llm.ErrorKind {
+	switch c {
+	case codes.Unauthenticated:
+		return llm.ErrKindAuth
+	case codes.PermissionDenied:
+		return llm.ErrKindForbidden
+	case codes.ResourceExhausted:
+		return llm.ErrKindRateLimited
+	case codes.InvalidArgument, codes.NotFound, codes.FailedPrecondition, codes.OutOfRange:
+		return llm.ErrKindBadRequest
+	case codes.DeadlineExceeded:
+		return llm.ErrKindTimeout
+	case codes.Unavailable, codes.Internal:
+		return llm.ErrKindProviderError
+	case codes.Canceled:
+		return llm.ErrKindCanceled
+	}
+	return ""
 }

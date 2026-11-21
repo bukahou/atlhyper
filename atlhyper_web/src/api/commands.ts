@@ -6,6 +6,25 @@
 
 import { get } from "./request";
 
+/** 写操作（重启 / 扩缩容 / 改镜像 / 封锁节点）下发后的响应：指令已入队，由 Agent 稍后执行 */
+export interface CommandResponse {
+  message: string;
+  commandId: string;
+  status: string;
+}
+
+/** 指令状态（GET /api/v2/commands/{id}；结果只带成败与原因，不带输出） */
+export interface CommandStatus {
+  commandId: string;
+  status: "pending" | "running" | "success" | "failed" | "timeout";
+  result?: { success: boolean; error?: string };
+}
+
+/** 查询一条指令的当前状态 */
+export function getCommandStatus(commandId: string, signal?: AbortSignal) {
+  return get<CommandStatus>(`/api/v2/commands/${encodeURIComponent(commandId)}`, undefined, signal);
+}
+
 // 命令历史记录
 export interface CommandHistory {
   id: number;
@@ -61,11 +80,4 @@ export function getCommandHistory(params: CommandQueryParams = {}, signal?: Abor
     },
     signal,
   );
-}
-
-/**
- * 获取命令状态
- */
-export function getCommandStatus(commandId: string) {
-  return get<CommandHistory>(`/api/v2/commands/${commandId}`);
 }

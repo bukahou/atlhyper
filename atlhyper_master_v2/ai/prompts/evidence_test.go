@@ -9,8 +9,8 @@ import (
 // 并把 AIOps 状态变化写成「健康检查失败」）
 func TestAllRolePrompts_ShareEvidenceRules(t *testing.T) {
 	prompts := map[string]string{
-		"chat":       BuildChatPrompt(),
-		"analysis":   BuildAnalysisPrompt(),
+		"chat":       BuildChatPrompt(5),
+		"analysis":   BuildAnalysisPrompt(5),
 		"background": BuildBackgroundPrompt(&IncidentPromptContext{}).System,
 	}
 	for role, p := range prompts {
@@ -44,11 +44,10 @@ func TestAnalysisUserPrompt_SharesEvidence(t *testing.T) {
 	ctx := &IncidentPromptContext{
 		IncidentSummary:   "事件概要: x",
 		HistoricalContext: "历史相似事件: y",
-		RecentErrorLogs:   "ERROR z",
 		PodStates:         "ns/pod/a:\n  容器 app: 当前 running\n",
 	}
 	got := BuildAnalysisUserPrompt(ctx)
-	for _, want := range []string{"事件概要: x", "历史相似事件: y", "## 最近 ERROR 日志", "## Pod 容器状态", "请开始调查"} {
+	for _, want := range []string{"事件概要: x", "历史相似事件: y", "## Pod 容器状态", "请开始调查"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("深度分析 user prompt 缺 %q：\n%s", want, got)
 		}
@@ -59,7 +58,7 @@ func TestAnalysisUserPrompt_SharesEvidence(t *testing.T) {
 func TestSystemPrompts_ExactResourceNames(t *testing.T) {
 	for name, sys := range map[string]string{
 		"background": BuildBackgroundPrompt(&IncidentPromptContext{}).System,
-		"analysis":   BuildAnalysisPrompt(),
+		"analysis":   BuildAnalysisPrompt(5),
 	} {
 		if !strings.Contains(sys, "资源名称只能使用上下文中出现的完整名称") {
 			t.Errorf("%s 系统提示词缺资源名规则", name)
@@ -92,13 +91,4 @@ func TestEvidenceRules_PersistedEventsAndCommonDependency(t *testing.T) {
 			t.Errorf("EvidenceRules 缺 %q", want)
 		}
 	}
-}
-
-func TestToolDefinitions_IncludeEventHistory(t *testing.T) {
-	for _, d := range GetToolDefinitions() {
-		if d.Name == "get_event_history" {
-			return
-		}
-	}
-	t.Error("工具列表缺 get_event_history")
 }

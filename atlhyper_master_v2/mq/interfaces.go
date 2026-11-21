@@ -7,14 +7,21 @@ import (
 	"context"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/mq/contract"
 	"AtlHyper/model_v3/command"
 )
 
-// Topic 常量
-// 每个 Cluster 有多个 Topic 队列，互不阻塞
+// Topic 常量（定义在 contract 包，这里转出供上层使用）
 const (
-	TopicOps = "ops" // 系统操作（Web UI 发起的 scale, restart 等）
-	TopicAI  = "ai"  // AI 指令（AI 发起的查询/操作）
+	TopicOps = contract.TopicOps // 系统操作（Web UI 发起的 scale, restart 等）
+	TopicAI  = contract.TopicAI  // AI 指令（AI 发起的查询/操作）
+)
+
+// 总线错误类别（定义在 contract 包）
+var (
+	ErrUnknownTopic = contract.ErrUnknownTopic
+	ErrQueueFull    = contract.ErrQueueFull
+	ErrWaitTimeout  = contract.ErrWaitTimeout
 )
 
 // Producer 指令发送端 (上层: Gateway/Service 使用)
@@ -27,6 +34,7 @@ type Producer interface {
 
 	// WaitCommandResult 等待指令执行完成（同步等待）
 	// 阻塞直到 Agent 上报结果、超时、或 ctx 取消
+	// 超时返回 ErrWaitTimeout，ctx 取消返回 ctx.Err()；err 为 nil 时结果一定不为 nil
 	WaitCommandResult(ctx context.Context, cmdID string, timeout time.Duration) (*command.Result, error)
 }
 

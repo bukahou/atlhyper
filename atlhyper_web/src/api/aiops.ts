@@ -27,7 +27,7 @@ export interface ClusterRisk {
  * **百分制 [0, 100] 整数**（后端 gateway/handler/aiops/scale_risk.go
  * 已将核心层的 [0, 1] 概率 Scale 为百分制）。
  *
- * 前端消费这些字段时必须通过 `@/lib/risk` 的 formatRiskScore / riskColor
+ * 分数只用 `@/lib/risk` 的 formatRiskScore 显示；颜色按后端下发的 riskLevel 取（riskLevelColor），⛔ 不按分数再判等级
  * / riskLevel 等函数，禁止再 × 100 或按 [0, 1] 写阈值。
  */
 export interface EntityRisk {
@@ -162,6 +162,8 @@ export interface Incident extends IncidentListGrouping {
   rootCause: string;
   /** @unit 百分制 [0, 100] —— 列表、详情、事件模式里口径一致，前端不换算 */
   peakRisk: number;
+  /** 峰值风险的等级（后端按实体风险同一分档判定：healthy / low / medium / high / critical） */
+  peakRiskLevel: string;
   startedAt: string;
   resolvedAt: string | null;
   /** 首次升级为「事件中」的时间；没升级过为 null */
@@ -293,7 +295,7 @@ export interface IncidentListParams {
 
 // 风险
 export async function getClusterRisk(cluster: string, signal?: AbortSignal): Promise<ClusterRisk> {
-  const data = (await get<ClusterRisk | null>("/api/v2/aiops/risk/cluster", { cluster }, signal)).data;
+  const data = (await get<ClusterRisk | null>("/api/v2/aiops/risk/cluster", { cluster_id: cluster }, signal)).data;
   return data ?? {
     clusterId: cluster, risk: 0, level: "healthy",
     topEntities: [], totalEntities: 0, anomalyCount: 0, updatedAt: Date.now(),
@@ -303,13 +305,13 @@ export async function getClusterRisk(cluster: string, signal?: AbortSignal): Pro
 export async function getEntityRisks(
   cluster: string, sort = "r_final", limit = 20, signal?: AbortSignal
 ): Promise<EntityRisk[]> {
-  return (await get<EntityRisk[] | null>("/api/v2/aiops/risk/entities", { cluster, sort, limit }, signal)).data ?? [];
+  return (await get<EntityRisk[] | null>("/api/v2/aiops/risk/entities", { cluster_id: cluster, sort, limit }, signal)).data ?? [];
 }
 
 export async function getEntityRiskDetail(
   cluster: string, entityKey: string, signal?: AbortSignal
 ): Promise<EntityRiskDetail> {
-  const detail = (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster, entity: entityKey }, signal)).data;
+  const detail = (await get<EntityRiskDetail>("/api/v2/aiops/risk/entity", { cluster_id: cluster, entity: entityKey }, signal)).data;
   // Go nil slice → JSON null，兜底为空数组
   detail.metrics = detail.metrics ?? [];
   detail.propagation = detail.propagation ?? [];
@@ -348,12 +350,12 @@ export async function getGraphTrace(
 
 // 依赖图
 export async function getGraph(cluster: string, signal?: AbortSignal): Promise<DependencyGraph> {
-  return (await get<DependencyGraph>("/api/v2/aiops/graph", { cluster }, signal)).data;
+  return (await get<DependencyGraph>("/api/v2/aiops/graph", { cluster_id: cluster }, signal)).data;
 }
 
 // 事件
-export async function getIncidents(params: IncidentListParams, signal?: AbortSignal): Promise<Incident[]> {
-  const resp = (await get<{ data: Incident[]; total: number }>("/api/v2/aiops/incidents", params, signal)).data;
+export async function getIncidents({ cluster, ...rest }: IncidentListParams, signal?: AbortSignal): Promise<Incident[]> {
+  const resp = (await get<{ data: Incident[]; total: number }>("/api/v2/aiops/incidents", { cluster_id: cluster, ...rest }, signal)).data;
   return resp?.data ?? [];
 }
 
@@ -382,16 +384,12 @@ export async function getIncidentDetail(id: string, signal?: AbortSignal): Promi
 }
 
 export async function getIncidentStats(cluster: string, period = "7d", signal?: AbortSignal): Promise<IncidentStats> {
-  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { cluster, period }, signal)).data;
+  return (await get<IncidentStats>("/api/v2/aiops/incidents/stats", { cluster_id: cluster, period }, signal)).data;
 }
 
 // AI 增强
 export async function summarizeIncident(incidentId: string): Promise<SummarizeResponse> {
   return (await post<SummarizeResponse>("/api/v2/aiops/ai/summarize", { incidentId })).data;
-}
-
-export async function recommendActions(incidentId: string): Promise<SummarizeResponse> {
-  return (await post<SummarizeResponse>("/api/v2/aiops/ai/recommend", { incidentId })).data;
 }
 
 // AI 报告

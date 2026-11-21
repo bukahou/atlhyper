@@ -1,247 +1,121 @@
 // atlhyper_master_v2/config/loader.go
-// 配置加载逻辑
+// 配置加载：变量名、默认值、必填见 types.go 的字段标签
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
-	"strconv"
+	"reflect"
 	"strings"
-	"time"
+
+	"github.com/caarlos0/env/v11"
 
 	"AtlHyper/common/logger"
 )
 
 var log = logger.Module("Config")
 
-// LoadConfig 加载所有配置项
-//
-// 从环境变量加载配置，未设置则使用默认值。
-// 加载完成后配置存储在 GlobalConfig 全局变量中。
+// oidcCookieSecretMinBytes 状态 cookie 签名密钥的最短长度
+const oidcCookieSecretMinBytes = 32
+
+// Load 从环境变量读取配置。
+// 格式写错、必填缺失都返回错误并指出变量名，⛔ 不静默用默认值；为空的变量按未设置处理（取默认值）。
+func Load() (AppConfig, error) {
+	cfg, err := env.ParseAs[AppConfig]()
+	if err != nil {
+		return AppConfig{}, withEnvKeys(err)
+	}
+	if err := cfg.validate(); err != nil {
+		return AppConfig{}, err
+	}
+	return cfg, nil
+}
+
+// LoadConfig 加载配置到 GlobalConfig；配置无效时记日志并退出（启动入口用）
 func LoadConfig() {
-	GlobalConfig.Log = LogConfig{
-		Level:  getString("MASTER_LOG_LEVEL"),
-		Format: getString("MASTER_LOG_FORMAT"),
+	cfg, err := Load()
+	if err != nil {
+		log.Error("配置无效", "err", err)
+		os.Exit(1)
 	}
-
-	GlobalConfig.Server = ServerConfig{
-		GatewayPort:  getInt("MASTER_GATEWAY_PORT"),
-		AgentSDKPort: getInt("MASTER_AGENTSDK_PORT"),
-		PublicURL:    getString("MASTER_PUBLIC_URL"),
-		Timezone:     getString("MASTER_TIMEZONE"),
-	}
-
-	GlobalConfig.AgentSDK = AgentSDKConfig{
-		AuthMode:      getString("MASTER_AGENT_AUTH_MODE"),
-		MaxSnapshotMB: getInt("MASTER_AGENTSDK_MAX_SNAPSHOT_MB"),
-	}
-
-	GlobalConfig.DataHub = DataHubConfig{
-		Type:              getString("MASTER_DATAHUB_TYPE"),
-		EventRetention:    getDuration("MASTER_DATAHUB_EVENT_RETENTION"),
-		SnapshotRetain:    getInt("MASTER_DATAHUB_SNAPSHOT_RETAIN"),
-		HeartbeatExpire:   getDuration("MASTER_DATAHUB_HEARTBEAT_EXPIRE"),
-		SnapshotRetention: getDuration("MASTER_DATAHUB_SNAPSHOT_RETENTION"),
-	}
-
-	GlobalConfig.Redis = RedisConfig{
-		Addr:     getString("MASTER_REDIS_ADDR"),
-		Password: getString("MASTER_REDIS_PASSWORD"),
-		DB:       getInt("MASTER_REDIS_DB"),
-	}
-
-	GlobalConfig.Database = DatabaseConfig{
-		Type:     getString("MASTER_DB_TYPE"),
-		Path:     getString("MASTER_DB_PATH"),
-		DSN:      getString("MASTER_DB_DSN"),
-		MaxConns: getInt("MASTER_DB_MAX_CONNS"),
-	}
-
-	GlobalConfig.Event = EventConfig{
-		RetentionDays:   getInt("MASTER_EVENT_RETENTION_DAYS"),
-		MaxCount:        getInt("MASTER_EVENT_MAX_COUNT"),
-		CleanupInterval: getDuration("MASTER_EVENT_CLEANUP_INTERVAL"),
-	}
-
-	GlobalConfig.EventAlert = EventAlertConfig{
-		CheckInterval: getDuration("MASTER_EVENT_ALERT_INTERVAL"),
-	}
-
-	GlobalConfig.Timeout = TimeoutConfig{
-		CommandPoll: getDuration("MASTER_TIMEOUT_COMMAND_POLL"),
-		Heartbeat:   getDuration("MASTER_TIMEOUT_HEARTBEAT"),
-	}
-
-	GlobalConfig.JWT = JWTConfig{
-		SecretKey:   getString("MASTER_JWT_SECRET"),
-		TokenExpiry: getDuration("MASTER_JWT_TOKEN_EXPIRY"),
-	}
-
-	GlobalConfig.Admin = AdminConfig{
-		Username:    getString("MASTER_ADMIN_USERNAME"),
-		Password:    getString("MASTER_ADMIN_PASSWORD"),
-		DisplayName: getString("MASTER_ADMIN_DISPLAY_NAME"),
-	}
-
-	GlobalConfig.AI = AIConfig{
-		Enabled:       getBool("MASTER_AI_ENABLED"),
-		ToolTimeout:   getDuration("MASTER_AI_TOOL_TIMEOUT"),
-		BedrockRegion: getString("MASTER_AI_BEDROCK_REGION"),
-		// 逗号分隔；⛔ 不要放存有凭据的仓库（如部署配置仓库）
-		GitHubPrivateRepos: getStringSlice("MASTER_AI_GITHUB_PRIVATE_REPOS"),
-		Seed: AISeed{
-			Provider: getString("MASTER_AI_SEED_PROVIDER"),
-			Name:     getString("MASTER_AI_SEED_NAME"),
-			APIKey:   getString("MASTER_AI_SEED_API_KEY"),
-			Model:    getString("MASTER_AI_SEED_MODEL"),
-			BaseURL:  getString("MASTER_AI_SEED_BASE_URL"),
-		},
-	}
-
-	GlobalConfig.SLO = SLOConfig{
-		AggregateInterval: getDuration("MASTER_SLO_AGGREGATE_INTERVAL"),
-		CleanupInterval:   getDuration("MASTER_SLO_CLEANUP_INTERVAL"),
-		RawRetention:      getDuration("MASTER_SLO_RAW_RETENTION"),
-		HourlyRetention:   getDuration("MASTER_SLO_HOURLY_RETENTION"),
-		StatusRetention:   getDuration("MASTER_SLO_STATUS_RETENTION"),
-	}
-
-	GlobalConfig.MetricsPersist = MetricsPersistConfig{
-		SampleInterval:  getDuration("MASTER_METRICS_SAMPLE_INTERVAL"),
-		RetentionDays:   getInt("MASTER_METRICS_RETENTION_DAYS"),
-		CleanupInterval: getDuration("MASTER_METRICS_CLEANUP_INTERVAL"),
-	}
-
-	GlobalConfig.GitHub = GitHubConfig{
-		AppID:          int64(getInt("GITHUB_APP_ID")),
-		AppSlug:        getString("GITHUB_APP_SLUG"),
-		PrivateKeyPath: getString("GITHUB_PRIVATE_KEY_PATH"),
-		CallbackURL:    getString("GITHUB_CALLBACK_URL"),
-	}
-
-	GlobalConfig.OIDC = OIDCConfig{
-		Issuer:       getString("MASTER_OIDC_ISSUER"),
-		ClientID:     getString("MASTER_OIDC_CLIENT_ID"),
-		ClientSecret: getString("MASTER_OIDC_CLIENT_SECRET"),
-		RedirectURL:  getString("MASTER_OIDC_REDIRECT_URL"),
-		CookieSecret: getString("MASTER_OIDC_COOKIE_SECRET"),
-		CookieSecure: getBool("MASTER_OIDC_COOKIE_SECURE"),
-		DisplayName:  getString("MASTER_OIDC_DISPLAY_NAME"),
-	}
-
-	// 关键字段校验
-	validateRequired("MASTER_JWT_SECRET", GlobalConfig.JWT.SecretKey)
-	validateRequired("MASTER_ADMIN_USERNAME", GlobalConfig.Admin.Username)
-	validateRequired("MASTER_ADMIN_PASSWORD", GlobalConfig.Admin.Password)
-	if GlobalConfig.OIDC.Enabled() {
-		// 启用 OIDC 时凭证类配置必填：忘配时启动即失败，优于「默默登不进去」
-		validateRequired("MASTER_OIDC_CLIENT_ID", GlobalConfig.OIDC.ClientID)
-		validateRequired("MASTER_OIDC_CLIENT_SECRET", GlobalConfig.OIDC.ClientSecret)
-		validateRequired("MASTER_OIDC_REDIRECT_URL", GlobalConfig.OIDC.RedirectURL)
-		validateRequired("MASTER_OIDC_COOKIE_SECRET", GlobalConfig.OIDC.CookieSecret)
-		if len(GlobalConfig.OIDC.CookieSecret) < 32 {
-			log.Error("MASTER_OIDC_COOKIE_SECRET 过短（需 ≥ 32 字节）")
-			os.Exit(1)
-		}
-	}
-
+	GlobalConfig = cfg
 	log.Info("Master 配置加载完成",
-		"gatewayPort", GlobalConfig.Server.GatewayPort,
-		"agentSDKPort", GlobalConfig.Server.AgentSDKPort,
-		"dbType", GlobalConfig.Database.Type,
-		"admin", GlobalConfig.Admin.Username,
-		"oidc", GlobalConfig.OIDC.Enabled())
+		"gatewayPort", cfg.Server.GatewayPort,
+		"agentSDKPort", cfg.Server.AgentSDKPort,
+		"dbType", cfg.Database.Type,
+		"admin", cfg.Admin.Username,
+		"oidc", cfg.OIDC.Enabled())
 }
 
-// validateRequired 校验必需配置项不能为空
-func validateRequired(envKey, value string) {
-	if value == "" {
-		log.Error("必需配置项未设置", "key", envKey)
-		os.Exit(1)
+// validate 跨字段的校验（单个字段的必填已由标签声明）
+func (c AppConfig) validate() error {
+	if !c.OIDC.Enabled() {
+		return nil
 	}
-}
-
-// ==================== 工具函数 ====================
-
-// getDuration 获取时间类型配置
-func getDuration(envKey string) time.Duration {
-	if val := os.Getenv(envKey); val != "" {
-		if d, err := time.ParseDuration(val); err == nil {
-			return d
-		}
-		log.Warn("环境变量格式错误，使用默认值", "key", envKey)
-	}
-	def, ok := defaultDurations[envKey]
-	if !ok {
-		log.Error("未定义默认时间配置项", "key", envKey)
-		os.Exit(1)
-	}
-	d, _ := time.ParseDuration(def)
-	return d
-}
-
-// getInt 获取整数类型配置
-func getInt(envKey string) int {
-	if val := os.Getenv(envKey); val != "" {
-		if i, err := strconv.Atoi(val); err == nil {
-			return i
-		}
-		log.Warn("环境变量格式错误，使用默认值", "key", envKey)
-	}
-	def, ok := defaultInts[envKey]
-	if !ok {
-		log.Error("未定义默认整数配置项", "key", envKey)
-		os.Exit(1)
-	}
-	return def
-}
-
-// getString 获取字符串类型配置
-func getString(envKey string) string {
-	if val := os.Getenv(envKey); val != "" {
-		return val
-	}
-	def, ok := defaultStrings[envKey]
-	if !ok {
-		log.Error("未定义默认字符串配置项", "key", envKey)
-		os.Exit(1)
-	}
-	return def
-}
-
-// getBool 获取布尔类型配置
-func getBool(envKey string) bool {
-	if val := os.Getenv(envKey); val != "" {
-		// 支持多种布尔表示
-		lower := strings.ToLower(val)
-		return lower == "true" || lower == "1" || lower == "yes" || lower == "on"
-	}
-	def, ok := defaultBools[envKey]
-	if !ok {
-		log.Error("未定义默认布尔配置项", "key", envKey)
-		os.Exit(1)
-	}
-	return def
-}
-
-// getStringSlice 获取字符串数组类型配置（逗号分隔）
-func getStringSlice(envKey string) []string {
-	val := os.Getenv(envKey)
-	if val == "" {
-		if def, ok := defaultStrings[envKey]; ok {
-			val = def
+	// 启用 OIDC 时凭证类配置必填：忘配时启动即失败，优于「默默登不进去」
+	var errs []error
+	for key, value := range map[string]string{
+		"MASTER_OIDC_CLIENT_ID":     c.OIDC.ClientID,
+		"MASTER_OIDC_CLIENT_SECRET": c.OIDC.ClientSecret,
+		"MASTER_OIDC_REDIRECT_URL":  c.OIDC.RedirectURL,
+		"MASTER_OIDC_COOKIE_SECRET": c.OIDC.CookieSecret,
+	} {
+		if value == "" {
+			errs = append(errs, fmt.Errorf("%s: 启用 OIDC（设置了 MASTER_OIDC_ISSUER）时必填", key))
 		}
 	}
-	if val == "" {
-		return []string{}
+	if c.OIDC.CookieSecret != "" && len(c.OIDC.CookieSecret) < oidcCookieSecretMinBytes {
+		errs = append(errs, fmt.Errorf("MASTER_OIDC_COOKIE_SECRET: 过短（需 ≥ %d 字节）", oidcCookieSecretMinBytes))
 	}
-	// 按逗号分隔并去除空格
-	parts := strings.Split(val, ",")
-	result := make([]string, 0, len(parts))
+	return errors.Join(errs...)
+}
+
+// withEnvKeys 解析错误只带 Go 字段名，换成运维认得的环境变量名
+func withEnvKeys(err error) error {
+	var agg env.AggregateError
+	if !errors.As(err, &agg) {
+		return err
+	}
+	keys := map[string][]string{}
+	envKeysByField(reflect.TypeOf(AppConfig{}), keys)
+	out := make([]error, 0, len(agg.Errors))
+	for _, e := range agg.Errors {
+		var pe env.ParseError
+		if errors.As(e, &pe) && len(keys[pe.Name]) > 0 {
+			out = append(out, fmt.Errorf("%s: 格式不对: %w", strings.Join(keys[pe.Name], " / "), pe.Err))
+			continue
+		}
+		out = append(out, e)
+	}
+	return errors.Join(out...)
+}
+
+func envKeysByField(t reflect.Type, out map[string][]string) {
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.Type.Kind() == reflect.Struct && f.Tag.Get("env") == "" && f.Type.PkgPath() == t.PkgPath() {
+			envKeysByField(f.Type, out)
+			continue
+		}
+		if key, _, _ := strings.Cut(f.Tag.Get("env"), ","); key != "" {
+			out[f.Name] = append(out[f.Name], key)
+		}
+	}
+}
+
+// CSVList 逗号分隔的列表：去掉每项两侧空白、丢掉空项
+type CSVList []string
+
+// UnmarshalText 实现 encoding.TextUnmarshaler（env 解析时调用）
+func (l *CSVList) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), ",")
+	items := make([]string, 0, len(parts))
 	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
+		if p = strings.TrimSpace(p); p != "" {
+			items = append(items, p)
 		}
 	}
-	return result
+	*l = items
+	return nil
 }

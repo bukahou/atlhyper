@@ -10,7 +10,7 @@ import (
 type gitHubInstallDialect struct{}
 
 func (d *gitHubInstallDialect) Upsert(inst *database.GitHubInstallation) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	return `INSERT INTO github_installations (id, installation_id, account_login, created_at)
 		VALUES (1, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET installation_id = excluded.installation_id, account_login = excluded.account_login`,

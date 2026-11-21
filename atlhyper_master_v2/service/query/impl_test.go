@@ -144,13 +144,14 @@ func (m *mockCommandRepo) GetByCommandID(ctx context.Context, cmdID string) (*da
 func (m *mockCommandRepo) ListByCluster(ctx context.Context, clusterID string, limit, offset int) ([]*database.CommandHistory, error) {
 	return nil, nil
 }
-func (m *mockCommandRepo) ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*database.CommandHistory, error) {
-	return nil, nil
-}
 func (m *mockCommandRepo) List(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error) {
 	return nil, nil
 }
 func (m *mockCommandRepo) Count(ctx context.Context, opts database.CommandQueryOpts) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockCommandRepo) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
 	return 0, nil
 }
 
@@ -353,4 +354,8 @@ func TestNewQueryService_OptionalNil(t *testing.T) {
 	if svc.AIOpsQuery.aiopsAI != nil {
 		t.Error("aiopsAI should be nil when not provided")
 	}
+}
+
+func (m *mockAuditRepo) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	return 0, nil
 }

@@ -16,7 +16,7 @@ import (
 //
 //	Nodes (6):
 //	NAME         STATUS  ROLES                  VERSION          AGE
-//	desk-zero    Ready   control-plane,master   v1.33.5+k3s1    112d
+//	node-1    Ready   control-plane,master   v1.33.5+k3s1    112d
 //	...
 func summarizeList(data []byte) string {
 	var obj map[string]interface{}

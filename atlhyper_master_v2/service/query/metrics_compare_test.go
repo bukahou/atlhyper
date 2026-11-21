@@ -42,21 +42,21 @@ func TestGetNodeComparison_ReusesHardwareVerdicts(t *testing.T) {
 		byNode[r.NodeName] = r
 	}
 
-	// 与硬件矩阵同源：desk-zero 的 await 124ms 是 warn，raspi4 欠压是 crit
-	if c := byNode["desk-zero"].Cells["diskAwait"]; c.Value == nil || *c.Value != 124 || c.Status != model.HardwareWarn {
-		t.Errorf("desk-zero diskAwait = %+v", c)
+	// 与硬件矩阵同源：node-1 的 await 124ms 是 warn，raspi4 欠压是 crit
+	if c := byNode["node-1"].Cells["diskAwait"]; c.Value == nil || *c.Value != 124 || c.Status != model.HardwareWarn {
+		t.Errorf("node-1 diskAwait = %+v", c)
 	}
 	// 欠压格用 0/1 表达，不带自然语言文案（文案是前端 i18n 的职责）
-	if c := byNode["raspi4-zero"].Cells["undervolt"]; c.Status != model.HardwareCrit || c.Value == nil || *c.Value != 1 || c.Text != "" {
+	if c := byNode["node-7"].Cells["undervolt"]; c.Status != model.HardwareCrit || c.Value == nil || *c.Value != 1 || c.Text != "" {
 		t.Errorf("raspi4 undervolt = %+v", c)
 	}
 	// 没有盘温传感器的 desk：value 为 nil，状态不算故障
-	if c := byNode["desk-zero"].Cells["diskTemp"]; c.Value != nil || c.Status != model.HardwareGood {
-		t.Errorf("desk-zero diskTemp = %+v，期望 value=nil", c)
+	if c := byNode["node-1"].Cells["diskTemp"]; c.Value != nil || c.Status != model.HardwareUnknown {
+		t.Errorf("node-1 diskTemp = %+v，期望 value=nil", c)
 	}
 	// overall 与硬件矩阵一致
-	if byNode["raspi4-zero"].Overall != model.HardwareCrit || byNode["raspi5-one"].Overall != model.HardwareGood {
-		t.Errorf("overall 不一致: raspi4=%q raspi5=%q", byNode["raspi4-zero"].Overall, byNode["raspi5-one"].Overall)
+	if byNode["node-7"].Overall != model.HardwareCrit || byNode["node-5"].Overall != model.HardwareGood {
+		t.Errorf("overall 不一致: raspi4=%q raspi5=%q", byNode["node-7"].Overall, byNode["node-5"].Overall)
 	}
 }
 
@@ -66,13 +66,13 @@ func TestGetNodeComparison_ResourceCells(t *testing.T) {
 	for _, r := range resp.Rows {
 		byNode[r.NodeName] = r
 	}
-	// desk-zero CPU 80% → warn（>= 80）
-	if c := byNode["desk-zero"].Cells["cpu"]; c.Value == nil || *c.Value != 80 || c.Status != model.HardwareWarn {
-		t.Errorf("desk-zero cpu = %+v", c)
+	// node-1 CPU 80% → warn（>= 80）
+	if c := byNode["node-1"].Cells["cpu"]; c.Value == nil || *c.Value != 80 || c.Status != model.HardwareWarn {
+		t.Errorf("node-1 cpu = %+v", c)
 	}
-	// raspi5-one CPU 10% → good
-	if c := byNode["raspi5-one"].Cells["cpu"]; c.Status != model.HardwareGood {
-		t.Errorf("raspi5-one cpu = %+v", c)
+	// node-5 CPU 10% → good
+	if c := byNode["node-5"].Cells["cpu"]; c.Status != model.HardwareGood {
+		t.Errorf("node-5 cpu = %+v", c)
 	}
 	// 夹具里没有内存数据 → 0%，不应误判为故障
 	if c := byNode["mystery"].Cells["mem"]; c.Status != model.HardwareGood {

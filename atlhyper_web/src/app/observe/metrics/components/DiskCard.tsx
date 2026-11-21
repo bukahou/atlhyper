@@ -2,27 +2,20 @@
 
 import { memo } from "react";
 import { Database, ArrowDown, ArrowUp, Activity, Lock } from "lucide-react";
-import type { NodeDisk } from "@/types/node-metrics";
+import type { NodeDisk, NodeDiskLevels } from "@/types/node-metrics";
 import { formatBytes, formatBytesPS } from "@/lib/format";
 import { useI18n } from "@/i18n/context";
+import { hardwareStatusBar, hardwareStatusText } from "@/lib/hardware-status";
 
 interface DiskCardProps {
   data: NodeDisk[];
+  /** 后端判定的等级，与 data 一一对应 */
+  levels: NodeDiskLevels[];
 }
 
-const getUsageColor = (usage: number) => {
-  if (usage >= 80) return "bg-red-500";
-  if (usage >= 60) return "bg-yellow-500";
-  return "bg-green-500";
-};
+const UNKNOWN_DISK_LEVELS: NodeDiskLevels = { usage: "unknown", inode: "unknown", ioUtil: "unknown" };
 
-const getUsageTextColor = (usage: number) => {
-  if (usage >= 80) return "text-red-500";
-  if (usage >= 60) return "text-yellow-500";
-  return "text-green-500";
-};
-
-export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
+export const DiskCard = memo(function DiskCard({ data, levels }: DiskCardProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
   // 计算总 I/O
@@ -58,7 +51,7 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
 
       {/* 磁盘列表 */}
       <div className="space-y-3 sm:space-y-4">
-        {data.filter((d) => !d.mountPoint?.startsWith("/boot")).map((disk, idx) => {
+        {data.map((disk, i) => ({ disk, level: levels[i] ?? UNKNOWN_DISK_LEVELS })).filter(({ disk }) => !disk.mountPoint?.startsWith("/boot")).map(({ disk, level }, idx) => {
           const usedBytes = disk.totalBytes - disk.availBytes;
           return (
             <div key={disk.mountPoint || `disk-${idx}`} className="p-2 sm:p-3 bg-[var(--background)] rounded-lg">
@@ -77,13 +70,13 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
                   <span className="text-muted">
                     {formatBytes(usedBytes)} / {formatBytes(disk.totalBytes)}
                   </span>
-                  <span className={getUsageTextColor(disk.usagePct)}>
+                  <span className={hardwareStatusText(level.usage)}>
                     {disk.usagePct.toFixed(1)}%
                   </span>
                 </div>
                 <div className="h-1.5 sm:h-2 bg-[var(--background-secondary,#1f2937)] rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${getUsageColor(disk.usagePct)}`}
+                    className={`h-full rounded-full transition-all duration-300 ${hardwareStatusBar(level.usage)}`}
                     style={{ width: `${Math.min(100, disk.usagePct)}%` }}
                   />
                 </div>
@@ -95,13 +88,13 @@ export const DiskCard = memo(function DiskCard({ data }: DiskCardProps) {
                   <div className="text-[10px] text-muted mb-0.5">{nm.disk.utilization}</div>
                   <div className="text-[10px] sm:text-xs">
                     <span className="text-muted">{nm.disk.inode} </span>
-                    <span className={`font-medium tabular-nums ${getUsageTextColor(disk.inodeUsagePct)}`}>
+                    <span className={`font-medium tabular-nums ${hardwareStatusText(level.inode)}`}>
                       {disk.inodeUsagePct.toFixed(1)}%
                     </span>
                   </div>
                   <div className="text-[10px] sm:text-xs">
                     <span className="text-muted">{nm.disk.ioUtil} </span>
-                    <span className={`font-medium tabular-nums ${getUsageTextColor(disk.ioUtilPct)}`}>
+                    <span className={`font-medium tabular-nums ${hardwareStatusText(level.ioUtil)}`}>
                       {disk.ioUtilPct.toFixed(1)}%
                     </span>
                   </div>

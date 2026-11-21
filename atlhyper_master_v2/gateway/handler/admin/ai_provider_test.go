@@ -162,3 +162,20 @@ func TestUpdateProvider_BaseURL(t *testing.T) {
 		t.Errorf("空 baseUrl 应清空，得到 %d %q", rec.Code, svc.saved.BaseURL)
 	}
 }
+
+// anthropic 不填 key = 用 SDK 凭证链（集群里是 WIF 免密钥）；其他需要 key 的提供商仍然必填
+func TestCreateProvider_AnthropicKeyOptional(t *testing.T) {
+	h := NewAIProviderHandler(&stubProviderSvc{})
+
+	rec := postJSON(t, h.ProvidersHandler, http.MethodPost, "/api/v2/ai/providers",
+		`{"name":"claude","provider":"anthropic","model":"claude-haiku-5-5"}`)
+	if rec.Code != http.StatusCreated {
+		t.Errorf("anthropic 不填 key 应可创建，得到 %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = postJSON(t, h.ProvidersHandler, http.MethodPost, "/api/v2/ai/providers",
+		`{"name":"gpt","provider":"openai","model":"gpt-4o"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("openai 缺 key 仍应 400，得到 %d", rec.Code)
+	}
+}

@@ -4,6 +4,7 @@ import { X, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import type { AIProvider, ProviderModelInfo } from "@/api/ai-provider";
 import { useProviderForm } from "./useProviderForm";
+import { apiKeyRequired } from "./providerKey";
 
 interface ProviderModalProps {
   isOpen: boolean;
@@ -86,7 +87,8 @@ function ProviderForm({ editingProvider, models, saving, onClose, onSave }: Omit
           {/* API Key */}
           <div>
             <label className="block text-sm font-medium text-default mb-1">
-              {aiT.apiKey} {!editingProvider && <span className="text-red-500">*</span>}
+              {aiT.apiKey}{" "}
+              {!editingProvider && apiKeyRequired(form.formProvider) && <span className="text-red-500">*</span>}
             </label>
             <div className="relative">
               <input
@@ -104,6 +106,9 @@ function ProviderForm({ editingProvider, models, saving, onClose, onSave }: Omit
                 {form.showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            {form.formProvider === "anthropic" && (
+              <p className="mt-1 text-xs text-muted">{aiT.anthropicKeylessHint}</p>
+            )}
             {editingProvider?.apiKeySet && (
               <p className="mt-1 text-xs text-muted">
                 {aiT.current}: {editingProvider.apiKeyMasked}

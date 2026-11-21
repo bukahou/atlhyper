@@ -25,6 +25,9 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Unwrap 让 http.ResponseController 拿到底层连接（流式响应逐块续期写超时）
+func (rw *responseWriter) Unwrap() http.ResponseWriter { return rw.ResponseWriter }
+
 // Flush 实现 http.Flusher 接口（SSE 流式响应需要）
 func (rw *responseWriter) Flush() {
 	if f, ok := rw.ResponseWriter.(http.Flusher); ok {

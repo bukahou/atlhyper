@@ -20,17 +20,6 @@ const gaugeCounterDelta = `if(max(Value) > argMax(Value, TimeUnix),
     (max(Value) - argMin(Value, TimeUnix)) + argMax(Value, TimeUnix),
     argMax(Value, TimeUnix) - argMin(Value, TimeUnix))`
 
-// seriesIsolation 用于 GROUP BY 隔离独立计数器系列的列（原始表查询用）。
-// Linkerd gauge 指标按 (pod, status_code, route_name, target_addr) 产生独立计数器。
-const seriesIsolation = `Attributes['pod'], Attributes['status_code'],
-             Attributes['route_name'], Attributes['target_addr']`
-
-// gaugeCounterDeltaMerge 是 gaugeCounterDelta 的 AggregatingMergeTree 版本。
-// 操作预聚合 MV 中的 -State 列，使用 -Merge 组合器最终化。
-const gaugeCounterDeltaMerge = `if(maxMerge(peak_val) > argMaxMerge(latest_val),
-    (maxMerge(peak_val) - argMinMerge(earliest_val)) + argMaxMerge(latest_val),
-    argMaxMerge(latest_val) - argMinMerge(earliest_val))`
-
 // CounterRateExpr 按 counter-reset-safe delta 除以时间跨度，得到 per-second rate。
 // 使用场景：5min 等短窗口，reset 概率极低，单次 reset 处理足够。
 // 对于长窗口（1d/7d/30d），应改用 lagInFrame 的 Prometheus 完整算法
@@ -89,20 +78,6 @@ const labelInstance = "service.instance.id"
 // Collector 侧做不了换算。若要求各实现自报单位，Agent 就得知道底下是谁 ——
 // 那等于放弃抽象。因此契约直接规定桶为毫秒，由各实现在 Collector 侧对齐，
 // Agent 一律按毫秒处理（正好是 IngressSLO.P*Ms 字段所需单位，无需换算）。
-
-// ingressServiceKey 由契约 label 组合出服务标识。
-//
-// 用 namespace/service 而非某实现的内部 service 名（如 Traefik 的
-// "geass-v3-geass-web@kubernetes"）—— K8s 原生概念，换实现不变。
-func ingressServiceKey(namespace, service string) string {
-	if service == "" {
-		return ""
-	}
-	if namespace == "" {
-		return service
-	}
-	return namespace + "/" + service
-}
 
 // isErrorStatusClass 判定某状态码类别是否计入 SLO 违约。
 //
@@ -326,6 +301,8 @@ func (r *sloRepository) ListIngressSLOPrevious(ctx context.Context, since time.D
 // timeFilter: 时间范围条件（不含 WHERE 前缀）
 // windowSec: 窗口秒数（用于 RPS 计算）
 func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, windowSec int64) ([]slo.IngressSLO, error) {
+	skips := newScanSkips("queryIngressSLO")
+	defer skips.report()
 	// ── 请求计数：按 {svc, code, method} 三维分组 ──
 	// 每个组合是独立的累积计数器，必须在最细粒度计算 delta。
 	//
@@ -355,9 +332,10 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 		var ns, svc, class string
 		var delta float64
 		if err := rows.Scan(&ns, &svc, &class, &delta); err != nil {
+			skips.add(err)
 			continue
 		}
-		svcKey := ingressServiceKey(ns, svc)
+		svcKey := slo.ServiceKey(ns, svc)
 		if svcKey == "" {
 			continue
 		}
@@ -399,7 +377,7 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 				continue
 			}
 			_ = inst
-			svcKey := ingressServiceKey(ns, svc)
+			svcKey := slo.ServiceKey(ns, svc)
 			if svcKey == "" {
 				continue
 			}
@@ -450,107 +428,9 @@ func (r *sloRepository) queryIngressSLO(ctx context.Context, timeFilter string, 
 // GetSLOTimeSeries — 单个 ingress 服务的 SLO 时序
 // ──────────────────────────────────────────────────────────────
 
-// GetSLOTimeSeries 查询 SLO 时序数据
-func (r *sloRepository) GetSLOTimeSeries(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error) {
-	sec := sinceSeconds(since)
-
-	// name 为契约 serviceKey（"namespace/service"）。按 5 分钟窗口聚合，
-	// 每个 status_class 系列独立做 counter-reset-safe delta。
-	query := fmt.Sprintf(`
-		SELECT ts, class, sum(inst_delta) AS delta
-		FROM (
-			SELECT ts, inst, class,
-			       sum(if(Value >= prevValue, Value - prevValue, Value)) AS inst_delta
-			FROM (
-				SELECT toStartOfInterval(TimeUnix, INTERVAL 300 SECOND) AS ts,
-				       ResourceAttributes['%s'] AS inst,
-				       Attributes['%s'] AS class,
-				       Value, TimeUnix,
-				       lagInFrame(Value, 1, Value) OVER
-				           (PARTITION BY ResourceAttributes['%s'], Attributes['%s'],
-				                         toStartOfInterval(TimeUnix, INTERVAL 300 SECOND)
-				            ORDER BY TimeUnix) AS prevValue
-				FROM otel_metrics_sum
-				WHERE MetricName = '%s'
-				  AND concat(Attributes['%s'], '/', Attributes['%s']) = ?
-				  AND TimeUnix >= now() - INTERVAL %d SECOND
-			)
-			GROUP BY ts, inst, class
-		)
-		GROUP BY ts, class
-		HAVING delta > 0
-		ORDER BY ts
-	`, labelInstance, labelStatusClass, labelInstance, labelStatusClass,
-		metricIngressRequestTotal, labelNamespace, labelService, sec)
-
-	rows, err := r.client.Query(ctx, query, name)
-	if err != nil {
-		return nil, fmt.Errorf("query SLO time series: %w", err)
-	}
-	defer rows.Close()
-
-	type tsData struct {
-		total, success float64
-	}
-	tsMap := make(map[time.Time]*tsData)
-
-	for rows.Next() {
-		var ts time.Time
-		var class string
-		var delta float64
-		if err := rows.Scan(&ts, &class, &delta); err != nil {
-			continue
-		}
-		if delta <= 0 {
-			continue
-		}
-		d, ok := tsMap[ts]
-		if !ok {
-			d = &tsData{}
-			tsMap[ts] = d
-		}
-		d.total += delta
-		if !isErrorStatusClass(class) {
-			d.success += delta // 仅 5xx 计为错误
-		}
-	}
-
-	ts := &slo.TimeSeries{Name: name}
-	for t, d := range tsMap {
-		dp := slo.DataPoint{
-			Timestamp: t,
-			RPS:       roundTo(d.total/300, 2), // 5 分钟窗口
-		}
-		if d.total > 0 {
-			dp.SuccessRate = roundTo(d.success/d.total*100, 2)
-		}
-		ts.Points = append(ts.Points, dp)
-	}
-	if ts.Points == nil {
-		ts.Points = []slo.DataPoint{}
-	}
-	return ts, nil
-}
-
 // ──────────────────────────────────────────────────────────────
 // GetSLOSummary — 仪表盘摘要
 // ──────────────────────────────────────────────────────────────
-
-// GetSLOSummary 获取 SLO 仪表盘摘要
-func (r *sloRepository) GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error) {
-	since := 5 * time.Minute
-
-	// SLO 只覆盖 ingress（外部视角）。服务间调用质量由 APM 承担。
-	//
-	// ⚠️ 这与 ListIngressSLO(5min) 是同一次查询。快照路径已改为从列表直接派生
-	// （slo.SummarizeIngress），本方法只留给 Command 按需查询。
-	// 查询失败时沿用旧语义：返回全零概览、不返回错误。
-	ingData, ingErr := r.ListIngressSLO(ctx, since)
-	if ingErr != nil {
-		return &slo.SLOSummary{}, nil
-	}
-	return slo.SummarizeIngress(ingData), nil
-}
 
 // ──────────────────────────────────────────────────────────────
 // GetIngressSLOHistory — Ingress SLO 时序数据
@@ -559,6 +439,8 @@ func (r *sloRepository) GetSLOSummary(ctx context.Context) (*slo.SLOSummary, err
 // GetIngressSLOHistory 查询 Ingress SLO 时序数据
 // since: 总时间范围, bucket: 每个桶的时间跨度
 func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error) {
+	skips := newScanSkips("GetIngressSLOHistory")
+	defer skips.report()
 	sec := sinceSeconds(since)
 	bucketSec := sinceSeconds(bucket)
 
@@ -589,9 +471,10 @@ func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket 
 		var ns, svc, class string
 		var delta float64
 		if err := rows.Scan(&ts, &ns, &svc, &class, &delta); err != nil {
+			skips.add(err)
 			continue
 		}
-		svcKey := ingressServiceKey(ns, svc)
+		svcKey := slo.ServiceKey(ns, svc)
 		if svcKey == "" {
 			continue
 		}
@@ -646,7 +529,7 @@ func (r *sloRepository) GetIngressSLOHistory(ctx context.Context, since, bucket 
 				&sumLatest, &sumEarliest, &cntLatest, &cntEarliest); err != nil {
 				continue
 			}
-			svcKey := ingressServiceKey(ns, svc)
+			svcKey := slo.ServiceKey(ns, svc)
 			if svcKey == "" {
 				continue
 			}

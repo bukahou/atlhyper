@@ -119,3 +119,24 @@ func TestRunToolLoop_StreamErrorIsNotTreatedAsDone(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// 上一轮的整轮回答（如 Claude 的思考块）随 Done 交回，工具循环要原样带进 assistant 消息，下一轮才发得回去
+func TestRunToolLoop_CarriesProviderTurnIntoNextRound(t *testing.T) {
+	doneWithTurn := &llm.Chunk{Type: llm.ChunkDone, Usage: &llm.Usage{InputTokens: 10, OutputTokens: 5}, ProviderTurn: "turn-1"}
+	llmc := &scriptedLLM{rounds: [][]*llm.Chunk{
+		{text("let me check"), call("c1", "get_events"), doneWithTurn},
+		{text(`{"summary":"OOM"}`), done(20, 5)},
+	}}
+	if _, err := runLoop(t, llmc, 8); err != nil {
+		t.Fatal(err)
+	}
+	var assistant *llm.Message
+	for i := range llmc.requests[1].Messages {
+		if m := &llmc.requests[1].Messages[i]; m.Role == "assistant" {
+			assistant = m
+		}
+	}
+	if assistant == nil || assistant.ProviderTurn != "turn-1" {
+		t.Errorf("第 2 轮请求里的 assistant 消息应带上第 1 轮的 ProviderTurn: %+v", assistant)
+	}
+}

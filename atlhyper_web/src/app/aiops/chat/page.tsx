@@ -18,6 +18,7 @@ export default function AIChatPage() {
     currentConvId,
     messages,
     streaming,
+    stopped,
     streamSegments,
     currentStats,
     currentClusterId,
@@ -66,6 +67,7 @@ export default function AIChatPage() {
           <ChatPanel
             messages={messages}
             streaming={streaming}
+            stopped={stopped}
             streamSegments={streamSegments}
             conversations={conversations}
             currentConvId={currentConvId}

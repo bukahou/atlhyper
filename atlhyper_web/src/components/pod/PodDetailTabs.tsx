@@ -31,7 +31,7 @@ function getAge(startTime?: string): string {
 export function OverviewTab({ detail, t }: { detail: PodDetail; t: Translations }) {
   const infoItems = [
     { label: t.common.namespace, value: detail.namespace },
-    { label: t.common.status, value: <StatusBadge status={detail.phase} /> },
+    { label: t.common.status, value: <StatusBadge status={detail.phase} type={detail.statusLevel} /> },
     { label: t.pod.ready, value: detail.ready || "-" },
     { label: t.pod.restartCount, value: detail.restarts ?? 0 },
     { label: t.pod.node, value: detail.node || "-" },
@@ -106,7 +106,7 @@ export function OverviewTab({ detail, t }: { detail: PodDetail; t: Translations 
                       {t.pod.restartTimes.replace("{count}", String(c.restartCount))}
                     </span>
                   )}
-                  <StatusBadge status={c.state === "running" ? "Running" : c.state || "Unknown"} />
+                  <StatusBadge status={c.stateReason || c.state || "Unknown"} type={c.stateLevel} />
                 </div>
               </div>
             ))}
@@ -140,7 +140,7 @@ export function ContainersTab({
               <Container className="w-5 h-5 text-muted" />
               <span className="font-medium text-default">{container.name}</span>
               {container.state && (
-                <StatusBadge status={container.state === "running" ? "Running" : container.state} />
+                <StatusBadge status={container.stateReason || container.state || "Unknown"} type={container.stateLevel} />
               )}
             </div>
             <button

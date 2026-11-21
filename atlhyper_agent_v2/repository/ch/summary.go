@@ -3,6 +3,7 @@ package ch
 
 import (
 	"context"
+	"fmt"
 	"math"
 
 	"AtlHyper/atlhyper_agent_v2/repository"
@@ -66,7 +67,9 @@ func (r *summaryRepository) GetSLOSummary(ctx context.Context) (ingressServices 
 		    GROUP BY svc HAVING count() >= 2
 		)
 	`
-	_ = r.client.QueryRow(ctx, ingressQuery).Scan(&ingressServices, &ingressAvgRPS)
+	if err := r.client.QueryRow(ctx, ingressQuery).Scan(&ingressServices, &ingressAvgRPS); err != nil {
+		return 0, 0, fmt.Errorf("ingress 概览查询: %w", err)
+	}
 	ingressAvgRPS = roundF(ingressAvgRPS, 2)
 
 	// 服务网格概览已移除：SLO 只做 ingress 外部视角，
@@ -90,7 +93,9 @@ func (r *summaryRepository) GetMetricsSummary(ctx context.Context) (monitoredNod
 		    FROM cpu_rate GROUP BY ip
 		)
 	`
-	_ = r.client.QueryRow(ctx, cpuQuery).Scan(&monitoredNodes, &avgCPUPct, &maxCPUPct)
+	if err := r.client.QueryRow(ctx, cpuQuery).Scan(&monitoredNodes, &avgCPUPct, &maxCPUPct); err != nil {
+		return 0, 0, 0, 0, 0, fmt.Errorf("节点 CPU 概览查询: %w", err)
+	}
 
 	// Memory usage
 	memQuery := `
@@ -106,7 +111,9 @@ func (r *summaryRepository) GetMetricsSummary(ctx context.Context) (monitoredNod
 		    GROUP BY ip
 		)
 	`
-	_ = r.client.QueryRow(ctx, memQuery).Scan(&avgMemPct, &maxMemPct)
+	if err := r.client.QueryRow(ctx, memQuery).Scan(&avgMemPct, &maxMemPct); err != nil {
+		return 0, 0, 0, 0, 0, fmt.Errorf("节点内存概览查询: %w", err)
+	}
 
 	avgCPUPct = roundF(avgCPUPct, 2)
 	avgMemPct = roundF(avgMemPct, 2)

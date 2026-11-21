@@ -47,10 +47,7 @@ func buildHardwareRow(nm *metrics.NodeMetrics) model.HardwareRow {
 	// Agent 声明采集失败的 section → 对应格子置 nil，前端渲染灰色占位。
 	// 没有这层判断时零值会被做成绿色的 0.0%（2026-08-29 压测缺陷 ①：
 	// 用户据此误判「树莓派宕机了」，实际数据全在、只是查询超时）。
-	un := make(map[string]bool, len(nm.Unavailable))
-	for _, sec := range nm.Unavailable {
-		un[sec] = true
-	}
+	un := unavailableSections(nm)
 
 	row := model.HardwareRow{
 		NodeName:     nm.NodeName,
@@ -69,7 +66,10 @@ func buildHardwareRow(nm *metrics.NodeMetrics) model.HardwareRow {
 		row.MemUsage = usageCell(nm.Memory.UsagePct)
 	}
 	if !un[metrics.SectionDisks] {
-		row.DiskUsage = usageCell(primaryDiskUsagePct(nm.Disks))
+		// 「这台机器的盘满没满」看主磁盘；没有可用的盘 → 无数据，不当成 0%
+		if d := nm.GetPrimaryDisk(); d != nil {
+			row.DiskUsage = usageCell(diskFullnessPct(d))
+		}
 		row.DiskAwait = awaitCell(nm.Disks)
 	}
 	if !un[metrics.SectionTemperature] {
@@ -96,14 +96,7 @@ func buildHardwareRow(nm *metrics.NodeMetrics) model.HardwareRow {
 // 与「没有这个传感器」不同，不能都用 nil 表达。
 func usageCell(pct float64) *model.HardwareUsageCell {
 	v := hwRound(pct, 1)
-	cell := &model.HardwareUsageCell{Value: v, Status: model.HardwareGood}
-	switch {
-	case v >= resourceCritPct:
-		cell.Status = model.HardwareCrit
-	case v >= resourceWarnPct:
-		cell.Status = model.HardwareWarn
-	}
-	return cell
+	return &model.HardwareUsageCell{Value: v, Status: model.ResourceLevel(v)}
 }
 
 // tempCell 取某一类传感器里最需要关注的一个成格：先按状态取最差，同档再取最热。
@@ -354,6 +347,9 @@ func buildHardwareSummary(nodes []metrics.NodeMetrics, rows []model.HardwareRow)
 		}
 		if row.CPUFreq != nil && row.CPUFreq.Status != model.HardwareGood {
 			s.ThrottledNodes++
+		}
+		if row.Overall == model.HardwareWarn || row.Overall == model.HardwareCrit {
+			s.WarningNodes++
 		}
 		if row.DiskAwait != nil {
 			if s.MaxDiskAwait == nil || row.DiskAwait.ValueMs > s.MaxDiskAwait.ValueMs {

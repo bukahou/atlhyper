@@ -18,7 +18,7 @@ func (d *deployHistoryDialect) Insert(record *database.DeployHistory) (string, [
 		[]any{record.ClusterID, record.Path, record.Namespace, record.CommitSHA, record.CommitMessage,
 			record.CommitAuthor, record.CommitAvatarURL, record.PRNumber, record.PRTitle, record.PRURL,
 			record.ChangedFiles, record.CompareURL, record.SourceRepo, record.SourceCommitSHA,
-			record.DeployedAt.Format(time.RFC3339), record.Trigger, record.Status,
+			utcStamp(record.DeployedAt), record.Trigger, record.Status,
 			record.DurationMs, record.ResourceTotal, record.ResourceChanged, record.ErrorMessage}
 }
 

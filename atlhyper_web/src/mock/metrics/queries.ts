@@ -4,7 +4,7 @@
  * 类型对齐 model_v3/metrics/node_metrics.go
  */
 
-import type { NodeMetrics, Point, Summary } from "@/types/node-metrics";
+import type { NodeMetrics, NodeMetricsView, Point, Summary } from "@/types/node-metrics";
 import { MOCK_NODES } from "./data";
 
 // ============================================================================
@@ -52,7 +52,7 @@ function computeSummary(nodes: NodeMetrics[]): Summary {
 // ============================================================================
 
 /** 基于节点特征生成带自然波动的历史数据 */
-function generateHistory(node: NodeMetrics, hours: number, metric: string): Point[] {
+function generateHistory(node: NodeMetricsView, hours: number, metric: string): Point[] {
   const now = Date.now();
   const intervalMs = 30_000; // 30秒一个数据点
   const totalPoints = Math.floor((hours * 3600_000) / intervalMs);
@@ -62,7 +62,7 @@ function generateHistory(node: NodeMetrics, hours: number, metric: string): Poin
   const baseValues: Record<string, number> = {
     cpu: node.cpu.usagePct,
     memory: node.memory.usagePct,
-    disk: (node.disks.find(d => d.mountPoint === "/") || node.disks[0])?.usagePct || 50,
+    disk: node.primaryDiskIndex === null ? 50 : node.disks[node.primaryDiskIndex].usagePct,
     temp: node.temperature.cpuTempC,
   };
   const base = baseValues[metric] ?? baseValues.cpu;
@@ -156,7 +156,7 @@ function getCachedHistory(nodeName: string, hours: number): Record<string, Point
 
 export interface MockClusterNodeMetricsResult {
   summary: Summary;
-  nodes: NodeMetrics[];
+  nodes: NodeMetricsView[];
 }
 
 export interface MockNodeMetricsHistoryResult {

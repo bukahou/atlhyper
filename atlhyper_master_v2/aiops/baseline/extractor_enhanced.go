@@ -41,12 +41,12 @@ func extractAPMMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	return points
 }
 
-// extractLogMetrics 从 LogsSummary + RecentLogs 提取日志指标
+// extractLogMetrics 从 LogsSummary 提取日志指标（日志条目不进快照，服务级的计数要等 Agent 在概要里按服务给出）
 func extractLogMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	if otel == nil {
 		return nil
 	}
-	if otel.LogsSummary == nil && len(otel.RecentLogs) == 0 {
+	if otel.LogsSummary == nil {
 		return nil
 	}
 
@@ -63,44 +63,6 @@ func extractLogMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 		if warnCount, ok := otel.LogsSummary.SeverityCounts["WARN"]; ok && warnCount > 0 {
 			points = append(points, aiops.MetricDataPoint{
 				EntityKey: globalKey, MetricName: "log_warn_count", Value: float64(warnCount),
-			})
-		}
-	}
-
-	// 服务级日志计数（从 RecentLogs 聚合）
-	if len(otel.RecentLogs) > 0 {
-		// service+severity → count
-		type svcSev struct {
-			service   string
-			namespace string
-			severity  string
-		}
-		counts := make(map[svcSev]float64)
-
-		for i := range otel.RecentLogs {
-			entry := &otel.RecentLogs[i]
-			if entry.ServiceName == "" {
-				continue
-			}
-			// 只统计 ERROR 和 WARN
-			if entry.Severity != "ERROR" && entry.Severity != "WARN" {
-				continue
-			}
-			ns := entry.Resource["k8s.namespace.name"]
-			if ns == "" {
-				ns = "default"
-			}
-			counts[svcSev{service: entry.ServiceName, namespace: ns, severity: entry.Severity}]++
-		}
-
-		for k, count := range counts {
-			key := aiops.EntityKey(k.namespace, "service", k.service)
-			metricName := "log_error_count"
-			if k.severity == "WARN" {
-				metricName = "log_warn_count"
-			}
-			points = append(points, aiops.MetricDataPoint{
-				EntityKey: key, MetricName: metricName, Value: count,
 			})
 		}
 	}

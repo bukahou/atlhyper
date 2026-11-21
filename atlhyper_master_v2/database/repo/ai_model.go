@@ -49,7 +49,7 @@ func (r *aiProviderModelRepo) GetByID(ctx context.Context, id int64) (*database.
 	if rows.Next() {
 		return r.dialect.ScanRow(rows)
 	}
-	return nil, nil
+	return nil, rows.Err() // 没有行是 nil, nil；读取出错要报出来
 }
 
 func (r *aiProviderModelRepo) ListByProvider(ctx context.Context, provider string) ([]*database.AIProviderModel, error) {
@@ -101,7 +101,7 @@ func (r *aiProviderModelRepo) GetDefaultModel(ctx context.Context, provider stri
 	if rows.Next() {
 		return r.dialect.ScanRow(rows)
 	}
-	return nil, nil
+	return nil, rows.Err() // 没有行是 nil, nil；读取出错要报出来
 }
 
 var _ database.AIProviderModelRepository = (*aiProviderModelRepo)(nil)

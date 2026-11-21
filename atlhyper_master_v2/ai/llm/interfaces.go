@@ -32,20 +32,25 @@ type Message struct {
 	Content    string      // 文本内容
 	ToolCalls  []ToolCall  // assistant 发起的 tool calls
 	ToolResult *ToolResult // tool 执行结果（role=tool 时使用）
+
+	// ProviderTurn 提供商原样回放用的整轮回答（assistant 消息；来自同一请求内上一轮的 Chunk.ProviderTurn）。
+	// 例如 Claude 的思考块带签名，工具往来时必须原样发回；认得它的提供商原样发送，其他提供商忽略。不落库。
+	ProviderTurn any
 }
 
-// ToolCall LLM 发起的工具调用
+// ToolCall LLM 发起的工具调用（落库与前端读取的 JSON 形态由这里的标签定；读旧数据时字段名大小写不敏感）
 type ToolCall struct {
-	ID     string // tool call ID
-	Name   string // 函数名
-	Params string // JSON 参数
+	ID     string `json:"id"`     // tool call ID
+	Name   string `json:"name"`   // 函数名
+	Params string `json:"params"` // JSON 参数
 }
 
 // ToolResult 工具执行结果
 type ToolResult struct {
-	CallID  string // 对应的 tool call ID
-	Name    string // 函数名
-	Content string // 执行结果
+	CallID  string `json:"callId"`            // 对应的 tool call ID
+	Name    string `json:"name"`              // 函数名
+	Content string `json:"content"`           // 执行结果（失败时为错误说明）
+	IsError bool   `json:"isError,omitempty"` // 执行失败；认得的提供商（Claude）会把它告诉模型
 }
 
 // ToolDefinition 工具定义（Function Calling Schema）
@@ -62,6 +67,9 @@ type Chunk struct {
 	ToolCall *ToolCall // Tool Call 信息（Type=ChunkToolCall 时使用）
 	Error    error     // 错误信息（Type=ChunkError 时使用）
 	Usage    *Usage    // Token 使用量（Type=ChunkDone 时可能返回）
+
+	// ProviderTurn 本轮完整回答的提供商原始形式（Type=ChunkDone 时可能返回），调用方存进 Message.ProviderTurn
+	ProviderTurn any
 }
 
 // Usage Token 使用量
@@ -83,7 +91,7 @@ const (
 // Config LLM 配置
 type Config struct {
 	Provider string // gemini / openai / anthropic / ollama / bedrock
-	APIKey   string // API Key（Ollama 可为空；Bedrock 为 API key，Bearer 鉴权）
+	APIKey   string // API Key（Ollama 可为空；Anthropic 为空时走 SDK 凭证链，集群里是 WIF；Bedrock 为 API key，Bearer 鉴权）
 	Model    string // 模型名称 (e.g. gemini-2.0-flash)
 	BaseURL  string // 自定义 API 地址（Ollama 等自部署服务使用）
 	Region   string // 云区域（Bedrock 使用；来自 Master 配置，不来自数据库）

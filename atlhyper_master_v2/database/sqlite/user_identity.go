@@ -13,7 +13,7 @@ type userIdentityDialect struct{}
 
 func (d *userIdentityDialect) Insert(userID int64, issuer, subject string) (string, []any) {
 	return `INSERT INTO user_identities (user_id, issuer, subject, created_at) VALUES (?, ?, ?, ?)`,
-		[]any{userID, issuer, subject, time.Now().Format(time.RFC3339)}
+		[]any{userID, issuer, subject, utcStamp(time.Now())}
 }
 
 func (d *userIdentityDialect) SelectUserID(issuer, subject string) (string, []any) {

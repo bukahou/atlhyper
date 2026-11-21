@@ -10,10 +10,13 @@
 package gateway
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/auth/oidc"
+	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/atlhyper_master_v2/deployer"
 	"AtlHyper/atlhyper_master_v2/gateway/handler"
@@ -40,12 +43,13 @@ const (
 	pLogsStatsRead  = middleware.PermLogsStatsRead
 	pAIOpsRead      = middleware.PermAIOpsRead
 
-	pLogsRead          = middleware.PermLogsRead
-	pTracesRead        = middleware.PermTracesRead
-	pCommandsRead      = middleware.PermCommandsRead
-	pDeployHistoryRead = middleware.PermDeployHistoryRead
-	pGitHubStatusRead  = middleware.PermGitHubStatusRead
-	pAIChat            = middleware.PermAIChat
+	pLogsRead             = middleware.PermLogsRead
+	pTracesRead           = middleware.PermTracesRead
+	pCommandsRead         = middleware.PermCommandsRead
+	pDeployHistoryRead    = middleware.PermDeployHistoryRead
+	pGitHubStatusRead     = middleware.PermGitHubStatusRead
+	pAIChat               = middleware.PermAIChat
+	pAIConversationDelete = middleware.PermAIConversationDelete
 
 	pSecretRead     = middleware.PermSecretRead
 	pPodLogsRead    = middleware.PermPodLogsRead
@@ -115,10 +119,35 @@ func NewRouter(svc service.Service, db *database.DB, aiSvc ai.AIService, trigger
 }
 
 // Handler 返回包装了中间件的 Handler
-// 顺序: Logging -> CORS -> Authenticate（解析主体）-> mux（各路由自带权限检查）
+// 顺序: Logging -> CORS -> LimitBody（请求体上限）-> Authenticate（解析主体）-> mux（各路由自带权限检查）
 func (r *Router) Handler() http.Handler {
 	r.registerRoutes()
-	return middleware.Logging(middleware.CORS(middleware.Authenticate(r.service)(r.mux)))
+	limitBody := middleware.LimitBody(maxRequestBodyBytes())
+	rateLimit := middleware.RateLimitByClientIP(positiveOr(config.GlobalConfig.Server.RateLimitPerMinute, 3000), config.GlobalConfig.Server.ClientIPHeader)
+	return middleware.Logging(middleware.CORS(limitBody(rateLimit(middleware.Authenticate(r.service)(r.mux)))))
+}
+
+func positiveOr(v, def int) int {
+	if v > 0 {
+		return v
+	}
+	return def
+}
+
+// loginLimited 登录类入口另按客户端地址限次（防止猜密码）
+func loginLimited(h http.HandlerFunc) http.HandlerFunc {
+	limit := middleware.RateLimitByClientIP(positiveOr(config.GlobalConfig.Server.LoginRateLimitPerMinute, 20), config.GlobalConfig.Server.ClientIPHeader)
+	return limit(h).ServeHTTP
+}
+
+// defaultMaxRequestBodyBytes 配置缺省（如测试里未加载配置）时的请求体上限
+const defaultMaxRequestBodyBytes = 1 << 20
+
+func maxRequestBodyBytes() int64 {
+	if n := config.GlobalConfig.Server.MaxRequestBodyBytes(); n > 0 {
+		return n
+	}
+	return defaultMaxRequestBodyBytes
 }
 
 // registerRoutes 注册所有路由
@@ -182,16 +211,16 @@ func (r *Router) registerRoutes() {
 	// ================================================================
 	// 无需主体
 	// ================================================================
-	r.open(mGet, "/health", healthCheck)
+	r.open(mGet, "/health", r.healthCheck)
 	r.open(mGet, "/api/v2/auth/me", authMeH.Get)
 	r.open(mGet, "/api/v2/auth/permissions", handler.GetPermissionTable)
-	r.openAudited(mPost, "/api/v2/user/login", "login", "user", userH.Login) // 记录成功 / 失败的登录尝试
+	r.openAudited(mPost, "/api/v2/user/login", "login", "user", loginLimited(userH.Login)) // 记录成功 / 失败的登录尝试
 
 	// 外部身份登录（OIDC）：providers 恒注册（未启用时返回空列表，登录框据此隐藏按钮）
 	r.open(mGet, "/api/v2/auth/providers", r.oidc.Providers)
 	if r.oidc != nil {
-		r.open(mGet, "/api/v2/auth/oidc/start", r.oidc.Start)
-		r.openAudited(mGet, "/api/v2/auth/oidc/callback", "login", "user", r.oidc.Callback)
+		r.open(mGet, "/api/v2/auth/oidc/start", loginLimited(r.oidc.Start))
+		r.openAudited(mGet, "/api/v2/auth/oidc/callback", "login", "user", loginLimited(r.oidc.Callback))
 	}
 
 	// ================================================================
@@ -235,7 +264,6 @@ func (r *Router) registerRoutes() {
 	r.route(mGet, pMetricsRead, "/api/v2/observe/metrics/hardware", observeH.MetricsHardware)
 	r.route(mGet, pMetricsRead, "/api/v2/observe/metrics/compare", observeH.MetricsCompare)
 
-	r.route(mGet, pSLORead, "/api/v2/slo/domains", sloH.Domains)      // V1: 按 service key
 	r.route(mGet, pSLORead, "/api/v2/slo/domains/v2", sloH.DomainsV2) // V2: 按真实域名
 	r.route(mGet, pSLORead, "/api/v2/slo/domains/detail", sloH.DomainDetail)
 	r.route(mGet, pSLORead, "/api/v2/slo/domains/history", sloH.DomainHistory)
@@ -284,7 +312,7 @@ func (r *Router) registerRoutes() {
 		r.route(mGet, pAIChat, "/api/v2/ai/conversations", aiH.Conversations)
 		r.route(mPost, pAIChat, "/api/v2/ai/conversations", aiH.Conversations)
 		r.route(mGet, pAIChat, "/api/v2/ai/conversations/", aiH.ConversationByID) // {id}/messages
-		r.routeAudited(mDelete, pAIChat, "/api/v2/ai/conversations/", "delete", "ai_conversation", aiH.ConversationByID)
+		r.routeAudited(mDelete, pAIConversationDelete, "/api/v2/ai/conversations/", "delete", "ai_conversation", aiH.ConversationByID)
 		r.route(mPost, pAIChat, "/api/v2/ai/chat", aiH.Chat)
 	}
 
@@ -298,7 +326,6 @@ func (r *Router) registerRoutes() {
 
 	r.routeAudited(mPost, pPodLogsRead, "/api/v2/ops/pods/logs", "read", "pod", opsH.PodLogs)
 
-	r.routeAudited(mPost, pClusterOperate, "/api/v2/commands", "execute", "command", commandH.Create)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/pods/restart", "execute", "pod", opsH.PodRestart)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/deployments/scale", "execute", "deployment", opsH.DeploymentScale)
 	r.routeAudited(mPost, pClusterOperate, "/api/v2/ops/deployments/restart", "execute", "deployment", opsH.DeploymentRestart)
@@ -399,7 +426,6 @@ func (r *Router) registerRoutes() {
 		r.route(mGet, pDeployManage, "/api/deploy/status", deployH.Status)
 		r.routeAudited(mPost, pDeployManage, "/api/deploy/test-connection", "execute", "deploy", deployH.TestConnection)
 		r.routeAudited(mPost, pDeployManage, "/api/deploy/sync", "execute", "deploy", deployH.SyncNow)
-		r.routeAudited(mPost, pDeployManage, "/api/deploy/rollback", "execute", "deploy", deployH.Rollback)
 	}
 }
 
@@ -437,14 +463,23 @@ func (r *Router) handle(spec routeSpec, h http.HandlerFunc) {
 
 // audit 创建审计中间件
 func (r *Router) audit(action, resource string) func(http.HandlerFunc) http.HandlerFunc {
-	return middleware.Audit(r.database.Audit, middleware.AuditConfig{
+	return middleware.AuditWithClientIP(r.database.Audit, middleware.AuditConfig{
 		Action:   action,
 		Resource: resource,
-	})
+	}, config.GlobalConfig.Server.ClientIPHeader)
 }
 
-// healthCheck 健康检查
-func healthCheck(w http.ResponseWriter, r *http.Request) {
+// healthCheck 健康检查（存活 / 就绪探针共用）：数据库 2 秒内 ping 不通就是 503
+func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
+	if r.database != nil && r.database.Conn != nil {
+		ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+		defer cancel()
+		if err := r.database.Conn.PingContext(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("database unavailable"))
+			return
+		}
+	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }

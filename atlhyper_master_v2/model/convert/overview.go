@@ -37,6 +37,8 @@ func convertOverviewCards(src cluster.OverviewCards) model.OverviewCards {
 			Reason:           src.ClusterHealth.Reason,
 			NodeReadyPercent: src.ClusterHealth.NodeReadyPercent,
 			PodReadyPercent:  src.ClusterHealth.PodReadyPercent,
+			NodeReadyStatus:  src.ClusterHealth.NodeReadyStatus,
+			PodReadyStatus:   src.ClusterHealth.PodReadyStatus,
 		},
 		NodeReady: model.OverviewResourceReady{
 			Total:   src.NodeReady.Total,
@@ -131,6 +133,8 @@ func convertOverviewNodes(src cluster.OverviewNodes) model.OverviewNodes {
 			Node:     u.Node,
 			CPUUsage: u.CPUUsage,
 			MemUsage: u.MemUsage,
+			CPULevel: model.ResourceLevel(u.CPUUsage),
+			MemLevel: model.ResourceLevel(u.MemUsage),
 		}
 	}
 	return model.OverviewNodes{Usage: usage}

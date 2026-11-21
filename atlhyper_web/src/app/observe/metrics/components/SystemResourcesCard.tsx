@@ -1,28 +1,41 @@
 import { Activity, FileText, Shield, Zap, ListOrdered, Network, Clock } from "lucide-react";
-import type { NodeSystem } from "@/types/node-metrics";
+import type { NodeLevels, NodeSystem } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
+import { hardwareStatusBar, hardwareStatusText } from "@/lib/hardware-status";
 
-const usageColor = (v: number) => v >= 80 ? "text-red-500" : v >= 60 ? "text-yellow-500" : "text-emerald-500";
-const usageBg = (v: number) => v >= 80 ? "bg-red-500" : v >= 60 ? "bg-yellow-500" : "bg-emerald-500";
 const fmtN = (n: number) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : n.toString();
 
-export function SystemResourcesCard({ system }: { system: NodeSystem }) {
+interface SystemResourcesCardProps {
+  system: NodeSystem;
+  /** 后端判定的等级 */
+  levels: Pick<NodeLevels, "fileFd" | "conntrack" | "procsBlocked" | "timeSync" | "entropy">;
+  /** 占用率（后端算好）；没有上限时为 null */
+  fileFdUsagePct: number | null;
+  conntrackUsagePct: number | null;
+}
+
+export function SystemResourcesCard({ system, levels, fileFdUsagePct, conntrackUsagePct }: SystemResourcesCardProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-  const fdPct = system.filefdMax > 0 ? (system.filefdAllocated / system.filefdMax) * 100 : 0;
-  const ctPct = system.conntrackLimit > 0 ? (system.conntrackEntries / system.conntrackLimit) * 100 : 0;
-  const entropyOk = system.entropyBits >= 256;
 
   const items = [
     {
       label: nm.system.fileDescriptors,
       value: fmtN(system.filefdAllocated),
       // 现代内核 fs.file-max 默认无限制（后端已判定），不渲染天文数字与占比
-      pct: system.filefdUnlimited ? 0 : fdPct,
+      pct: fileFdUsagePct,
+      level: levels.fileFd,
       max: system.filefdUnlimited ? `Max: ${nm.system.unlimited}` : `Max: ${fmtN(system.filefdMax)}`,
       icon: FileText,
     },
-    { label: nm.system.conntrackTable, value: fmtN(system.conntrackEntries), pct: ctPct, max: `Limit: ${fmtN(system.conntrackLimit)}`, icon: Shield },
+    {
+      label: nm.system.conntrackTable,
+      value: fmtN(system.conntrackEntries),
+      pct: conntrackUsagePct,
+      level: levels.conntrack,
+      max: `Limit: ${fmtN(system.conntrackLimit)}`,
+      icon: Shield,
+    },
   ];
 
   return (
@@ -42,13 +55,13 @@ export function SystemResourcesCard({ system }: { system: NodeSystem }) {
                 <it.icon className="w-3.5 h-3.5 text-muted" />
                 <span className="text-xs sm:text-sm text-default">{it.label}</span>
               </div>
-              <span className={`text-xs sm:text-sm font-bold ${usageColor(it.pct)}`}>{it.value}</span>
+              <span className={`text-xs sm:text-sm font-bold ${hardwareStatusText(it.level)}`}>{it.value}</span>
             </div>
             <div className="h-1.5 bg-[var(--card-bg)] rounded-full overflow-hidden mb-1">
-              <div className={`h-full rounded-full ${usageBg(it.pct)}`} style={{ width: `${Math.min(100, it.pct)}%` }} />
+              <div className={`h-full rounded-full ${hardwareStatusBar(it.level)}`} style={{ width: `${Math.min(100, it.pct ?? 0)}%` }} />
             </div>
             <div className="flex justify-between text-[10px] text-muted">
-              <span>{it.pct.toFixed(2)}% {nm.system.used}</span>
+              <span>{it.pct === null ? "—" : `${it.pct.toFixed(2)}%`} {nm.system.used}</span>
               <span>{it.max}</span>
             </div>
           </div>
@@ -65,7 +78,7 @@ export function SystemResourcesCard({ system }: { system: NodeSystem }) {
           </div>
           <div>
             <div className="text-[10px] text-muted mb-0.5">{nm.system.blocked}</div>
-            <div className={`text-xs sm:text-sm font-semibold tabular-nums ${system.procsBlocked > 0 ? "text-yellow-500" : "text-emerald-500"}`}>
+            <div className={`text-xs sm:text-sm font-semibold tabular-nums ${hardwareStatusText(levels.procsBlocked)}`}>
               {system.procsBlocked}
             </div>
           </div>
@@ -85,7 +98,7 @@ export function SystemResourcesCard({ system }: { system: NodeSystem }) {
             <span className="text-xs sm:text-sm text-default">{nm.system.ntpSync}</span>
           </div>
           <div className="text-right">
-            <div className={`text-xs sm:text-sm font-bold ${system.timeSynced ? "text-green-500" : "text-red-500"}`}>
+            <div className={`text-xs sm:text-sm font-bold ${hardwareStatusText(levels.timeSync)}`}>
               {system.timeSynced ? nm.system.synced : nm.system.notSynced}
             </div>
             <div className="text-[10px] text-muted tabular-nums">
@@ -101,12 +114,12 @@ export function SystemResourcesCard({ system }: { system: NodeSystem }) {
               <Zap className="w-3.5 h-3.5 text-muted" />
               <span className="text-xs sm:text-sm text-default">{nm.system.entropyPool}</span>
             </div>
-            <span className={`text-xs sm:text-sm font-bold ${entropyOk ? "text-green-500" : "text-red-500"}`}>
+            <span className={`text-xs sm:text-sm font-bold ${hardwareStatusText(levels.entropy)}`}>
               {system.entropyBits} {nm.system.bits}
             </span>
           </div>
           <div className="text-[10px] text-muted mt-1">
-            {entropyOk ? nm.system.entropySufficient : nm.system.entropyLow}
+            {levels.entropy === "good" ? nm.system.entropySufficient : levels.entropy === "unknown" ? "—" : nm.system.entropyLow}
           </div>
         </div>
       </div>

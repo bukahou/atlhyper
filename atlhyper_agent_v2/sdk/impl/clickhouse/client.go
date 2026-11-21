@@ -47,10 +47,6 @@ func (c *client) QueryRow(ctx context.Context, query string, args ...any) *sql.R
 	return c.db.QueryRowContext(ctx, query, args...)
 }
 
-func (c *client) Ping(ctx context.Context) error {
-	return c.db.PingContext(ctx)
-}
-
 func (c *client) Close() error {
 	return c.db.Close()
 }

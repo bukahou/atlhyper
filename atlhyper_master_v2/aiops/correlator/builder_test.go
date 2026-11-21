@@ -4,9 +4,11 @@ package correlator
 import (
 	"testing"
 
+	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/model_v3/apm"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/log"
+	"AtlHyper/model_v3/slo"
 )
 
 func TestBuildFromSnapshot_Empty(t *testing.T) {
@@ -253,5 +255,29 @@ func TestBuildFromSnapshot_NoLogsNodeWhenNilSummary(t *testing.T) {
 		if n.Type == "logs" {
 			t.Fatal("should not have logs node when LogsSummary is nil")
 		}
+	}
+}
+
+// 入口（SLO）数据按服务标识 namespace/service 上报：入口实体落在该服务的命名空间里，并连到那个服务，
+// 入口的异常才能沿依赖图传到后端（此前键是 _cluster/ingress/<标识>，图里没有任何边连到它）
+func TestBuildFromSnapshot_SLOIngressRoutesToService(t *testing.T) {
+	otel := &cluster.OTelSnapshot{SLOIngress: []slo.IngressSLO{{ServiceKey: "shop/web"}}}
+	g := BuildFromSnapshot("c1", &cluster.ClusterSnapshot{}, otel)
+
+	ingKey := aiops.IngressEntityKey("shop/web")
+	if ingKey != "shop/ingress/web" {
+		t.Fatalf("入口实体键 = %q, want shop/ingress/web", ingKey)
+	}
+	if n := g.Nodes[ingKey]; n == nil || n.Type != "ingress" || n.Namespace != "shop" || n.Name != "web" {
+		t.Fatalf("入口节点 = %+v", n)
+	}
+	found := false
+	for _, e := range g.Edges {
+		if e.From == ingKey && e.To == "shop/service/web" && e.Type == "routes_to" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("入口应有一条 routes_to 边连到 shop/service/web")
 	}
 }

@@ -4,6 +4,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
@@ -211,9 +212,10 @@ func (q *OverviewQuery) GetOverview(ctx context.Context, clusterID string) (*clu
 	alertTotal := 0
 
 	// 1. 告警趋势（完整的 24 小时时间线，按资源类型统计）
-	// 时间范围：从当前小时向前推 23 小时，共 24 个点
-	now := time.Now()
-	currentHour := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
+	// 时间范围：从当前小时向前推 23 小时，共 24 个点。
+	// 按 UTC 小时分桶：库里按 UTC 存、SQLite 的 strftime 也按 UTC 出 key，与进程所在时区无关
+	now := time.Now().UTC()
+	currentHour := now.Truncate(time.Hour)
 
 	// 初始化 24 个时间点，每个时间点的 Kinds 为空 map
 	alertTrend := make([]cluster.AlertTrendPoint, 24)
@@ -229,7 +231,10 @@ func (q *OverviewQuery) GetOverview(ctx context.Context, clusterID string) (*clu
 
 	if q.eventRepo != nil {
 		// 从数据库获取按小时和资源类型统计的数据
-		hourlyKindStats, _ := q.eventRepo.CountByHourAndKind(ctx, clusterID, 24)
+		hourlyKindStats, err := q.eventRepo.CountByHourAndKind(ctx, clusterID, 24)
+		if err != nil {
+			return nil, fmt.Errorf("读取告警趋势: %w", err)
+		}
 		for _, h := range hourlyKindStats {
 			if idx, ok := hourToIndex[h.Hour]; ok {
 				alertTrend[idx].Kinds[h.Kind] = h.Count
@@ -239,13 +244,16 @@ func (q *OverviewQuery) GetOverview(ctx context.Context, clusterID string) (*clu
 
 		// 2. 最近告警（最近 10 条 Warning 事件）
 		since24h := now.Add(-24 * time.Hour)
-		dbEvents, _ := q.eventRepo.ListByCluster(ctx, clusterID, database.EventQueryOpts{
+		dbEvents, err := q.eventRepo.ListByCluster(ctx, clusterID, database.EventQueryOpts{
 			Since: since24h,
 			Limit: 10,
 		})
+		if err != nil {
+			return nil, fmt.Errorf("读取最近告警: %w", err)
+		}
 		for _, e := range dbEvents {
 			recentAlerts = append(recentAlerts, cluster.RecentAlert{
-				Timestamp: e.LastTimestamp.Format("2006-01-02T15:04:05Z"),
+				Timestamp: e.LastTimestamp.UTC().Format(time.RFC3339),
 				Severity:  "warning", // 数据库只存 Warning
 				Kind:      e.InvolvedKind,
 				Namespace: e.InvolvedNamespace,
@@ -345,6 +353,8 @@ func (q *OverviewQuery) GetOverview(ctx context.Context, clusterID string) (*clu
 				Reason:           healthReason,
 				NodeReadyPercent: nodeReadyPct,
 				PodReadyPercent:  podReadyPct,
+				NodeReadyStatus:  cluster.NodeReadyStatus(nodeReadyPct),
+				PodReadyStatus:   cluster.PodReadyStatus(podReadyPct),
 			},
 			NodeReady: cluster.ResourceReady{
 				Total:   summary.TotalNodes,

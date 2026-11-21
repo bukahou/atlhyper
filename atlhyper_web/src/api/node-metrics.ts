@@ -39,22 +39,6 @@ export async function getClusterNodeMetrics(clusterId: string): Promise<ClusterN
 }
 
 /**
- * 获取单节点详情
- * @param clusterId 集群 ID
- * @param nodeName 节点名称
- */
-export async function getNodeMetricsDetail(
-  clusterId: string,
-  nodeName: string
-): Promise<NodeMetrics> {
-  const response = await get<NodeMetrics>(
-    `/api/v2/node-metrics/${encodeURIComponent(nodeName)}`,
-    { cluster_id: clusterId }
-  );
-  return response.data;
-}
-
-/**
  * 获取节点历史数据
  * @param clusterId 集群 ID
  * @param nodeName 节点名称

@@ -3,10 +3,10 @@ package command
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/repository"
+	"AtlHyper/model_v3/apm"
 	"AtlHyper/model_v3/command"
 )
 
@@ -14,85 +14,71 @@ import (
 // ClickHouse 查询指令处理
 // =============================================================================
 
+// parseQuery 解析并校验查询参数：类型不对、缺必填项、取值越界都直接报错，⛔ 不按零值继续
+func parseQuery[P command.QueryParams](cmd *command.Command, into P) error {
+	if err := command.ParseParams(cmd.Params, into); err != nil {
+		return fmt.Errorf("%s 参数格式不对: %w", cmd.Action, err)
+	}
+	if err := into.Validate(); err != nil {
+		return fmt.Errorf("%s 参数不合法: %w", cmd.Action, err)
+	}
+	return nil
+}
+
 // handleQueryTraces 处理 Trace 查询指令
 func (s *commandService) handleQueryTraces(ctx context.Context, cmd *command.Command) (any, error) {
 	if s.traceQueryRepo == nil {
 		return nil, fmt.Errorf("ClickHouse not configured")
 	}
+	var p command.QueryTracesParams
+	if err := parseQuery(cmd, &p); err != nil {
+		return nil, err
+	}
+	start, end := p.StartTime, p.EndTime
 
-	subAction := getStringParam(cmd.Params, "sub_action")
-	startTime := getStringParam(cmd.Params, "start_time")
-	endTime := getStringParam(cmd.Params, "end_time")
+	switch p.Action() {
+	case command.TraceListTraces:
+		limit := p.Limit
+		if limit == 0 {
+			limit = 50
+		}
+		return s.traceQueryRepo.ListTraces(ctx, p.Service, p.Operation, p.MinDurationMs, limit,
+			p.SinceOr(5*time.Minute), p.Sort, start, end, p.StatusCode, p.Method)
 
-	switch subAction {
-	case "list_traces", "":
-		service := getStringParam(cmd.Params, "service")
-		operation := getStringParam(cmd.Params, "operation")
-		minDuration := getFloat64Param(cmd.Params, "min_duration_ms")
-		limit := getIntParam(cmd.Params, "limit", 50)
-		since := getDurationParam(cmd.Params, "since", 5*time.Minute)
-		sortBy := getStringParam(cmd.Params, "sort")
-		statusCode := getStringParam(cmd.Params, "status_code")
-		method := getStringParam(cmd.Params, "method")
-		return s.traceQueryRepo.ListTraces(ctx, service, operation, minDuration, limit, since, sortBy, startTime, endTime, statusCode, method)
+	case command.TraceListServices:
+		return s.traceQueryRepo.ListServices(ctx, p.SinceOr(15*time.Minute), start, end)
 
-	case "list_services":
-		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.ListServices(ctx, since, startTime, endTime)
-
-	case "get_correlations":
-		service := getStringParam(cmd.Params, "service")
-		operation := getStringParam(cmd.Params, "operation")
-		mode := getStringParam(cmd.Params, "mode")
+	case command.TraceCorrelations:
+		mode := p.Mode
 		if mode == "" {
-			mode = "failure"
+			mode = apm.CorrelationModeFailure
 		}
-		since := getDurationParam(cmd.Params, "since", 60*time.Minute)
-		return s.traceQueryRepo.GetTraceCorrelations(ctx, service, operation, mode, since, startTime, endTime)
+		return s.traceQueryRepo.GetTraceCorrelations(ctx, p.Service, p.Operation, mode, p.SinceOr(60*time.Minute), start, end)
 
-	case "get_topology":
-		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.GetTopology(ctx, since, startTime, endTime)
+	case command.TraceTopology:
+		return s.traceQueryRepo.GetTopology(ctx, p.SinceOr(15*time.Minute), start, end)
 
-	case "list_operations":
-		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.ListOperations(ctx, since, startTime, endTime)
+	case command.TraceListOperations:
+		return s.traceQueryRepo.ListOperations(ctx, p.SinceOr(15*time.Minute), start, end)
 
-	case "http_stats":
-		service := getStringParam(cmd.Params, "service")
-		if service == "" {
-			return nil, fmt.Errorf("service is required for http_stats")
-		}
-		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.GetHTTPStats(ctx, service, since, startTime, endTime)
+	case command.TraceHTTPStats:
+		return s.traceQueryRepo.GetHTTPStats(ctx, p.Service, p.SinceOr(15*time.Minute), start, end)
 
-	case "db_stats":
-		service := getStringParam(cmd.Params, "service")
-		if service == "" {
-			return nil, fmt.Errorf("service is required for db_stats")
-		}
-		since := getDurationParam(cmd.Params, "since", 15*time.Minute)
-		return s.traceQueryRepo.GetDBStats(ctx, service, since, startTime, endTime)
+	case command.TraceDBStats:
+		return s.traceQueryRepo.GetDBStats(ctx, p.Service, p.SinceOr(15*time.Minute), start, end)
 
-	case "service_series":
-		service := getStringParam(cmd.Params, "service")
-		if service == "" {
-			return nil, fmt.Errorf("service is required for service_series")
-		}
-		since := getDurationParam(cmd.Params, "since", 60*time.Minute)
-		points, err := s.traceQueryRepo.GetServiceTimeSeries(ctx, service, since)
+	case command.TraceServiceSeries:
+		points, err := s.traceQueryRepo.GetServiceTimeSeries(ctx, p.Service, p.SinceOr(60*time.Minute))
 		if err != nil {
 			return nil, err
 		}
 		// 包装为与 Concentrator 路径一致的格式: { service, points }
 		return map[string]interface{}{
-			"service": service,
+			"service": p.Service,
 			"points":  points,
 		}, nil
-
-	default:
-		return nil, fmt.Errorf("unknown trace sub_action: %s", subAction)
 	}
+	return nil, fmt.Errorf("unknown trace sub_action: %s", p.SubAction) // Validate 已拦下，走不到
 }
 
 // handleQueryTraceDetail 处理 Trace 详情查询指令
@@ -100,12 +86,11 @@ func (s *commandService) handleQueryTraceDetail(ctx context.Context, cmd *comman
 	if s.traceQueryRepo == nil {
 		return nil, fmt.Errorf("ClickHouse not configured")
 	}
-
-	traceID := getStringParam(cmd.Params, "trace_id")
-	if traceID == "" {
-		return nil, fmt.Errorf("trace_id is required")
+	var p command.QueryTraceDetailParams
+	if err := parseQuery(cmd, &p); err != nil {
+		return nil, err
 	}
-	return s.traceQueryRepo.GetTraceDetail(ctx, traceID)
+	return s.traceQueryRepo.GetTraceDetail(ctx, p.TraceID)
 }
 
 // handleQueryLogs 处理日志查询指令（通过 sub_action 区分列表/直方图）
@@ -113,41 +98,30 @@ func (s *commandService) handleQueryLogs(ctx context.Context, cmd *command.Comma
 	if s.logQueryRepo == nil {
 		return nil, fmt.Errorf("ClickHouse not configured")
 	}
-
-	subAction := getStringParam(cmd.Params, "sub_action")
-	if subAction == "histogram" {
-		return s.handleQueryLogHistogram(ctx, cmd)
+	var p command.QueryLogsParams
+	if err := parseQuery(cmd, &p); err != nil {
+		return nil, err
 	}
-
 	opts := repository.LogQueryOptions{
-		Query:     getStringParam(cmd.Params, "query"),
-		Service:   getStringParam(cmd.Params, "service"),
-		Level:     getStringParam(cmd.Params, "level"),
-		Scope:     getStringParam(cmd.Params, "scope"),
-		TraceId:   getStringParam(cmd.Params, "trace_id"),
-		SpanId:    getStringParam(cmd.Params, "span_id"),
-		Limit:     getIntParam(cmd.Params, "limit", 50),
-		Offset:    getIntParam(cmd.Params, "offset", 0),
-		Since:     getDurationParam(cmd.Params, "since", 15*time.Minute),
-		StartTime: getStringParam(cmd.Params, "start_time"),
-		EndTime:   getStringParam(cmd.Params, "end_time"),
+		Query:     p.Query,
+		Service:   p.Service,
+		Level:     p.Level,
+		Scope:     p.Scope,
+		Since:     p.SinceOr(15 * time.Minute),
+		StartTime: p.StartTime,
+		EndTime:   p.EndTime,
 	}
-
+	if p.SubAction == command.LogsHistogram {
+		return s.logQueryRepo.QueryHistogram(ctx, opts)
+	}
+	opts.TraceId = p.TraceID
+	opts.SpanId = p.SpanID
+	opts.Limit = p.Limit
+	if opts.Limit == 0 {
+		opts.Limit = 50
+	}
+	opts.Offset = p.Offset
 	return s.logQueryRepo.QueryLogs(ctx, opts)
-}
-
-// handleQueryLogHistogram 处理日志直方图查询指令
-func (s *commandService) handleQueryLogHistogram(ctx context.Context, cmd *command.Command) (any, error) {
-	opts := repository.LogQueryOptions{
-		Query:     getStringParam(cmd.Params, "query"),
-		Service:   getStringParam(cmd.Params, "service"),
-		Level:     getStringParam(cmd.Params, "level"),
-		Scope:     getStringParam(cmd.Params, "scope"),
-		Since:     getDurationParam(cmd.Params, "since", 15*time.Minute),
-		StartTime: getStringParam(cmd.Params, "start_time"),
-		EndTime:   getStringParam(cmd.Params, "end_time"),
-	}
-	return s.logQueryRepo.QueryHistogram(ctx, opts)
 }
 
 // handleQueryMetrics 处理指标查询指令
@@ -155,156 +129,22 @@ func (s *commandService) handleQueryMetrics(ctx context.Context, cmd *command.Co
 	if s.metricsQueryRepo == nil {
 		return nil, fmt.Errorf("ClickHouse not configured")
 	}
+	var p command.QueryMetricsParams
+	if err := parseQuery(cmd, &p); err != nil {
+		return nil, err
+	}
 
-	subAction := getStringParam(cmd.Params, "sub_action")
-
-	switch subAction {
-	case "list_all":
+	switch p.Action() {
+	case command.MetricsListAll:
 		return s.metricsQueryRepo.ListAllNodeMetrics(ctx)
-
-	case "get_node":
-		nodeName := getStringParam(cmd.Params, "node_name")
-		if nodeName == "" {
-			return nil, fmt.Errorf("node_name is required")
-		}
-		return s.metricsQueryRepo.GetNodeMetrics(ctx, nodeName)
-
-	case "get_series":
-		nodeName := getStringParam(cmd.Params, "node_name")
-		metric := getStringParam(cmd.Params, "metric")
-		since := getDurationParam(cmd.Params, "since", 30*time.Minute)
-		if nodeName == "" || metric == "" {
-			return nil, fmt.Errorf("node_name and metric are required")
-		}
-		return s.metricsQueryRepo.GetNodeMetricsSeries(ctx, nodeName, metric, since)
-
-	case "get_history":
-		nodeName := getStringParam(cmd.Params, "node_name")
-		if nodeName == "" {
-			return nil, fmt.Errorf("node_name is required")
-		}
-		since := getDurationParam(cmd.Params, "since", 24*time.Hour)
-		return s.metricsQueryRepo.GetNodeMetricsHistory(ctx, nodeName, since)
-
-	case "get_summary", "":
+	case command.MetricsGetNode:
+		return s.metricsQueryRepo.GetNodeMetrics(ctx, p.NodeName)
+	case command.MetricsGetSeries:
+		return s.metricsQueryRepo.GetNodeMetricsSeries(ctx, p.NodeName, p.Metric, p.SinceOr(30*time.Minute))
+	case command.MetricsGetHistory:
+		return s.metricsQueryRepo.GetNodeMetricsHistory(ctx, p.NodeName, p.SinceOr(24*time.Hour))
+	case command.MetricsSummary:
 		return s.metricsQueryRepo.GetMetricsSummary(ctx)
-
-	default:
-		return nil, fmt.Errorf("unknown metrics sub_action: %s", subAction)
 	}
-}
-
-// handleQuerySLO 处理 SLO 查询指令
-func (s *commandService) handleQuerySLO(ctx context.Context, cmd *command.Command) (any, error) {
-	if s.sloQueryRepo == nil {
-		return nil, fmt.Errorf("ClickHouse not configured")
-	}
-
-	subAction := getStringParam(cmd.Params, "sub_action")
-	since := getDurationParam(cmd.Params, "since", 5*time.Minute)
-
-	switch subAction {
-	case "list_ingress":
-		return s.sloQueryRepo.ListIngressSLO(ctx, since)
-
-	// list_service / list_edges 已移除：SLO 只做 ingress 外部视角，
-	// 服务间调用关系改由 APM 指令 (query_traces 的 topology) 提供。
-
-	case "get_time_series":
-		name := getStringParam(cmd.Params, "name")
-		if name == "" {
-			return nil, fmt.Errorf("name is required")
-		}
-		return s.sloQueryRepo.GetSLOTimeSeries(ctx, name, since)
-
-	case "get_summary", "":
-		return s.sloQueryRepo.GetSLOSummary(ctx)
-
-	default:
-		return nil, fmt.Errorf("unknown SLO sub_action: %s", subAction)
-	}
-}
-
-// =============================================================================
-// 参数提取辅助
-// =============================================================================
-
-func getStringParam(params map[string]any, key string) string {
-	if params == nil {
-		return ""
-	}
-	v, ok := params[key]
-	if !ok {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
-func getFloat64Param(params map[string]any, key string) float64 {
-	if params == nil {
-		return 0
-	}
-	v, ok := params[key]
-	if !ok {
-		return 0
-	}
-	switch n := v.(type) {
-	case float64:
-		return n
-	case string:
-		f, _ := strconv.ParseFloat(n, 64)
-		return f
-	default:
-		return 0
-	}
-}
-
-func getIntParam(params map[string]any, key string, defaultVal int) int {
-	if params == nil {
-		return defaultVal
-	}
-	v, ok := params[key]
-	if !ok {
-		return defaultVal
-	}
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case int:
-		return n
-	case string:
-		if i, err := strconv.Atoi(n); err == nil {
-			return i
-		}
-		return defaultVal
-	default:
-		return defaultVal
-	}
-}
-
-func getDurationParam(params map[string]any, key string, defaultVal time.Duration) time.Duration {
-	if params == nil {
-		return defaultVal
-	}
-	v, ok := params[key]
-	if !ok {
-		return defaultVal
-	}
-	switch d := v.(type) {
-	case string:
-		parsed, err := time.ParseDuration(d)
-		if err != nil {
-			return defaultVal
-		}
-		return parsed
-	case float64:
-		// 秒数
-		if d > 0 {
-			return time.Duration(d) * time.Second
-		}
-		return defaultVal
-	default:
-		return defaultVal
-	}
+	return nil, fmt.Errorf("unknown metrics sub_action: %s", p.SubAction) // Validate 已拦下，走不到
 }

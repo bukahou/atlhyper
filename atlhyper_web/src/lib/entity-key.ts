@@ -23,10 +23,6 @@ export interface EntityKeyParts {
 
 export function parseEntityKey(entityKey: string): EntityKeyParts {
   const parts = entityKey.split("/");
-  if (parts.length >= 4 && parts[0] === "cluster") {
-    // cluster/{clusterId}/node/{name}
-    return { namespace: "", type: parts[2], name: parts.slice(3).join("/") };
-  }
   if (parts.length >= 3) {
     // namespace/type/name
     return {

@@ -11,11 +11,11 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"AtlHyper/atlhyper_agent_v2/sdk"
-	model_v3 "AtlHyper/model_v3"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,54 +60,66 @@ func (c *Client) UpdateDeploymentScale(ctx context.Context, namespace, name stri
 //
 // 通过修改 Pod Template 的 annotation 触发滚动更新
 func (c *Client) RestartDeployment(ctx context.Context, namespace, name string) error {
-	patchData := fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`, time.Now().Format(time.RFC3339))
-	_, err := c.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, []byte(patchData), metav1.PatchOptions{})
+	patchData, err := restartPatch(time.Now())
+	if err != nil {
+		return err
+	}
+	_, err = c.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{})
 	return err
 }
 
-// UpdateDeploymentImage 更新 Deployment 容器镜像
+// UpdateDeploymentImage 更新 Deployment 指定容器的镜像，触发滚动更新
 //
-// 更新指定容器的镜像，触发滚动更新
-// container 为空时更新第一个容器
+// container 必填：改哪个容器由调用方明确指定（参数在 command.UpdateImageParams 里校验）
 func (c *Client) UpdateDeploymentImage(ctx context.Context, namespace, name, container, image string) error {
 	deploy, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
-
-	containers := deploy.Spec.Template.Spec.Containers
-	if len(containers) == 0 {
-		return fmt.Errorf("deployment %s has no containers", name)
-	}
-
-	targetIndex := 0
-	if container != "" {
-		found := false
-		for i, cont := range containers {
-			if cont.Name == container {
-				targetIndex = i
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("container %s not found in deployment %s", container, name)
-		}
-	} else {
-		// 自动选第一个非 sidecar 容器
-		for i, cont := range containers {
-			if !model_v3.IsSidecarContainer(cont.Name) {
-				targetIndex = i
-				break
-			}
+	found := false
+	for _, cont := range deploy.Spec.Template.Spec.Containers {
+		if cont.Name == container {
+			found = true
+			break
 		}
 	}
+	if !found {
+		return fmt.Errorf("container %s not found in deployment %s", container, name)
+	}
 
-	patchData := fmt.Sprintf(`{"spec":{"template":{"spec":{"containers":[{"name":"%s","image":"%s"}]}}}}`,
-		containers[targetIndex].Name, image)
-
-	_, err = c.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, []byte(patchData), metav1.PatchOptions{})
+	patchData, err := imagePatch(container, image)
+	if err != nil {
+		return err
+	}
+	_, err = c.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{})
 	return err
+}
+
+// imagePatch 生成只改一个容器镜像的 strategic merge patch（按容器名合并）。
+// 用 json.Marshal 生成，任何字段内容都只会是 JSON 字符串值，⛔ 不拼接。
+func imagePatch(container, image string) ([]byte, error) {
+	return json.Marshal(map[string]any{
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []map[string]string{{"name": container, "image": image}},
+				},
+			},
+		},
+	})
+}
+
+// restartPatch 生成滚动重启用的 patch：改 Pod 模板的注解（与 kubectl rollout restart 相同的键）
+func restartPatch(at time.Time) ([]byte, error) {
+	return json.Marshal(map[string]any{
+		"spec": map[string]any{
+			"template": map[string]any{
+				"metadata": map[string]any{
+					"annotations": map[string]string{"kubectl.kubernetes.io/restartedAt": at.Format(time.RFC3339)},
+				},
+			},
+		},
+	})
 }
 
 // =============================================================================

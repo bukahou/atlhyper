@@ -26,7 +26,7 @@ export function getPodColumns(
     {
       key: "phase",
       header: t.common.status,
-      render: (pod) => <StatusBadge status={pod.phase || "Unknown"} />,
+      render: (pod) => <StatusBadge status={pod.statusReason || pod.phase || "Unknown"} type={pod.statusLevel} />,
     },
     {
       key: "ready",

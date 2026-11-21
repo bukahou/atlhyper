@@ -7,6 +7,10 @@ import (
 	"AtlHyper/model_v3/cluster"
 )
 
+// maxReuseRounds 一类资源连续失败时最多沿用旧数据的轮数；再失败就留空并标成不可用
+// （权限被收回这类永久性失败，不能让旧数据一直被当成现状）
+const maxReuseRounds = 6
+
 // kindCollector 一类 K8s 资源的采集。
 //
 // 20 类资源并发采集、互不依赖。某一类失败不应让整份快照作废，所以每类除了「拉取」

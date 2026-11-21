@@ -4,19 +4,19 @@
 package ai
 
 import (
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/ai/budget"
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
 // ServiceConfig AI 服务配置（仅用于 Tool 超时等非敏感配置）
 type ServiceConfig struct {
-	ToolTimeout   time.Duration // Tool 执行超时，默认 30s
-	BedrockRegion string        // Bedrock 区域（Master 配置 MASTER_AI_BEDROCK_REGION；所有 bedrock provider 共用）
+	BedrockRegion string // Bedrock 区域（Master 配置 MASTER_AI_BEDROCK_REGION；所有 bedrock provider 共用）
 }
 
 // aiServiceImpl AIService 实现
@@ -25,11 +25,23 @@ type aiServiceImpl struct {
 	providerRepo database.AIProviderRepository
 	modelRepo    database.AIProviderModelRepository
 	budgetRepo   database.AIRoleBudgetRepository
-	executor     *toolExecutor
+	budgets      *budget.Ledger // nil = 不做预算控制（未接预算仓库时）
+	tools        *toolkit.Registry
 	convRepo     database.AIConversationRepository
 	msgRepo      database.AIMessageRepository
 
 	bedrockRegion string // 来自 Master 配置，不来自数据库
+
+	// newClient 按配置创建模型客户端（默认 llm.NewLLMClient；测试替换）
+	newClient func(llm.Config) (llm.LLMClient, error)
+}
+
+// createClient 按配置创建模型客户端
+func (s *aiServiceImpl) createClient(cfg llm.Config) (llm.LLMClient, error) {
+	if s.newClient != nil {
+		return s.newClient(cfg)
+	}
+	return llm.NewLLMClient(cfg)
 }
 
 // CreateConversation 创建对话
@@ -117,9 +129,9 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 		return nil, fmt.Errorf("AI 配置错误: %w", err)
 	}
 
-	llmClient, err := llm.NewLLMClient(roleCfg.Config)
+	llmClient, err := s.createClient(roleCfg.Config)
 	if err != nil {
-		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("创建客户端失败: %v", err))
+		s.recordProviderError(ctx, roleCfg.ProviderID, CodeConfig, err)
 		return nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
 	}
 	defer llmClient.Close()
@@ -129,28 +141,27 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 		Messages:     []llm.Message{{Role: "user", Content: req.UserPrompt}},
 	})
 	if err != nil {
-		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("LLM 调用失败: %v", err))
+		s.recordProviderError(ctx, roleCfg.ProviderID, ErrorCode(err), err)
 		return nil, fmt.Errorf("LLM 调用失败: %w", err)
 	}
 
-	// 收集完整响应（流出错 → 报错，不把半截文本当结果）
-	text, _, usage, err := collectStreamResponse(stream)
+	// 收集完整响应（流出错或没按约定收尾 → 报错，不把半截文本当结果）
+	res, err := llm.ReadStream(ctx, stream, nil)
+	var inputTokens, outputTokens int
+	if res.Usage != nil {
+		inputTokens = res.Usage.InputTokens
+		outputTokens = res.Usage.OutputTokens
+	}
+	// 调过模型就记账（失败也记）；用不随请求取消的 ctx
+	s.RecordUsage(context.WithoutCancel(ctx), role, roleCfg.ProviderID, inputTokens, outputTokens)
 	if err != nil {
-		s.recordProviderError(ctx, roleCfg.ProviderID, fmt.Sprintf("LLM 流错误: %v", err))
+		s.recordProviderError(ctx, roleCfg.ProviderID, ErrorCode(err), err)
 		return nil, fmt.Errorf("LLM 流错误: %w", err)
 	}
-
-	var inputTokens, outputTokens int
-	if usage != nil {
-		inputTokens = usage.InputTokens
-		outputTokens = usage.OutputTokens
-	}
+	text := res.Text
 
 	// 成功调用，清除之前的错误状态
 	s.clearProviderError(ctx, roleCfg.ProviderID)
-
-	// 扣减预算
-	s.RecordUsage(ctx, role, roleCfg.ProviderID, inputTokens, outputTokens)
 
 	return &CompleteResult{
 		Response:     text,
@@ -163,9 +174,9 @@ func (s *aiServiceImpl) Complete(ctx context.Context, req *CompleteRequest) (*Co
 	}, nil
 }
 
-// RegisterTool 注册自定义 Tool
-func (s *aiServiceImpl) RegisterTool(name string, handler ToolHandler) {
-	s.executor.RegisterTool(name, handler)
+// Tools 工具注册表
+func (s *aiServiceImpl) Tools() *toolkit.Registry {
+	return s.tools
 }
 
 // toConversation 转换 DB 模型为 API 类型
@@ -186,22 +197,24 @@ func toConversation(c *database.AIConversation) *Conversation {
 
 // toMessage 转换 DB 模型为 API 类型
 func toMessage(m *database.AIMessage) *Message {
+	decoded := decodeStoredMessage(m)
 	return &Message{
 		ID:             m.ID,
 		ConversationID: m.ConversationID,
 		Role:           m.Role,
-		Content:        m.Content,
-		ToolCalls:      m.ToolCalls,
+		Content:        decoded.Content,
+		ToolCalls:      decoded.ToolCalls,
+		ToolResult:     decoded.ToolResult,
 		CreatedAt:      m.CreatedAt,
 	}
 }
 
-// recordProviderError 记录 Provider 错误到数据库（前端 AI 设置页可见）
-// 错误信息做归纳，不暴露内部 URL/IP 等细节
-func (s *aiServiceImpl) recordProviderError(ctx context.Context, providerID int64, errMsg string) {
-	friendly := summarizeError(errMsg)
-	if err := s.providerRepo.UpdateStatus(ctx, providerID, "error", friendly); err != nil {
-		log.Warn("更新 Provider 错误状态失败", "provider", providerID, "err", err)
+// recordProviderError 记录 Provider 错误到数据库（前端 AI 设置页可见）。
+// 只记错误码对应的通用说明，⛔ 不暴露内部 URL / IP / 响应体；原始错误进日志
+func (s *aiServiceImpl) recordProviderError(ctx context.Context, providerID int64, code string, err error) {
+	log.Warn("模型提供商调用失败", "provider", providerID, "code", code, "err", err)
+	if uerr := s.providerRepo.UpdateStatus(ctx, providerID, "error", errorSummary(code)); uerr != nil {
+		log.Warn("更新 Provider 错误状态失败", "provider", providerID, "err", uerr)
 	}
 }
 
@@ -209,33 +222,5 @@ func (s *aiServiceImpl) recordProviderError(ctx context.Context, providerID int6
 func (s *aiServiceImpl) clearProviderError(ctx context.Context, providerID int64) {
 	if err := s.providerRepo.UpdateStatus(ctx, providerID, "active", ""); err != nil {
 		log.Warn("清除 Provider 错误状态失败", "provider", providerID, "err", err)
-	}
-}
-
-// summarizeError 将原始错误归纳为用户友好的描述
-func summarizeError(raw string) string {
-	switch {
-	case strings.Contains(raw, "connection refused"):
-		return "连接被拒绝，服务可能未启动"
-	case strings.Contains(raw, "no such host"):
-		return "无法解析服务地址"
-	case strings.Contains(raw, "context deadline exceeded") || strings.Contains(raw, "timeout"):
-		return "请求超时"
-	case strings.Contains(raw, "401") || strings.Contains(raw, "Unauthorized"):
-		return "认证失败，请检查 API Key"
-	case strings.Contains(raw, "403") || strings.Contains(raw, "Forbidden"):
-		return "权限不足"
-	case strings.Contains(raw, "429") || strings.Contains(raw, "rate limit"):
-		return "请求频率超限"
-	case strings.Contains(raw, "500") || strings.Contains(raw, "internal server error"):
-		return "服务端内部错误"
-	case strings.Contains(raw, "EOF"):
-		return "连接异常断开"
-	default:
-		// 兜底：截断过长的错误
-		if len(raw) > 80 {
-			return raw[:80] + "..."
-		}
-		return raw
 	}
 }

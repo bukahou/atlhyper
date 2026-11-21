@@ -18,10 +18,9 @@
 package atlhyper_master_v2
 
 import (
+	aitools "AtlHyper/atlhyper_master_v2/ai/tools"
 	"context"
-	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -41,7 +40,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/github"
-	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/notifier/pipeline"
@@ -52,7 +50,6 @@ import (
 	"AtlHyper/atlhyper_master_v2/service/sync"
 	"AtlHyper/atlhyper_master_v2/slo"
 	"AtlHyper/common/logger"
-	"AtlHyper/model_v3/command"
 )
 
 var log = logger.Module("Master")
@@ -72,6 +69,8 @@ type Master struct {
 	aiopsEngine aiops.Engine
 	// Deployer（GitOps CD）
 	deployer deployer.Deployer
+	// 只增不减的数据定期按保留期清理
+	retentionJobs []retentionJob
 }
 
 // NewMaster 创建并初始化 Master 实例
@@ -83,28 +82,24 @@ func NewMaster() (*Master, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Agent 入口配置无效: %w", err)
 	}
+	// 运维时区写错同样启动即失败（不静默退回 UTC）
+	opsLocation, err := cfg.Server.Location()
+	if err != nil {
+		return nil, err
+	}
 	// 各集群最近一次上报是否带了有效令牌：Agent 入口写，集群管理页读
 	agentAuthStatus := agentsdk.NewAuthStatusTracker()
 
 	// 1. 初始化 Store (数据存储)
 	store := datahub.NewStore(datahub.Config{
-		Type:              cfg.DataHub.Type,
 		EventRetention:    cfg.DataHub.EventRetention,
 		HeartbeatExpire:   cfg.DataHub.HeartbeatExpire,
 		SnapshotRetention: cfg.DataHub.SnapshotRetention,
-		RedisAddr:         cfg.Redis.Addr,
-		RedisPassword:     cfg.Redis.Password,
-		RedisDB:           cfg.Redis.DB,
 	})
-	log.Info("Store 初始化完成", "type", cfg.DataHub.Type)
+	log.Info("Store 初始化完成")
 
 	// 2. 初始化 CommandBus (消息队列)
-	bus := mq.NewCommandBus(mq.Config{
-		Type:          cfg.DataHub.Type,
-		RedisAddr:     cfg.Redis.Addr,
-		RedisPassword: cfg.Redis.Password,
-		RedisDB:       cfg.Redis.DB,
-	})
+	bus := mq.NewCommandBus()
 	log.Info("CommandBus 初始化完成")
 
 	// 3. 初始化 Database
@@ -154,12 +149,11 @@ func NewMaster() (*Master, error) {
 	// 4.4 初始化 AIOps 引擎
 	var aiopsEngine aiops.Engine
 	aiopsEngine = aiopscore.NewEngine(aiopscore.EngineConfig{
-		Store:         store,
-		GraphRepo:     db.AIOpsGraph,
-		BaselineRepo:  db.AIOpsBaseline,
-		IncidentRepo:  db.AIOpsIncident,
-		SLORepo:       db.SLO,
-		FlushInterval: cfg.AIOps.FlushInterval,
+		Store:        store,
+		GraphRepo:    db.AIOpsGraph,
+		BaselineRepo: db.AIOpsBaseline,
+		IncidentRepo: db.AIOpsIncident,
+		SLORepo:      db.SLO,
 	})
 	log.Info("AIOps 引擎初始化完成")
 
@@ -182,17 +176,13 @@ func NewMaster() (*Master, error) {
 	log.Info("数据处理器初始化完成")
 
 	// 6. 初始化 Operations（写入路径，AI Service 依赖 cmdOps）
-	cmdOps := operations.NewCommandService(bus, db.Command)
+	cmdOps := operations.NewCommandService(bus, db.Command, storePresence{store: store})
 	adminOps := operations.NewAdminService(db.AIProvider, db.AISettings, db.AIRoleBudget)
 	log.Info("操作服务初始化完成")
 
 	// 7. 初始化 AI Service（Enricher 依赖 AIService）
 	aiService := ai.NewService(
-		ai.ServiceConfig{
-			ToolTimeout:   cfg.AI.ToolTimeout,
-			BedrockRegion: cfg.AI.BedrockRegion,
-		},
-		cmdOps, bus,
+		ai.ServiceConfig{BedrockRegion: cfg.AI.BedrockRegion},
 		db.AIProvider, db.AIModel, db.AIRoleBudget,
 		db.AIConversation, db.AIMessage,
 	)
@@ -207,7 +197,7 @@ func NewMaster() (*Master, error) {
 	aiopsEnricher.SetAnalysisToolPolicy(func(p string) bool {
 		return middleware.Allowed(analysisAudience, middleware.Permission(p))
 	})
-	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget)
+	aiopsEnricher.EnableBackgroundTrigger(db.AIRoleBudget, opsLocation)
 	aiopsEngine.SubscribeTransitions(aiopsEnricher.OnIncidentTransition)
 	log.Info("AIOps Enricher 初始化完成（后台自动分析已启用）")
 
@@ -287,239 +277,6 @@ func NewMaster() (*Master, error) {
 		"authMode", agentEntry.authMode,
 		"maxSnapshotMB", cfg.AgentSDK.MaxSnapshotMB)
 
-	// 9. 注册 AIOps Tool（AI Chat 中使用）
-	aiService.RegisterTool("analyze_incident", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		incidentID := getStringParam(params, "incident_id")
-		if incidentID == "" {
-			return "缺少参数 incident_id", nil
-		}
-		result, err := aiopsEnricher.Summarize(ctx, incidentID)
-		if err != nil {
-			return fmt.Sprintf("分析事件失败: %v", err), nil
-		}
-		data, _ := json.Marshal(result)
-		return string(data), nil
-	})
-
-	aiService.RegisterTool("get_event_history", ai.NewEventHistoryHandler(db.Event))
-
-	aiService.RegisterTool("get_cluster_risk", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		topN := getIntParam(params, "top_n", 10)
-		risk := aiopsEngine.GetClusterRisk(clusterID)
-		entities := aiopsEngine.GetEntityRisks(clusterID, "r_final", topN)
-		data, _ := json.Marshal(map[string]interface{}{
-			"clusterRisk": scaleClusterRiskForAI(risk),
-			"topEntities": scaleEntityRisksForAI(entities),
-			"entityCount": len(entities),
-		})
-		return string(data), nil
-	})
-
-	aiService.RegisterTool("get_recent_incidents", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		state := getStringParam(params, "state")
-		limit := getIntParam(params, "limit", 10)
-		opts := aiops.IncidentQueryOpts{
-			ClusterID: clusterID,
-			State:     state,
-			Limit:     limit,
-			Offset:    0,
-		}
-		incidents, total, err := aiopsEngine.GetIncidents(ctx, opts)
-		if err != nil {
-			return fmt.Sprintf("获取事件列表失败: %v", err), nil
-		}
-		data, _ := json.Marshal(map[string]interface{}{
-			"incidents": incidents,
-			"total":     total,
-		})
-		return string(data), nil
-	})
-	// 9.1 注册 OTel 查询 Tool（Command 路径：query_traces / query_logs）
-	toolTimeout := cfg.AI.ToolTimeout
-
-	aiService.RegisterTool("query_traces", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		cmdParams := map[string]interface{}{
-			"sub_action": "list_traces",
-			"limit":      10,
-		}
-		if s := getStringParam(params, "service"); s != "" {
-			cmdParams["service"] = s
-		}
-		if s := getStringParam(params, "operation"); s != "" {
-			cmdParams["operation"] = s
-		}
-		if v, ok := params["min_duration_ms"]; ok {
-			if d, ok := v.(float64); ok && d > 0 {
-				cmdParams["min_duration_ms"] = d
-			}
-		}
-		if s := getStringParam(params, "status_code"); s != "" {
-			cmdParams["status_code"] = s
-		}
-		since := getStringParam(params, "since")
-		if since == "" {
-			since = "1h"
-		}
-		cmdParams["since"] = since
-
-		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
-			ClusterID: clusterID,
-			Action:    command.ActionQueryTraces,
-			Source:    "ai",
-			Params:    cmdParams,
-		})
-		if err != nil {
-			return fmt.Sprintf("创建查询命令失败: %v", err), nil
-		}
-		result, err := bus.WaitCommandResult(ctx, resp.CommandID, toolTimeout)
-		if err != nil {
-			return fmt.Sprintf("查询超时: %v", err), nil
-		}
-		if result == nil {
-			return "查询超时: 未收到 Agent 响应", nil
-		}
-		if !result.Success {
-			return fmt.Sprintf("查询失败: %s", result.Error), nil
-		}
-		return ai.TruncateToolResult(result.Output, "traces"), nil
-	})
-
-	aiService.RegisterTool("query_logs", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		cmdParams := map[string]interface{}{
-			"limit": 20,
-		}
-		if s := getStringParam(params, "query"); s != "" {
-			cmdParams["query"] = s
-		}
-		if s := getStringParam(params, "service"); s != "" {
-			cmdParams["service"] = s
-		}
-		if s := getStringParam(params, "level"); s != "" {
-			cmdParams["level"] = s
-		}
-		if s := getStringParam(params, "trace_id"); s != "" {
-			cmdParams["trace_id"] = s
-		}
-		since := getStringParam(params, "since")
-		if since == "" {
-			since = "1h"
-		}
-		cmdParams["since"] = since
-
-		resp, err := cmdOps.CreateCommand(&model.CreateCommandRequest{
-			ClusterID: clusterID,
-			Action:    command.ActionQueryLogs,
-			Source:    "ai",
-			Params:    cmdParams,
-		})
-		if err != nil {
-			return fmt.Sprintf("创建查询命令失败: %v", err), nil
-		}
-		result, err := bus.WaitCommandResult(ctx, resp.CommandID, toolTimeout)
-		if err != nil {
-			return fmt.Sprintf("查询超时: %v", err), nil
-		}
-		if result == nil {
-			return "查询超时: 未收到 Agent 响应", nil
-		}
-		if !result.Success {
-			return fmt.Sprintf("查询失败: %s", result.Error), nil
-		}
-		return ai.TruncateToolResult(result.Output, "logs"), nil
-	})
-
-	// 9.2 注册内存直读 Tool（query_slo / get_entity_detail）
-	aiService.RegisterTool("query_slo", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		window := getStringParam(params, "window")
-		if window == "" {
-			window = "7d"
-		}
-		serviceName := getStringParam(params, "service")
-		domain := getStringParam(params, "domain")
-
-		snapshot, err := store.GetSnapshot(clusterID)
-		if err != nil || snapshot == nil || snapshot.OTel == nil {
-			return "当前无 OTel 数据", nil
-		}
-		otel := snapshot.OTel
-
-		var services []map[string]interface{}
-
-		// 从 SLOWindows 获取预聚合数据
-		// 过滤规则: 指定 service → 只返回 mesh; 指定 domain → 只返回 ingress; 都不指定 → 返回全部
-		if windowData, ok := otel.SLOWindows[window]; ok && windowData != nil {
-			if serviceName == "" { // 未指定 service 时才包含 ingress
-				for _, s := range windowData.Current {
-					if domain != "" && s.ServiceKey != domain {
-						continue
-					}
-					services = append(services, map[string]interface{}{
-						"name":        s.ServiceKey,
-						"type":        "ingress",
-						"rps":         s.RPS,
-						"successRate": s.SuccessRate,
-						"errorRate":   s.ErrorRate,
-						"p50Ms":       s.P50Ms,
-						"p90Ms":       s.P90Ms,
-						"p99Ms":       s.P99Ms,
-					})
-				}
-			}
-		} else {
-			// 降级：从实时 SLO 列表获取
-			if serviceName == "" {
-				for _, s := range otel.SLOIngress {
-					if domain != "" && s.ServiceKey != domain {
-						continue
-					}
-					services = append(services, map[string]interface{}{
-						"name":        s.ServiceKey,
-						"type":        "ingress",
-						"rps":         s.RPS,
-						"successRate": s.SuccessRate,
-						"errorRate":   s.ErrorRate,
-						"p50Ms":       s.P50Ms,
-						"p90Ms":       s.P90Ms,
-						"p99Ms":       s.P99Ms,
-					})
-				}
-			}
-		}
-
-		if len(services) > 50 {
-			services = services[:50]
-		}
-
-		data, _ := json.Marshal(map[string]interface{}{
-			"window":   window,
-			"services": services,
-			"count":    len(services),
-		})
-		return string(data), nil
-	})
-
-	aiService.RegisterTool("get_entity_detail", func(ctx context.Context, clusterID string, params map[string]interface{}) (string, error) {
-		entityType := getStringParam(params, "entity_type")
-		entityName := getStringParam(params, "entity_name")
-		namespace := getStringParam(params, "namespace")
-
-		if entityType == "" || entityName == "" {
-			return "缺少参数 entity_type 和 entity_name", nil
-		}
-
-		entityKey := ai.BuildEntityKey(entityType, namespace, entityName)
-		detail := aiopsEngine.GetEntityRisk(clusterID, entityKey)
-		if detail == nil {
-			return fmt.Sprintf("未找到实体 %s（可能不在依赖图中或无异常数据）", entityKey), nil
-		}
-
-		result := ai.SimplifyEntityDetail(detail)
-		data, _ := json.Marshal(result)
-		return string(data), nil
-	})
-
-	log.Info("AI Tool 注册完成 (8 个基础)")
-
 	// 10. 初始化通知模块：告警来源（事件变化、Agent 心跳、K8s 事件）→ 管道 → 发送
 	alertMgr, err := notifier.NewAlertManager(notifier.Config{
 		Repos: pipeline.Repos{
@@ -530,7 +287,7 @@ func NewMaster() (*Master, error) {
 		Events:                 db.Event,
 		Agents:                 store,
 		PublicURL:              cfg.Server.PublicURL,
-		Timezone:               cfg.Server.Timezone,
+		Location:               opsLocation,
 		HeartbeatCheckInterval: cfg.DataHub.HeartbeatExpire / 2,
 		HeartbeatOfflineAfter:  cfg.DataHub.HeartbeatExpire,
 		K8sEventCheckInterval:  cfg.EventAlert.CheckInterval,
@@ -569,17 +326,25 @@ func NewMaster() (*Master, error) {
 		}
 	}
 
-	// 11.6 注册 GitHub + CD Tool（仅在 GitHub Client 可用时注册）
-	if ghClient != nil {
-		aiService.RegisterTool("get_deploy_history", ai.NewDeployHistoryHandler(db.DeployHistory))
-		aiService.RegisterTool("rollback_deployment", ai.NewRollbackHandler(db.DeployHistory))
-		// GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库（App 的安装范围可能含存有凭据的仓库）
-		repoScope := ai.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
-		aiService.RegisterTool("github_read_file", ai.NewGitHubReadFileHandler(ghClient, repoScope))
-		aiService.RegisterTool("github_search_code", ai.NewGitHubSearchCodeHandler(ghClient, repoScope))
-		aiService.RegisterTool("github_recent_commits", ai.NewGitHubRecentCommitsHandler(ghClient, repoScope))
-		log.Info("GitHub + CD Tool 注册完成 (5 个)")
+	// 11.6 注册 AI 工具（定义都在 ai/tools；可选依赖缺失的工具不注册，清单里也就没有它）
+	toolDeps := aitools.Deps{
+		Commands:    cmdOps,
+		ToolTimeout: cfg.AI.ToolTimeout,
+		AIOps:       aiopsEngine,
+		SummarizeIncident: func(ctx context.Context, incidentID string) (any, error) {
+			return aiopsEnricher.Summarize(ctx, incidentID)
+		},
+		Snapshots: store,
+		Events:    db.Event,
 	}
+	if ghClient != nil {
+		// 部署历史只在有部署器（依赖 GitHub）时才有；GitHub 工具只读公开仓库 + 显式列入白名单的私有仓库
+		toolDeps.DeployHistory = db.DeployHistory
+		toolDeps.GitHub = ghClient
+		toolDeps.GitHubScope = aitools.NewGitHubRepoScope(ghClient, cfg.AI.GitHubPrivateRepos)
+	}
+	aitools.Register(aiService.Tools(), toolDeps)
+	log.Info("AI 工具注册完成", "tools", aiService.Tools().Names())
 
 	// 11.7 初始化 Deployer（GitOps CD，仅在 GitHub Client 可用时启用）
 	var deployerService deployer.Deployer
@@ -593,20 +358,24 @@ func NewMaster() (*Master, error) {
 	var oidcModule *oidc.Module
 	if cfg.OIDC.Enabled() {
 		oidcModule = oidc.NewModule(oidc.Config{
-			Issuer:       cfg.OIDC.Issuer,
-			ClientID:     cfg.OIDC.ClientID,
-			ClientSecret: cfg.OIDC.ClientSecret,
-			RedirectURL:  cfg.OIDC.RedirectURL,
-			CookieSecret: cfg.OIDC.CookieSecret,
-			CookieSecure: cfg.OIDC.CookieSecure,
-			DisplayName:  cfg.OIDC.DisplayName,
-			NewUserRole:  middleware.RoleMember,
-			Accounts:     svc,
-			IssueToken:   middleware.GenerateToken,
+			Issuer:         cfg.OIDC.Issuer,
+			ClientID:       cfg.OIDC.ClientID,
+			ClientSecret:   cfg.OIDC.ClientSecret,
+			RedirectURL:    cfg.OIDC.RedirectURL,
+			CookieSecret:   cfg.OIDC.CookieSecret,
+			CookieSecure:   cfg.OIDC.CookieSecure,
+			DisplayName:    cfg.OIDC.DisplayName,
+			ClientIPHeader: cfg.Server.ClientIPHeader,
+			NewUserRole:    middleware.RoleMember,
+			Accounts:       svc,
+			IssueToken:     middleware.GenerateToken,
 		})
 		log.Info("OIDC 登录已启用（首次使用时连接 issuer）", "issuer", cfg.OIDC.Issuer)
 	}
 
+	if cfg.Server.ClientIPHeader == "" {
+		log.Warn("未配置 MASTER_GATEWAY_CLIENT_IP_HEADER：审计记录的地址与按地址限流只能看到入口代理，所有客户端共用一个限流额度")
+	}
 	gw := gateway.NewServer(gateway.Config{
 		Port:           cfg.Server.GatewayPort,
 		Service:        svc,
@@ -632,6 +401,13 @@ func NewMaster() (*Master, error) {
 		alertManager: alertMgr,
 		aiopsEngine:  aiopsEngine,
 		deployer:     deployerService,
+
+		retentionJobs: []retentionJob{
+			{name: "指令历史", keep: cfg.Database.CommandHistoryRetention, purge: cmdOps.PurgeHistoryBefore},
+			{name: "审计记录", keep: cfg.Database.AuditRetention, purge: db.Audit.DeleteBefore},
+			{name: "已恢复的 AIOps 事件", keep: cfg.Database.AIOpsIncidentRetention, purge: db.AIOpsIncident.DeleteResolvedBefore},
+			{name: "AI 分析报告", keep: cfg.Database.AIReportRetention, purge: db.AIReport.DeleteBefore},
+		},
 	}, nil
 }
 
@@ -670,6 +446,9 @@ func (m *Master) Run(ctx context.Context) error {
 			log.Warn("Deployer 启动失败", "err", err)
 		}
 	}
+
+	// 只增不减的数据按保留期定期清理（随 ctx 结束）
+	go runRetention(ctx, m.retentionJobs)
 
 	// 启动 AgentSDK
 	if err := m.agentSDK.Start(); err != nil {
@@ -747,60 +526,6 @@ func (m *Master) Stop() error {
 
 	log.Info("Master 已停止")
 	return nil
-}
-
-// getStringParam 从 map 中安全获取字符串
-func getStringParam(m map[string]interface{}, key string) string {
-	if v, ok := m[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-// getIntParam 从 map 中安全获取整数（带默认值）
-func getIntParam(m map[string]interface{}, key string, defaultVal int) int {
-	if v, ok := m[key]; ok {
-		switch n := v.(type) {
-		case float64:
-			return int(n)
-		case int:
-			return n
-		}
-	}
-	return defaultVal
-}
-
-// scaleEntityRisksForAI 将 EntityRisk 列表的分数从 [0,1] 转为 [0,100]（AI tool 输出用）
-func scaleEntityRisksForAI(src []*aiops.EntityRisk) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(src))
-	for i, r := range src {
-		result[i] = map[string]interface{}{
-			"entityKey":    r.EntityKey,
-			"entityType":   r.EntityType,
-			"namespace":    r.Namespace,
-			"name":         r.Name,
-			"rFinal":       math.Round(r.RFinal * 100),
-			"riskLevel":    r.RiskLevel,
-			"firstAnomaly": r.FirstAnomaly,
-		}
-	}
-	return result
-}
-
-// scaleClusterRiskForAI 转换 ClusterRisk（Risk 已是 0-100，TopEntities 需要转换）
-func scaleClusterRiskForAI(src *aiops.ClusterRisk) map[string]interface{} {
-	if src == nil {
-		return nil
-	}
-	return map[string]interface{}{
-		"clusterId":     src.ClusterID,
-		"risk":          src.Risk,
-		"level":         src.Level,
-		"totalEntities": src.TotalEntities,
-		"anomalyCount":  src.AnomalyCount,
-	}
 }
 
 // Store 获取 Store 实例（供测试使用）

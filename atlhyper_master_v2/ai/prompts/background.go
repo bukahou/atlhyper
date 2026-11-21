@@ -15,7 +15,6 @@ type IncidentPromptContext struct {
 
 	// OTel 上下文（Phase 3 新增）
 	RecentErrorTraces string // 受影响服务的最近错误 Traces（Top 5）
-	RecentErrorLogs   string // 受影响服务的最近 ERROR 日志（Top 10）
 	SLOContext        string // 受影响服务的 SLO 变化摘要
 
 	// 事件涉及 Pod 的容器状态（来自 Agent 快照：当前状态 / 重启次数 / 上次退出）
@@ -90,9 +89,6 @@ func renderIncidentEvidence(ctx *IncidentPromptContext) string {
 	// 以下各节非空时追加
 	if ctx.RecentErrorTraces != "" {
 		content += "\n\n## 最近错误 Traces\n" + ctx.RecentErrorTraces
-	}
-	if ctx.RecentErrorLogs != "" {
-		content += "\n\n## 最近 ERROR 日志\n" + ctx.RecentErrorLogs
 	}
 	if ctx.SLOContext != "" {
 		content += "\n\n## SLO 指标\n" + ctx.SLOContext

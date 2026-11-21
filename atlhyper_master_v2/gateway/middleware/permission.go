@@ -39,6 +39,8 @@ const (
 	PermSLOManage      Permission = "slo.manage"       // SLO 目标写入（运维配置，与通知渠道同档）
 	PermAIAnalyze      Permission = "ai.analyze"       // AIOps AI 总结 / 建议 / 报告 / 深度分析
 	PermAISettingsRead Permission = "ai.settings.read" // AI 配置查看
+	// PermAIConversationDelete 删除自己的 AI 对话（只能删自己的，由服务层核对归属）
+	PermAIConversationDelete Permission = "ai.conversation.delete"
 
 	// ---------- 3 级：系统配置 ----------
 	PermUserManage      Permission = "user.manage"       // 用户管理（唯一的提权入口）
@@ -60,7 +62,7 @@ var levelGrants = map[int][]Permission{
 	},
 	RoleOperator: {
 		PermSecretRead, PermPodLogsRead, PermClusterOperate, PermAuditRead,
-		PermNotifyManage, PermSLOManage, PermAIAnalyze, PermAISettingsRead,
+		PermNotifyManage, PermSLOManage, PermAIAnalyze, PermAISettingsRead, PermAIConversationDelete,
 	},
 	RoleAdmin: {
 		PermUserManage, PermAISettingsWrite, PermGitHubManage, PermDeployManage,

@@ -3,6 +3,7 @@ package bedrock
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
@@ -156,5 +157,23 @@ func TestPump_InvalidToolInputIsError(t *testing.T) {
 	last := chunks[len(chunks)-1]
 	if last.Type != llm.ChunkError {
 		t.Errorf("last = %+v", last)
+	}
+}
+
+// 流中途的具名异常换成通用类别（不看错误文字）
+func TestStreamError_Classified(t *testing.T) {
+	cases := []struct {
+		err  error
+		want llm.ErrorKind
+	}{
+		{&types.ThrottlingException{Message: aws.String("slow down")}, llm.ErrKindRateLimited},
+		{&types.ServiceUnavailableException{}, llm.ErrKindProviderError},
+		{&types.ModelTimeoutException{}, llm.ErrKindTimeout},
+		{&types.ValidationException{}, llm.ErrKindBadRequest},
+	}
+	for _, c := range cases {
+		if got := llm.Classify(fmt.Errorf("bedrock 流中断: %w", streamError(c.err))); got != c.want {
+			t.Errorf("%T → %q, want %q", c.err, got, c.want)
+		}
 	}
 }

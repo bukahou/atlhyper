@@ -1,18 +1,18 @@
 /**
  * 节点硬件指标 — Mock 数据
  *
- * 集群 zgmf-x10a: raspi-nfs (NFS/控制面), jegan-worker-01, jegan-worker-02
+ * 集群 demo-cluster: node-7 (NFS/控制面), worker-1, worker-2
  * 字段 1:1 对齐 model_v3/metrics/node_metrics.go
  */
 
-import type { NodeMetrics } from "@/types/node-metrics";
+import type { NodeDiskLevels, NodeLevels, NodeMetrics, NodeMetricsView } from "@/types/node-metrics";
 
 const now = new Date().toISOString();
 
-export const MOCK_NODES: NodeMetrics[] = [
-  // ========== raspi-nfs (Raspberry Pi 4B — NFS + 控制面) ==========
+const MOCK_NODE_READINGS: NodeMetrics[] = [
+  // ========== node-7 (Raspberry Pi 4B — NFS + 控制面) ==========
   {
-    nodeName: "raspi-nfs",
+    nodeName: "node-7",
     nodeIP: "192.168.1.100",
     timestamp: now,
     kernel: "6.6.31+rpt-rpi-v8",
@@ -140,9 +140,9 @@ export const MOCK_NODES: NodeMetrics[] = [
     },
   },
 
-  // ========== jegan-worker-01 (高负载 worker) ==========
+  // ========== worker-1 (高负载 worker) ==========
   {
-    nodeName: "jegan-worker-01",
+    nodeName: "worker-1",
     nodeIP: "192.168.1.101",
     timestamp: now,
     kernel: "6.8.0-45-generic",
@@ -268,9 +268,9 @@ export const MOCK_NODES: NodeMetrics[] = [
     },
   },
 
-  // ========== jegan-worker-02 (中等负载 worker) ==========
+  // ========== worker-2 (中等负载 worker) ==========
   {
-    nodeName: "jegan-worker-02",
+    nodeName: "worker-2",
     nodeIP: "192.168.1.102",
     timestamp: now,
     kernel: "6.8.0-45-generic",
@@ -400,3 +400,73 @@ export const MOCK_NODES: NodeMetrics[] = [
     },
   },
 ];
+
+// ============================================================================
+// 后端随数据下发的派生值与等级：直接写死（与硬件矩阵的演示数据同一做法），
+// 前端不做阈值比较。数值按 Master 的阈值（metrics_thresholds.go）对上面的读数算出
+// ============================================================================
+
+const GOOD_DISK: NodeDiskLevels = { usage: "good", inode: "good", ioUtil: "good" };
+
+const GOOD_LEVELS: Omit<NodeLevels, "disks"> = {
+  cpu: "good",
+  cpuLoad: "good",
+  iowait: "good",
+  memory: "good",
+  swap: "good",
+  oomKill: "good",
+  psi: { cpuSome: "good", memSome: "good", memFull: "good", ioSome: "good", ioFull: "good" },
+  vmstat: { majorFaults: "good", swapIn: "good", swapOut: "good" },
+  fileFd: "good",
+  conntrack: "good",
+  procsBlocked: "good",
+  timeSync: "good",
+  entropy: "good",
+};
+
+type MockViewExtras = Omit<NodeMetricsView, keyof NodeMetrics>;
+
+const MOCK_VIEW_EXTRAS: Record<string, MockViewExtras> = {
+  // 有换出（swapOut 0.5/s）
+  "node-7": {
+    primaryDiskIndex: 0,
+    cpuLoadPerCore: 0.46,
+    fileFdUsagePct: 0.56,
+    conntrackUsagePct: 1.88,
+    levels: {
+      ...GOOD_LEVELS,
+      vmstat: { majorFaults: "good", swapIn: "good", swapOut: "warn" },
+      disks: [GOOD_DISK, GOOD_DISK],
+    },
+  },
+  // 内存 82.4% warn；每核负载 1.44 warn；有换页
+  "worker-1": {
+    primaryDiskIndex: 0,
+    cpuLoadPerCore: 1.44,
+    fileFdUsagePct: 2.32,
+    conntrackUsagePct: 37.2,
+    levels: {
+      ...GOOD_LEVELS,
+      cpuLoad: "warn",
+      memory: "warn",
+      vmstat: { majorFaults: "good", swapIn: "warn", swapOut: "warn" },
+      disks: [GOOD_DISK],
+    },
+  },
+  "worker-2": {
+    primaryDiskIndex: 0,
+    cpuLoadPerCore: 0.73,
+    fileFdUsagePct: 1.5,
+    conntrackUsagePct: 21.71,
+    levels: {
+      ...GOOD_LEVELS,
+      vmstat: { majorFaults: "good", swapIn: "warn", swapOut: "warn" },
+      disks: [GOOD_DISK, GOOD_DISK],
+    },
+  },
+};
+
+export const MOCK_NODES: NodeMetricsView[] = MOCK_NODE_READINGS.map((node) => ({
+  ...node,
+  ...MOCK_VIEW_EXTRAS[node.nodeName],
+}));

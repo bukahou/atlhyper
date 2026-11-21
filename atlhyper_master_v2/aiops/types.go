@@ -2,7 +2,11 @@
 // AIOps 引擎共用类型定义
 package aiops
 
-import "time"
+import (
+	"time"
+
+	"AtlHyper/atlhyper_master_v2/aiops/severity"
+)
 
 // ==================== 依赖图类型 ====================
 
@@ -314,7 +318,7 @@ const (
 //
 // 为什么需要（2026-08-29 压测实证）：EMA 窗口约 60 个采样点（≈40 分钟），
 // 负载在数小时内渐进爬升时，每一步都落在 3σ 内，而每一步又同时抬高 EMA 与
-// 方差 —— 温水煮青蛙。实测 desk-zero CPU 达 98%、gateway p99 达 2094ms，
+// 方差 —— 温水煮青蛙。实测一个节点 CPU 达 98%、gateway p99 达 2094ms，
 // AIOps 全程判 healthy，压测期零 incident。
 //
 // 纯统计方法优雅，但一个 SRE 平台不该在节点 CPU 98% 时说「健康」。
@@ -324,14 +328,17 @@ const (
 // 取值原则：只为「越界即有害」的指标设线，且取值保守到不会误报 ——
 // 宁可漏报也不能让告警变成噪音。计数类指标（restart_count 等）
 // 本身零基线灵敏，交给统计通道即可，不在此列。
+//
+// ⚠️ 阈值的单位必须与提取出的指标值一致（提取在 baseline/extractor*.go）：
+// 资源与压力类按百分数（0-100），APM 错误率按比率（0-1）。串联测试见 baseline/unit_chain_test.go
 var AbsoluteThresholds = map[string]float64{
-	"cpu_usage":      90, // %，持续 90% 以上调度延迟已显著
-	"memory_usage":   90, // %，逼近 OOM
-	"disk_usage":     90, // %，留给运维的反应窗口
-	"psi_cpu":        50, // % 压力失速：一半时间在等 CPU
-	"psi_memory":     30, // % 内存失速比 CPU 更早致命
-	"psi_io":         50, // %
-	"apm_error_rate": 5,  // %，5% 请求失败对用户已明显可感
+	"cpu_usage":      90,   // 百分数：持续 90% 以上调度延迟已显著
+	"memory_usage":   90,   // 百分数：逼近 OOM
+	"disk_usage":     90,   // 百分数：留给运维的反应窗口
+	"psi_cpu":        50,   // 百分数：一半时间在等 CPU
+	"psi_memory":     30,   // 百分数：内存失速比 CPU 更早致命
+	"psi_io":         50,   // 百分数
+	"apm_error_rate": 0.05, // 比率：5% 请求失败对用户已明显可感
 }
 
 // ==================== 状态机类型 ====================
@@ -455,18 +462,20 @@ type Incident struct {
 	Subject     string      `json:"subject"`     // 主体键 "<ns>/<类型>/<名字>"：工作负载，或实体自身
 	SubjectType string      `json:"subjectType"` // 由 Subject 解析：deployment / statefulset / daemonset / cronjob / job / pod / service / node / ingress / logs
 	// SubjectNamespace / SubjectName 由 Subject 解析，页面直接显示；集群级对象（节点）的命名空间为空串
-	SubjectNamespace string     `json:"subjectNamespace"`
-	SubjectName      string     `json:"subjectName"`
-	RootCause        string     `json:"rootCause"` // 领头实体：主体的成员里风险最高的
-	PeakRisk         float64    `json:"peakRisk"`
-	StartedAt        time.Time  `json:"startedAt"`
-	EscalatedAt      *time.Time `json:"escalatedAt"` // 首次升级到「事件中」的时刻；从未升级为 null
-	ResolvedAt       *time.Time `json:"resolvedAt"`
-	CloseReason      string     `json:"closeReason"` // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
-	DurationS        int64      `json:"durationS"`
-	Recurrence       int        `json:"recurrence"`
-	Summary          string     `json:"summary"`
-	CreatedAt        time.Time  `json:"createdAt"`
+	SubjectNamespace string  `json:"subjectNamespace"`
+	SubjectName      string  `json:"subjectName"`
+	RootCause        string  `json:"rootCause"` // 领头实体：主体的成员里风险最高的
+	PeakRisk         float64 `json:"peakRisk"`
+	// PeakRiskLevel 峰值风险的等级（与实体风险同一分档，见 RiskLevel），出接口时填，前端只按它上色
+	PeakRiskLevel string     `json:"peakRiskLevel,omitempty"`
+	StartedAt     time.Time  `json:"startedAt"`
+	EscalatedAt   *time.Time `json:"escalatedAt"` // 首次升级到「事件中」的时刻；从未升级为 null
+	ResolvedAt    *time.Time `json:"resolvedAt"`
+	CloseReason   string     `json:"closeReason"` // "" 未关闭 / "recovered" 观察期满 / "stale" 失联
+	DurationS     int64      `json:"durationS"`
+	Recurrence    int        `json:"recurrence"`
+	Summary       string     `json:"summary"`
+	CreatedAt     time.Time  `json:"createdAt"`
 
 	// 拓扑归并（当前有效的关联）
 	RootIncidentID string            `json:"rootIncidentId"` // 受影响事件：归到的源头；否则空串
@@ -684,28 +693,12 @@ type IncidentQueryOpts struct {
 func SeverityFromRisk(rFinal float64) string {
 	switch {
 	case rFinal >= 0.9:
-		return "critical"
+		return severity.Critical
 	case rFinal >= 0.7:
-		return "high"
+		return severity.High
 	case rFinal >= 0.5:
-		return "medium"
+		return severity.Medium
 	default:
-		return "low"
-	}
-}
-
-// SeverityRank 严重度的档位，越大越严重；未知值为 0
-func SeverityRank(severity string) int {
-	switch severity {
-	case "critical":
-		return 4
-	case "high":
-		return 3
-	case "medium":
-		return 2
-	case "low":
-		return 1
-	default:
-		return 0
+		return severity.Low
 	}
 }

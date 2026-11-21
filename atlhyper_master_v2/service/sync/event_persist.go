@@ -166,7 +166,7 @@ func mergeWarningEvents(clusterID string, events []cluster.Event) map[string]*da
 				Reason:            e.Reason,
 				Message:           e.Message,
 				SourceComponent:   e.Source,
-				SourceHost:        "",
+				SourceHost:        e.NodeName,
 				InvolvedKind:      e.InvolvedObject.Kind,
 				InvolvedName:      e.InvolvedObject.Name,
 				InvolvedNamespace: e.InvolvedObject.Namespace,
@@ -187,6 +187,7 @@ func mergeWarningEvents(clusterID string, events []cluster.Event) map[string]*da
 			existing.Namespace = e.Namespace
 			existing.Message = e.Message
 			existing.SourceComponent = e.Source
+			existing.SourceHost = e.NodeName
 		}
 	}
 	return merged

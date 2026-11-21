@@ -15,19 +15,19 @@ type clusterDialect struct{}
 const clusterColumns = "cluster_id, name, description, token_hash, token_prefix, token_issued_at, created_at, updated_at"
 
 func (d *clusterDialect) Insert(cluster *database.Cluster, now time.Time) (string, []any) {
-	stamp := now.UTC().Format(time.RFC3339)
+	stamp := utcStamp(now)
 	return `INSERT INTO clusters (cluster_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
 		[]any{cluster.ClusterID, cluster.Name, cluster.Description, stamp, stamp}
 }
 
 func (d *clusterDialect) UpdateProfile(clusterID, name, description string, now time.Time) (string, []any) {
 	return `UPDATE clusters SET name = ?, description = ?, updated_at = ? WHERE cluster_id = ?`,
-		[]any{name, description, now.UTC().Format(time.RFC3339), clusterID}
+		[]any{name, description, utcStamp(now), clusterID}
 }
 
 func (d *clusterDialect) UpdateToken(clusterID, tokenHash, tokenPrefix string, issuedAt, now time.Time) (string, []any) {
 	return `UPDATE clusters SET token_hash = ?, token_prefix = ?, token_issued_at = ?, updated_at = ? WHERE cluster_id = ?`,
-		[]any{tokenHash, tokenPrefix, issuedAt.UTC().Format(time.RFC3339), now.UTC().Format(time.RFC3339), clusterID}
+		[]any{tokenHash, tokenPrefix, utcStamp(issuedAt), utcStamp(now), clusterID}
 }
 
 func (d *clusterDialect) Delete(clusterID string) (string, []any) {

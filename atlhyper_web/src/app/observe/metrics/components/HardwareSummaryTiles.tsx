@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Thermometer, HardDrive, Zap, Gauge, Timer } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { SummaryCard } from "./SummaryCard";
+import { hardwareStatusChip } from "@/lib/hardware-status";
 import type { HardwareHealth, HardwareStatus } from "@/types/hardware";
 
 interface HardwareSummaryTilesProps {
@@ -13,12 +14,7 @@ interface HardwareSummaryTilesProps {
 }
 
 /** 状态 → SummaryCard 的配色。计数类 tile 用「>0 即注意」的同一套语义 */
-const tone = (s: HardwareStatus) =>
-  s === "crit"
-    ? "bg-red-500/10 text-red-500"
-    : s === "warn"
-      ? "bg-yellow-500/10 text-yellow-500"
-      : "bg-emerald-500/10 text-emerald-500";
+const tone = (s: HardwareStatus) => hardwareStatusChip(s);
 
 const countTone = (n: number, critical: boolean) =>
   n === 0

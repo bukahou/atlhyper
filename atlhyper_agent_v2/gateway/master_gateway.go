@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"AtlHyper/model_v3/agentproto"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -62,6 +63,7 @@ func (g *masterGateway) newRequest(ctx context.Context, method, path string, que
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("X-Cluster-ID", g.clusterID)
+	req.Header.Set(agentproto.Header, agentproto.HeaderValue())
 	if g.masterToken != "" {
 		req.Header.Set("Authorization", "Bearer "+g.masterToken)
 	}

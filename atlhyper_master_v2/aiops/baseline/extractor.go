@@ -26,8 +26,6 @@ func ExtractMetrics(
 
 	// 3. OTel 信号（SLO + APM + Log + Enhanced Node）
 	if otel != nil {
-		// Basic SLO
-		points = append(points, extractServiceMetrics(otel)...)
 		points = append(points, extractIngressMetrics(otel)...)
 		// Enhanced: APM / Log / 深度 Node（函数实现在 extractor_enhanced.go）
 		points = append(points, extractAPMMetrics(otel)...)
@@ -48,7 +46,7 @@ func extractNodeMetrics(snap *cluster.ClusterSnapshot) []aiops.MetricDataPoint {
 		if node.Metrics == nil {
 			continue
 		}
-		key := aiops.EntityKey("_cluster", "node", node.GetName())
+		key := aiops.EntityKey(aiops.ClusterScope, "node", node.GetName())
 
 		// CPU/Memory 使用率（来自 K8s Metrics Server）
 		if node.Metrics.CPU.UtilPct > 0 {
@@ -99,11 +97,6 @@ func extractPodMetrics(snap *cluster.ClusterSnapshot) []aiops.MetricDataPoint {
 	return points
 }
 
-func extractServiceMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
-	var points []aiops.MetricDataPoint
-	return points
-}
-
 // ExtractDeterministicAnomalies 从快照中提取确定性异常（绕过 EMA 冷启动）
 // 扫描容器状态和关联 Event，对 CrashLoopBackOff/OOMKilled 等确定性异常直接生成 AnomalyResult
 func ExtractDeterministicAnomalies(snap *cluster.ClusterSnapshot) []*aiops.AnomalyResult {
@@ -133,7 +126,7 @@ func extractNodePressure(snap *cluster.ClusterSnapshot, now int64) []*aiops.Anom
 		if node.Metrics == nil {
 			continue
 		}
-		key := aiops.EntityKey("_cluster", "node", node.GetName())
+		key := aiops.EntityKey(aiops.ClusterScope, "node", node.GetName())
 
 		if node.Metrics.Pressure.MemoryPressure {
 			results = append(results, &aiops.AnomalyResult{
@@ -462,7 +455,7 @@ func deploymentImpactScore(ratio float64) float64 {
 func extractIngressMetrics(otel *cluster.OTelSnapshot) []aiops.MetricDataPoint {
 	var points []aiops.MetricDataPoint
 	for _, ing := range otel.SLOIngress {
-		key := aiops.EntityKey("_cluster", "ingress", ing.ServiceKey)
+		key := aiops.IngressEntityKey(ing.ServiceKey)
 
 		errorRate := ing.ErrorRate // 已是 0-100 范围
 		points = append(points,

@@ -5,6 +5,7 @@ package processor
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"AtlHyper/atlhyper_master_v2/datahub"
@@ -32,6 +33,7 @@ type processorImpl struct {
 	// 状态追踪（用于变化检测）
 	mu         sync.RWMutex
 	lastCounts map[string]snapshotCounts
+	lastStale  map[string]string // 集群 → 上一份快照里没采到的资源类别（变化时才记日志）
 }
 
 type snapshotCounts struct {
@@ -52,6 +54,7 @@ func NewProcessor(cfg Config) Processor {
 		store:              cfg.Store,
 		onSnapshotReceived: cfg.OnSnapshotReceived,
 		lastCounts:         make(map[string]snapshotCounts),
+		lastStale:          make(map[string]string),
 	}
 }
 
@@ -102,7 +105,10 @@ func (p *processorImpl) ProcessSnapshot(clusterID string, snapshot *cluster.Clus
 		)
 	}
 
-	// 5. 触发回调（Event/Metrics/SLO 持久化）
+	// 5. Agent 有资源类别没采到（沿用旧数据或已留空）：变化时记一条，不在每份快照里重复
+	p.logStaleKindsChange(clusterID, snapshot.StaleKinds)
+
+	// 6. 触发回调（Event/Metrics/SLO 持久化）
 	if p.onSnapshotReceived != nil {
 		p.onSnapshotReceived(clusterID)
 	}
@@ -130,4 +136,33 @@ func (p *processorImpl) validateSnapshot(clusterID string, snapshot *cluster.Clu
 		return fmt.Errorf("cluster_id mismatch: path=%s, body=%s", clusterID, snapshot.ClusterID)
 	}
 	return nil
+}
+
+// staleKindsKey 把没采到的类别写成可比较的字符串：deployments（沿用）/ ingresses（留空）
+func staleKindsKey(kinds []cluster.StaleKind) string {
+	parts := make([]string, 0, len(kinds))
+	for _, k := range kinds {
+		state := "沿用"
+		if k.Unavailable {
+			state = "留空"
+		}
+		parts = append(parts, k.Kind+"（"+state+"）")
+	}
+	return strings.Join(parts, " / ")
+}
+
+func (p *processorImpl) logStaleKindsChange(clusterID string, kinds []cluster.StaleKind) {
+	key := staleKindsKey(kinds)
+	p.mu.Lock()
+	previous, seen := p.lastStale[clusterID]
+	p.lastStale[clusterID] = key
+	p.mu.Unlock()
+	if previous == key || (!seen && key == "") {
+		return
+	}
+	if key == "" {
+		log.Info("集群的资源类别已全部采到", "cluster", clusterID, "之前", previous)
+		return
+	}
+	log.Warn("集群有资源类别本轮没采到", "cluster", clusterID, "类别", key)
 }

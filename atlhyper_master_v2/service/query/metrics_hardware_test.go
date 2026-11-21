@@ -15,7 +15,7 @@ func boolPtr(b bool) *bool { return &b }
 func hardwareFixtureSnapshot() *cluster.ClusterSnapshot {
 	return &cluster.ClusterSnapshot{OTel: &cluster.OTelSnapshot{MetricsNodes: []metrics.NodeMetrics{
 		{ // raspi5：全传感器齐全，一切正常
-			NodeName: "raspi5-one", HardwareProfile: metrics.ProfileRaspi5,
+			NodeName: "node-5", HardwareProfile: metrics.ProfileRaspi5,
 			CPU: metrics.NodeCPU{UsagePct: 10, FreqHz: []float64{1.5e9, 1.5e9, 1.5e9, 1.5e9}, FreqMaxHz: 2.4e9},
 			Temperature: metrics.NodeTemperature{Sensors: []metrics.TempSensor{
 				{Chip: "thermal_thermal_zone0", ChipName: "cpu_thermal", Sensor: "temp1", CurrentC: 58.95},
@@ -28,10 +28,14 @@ func hardwareFixtureSnapshot() *cluster.ClusterSnapshot {
 				Fans:           []metrics.FanSensor{{Chip: "platform_cooling_fan", Sensor: "fan1", RPM: 5423}},
 				Cooling:        []metrics.CoolingDevice{{Name: "0", Type: "pwm-fan", CurState: 2, MaxState: 4}},
 			},
-			Disks: []metrics.NodeDisk{{Device: "nvme0n1", AwaitReadMs: 1.1, AwaitWriteMs: 0.8}},
+			Disks: []metrics.NodeDisk{
+				// 真实形状：文件系统一项（有挂载点、有用量），块设备一项（没有挂载点、只有 IO）
+				{Device: "/dev/nvme0n1p2", MountPoint: "/", UsagePct: 8.24, InodeUsagePct: 1.03, TotalBytes: 200 << 30},
+				{Device: "nvme0n1", AwaitReadMs: 1.1, AwaitWriteMs: 0.8},
+			},
 		},
 		{ // desk：旧版 Agent 没有 Hardware；coretemp 只有 crit 没有 max；负载高且降频 → 热降频 warn；await 124ms warn
-			NodeName: "desk-zero", HardwareProfile: metrics.ProfileDesk,
+			NodeName: "node-1", HardwareProfile: metrics.ProfileDesk,
 			CPU: metrics.NodeCPU{UsagePct: 80, FreqHz: []float64{0.9e9, 0.9e9}, FreqMaxHz: 3.8e9},
 			Temperature: metrics.NodeTemperature{Sensors: []metrics.TempSensor{
 				{Chip: "platform_coretemp_0", ChipName: "coretemp", Sensor: "temp1", CurrentC: 62, CritC: 80},
@@ -40,7 +44,7 @@ func hardwareFixtureSnapshot() *cluster.ClusterSnapshot {
 			Disks: []metrics.NodeDisk{{Device: "sda", AwaitReadMs: 124, AwaitWriteMs: 3}},
 		},
 		{ // raspi4：欠压告警 → crit
-			NodeName: "raspi4-zero", HardwareProfile: metrics.ProfileRaspi4,
+			NodeName: "node-7", HardwareProfile: metrics.ProfileRaspi4,
 			CPU: metrics.NodeCPU{UsagePct: 5, FreqHz: []float64{1.5e9}, FreqMaxHz: 1.5e9},
 			Temperature: metrics.NodeTemperature{Sensors: []metrics.TempSensor{
 				{Chip: "thermal_thermal_zone0", ChipName: "cpu_thermal", Sensor: "temp1", CurrentC: 81},
@@ -75,7 +79,7 @@ func TestGetHardwareHealth_Raspi5AllGood(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := findRow(t, resp, "raspi5-one")
+	r := findRow(t, resp, "node-5")
 	if r.Profile != "raspi5" {
 		t.Errorf("profile = %q", r.Profile)
 	}
@@ -110,7 +114,7 @@ func TestGetHardwareHealth_Raspi5AllGood(t *testing.T) {
 
 func TestGetHardwareHealth_DeskOldAgentAndThrottle(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
-	r := findRow(t, resp, "desk-zero")
+	r := findRow(t, resp, "node-1")
 	// 多个 coretemp 取最高；只有 crit=80 没有 max → max 退回 crit*0.9=72
 	if r.CPUTemp == nil || r.CPUTemp.Value != 62 || r.CPUTemp.Max != 72 || r.CPUTemp.Crit != 80 || r.CPUTemp.Status != model.HardwareGood {
 		t.Errorf("cpuTemp = %+v", r.CPUTemp)
@@ -133,7 +137,7 @@ func TestGetHardwareHealth_DeskOldAgentAndThrottle(t *testing.T) {
 
 func TestGetHardwareHealth_UndervoltIsCrit(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
-	r := findRow(t, resp, "raspi4-zero")
+	r := findRow(t, resp, "node-7")
 	if r.Undervolt == nil || !r.Undervolt.Alarm || r.Undervolt.Status != model.HardwareCrit {
 		t.Errorf("undervolt = %+v", r.Undervolt)
 	}
@@ -166,17 +170,17 @@ func TestGetHardwareHealth_UnknownNodeAllNull(t *testing.T) {
 func TestGetHardwareHealth_Summary(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
 	s := resp.Summary
-	// 全集群最高温：raspi4-zero cpu_thermal 81（warn）
-	if s.MaxTemp == nil || s.MaxTemp.Value != 81 || s.MaxTemp.NodeName != "raspi4-zero" || s.MaxTemp.Status != model.HardwareWarn {
+	// 全集群最高温：node-7 cpu_thermal 81（warn）
+	if s.MaxTemp == nil || s.MaxTemp.Value != 81 || s.MaxTemp.NodeName != "node-7" || s.MaxTemp.Status != model.HardwareWarn {
 		t.Errorf("maxTemp = %+v", s.MaxTemp)
 	}
-	if s.MaxDiskTemp == nil || s.MaxDiskTemp.Value != 49.85 || s.MaxDiskTemp.NodeName != "raspi5-one" {
+	if s.MaxDiskTemp == nil || s.MaxDiskTemp.Value != 49.85 || s.MaxDiskTemp.NodeName != "node-5" {
 		t.Errorf("maxDiskTemp = %+v", s.MaxDiskTemp)
 	}
 	if s.UndervoltNodes != 1 || s.ThrottledNodes != 1 {
 		t.Errorf("undervolt=%d throttled=%d", s.UndervoltNodes, s.ThrottledNodes)
 	}
-	if s.MaxDiskAwait == nil || s.MaxDiskAwait.ValueMs != 124 || s.MaxDiskAwait.NodeName != "desk-zero" || s.MaxDiskAwait.Device != "sda" || s.MaxDiskAwait.Status != model.HardwareWarn {
+	if s.MaxDiskAwait == nil || s.MaxDiskAwait.ValueMs != 124 || s.MaxDiskAwait.NodeName != "node-1" || s.MaxDiskAwait.Device != "sda" || s.MaxDiskAwait.Status != model.HardwareWarn {
 		t.Errorf("maxDiskAwait = %+v", s.MaxDiskAwait)
 	}
 }
@@ -193,7 +197,7 @@ func TestGetHardwareHealth_NoSnapshot(t *testing.T) {
 }
 
 // 盘温没有自报阈值时，必须退回「磁盘」那一档，而不是宽松的「其他传感器」档
-// —— 实测 raspi5-two 的 SK hynix BC501 不上报 max/crit，用 85/95 判定等于永不报警。
+// —— 实测 node-6 的 SK hynix BC501 不上报 max/crit，用 85/95 判定等于永不报警。
 func TestTempCell_DiskFallbackUsesDiskThreshold(t *testing.T) {
 	sensors := []metrics.TempSensor{
 		{Chip: "nvme_nvme0", ChipName: "nvme", Sensor: "temp1", CurrentC: 72},
@@ -220,7 +224,7 @@ func TestTempCell_DiskFallbackUsesDiskThreshold(t *testing.T) {
 func TestGetHardwareHealth_SensorsListed(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
 
-	r := findRow(t, resp, "raspi5-one")
+	r := findRow(t, resp, "node-5")
 	if len(r.Sensors) != 4 {
 		t.Fatalf("raspi5 应列出全部 4 个传感器，得到 %d", len(r.Sensors))
 	}
@@ -257,61 +261,66 @@ func TestGetHardwareHealth_SensorsListed(t *testing.T) {
 func TestGetHardwareHealth_ResourceColumns(t *testing.T) {
 	resp, _ := hardwareService(t).GetHardwareHealth(context.Background(), "c1")
 
-	r := findRow(t, resp, "desk-zero")
+	r := findRow(t, resp, "node-1")
 	if r.CPUUsage == nil || r.CPUUsage.Value != 80 || r.CPUUsage.Status != model.HardwareWarn {
-		t.Errorf("desk-zero cpuUsage = %+v，期望 80%% warn", r.CPUUsage)
+		t.Errorf("node-1 cpuUsage = %+v，期望 80%% warn", r.CPUUsage)
 	}
 	// overall 必须反映矩阵里看得见的列：CPU 80% warn 已经足以让整行是 warn
 	if r.Overall != model.HardwareWarn {
-		t.Errorf("desk-zero overall = %q", r.Overall)
+		t.Errorf("node-1 overall = %q", r.Overall)
 	}
 
-	// 什么数据都没有的节点，三列仍然存在且为 0%，不是 nil
+	// 什么数据都没有的节点：CPU / 内存这一轮采到了，0% 是真实读数，不是 nil；
+	// 磁盘一块都没报上来 → 没有主磁盘可看，是「无数据」而不是 0%
 	m := findRow(t, resp, "mystery")
-	if m.CPUUsage == nil || m.MemUsage == nil || m.DiskUsage == nil {
-		t.Fatalf("资源列不该为 nil: cpu=%v mem=%v disk=%v", m.CPUUsage, m.MemUsage, m.DiskUsage)
+	if m.CPUUsage == nil || m.MemUsage == nil {
+		t.Fatalf("CPU / 内存列不该为 nil: cpu=%v mem=%v", m.CPUUsage, m.MemUsage)
 	}
 	if m.CPUUsage.Value != 0 || m.CPUUsage.Status != model.HardwareGood {
 		t.Errorf("mystery cpuUsage = %+v", m.CPUUsage)
 	}
+	if m.DiskUsage != nil {
+		t.Errorf("没有盘时磁盘列应为 nil（无数据），实际 %+v", m.DiskUsage)
+	}
 
 	// 磁盘列取容量与 inode 里更差的那个
-	r5 := findRow(t, resp, "raspi5-one")
+	r5 := findRow(t, resp, "node-5")
 	if r5.DiskUsage == nil || r5.DiskUsage.Status != model.HardwareGood {
 		t.Errorf("raspi5 diskUsage = %+v", r5.DiskUsage)
 	}
 }
 
-// primaryDiskUsagePct: 「盘用量」要看根分区，不是所有分区里最满的那个。
+// 磁盘格看主磁盘（规则在 model_v3/metrics.PrimaryDiskIndex），不是所有分区里最满的那个。
 // 实测三台 raspi5 都显示 37.24%，那是 512MB 的 /boot/firmware —— 掩盖了真正的根分区。
-func TestPrimaryDiskUsagePct(t *testing.T) {
-	disks := []metrics.NodeDisk{
-		{Device: "nvme0n1", MountPoint: "/boot/firmware", UsagePct: 37.24, TotalBytes: 512 << 20},
-		{Device: "nvme0n1", MountPoint: "/", UsagePct: 8.24, InodeUsagePct: 1.03, TotalBytes: 200 << 30},
+func TestHardwareRow_DiskUsageUsesPrimaryDisk(t *testing.T) {
+	cases := []struct {
+		name  string
+		disks []metrics.NodeDisk
+		want  *float64
+	}{
+		{"有根分区取根分区", []metrics.NodeDisk{
+			{Device: "nvme0n1", MountPoint: "/boot/firmware", UsagePct: 37.24, TotalBytes: 512 << 20},
+			{Device: "nvme0n1", MountPoint: "/", UsagePct: 8.24, InodeUsagePct: 1.03, TotalBytes: 200 << 30},
+		}, floatPtr(8.2)},
+		{"inode 比容量更满时取 inode", []metrics.NodeDisk{
+			{MountPoint: "/", UsagePct: 20, InodeUsagePct: 91, TotalBytes: 200 << 30},
+		}, floatPtr(91)},
+		{"没有根分区取容量最大的盘", []metrics.NodeDisk{
+			{MountPoint: "/boot", UsagePct: 90, TotalBytes: 512 << 20},
+			{MountPoint: "/data", UsagePct: 30, TotalBytes: 200 << 30},
+		}, floatPtr(30)},
+		{"没有可用的盘 → 无数据，不当成 0%", nil, nil},
 	}
-	if got := primaryDiskUsagePct(disks); got != 8.24 {
-		t.Errorf("有根分区时应取根分区: got %v, want 8.24", got)
-	}
-
-	// 根分区的 inode 比容量更满时取 inode（两者后果一样：写不进去）
-	inodeFull := []metrics.NodeDisk{
-		{MountPoint: "/", UsagePct: 20, InodeUsagePct: 91, TotalBytes: 200 << 30},
-	}
-	if got := primaryDiskUsagePct(inodeFull); got != 91 {
-		t.Errorf("应取 inode: got %v, want 91", got)
-	}
-
-	// 没有根分区（容器里少见但要兜底）→ 取容量最大的那块，而不是使用率最高的
-	noRoot := []metrics.NodeDisk{
-		{MountPoint: "/boot", UsagePct: 90, TotalBytes: 512 << 20},
-		{MountPoint: "/data", UsagePct: 30, TotalBytes: 200 << 30},
-	}
-	if got := primaryDiskUsagePct(noRoot); got != 30 {
-		t.Errorf("无根分区时取容量最大的盘: got %v, want 30", got)
-	}
-
-	if got := primaryDiskUsagePct(nil); got != 0 {
-		t.Errorf("空列表应为 0，得到 %v", got)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			row := buildHardwareRow(&metrics.NodeMetrics{NodeName: "n", Disks: c.disks})
+			switch {
+			case c.want == nil && row.DiskUsage != nil:
+				t.Errorf("DiskUsage = %+v, want nil", row.DiskUsage)
+			case c.want != nil && (row.DiskUsage == nil || row.DiskUsage.Value != *c.want):
+				t.Errorf("DiskUsage = %+v, want %v", row.DiskUsage, *c.want)
+			}
+		})
 	}
 }
 
@@ -347,3 +356,5 @@ func TestPsiThresholds(t *testing.T) {
 		t.Errorf("85%% PSI 应为 crit: %+v", c)
 	}
 }
+
+func floatPtr(v float64) *float64 { return &v }

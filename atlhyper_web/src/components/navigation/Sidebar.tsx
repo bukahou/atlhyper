@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Github } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useAuthStore } from "@/store/authStore";
 import { navGroups, getActiveGroups, loadExpandedGroups, saveExpandedGroups } from "./SidebarTypes";
 import { withGroupsExpanded } from "./expanded-groups";
 import { SidebarNavGroup } from "./SidebarNavGroup";
@@ -19,7 +18,6 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const { isAuthenticated } = useAuthStore();
   const isAdmin = useCan()("user.manage");
   const [expandedGroups, setExpandedGroups] = useState<string[]>(() => loadExpandedGroups(pathname));
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
@@ -92,7 +90,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         className={`flex-1 min-h-0 py-3 ${collapsed ? "px-2 overflow-visible" : "px-3 overflow-y-auto"}`}
         style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--border-color) transparent' }}
       >
-        {navGroups.filter((g) => !g.authOnly || isAuthenticated).map((group) => (
+        {navGroups.map((group) => (
           <SidebarNavGroup
             key={group.key}
             group={group}

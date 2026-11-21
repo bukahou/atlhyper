@@ -1,71 +1,60 @@
 // atlhyper_agent_v2/config/loader.go
-// 配置加载逻辑
+// 配置加载：变量名与默认值见 types.go 的字段标签
 package config
 
 import (
+	"errors"
+	"fmt"
 	"log"
+	"net/url"
 	"os"
+	"reflect"
 	"strings"
-	"time"
+
+	"github.com/caarlos0/env/v11"
 )
 
-// LoadConfig 加载所有配置项
-//
-// 从环境变量加载配置，未设置则使用默认值。
-// 加载完成后配置存储在 GlobalConfig 全局变量中。
-func LoadConfig() {
-	GlobalConfig.Log = LogConfig{
-		Level:  getString("AGENT_LOG_LEVEL"),
-		Format: getString("AGENT_LOG_FORMAT"),
+// Load 从环境变量读取配置。
+// 格式写错返回错误并指出变量名，⛔ 不静默用默认值；为空的变量按未设置处理（取默认值）。
+func Load() (AppConfig, error) {
+	cfg, err := env.ParseAs[AppConfig]()
+	if err != nil {
+		return AppConfig{}, withEnvKeys(err)
 	}
-
-	GlobalConfig.Agent = AgentConfig{
-		ClusterID: getString("AGENT_CLUSTER_ID"),
+	// 从文件或 Secret 注入的令牌常带换行，而带换行的值放不进请求头
+	cfg.Master.Token = strings.TrimSpace(cfg.Master.Token)
+	if cfg.Kubernetes.KubeConfig == "" {
+		cfg.Kubernetes.KubeConfig = os.Getenv("KUBECONFIG")
 	}
-
-	GlobalConfig.Master = MasterConfig{
-		URL:   getString("AGENT_MASTER_URL"),
-		Token: loadMasterToken(),
-	}
-
-	GlobalConfig.Kubernetes = KubernetesConfig{
-		KubeConfig: getKubeConfig(),
-	}
-
-	GlobalConfig.Scheduler = SchedulerConfig{
-		SnapshotInterval:    getDuration("AGENT_SNAPSHOT_INTERVAL"),
-		CommandPollInterval: getDuration("AGENT_COMMAND_POLL_INTERVAL"),
-		HeartbeatInterval:   getDuration("AGENT_HEARTBEAT_INTERVAL"),
-		OTelCacheTTL:        getDuration("AGENT_OTEL_CACHE_TTL"),
-		OTelDashboardTTL:    getDuration("AGENT_OTEL_DASHBOARD_TTL"),
-	}
-
-	GlobalConfig.Timeout = TimeoutConfig{
-		HTTPClient:      getDuration("AGENT_TIMEOUT_HTTP_CLIENT"),
-		SnapshotCollect: getDuration("AGENT_TIMEOUT_SNAPSHOT_COLLECT"),
-		CommandPoll:     getDuration("AGENT_TIMEOUT_COMMAND_POLL"),
-		CommandExec:     getDuration("AGENT_TIMEOUT_COMMAND_EXEC"),
-		CommandReport:   getDuration("AGENT_TIMEOUT_COMMAND_REPORT"),
-		Heartbeat:       getDuration("AGENT_TIMEOUT_HEARTBEAT"),
-	}
-
-	GlobalConfig.ClickHouse = ClickHouseConfig{
-		Endpoint: getString("AGENT_CLICKHOUSE_ENDPOINT"),
-		Database: getString("AGENT_CLICKHOUSE_DATABASE"),
-		Timeout:  getDuration("AGENT_CLICKHOUSE_TIMEOUT"),
-	}
-
-	// 令牌是凭证：日志只说明有没有配置，不打印内容
-	log.Printf("[config] Agent 配置加载完成: ClusterID=%s, MasterURL=%s, MasterToken=%s, CH=%s/%s",
-		GlobalConfig.Agent.ClusterID, GlobalConfig.Master.URL,
-		describeSecretPresence(GlobalConfig.Master.Token),
-		GlobalConfig.ClickHouse.Endpoint, GlobalConfig.ClickHouse.Database)
+	return cfg, nil
 }
 
-// loadMasterToken 读取集群令牌，去掉首尾空白。
-// 从文件或 Secret 注入的值常带换行，而带换行的值放不进请求头。
-func loadMasterToken() string {
-	return strings.TrimSpace(getString("AGENT_MASTER_TOKEN"))
+// LoadConfig 加载配置到 GlobalConfig；配置无效时退出（启动入口用）
+func LoadConfig() {
+	cfg, err := Load()
+	if err != nil {
+		log.Fatalf("[config] 配置无效: %v", err)
+	}
+	GlobalConfig = cfg
+
+	kube := cfg.Kubernetes.KubeConfig
+	if kube == "" {
+		kube = "in-cluster"
+	}
+	// 令牌是凭证：日志只说明有没有配置，不打印内容
+	log.Printf("[config] Agent 配置加载完成: ClusterID=%s, MasterURL=%s, MasterToken=%s, Kube=%s, CH=%s/%s",
+		cfg.Agent.ClusterID, cfg.Master.URL, describeSecretPresence(cfg.Master.Token), kube,
+		RedactedEndpoint(cfg.ClickHouse.Endpoint), cfg.ClickHouse.Database)
+}
+
+// RedactedEndpoint 地址里可能带账号密码（ClickHouse 只能这样传凭据）：解析后把密码换掉再打日志。
+// 解析不了的地址不打印原文
+func RedactedEndpoint(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "<地址格式无法解析>"
+	}
+	return u.Redacted()
 }
 
 // describeSecretPresence 凭证类配置在日志里的写法：只有「已配置 / 未配置」
@@ -76,69 +65,35 @@ func describeSecretPresence(value string) string {
 	return "已配置"
 }
 
-// ==================== 工具函数 ====================
-
-// getDuration 获取时间类型配置
-func getDuration(envKey string) time.Duration {
-	if val := os.Getenv(envKey); val != "" {
-		if d, err := time.ParseDuration(val); err == nil {
-			return d
+// withEnvKeys 解析错误只带 Go 字段名，换成运维认得的环境变量名
+func withEnvKeys(err error) error {
+	var agg env.AggregateError
+	if !errors.As(err, &agg) {
+		return err
+	}
+	keys := map[string][]string{}
+	envKeysByField(reflect.TypeOf(AppConfig{}), keys)
+	out := make([]error, 0, len(agg.Errors))
+	for _, e := range agg.Errors {
+		var pe env.ParseError
+		if errors.As(e, &pe) && len(keys[pe.Name]) > 0 {
+			out = append(out, fmt.Errorf("%s: 格式不对: %w", strings.Join(keys[pe.Name], " / "), pe.Err))
+			continue
 		}
-		log.Printf("[config] 环境变量 %s 格式错误，使用默认值", envKey)
+		out = append(out, e)
 	}
-	def, ok := defaultDurations[envKey]
-	if !ok {
-		log.Fatalf("[config] 未定义默认时间配置项: %s", envKey)
-	}
-	d, _ := time.ParseDuration(def)
-	return d
+	return errors.Join(out...)
 }
 
-// getString 获取字符串类型配置
-func getString(envKey string) string {
-	if val := os.Getenv(envKey); val != "" {
-		return val
-	}
-	def, ok := defaultStrings[envKey]
-	if !ok {
-		log.Fatalf("[config] 未定义默认字符串配置项: %s", envKey)
-	}
-	return def
-}
-
-// getStringSlice 获取逗号分隔的字符串列表配置
-func getStringSlice(envKey string) []string {
-	raw := getString(envKey)
-	if raw == "" {
-		return nil
-	}
-	parts := strings.Split(raw, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
+func envKeysByField(t reflect.Type, out map[string][]string) {
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.Type.Kind() == reflect.Struct && f.Tag.Get("env") == "" && f.Type.PkgPath() == t.PkgPath() {
+			envKeysByField(f.Type, out)
+			continue
+		}
+		if key, _, _ := strings.Cut(f.Tag.Get("env"), ","); key != "" {
+			out[f.Name] = append(out[f.Name], key)
 		}
 	}
-	return result
-}
-
-// getKubeConfig 获取 kubeconfig 路径
-// 优先级: AGENT_KUBECONFIG > KUBECONFIG > 空（使用 in-cluster）
-func getKubeConfig() string {
-	// 1. 优先使用 Agent 专用配置
-	if val := os.Getenv("AGENT_KUBECONFIG"); val != "" {
-		log.Printf("[config] 使用 AGENT_KUBECONFIG: %s", val)
-		return val
-	}
-
-	// 2. 回退到标准 KUBECONFIG 环境变量
-	if val := os.Getenv("KUBECONFIG"); val != "" {
-		log.Printf("[config] 使用 KUBECONFIG: %s", val)
-		return val
-	}
-
-	// 3. 返回空，使用 in-cluster 模式
-	log.Printf("[config] 未设置 kubeconfig，将使用 in-cluster 模式")
-	return ""
 }

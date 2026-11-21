@@ -1,389 +1,100 @@
 // atlhyper_master_v2/ai/llm/anthropic/client.go
-// Anthropic Claude LLM 客户端实现
+// Anthropic Claude LLM 客户端（官方 Go SDK，流式 Messages 接口）
 package anthropic
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"strings"
+	"sync"
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/common/logger"
+
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go/v2"
+	"github.com/anthropics/anthropic-sdk-go/v2/option"
 )
 
 var log = logger.Module("Anthropic")
 
 const (
-	apiEndpoint = "https://api.anthropic.com/v1/messages"
-	apiVersion  = "2023-06-01"
-	maxTokens   = 4096
+	defaultModel    = "claude-haiku-5-5"
+	maxOutputTokens = 32000 // 思考也计入输出上限
 )
 
 func init() {
 	llm.Register("anthropic", func(cfg llm.Config) (llm.LLMClient, error) {
-		return NewAnthropicClient(cfg.APIKey, cfg.Model)
+		return NewAnthropicClient(cfg)
 	})
 }
 
-// Client Anthropic Claude 客户端
+// Client Claude 客户端：AI 服务每次请求建一个，底层 SDK 客户端按认证方式复用（见 NewAnthropicClient）
 type Client struct {
-	apiKey     string
-	model      string
-	httpClient *http.Client
+	api   *anthropicsdk.Client
+	model string
 }
 
-// NewAnthropicClient 创建 Anthropic 客户端
-func NewAnthropicClient(apiKey, model string) (*Client, error) {
-	if apiKey == "" {
-		return nil, fmt.Errorf("anthropic api key is required")
-	}
+// NewAnthropicClient 创建客户端（不发请求）。
+//
+//   - 配了 key：用这把 key 新建 SDK 客户端。
+//   - 没配 key：交给 SDK 的凭证链。集群里是 Workload Identity Federation：环境变量 ANTHROPIC_FEDERATION_RULE_ID /
+//     ANTHROPIC_ORGANIZATION_ID / ANTHROPIC_SERVICE_ACCOUNT_ID / ANTHROPIC_IDENTITY_TOKEN_FILE + 投射的服务账号令牌，
+//     SDK 换成短期访问令牌并自动续期。⚠️ 进程环境里的 ANTHROPIC_API_KEY 在凭证链里排第一，会盖过 WIF。
+//
+// ⛔ 没配 key 的路径全进程共用一个 SDK 客户端（按地址各一个）：SDK 按客户端各存一份令牌，集群令牌带 jti、
+// 同一张只能换一次，而 AI 服务每次请求都会新建 LLMClient —— 每次新建 SDK 客户端的话，第二次起换令牌就会 401。
+func NewAnthropicClient(cfg llm.Config) (*Client, error) {
+	model := cfg.Model
 	if model == "" {
-		model = "claude-sonnet-4-20250514"
+		model = defaultModel
 	}
-	return &Client{
-		apiKey:     apiKey,
-		model:      model,
-		httpClient: &http.Client{},
-	}, nil
+	if cfg.APIKey == "" {
+		return &Client{api: keylessClient(cfg.BaseURL), model: model}, nil
+	}
+	options := []option.RequestOption{option.WithAPIKey(cfg.APIKey)}
+	if cfg.BaseURL != "" {
+		options = append(options, option.WithBaseURL(cfg.BaseURL))
+	}
+	api := anthropicsdk.NewClient(options...)
+	return &Client{api: &api, model: model}, nil
 }
 
-// ==================== API Request/Response Types ====================
+var (
+	keylessMu      sync.Mutex
+	keylessClients = map[string]*anthropicsdk.Client{} // 地址 → 免密钥客户端
+)
 
-// messagesRequest Anthropic Messages API リクエスト
-type messagesRequest struct {
-	Model     string         `json:"model"`
-	MaxTokens int            `json:"max_tokens"`
-	System    string         `json:"system,omitempty"`
-	Messages  []messageParam `json:"messages"`
-	Tools     []toolParam    `json:"tools,omitempty"`
-	Stream    bool           `json:"stream"`
+// keylessClient 取该地址的免密钥客户端，第一次用时创建
+func keylessClient(baseURL string) *anthropicsdk.Client {
+	keylessMu.Lock()
+	defer keylessMu.Unlock()
+	if api, ok := keylessClients[baseURL]; ok {
+		return api
+	}
+	var options []option.RequestOption
+	if baseURL != "" {
+		options = append(options, option.WithBaseURL(baseURL))
+	}
+	api := anthropicsdk.NewClient(options...)
+	keylessClients[baseURL] = &api
+	return &api
 }
 
-// messageParam メッセージパラメータ
-type messageParam struct {
-	Role    string        `json:"role"`
-	Content []contentPart `json:"content"`
-}
-
-// contentPart コンテンツパート（テキスト、ツール呼び出し、ツール結果）
-type contentPart struct {
-	Type      string `json:"type"`
-	Text      string `json:"text,omitempty"`
-	ID        string `json:"id,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Input     any    `json:"input,omitempty"`
-	ToolUseID string `json:"tool_use_id,omitempty"`
-	Content   string `json:"content,omitempty"`
-}
-
-// toolParam ツール定義
-type toolParam struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	InputSchema any    `json:"input_schema"`
-}
-
-// streamEvent SSE イベント
-type streamEvent struct {
-	Type         string        `json:"type"`
-	Index        int           `json:"index,omitempty"`
-	ContentBlock *contentBlock `json:"content_block,omitempty"`
-	Delta        *deltaBlock   `json:"delta,omitempty"`
-	Message      *messageResp  `json:"message,omitempty"`
-	Usage        *usageInfo    `json:"usage,omitempty"`
-}
-
-// usageInfo Token 使用量
-type usageInfo struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
-}
-
-// contentBlock コンテンツブロック
-type contentBlock struct {
-	Type  string `json:"type"`
-	ID    string `json:"id,omitempty"`
-	Name  string `json:"name,omitempty"`
-	Text  string `json:"text,omitempty"`
-	Input any    `json:"input,omitempty"`
-}
-
-// deltaBlock デルタブロック
-type deltaBlock struct {
-	Type        string `json:"type"`
-	Text        string `json:"text,omitempty"`
-	PartialJSON string `json:"partial_json,omitempty"`
-}
-
-// messageResp メッセージレスポンス
-type messageResp struct {
-	ID           string `json:"id"`
-	Type         string `json:"type"`
-	Role         string `json:"role"`
-	StopReason   string `json:"stop_reason,omitempty"`
-	StopSequence string `json:"stop_sequence,omitempty"`
-}
-
-// ==================== LLMClient Implementation ====================
-
-// ChatStream 发送流式对话请求
+// ChatStream 发送流式对话请求。文字增量即时发出；工具调用、用量与整轮回答在流结束后发出。
 func (c *Client) ChatStream(ctx context.Context, req *llm.Request) (<-chan *llm.Chunk, error) {
-	// リクエスト構築
-	apiReq := messagesRequest{
-		Model:     c.model,
-		MaxTokens: maxTokens,
-		Stream:    true,
-	}
-
-	// システムプロンプト
-	if req.SystemPrompt != "" {
-		apiReq.System = req.SystemPrompt
-	}
-
-	// メッセージ変換
-	apiReq.Messages = convertMessages(req.Messages)
-
-	// ツール変換
-	if len(req.Tools) > 0 {
-		apiReq.Tools = convertTools(req.Tools)
-	}
-
-	// JSON エンコード
-	body, err := json.Marshal(apiReq)
+	params, err := buildParams(c.model, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, err
 	}
+	log.Debug("请求", "model", c.model, "messages", len(params.Messages), "tools", len(params.Tools))
 
-	// HTTP リクエスト作成
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", apiEndpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", c.apiKey)
-	httpReq.Header.Set("anthropic-version", apiVersion)
-
-	// デバッグ: リクエスト内容をログ
-	var roles []string
-	for _, m := range apiReq.Messages {
-		roles = append(roles, m.Role)
-	}
-	log.Info("请求信息", "messages", len(apiReq.Messages), "tools", len(apiReq.Tools), "roles", roles)
-
-	// リクエスト送信
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Error("API 请求失败", "statusCode", resp.StatusCode, "body", string(body))
-		return nil, fmt.Errorf("anthropic API error: %d - %s", resp.StatusCode, string(body))
-	}
-
-	log.Info("请求成功", "statusCode", resp.StatusCode)
-
-	// ストリーム読み取り開始
+	stream := c.api.Messages.NewStreaming(ctx, params)
 	ch := make(chan *llm.Chunk, 32)
 	go func() {
 		defer close(ch)
-		defer resp.Body.Close()
-		c.readStream(ctx, resp.Body, ch)
+		defer stream.Close()
+		pumpStream(ctx, stream, ch)
 	}()
-
 	return ch, nil
 }
 
-// readStream SSE ストリームを読み取り
-func (c *Client) readStream(ctx context.Context, body io.Reader, ch chan<- *llm.Chunk) {
-	scanner := bufio.NewScanner(body)
-
-	// 現在処理中のツール呼び出し
-	var currentToolCall *llm.ToolCall
-	var toolInputBuffer strings.Builder
-	var lastUsage *llm.Usage
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// SSE データ行のみ処理
-		if !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-
-		data := strings.TrimPrefix(line, "data: ")
-		if data == "[DONE]" {
-			ch <- &llm.Chunk{Type: llm.ChunkDone, Usage: lastUsage}
-			return
-		}
-
-		var event streamEvent
-		if err := json.Unmarshal([]byte(data), &event); err != nil {
-			log.Error("JSON 解析失败", "err", err, "data", data)
-			continue
-		}
-
-		// 记录 usage（message_start 和 message_delta 都可能包含 usage）
-		if event.Usage != nil {
-			lastUsage = &llm.Usage{
-				InputTokens:  event.Usage.InputTokens,
-				OutputTokens: event.Usage.OutputTokens,
-			}
-		}
-
-		switch event.Type {
-		case "content_block_start":
-			if event.ContentBlock != nil && event.ContentBlock.Type == "tool_use" {
-				// ツール呼び出し開始
-				currentToolCall = &llm.ToolCall{
-					ID:   event.ContentBlock.ID,
-					Name: event.ContentBlock.Name,
-				}
-				toolInputBuffer.Reset()
-			}
-
-		case "content_block_delta":
-			if event.Delta == nil {
-				continue
-			}
-
-			switch event.Delta.Type {
-			case "text_delta":
-				// テキストデルタ
-				if event.Delta.Text != "" {
-					select {
-					case ch <- &llm.Chunk{Type: llm.ChunkText, Content: event.Delta.Text}:
-					case <-ctx.Done():
-						ch <- &llm.Chunk{Type: llm.ChunkError, Error: ctx.Err()}
-						return
-					}
-				}
-
-			case "input_json_delta":
-				// ツール入力 JSON デルタ
-				if currentToolCall != nil && event.Delta.PartialJSON != "" {
-					toolInputBuffer.WriteString(event.Delta.PartialJSON)
-				}
-			}
-
-		case "content_block_stop":
-			// ツール呼び出し完了
-			if currentToolCall != nil {
-				currentToolCall.Params = toolInputBuffer.String()
-				select {
-				case ch <- &llm.Chunk{Type: llm.ChunkToolCall, ToolCall: currentToolCall}:
-				case <-ctx.Done():
-					ch <- &llm.Chunk{Type: llm.ChunkError, Error: ctx.Err()}
-					return
-				}
-				currentToolCall = nil
-				toolInputBuffer.Reset()
-			}
-
-		case "message_stop":
-			ch <- &llm.Chunk{Type: llm.ChunkDone, Usage: lastUsage}
-			return
-
-		case "error":
-			log.Error("收到流错误事件", "event", event)
-			ch <- &llm.Chunk{Type: llm.ChunkError, Error: fmt.Errorf("stream error")}
-			return
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Error("Scanner 读取错误", "err", err)
-		ch <- &llm.Chunk{Type: llm.ChunkError, Error: err}
-	}
-}
-
-// Close 关闭客户端
-func (c *Client) Close() error {
-	return nil
-}
-
-// ==================== Helpers ====================
-
-// convertMessages llm.Message を Anthropic 形式に変換
-func convertMessages(msgs []llm.Message) []messageParam {
-	var result []messageParam
-
-	for _, msg := range msgs {
-		switch msg.Role {
-		case "user":
-			result = append(result, messageParam{
-				Role: "user",
-				Content: []contentPart{
-					{Type: "text", Text: msg.Content},
-				},
-			})
-
-		case "assistant":
-			var parts []contentPart
-			if msg.Content != "" {
-				parts = append(parts, contentPart{Type: "text", Text: msg.Content})
-			}
-			for _, tc := range msg.ToolCalls {
-				var input any
-				if err := json.Unmarshal([]byte(tc.Params), &input); err != nil {
-					log.Warn("Tool Call 参数解析失败，使用空参数", "tool", tc.Name, "err", err)
-					input = map[string]any{}
-				}
-				parts = append(parts, contentPart{
-					Type:  "tool_use",
-					ID:    tc.ID,
-					Name:  tc.Name,
-					Input: input,
-				})
-			}
-			if len(parts) > 0 {
-				result = append(result, messageParam{
-					Role:    "assistant",
-					Content: parts,
-				})
-			}
-
-		case "tool":
-			if msg.ToolResult != nil {
-				result = append(result, messageParam{
-					Role: "user",
-					Content: []contentPart{
-						{
-							Type:      "tool_result",
-							ToolUseID: msg.ToolResult.CallID,
-							Content:   msg.ToolResult.Content,
-						},
-					},
-				})
-			}
-		}
-	}
-
-	return result
-}
-
-// convertTools llm.ToolDefinition を Anthropic 形式に変換
-func convertTools(tools []llm.ToolDefinition) []toolParam {
-	var result []toolParam
-	for _, t := range tools {
-		var schema any
-		if err := json.Unmarshal(t.Parameters, &schema); err != nil {
-			log.Warn("Tool 参数 Schema 解析失败", "tool", t.Name, "err", err)
-			schema = map[string]any{"type": "object"}
-		}
-		result = append(result, toolParam{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: schema,
-		})
-	}
-	return result
-}
+// Close 无需释放资源（HTTP 连接由 SDK 管理；免密钥客户端全进程共用）
+func (c *Client) Close() error { return nil }

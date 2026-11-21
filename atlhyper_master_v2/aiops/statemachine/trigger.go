@@ -3,6 +3,7 @@
 package statemachine
 
 import (
+	"AtlHyper/atlhyper_master_v2/aiops/severity"
 	"context"
 	"time"
 
@@ -214,7 +215,7 @@ func (sm *StateMachine) transition(
 // raiseSeverity 本轮风险对应的严重度高于已记录的峰值时升档，返回是否升了
 func raiseSeverity(entry *aiops.StateMachineEntry, risk *aiops.SubjectRisk) bool {
 	current := aiops.SeverityFromRisk(risk.RFinal)
-	if aiops.SeverityRank(current) <= aiops.SeverityRank(entry.Severity) {
+	if severity.Rank(current) <= severity.Rank(entry.Severity) {
 		return false
 	}
 	entry.Severity = current

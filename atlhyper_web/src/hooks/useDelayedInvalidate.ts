@@ -1,14 +1,9 @@
 /**
- * 延时让查询失效
+ * 延时任务的簿记
  *
- * 写操作（重启、扩缩容、封锁节点等）只是把指令放进队列，由 Agent 稍后执行。
- * 指令下发成功的那一刻去刷新，多半拿到的还是旧状态，所以要晚一点再刷新一次。
+ * 部署页「立即同步」只是提交了一个同步任务，没有可轮询的指令 ID，只能过几秒再刷新状态与历史。
+ * 集群写操作（重启、扩缩容、封锁节点等）有指令 ID，按指令状态刷新，见 useCommandSettle。
  */
-import { useCallback, useEffect, useState } from "react";
-import { useQueryClient, type QueryKey } from "@tanstack/react-query";
-
-/** 指令从下发到在快照里看得到结果，大约需要的时间 */
-export const COMMAND_SETTLE_DELAY_MS = 2000;
 
 export interface DelayedTaskScheduler {
   /** 过 delayMs 毫秒后执行一次 task */
@@ -40,33 +35,4 @@ export function createDelayedTaskScheduler(): DelayedTaskScheduler {
     },
     pendingCount: () => pendingTimers.size,
   };
-}
-
-/**
- * 返回一个函数：调用后过 delayMs 毫秒，让给定的查询键（前缀匹配）失效并重新取数。
- *
- * 组件卸载时清理还没触发的定时器 —— 页面都离开了，没有谁还需要那次刷新；
- * 再回来时查询会自己重新取数。
- *
- * @example
- * const invalidateAfterCommand = useDelayedInvalidate();
- * restart.mutate(pod, { onSuccess: () => invalidateAfterCommand(clusterKeys.resourceScope("pod")) });
- */
-export function useDelayedInvalidate(delayMs: number = COMMAND_SETTLE_DELAY_MS) {
-  const queryClient = useQueryClient();
-  // 用 useState 的惰性初始化拿一个随组件存活的簿记对象
-  const [scheduler] = useState(createDelayedTaskScheduler);
-
-  useEffect(() => () => scheduler.cancelAll(), [scheduler]);
-
-  return useCallback(
-    (queryKeys: readonly QueryKey[]) => {
-      scheduler.schedule(() => {
-        for (const queryKey of queryKeys) {
-          void queryClient.invalidateQueries({ queryKey });
-        }
-      }, delayMs);
-    },
-    [queryClient, scheduler, delayMs],
-  );
 }

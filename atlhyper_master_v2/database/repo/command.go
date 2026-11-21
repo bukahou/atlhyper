@@ -5,6 +5,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
 )
@@ -45,14 +46,18 @@ func (r *commandRepo) ListByCluster(ctx context.Context, clusterID string, limit
 	return r.queryAll(ctx, query, args...)
 }
 
-func (r *commandRepo) ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*database.CommandHistory, error) {
-	query, args := r.dialect.SelectByUser(userID, limit, offset)
-	return r.queryAll(ctx, query, args...)
-}
-
 func (r *commandRepo) List(ctx context.Context, opts database.CommandQueryOpts) ([]*database.CommandHistory, error) {
 	query, args := r.dialect.SelectWithOpts(opts)
 	return r.queryAll(ctx, query, args...)
+}
+
+func (r *commandRepo) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	query, args := r.dialect.DeleteBefore(before)
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 func (r *commandRepo) Count(ctx context.Context, opts database.CommandQueryOpts) (int64, error) {
@@ -73,7 +78,7 @@ func (r *commandRepo) queryOne(ctx context.Context, query string, args ...any) (
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, nil
+		return nil, rows.Err() // 没有行是 nil, nil；读取出错要报出来
 	}
 	return r.dialect.ScanRow(rows)
 }

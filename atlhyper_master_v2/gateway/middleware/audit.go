@@ -12,7 +12,11 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/gateway/clientip"
+	"AtlHyper/common/logger"
 )
+
+var auditLog = logger.Module("Audit")
 
 // AuditConfig 审计配置
 type AuditConfig struct {
@@ -36,6 +40,9 @@ func (rw *auditResponseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Unwrap 让 http.ResponseController 拿到底层连接（流式响应逐块续期写超时）
+func (rw *auditResponseWriter) Unwrap() http.ResponseWriter { return rw.ResponseWriter }
+
 // Flush 实现 http.Flusher 接口（SSE 流式响应需要）
 func (rw *auditResponseWriter) Flush() {
 	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
@@ -43,18 +50,27 @@ func (rw *auditResponseWriter) Flush() {
 	}
 }
 
-// Audit 审计中间件
-// 记录敏感操作到审计日志
+// maxAuditCaptureBytes 审计最多留存处理函数读到的这么多字节用于脱敏记录；超过则不记内容
+const maxAuditCaptureBytes = 64 << 10
+
+// Audit 审计中间件（客户端地址取 TCP 对端；部署配置了可信头时用 AuditWithClientIP）
 func Audit(repo AuditRepository, config AuditConfig) func(http.HandlerFunc) http.HandlerFunc {
+	return AuditWithClientIP(repo, config, "")
+}
+
+// AuditWithClientIP 审计中间件：记录敏感操作到审计日志。
+//
+// 请求体不预先读取：只留存处理函数真正读到的部分。权限检查没通过时处理函数不读请求体，
+// 审计也就不记 —— 不替未鉴权的请求把请求体读进内存。clientIPHeader 见 clientip.FromRequest。
+func AuditWithClientIP(repo AuditRepository, config AuditConfig, clientIPHeader string) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
-			// 读取请求体（需要复制以便后续处理）
-			var bodyBytes []byte
+			var captured *capturingBody
 			if r.Body != nil {
-				bodyBytes, _ = io.ReadAll(r.Body)
-				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+				captured = &capturingBody{ReadCloser: r.Body, limit: maxAuditCaptureBytes}
+				r.Body = captured
 			}
 
 			// 包装 ResponseWriter
@@ -63,24 +79,24 @@ func Audit(repo AuditRepository, config AuditConfig) func(http.HandlerFunc) http
 			// 处理请求
 			next.ServeHTTP(rw, r)
 
+			var sanitizedBody string
+			if captured != nil {
+				if captured.overflow {
+					sanitizedBody = "[请求体过大，未记录内容]"
+				} else {
+					sanitizedBody = sanitizeRequestBody(captured.buf.String())
+				}
+			}
+			ip := clientip.FromRequest(r, clientIPHeader)
+
 			// 异步记录审计日志
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 
-				// 获取用户信息（可能从 context 中获取）
 				userID, _ := GetUserID(r.Context())
 				username, _ := GetUsername(r.Context())
 				role, _ := GetRole(r.Context())
-
-				// 获取客户端 IP
-				ip := r.RemoteAddr
-				if xForwardedFor := r.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
-					ip = strings.Split(xForwardedFor, ",")[0]
-				}
-
-				// 脱敏请求体
-				sanitizedBody := sanitizeRequestBody(string(bodyBytes))
 
 				log := &database.AuditLog{
 					Timestamp:   start,
@@ -105,16 +121,40 @@ func Audit(repo AuditRepository, config AuditConfig) func(http.HandlerFunc) http
 					log.ErrorMessage = http.StatusText(rw.statusCode)
 				}
 
-				repo.Create(ctx, log)
+				if err := repo.Create(ctx, log); err != nil {
+					auditLog.Warn("写审计日志失败", "path", log.Path, "err", err)
+				}
 			}()
 		}
 	}
+}
+
+// capturingBody 处理函数读请求体时顺带留一份（最多 limit 字节），超过即只标记 overflow
+type capturingBody struct {
+	io.ReadCloser
+	buf      bytes.Buffer
+	limit    int
+	overflow bool
+}
+
+func (c *capturingBody) Read(p []byte) (int, error) {
+	n, err := c.ReadCloser.Read(p)
+	if n > 0 && !c.overflow {
+		if c.buf.Len()+n > c.limit {
+			c.overflow = true
+			c.buf.Reset()
+		} else {
+			c.buf.Write(p[:n])
+		}
+	}
+	return n, err
 }
 
 // sensitiveKeyParts 键名（小写、去掉 _ 与 -）含这些片段即视为凭据
 var sensitiveKeyParts = []string{
 	"password", "passwd", "secret", "token", "apikey", "accesskey", "privatekey",
 	"credential", "authorization", "cookie", "webhook",
+	"manifest", // 应用清单里可能有 Secret 的明文
 }
 
 const (
@@ -137,8 +177,8 @@ func sanitizeRequestBody(body string) string {
 	if err != nil {
 		return "[请求体无法记录]"
 	}
-	if len(out) > maxAuditBodyLen {
-		return string(out[:maxAuditBodyLen]) + "..."
+	if runes := []rune(string(out)); len(runes) > maxAuditBodyLen {
+		return string(runes[:maxAuditBodyLen]) + "..."
 	}
 	return string(out)
 }
@@ -174,15 +214,6 @@ func isCredentialKey(key string) bool {
 	}
 	return false
 }
-
-// AuditAction 审计操作常量
-const (
-	AuditActionLogin   = "login"
-	AuditActionCreate  = "create"
-	AuditActionUpdate  = "update"
-	AuditActionDelete  = "delete"
-	AuditActionExecute = "execute"
-)
 
 // AuditResource 审计资源常量
 const (

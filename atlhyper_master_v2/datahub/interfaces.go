@@ -11,7 +11,7 @@ import (
 )
 
 // Store 数据存储接口
-// 抽象层，底层可替换为 MemoryStore / RedisStore
+// 抽象层（当前只有内存实现，见 NewStore）
 type Store interface {
 	// ==================== 快照管理 ====================
 
@@ -53,13 +53,7 @@ type Store interface {
 
 // Config Store 配置
 type Config struct {
-	Type              string        // 类型: memory / redis
 	EventRetention    time.Duration // Event 保留时间
 	HeartbeatExpire   time.Duration // 心跳过期时间
 	SnapshotRetention time.Duration // OTel 快照时间线保留时间（默认 15min）
-
-	// Redis 配置（Type=redis 时使用）
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
 }

@@ -109,7 +109,7 @@ export function IncidentListRow({ row, onSelect, expandable, expanded, onToggleE
         </div>
       </div>
       <span className="justify-self-start">
-        <RiskBadge level={inc.peakRisk >= 80 ? "critical" : inc.peakRisk >= 50 ? "warning" : "low"} />
+        <RiskBadge level={inc.peakRiskLevel} />
       </span>
       <span className="text-xs text-muted">{formatShortTime(inc.startedAt)}</span>
       <span className="text-xs text-muted">{formatDuration(inc.durationS, t.aiops.minutes)}</span>

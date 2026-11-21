@@ -33,7 +33,10 @@ func (r *logRepository) QueryLogs(ctx context.Context, opts repository.LogQueryO
 	since := sinceSeconds(opts.Since)
 
 	// 构建 WHERE 条件
-	where, args := r.buildWhere(since, opts)
+	where, args, err := r.buildWhere(since, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	// 并行执行 3 类查询
 	type logsResult struct {
@@ -94,21 +97,24 @@ func (r *logRepository) QueryLogs(ctx context.Context, opts repository.LogQueryO
 }
 
 // buildWhere 构建 WHERE 子句和参数
-func (r *logRepository) buildWhere(since int64, opts repository.LogQueryOptions) (string, []any) {
+// 起止时间解析失败时返回错误：不能退化成没有时间条件的全表扫描
+func (r *logRepository) buildWhere(since int64, opts repository.LogQueryOptions) (string, []any, error) {
 	var conditions []string
 	var args []any
 
 	// 绝对时间范围（brush 选区）优先于相对时间
 	// 前端传 ISO 8601 字符串，需解析为 time.Time 以兼容 ClickHouse DateTime64(9)
 	if opts.StartTime != "" && opts.EndTime != "" {
-		if startT, err := time.Parse(time.RFC3339Nano, opts.StartTime); err == nil {
-			conditions = append(conditions, "Timestamp >= ?")
-			args = append(args, startT)
+		startT, err := time.Parse(time.RFC3339Nano, opts.StartTime)
+		if err != nil {
+			return "", nil, fmt.Errorf("start_time 不是 RFC 3339 时间: %w", err)
 		}
-		if endT, err := time.Parse(time.RFC3339Nano, opts.EndTime); err == nil {
-			conditions = append(conditions, "Timestamp <= ?")
-			args = append(args, endT)
+		endT, err := time.Parse(time.RFC3339Nano, opts.EndTime)
+		if err != nil {
+			return "", nil, fmt.Errorf("end_time 不是 RFC 3339 时间: %w", err)
 		}
+		conditions = append(conditions, "Timestamp >= ?", "Timestamp <= ?")
+		args = append(args, startT, endT)
 	} else if opts.TraceId == "" {
 		// 有 TraceId 时跳过时间条件（TraceId 是精确匹配，不需要时间窗口限制）
 		conditions = append(conditions, fmt.Sprintf("Timestamp >= now() - INTERVAL %d SECOND", since))
@@ -140,9 +146,9 @@ func (r *logRepository) buildWhere(since int64, opts repository.LogQueryOptions)
 	}
 
 	if len(conditions) == 0 {
-		return "", args
+		return "", args, nil
 	}
-	return "WHERE " + strings.Join(conditions, " AND "), args
+	return "WHERE " + strings.Join(conditions, " AND "), args, nil
 }
 
 // queryEntries 查询日志条目
@@ -259,7 +265,10 @@ func (r *logRepository) queryFacet(ctx context.Context, column, where string) ([
 // QueryHistogram 查询直方图（服务端聚合，~30 桶）
 func (r *logRepository) QueryHistogram(ctx context.Context, opts repository.LogQueryOptions) (*log.HistogramResult, error) {
 	since := sinceSeconds(opts.Since)
-	where, args := r.buildWhere(since, opts)
+	where, args, err := r.buildWhere(since, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	// 绝对时间时基于实际跨度计算桶间隔
 	spanSeconds := since
@@ -369,7 +378,7 @@ func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 	`
 	rows, err := r.client.Query(ctx, topQuery)
 	if err != nil {
-		return summary, nil // 降级：返回不含 TopServices 的摘要
+		return nil, fmt.Errorf("日志 Top 服务查询: %w", err)
 	}
 	defer rows.Close()
 
@@ -385,15 +394,4 @@ func (r *logRepository) GetSummary(ctx context.Context) (*log.Summary, error) {
 	}
 
 	return summary, nil
-}
-
-// ListRecentEntries 获取最近日志条目（15 分钟窗口，覆盖前端默认时间选择）
-func (r *logRepository) ListRecentEntries(ctx context.Context, limit int) ([]log.Entry, error) {
-	if limit <= 0 {
-		limit = 2000
-	}
-	if limit > 5000 {
-		limit = 5000
-	}
-	return r.queryEntries(ctx, "WHERE Timestamp >= now() - INTERVAL 15 MINUTE", nil, limit, 0)
 }

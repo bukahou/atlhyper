@@ -1,7 +1,6 @@
 package query
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -76,21 +75,7 @@ func TestIngressSQL_UsesContractNames(t *testing.T) {
 // serviceKey
 // ──────────────────────────────────────────────────────────────
 
-func TestIngressServiceKey(t *testing.T) {
-	tests := []struct {
-		namespace, service, want string
-	}{
-		{"geass-v3", "geass-gateway", "geass-v3/geass-gateway"},
-		{"atlhyper", "atlhyper-web", "atlhyper/atlhyper-web"},
-		{"", "orphan", "orphan"}, // namespace 缺失时退化为纯服务名
-		{"ns", "", ""},           // service 缺失视为无效
-	}
-	for _, tt := range tests {
-		if got := ingressServiceKey(tt.namespace, tt.service); got != tt.want {
-			t.Errorf("ingressServiceKey(%q,%q) = %q, want %q", tt.namespace, tt.service, got, tt.want)
-		}
-	}
-}
+// 服务标识的格式与测试在 model_v3/slo（ServiceKey），Agent 与 Master 共用。
 
 // ──────────────────────────────────────────────────────────────
 // 单位：契约桶为毫秒，P*Ms 字段直接取用，不得二次换算
@@ -277,33 +262,5 @@ func TestAddHistogramDelta_MultipleInstancesAccumulate(t *testing.T) {
 	}
 	if hist.sum != (500-100)+(800-700) {
 		t.Errorf("sum = %v，期望 500", hist.sum)
-	}
-}
-
-// 时序查询同样跨时间做差，同样必须按实例分区 —— 否则趋势图上全是尖刺。
-func TestGetSLOTimeSeriesSQL_PartitionsByInstance(t *testing.T) {
-	// 用一个不会执行的 client 只为拿到 SQL 是不可能的（SQL 在函数内构造），
-	// 因此这里直接扫源码，与 metrics_catalog_test 同样的守护思路。
-	src, err := os.ReadFile("slo.go")
-	if err != nil {
-		t.Fatalf("读 slo.go 失败: %v", err)
-	}
-	body := string(src)
-	start := strings.Index(body, "func (r *sloRepository) GetSLOTimeSeries")
-	if start < 0 {
-		t.Fatal("找不到 GetSLOTimeSeries")
-	}
-	end := strings.Index(body[start:], "\n}\n")
-	fn := body[start : start+end]
-
-	idx := strings.Index(fn, "PARTITION BY")
-	if idx < 0 {
-		t.Fatal("GetSLOTimeSeries 没有 PARTITION BY")
-	}
-	clause := fn[idx : idx+strings.Index(fn[idx:], "ORDER BY")]
-	// 源码里是 %s 占位符，看不到常量名；但实例来自 ResourceAttributes，
-	// 而 ns/svc/class 来自 Attributes —— 本文件里 ResourceAttributes 只用于实例。
-	if !strings.Contains(clause, "ResourceAttributes[") {
-		t.Errorf("GetSLOTimeSeries 的 PARTITION BY 缺实例维度:\n%s", clause)
 	}
 }

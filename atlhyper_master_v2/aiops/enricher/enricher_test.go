@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai"
+	"AtlHyper/atlhyper_master_v2/ai/toolkit"
 	"AtlHyper/atlhyper_master_v2/database"
 )
 
@@ -119,7 +120,7 @@ func (m *mockAIService) GetMessages(ctx context.Context, userID, conversationID 
 func (m *mockAIService) DeleteConversation(ctx context.Context, userID, conversationID int64) error {
 	return nil
 }
-func (m *mockAIService) RegisterTool(name string, handler ai.ToolHandler) {}
+func (m *mockAIService) Tools() *toolkit.Registry { return toolkit.NewRegistry() }
 func (m *mockAIService) Analyze(ctx context.Context, req *ai.AnalyzeRequest) (*ai.AnalyzeResult, error) {
 	return nil, nil
 }
@@ -793,4 +794,8 @@ func TestBuildEntities_Truncation(t *testing.T) {
 	if !strings.Contains(result, "60 个") {
 		t.Fatal("expected total count 60 in header")
 	}
+}
+
+func (m *mockIncidentRepo) DeleteResolvedBefore(context.Context, time.Time) (int64, error) {
+	return 0, nil
 }

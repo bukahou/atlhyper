@@ -62,6 +62,8 @@ type AuditRepository interface {
 	Create(ctx context.Context, log *AuditLog) error
 	List(ctx context.Context, opts AuditQueryOpts) ([]*AuditLog, error)
 	Count(ctx context.Context, opts AuditQueryOpts) (int64, error)
+	// DeleteBefore 删除早于 before 的审计记录，返回删除的行数
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 // UserRepository 用户接口
@@ -139,10 +141,11 @@ type CommandHistoryRepository interface {
 	Update(ctx context.Context, cmd *CommandHistory) error
 	GetByCommandID(ctx context.Context, cmdID string) (*CommandHistory, error)
 	ListByCluster(ctx context.Context, clusterID string, limit, offset int) ([]*CommandHistory, error)
-	ListByUser(ctx context.Context, userID int64, limit, offset int) ([]*CommandHistory, error)
 	// 新增：带筛选条件的列表查询
 	List(ctx context.Context, opts CommandQueryOpts) ([]*CommandHistory, error)
 	Count(ctx context.Context, opts CommandQueryOpts) (int64, error)
+	// DeleteBefore 删除创建时间早于 before 的历史，返回删除的行数
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 // SettingsRepository 设置接口
@@ -270,6 +273,8 @@ type AIOpsGraphRepository interface {
 
 // AIOpsIncidentRepository 事件数据访问接口
 type AIOpsIncidentRepository interface {
+	// DeleteResolvedBefore 删除恢复时间早于 before 的事件（子表随外键级联删除），返回删除的事件数；未恢复的不删
+	DeleteResolvedBefore(ctx context.Context, before time.Time) (int64, error)
 	CreateIncident(ctx context.Context, inc *AIOpsIncident) error
 	GetByID(ctx context.Context, id string) (*AIOpsIncident, error)
 	// UpdateState 只改状态；严重度是峰值，由 RaiseSeverity 单独维护
@@ -386,6 +391,7 @@ type AuditDialect interface {
 	Insert(log *AuditLog) (query string, args []any)
 	List(opts AuditQueryOpts) (query string, args []any)
 	Count(opts AuditQueryOpts) (query string, args []any)
+	DeleteBefore(before time.Time) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*AuditLog, error)
 }
 
@@ -447,10 +453,10 @@ type CommandDialect interface {
 	Update(cmd *CommandHistory) (query string, args []any)
 	SelectByCommandID(cmdID string) (query string, args []any)
 	SelectByCluster(clusterID string, limit, offset int) (query string, args []any)
-	SelectByUser(userID int64, limit, offset int) (query string, args []any)
 	// 新增：带筛选条件的查询
 	SelectWithOpts(opts CommandQueryOpts) (query string, args []any)
 	CountWithOpts(opts CommandQueryOpts) (query string, args []any)
+	DeleteBefore(before time.Time) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*CommandHistory, error)
 }
 
@@ -582,6 +588,7 @@ type AIOpsGraphDialect interface {
 
 // AIOpsIncidentDialect 事件 SQL 方言
 type AIOpsIncidentDialect interface {
+	DeleteResolvedBefore(before time.Time) (string, []any)
 	InsertIncident(inc *AIOpsIncident) (string, []any)
 	SelectByID(id string) (string, []any)
 	UpdateState(id, state string) (string, []any)

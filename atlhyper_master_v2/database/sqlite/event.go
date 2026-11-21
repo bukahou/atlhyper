@@ -17,7 +17,7 @@ type eventDialect struct{}
 // 重复到达，所以冲突时取较大值而不是相加。时间与消息只在新记录不比已存记录旧时更新，
 // 避免 K8s 事件过期后重新计数、或记录乱序到达时回退。
 func (d *eventDialect) Upsert(event *database.ClusterEvent) (string, []any) {
-	now := time.Now().Format(time.RFC3339)
+	now := utcStamp(time.Now())
 	query := `
 		INSERT INTO cluster_events (
 			dedup_key, cluster_id, namespace, name, type, reason, message,
@@ -30,6 +30,8 @@ func (d *eventDialect) Upsert(event *database.ClusterEvent) (string, []any) {
 			message = CASE WHEN excluded.last_timestamp >= cluster_events.last_timestamp
 				THEN excluded.message ELSE cluster_events.message END,
 			last_timestamp = MAX(cluster_events.last_timestamp, excluded.last_timestamp),
+			source_host = CASE WHEN cluster_events.source_host = ''
+				THEN excluded.source_host ELSE cluster_events.source_host END,
 			updated_at = excluded.updated_at
 	`
 	args := []any{
@@ -37,8 +39,8 @@ func (d *eventDialect) Upsert(event *database.ClusterEvent) (string, []any) {
 		event.Type, event.Reason, event.Message,
 		event.SourceComponent, event.SourceHost,
 		event.InvolvedKind, event.InvolvedName, event.InvolvedNamespace,
-		event.FirstTimestamp.Format(time.RFC3339),
-		event.LastTimestamp.Format(time.RFC3339),
+		utcStamp(event.FirstTimestamp),
+		utcStamp(event.LastTimestamp),
 		event.Count, now, now,
 	}
 	return query, args
@@ -65,11 +67,11 @@ func (d *eventDialect) ListByCluster(clusterID string, opts database.EventQueryO
 	}
 	if !opts.Since.IsZero() {
 		query += " AND last_timestamp >= ?"
-		args = append(args, opts.Since.Format(time.RFC3339))
+		args = append(args, utcStamp(opts.Since))
 	}
 	if !opts.Until.IsZero() {
 		query += " AND last_timestamp <= ?"
-		args = append(args, opts.Until.Format(time.RFC3339))
+		args = append(args, utcStamp(opts.Until))
 	}
 
 	query += " ORDER BY last_timestamp DESC"
@@ -109,12 +111,12 @@ func (d *eventDialect) ListByType(clusterID, eventType string, since time.Time) 
 		WHERE cluster_id = ? AND type = ? AND last_timestamp >= ?
 		ORDER BY last_timestamp DESC
 	`
-	return query, []any{clusterID, eventType, since.Format(time.RFC3339)}
+	return query, []any{clusterID, eventType, utcStamp(since)}
 }
 
 func (d *eventDialect) DeleteBefore(clusterID string, before time.Time) (string, []any) {
 	return "DELETE FROM cluster_events WHERE cluster_id = ? AND last_timestamp < ?",
-		[]any{clusterID, before.Format(time.RFC3339)}
+		[]any{clusterID, utcStamp(before)}
 }
 
 func (d *eventDialect) CountByCluster(clusterID string) (string, []any) {
@@ -132,7 +134,7 @@ func (d *eventDialect) CountByHour(clusterID string, since time.Time) (string, [
 		GROUP BY hour
 		ORDER BY hour ASC
 	`
-	return query, []any{clusterID, since.Format(time.RFC3339)}
+	return query, []any{clusterID, utcStamp(since)}
 }
 
 func (d *eventDialect) CountByHourAndKind(clusterID string, since time.Time) (string, []any) {
@@ -146,7 +148,7 @@ func (d *eventDialect) CountByHourAndKind(clusterID string, since time.Time) (st
 		GROUP BY hour, involved_kind
 		ORDER BY hour ASC, count DESC
 	`
-	return query, []any{clusterID, since.Format(time.RFC3339)}
+	return query, []any{clusterID, utcStamp(since)}
 }
 
 func (d *eventDialect) ScanRow(rows *sql.Rows) (*database.ClusterEvent, error) {

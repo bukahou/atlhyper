@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, memo } from "react";
-import * as echarts from "echarts";
+import { useEffect, memo } from "react";
+import type * as echarts from "echarts";
+import { useEChart } from "@/hooks/useEChart";
+import { getThemeColors } from "@/lib/chart-theme";
 import { TrendingUp } from "lucide-react";
 import type { Point } from "@/types/node-metrics";
 import { useI18n } from "@/i18n/context";
@@ -15,6 +17,27 @@ interface ResourceChartProps {
   spanMs: number;
 }
 
+/** 主题切换后重新上色（只改与主题有关的颜色） */
+function applyThemeColors(instance: echarts.ECharts) {
+  const newColors = getThemeColors();
+  instance.setOption({
+    tooltip: {
+      backgroundColor: newColors.tooltipBg,
+      borderColor: newColors.tooltipBorder,
+      textStyle: { color: newColors.tooltipText },
+    },
+    legend: { textStyle: { color: newColors.textColor } },
+    xAxis: {
+      axisLine: { lineStyle: { color: newColors.lineColor } },
+      axisLabel: { color: newColors.textColor },
+    },
+    yAxis: {
+      axisLabel: { color: newColors.textColor },
+      splitLine: { lineStyle: { color: newColors.splitLineColor } },
+    },
+  });
+}
+
 export const ResourceChart = memo(function ResourceChart({
   data,
   title,
@@ -23,27 +46,12 @@ export const ResourceChart = memo(function ResourceChart({
   const { t } = useI18n();
   const nm = t.nodeMetrics;
   const displayTitle = title || nm.chart.title;
-  const chartRef = useRef<HTMLDivElement>(null);
-  const chartInstance = useRef<echarts.ECharts | null>(null);
 
-  // 获取主题颜色
-  const getThemeColors = () => {
-    const isDark = document.documentElement.classList.contains("dark");
-    return {
-      textColor: isDark ? "#9ca3af" : "#6b7280",
-      lineColor: isDark ? "#374151" : "#e5e7eb",
-      splitLineColor: isDark ? "#1f2937" : "#f3f4f6",
-      tooltipBg: isDark ? "#1f2937" : "#fff",
-      tooltipBorder: isDark ? "#374151" : "#e5e7eb",
-      tooltipText: isDark ? "#e5e7eb" : "#111827",
-    };
-  };
+  const { containerRef, chart } = useEChart({ onThemeChange: applyThemeColors });
 
-  // 初始化图表
+  // 基础配置
   useEffect(() => {
-    if (!chartRef.current) return;
-
-    chartInstance.current = echarts.init(chartRef.current);
+    if (!chart) return;
     const colors = getThemeColors();
 
     const baseOption: echarts.EChartsOption = {
@@ -143,46 +151,12 @@ export const ResourceChart = memo(function ResourceChart({
       ],
     };
 
-    chartInstance.current.setOption(baseOption);
-
-    const handleResize = () => chartInstance.current?.resize();
-    window.addEventListener("resize", handleResize);
-
-    // 监听主题变化
-    const observer = new MutationObserver(() => {
-      if (chartInstance.current) {
-        const newColors = getThemeColors();
-        chartInstance.current.setOption({
-          tooltip: {
-            backgroundColor: newColors.tooltipBg,
-            borderColor: newColors.tooltipBorder,
-            textStyle: { color: newColors.tooltipText },
-          },
-          legend: { textStyle: { color: newColors.textColor } },
-          xAxis: {
-            axisLine: { lineStyle: { color: newColors.lineColor } },
-            axisLabel: { color: newColors.textColor },
-          },
-          yAxis: {
-            axisLabel: { color: newColors.textColor },
-            splitLine: { lineStyle: { color: newColors.splitLineColor } },
-          },
-        });
-      }
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      observer.disconnect();
-      chartInstance.current?.dispose();
-      chartInstance.current = null;
-    };
-  }, []);
+    chart.setOption(baseOption);
+  }, [chart]);
 
   // 数据更新
   useEffect(() => {
-    if (!chartInstance.current) return;
+    if (!chart) return;
 
     const metricKeys = ["cpu", "memory", "disk", "temp"];
     const hasAnyData = metricKeys.some(k => (data[k]?.length || 0) > 0);
@@ -211,14 +185,14 @@ export const ResourceChart = memo(function ResourceChart({
       xAxisMax = now;
     }
 
-    chartInstance.current.setOption({
+    chart.setOption({
       xAxis: {
         min: xAxisMin,
         max: xAxisMax,
       },
       series: seriesData.map(d => ({ data: d })),
     });
-  }, [data, spanMs]);
+  }, [chart, data, spanMs]);
 
   const hasData = Object.values(data).some(points => points && points.length > 0);
 
@@ -238,7 +212,7 @@ export const ResourceChart = memo(function ResourceChart({
 
       {/* 图表 */}
       <div className="relative">
-        <div ref={chartRef} style={{ width: "100%", height: "300px" }} />
+        <div ref={containerRef} style={{ width: "100%", height: "300px" }} />
         {!hasData && (
           <div className="absolute inset-0 flex items-center justify-center bg-card text-muted">
             {nm.chart.noData}

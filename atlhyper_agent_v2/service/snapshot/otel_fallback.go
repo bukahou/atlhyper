@@ -52,9 +52,6 @@ func restoreMissingFromPrev(fresh, prev *cluster.OTelSnapshot) RestoredSignals {
 	if fresh.RecentTraces == nil {
 		fresh.RecentTraces = prev.RecentTraces
 	}
-	if fresh.RecentLogs == nil {
-		fresh.RecentLogs = prev.RecentLogs
-	}
 
 	// 指针型：nil = 未取到
 	if fresh.MetricsSummary == nil {

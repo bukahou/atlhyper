@@ -101,3 +101,28 @@ func TestEventUpsert_OlderRecordDoesNotRegress(t *testing.T) {
 		t.Errorf("message = %q, want 保留较新的消息", got.Message)
 	}
 }
+
+// 来源主机：先前没记下（空）的行，后续写入带上主机名时补上；已知的不被空值覆盖。
+func TestEventUpsert_BackfillsSourceHost(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	last := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	write := func(host string) {
+		t.Helper()
+		ev := warningEvent(3, last, "back-off")
+		ev.SourceHost = host
+		if err := db.Event.UpsertBatch(ctx, []*database.ClusterEvent{ev}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("")
+	write("node-a")
+	if got := storedEvent(t, db).SourceHost; got != "node-a" {
+		t.Fatalf("补写后 source_host = %q, want node-a", got)
+	}
+	write("")
+	if got := storedEvent(t, db).SourceHost; got != "node-a" {
+		t.Fatalf("空值不应覆盖已知主机，source_host = %q", got)
+	}
+}

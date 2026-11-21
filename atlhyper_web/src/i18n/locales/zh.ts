@@ -90,6 +90,7 @@ export const zh: Translations = {
     namespace: "命名空间",
     createdAt: "创建时间",
     close: "关闭",
+    notificationsRegion: "通知",
     view: "查看",
     details: "详情",
     filter: "筛选",
@@ -628,6 +629,13 @@ export const zh: Translations = {
   },
   overview: {
     clusterHealth: "集群健康",
+    healthStatus: { Healthy: "健康", Degraded: "降级", Unhealthy: "异常", Unknown: "未知" },
+    healthReasons: {
+      nodeReadyLow: "节点就绪率过低",
+      podReadyLow: "Pod 就绪率过低",
+      someNodesNotReady: "部分节点未就绪",
+      somePodsNotReady: "部分 Pod 未就绪",
+    },
     nodeReady: "节点就绪",
     podHealthy: "Pod 健康",
     nodes: "节点",
@@ -751,6 +759,7 @@ export const zh: Translations = {
       "slo.manage": "SLO 目标设置",
       "ai.analyze": "AI 分析与深度分析",
       "ai.settings.read": "查看 AI 配置",
+      "ai.conversation.delete": "删除自己的 AI 对话",
       "user.manage": "用户管理与提权",
       "ai.settings.write": "修改 AI 配置",
       "github.manage": "GitHub 连接与仓库",
@@ -1347,6 +1356,8 @@ export const zh: Translations = {
       uncordon: "解除隔离",
       update_image: "更新镜像",
     },
+    outcomeFailed: "指令执行失败：{error}",
+    outcomeStillRunning: "指令仍在执行，稍后刷新查看结果",
   },
   aiSettingsPage: {
     // 页面标题
@@ -1398,6 +1409,7 @@ export const zh: Translations = {
     // Toast 消息
     requiredFields: "请填写必填项",
     apiKeyRequired: "请输入 API Key",
+    anthropicKeylessHint: "留空则用集群身份免密钥访问（Workload Identity Federation，需在集群里配置）",
     providerUpdated: "提供商已更新",
     providerAdded: "提供商已添加",
     saveFailed: "保存失败",
@@ -1632,10 +1644,21 @@ export const zh: Translations = {
       deploymentStatus: "检查 Deployment 状态",
     },
     // ChatInput
+    streamErrors: {
+      unauthorized: "登录已过期，请重新登录",
+      forbidden: "权限不足，请联系管理员提升权限",
+      rateLimited: "请求太频繁，请稍后再试",
+      httpError: "服务暂时不可用（HTTP {status}）",
+      serverError: "服务端出错，回答没有完成",
+      malformed: "收到的回答格式不对，已停止",
+      interrupted: "连接在回答完成前中断了，已显示的内容可能不完整",
+      network: "网络错误：{message}",
+    },
     chatInput: {
       placeholderStreaming: "AI 正在回复...",
       placeholderNormal: "给 AI 助手发送消息...",
       stopButton: "停止生成",
+      generationStopped: "已停止生成，以上是停止前已输出的内容",
       sendButton: "发送",
       disclaimer: "AI 可能会出错，请核实重要信息。",
     },
@@ -1710,22 +1733,21 @@ resources:
 
 需要我帮你执行修复操作吗？`,
       msg3User: "好的，请帮我把内存限制调整到 256Mi",
-      msg4Assistant: `已成功更新 nginx-deployment 的内存配置！
+      msg4Assistant: `AI 助手只读，不会修改集群。下面是改法，请确认后自行执行：
 
-## 执行结果
-Deployment 已更新，新的 Pod 正在启动中
+## 修改方式
+把 nginx-deployment 容器的内存上限从 128Mi 调到 256Mi：
 
-### 变更详情
-- **资源**: Deployment/nginx-deployment
-- **命名空间**: default
-- **变更内容**: memory limit 128Mi → 256Mi
+\`\`\`bash
+kubectl -n default set resources deployment/nginx-deployment --limits=memory=256Mi
+\`\`\`
 
-### 当前状态
-- 新 Pod 已创建: nginx-deployment-5d4f7b8c9-xyz99
-- 状态: Running
-- 重启次数: 0
+如果清单由 GitOps 管理，请改仓库里的 \`resources.limits.memory\`，避免被同步回去。
 
-建议持续观察 10-15 分钟确认问题已解决。`,
+### 改完后确认
+- 新 Pod 正常运行（\`kubectl -n default get pods\`）
+- 重启次数不再增长
+- 观察 10–15 分钟，确认不再出现 OOMKilled`,
     },
     // ConversationSidebar
     sidebar: {
@@ -1740,6 +1762,10 @@ Deployment 已更新，新的 Pod 正在启动中
       older: "更早",
     },
     // ExecutionBlock
+    notice: {
+      historyTrimmed: "较早的对话已按轮省略，以适应模型的上下文长度",
+      toolCallsCapped: "本轮工具调用超过上限，只执行了前几个",
+    },
     execution: {
       roundLabel: "第 {n} 轮",
       executing: "执行中...",
@@ -1978,6 +2004,7 @@ Deployment 已更新，新的 Pod 正在启动中
         good: "正常",
         warn: "注意",
         crit: "危险",
+        unknown: "无数据",
       },
     },
     chart: {
@@ -2150,6 +2177,12 @@ Deployment 已更新，新的 Pod 正在启动中
       analysisFailed: "AI 分析失败，请稍后重试",
       errorRoleUnassigned: "该功能使用的 AI 角色尚未分配提供商：请到「AI 设置 → 角色分配」为其指定提供商",
       errorBudgetExhausted: "该 AI 角色的预算已用尽：请到「AI 设置」调整预算或配置备用提供商",
+      errorConfig: "AI 配置有误：请到「AI 设置」检查提供商类型、地址与密钥",
+      errorAuth: "提供商拒绝了 API Key，或没有使用该模型的权限：请到「AI 设置」检查密钥与模型",
+      errorRateLimited: "提供商限流或配额已用尽：请稍后重试，或在「AI 设置」换用其他提供商",
+      errorUnreachable: "连不上 AI 提供商：请检查地址与网络",
+      errorInterrupted: "AI 的回答在完成前中断了，请重试",
+      errorRefused: "模型拒绝回答这个请求，可以换个说法再试",
       errorUpstream: "调用 AI 模型失败：请检查提供商的 API Key 与状态，或稍后重试",
       errorTimeout: "AI 分析超时（超过 5 分钟）：可稍后重试，或换用响应更快的模型",
       analysisInterrupted: "分析已中断（服务重启），请重新发起",
@@ -2444,7 +2477,7 @@ Deployment 已更新，新的 Pod 正在启动中
     pathsSection: "部署路径",
     pathsSectionHint: "每条路径对应一个 kustomization.yaml 目录，按 Namespace 独立管理",
     pathCol: "路径",
-    pathPlaceholder: "如 zgmf-x10a/k8s-configs/Geass/backend",
+    pathPlaceholder: "如 demo-cluster/k8s-configs/Geass/backend",
     addPath: "添加路径",
     deletePath: "删除",
     noPathsHint: "请添加至少一条部署路径",
@@ -2478,12 +2511,7 @@ Deployment 已更新，新的 Pod 正在启动中
     statusCol2: "状态",
     triggerAuto: "自动",
     triggerManual: "手动",
-    triggerRollback: "回滚",
     viewDetail: "详情",
-    rollbackBtn: "回滚",
-    rollbackConfirm: "确认将 {service} 回滚到 {version}？",
-    rollbackSuccess: "回滚指令已发送",
-    rollbackFailed: "回滚失败",
     noHistory: "暂无部署历史",
     noHistoryHint: "部署发生后将在此显示记录",
     detailTitle: "部署详情",

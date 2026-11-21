@@ -16,6 +16,9 @@ type ClusterSnapshot struct {
 	ClusterID string    `json:"clusterId"`
 	FetchedAt time.Time `json:"fetchedAt"`
 
+	// StaleKinds 本轮没采到、用了旧数据或留空的资源类别（全部采到时为空）
+	StaleKinds []StaleKind `json:"staleKinds,omitempty"`
+
 	// 工作负载
 	Pods         []Pod         `json:"pods"`
 	Deployments  []Deployment  `json:"deployments"`
@@ -179,8 +182,6 @@ type OTelSnapshot struct {
 	APMOperations []apm.OperationStats `json:"apmOperations,omitempty"`
 	// 最近 Traces（无过滤，Dashboard 首屏用）
 	RecentTraces []apm.TraceSummary `json:"recentTraces,omitempty"`
-	// 最近日志条目（5 分钟窗口，最多 500 条）
-	RecentLogs []log.Entry `json:"recentLogs,omitempty"`
 	// 日志统计摘要（5 分钟窗口）
 	LogsSummary *log.Summary `json:"logsSummary,omitempty"`
 
@@ -295,4 +296,11 @@ type APMTimePoint struct {
 	AvgMs       float64   `json:"avgMs"`
 	P99Ms       float64   `json:"p99Ms"`
 	ErrorCount  int64     `json:"errorCount"`
+}
+
+// StaleKind 一类资源本轮没采到：沿用了上一轮的数据，或连续失败太久已留空
+type StaleKind struct {
+	Kind          string    `json:"kind"`                  // 采集器的类别名，如 deployments
+	LastSuccessAt time.Time `json:"lastSuccessAt"`         // 最后一次采到的时刻（从没采到过为零值）
+	Unavailable   bool      `json:"unavailable,omitempty"` // true = 已不再沿用，本轮留空
 }

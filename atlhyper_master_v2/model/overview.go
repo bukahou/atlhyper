@@ -28,10 +28,14 @@ type OverviewCards struct {
 
 // OverviewClusterHealth 集群健康状态
 type OverviewClusterHealth struct {
-	Status           string  `json:"status"`
+	Status string `json:"status"` // Healthy / Degraded / Unhealthy
+	// Reason 原因代码（nodeReadyLow / podReadyLow / someNodesNotReady / somePodsNotReady），文案由前端出
 	Reason           string  `json:"reason,omitempty"`
 	NodeReadyPercent float64 `json:"nodeReadyPercent"`
 	PodReadyPercent  float64 `json:"podReadyPercent"`
+	// 两项就绪率各自的结论（与 Status 同一套取值），前端只按它上色
+	NodeReadyStatus string `json:"nodeReadyStatus"`
+	PodReadyStatus  string `json:"podReadyStatus"`
 }
 
 // OverviewResourceReady 资源就绪
@@ -142,7 +146,9 @@ type OverviewNodes struct {
 
 // OverviewNodeUsage 节点使用率
 type OverviewNodeUsage struct {
-	Node     string  `json:"node"`
-	CPUUsage float64 `json:"cpuUsage"`
-	MemUsage float64 `json:"memUsage"`
+	Node     string         `json:"node"`
+	CPUUsage float64        `json:"cpuUsage"`
+	MemUsage float64        `json:"memUsage"`
+	CPULevel HardwareStatus `json:"cpuLevel"` // 阈值见 model/levels.go
+	MemLevel HardwareStatus `json:"memLevel"`
 }

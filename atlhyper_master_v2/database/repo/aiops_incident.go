@@ -40,7 +40,7 @@ func (r *aiopsIncidentRepo) GetByID(ctx context.Context, id string) (*database.A
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, nil
+		return nil, rows.Err() // 没有行是 nil, nil；读取出错要报出来
 	}
 	return r.dialect.ScanIncident(rows)
 }
@@ -249,7 +249,7 @@ func (r *aiopsIncidentRepo) ListActiveLinks(ctx context.Context, clusterID strin
 
 // GetIncidentStats 获取事件统计信息
 func (r *aiopsIncidentRepo) GetIncidentStats(ctx context.Context, clusterID string, since time.Time) (*database.AIOpsIncidentStatsRaw, error) {
-	sinceStr := since.Format(time.RFC3339)
+	sinceStr := database.Stamp(since)
 
 	// 总事件数
 	var totalIncidents int
@@ -347,7 +347,7 @@ func (r *aiopsIncidentRepo) GetIncidentStats(ctx context.Context, clusterID stri
 // TopRootCauses 出事件最多的主体。
 // 按主体而不是领头实体分组：Pod 重建会换名字，按 Pod 分组会把同一个工作负载拆散
 func (r *aiopsIncidentRepo) TopRootCauses(ctx context.Context, clusterID string, since time.Time, limit int) ([]database.AIOpsRootCauseCount, error) {
-	sinceStr := since.Format(time.RFC3339)
+	sinceStr := database.Stamp(since)
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT subject, COUNT(*) as cnt FROM aiops_incidents
 		WHERE cluster_id = ? AND started_at >= ? AND subject != ''
@@ -371,7 +371,7 @@ func (r *aiopsIncidentRepo) TopRootCauses(ctx context.Context, clusterID string,
 
 // ListByEntity 查询某个集群里与指定实体相关的事件：主体是它，或成员实体里有它
 func (r *aiopsIncidentRepo) ListByEntity(ctx context.Context, clusterID, entityKey string, since time.Time) ([]*database.AIOpsIncident, error) {
-	sinceStr := since.Format(time.RFC3339)
+	sinceStr := database.Stamp(since)
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT `+r.dialect.IncidentColumns("i.")+`
 		FROM aiops_incidents i
@@ -415,11 +415,11 @@ func buildIncidentListQuery(columns string, opts database.AIOpsIncidentQueryOpts
 	}
 	if !opts.From.IsZero() {
 		conditions = append(conditions, "started_at >= ?")
-		args = append(args, opts.From.Format(time.RFC3339))
+		args = append(args, database.Stamp(opts.From))
 	}
 	if !opts.To.IsZero() {
 		conditions = append(conditions, "started_at <= ?")
-		args = append(args, opts.To.Format(time.RFC3339))
+		args = append(args, database.Stamp(opts.To))
 	}
 	if opts.ExcludeLinked {
 		conditions = append(conditions, "id NOT IN (SELECT incident_id FROM aiops_incident_links WHERE unlinked_at IS NULL)")
@@ -448,3 +448,12 @@ func buildIncidentListQuery(columns string, opts database.AIOpsIncidentQueryOpts
 
 // 确保实现了接口
 var _ database.AIOpsIncidentRepository = (*aiopsIncidentRepo)(nil)
+
+func (r *aiopsIncidentRepo) DeleteResolvedBefore(ctx context.Context, before time.Time) (int64, error) {
+	query, args := r.dialect.DeleteResolvedBefore(before)
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

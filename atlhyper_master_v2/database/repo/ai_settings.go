@@ -29,7 +29,7 @@ func (r *aiSettingsRepo) Get(ctx context.Context) (*database.AISettings, error) 
 	if rows.Next() {
 		return r.dialect.ScanRow(rows)
 	}
-	return nil, nil
+	return nil, rows.Err() // 没有行是 nil, nil；读取出错要报出来
 }
 
 func (r *aiSettingsRepo) Update(ctx context.Context, cfg *database.AISettings) error {

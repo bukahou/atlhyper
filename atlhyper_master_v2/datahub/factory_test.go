@@ -22,19 +22,3 @@ func TestNewStore_DefaultMemory(t *testing.T) {
 		t.Fatalf("NewStore(empty Type) returned %T, want *memory.MemoryStore", store)
 	}
 }
-
-func TestNewStore_UnknownType(t *testing.T) {
-	store := NewStore(Config{
-		Type:            "unknown",
-		EventRetention:  5 * time.Minute,
-		HeartbeatExpire: 30 * time.Second,
-	})
-
-	if store == nil {
-		t.Fatal("NewStore returned nil")
-	}
-
-	if _, ok := store.(*memory.MemoryStore); !ok {
-		t.Fatalf("NewStore(unknown Type) returned %T, want *memory.MemoryStore (fallback)", store)
-	}
-}

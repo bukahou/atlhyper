@@ -95,6 +95,8 @@ func attachLogErrors(spans []apm.Span, logs []traceErrorLog) {
 // queryTraceErrorLogs 拉取一条 trace 的全部 ERROR 日志（证据候选）。
 // 失败时返回空切片而非错误 —— 证据链是增强信息，不应让整个详情查询失败。
 func (r *traceRepository) queryTraceErrorLogs(ctx context.Context, traceID string) []traceErrorLog {
+	skips := newScanSkips("queryTraceErrorLogs")
+	defer skips.report()
 	query := `
 		SELECT Timestamp, SpanId, ServiceName, Body, LogAttributes
 		FROM otel_logs
@@ -112,6 +114,7 @@ func (r *traceRepository) queryTraceErrorLogs(ctx context.Context, traceID strin
 	for rows.Next() {
 		var l traceErrorLog
 		if err := rows.Scan(&l.Timestamp, &l.SpanId, &l.ServiceName, &l.Body, &l.Attributes); err != nil {
+			skips.add(err)
 			continue
 		}
 		logs = append(logs, l)

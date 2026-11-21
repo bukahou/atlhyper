@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, memo } from "react";
-import * as echarts from "echarts";
+import { useEffect, memo } from "react";
+import type * as echarts from "echarts";
+import { useEChart } from "@/hooks/useEChart";
 import { useI18n } from "@/i18n/context";
 import type { Point } from "@/types/node-metrics";
 import { PALETTE, INTERVALS_BY_WINDOW, windowForHours } from "./chartConstants";
-import { getThemeColors, aggregatePoints, pickAdaptiveInterval } from "./chartUtils";
+import { aggregatePoints, pickAdaptiveInterval } from "./chartUtils";
+import { getThemeColors } from "@/lib/chart-theme";
 import { joinHtml, safeHtml } from "@/lib/safe-html";
 import { historyChartState } from "./historyChartState";
 
@@ -23,6 +25,27 @@ export interface MetricChartProps {
   hours: number;
 }
 
+/** 主题切换后重新上色（只改与主题有关的颜色） */
+function applyThemeColors(chart: echarts.ECharts) {
+  const c = getThemeColors();
+  chart.setOption({
+    tooltip: {
+      backgroundColor: c.tooltipBg,
+      borderColor: c.tooltipBorder,
+      textStyle: { color: c.tooltipText },
+    },
+    xAxis: {
+      axisLine: { lineStyle: { color: c.lineColor } },
+      axisLabel: { color: c.textColor },
+    },
+    yAxis: {
+      nameTextStyle: { color: c.textColor },
+      axisLabel: { color: c.textColor },
+      splitLine: { lineStyle: { color: c.splitLineColor } },
+    },
+  });
+}
+
 // ==================== Component ====================
 
 export const MetricChart = memo(function MetricChart({
@@ -36,17 +59,13 @@ export const MetricChart = memo(function MetricChart({
 }: MetricChartProps) {
   const { t } = useI18n();
   const nm = t.nodeMetrics;
-  const chartRef = useRef<HTMLDivElement>(null);
-  const chartInstance = useRef<echarts.ECharts | null>(null);
+  const { containerRef, chart } = useEChart({ onThemeChange: applyThemeColors });
 
-  // Init ECharts
+  // 基础配置（颜色取当前主题）
   useEffect(() => {
-    if (!chartRef.current) return;
-
-    chartInstance.current = echarts.init(chartRef.current);
+    if (!chart) return;
     const colors = getThemeColors();
-
-    chartInstance.current.setOption({
+    chart.setOption({
       animation: true,
       animationDuration: 300,
       grid: { left: 45, right: 12, top: 10, bottom: 30 },
@@ -73,43 +92,11 @@ export const MetricChart = memo(function MetricChart({
       },
       series: [],
     });
-
-    const handleResize = () => chartInstance.current?.resize();
-    window.addEventListener("resize", handleResize);
-
-    const observer = new MutationObserver(() => {
-      if (!chartInstance.current) return;
-      const c = getThemeColors();
-      chartInstance.current.setOption({
-        tooltip: {
-          backgroundColor: c.tooltipBg,
-          borderColor: c.tooltipBorder,
-          textStyle: { color: c.tooltipText },
-        },
-        xAxis: {
-          axisLine: { lineStyle: { color: c.lineColor } },
-          axisLabel: { color: c.textColor },
-        },
-        yAxis: {
-          nameTextStyle: { color: c.textColor },
-          axisLabel: { color: c.textColor },
-          splitLine: { lineStyle: { color: c.splitLineColor } },
-        },
-      });
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      observer.disconnect();
-      chartInstance.current?.dispose();
-      chartInstance.current = null;
-    };
-  }, []);
+  }, [chart]);
 
   // Data update
   useEffect(() => {
-    if (!chartInstance.current) return;
+    if (!chart) return;
 
     const now = Date.now();
     const rangeMs = hours * 3600000;
@@ -152,7 +139,7 @@ export const MetricChart = memo(function MetricChart({
     const dataMax = allValues.length > 0 ? Math.max(...allValues) : 0;
     const yMax = Math.max(10, Math.ceil(dataMax * 1.2));
 
-    chartInstance.current.setOption({
+    chart.setOption({
       tooltip: {
         formatter: (params: unknown) => {
           const items = params as { seriesName: string; value: [number, number]; color: string }[];
@@ -171,7 +158,7 @@ export const MetricChart = memo(function MetricChart({
       yAxis: { name: unit, max: yMax },
       series,
     });
-  }, [hours, historyMap, nodeNames, metricKey, unit]);
+  }, [chart, hours, historyMap, nodeNames, metricKey, unit]);
 
   const chartState = historyChartState(nodeNames, metricKey, historyMap, failedNodes);
 
@@ -182,7 +169,7 @@ export const MetricChart = memo(function MetricChart({
 
       </div>
       <div className="relative">
-        <div ref={chartRef} style={{ width: "100%", height: "200px" }} />
+        <div ref={containerRef} style={{ width: "100%", height: "200px" }} />
         {chartState === "failed" && (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-red-500">
             {nm.overview.loadFailed}

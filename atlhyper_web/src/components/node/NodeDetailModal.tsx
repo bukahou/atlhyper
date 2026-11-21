@@ -6,7 +6,7 @@ import { Drawer } from "@/components/common/Drawer";
 import { DetailQueryView } from "@/components/common/DetailQueryView";
 import { ConfirmDialog } from "@/components/common";
 import { useCurrentCluster } from "@/hooks/useCurrentCluster";
-import { useDelayedInvalidate } from "@/hooks/useDelayedInvalidate";
+import { useCommandSettle } from "@/hooks/useCommandSettle";
 import { useI18n } from "@/i18n/context";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { nodeDetailQuery } from "@/queries/cluster";
@@ -23,14 +23,14 @@ interface NodeDetailModalProps {
 
 interface NodeDetailDrawerProps extends Omit<NodeDetailModalProps, "isOpen"> {
   /** 过一会儿让给定的查询重新取数（由外层持有，抽屉关掉后仍然生效） */
-  invalidateAfterCommand: (queryKeys: readonly QueryKey[]) => void;
+  settleCommand: (commandId: string, queryKeys: readonly QueryKey[]) => Promise<unknown>;
 }
 
 type TabType = "overview" | "resources" | "conditions" | "taints" | "labels";
 
 export function NodeDetailModal({ isOpen, onClose, nodeName }: NodeDetailModalProps) {
   // 延时刷新挂在外层：操作完马上关掉抽屉，稍后那次列表刷新仍然要发生
-  const invalidateAfterCommand = useDelayedInvalidate();
+  const settleCommand = useCommandSettle();
 
   // 关着时整个抽屉不挂载：详情查询只在打开期间存在，标签页等界面状态随关闭丢弃
   if (!isOpen) return null;
@@ -39,12 +39,12 @@ export function NodeDetailModal({ isOpen, onClose, nodeName }: NodeDetailModalPr
       key={nodeName}
       onClose={onClose}
       nodeName={nodeName}
-      invalidateAfterCommand={invalidateAfterCommand}
+      settleCommand={settleCommand}
     />
   );
 }
 
-function NodeDetailDrawer({ onClose, nodeName, invalidateAfterCommand }: NodeDetailDrawerProps) {
+function NodeDetailDrawer({ onClose, nodeName, settleCommand }: NodeDetailDrawerProps) {
   const { t } = useI18n();
   const { clusterId } = useCurrentCluster();
   const requireAuth = useRequireAuth();
@@ -66,11 +66,10 @@ function NodeDetailDrawer({ onClose, nodeName, invalidateAfterCommand }: NodeDet
     scheduling.mutate(
       { nodeName, currentlySchedulable: detail.schedulable },
       {
-        onSuccess: () => {
+        onSuccess: (resp) => {
           setShowCordonConfirm(false);
-          // 指令由 Agent 异步执行：下发成功时列表与详情已刷新过一次，
-          // 晚一点再刷新一次才看得到节点的新状态
-          invalidateAfterCommand(clusterKeys.resourceScope("node"));
+          // 指令由 Agent 异步执行：下发成功时列表与详情已刷新过一次，等指令执行完再刷新一次
+          void settleCommand(resp.data.commandId, clusterKeys.resourceScope("node"));
         },
         onError: (err) => console.error("Cordon/Uncordon failed:", err),
       },

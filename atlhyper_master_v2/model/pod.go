@@ -9,12 +9,15 @@ type PodItem struct {
 	Deployment string `json:"deployment"`
 	Ready      string `json:"ready"`
 	Phase      string `json:"phase"`
-	Restarts   int32  `json:"restarts"`
-	CPUText    string `json:"cpuText"`
-	MemoryText string `json:"memoryText"`
-	StartTime  string `json:"startTime"`
-	Node       string `json:"node"`
-	Age        string `json:"age,omitempty"`
+	// StatusLevel 显示等级（后端判定）；StatusReason 有容器故障时为其原因代码（如 CrashLoopBackOff），否则为空
+	StatusLevel  StatusLevel `json:"statusLevel"`
+	StatusReason string      `json:"statusReason,omitempty"`
+	Restarts     int32       `json:"restarts"`
+	CPUText      string      `json:"cpuText"`
+	MemoryText   string      `json:"memoryText"`
+	StartTime    string      `json:"startTime"`
+	Node         string      `json:"node"`
+	Age          string      `json:"age,omitempty"`
 }
 
 // PodOverviewCards Pod 概览统计
@@ -34,20 +37,21 @@ type PodOverview struct {
 // PodDetail Pod 详情（扁平 + 嵌套容器/卷）
 type PodDetail struct {
 	// 基本信息
-	Name       string `json:"name"`
-	Namespace  string `json:"namespace"`
-	Controller string `json:"controller,omitempty"`
-	Phase      string `json:"phase"`
-	Ready      string `json:"ready"`
-	Restarts   int32  `json:"restarts"`
-	StartTime  string `json:"startTime"`
-	Age        string `json:"age,omitempty"`
-	Node       string `json:"node"`
-	PodIP      string `json:"podIP,omitempty"`
-	HostIP     string `json:"hostIP,omitempty"`
-	QoSClass   string `json:"qosClass,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-	Message    string `json:"message,omitempty"`
+	Name        string      `json:"name"`
+	Namespace   string      `json:"namespace"`
+	Controller  string      `json:"controller,omitempty"`
+	Phase       string      `json:"phase"`
+	StatusLevel StatusLevel `json:"statusLevel"`
+	Ready       string      `json:"ready"`
+	Restarts    int32       `json:"restarts"`
+	StartTime   string      `json:"startTime"`
+	Age         string      `json:"age,omitempty"`
+	Node        string      `json:"node"`
+	PodIP       string      `json:"podIP,omitempty"`
+	HostIP      string      `json:"hostIP,omitempty"`
+	QoSClass    string      `json:"qosClass,omitempty"`
+	Reason      string      `json:"reason,omitempty"`
+	Message     string      `json:"message,omitempty"`
 
 	// 调度
 	RestartPolicy                 string            `json:"restartPolicy,omitempty"`
@@ -89,6 +93,8 @@ type PodContainerResponse struct {
 	LivenessProbe        interface{}       `json:"livenessProbe,omitempty"`
 	StartupProbe         interface{}       `json:"startupProbe,omitempty"`
 	State                string            `json:"state,omitempty"`
+	StateReason          string            `json:"stateReason,omitempty"` // K8s 的原因代码，如 CrashLoopBackOff / Completed
+	StateLevel           StatusLevel       `json:"stateLevel"`
 	RestartCount         int32             `json:"restartCount"`
 	LastTerminatedReason string            `json:"lastTerminatedReason,omitempty"`
 }

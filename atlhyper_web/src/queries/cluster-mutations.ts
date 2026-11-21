@@ -5,7 +5,7 @@
  *
  * 写操作只是把指令放进队列，由 Agent 稍后执行。所以刷新分两次：
  * - 指令下发成功后立即让该类资源的列表与详情失效（这里的 onSuccess）
- * - 约 2 秒后指令执行完，再失效一次（组件里用 useDelayedInvalidate，范围取 clusterKeys.resourceScope）
+ * - 指令到终态（成功 / 失败 / 超时）后再失效一次（组件里用 useCommandSettle，范围取 clusterKeys.resourceScope）
  */
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import {

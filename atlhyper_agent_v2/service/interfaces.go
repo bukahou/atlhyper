@@ -17,7 +17,10 @@ import (
 
 // SnapshotService 快照采集服务接口
 type SnapshotService interface {
+	// Collect 采集 K8s 资源快照；OTel 部分附上最近一次刷新好的结果，不在这里等 ClickHouse
 	Collect(ctx context.Context) (*cluster.ClusterSnapshot, error)
+	// RefreshOTel 刷新 OTel 概览（ClickHouse 查询）；由独立循环调用，ctx 取消即返回
+	RefreshOTel(ctx context.Context)
 }
 
 // CommandService 指令执行服务接口

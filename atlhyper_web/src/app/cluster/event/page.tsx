@@ -9,11 +9,16 @@ import { PageHeader, QueryView } from "@/components/common";
 import { useCurrentCluster } from "@/hooks/useCurrentCluster";
 import { eventOverviewQuery } from "@/queries/cluster";
 import { REFRESH } from "@/queries/refresh";
-import type { EventLog } from "@/types/cluster";
+import type { EventCards, EventLog } from "@/types/cluster";
 import { EventDetailDrawer } from "@/components/event";
 import { EventFilterBar, type EventFilters } from "./components/EventFilterBar";
-import { EventTable, isCriticalEvent } from "./components/EventTable";
+import { EventTable } from "./components/EventTable";
+import { matchesSeverityFilter } from "@/lib/event-severity";
 import { EventStatsCards } from "./components/EventStatsCards";
+
+const EMPTY_EVENT_CARDS: EventCards = {
+  totalAlerts: 0, totalEvents: 0, critical: 0, warning: 0, info: 0, error: 0, categoriesCount: 0, kindsCount: 0,
+};
 
 export default function EventPage() {
   const { t } = useI18n();
@@ -65,15 +70,7 @@ export default function EventPage() {
       }
       if (filters.kind && e.kind !== filters.kind) return false;
       if (filters.namespace && e.namespace !== filters.namespace) return false;
-      if (filters.severity) {
-        if (filters.severity === "Critical") {
-          if (!isCriticalEvent(e)) return false;
-        } else if (filters.severity === "Warning") {
-          if (e.severity !== "Warning" || isCriticalEvent(e)) return false;
-        } else if (filters.severity === "Normal") {
-          if (e.severity !== "Normal") return false;
-        }
-      }
+      if (!matchesSeverityFilter(e.severity, filters.severity)) return false;
       return true;
     });
   }, [data?.rows, filters]);
@@ -95,7 +92,7 @@ export default function EventPage() {
           autoRefreshSeconds={REFRESH.standard / 1000}
         />
 
-        <EventStatsCards events={data?.rows || []} />
+        <EventStatsCards cards={data?.cards ?? EMPTY_EVENT_CARDS} />
 
         <EventFilterBar
           filters={filters}

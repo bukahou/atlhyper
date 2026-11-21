@@ -16,6 +16,7 @@ func TestEventLogFromModel_FieldMapping(t *testing.T) {
 			Name:      "event-1",
 			Namespace: "default",
 			Kind:      "Event",
+			NodeName:  "node-a",
 			CreatedAt: time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
 		},
 		Type:    "Warning",
@@ -49,11 +50,12 @@ func TestEventLogFromModel_FieldMapping(t *testing.T) {
 	if result.Namespace != "default" {
 		t.Errorf("Namespace: got %q, want %q", result.Namespace, "default")
 	}
-	if result.Node != "scheduler" {
-		t.Errorf("Node: got %q, want %q (should use source)", result.Node, "scheduler")
+	// 来源组件、发生次数、来源主机各自一个字段（此前组件名被放进 node，次数没有下发）
+	if result.Source != "scheduler" || result.Count != 3 || result.Node != "node-a" {
+		t.Errorf("Source/Count/Node: got %q/%d/%q, want scheduler/3/node-a", result.Source, result.Count, result.Node)
 	}
-	if result.Severity != "warning" {
-		t.Errorf("Severity: got %q, want %q", result.Severity, "warning")
+	if result.Severity != "critical" { // Warning + FailedScheduling 属于会直接导致故障的原因
+		t.Errorf("Severity: got %q, want %q", result.Severity, "critical")
 	}
 	if result.Message != "0/6 nodes are available" {
 		t.Errorf("Message: got %q, want %q", result.Message, "0/6 nodes are available")
@@ -120,6 +122,7 @@ func TestEventLogFromDB_FieldMapping(t *testing.T) {
 		Reason:            "Unhealthy",
 		Message:           "Liveness probe failed",
 		SourceComponent:   "kubelet",
+		SourceHost:        "node-b",
 		InvolvedKind:      "Pod",
 		InvolvedName:      "coredns-pod",
 		InvolvedNamespace: "kube-system",
@@ -146,85 +149,11 @@ func TestEventLogFromDB_FieldMapping(t *testing.T) {
 	if result.Severity != "warning" {
 		t.Errorf("Severity: got %q, want %q", result.Severity, "warning")
 	}
-	if result.Node != "kubelet" {
-		t.Errorf("Node: got %q, want %q", result.Node, "kubelet")
+	if result.Source != "kubelet" || result.Count != 5 || result.Node != "node-b" {
+		t.Errorf("Source/Count/Node: got %q/%d/%q, want kubelet/5/node-b", result.Source, result.Count, result.Node)
 	}
 	if result.EventTime != "2025-02-01T09:00:00Z" {
 		t.Errorf("EventTime: got %q, want %q", result.EventTime, "2025-02-01T09:00:00Z")
-	}
-}
-
-func TestEventOverview_Aggregation(t *testing.T) {
-	events := []cluster.Event{
-		{
-			CommonMeta:     model_v3.CommonMeta{Name: "e1"},
-			Type:           "Warning",
-			Reason:         "FailedScheduling",
-			InvolvedObject: model_v3.ResourceRef{Kind: "Pod", Name: "pod-1"},
-		},
-		{
-			CommonMeta:     model_v3.CommonMeta{Name: "e2"},
-			Type:           "Warning",
-			Reason:         "Unhealthy",
-			InvolvedObject: model_v3.ResourceRef{Kind: "Pod", Name: "pod-2"},
-		},
-		{
-			CommonMeta:     model_v3.CommonMeta{Name: "e3"},
-			Type:           "Normal",
-			Reason:         "Scheduled",
-			InvolvedObject: model_v3.ResourceRef{Kind: "Node", Name: "node-1"},
-		},
-		{
-			CommonMeta:     model_v3.CommonMeta{Name: "e4"},
-			Type:           "Normal",
-			Reason:         "Pulled",
-			InvolvedObject: model_v3.ResourceRef{Kind: "Pod", Name: "pod-3"},
-		},
-	}
-
-	result := EventOverview(events, "cluster-1")
-
-	// Cards
-	if result.Cards.TotalEvents != 4 {
-		t.Errorf("TotalEvents: got %d, want 4", result.Cards.TotalEvents)
-	}
-	if result.Cards.Warning != 2 {
-		t.Errorf("Warning: got %d, want 2", result.Cards.Warning)
-	}
-	if result.Cards.Info != 2 {
-		t.Errorf("Info: got %d, want 2", result.Cards.Info)
-	}
-	if result.Cards.Error != 0 {
-		t.Errorf("Error: got %d, want 0", result.Cards.Error)
-	}
-	if result.Cards.TotalAlerts != 2 {
-		t.Errorf("TotalAlerts: got %d, want 2 (warning + error)", result.Cards.TotalAlerts)
-	}
-	// Kinds: Pod, Node = 2
-	if result.Cards.KindsCount != 2 {
-		t.Errorf("KindsCount: got %d, want 2", result.Cards.KindsCount)
-	}
-	// Categories: FailedScheduling, Unhealthy, Scheduled, Pulled = 4
-	if result.Cards.CategoriesCount != 4 {
-		t.Errorf("CategoriesCount: got %d, want 4", result.Cards.CategoriesCount)
-	}
-
-	// Rows
-	if len(result.Rows) != 4 {
-		t.Fatalf("Rows length: got %d, want 4", len(result.Rows))
-	}
-}
-
-func TestEventOverview_EmptyInput(t *testing.T) {
-	result := EventOverview(nil, "c1")
-	if result.Cards.TotalEvents != 0 {
-		t.Errorf("TotalEvents: got %d, want 0", result.Cards.TotalEvents)
-	}
-	if result.Rows == nil {
-		t.Error("Rows should be non-nil empty slice")
-	}
-	if len(result.Rows) != 0 {
-		t.Errorf("Rows length: got %d, want 0", len(result.Rows))
 	}
 }
 

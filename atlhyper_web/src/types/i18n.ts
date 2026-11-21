@@ -96,6 +96,8 @@ export interface CommonTranslations {
   namespace: string;
   createdAt: string;
   close: string;
+  /** 提示条区域的读屏名称 */
+  notificationsRegion: string;
   view: string;
   details: string;
   filter: string;
@@ -660,6 +662,8 @@ export interface AlertTranslations {
 // Overview 页面翻译
 export interface OverviewTranslations {
   clusterHealth: string;
+  healthStatus: Record<"Healthy" | "Degraded" | "Unhealthy" | "Unknown", string>;
+  healthReasons: Record<"nodeReadyLow" | "podReadyLow" | "someNodesNotReady" | "somePodsNotReady", string>;
   nodeReady: string;
   podHealthy: string;
   nodes: string;
@@ -1385,6 +1389,10 @@ export interface CommandsTranslations {
     uncordon: string;
     update_image: string;
   };
+  /** 写操作下发后指令执行失败（{error} 为 Agent 回报的原因） */
+  outcomeFailed: string;
+  /** 等到上限指令仍未结束 */
+  outcomeStillRunning: string;
 }
 
 // AI Settings 页面翻译
@@ -1438,6 +1446,7 @@ export interface AISettingsPageTranslations {
   // Toast 消息
   requiredFields: string;
   apiKeyRequired: string;
+  anthropicKeylessHint: string;
   providerUpdated: string;
   providerAdded: string;
   saveFailed: string;
@@ -1538,11 +1547,24 @@ export interface AIChatPageTranslations {
     alertEvents: string;
     deploymentStatus: string;
   };
+  /** 对话流没有正常完成时的提示（{status} / {message} 为占位） */
+  streamErrors: {
+    unauthorized: string;
+    forbidden: string;
+    rateLimited: string;
+    httpError: string;
+    serverError: string;
+    malformed: string;
+    interrupted: string;
+    network: string;
+  };
   // ChatInput
   chatInput: {
     placeholderStreaming: string;
     placeholderNormal: string;
     stopButton: string;
+    /** 停止生成后，显示在已输出内容下方 */
+    generationStopped: string;
     sendButton: string;
     disclaimer: string;
   };
@@ -1602,6 +1624,8 @@ export interface AIChatPageTranslations {
     past30Days: string;
     older: string;
   };
+  // 流里的提示（后端发代码，文案在这里）
+  notice: Record<"historyTrimmed" | "toolCallsCapped", string>;
   // ExecutionBlock
   execution: {
     roundLabel: string;
@@ -1960,6 +1984,7 @@ interface NodeMetricsTranslations extends TimeRangePickerTranslations {
       good: string;
       warn: string;
       crit: string;
+      unknown: string;
     };
   };
   // Chart
@@ -2165,6 +2190,12 @@ export interface AIOpsTranslations {
     // 按后端错误码给出可操作的提示（gateway/handler/aiops/ai_error.go）
     errorRoleUnassigned: string;
     errorBudgetExhausted: string;
+    errorConfig: string;
+    errorAuth: string;
+    errorRateLimited: string;
+    errorUnreachable: string;
+    errorInterrupted: string;
+    errorRefused: string;
     errorUpstream: string;
     errorTimeout: string;
     analysisInterrupted: string;
@@ -2539,12 +2570,7 @@ export interface DeployPageTranslations {
   statusCol2: string;
   triggerAuto: string;
   triggerManual: string;
-  triggerRollback: string;
   viewDetail: string;
-  rollbackBtn: string;
-  rollbackConfirm: string;
-  rollbackSuccess: string;
-  rollbackFailed: string;
   noHistory: string;
   noHistoryHint: string;
   // 部署详情弹窗

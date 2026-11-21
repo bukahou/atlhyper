@@ -181,7 +181,11 @@ func (h *AIProviderHandler) listProviders(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	settings, _ := h.svc.GetAISettings(ctx)
+	settings, err := h.svc.GetAISettings(ctx)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 AI 设置失败")
+		return
+	}
 	toolTimeout := 30
 	if settings != nil {
 		toolTimeout = settings.ToolTimeout
@@ -240,8 +244,7 @@ func (h *AIProviderHandler) createProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	req.APIKey = key
-	// Ollama 不需要 API Key，其他提供商必须
-	if req.APIKey == "" && req.Provider != "ollama" {
+	if req.APIKey == "" && apiKeyRequired(req.Provider) {
 		handler.WriteError(w, http.StatusBadRequest, "api_key is required")
 		return
 	}
@@ -386,7 +389,11 @@ func (h *AIProviderHandler) getSettings(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	settings, _ := h.svc.GetAISettings(ctx)
+	settings, err := h.svc.GetAISettings(ctx)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 AI 设置失败")
+		return
+	}
 	toolTimeout := 30
 	if settings != nil {
 		toolTimeout = settings.ToolTimeout
@@ -394,7 +401,11 @@ func (h *AIProviderHandler) getSettings(w http.ResponseWriter, r *http.Request) 
 
 	// 检查是否有 Provider 分配了 chat 角色
 	chatReady := false
-	providers, _ := h.svc.ListAIProviders(ctx)
+	providers, err := h.svc.ListAIProviders(ctx)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 AI 提供商失败")
+		return
+	}
 	for _, p := range providers {
 		if slices.Contains(p.Roles, "chat") {
 			chatReady = true
@@ -421,7 +432,11 @@ func (h *AIProviderHandler) updateSettings(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	settings, _ := h.svc.GetAISettings(ctx)
+	settings, err := h.svc.GetAISettings(ctx)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 AI 设置失败")
+		return
+	}
 	if settings == nil {
 		settings = &database.AISettings{ToolTimeout: 30}
 	}
@@ -438,7 +453,11 @@ func (h *AIProviderHandler) updateSettings(w http.ResponseWriter, r *http.Reques
 
 	// 检查 chat 角色
 	chatReady := false
-	providers, _ := h.svc.ListAIProviders(ctx)
+	providers, err := h.svc.ListAIProviders(ctx)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "读取 AI 提供商失败")
+		return
+	}
 	for _, p := range providers {
 		if slices.Contains(p.Roles, "chat") {
 			chatReady = true
@@ -530,6 +549,8 @@ func (h *AIProviderHandler) ProviderRolesHandler(w http.ResponseWriter, r *http.
 	providers, err := h.svc.ListAIProviders(ctx)
 	if err != nil {
 		log.Warn("获取 Provider 列表失败", "err", err)
+		handler.WriteError(w, http.StatusInternalServerError, "读取 AI 提供商失败")
+		return
 	}
 	for _, role := range req.Roles {
 		for _, p := range providers {
@@ -572,6 +593,8 @@ func (h *AIProviderHandler) RolesOverviewHandler(w http.ResponseWriter, r *http.
 	providers, err := h.svc.ListAIProviders(ctx)
 	if err != nil {
 		log.Warn("获取 Provider 列表失败", "err", err)
+		handler.WriteError(w, http.StatusInternalServerError, "读取 AI 提供商失败")
+		return
 	}
 
 	// 构建角色名映射
@@ -954,6 +977,15 @@ func maskAPIKey(key string) string {
 //     引号多来自 `terraform output` 未加 -raw，替用户删掉有误删真实字符的风险
 //
 // 曾因此类杂质得到难以排查的 403「Invalid API Key format: Base64 decoding failed」。
+// apiKeyRequired 新建时是否必须填 key：Ollama 自部署不需要；Anthropic 不填则走 SDK 凭证链（集群里是 WIF 免密钥）
+func apiKeyRequired(provider string) bool {
+	switch provider {
+	case "ollama", "anthropic":
+		return false
+	}
+	return true
+}
+
 func normalizeAPIKey(provider, raw string) (string, error) {
 	key := strings.TrimSpace(raw)
 	if provider != "bedrock" {

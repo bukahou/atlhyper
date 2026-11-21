@@ -90,6 +90,7 @@ export const ja: Translations = {
     namespace: "名前空間",
     createdAt: "作成日時",
     close: "閉じる",
+    notificationsRegion: "通知",
     view: "表示",
     details: "詳細",
     filter: "フィルター",
@@ -628,6 +629,13 @@ export const ja: Translations = {
   },
   overview: {
     clusterHealth: "クラスタ健全性",
+    healthStatus: { Healthy: "正常", Degraded: "低下", Unhealthy: "異常", Unknown: "不明" },
+    healthReasons: {
+      nodeReadyLow: "準備完了のノードが少なすぎます",
+      podReadyLow: "準備完了の Pod が少なすぎます",
+      someNodesNotReady: "一部のノードが準備完了していません",
+      somePodsNotReady: "一部の Pod が準備完了していません",
+    },
     nodeReady: "ノード準備完了",
     podHealthy: "Pod 健全性",
     nodes: "ノード",
@@ -751,6 +759,7 @@ export const ja: Translations = {
       "slo.manage": "SLO 目標の設定",
       "ai.analyze": "AI 分析と詳細分析",
       "ai.settings.read": "AI 設定の閲覧",
+      "ai.conversation.delete": "自分の AI チャットを削除",
       "user.manage": "ユーザー管理と権限昇格",
       "ai.settings.write": "AI 設定の変更",
       "github.manage": "GitHub 接続とリポジトリ",
@@ -1174,6 +1183,8 @@ export const ja: Translations = {
       uncordon: "隔離解除",
       update_image: "イメージ更新",
     },
+    outcomeFailed: "コマンドの実行に失敗しました：{error}",
+    outcomeStillRunning: "コマンドはまだ実行中です。しばらくしてから更新して結果を確認してください",
   },
   slo: {
     last15min: "直近 15 分",
@@ -1398,6 +1409,7 @@ export const ja: Translations = {
     // Toast メッセージ
     requiredFields: "必須項目を入力してください",
     apiKeyRequired: "API Key を入力してください",
+    anthropicKeylessHint: "空欄の場合はクラスタの ID でキーなしでアクセスします（Workload Identity Federation。クラスタ側の設定が必要）",
     providerUpdated: "プロバイダーを更新しました",
     providerAdded: "プロバイダーを追加しました",
     saveFailed: "保存に失敗しました",
@@ -1632,10 +1644,21 @@ export const ja: Translations = {
       deploymentStatus: "Deployment の状態を確認",
     },
     // ChatInput
+    streamErrors: {
+      unauthorized: "ログインの有効期限が切れました。再度ログインしてください",
+      forbidden: "権限が不足しています。管理者に権限の引き上げを依頼してください",
+      rateLimited: "リクエストが多すぎます。しばらくしてから再試行してください",
+      httpError: "サービスを一時的に利用できません（HTTP {status}）",
+      serverError: "サーバーでエラーが発生し、回答が完了しませんでした",
+      malformed: "受信した回答の形式が正しくないため停止しました",
+      interrupted: "回答の完了前に接続が切れました。表示中の内容は不完全な可能性があります",
+      network: "ネットワークエラー：{message}",
+    },
     chatInput: {
       placeholderStreaming: "AI が応答中...",
       placeholderNormal: "AI アシスタントにメッセージを送信...",
       stopButton: "生成を停止",
+      generationStopped: "生成を停止しました。上は停止までに出力された内容です",
       sendButton: "送信",
       disclaimer: "AI は誤りを含む可能性があります。重要な情報は確認してください。",
     },
@@ -1710,22 +1733,21 @@ resources:
 
 修復操作を実行しますか？`,
       msg3User: "はい、メモリ制限を 256Mi に調整してください",
-      msg4Assistant: `nginx-deployment のメモリ設定を正常に更新しました！
+      msg4Assistant: `AI アシスタントは読み取り専用で、クラスタは変更しません。以下の手順を確認のうえ実行してください：
 
-## 実行結果
-Deployment が更新され、新しい Pod が起動中です
+## 変更方法
+nginx-deployment のコンテナのメモリ上限を 128Mi から 256Mi に上げます：
 
-### 変更詳細
-- **リソース**: Deployment/nginx-deployment
-- **名前空間**: default
-- **変更内容**: memory limit 128Mi → 256Mi
+\`\`\`bash
+kubectl -n default set resources deployment/nginx-deployment --limits=memory=256Mi
+\`\`\`
 
-### 現在のステータス
-- 新しい Pod を作成: nginx-deployment-5d4f7b8c9-xyz99
-- ステータス: Running
-- 再起動回数: 0
+マニフェストを GitOps で管理している場合は、リポジトリの \`resources.limits.memory\` を変更してください（同期で戻されないように）。
 
-10〜15 分間継続的に監視し、問題が解決されたことを確認してください。`,
+### 変更後の確認
+- 新しい Pod が正常に動いている（\`kubectl -n default get pods\`）
+- 再起動回数が増えていない
+- 10〜15 分ほど様子を見て、OOMKilled が再発しないこと`,
     },
     // ConversationSidebar
     sidebar: {
@@ -1740,6 +1762,10 @@ Deployment が更新され、新しい Pod が起動中です
       older: "それ以前",
     },
     // ExecutionBlock
+    notice: {
+      historyTrimmed: "モデルのコンテキスト長に収めるため、古い会話をターン単位で省略しました",
+      toolCallsCapped: "このラウンドのツール呼び出しが上限を超えたため、先頭のいくつかのみ実行しました",
+    },
     execution: {
       roundLabel: "第 {n} ラウンド",
       executing: "実行中...",
@@ -1978,6 +2004,7 @@ Deployment が更新され、新しい Pod が起動中です
         good: "正常",
         warn: "注意",
         crit: "危険",
+        unknown: "データなし",
       },
     },
     chart: {
@@ -2150,6 +2177,12 @@ Deployment が更新され、新しい Pod が起動中です
       analysisFailed: "AI 分析に失敗しました。後でもう一度お試しください",
       errorRoleUnassigned: "この機能の AI ロールにプロバイダーが割り当てられていません。「AI 設定 → ロール割り当て」で指定してください",
       errorBudgetExhausted: "この AI ロールの予算を使い切りました。「AI 設定」で予算を調整するか、代替プロバイダーを設定してください",
+      errorConfig: "AI の設定に誤りがあります。「AI 設定」でプロバイダーの種類・アドレス・キーを確認してください",
+      errorAuth: "プロバイダーが API Key を拒否したか、このモデルの利用権限がありません。「AI 設定」でキーとモデルを確認してください",
+      errorRateLimited: "プロバイダーのレート制限またはクォータ上限に達しました。後でもう一度お試しいただくか、「AI 設定」で別のプロバイダーをご利用ください",
+      errorUnreachable: "AI プロバイダーに接続できません。アドレスとネットワークを確認してください",
+      errorInterrupted: "AI の回答が完了前に中断されました。もう一度お試しください",
+      errorRefused: "モデルがこのリクエストへの回答を拒否しました。表現を変えてお試しください",
       errorUpstream: "AI モデルの呼び出しに失敗しました。プロバイダーの API Key と状態を確認するか、後でもう一度お試しください",
       errorTimeout: "AI 分析がタイムアウトしました（5 分超過）。後でもう一度お試しいただくか、より高速なモデルをご利用ください",
       analysisInterrupted: "分析が中断されました（サービス再起動）。もう一度実行してください",
@@ -2444,7 +2477,7 @@ Deployment が更新され、新しい Pod が起動中です
     pathsSection: "デプロイパス",
     pathsSectionHint: "各パスはkustomization.yamlディレクトリに対応し、Namespace単位で管理",
     pathCol: "パス",
-    pathPlaceholder: "例: zgmf-x10a/k8s-configs/Geass/backend",
+    pathPlaceholder: "例: demo-cluster/k8s-configs/Geass/backend",
     addPath: "パス追加",
     deletePath: "削除",
     noPathsHint: "デプロイパスを追加してください",
@@ -2478,12 +2511,7 @@ Deployment が更新され、新しい Pod が起動中です
     statusCol2: "ステータス",
     triggerAuto: "自動",
     triggerManual: "手動",
-    triggerRollback: "ロールバック",
     viewDetail: "詳細",
-    rollbackBtn: "ロールバック",
-    rollbackConfirm: "{service}を{version}にロールバックしますか？",
-    rollbackSuccess: "ロールバック指令を送信しました",
-    rollbackFailed: "ロールバック失敗",
     noHistory: "デプロイ履歴なし",
     noHistoryHint: "デプロイ後にここに記録が表示されます",
     detailTitle: "デプロイ詳細",

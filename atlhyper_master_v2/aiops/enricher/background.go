@@ -4,25 +4,20 @@
 package enricher
 
 import (
+	"AtlHyper/atlhyper_master_v2/aiops/severity"
 	"context"
 	"sync"
 	"time"
 
+	"AtlHyper/atlhyper_master_v2/ai/budget"
 	db "AtlHyper/atlhyper_master_v2/database"
 )
 
-// severityOrder 严重度排序（越高越严重）
-var severityOrder = map[string]int{
-	"low":      1,
-	"medium":   2,
-	"high":     3,
-	"critical": 4,
-}
-
 // backgroundTrigger 后台分析触发器
 type backgroundTrigger struct {
-	enricher   *Enricher
-	budgetRepo db.AIRoleBudgetRepository
+	enricher *Enricher
+	budgets  *budget.Ledger // nil = 不做预算控制
+	location *time.Location // 运维时区：解读深度分析的定时窗口
 
 	unconfigured unconfiguredNotice // AI 没配时只提示一次
 
@@ -40,13 +35,19 @@ type triggerEvent struct {
 }
 
 // newBackgroundTrigger 创建后台触发器
-func newBackgroundTrigger(enricher *Enricher, budgetRepo db.AIRoleBudgetRepository) *backgroundTrigger {
+func newBackgroundTrigger(enricher *Enricher, budgetRepo db.AIRoleBudgetRepository, location *time.Location) *backgroundTrigger {
+	if location == nil {
+		location = time.UTC
+	}
 	bt := &backgroundTrigger{
-		enricher:   enricher,
-		budgetRepo: budgetRepo,
-		queue:      make(chan triggerEvent, 64),
-		seen:       make(map[string]time.Time),
-		done:       make(chan struct{}),
+		enricher: enricher,
+		location: location,
+		queue:    make(chan triggerEvent, 64),
+		seen:     make(map[string]time.Time),
+		done:     make(chan struct{}),
+	}
+	if budgetRepo != nil {
+		bt.budgets = budget.NewLedger(budgetRepo)
 	}
 	go bt.worker()
 	return bt
@@ -100,11 +101,15 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 	}
 	bt.mu.Unlock()
 
-	// 2. 查询预算配置中的最低严重度
-	if bt.budgetRepo != nil {
-		budget, err := bt.budgetRepo.Get(context.Background(), "background")
-		if err == nil && budget != nil {
-			minSeverity := budget.AutoTriggerMinSeverity
+	// 2. 预算配置里的最低严重度 + 余额（跨日 / 跨月清零在 budget.Ledger 里；防止自动触发导致成本失控）
+	if bt.budgets != nil {
+		current, err := bt.budgets.Current(context.Background(), "background")
+		if err != nil {
+			log.Warn("读取后台分析预算失败，本次跳过", "incident", evt.IncidentID, "err", err)
+			return
+		}
+		if current != nil {
+			minSeverity := current.AutoTriggerMinSeverity
 			if minSeverity == "off" {
 				log.Info("后台分析已禁用（配置=off）", "incident", evt.IncidentID)
 				return
@@ -117,12 +122,7 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 				return
 			}
 		}
-	}
-
-	// 3. 预算前置检查（防止自动触发导致成本失控）
-	if bt.budgetRepo != nil {
-		budget, err := bt.budgetRepo.Get(context.Background(), "background")
-		if err == nil && budget != nil && !isBudgetAvailable(budget) {
+		if !budget.HasRemaining(current) {
 			log.Warn("后台分析预算已用尽，跳过", "incident", evt.IncidentID)
 			return
 		}
@@ -155,18 +155,22 @@ func (bt *backgroundTrigger) process(evt triggerEvent) {
 
 // maybeTriggerAnalysis 检查是否需要触发 analysis 深度分析
 func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
-	if bt.budgetRepo == nil {
+	if bt.budgets == nil {
 		return
 	}
 
-	// 读取 analysis 角色的自动触发阈值
-	budget, err := bt.budgetRepo.Get(context.Background(), "analysis")
-	if err != nil || budget == nil {
+	// 读取 analysis 角色的自动触发阈值（同时完成跨日 / 跨月清零）
+	current, err := bt.budgets.Current(context.Background(), "analysis")
+	if err != nil {
+		log.Warn("读取深度分析预算失败，本次不自动触发", "incident", evt.IncidentID, "err", err)
+		return
+	}
+	if current == nil {
 		return
 	}
 
 	// 触发模式判断
-	mode := budget.AutoTriggerMode
+	mode := current.AutoTriggerMode
 	if mode == "" {
 		mode = "auto"
 	}
@@ -175,15 +179,15 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 		log.Info("深度分析设为手动模式，跳过自动触发", "incident", evt.IncidentID)
 		return
 	case "schedule":
-		if !isWithinSchedule(budget.ScheduleStartTime, budget.ScheduleEndTime) {
+		if !isWithinSchedule(current.ScheduleStartTime, current.ScheduleEndTime, time.Now().In(bt.location)) {
 			log.Info("深度分析不在定时窗口内，跳过",
 				"incident", evt.IncidentID,
-				"window", budget.ScheduleStartTime+"~"+budget.ScheduleEndTime)
+				"window", current.ScheduleStartTime+"~"+current.ScheduleEndTime)
 			return
 		}
 	}
 
-	minSeverity := budget.AutoTriggerMinSeverity
+	minSeverity := current.AutoTriggerMinSeverity
 	if minSeverity == "" || minSeverity == "off" {
 		return
 	}
@@ -193,7 +197,7 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 	}
 
 	// analysis 预算前置检查
-	if !isBudgetAvailable(budget) {
+	if !budget.HasRemaining(current) {
 		log.Warn("analysis 预算已用尽，跳过深度分析", "incident", evt.IncidentID)
 		return
 	}
@@ -209,11 +213,11 @@ func (bt *backgroundTrigger) maybeTriggerAnalysis(evt triggerEvent) {
 }
 
 // isWithinSchedule 检查当前时间是否在定时窗口内（HH:MM 格式，支持跨午夜）
-func isWithinSchedule(startTime, endTime string) bool {
+// now 要先换到运维时区：窗口是人按墙上时间填的
+func isWithinSchedule(startTime, endTime string, now time.Time) bool {
 	if startTime == "" || endTime == "" {
 		return true // 未设置窗口时视为始终有效
 	}
-	now := time.Now()
 	nowMinutes := now.Hour()*60 + now.Minute()
 
 	startMinutes := parseHHMM(startTime)
@@ -240,35 +244,8 @@ func parseHHMM(s string) int {
 }
 
 // meetsMinSeverity 检查事件严重度是否达到最低阈值
-func meetsMinSeverity(severity, minSeverity string) bool {
-	return severityOrder[severity] >= severityOrder[minSeverity]
+func meetsMinSeverity(incidentSeverity, minSeverity string) bool {
+	return severity.AtLeast(incidentSeverity, minSeverity)
 }
 
 // isBudgetAvailable 检查预算是否还有余额（多维度：input/output × 日/月）
-// 0 = 无限制的语义保留
-func isBudgetAvailable(budget *db.AIRoleBudget) bool {
-	if budget == nil {
-		return true
-	}
-	// 日限额检查
-	if budget.DailyInputTokenLimit > 0 && budget.DailyInputTokensUsed >= budget.DailyInputTokenLimit {
-		return false
-	}
-	if budget.DailyOutputTokenLimit > 0 && budget.DailyOutputTokensUsed >= budget.DailyOutputTokenLimit {
-		return false
-	}
-	if budget.DailyCallLimit > 0 && budget.DailyCallsUsed >= budget.DailyCallLimit {
-		return false
-	}
-	// 月限额检查
-	if budget.MonthlyInputTokenLimit > 0 && budget.MonthlyInputTokensUsed >= budget.MonthlyInputTokenLimit {
-		return false
-	}
-	if budget.MonthlyOutputTokenLimit > 0 && budget.MonthlyOutputTokensUsed >= budget.MonthlyOutputTokenLimit {
-		return false
-	}
-	if budget.MonthlyCallLimit > 0 && budget.MonthlyCallsUsed >= budget.MonthlyCallLimit {
-		return false
-	}
-	return true
-}

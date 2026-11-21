@@ -19,7 +19,7 @@ func (d *commandDialect) Insert(cmd *database.CommandHistory) (string, []any) {
 	args := []any{
 		cmd.CommandID, cmd.ClusterID, cmd.Source, cmd.UserID, cmd.Action,
 		cmd.TargetKind, cmd.TargetNamespace, cmd.TargetName, cmd.Params, cmd.Status,
-		cmd.CreatedAt.Format(time.RFC3339),
+		utcStamp(cmd.CreatedAt),
 	}
 	return query, args
 }
@@ -27,17 +27,21 @@ func (d *commandDialect) Insert(cmd *database.CommandHistory) (string, []any) {
 func (d *commandDialect) Update(cmd *database.CommandHistory) (string, []any) {
 	var startedAt, finishedAt *string
 	if cmd.StartedAt != nil {
-		s := cmd.StartedAt.Format(time.RFC3339)
+		s := utcStamp(*cmd.StartedAt)
 		startedAt = &s
 	}
 	if cmd.FinishedAt != nil {
-		f := cmd.FinishedAt.Format(time.RFC3339)
+		f := utcStamp(*cmd.FinishedAt)
 		finishedAt = &f
 	}
 	query := `UPDATE command_history SET status = ?, result = ?, error_message = ?,
 		started_at = ?, finished_at = ?, duration_ms = ? WHERE command_id = ?`
 	args := []any{cmd.Status, cmd.Result, cmd.ErrorMessage, startedAt, finishedAt, cmd.DurationMs, cmd.CommandID}
 	return query, args
+}
+
+func (d *commandDialect) DeleteBefore(before time.Time) (string, []any) {
+	return "DELETE FROM command_history WHERE created_at < ?", []any{utcStamp(before)}
 }
 
 func (d *commandDialect) SelectByCommandID(cmdID string) (string, []any) {
@@ -47,11 +51,6 @@ func (d *commandDialect) SelectByCommandID(cmdID string) (string, []any) {
 func (d *commandDialect) SelectByCluster(clusterID string, limit, offset int) (string, []any) {
 	return "SELECT id, command_id, cluster_id, source, user_id, action, target_kind, target_namespace, target_name, params, status, result, error_message, created_at, started_at, finished_at, duration_ms FROM command_history WHERE cluster_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
 		[]any{clusterID, limit, offset}
-}
-
-func (d *commandDialect) SelectByUser(userID int64, limit, offset int) (string, []any) {
-	return "SELECT id, command_id, cluster_id, source, user_id, action, target_kind, target_namespace, target_name, params, status, result, error_message, created_at, started_at, finished_at, duration_ms FROM command_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-		[]any{userID, limit, offset}
 }
 
 func (d *commandDialect) ScanRow(rows *sql.Rows) (*database.CommandHistory, error) {

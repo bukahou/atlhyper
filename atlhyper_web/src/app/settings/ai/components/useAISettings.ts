@@ -13,6 +13,7 @@ import {
   updateAIGlobalSettingsMutation,
   updateAIProviderMutation,
 } from "@/queries/ai-settings";
+import { apiKeyRequired } from "./providerKey";
 
 /** 全局设置还没取到时输入框里显示的超时（秒） */
 const DEFAULT_TOOL_TIMEOUT_SECONDS = 30;
@@ -71,8 +72,7 @@ export function useAISettings() {
       toast.error(aiT.requiredFields);
       return;
     }
-    // Ollama（自部署）可以不填 key，与后端校验一致
-    if (!editingProvider && !formData.apiKey && formData.provider !== "ollama") {
+    if (!editingProvider && !formData.apiKey && apiKeyRequired(formData.provider)) {
       toast.error(aiT.apiKeyRequired);
       return;
     }

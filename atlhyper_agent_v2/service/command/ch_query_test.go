@@ -13,7 +13,6 @@ import (
 	"AtlHyper/model_v3/command"
 	"AtlHyper/model_v3/log"
 	"AtlHyper/model_v3/metrics"
-	"AtlHyper/model_v3/slo"
 )
 
 // newTestService 创建包含 ClickHouse mock 的测试服务
@@ -21,7 +20,6 @@ func newTestService(
 	traceRepo repository.TraceQueryRepository,
 	logRepo repository.LogQueryRepository,
 	metricsRepo repository.MetricsQueryRepository,
-	sloRepo repository.SLOQueryRepository,
 ) *commandService {
 	return &commandService{
 		podRepo:          &mock.PodRepository{},
@@ -29,7 +27,6 @@ func newTestService(
 		traceQueryRepo:   traceRepo,
 		logQueryRepo:     logRepo,
 		metricsQueryRepo: metricsRepo,
-		sloQueryRepo:     sloRepo,
 	}
 }
 
@@ -46,10 +43,11 @@ func TestExecute_QueryTraces_ListTraces(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-1",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "list_traces", "service": "api"},
 	}
 
@@ -70,10 +68,11 @@ func TestExecute_QueryTraces_ListServices(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-2",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "list_services"},
 	}
 
@@ -88,10 +87,11 @@ func TestExecute_QueryTraces_ListServices(t *testing.T) {
 }
 
 func TestExecute_QueryTraces_NilRepo(t *testing.T) {
-	svc := newTestService(nil, nil, nil, nil)
+	svc := newTestService(nil, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-nil",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{},
 	}
 
@@ -120,10 +120,11 @@ func TestExecute_QueryTraceDetail_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-trace-detail-1",
 		Action: command.ActionQueryTraceDetail,
+		Source: command.SourceWeb,
 		Params: map[string]any{"trace_id": "abc123"},
 	}
 
@@ -139,10 +140,11 @@ func TestExecute_QueryTraceDetail_Success(t *testing.T) {
 
 func TestExecute_QueryTraceDetail_MissingID(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{}
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-trace-detail-2",
 		Action: command.ActionQueryTraceDetail,
+		Source: command.SourceWeb,
 		Params: map[string]any{},
 	}
 
@@ -151,8 +153,8 @@ func TestExecute_QueryTraceDetail_MissingID(t *testing.T) {
 	if result.Success {
 		t.Fatal("expected failure for missing trace_id")
 	}
-	if !strings.Contains(result.Error, "trace_id is required") {
-		t.Errorf("expected 'trace_id is required', got: %s", result.Error)
+	if !strings.Contains(result.Error, "trace_id") {
+		t.Errorf("错误应指出 trace_id，got: %s", result.Error)
 	}
 }
 
@@ -176,10 +178,11 @@ func TestExecute_QueryLogs_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(nil, logRepo, nil, nil)
+	svc := newTestService(nil, logRepo, nil)
 	cmd := &command.Command{
 		ID:     "cmd-logs-ch-1",
 		Action: command.ActionQueryLogs,
+		Source: command.SourceWeb,
 		Params: map[string]any{
 			"service": "api",
 			"level":   "ERROR",
@@ -210,10 +213,11 @@ func TestExecute_QueryMetrics_ListAll(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(nil, nil, metricsRepo, nil)
+	svc := newTestService(nil, nil, metricsRepo)
 	cmd := &command.Command{
 		ID:     "cmd-metrics-1",
 		Action: command.ActionQueryMetrics,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "list_all"},
 	}
 
@@ -237,10 +241,11 @@ func TestExecute_QueryMetrics_GetNode(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(nil, nil, metricsRepo, nil)
+	svc := newTestService(nil, nil, metricsRepo)
 	cmd := &command.Command{
 		ID:     "cmd-metrics-2",
 		Action: command.ActionQueryMetrics,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "get_node", "node_name": "worker-1"},
 	}
 
@@ -258,10 +263,11 @@ func TestExecute_QueryMetrics_GetSeries(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(nil, nil, metricsRepo, nil)
+	svc := newTestService(nil, nil, metricsRepo)
 	cmd := &command.Command{
 		ID:     "cmd-metrics-3",
 		Action: command.ActionQueryMetrics,
+		Source: command.SourceWeb,
 		Params: map[string]any{
 			"sub_action": "get_series",
 			"node_name":  "worker-1",
@@ -279,10 +285,11 @@ func TestExecute_QueryMetrics_GetSeries(t *testing.T) {
 
 func TestExecute_QueryMetrics_MissingNodeName(t *testing.T) {
 	metricsRepo := &mock.MetricsQueryRepository{}
-	svc := newTestService(nil, nil, metricsRepo, nil)
+	svc := newTestService(nil, nil, metricsRepo)
 	cmd := &command.Command{
 		ID:     "cmd-metrics-4",
 		Action: command.ActionQueryMetrics,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "get_node"},
 	}
 
@@ -290,84 +297,6 @@ func TestExecute_QueryMetrics_MissingNodeName(t *testing.T) {
 
 	if result.Success {
 		t.Fatal("expected failure for missing node_name")
-	}
-}
-
-// =============================================================================
-// TestExecute_QuerySLO
-// =============================================================================
-
-func TestExecute_QuerySLO_ListIngress(t *testing.T) {
-	sloRepo := &mock.SLOQueryRepository{
-		ListIngressSLOFn: func(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error) {
-			return []slo.IngressSLO{
-				{ServiceKey: "web@docker", RPS: 100},
-			}, nil
-		},
-	}
-
-	svc := newTestService(nil, nil, nil, sloRepo)
-	cmd := &command.Command{
-		ID:     "cmd-slo-1",
-		Action: command.ActionQuerySLO,
-		Params: map[string]any{"sub_action": "list_ingress"},
-	}
-
-	result := svc.Execute(context.Background(), cmd)
-
-	if !result.Success {
-		t.Fatalf("expected success, got error: %s", result.Error)
-	}
-	if !strings.Contains(result.Output, "web@docker") {
-		t.Errorf("expected output to contain service key, got: %s", result.Output)
-	}
-}
-
-func TestExecute_QuerySLO_GetSummary(t *testing.T) {
-	sloRepo := &mock.SLOQueryRepository{
-		GetSLOSummaryFn: func(ctx context.Context) (*slo.SLOSummary, error) {
-			return &slo.SLOSummary{TotalServices: 5, HealthyServices: 4}, nil
-		},
-	}
-
-	svc := newTestService(nil, nil, nil, sloRepo)
-	cmd := &command.Command{
-		ID:     "cmd-slo-3",
-		Action: command.ActionQuerySLO,
-		Params: map[string]any{"sub_action": "get_summary"},
-	}
-
-	result := svc.Execute(context.Background(), cmd)
-
-	if !result.Success {
-		t.Fatalf("expected success, got error: %s", result.Error)
-	}
-}
-
-// =============================================================================
-// TestParamHelpers
-// =============================================================================
-
-func TestGetStringParam(t *testing.T) {
-	params := map[string]any{"key": "value"}
-	if getStringParam(params, "key") != "value" {
-		t.Error("expected 'value'")
-	}
-	if getStringParam(params, "missing") != "" {
-		t.Error("expected empty string for missing key")
-	}
-	if getStringParam(nil, "key") != "" {
-		t.Error("expected empty string for nil params")
-	}
-}
-
-func TestGetIntParam(t *testing.T) {
-	params := map[string]any{"count": float64(42)}
-	if getIntParam(params, "count", 10) != 42 {
-		t.Error("expected 42")
-	}
-	if getIntParam(params, "missing", 10) != 10 {
-		t.Error("expected default 10")
 	}
 }
 
@@ -384,10 +313,11 @@ func TestExecute_QueryTraces_HTTPStats(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-http-stats",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "http_stats", "service": "api"},
 	}
 
@@ -403,10 +333,11 @@ func TestExecute_QueryTraces_HTTPStats(t *testing.T) {
 
 func TestExecute_QueryTraces_HTTPStats_MissingService(t *testing.T) {
 	traceRepo := &mock.TraceQueryRepository{}
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-http-stats-2",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "http_stats"},
 	}
 
@@ -415,8 +346,8 @@ func TestExecute_QueryTraces_HTTPStats_MissingService(t *testing.T) {
 	if result.Success {
 		t.Fatal("expected failure for missing service")
 	}
-	if !strings.Contains(result.Error, "service is required") {
-		t.Errorf("expected 'service is required', got: %s", result.Error)
+	if !strings.Contains(result.Error, "service") {
+		t.Errorf("错误应指出 service，got: %s", result.Error)
 	}
 }
 
@@ -429,10 +360,11 @@ func TestExecute_QueryTraces_DBStats(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(traceRepo, nil, nil, nil)
+	svc := newTestService(traceRepo, nil, nil)
 	cmd := &command.Command{
 		ID:     "cmd-traces-db-stats",
 		Action: command.ActionQueryTraces,
+		Source: command.SourceWeb,
 		Params: map[string]any{"sub_action": "db_stats", "service": "api"},
 	}
 
@@ -446,23 +378,37 @@ func TestExecute_QueryTraces_DBStats(t *testing.T) {
 	}
 }
 
-func TestGetDurationParam(t *testing.T) {
-	params := map[string]any{"since": "5m"}
-	d := getDurationParam(params, "since", time.Minute)
-	if d != 5*time.Minute {
-		t.Errorf("expected 5m, got %v", d)
+// 参数类型不对、子动作未知、缺必填：执行前就失败并说明原因，⛔ 不按零值或默认值继续查
+func TestExecute_QueryParamsRejected(t *testing.T) {
+	called := false
+	traceRepo := &mock.TraceQueryRepository{
+		ListTracesFn: func(context.Context, string, string, float64, int, time.Duration, string, string, string, string, string) ([]apm.TraceSummary, error) {
+			called = true
+			return nil, nil
+		},
 	}
-
-	// Numeric seconds
-	params2 := map[string]any{"since": float64(300)}
-	d2 := getDurationParam(params2, "since", time.Minute)
-	if d2 != 300*time.Second {
-		t.Errorf("expected 300s, got %v", d2)
+	svc := newTestService(traceRepo, &mock.LogQueryRepository{}, &mock.MetricsQueryRepository{})
+	cases := []struct {
+		name   string
+		action string
+		params map[string]any
+		want   string
+	}{
+		{"limit 是字符串", command.ActionQueryTraces, map[string]any{"limit": "50"}, "参数格式不对"},
+		{"未知链路子动作", command.ActionQueryTraces, map[string]any{"sub_action": "drop"}, "未知的链路查询"},
+		{"since 不是时长", command.ActionQueryTraces, map[string]any{"since": "15"}, "since"},
+		{"日志 limit 超上限", command.ActionQueryLogs, map[string]any{"limit": 100000}, "limit"},
+		{"指标缺节点名", command.ActionQueryMetrics, map[string]any{"sub_action": "get_history"}, "node_name"},
 	}
-
-	// Default
-	d3 := getDurationParam(nil, "since", 10*time.Minute)
-	if d3 != 10*time.Minute {
-		t.Errorf("expected 10m default, got %v", d3)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			result := svc.Execute(context.Background(), &command.Command{ID: "x", Action: c.action, Source: command.SourceWeb, Params: c.params})
+			if result.Success || !strings.Contains(result.Error, c.want) {
+				t.Errorf("应失败且提到 %q，实际 success=%v error=%q", c.want, result.Success, result.Error)
+			}
+		})
+	}
+	if called {
+		t.Error("参数不合法时不应调用查询")
 	}
 }

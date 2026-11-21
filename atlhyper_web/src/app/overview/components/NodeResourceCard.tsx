@@ -3,6 +3,7 @@
 import { memo, useState } from "react";
 import type { TransformedOverview } from "@/types/overview";
 import type { useI18n } from "@/i18n/context";
+import { hardwareStatusBar } from "@/lib/hardware-status";
 
 interface NodeResourceCardProps {
   nodes: TransformedOverview["nodeUsages"];
@@ -11,12 +12,6 @@ interface NodeResourceCardProps {
 
 export const NodeResourceCard = memo(function NodeResourceCard({ nodes, t }: NodeResourceCardProps) {
   const [sortBy, setSortBy] = useState<"cpu" | "memory">("cpu");
-
-  const getUsageColor = (usage: number) => {
-    if (usage >= 80) return "bg-red-500";
-    if (usage >= 60) return "bg-yellow-500";
-    return "bg-green-500";
-  };
 
   const sortedNodes = [...nodes].sort((a, b) => {
     if (sortBy === "cpu") return b.cpuPercent - a.cpuPercent;
@@ -67,7 +62,7 @@ export const NodeResourceCard = memo(function NodeResourceCard({ nodes, t }: Nod
                   </div>
                   <div className="h-1.5 bg-[var(--background)] rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-300 ${getUsageColor(node.cpuPercent)}`}
+                      className={`h-full rounded-full transition-all duration-300 ${hardwareStatusBar(node.cpuLevel)}`}
                       style={{ width: `${Math.min(100, node.cpuPercent)}%` }}
                     />
                   </div>
@@ -79,7 +74,7 @@ export const NodeResourceCard = memo(function NodeResourceCard({ nodes, t }: Nod
                   </div>
                   <div className="h-1.5 bg-[var(--background)] rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-300 ${getUsageColor(node.memoryPercent)}`}
+                      className={`h-full rounded-full transition-all duration-300 ${hardwareStatusBar(node.memoryLevel)}`}
                       style={{ width: `${Math.min(100, node.memoryPercent)}%` }}
                     />
                   </div>

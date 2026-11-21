@@ -8,6 +8,7 @@
 import { get, post, del, authErrorManager } from "./request";
 import { env } from "@/config/env";
 import { Conversation, Message, StreamSegment, ChatStats } from "@/components/ai/types";
+import { readChatStream, type ChatStreamFailure } from "@/lib/chat-sse";
 
 // ============================================================
 // CRUD 接口
@@ -40,10 +41,24 @@ export function getMessages(conversationId: number, signal?: AbortSignal) {
 // SSE 流式对话
 // ============================================================
 
+/** 交给 AI 分析的一条告警（只传结构化字段，提示词由后端按 language 拼） */
+export interface ChatAlert {
+  kind: string;
+  namespace: string;
+  name: string;
+  reason: string;
+  message: string;
+  timestamp: string;
+}
+
 export interface StreamChatParams {
   conversationId: number;
   clusterId: string;
-  message: string;
+  /** 用户消息；告警分析时不传，改传 alerts */
+  message?: string;
+  alerts?: ChatAlert[];
+  /** 界面语言：后端按它拼告警分析的提示词 */
+  language?: string;
 }
 
 /**
@@ -52,18 +67,19 @@ export interface StreamChatParams {
  * 使用原生 fetch + ReadableStream 实现，因为：
  * - Axios 不支持 ReadableStream
  * - EventSource 只支持 GET，无法发送 POST body 和 Auth header
+ * 事件分帧与结束判定见 lib/chat-sse。
  *
  * @param params - 请求参数
- * @param onChunk - 收到 text/tool_call/tool_result 时回调
- * @param onDone - 流结束回调，接收可选的统计信息
- * @param onError - 错误回调
- * @param signal - AbortSignal，用于取消请求
+ * @param onChunk - 收到 text/tool_call/tool_result/notice 时回调
+ * @param onDone - 流正常结束回调，接收可选的统计信息
+ * @param onError - 没有正常结束时回调（原因的文案由调用方按界面语言出）
+ * @param signal - AbortSignal，用于取消请求（取消不算错误）
  */
 export function streamChat(
   params: StreamChatParams,
   onChunk: (segment: StreamSegment) => void,
   onDone: (stats?: ChatStats) => void,
-  onError: (err: string) => void,
+  onError: (failure: ChatStreamFailure) => void,
   signal?: AbortSignal,
 ) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -82,64 +98,19 @@ export function streamChat(
         if (response.status === 401) {
           authErrorManager.emit({ type: "unauthorized", message: "登录已过期，请重新登录" });
         }
-        const text = await response.text().catch(() => "");
-        onError(`HTTP ${response.status}: ${text}`);
+        onError({ kind: "http", status: response.status });
         return;
       }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        onError("浏览器不支持 ReadableStream");
+      if (!response.body) {
+        onError({ kind: "network", message: "ReadableStream unavailable" });
         return;
       }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let streamEnded = false; // 标记流是否已正常结束（done 或 error）
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        // 按换行分割 SSE 事件
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // 最后不完整行留在 buffer
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const jsonStr = line.slice(6).trim();
-            if (!jsonStr) continue;
-            try {
-              const chunk = JSON.parse(jsonStr);
-              if (chunk.type === "done") {
-                streamEnded = true;
-                // 提取 stats 并传递给 onDone
-                onDone(chunk.stats as ChatStats | undefined);
-              } else if (chunk.type === "error") {
-                streamEnded = true; // error 也算流结束，避免再调用 onDone 清空 streamSegments
-                onError(chunk.content || "未知错误");
-              } else {
-                onChunk(chunk as StreamSegment);
-              }
-            } catch {
-              // 忽略 JSON 解析错误（可能是不完整片段）
-            }
-          }
-        }
-      }
-
-      // 流结束但未收到 done/error 事件（连接意外关闭）
-      if (!streamEnded) {
-        onDone();
-      }
+      const failure = await readChatStream(response.body, { onSegment: onChunk, onDone });
+      if (failure) onError(failure);
     })
     .catch((err) => {
-      if (err.name === "AbortError") {
-        // 用户主动中断，不视为错误
-        return;
-      }
-      onError(err.message || "网络错误");
+      // 用户主动中断，不视为错误
+      if (err?.name === "AbortError") return;
+      onError({ kind: "network", message: err?.message ?? "" });
     });
 }

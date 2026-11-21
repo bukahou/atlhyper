@@ -20,15 +20,7 @@ var compareColumns = []string{
 	"diskUsage", "cpu", "psiCpu", "mem", "psiMem", "netErr",
 }
 
-// 资源列的告警线。硬件列的阈值来自画像表，这里只管资源。
-const (
-	resourceWarnPct = 80.0
-	resourceCritPct = 90.0
-	// PSI 在 K8s 节点上常态就有 20–60%（一堆 Pod 抢 CPU 是设计如此），
-	// 实测同集群 6 台在 0.6–3%、1 台 53% —— 阈值要能把那 1 台挑出来，又不能把它判死
-	psiWarnPct = 50.0
-	psiCritPct = 80.0
-)
+// 各列的告警线都在 metrics_thresholds.go。
 
 // GetNodeComparison 产出节点横向对比表
 func (q *OTelQuery) GetNodeComparison(ctx context.Context, clusterID string) (*model.NodeComparisonResponse, error) {
@@ -45,11 +37,17 @@ func (q *OTelQuery) GetNodeComparison(ctx context.Context, clusterID string) (*m
 	for i := range otel.MetricsNodes {
 		nm := &otel.MetricsNodes[i]
 		hwRow := buildHardwareRow(nm) // 复用硬件判定，不重算
+		cells := compareCells(nm, hwRow)
+		// 整行结论 = 硬件矩阵那一行的结论 + 对比表多出来的列（PSI / 网卡错误）
+		overall := hwRow.Overall
+		for _, c := range cells {
+			overall = worstStatus(overall, c.Status)
+		}
 		resp.Rows = append(resp.Rows, model.CompareRow{
 			NodeName: nm.NodeName,
 			Profile:  hwRow.Profile,
-			Cells:    compareCells(nm, hwRow),
-			Overall:  worstStatus(hwRow.Overall, resourceOverall(nm)),
+			Cells:    cells,
+			Overall:  overall,
 		})
 	}
 	return resp, nil
@@ -70,37 +68,47 @@ func compareCells(nm *metrics.NodeMetrics, hw model.HardwareRow) map[string]mode
 		}
 		cells["undervolt"] = model.CompareCell{Value: &alarm, Status: hw.Undervolt.Status}
 	} else {
-		cells["undervolt"] = model.CompareCell{Status: model.HardwareGood}
+		cells["undervolt"] = model.CompareCell{Status: model.HardwareUnknown}
 	}
 
 	if hw.CPUFreq != nil {
 		v := hw.CPUFreq.RatioPct
 		cells["freqRatio"] = model.CompareCell{Value: &v, Text: fmt.Sprintf("%.0f%%", v), Status: hw.CPUFreq.Status}
 	} else {
-		cells["freqRatio"] = model.CompareCell{Status: model.HardwareGood}
+		cells["freqRatio"] = model.CompareCell{Status: model.HardwareUnknown}
 	}
 
 	if hw.DiskAwait != nil {
 		v := hw.DiskAwait.ValueMs
 		cells["diskAwait"] = model.CompareCell{Value: &v, Text: fmt.Sprintf("%.1f ms", v), Status: hw.DiskAwait.Status}
 	} else {
-		cells["diskAwait"] = model.CompareCell{Status: model.HardwareGood}
+		cells["diskAwait"] = model.CompareCell{Status: model.HardwareUnknown}
 	}
 
-	// 资源列：取该节点最差的那一项（对比表是找异常，不是看明细）
-	cells["diskUsage"] = pctCell(primaryDiskUsagePct(nm.Disks), resourceWarnPct, resourceCritPct)
-	cells["cpu"] = pctCell(nm.CPU.UsagePct, resourceWarnPct, resourceCritPct)
-	cells["psiCpu"] = pctCell(nm.PSI.CPUSomePct, psiWarnPct, psiCritPct)
-	cells["mem"] = pctCell(nm.Memory.UsagePct, resourceWarnPct, resourceCritPct)
-	cells["psiMem"] = pctCell(nm.PSI.MemSomePct, psiWarnPct, psiCritPct)
-	cells["netErr"] = netErrCell(nm.Networks)
+	// 资源列：使用率沿用硬件矩阵的判定（同一份阈值，采集项没采到时为无数据）
+	cells["diskUsage"] = usageCompareCell(hw.DiskUsage)
+	cells["cpu"] = usageCompareCell(hw.CPUUsage)
+	cells["mem"] = usageCompareCell(hw.MemUsage)
+	un := unavailableSections(nm)
+	if un[metrics.SectionPSI] {
+		cells["psiCpu"] = model.CompareCell{Status: model.HardwareUnknown}
+		cells["psiMem"] = model.CompareCell{Status: model.HardwareUnknown}
+	} else {
+		cells["psiCpu"] = pctCell(nm.PSI.CPUSomePct, psiWarnPct, psiCritPct)
+		cells["psiMem"] = pctCell(nm.PSI.MemSomePct, psiWarnPct, psiCritPct)
+	}
+	if un[metrics.SectionNetworks] {
+		cells["netErr"] = model.CompareCell{Status: model.HardwareUnknown}
+	} else {
+		cells["netErr"] = netErrCell(nm.Networks)
+	}
 
 	return cells
 }
 
 func tempCompareCell(cell *model.HardwareTempCell, unit string) model.CompareCell {
 	if cell == nil {
-		return model.CompareCell{Status: model.HardwareGood}
+		return model.CompareCell{Status: model.HardwareUnknown}
 	}
 	v := cell.Value
 	return model.CompareCell{Value: &v, Text: fmt.Sprintf("%.1f%s", v, unit), Status: cell.Status}
@@ -108,14 +116,16 @@ func tempCompareCell(cell *model.HardwareTempCell, unit string) model.CompareCel
 
 func pctCell(v, warn, crit float64) model.CompareCell {
 	value := hwRound(v, 1)
-	cell := model.CompareCell{Value: &value, Text: fmt.Sprintf("%.1f%%", value), Status: model.HardwareGood}
-	switch {
-	case value >= crit:
-		cell.Status = model.HardwareCrit
-	case value >= warn:
-		cell.Status = model.HardwareWarn
+	return model.CompareCell{Value: &value, Text: fmt.Sprintf("%.1f%%", value), Status: model.LevelByThreshold(value, warn, crit)}
+}
+
+// usageCompareCell 硬件矩阵的使用率格 → 对比表的格；没有读数为无数据
+func usageCompareCell(cell *model.HardwareUsageCell) model.CompareCell {
+	if cell == nil {
+		return model.CompareCell{Status: model.HardwareUnknown}
 	}
-	return cell
+	v := cell.Value
+	return model.CompareCell{Value: &v, Text: fmt.Sprintf("%.1f%%", v), Status: cell.Status}
 }
 
 // netErrCell 只统计真错误（err），不含 drop。
@@ -134,47 +144,4 @@ func netErrCell(nets []metrics.NodeNetwork) model.CompareCell {
 		cell.Status = model.HardwareWarn
 	}
 	return cell
-}
-
-// primaryDiskUsagePct 「这台机器的盘满没满」看根分区。
-//
-// 取所有分区里最满的那个是错的：/boot/firmware 只有 512MB，用掉 37% 毫无意义，
-// 却会盖住真正的根分区（实测三台 raspi5 都显示 37.24%，全是那个 boot 分区）。
-// 没有根分区时退回容量最大的那块盘。
-func primaryDiskUsagePct(disks []metrics.NodeDisk) float64 {
-	var primary *metrics.NodeDisk
-	for i := range disks {
-		d := &disks[i]
-		if d.MountPoint == "/" {
-			primary = d
-			break
-		}
-		if d.MountPoint != "" && (primary == nil || d.TotalBytes > primary.TotalBytes) {
-			primary = d
-		}
-	}
-	if primary == nil {
-		return 0
-	}
-	// inode 用尽和容量用尽后果一样（写不进去），取更差的
-	if primary.InodeUsagePct > primary.UsagePct {
-		return primary.InodeUsagePct
-	}
-	return primary.UsagePct
-}
-
-// resourceOverall 资源列里最差的状态，与硬件 overall 合并成整行结论
-func resourceOverall(nm *metrics.NodeMetrics) model.HardwareStatus {
-	cells := []model.CompareCell{
-		pctCell(primaryDiskUsagePct(nm.Disks), resourceWarnPct, resourceCritPct),
-		pctCell(nm.CPU.UsagePct, resourceWarnPct, resourceCritPct),
-		pctCell(nm.PSI.CPUSomePct, psiWarnPct, psiCritPct),
-		pctCell(nm.Memory.UsagePct, resourceWarnPct, resourceCritPct),
-		pctCell(nm.PSI.MemSomePct, psiWarnPct, psiCritPct),
-	}
-	statuses := make([]model.HardwareStatus, 0, len(cells))
-	for _, c := range cells {
-		statuses = append(statuses, c.Status)
-	}
-	return worstStatus(statuses...)
 }

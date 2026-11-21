@@ -39,12 +39,6 @@ func makeOTelSnapshot() *cluster.OTelSnapshot {
 		LogsSummary: &log.Summary{
 			SeverityCounts: map[string]int64{"ERROR": 600, "WARN": 200, "INFO": 5000},
 		},
-		// 近期日志（按服务聚合用）
-		RecentLogs: []log.Entry{
-			{ServiceName: "api-gateway", Severity: "ERROR"},
-			{ServiceName: "api-gateway", Severity: "ERROR"},
-			{ServiceName: "user-svc", Severity: "WARN"},
-		},
 		// OTel Node 指标（磁盘 + PSI）
 		MetricsNodes: []metrics.NodeMetrics{
 			{
@@ -110,12 +104,6 @@ func TestExtractLogMetrics(t *testing.T) {
 	assertMetric(t, globalMetrics, "log_error_count", 600)
 	assertMetric(t, globalMetrics, "log_warn_count", 200)
 
-	// 服务级指标（来自 RecentLogs 聚合）
-	gwMetrics := indexPoints(points, "default/service/api-gateway")
-	assertMetric(t, gwMetrics, "log_error_count", 2)
-
-	usMetrics := indexPoints(points, "default/service/user-svc")
-	assertMetric(t, usMetrics, "log_warn_count", 1)
 }
 
 func TestExtractLogMetrics_NilOTel(t *testing.T) {
@@ -126,10 +114,10 @@ func TestExtractLogMetrics_NilOTel(t *testing.T) {
 }
 
 func TestExtractLogMetrics_NilSummary(t *testing.T) {
-	otel := &cluster.OTelSnapshot{LogsSummary: nil, RecentLogs: nil}
+	otel := &cluster.OTelSnapshot{LogsSummary: nil}
 	points := extractLogMetrics(otel)
 	if len(points) != 0 {
-		t.Fatalf("nil summary + nil logs should return empty, got %d", len(points))
+		t.Fatalf("nil summary should return empty, got %d", len(points))
 	}
 }
 

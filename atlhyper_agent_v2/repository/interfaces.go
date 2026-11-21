@@ -202,7 +202,6 @@ type LogQueryRepository interface {
 	QueryLogs(ctx context.Context, opts LogQueryOptions) (*log.QueryResult, error)
 	QueryHistogram(ctx context.Context, opts LogQueryOptions) (*log.HistogramResult, error)
 	GetSummary(ctx context.Context) (*log.Summary, error)
-	ListRecentEntries(ctx context.Context, limit int) ([]log.Entry, error)
 }
 
 // FreshnessQueryRepository 信号新鲜度查询仓库
@@ -244,7 +243,6 @@ type APMDashboardRepository interface {
 
 // SLODashboardRepository SLO Dashboard 数据采集
 type SLODashboardRepository interface {
-	GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error)
 	ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
@@ -255,7 +253,6 @@ type SLODashboardRepository interface {
 // LogsDashboardRepository Logs Dashboard 数据采集
 type LogsDashboardRepository interface {
 	GetLogsSummary(ctx context.Context) (*log.Summary, error)
-	ListRecentLogs(ctx context.Context, limit int) ([]log.Entry, error)
 }
 
 // OTelDashboardRepository Dashboard 数据采集（组合接口，兼容现有代码）
@@ -288,8 +285,4 @@ type SLOQueryRepository interface {
 	ListIngressSLO(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	ListIngressSLOPrevious(ctx context.Context, since time.Duration) ([]slo.IngressSLO, error)
 	GetIngressSLOHistory(ctx context.Context, since, bucket time.Duration) ([]slo.SLOHistoryPoint, error)
-	// 注: 服务网格 SLO 已移除 —— SLO 只做 ingress 外部视角,
-	// 服务间调用质量由 APM 承担。
-	GetSLOTimeSeries(ctx context.Context, name string, since time.Duration) (*slo.TimeSeries, error)
-	GetSLOSummary(ctx context.Context) (*slo.SLOSummary, error)
 }

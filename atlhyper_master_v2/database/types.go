@@ -491,7 +491,7 @@ type DeployHistory struct {
 	PRURL           string    `json:"prUrl"`
 	ChangedFiles    string    `json:"changedFiles"`    // JSON array of {filename, status, additions, deletions}
 	CompareURL      string    `json:"compareUrl"`      // GitHub compare URL
-	SourceRepo      string    `json:"sourceRepo"`      // 源码仓库 (e.g. "bukahou/Geass")
+	SourceRepo      string    `json:"sourceRepo"`      // 源码仓库 (e.g. "example-org/shop")
 	SourceCommitSHA string    `json:"sourceCommitSha"` // 源码 commit SHA (e.g. "b572f17")
 	DeployedAt      time.Time `json:"deployedAt"`
 	Trigger         string    `json:"trigger"`
