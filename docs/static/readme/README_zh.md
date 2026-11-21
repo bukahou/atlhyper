@@ -240,7 +240,7 @@ npm install && npm run dev
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
 | `AGENT_MASTER_URL` | 是 | - | Master AgentSDK 地址 |
-| `AGENT_MASTER_TOKEN` | 否 | - | Master 签发的集群令牌（管理员在集群注册表里签发）。每个请求以 `Authorization: Bearer` 携带；Master 为 `enforce` 模式时必填。属于凭证 |
+| `AGENT_MASTER_TOKEN` | 是 | - | Master 签发的集群令牌（管理员在集群注册表里签发）。每个请求以 `Authorization: Bearer` 携带；没配时 Agent 启动失败。属于凭证 |
 | `AGENT_CLUSTER_ID` | 否 | 自动检测 | 集群唯一标识（默认使用 kube-system UID） |
 | `AGENT_CLICKHOUSE_DSN` | 否 | - | ClickHouse 连接地址（启用 OTel 查询） |
 

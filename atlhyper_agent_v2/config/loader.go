@@ -23,6 +23,10 @@ func Load() (AppConfig, error) {
 	}
 	// 从文件或 Secret 注入的令牌常带换行，而带换行的值放不进请求头
 	cfg.Master.Token = strings.TrimSpace(cfg.Master.Token)
+	if cfg.Master.Token == "" {
+		// notEmpty 只拦空串，只有空白的值去掉空白后同样等于没配
+		return AppConfig{}, errors.New("AGENT_MASTER_TOKEN 只有空白：请填入在「集群管理」页签发的集群令牌")
+	}
 	if cfg.Kubernetes.KubeConfig == "" {
 		cfg.Kubernetes.KubeConfig = os.Getenv("KUBECONFIG")
 	}

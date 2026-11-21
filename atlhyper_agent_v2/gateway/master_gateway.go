@@ -27,7 +27,7 @@ import (
 type masterGateway struct {
 	masterURL   string       // Master 服务地址
 	clusterID   string       // 集群标识
-	masterToken string       // 集群令牌；空 = 不带认证头。⛔ 不得写入日志或错误信息
+	masterToken string       // 集群令牌（配置加载时已保证非空）；空 = 不带认证头。⛔ 不得写入日志或错误信息
 	httpClient  *http.Client // HTTP 客户端 (复用连接)
 }
 
