@@ -210,7 +210,7 @@ const maxQueryWindow = 30 * 24 * time.Hour
 
 // serviceNamespaceExpr 服务所在命名空间的取值表达式：优先 service.namespace，其次 k8s.namespace.name，
 // 都没有时记为 default。主控按「命名空间 + 服务名」拼服务实体键，所以凡是按服务分组、结果要对上
-// 服务实体的查询（APM 服务、拓扑）都用本函数，⛔ 不各自内联。
+// 服务实体的查询（APM 服务、拓扑、按服务的错误日志数）都用本函数，⛔ 不各自内联。
 // alias 是 JOIN 里的表别名，单表查询传空串
 func serviceNamespaceExpr(alias string) string {
 	attrs := "ResourceAttributes"
