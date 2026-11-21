@@ -91,7 +91,7 @@ func (q *commandQuery) run(ctx context.Context, clusterID, action string, query 
 func writeQueryError(w http.ResponseWriter, err error) {
 	var invalid *invalidQueryError
 	if errors.As(err, &invalid) {
-		handler.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": invalid.reason, "code": command.CodeInvalidParams})
+		writeInvalidQuery(w, invalid.reason)
 		return
 	}
 	var agentErr *agentQueryError
@@ -101,6 +101,11 @@ func writeQueryError(w http.ResponseWriter, err error) {
 		return
 	}
 	handler.WriteCommandError(w, err)
+}
+
+// writeInvalidQuery 查询参数不合法（由请求方修正）：与经 Agent 的查询失败同一种响应形状，界面按 code 出提示
+func writeInvalidQuery(w http.ResponseWriter, reason string) {
+	handler.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": reason, "code": command.CodeInvalidParams})
 }
 
 // agentFailureResponse Agent 查询失败的类别 → 状态码与通用说明（界面按 code 出中日文提示，这里的说明是兜底）

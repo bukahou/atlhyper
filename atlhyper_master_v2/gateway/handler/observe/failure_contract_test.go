@@ -64,3 +64,27 @@ func TestWriteQueryError_ResponseMatchesSpec(t *testing.T) {
 		}
 	}
 }
+
+// 处理函数自己拦下的参数错误（缺 cluster_id 等）也是同一种响应形状，界面同样按 code 出提示
+func TestHandlerInvalidParams_ResponseMatchesSpec(t *testing.T) {
+	doc, err := contract.Spec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := doc.Components.Schemas["ObserveFailureResponse"].Value
+	rec := httptest.NewRecorder()
+	(&ObserveHandler{}).TracesServices(rec, httptest.NewRequest("GET", "/api/v2/observe/traces/services", nil))
+	if rec.Code != 400 {
+		t.Fatalf("缺 cluster_id 应 400，实际 %d", rec.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["code"] != command.CodeInvalidParams {
+		t.Errorf("code = %v, want %s", body["code"], command.CodeInvalidParams)
+	}
+	if err := schema.VisitJSON(body); err != nil {
+		t.Errorf("不符合 ObserveFailureResponse: %v", err)
+	}
+}

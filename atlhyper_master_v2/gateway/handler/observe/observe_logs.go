@@ -30,11 +30,11 @@ func (h *ObserveHandler) LogsQuery(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil {
-		handler.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		writeInvalidQuery(w, "invalid JSON body")
 		return
 	}
 	if body.ClusterID == "" {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 	body.SubAction = command.LogsList
@@ -51,7 +51,7 @@ func (h *ObserveHandler) LogsHistogram(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
@@ -67,7 +67,7 @@ func (h *ObserveHandler) LogsHistogram(w http.ResponseWriter, r *http.Request) {
 	if v := q.Get("since"); v != "" {
 		m, ok := parseTimeRangeMinutes(v)
 		if !ok {
-			handler.WriteError(w, http.StatusBadRequest, "since 格式不合法（如 15m、1h、24h）")
+			writeInvalidQuery(w, "since 格式不合法（如 15m、1h、24h）")
 			return
 		}
 		params.Since = fmt.Sprintf("%dm", m)
@@ -101,7 +101,7 @@ func (h *ObserveHandler) LogsSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	clusterID, ok := requireClusterID(r)
 	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "cluster_id is required")
+		writeInvalidQuery(w, "cluster_id is required")
 		return
 	}
 
