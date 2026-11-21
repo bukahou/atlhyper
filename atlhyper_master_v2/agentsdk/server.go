@@ -52,7 +52,7 @@ type Config struct {
 	Processor      processor.Processor
 	CmdRepo        database.CommandHistoryRepository
 
-	// AuthMode 认证模式；空值等同 off
+	// AuthMode 认证模式；空值按 enforce（见 authModeOrEnforce），关闭必须显式给 off
 	AuthMode AuthMode
 	// Clusters 集群注册表；AuthMode 不是 off 时必须提供
 	Clusters ClusterDirectory
