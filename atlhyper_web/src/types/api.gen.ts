@@ -96,6 +96,17 @@ export interface components {
             /** @description 给人看的错误说明（程序判断看状态码，不看这段文字） */
             error: string;
         };
+        /**
+         * @description 观测查询（经 Agent 执行）失败的类别。界面按它出提示；Agent 的原始错误只进日志，⛔ 不返回给页面
+         * @enum {string}
+         */
+        ObserveFailureCode: "not_configured" | "invalid_params" | "timeout" | "unavailable" | "rejected" | "failed";
+        /** @description 观测查询失败的响应：通用说明 + 失败类别 */
+        ObserveFailureResponse: {
+            /** @description 通用说明（兜底；界面按 code 出提示） */
+            error: string;
+            code: components["schemas"]["ObserveFailureCode"];
+        };
         /** @description 事件统计卡片（随事件列表一起返回，前端不自己数） */
         EventCards: {
             categoriesCount: number;

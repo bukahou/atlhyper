@@ -4,6 +4,14 @@ import { jaIncidentDetail, jaIncidentGrouping } from "./incident-ja";
 
 export const ja: Translations = {
   locale: "ja",
+  observeFailure: {
+    notConfigured: "このクラスタの Agent は ClickHouse に接続されていないため、トレース・ログ・メトリクスを照会できません",
+    invalidParams: "照会条件が不正です。フィルター条件を見直して再試行してください",
+    timeout: "照会がタイムアウトしました。時間範囲を狭めて再試行してください",
+    unavailable: "データソース（ClickHouse）に接続できません。しばらくしてから再試行してください",
+    rejected: "Agent がこの照会の実行を拒否しました",
+    failed: "Agent での照会に失敗しました。しばらくしてから再試行してください",
+  },
   nav: {
     about: "AtlHyper",
     overview: "概要",

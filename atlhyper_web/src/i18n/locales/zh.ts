@@ -4,6 +4,14 @@ import { zhIncidentDetail, zhIncidentGrouping } from "./incident-zh";
 
 export const zh: Translations = {
   locale: "zh",
+  observeFailure: {
+    notConfigured: "该集群的 Agent 没有接入 ClickHouse，链路、日志与指标无法查询",
+    invalidParams: "查询条件不合法，请调整筛选条件后重试",
+    timeout: "查询超时，请缩小时间范围后重试",
+    unavailable: "暂时连不上数据源（ClickHouse），请稍后重试",
+    rejected: "Agent 拒绝执行这次查询",
+    failed: "Agent 执行查询失败，请稍后重试",
+  },
   nav: {
     about: "AtlHyper",
     overview: "概览",
