@@ -111,7 +111,14 @@ export function ProviderCard({
       {provider.lastError && (
         <div className="flex items-start gap-2 mb-4 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
           <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
-          <span className="text-xs text-red-600 dark:text-red-400 break-all">{provider.lastError}</span>
+          <div className="min-w-0 text-xs text-red-600 dark:text-red-400">
+            <span className="break-all">{provider.lastError}</span>
+            {provider.lastErrorAt && (
+              <span className="block mt-0.5 text-red-500/80 dark:text-red-400/70">
+                {aiT.lastErrorAt.replace("{time}", new Date(provider.lastErrorAt).toLocaleString())}
+              </span>
+            )}
+          </div>
         </div>
       )}
 

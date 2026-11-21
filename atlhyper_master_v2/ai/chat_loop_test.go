@@ -12,10 +12,13 @@ import (
 
 type usageProviderRepo struct {
 	database.AIProviderRepository
-	mu     sync.Mutex
-	calls  int
-	tokens int64
+	mu       sync.Mutex
+	calls    int
+	tokens   int64
+	statuses []statusUpdate // UpdateStatus 的调用记录（按顺序）
 }
+
+type statusUpdate struct{ status, message string }
 
 func (r *usageProviderRepo) List(context.Context) ([]*database.AIProvider, error) {
 	return []*database.AIProvider{{ID: 1, Name: "p", Provider: "openai", Model: "m", Roles: []string{RoleChat}}}, nil
@@ -27,7 +30,12 @@ func (r *usageProviderRepo) IncrementUsage(_ context.Context, _ int64, requests,
 	r.tokens += tokens
 	return nil
 }
-func (r *usageProviderRepo) UpdateStatus(context.Context, int64, string, string) error { return nil }
+func (r *usageProviderRepo) UpdateStatus(_ context.Context, _ int64, status, message string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.statuses = append(r.statuses, statusUpdate{status, message})
+	return nil
+}
 
 type memMsgRepo struct {
 	database.AIMessageRepository
@@ -93,6 +101,9 @@ func TestChatLoop_IncompleteStreamIsAnErrorButUsageIsRecorded(t *testing.T) {
 	if providers.calls != 1 {
 		t.Errorf("用量记账 %d 次，want 1（失败的调用也要记）", providers.calls)
 	}
+	if want := []statusUpdate{{"error", errorSummary(CodeInterrupted)}}; !equalStatuses(providers.statuses, want) {
+		t.Errorf("提供商状态更新 = %v, want %v（流没收尾也是提供商侧的失败）", providers.statuses, want)
+	}
 	for _, m := range msgs.saved {
 		if m.Role == "assistant" {
 			t.Errorf("半截回答不应存成最终回答: %q", m.Content)
@@ -109,6 +120,9 @@ func TestChatLoop_CompleteAnswer(t *testing.T) {
 	}
 	if providers.calls != 1 || providers.tokens != 15 {
 		t.Errorf("记账 calls=%d tokens=%d, want 1 / 15", providers.calls, providers.tokens)
+	}
+	if want := []statusUpdate{{"active", ""}}; !equalStatuses(providers.statuses, want) {
+		t.Errorf("提供商状态更新 = %v, want %v（成功要清除之前的错误）", providers.statuses, want)
 	}
 	if len(msgs.saved) != 1 || msgs.saved[0].Content != "一切正常" {
 		t.Errorf("最终回答应存一条，实际 %+v", msgs.saved)

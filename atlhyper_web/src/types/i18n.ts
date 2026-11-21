@@ -1418,6 +1418,8 @@ export interface AISettingsPageTranslations {
   delete: string;
   model: string;
   apiKeyConfigured: string;
+  /** 卡片上错误说明旁的发生时间，{time} 为本地时间 */
+  lastErrorAt: string;
   // 提供商弹窗
   newProvider: string;
   editProvider: string;

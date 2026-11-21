@@ -1381,6 +1381,7 @@ export const ja: Translations = {
     delete: "削除",
     model: "モデル",
     apiKeyConfigured: "API Key 設定済み",
+    lastErrorAt: "{time} に発生",
     // プロバイダーモーダル
     newProvider: "新規プロバイダー",
     editProvider: "プロバイダー編集",

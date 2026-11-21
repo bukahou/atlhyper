@@ -61,6 +61,7 @@ type ProviderResponse struct {
 	TotalCost             float64  `json:"totalCost"`
 	LastUsedAt            *string  `json:"lastUsedAt,omitempty"`
 	LastError             string   `json:"lastError,omitempty"`
+	LastErrorAt           *string  `json:"lastErrorAt,omitempty"` // 上一次出错的时间（RFC 3339，UTC）；调用成功后清空
 	CreatedAt             string   `json:"createdAt"`
 	UpdatedAt             string   `json:"updatedAt"`
 }
@@ -501,6 +502,10 @@ func toProviderResponse(p *database.AIProvider) ProviderResponse {
 	if p.LastUsedAt != nil {
 		s := p.LastUsedAt.Format(time.RFC3339)
 		resp.LastUsedAt = &s
+	}
+	if p.LastErrorAt != nil {
+		s := p.LastErrorAt.UTC().Format(time.RFC3339)
+		resp.LastErrorAt = &s
 	}
 	return resp
 }

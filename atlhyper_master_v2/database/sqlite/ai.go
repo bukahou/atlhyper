@@ -165,7 +165,8 @@ func (d *aiProviderDialect) UpdateStatus(id int64, status, errorMsg string) (str
 		return `UPDATE ai_providers SET status = ?, last_error = ?, last_error_at = ?, status_checked_at = ? WHERE id = ?`,
 			[]any{status, errorMsg, now, now, id}
 	}
-	return `UPDATE ai_providers SET status = ?, status_checked_at = ? WHERE id = ?`, []any{status, now, id}
+	// 没有错误说明 = 调用成功：上一次的错误说明与时间一并清掉，否则页面会一直显示旧错误
+	return `UPDATE ai_providers SET status = ?, last_error = NULL, last_error_at = NULL, status_checked_at = ? WHERE id = ?`, []any{status, now, id}
 }
 
 func (d *aiProviderDialect) ScanRow(rows *sql.Rows) (*database.AIProvider, error) {
