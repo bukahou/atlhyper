@@ -2648,8 +2648,19 @@ export interface DataSourceTranslations {
 }
 
 // 完整翻译结构
+/** 观测查询失败的原因（按后端返回的失败类别；见 lib/observe-failure.ts） */
+export interface ObserveFailureTranslations {
+  notConfigured: string;
+  invalidParams: string;
+  timeout: string;
+  unavailable: string;
+  rejected: string;
+  failed: string;
+}
+
 export interface Translations {
   locale: "zh" | "ja";  // 语言标识符，用于日期格式化等
+  observeFailure: ObserveFailureTranslations;
   nav: NavTranslations;
   common: CommonTranslations;
   status: StatusTranslations;

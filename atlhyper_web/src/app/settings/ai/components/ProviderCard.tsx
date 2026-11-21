@@ -3,6 +3,7 @@
 import { Bot, Settings, Trash2, Zap, MessageSquare, Coins, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import type { AIProvider } from "@/api/ai-provider";
+import { formatTimestamp } from "@/lib/format";
 
 const providerColors: Record<string, string> = {
   gemini: "bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400",
@@ -115,7 +116,7 @@ export function ProviderCard({
             <span className="break-all">{provider.lastError}</span>
             {provider.lastErrorAt && (
               <span className="block mt-0.5 text-red-500/80 dark:text-red-400/70">
-                {aiT.lastErrorAt.replace("{time}", new Date(provider.lastErrorAt).toLocaleString())}
+                {aiT.lastErrorAt.replace("{time}", formatTimestamp(provider.lastErrorAt))}
               </span>
             )}
           </div>

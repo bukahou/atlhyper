@@ -1,6 +1,14 @@
 // 通用格式化工具
 
 /**
+ * RFC 3339 时间 → 浏览器本地的日期时间；空串（「没有」）显示为 "-"。
+ * 后端一律给 UTC，显示时区只在出口（浏览器）换算
+ */
+export function formatTimestamp(isoTimestamp: string): string {
+  return isoTimestamp ? new Date(isoTimestamp).toLocaleString() : "-";
+}
+
+/**
  * 毫秒持续时间格式化（APM 用）
  * 0.5ms -> "0.5ms", 1234ms -> "1.23s", 0.1ms -> "100μs"
  */

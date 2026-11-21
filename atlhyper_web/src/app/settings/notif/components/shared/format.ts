@@ -1,10 +1,5 @@
 /** 通知设置页各表格共用的显示格式 */
 
-/** RFC 3339 时间 → 本地时间；空串（「没有」）显示为 "-" */
-export function formatTimestamp(isoTimestamp: string): string {
-  return isoTimestamp ? new Date(isoTimestamp).toLocaleString() : "-";
-}
-
 /** 这个页签收到的通用属性 */
 export interface NotifyTabProps {
   /** 没有 notify.manage：整个页签显示演示数据，写操作不可用 */

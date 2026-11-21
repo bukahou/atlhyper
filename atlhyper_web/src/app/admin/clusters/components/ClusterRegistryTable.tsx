@@ -4,6 +4,7 @@ import { AlertTriangle, KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
 import type { ClusterRegistryItem, ClusterRegistryStatus } from "@/api/cluster-registry";
 import { DataTable, StatusBadge, type TableColumn } from "@/components/common";
 import type { ClusterRegistryTranslations, CommonTranslations } from "@/types/i18n";
+import { formatTimestamp } from "@/lib/format";
 
 interface ClusterRegistryTableProps {
   clusters: ClusterRegistryItem[];
@@ -28,10 +29,6 @@ const BADGE_CELL_CLASS = "whitespace-nowrap";
 
 const ACTION_BUTTON_CLASS =
   "p-2 rounded-lg hover-bg text-muted hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted";
-
-function formatTimestamp(isoTimestamp: string): string {
-  return new Date(isoTimestamp).toLocaleString();
-}
 
 /** 集群注册表：一行一个集群。未登记但正在上报的集群用警示色标出，并给出「登记」入口 */
 export function ClusterRegistryTable({

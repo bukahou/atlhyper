@@ -1,16 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { demoPage, formatTimestamp } from "./format";
-
-describe("formatTimestamp", () => {
-  it("空串表示「没有」，显示为 -", () => {
-    expect(formatTimestamp("")).toBe("-");
-  });
-
-  it("有值时按本地时间显示", () => {
-    const iso = "2026-11-15T11:00:00Z";
-    expect(formatTimestamp(iso)).toBe(new Date(iso).toLocaleString());
-  });
-});
+import { demoPage } from "./format";
 
 describe("demoPage", () => {
   const items = [1, 2, 3, 4, 5];

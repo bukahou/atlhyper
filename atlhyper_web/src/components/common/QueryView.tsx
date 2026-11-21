@@ -8,6 +8,7 @@ import { useCurrentCluster } from "@/hooks/useCurrentCluster";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { NoClusterState } from "./NoClusterState";
 import { resolveViewState } from "./query-view-state";
+import { observeFailureReason } from "@/lib/observe-failure";
 
 interface QueryViewProps<T> {
   query: UseQueryResult<T>;
@@ -42,12 +43,16 @@ export function QueryView<T>({ query, requireCluster = false, isEmpty, empty, ch
     isRefetchError: query.isRefetchError,
   });
 
+  // 观测接口失败时后端给出失败类别：附上原因；其他接口没有类别，只显示通用文案
+  const failureReason = query.error ? observeFailureReason(query.error, t.observeFailure) : null;
+
   if (state === "no-cluster") return <NoClusterState />;
   if (state === "error") {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <AlertTriangle className="w-8 h-8 mb-3 text-red-500" />
-        <p className="text-sm text-default mb-3">{t.common.loadFailed}</p>
+        <p className={`text-sm text-default ${failureReason ? "mb-1" : "mb-3"}`}>{t.common.loadFailed}</p>
+        {failureReason && <p className="text-xs text-muted mb-3 max-w-md">{failureReason}</p>}
         <button
           onClick={() => void query.refetch()}
           className="px-4 py-2 text-sm rounded-lg bg-primary hover:bg-primary-hover text-white transition-colors"
@@ -64,7 +69,10 @@ export function QueryView<T>({ query, requireCluster = false, isEmpty, empty, ch
       {state === "stale" && (
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
           <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>{t.common.refreshFailed}</span>
+          <span>
+            {t.common.refreshFailed}
+            {failureReason && `：${failureReason}`}
+          </span>
         </div>
       )}
       {state === "empty" && empty !== undefined ? empty : children(data)}
