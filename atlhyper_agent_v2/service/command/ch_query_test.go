@@ -2,8 +2,11 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -410,5 +413,59 @@ func TestExecute_QueryParamsRejected(t *testing.T) {
 	}
 	if called {
 		t.Error("参数不合法时不应调用查询")
+	}
+}
+
+// =============================================================================
+// 失败类别：Master 按 Result.Code 决定状态码与界面提示，⛔ 不比较 Error 文字
+// =============================================================================
+
+func TestExecute_QueryFailureCodes(t *testing.T) {
+	dnsErr := &net.DNSError{Err: "no such host", Name: "clickhouse.example.internal", IsNotFound: true}
+	cases := []struct {
+		name     string
+		repo     repository.TraceQueryRepository
+		params   map[string]any
+		wantCode string
+	}{
+		{"未接入 ClickHouse", nil, map[string]any{"sub_action": "list_services"}, command.CodeNotConfigured},
+		{"参数不合法", &mock.TraceQueryRepository{}, map[string]any{"sub_action": "no_such_action"}, command.CodeInvalidParams},
+		{"上游拒绝连接", traceRepoFailing(fmt.Errorf("dial: %w", syscall.ECONNREFUSED)), map[string]any{"sub_action": "list_services"}, command.CodeUnavailable},
+		{"上游域名解析失败", traceRepoFailing(fmt.Errorf("dial: %w", dnsErr)), map[string]any{"sub_action": "list_services"}, command.CodeUnavailable},
+		{"执行超时", traceRepoFailing(fmt.Errorf("query: %w", context.DeadlineExceeded)), map[string]any{"sub_action": "list_services"}, command.CodeTimeout},
+		{"其他失败", traceRepoFailing(errors.New("code: 60, table does not exist")), map[string]any{"sub_action": "list_services"}, command.CodeFailed},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			svc := newTestService(c.repo, nil, nil)
+			result := svc.Execute(context.Background(), &command.Command{
+				ID: "cmd-code", Action: command.ActionQueryTraces, Source: command.SourceWeb, Params: c.params,
+			})
+			if result.Success {
+				t.Fatal("应失败")
+			}
+			if result.Code != c.wantCode {
+				t.Errorf("Code = %q, want %q（Error: %s）", result.Code, c.wantCode, result.Error)
+			}
+		})
+	}
+}
+
+// 执行前的守门（来源、集群、目标）拒绝时同样带类别
+func TestExecute_RejectedHasCode(t *testing.T) {
+	svc := newTestService(&mock.TraceQueryRepository{}, nil, nil)
+	result := svc.Execute(context.Background(), &command.Command{
+		ID: "cmd-rejected", Action: command.ActionQueryTraces, Source: "no-such-source", Params: map[string]any{"sub_action": "list_services"},
+	})
+	if result.Success || result.Code != command.CodeRejected {
+		t.Fatalf("= (success %v, code %q), want rejected", result.Success, result.Code)
+	}
+}
+
+func traceRepoFailing(err error) *mock.TraceQueryRepository {
+	return &mock.TraceQueryRepository{
+		ListServicesFn: func(ctx context.Context, since time.Duration, startTime, endTime string) ([]apm.APMService, error) {
+			return nil, err
+		},
 	}
 }

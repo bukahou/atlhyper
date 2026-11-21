@@ -2,9 +2,11 @@ package observe
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -105,6 +107,49 @@ func TestCommandQuery_Errors(t *testing.T) {
 	_, _ = q.run(context.Background(), "c1", command.ActionQueryLogs, command.QueryLogsParams{}, time.Minute)
 	if ops.calls.Load() != 2 {
 		t.Errorf("失败结果不应被缓存（调用 %d 次）", ops.calls.Load())
+	}
+}
+
+// Agent 查询失败：状态码按 Result.Code 定；响应只给错误码与通用说明，⛔ 不带 Agent 的原始错误文字
+func TestWriteQueryError_AgentFailureByCode(t *testing.T) {
+	const raw = "dial tcp 10.0.0.9:9000: connect: connection refused; SELECT * FROM otel_logs"
+	cases := []struct {
+		code       string
+		wantStatus int
+		wantCode   string
+	}{
+		{command.CodeNotConfigured, http.StatusConflict, command.CodeNotConfigured},
+		{command.CodeInvalidParams, http.StatusBadRequest, command.CodeInvalidParams},
+		{command.CodeTimeout, http.StatusGatewayTimeout, command.CodeTimeout},
+		{command.CodeUnavailable, http.StatusServiceUnavailable, command.CodeUnavailable},
+		{command.CodeRejected, http.StatusBadGateway, command.CodeRejected},
+		{command.CodeFailed, http.StatusBadGateway, command.CodeFailed},
+		{"", http.StatusBadGateway, command.CodeFailed},             // 不带类别的旧版 Agent
+		{"no_such_code", http.StatusBadGateway, command.CodeFailed}, // 不认识的类别
+	}
+	for _, c := range cases {
+		t.Run(c.code, func(t *testing.T) {
+			q := newCommandQuery(&blockingOps{result: &command.Result{Success: false, Code: c.code, Error: raw}})
+			_, err := q.run(context.Background(), "c1", command.ActionQueryLogs, command.QueryLogsParams{}, time.Minute)
+			rec := httptest.NewRecorder()
+			writeQueryError(rec, err)
+			if rec.Code != c.wantStatus {
+				t.Errorf("状态码 %d, want %d", rec.Code, c.wantStatus)
+			}
+			var body map[string]string
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("响应不是 JSON: %v", err)
+			}
+			if body["code"] != c.wantCode {
+				t.Errorf("code = %q, want %q", body["code"], c.wantCode)
+			}
+			if body["error"] == "" {
+				t.Error("应带一句通用说明")
+			}
+			if strings.Contains(rec.Body.String(), "10.0.0.9") || strings.Contains(rec.Body.String(), "otel_logs") {
+				t.Errorf("响应里出现了 Agent 的原始错误: %s", rec.Body.String())
+			}
+		})
 	}
 }
 
