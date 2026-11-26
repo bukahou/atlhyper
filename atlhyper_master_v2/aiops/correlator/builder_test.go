@@ -2,6 +2,7 @@
 package correlator
 
 import (
+	"strings"
 	"testing"
 
 	"AtlHyper/atlhyper_master_v2/aiops"
@@ -192,6 +193,43 @@ func TestBuildFromSnapshot_APMTopologyEdges(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("should have calls edge from APM topology")
+	}
+}
+
+// Agent 实际产出的拓扑：服务节点 Id 是「命名空间/服务名」，数据库节点 Id 是「系统:库名」。
+// calls 边的两端要还原成服务实体键（与服务指标同一拼法），⛔ 不把整个 Id 当服务名；
+// 数据库不是服务实体，⛔ 不当成集群级服务加进图里
+func TestBuildFromSnapshot_APMTopologyEdgesUseServiceEntityKeys(t *testing.T) {
+	otel := &cluster.OTelSnapshot{
+		APMTopology: &apm.Topology{
+			Nodes: []apm.TopologyNode{
+				{Id: "shop/checkout", Name: "checkout", Namespace: "shop", Type: "service"},
+				{Id: "shop/payment", Name: "payment", Namespace: "shop", Type: "service"},
+				{Id: "postgresql:orders", Name: "postgresql:orders", Type: "database"},
+			},
+			Edges: []apm.TopologyEdge{
+				{Source: "shop/checkout", Target: "shop/payment", CallCount: 10},
+				{Source: "shop/checkout", Target: "postgresql:orders", CallCount: 5},
+			},
+		},
+	}
+	graph := BuildFromSnapshot("test", &cluster.ClusterSnapshot{}, otel)
+
+	wantFrom := aiops.EntityKey("shop", "service", "checkout") // 与 APM / 日志服务指标同一拼法
+	wantTo := aiops.EntityKey("shop", "service", "payment")
+	var calls []string
+	for _, edge := range graph.Edges {
+		if edge.Type == "calls" {
+			calls = append(calls, edge.From+" -> "+edge.To)
+		}
+	}
+	if len(calls) != 1 || calls[0] != wantFrom+" -> "+wantTo {
+		t.Fatalf("calls 边 = %v, want [%s -> %s]", calls, wantFrom, wantTo)
+	}
+	for key := range graph.Nodes {
+		if strings.Contains(key, "postgresql") || strings.Count(key, "/") != 2 {
+			t.Errorf("图里不应有节点 %q（数据库或把 Id 当名字拼出的键）", key)
+		}
 	}
 }
 

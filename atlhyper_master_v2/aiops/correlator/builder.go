@@ -4,6 +4,7 @@ package correlator
 
 import (
 	"AtlHyper/atlhyper_master_v2/aiops"
+	"AtlHyper/model_v3/apm"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/slo"
 )
@@ -81,44 +82,31 @@ func BuildFromSnapshot(clusterID string, snap *cluster.ClusterSnapshot, otel *cl
 	}
 
 	// 5. Service → Service (calls，来自 APM 拓扑，去重)
-	if otel != nil {
-		edgeSet := make(map[string]bool) // "srcKey->dstKey" 去重
-
-		if otel.APMTopology != nil {
-			// 构建 nodeId → namespace 索引
-			nsIndex := make(map[string]string, len(otel.APMTopology.Nodes))
-			for _, n := range otel.APMTopology.Nodes {
-				nsIndex[n.Id] = n.Namespace
-			}
-
-			for _, edge := range otel.APMTopology.Edges {
-				srcNs := nsIndex[edge.Source]
-				dstNs := nsIndex[edge.Target]
-				if srcNs == "" {
-					srcNs = aiops.ClusterScope
-				}
-				if dstNs == "" {
-					dstNs = aiops.ClusterScope
-				}
-				srcKey := aiops.EntityKey(srcNs, "service", edge.Source)
-				dstKey := aiops.EntityKey(dstNs, "service", edge.Target)
-				dedupKey := srcKey + "->" + dstKey
-				if edgeSet[dedupKey] {
-					continue
-				}
-				edgeSet[dedupKey] = true
-				g.AddNode(srcKey, "service", srcNs, edge.Source, nil)
-				g.AddNode(dstKey, "service", dstNs, edge.Target, nil)
-				g.AddEdge(srcKey, dstKey, "calls", 1.0)
-			}
+	// 边的两端是拓扑节点 Id（Agent 写作「命名空间/服务名」），先经节点表还原命名空间与服务名再拼实体键，
+	// 与 APM / 日志的服务指标同一拼法；非服务节点（如数据库）没有对应的实体类型，跳过
+	if otel != nil && otel.APMTopology != nil {
+		nodesByID := make(map[string]apm.TopologyNode, len(otel.APMTopology.Nodes))
+		for _, n := range otel.APMTopology.Nodes {
+			nodesByID[n.Id] = n
 		}
-	}
-
-	// 确保 Node 节点存在（可能没有 Pod 调度到的独立节点）
-	for i := range snap.Nodes {
-		node := &snap.Nodes[i]
-		nodeKey := aiops.EntityKey(aiops.ClusterScope, "node", node.GetName())
-		g.AddNode(nodeKey, "node", aiops.ClusterScope, node.GetName(), nil)
+		edgeSet := make(map[string]bool) // "srcKey->dstKey" 去重
+		for _, edge := range otel.APMTopology.Edges {
+			src, srcOK := apmServiceNode(nodesByID, edge.Source)
+			dst, dstOK := apmServiceNode(nodesByID, edge.Target)
+			if !srcOK || !dstOK {
+				continue
+			}
+			srcKey := aiops.EntityKey(src.Namespace, "service", src.Name)
+			dstKey := aiops.EntityKey(dst.Namespace, "service", dst.Name)
+			dedupKey := srcKey + "->" + dstKey
+			if edgeSet[dedupKey] {
+				continue
+			}
+			edgeSet[dedupKey] = true
+			g.AddNode(srcKey, "service", entityNamespace(src.Namespace), src.Name, nil)
+			g.AddNode(dstKey, "service", entityNamespace(dst.Namespace), dst.Name, nil)
+			g.AddEdge(srcKey, dstKey, "calls", 1.0)
+		}
 	}
 
 	// 6. 虚拟实体：logs/global（OTel 日志聚合节点）
@@ -142,4 +130,22 @@ func matchSelector(selector, labels map[string]string) bool {
 		}
 	}
 	return true
+}
+
+// apmServiceNode 按 Id 取 APM 拓扑里的服务节点。不认识的 Id、非服务节点（如数据库）返回 false；
+// 旧版 Agent 不填 Type，按服务处理
+func apmServiceNode(nodesByID map[string]apm.TopologyNode, id string) (apm.TopologyNode, bool) {
+	node, ok := nodesByID[id]
+	if !ok || (node.Type != "" && node.Type != "service") {
+		return apm.TopologyNode{}, false
+	}
+	return node, true
+}
+
+// entityNamespace 实体所在的命名空间：空值按集群级（与 aiops.EntityKey 一致）
+func entityNamespace(namespace string) string {
+	if namespace == "" {
+		return aiops.ClusterScope
+	}
+	return namespace
 }
