@@ -19,7 +19,7 @@ import {
   disconnectGitHubMutation,
   githubConnectionQuery,
   githubReposQuery,
-} from "./gitops";
+} from "./github";
 import { githubKeys } from "./keys";
 
 const connectionKey = githubKeys.connection("api");

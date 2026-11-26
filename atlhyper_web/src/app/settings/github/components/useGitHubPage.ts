@@ -3,7 +3,7 @@ import * as mock from "@/mock/github";
 import type { MockGitHubConnection, MockAuthorizedRepo } from "@/mock/github/data";
 import { useCan } from "@/hooks/useCan";
 import { useSessionReady } from "@/hooks/useSessionReady";
-import { connectGitHubMutation, disconnectGitHubMutation, githubConnectionQuery, githubReposQuery } from "@/queries/gitops";
+import { connectGitHubMutation, disconnectGitHubMutation, githubConnectionQuery, githubReposQuery } from "@/queries/github";
 
 /** 连接状态取不到时按「未连接」显示（没有配置 GitHub App 的部署里，这些接口根本不存在） */
 const NOT_CONNECTED: MockGitHubConnection = { connected: false, accountLogin: "", avatarUrl: "", installationId: 0 };
