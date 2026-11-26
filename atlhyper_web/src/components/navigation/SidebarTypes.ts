@@ -35,6 +35,7 @@ import {
   Rocket,
   Github,
   KeyRound,
+  IdCard,
 } from "lucide-react";
 import type { Language, Theme } from "@/types/common";
 import { UserRole, type Permission } from "@/types/auth";
@@ -144,6 +145,7 @@ export const navGroups: NavGroup[] = [
     children: [
       { key: "users", href: "/admin/users", icon: Users, adminOnly: true },
       { key: "clusters", href: "/admin/clusters", icon: KeyRound, permission: "clusters.manage" },
+      { key: "serviceAccounts", href: "/admin/service-accounts", icon: IdCard, permission: "user.manage" },
       { key: "roles", href: "/admin/roles", icon: ShieldCheck },
       { key: "audit", href: "/admin/audit", icon: ClipboardList },
     ],

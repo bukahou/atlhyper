@@ -26,6 +26,8 @@ export const adminKeys = {
     ["admin", "command-history", { clusterId, ...filter }] as const,
   /** 集群注册表：已登记的集群 + 正在上报但未登记的集群 */
   clusterRegistry: () => ["admin", "cluster-registry"] as const,
+  /** 服务账号（连同令牌元数据与业务参数） */
+  serviceAccounts: () => ["admin", "service-accounts"] as const,
 };
 
 export const aiSettingsKeys = {

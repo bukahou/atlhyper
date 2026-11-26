@@ -30,6 +30,7 @@ export interface NavTranslations {
   roles: string;
   audit: string;
   clusters: string;
+  serviceAccounts: string;
   agents: string;
   settings: string;
   notifications: string;
@@ -266,6 +267,8 @@ export interface AuditTranslations {
     notify: string;
     cluster: string;
     cluster_token: string;
+    service_account: string;
+    api_token: string;
   };
   // 操作+资源组合标签
   actionLabels: {
@@ -290,6 +293,7 @@ export interface AuditTranslations {
     update: string;
     delete: string;
     login: string;
+    revoke: string;
   };
 }
 
@@ -863,6 +867,95 @@ export interface ClusterRegistryTranslations {
   // 删除登记确认
   unregisterConfirmTitle: string;
   unregisterConfirmMessage: string;
+}
+
+// 服务账号管理页（服务账号与访问令牌）翻译
+export interface ServiceAccountsTranslations {
+  pageDescription: string;
+  demoHint: string;
+  createAccount: string;
+  create: string;
+  empty: string;
+  emptyHint: string;
+  // 账号卡片
+  name: string;
+  displayName: string;
+  role: string;
+  enabled: string;
+  disabled: string;
+  createdAt: string;
+  lastUsed: string;
+  neverUsed: string;
+  editAccount: string;
+  deleteAccount: string;
+  issueToken: string;
+  tokenLimitReached: string;
+  // 令牌表
+  tokens: string;
+  noTokens: string;
+  tokenName: string;
+  tokenPrefix: string;
+  tokenStatus: string;
+  tokenCreated: string;
+  tokenExpires: string;
+  tokenNeverExpires: string;
+  tokenLastUsed: string;
+  tokenRevokedAt: string;
+  statusActive: string;
+  statusExpired: string;
+  statusRevoked: string;
+  revokeToken: string;
+  // 新建 / 编辑弹窗
+  createTitle: string;
+  editTitle: string;
+  nameHint: string;
+  displayNameHint: string;
+  roleHint: string;
+  enabledLabel: string;
+  enabledHint: string;
+  creating: string;
+  saving: string;
+  // 签发弹窗
+  issueTitle: string;
+  issueFor: string;
+  tokenNameHint: string;
+  expiry: string;
+  expiryNever: string;
+  expiryDays: string;
+  expiryDaysHint: string;
+  issuing: string;
+  // 令牌一次性显示
+  tokenDialogTitle: string;
+  tokenOnceWarning: string;
+  tokenUsageHint: string;
+  copyToken: string;
+  tokenCopied: string;
+  tokenCopyFailed: string;
+  tokenDialogClose: string;
+  // 确认
+  deleteConfirmTitle: string;
+  deleteConfirmMessage: string;
+  revokeConfirmTitle: string;
+  revokeConfirmMessage: string;
+  // 操作结果
+  createdToast: string;
+  updatedToast: string;
+  deletedToast: string;
+  revokedToast: string;
+  errors: {
+    nameLength: string;
+    nameCharset: string;
+    displayNameTooLong: string;
+    controlCharacter: string;
+    tokenNameRequired: string;
+    tokenNameTooLong: string;
+    expiryRange: string;
+    nameTaken: string;
+    tokenLimitReached: string;
+    notFound: string;
+    invalidInput: string;
+    unknown: string;
+  };
 }
 
 // Agents 页面翻译
@@ -2593,6 +2686,7 @@ export interface Translations {
   roles: RolesTranslations;
   clusters: ClustersTranslations;
   clusterRegistry: ClusterRegistryTranslations;
+  serviceAccounts: ServiceAccountsTranslations;
   agents: AgentsTranslations;
   notifications: NotificationsTranslations;
   login: LoginTranslations;
