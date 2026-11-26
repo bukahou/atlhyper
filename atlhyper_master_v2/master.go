@@ -323,6 +323,8 @@ func NewMaster() (*Master, error) {
 
 	// 11.6 注册 AI 工具（定义都在 ai/tools；可选依赖缺失的工具不注册，清单里也就没有它）
 	toolDeps := aitools.Deps{
+		Clusters:    svc,
+		Overview:    svc,
 		Commands:    cmdOps,
 		ToolTimeout: cfg.AI.ToolTimeout,
 		AIOps:       aiopsEngine,

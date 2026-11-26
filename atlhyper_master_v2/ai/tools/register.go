@@ -23,7 +23,8 @@ func Register(reg *toolkit.Registry, d Deps) {
 
 // coreTools 不依赖可选组件的工具
 func coreTools(d Deps) []*toolkit.Tool {
-	tools := []*toolkit.Tool{queryClusterTool(d)}
+	tools := overviewTools(d)
+	tools = append(tools, queryClusterTool(d))
 	tools = append(tools, aiopsTools(d)...)
 	tools = append(tools, observeTools(d)...)
 	return append(tools, eventHistoryTool(d.Events))

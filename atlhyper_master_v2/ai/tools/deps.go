@@ -10,6 +10,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/aiops"
 	"AtlHyper/atlhyper_master_v2/github"
 	"AtlHyper/atlhyper_master_v2/model"
+	"AtlHyper/model_v3/agent"
 	"AtlHyper/model_v3/cluster"
 	"AtlHyper/model_v3/command"
 )
@@ -32,8 +33,21 @@ type SnapshotReader interface {
 	GetSnapshot(clusterID string) (*cluster.ClusterSnapshot, error)
 }
 
+// ClusterLister 正在上报的集群（service.Query 满足）
+type ClusterLister interface {
+	ListClusters(ctx context.Context) ([]agent.ClusterInfo, error)
+}
+
+// OverviewReader 集群概览；集群没有数据时返回 (nil, nil)（service.Query 满足）
+type OverviewReader interface {
+	GetOverview(ctx context.Context, clusterID string) (*cluster.ClusterOverview, error)
+}
+
 // Deps 工具用到的依赖。可选的依赖为 nil 时对应工具不注册（清单里也就没有它）
 type Deps struct {
+	Clusters ClusterLister
+	Overview OverviewReader
+
 	Commands    CommandRunner
 	ToolTimeout time.Duration
 	AIOps       AIOpsReader
