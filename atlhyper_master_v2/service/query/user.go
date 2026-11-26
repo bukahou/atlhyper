@@ -23,7 +23,7 @@ func (q *UserQuery) ListUsers(ctx context.Context) ([]*database.User, error) {
 	return q.userRepo.ListHumans(ctx)
 }
 
-// GetUserByUsernameForPasswordLogin 密码登录专用：外部身份账号视为不存在
+// GetUserByUsernameForPasswordLogin 密码登录专用：外部身份账号与服务账号视为不存在
 func (q *UserQuery) GetUserByUsernameForPasswordLogin(ctx context.Context, username string) (*database.User, error) {
 	return q.userRepo.GetByUsernameForPasswordLogin(ctx, username)
 }

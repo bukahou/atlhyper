@@ -9,6 +9,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/auth/opaquetoken"
 	"AtlHyper/atlhyper_master_v2/database"
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/common/logger"
 )
 
@@ -18,7 +19,7 @@ var log = logger.Module("APIToken")
 // 不让每个请求都写库
 const lastUsedInterval = time.Minute
 
-// ErrInvalidToken 令牌无效：空、格式不对、不存在、已吊销、已过期、账号不存在、不是服务账号、账号已停用。
+// ErrInvalidToken 令牌无效：空、格式不对、不存在、已吊销、已过期、账号不存在、不是服务账号、账号已停用、等级超出服务账号的上限。
 // 返回的错误会包上原因（只供日志）；调用方用 errors.Is 判断，⛔ 不看文字
 var ErrInvalidToken = errors.New("访问令牌无效")
 
@@ -96,6 +97,9 @@ func (a *Authenticator) Authenticate(ctx context.Context, plaintext string) (Cal
 		return Caller{}, invalid("账号不是服务账号")
 	case account.Status != database.UserStatusActive:
 		return Caller{}, invalid("账号已停用")
+	case account.Role < 0 || account.Role > model.ServiceAccountMaxRole:
+		// 写入路径不会产生这样的行；库被直接改过时宁可拒绝，也不把更高的权限交给令牌
+		return Caller{}, invalid("等级超出服务账号的上限")
 	}
 
 	a.recordUse(ctx, token, now)

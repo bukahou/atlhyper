@@ -175,6 +175,13 @@ func TestAuthenticate_InvalidTokens(t *testing.T) {
 		{name: "账号已停用", edit: func(_ *database.APIToken, account *database.User) {
 			account.Status = 0
 		}},
+		// 写入路径不会产生这样的行；库被直接改过时宁可拒绝，也不把系统配置级的权限交给令牌
+		{name: "等级超出服务账号的上限", edit: func(_ *database.APIToken, account *database.User) {
+			account.Role = 3
+		}},
+		{name: "等级为负", edit: func(_ *database.APIToken, account *database.User) {
+			account.Role = -1
+		}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

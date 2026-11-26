@@ -136,8 +136,9 @@ type QueryGitHub interface {
 type QueryUser interface {
 	GetUserByID(ctx context.Context, id int64) (*database.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*database.User, error)
-	// GetUserByUsernameForPasswordLogin 密码登录专用：外部身份账号视为不存在
+	// GetUserByUsernameForPasswordLogin 密码登录专用：外部身份账号与服务账号视为不存在
 	GetUserByUsernameForPasswordLogin(ctx context.Context, username string) (*database.User, error)
+	// ListUsers 人的账号（不含服务账号）
 	ListUsers(ctx context.Context) ([]*database.User, error)
 	// FindUserIDByIdentity 按外部身份（issuer + subject）查本地用户 ID
 	FindUserIDByIdentity(ctx context.Context, issuer, subject string) (int64, bool, error)
