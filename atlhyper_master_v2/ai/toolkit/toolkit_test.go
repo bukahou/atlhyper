@@ -151,3 +151,81 @@ func TestRegister_DuplicatePanics(t *testing.T) {
 	}()
 	reg.Register(tool)
 }
+
+// 工具的效果只在定义上标一处：不标 = 只读；对外入口（MCP 的注解、确认闸）都从这里取
+func TestTool_Effect(t *testing.T) {
+	read, _ := probeTool(t)
+	if read.Effect() != EffectRead {
+		t.Errorf("没标效果的工具应是只读，得到 %q", read.Effect())
+	}
+	write := MustDefine(Spec[probeParams]{
+		Name: "writer", Description: "测试用", Permission: PermNone, Effect: EffectDestructive,
+		Handler: func(context.Context, string, probeParams) (string, error) { return "", nil },
+	})
+	if write.Effect() != EffectDestructive {
+		t.Errorf("Effect = %q, want %q", write.Effect(), EffectDestructive)
+	}
+}
+
+// 不针对某个集群的工具（如列出集群）要标出来：调用方据此不要求、也不解析集群
+func TestTool_ClusterScope(t *testing.T) {
+	scoped, _ := probeTool(t)
+	if !scoped.NeedsCluster() {
+		t.Error("默认的工具针对一个集群")
+	}
+	global := MustDefine(Spec[probeParams]{
+		Name: "global", Description: "测试用", Permission: PermNone, NoCluster: true,
+		Handler: func(context.Context, string, probeParams) (string, error) { return "", nil },
+	})
+	if global.NeedsCluster() {
+		t.Error("NoCluster 的工具不需要集群")
+	}
+}
+
+// 清单的可见性与 Definitions 同一条规则（基础权限），供别的入口逐个工具判断
+func TestTool_VisibleTo(t *testing.T) {
+	tool, _ := probeTool(t)
+	cases := []struct {
+		name  string
+		allow PermissionCheck
+		want  bool
+	}{
+		{"有基础权限", allowOnly(PermWorkloadEnvRead), true},
+		{"只有细分权限、没有基础权限", allowOnly(PermPodLogsRead), false},
+		{"没给权限判断", nil, false},
+	}
+	for _, c := range cases {
+		if got := tool.VisibleTo(c.allow); got != c.want {
+			t.Errorf("%s: VisibleTo = %v, want %v", c.name, got, c.want)
+		}
+	}
+	open := MustDefine(Spec[probeParams]{
+		Name: "open", Description: "测试用", Permission: PermNone,
+		Handler: func(context.Context, string, probeParams) (string, error) { return "", nil },
+	})
+	if !open.VisibleTo(allowOnly()) {
+		t.Error("不需要权限的工具对任何已识别的调用者可见")
+	}
+}
+
+func TestRegistry_ToolsAndLookup(t *testing.T) {
+	reg := NewRegistry()
+	tool, _ := probeTool(t)
+	reg.Register(tool)
+	if got := reg.Tools(); len(got) != 1 || got[0].Name() != "probe" {
+		t.Fatalf("Tools() = %v", got)
+	}
+	if found, ok := reg.Lookup("probe"); !ok || found != tool {
+		t.Errorf("Lookup(probe) = (%v, %v)", found, ok)
+	}
+	if _, ok := reg.Lookup("missing"); ok {
+		t.Error("没注册的工具不应查到")
+	}
+	if tool.Description() != "测试用" {
+		t.Errorf("Description = %q", tool.Description())
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(tool.InputSchema(), &schema); err != nil || schema["type"] != "object" {
+		t.Errorf("InputSchema 应是对象 schema 的 JSON: %v %v", schema["type"], err)
+	}
+}

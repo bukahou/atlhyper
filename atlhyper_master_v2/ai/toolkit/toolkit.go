@@ -26,6 +26,7 @@ type PermissionCheck func(permission string) bool
 // 原则：不能经 AI 拿到网关上拿不到的东西。
 const (
 	PermNone            = ""                  // 不需要额外权限（能进对话 / 分析即可）
+	PermClusterRead     = "cluster.read"      // 集群列表、概览（状态与形状）
 	PermWorkloadEnvRead = "workload.env.read" // 原始资源对象（含 env 字面值）
 	PermEventsRead      = "events.read"       // K8s 事件
 	PermSecretRead      = "secret.read"       // ConfigMap 内容（网关上与 Secret 同档）
@@ -35,6 +36,15 @@ const (
 	PermTracesRead      = "traces.read"       // 链路
 	PermLogsRead        = "logs.read"         // OTel 日志正文
 	PermSLORead         = "slo.read"          // SLO
+)
+
+// Effect 工具对外界的影响。只在工具定义上标这一处：对外入口的只读 / 破坏性标注、确认闸都从它取
+type Effect string
+
+const (
+	EffectRead        Effect = "read"        // 只读（不标时的默认值）
+	EffectWrite       Effect = "write"       // 会改动状态或产生费用，但可恢复
+	EffectDestructive Effect = "destructive" // 改动不可恢复（删除、重启等）
 )
 
 // 调用失败的分类（调用方按类型判断，⛔ 不比较文案）
@@ -55,8 +65,12 @@ type Spec[P any] struct {
 	// 返回值必须在 Permissions 里（测试核对）
 	PermissionFor func(P) string
 	Permissions   []string
-	Refine        func(*jsonschema.Schema)
-	Handler       func(ctx context.Context, clusterID string, p P) (string, error)
+	// Effect 工具的影响；不填 = EffectRead
+	Effect Effect
+	// NoCluster 工具不针对某个集群（如列出集群）：处理函数收到的 clusterID 没有意义，调用方不必提供
+	NoCluster bool
+	Refine    func(*jsonschema.Schema)
+	Handler   func(ctx context.Context, clusterID string, p P) (string, error)
 }
 
 // Tool 一个已定义好的工具
@@ -67,6 +81,8 @@ type Tool struct {
 	resolved    *jsonschema.Resolved
 	permission  string
 	permissions []string
+	effect      Effect
+	noCluster   bool
 	run         func(ctx context.Context, clusterID string, allow PermissionCheck, raw []byte) (string, error)
 }
 
@@ -92,6 +108,11 @@ func Define[P any](spec Spec[P]) (*Tool, error) {
 		permissions = []string{spec.Permission}
 	}
 
+	effect := spec.Effect
+	if effect == "" {
+		effect = EffectRead
+	}
+
 	t := &Tool{
 		name:        spec.Name,
 		description: spec.Description,
@@ -99,6 +120,8 @@ func Define[P any](spec Spec[P]) (*Tool, error) {
 		resolved:    resolved,
 		permission:  spec.Permission,
 		permissions: permissions,
+		effect:      effect,
+		noCluster:   spec.NoCluster,
 	}
 	t.run = func(ctx context.Context, clusterID string, allow PermissionCheck, raw []byte) (string, error) {
 		params, err := decodeParams[P](resolved, raw)
@@ -150,6 +173,26 @@ func decodeParams[P any](resolved *jsonschema.Resolved, raw []byte) (P, error) {
 // Name 工具名
 func (t *Tool) Name() string { return t.name }
 
+// Description 给模型看的说明
+func (t *Tool) Description() string { return t.description }
+
+// InputSchema 参数的 JSON Schema（与执行前校验用的是同一份）；调用方不得修改返回的切片
+func (t *Tool) InputSchema() json.RawMessage { return t.schemaJSON }
+
+// Effect 工具的影响（只读 / 写 / 破坏性）
+func (t *Tool) Effect() Effect { return t.effect }
+
+// NeedsCluster 工具是否针对某一个集群
+func (t *Tool) NeedsCluster() bool { return !t.noCluster }
+
+// VisibleTo 调用者是否看得到这个工具：与 Registry.Definitions 同一条规则（按基础权限；allow 为 nil 一律看不到）
+func (t *Tool) VisibleTo(allow PermissionCheck) bool {
+	if allow == nil {
+		return false
+	}
+	return t.permission == PermNone || allow(t.permission)
+}
+
 // Definition 发给模型的定义
 func (t *Tool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{Name: t.name, Description: t.description, Parameters: t.schemaJSON}
@@ -189,12 +232,30 @@ func (r *Registry) Definitions(allow PermissionCheck) []llm.ToolDefinition {
 	defer r.mu.RUnlock()
 	defs := make([]llm.ToolDefinition, 0, len(r.order))
 	for _, name := range r.order {
-		t := r.tools[name]
-		if t.permission == PermNone || allow(t.permission) {
+		if t := r.tools[name]; t.VisibleTo(allow) {
 			defs = append(defs, t.Definition())
 		}
 	}
 	return defs
+}
+
+// Tools 已注册的工具（按注册顺序）
+func (r *Registry) Tools() []*Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	tools := make([]*Tool, 0, len(r.order))
+	for _, name := range r.order {
+		tools = append(tools, r.tools[name])
+	}
+	return tools
+}
+
+// Lookup 按名字取工具
+func (r *Registry) Lookup(name string) (*Tool, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	t, ok := r.tools[name]
+	return t, ok
 }
 
 // Execute 执行一次工具调用：未注册 / 参数不合法 / 权限不足都返回对应的分类错误；allow 为 nil 一律拒绝
