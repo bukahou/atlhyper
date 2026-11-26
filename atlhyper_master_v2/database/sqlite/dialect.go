@@ -13,6 +13,8 @@ type Dialect struct {
 	audit           *auditDialect
 	user            *userDialect
 	userIdentity    *userIdentityDialect
+	serviceAccount  *serviceAccountDialect
+	apiToken        *apiTokenDialect
 	event           *eventDialect
 	cluster         *clusterDialect
 	command         *commandDialect
@@ -40,6 +42,8 @@ func NewDialect() *Dialect {
 		audit:           &auditDialect{},
 		user:            &userDialect{},
 		userIdentity:    &userIdentityDialect{},
+		serviceAccount:  &serviceAccountDialect{},
+		apiToken:        &apiTokenDialect{},
 		event:           &eventDialect{},
 		cluster:         &clusterDialect{},
 		command:         &commandDialect{},
@@ -65,6 +69,8 @@ func NewDialect() *Dialect {
 func (d *Dialect) Audit() database.AuditDialect                     { return d.audit }
 func (d *Dialect) User() database.UserDialect                       { return d.user }
 func (d *Dialect) UserIdentity() database.UserIdentityDialect       { return d.userIdentity }
+func (d *Dialect) ServiceAccount() database.ServiceAccountDialect   { return d.serviceAccount }
+func (d *Dialect) APIToken() database.APITokenDialect               { return d.apiToken }
 func (d *Dialect) Event() database.EventDialect                     { return d.event }
 func (d *Dialect) Cluster() database.ClusterDialect                 { return d.cluster }
 func (d *Dialect) Command() database.CommandDialect                 { return d.command }

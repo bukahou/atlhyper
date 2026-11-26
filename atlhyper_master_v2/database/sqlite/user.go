@@ -1,5 +1,8 @@
 // atlhyper_master_v2/database/sqlite/user.go
 // SQLite UserDialect 实现
+//
+// 建号、修改、删除、列表与密码登录只作用于人（kind = human）；按 id、按用户名读单个账号不分种类。
+// 服务账号的读写见 service_account.go。
 package sqlite
 
 import (
@@ -11,24 +14,24 @@ import (
 
 type userDialect struct{}
 
-const userColumns = `id, username, password_hash, display_name, email, role, status, created_at, updated_at, last_login_at, last_login_ip`
+const userColumns = `id, username, password_hash, display_name, email, role, status, kind, created_at, updated_at, last_login_at, last_login_ip`
 
 func (d *userDialect) Insert(user *database.User) (string, []any) {
 	now := utcStamp(time.Now())
-	query := `INSERT INTO users (username, password_hash, display_name, email, role, status, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	args := []any{user.Username, user.PasswordHash, user.DisplayName, user.Email, user.Role, user.Status, now, now}
+	query := `INSERT INTO users (username, password_hash, display_name, email, role, status, kind, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	args := []any{user.Username, user.PasswordHash, user.DisplayName, user.Email, user.Role, user.Status, database.UserKindHuman, now, now}
 	return query, args
 }
 
 func (d *userDialect) Update(user *database.User) (string, []any) {
-	query := `UPDATE users SET display_name = ?, email = ?, role = ?, status = ?, updated_at = ? WHERE id = ?`
-	args := []any{user.DisplayName, user.Email, user.Role, user.Status, utcStamp(time.Now()), user.ID}
+	query := `UPDATE users SET display_name = ?, email = ?, role = ?, status = ?, updated_at = ? WHERE id = ? AND kind = ?`
+	args := []any{user.DisplayName, user.Email, user.Role, user.Status, utcStamp(time.Now()), user.ID, database.UserKindHuman}
 	return query, args
 }
 
 func (d *userDialect) Delete(id int64) (string, []any) {
-	return "DELETE FROM users WHERE id = ?", []any{id}
+	return "DELETE FROM users WHERE id = ? AND kind = ?", []any{id, database.UserKindHuman}
 }
 
 func (d *userDialect) SelectByID(id int64) (string, []any) {
@@ -39,14 +42,14 @@ func (d *userDialect) SelectByUsername(username string) (string, []any) {
 	return "SELECT " + userColumns + " FROM users WHERE username = ?", []any{username}
 }
 
-// SelectByUsernameForPasswordLogin 排除拥有外部身份的用户：对密码登录而言它们与「不存在」相同
+// SelectByUsernameForPasswordLogin 只查人的账号，且排除拥有外部身份的：对密码登录而言其余的与「不存在」相同
 func (d *userDialect) SelectByUsernameForPasswordLogin(username string) (string, []any) {
-	return "SELECT " + userColumns + " FROM users WHERE username = ?" +
-		" AND NOT EXISTS (SELECT 1 FROM user_identities ui WHERE ui.user_id = users.id)", []any{username}
+	return "SELECT " + userColumns + " FROM users WHERE username = ? AND kind = ?" +
+		" AND NOT EXISTS (SELECT 1 FROM user_identities ui WHERE ui.user_id = users.id)", []any{username, database.UserKindHuman}
 }
 
-func (d *userDialect) SelectAll() (string, []any) {
-	return "SELECT " + userColumns + " FROM users", nil
+func (d *userDialect) SelectHumans() (string, []any) {
+	return "SELECT " + userColumns + " FROM users WHERE kind = ? ORDER BY id", []any{database.UserKindHuman}
 }
 
 func (d *userDialect) UpdateLastLogin(id int64, ip string) (string, []any) {
@@ -61,7 +64,7 @@ func (d *userDialect) ScanRow(rows *sql.Rows) (*database.User, error) {
 	var lastLoginAt, lastLoginIP sql.NullString
 	err := rows.Scan(
 		&user.ID, &user.Username, &user.PasswordHash, &displayName, &email,
-		&user.Role, &user.Status, &createdAt, &updatedAt, &lastLoginAt, &lastLoginIP,
+		&user.Role, &user.Status, &user.Kind, &createdAt, &updatedAt, &lastLoginAt, &lastLoginIP,
 	)
 	if err != nil {
 		return nil, err

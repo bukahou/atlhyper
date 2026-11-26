@@ -136,8 +136,9 @@ type QueryGitHub interface {
 type QueryUser interface {
 	GetUserByID(ctx context.Context, id int64) (*database.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*database.User, error)
-	// GetUserByUsernameForPasswordLogin 密码登录专用：外部身份账号视为不存在
+	// GetUserByUsernameForPasswordLogin 密码登录专用：外部身份账号与服务账号视为不存在
 	GetUserByUsernameForPasswordLogin(ctx context.Context, username string) (*database.User, error)
+	// ListUsers 人的账号（不含服务账号）
 	ListUsers(ctx context.Context) ([]*database.User, error)
 	// FindUserIDByIdentity 按外部身份（issuer + subject）查本地用户 ID
 	FindUserIDByIdentity(ctx context.Context, issuer, subject string) (int64, bool, error)
@@ -164,6 +165,33 @@ type OpsClusterRegistry interface {
 	IssueClusterToken(ctx context.Context, clusterID string) (*model.ClusterTokenIssued, error)
 	// UnregisterCluster 删除登记，令牌随之失效；不删除该集群的历史数据
 	UnregisterCluster(ctx context.Context, clusterID string) error
+}
+
+// QueryServiceAccounts 服务账号管理页与访问令牌校验的读取能力（AtlHyper 的服务账号，不是 K8s 的 ServiceAccount）
+type QueryServiceAccounts interface {
+	// ListServiceAccounts 全部服务账号（按账号名排序），各带令牌元数据；令牌状态与「能否签发」按当前时间判定
+	ListServiceAccounts(ctx context.Context) ([]model.ServiceAccountView, error)
+	// GetServiceAccount 单个服务账号；不存在（或该 id 不是服务账号）时返回 (nil, nil)
+	GetServiceAccount(ctx context.Context, id int64) (*model.ServiceAccountView, error)
+	// GetAPITokenByHash 按哈希取令牌（访问令牌校验用）；不存在返回 (nil, nil)
+	GetAPITokenByHash(ctx context.Context, tokenHash string) (*database.APIToken, error)
+}
+
+// OpsServiceAccounts 服务账号与访问令牌的写入能力。
+//
+// 输入不合规 → model.ErrInvalidServiceAccountInput；账号名被占 → database.ErrUsernameTaken；
+// 账号不存在 → database.ErrServiceAccountNotFound；令牌不存在 → database.ErrAPITokenNotFound；
+// 未吊销的令牌已达上限 → database.ErrAPITokenLimitReached
+type OpsServiceAccounts interface {
+	CreateServiceAccount(ctx context.Context, req *model.CreateServiceAccountRequest) (int64, error)
+	UpdateServiceAccount(ctx context.Context, id int64, req *model.UpdateServiceAccountRequest) error
+	DeleteServiceAccount(ctx context.Context, id int64) error
+	// IssueAPIToken 签发令牌；明文只在返回值里出现这一次。issuedBy 是签发人的用户名
+	IssueAPIToken(ctx context.Context, accountID int64, req *model.IssueAPITokenRequest, issuedBy string) (*model.APITokenIssued, error)
+	// RevokeAPIToken 吊销（行保留，立即失效）
+	RevokeAPIToken(ctx context.Context, accountID, tokenID int64) error
+	// TouchAPIToken 记下令牌的最近使用时间（访问令牌校验用）
+	TouchAPIToken(ctx context.Context, id int64, usedAt time.Time) error
 }
 
 // QueryNotify 通知设置页的读取能力。时间一律 RFC 3339（UTC），列表恒为非 nil；凭据不在任何返回值里
@@ -251,6 +279,7 @@ type Query interface {
 	QueryUser
 	QueryClusterRegistry
 	QueryNotify
+	QueryServiceAccounts
 }
 
 // OpsSLO SLO 写入操作
@@ -269,6 +298,7 @@ type Ops interface {
 	OpsSLO
 	OpsClusterRegistry
 	OpsNotify
+	OpsServiceAccounts
 }
 
 // Service 组合接口 (master.go 持有)

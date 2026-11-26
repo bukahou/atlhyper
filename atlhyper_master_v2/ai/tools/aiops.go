@@ -45,6 +45,7 @@ func aiopsTools(d Deps) []*toolkit.Tool {
 			Name:        "analyze_incident",
 			Description: "对指定事件做 AI 分析：根因、影响面、处置建议。用户要深入了解某个事件时用。",
 			Permission:  toolkit.PermAIAnalyze,
+			Effect:      toolkit.EffectWrite, // 会调用大模型（有费用）并写入分析报告
 			Handler: func(ctx context.Context, _ string, p analyzeIncidentParams) (string, error) {
 				result, err := d.SummarizeIncident(ctx, p.IncidentID)
 				if err != nil {

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai"
 	aitools "AtlHyper/atlhyper_master_v2/ai/tools"
@@ -22,11 +23,20 @@ type stubRouterSvc struct {
 	service.Service
 	users          map[int64]*database.User
 	tokenIssuedFor []string // 记录签发令牌时收到的集群 ID
+
+	apiTokenIssuedFor []int64 // 记录签发访问令牌时收到的服务账号 id
+	apiTokenIssuedBy  string
 }
 
 func (s *stubRouterSvc) IssueClusterToken(_ context.Context, clusterID string) (*model.ClusterTokenIssued, error) {
 	s.tokenIssuedFor = append(s.tokenIssuedFor, clusterID)
 	return &model.ClusterTokenIssued{Token: "atlk_placeholder-not-a-real-token", TokenPrefix: "atlk_pla"}, nil
+}
+
+func (s *stubRouterSvc) IssueAPIToken(_ context.Context, accountID int64, _ *model.IssueAPITokenRequest, issuedBy string) (*model.APITokenIssued, error) {
+	s.apiTokenIssuedFor = append(s.apiTokenIssuedFor, accountID)
+	s.apiTokenIssuedBy = issuedBy
+	return &model.APITokenIssued{Token: "atlp_placeholder-not-a-real-token", TokenPrefix: "atlp_pla"}, nil
 }
 
 func (s *stubRouterSvc) GetUserByID(_ context.Context, id int64) (*database.User, error) {
@@ -36,6 +46,28 @@ func (s *stubRouterSvc) GetUserByID(_ context.Context, id int64) (*database.User
 type stubAudit struct{ database.AuditRepository }
 
 func (stubAudit) Create(context.Context, *database.AuditLog) error { return nil }
+
+// recordingAudit 把写入的审计记录送进 channel（审计中间件是异步写的）
+type recordingAudit struct {
+	database.AuditRepository
+	records chan *database.AuditLog
+}
+
+func (a *recordingAudit) Create(_ context.Context, entry *database.AuditLog) error {
+	a.records <- entry
+	return nil
+}
+
+func (a *recordingAudit) wait(t *testing.T) *database.AuditLog {
+	t.Helper()
+	select {
+	case entry := <-a.records:
+		return entry
+	case <-time.After(2 * time.Second):
+		t.Fatal("没有写审计")
+		return nil
+	}
+}
 
 type stubAI struct{ ai.AIService }
 type stubGitHub struct{ github.Client }
@@ -120,6 +152,12 @@ func TestRoutes_LevelZeroCannotReachSensitive(t *testing.T) {
 		{"PUT", "/api/v2/admin/clusters/c1"},
 		{"POST", "/api/v2/admin/clusters/c1/token"},
 		{"DELETE", "/api/v2/admin/clusters/c1"},
+		{"GET", "/api/v2/admin/service-accounts"},
+		{"POST", "/api/v2/admin/service-accounts"},
+		{"PUT", "/api/v2/admin/service-accounts/7"},
+		{"DELETE", "/api/v2/admin/service-accounts/7"},
+		{"POST", "/api/v2/admin/service-accounts/7/tokens"},
+		{"DELETE", "/api/v2/admin/service-accounts/7/tokens/3"},
 	}
 	for _, c := range sensitive {
 		if got := call(t, h, c.method, c.path, 0); got != http.StatusUnauthorized {
@@ -147,6 +185,10 @@ func TestRoutes_LevelBoundaries(t *testing.T) {
 		{"GET", "/api/v2/admin/clusters", 3, http.StatusForbidden},
 		{"POST", "/api/v2/admin/clusters/c1/token", 3, http.StatusForbidden},
 		{"DELETE", "/api/v2/admin/clusters/c1", 3, http.StatusForbidden},
+		// 服务账号与访问令牌和用户管理同一权限：Operator 看不到、也签发不了
+		{"GET", "/api/v2/admin/service-accounts", 3, http.StatusForbidden},
+		{"POST", "/api/v2/admin/service-accounts/7/tokens", 3, http.StatusForbidden},
+		{"DELETE", "/api/v2/admin/service-accounts/7/tokens/3", 3, http.StatusForbidden},
 	}
 	for _, c := range cases {
 		if got := call(t, h, c.method, c.path, c.userID); got != c.want {
@@ -385,6 +427,81 @@ func TestRoutes_ClusterRegistryPathParamReachesHandler(t *testing.T) {
 	}
 	if len(svc.tokenIssuedFor) != 2 || svc.tokenIssuedFor[0] != "prod-1" || svc.tokenIssuedFor[1] != "prod.tokyo" {
 		t.Errorf("handler 收到的集群 ID = %v", svc.tokenIssuedFor)
+	}
+}
+
+// 服务账号的六个接口都已登记，全部要求 user.manage（不另设权限），写方法一律审计。
+func TestRoutes_ServiceAccountsDeclared(t *testing.T) {
+	r, _ := testRouterWithSpecs(t)
+	want := map[string]bool{ // 方法 路径 → 是否审计
+		"GET /api/v2/admin/service-accounts":                          false,
+		"POST /api/v2/admin/service-accounts":                         true,
+		"PUT /api/v2/admin/service-accounts/{id}":                     true,
+		"DELETE /api/v2/admin/service-accounts/{id}":                  true,
+		"POST /api/v2/admin/service-accounts/{id}/tokens":             true,
+		"DELETE /api/v2/admin/service-accounts/{id}/tokens/{tokenId}": true,
+	}
+	found := map[string]bool{}
+	for _, s := range r.specs {
+		key := s.method + " " + s.path
+		audited, expected := want[key]
+		if !expected {
+			continue
+		}
+		found[key] = true
+		if s.perm != middleware.PermUserManage {
+			t.Errorf("%s 的权限 = %q, want user.manage", key, s.perm)
+		}
+		if s.audited != audited {
+			t.Errorf("%s 的审计 = %v, want %v", key, s.audited, audited)
+		}
+	}
+	for key := range want {
+		if !found[key] {
+			t.Errorf("路由未登记: %s", key)
+		}
+	}
+}
+
+// 签发访问令牌：路径里的账号 id 与当前管理员的用户名穿过审计与权限两层包装后到达 handler；
+// 审计记下的只有请求体与状态码，响应里的明文不进审计
+func TestRoutes_IssueAPITokenThroughAuditAndPermission(t *testing.T) {
+	_, _, svc := testRouterWithStub(t) // 设好测试用的 JWT 密钥与用户
+	audit := &recordingAudit{records: make(chan *database.AuditLog, 1)}
+	h := NewRouter(svc, &database.DB{Audit: audit}, stubAI{}, nil, stubGitHub{}).Handler()
+
+	tok, err := middleware.GenerateToken(4, "admin", middleware.RoleAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/admin/service-accounts/7/tokens", strings.NewReader(`{"name":"prod"}`))
+	req.Header.Set("Authorization", "Bearer "+tok)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), "atlp_placeholder-not-a-real-token") {
+		t.Fatalf("Admin 签发 = %d：%s", rec.Code, rec.Body)
+	}
+	if len(svc.apiTokenIssuedFor) != 1 || svc.apiTokenIssuedFor[0] != 7 || svc.apiTokenIssuedBy != "admin" {
+		t.Errorf("handler 收到的账号 id = %v，签发人 = %q", svc.apiTokenIssuedFor, svc.apiTokenIssuedBy)
+	}
+	entry := audit.wait(t)
+	if entry.Action != "create" || entry.Resource != "api_token" || entry.Path != "/api/v2/admin/service-accounts/7/tokens" ||
+		entry.StatusCode != http.StatusCreated {
+		t.Errorf("审计记录不对：%+v", entry)
+	}
+	if strings.Contains(entry.RequestBody+entry.ErrorMessage, "atlp_") {
+		t.Errorf("审计里不应出现令牌明文：%+v", entry)
+	}
+}
+
+// 服务账号的等级上限（model）与网关的角色等级一致：上限是 Operator，服务账号拿不到系统配置权限
+func TestServiceAccountMaxRoleIsOperator(t *testing.T) {
+	if model.ServiceAccountMaxRole != middleware.RoleOperator {
+		t.Errorf("model.ServiceAccountMaxRole = %d, want RoleOperator(%d)", model.ServiceAccountMaxRole, middleware.RoleOperator)
+	}
+	if middleware.Allowed(model.ServiceAccountMaxRole, middleware.PermUserManage) {
+		t.Error("服务账号的最高等级不应拿到 user.manage")
 	}
 }
 

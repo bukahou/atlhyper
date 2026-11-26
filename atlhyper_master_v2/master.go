@@ -24,12 +24,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"AtlHyper/atlhyper_master_v2/agentsdk"
 	"AtlHyper/atlhyper_master_v2/ai"
 	"AtlHyper/atlhyper_master_v2/aiops"
 	aiopscore "AtlHyper/atlhyper_master_v2/aiops/core"
 	"AtlHyper/atlhyper_master_v2/aiops/enricher"
+	"AtlHyper/atlhyper_master_v2/auth/apitoken"
 	"AtlHyper/atlhyper_master_v2/auth/oidc"
 	"AtlHyper/atlhyper_master_v2/config"
 	"AtlHyper/atlhyper_master_v2/database"
@@ -39,6 +41,8 @@ import (
 	"AtlHyper/atlhyper_master_v2/gateway"
 	"AtlHyper/atlhyper_master_v2/gateway/middleware"
 	"AtlHyper/atlhyper_master_v2/github"
+	"AtlHyper/atlhyper_master_v2/mcpserver"
+	"AtlHyper/atlhyper_master_v2/model"
 	"AtlHyper/atlhyper_master_v2/mq"
 	"AtlHyper/atlhyper_master_v2/notifier"
 	"AtlHyper/atlhyper_master_v2/notifier/pipeline"
@@ -62,6 +66,7 @@ type Master struct {
 	service      service.Service
 	agentSDK     *agentsdk.Server
 	gateway      *gateway.Server
+	mcpEntry     *mcpserver.Server // MCP 入口；MASTER_MCP_PORT 为 0 时不启用，为 nil
 	eventPersist *sync.EventPersistService
 	alertManager notifier.AlertManager
 	// AIOps 引擎
@@ -230,6 +235,9 @@ func NewMaster() (*Master, error) {
 			Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
 			SMTP: db.NotifySMTP,
 		},
+
+		ServiceAccountRepo: db.ServiceAccount,
+		APITokenRepo:       db.APIToken,
 	})
 	log.Info("查询层初始化完成")
 
@@ -251,8 +259,11 @@ func NewMaster() (*Master, error) {
 		SMTP: db.NotifySMTP,
 	})
 
+	// 初始化服务账号写入服务（新建、修改、删除账号，签发与吊销访问令牌）
+	serviceAccountOps := operations.NewServiceAccountService(db.ServiceAccount, db.APIToken)
+
 	// 组合统一 Service
-	svc := service.NewService(q, cmdOps, adminOps, sloOps, githubOps, userOps, clusterRegistryOps, notifyOps)
+	svc := service.NewService(q, cmdOps, adminOps, sloOps, githubOps, userOps, clusterRegistryOps, notifyOps, serviceAccountOps)
 
 	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{
@@ -323,6 +334,8 @@ func NewMaster() (*Master, error) {
 
 	// 11.6 注册 AI 工具（定义都在 ai/tools；可选依赖缺失的工具不注册，清单里也就没有它）
 	toolDeps := aitools.Deps{
+		Clusters:    svc,
+		Overview:    svc,
 		Commands:    cmdOps,
 		ToolTimeout: cfg.AI.ToolTimeout,
 		AIOps:       aiopsEngine,
@@ -339,6 +352,31 @@ func NewMaster() (*Master, error) {
 	}
 	aitools.Register(aiService.Tools(), toolDeps)
 	log.Info("AI 工具注册完成", "tools", aiService.Tools().Names())
+
+	// 11.7 MCP 入口（可选）：外部 AI 客户端凭服务账号的访问令牌，调用开放名单里的只读工具
+	var mcpEntry *mcpserver.Server
+	if cfg.MCP.Port > 0 {
+		mcpEntry, err = mcpserver.NewServer(mcpserver.Config{
+			Port:          cfg.MCP.Port,
+			Tools:         aiService.Tools(),
+			Authenticator: apitoken.NewAuthenticator(svc, svc, time.Now),
+			Clusters:      svc,
+			Audit:         db.Audit,
+			Allowed: func(level int, permission string) bool {
+				return middleware.Allowed(level, middleware.Permission(permission))
+			},
+			// 服务账号能被授予的等级，每个等级一份工具清单
+			Levels:             model.CurrentServiceAccountLimits().AssignableRoles,
+			RateLimitPerMinute: cfg.MCP.RateLimitPerMinute,
+			MaxResultRunes:     cfg.MCP.MaxResultChars,
+			// 比工具自己的执行超时多留一些，让工具先报出自己的超时
+			CallTimeout: cfg.AI.ToolTimeout + 15*time.Second,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("初始化 MCP 入口: %w", err)
+		}
+		log.Info("MCP 入口初始化完成", "port", cfg.MCP.Port)
+	}
 
 	// 12. 初始化 Gateway
 	// 12.5 外部身份登录（OIDC，可选）：首登自动建为成员（0 级），由管理员提升
@@ -383,6 +421,7 @@ func NewMaster() (*Master, error) {
 		service:      svc,
 		agentSDK:     agentServer,
 		gateway:      gw,
+		mcpEntry:     mcpEntry,
 		eventPersist: eventPersist,
 		alertManager: alertMgr,
 		aiopsEngine:  aiopsEngine,
@@ -438,9 +477,17 @@ func (m *Master) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start gateway: %w", err)
 	}
 
+	// 启动 MCP 入口（未启用时跳过）
+	if m.mcpEntry != nil {
+		if err := m.mcpEntry.Start(); err != nil {
+			return fmt.Errorf("failed to start mcp entry: %w", err)
+		}
+	}
+
 	log.Info("Master 启动成功",
 		"gateway_port", config.GlobalConfig.Server.GatewayPort,
 		"agentsdk_port", config.GlobalConfig.Server.AgentSDKPort,
+		"mcp_port", config.GlobalConfig.MCP.Port,
 	)
 
 	// 等待退出信号
@@ -455,6 +502,13 @@ func (m *Master) Run(ctx context.Context) error {
 
 // Stop 停止 Master
 func (m *Master) Stop() error {
+	// 停止 MCP 入口
+	if m.mcpEntry != nil {
+		if err := m.mcpEntry.Stop(); err != nil {
+			log.Error("停止 MCP 入口失败", "err", err)
+		}
+	}
+
 	// 停止 Gateway
 	if err := m.gateway.Stop(); err != nil {
 		log.Error("停止 Gateway 失败", "err", err)

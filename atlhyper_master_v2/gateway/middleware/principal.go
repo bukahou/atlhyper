@@ -4,7 +4,7 @@
 // 所有请求统一经过 Authenticate：
 //   - 无 token → 访客（0 级）
 //   - token 有效 → 按 user_id 查库，取当前角色（提升 / 降级 / 禁用即时生效）
-//   - 身份无效（格式错 / 签名错 / 已过期 / 用户不存在 / 已禁用 / 查库失败）→ 退化为访客，记录原因
+//   - 身份无效（格式错 / 签名错 / 已过期 / 用户不存在 / 是服务账号 / 已禁用 / 查库失败）→ 退化为访客，记录原因
 //
 // 不拒绝请求本身：0 级接口照常可用；受限接口由 RequirePermission 按主体返回 401 / 403。
 package middleware
@@ -84,7 +84,8 @@ func resolvePrincipal(ctx context.Context, loader UserLoader, authHeader string)
 		authLog.Error("查询用户失败，按访客处理", "user_id", int64(idFloat), "err", err)
 		return guest("暂时无法验证身份，请稍后重试")
 	}
-	if user == nil {
+	// 服务账号只凭访问令牌走对外入口，不是网页的登录主体
+	if user == nil || user.IsServiceAccount() {
 		return guest("账号不存在，请重新登录")
 	}
 	if user.Status != 1 {

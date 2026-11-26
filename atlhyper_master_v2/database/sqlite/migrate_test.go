@@ -186,3 +186,134 @@ func TestMigrate_DropsDeployerTables(t *testing.T) {
 		}
 	}
 }
+
+// columnNames 表的全部列名
+func columnNames(t *testing.T, db *sql.DB, table string) map[string]bool {
+	t.Helper()
+	rows, err := db.Query("SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	names := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		names[name] = true
+	}
+	return names
+}
+
+// assertServiceAccountSchema 第 6 版的表结构：users 有 kind，api_tokens 及其索引齐全
+func assertServiceAccountSchema(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if !columnNames(t, db, "users")["kind"] {
+		t.Error("users 应有 kind 列")
+	}
+	tokenColumns := columnNames(t, db, "api_tokens")
+	for _, column := range []string{"id", "user_id", "name", "token_hash", "token_prefix", "expires_at",
+		"last_used_at", "created_by", "created_at", "revoked_at"} {
+		if !tokenColumns[column] {
+			t.Errorf("api_tokens 缺列 %s", column)
+		}
+	}
+	if n := scalar(t, db, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_api_tokens_user'"); n != "1" {
+		t.Error("api_tokens.user_id 上应有索引")
+	}
+	// 外键指向 users，删账号时令牌一起删
+	if got := scalar(t, db, "SELECT \"table\" || ':' || on_delete FROM pragma_foreign_key_list('api_tokens')"); got != "users:CASCADE" {
+		t.Errorf("api_tokens 的外键 = %q, want users:CASCADE", got)
+	}
+}
+
+// 新库：建号不写种类时为 human；种类只能是 human 或 service；令牌哈希唯一
+func TestMigrate_ServiceAccounts_FreshDatabase(t *testing.T) {
+	db := openTestDB(t)
+	if err := migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	assertServiceAccountSchema(t, db)
+
+	if _, err := db.Exec(`INSERT INTO users (username, password_hash, role, status, created_at, updated_at)
+		VALUES ('alice', 'x', 1, 1, '2026-11-26T00:00:00Z', '2026-11-26T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if got := scalar(t, db, "SELECT kind FROM users WHERE username = 'alice'"); got != "human" {
+		t.Errorf("不写种类时 kind = %q, want human", got)
+	}
+	if _, err := db.Exec(`INSERT INTO users (username, password_hash, kind, created_at, updated_at)
+		VALUES ('robot', 'x', 'robot', '2026-11-26T00:00:00Z', '2026-11-26T00:00:00Z')`); err == nil {
+		t.Error("kind 只能是 human 或 service")
+	}
+
+	insertToken := `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix, created_by, created_at)
+		VALUES ((SELECT id FROM users WHERE username = 'alice'), 't', 'same-hash', 'atlp_abc', 'admin', '2026-11-26T00:00:00Z')`
+	if _, err := db.Exec(insertToken); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(insertToken); err == nil {
+		t.Error("token_hash 应唯一")
+	}
+}
+
+// 上一版本（第 5 版）的已有库：已有用户都成为 human，数据不变
+func TestMigrate_ServiceAccounts_ExistingV5Database(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	p, err := goose.NewProvider(goose.DialectSQLite3, db, schema.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 5); err != nil {
+		t.Fatalf("迁到第 5 版: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO users (username, password_hash, display_name, role, status, created_at, updated_at)
+		VALUES ('ops', 'x', 'Ops', 3, 1, '2026-11-19T10:00:00Z', '2026-11-19T10:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if got, want := schemaVersion(t, db), latestVersion(t); got != want {
+		t.Errorf("版本 = %d, want %d", got, want)
+	}
+	assertServiceAccountSchema(t, db)
+	if got := scalar(t, db, "SELECT kind || '|' || role || '|' || display_name FROM users WHERE username = 'ops'"); got != "human|3|Ops" {
+		t.Errorf("已有用户升级后 = %q, want human|3|Ops", got)
+	}
+}
+
+// 回退到第 5 版：服务账号连同令牌删除，kind 列去掉，人的账号保留
+func TestMigrate_ServiceAccounts_Down(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	p, err := goose.NewProvider(goose.DialectSQLite3, db, schema.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 6); err != nil {
+		t.Fatalf("迁到第 6 版: %v", err)
+	}
+	for _, row := range []struct{ name, kind string }{{"ops", "human"}, {"haro", "service"}} {
+		if _, err := db.Exec(`INSERT INTO users (username, password_hash, kind, created_at, updated_at)
+			VALUES (?, 'x', ?, '2026-11-26T00:00:00Z', '2026-11-26T00:00:00Z')`, row.name, row.kind); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := p.DownTo(ctx, 5); err != nil {
+		t.Fatalf("回退到第 5 版: %v", err)
+	}
+	if n := scalar(t, db, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'api_tokens'"); n != "0" {
+		t.Error("回退后不应再有 api_tokens")
+	}
+	if columnNames(t, db, "users")["kind"] {
+		t.Error("回退后 users 不应再有 kind 列")
+	}
+	if got := scalar(t, db, "SELECT group_concat(username) FROM users"); got != "ops" {
+		t.Errorf("回退后的账号 = %q, want 只剩 ops", got)
+	}
+}

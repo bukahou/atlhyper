@@ -325,13 +325,8 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查找用户
-	user, err := h.querySvc.GetUserByID(r.Context(), req.UserID)
-	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败")
-		return
-	}
-	if user == nil {
-		handler.WriteError(w, http.StatusNotFound, "用户不存在")
+	user, ok := h.managedUser(w, r.Context(), req.UserID)
+	if !ok {
 		return
 	}
 
@@ -385,13 +380,8 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 检查用户是否存在
-	user, err := h.querySvc.GetUserByID(r.Context(), req.UserID)
-	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败")
-		return
-	}
-	if user == nil {
-		handler.WriteError(w, http.StatusNotFound, "用户不存在")
+	user, ok := h.managedUser(w, r.Context(), req.UserID)
+	if !ok {
 		return
 	}
 
@@ -449,13 +439,8 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查找用户
-	user, err := h.querySvc.GetUserByID(r.Context(), req.UserID)
-	if err != nil {
-		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败")
-		return
-	}
-	if user == nil {
-		handler.WriteError(w, http.StatusNotFound, "用户不存在")
+	user, ok := h.managedUser(w, r.Context(), req.UserID)
+	if !ok {
 		return
 	}
 
@@ -479,6 +464,20 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	handler.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "用户" + statusText,
 	})
+}
+
+// managedUser 取用户管理要操作的账号。用户管理只管人：不存在、或该 id 是服务账号时都已写出 404 并返回 false
+func (h *UserHandler) managedUser(w http.ResponseWriter, ctx context.Context, id int64) (*database.User, bool) {
+	user, err := h.querySvc.GetUserByID(ctx, id)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "查询用户失败")
+		return nil, false
+	}
+	if user == nil || user.IsServiceAccount() {
+		handler.WriteError(w, http.StatusNotFound, "用户不存在")
+		return nil, false
+	}
+	return user, true
 }
 
 // keepsAnActiveAdmin 删除 / 禁用 / 降级 target 之后系统里是否还有启用中的管理员；没有时已写出 409 并返回 false

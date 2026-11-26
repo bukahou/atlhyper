@@ -16,5 +16,6 @@ var (
 	_ QueryUser            = (*query.UserQuery)(nil)
 	_ QueryClusterRegistry = (*query.ClusterRegistryQuery)(nil)
 	_ QueryNotify          = (*query.NotifyQuery)(nil)
+	_ QueryServiceAccounts = (*query.ServiceAccountQuery)(nil)
 	_ Query                = (*query.QueryService)(nil)
 )
