@@ -74,6 +74,9 @@ func TestLoad_Defaults(t *testing.T) {
 		{"Timeout.CommandPoll", c.Timeout.CommandPoll, 60 * time.Second},
 		{"JWT.SecretKey", c.JWT.SecretKey, "jwt-secret-placeholder-not-real"},
 		{"JWT.TokenExpiry", c.JWT.TokenExpiry, 24 * time.Hour},
+		{"MCP.Port", c.MCP.Port, 0},
+		{"MCP.RateLimitPerMinute", c.MCP.RateLimitPerMinute, 120},
+		{"MCP.MaxResultChars", c.MCP.MaxResultChars, 20000},
 		{"Admin.Username", c.Admin.Username, "admin-placeholder"},
 		{"Admin.Password", c.Admin.Password, "password-placeholder"},
 		{"Admin.DisplayName", c.Admin.DisplayName, ""},
@@ -124,6 +127,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 		"MASTER_OIDC_CLIENT_SECRET": "secret-placeholder", "MASTER_OIDC_REDIRECT_URL": "https://example.com/oidc",
 		"MASTER_OIDC_COOKIE_SECRET": "cookie-secret-placeholder-32-bytes-long", "MASTER_OIDC_COOKIE_SECURE": "false",
 		"MASTER_OIDC_DISPLAY_NAME": "Akasha",
+		"MASTER_MCP_PORT":          "8090", "MASTER_MCP_RATE_LIMIT_PER_MINUTE": "30", "MASTER_MCP_MAX_RESULT_CHARS": "5000",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -161,6 +165,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 		"MASTER_AI_BEDROCK_REGION":                   {c.AI.BedrockRegion, "us-east-1"},
 		"MASTER_AI_GITHUB_PRIVATE_REPOS":             {[]string(c.AI.GitHubPrivateRepos), []string{"example-org/a", "example-org/b"}},
 		"MASTER_AI_SEED_*":                           {c.AI.Seed, AISeed{Provider: "ollama", Name: "local", APIKey: "key-placeholder", Model: "m", BaseURL: "http://ollama.example.com"}},
+		"MASTER_MCP_*":                               {c.MCP, MCPConfig{Port: 8090, RateLimitPerMinute: 30, MaxResultChars: 5000}},
 		"GITHUB_APP_ID":                              {c.GitHub.AppID, int64(42)},
 		"GITHUB_APP_SLUG":                            {c.GitHub.AppSlug, "slug"},
 		"GITHUB_PRIVATE_KEY_PATH":                    {c.GitHub.PrivateKeyPath, "/k.pem"},

@@ -69,6 +69,13 @@ type JWTConfig struct {
 	TokenExpiry time.Duration `env:"MASTER_JWT_TOKEN_EXPIRY" envDefault:"24h"` // Token 有效期
 }
 
+// MCPConfig MCP 入口（给外部 AI 客户端调用只读工具；每个请求都要带访问令牌）
+type MCPConfig struct {
+	Port               int `env:"MASTER_MCP_PORT" envDefault:"0"`                    // 监听端口；0 = 不启用
+	RateLimitPerMinute int `env:"MASTER_MCP_RATE_LIMIT_PER_MINUTE" envDefault:"120"` // 每枚令牌每分钟的请求数
+	MaxResultChars     int `env:"MASTER_MCP_MAX_RESULT_CHARS" envDefault:"20000"`    // 单次工具结果的字符上限（超出截断并标记）
+}
+
 // AdminConfig 默认管理员配置
 type AdminConfig struct {
 	Username    string `env:"MASTER_ADMIN_USERNAME,required,notEmpty"` // 管理员用户名
@@ -146,6 +153,7 @@ type AppConfig struct {
 	EventAlert EventAlertConfig
 	Timeout    TimeoutConfig
 	JWT        JWTConfig
+	MCP        MCPConfig
 	Admin      AdminConfig
 	AI         AIConfig
 	GitHub     GitHubConfig
