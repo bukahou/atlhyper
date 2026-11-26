@@ -2146,6 +2146,7 @@ components:
       - assignableRoles
       - maxActiveTokens
       - maxExpiresInDays
+      - defaultExpiresInDays
       properties:
         assignableRoles:
           type: array
@@ -2158,6 +2159,9 @@ components:
         maxExpiresInDays:
           type: integer
           description: 令牌有效期上限（天）
+        defaultExpiresInDays:
+          type: integer
+          description: 签发表单里有效期的默认值（天）
     ServiceAccountListResponse:
       type: object
       additionalProperties: false

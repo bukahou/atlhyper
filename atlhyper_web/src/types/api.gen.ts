@@ -920,6 +920,8 @@ export interface components {
             maxActiveTokens: number;
             /** @description 令牌有效期上限（天） */
             maxExpiresInDays: number;
+            /** @description 签发表单里有效期的默认值（天） */
+            defaultExpiresInDays: number;
         };
         /** @description 服务账号列表响应 */
         ServiceAccountListResponse: {

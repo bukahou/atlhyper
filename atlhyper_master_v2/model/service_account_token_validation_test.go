@@ -139,4 +139,8 @@ func TestServiceAccountLimits(t *testing.T) {
 	if limits.MaxActiveTokens != MaxActiveAPITokensPerAccount || limits.MaxExpiresInDays != MaxAPITokenExpiresInDays {
 		t.Errorf("limits = %+v", limits)
 	}
+	// 默认有效期本身必须能通过校验
+	if err := ValidateAPITokenRequest("prod", intPtr(limits.DefaultExpiresInDays)); err != nil || limits.DefaultExpiresInDays == 0 {
+		t.Errorf("默认有效期 %d 天不合规：%v", limits.DefaultExpiresInDays, err)
+	}
 }

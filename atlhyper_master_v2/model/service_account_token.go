@@ -11,6 +11,8 @@ const (
 	MaxActiveAPITokensPerAccount = 10
 	// MaxAPITokenExpiresInDays 访问令牌有效期的上限（天）；不给有效期 = 不过期
 	MaxAPITokenExpiresInDays = 3650
+	// DefaultAPITokenExpiresInDays 签发表单里有效期的默认值（天）：默认给会到期的令牌，不过期要管理员另选
+	DefaultAPITokenExpiresInDays = 90
 )
 
 // 访问令牌的状态（由后端按当前时间判定）
@@ -55,6 +57,8 @@ type ServiceAccountLimits struct {
 	AssignableRoles  []int `json:"assignableRoles"`  // 服务账号可选的等级，从低到高
 	MaxActiveTokens  int   `json:"maxActiveTokens"`  // 每个账号未吊销的令牌上限
 	MaxExpiresInDays int   `json:"maxExpiresInDays"` // 令牌有效期上限（天）
+	// DefaultExpiresInDays 签发表单里有效期的默认值（天）
+	DefaultExpiresInDays int `json:"defaultExpiresInDays"`
 }
 
 // CurrentServiceAccountLimits 当前的业务参数
@@ -67,6 +71,8 @@ func CurrentServiceAccountLimits() ServiceAccountLimits {
 		AssignableRoles:  roles,
 		MaxActiveTokens:  MaxActiveAPITokensPerAccount,
 		MaxExpiresInDays: MaxAPITokenExpiresInDays,
+
+		DefaultExpiresInDays: DefaultAPITokenExpiresInDays,
 	}
 }
 

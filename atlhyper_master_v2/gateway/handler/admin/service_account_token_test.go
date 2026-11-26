@@ -133,7 +133,7 @@ func TestServiceAccountList_MatchesSpec(t *testing.T) {
 	contract.AssertResponse(t, http.MethodGet, serviceAccountsPath, http.StatusOK, rec.Body.Bytes())
 
 	body := decodeBody(t, rec)
-	assertSameJSON(t, string(body["limits"]), `{"assignableRoles":[0,1,2],"maxActiveTokens":10,"maxExpiresInDays":3650}`)
+	assertSameJSON(t, string(body["limits"]), `{"assignableRoles":[0,1,2],"maxActiveTokens":10,"maxExpiresInDays":3650,"defaultExpiresInDays":90}`)
 	if string(body["total"]) != "1" {
 		t.Errorf("total = %s", body["total"])
 	}
