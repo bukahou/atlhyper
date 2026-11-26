@@ -36,7 +36,7 @@ type AuditRecorder interface {
 // Config MCP 入口的配置与依赖
 type Config struct {
 	Port    int
-	Version string // 报给客户端的服务端版本
+	Version string // 报给客户端的服务端版本；不填时取构建信息
 
 	Tools         *toolkit.Registry
 	Authenticator TokenAuthenticator

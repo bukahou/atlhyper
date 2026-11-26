@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -96,6 +97,9 @@ func newServer(cfg Config, exposed []string) (*Server, error) {
 	}
 	if cfg.CallTimeout <= 0 {
 		cfg.CallTimeout = defaultCallTimeout
+	}
+	if cfg.Version == "" {
+		cfg.Version = buildVersion()
 	}
 
 	tools, err := resolveExposedTools(cfg.Tools, exposed)
@@ -325,4 +329,21 @@ func (s *Server) Stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return s.httpServer.Shutdown(ctx)
+}
+
+// buildVersion 告诉客户端的服务端版本：构建信息里的模块版本，没有时取代码提交的前 12 位，都取不到为 unknown
+func buildVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	if version := info.Main.Version; version != "" && version != "(devel)" {
+		return version
+	}
+	for _, setting := range info.Settings {
+		if setting.Key == "vcs.revision" && len(setting.Value) >= 12 {
+			return setting.Value[:12]
+		}
+	}
+	return "unknown"
 }
