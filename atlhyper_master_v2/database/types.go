@@ -41,19 +41,51 @@ type AuditQueryOpts struct {
 	Offset int
 }
 
-// User 用户
+// 账号种类（users.kind）
+const (
+	UserKindHuman   = "human"   // 人：密码或外部身份登录
+	UserKindService = "service" // 服务账号：不能登录，只凭访问令牌调用
+)
+
+// 账号状态（users.status）
+const (
+	UserStatusDisabled = 0
+	UserStatusActive   = 1
+)
+
+// User 用户（人与服务账号共用一张表，Kind 区分）
 type User struct {
 	ID           int64
-	Username     string
+	Username     string // 服务账号的账号名也在这里，与人的用户名不能重复
 	PasswordHash string
 	DisplayName  string
 	Email        string
 	Role         int // 0=Member（与访客同权）, 1=Viewer, 2=Operator, 3=Admin（数值越大权限越高）
 	Status       int // 1=Active, 0=Disabled
+	Kind         string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	LastLoginAt  *time.Time
 	LastLoginIP  string
+}
+
+// IsServiceAccount 是否服务账号（种类为空按人处理：建号时不写种类的都是人）
+func (u *User) IsServiceAccount() bool {
+	return u.Kind == UserKindService
+}
+
+// APIToken 访问令牌（服务账号用）。库里只有哈希与显示用前缀，明文只在签发时返回一次
+type APIToken struct {
+	ID          int64
+	UserID      int64
+	Name        string
+	TokenHash   string
+	TokenPrefix string
+	ExpiresAt   *time.Time // nil = 不过期
+	LastUsedAt  *time.Time // nil = 从未使用
+	CreatedBy   string     // 签发人的用户名
+	CreatedAt   time.Time
+	RevokedAt   *time.Time // nil = 未吊销
 }
 
 // ClusterEvent 集群事件（只存 Warning）
