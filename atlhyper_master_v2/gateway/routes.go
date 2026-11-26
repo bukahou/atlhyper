@@ -200,6 +200,7 @@ func (r *Router) registerRoutes() {
 	aiProviderH := adminHandler.NewAIProviderHandler(r.service)
 	auditH := adminHandler.NewAuditHandler(r.service)
 	clusterRegistryH := adminHandler.NewClusterRegistryHandler(r.service, r.service)
+	serviceAccountAdminH := adminHandler.NewServiceAccountHandler(r.service, r.service)
 
 	authMeH := handler.NewAuthMeHandler(r.service)
 
@@ -376,6 +377,15 @@ func (r *Router) registerRoutes() {
 	r.routeAudited(mPost, pUserManage, "/api/v2/user/update-role", "update", "user", userH.UpdateRole)
 	r.routeAudited(mPost, pUserManage, "/api/v2/user/update-status", "update", "user", userH.UpdateStatus)
 	r.routeAudited(mPost, pUserManage, "/api/v2/user/delete", "delete", "user", userH.Delete)
+
+	// 服务账号与访问令牌（与用户管理同一权限）。路径参数 {id}、{tokenId} 由 handler 用 PathValue 取出；
+	// 签发令牌的响应体带明文，审计只记请求体与状态码，不记响应体
+	r.route(mGet, pUserManage, "/api/v2/admin/service-accounts", serviceAccountAdminH.List)
+	r.routeAudited(mPost, pUserManage, "/api/v2/admin/service-accounts", "create", "service_account", serviceAccountAdminH.Create)
+	r.routeAudited(mPut, pUserManage, "/api/v2/admin/service-accounts/{id}", "update", "service_account", serviceAccountAdminH.Update)
+	r.routeAudited(mDelete, pUserManage, "/api/v2/admin/service-accounts/{id}", "delete", "service_account", serviceAccountAdminH.Delete)
+	r.routeAudited(mPost, pUserManage, "/api/v2/admin/service-accounts/{id}/tokens", "create", "api_token", serviceAccountAdminH.IssueToken)
+	r.routeAudited(mDelete, pUserManage, "/api/v2/admin/service-accounts/{id}/tokens/{tokenId}", "revoke", "api_token", serviceAccountAdminH.RevokeToken)
 
 	r.routeAudited(mPost, pAISettingsWrite, "/api/v2/ai/providers", "create", "ai_provider", aiProviderH.ProvidersHandler)
 	r.route(mGet, pAISettingsWrite, "/api/v2/ai/providers/", aiProviderH.ProviderHandler) // 单个 Provider 详情

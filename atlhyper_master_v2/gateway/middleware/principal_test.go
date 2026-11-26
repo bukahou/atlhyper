@@ -86,6 +86,10 @@ func TestAuthenticate_InvalidIdentityDegradesToGuest(t *testing.T) {
 		{"用户已删除", &fakeUserLoader{users: map[int64]*database.User{}}, ""},
 		{"用户已禁用", &fakeUserLoader{users: map[int64]*database.User{7: {ID: 7, Role: RoleAdmin, Status: 0}}}, ""},
 		{"查库失败：失败即关", &fakeUserLoader{err: errors.New("db down")}, ""},
+		// 服务账号只凭访问令牌走对外入口，网页登录态不认它（即使拿到了指向它的登录 token）
+		{"服务账号", &fakeUserLoader{users: map[int64]*database.User{
+			7: {ID: 7, Role: RoleOperator, Status: 1, Kind: database.UserKindService},
+		}}, ""},
 	}
 	for _, c := range cases {
 		header := c.header

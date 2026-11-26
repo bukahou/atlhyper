@@ -72,6 +72,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/admin/service-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 服务账号列表（各带令牌元数据，不含明文与哈希）与服务账号的业务参数 */
+        get: operations["listServiceAccounts"];
+        put?: never;
+        /** 新建服务账号（新建即启用；账号名与任何用户名都不能重复） */
+        post: operations["createServiceAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/admin/service-accounts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 服务账号 id */
+                id: components["parameters"]["ServiceAccountId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改服务账号的显示名、等级与启停（整体替换；对已签发的令牌立即生效） */
+        put: operations["updateServiceAccount"];
+        post?: never;
+        /** 删除服务账号（它的令牌随之删除） */
+        delete: operations["deleteServiceAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/admin/service-accounts/{id}/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 服务账号 id */
+                id: components["parameters"]["ServiceAccountId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 给服务账号签发访问令牌（明文只在这一次响应里出现） */
+        post: operations["issueAPIToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/admin/service-accounts/{id}/tokens/{tokenId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 服务账号 id */
+                id: components["parameters"]["ServiceAccountId"];
+                /** @description 访问令牌 id */
+                tokenId: components["parameters"]["APITokenId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 吊销访问令牌（行保留，立即失效；重复吊销保留第一次的时间） */
+        delete: operations["revokeAPIToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -784,11 +865,119 @@ export interface components {
             maxC: number;
             sensor: string;
         };
+        /** @description 只有一句说明的成功响应 */
+        MessageResponse: {
+            message: string;
+        };
+        /**
+         * @description 访问令牌的状态（后端按当前时间判定；吊销优先于过期）
+         * @enum {string}
+         */
+        APITokenStatus: "active" | "expired" | "revoked";
+        /** @description 一枚访问令牌的元数据（⛔ 不含明文与哈希） */
+        APITokenView: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @description 明文的前几个字符，供辨认 */
+            tokenPrefix: string;
+            status: components["schemas"]["APITokenStatus"];
+            /** @description 签发人的用户名 */
+            createdBy: string;
+            /** @description RFC 3339（UTC） */
+            createdAt: string;
+            /** @description RFC 3339（UTC）；不过期为空串 */
+            expiresAt: string;
+            /** @description RFC 3339（UTC）；从未使用为空串（相隔超过 1 分钟才记一次） */
+            lastUsedAt: string;
+            /** @description RFC 3339（UTC）；未吊销为空串 */
+            revokedAt: string;
+        };
+        /** @description 服务账号管理页的一行：账号 + 它的令牌元数据 */
+        ServiceAccountView: {
+            /** Format: int64 */
+            id: number;
+            /** @description 账号名（与用户名同一命名空间） */
+            name: string;
+            displayName: string;
+            /** @description 角色等级（服务账号最高 2 级） */
+            role: number;
+            enabled: boolean;
+            /** @description RFC 3339（UTC） */
+            createdAt: string;
+            /** @description 各令牌里最近的一次使用，RFC 3339（UTC）；从未使用为空串 */
+            lastUsedAt: string;
+            /** @description 未吊销的令牌是否还没到上限（后端判定） */
+            canIssueToken: boolean;
+            /** @description 新签发的在前 */
+            tokens: components["schemas"]["APITokenView"][];
+        };
+        /** @description 服务账号与令牌的业务参数（前端不另写一份） */
+        ServiceAccountLimits: {
+            /** @description 服务账号可选的等级，从低到高 */
+            assignableRoles: number[];
+            /** @description 每个账号未吊销的令牌上限 */
+            maxActiveTokens: number;
+            /** @description 令牌有效期上限（天） */
+            maxExpiresInDays: number;
+        };
+        /** @description 服务账号列表响应 */
+        ServiceAccountListResponse: {
+            message: string;
+            /** @description 按账号名排序 */
+            data: components["schemas"]["ServiceAccountView"][];
+            total: number;
+            limits: components["schemas"]["ServiceAccountLimits"];
+        };
+        /** @description 写操作成功后的响应；data 是该账号最新的那一行（写入已生效而读回失败时没有 data） */
+        ServiceAccountResponse: {
+            message: string;
+            data?: components["schemas"]["ServiceAccountView"];
+        };
+        /** @description 一次签发的结果 */
+        APITokenIssued: {
+            /** @description 令牌明文，只在这一次响应里出现，之后任何接口都取不回 */
+            token: string;
+            tokenPrefix: string;
+            /** @description RFC 3339（UTC）；不过期为空串 */
+            expiresAt: string;
+        };
+        /** @description 签发令牌的响应 */
+        APITokenIssuedResponse: {
+            message: string;
+            data: components["schemas"]["APITokenIssued"];
+        };
+        /** @description 新建服务账号 */
+        CreateServiceAccountRequest: {
+            /** @description 账号名：3–32 个字符，小写字母、数字与连字符，以字母开头 */
+            name: string;
+            /** @description 可不填；首尾空白会去掉，不得含控制字符 */
+            displayName?: string;
+            role: number;
+        };
+        /** @description 修改服务账号（整体替换：三项都必须给出） */
+        UpdateServiceAccountRequest: {
+            /** @description 可为空串；首尾空白会去掉，不得含控制字符 */
+            displayName: string;
+            role: number;
+            enabled: boolean;
+        };
+        /** @description 签发访问令牌 */
+        IssueAPITokenRequest: {
+            /** @description 令牌名称（用途），首尾空白会去掉 */
+            name: string;
+            /** @description 有效期（天）；不给 = 不过期 */
+            expiresInDays?: number;
+        };
     };
     responses: never;
     parameters: {
         /** @description 集群 ID */
         ClusterId: string;
+        /** @description 服务账号 id */
+        ServiceAccountId: number;
+        /** @description 访问令牌 id */
+        APITokenId: number;
     };
     requestBodies: never;
     headers: never;
@@ -976,6 +1165,305 @@ export interface operations {
                 };
             };
             /** @description 数据尚未就绪 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 服务端错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listServiceAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceAccountListResponse"];
+                };
+            };
+            /** @description 服务端错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createServiceAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServiceAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description 已新建，带新建的那一行 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceAccountResponse"];
+                };
+            };
+            /** @description 请求体无效或输入不合规 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 账号名已被占用（与任何用户名重复） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 服务端错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateServiceAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 服务账号 id */
+                id: components["parameters"]["ServiceAccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServiceAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description 已更新，带修改后的那一行 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceAccountResponse"];
+                };
+            };
+            /** @description 路径参数、请求体无效或输入不合规 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 服务账号不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 服务端错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteServiceAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 服务账号 id */
+                id: components["parameters"]["ServiceAccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description 路径参数无效 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 服务账号不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 服务端错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    issueAPIToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 服务账号 id */
+                id: components["parameters"]["ServiceAccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueAPITokenRequest"];
+            };
+        };
+        responses: {
+            /** @description 已签发 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APITokenIssuedResponse"];
+                };
+            };
+            /** @description 路径参数、请求体无效或输入不合规 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 服务账号不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 该账号未吊销的令牌已达上限 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 服务端错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revokeAPIToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 服务账号 id */
+                id: components["parameters"]["ServiceAccountId"];
+                /** @description 访问令牌 id */
+                tokenId: components["parameters"]["APITokenId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已吊销 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description 路径参数无效 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 该服务账号下没有这枚令牌 */
             404: {
                 headers: {
                     [name: string]: unknown;
