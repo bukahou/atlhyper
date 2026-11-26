@@ -16,6 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"AtlHyper/atlhyper_master_v2/ai/toolkit"
+	"AtlHyper/atlhyper_master_v2/auth/apitoken"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/model_v3/agent"
 )
@@ -27,17 +28,17 @@ const (
 )
 
 type fakeAuthenticator struct {
-	callers map[string]Caller
+	callers map[string]apitoken.Caller
 	err     error // 非 nil：模拟暂时无法校验
 }
 
-func (f *fakeAuthenticator) Authenticate(_ context.Context, plaintext string) (Caller, error) {
+func (f *fakeAuthenticator) Authenticate(_ context.Context, plaintext string) (apitoken.Caller, error) {
 	if f.err != nil {
-		return Caller{}, f.err
+		return apitoken.Caller{}, f.err
 	}
 	caller, ok := f.callers[plaintext]
 	if !ok {
-		return Caller{}, ErrInvalidToken
+		return apitoken.Caller{}, apitoken.ErrInvalidToken
 	}
 	return caller, nil
 }
@@ -133,7 +134,7 @@ func newHarness(t *testing.T, mutate func(*Config)) *harness {
 	h := &harness{
 		clusters: &fakeClusters{ids: []string{"c1"}},
 		audit:    &auditRecorder{},
-		auth: &fakeAuthenticator{callers: map[string]Caller{
+		auth: &fakeAuthenticator{callers: map[string]apitoken.Caller{
 			tokenLevel0: {UserID: 7, Username: "svc-zero", Level: 0, TokenName: "t0"},
 			tokenLevel1: {UserID: 8, Username: "svc-one", Level: 1, TokenName: "t1"},
 		}},

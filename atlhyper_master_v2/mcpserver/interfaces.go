@@ -7,32 +7,21 @@ package mcpserver
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"AtlHyper/atlhyper_master_v2/ai/toolkit"
+	"AtlHyper/atlhyper_master_v2/auth/apitoken"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/model_v3/agent"
 )
 
-// Caller 经访问令牌识别出的调用者
-type Caller struct {
-	UserID    int64
-	Username  string
-	Level     int // 账号当前的角色等级
-	TokenID   int64
-	TokenName string
-	ExpiresAt time.Time // 零值 = 不过期
-}
-
-// ErrInvalidToken 令牌无效（不存在、已吊销、已过期、账号停用）
-var ErrInvalidToken = errors.New("访问令牌无效")
-
-// TokenAuthenticator 校验访问令牌。
-// 令牌无效时返回能用 errors.Is 认出 ErrInvalidToken 的错误；其他错误表示暂时无法校验（回 5xx，不当成无效）
+// TokenAuthenticator 校验访问令牌（由 auth/apitoken.Authenticator 满足）。
+// 令牌无效时返回能用 errors.Is 认出 apitoken.ErrInvalidToken 的错误；其他错误表示暂时无法校验（回 5xx，不当成无效）
 type TokenAuthenticator interface {
-	Authenticate(ctx context.Context, plaintext string) (Caller, error)
+	Authenticate(ctx context.Context, plaintext string) (apitoken.Caller, error)
 }
+
+var _ TokenAuthenticator = (*apitoken.Authenticator)(nil)
 
 // ClusterLister 正在上报的集群
 type ClusterLister interface {

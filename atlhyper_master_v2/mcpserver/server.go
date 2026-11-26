@@ -16,6 +16,7 @@ import (
 
 	"AtlHyper/atlhyper_master_v2/ai/llm"
 	"AtlHyper/atlhyper_master_v2/ai/toolkit"
+	"AtlHyper/atlhyper_master_v2/auth/apitoken"
 	"AtlHyper/atlhyper_master_v2/database"
 	"AtlHyper/common/httpserve"
 	"AtlHyper/common/logger"
@@ -182,7 +183,7 @@ func remoteHost(r *http.Request) string {
 func (s *Server) verifyToken(ctx context.Context, token string, r *http.Request) (*auth.TokenInfo, error) {
 	caller, err := s.cfg.Authenticator.Authenticate(ctx, token)
 	if err != nil {
-		if errors.Is(err, ErrInvalidToken) {
+		if errors.Is(err, apitoken.ErrInvalidToken) {
 			return nil, auth.ErrInvalidToken
 		}
 		log.Error("校验访问令牌失败", "err", err)
@@ -195,11 +196,11 @@ func (s *Server) verifyToken(ctx context.Context, token string, r *http.Request)
 	}, nil
 }
 
-func callerFromTokenInfo(info *auth.TokenInfo) (Caller, bool) {
+func callerFromTokenInfo(info *auth.TokenInfo) (apitoken.Caller, bool) {
 	if info == nil {
-		return Caller{}, false
+		return apitoken.Caller{}, false
 	}
-	caller, ok := info.Extra[callerExtraKey].(Caller)
+	caller, ok := info.Extra[callerExtraKey].(apitoken.Caller)
 	return caller, ok
 }
 
@@ -230,7 +231,7 @@ func (s *Server) callHandler(tool *toolkit.Tool) mcp.ToolHandler {
 	}
 }
 
-func (s *Server) execute(ctx context.Context, tool *toolkit.Tool, caller Caller, arguments json.RawMessage) (clusterID string, toolArgs []byte, output string, err error) {
+func (s *Server) execute(ctx context.Context, tool *toolkit.Tool, caller apitoken.Caller, arguments json.RawMessage) (clusterID string, toolArgs []byte, output string, err error) {
 	toolArgs, requested, err := splitClusterArgument(arguments, tool.NeedsCluster())
 	if err != nil {
 		return "", nil, "", err
@@ -247,7 +248,7 @@ func (s *Server) execute(ctx context.Context, tool *toolkit.Tool, caller Caller,
 }
 
 // recordAudit 每次工具调用记一行。写审计失败不影响调用结果，但要留痕
-func (s *Server) recordAudit(ctx context.Context, req *mcp.CallToolRequest, caller Caller, toolName, clusterID string, toolArgs []byte, failureCode string, started time.Time) {
+func (s *Server) recordAudit(ctx context.Context, req *mcp.CallToolRequest, caller apitoken.Caller, toolName, clusterID string, toolArgs []byte, failureCode string, started time.Time) {
 	body, _ := json.Marshal(struct {
 		Cluster   string          `json:"cluster,omitempty"`
 		Arguments json.RawMessage `json:"arguments,omitempty"`
