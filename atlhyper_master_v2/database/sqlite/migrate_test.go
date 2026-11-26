@@ -143,3 +143,46 @@ func TestMigrate_Idempotent(t *testing.T) {
 		t.Errorf("版本 = %d, want %d", got, want)
 	}
 }
+
+// 部署器删除后它的两张表不再有读写方：已有库升级时连同旧数据删掉，新库里也没有
+func TestMigrate_DropsDeployerTables(t *testing.T) {
+	ctx := context.Background()
+	tableExists := func(db *sql.DB, name string) bool {
+		return scalar(t, db, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", name) == "1"
+	}
+
+	// 上一版本（第 4 版）的已有库：两张表都在，且有数据
+	existing := openTestDB(t)
+	p, err := goose.NewProvider(goose.DialectSQLite3, existing, schema.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 4); err != nil {
+		t.Fatalf("迁到第 4 版: %v", err)
+	}
+	if _, err := existing.Exec(`INSERT INTO deploy_config (cluster_id, repo_url, created_at, updated_at) VALUES ('c1', 'https://example.com/repo.git', '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := existing.Exec(`INSERT INTO deploy_history (cluster_id, path, namespace, commit_sha, deployed_at) VALUES ('c1', 'apps/x', 'default', 'abc1234', '2026-11-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrate(existing); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	for _, table := range []string{"deploy_config", "deploy_history"} {
+		if tableExists(existing, table) {
+			t.Errorf("已有库升级后 %s 应已删除", table)
+		}
+	}
+
+	// 新库
+	fresh := openTestDB(t)
+	if err := migrate(fresh); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	for _, table := range []string{"deploy_config", "deploy_history"} {
+		if tableExists(fresh, table) {
+			t.Errorf("新库里不应有 %s", table)
+		}
+	}
+}
