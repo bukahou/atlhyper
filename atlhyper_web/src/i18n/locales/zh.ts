@@ -262,6 +262,7 @@ export const zh: Translations = {
       cluster_token: "集群令牌",
       service_account: "服务账号",
       api_token: "访问令牌",
+      mcp_tool: "MCP 工具",
     },
     actionLabels: {
       loginUser: "用户登录",

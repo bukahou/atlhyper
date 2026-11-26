@@ -269,6 +269,7 @@ export interface AuditTranslations {
     cluster_token: string;
     service_account: string;
     api_token: string;
+    mcp_tool: string;
   };
   // 操作+资源组合标签
   actionLabels: {

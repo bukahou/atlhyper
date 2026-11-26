@@ -262,6 +262,7 @@ export const ja: Translations = {
       cluster_token: "クラスタトークン",
       service_account: "サービスアカウント",
       api_token: "アクセストークン",
+      mcp_tool: "MCP ツール",
     },
     actionLabels: {
       loginUser: "ユーザーログイン",
