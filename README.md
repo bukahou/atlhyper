@@ -232,6 +232,9 @@ go run main.go
 | `MASTER_JWT_SECRET` | Yes | - | JWT signing key |
 | `MASTER_GATEWAY_PORT` | No | `8080` | Web/API port |
 | `MASTER_AGENTSDK_PORT` | No | `8081` | Agent data port |
+| `MASTER_MCP_PORT` | No | `0` | MCP endpoint port for external AI clients (`/mcp`, Streamable HTTP, read-only tools); `0` disables it. Every request must carry an access token issued to a service account (Admin → Service accounts) |
+| `MASTER_MCP_RATE_LIMIT_PER_MINUTE` | No | `120` | MCP requests per minute per access token |
+| `MASTER_MCP_MAX_RESULT_CHARS` | No | `20000` | Maximum characters of one MCP tool result; longer results are truncated and flagged |
 | `MASTER_PUBLIC_URL` | No | - | Address users open this system at (e.g. `https://atlhyper.example.com`). Used to put an incident link in notifications; when unset, notifications carry no link |
 | `MASTER_TIMEZONE` | No | `UTC` | Time zone (IANA name, e.g. `Asia/Tokyo`) used to display times in notification messages. Storage and APIs always use UTC; an invalid name falls back to UTC |
 | `MASTER_AGENT_AUTH_MODE` | No | `warn` | Agent token authentication: `off` / `warn` (accept requests without a valid token, log a warning) / `enforce` (reject them). Any other value fails startup |

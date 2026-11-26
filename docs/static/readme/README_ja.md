@@ -231,6 +231,9 @@ go run main.go
 | `MASTER_JWT_SECRET` | はい | - | JWT 署名キー |
 | `MASTER_GATEWAY_PORT` | いいえ | `8080` | Web/API ポート |
 | `MASTER_AGENTSDK_PORT` | いいえ | `8081` | Agent データポート |
+| `MASTER_MCP_PORT` | いいえ | `0` | 外部の AI クライアント向け MCP エンドポイントのポート（`/mcp`、Streamable HTTP、読み取り専用ツール）。`0` で無効。すべてのリクエストにサービスアカウントのアクセストークンが必要（管理 → サービスアカウントで発行） |
+| `MASTER_MCP_RATE_LIMIT_PER_MINUTE` | いいえ | `120` | アクセストークンごとの 1 分あたりの MCP リクエスト数 |
+| `MASTER_MCP_MAX_RESULT_CHARS` | いいえ | `20000` | MCP ツール結果 1 件の最大文字数。超過分は切り詰めてフラグを付ける |
 | `MASTER_PUBLIC_URL` | いいえ | - | ユーザーがブラウザで本システムを開くアドレス（例：`https://atlhyper.example.com`）。通知にインシデントページへのリンクを付けるために使用。未設定の場合、通知にリンクは付きません |
 | `MASTER_TIMEZONE` | いいえ | `UTC` | 通知メッセージ内の時刻を表示するタイムゾーン（IANA 名、例：`Asia/Tokyo`）。保存と API は常に UTC。不正な値の場合は UTC で表示 |
 | `MASTER_AGENT_AUTH_MODE` | いいえ | `warn` | Agent トークン認証モード：`off` / `warn`（有効なトークンのないリクエストも受け付け、警告を記録）/ `enforce`（拒否）。それ以外の値は起動失敗 |
