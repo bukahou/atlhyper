@@ -13,7 +13,7 @@
 //	AIOpsQuery            aiops.go、aiops_incident_view.go
 //	OverviewQuery         overview.go
 //	AdminQuery            admin.go
-//	GitHubQuery           deploy.go
+//	GitHubQuery           github.go
 //	UserQuery             user.go
 //	ClusterRegistryQuery  cluster_registry.go
 //	NotifyQuery           notify.go

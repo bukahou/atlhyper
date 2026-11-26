@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { completeGitHubInstallationMutation } from "@/queries/gitops";
+import { completeGitHubInstallationMutation } from "@/queries/github";
 
 /** 从失败的请求里取出给人看的原因：优先后端返回的 error 字段 */
 function installationErrorMessage(error: unknown): string {

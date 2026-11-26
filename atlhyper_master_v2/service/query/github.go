@@ -1,4 +1,4 @@
-// atlhyper_master_v2/service/query/deploy.go
+// atlhyper_master_v2/service/query/github.go
 // QueryGitHub 实现 — GitHub 集成的读取
 //
 // settings/github.go 的读取都经这里，Gateway 不直接访问数据库。
