@@ -18,6 +18,7 @@ func newUserRepo(db *sql.DB, dialect database.UserDialect) *userRepo {
 	return &userRepo{db: db, dialect: dialect}
 }
 
+// Create 建人的账号：方言一律写 kind = human
 func (r *userRepo) Create(ctx context.Context, user *database.User) error {
 	query, args := r.dialect.Insert(user)
 	result, err := r.db.ExecContext(ctx, query, args...)
@@ -26,6 +27,7 @@ func (r *userRepo) Create(ctx context.Context, user *database.User) error {
 	}
 	id, _ := result.LastInsertId()
 	user.ID = id
+	user.Kind = database.UserKindHuman
 	return nil
 }
 
@@ -56,8 +58,8 @@ func (r *userRepo) GetByUsernameForPasswordLogin(ctx context.Context, username s
 	return r.queryOne(ctx, query, args...)
 }
 
-func (r *userRepo) List(ctx context.Context) ([]*database.User, error) {
-	query, args := r.dialect.SelectAll()
+func (r *userRepo) ListHumans(ctx context.Context) ([]*database.User, error) {
+	query, args := r.dialect.SelectHumans()
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

@@ -18,8 +18,9 @@ func (q *UserQuery) GetUserByUsername(ctx context.Context, username string) (*da
 	return q.userRepo.GetByUsername(ctx, username)
 }
 
+// ListUsers 人的账号（用户管理只管人；服务账号另见 ListServiceAccounts）
 func (q *UserQuery) ListUsers(ctx context.Context) ([]*database.User, error) {
-	return q.userRepo.List(ctx)
+	return q.userRepo.ListHumans(ctx)
 }
 
 // GetUserByUsernameForPasswordLogin 密码登录专用：外部身份账号视为不存在

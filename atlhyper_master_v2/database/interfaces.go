@@ -17,6 +17,8 @@ type DB struct {
 	Audit          AuditRepository
 	User           UserRepository
 	UserIdentity   UserIdentityRepository
+	ServiceAccount ServiceAccountRepository // 服务账号与访问令牌的接口定义见 interfaces_service_account.go
+	APIToken       APITokenRepository
 	Event          ClusterEventRepository
 	NotifyPolicy   NotifyPolicyRepository // 通知模块六个仓库的接口定义见 interfaces_notify.go
 	NotifyAlert    NotifyAlertRepository
@@ -64,16 +66,25 @@ type AuditRepository interface {
 	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
-// UserRepository 用户接口
+// UserRepository 用户接口。
+//
+// users 表里人与服务账号共用（kind 区分）：按 id、按用户名读单个账号不分种类；
+// 建号、修改、删除、列表、密码登录只作用于人（服务账号另见 ServiceAccountRepository）。
 type UserRepository interface {
+	// Create 建一个人的账号（种类一律为 human，调用方给的不作数），成功后回填 ID
 	Create(ctx context.Context, user *User) error
+	// Update 只改人的账号；id 是服务账号时什么也不改
 	Update(ctx context.Context, user *User) error
+	// Delete 只删人的账号；id 是服务账号时什么也不删
 	Delete(ctx context.Context, id int64) error
+	// GetByID 任何种类；不存在返回 (nil, nil)
 	GetByID(ctx context.Context, id int64) (*User, error)
+	// GetByUsername 任何种类（判重名用）；不存在返回 (nil, nil)
 	GetByUsername(ctx context.Context, username string) (*User, error)
-	// GetByUsernameForPasswordLogin 密码登录专用：外部身份账号视为不存在
+	// GetByUsernameForPasswordLogin 密码登录专用：外部身份账号与服务账号视为不存在
 	GetByUsernameForPasswordLogin(ctx context.Context, username string) (*User, error)
-	List(ctx context.Context) ([]*User, error)
+	// ListHumans 人的账号（不含服务账号）
+	ListHumans(ctx context.Context) ([]*User, error)
 	UpdateLastLogin(ctx context.Context, id int64, ip string) error
 }
 
@@ -337,6 +348,8 @@ type Dialect interface {
 	Audit() AuditDialect
 	User() UserDialect
 	UserIdentity() UserIdentityDialect
+	ServiceAccount() ServiceAccountDialect
+	APIToken() APITokenDialect
 	Event() EventDialect
 	NotifyPolicy() NotifyPolicyDialect
 	NotifyAlert() NotifyAlertDialect
@@ -376,13 +389,14 @@ type AuditDialect interface {
 
 // UserDialect 用户 SQL 方言
 type UserDialect interface {
+	// Insert 写入人的账号（kind = human）
 	Insert(user *User) (query string, args []any)
 	Update(user *User) (query string, args []any)
 	Delete(id int64) (query string, args []any)
 	SelectByID(id int64) (query string, args []any)
 	SelectByUsername(username string) (query string, args []any)
 	SelectByUsernameForPasswordLogin(username string) (query string, args []any)
-	SelectAll() (query string, args []any)
+	SelectHumans() (query string, args []any)
 	UpdateLastLogin(id int64, ip string) (query string, args []any)
 	ScanRow(rows *sql.Rows) (*User, error)
 }

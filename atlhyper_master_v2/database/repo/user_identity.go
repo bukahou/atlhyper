@@ -58,6 +58,7 @@ func (r *userIdentityRepo) CreateUserWithIdentity(ctx context.Context, user *dat
 		return r.dialect.ClassifyInsertError(err)
 	}
 	user.ID = userID
+	user.Kind = database.UserKindHuman // 外部身份登录建的都是人（方言一律写 human）
 	return nil
 }
 

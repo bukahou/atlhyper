@@ -78,10 +78,10 @@ func (a *Authenticator) Authenticate(ctx context.Context, plaintext string) (Cal
 	}
 
 	now := a.now()
-	if token.RevokedAt != nil {
+	if token.IsRevoked() {
 		return Caller{}, invalid("已吊销")
 	}
-	if token.ExpiresAt != nil && !now.Before(*token.ExpiresAt) {
+	if token.IsExpired(now) {
 		return Caller{}, invalid("已过期")
 	}
 

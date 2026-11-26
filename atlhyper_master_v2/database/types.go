@@ -53,6 +53,9 @@ const (
 	UserStatusActive   = 1
 )
 
+// ServiceAccountPasswordHash 服务账号的 password_hash 占位：不是合法的 bcrypt 哈希，任何口令都比对不上
+const ServiceAccountPasswordHash = "!service-account-has-no-password"
+
 // User 用户（人与服务账号共用一张表，Kind 区分）
 type User struct {
 	ID           int64
@@ -86,6 +89,17 @@ type APIToken struct {
 	CreatedBy   string     // 签发人的用户名
 	CreatedAt   time.Time
 	RevokedAt   *time.Time // nil = 未吊销
+}
+
+// IsRevoked 是否已吊销
+func (t *APIToken) IsRevoked() bool {
+	return t.RevokedAt != nil
+}
+
+// IsExpired 在 now 这一刻是否已过期（到期的那一刻起即失效）。
+// 令牌校验与列表里的状态都按这一条判断
+func (t *APIToken) IsExpired(now time.Time) bool {
+	return t.ExpiresAt != nil && !now.Before(*t.ExpiresAt)
 }
 
 // ClusterEvent 集群事件（只存 Warning）

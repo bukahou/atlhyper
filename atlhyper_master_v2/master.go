@@ -230,6 +230,9 @@ func NewMaster() (*Master, error) {
 			Receivers: db.NotifyReceiver, Rules: db.NotifyRule, Silences: db.NotifySilence,
 			SMTP: db.NotifySMTP,
 		},
+
+		ServiceAccountRepo: db.ServiceAccount,
+		APITokenRepo:       db.APIToken,
 	})
 	log.Info("查询层初始化完成")
 
@@ -251,8 +254,11 @@ func NewMaster() (*Master, error) {
 		SMTP: db.NotifySMTP,
 	})
 
+	// 初始化服务账号写入服务（新建、修改、删除账号，签发与吊销访问令牌）
+	serviceAccountOps := operations.NewServiceAccountService(db.ServiceAccount, db.APIToken)
+
 	// 组合统一 Service
-	svc := service.NewService(q, cmdOps, adminOps, sloOps, githubOps, userOps, clusterRegistryOps, notifyOps)
+	svc := service.NewService(q, cmdOps, adminOps, sloOps, githubOps, userOps, clusterRegistryOps, notifyOps, serviceAccountOps)
 
 	// 8. 初始化 AgentSDK
 	agentServer := agentsdk.NewServer(agentsdk.Config{

@@ -2,7 +2,7 @@
 // Query 层的对外唯一入口与内部组合。
 //
 // 对外：NewQueryService(deps) 返回 *QueryService，满足 service.Query（Facade，调用方只认它）。
-// 对内：按功能域拆成 10 个小服务，各自只持有用到的依赖；*QueryService 嵌入它们，方法经嵌入提升。
+// 对内：按功能域拆成 11 个小服务，各自只持有用到的依赖；*QueryService 嵌入它们，方法经嵌入提升。
 // 新增功能域 = 新增一个小服务 + 在这里嵌入一行，调用方不用改。
 //
 // 各功能域的实现文件:
@@ -17,6 +17,7 @@
 //	UserQuery             user.go
 //	ClusterRegistryQuery  cluster_registry.go
 //	NotifyQuery           notify.go
+//	ServiceAccountQuery   service_account_token.go
 package query
 
 import (
@@ -29,7 +30,7 @@ import (
 	"AtlHyper/atlhyper_master_v2/mq"
 )
 
-// QueryService Query 层的对外入口：10 个功能域小服务的组合
+// QueryService Query 层的对外入口：11 个功能域小服务的组合
 type QueryService struct {
 	*K8sQuery
 	*OTelQuery
@@ -41,6 +42,7 @@ type QueryService struct {
 	*UserQuery
 	*ClusterRegistryQuery
 	*NotifyQuery
+	*ServiceAccountQuery
 }
 
 // ==================== 功能域小服务 ====================
@@ -162,6 +164,21 @@ func NewNotifyQuery(notify NotifyRepos, now func() time.Time) *NotifyQuery {
 	return &NotifyQuery{notify: notify, now: now}
 }
 
+// ServiceAccountQuery 服务账号管理页：账号 + 令牌元数据 + 后端判定的状态；访问令牌校验的按哈希取令牌（满足 service.QueryServiceAccounts）
+type ServiceAccountQuery struct {
+	accounts ServiceAccountReader
+	tokens   APITokenReader
+	clock    func() time.Time // 不叫 now：嵌入 QueryService 后会与 NotifyQuery.now 撞名
+}
+
+// NewServiceAccountQuery 创建 ServiceAccountQuery；now 为 nil 时用 time.Now
+func NewServiceAccountQuery(accounts ServiceAccountReader, tokens APITokenReader, now func() time.Time) *ServiceAccountQuery {
+	if now == nil {
+		now = time.Now
+	}
+	return &ServiceAccountQuery{accounts: accounts, tokens: tokens, clock: now}
+}
+
 // ==================== 依赖与构造 ====================
 
 // AdminRepos 管理查询所需的 Repository 集合
@@ -201,6 +218,9 @@ type QueryServiceDeps struct {
 	ClusterAuthStatus ClusterAuthStatus     // 可选，nil = 认证状态一律显示为未认证
 
 	NotifyRepos NotifyRepos // 必需（通知设置页）
+
+	ServiceAccountRepo ServiceAccountReader // 必需（服务账号管理页）
+	APITokenRepo       APITokenReader       // 必需（服务账号管理页、访问令牌校验）
 }
 
 // NewQueryService 创建 QueryService：按依赖构造各功能域小服务并组合
@@ -218,5 +238,6 @@ func NewQueryService(deps QueryServiceDeps) *QueryService {
 		UserQuery:            NewUserQuery(deps.UserRepo, deps.IdentityRepo),
 		ClusterRegistryQuery: NewClusterRegistryQuery(deps.Store, deps.ClusterRepo, deps.ClusterAuthStatus),
 		NotifyQuery:          NewNotifyQuery(deps.NotifyRepos, nil),
+		ServiceAccountQuery:  NewServiceAccountQuery(deps.ServiceAccountRepo, deps.APITokenRepo, nil),
 	}
 }
